@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::env;
 use std::fs;
 use std::io::{self, Cursor, Read, Write};
@@ -376,6 +376,15 @@ const REGION_FEATURE_CACHEABLE_RADIUS: i32 = 1;
 #[derive(Clone, Default)]
 struct GeneratedChunkCache {
     chunks: Arc<Mutex<HashMap<ChunkPos, Arc<LevelChunk>>>>,
+    /// Chunks that have been mutated in memory since they were last persisted
+    /// to disk. Java mirror: `LevelChunk.unsaved` flag — set on every
+    /// `setBlockState` and cleared by `ChunkMap.save`.
+    ///
+    /// The set is drained by [`Self::flush_dirty`], which runs on a periodic
+    /// background timer and at every play-session exit. Keeping the dirty
+    /// set in the cache (instead of per-session) means two players editing
+    /// the same chunk both contribute to the same flush.
+    dirty: Arc<Mutex<HashSet<ChunkPos>>>,
 }
 
 impl GeneratedChunkCache {
@@ -431,7 +440,15 @@ impl GeneratedChunkCache {
             .clone()
     }
 
+    /// Evict a chunk from the in-memory cache. **Refuses to evict dirty
+    /// chunks**: an in-memory-only block change would be silently lost if
+    /// we dropped it before `flush_dirty` ran. Java's chunk map has the
+    /// same invariant — `LevelChunk.unsaved` blocks unload until the
+    /// chunk has been persisted.
     fn invalidate(&self, pos: ChunkPos) {
+        if self.dirty.lock().unwrap().contains(&pos) {
+            return;
+        }
         self.chunks.lock().unwrap().remove(&pos);
     }
 
@@ -445,6 +462,122 @@ impl GeneratedChunkCache {
     fn try_get_ready(&self, pos: ChunkPos) -> Option<Arc<LevelChunk>> {
         self.chunks.lock().unwrap().get(&pos).cloned()
     }
+
+    /// Java mirror: `LevelChunk.setBlockState(pos, state, flags)`. Mutates
+    /// the in-memory chunk and marks it dirty for later persistence.
+    /// Returns the previous block name (filtered to drop air), matching
+    /// what the old `break_block_in_region` returned for the loot path.
+    ///
+    /// If the chunk isn't yet cached, it's loaded first via [`get_or_load`]
+    /// (so block updates from worker/player paths transparently bring the
+    /// chunk into the cache). The mutation goes through `Arc::make_mut`,
+    /// which clones the inner `LevelChunk` only if other holders (e.g.
+    /// in-flight chunk send batches) still reference the previous
+    /// snapshot — those readers are not affected by the mutation, which
+    /// matches Java's invariant that send packets capture chunk state at
+    /// packet-build time.
+    ///
+    /// Avoiding the previous write-through-to-disk pattern is what fixes
+    /// the multi-tens-of-ms `[fluid-timing] write_update` cost: flowing
+    /// fluids used to re-encode and write a full 24-section chunk NBT to
+    /// the region file on every tick.
+    fn set_block(
+        &self,
+        world_root: &Path,
+        world_seed: i64,
+        pos: crate::block_update::BlockPos,
+        block_name: &str,
+    ) -> Option<String> {
+        let chunk_pos = ChunkPos {
+            x: pos.x.div_euclid(16),
+            z: pos.z.div_euclid(16),
+        };
+        // Ensure the chunk is in cache. get_or_load handles
+        // region-read + worldgen fallback.
+        let _ = self.get_or_load(chunk_pos.x, chunk_pos.z, world_root, world_seed);
+        let prev = {
+            let mut map = self.chunks.lock().unwrap();
+            let Some(arc) = map.get_mut(&chunk_pos) else {
+                return None;
+            };
+            let chunk = Arc::make_mut(arc);
+            let prev = chunk
+                .get_block_state(pos.x, pos.y, pos.z)
+                .filter(|n| n != "minecraft:air");
+            chunk.set_block_state(pos.x, pos.y, pos.z, block_name);
+            prev
+        };
+        self.dirty.lock().unwrap().insert(chunk_pos);
+        prev
+    }
+
+    /// Persist every dirty chunk to its region file and clear the dirty
+    /// set. Returns the number of chunks written.
+    ///
+    /// Java mirror: `ChunkMap.processUnloads` + `ChunkHolder.save` — the
+    /// periodic chunk-save pass that runs ~every autosave interval and on
+    /// shutdown. We run it on a background timer (see
+    /// `spawn_chunk_flush_thread`) and at every play-session exit so a
+    /// disconnect within the autosave window doesn't drop the player's
+    /// edits.
+    fn flush_dirty(&self, world_root: &Path) -> usize {
+        let dirty: Vec<ChunkPos> = {
+            let mut d = self.dirty.lock().unwrap();
+            d.drain().collect()
+        };
+        if dirty.is_empty() {
+            return 0;
+        }
+        let snapshots: Vec<(ChunkPos, Arc<LevelChunk>)> = {
+            let map = self.chunks.lock().unwrap();
+            dirty
+                .iter()
+                .filter_map(|pos| map.get(pos).cloned().map(|c| (*pos, c)))
+                .collect()
+        };
+        let region_dir = world_root.join("region");
+        let mut written = 0_usize;
+        for (pos, chunk) in snapshots {
+            let Ok(region) = RegionFile::open(&region_dir, pos.region()) else {
+                continue;
+            };
+            let nbt = chunk.to_nbt(crate::storage::datafix::TARGET_DATA_VERSION);
+            if region.write_chunk_nbt(pos, "", &nbt).is_ok() {
+                written += 1;
+            }
+        }
+        written
+    }
+}
+
+/// Spawn a background thread that periodically flushes dirty chunks from
+/// `cache` to the region files under `world_root`. Java mirror: the
+/// autosave loop inside `MinecraftServer.tickServer` that calls
+/// `ChunkMap.processUnloads` and triggers `ChunkHolder.save` for chunks
+/// whose `unsaved` flag is set.
+///
+/// Runs forever once started; the thread is daemon-style (the OS reaps
+/// it at process exit) and never holds locks across writes.
+fn spawn_chunk_flush_thread(
+    cache: GeneratedChunkCache,
+    world_root: Arc<PathBuf>,
+    interval: Duration,
+) {
+    thread::Builder::new()
+        .name("chunk-flush".to_string())
+        .spawn(move || loop {
+            thread::sleep(interval);
+            let started = Instant::now();
+            let written = cache.flush_dirty(&world_root);
+            if written > 0 {
+                eprintln!(
+                    "[chunk-flush] persisted {} dirty chunks in {}ms",
+                    written,
+                    started.elapsed().as_millis()
+                );
+            }
+        })
+        .expect("failed to spawn chunk-flush thread");
 }
 
 /// Shared async chunk generation coordinator.
@@ -1616,6 +1749,18 @@ pub fn run_status_server(
         world_seed,
         chunk_pipeline_workers,
     );
+    // Periodic chunk save loop. Java mirror: MinecraftServer's autosave
+    // pass invoked from tickServer — block updates mutate the in-memory
+    // chunk + set the unsaved flag; this thread is what actually pushes
+    // the bytes to disk on a coarse interval. We use 30 s (vanilla
+    // default is 5 min / `RustcraftDefault.WORLD_AUTOSAVE_INTERVAL`); a
+    // shorter window keeps the disconnect-vs-save race tight without
+    // making the writes themselves any more expensive.
+    spawn_chunk_flush_thread(
+        chunk_cache.clone(),
+        Arc::clone(&world_root),
+        Duration::from_secs(30),
+    );
     let player_access = Arc::new(Mutex::new(
         PlayerAccess::load_from_dir(Path::new(".")).unwrap_or_else(|err| {
             eprintln!("status access file load error: {err}");
@@ -2496,6 +2641,10 @@ fn handle_login_connection(
                     let _ =
                         save_play_session_state(world_root, &finished.profile.uuid, &play_state);
                     save_world_item_entities(world_root, &world_items.lock().unwrap());
+                    // Flush any in-memory block changes (player edits,
+                    // fluid spreads) that haven't yet hit the periodic
+                    // 30 s flush window — disconnect must not lose work.
+                    chunk_cache.flush_dirty(world_root);
                     write_framed_packet_with_compression(
                         stream,
                         compression,
@@ -2697,13 +2846,20 @@ fn handle_login_connection(
                             },
                         )?;
                         let (bx, by, bz) = unpack_block_position(packed_pos);
-                        let chunk_pos = ChunkPos {
-                            x: bx.div_euclid(16),
-                            z: bz.div_euclid(16),
-                        };
-                        let block_name =
-                            break_block_in_region(&world_layout, world_seed, chunk_pos, bx, by, bz);
-                        chunk_cache.invalidate(chunk_pos);
+                        // Java mirror: ServerLevel.removeBlock → LevelChunk.setBlockState
+                        // — mutates the in-memory chunk and marks it
+                        // unsaved. Persistence happens later via the
+                        // periodic flush thread; no per-break disk I/O.
+                        let block_name = chunk_cache.set_block(
+                            world_root,
+                            world_seed,
+                            crate::block_update::BlockPos {
+                                x: bx,
+                                y: by,
+                                z: bz,
+                            },
+                            "minecraft:air",
+                        );
                         schedule_neighbor_fluids(
                             &mut live_fluid_ticks,
                             play_tick_count as i64,
@@ -2890,6 +3046,7 @@ fn handle_login_connection(
                 play_state.inventory_menu.clear_crafting_to_inventory();
                 let _ = save_play_session_state(world_root, &finished.profile.uuid, &play_state);
                 save_world_item_entities(world_root, &world_items.lock().unwrap());
+                chunk_cache.flush_dirty(world_root);
                 write_framed_packet_with_compression(
                     stream,
                     compression,
@@ -2919,6 +3076,7 @@ fn handle_login_connection(
                 play_state.inventory_menu.clear_crafting_to_inventory();
                 let _ = save_play_session_state(world_root, &finished.profile.uuid, &play_state);
                 save_world_item_entities(world_root, &world_items.lock().unwrap());
+                chunk_cache.flush_dirty(world_root);
                 return Ok(());
             }
             Err(err) => return Err(err),
@@ -3644,17 +3802,20 @@ fn handle_use_item_on(
         );
     }
 
-    // Persist the new block state into the region file.
-    place_block_in_region(
-        world_layout,
+    // Java mirror: Level.setBlock(pos, state, flags) → LevelChunk.setBlockState
+    // — mutate in-memory + mark unsaved. The periodic chunk-flush thread
+    // does the actual disk write.
+    chunk_cache.set_block(
+        world_layout.root(),
         world_seed,
-        target_chunk,
-        target_x,
-        target_y,
-        target_z,
+        crate::block_update::BlockPos {
+            x: target_x,
+            y: target_y,
+            z: target_z,
+        },
         item_name,
     );
-    chunk_cache.invalidate(target_chunk);
+    let _ = target_chunk;
     schedule_neighbor_fluids(
         live_fluid_ticks,
         game_time,
@@ -3800,12 +3961,14 @@ fn handle_bucket_place_fluid(
             send_ack,
         );
     };
-    write_block_model_at(world_layout, world_seed, target, &fluid_state);
-    let target_chunk = ChunkPos {
-        x: target.x.div_euclid(16),
-        z: target.z.div_euclid(16),
-    };
-    chunk_cache.invalidate(target_chunk);
+    // Java mirror: BucketItem.emptyContents → Level.setBlock. In-memory
+    // mutation only; the periodic flush thread persists.
+    chunk_cache.set_block(
+        world_layout.root(),
+        world_seed,
+        target,
+        &block_state_model_name(&fluid_state),
+    );
     live_fluid_ticks.schedule(game_time, target, kind);
     schedule_neighbor_fluids(live_fluid_ticks, game_time, world_layout, world_seed, target);
 
@@ -4033,42 +4196,42 @@ fn process_live_fluid_ticks(
                 .unwrap_or_else(crate::block_behavior::BlockStateModel::air)
         });
         tick_fluid_us += tick_started.elapsed().as_micros();
-        let mut changed_chunks = BTreeSet::new();
         for (pos, state) in result.changes {
             let write_started = Instant::now();
-            if write_block_model_at(world_layout, world_seed, pos, &state) {
-                write_update_us += write_started.elapsed().as_micros();
-                changes_written += 1;
-                changed_chunks.insert(ChunkPos {
-                    x: pos.x.div_euclid(16),
-                    z: pos.z.div_euclid(16),
-                });
-                write_single_block_update(stream, compression, pos, &state)?;
-                if let Some(fluid) = crate::fluid::fluid_state_for_block(&state) {
-                    live_fluid_ticks.schedule(game_time, pos, fluid.kind);
+            // Java mirror: FlowingFluid.spreadTo / spread → Level.setBlock
+            // → LevelChunk.setBlockState. In-memory mutation; the chunk
+            // is marked unsaved and the periodic flush thread persists
+            // later. Previously this path wrote the full 24-section
+            // chunk NBT to disk on every fluid spread step, which
+            // ate ~20 ms per change.
+            chunk_cache.set_block(
+                world_layout.root(),
+                world_seed,
+                pos,
+                &block_state_model_name(&state),
+            );
+            write_update_us += write_started.elapsed().as_micros();
+            changes_written += 1;
+            write_single_block_update(stream, compression, pos, &state)?;
+            if let Some(fluid) = crate::fluid::fluid_state_for_block(&state) {
+                live_fluid_ticks.schedule(game_time, pos, fluid.kind);
+            }
+            for direction in crate::fluid::fluid_neighbor_order() {
+                let neighbor = pos.relative(direction);
+                let neighbor_started = Instant::now();
+                let neighbor_state =
+                    try_read_block_model_at(chunk_cache, world_layout, neighbor)
+                        .unwrap_or_else(crate::block_behavior::BlockStateModel::air);
+                neighbor_read_us += neighbor_started.elapsed().as_micros();
+                if let Some(fluid) = crate::fluid::fluid_state_for_block(&neighbor_state) {
+                    live_fluid_ticks.schedule(game_time, neighbor, fluid.kind);
+                    neighbor_schedules += 1;
                 }
-                for direction in crate::fluid::fluid_neighbor_order() {
-                    let neighbor = pos.relative(direction);
-                    let neighbor_started = Instant::now();
-                    let neighbor_state =
-                        try_read_block_model_at(chunk_cache, world_layout, neighbor)
-                            .unwrap_or_else(crate::block_behavior::BlockStateModel::air);
-                    neighbor_read_us += neighbor_started.elapsed().as_micros();
-                    if let Some(fluid) = crate::fluid::fluid_state_for_block(&neighbor_state) {
-                        live_fluid_ticks.schedule(game_time, neighbor, fluid.kind);
-                        neighbor_schedules += 1;
-                    }
-                }
-            } else {
-                write_update_us += write_started.elapsed().as_micros();
             }
         }
         for pos in result.schedule {
             live_fluid_ticks.schedule(game_time, pos, kind);
             result_schedules += 1;
-        }
-        for chunk in changed_chunks {
-            chunk_cache.invalidate(chunk);
         }
     }
     let total = total_started.elapsed();
@@ -8007,6 +8170,9 @@ fn read_block_model_at(
     }
 }
 
+/// Legacy disk write-through helper (deprecated by `GeneratedChunkCache::set_block`).
+/// Retained only for tests/tools that exercise raw region I/O.
+#[allow(dead_code)]
 fn write_block_model_at(
     layout: &WorldLayout,
     world_seed: i64,
@@ -8029,6 +8195,9 @@ fn write_block_model_at(
 }
 
 // Reads the old block name from the region, sets it to air, saves, and returns the old name.
+/// Legacy disk write-through break helper (deprecated by
+/// `GeneratedChunkCache::set_block` with `"minecraft:air"`).
+#[allow(dead_code)]
 fn break_block_in_region(
     layout: &WorldLayout,
     world_seed: i64,
@@ -8055,6 +8224,9 @@ fn break_block_in_region(
 ///
 /// Returns true on success, false if the region file could not be opened.
 /// Java: Level.setBlock() → ChunkAccess.setBlockState()
+///
+/// Legacy disk write-through (deprecated by `GeneratedChunkCache::set_block`).
+#[allow(dead_code)]
 fn place_block_in_region(
     layout: &WorldLayout,
     world_seed: i64,
@@ -14228,6 +14400,104 @@ mod tests {
         let diag = pipeline.diagnostics();
         assert_eq!(diag.queue_depth, 0, "cache hit short-circuits the queue");
         assert!(pipeline.try_get_ready(pos).is_some());
+    }
+
+    #[test]
+    fn cache_set_block_mutates_in_memory_and_marks_dirty_without_disk_write() {
+        // Java mirror: LevelChunk.setBlockState — in-memory mutation +
+        // unsaved flag. Pre-seed the cache so get_or_load is a hit
+        // (no disk path). The mutation must update the cached chunk
+        // and record the chunk pos in the dirty set.
+        let cache = super::GeneratedChunkCache::default();
+        let pos = crate::storage::region::ChunkPos { x: 4, z: -7 };
+        cache.chunks.lock().unwrap().insert(
+            pos,
+            std::sync::Arc::new(crate::storage::chunk::LevelChunk::empty(pos)),
+        );
+
+        let block_pos = crate::block_update::BlockPos {
+            x: 4 * 16 + 3,
+            y: 100,
+            z: -7 * 16 + 11,
+        };
+        let prev = cache.set_block(
+            std::path::Path::new("/tmp/rustcraft-test-not-used"),
+            42,
+            block_pos,
+            "minecraft:stone",
+        );
+        assert!(prev.is_none(), "previous block was air");
+        assert!(cache.dirty.lock().unwrap().contains(&pos));
+
+        let cached = cache.try_get_ready(pos).expect("chunk still cached");
+        assert_eq!(
+            cached
+                .get_block_state(block_pos.x, block_pos.y, block_pos.z)
+                .as_deref(),
+            Some("minecraft:stone")
+        );
+    }
+
+    #[test]
+    fn cache_set_block_clones_via_arc_make_mut_so_in_flight_readers_see_old_snapshot() {
+        // Architectural guard: if a chunk send batch is mid-flight holding
+        // an Arc<LevelChunk>, a concurrent setBlock must not mutate that
+        // in-flight snapshot. Java's send packet captures state at
+        // packet-build time and the follow-up BlockUpdate carries the
+        // diff to the client.
+        let cache = super::GeneratedChunkCache::default();
+        let pos = crate::storage::region::ChunkPos { x: 0, z: 0 };
+        cache.chunks.lock().unwrap().insert(
+            pos,
+            std::sync::Arc::new(crate::storage::chunk::LevelChunk::empty(pos)),
+        );
+        let in_flight_snapshot = cache.try_get_ready(pos).unwrap();
+
+        let block_pos = crate::block_update::BlockPos { x: 5, y: 60, z: 5 };
+        cache.set_block(
+            std::path::Path::new("/tmp/rustcraft-test-not-used"),
+            42,
+            block_pos,
+            "minecraft:dirt",
+        );
+
+        assert!(in_flight_snapshot
+            .get_block_state(block_pos.x, block_pos.y, block_pos.z)
+            .as_deref()
+            .map_or(true, |n| n == "minecraft:air"));
+        assert_eq!(
+            cache
+                .try_get_ready(pos)
+                .unwrap()
+                .get_block_state(block_pos.x, block_pos.y, block_pos.z)
+                .as_deref(),
+            Some("minecraft:dirt")
+        );
+    }
+
+    #[test]
+    fn cache_invalidate_refuses_to_drop_dirty_chunks() {
+        // Java parity: LevelChunk.unsaved blocks the chunk-unload path —
+        // an in-memory-only block change can't be silently lost just
+        // because something tried to evict the chunk before flush_dirty
+        // ran.
+        let cache = super::GeneratedChunkCache::default();
+        let pos = crate::storage::region::ChunkPos { x: 1, z: 1 };
+        cache.chunks.lock().unwrap().insert(
+            pos,
+            std::sync::Arc::new(crate::storage::chunk::LevelChunk::empty(pos)),
+        );
+        cache.set_block(
+            std::path::Path::new("/tmp/rustcraft-test-not-used"),
+            42,
+            crate::block_update::BlockPos { x: 16, y: 64, z: 16 },
+            "minecraft:gold_block",
+        );
+        cache.invalidate(pos);
+        assert!(
+            cache.try_get_ready(pos).is_some(),
+            "dirty chunk must not be evicted before flush"
+        );
     }
 
     #[test]
