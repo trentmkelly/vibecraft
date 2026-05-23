@@ -679,6 +679,31 @@ impl LiveFluidTicks {
         let _ = self.queues.schedule(tick);
     }
 
+    /// Java mirror: `LevelChunkTicks.unpack(currentTick)`. Schedule a tick at
+    /// `current_tick + delay` with the saved priority — preserving exactly
+    /// what was recorded in NBT instead of resetting the delay to the fluid's
+    /// default. Used to restore the chunk's saved fluid ticks on load,
+    /// equivalent to Java `ChunkAccess.unpackTicks` →
+    /// `LevelChunk.registerTickContainerInLevel`.
+    fn schedule_saved(
+        &mut self,
+        current_tick: i64,
+        pos: crate::block_update::BlockPos,
+        kind: FluidKind,
+        delay: i32,
+        priority: TickPriority,
+    ) {
+        let chunk = ChunkPos {
+            x: pos.x.div_euclid(16),
+            z: pos.z.div_euclid(16),
+        };
+        self.queues.add_container(chunk);
+        let tick =
+            self.queues
+                .create_tick(current_tick, pos, kind.registry_id(), delay, priority);
+        let _ = self.queues.schedule(tick);
+    }
+
     fn tick_due(
         &mut self,
         game_time: i64,
@@ -2294,13 +2319,7 @@ fn handle_login_connection(
     let mut live_fluid_ticks = LiveFluidTicks::new();
     {
         let center = chunk_cache.get_or_load(current_chunk_x, current_chunk_z, world_root, world_seed);
-        seed_live_fluid_ticks_from_chunk(
-            &mut live_fluid_ticks,
-            play_tick_count as i64,
-            &world_layout,
-            chunk_cache,
-            &center,
-        );
+        unpack_chunk_fluid_ticks(&mut live_fluid_ticks, play_tick_count as i64, &center);
     }
     const ITEM_TICK_INTERVAL: Duration = Duration::from_millis(50);
     loop {
@@ -2429,12 +2448,7 @@ fn handle_login_connection(
                     x: current_chunk_x,
                     z: current_chunk_z,
                 },
-                Some((
-                    &mut live_fluid_ticks,
-                    play_tick_count as i64,
-                    &world_layout,
-                    chunk_pipeline.cache(),
-                )),
+                Some((&mut live_fluid_ticks, play_tick_count as i64)),
             )?;
             chunk_pipeline_stats.sent_total = chunk_pipeline_stats
                 .sent_total
@@ -3849,94 +3863,94 @@ fn schedule_neighbor_fluids(
     }
 }
 
-fn seed_live_fluid_ticks_from_chunk(
+/// Java-parity chunk-load fluid restore. Mirrors
+/// `LevelChunk.registerTickContainerInLevel` + `LevelChunkTicks.unpack`:
+/// reads the chunk's saved `fluid_ticks` NBT (one compound per tick with
+/// `i`/`x`/`y`/`z`/`t`/`p` fields per `SavedTick.codec`), and schedules
+/// each into the live tick queue at `current_tick + delay`.
+///
+/// **Does NOT scan blocks** — Java never scans on load. Fluids that should
+/// flow are scheduled either (a) by the worldgen feature that placed
+/// them (via the chunk's `postProcessing` list, then unpacked here), or
+/// (b) by neighbour block updates at gameplay time (e.g. a player breaks
+/// a block next to water → `schedule_neighbor_fluids` fires). Freshly
+/// generated chunks with no saved ticks restore zero ticks, identical to
+/// vanilla.
+fn unpack_chunk_fluid_ticks(
     live_fluid_ticks: &mut LiveFluidTicks,
-    game_time: i64,
-    world_layout: &WorldLayout,
-    chunk_cache: &GeneratedChunkCache,
+    current_tick: i64,
     chunk: &LevelChunk,
 ) {
     let started = Instant::now();
-    let min_y = chunk.min_section_y * 16;
-    let max_y = min_y + (chunk.sections.len() as i32 * 16);
-    let mut fluid_blocks = 0_usize;
     let mut scheduled = 0_usize;
-    for y in min_y..max_y {
-        for local_z in 0..16 {
-            for local_x in 0..16 {
-                let pos = crate::block_update::BlockPos {
-                    x: chunk.pos.x * 16 + local_x,
-                    y,
-                    z: chunk.pos.z * 16 + local_z,
-                };
-                let Some(entry) = chunk.get_block_state_model(pos.x, pos.y, pos.z) else {
-                    continue;
-                };
-                let mut state = crate::block_behavior::BlockStateModel::new(entry.name);
-                for (key, value) in entry.properties {
-                    state = state.with_property(&key, value);
+    let mut skipped = 0_usize;
+    for tag in &chunk.fluid_ticks {
+        let crate::storage::nbt::Tag::Compound(fields) = tag else {
+            skipped += 1;
+            continue;
+        };
+        let mut x: Option<i32> = None;
+        let mut y: Option<i32> = None;
+        let mut z: Option<i32> = None;
+        let mut ty: Option<&str> = None;
+        let mut delay: i32 = 0;
+        let mut prio: TickPriority = TickPriority::Normal;
+        for (key, value) in fields {
+            match (key.as_str(), value) {
+                ("x", crate::storage::nbt::Tag::Int(v)) => x = Some(*v),
+                ("y", crate::storage::nbt::Tag::Int(v)) => y = Some(*v),
+                ("z", crate::storage::nbt::Tag::Int(v)) => z = Some(*v),
+                ("i", crate::storage::nbt::Tag::String(s)) => ty = Some(s.as_str()),
+                ("t", crate::storage::nbt::Tag::Int(v)) => delay = *v,
+                // TickPriority.CODEC encodes the enum as its int ordinal:
+                // EXTREMELY_HIGH=-3, VERY_HIGH=-2, HIGH=-1, NORMAL=0,
+                // LOW=1, VERY_LOW=2, EXTREMELY_LOW=3.
+                ("p", crate::storage::nbt::Tag::Int(v)) => {
+                    prio = match v {
+                        -3 => TickPriority::ExtremelyHigh,
+                        -2 => TickPriority::VeryHigh,
+                        -1 => TickPriority::High,
+                        1 => TickPriority::Low,
+                        2 => TickPriority::VeryLow,
+                        3 => TickPriority::ExtremelyLow,
+                        _ => TickPriority::Normal,
+                    };
                 }
-                let Some(fluid) = fluid_state_for_block(&state) else {
-                    continue;
-                };
-                fluid_blocks += 1;
-                if fluid_has_runtime_update_edge(chunk, world_layout, chunk_cache, pos) {
-                    live_fluid_ticks.schedule(game_time, pos, fluid.kind);
-                    scheduled += 1;
-                }
+                _ => {}
             }
         }
+        let (Some(x), Some(y), Some(z), Some(ty)) = (x, y, z, ty) else {
+            skipped += 1;
+            continue;
+        };
+        let kind = match ty {
+            "minecraft:water" | "minecraft:flowing_water" => FluidKind::Water,
+            "minecraft:lava" | "minecraft:flowing_lava" => FluidKind::Lava,
+            _ => {
+                skipped += 1;
+                continue;
+            }
+        };
+        live_fluid_ticks.schedule_saved(
+            current_tick,
+            crate::block_update::BlockPos { x, y, z },
+            kind,
+            delay,
+            prio,
+        );
+        scheduled += 1;
     }
     let elapsed = started.elapsed();
-    if fluid_blocks > 0 || elapsed >= Duration::from_millis(10) {
+    if scheduled > 0 || skipped > 0 || elapsed >= Duration::from_millis(10) {
         eprintln!(
-            "[fluid-timing] seed chunk=({}, {}) y={}..{} fluid_blocks={} scheduled={} elapsed={}ms",
+            "[fluid-timing] unpack chunk=({}, {}) scheduled={} skipped={} elapsed={}ms",
             chunk.pos.x,
             chunk.pos.z,
-            min_y,
-            max_y,
-            fluid_blocks,
             scheduled,
+            skipped,
             elapsed.as_millis()
         );
     }
-}
-
-fn fluid_has_runtime_update_edge(
-    chunk: &LevelChunk,
-    world_layout: &WorldLayout,
-    chunk_cache: &GeneratedChunkCache,
-    pos: crate::block_update::BlockPos,
-) -> bool {
-    crate::fluid::fluid_neighbor_order().into_iter().any(|direction| {
-        let neighbor = pos.relative(direction);
-        let same_chunk = neighbor.x.div_euclid(16) == chunk.pos.x
-            && neighbor.z.div_euclid(16) == chunk.pos.z;
-        let neighbor_state = if same_chunk {
-            if let Some(entry) = chunk.get_block_state_model(neighbor.x, neighbor.y, neighbor.z) {
-                let mut state = crate::block_behavior::BlockStateModel::new(entry.name);
-                for (key, value) in entry.properties {
-                    state = state.with_property(&key, value);
-                }
-                state
-            } else {
-                crate::block_behavior::BlockStateModel::air()
-            }
-        } else {
-            // Nonblocking neighbour lookup: cache → region → conservative
-            // air assumption. Earlier this path called `load_chunk` which
-            // would *regenerate* a missing neighbour chunk inline, turning
-            // one fluid seed into seconds of recursive worldgen and
-            // timing out the login. Treating an absent neighbour as air
-            // can only *over*-schedule fluid ticks (the tick itself
-            // double-checks the current block at execution time), so the
-            // worst case is a few cheap no-op fluid ticks once the
-            // neighbour finishes generating.
-            try_read_block_model_at(chunk_cache, world_layout, neighbor)
-                .unwrap_or_else(crate::block_behavior::BlockStateModel::air)
-        };
-        neighbor_state.is_air()
-    })
 }
 
 fn write_single_block_update<W: Write>(
@@ -3988,15 +4002,35 @@ fn process_live_fluid_ticks(
             _ => continue,
         };
         let read_started = Instant::now();
-        let current = read_block_model_at(world_layout, world_seed, tick.pos);
+        // Java parity: a fluid tick on an unloaded chunk simply doesn't fire
+        // — its tick container was unregistered on chunk unload (see
+        // LevelChunk.unregisterTickContainerFromLevel). Mirror that here by
+        // skipping ticks whose chunk isn't ready in the cache; this also
+        // stops a single tick from triggering a fresh worldgen of its own
+        // chunk via the legacy `load_chunk` fallback.
+        let current = match try_read_block_model_at(chunk_cache, world_layout, tick.pos) {
+            Some(state) => state,
+            None => {
+                skipped_wrong_fluid += 1;
+                read_current_us += read_started.elapsed().as_micros();
+                continue;
+            }
+        };
         read_current_us += read_started.elapsed().as_micros();
         if crate::fluid::fluid_state_for_block(&current).is_none_or(|fluid| fluid.kind != kind) {
             skipped_wrong_fluid += 1;
             continue;
         }
         let tick_started = Instant::now();
+        // Neighbour reads in the tick closure use the same non-generating
+        // path. A missing neighbour is treated as air; Java reaches the
+        // same conclusion via its simulation-distance ticket guarantee
+        // (all neighbours are loaded before a tick fires), but where that
+        // guarantee doesn't hold here we conservatively treat the
+        // neighbour as air rather than recursively regenerating it.
         let result = tick_fluid(tick.pos, &current, |pos| {
-            read_block_model_at(world_layout, world_seed, pos)
+            try_read_block_model_at(chunk_cache, world_layout, pos)
+                .unwrap_or_else(crate::block_behavior::BlockStateModel::air)
         });
         tick_fluid_us += tick_started.elapsed().as_micros();
         let mut changed_chunks = BTreeSet::new();
@@ -4016,7 +4050,9 @@ fn process_live_fluid_ticks(
                 for direction in crate::fluid::fluid_neighbor_order() {
                     let neighbor = pos.relative(direction);
                     let neighbor_started = Instant::now();
-                    let neighbor_state = read_block_model_at(world_layout, world_seed, neighbor);
+                    let neighbor_state =
+                        try_read_block_model_at(chunk_cache, world_layout, neighbor)
+                            .unwrap_or_else(crate::block_behavior::BlockStateModel::air);
                     neighbor_read_us += neighbor_started.elapsed().as_micros();
                     if let Some(fluid) = crate::fluid::fluid_state_for_block(&neighbor_state) {
                         live_fluid_ticks.schedule(game_time, neighbor, fluid.kind);
@@ -5718,20 +5754,20 @@ fn seed_chunk_window(
 /// `desiredChunksPerTick` feedback).
 ///
 /// Returns the count of chunks actually flushed this tick.
-fn drain_chunk_sender<'a>(
+fn drain_chunk_sender(
     stream: &mut TcpStream,
     compression: CompressionState,
     chunk_sender: &mut PlayerChunkSender,
     chunk_pipeline: &ChunkPipeline,
     player_chunk_pos: ChunkPos,
-    mut live_fluid_seed: Option<(&mut LiveFluidTicks, i64, &'a WorldLayout, &'a GeneratedChunkCache)>,
+    mut live_fluid_unpack: Option<(&mut LiveFluidTicks, i64)>,
 ) -> io::Result<usize> {
     let Some(batch) = chunk_sender
         .send_next_chunks(player_chunk_pos, |pos| chunk_pipeline.try_get_ready(pos))
     else {
         return Ok(0);
     };
-    write_chunk_batch_to_stream(stream, compression, &batch, live_fluid_seed.as_mut())?;
+    write_chunk_batch_to_stream(stream, compression, &batch, live_fluid_unpack.as_mut())?;
     Ok(batch.chunks.len())
 }
 
@@ -5741,7 +5777,7 @@ fn write_chunk_batch_to_stream(
     stream: &mut TcpStream,
     compression: CompressionState,
     batch: &ReadyChunkBatch,
-    mut live_fluid_seed: Option<&mut (&mut LiveFluidTicks, i64, &WorldLayout, &GeneratedChunkCache)>,
+    mut live_fluid_unpack: Option<&mut (&mut LiveFluidTicks, i64)>,
 ) -> io::Result<()> {
     write_framed_packet_with_compression(
         stream,
@@ -5751,15 +5787,14 @@ fn write_chunk_batch_to_stream(
     )?;
 
     for (_, chunk) in &batch.chunks {
-        // Seed live fluid ticks as each chunk goes out (parity with the
-        // legacy write_play_chunk_delta path). Cross-chunk neighbour
-        // probes inside the seed go through `chunk_cache.try_get_ready`
-        // + region read only — never trigger fresh worldgen, which used
-        // to cascade into multi-second seeds on chunks with fluid
-        // borders. See CHECKLIST_CHUNKING_CHANGES.md "Fluid tick
-        // interaction".
-        if let Some((ticks, game_time, layout, cache)) = live_fluid_seed.as_deref_mut() {
-            seed_live_fluid_ticks_from_chunk(&mut **ticks, *game_time, *layout, *cache, chunk);
+        // Java mirror: ChunkAccess.unpackTicks(currentTick) +
+        // LevelChunk.registerTickContainerInLevel — runs once per chunk
+        // as it transitions to the loaded/sent state. Restores the
+        // chunk's saved fluid_ticks (zero for freshly generated chunks).
+        // No block scan and no neighbour reads — that's the Java
+        // invariant, and it's what unblocked the play loop here.
+        if let Some((ticks, game_time)) = live_fluid_unpack.as_deref_mut() {
+            unpack_chunk_fluid_ticks(&mut **ticks, *game_time, chunk);
         }
         write_generated_spawn_chunk_packets_from_chunk(stream, compression, chunk)?;
     }
@@ -6031,14 +6066,8 @@ fn write_play_chunk_delta(
             })?;
             let recv_ms = recv_started.elapsed().as_millis();
             let write_started = Instant::now();
-            if let Some((ticks, game_time, layout)) = live_fluid_ticks.as_mut() {
-                seed_live_fluid_ticks_from_chunk(
-                    &mut **ticks,
-                    *game_time,
-                    *layout,
-                    chunk_cache,
-                    &chunk,
-                );
+            if let Some((ticks, game_time, _layout)) = live_fluid_ticks.as_mut() {
+                unpack_chunk_fluid_ticks(&mut **ticks, *game_time, &chunk);
             }
             write_generated_spawn_chunk_packets_from_chunk(stream, compression, &chunk)?;
             let write_ms = write_started.elapsed().as_millis();
@@ -7890,19 +7919,18 @@ fn load_chunk(layout: &WorldLayout, world_seed: i64, chunk_pos: ChunkPos) -> Lev
     .unwrap_or_else(|_| LevelChunk::empty(chunk_pos))
 }
 
-/// Nonblocking chunk lookup for fluid edge / neighbour-probe code.
+/// Nonblocking chunk lookup for fluid tick / neighbour-probe code.
 ///
 /// Returns `Some(chunk)` if the chunk is sitting in the ready cache or can
 /// be read from the region file; returns `None` if neither has it.
-/// Critically, **never** triggers a fresh worldgen — that's what the
-/// previous `load_chunk` path did from `fluid_has_runtime_update_edge`,
-/// and a single fluid block on a chunk border could cascade into
-/// regenerating up to 6 neighbour chunks at ~130 ms each, taking a single
-/// chunk's fluid seed past 50 s and timing out the client.
+/// Critically, **never** triggers a fresh worldgen.
 ///
-/// Java mirror: `LevelChunk.postProcessGeneration` runs on the chunk's
-/// own `postProcessing` list — it never reaches into adjacent chunks
-/// from the load path.
+/// Java mirror: `Level.getChunkSource().getChunkNow(x, z)` — the
+/// non-loading variant used by paths that can tolerate a `null`
+/// (`getBlockState` on the loading variant would block waiting for the
+/// chunk to materialise; here we don't have Java's simulation-distance
+/// ticket guarantee, so a synchronous load fallback would deadlock the
+/// play loop on neighbour chunks that are still in the pipeline queue).
 fn try_get_chunk_for_neighbour_probe(
     cache: &GeneratedChunkCache,
     layout: &WorldLayout,
@@ -14200,6 +14228,59 @@ mod tests {
         let diag = pipeline.diagnostics();
         assert_eq!(diag.queue_depth, 0, "cache hit short-circuits the queue");
         assert!(pipeline.try_get_ready(pos).is_some());
+    }
+
+    #[test]
+    fn unpack_chunk_fluid_ticks_restores_saved_ticks_without_scanning_blocks() {
+        // Java-parity guard: chunk load only restores saved fluid_ticks
+        // (LevelChunkTicks.unpack); it never scans the chunk for fluid
+        // blocks. Build a chunk with one synthetic saved water tick and
+        // verify it lands in the live queue with the saved delay
+        // preserved.
+        use crate::storage::nbt::Tag;
+        let pos = crate::storage::region::ChunkPos { x: 2, z: -1 };
+        let mut chunk = crate::storage::chunk::LevelChunk::empty(pos);
+        chunk.fluid_ticks.push(Tag::Compound(vec![
+            ("i".to_string(), Tag::String("minecraft:water".to_string())),
+            ("x".to_string(), Tag::Int(2 * 16 + 5)),
+            ("y".to_string(), Tag::Int(64)),
+            ("z".to_string(), Tag::Int(-1 * 16 + 9)),
+            ("t".to_string(), Tag::Int(7)),
+            ("p".to_string(), Tag::Int(0)),
+        ]));
+
+        let mut live = super::LiveFluidTicks::new();
+        super::unpack_chunk_fluid_ticks(&mut live, 100, &chunk);
+
+        // No tick is due yet (saved delay=7 → trigger_tick=107) so we
+        // tick at 106 (nothing) then at 107 (one due).
+        assert_eq!(live.tick_due(106, 4096).len(), 0);
+        let due = live.tick_due(107, 4096);
+        assert_eq!(due.len(), 1, "exactly the one saved tick fired");
+        assert_eq!(due[0].pos.x, 2 * 16 + 5);
+        assert_eq!(due[0].pos.y, 64);
+        assert_eq!(due[0].pos.z, -1 * 16 + 9);
+        assert_eq!(due[0].ty, "minecraft:water");
+    }
+
+    #[test]
+    fn unpack_chunk_fluid_ticks_does_not_touch_blocks_on_empty_saved_ticks() {
+        // Architectural guard: this is the path that runs on freshly
+        // generated chunks during the per-tick send drain. It must NOT
+        // attempt to scan the chunk or read neighbour chunks — those
+        // were the cascading worldgen calls that timed out the client.
+        let chunk = crate::storage::chunk::LevelChunk::empty(crate::storage::region::ChunkPos {
+            x: 0,
+            z: 0,
+        });
+        let mut live = super::LiveFluidTicks::new();
+        let started = std::time::Instant::now();
+        super::unpack_chunk_fluid_ticks(&mut live, 0, &chunk);
+        assert!(
+            started.elapsed() < std::time::Duration::from_millis(5),
+            "unpack must be O(saved ticks), not O(block count)"
+        );
+        assert_eq!(live.tick_due(1_000_000, 4096).len(), 0);
     }
 
     #[test]
