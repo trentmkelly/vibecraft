@@ -14136,6 +14136,94 @@ mod tests {
     }
 
     #[test]
+    fn login_seeding_does_not_synchronously_generate_view_distance_window() {
+        // Architectural regression guard. Mirrors the Java invariant from
+        // ChunkMap.applyChunkTrackingView: on player join, the chunk
+        // tracking view is *recorded* immediately but generation runs
+        // asynchronously. Seeding 441 chunks (vd=10) must not produce
+        // any generated chunks and must not block — if it did, the play
+        // loop could not start ticking until the whole window was
+        // computed (the bug this rework exists to fix). We construct a
+        // worker-less pipeline so we can prove nothing was generated as
+        // a side effect of seeding.
+        let cache = super::GeneratedChunkCache::default();
+        let pipeline = super::ChunkPipeline::new(
+            cache,
+            std::path::PathBuf::from("/tmp/rustcraft-test-not-used"),
+            42,
+            0,
+        );
+        let mut sender = super::PlayerChunkSender::new(false);
+        super::seed_chunk_window(&mut sender, &pipeline, 0, 0, 10);
+
+        let diag = pipeline.diagnostics();
+        assert_eq!(diag.queue_depth, 21 * 21, "all 441 chunks enqueued for gen");
+        assert_eq!(diag.generated_total, 0, "seeding must not run worldgen");
+        assert_eq!(sender.pending_count(), 21 * 21, "sender tracks all positions");
+        assert_eq!(sender.unacknowledged_batches(), 0, "no batch sent yet");
+
+        // The first per-tick drain returns nothing because no chunks are
+        // ready — sender does not block.
+        let batch = sender.send_next_chunks(
+            crate::storage::region::ChunkPos { x: 0, z: 0 },
+            |pos| pipeline.try_get_ready(pos),
+        );
+        assert!(batch.is_none(), "no ready chunks → no batch, never blocks");
+        assert_eq!(
+            sender.pending_count(),
+            21 * 21,
+            "no pending chunks lost when nothing is ready"
+        );
+        assert_eq!(sender.unacknowledged_batches(), 0);
+    }
+
+    #[test]
+    fn drain_flushes_only_ready_chunks_so_join_progresses_without_full_radius() {
+        // Architectural regression guard. Demonstrates the per-tick
+        // drain produces real progress (a sent batch) as soon as *any*
+        // chunk completes generation, without waiting for the rest of
+        // the view-distance square. This is the "gameplay ticks can run
+        // before full radius is generated" invariant from
+        // CHECKLIST_CHUNKING_CHANGES.md.
+        let cache = super::GeneratedChunkCache::default();
+        let pipeline = super::ChunkPipeline::new(
+            cache.clone(),
+            std::path::PathBuf::from("/tmp/rustcraft-test-not-used"),
+            42,
+            0,
+        );
+        let mut sender = super::PlayerChunkSender::new(false);
+        super::seed_chunk_window(&mut sender, &pipeline, 0, 0, 10);
+
+        // Simulate one worker completing one chunk (the centre). With a
+        // worker-less pipeline we publish directly to the cache; the
+        // production worker loop does the same call via `get_or_load`.
+        let ready = crate::storage::region::ChunkPos { x: 0, z: 0 };
+        cache.chunks.lock().unwrap().insert(
+            ready,
+            std::sync::Arc::new(crate::storage::chunk::LevelChunk::empty(ready)),
+        );
+
+        // Sender produces a batch containing exactly that one ready
+        // chunk — the other 440 stay pending for future ticks.
+        let batch = sender
+            .send_next_chunks(ready, |pos| pipeline.try_get_ready(pos))
+            .expect("one ready chunk → one-chunk batch");
+        assert_eq!(batch.chunks.len(), 1);
+        assert_eq!(batch.chunks[0].0, ready);
+        assert_eq!(
+            sender.pending_count(),
+            21 * 21 - 1,
+            "other chunks still pending"
+        );
+        assert_eq!(
+            sender.unacknowledged_batches(),
+            1,
+            "one batch sent → one ack outstanding"
+        );
+    }
+
+    #[test]
     fn apply_chunk_movement_keeps_pending_aligned_with_new_view_window() {
         // Movement diff: chunks falling out of the new window should be
         // unscheduled and dropped from sender's pending set; chunks

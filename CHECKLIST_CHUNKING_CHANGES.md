@@ -134,8 +134,8 @@ Authoritative Java references:
 - [x] Add a unit test for unacknowledged batch gating.
 - [x] Add a unit test that moving the player drops stale pending chunks outside the new tracking view.
 - [x] Add a unit test that duplicate chunk requests coalesce into a single generation job.
-- [ ] Add an integration-style test or deterministic harness showing login scheduling does not synchronously generate the full view-distance square. (Deferred — would require a full mock-network harness; existing unit tests cover the per-tick semantics.)
-- [ ] Add a regression test that initial join can produce gameplay ticks before the full visible radius is generated. (Deferred — same harness gap as above.)
+- [x] Add an integration-style test or deterministic harness showing login scheduling does not synchronously generate the full view-distance square. (See `login_seeding_does_not_synchronously_generate_view_distance_window` — uses a worker-less pipeline to prove seeding 441 chunks runs zero worldgen and never blocks the sender.)
+- [x] Add a regression test that initial join can produce gameplay ticks before the full visible radius is generated. (See `drain_flushes_only_ready_chunks_so_join_progresses_without_full_radius` — proves the per-tick drain produces real progress as soon as one chunk completes, without waiting for the rest of the radius.)
 
 ## Migration steps
 
