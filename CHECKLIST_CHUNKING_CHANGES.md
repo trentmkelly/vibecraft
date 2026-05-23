@@ -158,7 +158,9 @@ Authoritative Java references:
 - [ ] Preserve current `normal_overworld_generation_keeps_vanilla_block_array_parity_above_threshold` score or improve it; current baseline is `0.995887 (293699/294912)`, and no implementation step may lower this KPI.
 - [ ] Preserve current `normal_overworld_generation_keeps_vanilla_column_profile_parity_above_threshold` score or improve it; current baseline is `0.423177 (325/768)`, and no implementation step may lower this KPI.
 - [ ] Preserve current `normal_overworld_generation_keeps_vanilla_heightmap_parity_above_threshold` score or improve it; current baseline is `0.593750 (456/768)`, and no implementation step may lower this KPI.
+- [ ] Preserve current `real_surface_spawn_chunk_generation_stays_under_debug_budget` timing or improve it; current baseline is `148ms` for spawn chunk `(0,0)` against the `4ms` debug budget, and no implementation step may make this KPI slower.
 - [ ] Run the three normal-overworld vanilla parity KPI tests after each chunking architecture phase that can affect generated chunks, chunk caching, or chunk send readiness.
+- [ ] Run `real_surface_spawn_chunk_generation_stays_under_debug_budget` after each chunking architecture phase that can affect chunk generation scheduling, caching, or worldgen execution time.
 - [ ] Start a fresh world with default view distance and confirm join no longer blocks for the full 440 chunk batch.
 - [ ] Confirm server continues sending keepalives and processing movement while chunks are pending.
 - [ ] Confirm chunk packets arrive progressively and terrain fills in around the player.
