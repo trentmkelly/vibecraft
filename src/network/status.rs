@@ -2298,7 +2298,7 @@ fn handle_login_connection(
             &mut live_fluid_ticks,
             play_tick_count as i64,
             &world_layout,
-            world_seed,
+            chunk_cache,
             &center,
         );
     }
@@ -2433,7 +2433,7 @@ fn handle_login_connection(
                     &mut live_fluid_ticks,
                     play_tick_count as i64,
                     &world_layout,
-                    world_seed,
+                    chunk_pipeline.cache(),
                 )),
             )?;
             chunk_pipeline_stats.sent_total = chunk_pipeline_stats
@@ -3853,7 +3853,7 @@ fn seed_live_fluid_ticks_from_chunk(
     live_fluid_ticks: &mut LiveFluidTicks,
     game_time: i64,
     world_layout: &WorldLayout,
-    world_seed: i64,
+    chunk_cache: &GeneratedChunkCache,
     chunk: &LevelChunk,
 ) {
     let started = Instant::now();
@@ -3880,7 +3880,7 @@ fn seed_live_fluid_ticks_from_chunk(
                     continue;
                 };
                 fluid_blocks += 1;
-                if fluid_has_runtime_update_edge(chunk, world_layout, world_seed, pos) {
+                if fluid_has_runtime_update_edge(chunk, world_layout, chunk_cache, pos) {
                     live_fluid_ticks.schedule(game_time, pos, fluid.kind);
                     scheduled += 1;
                 }
@@ -3905,7 +3905,7 @@ fn seed_live_fluid_ticks_from_chunk(
 fn fluid_has_runtime_update_edge(
     chunk: &LevelChunk,
     world_layout: &WorldLayout,
-    world_seed: i64,
+    chunk_cache: &GeneratedChunkCache,
     pos: crate::block_update::BlockPos,
 ) -> bool {
     crate::fluid::fluid_neighbor_order().into_iter().any(|direction| {
@@ -3923,7 +3923,17 @@ fn fluid_has_runtime_update_edge(
                 crate::block_behavior::BlockStateModel::air()
             }
         } else {
-            read_block_model_at(world_layout, world_seed, neighbor)
+            // Nonblocking neighbour lookup: cache → region → conservative
+            // air assumption. Earlier this path called `load_chunk` which
+            // would *regenerate* a missing neighbour chunk inline, turning
+            // one fluid seed into seconds of recursive worldgen and
+            // timing out the login. Treating an absent neighbour as air
+            // can only *over*-schedule fluid ticks (the tick itself
+            // double-checks the current block at execution time), so the
+            // worst case is a few cheap no-op fluid ticks once the
+            // neighbour finishes generating.
+            try_read_block_model_at(chunk_cache, world_layout, neighbor)
+                .unwrap_or_else(crate::block_behavior::BlockStateModel::air)
         };
         neighbor_state.is_air()
     })
@@ -5708,13 +5718,13 @@ fn seed_chunk_window(
 /// `desiredChunksPerTick` feedback).
 ///
 /// Returns the count of chunks actually flushed this tick.
-fn drain_chunk_sender(
+fn drain_chunk_sender<'a>(
     stream: &mut TcpStream,
     compression: CompressionState,
     chunk_sender: &mut PlayerChunkSender,
     chunk_pipeline: &ChunkPipeline,
     player_chunk_pos: ChunkPos,
-    mut live_fluid_seed: Option<(&mut LiveFluidTicks, i64, &WorldLayout, i64)>,
+    mut live_fluid_seed: Option<(&mut LiveFluidTicks, i64, &'a WorldLayout, &'a GeneratedChunkCache)>,
 ) -> io::Result<usize> {
     let Some(batch) = chunk_sender
         .send_next_chunks(player_chunk_pos, |pos| chunk_pipeline.try_get_ready(pos))
@@ -5731,7 +5741,7 @@ fn write_chunk_batch_to_stream(
     stream: &mut TcpStream,
     compression: CompressionState,
     batch: &ReadyChunkBatch,
-    mut live_fluid_seed: Option<&mut (&mut LiveFluidTicks, i64, &WorldLayout, i64)>,
+    mut live_fluid_seed: Option<&mut (&mut LiveFluidTicks, i64, &WorldLayout, &GeneratedChunkCache)>,
 ) -> io::Result<()> {
     write_framed_packet_with_compression(
         stream,
@@ -5742,12 +5752,14 @@ fn write_chunk_batch_to_stream(
 
     for (_, chunk) in &batch.chunks {
         // Seed live fluid ticks as each chunk goes out (parity with the
-        // legacy write_play_chunk_delta path). Decoupling this from
-        // sending is Phase 8 work in CHECKLIST_CHUNKING_CHANGES.md;
-        // until then we trigger seeding here so behaviour matches the
-        // previous blocking batch path exactly.
-        if let Some((ticks, game_time, layout, world_seed)) = live_fluid_seed.as_deref_mut() {
-            seed_live_fluid_ticks_from_chunk(*&mut *ticks, *game_time, *layout, *world_seed, chunk);
+        // legacy write_play_chunk_delta path). Cross-chunk neighbour
+        // probes inside the seed go through `chunk_cache.try_get_ready`
+        // + region read only — never trigger fresh worldgen, which used
+        // to cascade into multi-second seeds on chunks with fluid
+        // borders. See CHECKLIST_CHUNKING_CHANGES.md "Fluid tick
+        // interaction".
+        if let Some((ticks, game_time, layout, cache)) = live_fluid_seed.as_deref_mut() {
+            seed_live_fluid_ticks_from_chunk(&mut **ticks, *game_time, *layout, *cache, chunk);
         }
         write_generated_spawn_chunk_packets_from_chunk(stream, compression, chunk)?;
     }
@@ -6024,7 +6036,7 @@ fn write_play_chunk_delta(
                     &mut **ticks,
                     *game_time,
                     *layout,
-                    world_seed,
+                    chunk_cache,
                     &chunk,
                 );
             }
@@ -7876,6 +7888,61 @@ fn load_chunk(layout: &WorldLayout, world_seed: i64, chunk_pos: ChunkPos) -> Lev
         true,
     )
     .unwrap_or_else(|_| LevelChunk::empty(chunk_pos))
+}
+
+/// Nonblocking chunk lookup for fluid edge / neighbour-probe code.
+///
+/// Returns `Some(chunk)` if the chunk is sitting in the ready cache or can
+/// be read from the region file; returns `None` if neither has it.
+/// Critically, **never** triggers a fresh worldgen — that's what the
+/// previous `load_chunk` path did from `fluid_has_runtime_update_edge`,
+/// and a single fluid block on a chunk border could cascade into
+/// regenerating up to 6 neighbour chunks at ~130 ms each, taking a single
+/// chunk's fluid seed past 50 s and timing out the client.
+///
+/// Java mirror: `LevelChunk.postProcessGeneration` runs on the chunk's
+/// own `postProcessing` list — it never reaches into adjacent chunks
+/// from the load path.
+fn try_get_chunk_for_neighbour_probe(
+    cache: &GeneratedChunkCache,
+    layout: &WorldLayout,
+    chunk_pos: ChunkPos,
+) -> Option<Arc<LevelChunk>> {
+    if let Some(chunk) = cache.try_get_ready(chunk_pos) {
+        return Some(chunk);
+    }
+    let region_dir = layout.region_dir();
+    if let Ok(region) = RegionFile::open(&region_dir, chunk_pos.region()) {
+        if let Ok(Some((_name, tag))) = region.read_chunk_nbt(chunk_pos) {
+            if let Ok(chunk) = LevelChunk::from_nbt(chunk_pos, &tag) {
+                return Some(Arc::new(chunk));
+            }
+        }
+    }
+    None
+}
+
+/// Cache/region-only block read; mirrors `read_block_model_at` but skips
+/// the worldgen fallback. Returns `None` when neither the in-memory cache
+/// nor the region file has the chunk — callers decide how to handle a
+/// missing neighbour (the fluid seed path conservatively treats `None` as
+/// air so a real fluid edge is never silently dropped).
+fn try_read_block_model_at(
+    cache: &GeneratedChunkCache,
+    layout: &WorldLayout,
+    pos: crate::block_update::BlockPos,
+) -> Option<crate::block_behavior::BlockStateModel> {
+    let chunk_pos = ChunkPos {
+        x: pos.x.div_euclid(16),
+        z: pos.z.div_euclid(16),
+    };
+    let chunk = try_get_chunk_for_neighbour_probe(cache, layout, chunk_pos)?;
+    let entry = chunk.get_block_state_model(pos.x, pos.y, pos.z)?;
+    let mut state = crate::block_behavior::BlockStateModel::new(entry.name);
+    for (key, value) in entry.properties {
+        state = state.with_property(&key, value);
+    }
+    Some(state)
 }
 
 fn read_block_at(
