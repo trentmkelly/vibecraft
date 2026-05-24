@@ -1,0 +1,693 @@
+use super::super::*;
+use super::*;
+
+
+fn always_ready_chunk(pos: ChunkPos) -> Option<Arc<LevelChunk>> {
+    Some(Arc::new(LevelChunk::empty(pos)))
+}
+
+#[test]
+fn chunk_sender_starts_batches_sends_nearest_chunks_and_waits_for_first_ack() {
+    let mut sender = PlayerChunkSender::new(false);
+    for pos in [
+        ChunkPos { x: 8, z: 0 },
+        ChunkPos { x: 1, z: 0 },
+        ChunkPos { x: -2, z: 0 },
+        ChunkPos { x: 3, z: 4 },
+        ChunkPos { x: 0, z: 2 },
+        ChunkPos { x: 4, z: 4 },
+        ChunkPos { x: -3, z: 3 },
+        ChunkPos { x: 0, z: -1 },
+        ChunkPos { x: 2, z: 2 },
+        ChunkPos { x: 9, z: 9 },
+    ] {
+        sender.mark_chunk_pending_to_send(pos);
+    }
+
+    let batch = sender
+        .send_next_chunks(ChunkPos { x: 0, z: 0 }, always_ready_chunk)
+        .expect("ready batch");
+    assert_eq!(sender.unacknowledged_batches(), 1);
+    let sent: Vec<_> = batch.chunks.iter().map(|(pos, _)| *pos).collect();
+    assert_eq!(sent.len(), 9);
+    assert_eq!(
+        sent,
+        vec![
+            ChunkPos { x: 0, z: -1 },
+            ChunkPos { x: 1, z: 0 },
+            ChunkPos { x: -2, z: 0 },
+            ChunkPos { x: 0, z: 2 },
+            ChunkPos { x: 2, z: 2 },
+            ChunkPos { x: -3, z: 3 },
+            ChunkPos { x: 3, z: 4 },
+            ChunkPos { x: 4, z: 4 },
+            ChunkPos { x: 8, z: 0 },
+        ]
+    );
+    assert!(sender.is_pending(ChunkPos { x: 9, z: 9 }));
+    assert!(sender
+        .send_next_chunks(ChunkPos { x: 0, z: 0 }, always_ready_chunk)
+        .is_none());
+}
+
+#[test]
+fn chunk_sender_applies_client_feedback_clamp_and_allows_more_unacked_batches() {
+    let mut sender = PlayerChunkSender::new(false);
+    sender.mark_chunk_pending_to_send(ChunkPos { x: 0, z: 0 });
+    assert!(sender
+        .send_next_chunks(ChunkPos { x: 0, z: 0 }, always_ready_chunk)
+        .is_some());
+
+    sender.on_chunk_batch_received_by_client(f32::NAN);
+    assert_eq!(
+        sender.desired_chunks_per_tick(),
+        PlayerChunkSender::MIN_CHUNKS_PER_TICK
+    );
+    sender.mark_chunk_pending_to_send(ChunkPos { x: 1, z: 0 });
+    assert!(sender
+        .send_next_chunks(ChunkPos { x: 0, z: 0 }, always_ready_chunk)
+        .is_some());
+
+    sender.on_chunk_batch_received_by_client(128.0);
+    assert_eq!(
+        sender.desired_chunks_per_tick(),
+        PlayerChunkSender::MAX_CHUNKS_PER_TICK
+    );
+
+    let mut sender = PlayerChunkSender::new(false);
+    sender.mark_chunk_pending_to_send(ChunkPos { x: 0, z: 0 });
+    assert!(sender
+        .send_next_chunks(ChunkPos { x: 0, z: 0 }, always_ready_chunk)
+        .is_some());
+    sender.on_chunk_batch_received_by_client(1.0);
+    for x in 0..10 {
+        sender.mark_chunk_pending_to_send(ChunkPos { x, z: 1 });
+        assert!(sender
+            .send_next_chunks(ChunkPos { x: 0, z: 0 }, always_ready_chunk)
+            .is_some());
+    }
+    assert_eq!(sender.unacknowledged_batches(), 10);
+    sender.mark_chunk_pending_to_send(ChunkPos { x: 10, z: 1 });
+    assert!(sender
+        .send_next_chunks(ChunkPos { x: 0, z: 0 }, always_ready_chunk)
+        .is_none());
+}
+
+#[test]
+fn chunk_sender_keeps_unready_chunks_pending_and_does_not_consume_ack_slot() {
+    // Java parity: PlayerChunkSender.collectChunksToSend silently filters
+    // pending positions through chunkMap::getChunkToSend, so unready
+    // chunks stay pending without consuming an unacknowledged-batch slot.
+    let mut sender = PlayerChunkSender::new(false);
+    let ready_pos = ChunkPos { x: 1, z: 0 };
+    let unready_pos = ChunkPos { x: 0, z: 1 };
+    sender.mark_chunk_pending_to_send(ready_pos);
+    sender.mark_chunk_pending_to_send(unready_pos);
+
+    let batch = sender
+        .send_next_chunks(ChunkPos { x: 0, z: 0 }, |pos| {
+            if pos == ready_pos {
+                Some(Arc::new(LevelChunk::empty(pos)))
+            } else {
+                None
+            }
+        })
+        .expect("ready batch");
+    assert_eq!(batch.chunks.len(), 1);
+    assert_eq!(batch.chunks[0].0, ready_pos);
+    assert!(sender.is_pending(unready_pos));
+    assert_eq!(sender.unacknowledged_batches(), 1);
+
+    // No ready chunks remain → no batch, no unacked-slot consumption.
+    let none = sender.send_next_chunks(ChunkPos { x: 0, z: 0 }, |_| None);
+    assert!(none.is_none());
+    assert_eq!(sender.unacknowledged_batches(), 1);
+    assert!(sender.is_pending(unready_pos));
+}
+
+#[test]
+fn chunk_sender_nearest_position_rule_drops_unready_near_chunks_for_this_tick() {
+    // Java's "pending > quota" path picks the nearest positions FIRST,
+    // then filters readiness, so a not-ready near chunk blocks a ready
+    // far chunk from being sent this tick (but the far chunk stays
+    // pending and will be tried next tick).
+    let mut sender = PlayerChunkSender::new(false);
+    sender.on_chunk_batch_received_by_client(1.0); // quota = 1
+    let near_unready = ChunkPos { x: 0, z: 1 };
+    let far_ready = ChunkPos { x: 5, z: 5 };
+    sender.mark_chunk_pending_to_send(near_unready);
+    sender.mark_chunk_pending_to_send(far_ready);
+
+    let batch = sender.send_next_chunks(ChunkPos { x: 0, z: 0 }, |pos| {
+        if pos == far_ready {
+            Some(Arc::new(LevelChunk::empty(pos)))
+        } else {
+            None
+        }
+    });
+    assert!(batch.is_none(), "near unready blocks far ready this tick");
+    assert!(sender.is_pending(near_unready));
+    assert!(sender.is_pending(far_ready));
+}
+
+#[test]
+fn chunk_batch_received_packet_uses_big_endian_float_payload() {
+    let packet = ServerboundChunkBatchReceivedPacket {
+        desired_chunks_per_tick: 12.5,
+    };
+    let mut bytes = Vec::new();
+    packet.write(&mut bytes).unwrap();
+    assert_eq!(bytes, 12.5_f32.to_be_bytes());
+    assert_eq!(
+        ServerboundChunkBatchReceivedPacket::read(&mut cursor(bytes)).unwrap(),
+        packet
+    );
+}
+
+#[test]
+fn light_update_data_uses_vanilla_masks_and_2048_byte_layers() {
+    let sections = vec![
+        ChunkSection {
+            y: 0,
+            block_states: PalettedContainer::single(Tag::Int(0), 4096).to_nbt(),
+            biomes: PalettedContainer::single(Tag::Int(0), 64).to_nbt(),
+            block_light: Some(vec![0; 2048]),
+            sky_light: Some(vec![-1; 2048]),
+        },
+        ChunkSection {
+            y: 1,
+            block_states: PalettedContainer::single(Tag::Int(0), 4096).to_nbt(),
+            biomes: PalettedContainer::single(Tag::Int(0), 64).to_nbt(),
+            block_light: Some(vec![1; 2048]),
+            sky_light: None,
+        },
+    ];
+
+    let data = ClientboundLightUpdatePacketData::from_chunk_sections(&sections);
+    assert_eq!(data.sky_y_mask, vec![1]);
+    assert_eq!(data.empty_block_y_mask, vec![1]);
+    assert_eq!(data.block_y_mask, vec![2]);
+    assert_eq!(data.sky_updates.len(), 1);
+    assert_eq!(data.block_updates.len(), 1);
+
+    let mut payload = Vec::new();
+    data.write(&mut payload).unwrap();
+    assert!(!payload.is_empty());
+    assert!(
+        payload.windows(3).any(|bytes| bytes == [0x80, 0x10, 0xff]),
+        "sky light data layers use ByteBufCodecs.byteArray(2048): VarInt length then bytes"
+    );
+    assert!(
+        payload.windows(3).any(|bytes| bytes == [0x80, 0x10, 0x01]),
+        "block light data layers use ByteBufCodecs.byteArray(2048): VarInt length then bytes"
+    );
+}
+
+#[test]
+fn chunk_section_serialization_matches_vanilla_section_field_order() {
+    let section = NetworkChunkSection {
+        non_empty_block_count: 2,
+        fluid_count: 0,
+        block_states: NetworkPalettedContainer::single(5),
+        biomes: NetworkPalettedContainer::single(7),
+    };
+    let mut bytes = Vec::new();
+    section.write(&mut bytes).unwrap();
+
+    assert_eq!(&bytes[0..2], &2_i16.to_be_bytes());
+    assert_eq!(&bytes[2..4], &0_i16.to_be_bytes());
+    assert_eq!(bytes[4], 0);
+    assert_eq!(bytes[5], 5);
+    assert_eq!(bytes[6], 0);
+    assert_eq!(bytes[7], 7);
+    assert_eq!(bytes.len(), 8);
+}
+
+#[test]
+fn network_chunk_sections_report_vanilla_fluid_counts() {
+    let section = ChunkSection {
+        y: 0,
+        block_states: PalettedContainer::single(
+            Tag::String("minecraft:water[level=0]".to_string()),
+            4096,
+        )
+        .to_nbt(),
+        biomes: PalettedContainer::single(Tag::Int(0), 64).to_nbt(),
+        block_light: None,
+        sky_light: None,
+    };
+
+    let network = NetworkChunkSection::from_storage_section(&section);
+
+    assert_eq!(network.non_empty_block_count, 4096);
+    assert_eq!(network.fluid_count, 4096);
+    assert_eq!(network.block_states.palette_ids, vec![86]);
+}
+
+#[test]
+fn section_fluid_counts_follow_palette_indices() {
+    let mut waterlogged_fence =
+        crate::storage::chunk::BlockStateEntry::new("minecraft:oak_fence");
+    waterlogged_fence
+        .properties
+        .insert("waterlogged".to_string(), "true".to_string());
+    let indices = (0..4096)
+        .map(|index| if index % 2 == 0 { 0 } else { 1 })
+        .collect::<Vec<_>>();
+    let container = PalettedContainer {
+        palette: vec![
+            crate::storage::chunk::BlockStateEntry::new("minecraft:air").to_nbt(),
+            waterlogged_fence.to_nbt(),
+        ],
+        data: Some(crate::storage::chunk::pack_palette_indices(&indices, 4)),
+        expected_entries: 4096,
+    };
+
+    assert_eq!(section_non_empty_block_count(&container.to_nbt()), 2048);
+    assert_eq!(section_fluid_count(&container.to_nbt()), 2048);
+}
+
+#[test]
+fn generated_terrain_block_state_names_use_current_protocol_state_ids() {
+    for (name, id) in [
+        ("minecraft:water", 86),
+        ("minecraft:sand", 118),
+        ("minecraft:red_sand", 123),
+        ("minecraft:gravel", 124),
+        ("minecraft:sandstone", 578),
+        ("minecraft:red_sandstone", 13247),
+        ("minecraft:white_terracotta", 11444),
+        ("minecraft:orange_terracotta", 11445),
+        ("minecraft:terracotta", 12912),
+        ("minecraft:yellow_terracotta", 11448),
+        ("minecraft:brown_terracotta", 11456),
+        ("minecraft:red_terracotta", 11458),
+        ("minecraft:light_gray_terracotta", 11452),
+        ("minecraft:short_grass", 2248),
+        ("minecraft:dandelion", 2321),
+        ("minecraft:poppy", 2324),
+        ("minecraft:oak_log", 137),
+        ("minecraft:birch_log", 143),
+        ("minecraft:oak_leaves", 279),
+        ("minecraft:birch_leaves", 335),
+        ("minecraft:sunflower", 12916),
+        ("minecraft:tuff", 23452),
+        ("minecraft:deepslate", 27924),
+        ("minecraft:copper_ore", 25313),
+        ("minecraft:deepslate_copper_ore", 25314),
+    ] {
+        assert_eq!(block_state_name_network_id(name), Some(id), "{name}");
+    }
+}
+
+#[test]
+fn storage_palette_network_bits_match_packed_storage_width() {
+    let palette = (0..17).map(Tag::Int).collect::<Vec<_>>();
+    let container = PalettedContainer {
+        palette,
+        data: Some(vec![16]),
+        expected_entries: 4096,
+    };
+
+    let network = NetworkPalettedContainer::from_storage_container(
+        &container.to_nbt(),
+        PaletteKind::BlockState,
+    );
+
+    assert_eq!(network.bits_per_entry, 5);
+    assert_eq!(network.palette_ids.len(), 17);
+    assert_eq!(network.data, vec![16]);
+}
+
+#[test]
+fn large_block_palettes_use_global_palette_without_indirect_list() {
+    let palette = (0..300).map(Tag::Int).collect::<Vec<_>>();
+    let indices = vec![299_u64; 4096];
+    let container = PalettedContainer {
+        palette,
+        data: Some(crate::storage::chunk::pack_palette_indices(&indices, 9)),
+        expected_entries: 4096,
+    };
+
+    let network = NetworkPalettedContainer::from_storage_container(
+        &container.to_nbt(),
+        PaletteKind::BlockState,
+    );
+
+    assert!(network.uses_global_palette);
+    assert_eq!(network.bits_per_entry, 15);
+    assert!(network.palette_ids.is_empty());
+    assert_eq!(
+        crate::storage::chunk::unpack_palette_indices(
+            &network.data,
+            network.bits_per_entry as usize,
+            1,
+        )[0],
+        299
+    );
+
+    let mut bytes = Vec::new();
+    network.write(&mut bytes).unwrap();
+    assert_eq!(bytes[0], 15);
+    assert_ne!(
+        bytes[1], 0xac,
+        "global palette containers must not write an indirect palette length"
+    );
+}
+
+#[test]
+fn biome_palette_network_ids_follow_synchronized_biome_registry_order() {
+    assert_eq!(biome_name_network_id("minecraft:plains"), Some(40));
+    assert_eq!(biome_name_network_id("plains"), Some(40));
+    assert_eq!(biome_name_network_id("minecraft:the_void"), Some(57));
+
+    let network = NetworkPalettedContainer::from_storage_container(
+        &PalettedContainer::single(Tag::String("minecraft:plains".to_string()), 64).to_nbt(),
+        PaletteKind::Biome,
+    );
+
+    assert_eq!(network.bits_per_entry, 0);
+    assert_eq!(network.palette_ids, vec![40]);
+}
+
+#[test]
+fn level_chunk_with_light_packet_carries_chunk_buffer_then_light_payload_data() {
+    let mut heightmaps = BTreeMap::new();
+    heightmaps.insert("WORLD_SURFACE".to_string(), Tag::LongArray(vec![1, 2, 3]));
+    let chunk = LevelChunk {
+        pos: ChunkPos { x: 4, z: -2 },
+        min_section_y: 0,
+        last_update: 0,
+        status: "minecraft:full".to_string(),
+        inhabited_time: 0,
+        sections: vec![ChunkSection {
+            y: 0,
+            block_states: PalettedContainer::single(Tag::Int(5), 4096).to_nbt(),
+            biomes: PalettedContainer::single(Tag::Int(7), 64).to_nbt(),
+            block_light: Some(vec![0; 2048]),
+            sky_light: Some(vec![-1; 2048]),
+        }],
+        heightmaps,
+        block_entities: vec![Tag::Compound(vec![
+            ("id".to_string(), Tag::String("minecraft:chest".to_string())),
+            ("x".to_string(), Tag::Int(65)),
+            ("y".to_string(), Tag::Int(70)),
+            ("z".to_string(), Tag::Int(-18)),
+        ])],
+        entities: Vec::new(),
+        structures: Tag::Compound(Vec::new()),
+        upgrade_data: None,
+        blending_data: None,
+        below_zero_retrogen: None,
+        carving_mask: None,
+        block_ticks: Vec::new(),
+        fluid_ticks: Vec::new(),
+        post_processing: Vec::new(),
+        light_correct: false,
+    };
+    let light_data = ClientboundLightUpdatePacketData::from_chunk(&chunk);
+    let packet = ClientboundLevelChunkWithLightPacket::from_chunk(&chunk, light_data.clone());
+
+    assert_eq!(packet.pos, chunk.pos);
+    let chunk_data = packet.chunk_data.as_ref().unwrap();
+    assert_eq!(chunk_data.heightmaps["WORLD_SURFACE"], vec![1, 2, 3]);
+    assert_eq!(chunk_data.block_entity_count, 1);
+    assert_eq!(chunk_data.block_entities.len(), 1);
+    assert_eq!(chunk_data.block_entities[0].packed_xz, 0x1e);
+    assert_eq!(chunk_data.block_entities[0].y, 70);
+    assert_eq!(chunk_data.block_entities[0].block_entity_type_id, 1);
+    assert_eq!(chunk_data.buffer.len(), OVERWORLD_SECTION_COUNT * 8);
+    assert_eq!(
+        &chunk_data.buffer[0..8],
+        &[0, 0, 0, 0, 0, 0, 0, 40],
+        "missing sections before Y=0 are serialized as air/plains"
+    );
+    let y0_offset = (0 - OVERWORLD_MIN_SECTION_Y) as usize * 8;
+    assert_eq!(
+        &chunk_data.buffer[y0_offset..y0_offset + 8],
+        &[0x10, 0, 0, 0, 0, 5, 0, 7],
+        "storage section Y=0 must remain at network section index 4"
+    );
+    assert_eq!(packet.light_data, Some(light_data.clone()));
+
+    let mut chunk_payload = Vec::new();
+    packet.write(&mut chunk_payload).unwrap();
+    assert_eq!(&chunk_payload[..4], &4_i32.to_be_bytes());
+    assert_eq!(&chunk_payload[4..8], &(-2_i32).to_be_bytes());
+    assert_eq!(chunk_payload[8], 1);
+    assert_eq!(chunk_payload[9], 1);
+    assert_eq!(chunk_payload[10], 3);
+    assert_eq!(&chunk_payload[11..19], &1_i64.to_be_bytes());
+    assert_eq!(&chunk_payload[19..27], &2_i64.to_be_bytes());
+    assert_eq!(&chunk_payload[27..35], &3_i64.to_be_bytes());
+    assert_eq!(
+        read_var_i32(&mut cursor(chunk_payload[35..].to_vec())).unwrap(),
+        (OVERWORLD_SECTION_COUNT * 8) as i32
+    );
+    assert!(
+        chunk_payload
+            .windows(4)
+            .any(|bytes| bytes == [1, 0x1e, 0, 70]),
+        "block entity list writes packed XZ, y short, type id and tag"
+    );
+
+    let mut light_payload = Vec::new();
+    ClientboundLightUpdatePacket {
+        pos: chunk.pos,
+        light_data: light_data.clone(),
+    }
+    .write(&mut light_payload)
+    .unwrap();
+    assert_eq!(&light_payload[..2], &[4, 0xfe]);
+    assert!(
+        light_data
+            .sky_y_mask
+            .first()
+            .is_some_and(|mask| mask & (1 << 4) != 0),
+        "storage section Y=0 light must be mapped to overworld network section index 4"
+    );
+}
+
+#[test]
+fn sparse_chunk_sections_are_padded_to_vanilla_overworld_height() {
+    let mut chunk = LevelChunk::empty(ChunkPos { x: 0, z: 0 });
+    chunk.min_section_y = OVERWORLD_MIN_SECTION_Y;
+    chunk.sections = vec![ChunkSection {
+        y: 4,
+        block_states: PalettedContainer::single(Tag::Int(1), 4096).to_nbt(),
+        biomes: PalettedContainer::single(Tag::String("minecraft:plains".to_string()), 64)
+            .to_nbt(),
+        block_light: None,
+        sky_light: Some(vec![-1; 2048]),
+    }];
+
+    let data = ClientboundLevelChunkPacketData::from_chunk(&chunk);
+    assert_eq!(data.buffer.len(), OVERWORLD_SECTION_COUNT * 8);
+    let section_y_4_offset = (4 - OVERWORLD_MIN_SECTION_Y) as usize * 8;
+    assert_eq!(
+        &data.buffer[section_y_4_offset..section_y_4_offset + 8],
+        &[0x10, 0, 0, 0, 0, 1, 0, 40],
+        "section Y=4 must serialize at index 8, not at the bottom of the packet"
+    );
+    assert_eq!(
+        &data.buffer[0..8],
+        &[0, 0, 0, 0, 0, 0, 0, 40],
+        "lower missing sections must remain explicit air sections"
+    );
+
+    let light = ClientboundLightUpdatePacketData::from_chunk(&chunk);
+    assert!(light
+        .sky_y_mask
+        .first()
+        .is_some_and(|mask| mask & (1 << 8) != 0));
+}
+
+#[test]
+fn join_sequence_enters_play_with_login_held_slot_and_position_packets() {
+    let mut session = PlaySession::new(42, 3);
+    let login = ClientboundLoginPacket {
+        player_id: 42,
+        hardcore: false,
+        levels: vec![Identifier::parse("minecraft:overworld").unwrap()],
+        max_players: 20,
+        chunk_radius: 10,
+        simulation_distance: 10,
+        reduced_debug_info: false,
+        show_death_screen: true,
+        do_limited_crafting: false,
+        spawn_info: CommonPlayerSpawnInfo::default(),
+        enforces_secure_chat: false,
+    };
+
+    let instructions = session.join_sequence(login.clone());
+    assert_eq!(session.state, PlayState::WaitingForPlayerLoaded);
+    assert_eq!(
+        instructions,
+        vec![
+            PlayInstruction::Login(login),
+            PlayInstruction::SetHeldSlot(ClientboundSetHeldSlotPacket { slot: 3 }),
+            PlayInstruction::PlayerPosition { teleport_id: 0 }
+        ]
+    );
+}
+
+#[test]
+fn login_and_respawn_packets_write_common_spawn_info_in_vanilla_order() {
+    let spawn_info = CommonPlayerSpawnInfo {
+        dimension_type: Identifier::parse("minecraft:the_nether").unwrap(),
+        dimension: Identifier::parse("minecraft:the_nether").unwrap(),
+        seed: -7,
+        game_mode: GameMode::Creative,
+        previous_game_mode: Some(GameMode::Survival),
+        is_debug: false,
+        is_flat: true,
+        last_death_location: Some((
+            Identifier::parse("minecraft:overworld").unwrap(),
+            [1, 64, -2],
+        )),
+        portal_cooldown: 20,
+        sea_level: 32,
+    };
+    let login = ClientboundLoginPacket {
+        player_id: 42,
+        hardcore: true,
+        levels: vec![
+            Identifier::parse("minecraft:overworld").unwrap(),
+            Identifier::parse("minecraft:the_nether").unwrap(),
+        ],
+        max_players: 20,
+        chunk_radius: 10,
+        simulation_distance: 8,
+        reduced_debug_info: false,
+        show_death_screen: true,
+        do_limited_crafting: false,
+        spawn_info: spawn_info.clone(),
+        enforces_secure_chat: true,
+    };
+
+    let mut login_payload = Vec::new();
+    login.write(&mut login_payload).unwrap();
+    assert_eq!(&login_payload[..5], &[0, 0, 0, 42, 1]);
+    let mut input = cursor(login_payload);
+    assert_eq!(read_i32(&mut input).unwrap(), 42);
+    assert!(read_bool(&mut input).unwrap());
+    assert_eq!(read_var_i32(&mut input).unwrap(), 2);
+    assert_eq!(
+        read_identifier(&mut input).unwrap(),
+        Identifier::parse("minecraft:overworld").unwrap()
+    );
+    assert_eq!(
+        read_identifier(&mut input).unwrap(),
+        Identifier::parse("minecraft:the_nether").unwrap()
+    );
+    assert_eq!(read_var_i32(&mut input).unwrap(), 20);
+    assert_eq!(read_var_i32(&mut input).unwrap(), 10);
+    assert_eq!(read_var_i32(&mut input).unwrap(), 8);
+    assert!(!read_bool(&mut input).unwrap());
+    assert!(read_bool(&mut input).unwrap());
+    assert!(!read_bool(&mut input).unwrap());
+    assert_eq!(read_var_i32(&mut input).unwrap(), 3);
+    assert_eq!(
+        read_identifier(&mut input).unwrap(),
+        Identifier::parse("minecraft:the_nether").unwrap()
+    );
+    assert_eq!(read_i64(&mut input).unwrap(), -7);
+    assert_eq!(read_u8(&mut input).unwrap(), 1);
+    assert_eq!(read_u8(&mut input).unwrap(), 0);
+    assert!(!read_bool(&mut input).unwrap());
+    assert!(read_bool(&mut input).unwrap());
+    assert!(read_bool(&mut input).unwrap());
+    assert_eq!(
+        read_identifier(&mut input).unwrap(),
+        Identifier::parse("minecraft:overworld").unwrap()
+    );
+    assert_eq!(read_block_position(&mut input).unwrap(), (1, 64, -2));
+    assert_eq!(read_var_i32(&mut input).unwrap(), 20);
+    assert_eq!(read_var_i32(&mut input).unwrap(), 32);
+    assert!(read_bool(&mut input).unwrap());
+
+    let mut respawn_payload = Vec::new();
+    ClientboundRespawnPacket {
+        spawn_info,
+        data_to_keep: RespawnDataToKeep::KEEP_ALL_DATA,
+    }
+    .write(&mut respawn_payload)
+    .unwrap();
+    assert_eq!(*respawn_payload.last().unwrap(), 3);
+}
+
+#[test]
+fn vanilla_join_sequence_matches_player_list_packet_and_side_effect_order() {
+    let mut session = PlaySession::new(42, 3);
+    session.container_state_id = 42;
+    let login = ClientboundLoginPacket {
+        player_id: 42,
+        hardcore: true,
+        levels: vec![
+            Identifier::parse("minecraft:overworld").unwrap(),
+            Identifier::parse("minecraft:the_nether").unwrap(),
+            Identifier::parse("minecraft:the_end").unwrap(),
+        ],
+        max_players: 20,
+        chunk_radius: 10,
+        simulation_distance: 10,
+        reduced_debug_info: false,
+        show_death_screen: true,
+        do_limited_crafting: false,
+        spawn_info: CommonPlayerSpawnInfo::default(),
+        enforces_secure_chat: true,
+    };
+    let abilities = PlayerAbilities {
+        invulnerable: false,
+        flying: false,
+        may_fly: false,
+        instabuild: false,
+        flying_speed: 0.05,
+        walking_speed: 0.1,
+    };
+
+    let instructions = session.vanilla_join_sequence(JoinGameSettings {
+        login: login.clone(),
+        difficulty: GameDifficulty::Hard,
+        difficulty_locked: true,
+        abilities,
+        permission_level: 2,
+        initial_recipes: true,
+        initial_recipe_book: true,
+        scoreboard: true,
+        server_status: true,
+        player_info_existing_count: 2,
+        active_effect_count: 1,
+    });
+
+    assert_eq!(session.state, PlayState::WaitingForPlayerLoaded);
+    assert_eq!(session.container_state_id, 0);
+    assert_eq!(
+        instructions,
+        vec![
+            PlayInstruction::Login(login),
+            PlayInstruction::ChangeDifficulty {
+                difficulty: GameDifficulty::Hard,
+                locked: true,
+            },
+            PlayInstruction::PlayerAbilities(abilities),
+            PlayInstruction::SetHeldSlot(ClientboundSetHeldSlotPacket { slot: 3 }),
+            PlayInstruction::UpdateRecipes,
+            PlayInstruction::UpdatePermissionLevel(2),
+            PlayInstruction::SendInitialRecipeBook,
+            PlayInstruction::UpdateScoreboard,
+            PlayInstruction::TeleportToSpawn { teleport_id: 0 },
+            PlayInstruction::ServerStatus,
+            PlayInstruction::PlayerInfoUpdate {
+                existing_players: 2,
+            },
+            PlayInstruction::BroadcastSelfPlayerInfo,
+            PlayInstruction::SendLevelInfo,
+            PlayInstruction::AddPlayerToLevel,
+            PlayInstruction::BossEventsOnConnect,
+            PlayInstruction::ActiveEffects { count: 1 },
+            PlayInstruction::InitInventoryMenu,
+        ]
+    );
+}
+

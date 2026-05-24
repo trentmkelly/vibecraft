@@ -1,0 +1,734 @@
+use super::*;
+
+impl SlotDisplayData {
+    const EMPTY_TYPE_ID: i32 = 0;
+    const ANY_FUEL_TYPE_ID: i32 = 1;
+    const WITH_ANY_POTION_TYPE_ID: i32 = 2;
+    const ONLY_WITH_COMPONENT_TYPE_ID: i32 = 3;
+    const ITEM_TYPE_ID: i32 = 4;
+    const ITEM_STACK_TYPE_ID: i32 = 5;
+    const TAG_TYPE_ID: i32 = 6;
+    const DYED_TYPE_ID: i32 = 7;
+    const SMITHING_TRIM_TYPE_ID: i32 = 8;
+    const WITH_REMAINDER_TYPE_ID: i32 = 9;
+    const COMPOSITE_TYPE_ID: i32 = 10;
+
+    pub(super) fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        match self {
+            Self::Empty => write_var_i32(writer, Self::EMPTY_TYPE_ID),
+            Self::AnyFuel => write_var_i32(writer, Self::ANY_FUEL_TYPE_ID),
+            Self::WithAnyPotion(display) => {
+                write_var_i32(writer, Self::WITH_ANY_POTION_TYPE_ID)?;
+                display.write(writer)
+            }
+            Self::OnlyWithComponent {
+                contents,
+                component_type_id,
+            } => {
+                write_var_i32(writer, Self::ONLY_WITH_COMPONENT_TYPE_ID)?;
+                contents.write(writer)?;
+                write_var_i32(writer, *component_type_id)
+            }
+            Self::Item { item_id } => {
+                write_var_i32(writer, Self::ITEM_TYPE_ID)?;
+                write_var_i32(writer, *item_id)
+            }
+            Self::ItemStack { stack } => {
+                write_var_i32(writer, Self::ITEM_STACK_TYPE_ID)?;
+                stack.write_template(writer)
+            }
+            Self::Tag { tag } => {
+                write_var_i32(writer, Self::TAG_TYPE_ID)?;
+                write_identifier(writer, tag)
+            }
+            Self::Dyed { dye, target } => {
+                write_var_i32(writer, Self::DYED_TYPE_ID)?;
+                dye.write(writer)?;
+                target.write(writer)
+            }
+            Self::SmithingTrim {
+                base,
+                material,
+                pattern_id,
+            } => {
+                write_var_i32(writer, Self::SMITHING_TRIM_TYPE_ID)?;
+                base.write(writer)?;
+                material.write(writer)?;
+                write_var_i32(writer, *pattern_id)
+            }
+            Self::WithRemainder { input, remainder } => {
+                write_var_i32(writer, Self::WITH_REMAINDER_TYPE_ID)?;
+                input.write(writer)?;
+                remainder.write(writer)
+            }
+            Self::Composite(contents) => {
+                write_var_i32(writer, Self::COMPOSITE_TYPE_ID)?;
+                write_collection(writer, contents, |writer, display| display.write(writer))
+            }
+        }
+    }
+}
+
+impl RecipeIngredientData {
+    pub(super) fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        match self {
+            Self::DirectItems(item_ids) => {
+                write_var_i32(writer, item_ids.len() as i32 + 1)?;
+                for item_id in item_ids {
+                    write_var_i32(writer, *item_id)?;
+                }
+                Ok(())
+            }
+            Self::Tag(tag) => {
+                write_var_i32(writer, 0)?;
+                write_identifier(writer, tag)
+            }
+        }
+    }
+}
+
+pub(super) fn write_optional_var_i32<W: Write>(writer: &mut W, value: Option<i32>) -> io::Result<()> {
+    match value {
+        Some(value) => write_var_i32(writer, value + 1),
+        None => write_var_i32(writer, 0),
+    }
+}
+
+impl ClientboundRecipeBookRemovePacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_collection(
+            writer,
+            &self.recipe_display_ids,
+            |writer, recipe_display_id| write_var_i32(writer, *recipe_display_id),
+        )
+    }
+}
+
+impl RecipeBookTypeSettings {
+    pub const CLOSED_UNFILTERED: Self = Self {
+        open: false,
+        filtering: false,
+    };
+
+    pub(super) fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_bool(writer, self.open)?;
+        write_bool(writer, self.filtering)
+    }
+}
+
+impl ClientboundRecipeBookSettingsPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        self.crafting.write(writer)?;
+        self.furnace.write(writer)?;
+        self.blast_furnace.write(writer)?;
+        self.smoker.write(writer)
+    }
+}
+
+impl ClientboundAdvancementsPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_bool(writer, self.reset)?;
+        write_collection(writer, &self.added, |writer, advancement| {
+            advancement.write(writer)
+        })?;
+        write_collection(writer, &self.removed, write_identifier)?;
+        write_collection(writer, &self.progress, |writer, (id, progress)| {
+            write_identifier(writer, id)?;
+            progress.write(writer)
+        })?;
+        write_bool(writer, self.show_advancements)
+    }
+}
+
+impl ClientboundPlayerInfoUpdatePacket {
+    pub fn player_initializing(entries: Vec<PlayerInfoUpdateEntry>) -> Self {
+        Self {
+            actions: vec![
+                PlayerInfoUpdateAction::AddPlayer,
+                PlayerInfoUpdateAction::InitializeChat,
+                PlayerInfoUpdateAction::UpdateGameMode,
+                PlayerInfoUpdateAction::UpdateListed,
+                PlayerInfoUpdateAction::UpdateLatency,
+                PlayerInfoUpdateAction::UpdateDisplayName,
+                PlayerInfoUpdateAction::UpdateListOrder,
+                PlayerInfoUpdateAction::UpdateHat,
+            ],
+            entries,
+        }
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        writer.write_all(&[player_info_action_mask(&self.actions)?])?;
+        write_collection(writer, &self.entries, |writer, entry| {
+            write_uuid(writer, entry.profile_id)?;
+            for action in &self.actions {
+                action.write_entry(writer, entry)?;
+            }
+            Ok(())
+        })
+    }
+}
+
+impl ClientboundPlayerChatPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.global_index)?;
+        write_uuid(writer, self.sender)?;
+        write_var_i32(writer, self.index)?;
+        write_optional(writer, self.signature.as_ref(), |writer, signature| {
+            write_message_signature(writer, signature)
+        })?;
+        self.body.write(writer)?;
+        write_optional(
+            writer,
+            self.unsigned_content_payload.as_ref(),
+            |writer, payload| writer.write_all(payload),
+        )?;
+        self.filter_mask.write(writer)?;
+        self.chat_type.write(writer)
+    }
+}
+
+impl SignedMessageBodyPacked {
+    pub(super) fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_string(writer, &self.content, 256)?;
+        write_i64(writer, self.timestamp_epoch_millis)?;
+        write_i64(writer, self.salt)?;
+        write_collection(writer, &self.last_seen, |writer, signature| {
+            signature.write(writer)
+        })
+    }
+}
+
+impl MessageSignaturePackedData {
+    pub(super) fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        match self {
+            Self::Full(signature) => {
+                write_var_i32(writer, 0)?;
+                write_message_signature(writer, signature)
+            }
+            Self::Id(id) => write_var_i32(writer, id + 1),
+        }
+    }
+}
+
+impl FilterMaskData {
+    pub(super) fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        match self {
+            Self::PassThrough => write_var_i32(writer, 0),
+            Self::FullyFiltered => write_var_i32(writer, 1),
+            Self::PartiallyFiltered(mask) => {
+                write_var_i32(writer, 2)?;
+                write_bitset(writer, mask)
+            }
+        }
+    }
+}
+
+impl BoundChatTypeData {
+    pub(super) fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.chat_type_id)?;
+        writer.write_all(&self.name_payload)?;
+        write_optional(
+            writer,
+            self.target_name_payload.as_ref(),
+            |writer, payload| writer.write_all(payload),
+        )
+    }
+}
+
+pub(super) fn write_message_signature<W: Write>(writer: &mut W, signature: &[u8]) -> io::Result<()> {
+    if signature.len() != 256 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "message signature must be exactly 256 bytes",
+        ));
+    }
+    writer.write_all(signature)
+}
+
+impl PlayerInfoUpdateAction {
+    pub(super) fn ordinal(self) -> u8 {
+        match self {
+            Self::AddPlayer => 0,
+            Self::InitializeChat => 1,
+            Self::UpdateGameMode => 2,
+            Self::UpdateListed => 3,
+            Self::UpdateLatency => 4,
+            Self::UpdateDisplayName => 5,
+            Self::UpdateListOrder => 6,
+            Self::UpdateHat => 7,
+        }
+    }
+
+    pub(super) fn write_entry<W: Write>(
+        &self,
+        writer: &mut W,
+        entry: &PlayerInfoUpdateEntry,
+    ) -> io::Result<()> {
+        match self {
+            Self::AddPlayer => entry
+                .profile
+                .as_ref()
+                .ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "ADD_PLAYER action requires a profile",
+                    )
+                })?
+                .write(writer),
+            Self::InitializeChat => write_optional(
+                writer,
+                entry.chat_session_payload.as_ref(),
+                |writer, payload| writer.write_all(payload),
+            ),
+            Self::UpdateGameMode => write_var_i32(writer, entry.game_mode),
+            Self::UpdateListed => write_bool(writer, entry.listed),
+            Self::UpdateLatency => write_var_i32(writer, entry.latency),
+            Self::UpdateDisplayName => write_optional(
+                writer,
+                entry.display_name_payload.as_ref(),
+                |writer, payload| writer.write_all(payload),
+            ),
+            Self::UpdateListOrder => write_var_i32(writer, entry.list_order),
+            Self::UpdateHat => write_bool(writer, entry.show_hat),
+        }
+    }
+}
+
+impl PlayerInfoProfile {
+    pub(super) fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_string(writer, &self.name, 16)?;
+        if self.properties.len() > 16 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "game profile property count exceeds vanilla limit",
+            ));
+        }
+        write_var_i32(writer, self.properties.len() as i32)?;
+        for property in &self.properties {
+            property.write(writer)?;
+        }
+        Ok(())
+    }
+}
+
+impl GameProfileProperty {
+    pub(super) fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_string(writer, &self.name, 64)?;
+        write_string(writer, &self.value, 32767)?;
+        write_optional(writer, self.signature.as_ref(), |writer, signature| {
+            write_string(writer, signature, 1024)
+        })
+    }
+}
+
+pub(super) fn player_info_action_mask(actions: &[PlayerInfoUpdateAction]) -> io::Result<u8> {
+    let mut mask = 0u8;
+    for action in actions {
+        let bit = 1u8.checked_shl(action.ordinal() as u32).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "player info action ordinal exceeds fixed bitset size",
+            )
+        })?;
+        mask |= bit;
+    }
+    Ok(mask)
+}
+
+impl AdvancementHolderData {
+    pub fn minimal(
+        id: Identifier,
+        parent: Option<Identifier>,
+        requirements: Vec<Vec<String>>,
+        sends_telemetry_event: bool,
+    ) -> Self {
+        Self {
+            id,
+            value: AdvancementData {
+                parent,
+                display_payload: None,
+                requirements,
+                sends_telemetry_event,
+            },
+        }
+    }
+
+    pub(super) fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_identifier(writer, &self.id)?;
+        self.value.write(writer)
+    }
+}
+
+impl AdvancementData {
+    pub(super) fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_optional(writer, self.parent.as_ref(), write_identifier)?;
+        write_optional(writer, self.display_payload.as_ref(), |writer, payload| {
+            writer.write_all(payload)
+        })?;
+        write_collection(writer, &self.requirements, |writer, requirement_group| {
+            write_collection(writer, requirement_group, |writer, criterion| {
+                write_string(writer, criterion, 32767)
+            })
+        })?;
+        write_bool(writer, self.sends_telemetry_event)
+    }
+}
+
+impl AdvancementProgressData {
+    pub(super) fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_collection(writer, &self.criteria, |writer, (criterion, progress)| {
+            write_string(writer, criterion, 32767)?;
+            progress.write(writer)
+        })
+    }
+}
+
+impl CriterionProgressData {
+    pub(super) fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        match self.obtained_epoch_millis {
+            Some(epoch_millis) => {
+                write_bool(writer, true)?;
+                write_i64(writer, epoch_millis)
+            }
+            None => write_bool(writer, false),
+        }
+    }
+}
+
+impl ClientboundCommandsPacket {
+    pub fn root_only() -> Self {
+        Self {
+            root_index: 0,
+            entries: vec![CommandNodeEntryData {
+                stub: CommandNodeStubData::Root,
+                executable: false,
+                restricted: false,
+                redirect: None,
+                children: Vec::new(),
+            }],
+        }
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_collection(writer, &self.entries, |writer, entry| entry.write(writer))?;
+        write_var_i32(writer, self.root_index)
+    }
+}
+
+impl CommandNodeEntryData {
+    const FLAG_EXECUTABLE: u8 = 4;
+    const FLAG_REDIRECT: u8 = 8;
+    const FLAG_CUSTOM_SUGGESTIONS: u8 = 16;
+    const FLAG_RESTRICTED: u8 = 32;
+
+    pub(super) fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        let mut flags = self.stub.node_type();
+        if self.executable {
+            flags |= Self::FLAG_EXECUTABLE;
+        }
+        if self.redirect.is_some() {
+            flags |= Self::FLAG_REDIRECT;
+        }
+        if self.restricted {
+            flags |= Self::FLAG_RESTRICTED;
+        }
+        if self.stub.has_custom_suggestions() {
+            flags |= Self::FLAG_CUSTOM_SUGGESTIONS;
+        }
+        writer.write_all(&[flags])?;
+        write_var_i32(writer, self.children.len() as i32)?;
+        for child in &self.children {
+            write_var_i32(writer, *child)?;
+        }
+        if let Some(redirect) = self.redirect {
+            write_var_i32(writer, redirect)?;
+        }
+        self.stub.write(writer)
+    }
+}
+
+impl CommandNodeStubData {
+    pub(super) fn node_type(&self) -> u8 {
+        match self {
+            Self::Root => 0,
+            Self::Literal { .. } => 1,
+            Self::Argument { .. } => 2,
+        }
+    }
+
+    pub(super) fn has_custom_suggestions(&self) -> bool {
+        matches!(
+            self,
+            Self::Argument {
+                suggestion_id: Some(_),
+                ..
+            }
+        )
+    }
+
+    pub(super) fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        match self {
+            Self::Root => Ok(()),
+            Self::Literal { name } => write_string(writer, name, 32767),
+            Self::Argument {
+                name,
+                parser_type_id,
+                parser_payload,
+                suggestion_id,
+            } => {
+                write_string(writer, name, 32767)?;
+                write_var_i32(writer, *parser_type_id)?;
+                writer.write_all(parser_payload)?;
+                if let Some(suggestion_id) = suggestion_id {
+                    write_identifier(writer, suggestion_id)?;
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
+impl ClientboundCommandSuggestionsPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.transaction_id)?;
+        write_var_i32(writer, self.start)?;
+        write_var_i32(writer, self.length)?;
+        write_var_i32(writer, self.suggestions.len() as i32)?;
+        for suggestion in &self.suggestions {
+            write_string(writer, &suggestion.text, 32767)?;
+            match &suggestion.tooltip {
+                Some(tooltip) => {
+                    write_bool(writer, true)?;
+                    write_network_tag(writer, tooltip)?;
+                }
+                None => write_bool(writer, false)?,
+            }
+        }
+        Ok(())
+    }
+}
+
+impl ClientboundDebugSamplePacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.sample.len() as i32)?;
+        for value in &self.sample {
+            write_i64(writer, *value)?;
+        }
+        write_enum_index(
+            writer,
+            self.sample_type as usize,
+            RemoteDebugSampleType::COUNT,
+        )
+    }
+}
+
+impl RemoteDebugSampleType {
+    const COUNT: usize = 1;
+}
+
+impl ClientboundStartConfigurationPacket {
+    pub fn write<W: Write>(&self, _writer: &mut W) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+impl ClientboundStopSoundPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        let flags =
+            (if self.source.is_some() { 1 } else { 0 }) | (if self.name.is_some() { 2 } else { 0 });
+        writer.write_all(&[flags])?;
+        if let Some(source) = self.source {
+            write_enum_index(writer, source as usize, SoundSource::COUNT)?;
+        }
+        if let Some(name) = &self.name {
+            write_identifier(writer, name)?;
+        }
+        Ok(())
+    }
+}
+
+impl SoundSource {
+    const COUNT: usize = 11;
+}
+
+impl MobEffectFlags {
+    pub const AMBIENT: Self = Self(1);
+    pub const VISIBLE: Self = Self(2);
+    pub const SHOW_ICON: Self = Self(4);
+    pub const BLEND: Self = Self(8);
+
+    pub fn from_parts(ambient: bool, visible: bool, show_icon: bool, blend: bool) -> Self {
+        Self(
+            (if ambient { Self::AMBIENT.0 } else { 0 })
+                | (if visible { Self::VISIBLE.0 } else { 0 })
+                | (if show_icon { Self::SHOW_ICON.0 } else { 0 })
+                | (if blend { Self::BLEND.0 } else { 0 }),
+        )
+    }
+}
+
+impl ClientboundRemoveMobEffectPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.entity_id)?;
+        write_var_i32(writer, self.effect_id)
+    }
+}
+
+impl ClientboundUpdateMobEffectPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.entity_id)?;
+        write_var_i32(writer, self.effect_id)?;
+        write_var_i32(writer, self.amplifier)?;
+        write_var_i32(writer, self.duration_ticks)?;
+        writer.write_all(&[self.flags.0])
+    }
+}
+
+impl ClientboundPlayerLookAtPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_enum_index(writer, self.from_anchor as usize, EntityAnchor::COUNT)?;
+        write_f64(writer, self.x)?;
+        write_f64(writer, self.y)?;
+        write_f64(writer, self.z)?;
+        match self.target_entity {
+            Some((entity_id, to_anchor)) => {
+                write_bool(writer, true)?;
+                write_var_i32(writer, entity_id)?;
+                write_enum_index(writer, to_anchor as usize, EntityAnchor::COUNT)
+            }
+            None => write_bool(writer, false),
+        }
+    }
+}
+
+impl ClientboundSetTitleTextPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_network_tag(writer, &self.text)
+    }
+}
+
+impl ClientboundSetSubtitleTextPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_network_tag(writer, &self.text)
+    }
+}
+
+impl ClientboundSetActionBarTextPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_network_tag(writer, &self.text)
+    }
+}
+
+impl ClientboundSystemChatPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_network_tag(writer, &self.content)?;
+        write_bool(writer, self.overlay)
+    }
+}
+
+impl ClientboundDisguisedChatPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_network_tag(writer, &self.message)?;
+        self.chat_type.write(writer)
+    }
+}
+
+impl ChatTypeBound {
+    pub(super) fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.chat_type_id + 1)?;
+        write_network_tag(writer, &self.name)?;
+        write_optional(writer, self.target_name.as_ref(), |writer, target_name| {
+            write_network_tag(writer, target_name)
+        })
+    }
+}
+
+impl ClientboundTabListPacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_network_tag(writer, &self.header)?;
+        write_network_tag(writer, &self.footer)
+    }
+}
+
+impl EntityAnchor {
+    const COUNT: usize = 2;
+}
+
+impl ClientboundResetScorePacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_string(writer, &self.owner, 32767)?;
+        match &self.objective_name {
+            Some(objective_name) => {
+                write_bool(writer, true)?;
+                write_string(writer, objective_name, 32767)
+            }
+            None => write_bool(writer, false),
+        }
+    }
+}
+
+impl ClientboundSetDisplayObjectivePacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.slot)?;
+        write_string(writer, &self.objective_name, 32767)
+    }
+}
+
+impl ClientboundSetObjectivePacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_string(writer, &self.objective_name, 32767)?;
+        match &self.method {
+            ObjectiveMethod::Add {
+                display_name,
+                render_type,
+                number_format,
+            } => {
+                writer.write_all(&[0])?;
+                write_objective_payload(writer, display_name, *render_type, number_format)
+            }
+            ObjectiveMethod::Remove => writer.write_all(&[1]),
+            ObjectiveMethod::Change {
+                display_name,
+                render_type,
+                number_format,
+            } => {
+                writer.write_all(&[2])?;
+                write_objective_payload(writer, display_name, *render_type, number_format)
+            }
+        }
+    }
+}
+
+pub(super) fn write_objective_payload<W: Write>(
+    writer: &mut W,
+    display_name: &Tag,
+    render_type: ObjectiveRenderType,
+    number_format: &Option<NumberFormat>,
+) -> io::Result<()> {
+    write_network_tag(writer, display_name)?;
+    write_var_i32(writer, render_type as i32)?;
+    write_optional_number_format(writer, number_format.as_ref())
+}
+
+impl ClientboundSetScorePacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_string(writer, &self.owner, 32767)?;
+        write_string(writer, &self.objective_name, 32767)?;
+        write_var_i32(writer, self.score)?;
+        write_optional(writer, self.display.as_ref(), |writer, display| {
+            write_network_tag(writer, display)
+        })?;
+        write_optional_number_format(writer, self.number_format.as_ref())
+    }
+}
+
+pub(super) fn write_optional_number_format<W: Write>(
+    writer: &mut W,
+    number_format: Option<&NumberFormat>,
+) -> io::Result<()> {
+    write_optional(writer, number_format, |writer, number_format| {
+        number_format.write(writer)
+    })
+}
+

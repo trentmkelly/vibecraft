@@ -1,0 +1,339 @@
+use super::*;
+
+    #[test]
+    fn feature_type_registry_matches_vanilla_feature_order() {
+        assert_eq!(FEATURE_TYPES.len(), 60);
+        assert_eq!(
+            FEATURE_TYPES
+                .iter()
+                .map(|feature| feature.id)
+                .collect::<Vec<_>>(),
+            vec![
+                "minecraft:no_op",
+                "minecraft:tree",
+                "minecraft:fallen_tree",
+                "minecraft:block_pile",
+                "minecraft:spring_feature",
+                "minecraft:chorus_plant",
+                "minecraft:replace_single_block",
+                "minecraft:void_start_platform",
+                "minecraft:desert_well",
+                "minecraft:fossil",
+                "minecraft:huge_red_mushroom",
+                "minecraft:huge_brown_mushroom",
+                "minecraft:spike",
+                "minecraft:glowstone_blob",
+                "minecraft:freeze_top_layer",
+                "minecraft:vines",
+                "minecraft:block_column",
+                "minecraft:vegetation_patch",
+                "minecraft:waterlogged_vegetation_patch",
+                "minecraft:root_system",
+                "minecraft:multiface_growth",
+                "minecraft:underwater_magma",
+                "minecraft:monster_room",
+                "minecraft:blue_ice",
+                "minecraft:iceberg",
+                "minecraft:block_blob",
+                "minecraft:disk",
+                "minecraft:lake",
+                "minecraft:ore",
+                "minecraft:end_platform",
+                "minecraft:end_spike",
+                "minecraft:end_island",
+                "minecraft:end_gateway",
+                "minecraft:seagrass",
+                "minecraft:kelp",
+                "minecraft:coral_tree",
+                "minecraft:coral_mushroom",
+                "minecraft:coral_claw",
+                "minecraft:sea_pickle",
+                "minecraft:simple_block",
+                "minecraft:bamboo",
+                "minecraft:huge_fungus",
+                "minecraft:nether_forest_vegetation",
+                "minecraft:weeping_vines",
+                "minecraft:twisting_vines",
+                "minecraft:basalt_columns",
+                "minecraft:delta_feature",
+                "minecraft:netherrack_replace_blobs",
+                "minecraft:fill_layer",
+                "minecraft:bonus_chest",
+                "minecraft:basalt_pillar",
+                "minecraft:scattered_ore",
+                "minecraft:random_selector",
+                "minecraft:simple_random_selector",
+                "minecraft:random_boolean_selector",
+                "minecraft:geode",
+                "minecraft:dripstone_cluster",
+                "minecraft:large_dripstone",
+                "minecraft:pointed_dripstone",
+                "minecraft:sculk_patch",
+            ]
+        );
+
+        let tree = super::super::feature_type_by_id("tree").unwrap();
+        assert_eq!(tree.configuration, FeatureConfigurationKind::Tree);
+        assert_eq!(tree.family, FeatureFamily::Tree);
+
+        let ore = super::super::feature_type_by_id("minecraft:ore").unwrap();
+        assert_eq!(ore.configuration, FeatureConfigurationKind::Ore);
+        assert_eq!(ore.family, FeatureFamily::Ore);
+
+        let random_selector = super::super::feature_type_by_id("random_selector").unwrap();
+        assert_eq!(
+            random_selector.configuration,
+            FeatureConfigurationKind::RandomFeature
+        );
+        assert_eq!(random_selector.family, FeatureFamily::Selector);
+
+        let sculk_patch = super::super::feature_type_by_id("sculk_patch").unwrap();
+        assert_eq!(
+            sculk_patch.configuration,
+            FeatureConfigurationKind::SculkPatch
+        );
+        assert_eq!(sculk_patch.family, FeatureFamily::Cave);
+    }
+
+    #[test]
+    fn configured_feature_bootstrap_keys_match_vanilla_sources() {
+        assert_eq!(CONFIGURED_FEATURES.len(), 221);
+
+        let source_counts = [
+            (ConfiguredFeatureSource::Aquatic, 7),
+            (ConfiguredFeatureSource::Cave, 24),
+            (ConfiguredFeatureSource::End, 6),
+            (ConfiguredFeatureSource::MiscOverworld, 18),
+            (ConfiguredFeatureSource::Nether, 22),
+            (ConfiguredFeatureSource::Ore, 32),
+            (ConfiguredFeatureSource::Pile, 5),
+            (ConfiguredFeatureSource::Tree, 50),
+            (ConfiguredFeatureSource::Vegetation, 57),
+        ];
+        for (source, expected_count) in source_counts {
+            assert_eq!(
+                CONFIGURED_FEATURES
+                    .iter()
+                    .filter(|feature| feature.source == source)
+                    .count(),
+                expected_count
+            );
+        }
+
+        assert_eq!(
+            CONFIGURED_FEATURES
+                .iter()
+                .take(7)
+                .map(|feature| feature.id)
+                .collect::<Vec<_>>(),
+            vec![
+                "minecraft:seagrass_short",
+                "minecraft:seagrass_slightly_less_short",
+                "minecraft:seagrass_mid",
+                "minecraft:seagrass_tall",
+                "minecraft:sea_pickle",
+                "minecraft:kelp",
+                "minecraft:warm_ocean_vegetation",
+            ]
+        );
+        assert_eq!(
+            CONFIGURED_FEATURES.last().map(|feature| feature.id),
+            Some("minecraft:mangrove_vegetation")
+        );
+
+        assert_eq!(
+            super::super::configured_feature("ore_diamond_buried").map(|feature| feature.source),
+            Some(ConfiguredFeatureSource::Ore)
+        );
+        assert_eq!(
+            super::super::configured_feature("minecraft:pale_oak_creaking").map(|feature| feature.source),
+            Some(ConfiguredFeatureSource::Tree)
+        );
+        assert_eq!(
+            super::super::configured_feature("sculk_patch_ancient_city").map(|feature| feature.source),
+            Some(ConfiguredFeatureSource::Cave)
+        );
+    }
+
+    #[test]
+    fn placed_feature_bootstrap_keys_match_vanilla_sources() {
+        assert_eq!(PLACED_FEATURE_BOOTSTRAP_SOURCES.len(), 9);
+        assert_eq!(
+            PLACED_FEATURE_BOOTSTRAP_SOURCES
+                .iter()
+                .map(|entry| (entry.source, entry.keys.len()))
+                .collect::<Vec<_>>(),
+            vec![
+                (PlacedFeatureSource::Aquatic, 12),
+                (PlacedFeatureSource::Cave, 20),
+                (PlacedFeatureSource::End, 5),
+                (PlacedFeatureSource::MiscOverworld, 18),
+                (PlacedFeatureSource::Nether, 20),
+                (PlacedFeatureSource::Ore, 40),
+                (PlacedFeatureSource::Tree, 41),
+                (PlacedFeatureSource::Vegetation, 89),
+                (PlacedFeatureSource::Village, 13),
+            ]
+        );
+        assert_eq!(
+            PLACED_FEATURE_BOOTSTRAP_SOURCES
+                .iter()
+                .map(|entry| entry.keys.len())
+                .sum::<usize>(),
+            258
+        );
+        assert_eq!(
+            PLACED_FEATURE_BOOTSTRAP_SOURCES[0].keys.first().copied(),
+            Some("minecraft:seagrass_warm")
+        );
+        assert_eq!(
+            PLACED_FEATURE_BOOTSTRAP_SOURCES
+                .last()
+                .and_then(|entry| entry.keys.last())
+                .copied(),
+            Some("minecraft:patch_berry_bush")
+        );
+        assert_eq!(
+            super::super::placed_feature_source("ore_diamond"),
+            Some(PlacedFeatureSource::Ore)
+        );
+        assert_eq!(
+            super::super::placed_feature_source("minecraft:pale_oak_creaking_checked"),
+            Some(PlacedFeatureSource::Tree)
+        );
+        assert_eq!(
+            super::super::placed_feature_source("trees_mangrove"),
+            Some(PlacedFeatureSource::Vegetation)
+        );
+    }
+
+    #[test]
+    fn placed_ore_feature_models_follow_vanilla_ore_placements() {
+        let tuff = super::super::placed_ore_feature("minecraft:ore_tuff").unwrap();
+        assert_eq!(tuff.configured_feature, "minecraft:ore_tuff");
+        assert_eq!(
+            tuff.placement,
+            vec![
+                PlacementModifier::Count { count: 2 },
+                PlacementModifier::InSquare,
+                PlacementModifier::HeightRange {
+                    height: HeightProvider::Uniform {
+                        min_inclusive: VerticalAnchor::AboveBottom(0),
+                        max_inclusive: VerticalAnchor::Absolute(0),
+                    }
+                },
+                PlacementModifier::BiomeFilter,
+            ]
+        );
+
+        let granite_upper = super::super::placed_ore_feature("ore_granite_upper").unwrap();
+        assert_eq!(granite_upper.configured_feature, "minecraft:ore_granite");
+        assert_eq!(
+            granite_upper.placement,
+            vec![
+                PlacementModifier::RarityFilter { chance: 6 },
+                PlacementModifier::InSquare,
+                PlacementModifier::HeightRange {
+                    height: HeightProvider::Uniform {
+                        min_inclusive: VerticalAnchor::Absolute(64),
+                        max_inclusive: VerticalAnchor::Absolute(128),
+                    }
+                },
+                PlacementModifier::BiomeFilter,
+            ]
+        );
+
+        let diamond = super::super::placed_ore_feature("minecraft:ore_diamond").unwrap();
+        assert_eq!(diamond.configured_feature, "minecraft:ore_diamond_small");
+        assert_eq!(
+            diamond.placement,
+            vec![
+                PlacementModifier::Count { count: 7 },
+                PlacementModifier::InSquare,
+                PlacementModifier::HeightRange {
+                    height: HeightProvider::Trapezoid {
+                        min_inclusive: VerticalAnchor::AboveBottom(-80),
+                        max_inclusive: VerticalAnchor::AboveBottom(80),
+                        plateau: 0,
+                    }
+                },
+                PlacementModifier::BiomeFilter,
+            ]
+        );
+
+        let gold_lower = super::super::placed_ore_feature("ore_gold_lower").unwrap();
+        assert_eq!(gold_lower.configured_feature, "minecraft:ore_gold_buried");
+        assert_eq!(
+            gold_lower.placement[0],
+            PlacementModifier::CountProvider {
+                provider: super::super::IntProviderModel::Uniform {
+                    min_inclusive: 0,
+                    max_inclusive: 1,
+                },
+                sampled_count: 0,
+            }
+        );
+        assert_eq!(
+            gold_lower.placement[2],
+            PlacementModifier::HeightRange {
+                height: HeightProvider::Uniform {
+                    min_inclusive: VerticalAnchor::Absolute(-64),
+                    max_inclusive: VerticalAnchor::Absolute(-48),
+                }
+            }
+        );
+
+        let debris_small = super::super::placed_ore_feature("ore_debris_small").unwrap();
+        assert_eq!(
+            debris_small.configured_feature,
+            "minecraft:ore_ancient_debris_small"
+        );
+        assert_eq!(
+            debris_small.placement,
+            vec![
+                PlacementModifier::InSquare,
+                PlacementModifier::HeightRange {
+                    height: HeightProvider::Uniform {
+                        min_inclusive: VerticalAnchor::AboveBottom(8),
+                        max_inclusive: VerticalAnchor::BelowTop(8),
+                    }
+                },
+                PlacementModifier::BiomeFilter,
+            ]
+        );
+
+        let copper = super::super::placed_ore_feature("ore_copper").unwrap();
+        assert_eq!(copper.configured_feature, "minecraft:ore_copper_small");
+        assert_eq!(super::super::placed_ore_feature("minecraft:not_ore"), None);
+
+        let disk_sand = super::super::placed_disk_feature("minecraft:disk_sand").unwrap();
+        assert_eq!(disk_sand.configured_feature, "minecraft:disk_sand");
+        assert_eq!(
+            disk_sand.placement,
+            vec![
+                PlacementModifier::Count { count: 3 },
+                PlacementModifier::InSquare,
+                PlacementModifier::Heightmap {
+                    heightmap: HeightmapKind::OceanFloorWg,
+                },
+                PlacementModifier::BlockPredicateFilter {
+                    predicate: BlockPredicate::MatchingFluids {
+                        fluids: &["minecraft:water"],
+                    },
+                },
+                PlacementModifier::BiomeFilter,
+            ]
+        );
+        let disk_sand_config =
+            super::super::configured_disk_configuration(disk_sand.configured_feature).unwrap();
+        assert_eq!(
+            disk_sand_config.radius,
+            super::super::IntProviderModel::Uniform {
+                min_inclusive: 2,
+                max_inclusive: 6,
+            }
+        );
+        assert_eq!(disk_sand_config.half_height, 2);
+        assert_eq!(super::super::placed_disk_feature("minecraft:not_disk"), None);
+    }
+

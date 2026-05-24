@@ -1,0 +1,646 @@
+use super::*;
+
+impl Drop for ActiveLoginGuard {
+    fn drop(&mut self) {
+        if let Ok(mut sessions) = self.sessions.lock() {
+            if sessions
+                .get(&self.uuid)
+                .is_some_and(|session| session.token == self.token)
+            {
+                sessions.remove(&self.uuid);
+            }
+        }
+    }
+}
+
+// Source: decompiled-server-26.1.2/net/minecraft/world/damagesource/DamageType.java
+// and decompiled-server-26.1.2/data/minecraft/damage_type/*.json
+pub const DAMAGE_TYPES: &[&str] = &[
+    "arrow",
+    "bad_respawn_point",
+    "cactus",
+    "campfire",
+    "cramming",
+    "dragon_breath",
+    "drown",
+    "dry_out",
+    "ender_pearl",
+    "explosion",
+    "fall",
+    "falling_anvil",
+    "falling_block",
+    "falling_stalactite",
+    "fireball",
+    "fireworks",
+    "fly_into_wall",
+    "freeze",
+    "generic",
+    "generic_kill",
+    "hot_floor",
+    "in_fire",
+    "in_wall",
+    "indirect_magic",
+    "lava",
+    "lightning_bolt",
+    "mace_smash",
+    "magic",
+    "mob_attack",
+    "mob_attack_no_aggro",
+    "mob_projectile",
+    "on_fire",
+    "out_of_world",
+    "outside_border",
+    "player_attack",
+    "player_explosion",
+    "sonic_boom",
+    "spear",
+    "spit",
+    "stalagmite",
+    "starve",
+    "sting",
+    "sweet_berry_bush",
+    "thorns",
+    "thrown",
+    "trident",
+    "unattributed_fireball",
+    "wind_charge",
+    "wither",
+    "wither_skull",
+];
+pub const DAMAGE_TYPE_TAGS: &[(&str, &[i32])] = &[
+    ("minecraft:damages_helmet", &[11, 12, 13]),
+    (
+        "minecraft:bypasses_armor",
+        &[
+            31, 22, 4, 6, 16, 18, 48, 5, 40, 10, 8, 17, 39, 27, 23, 32, 19, 36, 33,
+        ],
+    ),
+    (
+        "minecraft:bypasses_shield",
+        &[
+            31, 22, 4, 6, 16, 18, 48, 5, 40, 10, 8, 17, 39, 27, 23, 32, 19, 36, 33, 2, 3, 7, 11,
+            13, 20, 21, 24, 25, 42,
+        ],
+    ),
+    ("minecraft:bypasses_invulnerability", &[32, 19]),
+    ("minecraft:bypasses_cooldown", &[]),
+    ("minecraft:bypasses_effects", &[40]),
+    ("minecraft:bypasses_resistance", &[32, 19]),
+    ("minecraft:bypasses_enchantments", &[36]),
+    ("minecraft:is_fire", &[21, 3, 31, 24, 20, 46, 14]),
+    ("minecraft:is_projectile", &[0, 45, 30, 46, 14, 49, 44, 47]),
+    ("minecraft:witch_resistant_to", &[27, 23, 36, 43]),
+    ("minecraft:is_explosion", &[15, 9, 35, 1]),
+    ("minecraft:is_fall", &[10, 8, 39]),
+    ("minecraft:is_drowning", &[6]),
+    ("minecraft:is_freezing", &[17]),
+    ("minecraft:is_lightning", &[25]),
+    ("minecraft:no_anger", &[29]),
+    ("minecraft:no_impact", &[6]),
+    ("minecraft:always_most_significant_fall", &[32]),
+    ("minecraft:wither_immune_to", &[6]),
+    ("minecraft:ignites_armor_stands", &[21, 3]),
+    ("minecraft:burns_armor_stands", &[31]),
+    ("minecraft:avoids_guardian_thorns", &[27, 43, 15, 9, 35, 1]),
+    ("minecraft:always_triggers_silverfish", &[27]),
+    ("minecraft:always_hurts_ender_dragons", &[15, 9, 35, 1]),
+    (
+        "minecraft:no_knockback",
+        &[
+            9, 35, 1, 21, 25, 31, 24, 20, 22, 4, 6, 40, 2, 10, 8, 16, 32, 18, 27, 48, 5, 7, 42, 17,
+            39, 33, 19, 3, 37,
+        ],
+    ),
+    ("minecraft:always_kills_armor_stands", &[0, 45, 14, 49, 47]),
+    ("minecraft:can_break_armor_stand", &[35, 34, 37, 26]),
+    (
+        "minecraft:bypasses_wolf_armor",
+        &[32, 19, 4, 6, 7, 17, 22, 23, 27, 33, 40, 43, 48],
+    ),
+    ("minecraft:is_player_attack", &[34, 37, 26]),
+    ("minecraft:burn_from_stepping", &[3, 20]),
+    (
+        "minecraft:panic_causes",
+        &[
+            2, 17, 20, 21, 24, 25, 31, 0, 5, 9, 14, 15, 23, 27, 28, 30, 35, 36, 41, 44, 45, 46, 47,
+            48, 49, 34, 37, 26,
+        ],
+    ),
+    (
+        "minecraft:panic_environmental_causes",
+        &[2, 17, 20, 21, 24, 25, 31],
+    ),
+    ("minecraft:mace_smash", &[26]),
+];
+
+pub struct TrimMaterialEntry {
+    pub id: &'static str,
+    pub asset_name: &'static str,
+    pub color: &'static str,
+    pub overrides: &'static [(&'static str, &'static str)],
+}
+
+pub struct JukeboxSongEntry {
+    pub id: &'static str,
+    pub sound_event: &'static str,
+    pub length_seconds: f32,
+    pub comparator_output: i32,
+}
+
+pub struct InstrumentEntry {
+    pub id: &'static str,
+    pub sound_event: &'static str,
+}
+
+pub struct ChatTypeEntry {
+    pub id: &'static str,
+    pub chat_translation_key: &'static str,
+    pub chat_parameters: &'static [&'static str],
+    pub narration_translation_key: &'static str,
+    pub narration_parameters: &'static [&'static str],
+}
+
+pub const CHAT_TYPES: &[ChatTypeEntry] = &[
+    ChatTypeEntry {
+        id: "chat",
+        chat_translation_key: "chat.type.text",
+        chat_parameters: &["sender", "content"],
+        narration_translation_key: "chat.type.text.narrate",
+        narration_parameters: &["sender", "content"],
+    },
+    ChatTypeEntry {
+        id: "emote_command",
+        chat_translation_key: "chat.type.emote",
+        chat_parameters: &["sender", "content"],
+        narration_translation_key: "chat.type.emote",
+        narration_parameters: &["sender", "content"],
+    },
+    ChatTypeEntry {
+        id: "msg_command_incoming",
+        chat_translation_key: "commands.message.display.incoming",
+        chat_parameters: &["sender", "content"],
+        narration_translation_key: "chat.type.text.narrate",
+        narration_parameters: &["sender", "content"],
+    },
+    ChatTypeEntry {
+        id: "msg_command_outgoing",
+        chat_translation_key: "commands.message.display.outgoing",
+        chat_parameters: &["target", "content"],
+        narration_translation_key: "chat.type.text.narrate",
+        narration_parameters: &["sender", "content"],
+    },
+    ChatTypeEntry {
+        id: "say_command",
+        chat_translation_key: "chat.type.announcement",
+        chat_parameters: &["sender", "content"],
+        narration_translation_key: "chat.type.text.narrate",
+        narration_parameters: &["sender", "content"],
+    },
+    ChatTypeEntry {
+        id: "team_msg_command_incoming",
+        chat_translation_key: "chat.type.team.text",
+        chat_parameters: &["target", "sender", "content"],
+        narration_translation_key: "chat.type.text.narrate",
+        narration_parameters: &["sender", "content"],
+    },
+    ChatTypeEntry {
+        id: "team_msg_command_outgoing",
+        chat_translation_key: "chat.type.team.sent",
+        chat_parameters: &["target", "sender", "content"],
+        narration_translation_key: "chat.type.text.narrate",
+        narration_parameters: &["sender", "content"],
+    },
+];
+
+// Source: decompiled-server-26.1.2/net/minecraft/world/level/biome/Biome.java
+// and data/minecraft/worldgen/biome/*.json
+pub(crate) const BIOMES: &[&str] = &[
+    "badlands",
+    "bamboo_jungle",
+    "basalt_deltas",
+    "beach",
+    "birch_forest",
+    "cherry_grove",
+    "cold_ocean",
+    "crimson_forest",
+    "dark_forest",
+    "deep_cold_ocean",
+    "deep_dark",
+    "deep_frozen_ocean",
+    "deep_lukewarm_ocean",
+    "deep_ocean",
+    "desert",
+    "dripstone_caves",
+    "end_barrens",
+    "end_highlands",
+    "end_midlands",
+    "eroded_badlands",
+    "flower_forest",
+    "forest",
+    "frozen_ocean",
+    "frozen_peaks",
+    "frozen_river",
+    "grove",
+    "ice_spikes",
+    "jagged_peaks",
+    "jungle",
+    "lukewarm_ocean",
+    "lush_caves",
+    "mangrove_swamp",
+    "meadow",
+    "mushroom_fields",
+    "nether_wastes",
+    "ocean",
+    "old_growth_birch_forest",
+    "old_growth_pine_taiga",
+    "old_growth_spruce_taiga",
+    "pale_garden",
+    "plains",
+    "river",
+    "savanna",
+    "savanna_plateau",
+    "small_end_islands",
+    "snowy_beach",
+    "snowy_plains",
+    "snowy_slopes",
+    "snowy_taiga",
+    "soul_sand_valley",
+    "sparse_jungle",
+    "stony_peaks",
+    "stony_shore",
+    "sunflower_plains",
+    "swamp",
+    "taiga",
+    "the_end",
+    "the_void",
+    "warm_ocean",
+    "warped_forest",
+    "windswept_forest",
+    "windswept_gravelly_hills",
+    "windswept_hills",
+    "windswept_savanna",
+    "wooded_badlands",
+];
+
+pub const DIMENSION_TYPES: &[&str] = &["overworld", "overworld_caves", "the_end", "the_nether"];
+
+// Source: decompiled-server-26.1.2/net/minecraft/world/item/equipment/trim/TrimPatterns.java
+// and data/minecraft/trim_pattern/*.json
+pub const TRIM_PATTERNS: &[&str] = &[
+    "sentry",
+    "dune",
+    "coast",
+    "wild",
+    "ward",
+    "eye",
+    "vex",
+    "tide",
+    "snout",
+    "rib",
+    "spire",
+    "wayfinder",
+    "shaper",
+    "silence",
+    "raiser",
+    "host",
+    "flow",
+    "bolt",
+];
+
+// Source: decompiled-server-26.1.2/net/minecraft/world/item/InstrumentItem.java
+// and data/minecraft/instrument/*.json
+pub const INSTRUMENTS: &[InstrumentEntry] = &[
+    InstrumentEntry {
+        id: "admire_goat_horn",
+        sound_event: "minecraft:item.goat_horn.sound.4",
+    },
+    InstrumentEntry {
+        id: "call_goat_horn",
+        sound_event: "minecraft:item.goat_horn.sound.5",
+    },
+    InstrumentEntry {
+        id: "dream_goat_horn",
+        sound_event: "minecraft:item.goat_horn.sound.7",
+    },
+    InstrumentEntry {
+        id: "feel_goat_horn",
+        sound_event: "minecraft:item.goat_horn.sound.3",
+    },
+    InstrumentEntry {
+        id: "ponder_goat_horn",
+        sound_event: "minecraft:item.goat_horn.sound.0",
+    },
+    InstrumentEntry {
+        id: "seek_goat_horn",
+        sound_event: "minecraft:item.goat_horn.sound.2",
+    },
+    InstrumentEntry {
+        id: "sing_goat_horn",
+        sound_event: "minecraft:item.goat_horn.sound.1",
+    },
+    InstrumentEntry {
+        id: "yearn_goat_horn",
+        sound_event: "minecraft:item.goat_horn.sound.6",
+    },
+];
+
+// Source: decompiled-server-26.1.2/net/minecraft/world/level/block/entity/BannerPatterns.java
+// and data/minecraft/banner_pattern/*.json
+pub const BANNER_PATTERNS: &[&str] = &[
+    "base",
+    "border",
+    "bricks",
+    "circle",
+    "creeper",
+    "cross",
+    "curly_border",
+    "diagonal_left",
+    "diagonal_right",
+    "diagonal_up_left",
+    "diagonal_up_right",
+    "flow",
+    "flower",
+    "globe",
+    "gradient",
+    "gradient_up",
+    "guster",
+    "half_horizontal",
+    "half_horizontal_bottom",
+    "half_vertical",
+    "half_vertical_right",
+    "mojang",
+    "piglin",
+    "rhombus",
+    "skull",
+    "small_stripes",
+    "square_bottom_left",
+    "square_bottom_right",
+    "square_top_left",
+    "square_top_right",
+    "straight_cross",
+    "stripe_bottom",
+    "stripe_center",
+    "stripe_downleft",
+    "stripe_downright",
+    "stripe_left",
+    "stripe_middle",
+    "stripe_right",
+    "stripe_top",
+    "triangle_bottom",
+    "triangle_top",
+    "triangles_bottom",
+    "triangles_top",
+];
+
+pub const BANNER_PATTERN_TAGS: &[(&str, &[&str])] = &[
+    (
+        "minecraft:no_item_required",
+        &[
+            "base",
+            "square_bottom_left",
+            "square_bottom_right",
+            "square_top_left",
+            "square_top_right",
+            "stripe_bottom",
+            "stripe_top",
+            "stripe_left",
+            "stripe_right",
+            "stripe_center",
+            "stripe_middle",
+            "stripe_downright",
+            "stripe_downleft",
+            "small_stripes",
+            "cross",
+            "straight_cross",
+            "triangle_bottom",
+            "triangle_top",
+            "triangles_bottom",
+            "triangles_top",
+            "diagonal_left",
+            "diagonal_up_right",
+            "diagonal_up_left",
+            "diagonal_right",
+            "circle",
+            "rhombus",
+            "half_vertical",
+            "half_horizontal",
+            "half_vertical_right",
+            "half_horizontal_bottom",
+            "border",
+            "gradient",
+            "gradient_up",
+            "bricks",
+            "curly_border",
+        ],
+    ),
+    ("minecraft:pattern_item/flower", &["flower"]),
+    ("minecraft:pattern_item/creeper", &["creeper"]),
+    ("minecraft:pattern_item/skull", &["skull"]),
+    ("minecraft:pattern_item/mojang", &["mojang"]),
+    ("minecraft:pattern_item/globe", &["globe"]),
+    ("minecraft:pattern_item/piglin", &["piglin"]),
+    ("minecraft:pattern_item/flow", &["flow"]),
+    ("minecraft:pattern_item/guster", &["guster"]),
+    ("minecraft:pattern_item/field_masoned", &["bricks"]),
+    ("minecraft:pattern_item/bordure_indented", &["curly_border"]),
+];
+
+// Source: decompiled-server-26.1.2/net/minecraft/world/item/JukeboxSongs.java
+// and data/minecraft/jukebox_song/*.json
+pub const JUKEBOX_SONGS: &[JukeboxSongEntry] = &[
+    JukeboxSongEntry {
+        id: "11",
+        sound_event: "minecraft:music_disc.11",
+        length_seconds: 71.0,
+        comparator_output: 11,
+    },
+    JukeboxSongEntry {
+        id: "13",
+        sound_event: "minecraft:music_disc.13",
+        length_seconds: 178.0,
+        comparator_output: 1,
+    },
+    JukeboxSongEntry {
+        id: "5",
+        sound_event: "minecraft:music_disc.5",
+        length_seconds: 178.0,
+        comparator_output: 15,
+    },
+    JukeboxSongEntry {
+        id: "blocks",
+        sound_event: "minecraft:music_disc.blocks",
+        length_seconds: 345.0,
+        comparator_output: 3,
+    },
+    JukeboxSongEntry {
+        id: "cat",
+        sound_event: "minecraft:music_disc.cat",
+        length_seconds: 185.0,
+        comparator_output: 2,
+    },
+    JukeboxSongEntry {
+        id: "chirp",
+        sound_event: "minecraft:music_disc.chirp",
+        length_seconds: 185.0,
+        comparator_output: 4,
+    },
+    JukeboxSongEntry {
+        id: "creator",
+        sound_event: "minecraft:music_disc.creator",
+        length_seconds: 176.0,
+        comparator_output: 12,
+    },
+    JukeboxSongEntry {
+        id: "creator_music_box",
+        sound_event: "minecraft:music_disc.creator_music_box",
+        length_seconds: 73.0,
+        comparator_output: 11,
+    },
+    JukeboxSongEntry {
+        id: "far",
+        sound_event: "minecraft:music_disc.far",
+        length_seconds: 174.0,
+        comparator_output: 5,
+    },
+    JukeboxSongEntry {
+        id: "lava_chicken",
+        sound_event: "minecraft:music_disc.lava_chicken",
+        length_seconds: 134.0,
+        comparator_output: 9,
+    },
+    JukeboxSongEntry {
+        id: "mall",
+        sound_event: "minecraft:music_disc.mall",
+        length_seconds: 197.0,
+        comparator_output: 6,
+    },
+    JukeboxSongEntry {
+        id: "mellohi",
+        sound_event: "minecraft:music_disc.mellohi",
+        length_seconds: 96.0,
+        comparator_output: 7,
+    },
+    JukeboxSongEntry {
+        id: "otherside",
+        sound_event: "minecraft:music_disc.otherside",
+        length_seconds: 195.0,
+        comparator_output: 14,
+    },
+    JukeboxSongEntry {
+        id: "pigstep",
+        sound_event: "minecraft:music_disc.pigstep",
+        length_seconds: 149.0,
+        comparator_output: 13,
+    },
+    JukeboxSongEntry {
+        id: "precipice",
+        sound_event: "minecraft:music_disc.precipice",
+        length_seconds: 299.0,
+        comparator_output: 13,
+    },
+    JukeboxSongEntry {
+        id: "relic",
+        sound_event: "minecraft:music_disc.relic",
+        length_seconds: 218.0,
+        comparator_output: 14,
+    },
+    JukeboxSongEntry {
+        id: "stal",
+        sound_event: "minecraft:music_disc.stal",
+        length_seconds: 150.0,
+        comparator_output: 8,
+    },
+    JukeboxSongEntry {
+        id: "strad",
+        sound_event: "minecraft:music_disc.strad",
+        length_seconds: 188.0,
+        comparator_output: 9,
+    },
+    JukeboxSongEntry {
+        id: "tears",
+        sound_event: "minecraft:music_disc.tears",
+        length_seconds: 175.0,
+        comparator_output: 10,
+    },
+    JukeboxSongEntry {
+        id: "wait",
+        sound_event: "minecraft:music_disc.wait",
+        length_seconds: 238.0,
+        comparator_output: 12,
+    },
+    JukeboxSongEntry {
+        id: "ward",
+        sound_event: "minecraft:music_disc.ward",
+        length_seconds: 251.0,
+        comparator_output: 10,
+    },
+];
+
+pub const TRIM_MATERIALS: &[TrimMaterialEntry] = &[
+    TrimMaterialEntry {
+        id: "quartz",
+        asset_name: "quartz",
+        color: "#e3d4bd",
+        overrides: &[],
+    },
+    TrimMaterialEntry {
+        id: "iron",
+        asset_name: "iron",
+        color: "#ececec",
+        overrides: &[("minecraft:iron", "iron_darker")],
+    },
+    TrimMaterialEntry {
+        id: "netherite",
+        asset_name: "netherite",
+        color: "#625859",
+        overrides: &[("minecraft:netherite", "netherite_darker")],
+    },
+    TrimMaterialEntry {
+        id: "redstone",
+        asset_name: "redstone",
+        color: "#971607",
+        overrides: &[],
+    },
+    TrimMaterialEntry {
+        id: "copper",
+        asset_name: "copper",
+        color: "#b4684d",
+        overrides: &[("minecraft:copper", "copper_darker")],
+    },
+    TrimMaterialEntry {
+        id: "gold",
+        asset_name: "gold",
+        color: "#decf2a",
+        overrides: &[("minecraft:gold", "gold_darker")],
+    },
+    TrimMaterialEntry {
+        id: "emerald",
+        asset_name: "emerald",
+        color: "#11a036",
+        overrides: &[],
+    },
+    TrimMaterialEntry {
+        id: "diamond",
+        asset_name: "diamond",
+        color: "#6eead6",
+        overrides: &[("minecraft:diamond", "diamond_darker")],
+    },
+    TrimMaterialEntry {
+        id: "lapis",
+        asset_name: "lapis",
+        color: "#416e97",
+        overrides: &[],
+    },
+    TrimMaterialEntry {
+        id: "amethyst",
+        asset_name: "amethyst",
+        color: "#9a5cc6",
+        overrides: &[],
+    },
+    TrimMaterialEntry {
+        id: "resin",
+        asset_name: "resin",
+        color: "#fc7812",
+        overrides: &[],
+    },
+];
