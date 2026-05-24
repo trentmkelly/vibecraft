@@ -7,7 +7,7 @@ Cross-cutting project rules and compatibility commitments moved out of the top-l
 - [y] Define the target as Minecraft Java Edition 26.1.2 protocol and server behavior.
 - [ ] Keep the new implementation independent of Mojang source code licensing constraints.
 - [ ] Use black-box tests, public protocol references, vanilla datapacks, generated assets, and observed behavior as validation sources.
-- [ ] Track every intentional deviation from vanilla behavior in a compatibility document.
+- [x] Track every intentional deviation from vanilla behavior in a compatibility document. — `docs/COMPATIBILITY.md` owns the intentional-deviation list and currently records the unsupported Swing GUI, chase debug server/client, and native-transport implementation decision.
 - [ ] Build a repeatable test harness that can compare the rebuilt server against the official `server.jar`.
 - [y] Add Mineflayer-based black-box smoke tests that can target either RustCraft or the official `server.jar`.
 - [ ] Add a Mineflayer fixture that records bot event order, disconnect reasons, kicked messages, and packet-level errors for every black-box scenario.
