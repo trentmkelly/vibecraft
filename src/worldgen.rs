@@ -228,6 +228,8 @@ mod basalt_column_feature_plans;
 pub use self::basalt_column_feature_plans::*;
 mod delta_feature_plans;
 pub use self::delta_feature_plans::*;
+mod glowstone_feature_plans;
+pub use self::glowstone_feature_plans::*;
 mod jigsaw_pool_models;
 pub use self::jigsaw_pool_models::*;
 mod jigsaw_placement;
@@ -3518,32 +3520,6 @@ fn simple_block_is_double_plant(state: &str) -> bool {
             | "minecraft:tall_grass"
             | "minecraft:large_fern"
     )
-}
-
-pub fn glowstone_can_start(origin_empty: bool, above_state: &str) -> bool {
-    origin_empty
-        && matches!(
-            above_state,
-            "minecraft:netherrack" | "minecraft:basalt" | "minecraft:blackstone"
-        )
-}
-
-pub fn glowstone_candidate_offset(
-    x_roll_a: i32,
-    x_roll_b: i32,
-    y_roll: i32,
-    z_roll_a: i32,
-    z_roll_b: i32,
-) -> BlockPos {
-    BlockPos {
-        x: x_roll_a.rem_euclid(8) - x_roll_b.rem_euclid(8),
-        y: -y_roll.rem_euclid(12),
-        z: z_roll_a.rem_euclid(8) - z_roll_b.rem_euclid(8),
-    }
-}
-
-pub fn glowstone_can_grow(candidate_empty: bool, glowstone_neighbors: i32) -> bool {
-    candidate_empty && glowstone_neighbors == 1
 }
 
 pub fn nether_forest_vegetation_can_start(
