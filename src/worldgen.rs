@@ -268,6 +268,8 @@ mod simple_tree_feature_plans;
 pub use self::simple_tree_feature_plans::*;
 mod trunk_feature_plans;
 pub use self::trunk_feature_plans::*;
+mod fallen_tree_feature_plans;
+pub use self::fallen_tree_feature_plans::*;
 mod jigsaw_pool_models;
 pub use self::jigsaw_pool_models::*;
 mod jigsaw_placement;
@@ -3655,95 +3657,6 @@ fn clamped_map_f64(value: f64, from_min: f64, from_max: f64, to_min: f64, to_max
 
 fn inclusive_roll(roll: i32, min: i32, max: i32) -> i32 {
     min + roll.rem_euclid(max - min + 1)
-}
-
-pub fn fallen_tree_log_length(min_length: i32, max_length: i32, sample_roll: i32) -> i32 {
-    let span = (max_length - min_length + 1).max(1);
-    min_length + sample_roll.rem_euclid(span) - 2
-}
-
-pub fn fallen_tree_start_pos(
-    origin: BlockPos,
-    direction: HorizontalDirection,
-    distance_roll: i32,
-    ground_probe: &[bool],
-) -> Option<BlockPos> {
-    let mut pos = offset_horizontal(origin, direction, 2 + distance_roll.rem_euclid(2));
-    pos.y += 1;
-    for can_place in ground_probe.iter().copied().take(6) {
-        if can_place {
-            return Some(pos);
-        }
-        pos.y -= 1;
-    }
-    None
-}
-
-pub fn fallen_tree_can_place_log(
-    valid_tree_positions: &[bool],
-    over_solid_ground: &[bool],
-) -> bool {
-    let mut ground_gap = 0;
-    for (index, valid) in valid_tree_positions.iter().copied().enumerate() {
-        if !valid {
-            return false;
-        }
-        if !over_solid_ground.get(index).copied().unwrap_or(false) {
-            ground_gap += 1;
-            if ground_gap > 2 {
-                return false;
-            }
-        } else {
-            ground_gap = 0;
-        }
-    }
-    true
-}
-
-pub fn fallen_tree_placement_plan(
-    origin: BlockPos,
-    config: &FallenTreeConfigurationModel,
-    direction: HorizontalDirection,
-    log_length_roll: i32,
-    distance_roll: i32,
-    ground_probe: &[bool],
-    valid_tree_positions: &[bool],
-    over_solid_ground: &[bool],
-) -> Option<FallenTreePlacementPlan> {
-    let trunk_state = block_state_provider_sample(&config.trunk_provider, 0)?;
-    let log_length = fallen_tree_log_length(
-        config.min_log_length,
-        config.max_log_length,
-        log_length_roll,
-    );
-    let start = fallen_tree_start_pos(origin, direction, distance_roll, ground_probe)?;
-    let valid_len = log_length.max(0) as usize;
-    if valid_tree_positions.len() < valid_len || over_solid_ground.len() < valid_len {
-        return None;
-    }
-    if !fallen_tree_can_place_log(
-        &valid_tree_positions[..valid_len],
-        &over_solid_ground[..valid_len],
-    ) {
-        return None;
-    }
-    let mut blocks = vec![FallenTreeBlock {
-        pos: origin,
-        state: trunk_state,
-        mark_above_for_post_processing: true,
-    }];
-    for i in 0..log_length.max(0) {
-        blocks.push(FallenTreeBlock {
-            pos: offset_horizontal(start, direction, i),
-            state: rotated_log_state(trunk_state, direction),
-            mark_above_for_post_processing: true,
-        });
-    }
-    Some(FallenTreePlacementPlan {
-        blocks,
-        stump_decorators: config.stump_decorators.len(),
-        log_decorators: config.log_decorators.len(),
-    })
 }
 
 fn rotated_log_state(state: &'static str, direction: HorizontalDirection) -> &'static str {
