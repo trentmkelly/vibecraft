@@ -31,7 +31,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundRespawnPacket` (0x45): common player spawn info, data-to-keep flags; exact flag bitmask for KEEP_ALL_DATA, KEEP_ATTRIBUTE_MODIFIERS, KEEP_ENTITY_DATA
 - [x] `ClientboundChangeDifficultyPacket` (0x0A / decimal 10): difficulty VarInt enum, difficulty-locked bool; verified field order against Java `Difficulty.STREAM_CODEC` and Rust packet round-trip coverage.
 - [x] `ClientboundSetDefaultSpawnPositionPacket` (0x61 / decimal 97): `LevelData.RespawnData` (`GlobalPos` dimension + `BlockPos`, yaw float, pitch float); verified field order against Java `LevelData.RespawnData.STREAM_CODEC` and live raw join.
-- [ ] `ClientboundSetTimePacket` (0x62): game-time long, day-time long, tick-day-time bool
+- [x] `ClientboundSetTimePacket` (0x71 / decimal 113): game-time long plus world-clock update map; verified 26.1.2 field order against Java, Rust packet round-trip coverage, and live raw join.
 - [ ] `ClientboundGameEventPacket` (0x22): event ID byte, param float (covers LEVEL_CHUNKS_LOAD_START, CHANGE_GAME_MODE, WIN_GAME, DEMO_EVENT, ARROW_HIT_PLAYER, RAIN_LEVEL_CHANGE, THUNDER_LEVEL_CHANGE, PUFFER_FISH_STING, GUARDIAN_ELDER_EFFECT, IMMEDIATE_RESPAWN)
 
 ## Chunk and Light Packets
