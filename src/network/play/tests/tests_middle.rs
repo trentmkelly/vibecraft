@@ -249,6 +249,29 @@ fn entity_event_packet_uses_java_fixed_int_entity_id_then_event_byte() {
 }
 
 #[test]
+fn set_passengers_packet_uses_java_vehicle_then_varint_array() {
+    let registry = PlayProtocolRegistry::new();
+    assert_eq!(CLIENTBOUND_SET_PASSENGERS_PACKET_ID, 107);
+    assert_eq!(
+        registry.clientbound_name(CLIENTBOUND_SET_PASSENGERS_PACKET_ID),
+        Some("set_passengers")
+    );
+
+    let mut payload = Vec::new();
+    ClientboundSetPassengersPacket {
+        vehicle: 300,
+        passengers: vec![0, 301, 16_383],
+    }
+    .write(&mut payload)
+    .unwrap();
+
+    assert_eq!(
+        payload,
+        vec![0xac, 0x02, 3, 0, 0xad, 0x02, 0xff, 0x7f]
+    );
+}
+
+#[test]
 fn chunk_batch_received_packet_uses_big_endian_float_payload() {
     let packet = ServerboundChunkBatchReceivedPacket {
         desired_chunks_per_tick: 12.5,

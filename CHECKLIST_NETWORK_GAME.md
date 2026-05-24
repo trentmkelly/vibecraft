@@ -59,7 +59,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundMoveEntityPacket.PosRot` (0x2F): entity ID VarInt, delta X/Y/Z shorts, yaw/pitch bytes, on-ground bool
 - [ ] `ClientboundMoveEntityPacket.Rot` (0x30): entity ID VarInt, yaw/pitch bytes, on-ground bool
 - [ ] `ClientboundMoveVehiclePacket` (0x39): position `Vec3.STREAM_CODEC`, yaw float, pitch float
-- [ ] `ClientboundSetPassengersPacket` (0x6B): vehicle entity ID VarInt, passenger entity ID VarInt array
+- [x] `ClientboundSetPassengersPacket` (0x6B / decimal 107): vehicle entity ID VarInt followed by passenger entity ID VarInt array (`FriendlyByteBuf.writeVarIntArray`); verified against Java `ClientboundSetPassengersPacket` `Packet.codec` read/write order, Java passenger list construction order from `vehicle.getPassengers()`, Java play-protocol registration order, Rust packet registry ID/name mapping, and direct payload bytes for multibyte vehicle/passenger IDs.
 - [x] `ClientboundEntityEventPacket` (0x22 / decimal 34): fixed-int entity ID followed by event ID byte (living entity events such as `2` hurt, `3` death, `6` tame-fail, `7` tame-success); verified against Java `ClientboundEntityEventPacket` `Packet.codec` read/write order, Java play-protocol registration order, Rust packet registry ID/name mapping, and direct big-endian fixed-int plus event-byte payload coverage.
 
 ## Entity Metadata Packets
