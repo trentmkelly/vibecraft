@@ -17,151 +17,151 @@ enough that vanilla's known performance characteristics become plausible.
 
 ## Work Checklist
 
-- [x] Add Java-equivalent `NoiseChunk` context counters:
+- [ ] Add Java-equivalent `NoiseChunk` context counters:
   `interpolation_counter`, `array_interpolation_counter`, `array_index`, and
   `filling_cell`.
-- [x] Replace the recursive static density evaluator with a first-class
+- [ ] Replace the recursive static density evaluator with a first-class
   wrapped density-function runtime, or an equivalent layer with wrapper identity
   and per-wrapper state.
-- [x] Implement wrapper-level scalar `compute(context)` and array
+- [ ] Implement wrapper-level scalar `compute(context)` and array
   `fill_array(output, context_provider)` dispatch.
-  - [x] Add chunk-owned reusable scratch arrays for nested density
+  - [ ] Add chunk-owned reusable scratch arrays for nested density
     `fill_array` calls, reducing temporary allocations while the full
     Java-style wrapper graph is still being built.
-  - [x] Cache density-function value bounds per chunk so lazy scalar/array
+  - [ ] Cache density-function value bounds per chunk so lazy scalar/array
     branches use Java-style precomputed min/max behavior instead of repeatedly
     walking static density trees.
-  - [x] Match Java `RangeChoice.fillArray` branch shape: fill the selector
+  - [ ] Match Java `RangeChoice.fillArray` branch shape: fill the selector
     array, then compute only the selected branch for each index instead of
     eagerly filling both branch arrays.
-  - [x] Match Java two-argument `fillArray` branch shape for `mul`, `min`, and
+  - [ ] Match Java two-argument `fillArray` branch shape for `mul`, `min`, and
     `max`: fill the first argument array, then evaluate the second argument
     lazily per index only when the Java short-circuit rules require it.
-  - [x] Replace linear marker-wrapper lookup tables with Java-style identity
+  - [ ] Replace linear marker-wrapper lookup tables with Java-style identity
     maps so hot `Interpolated`, `CacheOnce`, `Cache2D`, `CacheAllInCell`, and
     `FlatCache` dispatch does not scan wrapper lists for every density sample.
-- [x] Move `Interpolated` marker handling into the wrapped density-function
+- [ ] Move `Interpolated` marker handling into the wrapped density-function
   layer.
-  - [x] Match Java `NoiseInterpolator.compute` while `fillingCell` is true by
+  - [ ] Match Java `NoiseInterpolator.compute` while `fillingCell` is true by
     returning direct `lerp3` cell values during cache fills instead of the last
     block-interpolation value.
-  - [x] Match Java `NoiseInterpolator.fillArray`: when not filling a cell,
+  - [ ] Match Java `NoiseInterpolator.fillArray`: when not filling a cell,
     delegate to the wrapped density function instead of sampling the current
     interpolator value.
-- [x] Move `CacheAllInCell` marker handling into the wrapped density-function
+- [ ] Move `CacheAllInCell` marker handling into the wrapped density-function
   layer.
-- [x] Implement Java-style `CacheOnce` scalar and array semantics.
-  - [x] Replace exact-position-only scalar caching with Java-style
+- [ ] Implement Java-style `CacheOnce` scalar and array semantics.
+  - [ ] Replace exact-position-only scalar caching with Java-style
     `interpolation_counter` / `array_interpolation_counter` checks.
-  - [x] Add an array-fill helper so top-level `CacheOnce` wrappers can copy a
+  - [ ] Add an array-fill helper so top-level `CacheOnce` wrappers can copy a
     cached array for the same `array_interpolation_counter`.
-  - [x] Copy cached `CacheOnce` arrays directly from wrapper state instead of
+  - [ ] Copy cached `CacheOnce` arrays directly from wrapper state instead of
     cloning the cached array before copying to the output buffer.
-  - [x] Add live `CacheOnce` scalar/array hit/miss counters to the worldgen log.
-  - [x] Route nested `CacheOnce` wrappers through first-class wrapper
+  - [ ] Add live `CacheOnce` scalar/array hit/miss counters to the worldgen log.
+  - [ ] Route nested `CacheOnce` wrappers through first-class wrapper
     `fill_array` dispatch instead of scalar recursion.
-  - [x] Store `CacheOnce` as one wrapper-owned state object per collected
+  - [ ] Store `CacheOnce` as one wrapper-owned state object per collected
     marker input, matching Java's inner wrapper lifecycle instead of routing
     scalar and array cache state through a generic hash map.
-- [x] Implement Java-style `FlatCache` precomputed quart-grid semantics.
-- [x] Move `Cache2D` into the wrapped density-function layer.
-  - [x] Store `Cache2D` as wrapper-owned `last_pos_2d` / `last_value` state,
+- [ ] Implement Java-style `FlatCache` precomputed quart-grid semantics.
+- [ ] Move `Cache2D` into the wrapped density-function layer.
+  - [ ] Store `Cache2D` as wrapper-owned `last_pos_2d` / `last_value` state,
     matching Java's inner `Cache2D` object instead of using a shared hash map.
-- [x] Rework `fillSlice` to call wrapper `fill_array`, matching Java
+- [ ] Rework `fillSlice` to call wrapper `fill_array`, matching Java
   `NoiseInterpolator.fillArray`.
-  - [x] Fill retained interpolator `slice0` / `slice1` rows in place instead
+  - [ ] Fill retained interpolator `slice0` / `slice1` rows in place instead
     of allocating a replacement 2D slice per interpolator pass, matching
     Java's retained `double[][]` slice storage.
-  - [x] Cache terrain spline objects on `NoiseChunk` so spline density nodes
+  - [ ] Cache terrain spline objects on `NoiseChunk` so spline density nodes
     behave more like Java's held object graph instead of rebuilding spline
     structures during recursive evaluation.
-- [x] Rework `CacheAllInCell` fills to call wrapper `fill_array`, matching Java
+- [ ] Rework `CacheAllInCell` fills to call wrapper `fill_array`, matching Java
   `cellCache.noiseFiller.fillArray(...)`.
-- [x] Reuse wrapper-owned cell buffers for `CacheAllInCell`, full-noise, and
+- [ ] Reuse wrapper-owned cell buffers for `CacheAllInCell`, full-noise, and
   vein-toggle fills instead of allocating fresh arrays for every selected cell.
-- [x] Replace transitional linear marker lookup scans with Java-style identity
+- [ ] Replace transitional linear marker lookup scans with Java-style identity
   maps while the full Java wrapper graph is still in progress. This keeps
   marker identity resolution explicit and avoids per-sample wrapper-list scans
   in the current transitional evaluator.
-- [x] Rework full-noise cell filling to use the wrapped density-function layer.
-  - [x] Match Java `ShiftedNoise.fillArray` by using direct context iteration
+- [ ] Rework full-noise cell filling to use the wrapped density-function layer.
+  - [ ] Match Java `ShiftedNoise.fillArray` by using direct context iteration
     instead of filling child shift arrays and then recomputing scalar values.
-  - [x] Match Java `TransformerWithContext.fillArray` for
+  - [ ] Match Java `TransformerWithContext.fillArray` for
     `WeirdScaledSampler`: fill the input array once and transform each index
     with its context instead of recomputing the input scalar.
-  - [x] Match Java `FindTopSurface.fillArray` by using direct context
+  - [ ] Match Java `FindTopSurface.fillArray` by using direct context
     iteration instead of pre-filling child scratch arrays that Java never
     materializes for this node.
-  - [x] Sample cached `NormalNoise` snapshots by reference in hot density
+  - [ ] Sample cached `NormalNoise` snapshots by reference in hot density
     paths, matching Java `RandomState` object reuse instead of cloning cached
     snapshot structs on every sample.
-  - [x] Move wrapped density-runtime normal-noise sampling onto the active
+  - [ ] Move wrapped density-runtime normal-noise sampling onto the active
     `NoiseChunk` cache so hot block and cell evaluations reuse noise snapshots
     directly instead of going through the thread-local fallback cache.
-  - [x] Cache `BlendedNoise` snapshots on `NoiseChunk`, matching Java's
+  - [ ] Cache `BlendedNoise` snapshots on `NoiseChunk`, matching Java's
     object-graph reuse for the `old_blended_noise` density node instead of
     rebuilding the sampler from terrain random state at each wrapped sample.
-  - [x] Add a Java-shaped single-point density evaluator for
+  - [ ] Add a Java-shaped single-point density evaluator for
     `preliminarySurfaceLevel`, so `Interpolated`, `CacheOnce`, and
     `CacheAllInCell` wrappers fall through to their wrapped functions when the
     context is not the active `NoiseChunk`.
-- [x] Model the Java `MaterialRuleList` chain for aquifer, ore veins, and
+- [ ] Model the Java `MaterialRuleList` chain for aquifer, ore veins, and
   default block fallback.
-- [x] Move aquifer density calls onto the wrapped router/context.
-  - [x] Route per-block aquifer barrier pressure noise through the active
+- [ ] Move aquifer density calls onto the wrapped router/context.
+  - [ ] Route per-block aquifer barrier pressure noise through the active
     `NoiseChunk` density context, matching Java's `barrierNoise.compute(context)`
     call in `Aquifer.NoiseBasedAquifer.calculatePressure`.
-  - [x] Route cached aquifer fluid-status helper noise (`floodedness`, `spread`,
+  - [ ] Route cached aquifer fluid-status helper noise (`floodedness`, `spread`,
     `lava`, `erosion`, `depth`) through wrapped single-point contexts.
-  - [x] Reuse `NoiseChunk.preliminarySurfaceLevel` from aquifer fluid-status
+  - [ ] Reuse `NoiseChunk.preliminarySurfaceLevel` from aquifer fluid-status
     computation instead of recomputing preliminary-surface noise directly.
-- [x] Implement Java `NoiseChunk.maxPreliminarySurfaceLevel` behavior for
+- [ ] Implement Java `NoiseChunk.maxPreliminarySurfaceLevel` behavior for
   aquifer `skipSamplingAboveY`.
-- [x] Convert ore veins into a material-rule filler using wrapped vein density
+- [ ] Convert ore veins into a material-rule filler using wrapped vein density
   functions.
-  - [x] Cache vein toggle/ridged/gap density arrays per selected cell instead
+  - [ ] Cache vein toggle/ridged/gap density arrays per selected cell instead
     of recursively sampling all three density functions for every solid block.
-  - [x] Match Java `OreVeinifier` branch order by delaying positional-random
+  - [ ] Match Java `OreVeinifier` branch order by delaying positional-random
     creation until after Y range and veininess threshold checks pass.
-  - [x] Cache only `veinToggle` per cell and defer `veinRidged`/`veinGap`
+  - [ ] Cache only `veinToggle` per cell and defer `veinRidged`/`veinGap`
     evaluation until Java's later OreVeinifier branches can actually reach
     them.
-  - [x] Move the remaining ore decision/random branch into a reusable
+  - [ ] Move the remaining ore decision/random branch into a reusable
     Java-shaped material-rule filler.
-  - [x] Remove the transitional per-cell `veinToggle` prefill and let
+  - [ ] Remove the transitional per-cell `veinToggle` prefill and let
     `OreVeinifier` call `veinToggle.compute(context)` at block time like Java.
-- [x] Add deeper timing/counter logs inside `fill_block_loop`.
-  - [x] Break out final-density lookup, aquifer compute, ore density lookup,
+- [ ] Add deeper timing/counter logs inside `fill_block_loop`.
+  - [ ] Break out final-density lookup, aquifer compute, ore density lookup,
     ore decision, aquifer call count, and ore sample count.
-- [x] Rework surface generation around a reusable `SurfaceRules.Context`
+- [ ] Rework surface generation around a reusable `SurfaceRules.Context`
   equivalent.
-- [x] Make generated section block writes mutate paletted storage in place
+- [ ] Make generated section block writes mutate paletted storage in place
   instead of unpacking and repacking the whole 4096-block section per block.
   Java's paletted container path is mutable; the old RustCraft path made every
   terrain and surface write scale with an entire section.
-- [x] Reuse generated `BlockState`/NBT tags for terrain material writes instead
+- [ ] Reuse generated `BlockState`/NBT tags for terrain material writes instead
   of constructing a fresh block-state tag for every generated block.
-- [x] Match Java's hot terrain write shape by resolving section/local-Y once per
+- [ ] Match Java's hot terrain write shape by resolving section/local-Y once per
   Y row and writing directly into that section, instead of recomputing
   world-coordinate section indices for every block write.
-- [x] Wire real biome lookup into surface generation instead of hardcoded
+- [ ] Wire real biome lookup into surface generation instead of hardcoded
   plains/temperature.
-- [x] Cache surface biome lookup by quart coordinate inside the chunk, matching
+- [ ] Cache surface biome lookup by quart coordinate inside the chunk, matching
   Java's quart-resolution biome sampling shape without repeatedly resampling
   identical biome positions during the surface pass.
-- [x] Revisit chunk scheduling after fresh per-chunk generation cost became
+- [ ] Revisit chunk scheduling after fresh per-chunk generation cost became
   close enough to expose scheduling as the next bottleneck. RustCraft now
   keeps the configured view-distance radius but streams chunks as worker
   threads finish generation instead of preparing the whole square before
   sending the first chunk.
-- [x] Add a direct Rust worldgen performance guard test that exercises the same
+- [ ] Add a direct Rust worldgen performance guard test that exercises the same
   real-surface spawn-chunk path as the server, so optimization passes no longer
   require manual client logins.
-- [x] Enable light optimization for dev/test profiles. The same Rust worldgen
+- [ ] Enable light optimization for dev/test profiles. The same Rust worldgen
   path was ~2.7s in fully unoptimized test builds but ~180ms in release, so the
   remaining live-server slowdown was dominated by debug codegen rather than a
   Java worldgen algorithm divergence.
-- [x] Match Java's full view-distance streaming behavior without reducing the
+- [ ] Match Java's full view-distance streaming behavior without reducing the
   server chunk radius. A temporary radius-2 workaround was rejected because it
   hid the slow generation path instead of moving us closer to vanilla parity.
   The join packet and chunk cache radius continue using `server.properties`
@@ -169,9 +169,9 @@ enough that vanilla's known performance characteristics become plausible.
   workers and writes chunks as they become ready. This follows the shape of
   Java's `NoiseBasedChunkGenerator.fillFromNoise`, which uses
   `CompletableFuture.supplyAsync(..., Util.backgroundExecutor().forName("wgen_fill_noise"))`.
-- [x] Verify on a fresh world that spawn and nearby chunks generate without
+- [ ] Verify on a fresh world that spawn and nearby chunks generate without
   multi-second invisible/solid terrain.
-  - [x] Add a direct Rust 3x3 spawn-area performance guard that generates the
+  - [ ] Add a direct Rust 3x3 spawn-area performance guard that generates the
     same real-surface `SPAWN` chunks used by the server and fails if total or
     per-chunk generation returns to multi-second timings.
 

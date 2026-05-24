@@ -1,0 +1,802 @@
+# RustCraft Source Audit Checklist
+
+Generated on 2026-05-24 from RustCraft implementation and harness sources, excluding `target/`, `harness/mineflayer/node_modules/`, and the unrelated sibling worktree. Each item verifies that existing Rust code is represented in the subsystem checklists, matches the authoritative Java source where applicable, and has any missing parity work recorded as unchecked tasks.
+
+## Rust Implementation Files
+
+- [ ] Audit Rust implementation file `src/advancement_system.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/ai_system.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/attribute_system.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/base_entity.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/biome.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/biome/climate_rtree.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/biome/overworld_builder.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/biome/overworld_builder/mid_slice.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/biome/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/block_behavior.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/block_behavior_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/block_catalog.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/block_entity.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/block_entity/beacon_signs_brewing.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/block_entity/beehive_creaking_bell.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/block_entity/block_entity_types_data.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/block_entity/container_decorative.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/block_entity/dispatcher.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/block_entity/functional_blocks.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/block_entity/sculk_conduit_campfire.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/block_entity/spawners.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/block_entity/structures.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/block_entity/test_blocks.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/block_entity/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/block_entity/tests/tests_b.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/block_entity/tests/tests_b2.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/block_entity/tests/tests_c.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/block_entity/tests/tests_c2.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/block_entity/tests/tests_d.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/block_entity/vault_banner_furnace.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/block_metadata.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/block_metadata/registry_data_a.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/block_metadata/registry_data_b.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/block_regression.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/block_update.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/boss_fight.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/boss_fight/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/chat_component.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/chat_trust.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/chunk_manager.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/chunk_task.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/chunk_ticket.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/chunk_watchdog.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/cli.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/collision_shape.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/combat_damage.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/admin_player.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/dispatch.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/enchant_gamemode_rules.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/entity_team_misc.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/errors_versions.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/execute_experience_profile.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/functions.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/impls.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/inventory_items.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/locate_loot_place_raid.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/models.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/parsers_usage_random.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/permissions.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/scoreboard.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/server_data_debug.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/sound_advancement_attribute.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/spawn_spread_spectate.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/stopwatch_schedule_function.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/teleport_time_ui.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/tests/tests_01.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/tests/tests_02.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/tests/tests_03.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/tests/tests_04.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/tests/tests_05.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/tests/tests_06.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/tests/tests_07.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/tests/tests_08.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/tests/tests_09.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/tests/tests_10.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/tests/tests_11.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/world_editing.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command/world_models.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command_execution.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command_feedback.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command_parity.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command_selector.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/command_tree.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/console.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/container_block.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/container_menus.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/container_menus/menus_crafting_and_furnace.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/container_menus/menus_entity.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/container_menus/menus_misc.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/container_menus/menus_storage.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/container_menus/menus_table.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/container_menus/menus_workstation.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/container_menus/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/crash.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/crash_recovery_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/creative_inventory.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/damage_type.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/datapack_reload_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/dialog_system.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/dispenser_cauldron.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/enchantment_system.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/enchantment_system/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/entity_behavior_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/entity_category.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/entity_metadata.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/entity_metadata/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/entity_physics.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/entity_validation.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/entity_variants.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/environment_attributes.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/equipment_trim.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/eula.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/experience_system.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/fire.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/fluid.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/fuzz_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/game_event.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/game_rules.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/gametest_resources.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/generated_reports.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/gravity.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/inhabited_time.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/inventory.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/inventory_transactions.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/item_catalog.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/item_entity.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/item_family_behavior.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/item_properties.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/item_stack.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/light.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/living_entity.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/localization_keys.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/log.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/loot_system.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/loot_system/context.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/loot_system/runtime_engine.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/loot_system/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/loot_system/tests/advanced_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/main.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/management_security.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/management_server.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/management_server/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/map_state.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_family.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/allays.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/armadillos.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/axolotls.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/bees.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/blazes.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/bucketables_mooshrooms.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/camels.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/chickens_cows.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/common.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/coverage.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/creepers.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/dolphins.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/dried_ghasts_sniffers.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/drowned.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/endermen.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/endermites.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/felines.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/fish_common.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/fish_variants.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/frogs_foxes.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/ghasts.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/giants.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/goats.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/golems.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/guardians.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/hoglins_piglins.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/horses_llamas.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/husks.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/pandas.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/parrots_happy_ghasts.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/phantoms.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/piglin_hoglin_types.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/pigs.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/polar_bears.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/rabbits.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/ravagers.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/sheep.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/shulkers.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/silverfish.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/skeletons.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/slimes.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/spiders.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/squids.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/striders.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/tests/tests_a.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/tests/tests_b.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/tests/tests_c.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/tests/tests_d.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/tests/tests_e.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/tests/tests_f.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/turtles.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/vexes.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/villagers_anger_conversion.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/witches.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/zombie_villagers.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/zombies.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/mob_interaction/zombified_piglins.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/movement_physics.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/movement_validation.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/bundle.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/codec.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/common.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/common/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/compression.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/configuration.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/cookie.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/dispatch.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/encryption.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/handshake.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/local.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/login.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/mod.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/ping.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/pipeline.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/play.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/play/chunk_a.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/play/chunk_b.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/play/chunk_c.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/play/chunk_c2.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/play/chunk_d.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/play/chunk_d2.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/play/chunk_e.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/play/chunk_e2.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/play/chunk_impl_early.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/play/chunk_types_a.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/play/chunk_types_b.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/play/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/play/tests/entity_movement_test.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/play/tests/small_play_packets_test.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/play/tests/tests_end.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/play/tests/tests_middle.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/play/tests/tests_middle2.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/protocol_coverage.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/query.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/rate_limit.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/rcon.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/status.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/status/chunk_0.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/status/chunk_0_2.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/status/chunk_a.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/status/chunk_b.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/status/chunk_b_2.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/status/chunk_c.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/status/chunk_c_2.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/status/chunk_d.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/status/chunk_d_2.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/status/chunk_e.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/status/chunk_e_2.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/status/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/status/tests/tests_a2.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/status/tests/tests_b.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/status/tests/tests_c.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/status/tests/tests_d.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/transfer.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/network/varint.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/non_living_entity.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/operational_coverage.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/parity_harness.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/performance_benchmarks.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/persistence_roundtrip_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/plant.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/player.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/player_access.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/player_entity.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/player_game_mode.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/player_inventory.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/player_inventory/merchant.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/player_inventory/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/player_list.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/player_online_auth.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/player_presentation.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/player_profile_key.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/portal.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/post_processing.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/potion_fluid_container.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/presentation_data.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/presentation_data/damage_types.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/presentation_data/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/project_foundation_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/projectile_entity.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/raid.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/random_source.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/random_tick.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/recipe_system.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/recipe_system/recipe_loading.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/recipe_system/recipe_results.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/recipe_system/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/recipe_system/tests/recipe_kind_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/redstone.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/registry/builtin.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/registry/mod.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/registry/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/resources.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/resources/metadata_parser.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/resources/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/respawn.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/runtime.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/scheduled_tick.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/seed_validation.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/server_properties.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/spawning.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/special_block.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/statistics.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/status_effect.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/storage/chunk.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/storage/chunk/chunk_generation.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/storage/chunk/level_chunk_impl.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/storage/chunk/nbt_helpers.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/storage/chunk/paletted_container.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/storage/chunk/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/storage/chunk/tests/generation_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/storage/datafix.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/storage/entities.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/storage/mod.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/storage/nbt.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/storage/nbt/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/storage/poi.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/storage/region.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/storage/region/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/storage/saved_data.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/storage/tag_value.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/storage/world.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/storage/world/helpers.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/storage/world/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/structure_resources.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/trial_system.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/vehicle_entity.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/vibration.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/villager_system.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/villager_system/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/waypoint.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/weather.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/world.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/world_border.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/world_time.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/aquatic_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/basalt_column_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/basalt_pillar_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/biome_feature_steps_nether_end.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/biome_feature_steps_overworld_common.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/biome_feature_steps_overworld_variants.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/biome_generation_settings.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/biome_sampling.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/biome_spawn_entries_creatures.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/biome_spawn_entries_monsters_water.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/biome_spawner_groups_overworld.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/biome_spawner_groups_special.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/block_pile_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/block_predicates.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/block_state_provider_sampling.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/block_state_support.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/blue_ice_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/carver_application.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/carver_generation.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/chorus_plant_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/configured_features.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/decoration_models.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/delta_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/density_caves.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/density_function_evaluation.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/density_overworld.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/density_overworld_final.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/density_preliminary_surface.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/density_registry.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/density_veins.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/disk_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/dripstone_cluster_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/end_gateway_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/end_island_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/end_platform_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/end_podium_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/end_spike_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/fallen_tree_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/feature_lookup.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/feature_models.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/feature_selector_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/feature_sorting.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/feature_support_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/feature_types.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/fill_layer_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/flat_generation.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/fossil_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/generated_sections.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/generator_queries.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/geode_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/glowstone_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/height_providers.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/huge_fungus_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/iceberg_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/jigsaw_model_impls.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/jigsaw_placement.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/jigsaw_pool_models.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/lake_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/large_dripstone_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/live_chunk_generation.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/live_tree_placement.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/live_tree_selection.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/mob_spawn_entities.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/mob_spawn_planning.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/nether_forest_vegetation_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/nether_vine_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/noise_aquifer.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/noise_chunk_fill.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/noise_chunk_state.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/noise_chunk_template.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/noise_density_evaluation.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/noise_generator_settings.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/noise_models.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/noise_preview_chunk.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/noise_routers.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/noise_sampling.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/ore_placement_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/overworld_chunk_generation.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/placed_features.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/placement_modifiers.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/pointed_dripstone_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/random_noise_helpers.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/replace_sphere_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/root_system_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/simple_tree_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/simple_vegetation.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/snow_and_freeze_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/spawn_positioning.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/structure_access_support.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/structure_core_models.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/structure_end_city.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/structure_mineshaft_application.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/structure_mineshaft_generation.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/structure_nether_fortress.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/structure_ocean_monuments.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/structure_ocean_ruins.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/structure_piece_generation.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/structure_piece_models.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/structure_placement.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/structure_scattered_features.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/structure_strongholds.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/structure_template_features.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/structure_template_support.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/structure_woodland_mansion.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/surface_generation.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/surface_rule_runtime.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/surface_rules.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/terrain_models.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/terrain_splines.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/aquifer_ore_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/biome_generation_basic_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/biome_neighbor_payload_dimension_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/biome_neighbor_payload_surface_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/configured_carver_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/feature_placement_behavior_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/feature_placement_support_decorator_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/feature_placement_support_dripstone_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/feature_placement_support_geode_end_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/feature_placement_support_provider_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/feature_placement_support_tree_base_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/feature_placement_support_tree_variant_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/feature_registry_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/feature_sorter_decoration_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/flat_noise_settings_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/generator_carver_preview_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/jigsaw_core_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/jigsaw_expansion_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/live_surface_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/mob_batch_player_spawn_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/mob_entity_nbt_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/noise_density_core_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/noise_parity_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/noise_router_surface_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/overworld_mismatch_diagnostics_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/overworld_structure_diagnostics_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/overworld_surface_context_diagnostics_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/overworld_tree_diagnostics_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/placement_registry_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/registry_terrain_constants_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/spawn_planning_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/structure_access_scattered_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/structure_large_generation_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/structure_large_template_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/structure_piece_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/structure_placement_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/structure_template_feature_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/structure_template_processor_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/vegetation_ore_cache_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tests/world_preset_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tree_configuration_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tree_decoration_context.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tree_decoration_generation.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tree_decoration_heights.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tree_decorator_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/tree_foliage_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/trunk_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/underground_decoration_cache.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/underground_decoration_placement.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/underground_ore_decoration.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/underwater_magma_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/vegetation_patch_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/world_preset_resolvers.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/worldgen_registry_parsing.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen/worldgen_static_registries.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen_comparison.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen_comparison/comparison_io.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen_comparison/parity_scoring.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen_comparison/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen_comparison/tests/signature_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen_comparison/tree_diagnostic.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/worldgen_resources.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+
+## Harness And Tooling Sources
+
+- [ ] Audit harness/tooling file `harness/mineflayer/action_fixtures.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/action_fixtures.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/artifact_normalizer.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/artifact_normalizer.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/assertions.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/assertions.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/auth_file_hot_edit.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/auth_file_hot_edit.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/ban_pardon.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/ban_pardon.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/block_drops.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/block_drops.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/block_entity_interactions.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/block_entity_interactions.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/block_gameplay.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/block_gameplay.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/block_interaction_parity.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/block_interaction_parity.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/block_interactions.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/block_interactions.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/bot_actions.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/bot_actions.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/chat_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/chat_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/ci_login_shard.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/ci_login_shard.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/combat_damage_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/combat_damage_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/command_block_function_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/command_block_function_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/command_parity_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/command_parity_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/command_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/command_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/command_tree_parity.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/command_tree_parity.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/config_registry_manifest.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/configuration_completion_manifest.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/configuration_completion_manifest.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/configuration_registry_closure_report.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/configuration_registry_closure_report.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/configuration_registry_codec_audit.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/configuration_registry_codec_audit.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/configuration_registry_dependency_graph.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/configuration_registry_dependency_graph.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/configuration_registry_omission_transcript.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/configuration_registry_readiness_gate.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/configuration_registry_readiness_gate.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/configuration_state_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/configuration_state_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/configuration_transcript_oracle.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/configuration_transcript_oracle.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/datapack_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/datapack_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/death_respawn_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/death_respawn_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/debug_bundle.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/debug_bundle.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/enchantment_registry_policy.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/enchantment_smoke.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/enchantment_smoke.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/entity_observations.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/entity_observations.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/failure_minimizer.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/failure_minimizer.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/first_action_matrix.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/first_action_matrix.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/first_tick_actions.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/first_tick_actions.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/fixture_linter.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/fixture_linter.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/fixtures.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/fixtures.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/fixtures/accepted_worldgen_snapshot.json` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/fixtures/java_prng_xoroshiro_worldgen_seed_12345.json` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/fixtures/vanilla_worldgen_block_array_target.json` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/flake_detector.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/flake_detector.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/game_state_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/game_state_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/gameplay_smoke.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/gameplay_smoke.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/golden_packets.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/golden_packets.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/identity_normalization.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/identity_normalization.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/inventory_parity_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/inventory_parity_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/inventory_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/inventory_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/item_initializer_dependencies.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/lifecycle_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/lifecycle_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/login_bisect.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/login_bisect.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/login_gate.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/login_gate.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/login_order_gate.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/login_order_gate.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/login_session.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/login_session.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/login_timeline.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/login_timeline.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/login_to_spawn_gate.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/login_to_spawn_gate.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/login_visibility.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/login_visibility.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/merchant_menu_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/merchant_menu_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/multi_bot_soak.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/multi_bot_soak.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/multiplayer_presentation_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/multiplayer_presentation_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/offline_identity_access.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/offline_identity_access.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/offline_mode_regression.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/offline_mode_regression.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/operator_permissions.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/operator_permissions.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/package-lock.json` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/package.json` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/packet_flow_smoke.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/packet_flow_smoke.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/packet_recorder.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/packet_recorder.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/parity_coverage_catalog.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/parity_coverage_catalog.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/play_boundary_reconnect.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/play_boundary_reconnect.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/play_readiness_race.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/play_readiness_race.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/player_movement_parity_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/player_movement_parity_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/playerdata_persistence_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/playerdata_persistence_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/playerdata_roundtrip.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/playerdata_roundtrip.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/post_login_readiness.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/post_login_readiness.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/profile_collision.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/profile_collision.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/profile_file_matrix.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/profile_file_matrix.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/property_matrix.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/property_matrix.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/protocol_packet_manifest.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/protocol_packet_manifest.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/quarantine_report.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/quarantine_report.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/randomizable_container_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/randomizable_container_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_case_profile_collision.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_chunk_boundary_streaming.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_chunk_reconnect_center.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_chunk_return_visibility.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_chunk_streaming.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_command_before_ready.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_command_suggestions.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_compression_threshold.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_connection_refusal.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_deterministic_uuid_restart.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_dirty_save.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_disconnect_matrix.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_duplicate_login.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_first_action_matrix.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_first_login_files.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_first_tick_passive_play.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_gamemode_persistence.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_generated_profile_fixture.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_half_open_login.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_identity_normalization.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_inventory_slot_persistence_correction.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_join_probe.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_login_cancellation.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_login_inventory_baseline.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_login_retry.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_login_state_machine_invariant.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_login_storm.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_login_timeline.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_login_visibility_boundary.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_malformed_client_behavior.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_mixed_profile_multiplayer.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_movement_sequence.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_offline_identity_access.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_offline_login_contract.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_parallel_login.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_play_boundary_reconnect.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_play_keepalive.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_play_readiness_race.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_player_state_join.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_playerdata_ownership.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_port_reuse.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_profile_file_matrix.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_profile_property_tablist.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_rapid_reconnect.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_reconnect_after_ban_pardon.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_reconnect_after_save.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_reconnect_during_configuration.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_returning_login.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_same_tick_login_logout.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_simultaneous_login.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_slow_initial_chunk.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_socket_cleanup.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_spawn_area_safety.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_spawn_parity.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_status_probe.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_status_probe.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_status_to_login_transition.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_transport_framing.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_transport_smoke.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_usercache_repair.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_username_corpus.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_username_validation.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/raw_26_1_2_wrong_protocol.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/real_client_soak.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/real_client_soak.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/recipe_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/recipe_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/registry_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/registry_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/release_gate.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/release_gate.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/report_parity_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/report_parity_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/runner.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/runner.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/same_name_replacement.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/same_name_replacement.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/server_rules_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/server_rules_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/spawn_chunk_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/spawn_chunk_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/spawn_timeout_diagnostics.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/spawn_timeout_diagnostics.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/spawnpoint_persistence.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/spawnpoint_persistence.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/status_effect_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/status_effect_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/tick_stability_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/tick_stability_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/time_sleep_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/time_sleep_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/transcript_scenario_wrapper.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/transcript_scenario_wrapper.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/transport_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/usercache_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/usercache_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/vanilla_client_connection_smoke.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/vanilla_client_connection_smoke.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/vanilla_client_crash_signatures.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/vanilla_client_xephyr.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/vanilla_client_xephyr.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/vanilla_compatibility.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/vanilla_compatibility.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/vanilla_region_reader.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/vanilla_region_reader.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/vanilla_worldgen_fixtures.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/vanilla_worldgen_fixtures.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/vanilla_worldgen_oracle.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/vanilla_worldgen_oracle.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/weather_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/weather_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/window_lifecycle_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/window_lifecycle_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/world_border_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/world_border_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/world_systems_parity_scenarios.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/world_systems_parity_scenarios.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/worldgen_acceptance_gates.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit harness/tooling file `harness/mineflayer/worldgen_acceptance_gates.test.mjs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+
+## Root Build And Configuration Sources
+
+- [ ] Audit root project file `Cargo.lock` against the Java source and checklist coverage; add missing parity or tooling tasks before marking reviewed.
+- [ ] Audit root project file `Cargo.toml` against the Java source and checklist coverage; add missing parity or tooling tasks before marking reviewed.
+- [ ] Audit root project file `build.rs` against the Java source and checklist coverage; add missing parity or tooling tasks before marking reviewed.
+- [ ] Audit root project file `ops.json` against the Java source and checklist coverage; add missing parity or tooling tasks before marking reviewed.
+- [ ] Audit root project file `usercache.json` against the Java source and checklist coverage; add missing parity or tooling tasks before marking reviewed.
