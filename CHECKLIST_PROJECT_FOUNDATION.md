@@ -26,7 +26,7 @@ Cross-cutting project rules and compatibility commitments moved out of the top-l
 - [ ] Treat Mineflayer as the primary automated beacon for regressions whenever its prismarine protocol tables support the target protocol; keep the vanilla 26.1.2 client as the authoritative connectability oracle and use a raw protocol probe to bridge version-support gaps.
 - [ ] Preserve exact client compatibility for unmodified 26.1.2 clients.
 - [ ] Preserve compatibility with vanilla resource/data packs that rely only on official behavior.
-- [ ] Decide which implementation language, async runtime, serialization libraries, compression libraries, crypto libraries, and persistence libraries will be used.
+- [x] Decide which implementation language, async runtime, serialization libraries, compression libraries, crypto libraries, and persistence libraries will be used. — `docs/ARCHITECTURE.md` records Rust 2021, standard-library TCP/threading, project-owned codecs/NBT plus `serde_json`, `flate2`/`lz4`, `aes`/`sha1`, and project-owned vanilla-format persistence.
 - [ ] Define project modules matching major vanilla boundaries: bootstrap, registries, network, commands, resources, storage, world, entities, gameplay, operations, and tests.
 
 ## Migrated From Main Checklist: Source-Derived Granularity Appendix Note
