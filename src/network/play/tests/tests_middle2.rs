@@ -313,6 +313,20 @@ fn malformed_serverbound_scalar_packets_disconnect_session() {
         DispatchOutcome::Disconnect(_)
     ));
     assert!(matches!(
+        session.handle_decoded(decoded(
+            SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID,
+            vec![0x41, 0x48, 0x00]
+        )),
+        DispatchOutcome::Disconnect(_)
+    ));
+    assert!(matches!(
+        session.handle_decoded(decoded(
+            SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID,
+            vec![0x41, 0x48, 0x00, 0x00, 0]
+        )),
+        DispatchOutcome::Disconnect(_)
+    ));
+    assert!(matches!(
         session.handle_decoded(decoded(SERVERBOUND_LOCK_DIFFICULTY_PACKET_ID, Vec::new())),
         DispatchOutcome::Disconnect(_)
     ));

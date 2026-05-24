@@ -41,7 +41,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundLightUpdatePacket` (0x28): VarInt chunk X/Z, light data; separate from chunk-with-light for mid-game updates
 - [x] `ClientboundChunkBatchStartPacket` (0x0C / decimal 12): no fields; verified against Java `StreamCodec.unit`, Rust no-payload frame coverage, and live raw join.
 - [x] `ClientboundChunkBatchFinishedPacket` (0x0B / decimal 11): batch-size VarInt; verified field order against Java, Rust packet round-trip coverage, and live raw join.
-- [ ] `ServerboundChunkBatchReceivedPacket` (0x09): desired-chunks-per-tick float; adaptive batching feedback
+- [x] `ServerboundChunkBatchReceivedPacket` (0x0B / decimal 11): desired-chunks-per-tick float; verified against Java `ServerboundChunkBatchReceivedPacket` `Packet.codec` read/write order, Java play-protocol registration order, Rust big-endian float byte layout, adaptive `PlayerChunkSender` feedback clamping/unacknowledged-batch behavior, and malformed truncated/trailing-payload rejection through direct decode and play-session dispatch.
 - [x] `ClientboundSetChunkCacheCenterPacket` (0x5E / decimal 94): chunk X/Z VarInts; verified field order against Java and live raw join.
 - [x] `ClientboundSetChunkCacheRadiusPacket` (0x5F / decimal 95): view-distance VarInt; verified field order against Java and live raw join.
 - [x] `ClientboundSetSimulationDistancePacket` (0x6F / decimal 111): simulation-distance VarInt; verified field order against Java and Rust packet round-trip coverage.

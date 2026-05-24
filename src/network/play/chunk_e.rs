@@ -101,9 +101,11 @@ impl ServerboundPlaceRecipePacket {
 
 impl ServerboundChunkBatchReceivedPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
-        Ok(Self {
+        let packet = Self {
             desired_chunks_per_tick: read_f32(reader)?,
-        })
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
@@ -984,4 +986,3 @@ pub fn build_recipe_book_add_with_flags(
         })
     }
 }
-

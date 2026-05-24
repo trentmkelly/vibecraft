@@ -159,9 +159,15 @@ fn chunk_batch_received_packet_uses_big_endian_float_payload() {
     packet.write(&mut bytes).unwrap();
     assert_eq!(bytes, 12.5_f32.to_be_bytes());
     assert_eq!(
-        ServerboundChunkBatchReceivedPacket::read(&mut cursor(bytes)).unwrap(),
+        ServerboundChunkBatchReceivedPacket::read(&mut cursor(bytes.clone())).unwrap(),
         packet
     );
+    assert!(
+        ServerboundChunkBatchReceivedPacket::read(&mut cursor(vec![0x41, 0x48, 0x00])).is_err()
+    );
+    let mut trailing = bytes;
+    trailing.push(0);
+    assert!(ServerboundChunkBatchReceivedPacket::read(&mut cursor(trailing)).is_err());
 }
 
 #[test]
@@ -690,4 +696,3 @@ fn vanilla_join_sequence_matches_player_list_packet_and_side_effect_order() {
         ]
     );
 }
-
