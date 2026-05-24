@@ -378,6 +378,9 @@ fn crafting_after_pickup_state_id_advanced_externally() {
 
 #[test]
 fn serverbound_scalar_packet_payload_validation_rejects_malformed_inputs() {
+    assert!(ServerboundAcceptTeleportationPacket::read(&mut cursor(Vec::<u8>::new())).is_err());
+    assert!(ServerboundAcceptTeleportationPacket::read(&mut cursor(vec![0x80])).is_err());
+    assert!(ServerboundAcceptTeleportationPacket::read(&mut cursor(vec![0xac, 0x02, 0])).is_err());
     assert!(ServerboundClientCommandPacket::read(&mut cursor(Vec::<u8>::new())).is_err());
     assert!(ServerboundClientCommandPacket::read(&mut cursor(vec![3])).is_err());
     assert!(ServerboundClientCommandPacket::read(&mut cursor(vec![1, 0])).is_err());
@@ -425,6 +428,18 @@ fn serverbound_scalar_packet_payload_validation_rejects_malformed_inputs() {
         0, 0xff, 0xff, 0xfd, 0x00, 0x00, 0x02, 0x20, 0x40, 1, 0x3e, 0x80, 0x00, 0x00,
         0x3f, 0x00, 0x00, 0x00, 0x3f, 0x40, 0x00, 0x00, 1, 0, 0xad, 0x02, 0
     ])).is_err());
+}
+
+#[test]
+fn serverbound_accept_teleportation_packet_uses_vanilla_varint_id() {
+    let packet = ServerboundAcceptTeleportationPacket { teleport_id: 300 };
+    let mut payload = Vec::new();
+    packet.write(&mut payload).unwrap();
+    assert_eq!(payload, vec![0xac, 0x02]);
+    assert_eq!(
+        ServerboundAcceptTeleportationPacket::read(&mut cursor(payload)).unwrap(),
+        packet
+    );
 }
 
 #[test]

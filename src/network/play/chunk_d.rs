@@ -105,9 +105,11 @@ pub(super) fn biome_name_network_id(name: &str) -> Option<i32> {
 
 impl ServerboundAcceptTeleportationPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
-        Ok(Self {
+        let packet = Self {
             teleport_id: read_var_i32(reader)?,
-        })
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {

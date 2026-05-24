@@ -214,7 +214,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundBlockDestructionPacket` (0x05): entity ID VarInt, block pos, progress unsigned byte (0-9, 10=done)
 - [ ] `ClientboundExplodePacket` (0x1D): center Vec3, radius float, block count int, optional player knockback Vec3, explosion particle, sound holder, weighted block explosion particles
 - [ ] `ClientboundEntityPositionSyncPacket` (0x23): entity ID VarInt, `PositionMoveRotation` (position Vec3, delta movement Vec3, yaw/pitch floats), on-ground bool
-- [ ] `ServerboundAcceptTeleportationPacket` (0x00): teleport ID VarInt
+- [x] `ServerboundAcceptTeleportationPacket` (0x00 / decimal 0): teleport ID VarInt; verified against Java `FriendlyByteBuf.readVarInt`/`writeVarInt`, Rust byte-layout coverage for multi-byte VarInt IDs, and malformed empty/unterminated/trailing-payload rejection through direct decode and play-session dispatch.
 
 ## Resource State Packets
 
