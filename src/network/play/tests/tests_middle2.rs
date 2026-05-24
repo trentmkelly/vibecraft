@@ -386,6 +386,14 @@ fn malformed_serverbound_scalar_packets_disconnect_session() {
         DispatchOutcome::Disconnect(_)
     ));
     assert!(matches!(
+        session.handle_decoded(decoded(SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID, vec![0; 24])),
+        DispatchOutcome::Disconnect(_)
+    ));
+    assert!(matches!(
+        session.handle_decoded(decoded(SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID, vec![0; 26])),
+        DispatchOutcome::Disconnect(_)
+    ));
+    assert!(matches!(
         session.handle_decoded(decoded(SERVERBOUND_MOVE_VEHICLE_PACKET_ID, vec![0; 34])),
         DispatchOutcome::Disconnect(_)
     ));
@@ -589,8 +597,13 @@ fn move_player_packet_shapes_match_vanilla_field_layouts() {
     let mut pos = Vec::new();
     movement.write_pos(&mut pos).unwrap();
     assert_eq!(pos.len(), 25);
+    assert_eq!(&pos[0..8], &1.25_f64.to_be_bytes());
+    assert_eq!(&pos[8..16], &65.0_f64.to_be_bytes());
+    assert_eq!(&pos[16..24], &(-2.5_f64).to_be_bytes());
+    assert_eq!(pos[24], 3);
     let decoded_pos =
-        ServerboundMovePlayerPacket::read_shape(&mut cursor(pos), MoveShape::Pos).unwrap();
+        ServerboundMovePlayerPacket::read_shape(&mut cursor(pos.clone()), MoveShape::Pos)
+            .unwrap();
     assert_eq!(decoded_pos.x, 1.25);
     assert_eq!(decoded_pos.y, 65.0);
     assert_eq!(decoded_pos.z, -2.5);
@@ -599,10 +612,33 @@ fn move_player_packet_shapes_match_vanilla_field_layouts() {
     assert!(decoded_pos.horizontal_collision);
     assert!(decoded_pos.has_position);
     assert!(!decoded_pos.has_rotation);
+    let mut truncated_pos = pos.clone();
+    truncated_pos.pop();
+    assert!(
+        ServerboundMovePlayerPacket::read_shape(&mut cursor(truncated_pos), MoveShape::Pos)
+            .is_err()
+    );
+    let mut trailing_pos = pos.clone();
+    trailing_pos.push(0);
+    assert!(
+        ServerboundMovePlayerPacket::read_shape(&mut cursor(trailing_pos), MoveShape::Pos)
+            .is_err()
+    );
+    let mut high_flags_pos = pos.clone();
+    high_flags_pos[24] = 0x83;
+    let decoded_high_flags =
+        ServerboundMovePlayerPacket::read_shape(&mut cursor(high_flags_pos), MoveShape::Pos)
+            .unwrap();
+    assert!(decoded_high_flags.on_ground);
+    assert!(decoded_high_flags.horizontal_collision);
 
     let mut pos_rot = Vec::new();
     movement.write_pos_rot(&mut pos_rot).unwrap();
     assert_eq!(pos_rot.len(), 33);
+    assert_eq!(&pos_rot[0..8], &1.25_f64.to_be_bytes());
+    assert_eq!(&pos_rot[24..28], &90.0_f32.to_be_bytes());
+    assert_eq!(&pos_rot[28..32], &30.0_f32.to_be_bytes());
+    assert_eq!(pos_rot[32], 3);
     let decoded_pos_rot =
         ServerboundMovePlayerPacket::read_shape(&mut cursor(pos_rot), MoveShape::PosRot)
             .unwrap();
@@ -614,6 +650,9 @@ fn move_player_packet_shapes_match_vanilla_field_layouts() {
     let mut rot = Vec::new();
     movement.write_rot(&mut rot).unwrap();
     assert_eq!(rot.len(), 9);
+    assert_eq!(&rot[0..4], &90.0_f32.to_be_bytes());
+    assert_eq!(&rot[4..8], &30.0_f32.to_be_bytes());
+    assert_eq!(rot[8], 3);
     let decoded_rot =
         ServerboundMovePlayerPacket::read_shape(&mut cursor(rot), MoveShape::Rot).unwrap();
     assert_eq!(decoded_rot.x, 0.0);

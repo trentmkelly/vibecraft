@@ -195,7 +195,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Player Movement (Serverbound)
 
-- [ ] `ServerboundMovePlayerPacket.Pos` (0x1E): pos X/Y/Z, on-ground bool, horizontal-collision bool
+- [x] `ServerboundMovePlayerPacket.Pos` (0x1E / decimal 30): X/Y/Z doubles followed by unsigned movement flag byte for on-ground and horizontal-collision bits; verified against Java `Pos` subclass `Packet.codec` read/write order, Rust byte-offset coverage, Java high-bit-ignore flag behavior, and malformed truncated/trailing-payload rejection through direct decode and play-session dispatch.
 - [ ] `ServerboundMovePlayerPacket.PosRot` (0x1F): pos X/Y/Z, yaw/pitch, on-ground bool, horizontal-collision bool
 - [ ] `ServerboundMovePlayerPacket.Rot` (0x20): yaw/pitch, on-ground bool, horizontal-collision bool
 - [ ] `ServerboundMovePlayerPacket.StatusOnly` (0x21): on-ground bool, horizontal-collision bool

@@ -217,6 +217,7 @@ impl ServerboundMovePlayerPacket {
         let flags = read_u8(reader)?;
         packet.on_ground = flags & 1 != 0;
         packet.horizontal_collision = flags & 2 != 0;
+        expect_empty_payload(reader)?;
         Ok(packet)
     }
 
