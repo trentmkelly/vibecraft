@@ -30,7 +30,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundLoginPacket` (0x2B): entity ID, is-hardcore, levels, max-players, chunk-radius, simulation-distance, reduced-debug-info, enable-respawn-screen, do-limited-crafting, common player spawn info (dimension type, dimension, seed, game-type, previous-game-type, debug/flat flags, last death location, portal cooldown, sea level), enforces-secure-chat; verified field order against Java
 - [ ] `ClientboundRespawnPacket` (0x45): common player spawn info, data-to-keep flags; exact flag bitmask for KEEP_ALL_DATA, KEEP_ATTRIBUTE_MODIFIERS, KEEP_ENTITY_DATA
 - [ ] `ClientboundChangeDifficultyPacket` (0x0B): difficulty byte, difficulty-locked bool
-- [ ] `ClientboundSetDefaultSpawnPositionPacket` (0x52): BlockPos, angle float
+- [x] `ClientboundSetDefaultSpawnPositionPacket` (0x61 / decimal 97): `LevelData.RespawnData` (`GlobalPos` dimension + `BlockPos`, yaw float, pitch float); verified field order against Java `LevelData.RespawnData.STREAM_CODEC` and live raw join.
 - [ ] `ClientboundSetTimePacket` (0x62): game-time long, day-time long, tick-day-time bool
 - [ ] `ClientboundGameEventPacket` (0x22): event ID byte, param float (covers LEVEL_CHUNKS_LOAD_START, CHANGE_GAME_MODE, WIN_GAME, DEMO_EVENT, ARROW_HIT_PLAYER, RAIN_LEVEL_CHANGE, THUNDER_LEVEL_CHANGE, PUFFER_FISH_STING, GUARDIAN_ELDER_EFFECT, IMMEDIATE_RESPAWN)
 
