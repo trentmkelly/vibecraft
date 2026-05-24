@@ -6,7 +6,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 
 - [ ] Implement command-line parsing equivalent to `net.minecraft.server.Main`.
 - [ ] Support `--nogui`.
-- [ ] Support `--initSettings`.
+- [x] Support `--initSettings`. — `CliOptions` parses Java `Main`'s flag and `init_settings_creates_properties_and_eula_before_startup` verifies RustCraft creates `server.properties` plus `eula.txt`, logs the initialized paths, and exits before normal startup.
 - [ ] Support `--demo`.
 - [ ] Support `--bonusChest`.
 - [ ] Support `--forceUpgrade`.
