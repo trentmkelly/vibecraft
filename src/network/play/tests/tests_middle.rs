@@ -302,6 +302,26 @@ fn move_vehicle_packet_uses_java_vec3_then_yaw_pitch() {
 }
 
 #[test]
+fn move_entity_pos_packet_uses_java_varint_signed_shorts_then_on_ground() {
+    let registry = PlayProtocolRegistry::new();
+    assert_eq!(CLIENTBOUND_MOVE_ENTITY_POS_PACKET_ID, 53);
+    assert_eq!(
+        registry.clientbound_name(CLIENTBOUND_MOVE_ENTITY_POS_PACKET_ID),
+        Some("move_entity_pos")
+    );
+
+    let mut payload = Vec::new();
+    ClientboundMoveEntityPacket::pos(300, [32_767, -32_768, -2], false)
+        .write_pos(&mut payload)
+        .unwrap();
+
+    assert_eq!(
+        payload,
+        vec![0xac, 0x02, 0x7f, 0xff, 0x80, 0x00, 0xff, 0xfe, 0x00]
+    );
+}
+
+#[test]
 fn chunk_batch_received_packet_uses_big_endian_float_payload() {
     let packet = ServerboundChunkBatchReceivedPacket {
         desired_chunks_per_tick: 12.5,
