@@ -44,7 +44,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 ## Migrated From Main Checklist: Dedicated Server Configuration
 
 - [ ] Parse and write `server.properties` with vanilla defaults.
-- [ ] Preserve unknown property keys when rewriting configuration.
+- [x] Preserve unknown property keys when rewriting configuration. — `ServerProperties` keeps a raw key/value map through load, typed mutation, and save like Java `Settings` storing its loaded `Properties`, and `preserves_unknown_keys_when_saving` verifies an unknown key survives rewriting.
 - [ ] Implement `online-mode`.
 - [ ] Add a Mineflayer offline-mode login test using a generated bot profile and default `server.properties`.
 - [ ] Add a Mineflayer offline-mode login test matrix covering `online-mode=false`, `enforce-secure-profile=false`, default port selection, and generated world directory setup.
