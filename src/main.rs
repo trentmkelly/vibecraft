@@ -147,6 +147,14 @@ use storage::datafix::{run_world_upgrade, WorldUpgradeOptions};
 use storage::world::{LevelVersion, WorldLayout};
 use world::WorldOptions;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RuntimeSelection {
+    world_name: String,
+    universe: PathBuf,
+    port: u16,
+    server_id: Option<String>,
+}
+
 fn main() {
     crash::install_panic_hook();
 
@@ -223,16 +231,10 @@ fn run(options: CliOptions) -> Result<(), String> {
         return Ok(());
     }
 
-    let world_name = options
-        .world
-        .clone()
-        .unwrap_or_else(|| properties.level_name.clone());
-    let universe = options.universe.clone();
-    let port = if options.port >= 0 {
-        options.port as u16
-    } else {
-        properties.server_port
-    };
+    let runtime = runtime_selection(&options, &properties);
+    let world_name = runtime.world_name.clone();
+    let universe = runtime.universe.clone();
+    let port = runtime.port;
 
     logger.info(&format!("world={world_name}"))?;
     logger.info(&format!("universe={}", universe.display()))?;
@@ -243,7 +245,7 @@ fn run(options: CliOptions) -> Result<(), String> {
     logger.info(&format!("bonusChest={}", options.bonus_chest))?;
     logger.info(&format!(
         "serverId={}",
-        options.server_id.as_deref().unwrap_or("")
+        runtime.server_id.as_deref().unwrap_or("")
     ))?;
     logger.info(&format!("maxTickTime={}", watchdog.max_tick_time_millis()))?;
 
@@ -371,9 +373,26 @@ fn run(options: CliOptions) -> Result<(), String> {
     Ok(())
 }
 
+fn runtime_selection(options: &CliOptions, properties: &ServerProperties) -> RuntimeSelection {
+    RuntimeSelection {
+        world_name: options
+            .world
+            .clone()
+            .unwrap_or_else(|| properties.level_name.clone()),
+        universe: options.universe.clone(),
+        port: if options.port >= 0 {
+            options.port as u16
+        } else {
+            properties.server_port
+        },
+        server_id: options.server_id.clone(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{run, CliOptions};
+    use super::{run, runtime_selection, CliOptions};
+    use crate::server_properties::ServerProperties;
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::sync::Mutex;
@@ -457,6 +476,39 @@ mod tests {
         assert!(Path::new("server.properties").is_file());
         assert!(Path::new("eula.txt").is_file());
         assert!(!Path::new("world").exists());
+    }
+
+    #[test]
+    fn runtime_selection_uses_java_main_world_universe_port_and_server_id_options() {
+        let _lock = CWD_LOCK.lock().unwrap();
+        let dir = temp_workdir("runtime-selection");
+        let _guard = CurrentDirGuard::enter(&dir);
+
+        fs::write(
+            "server.properties",
+            "level-name=from_properties\nserver-port=25570\n",
+        )
+        .expect("write server.properties");
+        let properties =
+            ServerProperties::load_or_default(Path::new("server.properties")).unwrap();
+
+        let defaulted = runtime_selection(&CliOptions::default(), &properties);
+        assert_eq!(defaulted.world_name, "from_properties");
+        assert_eq!(defaulted.universe, PathBuf::from("."));
+        assert_eq!(defaulted.port, 25570);
+        assert_eq!(defaulted.server_id, None);
+
+        let mut options = CliOptions::default();
+        options.world = Some("from_cli".to_string());
+        options.universe = PathBuf::from("worlds");
+        options.port = 25566;
+        options.server_id = Some("server-123".to_string());
+
+        let selected = runtime_selection(&options, &properties);
+        assert_eq!(selected.world_name, "from_cli");
+        assert_eq!(selected.universe, PathBuf::from("worlds"));
+        assert_eq!(selected.port, 25566);
+        assert_eq!(selected.server_id.as_deref(), Some("server-123"));
     }
 
     #[test]
