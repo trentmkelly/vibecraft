@@ -394,6 +394,50 @@ fn set_entity_motion_packet_uses_java_varint_then_lp_vec3_without_legacy_clamp()
 }
 
 #[test]
+fn teleport_entity_packet_uses_java_position_move_rotation_then_relative_int_and_on_ground() {
+    let registry = PlayProtocolRegistry::new();
+    assert_eq!(CLIENTBOUND_TELEPORT_ENTITY_PACKET_ID, 125);
+    assert_eq!(
+        registry.clientbound_name(CLIENTBOUND_TELEPORT_ENTITY_PACKET_ID),
+        Some("teleport_entity")
+    );
+
+    let mut payload = Vec::new();
+    ClientboundTeleportEntityPacket {
+        id: 300,
+        position: Vec3 {
+            x: 1.25,
+            y: 64.0,
+            z: -2.5,
+        },
+        movement: Vec3 {
+            x: 0.1,
+            y: -0.2,
+            z: 0.3,
+        },
+        y_rot: 90.0,
+        x_rot: -30.5,
+        relative_flags: 0x1ff,
+        on_ground: false,
+    }
+    .write(&mut payload)
+    .unwrap();
+
+    assert_eq!(payload.len(), 63);
+    assert_eq!(&payload[0..2], &[0xac, 0x02]);
+    assert_eq!(&payload[2..10], &1.25_f64.to_be_bytes());
+    assert_eq!(&payload[10..18], &64.0_f64.to_be_bytes());
+    assert_eq!(&payload[18..26], &(-2.5_f64).to_be_bytes());
+    assert_eq!(&payload[26..34], &0.1_f64.to_be_bytes());
+    assert_eq!(&payload[34..42], &(-0.2_f64).to_be_bytes());
+    assert_eq!(&payload[42..50], &0.3_f64.to_be_bytes());
+    assert_eq!(&payload[50..54], &90.0_f32.to_be_bytes());
+    assert_eq!(&payload[54..58], &(-30.5_f32).to_be_bytes());
+    assert_eq!(&payload[58..62], &0x1ff_i32.to_be_bytes());
+    assert_eq!(payload[62], 0);
+}
+
+#[test]
 fn chunk_batch_received_packet_uses_big_endian_float_payload() {
     let packet = ServerboundChunkBatchReceivedPacket {
         desired_chunks_per_tick: 12.5,
