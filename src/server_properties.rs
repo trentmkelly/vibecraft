@@ -466,6 +466,24 @@ resource-pack-prompt={\"text\":\"Use pack?\"}
     }
 
     #[test]
+    fn max_world_size_clamps_to_vanilla_property_range() {
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "rustcraft-max-world-size-{}.properties",
+            std::process::id()
+        ));
+
+        fs::write(&path, "max-world-size=0\n").unwrap();
+        let too_small = ServerProperties::load_or_default(&path).unwrap();
+        assert_eq!(too_small.max_world_size, 1);
+
+        fs::write(&path, "max-world-size=999999999\n").unwrap();
+        let too_large = ServerProperties::load_or_default(&path).unwrap();
+        let _ = fs::remove_file(&path);
+        assert_eq!(too_large.max_world_size, 29_999_984);
+    }
+
+    #[test]
     fn mutable_properties_rehydrate_typed_fields_and_save() {
         let mut path = std::env::temp_dir();
         path.push(format!(

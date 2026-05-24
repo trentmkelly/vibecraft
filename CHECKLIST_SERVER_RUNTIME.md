@@ -89,7 +89,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Implement `network-compression-threshold`.
 - [ ] Implement `broadcast-rcon-to-ops`.
 - [ ] Implement `broadcast-console-to-ops`.
-- [ ] Implement clamped `max-world-size`.
+- [x] Implement clamped `max-world-size`. — `ServerProperties` parses `max-world-size` and clamps it to Java's `1..=29999984` range from `DedicatedServerProperties`, with `max_world_size_clamps_to_vanilla_property_range` covering both bounds.
 - [ ] Implement `sync-chunk-writes`.
 - [ ] Implement `region-file-compression` with at least deflate parity.
 - [ ] Implement `enable-jmx-monitoring` or equivalent documented metrics export.
