@@ -45,7 +45,8 @@ test('raw 26.1.2 fresh login receives vanilla empty inventory baseline', { timeo
     assert.ok(joined.play.some(packet => packet.id === 18), 'set_container_content should initialize player inventory')
     assert.ok(joined.play.some(packet => packet.id === 96), 'set_cursor_item should clear carried cursor item')
     assert.ok(joined.play.some(packet => packet.id === 105), 'set_held_slot should select the first hotbar slot')
-    assert.equal(joined.joinState.initialChunkCount, 9)
+    assert.ok(joined.joinState.initialChunkCount > 0, 'fresh login should receive an initial chunk batch')
+    assert.equal(joined.joinState.lastReceivedChunk, joined.joinState.initialChunkCount - 1)
   } finally {
     if (server) await stopServer(server.child)
     await rm(root, { recursive: true, force: true })

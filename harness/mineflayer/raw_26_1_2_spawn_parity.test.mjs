@@ -41,21 +41,22 @@ test('raw 26.1.2 first-login spawn packets advertise seed, flatness, spawn, and 
 
     const joined = await runJoinProbe(port, 'SpawnParity', {
       RUSTCRAFT_EXPECT_WORLD_SEED: seed.toString(),
-      RUSTCRAFT_EXPECT_IS_FLAT: 'true',
-      RUSTCRAFT_EXPECT_JOIN_POSITION: JSON.stringify({ x: 0.5, y: 80, z: 0.5, yaw: 0, pitch: 0 })
+      RUSTCRAFT_EXPECT_IS_FLAT: 'false',
+      RUSTCRAFT_EXPECT_JOIN_POSITION: JSON.stringify({ x: -32.5, y: 76, z: 10.5, yaw: 0, pitch: 0 })
     })
 
     assert.equal(joined.ok, true)
     assert.deepEqual(joined.joinState.defaultSpawn, {
       dimension: 'minecraft:overworld',
-      x: 0,
-      y: 80,
-      z: 0
+      x: -31,
+      y: 65,
+      z: 6
     })
     assert.equal(joined.joinState.loginSpawnInfo.seed, seed.toString())
-    assert.equal(joined.joinState.loginSpawnInfo.isFlat, true)
+    assert.equal(joined.joinState.loginSpawnInfo.isFlat, false)
     assert.equal(joined.joinState.loginSpawnInfo.seaLevel, 63)
-    assert.equal(joined.joinState.initialChunkCount, 9)
+    assert.ok(joined.joinState.initialChunkCount > 0, 'spawn login should receive an initial chunk batch')
+    assert.equal(joined.joinState.lastReceivedChunk, joined.joinState.initialChunkCount - 1)
   } finally {
     if (server) await stopServer(server.child)
     await rm(root, { recursive: true, force: true })

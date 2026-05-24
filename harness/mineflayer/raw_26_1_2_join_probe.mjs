@@ -121,9 +121,9 @@ function readUuid (buffer, offset = 0) {
 
 function readBlockPos (buffer, offset = 0) {
   const packed = buffer.readBigInt64BE(offset)
-  const x = Number(packed >> 38n)
-  const y = Number((packed << 52n) >> 52n)
-  const z = Number((packed << 26n) >> 38n)
+  const x = Number(BigInt.asIntN(26, packed >> 38n))
+  const y = Number(BigInt.asIntN(12, packed))
+  const z = Number(BigInt.asIntN(26, packed >> 12n))
   return { x, y, z, offset: offset + 8 }
 }
 
