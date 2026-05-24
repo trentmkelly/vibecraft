@@ -397,6 +397,12 @@ fn serverbound_scalar_packet_payload_validation_rejects_malformed_inputs() {
     assert!(ServerboundSwingPacket::read(&mut cursor(Vec::<u8>::new())).is_err());
     assert!(ServerboundSwingPacket::read(&mut cursor(vec![2])).is_err());
     assert!(ServerboundSwingPacket::read(&mut cursor(vec![1, 0])).is_err());
+    assert!(ServerboundPlayerActionPacket::read(&mut cursor(Vec::<u8>::new())).is_err());
+    assert!(ServerboundPlayerActionPacket::read(&mut cursor(vec![8])).is_err());
+    assert!(ServerboundPlayerActionPacket::read(&mut cursor(vec![2])).is_err());
+    assert!(ServerboundPlayerActionPacket::read(&mut cursor(vec![
+        2, 0xff, 0xff, 0xfd, 0x00, 0x00, 0x02, 0x20, 0x40, 4, 0xac, 0x02, 0
+    ])).is_err());
     assert!(ServerboundUseItemPacket::read(&mut cursor(Vec::<u8>::new())).is_err());
     assert!(ServerboundUseItemPacket::read(&mut cursor(vec![2])).is_err());
     assert!(ServerboundUseItemPacket::read(&mut cursor(vec![0])).is_err());
@@ -524,6 +530,66 @@ fn serverbound_swing_packet_uses_vanilla_interaction_hand_ordinals() {
             "{label} decode"
         );
     }
+}
+
+#[test]
+fn serverbound_player_action_packet_uses_vanilla_field_order_and_direction_wrapping() {
+    let cases = [
+        (ServerboundPlayerAction::StartDestroyBlock, 0, "start destroy"),
+        (ServerboundPlayerAction::AbortDestroyBlock, 1, "abort destroy"),
+        (ServerboundPlayerAction::StopDestroyBlock, 2, "stop destroy"),
+        (ServerboundPlayerAction::DropAllItems, 3, "drop all"),
+        (ServerboundPlayerAction::DropItem, 4, "drop one"),
+        (ServerboundPlayerAction::ReleaseUseItem, 5, "release use"),
+        (ServerboundPlayerAction::SwapItemWithOffhand, 6, "swap offhand"),
+        (ServerboundPlayerAction::Stab, 7, "stab"),
+    ];
+
+    for (action, ordinal, label) in cases {
+        let mut payload = Vec::new();
+        ServerboundPlayerActionPacket {
+            action,
+            x: 0,
+            y: 0,
+            z: 0,
+            direction: Direction3d::Down,
+            sequence: 0,
+        }
+        .write(&mut payload)
+        .unwrap();
+        assert_eq!(payload[0], ordinal, "{label} ordinal");
+        assert_eq!(
+            ServerboundPlayerActionPacket::read(&mut cursor(payload))
+                .unwrap()
+                .action,
+            action,
+            "{label} decode"
+        );
+    }
+
+    let packet = ServerboundPlayerActionPacket {
+        action: ServerboundPlayerAction::StopDestroyBlock,
+        x: -12,
+        y: 64,
+        z: 34,
+        direction: Direction3d::West,
+        sequence: 300,
+    };
+    let mut payload = Vec::new();
+    packet.write(&mut payload).unwrap();
+    assert_eq!(
+        payload,
+        vec![2, 0xff, 0xff, 0xfd, 0x00, 0x00, 0x02, 0x20, 0x40, 4, 0xac, 0x02]
+    );
+    assert_eq!(
+        ServerboundPlayerActionPacket::read(&mut cursor(payload)).unwrap(),
+        packet
+    );
+
+    let wrapped_direction =
+        ServerboundPlayerActionPacket::read(&mut cursor(vec![2, 0, 0, 0, 0, 0, 0, 0, 0, 255, 0]))
+            .unwrap();
+    assert_eq!(wrapped_direction.direction, Direction3d::South);
 }
 
 #[test]

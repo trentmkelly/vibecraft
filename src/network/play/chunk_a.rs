@@ -481,14 +481,8 @@ impl PlaySession {
                 let mut input = &packet.payload[..];
                 match ServerboundPlayerActionPacket::read(&mut input) {
                     Ok(action) => {
-                        if matches!(action.action, ServerboundPlayerAction::Unknown(_)) {
-                            DispatchOutcome::Disconnect(
-                                "unknown player action packet action".to_string(),
-                            )
-                        } else {
-                            self.last_player_action = Some(action);
-                            DispatchOutcome::Handled
-                        }
+                        self.last_player_action = Some(action);
+                        DispatchOutcome::Handled
                     }
                     Err(err) => {
                         DispatchOutcome::Disconnect(format!("bad player action packet: {err}"))

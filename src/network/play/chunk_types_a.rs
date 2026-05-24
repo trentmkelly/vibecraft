@@ -202,7 +202,6 @@ pub enum ServerboundPlayerAction {
     ReleaseUseItem,
     SwapItemWithOffhand,
     Stab,
-    Unknown(i32),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

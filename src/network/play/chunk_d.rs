@@ -527,17 +527,20 @@ impl Direction3d {
 }
 
 impl ServerboundPlayerAction {
-    pub(super) fn from_id(id: i32) -> Self {
+    pub(super) fn from_id(id: i32) -> io::Result<Self> {
         match id {
-            0 => Self::StartDestroyBlock,
-            1 => Self::AbortDestroyBlock,
-            2 => Self::StopDestroyBlock,
-            3 => Self::DropAllItems,
-            4 => Self::DropItem,
-            5 => Self::ReleaseUseItem,
-            6 => Self::SwapItemWithOffhand,
-            7 => Self::Stab,
-            _ => Self::Unknown(id),
+            0 => Ok(Self::StartDestroyBlock),
+            1 => Ok(Self::AbortDestroyBlock),
+            2 => Ok(Self::StopDestroyBlock),
+            3 => Ok(Self::DropAllItems),
+            4 => Ok(Self::DropItem),
+            5 => Ok(Self::ReleaseUseItem),
+            6 => Ok(Self::SwapItemWithOffhand),
+            7 => Ok(Self::Stab),
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "player action index out of range",
+            )),
         }
     }
 
@@ -551,23 +554,24 @@ impl ServerboundPlayerAction {
             Self::ReleaseUseItem => 5,
             Self::SwapItemWithOffhand => 6,
             Self::Stab => 7,
-            Self::Unknown(value) => value,
         }
     }
 }
 
 impl ServerboundPlayerActionPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
-        let action = ServerboundPlayerAction::from_id(read_var_i32(reader)?);
+        let action = ServerboundPlayerAction::from_id(read_var_i32(reader)?)?;
         let (x, y, z) = read_block_position(reader)?;
-        Ok(Self {
+        let packet = Self {
             action,
             x,
             y,
             z,
             direction: Direction3d::from_id(read_u8(reader)?),
             sequence: read_var_i32(reader)?,
-        })
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
