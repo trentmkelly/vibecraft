@@ -257,13 +257,7 @@ impl PlaySession {
             SERVERBOUND_CLIENT_COMMAND_PACKET_ID => {
                 let mut input = &packet.payload[..];
                 match ServerboundClientCommandPacket::read(&mut input) {
-                    Ok(cmd) => {
-                        if matches!(cmd.action, ServerboundClientCommandAction::Unknown(_)) {
-                            DispatchOutcome::Disconnect("unknown client command action".to_string())
-                        } else {
-                            DispatchOutcome::Handled
-                        }
-                    }
+                    Ok(_) => DispatchOutcome::Handled,
                     Err(err) => {
                         DispatchOutcome::Disconnect(format!("bad client command packet: {err}"))
                     }
@@ -1029,4 +1023,3 @@ pub(super) fn read_block_position<R: Read>(reader: &mut R) -> io::Result<(i32, i
 pub(super) fn write_block_position<W: Write>(writer: &mut W, x: i32, y: i32, z: i32) -> io::Result<()> {
     writer.write_all(&pack_block_position(x, y, z).to_be_bytes())
 }
-

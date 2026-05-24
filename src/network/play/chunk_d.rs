@@ -313,34 +313,38 @@ impl ServerboundChatSessionUpdatePacket {
 }
 
 impl ServerboundClientCommandAction {
-    pub(super) fn from_id(id: i32) -> Self {
+    pub(super) fn from_id(id: i32) -> io::Result<Self> {
         match id {
-            0 => Self::PerformRespawn,
-            1 => Self::RequestStats,
-            2 => Self::RequestGameruleValues,
-            _ => Self::Unknown(id as u8),
+            0 => Ok(Self::PerformRespawn),
+            1 => Ok(Self::RequestStats),
+            2 => Ok(Self::RequestGameruleValues),
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "client command action index out of range",
+            )),
         }
     }
 
-    pub(super) fn to_id(self) -> i32 {
+    pub(super) fn to_id(self) -> io::Result<i32> {
         match self {
-            Self::PerformRespawn => 0,
-            Self::RequestStats => 1,
-            Self::RequestGameruleValues => 2,
-            Self::Unknown(value) => i32::from(value),
+            Self::PerformRespawn => Ok(0),
+            Self::RequestStats => Ok(1),
+            Self::RequestGameruleValues => Ok(2),
         }
     }
 }
 
 impl ServerboundClientCommandPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
-        Ok(Self {
-            action: ServerboundClientCommandAction::from_id(read_var_i32(reader)?),
-        })
+        let packet = Self {
+            action: ServerboundClientCommandAction::from_id(read_var_i32(reader)?)?,
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-        write_var_i32(writer, self.action.to_id())
+        write_var_i32(writer, self.action.to_id()?)
     }
 }
 

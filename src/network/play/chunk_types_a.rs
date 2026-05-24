@@ -537,7 +537,6 @@ pub enum ServerboundClientCommandAction {
     PerformRespawn,
     RequestStats,
     RequestGameruleValues,
-    Unknown(u8),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

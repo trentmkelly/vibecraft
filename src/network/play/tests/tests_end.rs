@@ -379,6 +379,8 @@ fn crafting_after_pickup_state_id_advanced_externally() {
 #[test]
 fn serverbound_scalar_packet_payload_validation_rejects_malformed_inputs() {
     assert!(ServerboundClientCommandPacket::read(&mut cursor(Vec::<u8>::new())).is_err());
+    assert!(ServerboundClientCommandPacket::read(&mut cursor(vec![3])).is_err());
+    assert!(ServerboundClientCommandPacket::read(&mut cursor(vec![1, 0])).is_err());
     assert!(
         ServerboundChunkBatchReceivedPacket::read(&mut cursor(vec![0x7f, 0x7f, 0x7f])).is_err()
     );
@@ -447,6 +449,42 @@ fn serverbound_change_difficulty_packet_uses_vanilla_varint_wrapping() {
             difficulty: GameDifficulty::Hard,
         }
     );
+}
+
+#[test]
+fn serverbound_client_command_packet_uses_vanilla_action_ordinals() {
+    let cases = [
+        (
+            ServerboundClientCommandAction::PerformRespawn,
+            0,
+            "perform respawn",
+        ),
+        (
+            ServerboundClientCommandAction::RequestStats,
+            1,
+            "request stats",
+        ),
+        (
+            ServerboundClientCommandAction::RequestGameruleValues,
+            2,
+            "request gamerule values",
+        ),
+    ];
+
+    for (action, ordinal, label) in cases {
+        let mut payload = Vec::new();
+        ServerboundClientCommandPacket { action }
+            .write(&mut payload)
+            .unwrap();
+        assert_eq!(payload, vec![ordinal], "{label} ordinal");
+        assert_eq!(
+            ServerboundClientCommandPacket::read(&mut cursor(vec![ordinal]))
+                .unwrap()
+                .action,
+            action,
+            "{label} decode"
+        );
+    }
 }
 
 #[test]

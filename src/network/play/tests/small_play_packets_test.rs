@@ -47,19 +47,6 @@ fn small_play_packets_round_trip_vanilla_codecs() {
         parsed_client_command.action,
         ServerboundClientCommandAction::RequestStats
     ));
-    let mut unknown_client_command = Vec::new();
-    ServerboundClientCommandPacket {
-        action: ServerboundClientCommandAction::Unknown(128),
-    }
-    .write(&mut unknown_client_command)
-    .unwrap();
-    assert_eq!(unknown_client_command, vec![0x80, 0x01]);
-    let parsed_unknown_client_command =
-        ServerboundClientCommandPacket::read(&mut cursor(unknown_client_command)).unwrap();
-    assert!(matches!(
-        parsed_unknown_client_command.action,
-        ServerboundClientCommandAction::Unknown(128)
-    ));
 
     let mut client_tick_end = Vec::new();
     ServerboundClientTickEndPacket
