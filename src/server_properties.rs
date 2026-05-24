@@ -24,7 +24,7 @@ pub struct ServerProperties {
     pub enforce_whitelist: bool,
     pub entity_broadcast_range_percentage: u32,
     pub force_game_mode: bool,
-    pub function_permission_level: u32,
+    pub function_permission_level: i32,
     pub game_mode: String,
     pub generate_structures: bool,
     pub generator_settings: String,
@@ -116,7 +116,7 @@ impl ServerProperties {
             )
             .clamp(10, 1000),
             force_game_mode: bool_key(&raw, "force-gamemode", false),
-            function_permission_level: u32_key(&raw, "function-permission-level", 2),
+            function_permission_level: i32_key(&raw, "function-permission-level", 2),
             game_mode: string_key(&raw, "gamemode", "survival"),
             generate_structures: bool_key(&raw, "generate-structures", true),
             generator_settings: string_key(&raw, "generator-settings", "{}"),

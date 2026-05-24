@@ -2,8 +2,8 @@ use super::{
     banner_pattern_nbt, bug_report_server_links_packet, cat_sound_variant_nbt, chat_type_nbt,
     chicken_sound_variant_nbt, chunk_batch_size, chunk_has_non_air_blocks, chunk_window,
     cow_sound_variant_nbt, day_timeline_nbt, early_game_timeline_nbt, encode_base64,
-    escape_json_string, handle_legacy_status_connection, instrument_nbt,
-    inventory_internal_slot, jukebox_song_nbt, legacy_disconnect_packet,
+    escape_json_string, function_permission_level_from_properties, handle_legacy_status_connection,
+    instrument_nbt, inventory_internal_slot, jukebox_song_nbt, legacy_disconnect_packet,
     legacy_version0_response, legacy_version1_response, load_code_of_conduct_for_language,
     load_favicon, login_access_disconnect_reason, login_compression_threshold, login_host_ip,
     moon_timeline_nbt, newly_visible_chunks, overworld_dimension_type_nbt, packed_chunk_pos,
@@ -42,6 +42,7 @@ use super::{
     SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID, SHORT_GRASS_BLOCK_STATE_ID,
     SPRINT_JUMP_EXHAUSTION, STONE_BLOCK_STATE_ID, TRIM_MATERIALS, TRIM_PATTERNS, VERSION_NAME,
 };
+use crate::command::PermissionLevel;
 use crate::item_stack::ItemStack;
 use crate::network::codec::{write_identifier, Uuid};
 use crate::network::common::{ServerLinkLabel, ServerLinkType};
@@ -339,6 +340,33 @@ pub fn login_compression_threshold_matches_java_negative_disable_gate() {
 
     properties.set("network-compression-threshold", "0");
     assert_eq!(login_compression_threshold(&properties), Some(0));
+}
+
+#[test]
+pub fn function_permission_level_clamps_java_permission_ids() {
+    let mut properties = test_properties();
+    assert_eq!(
+        function_permission_level_from_properties(&properties),
+        PermissionLevel::Gamemasters
+    );
+
+    properties.set("function-permission-level", "-1");
+    assert_eq!(
+        function_permission_level_from_properties(&properties),
+        PermissionLevel::All
+    );
+
+    properties.set("function-permission-level", "4");
+    assert_eq!(
+        function_permission_level_from_properties(&properties),
+        PermissionLevel::Owners
+    );
+
+    properties.set("function-permission-level", "99");
+    assert_eq!(
+        function_permission_level_from_properties(&properties),
+        PermissionLevel::Owners
+    );
 }
 
 #[test]

@@ -78,7 +78,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [x] Implement `use-native-transport` or document the equivalent transport decision. — `ServerProperties` accepts Java's default-true `use-native-transport` key, `exposes_typed_vanilla_properties` covers the typed value, and `docs/COMPATIBILITY.md` documents RustCraft's standard `TcpListener`/`TcpStream` transport decision.
 - [ ] Implement mutable `spawn-protection`.
 - [ ] Implement mutable `op-permission-level`.
-- [ ] Implement `function-permission-level`.
+- [x] Implement `function-permission-level`. — `ServerProperties` parses Java's signed permission id default, the play command state uses it when queuing `/function` calls, and tests cover Java-style permission id clamping plus queued functions retaining the configured execution permission.
 - [ ] Implement `max-tick-time`.
 - [ ] Implement `max-chained-neighbor-updates`.
 - [ ] Implement `rate-limit`.

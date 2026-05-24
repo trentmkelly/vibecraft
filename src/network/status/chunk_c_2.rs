@@ -440,6 +440,7 @@ fn command_state_for_player(
         online_players: vec![profile.clone()],
         max_players: properties.max_players,
         world_seed,
+        function_permission_level: function_permission_level_from_properties(properties),
         ..ServerCommandState::default()
     };
     state
@@ -449,6 +450,10 @@ fn command_state_for_player(
             gamemode: command_game_mode(play_state.game_mode),
         });
     state
+}
+
+pub fn function_permission_level_from_properties(properties: &ServerProperties) -> PermissionLevel {
+    PermissionLevel::by_id(properties.function_permission_level)
 }
 
 fn apply_command_side_effects(
