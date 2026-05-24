@@ -1,6 +1,7 @@
 use super::super::*;
 use super::*;
 
+#[test]
 pub fn live_spawn_chunk_packet_uses_generated_level_chunk_serialization() {
     let mut payload = Vec::new();
     let world_root = std::env::temp_dir().join(format!(
@@ -941,4 +942,3 @@ pub fn play_session_state_nbt_round_trip_preserves_empty_inventory() {
         "expected empty inventory after round-trip"
     );
 }
-
