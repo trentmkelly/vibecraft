@@ -171,6 +171,52 @@ fn chunk_batch_received_packet_uses_big_endian_float_payload() {
 }
 
 #[test]
+fn game_event_packet_uses_java_event_ids_and_float_payload() {
+    assert_eq!(CLIENTBOUND_GAME_EVENT_PACKET_ID, 38);
+
+    let cases = [
+        (ClientboundGameEventType::NoRespawnBlockAvailable, 0),
+        (ClientboundGameEventType::StartRaining, 1),
+        (ClientboundGameEventType::StopRaining, 2),
+        (ClientboundGameEventType::ChangeGameMode, 3),
+        (ClientboundGameEventType::WinGame, 4),
+        (ClientboundGameEventType::DemoEvent, 5),
+        (ClientboundGameEventType::PlayArrowHitSound, 6),
+        (ClientboundGameEventType::RainLevelChange, 7),
+        (ClientboundGameEventType::ThunderLevelChange, 8),
+        (ClientboundGameEventType::PufferFishSting, 9),
+        (ClientboundGameEventType::GuardianElderEffect, 10),
+        (ClientboundGameEventType::ImmediateRespawn, 11),
+        (ClientboundGameEventType::LimitedCrafting, 12),
+        (ClientboundGameEventType::LevelChunksLoadStart, 13),
+    ];
+
+    for (event, id) in cases {
+        let packet = ClientboundGameEventPacket { event, param: 0.5 };
+        let mut bytes = Vec::new();
+        packet.write(&mut bytes).unwrap();
+        assert_eq!(bytes[0], id);
+        assert_eq!(&bytes[1..5], &0.5_f32.to_be_bytes());
+        assert_eq!(
+            ClientboundGameEventPacket::read(&mut cursor(bytes)).unwrap(),
+            packet
+        );
+    }
+
+    assert!(ClientboundGameEventPacket::read(&mut cursor(vec![7, 0, 0, 0])).is_err());
+    let mut trailing = vec![7];
+    trailing.extend_from_slice(&0.5_f32.to_be_bytes());
+    trailing.push(0);
+    assert!(ClientboundGameEventPacket::read(&mut cursor(trailing)).is_err());
+    assert_eq!(
+        ClientboundGameEventPacket::read(&mut cursor(vec![250, 0, 0, 0, 0]))
+            .unwrap()
+            .event,
+        ClientboundGameEventType::Unknown(250)
+    );
+}
+
+#[test]
 fn light_update_data_uses_vanilla_masks_and_2048_byte_layers() {
     let sections = vec![
         ChunkSection {

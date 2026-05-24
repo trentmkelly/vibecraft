@@ -325,10 +325,12 @@ impl ClientboundGameEventPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         let mut value = [0u8; 1];
         reader.read_exact(&mut value)?;
-        Ok(Self {
+        let packet = Self {
             event: ClientboundGameEventType::from_id(value[0]),
             param: read_f32(reader)?,
-        })
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
