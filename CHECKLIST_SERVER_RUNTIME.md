@@ -21,7 +21,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Support `--jfrProfile` with an equivalent profiling story or documented no-op.
 - [x] Support `--pidFile`. — `CliOptions` parses the Java `Main` path argument, startup writes the current process ID before EULA refusal can stop normal startup, and `pid_file_is_written_before_eula_refusal` covers the behavior.
 - [x] Initialize `server.properties` and `eula.txt` before normal startup. — `run()` loads/saves `server.properties`, creates `eula.txt`, and `missing_eula_refuses_startup_after_generating_files` verifies both files exist before the server refuses normal startup for `eula=false`.
-- [ ] Refuse startup until `eula=true`.
+- [x] Refuse startup until `eula=true`. — `run()` returns before world/listener startup when `Eula::load_or_create()` reports `eula=false`, and `missing_eula_refuses_startup_after_generating_files` verifies the refusal log plus absence of a generated world.
 - [ ] Write logs matching vanilla lifecycle milestones closely enough for operators and test tooling.
 - [ ] Install process-level crash and panic handlers.
 - [ ] Emit crash reports with useful environment, thread, and world state.
