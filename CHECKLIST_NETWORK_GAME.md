@@ -185,7 +185,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ServerboundChangeDifficultyPacket` (0x04): difficulty enum byte
 - [ ] `ServerboundClientCommandPacket` (0x0C): action enum VarInt (`PERFORM_RESPAWN`, `REQUEST_STATS`, `REQUEST_GAMERULE_VALUES`)
 - [x] `ServerboundClientTickEndPacket` (0x0D / decimal 13): empty payload; verified against Java `StreamCodec.unit`, Rust round-trip coverage, and malformed extra-payload rejection.
-- [ ] `ServerboundLockDifficultyPacket` (0x1D): locked bool
+- [x] `ServerboundLockDifficultyPacket` (0x1D / decimal 29): `locked` bool; verified against Java `readBoolean`/`writeBoolean`, Rust bool round-trip coverage, and malformed short/trailing-payload rejection.
 - [ ] `ServerboundInteractPacket` (0x1A): entity ID VarInt, interaction hand enum VarInt, low-precision Vec3 location, using-secondary-action bool
 - [ ] `ServerboundUseItemOnPacket` (0x42): hand enum VarInt, block hit result (block pos, direction enum VarInt, hit vector floats, inside flag, world-border-hit flag), sequence VarInt
 - [ ] `ServerboundUseItemPacket` (0x43): hand enum VarInt, sequence VarInt, yaw/pitch floats

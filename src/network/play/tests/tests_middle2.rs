@@ -313,6 +313,10 @@ fn malformed_serverbound_scalar_packets_disconnect_session() {
         DispatchOutcome::Disconnect(_)
     ));
     assert!(matches!(
+        session.handle_decoded(decoded(SERVERBOUND_LOCK_DIFFICULTY_PACKET_ID, vec![1, 0])),
+        DispatchOutcome::Disconnect(_)
+    ));
+    assert!(matches!(
         session.handle_decoded(decoded(SERVERBOUND_PADDLE_BOAT_PACKET_ID, vec![1])),
         DispatchOutcome::Disconnect(_)
     ));
@@ -614,4 +618,3 @@ fn play_session_rejects_wrong_state_or_unknown_packets_and_can_reconfigure() {
     );
     assert_eq!(session.state, PlayState::Reconfiguring);
 }
-

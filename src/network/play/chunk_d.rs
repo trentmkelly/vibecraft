@@ -355,9 +355,11 @@ impl ServerboundClientTickEndPacket {
 
 impl ServerboundLockDifficultyPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
-        Ok(Self {
+        let packet = Self {
             locked: read_bool(reader)?,
-        })
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
@@ -779,4 +781,3 @@ impl CommandBlockMode {
         }
     }
 }
-
