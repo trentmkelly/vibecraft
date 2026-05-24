@@ -8,7 +8,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [x] Support `--nogui`. — `CliOptions` accepts both Java `Main`'s `--nogui` option and legacy positional `nogui`, RustCraft is intentionally headless, and `parses_legacy_positional_nogui_like_java_main` covers the positional path.
 - [x] Support `--initSettings`. — `CliOptions` parses Java `Main`'s flag and `init_settings_creates_properties_and_eula_before_startup` verifies RustCraft creates `server.properties` plus `eula.txt`, logs the initialized paths, and exits before normal startup.
 - [x] Support `--demo`. — `CliOptions` parses Java `Main`'s flag, startup feeds it into `WorldOptions::from_server_inputs`, and `world_options_follow_dedicated_server_and_demo_rules` verifies demo mode selects the vanilla demo seed, structures, and bonus chest behavior.
-- [ ] Support `--bonusChest`.
+- [x] Support `--bonusChest`. — `CliOptions` parses Java `Main`'s flag, startup feeds it into `WorldOptions::from_server_inputs`, and `world_options_follow_dedicated_server_and_demo_rules` verifies the non-demo branch enables bonus-chest generation like `worldOptions.withBonusChest(true)`.
 - [ ] Support `--forceUpgrade`.
 - [ ] Support `--eraseCache`.
 - [ ] Support `--recreateRegionFiles`.
