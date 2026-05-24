@@ -408,6 +408,14 @@ fn malformed_serverbound_scalar_packets_disconnect_session() {
         DispatchOutcome::Disconnect(_)
     ));
     assert!(matches!(
+        session.handle_decoded(decoded(SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID, vec![0; 8])),
+        DispatchOutcome::Disconnect(_)
+    ));
+    assert!(matches!(
+        session.handle_decoded(decoded(SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID, vec![0; 10])),
+        DispatchOutcome::Disconnect(_)
+    ));
+    assert!(matches!(
         session.handle_decoded(decoded(SERVERBOUND_MOVE_VEHICLE_PACKET_ID, vec![0; 34])),
         DispatchOutcome::Disconnect(_)
     ));
@@ -691,12 +699,29 @@ fn move_player_packet_shapes_match_vanilla_field_layouts() {
     assert_eq!(&rot[4..8], &30.0_f32.to_be_bytes());
     assert_eq!(rot[8], 3);
     let decoded_rot =
-        ServerboundMovePlayerPacket::read_shape(&mut cursor(rot), MoveShape::Rot).unwrap();
+        ServerboundMovePlayerPacket::read_shape(&mut cursor(rot.clone()), MoveShape::Rot)
+            .unwrap();
     assert_eq!(decoded_rot.x, 0.0);
+    assert_eq!(decoded_rot.y, 0.0);
+    assert_eq!(decoded_rot.z, 0.0);
     assert_eq!(decoded_rot.y_rot, 90.0);
+    assert_eq!(decoded_rot.x_rot, 30.0);
+    assert!(decoded_rot.on_ground);
     assert!(decoded_rot.horizontal_collision);
     assert!(!decoded_rot.has_position);
     assert!(decoded_rot.has_rotation);
+    let mut truncated_rot = rot.clone();
+    truncated_rot.pop();
+    assert!(
+        ServerboundMovePlayerPacket::read_shape(&mut cursor(truncated_rot), MoveShape::Rot)
+            .is_err()
+    );
+    let mut trailing_rot = rot.clone();
+    trailing_rot.push(0);
+    assert!(
+        ServerboundMovePlayerPacket::read_shape(&mut cursor(trailing_rot), MoveShape::Rot)
+            .is_err()
+    );
 
     let mut status_only = Vec::new();
     movement.write_status_only(&mut status_only).unwrap();
