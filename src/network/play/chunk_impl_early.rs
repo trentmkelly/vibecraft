@@ -177,6 +177,7 @@ pub struct PlaySession {
     pub last_container_button_click: Option<ServerboundContainerButtonClickPacket>,
     pub last_container_click: Option<ServerboundContainerClickPacket>,
     pub last_set_creative_mode_slot: Option<ServerboundSetCreativeModeSlotPacket>,
+    pub last_player_abilities: Option<ServerboundPlayerAbilitiesPacket>,
     pub last_pick_item_from_block: Option<ServerboundPickItemFromBlockPacket>,
     pub last_pick_item_from_entity: Option<ServerboundPickItemFromEntityPacket>,
     pub last_recipe_book_change_settings: Option<ServerboundRecipeBookChangeSettingsPacket>,

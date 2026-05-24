@@ -20,7 +20,7 @@ use crate::fluid::{
     block_item_can_replace, block_state_model_name, fluid_state_for_block, place_liquid,
     tick_fluid, FluidKind, LiquidPlaceResult,
 };
-use crate::item_catalog::{item_protocol_id, item_static_name};
+use crate::item_catalog::{item_protocol_id, item_static_name, item_static_name_from_protocol_id};
 use crate::item_entity::{self, DroppedItem, WorldItemEntities, DEFAULT_PICKUP_DELAY};
 use crate::item_stack::ItemStack;
 use crate::log::log_info;
@@ -57,8 +57,9 @@ use crate::network::play::{
     RawItemStack, ReadyChunkBatch, RecipeBookType, RecipeBookTypeSettings,
     ServerboundChatCommandPacket, ServerboundChatCommandSignedPacket, ServerboundChatPacket,
     ServerboundChunkBatchReceivedPacket, ServerboundContainerClickPacket,
-    ServerboundPlaceRecipePacket, ServerboundRecipeBookChangeSettingsPacket,
-    ServerboundRecipeBookSeenRecipePacket, ServerboundSwingHand, ServerboundUseItemOnPacket, Vec3,
+    ServerboundPlaceRecipePacket, ServerboundPlayerAbilitiesPacket,
+    ServerboundRecipeBookChangeSettingsPacket, ServerboundRecipeBookSeenRecipePacket,
+    ServerboundSetCreativeModeSlotPacket, ServerboundSwingHand, ServerboundUseItemOnPacket, Vec3,
     CLIENTBOUND_ADD_ENTITY_PACKET_ID, CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
     CLIENTBOUND_BLOCK_UPDATE_PACKET_ID, CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID,
     CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID, CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID,
@@ -84,10 +85,12 @@ use crate::network::play::{
     SERVERBOUND_KEEP_ALIVE_PACKET_ID, SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID,
     SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID, SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID,
     SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID, SERVERBOUND_PLACE_RECIPE_PACKET_ID,
-    SERVERBOUND_PLAYER_ACTION_PACKET_ID, SERVERBOUND_PLAYER_COMMAND_PACKET_ID,
-    SERVERBOUND_PLAYER_INPUT_PACKET_ID, SERVERBOUND_RECIPE_BOOK_CHANGE_SETTINGS_PACKET_ID,
+    SERVERBOUND_PLAYER_ABILITIES_PACKET_ID, SERVERBOUND_PLAYER_ACTION_PACKET_ID,
+    SERVERBOUND_PLAYER_COMMAND_PACKET_ID, SERVERBOUND_PLAYER_INPUT_PACKET_ID,
+    SERVERBOUND_RECIPE_BOOK_CHANGE_SETTINGS_PACKET_ID,
     SERVERBOUND_RECIPE_BOOK_SEEN_RECIPE_PACKET_ID, SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID,
-    SERVERBOUND_SWING_PACKET_ID, SERVERBOUND_USE_ITEM_ON_PACKET_ID, SERVERBOUND_USE_ITEM_PACKET_ID,
+    SERVERBOUND_SET_CREATIVE_MODE_SLOT_PACKET_ID, SERVERBOUND_SWING_PACKET_ID,
+    SERVERBOUND_USE_ITEM_ON_PACKET_ID, SERVERBOUND_USE_ITEM_PACKET_ID,
 };
 use crate::network::rate_limit::{PacketRateDecision, PacketRateLimiter};
 use crate::network::varint::{read_var_i32, write_var_i32, write_var_i64};
@@ -248,6 +251,8 @@ pub use chunk_b::*;
 
 mod chunk_b_2;
 pub use chunk_b_2::*;
+
+mod player_creative_packets;
 
 mod chunk_c;
 pub use chunk_c::*;

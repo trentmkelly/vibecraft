@@ -233,6 +233,87 @@ pub fn fall_damage_is_suppressed_for_mayfly_players() {
 }
 
 #[test]
+pub fn serverbound_player_abilities_updates_flying_only_when_mayfly() {
+    let mut state = session_state_with_inventory(&[]);
+    state.abilities.flying = true;
+    let update = super::super::update_play_session_state(
+        super::super::SERVERBOUND_PLAYER_ABILITIES_PACKET_ID,
+        &mut Cursor::new(vec![0x02]),
+        &mut state,
+    )
+    .unwrap();
+    assert_eq!(update, super::super::PlaySessionUpdate::default());
+    assert!(!state.abilities.flying);
+
+    state.abilities.mayfly = true;
+    super::super::update_play_session_state(
+        super::super::SERVERBOUND_PLAYER_ABILITIES_PACKET_ID,
+        &mut Cursor::new(vec![0x02]),
+        &mut state,
+    )
+    .unwrap();
+    assert!(state.abilities.flying);
+
+    super::super::update_play_session_state(
+        super::super::SERVERBOUND_PLAYER_ABILITIES_PACKET_ID,
+        &mut Cursor::new(vec![0x00]),
+        &mut state,
+    )
+    .unwrap();
+    assert!(!state.abilities.flying);
+}
+
+#[test]
+pub fn creative_mode_slot_packet_applies_java_slot_and_ability_gates() {
+    let mut state = session_state_with_inventory(&[]);
+    let packet = super::super::ServerboundSetCreativeModeSlotPacket {
+        slot_num: 36,
+        item_stack: super::super::RawItemStack {
+            count: 64,
+            item_id: crate::item_catalog::item_protocol_id("minecraft:stone"),
+            components: super::super::RawDataComponentPatch::empty(),
+        },
+    };
+    assert!(!super::super::player_creative_packets::apply_set_creative_mode_slot_packet(
+        &mut state,
+        packet.clone()
+    ));
+    assert_eq!(state.inventory_menu.get_slot(36), Some(ItemStack::empty()));
+
+    state.abilities.instabuild = true;
+    assert!(super::super::player_creative_packets::apply_set_creative_mode_slot_packet(
+        &mut state,
+        packet
+    ));
+    assert_eq!(
+        state.inventory_menu.get_slot(36),
+        Some(ItemStack::new("minecraft:stone", 64))
+    );
+    assert_eq!(state.container_state_id, 1);
+
+    let invalid_result_slot = super::super::ServerboundSetCreativeModeSlotPacket {
+        slot_num: 0,
+        item_stack: super::super::RawItemStack::empty(),
+    };
+    assert!(!super::super::player_creative_packets::apply_set_creative_mode_slot_packet(
+        &mut state,
+        invalid_result_slot
+    ));
+    assert_eq!(state.container_state_id, 1);
+
+    let clear = super::super::ServerboundSetCreativeModeSlotPacket {
+        slot_num: 36,
+        item_stack: super::super::RawItemStack::empty(),
+    };
+    assert!(super::super::player_creative_packets::apply_set_creative_mode_slot_packet(
+        &mut state,
+        clear
+    ));
+    assert_eq!(state.inventory_menu.get_slot(36), Some(ItemStack::empty()));
+    assert_eq!(state.container_state_id, 2);
+}
+
+#[test]
 pub fn player_fluid_detection_tracks_body_and_eye_water() {
     let mut state = session_state_with_inventory(&[]);
     state.x = 0.5;

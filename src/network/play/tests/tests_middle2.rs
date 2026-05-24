@@ -42,6 +42,35 @@ fn play_session_container_state_id_advances_only_after_accepted_click() {
 }
 
 #[test]
+fn player_abilities_packet_uses_java_flying_bit_and_dispatches() {
+    let flying = ServerboundPlayerAbilitiesPacket { is_flying: true };
+    let mut payload = Vec::new();
+    flying.write(&mut payload).unwrap();
+    assert_eq!(payload, vec![0x02]);
+    assert_eq!(
+        ServerboundPlayerAbilitiesPacket::read(&mut &payload[..]).unwrap(),
+        flying
+    );
+    assert!(
+        ServerboundPlayerAbilitiesPacket::read(&mut &[0x0e][..])
+            .unwrap()
+            .is_flying
+    );
+
+    let grounded = ServerboundPlayerAbilitiesPacket { is_flying: false };
+    let mut grounded_payload = Vec::new();
+    grounded.write(&mut grounded_payload).unwrap();
+    assert_eq!(grounded_payload, vec![0x00]);
+
+    let mut session = PlaySession::new(7, 0);
+    assert_eq!(
+        session.handle_decoded(decoded(SERVERBOUND_PLAYER_ABILITIES_PACKET_ID, payload)),
+        DispatchOutcome::Handled
+    );
+    assert_eq!(session.last_player_abilities, Some(flying));
+}
+
+#[test]
 fn stale_container_state_id_corrections_become_set_slot_packets() {
     let mut session = PlaySession::new(7, 0);
     session.container_state_id = 8;

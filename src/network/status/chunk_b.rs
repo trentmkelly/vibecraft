@@ -118,6 +118,13 @@ pub fn update_play_session_state<R: Read>(
             state.input_sprinting = sprinting;
             Ok(PlaySessionUpdate::default())
         }
+        SERVERBOUND_PLAYER_ABILITIES_PACKET_ID => {
+            let packet = ServerboundPlayerAbilitiesPacket::read(input)?;
+            super::player_creative_packets::apply_serverbound_player_abilities_packet(
+                state, packet,
+            );
+            Ok(PlaySessionUpdate::default())
+        }
         _ => Ok(PlaySessionUpdate::default()),
     }
 }

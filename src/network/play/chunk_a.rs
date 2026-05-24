@@ -36,6 +36,7 @@ impl PlaySession {
             last_container_button_click: None,
             last_container_click: None,
             last_set_creative_mode_slot: None,
+            last_player_abilities: None,
             last_pick_item_from_block: None,
             last_pick_item_from_entity: None,
             last_recipe_book_change_settings: None,
@@ -482,6 +483,18 @@ impl PlaySession {
                     }
                     Err(err) => {
                         DispatchOutcome::Disconnect(format!("bad player action packet: {err}"))
+                    }
+                }
+            }
+            SERVERBOUND_PLAYER_ABILITIES_PACKET_ID => {
+                let mut input = &packet.payload[..];
+                match ServerboundPlayerAbilitiesPacket::read(&mut input) {
+                    Ok(abilities) => {
+                        self.last_player_abilities = Some(abilities);
+                        DispatchOutcome::Handled
+                    }
+                    Err(err) => {
+                        DispatchOutcome::Disconnect(format!("bad player abilities packet: {err}"))
                     }
                 }
             }

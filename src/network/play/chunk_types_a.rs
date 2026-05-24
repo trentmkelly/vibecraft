@@ -459,6 +459,11 @@ pub struct ServerboundSetCreativeModeSlotPacket {
     pub item_stack: RawItemStack,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundPlayerAbilitiesPacket {
+    pub is_flying: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServerboundCommandSuggestionPacket {
     pub id: i32,

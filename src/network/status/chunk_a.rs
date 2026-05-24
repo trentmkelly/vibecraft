@@ -1458,6 +1458,16 @@ pub fn handle_login_connection(
                     }
                     continue;
                 }
+                if packet_id == SERVERBOUND_SET_CREATIVE_MODE_SLOT_PACKET_ID {
+                    let packet = ServerboundSetCreativeModeSlotPacket::read(&mut input)?;
+                    if super::player_creative_packets::apply_set_creative_mode_slot_packet(
+                        &mut play_state,
+                        packet,
+                    ) {
+                        write_inventory_menu_full_sync(stream, compression, &play_state)?;
+                    }
+                    continue;
+                }
                 if packet_id == SERVERBOUND_RECIPE_BOOK_CHANGE_SETTINGS_PACKET_ID {
                     let packet = ServerboundRecipeBookChangeSettingsPacket::read(&mut input)?;
                     apply_recipe_book_settings_packet(&mut play_state, packet);
@@ -1507,6 +1517,7 @@ pub fn handle_login_connection(
                         | SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID
                         | SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID
                         | SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID
+                        | SERVERBOUND_PLAYER_ABILITIES_PACKET_ID
                         | SERVERBOUND_PLAYER_COMMAND_PACKET_ID
                         | SERVERBOUND_PLAYER_INPUT_PACKET_ID
                         | SERVERBOUND_PLAYER_LOADED_PACKET_ID

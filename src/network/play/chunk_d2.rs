@@ -601,6 +601,20 @@ impl ServerboundSetCreativeModeSlotPacket {
     }
 }
 
+impl ServerboundPlayerAbilitiesPacket {
+    const FLAG_FLYING: u8 = 0x02;
+
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            is_flying: read_u8(reader)? & Self::FLAG_FLYING != 0,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        writer.write_all(&[if self.is_flying { Self::FLAG_FLYING } else { 0 }])
+    }
+}
+
 impl ServerboundCommandSuggestionPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         Ok(Self {

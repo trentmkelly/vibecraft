@@ -96,7 +96,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ServerboundRenameItemPacket` (0x30): name UTF-8 string capped at 32767 chars
 - [ ] `ServerboundSelectTradePacket` (0x33): item number VarInt
 - [ ] `ServerboundSetBeaconPacket` (0x34): primary effect optional MobEffect registry id, secondary effect optional MobEffect registry id
-- [ ] `ServerboundSetCreativeModeSlotPacket` (0x38): slot short, `ItemStack.OPTIONAL_UNTRUSTED_STREAM_CODEC` with count VarInt, optional item registry ID, and delimited data component patch framing
+- [x] `ServerboundSetCreativeModeSlotPacket` (0x38): slot short, `ItemStack.OPTIONAL_UNTRUSTED_STREAM_CODEC` with count VarInt, optional item registry ID, and delimited data component patch framing — decoded and applied in creative mode with Java slot, count, and ability gates; creative drop remains deferred until entity item drops are ported.
 - [ ] `ServerboundContainerButtonClickPacket` (0x11): container ID VarInt, button ID VarInt
 
 ## Recipe / Advancement / Unlock Packets
