@@ -59,7 +59,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Add a Mineflayer offline-mode bind-address test that verifies bots can connect through `localhost`, explicit `server-ip`, randomized ports, and rejected addresses with vanilla-compatible socket or kick behavior.
 - [ ] Add a Mineflayer offline-mode compression-property login test that verifies first join succeeds with `network-compression-threshold=-1`, `0`, small positive values, and the vanilla default while preserving packet ordering.
 - [x] Implement `prevent-proxy-connections`. — `ServerProperties` parses Java's default, online authentication forwards the remote address to session service only when enabled like Java, and login rejects mismatched handshake/socket IPs with `multiplayer.disconnect.unverified_username`; `cargo test -q prevent_proxy` covers the behavior.
-- [ ] Implement `server-ip`.
+- [x] Implement `server-ip`. — `ServerProperties` parses Java's default empty bind address, startup binds listeners to `0.0.0.0` when empty or the configured address when set, and `listener_bind_ip_uses_vanilla_server_ip_property_with_wildcard_default` covers both cases.
 - [ ] Implement mutable `allow-flight`.
 - [ ] Implement mutable `motd`.
 - [ ] Implement `enable-code-of-conduct`.

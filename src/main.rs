@@ -322,11 +322,7 @@ fn run(options: CliOptions) -> Result<(), String> {
 
     logger.info("Starting status/login listener with minimal play join support.")?;
 
-    let bind_ip = if properties.server_ip.is_empty() {
-        "0.0.0.0"
-    } else {
-        properties.server_ip.as_str()
-    };
+    let bind_ip = listener_bind_ip(&properties);
     if properties.enable_query {
         let query_info = QueryServerInfo {
             server_name: properties.motd.clone(),
@@ -389,9 +385,17 @@ fn runtime_selection(options: &CliOptions, properties: &ServerProperties) -> Run
     }
 }
 
+fn listener_bind_ip(properties: &ServerProperties) -> &str {
+    if properties.server_ip.is_empty() {
+        "0.0.0.0"
+    } else {
+        properties.server_ip.as_str()
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{run, runtime_selection, CliOptions};
+    use super::{listener_bind_ip, run, runtime_selection, CliOptions};
     use crate::server_properties::ServerProperties;
     use std::fs;
     use std::path::{Path, PathBuf};
@@ -509,6 +513,22 @@ mod tests {
         assert_eq!(selected.universe, PathBuf::from("worlds"));
         assert_eq!(selected.port, 25566);
         assert_eq!(selected.server_id.as_deref(), Some("server-123"));
+    }
+
+    #[test]
+    fn listener_bind_ip_uses_vanilla_server_ip_property_with_wildcard_default() {
+        let _lock = CWD_LOCK.lock().unwrap();
+        let dir = temp_workdir("server-ip");
+        let _guard = CurrentDirGuard::enter(&dir);
+
+        fs::write("server.properties", "").expect("write default server.properties");
+        let defaulted = ServerProperties::load_or_default(Path::new("server.properties")).unwrap();
+        assert_eq!(listener_bind_ip(&defaulted), "0.0.0.0");
+
+        fs::write("server.properties", "server-ip=127.0.0.1\n")
+            .expect("write explicit server.properties");
+        let explicit = ServerProperties::load_or_default(Path::new("server.properties")).unwrap();
+        assert_eq!(listener_bind_ip(&explicit), "127.0.0.1");
     }
 
     #[test]
