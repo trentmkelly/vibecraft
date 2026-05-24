@@ -230,6 +230,25 @@ fn animate_packet_uses_java_entity_id_then_unsigned_action_byte() {
 }
 
 #[test]
+fn entity_event_packet_uses_java_fixed_int_entity_id_then_event_byte() {
+    let registry = PlayProtocolRegistry::new();
+    assert_eq!(CLIENTBOUND_ENTITY_EVENT_PACKET_ID, 34);
+    assert_eq!(
+        registry.clientbound_name(CLIENTBOUND_ENTITY_EVENT_PACKET_ID),
+        Some("entity_event")
+    );
+
+    let mut payload = Vec::new();
+    ClientboundEntityEventPacket {
+        entity_id: 300,
+        event_id: 3,
+    }
+    .write(&mut payload)
+    .unwrap();
+    assert_eq!(payload, vec![0x00, 0x00, 0x01, 0x2c, 0x03]);
+}
+
+#[test]
 fn chunk_batch_received_packet_uses_big_endian_float_payload() {
     let packet = ServerboundChunkBatchReceivedPacket {
         desired_chunks_per_tick: 12.5,
