@@ -278,7 +278,10 @@ pub fn write_player_info_initializing_packet<W: Write>(
     write_bool(writer, true)
 }
 
-pub fn write_player_abilities_packet<W: Write>(writer: &mut W, game_mode: GameMode) -> io::Result<()> {
+pub fn write_player_abilities_packet<W: Write>(
+    writer: &mut W,
+    game_mode: GameMode,
+) -> io::Result<()> {
     let flags = match game_mode {
         GameMode::Survival | GameMode::Adventure => 0,
         GameMode::Creative => 0x0d,
@@ -320,6 +323,267 @@ pub fn write_command_suggestions_response<R: Read>(
             Ok(())
         },
     )
+}
+
+pub fn handle_chat_packet<R: Read>(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    input: &mut R,
+    profile: &NameAndId,
+) -> io::Result<()> {
+    // Java ServerGamePacketListenerImpl.handleChat delegates to tryHandleChat,
+    // which rejects StringUtil-disallowed chat characters before decoration.
+    let packet = ServerboundChatPacket::read(input)?;
+    if chat_message_is_illegal(&packet.message) {
+        write_disconnect_component(
+            stream,
+            compression,
+            "multiplayer.disconnect.illegal_characters",
+        )?;
+        return Ok(());
+    }
+
+    write_system_chat_text(
+        stream,
+        compression,
+        &format!("<{}> {}", profile.name, packet.message),
+        false,
+    )
+}
+
+pub fn handle_chat_command_packet<R: Read>(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    input: &mut R,
+    signed: bool,
+    profile: &NameAndId,
+    play_state: &mut PlaySessionState,
+    properties: &ServerProperties,
+    player_access: &Arc<Mutex<PlayerAccess>>,
+    world_seed: i64,
+) -> io::Result<()> {
+    let command = if signed {
+        ServerboundChatCommandSignedPacket::read(input)?.command
+    } else {
+        ServerboundChatCommandPacket::read(input)?.command
+    };
+
+    // Java runs commands through the same chat validation gate with isCommand=true.
+    if chat_message_is_illegal(&command) {
+        write_disconnect_component(
+            stream,
+            compression,
+            "multiplayer.disconnect.illegal_characters",
+        )?;
+        return Ok(());
+    }
+
+    let permissions = player_permission_set(profile, properties, player_access);
+    let mut command_state = command_state_for_player(profile, play_state, properties, world_seed);
+    let result = execute_builtin_command(&mut command_state, permissions, &command);
+    apply_command_side_effects(stream, compression, play_state, profile, &command_state)?;
+    match result {
+        Ok(result) => write_system_chat_text(
+            stream,
+            compression,
+            &command_feedback_text(&result, &command_state),
+            false,
+        ),
+        Err(error) => write_system_chat_text(
+            stream,
+            compression,
+            &format!("Command failed: {error:?}"),
+            false,
+        ),
+    }
+}
+
+pub fn chat_message_is_illegal(message: &str) -> bool {
+    message
+        .chars()
+        .any(|ch| ch == '\u{00a7}' || ch < ' ' || ch == '\u{7f}')
+}
+
+fn player_permission_set(
+    profile: &NameAndId,
+    properties: &ServerProperties,
+    player_access: &Arc<Mutex<PlayerAccess>>,
+) -> LevelBasedPermissionSet {
+    let op_level = player_access
+        .lock()
+        .ok()
+        .and_then(|access| access.op_level(&profile.uuid))
+        .map(u32::from)
+        .unwrap_or(0);
+    let level = op_level.max(if op_level > 0 {
+        properties.op_permission_level
+    } else {
+        0
+    });
+    LevelBasedPermissionSet::new(match level {
+        4.. => PermissionLevel::Owners,
+        3 => PermissionLevel::Admins,
+        2 => PermissionLevel::Gamemasters,
+        1 => PermissionLevel::Moderators,
+        _ => PermissionLevel::All,
+    })
+}
+
+fn command_state_for_player(
+    profile: &NameAndId,
+    play_state: &PlaySessionState,
+    properties: &ServerProperties,
+    world_seed: i64,
+) -> ServerCommandState {
+    let mut state = ServerCommandState {
+        command_source_player: Some(profile.clone()),
+        online_players: vec![profile.clone()],
+        max_players: properties.max_players,
+        world_seed,
+        ..ServerCommandState::default()
+    };
+    state
+        .player_game_modes
+        .push(crate::command::PlayerGameMode {
+            player: profile.clone(),
+            gamemode: command_game_mode(play_state.game_mode),
+        });
+    state
+}
+
+fn apply_command_side_effects(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    play_state: &mut PlaySessionState,
+    profile: &NameAndId,
+    command_state: &ServerCommandState,
+) -> io::Result<()> {
+    if let Some(entry) = command_state
+        .player_game_modes
+        .iter()
+        .find(|entry| entry.player.uuid == profile.uuid)
+    {
+        let new_game_mode = play_game_mode(entry.gamemode);
+        if new_game_mode != play_state.game_mode {
+            play_state.previous_game_mode = Some(play_state.game_mode);
+            play_state.game_mode = new_game_mode;
+            play_state.abilities = match play_state.game_mode {
+                GameMode::Survival | GameMode::Adventure => PlayerNbtAbilities::default_survival(),
+                GameMode::Creative => PlayerNbtAbilities {
+                    invulnerable: true,
+                    flying: false,
+                    mayfly: true,
+                    instabuild: true,
+                    may_build: true,
+                    fly_speed: 0.05,
+                    walk_speed: 0.1,
+                },
+                GameMode::Spectator => PlayerNbtAbilities {
+                    invulnerable: true,
+                    flying: true,
+                    mayfly: true,
+                    instabuild: false,
+                    may_build: false,
+                    fly_speed: 0.05,
+                    walk_speed: 0.1,
+                },
+            };
+            // Java ServerPlayer.setGameMode sends CHANGE_GAME_MODE followed by abilities.
+            write_game_event(stream, compression, 3, play_state.game_mode as i32 as f32)?;
+            write_framed_packet_with_compression(
+                stream,
+                compression,
+                CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID,
+                |payload| write_player_abilities_packet(payload, play_state.game_mode),
+            )?;
+        }
+    }
+    Ok(())
+}
+
+fn command_game_mode(game_mode: GameMode) -> crate::command::GameMode {
+    match game_mode {
+        GameMode::Survival => crate::command::GameMode::Survival,
+        GameMode::Creative => crate::command::GameMode::Creative,
+        GameMode::Adventure => crate::command::GameMode::Adventure,
+        GameMode::Spectator => crate::command::GameMode::Spectator,
+    }
+}
+
+fn play_game_mode(game_mode: crate::command::GameMode) -> GameMode {
+    match game_mode {
+        crate::command::GameMode::Survival => GameMode::Survival,
+        crate::command::GameMode::Creative => GameMode::Creative,
+        crate::command::GameMode::Adventure => GameMode::Adventure,
+        crate::command::GameMode::Spectator => GameMode::Spectator,
+    }
+}
+
+fn command_feedback_text(
+    result: &crate::command::CommandResult,
+    state: &ServerCommandState,
+) -> String {
+    match result.feedback_key {
+        "commands.seed.success" => format!("Seed: {}", state.world_seed),
+        "commands.list.players" => format!(
+            "There are {} of a max of {} players online: {}",
+            state.online_players.len(),
+            state.max_players,
+            state
+                .online_players
+                .iter()
+                .map(|player| player.name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        "commands.gamemode.success.self" => "Set own game mode".to_string(),
+        "commands.say.success" => "Message sent".to_string(),
+        key => format!("{key} ({})", result.success_count),
+    }
+}
+
+pub fn write_system_chat_text(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    text: &str,
+    overlay: bool,
+) -> io::Result<()> {
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_SYSTEM_CHAT_PACKET_ID,
+        |payload| {
+            ClientboundSystemChatPacket {
+                content: literal_component_tag(text),
+                overlay,
+            }
+            .write(payload)
+        },
+    )
+}
+
+fn write_disconnect_component(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    translation_key: &str,
+) -> io::Result<()> {
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_DISCONNECT_PACKET_ID,
+        |payload| {
+            ClientboundDisconnectPacket {
+                reason: ComponentJson(format!("{{\"translate\":\"{translation_key}\"}}")),
+            }
+            .write(payload)
+        },
+    )?;
+    let _ = stream.shutdown(Shutdown::Both);
+    Ok(())
+}
+
+pub fn literal_component_tag(text: &str) -> Tag {
+    Tag::Compound(vec![("text".to_string(), Tag::String(text.to_string()))])
 }
 
 pub fn uuid_from_hyphenated(value: &str) -> io::Result<Uuid> {
@@ -601,7 +865,9 @@ pub fn generated_chunk_entity_add_packets(chunk: &LevelChunk) -> Vec<Clientbound
         .collect()
 }
 
-pub fn generated_chunk_entity_spawn_plans(chunk: &LevelChunk) -> Vec<GeneratedChunkEntitySpawnPlan> {
+pub fn generated_chunk_entity_spawn_plans(
+    chunk: &LevelChunk,
+) -> Vec<GeneratedChunkEntitySpawnPlan> {
     chunk
         .entities
         .iter()
@@ -855,4 +1121,3 @@ pub fn cow_sound_variant_registry_id(value: &str) -> Option<i32> {
         _ => None,
     }
 }
-

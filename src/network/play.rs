@@ -159,6 +159,7 @@ pub const CLIENTBOUND_SET_TITLES_ANIMATION_PACKET_ID: i32 = 115;
 pub const CLIENTBOUND_SOUND_ENTITY_PACKET_ID: i32 = 116;
 pub const CLIENTBOUND_SOUND_PACKET_ID: i32 = 117;
 pub const CLIENTBOUND_START_CONFIGURATION_PACKET_ID: i32 = 118;
+pub const CLIENTBOUND_SYSTEM_CHAT_PACKET_ID: i32 = 121;
 pub const CLIENTBOUND_DISCONNECT_PACKET_ID: i32 = 32;
 pub const CLIENTBOUND_ENTITY_POSITION_SYNC_PACKET_ID: i32 = 35;
 /// Java: `net/minecraft/network/protocol/game/ClientboundTakeItemEntityPacket`
@@ -204,4 +205,3 @@ pub use chunk_e2::*;
 
 #[cfg(test)]
 mod tests;
-

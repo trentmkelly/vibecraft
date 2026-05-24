@@ -1,6 +1,5 @@
 use super::*;
 
-
 /// Loads clock state from `{world_root}/server_clocks.json`.
 /// Returns `None` on missing or malformed file; caller falls back to `ServerClockManager::default()`.
 /// Java: ServerClockManager.TYPE SavedData — key "world_clocks"
@@ -918,7 +917,8 @@ pub fn handle_login_connection(
     let mut play_tick_count = 0_u64;
     let mut live_fluid_ticks = LiveFluidTicks::new();
     {
-        let center = chunk_cache.get_or_load(current_chunk_x, current_chunk_z, world_root, world_seed);
+        let center =
+            chunk_cache.get_or_load(current_chunk_x, current_chunk_z, world_root, world_seed);
         unpack_chunk_fluid_ticks(&mut live_fluid_ticks, play_tick_count as i64, &center);
     }
     const ITEM_TICK_INTERVAL: Duration = Duration::from_millis(50);
@@ -1192,6 +1192,26 @@ pub fn handle_login_connection(
                 }
                 if packet_id == SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID {
                     write_command_suggestions_response(stream, compression, &mut input)?;
+                    continue;
+                }
+                if packet_id == SERVERBOUND_CHAT_PACKET_ID {
+                    handle_chat_packet(stream, compression, &mut input, &finished.profile)?;
+                    continue;
+                }
+                if packet_id == SERVERBOUND_CHAT_COMMAND_PACKET_ID
+                    || packet_id == SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID
+                {
+                    handle_chat_command_packet(
+                        stream,
+                        compression,
+                        &mut input,
+                        packet_id == SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID,
+                        &finished.profile,
+                        &mut play_state,
+                        properties,
+                        player_access,
+                        world_seed,
+                    )?;
                     continue;
                 }
                 if packet_id == SERVERBOUND_USE_ITEM_ON_PACKET_ID {
@@ -1479,8 +1499,6 @@ pub fn handle_login_connection(
                     SERVERBOUND_KEEP_ALIVE_PACKET_ID
                         | SERVERBOUND_ACCEPT_TELEPORTATION_PACKET_ID
                         | SERVERBOUND_CHAT_ACK_PACKET_ID
-                        | SERVERBOUND_CHAT_COMMAND_PACKET_ID
-                        | SERVERBOUND_CHAT_PACKET_ID
                         | SERVERBOUND_CLIENT_COMMAND_PACKET_ID
                         | SERVERBOUND_CLIENT_INFORMATION_PACKET_ID
                         | SERVERBOUND_CLIENT_TICK_END_PACKET_ID

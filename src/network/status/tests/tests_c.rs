@@ -17,6 +17,26 @@ pub fn oak_planks_recipe_map() -> RecipeMap {
 }
 
 #[test]
+pub fn chat_validation_matches_java_allowed_chat_characters() {
+    assert!(!chat_message_is_illegal("hello world"));
+    assert!(!chat_message_is_illegal("snowman \u{2603}"));
+    assert!(chat_message_is_illegal("bad\nline"));
+    assert!(chat_message_is_illegal("bad\u{7f}delete"));
+    assert!(chat_message_is_illegal("bad\u{00a7}format"));
+}
+
+#[test]
+pub fn literal_chat_component_uses_network_nbt_shape() {
+    assert_eq!(
+        literal_component_tag("<Steve> hello"),
+        Tag::Compound(vec![(
+            "text".to_string(),
+            Tag::String("<Steve> hello".to_string())
+        )])
+    );
+}
+
+#[test]
 pub fn play_session_state_nbt_round_trip_preserves_recipe_book_state() {
     let recipes = oak_planks_recipe_map();
     let mut state = session_state_with_inventory(&[]);
