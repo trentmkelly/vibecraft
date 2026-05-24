@@ -449,6 +449,26 @@ fn experience_orbs_use_add_entity_packet_not_a_dedicated_game_packet() {
 }
 
 #[test]
+fn remove_mob_effect_packet_uses_java_entity_then_effect_holder_varints() {
+    let registry = PlayProtocolRegistry::new();
+    assert_eq!(CLIENTBOUND_REMOVE_MOB_EFFECT_PACKET_ID, 78);
+    assert_eq!(
+        registry.clientbound_name(CLIENTBOUND_REMOVE_MOB_EFFECT_PACKET_ID),
+        Some("remove_mob_effect")
+    );
+
+    let mut payload = Vec::new();
+    ClientboundRemoveMobEffectPacket {
+        entity_id: 300,
+        effect_id: 129,
+    }
+    .write(&mut payload)
+    .unwrap();
+
+    assert_eq!(payload, vec![0xac, 0x02, 0x81, 0x01]);
+}
+
+#[test]
 fn chunk_batch_received_packet_uses_big_endian_float_payload() {
     let packet = ServerboundChunkBatchReceivedPacket {
         desired_chunks_per_tick: 12.5,

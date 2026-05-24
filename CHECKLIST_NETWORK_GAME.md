@@ -69,7 +69,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] Implement entity metadata indexes for every entity type hierarchy (Entity, LivingEntity, Mob, PathfinderMob, Animal, Player, each monster/animal subtype)
 - [ ] `ClientboundUpdateAttributesPacket` (0x72): entity ID, attribute registry holder ID, base value, modifier list with identifier/amount/operation
 - [ ] `ClientboundUpdateMobEffectPacket` (0x84): entity ID VarInt, effect registry ID VarInt, amplifier VarInt, duration VarInt, flags byte (ambient/visible/show-icon/blend)
-- [ ] `ClientboundRemoveMobEffectPacket` (0x41): entity ID, effect ID VarInt
+- [x] `ClientboundRemoveMobEffectPacket` (0x4E / decimal 78): entity ID VarInt followed by `MobEffect.STREAM_CODEC` registry holder VarInt; verified against Java `ClientboundRemoveMobEffectPacket` composite codec, Java `MobEffect.STREAM_CODEC` holder-registry codec, Java play-protocol registration order, Rust packet registry ID/name mapping, and direct payload bytes for multibyte entity/effect IDs.
 - [x] `ClientboundAnimatePacket` (0x02 / decimal 2): entity ID VarInt followed by animation unsigned byte (`0` swing-main, `2` wake-up, `3` swing-offhand, `4` critical-hit, `5` magic-critical-hit); verified against Java `ClientboundAnimatePacket` `Packet.codec` read/write order, Java action constants, Java play-protocol registration order, Rust packet registry ID/name mapping, and direct payload bytes for a multibyte entity ID plus unsigned action byte.
 - [ ] `ClientboundSetEquipmentPacket` (0x59): entity ID, equipment list (slot+item pairs with `more` continuation flag)
 
