@@ -543,10 +543,7 @@ impl ClientboundPlayerPositionPacket {
 
 impl ClientboundSetEntityMotionPacket {
     pub fn new(id: i32, movement: Vec3) -> Self {
-        Self {
-            id,
-            movement: clamp_velocity(movement),
-        }
+        Self { id, movement }
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
@@ -926,4 +923,3 @@ impl RecipeDisplayData {
         }
     }
 }
-

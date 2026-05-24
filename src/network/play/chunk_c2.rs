@@ -113,14 +113,6 @@ pub(super) fn pack_degrees(degrees: f32) -> u8 {
     ((degrees * 256.0 / 360.0).floor() as i32 & 255) as u8
 }
 
-pub(super) fn clamp_velocity(movement: Vec3) -> Vec3 {
-    Vec3 {
-        x: movement.x.clamp(-3.9, 3.9),
-        y: movement.y.clamp(-3.9, 3.9),
-        z: movement.z.clamp(-3.9, 3.9),
-    }
-}
-
 impl ClientboundLevelChunkPacketData {
     pub const MAX_BUFFER_SIZE: usize = 2_097_152;
 

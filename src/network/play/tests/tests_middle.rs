@@ -359,6 +359,41 @@ fn move_entity_rot_packet_uses_java_rotation_bytes_then_on_ground() {
 }
 
 #[test]
+fn set_entity_motion_packet_uses_java_varint_then_lp_vec3_without_legacy_clamp() {
+    let registry = PlayProtocolRegistry::new();
+    assert_eq!(CLIENTBOUND_SET_ENTITY_MOTION_PACKET_ID, 101);
+    assert_eq!(
+        registry.clientbound_name(CLIENTBOUND_SET_ENTITY_MOTION_PACKET_ID),
+        Some("set_entity_motion")
+    );
+
+    let packet = ClientboundSetEntityMotionPacket::new(
+        300,
+        Vec3 {
+            x: 4.5,
+            y: -4.5,
+            z: 0.0,
+        },
+    );
+    assert_eq!(
+        packet.movement,
+        Vec3 {
+            x: 4.5,
+            y: -4.5,
+            z: 0.0,
+        }
+    );
+
+    let mut payload = Vec::new();
+    packet.write(&mut payload).unwrap();
+
+    assert_eq!(
+        payload,
+        vec![0xac, 0x02, 0xc5, 0xcc, 0x7f, 0xfe, 0x19, 0x9b, 0x01]
+    );
+}
+
+#[test]
 fn chunk_batch_received_packet_uses_big_endian_float_payload() {
     let packet = ServerboundChunkBatchReceivedPacket {
         desired_chunks_per_tick: 12.5,
