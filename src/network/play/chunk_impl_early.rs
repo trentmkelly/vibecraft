@@ -2,15 +2,12 @@ use super::*;
 
 impl GameDifficulty {
     pub(super) fn from_wire_index(index: i32) -> io::Result<Self> {
-        match index {
+        match index.rem_euclid(4) {
             0 => Ok(Self::Peaceful),
             1 => Ok(Self::Easy),
             2 => Ok(Self::Normal),
             3 => Ok(Self::Hard),
-            _ => Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "invalid difficulty index",
-            )),
+            _ => unreachable!(),
         }
     }
 
@@ -313,4 +310,3 @@ impl ClientboundLoginPacket {
         write_bool(writer, self.enforces_secure_chat)
     }
 }
-

@@ -117,9 +117,11 @@ impl ServerboundAcceptTeleportationPacket {
 
 impl ServerboundChangeDifficultyPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
-        Ok(Self {
+        let packet = Self {
             difficulty: GameDifficulty::from_wire_index(read_var_i32(reader)?)?,
-        })
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {

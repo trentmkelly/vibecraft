@@ -390,7 +390,8 @@ fn serverbound_scalar_packet_payload_validation_rejects_malformed_inputs() {
     assert!(ServerboundPlayerInputPacket::read(&mut cursor(vec![0x55, 0])).is_err());
     assert!(ServerboundClientTickEndPacket::read(&mut cursor(vec![1])).is_err());
     assert!(ServerboundPlayerLoadedPacket::read(&mut cursor(vec![2])).is_err());
-    assert!(ServerboundChangeDifficultyPacket::read(&mut cursor(vec![0x10])).is_err());
+    assert!(ServerboundChangeDifficultyPacket::read(&mut cursor(vec![0x80])).is_err());
+    assert!(ServerboundChangeDifficultyPacket::read(&mut cursor(vec![1, 0])).is_err());
 }
 
 #[test]
@@ -421,6 +422,29 @@ fn serverbound_player_input_packet_uses_vanilla_input_bitset() {
                 shift: true,
                 sprint: true,
             },
+        }
+    );
+}
+
+#[test]
+fn serverbound_change_difficulty_packet_uses_vanilla_varint_wrapping() {
+    let mut payload = Vec::new();
+    ServerboundChangeDifficultyPacket {
+        difficulty: GameDifficulty::Hard,
+    }
+    .write(&mut payload)
+    .unwrap();
+    assert_eq!(payload, vec![3]);
+    assert_eq!(
+        ServerboundChangeDifficultyPacket::read(&mut cursor(vec![0x10])).unwrap(),
+        ServerboundChangeDifficultyPacket {
+            difficulty: GameDifficulty::Peaceful,
+        }
+    );
+    assert_eq!(
+        ServerboundChangeDifficultyPacket::read(&mut cursor(vec![0x7f])).unwrap(),
+        ServerboundChangeDifficultyPacket {
+            difficulty: GameDifficulty::Hard,
         }
     );
 }

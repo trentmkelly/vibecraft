@@ -345,6 +345,10 @@ fn malformed_serverbound_scalar_packets_disconnect_session() {
         DispatchOutcome::Disconnect(_)
     ));
     assert!(matches!(
+        session.handle_decoded(decoded(SERVERBOUND_CHANGE_DIFFICULTY_PACKET_ID, vec![1, 0])),
+        DispatchOutcome::Disconnect(_)
+    ));
+    assert!(matches!(
         session.handle_decoded(decoded(SERVERBOUND_CHAT_ACK_PACKET_ID, Vec::new())),
         DispatchOutcome::Disconnect(_)
     ));
