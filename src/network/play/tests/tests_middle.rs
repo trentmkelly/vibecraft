@@ -438,6 +438,17 @@ fn teleport_entity_packet_uses_java_position_move_rotation_then_relative_int_and
 }
 
 #[test]
+fn experience_orbs_use_add_entity_packet_not_a_dedicated_game_packet() {
+    let registry = PlayProtocolRegistry::new();
+    assert_eq!(
+        registry.clientbound_name(CLIENTBOUND_ADD_ENTITY_PACKET_ID),
+        Some("add_entity")
+    );
+    assert!((0..CLIENTBOUND_PLAY_PACKET_COUNT_26_1_2 as i32)
+        .all(|id| registry.clientbound_name(id) != Some("add_experience_orb")));
+}
+
+#[test]
 fn chunk_batch_received_packet_uses_big_endian_float_payload() {
     let packet = ServerboundChunkBatchReceivedPacket {
         desired_chunks_per_tick: 12.5,
