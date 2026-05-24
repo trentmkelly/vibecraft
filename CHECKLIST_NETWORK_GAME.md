@@ -82,7 +82,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundContainerClosePacket` (0x11): container ID VarInt
 - [ ] `ClientboundMountScreenOpenPacket` (0x29, replaces older HorseScreenOpen): container ID VarInt, inventory columns VarInt, entity ID fixed int
 - [ ] `ClientboundMerchantOffersPacket` (0x31): container ID, offers list (input1 `ItemCost`, result `ItemStack`, optional input2 `ItemCost`, out-of-stock, uses, maxUses, xp, specialPrice, priceMultiplier, demand), villager level, xp, show-progress, can-restock
-- [ ] `ClientboundSetHeldSlotPacket` (0x69): slot VarInt (renamed from older carried item packet)
+- [x] `ClientboundSetHeldSlotPacket` (0x69 / decimal 105): slot VarInt; verified field order against Java, Rust packet round-trip coverage, and live raw join.
 - [ ] `ClientboundCooldownPacket` (0x16): cooldown group Identifier, cooldown duration VarInt
 - [ ] `ClientboundSetCursorItemPacket` (0x4F): cursor item
 
