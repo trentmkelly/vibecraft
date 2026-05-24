@@ -250,6 +250,8 @@ mod block_pile_feature_plans;
 pub use self::block_pile_feature_plans::*;
 mod disk_feature_plans;
 pub use self::disk_feature_plans::*;
+mod snow_and_freeze_feature_plans;
+pub use self::snow_and_freeze_feature_plans::*;
 mod jigsaw_pool_models;
 pub use self::jigsaw_pool_models::*;
 mod jigsaw_placement;
@@ -3622,51 +3624,6 @@ const fn coral_wall_fan_state(direction: HorizontalDirection) -> &'static str {
         HorizontalDirection::West => "minecraft:tube_coral_wall_fan[facing=west]",
         HorizontalDirection::East => "minecraft:tube_coral_wall_fan[facing=east]",
     }
-}
-
-pub fn snow_and_freeze_placement_plan(
-    origin: BlockPos,
-    columns: &[SnowAndFreezeColumn],
-) -> Vec<SnowAndFreezePlacement> {
-    let mut placements = Vec::new();
-    for dx in 0..16 {
-        for dz in 0..16 {
-            let x = origin.x + dx;
-            let z = origin.z + dz;
-            let Some(column) = columns.iter().find(|column| column.x == x && column.z == z) else {
-                continue;
-            };
-            let top = BlockPos {
-                x,
-                y: column.motion_blocking_height,
-                z,
-            };
-            let below = BlockPos {
-                x,
-                y: column.motion_blocking_height - 1,
-                z,
-            };
-            if column.should_freeze {
-                placements.push(SnowAndFreezePlacement {
-                    pos: below,
-                    state: "minecraft:ice",
-                });
-            }
-            if column.should_snow {
-                placements.push(SnowAndFreezePlacement {
-                    pos: top,
-                    state: "minecraft:snow",
-                });
-                if column.below_has_snowy_property {
-                    placements.push(SnowAndFreezePlacement {
-                        pos: below,
-                        state: "minecraft:snowy=true",
-                    });
-                }
-            }
-        }
-    }
-    placements
 }
 
 pub fn underwater_magma_placement_plan(
