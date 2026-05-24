@@ -15,7 +15,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Support `--safeMode`.
 - [x] Support `--help`. — `CliOptions` parses Java `Main`'s help flag, `main()` prints usage and returns before startup, and `help_flag_parses_and_documents_vanilla_main_options` verifies the Java option surface is documented.
 - [x] Support `--universe`. — `CliOptions` parses Java `Main`'s required path argument, `runtime_selection()` feeds it into startup world paths, and `runtime_selection_uses_java_main_world_universe_port_and_server_id_options` verifies CLI override behavior.
-- [ ] Support `--world`.
+- [x] Support `--world`. — `CliOptions` parses Java `Main`'s required world-name argument, `runtime_selection()` falls back to `level-name` when absent, and `runtime_selection_uses_java_main_world_universe_port_and_server_id_options` verifies both paths.
 - [ ] Support `--port`.
 - [ ] Support `--serverId`.
 - [x] Support `--jfrProfile` with an equivalent profiling story or documented no-op. — `CliOptions` accepts Java `Main`'s flag, RustCraft documents it as accepted without profiling support, and `help_documents_jfr_profile_as_noop` verifies the no-op is visible in help output.
