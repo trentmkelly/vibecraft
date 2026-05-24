@@ -40,7 +40,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundForgetLevelChunkPacket` (0x1F): chunk X/Z
 - [ ] `ClientboundLightUpdatePacket` (0x28): VarInt chunk X/Z, light data; separate from chunk-with-light for mid-game updates
 - [ ] `ClientboundChunkBatchStartPacket` (0x0D): no fields
-- [ ] `ClientboundChunkBatchFinishedPacket` (0x0C): batch-size int
+- [x] `ClientboundChunkBatchFinishedPacket` (0x0B / decimal 11): batch-size VarInt; verified field order against Java, Rust packet round-trip coverage, and live raw join.
 - [ ] `ServerboundChunkBatchReceivedPacket` (0x09): desired-chunks-per-tick float; adaptive batching feedback
 - [x] `ClientboundSetChunkCacheCenterPacket` (0x5E / decimal 94): chunk X/Z VarInts; verified field order against Java and live raw join.
 - [x] `ClientboundSetChunkCacheRadiusPacket` (0x5F / decimal 95): view-distance VarInt; verified field order against Java and live raw join.

@@ -389,3 +389,17 @@ fn serverbound_scalar_packet_payload_validation_rejects_malformed_inputs() {
     assert!(ServerboundPlayerLoadedPacket::read(&mut cursor(vec![2])).is_err());
     assert!(ServerboundChangeDifficultyPacket::read(&mut cursor(vec![0x10])).is_err());
 }
+
+#[test]
+fn chunk_batch_finished_packet_round_trips_vanilla_varint_batch_size() {
+    let mut bytes = Vec::new();
+    ClientboundChunkBatchFinishedPacket { batch_size: 300 }
+        .write(&mut bytes)
+        .unwrap();
+
+    assert_eq!(bytes, vec![0xac, 0x02]);
+    assert_eq!(
+        ClientboundChunkBatchFinishedPacket::read(&mut cursor(bytes)).unwrap(),
+        ClientboundChunkBatchFinishedPacket { batch_size: 300 }
+    );
+}
