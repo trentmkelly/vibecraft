@@ -272,6 +272,36 @@ fn set_passengers_packet_uses_java_vehicle_then_varint_array() {
 }
 
 #[test]
+fn move_vehicle_packet_uses_java_vec3_then_yaw_pitch() {
+    let registry = PlayProtocolRegistry::new();
+    assert_eq!(CLIENTBOUND_MOVE_VEHICLE_PACKET_ID, 57);
+    assert_eq!(
+        registry.clientbound_name(CLIENTBOUND_MOVE_VEHICLE_PACKET_ID),
+        Some("move_vehicle")
+    );
+
+    let mut payload = Vec::new();
+    ClientboundMoveVehiclePacket {
+        position: Vec3 {
+            x: 1.25,
+            y: 65.0,
+            z: -2.5,
+        },
+        y_rot: 90.0,
+        x_rot: -30.5,
+    }
+    .write(&mut payload)
+    .unwrap();
+
+    assert_eq!(payload.len(), 32);
+    assert_eq!(&payload[0..8], &1.25_f64.to_be_bytes());
+    assert_eq!(&payload[8..16], &65.0_f64.to_be_bytes());
+    assert_eq!(&payload[16..24], &(-2.5_f64).to_be_bytes());
+    assert_eq!(&payload[24..28], &90.0_f32.to_be_bytes());
+    assert_eq!(&payload[28..32], &(-30.5_f32).to_be_bytes());
+}
+
+#[test]
 fn chunk_batch_received_packet_uses_big_endian_float_payload() {
     let packet = ServerboundChunkBatchReceivedPacket {
         desired_chunks_per_tick: 12.5,
