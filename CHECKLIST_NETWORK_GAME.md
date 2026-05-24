@@ -188,7 +188,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] `ServerboundLockDifficultyPacket` (0x1D / decimal 29): `locked` bool; verified against Java `readBoolean`/`writeBoolean`, Rust bool round-trip coverage, and malformed short/trailing-payload rejection.
 - [ ] `ServerboundInteractPacket` (0x1A): entity ID VarInt, interaction hand enum VarInt, low-precision Vec3 location, using-secondary-action bool
 - [ ] `ServerboundUseItemOnPacket` (0x42): hand enum VarInt, block hit result (block pos, direction enum VarInt, hit vector floats, inside flag, world-border-hit flag), sequence VarInt
-- [ ] `ServerboundUseItemPacket` (0x43): hand enum VarInt, sequence VarInt, yaw/pitch floats
+- [x] `ServerboundUseItemPacket` (0x43 / decimal 67): hand enum VarInt, sequence VarInt, yaw/pitch floats; verified against Java `FriendlyByteBuf.readEnum`/`writeEnum` for `InteractionHand`, Java field order (`hand`, `sequence`, `yRot`, `xRot`), Rust byte-layout coverage, and malformed empty/out-of-range/truncated/trailing-payload rejection.
 - [ ] `ServerboundPlayerActionPacket` (0x29): action enum VarInt (start-destroy, abort-destroy, stop-destroy, drop-all, drop-one, release-use, swap-offhand, stab), block pos, face direction byte, sequence VarInt
 - [x] `ServerboundSwingPacket` (0x3F / decimal 63): hand enum VarInt; verified against Java `FriendlyByteBuf.readEnum`/`writeEnum` for `InteractionHand`, Rust ordinal byte-layout coverage, and malformed empty/out-of-range/trailing-payload rejection.
 - [ ] `ServerboundPlayerCommandPacket` (0x2A): entity ID VarInt, action enum VarInt (stop-sleeping, start-sprinting, stop-sprinting, start-riding-jump, stop-riding-jump, open-inventory, start-fall-flying), data VarInt

@@ -397,6 +397,12 @@ fn serverbound_scalar_packet_payload_validation_rejects_malformed_inputs() {
     assert!(ServerboundSwingPacket::read(&mut cursor(Vec::<u8>::new())).is_err());
     assert!(ServerboundSwingPacket::read(&mut cursor(vec![2])).is_err());
     assert!(ServerboundSwingPacket::read(&mut cursor(vec![1, 0])).is_err());
+    assert!(ServerboundUseItemPacket::read(&mut cursor(Vec::<u8>::new())).is_err());
+    assert!(ServerboundUseItemPacket::read(&mut cursor(vec![2])).is_err());
+    assert!(ServerboundUseItemPacket::read(&mut cursor(vec![0])).is_err());
+    assert!(ServerboundUseItemPacket::read(&mut cursor(vec![
+        1, 0xac, 0x02, 0x42, 0x34, 0x00, 0x00, 0xc1, 0x28, 0x00, 0x00, 0
+    ])).is_err());
 }
 
 #[test]
@@ -509,6 +515,27 @@ fn serverbound_swing_packet_uses_vanilla_interaction_hand_ordinals() {
             "{label} decode"
         );
     }
+}
+
+#[test]
+fn serverbound_use_item_packet_uses_vanilla_field_order() {
+    let packet = ServerboundUseItemPacket {
+        hand: ServerboundSwingHand::OffHand,
+        sequence: 300,
+        y_rot: 45.0,
+        x_rot: -10.5,
+    };
+
+    let mut payload = Vec::new();
+    packet.write(&mut payload).unwrap();
+    assert_eq!(
+        payload,
+        vec![1, 0xac, 0x02, 0x42, 0x34, 0x00, 0x00, 0xc1, 0x28, 0x00, 0x00]
+    );
+    assert_eq!(
+        ServerboundUseItemPacket::read(&mut cursor(payload)).unwrap(),
+        packet
+    );
 }
 
 #[test]
