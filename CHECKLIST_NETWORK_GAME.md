@@ -43,7 +43,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundChunkBatchFinishedPacket` (0x0C): batch-size int
 - [ ] `ServerboundChunkBatchReceivedPacket` (0x09): desired-chunks-per-tick float; adaptive batching feedback
 - [x] `ClientboundSetChunkCacheCenterPacket` (0x5E / decimal 94): chunk X/Z VarInts; verified field order against Java and live raw join.
-- [ ] `ClientboundSetChunkCacheRadiusPacket` (0x51): view-distance VarInt
+- [x] `ClientboundSetChunkCacheRadiusPacket` (0x5F / decimal 95): view-distance VarInt; verified field order against Java and live raw join.
 - [ ] `ClientboundSetSimulationDistancePacket` (0x61): simulation-distance VarInt
 - [ ] `ClientboundMapItemDataPacket` (0x2D): map ID, scale, locked, optional tracking-position/decorations array, color patch or full color array; exact codec verified
 
