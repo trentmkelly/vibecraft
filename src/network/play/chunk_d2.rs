@@ -679,12 +679,14 @@ impl ServerboundInteractionHand {
 
 impl ServerboundInteractPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
-        Ok(Self {
+        let packet = Self {
             entity_id: read_var_i32(reader)?,
             hand: ServerboundInteractionHand::from_id(read_var_i32(reader)?),
             location: read_lp_vec3(reader)?,
             using_secondary_action: read_bool(reader)?,
-        })
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
@@ -765,4 +767,3 @@ pub(super) fn pack_lp_vec3_component(value: f64) -> u64 {
 pub(super) fn unpack_lp_vec3_component(value: u64) -> f64 {
     (value & 32767).min(32766) as f64 * 2.0 / 32766.0 - 1.0
 }
-

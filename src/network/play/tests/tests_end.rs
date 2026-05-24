@@ -401,6 +401,9 @@ fn serverbound_scalar_packet_payload_validation_rejects_malformed_inputs() {
     assert!(ServerboundPlayerCommandPacket::read(&mut cursor(vec![37, 7])).is_err());
     assert!(ServerboundPlayerCommandPacket::read(&mut cursor(vec![37, 3])).is_err());
     assert!(ServerboundPlayerCommandPacket::read(&mut cursor(vec![37, 3, 0x80, 0x01, 0])).is_err());
+    assert!(ServerboundInteractPacket::read(&mut cursor(Vec::<u8>::new())).is_err());
+    assert!(ServerboundInteractPacket::read(&mut cursor(vec![128, 1, 1])).is_err());
+    assert!(ServerboundInteractPacket::read(&mut cursor(vec![128, 1, 1, 0, 1, 0])).is_err());
     assert!(ServerboundPlayerActionPacket::read(&mut cursor(Vec::<u8>::new())).is_err());
     assert!(ServerboundPlayerActionPacket::read(&mut cursor(vec![8])).is_err());
     assert!(ServerboundPlayerActionPacket::read(&mut cursor(vec![2])).is_err());
@@ -630,6 +633,40 @@ fn serverbound_player_command_packet_uses_vanilla_field_order() {
             "{label} decode"
         );
     }
+}
+
+#[test]
+fn serverbound_interact_packet_uses_vanilla_flat_stream_codec_order() {
+    let packet = ServerboundInteractPacket {
+        entity_id: 128,
+        hand: ServerboundInteractionHand::OffHand,
+        location: Vec3 {
+            x: 0.5,
+            y: -0.25,
+            z: 0.75,
+        },
+        using_secondary_action: true,
+    };
+
+    let mut payload = Vec::new();
+    packet.write(&mut payload).unwrap();
+    assert_eq!(
+        payload,
+        vec![0x80, 0x01, 1, 0xf9, 0xff, 0xdf, 0xfc, 0xbf, 0xfe, 1]
+    );
+
+    let decoded = ServerboundInteractPacket::read(&mut cursor(payload)).unwrap();
+    assert_eq!(decoded.entity_id, packet.entity_id);
+    assert_eq!(decoded.hand, packet.hand);
+    assert!(decoded.using_secondary_action);
+    assert!((decoded.location.x - packet.location.x).abs() < 0.0001);
+    assert!((decoded.location.y - packet.location.y).abs() < 0.0001);
+    assert!((decoded.location.z - packet.location.z).abs() < 0.0001);
+
+    let invalid_hand = ServerboundInteractPacket::read(&mut cursor(vec![1, 7, 0, 0])).unwrap();
+    assert_eq!(invalid_hand.hand, ServerboundInteractionHand::MainHand);
+    assert_eq!(invalid_hand.location, Vec3 { x: 0.0, y: 0.0, z: 0.0 });
+    assert!(!invalid_hand.using_secondary_action);
 }
 
 #[test]
