@@ -528,6 +528,7 @@ pub fn chunk_batch_start_packet_has_no_payload_after_packet_id() {
 
 #[test]
 pub fn forget_level_chunk_packet_uses_packed_chunk_position() {
+    assert_eq!(CLIENTBOUND_FORGET_LEVEL_CHUNK_PACKET_ID, 37);
     assert_eq!(packed_chunk_pos(4, -2), -8589934588);
     assert_eq!(packed_chunk_pos(-1, 0), 0xffff_ffff);
 

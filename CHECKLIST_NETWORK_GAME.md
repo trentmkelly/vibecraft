@@ -37,7 +37,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 ## Chunk and Light Packets
 
 - [ ] `ClientboundLevelChunkWithLightPacket` (0x27): fixed-int chunk X/Z, chunk data (heightmaps map, section buffer, block entities), light data (sky/block light set/empty bitsets, sky/block arrays); field order verified against decompiled codec
-- [ ] `ClientboundForgetLevelChunkPacket` (0x1F): chunk X/Z
+- [x] `ClientboundForgetLevelChunkPacket` (0x25 / decimal 37): `ChunkPos` encoded with Java `FriendlyByteBuf.writeChunkPos` packed long (`x & 0xffffffff | z << 32`); verified against Java `ClientboundForgetLevelChunkPacket` `Packet.codec` read/write order, Java play-protocol registration order, Rust framed packet byte layout for positive/negative chunk coordinates, and `PlayerChunkSender.dropChunk` parity for suppressing forgets for pending/closed-player chunks while emitting forgets for already-sent live chunks.
 - [ ] `ClientboundLightUpdatePacket` (0x28): VarInt chunk X/Z, light data; separate from chunk-with-light for mid-game updates
 - [x] `ClientboundChunkBatchStartPacket` (0x0C / decimal 12): no fields; verified against Java `StreamCodec.unit`, Rust no-payload frame coverage, and live raw join.
 - [x] `ClientboundChunkBatchFinishedPacket` (0x0B / decimal 11): batch-size VarInt; verified field order against Java, Rust packet round-trip coverage, and live raw join.

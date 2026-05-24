@@ -151,6 +151,25 @@ fn chunk_sender_nearest_position_rule_drops_unready_near_chunks_for_this_tick() 
 }
 
 #[test]
+fn chunk_sender_drop_chunk_emits_forget_only_after_chunk_was_sent() {
+    let mut sender = PlayerChunkSender::new(false);
+    let pending = ChunkPos { x: 4, z: -2 };
+    sender.mark_chunk_pending_to_send(pending);
+    assert_eq!(sender.drop_chunk(pending, true), None);
+
+    let sent = ChunkPos { x: -3, z: 5 };
+    sender.mark_chunk_pending_to_send(sent);
+    assert!(sender
+        .send_next_chunks(ChunkPos { x: 0, z: 0 }, always_ready_chunk)
+        .is_some());
+    assert_eq!(
+        sender.drop_chunk(sent, true),
+        Some(PlayInstruction::ForgetLevelChunk { pos: sent })
+    );
+    assert_eq!(sender.drop_chunk(sent, false), None);
+}
+
+#[test]
 fn chunk_batch_received_packet_uses_big_endian_float_payload() {
     let packet = ServerboundChunkBatchReceivedPacket {
         desired_chunks_per_tick: 12.5,
