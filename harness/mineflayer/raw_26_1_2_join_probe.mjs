@@ -761,7 +761,7 @@ async function main () {
   const playPackets = []
   const joinState = {}
   let keepAliveReplies = 0
-  const expectedPlayPacketPrefixIds = [49, 70, 10, 64, 105, 103, 104, 18, 96, 113, 72, 43, 97, 94, 95, 38, 38, 38, 38, 12]
+  const expectedPlayPacketPrefixIds = [49, 70, 10, 64, 105, 103, 104, 76, 18, 96, 113, 94, 95, 72, 43, 97, 38, 38, 38, 38, 12]
   // The server-side view distance can send up to a 33x33 initial chunk window
   // before the chunk_batch_finished marker. Keep this above that ceiling so the
   // probe does not report a false missing packet when view-distance is high.

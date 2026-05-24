@@ -34,7 +34,7 @@ This top-level file is now an index. Mark a subsystem row only after every item 
 ## Milestone Plan
 
 - [x] Milestone 1: status ping server with correct MOTD/version/player sample response.
-- [y] Milestone 2: offline-mode login through configuration into a void world.
+- [x] Milestone 2: offline-mode login through configuration into a void world.
 - [ ] Milestone 3: chunk serialization and static flat terrain visible to vanilla client.
 - [ ] Milestone 4: player movement, chat, keepalive, disconnect, and save/load.
 - [ ] Milestone 5: block placement/breaking, inventory, item stacks, and basic survival loop.

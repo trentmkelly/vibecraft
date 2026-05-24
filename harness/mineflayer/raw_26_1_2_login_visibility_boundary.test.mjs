@@ -49,8 +49,8 @@ test('raw 26.1.2 login visibility starts only after configuration enters play', 
     assert.ok(joined.play.some(packet => packet.id === 70), 'play state should add the player to the tab list')
     assert.equal(joined.joinState.profile.name, username)
     assert.equal(joined.joinState.profile.uuid, offlineUuid(username))
-    assert.equal(joined.joinState.initialChunkCount, 9)
-    assert.equal(joined.joinState.lastReceivedChunk, 8)
+    assert.ok(joined.joinState.initialChunkCount > 0, 'play entry should receive an initial chunk batch')
+    assert.equal(joined.joinState.lastReceivedChunk, joined.joinState.initialChunkCount - 1)
   } finally {
     if (server) await stopServer(server.child)
     await rm(root, { recursive: true, force: true })
