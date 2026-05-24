@@ -12,7 +12,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Support `--forceUpgrade`.
 - [ ] Support `--eraseCache`.
 - [ ] Support `--recreateRegionFiles`.
-- [ ] Support `--safeMode`.
+- [x] Support `--safeMode`. — `CliOptions` parses Java `Main`'s flag, startup passes it into `PackConfigureOptions`, and `safe_mode_selects_only_vanilla_and_does_not_disable_world_packs` verifies safe mode selects only the vanilla pack.
 - [x] Support `--help`. — `CliOptions` parses Java `Main`'s help flag, `main()` prints usage and returns before startup, and `help_flag_parses_and_documents_vanilla_main_options` verifies the Java option surface is documented.
 - [x] Support `--universe`. — `CliOptions` parses Java `Main`'s required path argument, `runtime_selection()` feeds it into startup world paths, and `runtime_selection_uses_java_main_world_universe_port_and_server_id_options` verifies CLI override behavior.
 - [x] Support `--world`. — `CliOptions` parses Java `Main`'s required world-name argument, `runtime_selection()` falls back to `level-name` when absent, and `runtime_selection_uses_java_main_world_universe_port_and_server_id_options` verifies both paths.
