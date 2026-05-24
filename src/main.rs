@@ -442,6 +442,24 @@ mod tests {
     }
 
     #[test]
+    fn pid_file_is_written_before_eula_refusal() {
+        let _lock = CWD_LOCK.lock().unwrap();
+        let dir = temp_workdir("pid-file");
+        let _guard = CurrentDirGuard::enter(&dir);
+
+        let mut options = CliOptions::default();
+        options.pid_file = Some(PathBuf::from("server.pid"));
+
+        run(options).expect("pid-file run");
+
+        let pid = fs::read_to_string("server.pid").expect("server.pid");
+        assert_eq!(pid, std::process::id().to_string());
+        assert!(Path::new("server.properties").is_file());
+        assert!(Path::new("eula.txt").is_file());
+        assert!(!Path::new("world").exists());
+    }
+
+    #[test]
     fn report_flag_generates_reports_and_exits_before_eula_gate() {
         let _lock = CWD_LOCK.lock().unwrap();
         let dir = temp_workdir("report");

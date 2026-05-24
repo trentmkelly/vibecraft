@@ -19,7 +19,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Support `--port`.
 - [ ] Support `--serverId`.
 - [ ] Support `--jfrProfile` with an equivalent profiling story or documented no-op.
-- [ ] Support `--pidFile`.
+- [x] Support `--pidFile`. — `CliOptions` parses the Java `Main` path argument, startup writes the current process ID before EULA refusal can stop normal startup, and `pid_file_is_written_before_eula_refusal` covers the behavior.
 - [ ] Initialize `server.properties` and `eula.txt` before normal startup.
 - [ ] Refuse startup until `eula=true`.
 - [ ] Write logs matching vanilla lifecycle milestones closely enough for operators and test tooling.
