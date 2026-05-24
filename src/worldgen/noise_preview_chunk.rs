@@ -796,3 +796,378 @@ fn tree_validation_volume_intersects_world_positions(
     false
 }
 
+fn noise_preview_tree_origins(
+    biome: &BiomeGenerationSettingsModel,
+    world_seed: i64,
+    chunk_pos: ChunkPos,
+    min_section_y: i32,
+) -> Vec<(usize, usize, u64)> {
+    if !biome_has_any_tree_placed_feature(biome) {
+        return Vec::new();
+    }
+
+    let features_per_step = match build_features_per_step(&[biome.feature_steps], true) {
+        Ok(features) => features,
+        Err(_) => return Vec::new(),
+    };
+    let plan = biome_decoration_feature_plan(
+        world_seed,
+        chunk_pos.x,
+        chunk_pos.z,
+        min_section_y,
+        &features_per_step,
+        &[biome.feature_steps],
+    );
+    let mut origins = Vec::new();
+
+    for call in plan.feature_calls.iter().filter(|call| {
+        call.step_index == GenerationDecorationStep::VegetalDecoration as usize
+            && noise_preview_tree_feature_count_kind(call.feature).is_some()
+    }) {
+        let mut random = RandomSourceKind::new(call.seed, RandomAlgorithm::Xoroshiro);
+        let count = live_tree_count(
+            noise_preview_tree_feature_count_kind(call.feature).unwrap(),
+            &mut random,
+        );
+
+        for _ in 0..count {
+            let local_x = feature_random_next_i32_bound(&mut random, 16) as usize;
+            let local_z = feature_random_next_i32_bound(&mut random, 16) as usize;
+            origins.push((
+                local_x,
+                local_z,
+                feature_random_next_i64(&mut random) as u64,
+            ));
+        }
+    }
+
+    origins
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum NoisePreviewTreeCountKind {
+    CountExtra {
+        count: i32,
+        inverse_chance_weight: i32,
+        extra: i32,
+    },
+    Constant(i32),
+    CountPlusUniform {
+        count: i32,
+        bound: i32,
+    },
+    DenseCanopy,
+}
+
+fn live_count_extra(
+    random: &mut RandomSourceKind,
+    count: i32,
+    inverse_chance_weight: i32,
+    extra: i32,
+) -> i32 {
+    let roll = feature_random_next_i32_bound(random, inverse_chance_weight);
+    if roll < inverse_chance_weight - 1 {
+        count
+    } else {
+        count + extra
+    }
+}
+
+pub(super) fn live_tree_count(
+    kind: NoisePreviewTreeCountKind,
+    random: &mut RandomSourceKind,
+) -> i32 {
+    match kind {
+        NoisePreviewTreeCountKind::CountExtra {
+            count,
+            inverse_chance_weight,
+            extra,
+        } => live_count_extra(random, count, inverse_chance_weight, extra),
+        NoisePreviewTreeCountKind::Constant(count) => count,
+        NoisePreviewTreeCountKind::CountPlusUniform { count, bound } => {
+            count + feature_random_next_i32_bound(random, bound)
+        }
+        NoisePreviewTreeCountKind::DenseCanopy => 16,
+    }
+}
+
+fn noise_preview_tree_feature_count_kind(feature: &str) -> Option<NoisePreviewTreeCountKind> {
+    match feature.strip_prefix("minecraft:").unwrap_or(feature) {
+        "trees_plains" => Some(NoisePreviewTreeCountKind::CountExtra {
+            count: 0,
+            inverse_chance_weight: 20,
+            extra: 1,
+        }),
+        "trees_birch_and_oak_leaf_litter"
+        | "trees_birch"
+        | "trees_taiga"
+        | "birch_tall"
+        | "trees_old_growth_spruce_taiga"
+        | "trees_old_growth_pine_taiga"
+        | "trees_grove"
+        | "trees_cherry" => Some(NoisePreviewTreeCountKind::CountExtra {
+            count: 10,
+            inverse_chance_weight: 10,
+            extra: 1,
+        }),
+        "trees_flower_forest" => Some(NoisePreviewTreeCountKind::CountExtra {
+            count: 6,
+            inverse_chance_weight: 10,
+            extra: 1,
+        }),
+        "dark_forest_vegetation" | "pale_garden_vegetation" => {
+            Some(NoisePreviewTreeCountKind::DenseCanopy)
+        }
+        "trees_swamp" | "trees_windswept_savanna" | "trees_sparse_jungle" => {
+            Some(NoisePreviewTreeCountKind::CountExtra {
+                count: 2,
+                inverse_chance_weight: 10,
+                extra: 1,
+            })
+        }
+        "trees_mangrove" => Some(NoisePreviewTreeCountKind::Constant(25)),
+        "trees_jungle" => Some(NoisePreviewTreeCountKind::CountExtra {
+            count: 50,
+            inverse_chance_weight: 10,
+            extra: 1,
+        }),
+        "trees_savanna" => Some(NoisePreviewTreeCountKind::CountExtra {
+            count: 1,
+            inverse_chance_weight: 10,
+            extra: 1,
+        }),
+        "trees_windswept_forest" => Some(NoisePreviewTreeCountKind::CountExtra {
+            count: 3,
+            inverse_chance_weight: 10,
+            extra: 1,
+        }),
+        "trees_windswept_hills" | "trees_water" | "trees_snowy" => {
+            Some(NoisePreviewTreeCountKind::CountExtra {
+                count: 0,
+                inverse_chance_weight: 10,
+                extra: 1,
+            })
+        }
+        "trees_badlands" => Some(NoisePreviewTreeCountKind::CountExtra {
+            count: 5,
+            inverse_chance_weight: 10,
+            extra: 1,
+        }),
+        "trees_meadow" => Some(NoisePreviewTreeCountKind::CountPlusUniform { count: 0, bound: 1 }),
+        _ => None,
+    }
+}
+
+fn biome_has_any_tree_placed_feature(biome: &BiomeGenerationSettingsModel) -> bool {
+    [
+        "trees_plains",
+        "trees_birch_and_oak_leaf_litter",
+        "trees_birch",
+        "birch_tall",
+        "trees_taiga",
+        "trees_jungle",
+        "trees_savanna",
+        "trees_windswept_forest",
+        "trees_windswept_hills",
+        "trees_water",
+        "trees_sparse_jungle",
+        "trees_old_growth_spruce_taiga",
+        "trees_old_growth_pine_taiga",
+        "trees_grove",
+        "trees_snowy",
+        "trees_badlands",
+        "trees_meadow",
+        "trees_flower_forest",
+        "dark_forest_vegetation",
+        "pale_garden_vegetation",
+        "trees_cherry",
+        "trees_swamp",
+        "trees_windswept_savanna",
+        "trees_mangrove",
+    ]
+    .into_iter()
+    .any(|feature| biome_has_placed_feature(biome, feature))
+}
+
+fn noise_preview_tree_materials(
+    biome: &BiomeGenerationSettingsModel,
+    seed: u64,
+) -> (&'static str, &'static str, i32) {
+    if biome_has_placed_feature(biome, "trees_cherry") {
+        ("minecraft:cherry_log", "minecraft:cherry_leaves", 5)
+    } else if biome_has_placed_feature(biome, "trees_mangrove") {
+        ("minecraft:mangrove_log", "minecraft:mangrove_leaves", 6)
+    } else if biome_has_placed_feature(biome, "pale_garden_vegetation") {
+        ("minecraft:pale_oak_log", "minecraft:pale_oak_leaves", 5)
+    } else if biome_has_placed_feature(biome, "dark_forest_vegetation") {
+        ("minecraft:dark_oak_log", "minecraft:dark_oak_leaves", 5)
+    } else if biome_has_placed_feature(biome, "trees_birch")
+        || biome_has_placed_feature(biome, "birch_tall")
+        || (biome_has_placed_feature(biome, "trees_birch_and_oak_leaf_litter") && seed & 1 == 0)
+    {
+        ("minecraft:birch_log", "minecraft:birch_leaves", 5)
+    } else if biome_has_placed_feature(biome, "trees_taiga")
+        || biome_has_placed_feature(biome, "trees_old_growth_spruce_taiga")
+        || biome_has_placed_feature(biome, "trees_old_growth_pine_taiga")
+        || biome_has_placed_feature(biome, "trees_grove")
+        || biome_has_placed_feature(biome, "trees_snowy")
+    {
+        ("minecraft:spruce_log", "minecraft:spruce_leaves", 6)
+    } else if biome_has_placed_feature(biome, "trees_savanna")
+        || biome_has_placed_feature(biome, "trees_windswept_savanna")
+    {
+        ("minecraft:acacia_log", "minecraft:acacia_leaves", 5)
+    } else if biome_has_placed_feature(biome, "trees_jungle")
+        || biome_has_placed_feature(biome, "trees_sparse_jungle")
+    {
+        ("minecraft:jungle_log", "minecraft:jungle_leaves", 6)
+    } else {
+        ("minecraft:oak_log", "minecraft:oak_leaves", 4)
+    }
+}
+
+pub(super) fn noise_preview_ground_cover_blocks(
+    chunk_pos: ChunkPos,
+    settings: &NoiseGeneratorSettings,
+    biome: &str,
+    terrain_heights: &[i32; 16 * 16],
+) -> Vec<TreePlacementBlock> {
+    if settings.id != "minecraft:overworld" && settings.id != "minecraft:large_biomes" {
+        return Vec::new();
+    }
+
+    let Some(generation) = biome_generation_settings(biome) else {
+        return Vec::new();
+    };
+    let grass = biome_has_placed_feature(generation, "patch_grass_plain")
+        || biome_has_placed_feature(generation, "patch_grass_forest");
+    let flowers = biome_has_placed_feature(generation, "flower_plains")
+        || biome_has_placed_feature(generation, "flower_default")
+        || biome_has_placed_feature(generation, "forest_flowers");
+    let sunflowers = biome_has_placed_feature(generation, "patch_sunflower");
+    if !grass && !flowers && !sunflowers {
+        return Vec::new();
+    }
+
+    let seed = (chunk_pos.x as i64 * 341_873_128_712 + chunk_pos.z as i64 * 132_897_987_541) as u64;
+    let mut blocks = Vec::new();
+    for z in 0..16 {
+        for x in 0..16 {
+            let surface_height = terrain_heights[z * 16 + x];
+            if surface_height <= settings.sea_level + 1 {
+                continue;
+            }
+            let roll = noise_preview_cover_roll(seed, x as u64, z as u64);
+            let state = if sunflowers && roll % 97 == 0 {
+                Some("minecraft:sunflower")
+            } else if flowers && roll % 23 == 0 {
+                Some(if biome == "minecraft:forest" {
+                    "minecraft:poppy"
+                } else {
+                    "minecraft:dandelion"
+                })
+            } else if grass && roll % 7 == 0 {
+                Some("minecraft:short_grass")
+            } else {
+                None
+            };
+            if let Some(state) = state {
+                blocks.push(TreePlacementBlock {
+                    pos: BlockPos {
+                        x: x as i32,
+                        y: surface_height,
+                        z: z as i32,
+                    },
+                    state,
+                    kind: TreePlacementBlockKind::GroundCover,
+                });
+            }
+        }
+    }
+    blocks
+}
+
+fn noise_preview_cover_roll(seed: u64, x: u64, z: u64) -> u64 {
+    let mut value =
+        seed ^ x.wrapping_mul(0x9e37_79b9_7f4a_7c15) ^ z.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    value ^= value >> 30;
+    value = value.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    value ^= value >> 27;
+    value = value.wrapping_mul(0x94d0_49bb_1331_11eb);
+    value ^ (value >> 31)
+}
+
+pub(super) fn noise_preview_terrain_height(
+    x: i32,
+    z: i32,
+    settings: &NoiseGeneratorSettings,
+) -> i32 {
+    let (scale, amplitude) = match settings.id {
+        "minecraft:large_biomes" => (76.0, 30.0),
+        "minecraft:amplified" => (38.0, 70.0),
+        "minecraft:nether" => (30.0, 24.0),
+        "minecraft:end" => (52.0, 42.0),
+        _ => (44.0, 34.0),
+    };
+    let xf = x as f64 / scale;
+    let zf = z as f64 / scale;
+    let broad = (xf.sin() * 0.55 + zf.cos() * 0.45) * amplitude;
+    let detail = ((xf * 2.7 + zf * 1.3).sin() * (zf * 2.1 - xf * 0.9).cos()) * amplitude * 0.28;
+    let ridge = ((x as i64 * 341_873_128_712 + z as i64 * 132_897_987_541) as u64).rotate_left(17)
+        as f64
+        / u64::MAX as f64
+        - 0.5;
+    settings.sea_level + 8 + (broad + detail + ridge * 12.0).round() as i32
+}
+
+pub fn noise_preview_base_height(
+    x: i32,
+    z: i32,
+    settings: &NoiseGeneratorSettings,
+    heightmap: HeightmapKind,
+) -> i32 {
+    let terrain_height = noise_preview_terrain_height(x, z, settings).clamp(
+        settings.noise.min_y + 1,
+        settings.noise.min_y + settings.noise.height,
+    );
+    match heightmap {
+        HeightmapKind::WorldSurface | HeightmapKind::WorldSurfaceWg => {
+            terrain_height.max(settings.sea_level + 1)
+        }
+        HeightmapKind::OceanFloorWg
+        | HeightmapKind::OceanFloor
+        | HeightmapKind::MotionBlocking
+        | HeightmapKind::MotionBlockingNoLeaves => terrain_height,
+    }
+}
+
+pub fn noise_preview_base_column(
+    x: i32,
+    z: i32,
+    settings: &NoiseGeneratorSettings,
+) -> FlatNoiseColumn {
+    let min_y = settings.noise.min_y;
+    let height = settings.noise.height;
+    let terrain_height =
+        noise_preview_terrain_height(x, z, settings).clamp(min_y + 1, min_y + height);
+    let states = (0..height.max(0))
+        .map(|offset| {
+            noise_preview_block_at(min_y + offset, min_y, terrain_height, settings.sea_level)
+        })
+        .collect();
+    FlatNoiseColumn { min_y, states }
+}
+
+fn noise_preview_biome(biome_source_model: &BiomeSourceModel, pos: ChunkPos) -> &'static str {
+    let quart_x = pos.x * 4 + 2;
+    let quart_z = pos.z * 4 + 2;
+    select_biome_from_source(
+        biome_source_model,
+        quart_x,
+        16,
+        quart_z,
+        climate_target(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        0.0,
+    )
+    .unwrap_or("minecraft:plains")
+}
