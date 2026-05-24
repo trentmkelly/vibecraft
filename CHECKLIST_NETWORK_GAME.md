@@ -173,7 +173,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Player Abilities / Stats / Game Mode Packets
 
-- [ ] `ClientboundPlayerAbilitiesPacket` (0x40): flags byte (invulnerable/flying/allow-flying/instant-build), flying speed float, walking speed float
+- [x] `ClientboundPlayerAbilitiesPacket` (0x40 / decimal 64): flags byte (invulnerable/flying/allow-flying/instant-build), flying speed float, walking speed float; verified field order against Java, Rust byte-layout coverage, and live raw join.
 - [ ] `ClientboundAwardStatsPacket` (0x05): stat map (stat type VarInt, stat ID VarInt -> value VarInt)
 - [x] `ClientboundSetExperiencePacket` (0x67 / decimal 103): experience-progress float, level VarInt, total-experience VarInt; verified field order against Java, Rust packet round-trip coverage, and live raw join.
 - [x] `ClientboundSetHealthPacket` (0x68 / decimal 104): health float, food VarInt, saturation float; verified field order against Java, Rust packet round-trip coverage, and live raw join.
