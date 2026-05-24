@@ -170,6 +170,25 @@ fn chunk_sender_drop_chunk_emits_forget_only_after_chunk_was_sent() {
 }
 
 #[test]
+fn remove_entities_packet_uses_java_int_id_list_encoding() {
+    let registry = PlayProtocolRegistry::new();
+    assert_eq!(CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID, 77);
+    assert_eq!(
+        registry.clientbound_name(CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID),
+        Some("remove_entities")
+    );
+
+    let mut payload = Vec::new();
+    ClientboundRemoveEntitiesPacket {
+        entity_ids: vec![0, 300, 16_383],
+    }
+    .write(&mut payload)
+    .unwrap();
+
+    assert_eq!(payload, vec![3, 0, 0xac, 0x02, 0xff, 0x7f]);
+}
+
+#[test]
 fn chunk_batch_received_packet_uses_big_endian_float_payload() {
     let packet = ServerboundChunkBatchReceivedPacket {
         desired_chunks_per_tick: 12.5,

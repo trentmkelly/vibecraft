@@ -51,7 +51,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 - [ ] `ClientboundAddEntityPacket` (0x01): entity ID, UUID, type, pos X/Y/Z, pitch, yaw, head-yaw, data (varies by type), velocity X/Y/Z; verify type-specific `data` field encoding
 - [ ] `ClientboundAddExperienceOrbPacket`: not present in 26.1.2 Java `GamePacketTypes`; experience orbs spawn through `ClientboundAddEntityPacket`
-- [ ] `ClientboundRemoveEntitiesPacket` (0x4D): VarInt entity ID list (`FriendlyByteBuf.writeIntIdList`)
+- [x] `ClientboundRemoveEntitiesPacket` (0x4D / decimal 77): entity ID list encoded with Java `FriendlyByteBuf.writeIntIdList` (VarInt length followed by VarInt entity IDs); verified against Java `ClientboundRemoveEntitiesPacket` `Packet.codec` read/write order, Java play-protocol registration order, Rust packet registry ID/name mapping, direct VarInt list byte layout including multibyte entity IDs, and generated/item-entity removal framed-packet coverage.
 - [ ] `ClientboundSetEntityMotionPacket` (0x65): entity ID VarInt, velocity as `Vec3.LP_STREAM_CODEC` with vanilla clamping
 - [ ] `ClientboundTeleportEntityPacket` (0x7D): entity ID, `PositionMoveRotation` (position Vec3, delta movement Vec3, yaw/pitch floats), relative flags int bitmask, on-ground bool
 - [ ] `ClientboundRotateHeadPacket` (0x53): entity ID VarInt, head-yaw byte
