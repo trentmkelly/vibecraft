@@ -252,7 +252,7 @@ impl ServerboundMovePlayerPacket {
 
 impl ServerboundMoveVehiclePacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
-        Ok(Self {
+        let packet = Self {
             position: Vec3 {
                 x: read_f64(reader)?,
                 y: read_f64(reader)?,
@@ -261,7 +261,9 @@ impl ServerboundMoveVehiclePacket {
             y_rot: read_f32(reader)?,
             x_rot: read_f32(reader)?,
             on_ground: read_bool(reader)?,
-        })
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {

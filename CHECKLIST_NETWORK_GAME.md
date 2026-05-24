@@ -199,7 +199,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ServerboundMovePlayerPacket.PosRot` (0x1F): pos X/Y/Z, yaw/pitch, on-ground bool, horizontal-collision bool
 - [ ] `ServerboundMovePlayerPacket.Rot` (0x20): yaw/pitch, on-ground bool, horizontal-collision bool
 - [ ] `ServerboundMovePlayerPacket.StatusOnly` (0x21): on-ground bool, horizontal-collision bool
-- [ ] `ServerboundMoveVehiclePacket` (0x22): pos X/Y/Z, yaw, pitch, on-ground bool
+- [x] `ServerboundMoveVehiclePacket` (0x22 / decimal 34): `Vec3.STREAM_CODEC` position doubles, yaw float, pitch float, on-ground bool; verified against Java `StreamCodec.composite` field order, Java `Vec3.STREAM_CODEC` double ordering, Rust byte-offset coverage, and malformed truncated/trailing-payload rejection through direct decode and play-session dispatch.
 - [x] `ServerboundPaddleBoatPacket` (0x23 / decimal 35): left-paddle and right-paddle booleans; verified against Java `readBoolean`/`writeBoolean` field order, Rust bool round-trip coverage, and malformed short/trailing-payload rejection.
 - [x] `ServerboundPlayerInputPacket` (0x2B / decimal 43): single-byte `Input.STREAM_CODEC` bitset for forward, backward, left, right, jump, shift, and sprint flags; verified against Java bit constants, Rust byte-layout coverage including high-bit ignore behavior, and malformed short/trailing-payload rejection.
 - [x] `ServerboundPlayerLoadedPacket` (0x2C / decimal 44): empty payload; verified against Java `StreamCodec.unit`, Rust empty round-trip coverage, malformed extra-payload rejection, and play-session boundary coverage.

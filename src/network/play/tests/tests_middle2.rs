@@ -382,6 +382,14 @@ fn malformed_serverbound_scalar_packets_disconnect_session() {
         DispatchOutcome::Disconnect(_)
     ));
     assert!(matches!(
+        session.handle_decoded(decoded(SERVERBOUND_MOVE_VEHICLE_PACKET_ID, vec![0; 32])),
+        DispatchOutcome::Disconnect(_)
+    ));
+    assert!(matches!(
+        session.handle_decoded(decoded(SERVERBOUND_MOVE_VEHICLE_PACKET_ID, vec![0; 34])),
+        DispatchOutcome::Disconnect(_)
+    ));
+    assert!(matches!(
         session.handle_decoded(decoded(SERVERBOUND_PLAYER_ACTION_PACKET_ID, vec![8])),
         DispatchOutcome::Disconnect(_)
     ));
@@ -643,10 +651,23 @@ fn move_vehicle_packet_matches_vanilla_field_layout() {
     let mut payload = Vec::new();
     vehicle.write(&mut payload).unwrap();
     assert_eq!(payload.len(), 33);
+    assert_eq!(&payload[0..8], &1.25_f64.to_be_bytes());
+    assert_eq!(&payload[8..16], &65.0_f64.to_be_bytes());
+    assert_eq!(&payload[16..24], &(-2.5_f64).to_be_bytes());
+    assert_eq!(&payload[24..28], &90.0_f32.to_be_bytes());
+    assert_eq!(&payload[28..32], &30.0_f32.to_be_bytes());
+    assert_eq!(payload[32], 1);
 
     let decoded_vehicle =
         ServerboundMoveVehiclePacket::read(&mut cursor(payload.clone())).unwrap();
     assert_eq!(decoded_vehicle, vehicle);
+
+    let mut truncated = payload.clone();
+    truncated.pop();
+    assert!(ServerboundMoveVehiclePacket::read(&mut cursor(truncated)).is_err());
+    let mut trailing = payload.clone();
+    trailing.push(0);
+    assert!(ServerboundMoveVehiclePacket::read(&mut cursor(trailing)).is_err());
 
     let mut session = PlaySession::new(1, 0);
     assert_eq!(
