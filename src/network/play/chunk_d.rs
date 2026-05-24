@@ -440,16 +440,19 @@ impl ServerboundPlayerLoadedPacket {
 }
 
 impl ServerboundPlayerCommandAction {
-    pub(super) fn from_id(id: i32) -> Self {
+    pub(super) fn from_id(id: i32) -> io::Result<Self> {
         match id {
-            0 => Self::StopSleeping,
-            1 => Self::StartSprinting,
-            2 => Self::StopSprinting,
-            3 => Self::StartRidingJump,
-            4 => Self::StopRidingJump,
-            5 => Self::OpenInventory,
-            6 => Self::StartFallFlying,
-            _ => Self::Unknown(id),
+            0 => Ok(Self::StopSleeping),
+            1 => Ok(Self::StartSprinting),
+            2 => Ok(Self::StopSprinting),
+            3 => Ok(Self::StartRidingJump),
+            4 => Ok(Self::StopRidingJump),
+            5 => Ok(Self::OpenInventory),
+            6 => Ok(Self::StartFallFlying),
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "player command action index out of range",
+            )),
         }
     }
 
@@ -462,18 +465,19 @@ impl ServerboundPlayerCommandAction {
             Self::StopRidingJump => 4,
             Self::OpenInventory => 5,
             Self::StartFallFlying => 6,
-            Self::Unknown(value) => value,
         }
     }
 }
 
 impl ServerboundPlayerCommandPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
-        Ok(Self {
+        let packet = Self {
             entity_id: read_var_i32(reader)?,
-            action: ServerboundPlayerCommandAction::from_id(read_var_i32(reader)?),
+            action: ServerboundPlayerCommandAction::from_id(read_var_i32(reader)?)?,
             data: read_var_i32(reader)?,
-        })
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {

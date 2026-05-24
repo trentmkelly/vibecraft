@@ -397,6 +397,10 @@ fn serverbound_scalar_packet_payload_validation_rejects_malformed_inputs() {
     assert!(ServerboundSwingPacket::read(&mut cursor(Vec::<u8>::new())).is_err());
     assert!(ServerboundSwingPacket::read(&mut cursor(vec![2])).is_err());
     assert!(ServerboundSwingPacket::read(&mut cursor(vec![1, 0])).is_err());
+    assert!(ServerboundPlayerCommandPacket::read(&mut cursor(Vec::<u8>::new())).is_err());
+    assert!(ServerboundPlayerCommandPacket::read(&mut cursor(vec![37, 7])).is_err());
+    assert!(ServerboundPlayerCommandPacket::read(&mut cursor(vec![37, 3])).is_err());
+    assert!(ServerboundPlayerCommandPacket::read(&mut cursor(vec![37, 3, 0x80, 0x01, 0])).is_err());
     assert!(ServerboundPlayerActionPacket::read(&mut cursor(Vec::<u8>::new())).is_err());
     assert!(ServerboundPlayerActionPacket::read(&mut cursor(vec![8])).is_err());
     assert!(ServerboundPlayerActionPacket::read(&mut cursor(vec![2])).is_err());
@@ -590,6 +594,42 @@ fn serverbound_player_action_packet_uses_vanilla_field_order_and_direction_wrapp
         ServerboundPlayerActionPacket::read(&mut cursor(vec![2, 0, 0, 0, 0, 0, 0, 0, 0, 255, 0]))
             .unwrap();
     assert_eq!(wrapped_direction.direction, Direction3d::South);
+}
+
+#[test]
+fn serverbound_player_command_packet_uses_vanilla_field_order() {
+    let cases = [
+        (ServerboundPlayerCommandAction::StopSleeping, 0, "stop sleeping"),
+        (ServerboundPlayerCommandAction::StartSprinting, 1, "start sprinting"),
+        (ServerboundPlayerCommandAction::StopSprinting, 2, "stop sprinting"),
+        (ServerboundPlayerCommandAction::StartRidingJump, 3, "start riding jump"),
+        (ServerboundPlayerCommandAction::StopRidingJump, 4, "stop riding jump"),
+        (ServerboundPlayerCommandAction::OpenInventory, 5, "open inventory"),
+        (ServerboundPlayerCommandAction::StartFallFlying, 6, "start fall flying"),
+    ];
+
+    for (action, ordinal, label) in cases {
+        let mut payload = Vec::new();
+        ServerboundPlayerCommandPacket {
+            entity_id: 37,
+            action,
+            data: 128,
+        }
+        .write(&mut payload)
+        .unwrap();
+        assert_eq!(payload[0], 37, "{label} entity id");
+        assert_eq!(payload[1], ordinal, "{label} ordinal");
+        assert_eq!(&payload[2..], &[0x80, 0x01], "{label} data");
+        assert_eq!(
+            ServerboundPlayerCommandPacket::read(&mut cursor(payload)).unwrap(),
+            ServerboundPlayerCommandPacket {
+                entity_id: 37,
+                action,
+                data: 128,
+            },
+            "{label} decode"
+        );
+    }
 }
 
 #[test]

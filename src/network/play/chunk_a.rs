@@ -465,12 +465,8 @@ impl PlaySession {
                 let mut input = &packet.payload[..];
                 match ServerboundPlayerCommandPacket::read(&mut input) {
                     Ok(command) => {
-                        if matches!(command.action, ServerboundPlayerCommandAction::Unknown(_)) {
-                            DispatchOutcome::Disconnect("unknown player command action".to_string())
-                        } else {
-                            self.last_player_command = Some(command);
-                            DispatchOutcome::Handled
-                        }
+                        self.last_player_command = Some(command);
+                        DispatchOutcome::Handled
                     }
                     Err(err) => {
                         DispatchOutcome::Disconnect(format!("bad player command packet: {err}"))

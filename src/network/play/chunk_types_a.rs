@@ -172,7 +172,6 @@ pub enum ServerboundPlayerCommandAction {
     StopRidingJump,
     OpenInventory,
     StartFallFlying,
-    Unknown(i32),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
