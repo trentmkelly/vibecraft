@@ -75,7 +75,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Implement `enable-query` and `query.port`.
 - [ ] Implement `enable-rcon`, `rcon.port`, and `rcon.password`.
 - [ ] Implement `hardcore`.
-- [ ] Implement `use-native-transport` or document the equivalent transport decision.
+- [x] Implement `use-native-transport` or document the equivalent transport decision. — `ServerProperties` accepts Java's default-true `use-native-transport` key, `exposes_typed_vanilla_properties` covers the typed value, and `docs/COMPATIBILITY.md` documents RustCraft's standard `TcpListener`/`TcpStream` transport decision.
 - [ ] Implement mutable `spawn-protection`.
 - [ ] Implement mutable `op-permission-level`.
 - [ ] Implement `function-permission-level`.
