@@ -5,8 +5,8 @@ use super::{
     escape_json_string, handle_legacy_status_connection, instrument_nbt,
     inventory_internal_slot, jukebox_song_nbt, legacy_disconnect_packet,
     legacy_version0_response, legacy_version1_response, load_code_of_conduct_for_language,
-    load_favicon, login_access_disconnect_reason, login_host_ip, moon_timeline_nbt,
-    newly_visible_chunks, overworld_dimension_type_nbt, packed_chunk_pos,
+    load_favicon, login_access_disconnect_reason, login_compression_threshold, login_host_ip,
+    moon_timeline_nbt, newly_visible_chunks, overworld_dimension_type_nbt, packed_chunk_pos,
     pig_sound_variant_nbt, play_session_state_from_nbt, play_session_state_to_nbt,
     pseudo_rand_f32, read_code_of_conducts, read_packet, status_json,
     strip_minecraft_formatting, trim_material_nbt, trim_pattern_nbt,
@@ -327,6 +327,18 @@ pub fn includes_26_1_2_protocol_in_status_json() {
     assert!(json.contains("\"max\":20"));
     assert!(json.contains("\"players\":{\"max\":20,\"online\":0,\"sample\":[]}"));
     assert!(json.contains("\"description\":{\"text\":\"RustCraft Test\"}"));
+}
+
+#[test]
+pub fn login_compression_threshold_matches_java_negative_disable_gate() {
+    let mut properties = test_properties();
+    assert_eq!(login_compression_threshold(&properties), Some(256));
+
+    properties.set("network-compression-threshold", "-1");
+    assert_eq!(login_compression_threshold(&properties), None);
+
+    properties.set("network-compression-threshold", "0");
+    assert_eq!(login_compression_threshold(&properties), Some(0));
 }
 
 #[test]

@@ -495,6 +495,11 @@ pub fn write_login_protocol_mismatch_disconnect(
     })
 }
 
+pub fn login_compression_threshold(properties: &ServerProperties) -> Option<i32> {
+    (properties.network_compression_threshold >= 0)
+        .then_some(properties.network_compression_threshold)
+}
+
 pub fn handle_login_connection(
     stream: &mut TcpStream,
     properties: &ServerProperties,
@@ -546,8 +551,7 @@ pub fn handle_login_connection(
     }
     cache_login_profile(player_access, &finished.profile)?;
     let mut compression = CompressionState::disabled();
-    if properties.network_compression_threshold >= 0 {
-        let threshold = properties.network_compression_threshold;
+    if let Some(threshold) = login_compression_threshold(properties) {
         write_framed_packet(stream, CLIENTBOUND_LOGIN_COMPRESSION_PACKET_ID, |payload| {
             ClientboundLoginCompressionPacket {
                 compression_threshold: threshold,

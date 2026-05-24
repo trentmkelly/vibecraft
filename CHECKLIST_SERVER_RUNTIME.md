@@ -86,7 +86,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Implement mutable `simulation-distance`.
 - [ ] Implement mutable `max-players`.
 - [ ] Add a Mineflayer max-player enforcement test that fills available slots in offline mode and verifies the extra bot receives the vanilla full-server disconnect message.
-- [ ] Implement `network-compression-threshold`.
+- [x] Implement `network-compression-threshold`. — `ServerProperties` parses Java's default, login sends `ClientboundLoginCompressionPacket` and switches framing only when the threshold is non-negative like Java, and focused compression tests cover disabled `-1`, enabled `0`/default, uncompressed-small frames, compressed-large frames, and threshold violations.
 - [x] Implement `broadcast-rcon-to-ops`. — `ServerProperties` parses Java's default, startup passes it into the RCON session, and command feedback mirrors Java's `shouldRconBroadcast()` admin-notification gate; focused RCON and command-feedback tests cover enabled and disabled behavior.
 - [ ] Implement `broadcast-console-to-ops`.
 - [x] Implement clamped `max-world-size`. — `ServerProperties` parses `max-world-size` and clamps it to Java's `1..=29999984` range from `DedicatedServerProperties`, with `max_world_size_clamps_to_vanilla_property_range` covering both bounds.
