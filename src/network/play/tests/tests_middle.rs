@@ -189,6 +189,23 @@ fn remove_entities_packet_uses_java_int_id_list_encoding() {
 }
 
 #[test]
+fn rotate_head_packet_uses_java_entity_id_then_packed_head_yaw() {
+    let registry = PlayProtocolRegistry::new();
+    assert_eq!(CLIENTBOUND_ROTATE_HEAD_PACKET_ID, 83);
+    assert_eq!(
+        registry.clientbound_name(CLIENTBOUND_ROTATE_HEAD_PACKET_ID),
+        Some("rotate_head")
+    );
+
+    let packet = ClientboundRotateHeadPacket::new(300, 180.0);
+    assert_eq!(packet.y_head_rot, 128);
+
+    let mut payload = Vec::new();
+    packet.write(&mut payload).unwrap();
+    assert_eq!(payload, vec![0xac, 0x02, 0x80]);
+}
+
+#[test]
 fn chunk_batch_received_packet_uses_big_endian_float_payload() {
     let packet = ServerboundChunkBatchReceivedPacket {
         desired_chunks_per_tick: 12.5,

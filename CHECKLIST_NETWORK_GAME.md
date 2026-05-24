@@ -54,7 +54,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] `ClientboundRemoveEntitiesPacket` (0x4D / decimal 77): entity ID list encoded with Java `FriendlyByteBuf.writeIntIdList` (VarInt length followed by VarInt entity IDs); verified against Java `ClientboundRemoveEntitiesPacket` `Packet.codec` read/write order, Java play-protocol registration order, Rust packet registry ID/name mapping, direct VarInt list byte layout including multibyte entity IDs, and generated/item-entity removal framed-packet coverage.
 - [ ] `ClientboundSetEntityMotionPacket` (0x65): entity ID VarInt, velocity as `Vec3.LP_STREAM_CODEC` with vanilla clamping
 - [ ] `ClientboundTeleportEntityPacket` (0x7D): entity ID, `PositionMoveRotation` (position Vec3, delta movement Vec3, yaw/pitch floats), relative flags int bitmask, on-ground bool
-- [ ] `ClientboundRotateHeadPacket` (0x53): entity ID VarInt, head-yaw byte
+- [x] `ClientboundRotateHeadPacket` (0x53 / decimal 83): entity ID VarInt followed by Java `Mth.packDegrees` head-yaw byte; verified against Java `ClientboundRotateHeadPacket` `Packet.codec` read/write order, Java `ServerEntity` head-rotation send gate, Java play-protocol registration order, Rust packet registry ID/name mapping, and direct payload bytes for a multibyte entity ID plus packed 180-degree yaw.
 - [ ] `ClientboundMoveEntityPacket.Pos` (0x2E): entity ID VarInt, delta X/Y/Z shorts, on-ground bool
 - [ ] `ClientboundMoveEntityPacket.PosRot` (0x2F): entity ID VarInt, delta X/Y/Z shorts, yaw/pitch bytes, on-ground bool
 - [ ] `ClientboundMoveEntityPacket.Rot` (0x30): entity ID VarInt, yaw/pitch bytes, on-ground bool
