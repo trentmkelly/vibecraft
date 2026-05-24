@@ -369,10 +369,12 @@ impl ServerboundLockDifficultyPacket {
 
 impl ServerboundPaddleBoatPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
-        Ok(Self {
+        let packet = Self {
             left: read_bool(reader)?,
             right: read_bool(reader)?,
-        })
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {

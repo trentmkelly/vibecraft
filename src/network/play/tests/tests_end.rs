@@ -385,6 +385,7 @@ fn serverbound_scalar_packet_payload_validation_rejects_malformed_inputs() {
     assert!(ServerboundLockDifficultyPacket::read(&mut cursor(Vec::<u8>::new())).is_err());
     assert!(ServerboundLockDifficultyPacket::read(&mut cursor(vec![1, 0])).is_err());
     assert!(ServerboundPaddleBoatPacket::read(&mut cursor(vec![1])).is_err());
+    assert!(ServerboundPaddleBoatPacket::read(&mut cursor(vec![1, 0, 1])).is_err());
     assert!(ServerboundPlayerInputPacket::read(&mut cursor(Vec::<u8>::new())).is_err());
     assert!(ServerboundClientTickEndPacket::read(&mut cursor(vec![1])).is_err());
     assert!(ServerboundPlayerLoadedPacket::read(&mut cursor(vec![2])).is_err());
