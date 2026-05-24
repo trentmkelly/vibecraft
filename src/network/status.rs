@@ -12,11 +12,14 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::block_metadata::representative_state_definition;
+use crate::command::{
+    execute_builtin_command, LevelBasedPermissionSet, PermissionLevel, ServerCommandState,
+};
+use crate::console::ConsoleInput;
 use crate::fluid::{
     block_item_can_replace, block_state_model_name, fluid_state_for_block, place_liquid,
     tick_fluid, FluidKind, LiquidPlaceResult,
 };
-use crate::console::ConsoleInput;
 use crate::item_catalog::{item_protocol_id, item_static_name};
 use crate::item_entity::{self, DroppedItem, WorldItemEntities, DEFAULT_PICKUP_DELAY};
 use crate::item_stack::ItemStack;
@@ -44,45 +47,46 @@ use crate::network::ping::{ClientboundPongResponsePacket, ServerboundPingRequest
 use crate::network::play::{
     block_state_name_network_id, build_recipe_book_add, build_recipe_book_add_with_flags,
     handle_container_click, unpack_block_position, ClientboundAddEntityPacket,
-    ClientboundContainerSetSlotPacket,
-    ClientboundLevelChunkPacketData, ClientboundLevelChunkWithLightPacket,
-    ClientboundLightUpdatePacketData, ClientboundLoginPacket, ClientboundRemoveEntitiesPacket,
-    ClientboundRecipeBookSettingsPacket, ClientboundSetEntityDataPacket, ClientboundSetEntityMotionPacket,
-    ClientboundSetPlayerInventoryPacket, ClientboundSetTimePacket, ClientboundTakeItemEntityPacket,
-    CommonPlayerSpawnInfo, Direction3d, EntityDataValue, EntityMetadataValue, GameMode,
-    PlayInstruction, PlayerChunkSender, RawDataComponentPatch, RawItemStack, ReadyChunkBatch,
-    RecipeBookType, RecipeBookTypeSettings, ServerboundChunkBatchReceivedPacket,
-    ServerboundContainerClickPacket, ServerboundPlaceRecipePacket,
-    ServerboundRecipeBookChangeSettingsPacket, ServerboundRecipeBookSeenRecipePacket,
-    ServerboundSwingHand, ServerboundUseItemOnPacket, Vec3, CLIENTBOUND_ADD_ENTITY_PACKET_ID,
-    CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID, CLIENTBOUND_BLOCK_UPDATE_PACKET_ID,
-    CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID, CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID,
-    CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID, CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID,
-    CLIENTBOUND_CONTAINER_SET_SLOT_PACKET_ID, CLIENTBOUND_DISCONNECT_PACKET_ID,
-    CLIENTBOUND_GAME_EVENT_PACKET_ID, CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID,
-    CLIENTBOUND_KEEP_ALIVE_PACKET_ID, CLIENTBOUND_LOGIN_PACKET_ID,
-    CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID, CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID,
-    CLIENTBOUND_PLAYER_POSITION_PACKET_ID, CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID,
-    CLIENTBOUND_RECIPE_BOOK_SETTINGS_PACKET_ID,
+    ClientboundContainerSetSlotPacket, ClientboundLevelChunkPacketData,
+    ClientboundLevelChunkWithLightPacket, ClientboundLightUpdatePacketData, ClientboundLoginPacket,
+    ClientboundRecipeBookSettingsPacket, ClientboundRemoveEntitiesPacket,
+    ClientboundSetEntityDataPacket, ClientboundSetEntityMotionPacket,
+    ClientboundSetPlayerInventoryPacket, ClientboundSetTimePacket, ClientboundSystemChatPacket,
+    ClientboundTakeItemEntityPacket, CommonPlayerSpawnInfo, Direction3d, EntityDataValue,
+    EntityMetadataValue, GameMode, PlayInstruction, PlayerChunkSender, RawDataComponentPatch,
+    RawItemStack, ReadyChunkBatch, RecipeBookType, RecipeBookTypeSettings,
+    ServerboundChatCommandPacket, ServerboundChatCommandSignedPacket, ServerboundChatPacket,
+    ServerboundChunkBatchReceivedPacket, ServerboundContainerClickPacket,
+    ServerboundPlaceRecipePacket, ServerboundRecipeBookChangeSettingsPacket,
+    ServerboundRecipeBookSeenRecipePacket, ServerboundSwingHand, ServerboundUseItemOnPacket, Vec3,
+    CLIENTBOUND_ADD_ENTITY_PACKET_ID, CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
+    CLIENTBOUND_BLOCK_UPDATE_PACKET_ID, CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID,
+    CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID, CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID,
+    CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID, CLIENTBOUND_CONTAINER_SET_SLOT_PACKET_ID,
+    CLIENTBOUND_DISCONNECT_PACKET_ID, CLIENTBOUND_GAME_EVENT_PACKET_ID,
+    CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID, CLIENTBOUND_KEEP_ALIVE_PACKET_ID,
+    CLIENTBOUND_LOGIN_PACKET_ID, CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID,
+    CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID, CLIENTBOUND_PLAYER_POSITION_PACKET_ID,
+    CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID, CLIENTBOUND_RECIPE_BOOK_SETTINGS_PACKET_ID,
     CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID, CLIENTBOUND_RESPAWN_PACKET_ID,
     CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID, CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID,
     CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID, CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID,
     CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID, CLIENTBOUND_SET_ENTITY_MOTION_PACKET_ID,
     CLIENTBOUND_SET_EXPERIENCE_PACKET_ID, CLIENTBOUND_SET_HEALTH_PACKET_ID,
     CLIENTBOUND_SET_HELD_SLOT_PACKET_ID, CLIENTBOUND_SET_PLAYER_INVENTORY_PACKET_ID,
-    CLIENTBOUND_SET_TIME_PACKET_ID, CLIENTBOUND_TAKE_ITEM_ENTITY_PACKET_ID,
-    SERVERBOUND_CHAT_ACK_PACKET_ID, SERVERBOUND_CHAT_COMMAND_PACKET_ID, SERVERBOUND_CHAT_PACKET_ID,
-    SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID, SERVERBOUND_CLIENT_COMMAND_PACKET_ID,
-    SERVERBOUND_CLIENT_INFORMATION_PACKET_ID, SERVERBOUND_CLIENT_TICK_END_PACKET_ID,
-    SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID, SERVERBOUND_CONTAINER_CLICK_PACKET_ID,
-    SERVERBOUND_CONTAINER_CLOSE_PACKET_ID, SERVERBOUND_KEEP_ALIVE_PACKET_ID,
-    SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID, SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID,
-    SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID, SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID,
+    CLIENTBOUND_SET_TIME_PACKET_ID, CLIENTBOUND_SYSTEM_CHAT_PACKET_ID,
+    CLIENTBOUND_TAKE_ITEM_ENTITY_PACKET_ID, SERVERBOUND_CHAT_ACK_PACKET_ID,
+    SERVERBOUND_CHAT_COMMAND_PACKET_ID, SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID,
+    SERVERBOUND_CHAT_PACKET_ID, SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID,
+    SERVERBOUND_CLIENT_COMMAND_PACKET_ID, SERVERBOUND_CLIENT_INFORMATION_PACKET_ID,
+    SERVERBOUND_CLIENT_TICK_END_PACKET_ID, SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID,
+    SERVERBOUND_CONTAINER_CLICK_PACKET_ID, SERVERBOUND_CONTAINER_CLOSE_PACKET_ID,
+    SERVERBOUND_KEEP_ALIVE_PACKET_ID, SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID,
+    SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID, SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID,
+    SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID, SERVERBOUND_PLACE_RECIPE_PACKET_ID,
     SERVERBOUND_PLAYER_ACTION_PACKET_ID, SERVERBOUND_PLAYER_COMMAND_PACKET_ID,
-    SERVERBOUND_PLACE_RECIPE_PACKET_ID, SERVERBOUND_PLAYER_INPUT_PACKET_ID,
-    SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID,
-    SERVERBOUND_RECIPE_BOOK_CHANGE_SETTINGS_PACKET_ID,
-    SERVERBOUND_RECIPE_BOOK_SEEN_RECIPE_PACKET_ID,
+    SERVERBOUND_PLAYER_INPUT_PACKET_ID, SERVERBOUND_RECIPE_BOOK_CHANGE_SETTINGS_PACKET_ID,
+    SERVERBOUND_RECIPE_BOOK_SEEN_RECIPE_PACKET_ID, SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID,
     SERVERBOUND_SWING_PACKET_ID, SERVERBOUND_USE_ITEM_ON_PACKET_ID, SERVERBOUND_USE_ITEM_PACKET_ID,
 };
 use crate::network::rate_limit::{PacketRateDecision, PacketRateLimiter};
@@ -97,8 +101,8 @@ use crate::player_entity::{
 use crate::player_inventory::{InventoryAddResult, InventoryMenu, PlayerInventory, SLOT_OFFHAND};
 use crate::recipe_system::{load_recipe_directory, RecipeManagerModel, RecipeMap};
 use crate::registry::Identifier;
-use crate::server_properties::ServerProperties;
 use crate::scheduled_tick::{LevelTickQueues, TickPriority};
+use crate::server_properties::ServerProperties;
 use crate::storage::chunk::{HeightmapKind, LevelChunk, PalettedContainer, SECTION_VOLUME};
 use crate::storage::nbt::Tag;
 use crate::storage::region::{ChunkPos, RegionFile};
@@ -238,7 +242,6 @@ pub use chunk_0_2::*;
 
 mod chunk_a;
 pub use chunk_a::*;
-
 
 mod chunk_b;
 pub use chunk_b::*;
