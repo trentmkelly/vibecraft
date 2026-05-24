@@ -4,6 +4,10 @@ Target: Minecraft Java Edition 26.1.2.
 
 The Java decompilation in `../decompiled-server-26.1.2` is treated as the behavioral reference, but RustCraft must not copy Mojang source.
 
+Compatibility commitments:
+
+- RustCraft treats vanilla datapacks and vanilla resources as compatibility targets when they rely only on official server behavior; harness scenarios must compare registry, tag, known-pack, enabled-feature, and disconnect behavior against the official server before related checklist items are checked.
+
 Known incomplete areas:
 
 - Play-state gameplay is not implemented.
