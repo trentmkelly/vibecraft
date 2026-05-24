@@ -22,6 +22,7 @@ Planned module boundaries:
 - `storage`: NBT, SNBT, datafix strategy, level data, region files, player data, saved data.
 - `world`: dimensions, chunks, lighting, block states, fluids, ticks, worldgen.
 - `entity`: entity base, living entities, players, AI, mobs, projectiles, vehicles.
+- `gameplay`: combat, damage, status effects, weather, time, rules, block/item interactions, and scheduled world behavior.
 - `command`: Brigadier-compatible command tree, selectors, command execution, functions.
 - `ops`: bans, whitelist, ops, RCON, query, JSON-RPC management, status.
 - `tests`: black-box parity harness against official `server.jar`.

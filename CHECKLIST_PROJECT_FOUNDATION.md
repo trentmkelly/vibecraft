@@ -27,7 +27,7 @@ Cross-cutting project rules and compatibility commitments moved out of the top-l
 - [ ] Preserve exact client compatibility for unmodified 26.1.2 clients.
 - [ ] Preserve compatibility with vanilla resource/data packs that rely only on official behavior.
 - [x] Decide which implementation language, async runtime, serialization libraries, compression libraries, crypto libraries, and persistence libraries will be used. — `docs/ARCHITECTURE.md` records Rust 2021, standard-library TCP/threading, project-owned codecs/NBT plus `serde_json`, `flate2`/`lz4`, `aes`/`sha1`, and project-owned vanilla-format persistence.
-- [ ] Define project modules matching major vanilla boundaries: bootstrap, registries, network, commands, resources, storage, world, entities, gameplay, operations, and tests.
+- [x] Define project modules matching major vanilla boundaries: bootstrap, registries, network, commands, resources, storage, world, entities, gameplay, operations, and tests. — `docs/ARCHITECTURE.md` records the boundary map and `src/main.rs` wires the corresponding Rust modules.
 
 ## Migrated From Main Checklist: Source-Derived Granularity Appendix Note
 
