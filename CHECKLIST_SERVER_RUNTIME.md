@@ -5,7 +5,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 ## Migrated From Main Checklist: Bootstrap And Process Lifecycle
 
 - [ ] Implement command-line parsing equivalent to `net.minecraft.server.Main`.
-- [ ] Support `--nogui`.
+- [x] Support `--nogui`. — `CliOptions` accepts both Java `Main`'s `--nogui` option and legacy positional `nogui`, RustCraft is intentionally headless, and `parses_legacy_positional_nogui_like_java_main` covers the positional path.
 - [x] Support `--initSettings`. — `CliOptions` parses Java `Main`'s flag and `init_settings_creates_properties_and_eula_before_startup` verifies RustCraft creates `server.properties` plus `eula.txt`, logs the initialized paths, and exits before normal startup.
 - [ ] Support `--demo`.
 - [ ] Support `--bonusChest`.

@@ -185,6 +185,12 @@ mod tests {
     }
 
     #[test]
+    fn parses_legacy_positional_nogui_like_java_main() {
+        let options = CliOptions::parse(["nogui"].into_iter().map(String::from)).unwrap();
+        assert!(options.nogui);
+    }
+
+    #[test]
     fn rejects_unknown_options() {
         let err = CliOptions::parse(["--wat"].into_iter().map(String::from)).unwrap_err();
         assert!(err.contains("Unknown option"));
