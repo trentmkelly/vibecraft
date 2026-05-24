@@ -329,6 +329,10 @@ fn malformed_serverbound_scalar_packets_disconnect_session() {
         DispatchOutcome::Disconnect(_)
     ));
     assert!(matches!(
+        session.handle_decoded(decoded(SERVERBOUND_PLAYER_INPUT_PACKET_ID, vec![0x55, 0])),
+        DispatchOutcome::Disconnect(_)
+    ));
+    assert!(matches!(
         session.handle_decoded(decoded(SERVERBOUND_PLAYER_LOADED_PACKET_ID, vec![0])),
         DispatchOutcome::Disconnect(_)
     ));

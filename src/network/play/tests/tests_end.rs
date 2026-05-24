@@ -387,9 +387,42 @@ fn serverbound_scalar_packet_payload_validation_rejects_malformed_inputs() {
     assert!(ServerboundPaddleBoatPacket::read(&mut cursor(vec![1])).is_err());
     assert!(ServerboundPaddleBoatPacket::read(&mut cursor(vec![1, 0, 1])).is_err());
     assert!(ServerboundPlayerInputPacket::read(&mut cursor(Vec::<u8>::new())).is_err());
+    assert!(ServerboundPlayerInputPacket::read(&mut cursor(vec![0x55, 0])).is_err());
     assert!(ServerboundClientTickEndPacket::read(&mut cursor(vec![1])).is_err());
     assert!(ServerboundPlayerLoadedPacket::read(&mut cursor(vec![2])).is_err());
     assert!(ServerboundChangeDifficultyPacket::read(&mut cursor(vec![0x10])).is_err());
+}
+
+#[test]
+fn serverbound_player_input_packet_uses_vanilla_input_bitset() {
+    let packet = ServerboundPlayerInputPacket {
+        input: ServerboundPlayerInput {
+            forward: true,
+            backward: false,
+            left: true,
+            right: false,
+            jump: true,
+            shift: false,
+            sprint: true,
+        },
+    };
+    let mut payload = Vec::new();
+    packet.write(&mut payload).unwrap();
+    assert_eq!(payload, vec![0x55]);
+    assert_eq!(
+        ServerboundPlayerInputPacket::read(&mut cursor(vec![0xff])).unwrap(),
+        ServerboundPlayerInputPacket {
+            input: ServerboundPlayerInput {
+                forward: true,
+                backward: true,
+                left: true,
+                right: true,
+                jump: true,
+                shift: true,
+                sprint: true,
+            },
+        }
+    );
 }
 
 #[test]

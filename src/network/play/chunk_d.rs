@@ -410,9 +410,11 @@ impl ServerboundPlayerInput {
 impl ServerboundPlayerInputPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         let flags = read_u8(reader)?;
-        Ok(Self {
+        let packet = Self {
             input: ServerboundPlayerInput::from_flags(flags),
-        })
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
