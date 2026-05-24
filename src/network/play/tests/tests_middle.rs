@@ -206,6 +206,30 @@ fn rotate_head_packet_uses_java_entity_id_then_packed_head_yaw() {
 }
 
 #[test]
+fn animate_packet_uses_java_entity_id_then_unsigned_action_byte() {
+    let registry = PlayProtocolRegistry::new();
+    assert_eq!(CLIENTBOUND_ANIMATE_PACKET_ID, 2);
+    assert_eq!(
+        registry.clientbound_name(CLIENTBOUND_ANIMATE_PACKET_ID),
+        Some("animate")
+    );
+    assert_eq!(EntityAnimation::SwingMainHand as u8, 0);
+    assert_eq!(EntityAnimation::WakeUp as u8, 2);
+    assert_eq!(EntityAnimation::SwingOffHand as u8, 3);
+    assert_eq!(EntityAnimation::CriticalHit as u8, 4);
+    assert_eq!(EntityAnimation::MagicCriticalHit as u8, 5);
+
+    let mut payload = Vec::new();
+    ClientboundAnimatePacket {
+        id: 300,
+        action: EntityAnimation::MagicCriticalHit,
+    }
+    .write(&mut payload)
+    .unwrap();
+    assert_eq!(payload, vec![0xac, 0x02, 5]);
+}
+
+#[test]
 fn chunk_batch_received_packet_uses_big_endian_float_payload() {
     let packet = ServerboundChunkBatchReceivedPacket {
         desired_chunks_per_tick: 12.5,

@@ -70,7 +70,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundUpdateAttributesPacket` (0x72): entity ID, attribute registry holder ID, base value, modifier list with identifier/amount/operation
 - [ ] `ClientboundUpdateMobEffectPacket` (0x84): entity ID VarInt, effect registry ID VarInt, amplifier VarInt, duration VarInt, flags byte (ambient/visible/show-icon/blend)
 - [ ] `ClientboundRemoveMobEffectPacket` (0x41): entity ID, effect ID VarInt
-- [ ] `ClientboundAnimatePacket` (0x02): entity ID VarInt, animation unsigned byte (0=swing-main, 2=wake-up, 3=swing-off, 4=critical, 5=magic-critical)
+- [x] `ClientboundAnimatePacket` (0x02 / decimal 2): entity ID VarInt followed by animation unsigned byte (`0` swing-main, `2` wake-up, `3` swing-offhand, `4` critical-hit, `5` magic-critical-hit); verified against Java `ClientboundAnimatePacket` `Packet.codec` read/write order, Java action constants, Java play-protocol registration order, Rust packet registry ID/name mapping, and direct payload bytes for a multibyte entity ID plus unsigned action byte.
 - [ ] `ClientboundSetEquipmentPacket` (0x59): entity ID, equipment list (slot+item pairs with `more` continuation flag)
 
 ## Inventory / Container Packets (Clientbound)
