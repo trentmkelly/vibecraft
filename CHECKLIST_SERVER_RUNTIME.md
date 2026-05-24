@@ -23,7 +23,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [x] Initialize `server.properties` and `eula.txt` before normal startup. — `run()` loads/saves `server.properties`, creates `eula.txt`, and `missing_eula_refuses_startup_after_generating_files` verifies both files exist before the server refuses normal startup for `eula=false`.
 - [x] Refuse startup until `eula=true`. — `run()` returns before world/listener startup when `Eula::load_or_create()` reports `eula=false`, and `missing_eula_refuses_startup_after_generating_files` verifies the refusal log plus absence of a generated world.
 - [ ] Write logs matching vanilla lifecycle milestones closely enough for operators and test tooling.
-- [ ] Install process-level crash and panic handlers.
+- [x] Install process-level crash and panic handlers. — `main()` installs `crash::install_panic_hook()` before option parsing, the hook writes `crash-reports/crash-*-server.txt`, and the `crash` test filter covers report rendering/writing.
 - [ ] Emit crash reports with useful environment, thread, and world state.
 - [ ] Implement graceful shutdown from console, signal, stop command, and JVM-style shutdown hook equivalents.
 - [ ] Save all worlds, players, scoreboards, advancements, raids, maps, and server state during shutdown.
