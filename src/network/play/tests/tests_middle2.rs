@@ -416,6 +416,20 @@ fn malformed_serverbound_scalar_packets_disconnect_session() {
         DispatchOutcome::Disconnect(_)
     ));
     assert!(matches!(
+        session.handle_decoded(decoded(
+            SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID,
+            Vec::new()
+        )),
+        DispatchOutcome::Disconnect(_)
+    ));
+    assert!(matches!(
+        session.handle_decoded(decoded(
+            SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID,
+            vec![3, 0]
+        )),
+        DispatchOutcome::Disconnect(_)
+    ));
+    assert!(matches!(
         session.handle_decoded(decoded(SERVERBOUND_MOVE_VEHICLE_PACKET_ID, vec![0; 34])),
         DispatchOutcome::Disconnect(_)
     ));
@@ -727,14 +741,37 @@ fn move_player_packet_shapes_match_vanilla_field_layouts() {
     movement.write_status_only(&mut status_only).unwrap();
     assert_eq!(status_only, vec![3]);
     let decoded_status = ServerboundMovePlayerPacket::read_shape(
-        &mut cursor(status_only),
+        &mut cursor(status_only.clone()),
         MoveShape::StatusOnly,
     )
     .unwrap();
+    assert_eq!(decoded_status.x, 0.0);
+    assert_eq!(decoded_status.y, 0.0);
+    assert_eq!(decoded_status.z, 0.0);
+    assert_eq!(decoded_status.y_rot, 0.0);
+    assert_eq!(decoded_status.x_rot, 0.0);
     assert!(decoded_status.on_ground);
     assert!(decoded_status.horizontal_collision);
     assert!(!decoded_status.has_position);
     assert!(!decoded_status.has_rotation);
+    assert!(
+        ServerboundMovePlayerPacket::read_shape(&mut cursor(Vec::new()), MoveShape::StatusOnly)
+            .is_err()
+    );
+    let mut trailing_status = status_only.clone();
+    trailing_status.push(0);
+    assert!(
+        ServerboundMovePlayerPacket::read_shape(
+            &mut cursor(trailing_status),
+            MoveShape::StatusOnly
+        )
+        .is_err()
+    );
+    let decoded_high_status =
+        ServerboundMovePlayerPacket::read_shape(&mut cursor(vec![0x83]), MoveShape::StatusOnly)
+            .unwrap();
+    assert!(decoded_high_status.on_ground);
+    assert!(decoded_high_status.horizontal_collision);
 }
 
 #[test]
