@@ -73,7 +73,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Implement management server settings: enabled, host, port, secret, TLS, keystore, password, allowed origins.
 - [ ] Implement legacy `announce-player-achievements` migration behavior.
 - [x] Implement `enable-query` and `query.port`. — `ServerProperties` parses Java's defaults, startup spawns the GS4 query listener only when `enable-query=true` and binds `query.port`, and the `query_` test filter covers challenge, basic status, full stat, and challenge-expiry behavior.
-- [ ] Implement `enable-rcon`, `rcon.port`, and `rcon.password`.
+- [x] Implement `enable-rcon`, `rcon.port`, and `rcon.password`. — `ServerProperties` parses Java's defaults, startup only spawns RCON when `enable-rcon=true`, binds `rcon.port`, and passes `rcon.password` into authentication; `cargo test -q rcon_` covers the listener/auth path.
 - [ ] Implement `hardcore`.
 - [x] Implement `use-native-transport` or document the equivalent transport decision. — `ServerProperties` accepts Java's default-true `use-native-transport` key, `exposes_typed_vanilla_properties` covers the typed value, and `docs/COMPATIBILITY.md` documents RustCraft's standard `TcpListener`/`TcpStream` transport decision.
 - [ ] Implement mutable `spawn-protection`.
