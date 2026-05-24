@@ -197,6 +197,36 @@ mod tests {
     }
 
     #[test]
+    fn help_flag_parses_and_documents_vanilla_main_options() {
+        let options = CliOptions::parse(["--help"].into_iter().map(String::from)).unwrap();
+        assert!(options.help);
+
+        let help = CliOptions::help();
+        for flag in [
+            "--nogui",
+            "--initSettings",
+            "--demo",
+            "--bonusChest",
+            "--forceUpgrade",
+            "--eraseCache",
+            "--recreateRegionFiles",
+            "--safeMode",
+            "--help",
+            "--universe <path>",
+            "--world <name>",
+            "--port <port>",
+            "--serverId <id>",
+            "--jfrProfile",
+            "--pidFile <path>",
+        ] {
+            assert!(
+                help.contains(flag),
+                "help output should document Java Main flag {flag}"
+            );
+        }
+    }
+
+    #[test]
     fn log_level_flag_parses_all_variants() {
         use crate::log::LogLevel;
 

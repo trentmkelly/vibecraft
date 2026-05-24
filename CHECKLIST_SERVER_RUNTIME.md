@@ -13,7 +13,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Support `--eraseCache`.
 - [ ] Support `--recreateRegionFiles`.
 - [ ] Support `--safeMode`.
-- [ ] Support `--help`.
+- [x] Support `--help`. — `CliOptions` parses Java `Main`'s help flag, `main()` prints usage and returns before startup, and `help_flag_parses_and_documents_vanilla_main_options` verifies the Java option surface is documented.
 - [ ] Support `--universe`.
 - [ ] Support `--world`.
 - [ ] Support `--port`.
