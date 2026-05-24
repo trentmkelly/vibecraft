@@ -190,7 +190,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ServerboundUseItemOnPacket` (0x42): hand enum VarInt, block hit result (block pos, direction enum VarInt, hit vector floats, inside flag, world-border-hit flag), sequence VarInt
 - [ ] `ServerboundUseItemPacket` (0x43): hand enum VarInt, sequence VarInt, yaw/pitch floats
 - [ ] `ServerboundPlayerActionPacket` (0x29): action enum VarInt (start-destroy, abort-destroy, stop-destroy, drop-all, drop-one, release-use, swap-offhand, stab), block pos, face direction byte, sequence VarInt
-- [ ] `ServerboundSwingPacket` (0x3F): hand VarInt
+- [x] `ServerboundSwingPacket` (0x3F / decimal 63): hand enum VarInt; verified against Java `FriendlyByteBuf.readEnum`/`writeEnum` for `InteractionHand`, Rust ordinal byte-layout coverage, and malformed empty/out-of-range/trailing-payload rejection.
 - [ ] `ServerboundPlayerCommandPacket` (0x2A): entity ID VarInt, action enum VarInt (stop-sleeping, start-sprinting, stop-sprinting, start-riding-jump, stop-riding-jump, open-inventory, start-fall-flying), data VarInt
 
 ## Player Movement (Serverbound)

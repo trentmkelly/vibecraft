@@ -614,14 +614,6 @@ pub fn handle_use_item_on(
     let held_slot = match packet.hand {
         ServerboundSwingHand::MainHand => state.selected_slot as usize,
         ServerboundSwingHand::OffHand => SLOT_OFFHAND,
-        ServerboundSwingHand::Unknown(_) => {
-            return write_framed_packet_with_compression(
-                stream,
-                compression,
-                CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
-                send_ack,
-            );
-        }
     };
     let held_item = state
         .inventory_menu

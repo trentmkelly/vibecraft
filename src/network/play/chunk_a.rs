@@ -656,13 +656,7 @@ impl PlaySession {
             SERVERBOUND_SWING_PACKET_ID => {
                 let mut input = &packet.payload[..];
                 match ServerboundSwingPacket::read(&mut input) {
-                    Ok(swing) => {
-                        if matches!(swing.hand, ServerboundSwingHand::Unknown(_)) {
-                            DispatchOutcome::Disconnect("unknown swing hand".to_string())
-                        } else {
-                            DispatchOutcome::Handled
-                        }
-                    }
+                    Ok(_) => DispatchOutcome::Handled,
                     Err(err) => DispatchOutcome::Disconnect(format!("bad swing packet: {err}")),
                 }
             }
@@ -670,14 +664,8 @@ impl PlaySession {
                 let mut input = &packet.payload[..];
                 match ServerboundUseItemPacket::read(&mut input) {
                     Ok(use_item) => {
-                        if matches!(use_item.hand, ServerboundSwingHand::Unknown(_)) {
-                            DispatchOutcome::Disconnect(
-                                "unknown use item interaction hand".to_string(),
-                            )
-                        } else {
-                            self.last_use_item = Some(use_item);
-                            DispatchOutcome::Handled
-                        }
+                        self.last_use_item = Some(use_item);
+                        DispatchOutcome::Handled
                     }
                     Err(err) => DispatchOutcome::Disconnect(format!("bad use item packet: {err}")),
                 }
@@ -686,14 +674,8 @@ impl PlaySession {
                 let mut input = &packet.payload[..];
                 match ServerboundUseItemOnPacket::read(&mut input) {
                     Ok(use_item_on) => {
-                        if matches!(use_item_on.hand, ServerboundSwingHand::Unknown(_)) {
-                            DispatchOutcome::Disconnect(
-                                "unknown use item on interaction hand".to_string(),
-                            )
-                        } else {
-                            self.last_use_item_on = Some(use_item_on);
-                            DispatchOutcome::Handled
-                        }
+                        self.last_use_item_on = Some(use_item_on);
+                        DispatchOutcome::Handled
                     }
                     Err(err) => {
                         DispatchOutcome::Disconnect(format!("bad use item on packet: {err}"))

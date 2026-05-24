@@ -548,7 +548,6 @@ pub struct ServerboundClientCommandPacket {
 pub enum ServerboundSwingHand {
     MainHand,
     OffHand,
-    Unknown(u8),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

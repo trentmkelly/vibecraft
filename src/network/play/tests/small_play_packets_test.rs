@@ -199,19 +199,6 @@ fn small_play_packets_round_trip_vanilla_codecs() {
             hand: ServerboundSwingHand::OffHand,
         }
     );
-    let mut unknown_swing = Vec::new();
-    ServerboundSwingPacket {
-        hand: ServerboundSwingHand::Unknown(128),
-    }
-    .write(&mut unknown_swing)
-    .unwrap();
-    assert_eq!(unknown_swing, vec![0x80, 0x01]);
-    assert_eq!(
-        ServerboundSwingPacket::read(&mut cursor(unknown_swing)).unwrap(),
-        ServerboundSwingPacket {
-            hand: ServerboundSwingHand::Unknown(128),
-        }
-    );
 
     let use_item = ServerboundUseItemPacket {
         hand: ServerboundSwingHand::OffHand,

@@ -394,6 +394,9 @@ fn serverbound_scalar_packet_payload_validation_rejects_malformed_inputs() {
     assert!(ServerboundPlayerLoadedPacket::read(&mut cursor(vec![2])).is_err());
     assert!(ServerboundChangeDifficultyPacket::read(&mut cursor(vec![0x80])).is_err());
     assert!(ServerboundChangeDifficultyPacket::read(&mut cursor(vec![1, 0])).is_err());
+    assert!(ServerboundSwingPacket::read(&mut cursor(Vec::<u8>::new())).is_err());
+    assert!(ServerboundSwingPacket::read(&mut cursor(vec![2])).is_err());
+    assert!(ServerboundSwingPacket::read(&mut cursor(vec![1, 0])).is_err());
 }
 
 #[test]
@@ -482,6 +485,27 @@ fn serverbound_client_command_packet_uses_vanilla_action_ordinals() {
                 .unwrap()
                 .action,
             action,
+            "{label} decode"
+        );
+    }
+}
+
+#[test]
+fn serverbound_swing_packet_uses_vanilla_interaction_hand_ordinals() {
+    let cases = [
+        (ServerboundSwingHand::MainHand, 0, "main hand"),
+        (ServerboundSwingHand::OffHand, 1, "off hand"),
+    ];
+
+    for (hand, ordinal, label) in cases {
+        let mut payload = Vec::new();
+        ServerboundSwingPacket { hand }.write(&mut payload).unwrap();
+        assert_eq!(payload, vec![ordinal], "{label} ordinal");
+        assert_eq!(
+            ServerboundSwingPacket::read(&mut cursor(vec![ordinal]))
+                .unwrap()
+                .hand,
+            hand,
             "{label} decode"
         );
     }

@@ -575,11 +575,14 @@ impl ServerboundPlayerActionPacket {
 }
 
 impl ServerboundSwingHand {
-    pub(super) fn from_id(id: i32) -> Self {
+    pub(super) fn from_id(id: i32) -> io::Result<Self> {
         match id {
-            0 => Self::MainHand,
-            1 => Self::OffHand,
-            _ => Self::Unknown(id as u8),
+            0 => Ok(Self::MainHand),
+            1 => Ok(Self::OffHand),
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "interaction hand index out of range",
+            )),
         }
     }
 
@@ -587,16 +590,17 @@ impl ServerboundSwingHand {
         match self {
             Self::MainHand => 0,
             Self::OffHand => 1,
-            Self::Unknown(value) => i32::from(value),
         }
     }
 }
 
 impl ServerboundSwingPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
-        Ok(Self {
-            hand: ServerboundSwingHand::from_id(read_var_i32(reader)?),
-        })
+        let packet = Self {
+            hand: ServerboundSwingHand::from_id(read_var_i32(reader)?)?,
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
@@ -607,7 +611,7 @@ impl ServerboundSwingPacket {
 impl ServerboundUseItemPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         Ok(Self {
-            hand: ServerboundSwingHand::from_id(read_var_i32(reader)?),
+            hand: ServerboundSwingHand::from_id(read_var_i32(reader)?)?,
             sequence: read_var_i32(reader)?,
             y_rot: read_f32(reader)?,
             x_rot: read_f32(reader)?,
@@ -652,7 +656,7 @@ impl BlockHitResultPacketData {
 impl ServerboundUseItemOnPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         Ok(Self {
-            hand: ServerboundSwingHand::from_id(read_var_i32(reader)?),
+            hand: ServerboundSwingHand::from_id(read_var_i32(reader)?)?,
             block_hit: BlockHitResultPacketData::read(reader)?,
             sequence: read_var_i32(reader)?,
         })
