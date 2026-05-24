@@ -235,16 +235,25 @@ pub fn login_host_ip(server_address: &str) -> Option<String> {
 pub fn bug_report_server_links_packet(
     properties: &ServerProperties,
 ) -> Option<ClientboundServerLinksPacket> {
-    let link = properties.bug_report_link.trim();
-    if !(link.starts_with("https://") || link.starts_with("http://")) {
-        return None;
-    }
+    let link = java_untrusted_http_uri(&properties.bug_report_link)?;
     Some(ClientboundServerLinksPacket {
         links: vec![ServerLinkEntry {
             label: ServerLinkLabel::Known(ServerLinkType::BugReport),
             link: link.to_string(),
         }],
     })
+}
+
+fn java_untrusted_http_uri(link: &str) -> Option<&str> {
+    let (scheme, _) = link.split_once(':')?;
+    match scheme.to_ascii_lowercase().as_str() {
+        "http" | "https" => {}
+        _ => return None,
+    }
+    if link.chars().any(|ch| ch.is_ascii_control() || ch.is_ascii_whitespace()) {
+        return None;
+    }
+    Some(link)
 }
 
 pub fn load_code_of_conduct_for_language(

@@ -63,7 +63,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Implement mutable `allow-flight`.
 - [ ] Implement mutable `motd`.
 - [ ] Implement `enable-code-of-conduct`.
-- [ ] Implement `bug-report-link`.
+- [x] Implement `bug-report-link`. — `ServerProperties` parses Java's default, configuration sends a known BUG_REPORT server link only for valid Java-style untrusted `http`/`https` URIs, and `bug_report_link_becomes_known_server_link_when_valid` covers empty, valid, unsupported, and malformed links.
 - [ ] Implement mutable `force-gamemode`.
 - [ ] Implement mutable `enforce-whitelist`.
 - [ ] Implement mutable `difficulty`.

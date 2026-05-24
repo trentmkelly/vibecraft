@@ -93,6 +93,12 @@ pub fn bug_report_link_becomes_known_server_link_when_valid() {
 
     properties.set("bug-report-link", "not a uri");
     assert!(bug_report_server_links_packet(&properties).is_none());
+
+    properties.set("bug-report-link", "ftp://example.invalid/bugs");
+    assert!(bug_report_server_links_packet(&properties).is_none());
+
+    properties.set("bug-report-link", "https://example.invalid/bug report");
+    assert!(bug_report_server_links_packet(&properties).is_none());
 }
 
 #[test]
