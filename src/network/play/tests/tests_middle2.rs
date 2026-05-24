@@ -394,6 +394,20 @@ fn malformed_serverbound_scalar_packets_disconnect_session() {
         DispatchOutcome::Disconnect(_)
     ));
     assert!(matches!(
+        session.handle_decoded(decoded(
+            SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID,
+            vec![0; 32]
+        )),
+        DispatchOutcome::Disconnect(_)
+    ));
+    assert!(matches!(
+        session.handle_decoded(decoded(
+            SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID,
+            vec![0; 34]
+        )),
+        DispatchOutcome::Disconnect(_)
+    ));
+    assert!(matches!(
         session.handle_decoded(decoded(SERVERBOUND_MOVE_VEHICLE_PACKET_ID, vec![0; 34])),
         DispatchOutcome::Disconnect(_)
     ));
@@ -640,12 +654,35 @@ fn move_player_packet_shapes_match_vanilla_field_layouts() {
     assert_eq!(&pos_rot[28..32], &30.0_f32.to_be_bytes());
     assert_eq!(pos_rot[32], 3);
     let decoded_pos_rot =
-        ServerboundMovePlayerPacket::read_shape(&mut cursor(pos_rot), MoveShape::PosRot)
+        ServerboundMovePlayerPacket::read_shape(&mut cursor(pos_rot.clone()), MoveShape::PosRot)
             .unwrap();
     assert_eq!(decoded_pos_rot.x, 1.25);
+    assert_eq!(decoded_pos_rot.y, 65.0);
+    assert_eq!(decoded_pos_rot.z, -2.5);
     assert_eq!(decoded_pos_rot.y_rot, 90.0);
+    assert_eq!(decoded_pos_rot.x_rot, 30.0);
+    assert!(decoded_pos_rot.on_ground);
+    assert!(decoded_pos_rot.horizontal_collision);
     assert!(decoded_pos_rot.has_position);
     assert!(decoded_pos_rot.has_rotation);
+    let mut truncated_pos_rot = pos_rot.clone();
+    truncated_pos_rot.pop();
+    assert!(
+        ServerboundMovePlayerPacket::read_shape(
+            &mut cursor(truncated_pos_rot),
+            MoveShape::PosRot
+        )
+        .is_err()
+    );
+    let mut trailing_pos_rot = pos_rot.clone();
+    trailing_pos_rot.push(0);
+    assert!(
+        ServerboundMovePlayerPacket::read_shape(
+            &mut cursor(trailing_pos_rot),
+            MoveShape::PosRot
+        )
+        .is_err()
+    );
 
     let mut rot = Vec::new();
     movement.write_rot(&mut rot).unwrap();
