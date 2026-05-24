@@ -248,3 +248,44 @@ pub(super) fn block_matches_tag(block: &str, tag: &str) -> bool {
     }
 }
 
+pub const BLOCK_PREDICATE_TYPES: &[BlockPredicateType] = &[
+    BlockPredicateType {
+        id: "minecraft:matching_blocks",
+    },
+    BlockPredicateType {
+        id: "minecraft:matching_block_tag",
+    },
+    BlockPredicateType {
+        id: "minecraft:matching_fluids",
+    },
+    BlockPredicateType {
+        id: "minecraft:has_sturdy_face",
+    },
+    BlockPredicateType {
+        id: "minecraft:solid",
+    },
+    BlockPredicateType {
+        id: "minecraft:replaceable",
+    },
+    BlockPredicateType {
+        id: "minecraft:would_survive",
+    },
+    BlockPredicateType {
+        id: "minecraft:inside_world_bounds",
+    },
+    BlockPredicateType {
+        id: "minecraft:any_of",
+    },
+    BlockPredicateType {
+        id: "minecraft:all_of",
+    },
+    BlockPredicateType {
+        id: "minecraft:not",
+    },
+    BlockPredicateType {
+        id: "minecraft:true",
+    },
+    BlockPredicateType {
+        id: "minecraft:unobstructed",
+    },
+];

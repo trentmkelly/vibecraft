@@ -177,3 +177,23 @@ pub fn height_provider_sample_with_rolls(
     }
 }
 
+pub const HEIGHT_PROVIDER_TYPES: &[HeightProviderType] = &[
+    HeightProviderType {
+        id: "minecraft:constant",
+    },
+    HeightProviderType {
+        id: "minecraft:uniform",
+    },
+    HeightProviderType {
+        id: "minecraft:biased_to_bottom",
+    },
+    HeightProviderType {
+        id: "minecraft:very_biased_to_bottom",
+    },
+    HeightProviderType {
+        id: "minecraft:trapezoid",
+    },
+    HeightProviderType {
+        id: "minecraft:weighted_list",
+    },
+];

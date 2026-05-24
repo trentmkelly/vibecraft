@@ -201,3 +201,296 @@ pub fn flat_adjusted_generation_feature_steps(
     steps
 }
 
+pub const FLAT_DEFAULT_LAYERS: &[FlatLayerInfo] = &[
+    FlatLayerInfo {
+        height: 1,
+        block: "minecraft:bedrock",
+    },
+    FlatLayerInfo {
+        height: 2,
+        block: "minecraft:dirt",
+    },
+    FlatLayerInfo {
+        height: 1,
+        block: "minecraft:grass_block",
+    },
+];
+
+pub const FLAT_GENERATOR_PRESETS: &[FlatGeneratorPreset] = &[
+    FlatGeneratorPreset {
+        id: "minecraft:classic_flat",
+        display: "minecraft:grass_block",
+        biome: "minecraft:plains",
+        structures: &["minecraft:villages"],
+        add_lakes: false,
+        decoration: false,
+        layers: &[
+            FlatLayerInfo {
+                height: 1,
+                block: "minecraft:bedrock",
+            },
+            FlatLayerInfo {
+                height: 2,
+                block: "minecraft:dirt",
+            },
+            FlatLayerInfo {
+                height: 1,
+                block: "minecraft:grass_block",
+            },
+        ],
+    },
+    FlatGeneratorPreset {
+        id: "minecraft:tunnelers_dream",
+        display: "minecraft:stone",
+        biome: "minecraft:windswept_hills",
+        structures: &["minecraft:mineshafts", "minecraft:strongholds"],
+        add_lakes: true,
+        decoration: false,
+        layers: &[
+            FlatLayerInfo {
+                height: 1,
+                block: "minecraft:bedrock",
+            },
+            FlatLayerInfo {
+                height: 230,
+                block: "minecraft:stone",
+            },
+            FlatLayerInfo {
+                height: 5,
+                block: "minecraft:dirt",
+            },
+            FlatLayerInfo {
+                height: 1,
+                block: "minecraft:grass_block",
+            },
+        ],
+    },
+    FlatGeneratorPreset {
+        id: "minecraft:water_world",
+        display: "minecraft:water_bucket",
+        biome: "minecraft:deep_ocean",
+        structures: &[
+            "minecraft:ocean_ruins",
+            "minecraft:shipwrecks",
+            "minecraft:ocean_monuments",
+        ],
+        add_lakes: false,
+        decoration: false,
+        layers: &[
+            FlatLayerInfo {
+                height: 1,
+                block: "minecraft:bedrock",
+            },
+            FlatLayerInfo {
+                height: 64,
+                block: "minecraft:deepslate",
+            },
+            FlatLayerInfo {
+                height: 5,
+                block: "minecraft:stone",
+            },
+            FlatLayerInfo {
+                height: 5,
+                block: "minecraft:dirt",
+            },
+            FlatLayerInfo {
+                height: 5,
+                block: "minecraft:gravel",
+            },
+            FlatLayerInfo {
+                height: 90,
+                block: "minecraft:water",
+            },
+        ],
+    },
+    FlatGeneratorPreset {
+        id: "minecraft:overworld",
+        display: "minecraft:short_grass",
+        biome: "minecraft:plains",
+        structures: &[
+            "minecraft:villages",
+            "minecraft:mineshafts",
+            "minecraft:pillager_outposts",
+            "minecraft:ruined_portals",
+            "minecraft:strongholds",
+        ],
+        add_lakes: true,
+        decoration: true,
+        layers: &[
+            FlatLayerInfo {
+                height: 1,
+                block: "minecraft:bedrock",
+            },
+            FlatLayerInfo {
+                height: 59,
+                block: "minecraft:stone",
+            },
+            FlatLayerInfo {
+                height: 3,
+                block: "minecraft:dirt",
+            },
+            FlatLayerInfo {
+                height: 1,
+                block: "minecraft:grass_block",
+            },
+        ],
+    },
+    FlatGeneratorPreset {
+        id: "minecraft:snowy_kingdom",
+        display: "minecraft:snow",
+        biome: "minecraft:snowy_plains",
+        structures: &["minecraft:villages", "minecraft:igloos"],
+        add_lakes: false,
+        decoration: false,
+        layers: &[
+            FlatLayerInfo {
+                height: 1,
+                block: "minecraft:bedrock",
+            },
+            FlatLayerInfo {
+                height: 59,
+                block: "minecraft:stone",
+            },
+            FlatLayerInfo {
+                height: 3,
+                block: "minecraft:dirt",
+            },
+            FlatLayerInfo {
+                height: 1,
+                block: "minecraft:grass_block",
+            },
+            FlatLayerInfo {
+                height: 1,
+                block: "minecraft:snow",
+            },
+        ],
+    },
+    FlatGeneratorPreset {
+        id: "minecraft:bottomless_pit",
+        display: "minecraft:feather",
+        biome: "minecraft:plains",
+        structures: &["minecraft:villages"],
+        add_lakes: false,
+        decoration: false,
+        layers: &[
+            FlatLayerInfo {
+                height: 2,
+                block: "minecraft:cobblestone",
+            },
+            FlatLayerInfo {
+                height: 3,
+                block: "minecraft:dirt",
+            },
+            FlatLayerInfo {
+                height: 1,
+                block: "minecraft:grass_block",
+            },
+        ],
+    },
+    FlatGeneratorPreset {
+        id: "minecraft:desert",
+        display: "minecraft:sand",
+        biome: "minecraft:desert",
+        structures: &[
+            "minecraft:villages",
+            "minecraft:desert_pyramids",
+            "minecraft:mineshafts",
+            "minecraft:strongholds",
+        ],
+        add_lakes: true,
+        decoration: false,
+        layers: &[
+            FlatLayerInfo {
+                height: 1,
+                block: "minecraft:bedrock",
+            },
+            FlatLayerInfo {
+                height: 3,
+                block: "minecraft:stone",
+            },
+            FlatLayerInfo {
+                height: 52,
+                block: "minecraft:sandstone",
+            },
+            FlatLayerInfo {
+                height: 8,
+                block: "minecraft:sand",
+            },
+        ],
+    },
+    FlatGeneratorPreset {
+        id: "minecraft:redstone_ready",
+        display: "minecraft:redstone",
+        biome: "minecraft:desert",
+        structures: &[],
+        add_lakes: false,
+        decoration: false,
+        layers: &[
+            FlatLayerInfo {
+                height: 1,
+                block: "minecraft:bedrock",
+            },
+            FlatLayerInfo {
+                height: 3,
+                block: "minecraft:stone",
+            },
+            FlatLayerInfo {
+                height: 116,
+                block: "minecraft:sandstone",
+            },
+        ],
+    },
+    FlatGeneratorPreset {
+        id: "minecraft:the_void",
+        display: "minecraft:barrier",
+        biome: "minecraft:the_void",
+        structures: &[],
+        add_lakes: true,
+        decoration: false,
+        layers: &[FlatLayerInfo {
+            height: 1,
+            block: "minecraft:air",
+        }],
+    },
+];
+
+fn flat_section_block_states(
+    layers: &[Option<&'static str>],
+    section_index: usize,
+) -> PalettedContainer {
+    let section_start = section_index * 16;
+    let mut palette: Vec<&'static str> = Vec::new();
+    let mut indices = vec![0_u64; SECTION_VOLUME];
+
+    for local_y in 0..16 {
+        let block = layers
+            .get(section_start + local_y)
+            .and_then(|state| *state)
+            .unwrap_or("minecraft:air");
+        let palette_index = match palette.iter().position(|entry| *entry == block) {
+            Some(index) => index as u64,
+            None => {
+                palette.push(block);
+                (palette.len() - 1) as u64
+            }
+        };
+        for z in 0..16 {
+            for x in 0..16 {
+                indices[(local_y << 8) | (z << 4) | x] = palette_index;
+            }
+        }
+    }
+
+    if palette.len() == 1 {
+        return PalettedContainer::single(block_state_tag(palette[0]), SECTION_VOLUME);
+    }
+
+    PalettedContainer {
+        palette: palette.into_iter().map(block_state_tag).collect(),
+        data: Some(pack_palette_indices(
+            &indices,
+            bits_for_palette(indices.iter().copied().max().unwrap_or(0) + 1),
+        )),
+        expected_entries: SECTION_VOLUME,
+    }
+}
