@@ -129,7 +129,7 @@ mod worldgen_comparison;
 mod worldgen_resources;
 
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process;
 
 use cli::CliOptions;
@@ -137,7 +137,7 @@ use eula::Eula;
 use log::{LogLevel, Logger};
 use network::query::{spawn_query_server, QueryServerInfo};
 use network::rcon::spawn_rcon_server;
-use network::status::run_status_server;
+use network::status::{read_code_of_conducts, run_status_server};
 use resources::{
     configure_pack_repository, DataPackConfig, DataPackRepository, PackConfigureOptions,
     WorldDataConfiguration,
@@ -230,6 +230,8 @@ fn run(options: CliOptions) -> Result<(), String> {
         logger.info("You need to agree to the EULA in order to run the server. Go to eula.txt for more info.")?;
         return Ok(());
     }
+
+    validate_code_of_conduct_configuration(&properties)?;
 
     let runtime = runtime_selection(&options, &properties);
     let world_name = runtime.world_name.clone();
@@ -393,9 +395,20 @@ fn listener_bind_ip(properties: &ServerProperties) -> &str {
     }
 }
 
+fn validate_code_of_conduct_configuration(properties: &ServerProperties) -> Result<(), String> {
+    if !properties.code_of_conduct {
+        return Ok(());
+    }
+    read_code_of_conducts(Path::new("codeofconduct"))
+        .map(|_| ())
+        .map_err(|err| format!("Failed to read Code of Conduct files: {err}"))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{listener_bind_ip, run, runtime_selection, CliOptions};
+    use super::{
+        listener_bind_ip, run, runtime_selection, validate_code_of_conduct_configuration, CliOptions,
+    };
     use crate::server_properties::ServerProperties;
     use std::fs;
     use std::path::{Path, PathBuf};
@@ -529,6 +542,23 @@ mod tests {
             .expect("write explicit server.properties");
         let explicit = ServerProperties::load_or_default(Path::new("server.properties")).unwrap();
         assert_eq!(listener_bind_ip(&explicit), "127.0.0.1");
+    }
+
+    #[test]
+    fn enable_code_of_conduct_requires_java_codeofconduct_directory() {
+        let _lock = CWD_LOCK.lock().unwrap();
+        let dir = temp_workdir("code-of-conduct");
+        let _guard = CurrentDirGuard::enter(&dir);
+
+        fs::write("server.properties", "enable-code-of-conduct=true\n")
+            .expect("write server.properties");
+        let properties = ServerProperties::load_or_default(Path::new("server.properties")).unwrap();
+        let missing = validate_code_of_conduct_configuration(&properties).unwrap_err();
+        assert!(missing.contains("Failed to read Code of Conduct files"));
+
+        fs::create_dir("codeofconduct").expect("create codeofconduct");
+        fs::write("codeofconduct/en_us.txt", "Rules").expect("write code of conduct");
+        validate_code_of_conduct_configuration(&properties).expect("valid code of conduct");
     }
 
     #[test]

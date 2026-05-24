@@ -62,7 +62,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [x] Implement `server-ip`. — `ServerProperties` parses Java's default empty bind address, startup binds listeners to `0.0.0.0` when empty or the configured address when set, and `listener_bind_ip_uses_vanilla_server_ip_property_with_wildcard_default` covers both cases.
 - [ ] Implement mutable `allow-flight`.
 - [ ] Implement mutable `motd`.
-- [ ] Implement `enable-code-of-conduct`.
+- [x] Implement `enable-code-of-conduct`. — `ServerProperties` parses Java's default, startup validates the Java `codeofconduct` directory when enabled, configuration sends the stripped localized Code of Conduct and waits for acceptance, and focused tests cover missing directory, language fallback, formatting removal, and disabled behavior.
 - [x] Implement `bug-report-link`. — `ServerProperties` parses Java's default, configuration sends a known BUG_REPORT server link only for valid Java-style untrusted `http`/`https` URIs, and `bug_report_link_becomes_known_server_link_when_valid` covers empty, valid, unsupported, and malformed links.
 - [ ] Implement mutable `force-gamemode`.
 - [ ] Implement mutable `enforce-whitelist`.
