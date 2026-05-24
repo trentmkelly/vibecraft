@@ -403,6 +403,15 @@ fn serverbound_scalar_packet_payload_validation_rejects_malformed_inputs() {
     assert!(ServerboundUseItemPacket::read(&mut cursor(vec![
         1, 0xac, 0x02, 0x42, 0x34, 0x00, 0x00, 0xc1, 0x28, 0x00, 0x00, 0
     ])).is_err());
+    assert!(ServerboundUseItemOnPacket::read(&mut cursor(Vec::<u8>::new())).is_err());
+    assert!(ServerboundUseItemOnPacket::read(&mut cursor(vec![2])).is_err());
+    assert!(ServerboundUseItemOnPacket::read(&mut cursor(vec![
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 6
+    ])).is_err());
+    assert!(ServerboundUseItemOnPacket::read(&mut cursor(vec![
+        0, 0xff, 0xff, 0xfd, 0x00, 0x00, 0x02, 0x20, 0x40, 1, 0x3e, 0x80, 0x00, 0x00,
+        0x3f, 0x00, 0x00, 0x00, 0x3f, 0x40, 0x00, 0x00, 1, 0, 0xad, 0x02, 0
+    ])).is_err());
 }
 
 #[test]
@@ -534,6 +543,39 @@ fn serverbound_use_item_packet_uses_vanilla_field_order() {
     );
     assert_eq!(
         ServerboundUseItemPacket::read(&mut cursor(payload)).unwrap(),
+        packet
+    );
+}
+
+#[test]
+fn serverbound_use_item_on_packet_uses_vanilla_block_hit_result_order() {
+    let packet = ServerboundUseItemOnPacket {
+        hand: ServerboundSwingHand::MainHand,
+        block_hit: BlockHitResultPacketData {
+            x: -12,
+            y: 64,
+            z: 34,
+            direction: Direction3d::Up,
+            click_x: 0.25,
+            click_y: 0.5,
+            click_z: 0.75,
+            inside: true,
+            world_border_hit: false,
+        },
+        sequence: 301,
+    };
+
+    let mut payload = Vec::new();
+    packet.write(&mut payload).unwrap();
+    assert_eq!(
+        payload,
+        vec![
+            0, 0xff, 0xff, 0xfd, 0x00, 0x00, 0x02, 0x20, 0x40, 1, 0x3e, 0x80, 0x00,
+            0x00, 0x3f, 0x00, 0x00, 0x00, 0x3f, 0x40, 0x00, 0x00, 1, 0, 0xad, 0x02
+        ]
+    );
+    assert_eq!(
+        ServerboundUseItemOnPacket::read(&mut cursor(payload)).unwrap(),
         packet
     );
 }

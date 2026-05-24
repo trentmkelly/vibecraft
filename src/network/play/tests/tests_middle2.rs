@@ -360,6 +360,27 @@ fn malformed_serverbound_scalar_packets_disconnect_session() {
         DispatchOutcome::Disconnect(_)
     ));
     assert!(matches!(
+        session.handle_decoded(decoded(SERVERBOUND_USE_ITEM_ON_PACKET_ID, vec![2])),
+        DispatchOutcome::Disconnect(_)
+    ));
+    assert!(matches!(
+        session.handle_decoded(decoded(
+            SERVERBOUND_USE_ITEM_ON_PACKET_ID,
+            vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 6]
+        )),
+        DispatchOutcome::Disconnect(_)
+    ));
+    assert!(matches!(
+        session.handle_decoded(decoded(
+            SERVERBOUND_USE_ITEM_ON_PACKET_ID,
+            vec![
+                0, 0xff, 0xff, 0xfd, 0x00, 0x00, 0x02, 0x20, 0x40, 1, 0x3e, 0x80, 0x00,
+                0x00, 0x3f, 0x00, 0x00, 0x00, 0x3f, 0x40, 0x00, 0x00, 1, 0, 0xad, 0x02, 0
+            ]
+        )),
+        DispatchOutcome::Disconnect(_)
+    ));
+    assert!(matches!(
         session.handle_decoded(decoded(SERVERBOUND_CHANGE_DIFFICULTY_PACKET_ID, Vec::new())),
         DispatchOutcome::Disconnect(_)
     ));

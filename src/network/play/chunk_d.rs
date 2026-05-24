@@ -506,14 +506,18 @@ impl Direction3d {
         }
     }
 
-    pub(super) fn from_enum_id(id: i32) -> Self {
-        match id.rem_euclid(6) {
-            0 => Self::Down,
-            1 => Self::Up,
-            2 => Self::North,
-            3 => Self::South,
-            4 => Self::West,
-            _ => Self::East,
+    pub(super) fn from_enum_id(id: i32) -> io::Result<Self> {
+        match id {
+            0 => Ok(Self::Down),
+            1 => Ok(Self::Up),
+            2 => Ok(Self::North),
+            3 => Ok(Self::South),
+            4 => Ok(Self::West),
+            5 => Ok(Self::East),
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "direction enum index out of range",
+            )),
         }
     }
 
@@ -635,7 +639,7 @@ impl BlockHitResultPacketData {
             x,
             y,
             z,
-            direction: Direction3d::from_enum_id(read_var_i32(reader)?),
+            direction: Direction3d::from_enum_id(read_var_i32(reader)?)?,
             click_x: read_f32(reader)?,
             click_y: read_f32(reader)?,
             click_z: read_f32(reader)?,
@@ -657,11 +661,13 @@ impl BlockHitResultPacketData {
 
 impl ServerboundUseItemOnPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
-        Ok(Self {
+        let packet = Self {
             hand: ServerboundSwingHand::from_id(read_var_i32(reader)?)?,
             block_hit: BlockHitResultPacketData::read(reader)?,
             sequence: read_var_i32(reader)?,
-        })
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
