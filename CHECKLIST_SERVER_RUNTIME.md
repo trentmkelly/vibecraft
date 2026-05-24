@@ -37,7 +37,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Add a Mineflayer offline-mode EULA refusal test that attempts login before `eula=true`, verifies vanilla-compatible connection refusal/log messages, then accepts EULA and verifies the same bot can join without stale state.
 - [ ] Handle corrupted world metadata with vanilla-compatible refusal paths.
 - [ ] Detect incompatible world versions before loading.
-- [ ] Provide safe-mode datapack loading.
+- [x] Provide safe-mode datapack loading. — `configure_pack_repository()` mirrors Java `Main`'s safe-mode pack config by selecting only `vanilla`, and `safe_mode_selects_only_vanilla_and_does_not_disable_world_packs` covers the behavior without persisting world-pack disables.
 - [ ] Support world data upgrade and region recreation workflow.
 - [ ] Implement server watchdog behavior controlled by `max-tick-time`.
 
