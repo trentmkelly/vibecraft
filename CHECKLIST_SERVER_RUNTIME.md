@@ -69,7 +69,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Implement mutable `difficulty`.
 - [ ] Implement mutable `gamemode`.
 - [x] Implement `level-name`. — `ServerProperties` parses Java's default `level-name=world`, `runtime_selection()` uses it when `--world` is absent like Java `Main`, and `runtime_selection_uses_java_main_world_universe_port_and_server_id_options` covers the property fallback.
-- [ ] Implement `server-port`.
+- [x] Implement `server-port`. — `ServerProperties` parses Java's default `server-port=25565`, startup passes the selected port to the status listener, and `runtime_selection_uses_java_main_world_universe_port_and_server_id_options` verifies the property fallback plus CLI override.
 - [ ] Implement management server settings: enabled, host, port, secret, TLS, keystore, password, allowed origins.
 - [ ] Implement legacy `announce-player-achievements` migration behavior.
 - [ ] Implement `enable-query` and `query.port`.
