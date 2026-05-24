@@ -342,6 +342,23 @@ fn move_entity_pos_rot_packet_uses_java_deltas_rotation_bytes_then_on_ground() {
 }
 
 #[test]
+fn move_entity_rot_packet_uses_java_rotation_bytes_then_on_ground() {
+    let registry = PlayProtocolRegistry::new();
+    assert_eq!(CLIENTBOUND_MOVE_ENTITY_ROT_PACKET_ID, 56);
+    assert_eq!(
+        registry.clientbound_name(CLIENTBOUND_MOVE_ENTITY_ROT_PACKET_ID),
+        Some("move_entity_rot")
+    );
+
+    let mut payload = Vec::new();
+    ClientboundMoveEntityPacket::rot(300, 180.0, -45.0, false)
+        .write_rot(&mut payload)
+        .unwrap();
+
+    assert_eq!(payload, vec![0xac, 0x02, 0x80, 0xe0, 0x00]);
+}
+
+#[test]
 fn chunk_batch_received_packet_uses_big_endian_float_payload() {
     let packet = ServerboundChunkBatchReceivedPacket {
         desired_chunks_per_tick: 12.5,
