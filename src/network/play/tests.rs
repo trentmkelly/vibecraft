@@ -101,6 +101,10 @@ fn play_packet_registry_matches_game_protocol_order_and_counts() {
         Some("set_entity_data")
     );
     assert_eq!(
+        registry.clientbound_name(CLIENTBOUND_UPDATE_ATTRIBUTES_PACKET_ID),
+        Some("update_attributes")
+    );
+    assert_eq!(
         registry.clientbound_name(CLIENTBOUND_TELEPORT_ENTITY_PACKET_ID),
         Some("teleport_entity")
     );

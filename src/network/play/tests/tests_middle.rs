@@ -963,6 +963,42 @@ fn map_item_data_packet_uses_java_optional_lists_patch_and_rotation_mask() {
 }
 
 #[test]
+fn update_attributes_packet_uses_java_snapshot_and_modifier_order() {
+    let mut payload = Vec::new();
+    ClientboundUpdateAttributesPacket {
+        entity_id: 300,
+        attributes: vec![
+            AttributeSnapshot {
+                attribute_id: 4,
+                base: 20.0,
+                modifiers: vec![AttributeModifierSnapshot {
+                    id: Identifier::parse("minecraft:movement_speed").unwrap(),
+                    amount: 0.5,
+                    operation: AttributeModifierOperation::AddMultipliedTotal,
+                }],
+            },
+            AttributeSnapshot {
+                attribute_id: 22,
+                base: 0.7,
+                modifiers: Vec::new(),
+            },
+        ],
+    }
+    .write(&mut payload)
+    .unwrap();
+
+    let mut expected = vec![0xac, 0x02, 2, 4];
+    expected.extend_from_slice(&20.0_f64.to_be_bytes());
+    expected.extend_from_slice(&[1, 24]);
+    expected.extend_from_slice(b"minecraft:movement_speed");
+    expected.extend_from_slice(&0.5_f64.to_be_bytes());
+    expected.extend_from_slice(&[2, 22]);
+    expected.extend_from_slice(&0.7_f64.to_be_bytes());
+    expected.push(0);
+    assert_eq!(payload, expected);
+}
+
+#[test]
 fn join_sequence_enters_play_with_login_held_slot_and_position_packets() {
     let mut session = PlaySession::new(42, 3);
     let login = ClientboundLoginPacket {
