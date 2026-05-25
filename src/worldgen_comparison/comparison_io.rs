@@ -96,7 +96,8 @@ pub fn build_worldgen_source_family_goldens(
             format!(
                 "{:?}:{:?}",
                 CONFIGURED_CARVERS,
-                carver_is_start_chunk(configured_carver("cave").unwrap(), 0.15)
+                configured_carver("cave")
+                    .is_some_and(|carver| carver_is_start_chunk(carver, 0.15))
             ),
         ),
         source_family_golden(

@@ -902,19 +902,16 @@ pub fn pale_moss_decorator_placement(
     sorted_leaves.sort_by_key(|leaf| leaf.pos.y);
     let mut placements = Vec::new();
     if ground_roll < ground_probability {
-        let origin = sorted_logs
-            .iter()
-            .map(|log| log.pos)
-            .min_by_key(|pos| pos.y)
-            .expect("logs is non-empty");
-        placements.push(TreeDecoratorPlacement {
-            pos: BlockPos {
-                x: origin.x,
-                y: origin.y + 1,
-                z: origin.z,
-            },
-            state: "minecraft:configured_feature/pale_moss_patch",
-        });
+        if let Some(origin) = sorted_logs.first().map(|log| log.pos) {
+            placements.push(TreeDecoratorPlacement {
+                pos: BlockPos {
+                    x: origin.x,
+                    y: origin.y + 1,
+                    z: origin.z,
+                },
+                state: "minecraft:configured_feature/pale_moss_patch",
+            });
+        }
     }
     let mut hanger_roll_index = 0;
     for (index, log) in sorted_logs.iter().enumerate() {

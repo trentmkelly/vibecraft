@@ -1122,14 +1122,15 @@ pub fn mineshaft_generate_pieces_for_start(
         crate::random_source::large_feature_seed(seed, chunk_pos.x, chunk_pos.z),
     ));
     let _generation_point_roll = random_next_f64(&mut random);
-    let room = mineshaft_room(
+    let Ok(room) = mineshaft_room(
         chunk_pos,
         mineshaft_type,
         random_next_i32_bound(&mut random, 6),
         random_next_i32_bound(&mut random, 6),
         random_next_i32_bound(&mut random, 6),
-    )
-    .expect("RandomSource#nextInt(6) room rolls should be valid");
+    ) else {
+        panic!("RandomSource#nextInt(6) room rolls should be valid");
+    };
     let start_box = room.bounding_box;
     let mut pieces = vec![MineshaftGeneratedPieceModel::Room {
         bounding_box: room.bounding_box,
@@ -1152,9 +1153,10 @@ pub fn mineshaft_generate_pieces_for_start(
             0
         }
     };
-    let dy = mineshaft_move_below_sea_level_dy(aggregate, sea_level, min_y, 10, random_roll)
-        .expect("computed mineshaft sea-level move roll should be valid");
+    let Ok(dy) = mineshaft_move_below_sea_level_dy(aggregate, sea_level, min_y, 10, random_roll)
+    else {
+        panic!("computed mineshaft sea-level move roll should be valid");
+    };
     mineshaft_move_pieces(&mut pieces, dy);
     pieces
 }
-

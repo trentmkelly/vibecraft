@@ -215,16 +215,21 @@ pub fn configured_tree_placement_plan(
         return Ok(None);
     }
 
+    let trunk_provider = block_state_provider_sample(&config.trunk_provider, rand_a)
+        .ok_or_else(|| "validated tree trunk provider produced no block state".to_string())?;
+    let foliage_provider = block_state_provider_sample(&config.foliage_provider, rand_b)
+        .ok_or_else(|| "validated tree foliage provider produced no block state".to_string())?;
+    let dirt_provider =
+        block_state_provider_sample(&config.dirt_provider, rand_a.wrapping_add(rand_b))
+            .ok_or_else(|| "validated tree dirt provider produced no block state".to_string())?;
+
     Ok(Some(simple_tree_placement_plan(
         origin,
         config.trunk_placer,
         config.foliage_placer,
-        block_state_provider_sample(&config.trunk_provider, rand_a)
-            .expect("tree configuration was validated"),
-        block_state_provider_sample(&config.foliage_provider, rand_b)
-            .expect("tree configuration was validated"),
-        block_state_provider_sample(&config.dirt_provider, rand_a.wrapping_add(rand_b))
-            .expect("tree configuration was validated"),
+        trunk_provider,
+        foliage_provider,
+        dirt_provider,
         rand_a,
         rand_b,
     )?))
