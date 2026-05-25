@@ -10,24 +10,24 @@ fn clientbound_add_entity_packet_matches_java_codec_order() {
     );
 
     let mut payload = Vec::new();
-    ClientboundAddEntityPacket::new(
-        300,
-        Uuid([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]),
-        5,
-        Vec3 {
+    ClientboundAddEntityPacket::new(AddEntityPacketInput {
+        id: 300,
+        uuid: Uuid([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]),
+        entity_type: 5,
+        position: Vec3 {
             x: 1.25,
             y: 64.0,
             z: -2.5,
         },
-        Vec3 {
+        movement: Vec3 {
             x: 0.3,
             y: 0.1,
             z: -0.3,
         },
-        (-45.0, 359.9),
-        22.5,
-        123,
-    )
+        rotation: (-45.0, 359.9),
+        y_head_rot: 22.5,
+        data: 123,
+    })
     .write(&mut payload)
     .unwrap();
 
@@ -50,20 +50,20 @@ fn clientbound_add_entity_packet_matches_java_codec_order() {
 #[test]
 fn clientbound_add_entity_packet_encodes_large_lp_movement_continuation() {
     let mut payload = Vec::new();
-    ClientboundAddEntityPacket::new(
-        1,
-        Uuid([0xff; 16]),
-        127,
-        Vec3::ZERO,
-        Vec3 {
+    ClientboundAddEntityPacket::new(AddEntityPacketInput {
+        id: 1,
+        uuid: Uuid([0xff; 16]),
+        entity_type: 127,
+        position: Vec3::ZERO,
+        movement: Vec3 {
             x: 5.5,
             y: -6.25,
             z: 2.0,
         },
-        (0.0, 0.0),
-        0.0,
-        2048,
-    )
+        rotation: (0.0, 0.0),
+        y_head_rot: 0.0,
+        data: 2048,
+    })
     .write(&mut payload)
     .unwrap();
 

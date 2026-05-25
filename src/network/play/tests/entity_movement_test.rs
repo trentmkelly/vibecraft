@@ -59,20 +59,20 @@ fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
     motion.write(&mut motion_payload).unwrap();
     assert_eq!(motion_payload, vec![7, 0]);
 
-    let add_entity = ClientboundAddEntityPacket::new(
-        300,
-        Uuid([4; 16]),
-        5,
-        Vec3 {
+    let add_entity = ClientboundAddEntityPacket::new(AddEntityPacketInput {
+        id: 300,
+        uuid: Uuid([4; 16]),
+        entity_type: 5,
+        position: Vec3 {
             x: 1.25,
             y: 64.0,
             z: -2.5,
         },
-        Vec3::ZERO,
-        (90.0, 45.0),
-        180.0,
-        123,
-    );
+        movement: Vec3::ZERO,
+        rotation: (90.0, 45.0),
+        y_head_rot: 180.0,
+        data: 123,
+    });
     let mut add_entity_payload = Vec::new();
     add_entity.write(&mut add_entity_payload).unwrap();
     assert_eq!(

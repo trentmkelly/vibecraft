@@ -330,8 +330,7 @@ fn recipe_book_add_packet_matches_vanilla_display_and_slot_stream_order() {
             b"minecraft:wool".to_vec(),
             vec![3],
             vec![
-                2, 2, 2, 4, 10, 1, 5, 11, 2, 0, 0, 4, 12, 0xc8, 0x01, 0x3f, 0x80, 0, 0, 0, 2,
-                0, 0
+                2, 2, 2, 4, 10, 1, 5, 11, 2, 0, 0, 4, 12, 0xc8, 0x01, 0x3f, 0x80, 0, 0, 0, 2, 0, 0
             ],
             vec![3, 3, 3, 4, 13, 14, 7, 4, 15, 4, 16, 4, 17, 0, 3, 0, 0],
             vec![4, 4, 4, 18, 8, 4, 19, 4, 20, 21, 4, 22, 4, 24, 4, 23, 0, 4, 0, 0],
@@ -521,24 +520,24 @@ fn game_rule_values_packet_writes_registry_key_string_map() {
 
 #[test]
 fn entity_spawn_bundle_preserves_vanilla_spawn_then_state_update_order() {
-    let spawn = ClientboundAddEntityPacket::new(
-        7,
-        Uuid([1; 16]),
-        42,
-        Vec3 {
+    let spawn = ClientboundAddEntityPacket::new(AddEntityPacketInput {
+        id: 7,
+        uuid: Uuid([1; 16]),
+        entity_type: 42,
+        position: Vec3 {
             x: 1.0,
             y: 65.0,
             z: -2.0,
         },
-        Vec3 {
+        movement: Vec3 {
             x: 4.5,
             y: -4.5,
             z: 0.25,
         },
-        (45.0, 90.0),
-        180.0,
-        3,
-    );
+        rotation: (45.0, 90.0),
+        y_head_rot: 180.0,
+        data: 3,
+    });
     assert_eq!(spawn.x_rot, 32);
     assert_eq!(spawn.y_rot, 64);
     assert_eq!(spawn.y_head_rot, 128);
@@ -655,8 +654,7 @@ fn entity_metadata_values_use_vanilla_26_1_2_serializer_ids_and_payloads() {
         EntityDataValue::typed(3, EntityMetadataValue::Float(1.5)).unwrap(),
         EntityDataValue::typed(4, EntityMetadataValue::String("abc".to_string())).unwrap(),
         EntityDataValue::typed(5, EntityMetadataValue::Component(component.clone())).unwrap(),
-        EntityDataValue::typed(6, EntityMetadataValue::OptionalComponent(Some(component)))
-            .unwrap(),
+        EntityDataValue::typed(6, EntityMetadataValue::OptionalComponent(Some(component))).unwrap(),
         EntityDataValue::typed(7, EntityMetadataValue::ItemStack(stack)).unwrap(),
         EntityDataValue::typed(8, EntityMetadataValue::Boolean(true)).unwrap(),
         EntityDataValue::typed(
@@ -674,8 +672,7 @@ fn entity_metadata_values_use_vanilla_26_1_2_serializer_ids_and_payloads() {
         )
         .unwrap(),
         EntityDataValue::typed(11, EntityMetadataValue::OptionalBlockPos(None)).unwrap(),
-        EntityDataValue::typed(12, EntityMetadataValue::Direction(DirectionData::East))
-            .unwrap(),
+        EntityDataValue::typed(12, EntityMetadataValue::Direction(DirectionData::East)).unwrap(),
         EntityDataValue::typed(
             13,
             EntityMetadataValue::OptionalLivingEntityReference(Some(42)),
@@ -797,7 +794,6 @@ fn entity_metadata_values_use_vanilla_26_1_2_serializer_ids_and_payloads() {
     assert!(payload.windows(3).any(|window| window == [42, 42, 1]));
 }
 
-
 mod add_entity_packet_test;
 mod block_entity_data_packet_test;
 mod boss_event_packet_test;
@@ -806,35 +802,38 @@ mod chat_command_packet_test;
 mod chat_command_signed_packet_test;
 mod chat_packet_test;
 mod chat_session_update_packet_test;
-mod explode_packet_test;
-mod inventory_packet_item_stack_test;
-mod level_particles_packet_test;
 mod command_suggestion_packet_test;
+mod configuration_acknowledged_packet_test;
 mod container_click_packet_test;
 mod container_close_packet_test;
 mod container_set_content_packet_test;
-mod container_set_slot_packet_test;
 mod container_set_data_packet_test;
+mod container_set_slot_packet_test;
+mod cooldown_packet_test;
 mod custom_payload_packet_test;
+mod delete_chat_packet_test;
+mod disguised_chat_packet_test;
+mod entity_movement_test;
 mod entity_position_sync_packet_test;
-mod open_screen_packet_test;
+mod explode_packet_test;
+mod initialize_border_packet_test;
+mod inventory_packet_item_stack_test;
+mod level_particles_packet_test;
 mod merchant_offers_packet_test;
+mod mount_screen_open_packet_test;
+mod named_sound_effect_absence_test;
+mod open_screen_packet_test;
 mod player_chat_packet_test;
+mod player_info_remove_packet_test;
 mod player_info_update_packet_test;
 mod player_position_packet_test;
 mod recipe_book_remove_packet_test;
 mod recipe_book_settings_packet_test;
+mod reset_score_packet_test;
 mod resource_pack_packet_test;
 mod section_blocks_update_packet_test;
+mod set_action_bar_text_packet_test;
 mod set_beacon_packet_test;
-mod set_equipment_packet_test;
-mod update_advancements_packet_test;
-mod update_mob_effect_packet_test;
-mod system_chat_packet_test;
-mod player_info_remove_packet_test;
-mod reset_score_packet_test;
-mod configuration_acknowledged_packet_test;
-mod initialize_border_packet_test;
 mod set_border_center_packet_test;
 mod set_border_lerp_size_packet_test;
 mod set_border_size_packet_test;
@@ -842,26 +841,23 @@ mod set_border_warning_delay_packet_test;
 mod set_border_warning_distance_packet_test;
 mod set_display_objective_packet_test;
 mod set_entity_data_packet_test;
+mod set_equipment_packet_test;
 mod set_objective_packet_test;
-mod set_score_packet_test;
 mod set_player_team_packet_test;
-mod set_action_bar_text_packet_test;
+mod set_score_packet_test;
 mod set_subtitle_text_packet_test;
 mod set_title_text_packet_test;
 mod set_titles_animation_packet_test;
+mod small_play_packets_test;
 mod sound_entity_packet_test;
 mod sound_packet_test;
 mod start_configuration_packet_test;
 mod stop_sound_packet_test;
+mod system_chat_packet_test;
 mod tab_list_packet_test;
-mod cooldown_packet_test;
-mod delete_chat_packet_test;
-mod disguised_chat_packet_test;
-mod entity_movement_test;
-mod mount_screen_open_packet_test;
-mod named_sound_effect_absence_test;
-mod small_play_packets_test;
 mod tests_middle;
 mod tests_middle2;
+mod update_advancements_packet_test;
+mod update_mob_effect_packet_test;
 pub use tests_middle2::*;
 mod tests_end;

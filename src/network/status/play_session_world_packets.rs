@@ -888,20 +888,20 @@ pub fn generated_chunk_entity_spawn_plan(
     let [x, y, z] = tag_double_triplet_field(fields, "Pos")?;
     let [yaw, pitch] = tag_float_pair_field(fields, "Rotation")?;
     let runtime_id = generated_chunk_entity_runtime_id(chunk_pos, index);
-    let add_entity = ClientboundAddEntityPacket::new(
-        runtime_id,
+    let add_entity = ClientboundAddEntityPacket::new(AddEntityPacketInput {
+        id: runtime_id,
         uuid,
         entity_type,
-        Vec3 { x, y, z },
-        Vec3 {
+        position: Vec3 { x, y, z },
+        movement: Vec3 {
             x: 0.0,
             y: 0.0,
             z: 0.0,
         },
-        (pitch, yaw),
-        yaw,
-        0,
-    );
+        rotation: (pitch, yaw),
+        y_head_rot: yaw,
+        data: 0,
+    });
     Some(GeneratedChunkEntitySpawnPlan {
         add_entity,
         metadata: generated_chunk_entity_metadata_packet(runtime_id, entity_type_name, fields),

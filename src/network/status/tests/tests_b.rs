@@ -171,20 +171,20 @@ pub fn generated_chunk_entity_add_packets_reads_queued_chunk_mob_nbt() {
 #[test]
 pub fn generated_chunk_entity_spawn_packets_are_bundle_wrapped() {
     let plan = super::super::GeneratedChunkEntitySpawnPlan {
-        add_entity: ClientboundAddEntityPacket::new(
-            42,
-            Uuid([1; 16]),
-            100,
-            Vec3 {
+        add_entity: ClientboundAddEntityPacket::new(AddEntityPacketInput {
+            id: 42,
+            uuid: Uuid([1; 16]),
+            entity_type: 100,
+            position: Vec3 {
                 x: 1.0,
                 y: 65.0,
                 z: 2.0,
             },
-            Vec3::ZERO,
-            (0.0, 90.0),
-            90.0,
-            0,
-        ),
+            movement: Vec3::ZERO,
+            rotation: (0.0, 90.0),
+            y_head_rot: 90.0,
+            data: 0,
+        }),
         metadata: None,
     };
     let mut output = Vec::new();
@@ -352,9 +352,7 @@ pub fn generated_chunk_entity_spawn_plan_reads_non_default_zombie_nautilus_varia
         .expect("non-default zombie nautilus variant data should emit metadata");
     assert_eq!(
         metadata.packed_items,
-        vec![
-            EntityDataValue::typed(21, EntityMetadataValue::ZombieNautilusVariant(1)).unwrap()
-        ]
+        vec![EntityDataValue::typed(21, EntityMetadataValue::ZombieNautilusVariant(1)).unwrap()]
     );
 }
 
@@ -401,20 +399,20 @@ pub fn generated_chunk_entity_spawn_plan_omits_default_animal_variant_metadata()
 #[test]
 pub fn generated_chunk_entity_spawn_packets_include_non_default_metadata_in_bundle() {
     let plan = super::super::GeneratedChunkEntitySpawnPlan {
-        add_entity: ClientboundAddEntityPacket::new(
-            42,
-            Uuid([1; 16]),
-            100,
-            Vec3 {
+        add_entity: ClientboundAddEntityPacket::new(AddEntityPacketInput {
+            id: 42,
+            uuid: Uuid([1; 16]),
+            entity_type: 100,
+            position: Vec3 {
                 x: 1.0,
                 y: 65.0,
                 z: 2.0,
             },
-            Vec3::ZERO,
-            (0.0, 90.0),
-            90.0,
-            0,
-        ),
+            movement: Vec3::ZERO,
+            rotation: (0.0, 90.0),
+            y_head_rot: 90.0,
+            data: 0,
+        }),
         metadata: Some(ClientboundSetEntityDataPacket {
             id: 42,
             packed_items: vec![
@@ -705,8 +703,7 @@ pub fn synced_tag_registries_include_required_names_and_indices() {
     let field_masoned = banner_pattern_tag_entries("minecraft:pattern_item/field_masoned");
     assert_eq!(field_masoned, vec![banner_pattern_index("bricks")]);
 
-    let bordure_indented =
-        banner_pattern_tag_entries("minecraft:pattern_item/bordure_indented");
+    let bordure_indented = banner_pattern_tag_entries("minecraft:pattern_item/bordure_indented");
     assert_eq!(bordure_indented, vec![banner_pattern_index("curly_border")]);
 }
 
