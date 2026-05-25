@@ -82,6 +82,48 @@ pub fn live_login_writer_reuses_vanilla_common_spawn_codec() {
 }
 
 #[test]
+pub fn inventory_menu_full_sync_writes_all_slots_and_carried_item() {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    let handle = std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut state = session_state_with_inventory(&[("minecraft:oak_log", 2, 0)]);
+        state.carried_item = ItemStack::new("minecraft:oak_planks", 4);
+        write_inventory_menu_full_sync(&mut stream, CompressionState::disabled(), &state).unwrap();
+    });
+    let mut client = std::net::TcpStream::connect(addr).unwrap();
+    let frame = read_packet(&mut client).unwrap();
+    let mut payload = &frame[..];
+    assert_eq!(
+        read_var_i32(&mut payload).unwrap(),
+        crate::network::play::CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID
+    );
+    assert_eq!(read_var_i32(&mut payload).unwrap(), 0);
+    assert_eq!(read_var_i32(&mut payload).unwrap(), 0);
+    let slot_count = read_var_i32(&mut payload).unwrap();
+    assert_eq!(slot_count, 46);
+    let mut slots = Vec::new();
+    for _ in 0..slot_count {
+        slots.push(
+            crate::network::play::RawItemStack::read_optional_untrusted(&mut payload).unwrap(),
+        );
+    }
+    assert_eq!(slots[36].count, 2);
+    assert_eq!(
+        slots[36].item_id,
+        crate::item_catalog::item_protocol_id("minecraft:oak_log")
+    );
+    let carried =
+        crate::network::play::RawItemStack::read_optional_untrusted(&mut payload).unwrap();
+    assert_eq!(carried.count, 4);
+    assert_eq!(
+        carried.item_id,
+        crate::item_catalog::item_protocol_id("minecraft:oak_planks")
+    );
+    handle.join().unwrap();
+}
+
+#[test]
 pub fn generated_chunk_entity_add_packets_reads_queued_chunk_mob_nbt() {
     let mut chunk = LevelChunk::empty(ChunkPos { x: 2, z: -3 });
     chunk.entities.push(Tag::Compound(vec![
