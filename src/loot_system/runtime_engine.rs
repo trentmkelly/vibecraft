@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use super::*;
 
@@ -440,10 +440,19 @@ impl LootEntry {
                 }
                 result
             }
-            Self::Group(children) => children
-                .iter()
-                .flat_map(|child| child.create(context))
-                .collect(),
+            Self::Group(children) => {
+                let mut result = Vec::new();
+                for child in children {
+                    let mut expanded = Vec::new();
+                    child.expand(context, &mut expanded);
+                    result.extend(
+                        expanded
+                            .into_iter()
+                            .flat_map(|entry| entry.entry.create(context)),
+                    );
+                }
+                result
+            }
         }
     }
 

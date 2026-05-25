@@ -604,6 +604,26 @@ fn entry_types_cover_tags_nested_tables_dynamic_alternatives_sequences_and_group
 }
 
 #[test]
+fn group_entries_respect_child_conditions_before_generating_stacks() {
+    let table = table_with_pool(LootPool::single(LootEntry::Group(vec![
+        LootEntry::Item {
+            item: "minecraft:blocked".to_string(),
+            weight: 1,
+            quality: 0,
+            conditions: vec![LootCondition::RandomChance(0.0)],
+            functions: Vec::new(),
+        },
+        LootEntry::item("minecraft:allowed", 1),
+    ])));
+    let mut context = LootContext::new(LootParamSet::Chest, 11);
+
+    assert_eq!(
+        table.evaluate(&mut context),
+        vec![LootStack::new("minecraft:allowed", 1)]
+    );
+}
+
+#[test]
 fn functions_apply_in_entry_pool_and_table_order_with_stack_splitting() {
     let mut pool = LootPool::single(LootEntry::Item {
         item: "minecraft:stone".to_string(),
