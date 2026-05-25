@@ -777,6 +777,7 @@ mod set_action_bar_text_packet_test;
 mod set_subtitle_text_packet_test;
 mod set_title_text_packet_test;
 mod set_titles_animation_packet_test;
+mod tab_list_packet_test;
 mod cooldown_packet_test;
 mod entity_movement_test;
 mod mount_screen_open_packet_test;
