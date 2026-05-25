@@ -760,9 +760,20 @@ impl ServerboundSignUpdatePacket {
 }
 
 impl ServerboundSetBeaconPacket {
+    fn validate_mob_effect_id(effect_id: i32) -> io::Result<i32> {
+        if (0..crate::status_effect::STATUS_EFFECTS.len() as i32).contains(&effect_id) {
+            Ok(effect_id)
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("unknown mob effect registry id {effect_id}"),
+            ))
+        }
+    }
+
     pub(super) fn read_optional_mob_effect<R: Read>(reader: &mut R) -> io::Result<Option<i32>> {
         if read_bool(reader)? {
-            Ok(Some(read_var_i32(reader)?))
+            Ok(Some(Self::validate_mob_effect_id(read_var_i32(reader)?)?))
         } else {
             Ok(None)
         }
@@ -774,7 +785,7 @@ impl ServerboundSetBeaconPacket {
     ) -> io::Result<()> {
         write_bool(writer, effect_id.is_some())?;
         if let Some(effect_id) = effect_id {
-            write_var_i32(writer, effect_id)?;
+            write_var_i32(writer, Self::validate_mob_effect_id(effect_id)?)?;
         }
         Ok(())
     }

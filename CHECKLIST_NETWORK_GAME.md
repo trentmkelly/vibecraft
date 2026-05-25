@@ -95,7 +95,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ServerboundEditBookPacket` (0x18): slot VarInt, pages list capped at 100 entries with 1024-char UTF-8 pages, optional 32-char title
 - [ ] `ServerboundRenameItemPacket` (0x30): name UTF-8 string capped at 32767 chars
 - [ ] `ServerboundSelectTradePacket` (0x33): item number VarInt
-- [ ] `ServerboundSetBeaconPacket` (0x34): primary effect optional MobEffect registry id, secondary effect optional MobEffect registry id
+- [x] `ServerboundSetBeaconPacket` (0x34 / decimal 52): primary and secondary optional MobEffect holder registry IDs; verified against Java `MobEffect.STREAM_CODEC.apply(ByteBufCodecs::optional)`, `ByteBufCodecs.optional` bool framing, `holderRegistry` VarInt `byIdOrThrow` validation, Java play registration/name mapping, Rust protocol registry mapping, and focused read/write/dispatch tests for present, absent, and invalid effect IDs.
 - [x] `ServerboundSetCreativeModeSlotPacket` (0x38): slot short, `ItemStack.OPTIONAL_UNTRUSTED_STREAM_CODEC` with count VarInt, optional item registry ID, and delimited data component patch framing — decoded and applied in creative mode with Java slot, count, and ability gates; creative drop remains deferred until entity item drops are ported.
 - [ ] `ServerboundContainerButtonClickPacket` (0x11): container ID VarInt, button ID VarInt
 

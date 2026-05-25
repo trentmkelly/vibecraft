@@ -356,11 +356,11 @@ fn small_play_packets_round_trip_vanilla_codecs() {
 
     let set_beacon = ServerboundSetBeaconPacket {
         primary_effect_id: Some(1),
-        secondary_effect_id: Some(128),
+        secondary_effect_id: Some(39),
     };
     let mut set_beacon_payload = Vec::new();
     set_beacon.write(&mut set_beacon_payload).unwrap();
-    assert_eq!(set_beacon_payload, vec![1, 1, 1, 0x80, 0x01]);
+    assert_eq!(set_beacon_payload, vec![1, 1, 1, 39]);
     assert_eq!(
         ServerboundSetBeaconPacket::read(&mut cursor(set_beacon_payload.clone())).unwrap(),
         set_beacon
@@ -382,6 +382,13 @@ fn small_play_packets_round_trip_vanilla_codecs() {
     .write(&mut empty_beacon_payload)
     .unwrap();
     assert_eq!(empty_beacon_payload, vec![0, 0]);
+    assert!(ServerboundSetBeaconPacket::read(&mut cursor(vec![1, 40, 0])).is_err());
+    assert!(ServerboundSetBeaconPacket {
+        primary_effect_id: Some(40),
+        secondary_effect_id: None,
+    }
+    .write(&mut Vec::new())
+    .is_err());
 
     let mut select_trade_payload = Vec::new();
     let select_trade = ServerboundSelectTradePacket { item: 128 };
