@@ -637,6 +637,11 @@ fn seed_command_reports_level_seed_with_gamemaster_permission() {
     assert_eq!(result.success_count, 8_675_309);
     assert_eq!(result.feedback_key, "commands.seed.success");
     assert!(!result.broadcast_to_admins);
+
+    state.world_seed = i32::MAX as i64 + 1;
+    let wrapped =
+        execute_builtin_command(&mut state, LevelBasedPermissionSet::GAMEMASTER, "seed").unwrap();
+    assert_eq!(wrapped.success_count, i32::MIN);
 }
 
 #[test]

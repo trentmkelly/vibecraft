@@ -123,7 +123,7 @@
 - [ ] Implement `/save-all`, `/save-off`, `/save-on`.
 - [ ] Implement `/schedule`.
 - [ ] Implement `/scoreboard`.
-- [ ] Implement `/seed`.
+- [x] Implement `/seed` — dedicated-server command path uses gamemaster permission, reports `commands.seed.success` without admin broadcast, and returns Java's `(int) seed` result including long-to-int wrapping; covered by `seed_command_reports_level_seed_with_gamemaster_permission`.
 - [ ] Implement `/serverpack`.
 - [ ] Implement `/setblock`.
 - [x] Implement `/setidletimeout` — admin-gated command accepts Java `IntegerArgumentType.integer(0)` minute values, rejects negative and above-`i32` inputs, updates the modeled player idle timeout, emits the enabled/disabled feedback keys, and returns the minute value; covered by `set_idle_timeout_command_updates_minutes_and_feedback`.
