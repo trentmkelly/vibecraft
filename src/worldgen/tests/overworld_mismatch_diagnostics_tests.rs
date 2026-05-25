@@ -958,9 +958,11 @@ use super::*;
             vein_gap,
             decision: super::super::ore_vein_decision_after_toggle(
                 ore_factory,
-                world_x,
-                world_y,
-                world_z,
+                BlockPos {
+                    x: world_x,
+                    y: world_y,
+                    z: world_z,
+                },
                 vein_toggle,
                 || vein_ridged,
                 || vein_gap,
@@ -968,4 +970,3 @@ use super::*;
             ),
         }
     }
-

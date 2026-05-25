@@ -83,7 +83,7 @@ mod underground_ore_decoration;
 use self::underground_ore_decoration::{
     apply_underground_ore_decoration_from_source_into_region,
     apply_underground_ore_decoration_to_chunk, apply_underground_ore_decoration_to_chunk_with_context,
-    clamped_map, NoiseMaterialRuleList,
+    clamped_map, MaterialRuleCalculationInput, NoiseMaterialRuleList,
 };
 #[cfg(test)] use self::underground_ore_decoration::{
     ore_vein_decision, ore_vein_decision_after_toggle, ore_vein_decision_at, ore_vein_richness,

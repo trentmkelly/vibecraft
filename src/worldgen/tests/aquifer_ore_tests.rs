@@ -344,7 +344,14 @@ use super::*;
             debug_ore_veins: false,
         });
         assert_eq!(
-            super::super::ore_vein_decision_at(ore_factory, 4, 25, -9, 0.61, -0.1, 0.0, false),
+            super::super::ore_vein_decision_at(
+                ore_factory,
+                BlockPos { x: 4, y: 25, z: -9 },
+                0.61,
+                -0.1,
+                0.0,
+                false,
+            ),
             manual
         );
 
@@ -354,7 +361,14 @@ use super::*;
         )
         .ore;
         assert_eq!(
-            super::super::ore_vein_decision_at(legacy_ore_factory, 4, 25, -9, 0.61, -0.1, 0.0, false),
+            super::super::ore_vein_decision_at(
+                legacy_ore_factory,
+                BlockPos { x: 4, y: 25, z: -9 },
+                0.61,
+                -0.1,
+                0.0,
+                false,
+            ),
             None
         );
     }

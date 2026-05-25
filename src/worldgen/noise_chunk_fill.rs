@@ -208,17 +208,19 @@ pub(super) fn fill_from_noise_chunk_inner_sections_timed(
                                 noise_chunk.interpolated_density(pos_x, pos_y, pos_z)
                             };
 
-                            let block = material_rules.calculate(
-                                aquifer.as_mut(),
-                                &noise_chunk,
+                            let block = material_rules.calculate(MaterialRuleCalculationInput {
+                                aquifer: aquifer.as_mut(),
+                                noise_chunk: &noise_chunk,
                                 settings,
-                                pos_x,
-                                pos_y,
-                                pos_z,
+                                pos: BlockPos {
+                                    x: pos_x,
+                                    y: pos_y,
+                                    z: pos_z,
+                                },
                                 density,
-                                &mut timings,
+                                timings: &mut timings,
                                 detailed_timing,
-                            );
+                            });
 
                             if block != "minecraft:air" {
                                 let block_id = section_blocks.id_for(block);

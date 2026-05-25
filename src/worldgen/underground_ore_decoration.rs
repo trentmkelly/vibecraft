@@ -64,9 +64,7 @@ pub fn ore_vein_decision(input: OreVeinDecisionInput) -> Option<&'static str> {
 
 pub fn ore_vein_decision_at(
     ore_factory: PositionalRandomFactory,
-    x: i32,
-    y: i32,
-    z: i32,
+    pos: BlockPos,
     vein_toggle: f64,
     vein_ridged: f64,
     vein_gap: f64,
@@ -74,9 +72,7 @@ pub fn ore_vein_decision_at(
 ) -> Option<&'static str> {
     ore_vein_decision_after_toggle(
         ore_factory,
-        x,
-        y,
-        z,
+        pos,
         vein_toggle,
         || vein_ridged,
         || vein_gap,
@@ -118,9 +114,7 @@ impl OreVeinMaterialRule {
             let ore_decision_started = Instant::now();
             let result = ore_vein_decision_after_toggle(
                 self.ore_factory,
-                x,
-                y,
-                z,
+                BlockPos { x, y, z },
                 vein_toggle,
                 || noise_chunk.vein_ridged_at(x, y, z),
                 || noise_chunk.vein_gap_at(x, y, z),
@@ -131,9 +125,7 @@ impl OreVeinMaterialRule {
         } else {
             ore_vein_decision_after_toggle(
                 self.ore_factory,
-                x,
-                y,
-                z,
+                BlockPos { x, y, z },
                 vein_toggle,
                 || noise_chunk.vein_ridged_at(x, y, z),
                 || noise_chunk.vein_gap_at(x, y, z),
@@ -146,6 +138,16 @@ impl OreVeinMaterialRule {
 pub(super) struct NoiseMaterialRuleList {
     default_block: &'static str,
     ore_vein_rule: Option<OreVeinMaterialRule>,
+}
+
+pub(super) struct MaterialRuleCalculationInput<'a> {
+    pub(super) aquifer: Option<&'a mut NoiseBasedAquifer>,
+    pub(super) noise_chunk: &'a NoiseChunk,
+    pub(super) settings: &'a NoiseGeneratorSettings,
+    pub(super) pos: BlockPos,
+    pub(super) density: f64,
+    pub(super) timings: &'a mut LiveTerrainTimings,
+    pub(super) detailed_timing: bool,
 }
 
 impl NoiseMaterialRuleList {
@@ -162,36 +164,44 @@ impl NoiseMaterialRuleList {
         }
     }
 
-    pub(super) fn calculate(
-        &self,
-        aquifer: Option<&mut NoiseBasedAquifer>,
-        noise_chunk: &NoiseChunk,
-        settings: &NoiseGeneratorSettings,
-        x: i32,
-        y: i32,
-        z: i32,
-        density: f64,
-        timings: &mut LiveTerrainTimings,
-        detailed_timing: bool,
-    ) -> &'static str {
+    pub(super) fn calculate(&self, input: MaterialRuleCalculationInput<'_>) -> &'static str {
         // Mirrors Java's `MaterialRuleList`: the aquifer filler runs first and
         // may return a fluid/air block. Returning `None` means the slot remains
         // solid, so the next filler (OreVeinifier) gets a chance before the
         // generator falls back to the default block.
-        let aquifer_substance = if density > 0.0 {
+        let aquifer_substance = if input.density > 0.0 {
             None
-        } else if let Some(aquifer) = aquifer {
-            timings.aquifer_calls += 1;
-            if detailed_timing {
+        } else if let Some(aquifer) = input.aquifer {
+            input.timings.aquifer_calls += 1;
+            if input.detailed_timing {
                 let aquifer_started = Instant::now();
-                let substance = aquifer.compute_substance(noise_chunk, x, y, z, density);
-                timings.fill_aquifer_compute_us += aquifer_started.elapsed().as_micros();
+                let substance = aquifer.compute_substance(
+                    input.noise_chunk,
+                    input.pos.x,
+                    input.pos.y,
+                    input.pos.z,
+                    input.density,
+                );
+                input.timings.fill_aquifer_compute_us += aquifer_started.elapsed().as_micros();
                 substance
             } else {
-                aquifer.compute_substance(noise_chunk, x, y, z, density)
+                aquifer.compute_substance(
+                    input.noise_chunk,
+                    input.pos.x,
+                    input.pos.y,
+                    input.pos.z,
+                    input.density,
+                )
             }
         } else {
-            Some(global_fluid_status(y, settings.sea_level, settings.default_fluid).at(y))
+            Some(
+                global_fluid_status(
+                    input.pos.y,
+                    input.settings.sea_level,
+                    input.settings.default_fluid,
+                )
+                .at(input.pos.y),
+            )
         };
 
         if let Some(block) = aquifer_substance {
@@ -199,7 +209,14 @@ impl NoiseMaterialRuleList {
         }
 
         if let Some(rule) = &self.ore_vein_rule {
-            if let Some(block) = rule.try_apply(noise_chunk, x, y, z, timings, detailed_timing) {
+            if let Some(block) = rule.try_apply(
+                input.noise_chunk,
+                input.pos.x,
+                input.pos.y,
+                input.pos.z,
+                input.timings,
+                input.detailed_timing,
+            ) {
                 return block;
             }
         }
@@ -210,9 +227,7 @@ impl NoiseMaterialRuleList {
 
 pub(super) fn ore_vein_decision_after_toggle<R, G>(
     ore_factory: PositionalRandomFactory,
-    x: i32,
-    y: i32,
-    z: i32,
+    pos: BlockPos,
     vein_toggle: f64,
     vein_ridged: R,
     vein_gap: G,
@@ -225,8 +240,8 @@ where
     let default_state = debug_ore_veins.then_some("minecraft:air");
     let vein_type = ore_vein_type_for_toggle(vein_toggle);
     let veininess_ridged = vein_toggle.abs();
-    let distance_from_top = vein_type.max_y - y;
-    let distance_from_bottom = y - vein_type.min_y;
+    let distance_from_top = vein_type.max_y - pos.y;
+    let distance_from_bottom = pos.y - vein_type.min_y;
     if distance_from_bottom < 0 || distance_from_top < 0 {
         return default_state;
     }
@@ -245,7 +260,7 @@ where
 
     // Java OreVeinifier only creates/samples the positional random after the
     // range and veininess checks pass.
-    let mut positional_random = ore_factory.at(x, y, z);
+    let mut positional_random = ore_factory.at(pos.x, pos.y, pos.z);
     let solidness_random = f64::from(positional_random.next_f32());
     if solidness_random > ORE_VEINIFIER_CONSTANTS.vein_solidness {
         return default_state;
