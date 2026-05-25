@@ -4,9 +4,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::{Component, Path, PathBuf};
 
-use crate::storage::nbt::{
-    read_named_tag, write_gzip_named_tag, write_named_tag, Tag,
-};
+use crate::storage::nbt::{read_named_tag, write_gzip_named_tag, write_named_tag, Tag};
 use crate::storage::region::{ChunkPos, RegionFile};
 
 use super::datafix::require_current_world_data_version;
@@ -1139,9 +1137,9 @@ impl SessionLock {
         let lock_path = dir.join("session.lock");
         let mut file = OpenOptions::new()
             .create(true)
+            .truncate(true)
             .write(true)
             .open(&lock_path)?;
-        file.set_len(0)?;
         file.write_all(SESSION_LOCK_MARKER)?;
         file.sync_all()?;
 

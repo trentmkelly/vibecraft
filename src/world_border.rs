@@ -420,7 +420,7 @@ pub struct BorderWarningTimePacket {
 
 impl WorldBorder {
     /// Build the ClientboundInitializeBorderPacket data for this border state.
-    pub fn to_init_packet(&self) -> BorderInitPacket {
+    pub fn to_init_packet(self) -> BorderInitPacket {
         BorderInitPacket {
             new_absolute_max_size: self.absolute_max_size,
             center_x: self.center_x,
@@ -436,7 +436,7 @@ impl WorldBorder {
     }
 
     /// Build the size update packet for a lerp size change.
-    pub fn to_size_packet(&self) -> BorderSizePacket {
+    pub fn to_size_packet(self) -> BorderSizePacket {
         BorderSizePacket {
             old_size: self.size(),
             new_size: self.lerp_target(),
@@ -445,7 +445,7 @@ impl WorldBorder {
     }
 
     /// Build the center update packet.
-    pub fn to_center_packet(&self) -> BorderCenterPacket {
+    pub fn to_center_packet(self) -> BorderCenterPacket {
         BorderCenterPacket {
             center_x: self.center_x,
             center_z: self.center_z,

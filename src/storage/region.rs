@@ -410,7 +410,7 @@ impl RegionFile {
         if file.read_exact(&mut header).is_err() {
             return Ok(false);
         }
-        let length = u32::from_be_bytes(header[0..4].try_into().unwrap());
+        let length = u32::from_be_bytes([header[0], header[1], header[2], header[3]]);
         let version_id = header[4];
         if version_id & 0x80 != 0 {
             if !RegionCompression::is_valid_id(version_id & 0x7f) {
@@ -1005,7 +1005,10 @@ fn decode_region_payload(
             ZlibDecoder::new(payload).read_to_end(&mut bytes)?;
             read_named_tag(&mut bytes.as_slice())
         }
-        3 => read_named_tag(&mut payload.as_ref()),
+        3 => {
+            let mut uncompressed = payload;
+            read_named_tag(&mut uncompressed)
+        }
         4 => {
             let mut bytes = Vec::new();
             Lz4Decoder::new(payload)?.read_to_end(&mut bytes)?;

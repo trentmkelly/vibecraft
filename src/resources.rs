@@ -275,14 +275,17 @@ impl DataResourceIndex {
     pub fn list(&self, namespace: &str, kind: DataResourceKind) -> Vec<DataResource> {
         self.resources
             .iter()
-            .filter_map(|((entry_namespace, entry_kind, id), contents)| {
-                (entry_namespace == namespace && *entry_kind == kind).then(|| DataResource {
+            .filter(|((entry_namespace, entry_kind, _id), _contents)| {
+                entry_namespace == namespace && *entry_kind == kind
+            })
+            .map(
+                |((entry_namespace, entry_kind, id), contents)| DataResource {
                     namespace: entry_namespace.clone(),
                     kind: *entry_kind,
                     id: id.clone(),
                     contents: contents.clone(),
-                })
-            })
+                },
+            )
             .collect()
     }
 }

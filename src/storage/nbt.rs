@@ -866,7 +866,7 @@ impl<'a> SnbtParser<'a> {
                 .parse::<i32>()
                 .map(Tag::Int)
                 .or_else(|_| token.parse::<f64>().map(Tag::Double))
-                .or_else(|_| Ok(Tag::String(token))),
+                .or(Ok(Tag::String(token))),
         }
     }
 
@@ -1039,7 +1039,6 @@ fn write_len_i32<W: Write>(writer: &mut W, len: usize) -> io::Result<()> {
         .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "NBT collection too long"))?;
     writer.write_all(&len.to_be_bytes())
 }
-
 
 #[cfg(test)]
 mod tests;

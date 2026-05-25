@@ -79,7 +79,7 @@ impl ItemEntityState {
             && self
                 .target
                 .as_ref()
-                .map_or(true, |target| target == player_uuid)
+                .is_none_or(|target| target == player_uuid)
             && self.base.removal_reason.is_none()
     }
 
@@ -682,10 +682,7 @@ mod tests {
         over_cap.count = 5;
         assert!(orb.merge(&mut over_cap));
         assert_eq!(orb.count, 8);
-        assert_eq!(
-            over_cap.base.removal_reason,
-            Some(RemovalReason::Discarded)
-        );
+        assert_eq!(over_cap.base.removal_reason, Some(RemovalReason::Discarded));
 
         assert_eq!(orb.collect(0), Some(3));
         assert_eq!(orb.count, 7);

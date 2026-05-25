@@ -97,7 +97,10 @@ pub(super) fn int_field(compound: &[(String, Tag)], name: &str) -> Result<i32, S
     }
 }
 
-pub(super) fn optional_int_field(compound: &[(String, Tag)], name: &str) -> Result<Option<i32>, String> {
+pub(super) fn optional_int_field(
+    compound: &[(String, Tag)],
+    name: &str,
+) -> Result<Option<i32>, String> {
     match optional_field(compound, name) {
         Some(Tag::Int(value)) => Ok(Some(*value)),
         Some(_) => Err(format!("NBT field {name} must be an int")),
@@ -105,7 +108,10 @@ pub(super) fn optional_int_field(compound: &[(String, Tag)], name: &str) -> Resu
     }
 }
 
-pub(super) fn optional_byte_field(compound: &[(String, Tag)], name: &str) -> Result<Option<i8>, String> {
+pub(super) fn optional_byte_field(
+    compound: &[(String, Tag)],
+    name: &str,
+) -> Result<Option<i8>, String> {
     match optional_field(compound, name) {
         Some(Tag::Byte(value)) => Ok(Some(*value)),
         Some(_) => Err(format!("NBT field {name} must be a byte")),
@@ -120,7 +126,10 @@ pub(super) fn long_field(compound: &[(String, Tag)], name: &str) -> Result<i64, 
     }
 }
 
-pub(super) fn optional_long_field(compound: &[(String, Tag)], name: &str) -> Result<Option<i64>, String> {
+pub(super) fn optional_long_field(
+    compound: &[(String, Tag)],
+    name: &str,
+) -> Result<Option<i64>, String> {
     match optional_field(compound, name) {
         Some(Tag::Long(value)) => Ok(Some(*value)),
         Some(_) => Err(format!("NBT field {name} must be a long")),
@@ -128,22 +137,28 @@ pub(super) fn optional_long_field(compound: &[(String, Tag)], name: &str) -> Res
     }
 }
 
-pub(super) fn string_field<'a>(compound: &'a [(String, Tag)], name: &str) -> Result<&'a str, String> {
+pub(super) fn string_field<'a>(
+    compound: &'a [(String, Tag)],
+    name: &str,
+) -> Result<&'a str, String> {
     match field(compound, name)? {
         Tag::String(value) => Ok(value),
         _ => Err(format!("NBT field {name} must be a string")),
     }
 }
 
-pub(super) fn list_field<'a>(compound: &'a [(String, Tag)], name: &str) -> Result<&'a [Tag], String> {
+pub(super) fn list_field<'a>(
+    compound: &'a [(String, Tag)],
+    name: &str,
+) -> Result<&'a [Tag], String> {
     match field(compound, name)? {
         Tag::List(values) => Ok(values),
         _ => Err(format!("NBT field {name} must be a list")),
     }
 }
 
-pub(super) fn optional_list_field<'a>(
-    compound: &'a [(String, Tag)],
+pub(super) fn optional_list_field(
+    compound: &[(String, Tag)],
     name: &str,
 ) -> Result<Option<Vec<Tag>>, String> {
     match optional_field(compound, name) {
@@ -171,7 +186,10 @@ pub(super) fn optional_compound_tag(compound: &[(String, Tag)], name: &str) -> O
     }
 }
 
-pub(super) fn optional_byte_array(compound: &[(String, Tag)], name: &str) -> Result<Option<Vec<i8>>, String> {
+pub(super) fn optional_byte_array(
+    compound: &[(String, Tag)],
+    name: &str,
+) -> Result<Option<Vec<i8>>, String> {
     match compound.iter().find(|(field_name, _)| field_name == name) {
         Some((_name, Tag::ByteArray(values))) => Ok(Some(values.clone())),
         Some((_name, _)) => Err(format!("NBT field {name} must be a byte array")),
@@ -179,7 +197,10 @@ pub(super) fn optional_byte_array(compound: &[(String, Tag)], name: &str) -> Res
     }
 }
 
-pub(super) fn optional_light_array(compound: &[(String, Tag)], name: &str) -> Result<Option<Vec<i8>>, String> {
+pub(super) fn optional_light_array(
+    compound: &[(String, Tag)],
+    name: &str,
+) -> Result<Option<Vec<i8>>, String> {
     optional_byte_array(compound, name)?
         .map(|values| {
             if values.len() == LIGHT_DATA_LAYER_LENGTH {
@@ -194,7 +215,10 @@ pub(super) fn optional_light_array(compound: &[(String, Tag)], name: &str) -> Re
         .transpose()
 }
 
-pub(super) fn optional_long_array(compound: &[(String, Tag)], name: &str) -> Result<Option<Vec<i64>>, String> {
+pub(super) fn optional_long_array(
+    compound: &[(String, Tag)],
+    name: &str,
+) -> Result<Option<Vec<i64>>, String> {
     match optional_field(compound, name) {
         Some(Tag::LongArray(values)) => Ok(Some(values.clone())),
         Some(_) => Err(format!("NBT field {name} must be a long array")),
@@ -202,7 +226,10 @@ pub(super) fn optional_long_array(compound: &[(String, Tag)], name: &str) -> Res
     }
 }
 
-pub(super) fn optional_bool_field(compound: &[(String, Tag)], name: &str) -> Result<Option<bool>, String> {
+pub(super) fn optional_bool_field(
+    compound: &[(String, Tag)],
+    name: &str,
+) -> Result<Option<bool>, String> {
     match optional_field(compound, name) {
         Some(Tag::Byte(value)) => Ok(Some(*value != 0)),
         Some(_) => Err(format!("NBT field {name} must be a byte boolean")),
@@ -260,7 +287,9 @@ pub(super) fn optional_double_list(
         .map(Some)
 }
 
-pub(super) fn optional_below_zero_retrogen(compound: &[(String, Tag)]) -> Result<Option<Tag>, String> {
+pub(super) fn optional_below_zero_retrogen(
+    compound: &[(String, Tag)],
+) -> Result<Option<Tag>, String> {
     let Some(tag) = optional_field(compound, "below_zero_retrogen") else {
         return Ok(None);
     };
@@ -291,4 +320,3 @@ pub(super) fn below_zero_retrogen_target_status(tag: &Tag) -> Option<&'static st
     let target_status = string_field(compound, "target_status").ok()?;
     chunk_status(target_status).map(|status| status.id)
 }
-

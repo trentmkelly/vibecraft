@@ -399,7 +399,7 @@ impl HurtingProjectileState {
         self.dangerous = fields
             .iter()
             .find_map(|(name, value)| {
-                (name == "dangerous").then(|| match value {
+                (name == "dangerous").then_some(match value {
                     Tag::Byte(value) => *value != 0,
                     _ => false,
                 })
