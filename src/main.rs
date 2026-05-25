@@ -85,6 +85,7 @@ mod loot_system;
 mod management_security;
 mod management_server;
 mod map_state;
+#[cfg(test)]
 mod mob_family;
 mod mob_interaction;
 mod movement_physics;
