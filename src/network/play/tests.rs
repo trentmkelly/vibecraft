@@ -811,6 +811,7 @@ mod explode_packet_test;
 mod inventory_packet_item_stack_test;
 mod level_particles_packet_test;
 mod command_suggestion_packet_test;
+mod container_click_packet_test;
 mod container_close_packet_test;
 mod container_set_content_packet_test;
 mod container_set_slot_packet_test;
