@@ -82,43 +82,51 @@ fn validates_block_state_on_creation_and_load() {
 
 #[test]
 fn detects_block_entity_support_for_block_states() {
-    assert!(has_block_entity_for_block("minecraft:chest"));
-    assert!(has_block_entity_for_block("minecraft:oak_sign"));
-    assert!(has_block_entity_for_block("minecraft:oak_hanging_sign"));
-    assert!(has_block_entity_for_block("minecraft:lectern"));
-    assert!(has_block_entity_for_block("minecraft:command_block"));
-    assert!(has_block_entity_for_block(
-        "minecraft:wither_skeleton_skull"
-    ));
-    assert!(has_block_entity_for_block("minecraft:red_banner"));
-    assert!(has_block_entity_for_block("minecraft:conduit"));
-    assert!(has_block_entity_for_block("minecraft:bell"));
-    assert!(has_block_entity_for_block("minecraft:crimson_hanging_sign"));
-    assert!(has_block_entity_for_block("minecraft:brown_banner"));
-    assert!(has_block_entity_for_block("minecraft:waxed_copper_chest"));
-    assert!(has_block_entity_for_block("minecraft:dark_oak_wall_sign"));
-    assert!(has_block_entity_for_block("minecraft:spawner"));
-    assert!(has_block_entity_for_block("minecraft:vault"));
-    assert!(has_block_entity_for_block("minecraft:trial_spawner"));
-    assert!(has_block_entity_for_block(
-        "minecraft:calibrated_sculk_sensor"
-    ));
-    assert!(has_block_entity_for_block("minecraft:chiseled_bookshelf"));
-    assert!(has_block_entity_for_block("minecraft:suspicious_sand"));
-    assert!(has_block_entity_for_block("minecraft:green_bed"));
-    assert!(has_block_entity_for_block("minecraft:black_shulker_box"));
-    assert!(has_block_entity_for_block("minecraft:crimson_shelf"));
-    assert!(has_block_entity_for_block(
-        "minecraft:waxed_oxidized_copper_golem_statue"
-    ));
-    assert!(has_block_entity_for_block(
-        "minecraft:warped_wall_hanging_sign"
-    ));
-    assert!(has_block_entity_for_block("minecraft:campfire"));
-    assert!(!has_block_entity_for_block("minecraft:candle"));
-    assert!(!has_block_entity_for_block("minecraft:cauldron"));
-    assert!(!has_block_entity_for_block("minecraft:stone"));
-    assert!(!has_block_entity_for_block("minecraft:dirt"));
+    assert_supported_block_entity_states();
+    assert_unsupported_block_entity_states();
+}
+
+fn assert_supported_block_entity_states() {
+    for block in [
+        "minecraft:chest",
+        "minecraft:oak_sign",
+        "minecraft:oak_hanging_sign",
+        "minecraft:lectern",
+        "minecraft:command_block",
+        "minecraft:wither_skeleton_skull",
+        "minecraft:red_banner",
+        "minecraft:conduit",
+        "minecraft:bell",
+        "minecraft:crimson_hanging_sign",
+        "minecraft:brown_banner",
+        "minecraft:waxed_copper_chest",
+        "minecraft:dark_oak_wall_sign",
+        "minecraft:spawner",
+        "minecraft:vault",
+        "minecraft:trial_spawner",
+        "minecraft:calibrated_sculk_sensor",
+        "minecraft:chiseled_bookshelf",
+        "minecraft:suspicious_sand",
+        "minecraft:green_bed",
+        "minecraft:black_shulker_box",
+        "minecraft:crimson_shelf",
+        "minecraft:waxed_oxidized_copper_golem_statue",
+        "minecraft:warped_wall_hanging_sign",
+        "minecraft:campfire",
+    ] {
+        assert!(has_block_entity_for_block(block), "{block}");
+    }
+}
+
+fn assert_unsupported_block_entity_states() {
+    for block in [
+        "minecraft:candle",
+        "minecraft:cauldron",
+        "minecraft:stone",
+        "minecraft:dirt",
+    ] {
+        assert!(!has_block_entity_for_block(block), "{block}");
+    }
 }
 
 #[test]
@@ -198,6 +206,13 @@ fn end_portal_block_entity_is_zero_data_portal_placeholder() {
 #[test]
 fn end_gateway_block_entity_saves_ticks_cooldown_and_exit_like_java() {
     let mut gateway = TheEndGatewayBlockEntity::new();
+    assert_end_gateway_spawn_phase(&mut gateway);
+    assert_end_gateway_exit_position_save_load(&mut gateway);
+    assert_end_gateway_cooldown_phase(&mut gateway);
+    assert_end_gateway_attention_interval();
+}
+
+fn assert_end_gateway_spawn_phase(gateway: &mut TheEndGatewayBlockEntity) {
     assert!(gateway.is_spawning());
     assert!(!gateway.is_cooling_down());
     assert_eq!(gateway.spawn_percent(0.0), 0.0);
@@ -211,7 +226,9 @@ fn end_gateway_block_entity_saves_ticks_cooldown_and_exit_like_java() {
     assert!(gateway.portal_tick());
     assert_eq!(gateway.age, 200);
     assert!(!gateway.is_spawning());
+}
 
+fn assert_end_gateway_exit_position_save_load(gateway: &mut TheEndGatewayBlockEntity) {
     gateway.set_exit_position(
         BlockPos {
             x: 12,
@@ -232,9 +249,11 @@ fn end_gateway_block_entity_saves_ticks_cooldown_and_exit_like_java() {
             ("ExactTeleport".to_string(), Tag::Byte(1)),
         ])
     );
-    assert_eq!(TheEndGatewayBlockEntity::load_additional(&saved), gateway);
+    assert_eq!(TheEndGatewayBlockEntity::load_additional(&saved), *gateway);
     assert_eq!(gateway.get_update_tag(), saved);
+}
 
+fn assert_end_gateway_cooldown_phase(gateway: &mut TheEndGatewayBlockEntity) {
     gateway.trigger_cooldown();
     assert!(gateway.is_cooling_down());
     assert_eq!(gateway.teleport_cooldown, 40);
@@ -246,7 +265,9 @@ fn end_gateway_block_entity_saves_ticks_cooldown_and_exit_like_java() {
     assert!(gateway.trigger_event(TheEndGatewayBlockEntity::EVENT_COOLDOWN));
     assert_eq!(gateway.teleport_cooldown, 40);
     assert!(!gateway.trigger_event(99));
+}
 
+fn assert_end_gateway_attention_interval() {
     let mut attention = TheEndGatewayBlockEntity {
         age: 2399,
         ..TheEndGatewayBlockEntity::new()
@@ -388,6 +409,22 @@ fn daylight_detector_updates_power_with_vanilla_solar_math_and_tick_cadence() {
 
 #[test]
 fn block_entity_comparator_outputs_cover_boundary_states() {
+    assert_inventory_comparator_boundaries();
+    assert_furnace_comparator_boundaries();
+    assert_brewing_stand_comparator_boundaries();
+    assert_container_comparator_boundaries();
+    assert_trapped_chest_signal_boundaries();
+    assert_jukebox_comparator_boundaries();
+    assert_shelf_comparator_boundaries();
+    assert_beacon_comparator_boundaries();
+    assert_lectern_redstone_signal_boundaries();
+    assert_crafter_redstone_signal_boundaries();
+    assert_decorated_pot_comparator_boundaries();
+    assert_copper_golem_statue_comparator_cycle();
+    assert_creaking_heart_comparator_boundaries();
+}
+
+fn assert_inventory_comparator_boundaries() {
     assert_eq!(inventory_comparator_output(&[]), 0);
     assert_eq!(inventory_comparator_output(&[None]), 0);
     assert_eq!(
@@ -398,7 +435,9 @@ fn block_entity_comparator_outputs_cover_boundary_states() {
         inventory_comparator_output(&[Some(stack("minecraft:stone", 64))]),
         MAX_SIGNAL
     );
+}
 
+fn assert_furnace_comparator_boundaries() {
     let mut furnace = AbstractFurnaceBlockEntity::new(FurnaceBlockEntityKind::Furnace);
     assert_eq!(furnace.comparator_output(), 0);
     furnace.set_item(
@@ -411,7 +450,9 @@ fn block_entity_comparator_outputs_cover_boundary_states() {
         furnace.set_item(slot, Some(stack("minecraft:stone", 64)), None);
     }
     assert_eq!(furnace.comparator_output(), MAX_SIGNAL);
+}
 
+fn assert_brewing_stand_comparator_boundaries() {
     let mut brewing = BrewingStandBlockEntity::new();
     assert_eq!(brewing.comparator_output(), 0);
     brewing.set_item(0, Some(stack("minecraft:potion", 1)));
@@ -420,7 +461,9 @@ fn block_entity_comparator_outputs_cover_boundary_states() {
         brewing.set_item(slot, Some(stack("minecraft:potion", 64)));
     }
     assert_eq!(brewing.comparator_output(), MAX_SIGNAL);
+}
 
+fn assert_container_comparator_boundaries() {
     for kind in [
         ContainerBlockEntityKind::Chest,
         ContainerBlockEntityKind::TrappedChest,
@@ -439,7 +482,9 @@ fn block_entity_comparator_outputs_cover_boundary_states() {
         }
         assert_eq!(container.comparator_output(), MAX_SIGNAL, "{kind:?} full");
     }
+}
 
+fn assert_trapped_chest_signal_boundaries() {
     let mut trapped = ContainerBlockEntityModel::new(ContainerBlockEntityKind::TrappedChest);
     trapped.viewer_count = 0;
     assert_eq!(trapped.trapped_chest_signal(), 0);
@@ -447,7 +492,9 @@ fn block_entity_comparator_outputs_cover_boundary_states() {
     assert_eq!(trapped.trapped_chest_signal(), MAX_SIGNAL);
     trapped.viewer_count = i32::from(MAX_SIGNAL) + 1;
     assert_eq!(trapped.trapped_chest_signal(), MAX_SIGNAL);
+}
 
+fn assert_jukebox_comparator_boundaries() {
     let mut jukebox = JukeboxBlockEntity::new();
     assert_eq!(jukebox.comparator_output(), 0);
     assert_eq!(jukebox.redstone_signal(), 0);
@@ -456,7 +503,9 @@ fn block_entity_comparator_outputs_cover_boundary_states() {
     assert_eq!(jukebox.redstone_signal(), MAX_SIGNAL);
     jukebox.set_the_item(Some(stack("minecraft:music_disc_5", 1)));
     assert_eq!(jukebox.comparator_output(), MAX_SIGNAL);
+}
 
+fn assert_shelf_comparator_boundaries() {
     let mut shelf = ShelfBlockEntity::new();
     assert_eq!(shelf.comparator_output(), 0);
     shelf.set_item_no_update(0, Some(stack("minecraft:book", 1)));
@@ -465,7 +514,9 @@ fn block_entity_comparator_outputs_cover_boundary_states() {
         shelf.set_item_no_update(slot, Some(stack("minecraft:book", 1)));
     }
     assert_eq!(shelf.comparator_output(), 3);
+}
 
+fn assert_beacon_comparator_boundaries() {
     let mut beacon = BeaconBlockEntity::new();
     beacon.levels = -1;
     assert_eq!(beacon.comparator_output(), 0);
@@ -473,28 +524,36 @@ fn block_entity_comparator_outputs_cover_boundary_states() {
     assert_eq!(beacon.comparator_output(), 4);
     beacon.levels = 99;
     assert_eq!(beacon.comparator_output(), 4);
+}
 
+fn assert_lectern_redstone_signal_boundaries() {
     let mut lectern = LecternBlockEntity::new();
     assert_eq!(lectern.get_redstone_signal(), 0);
     lectern.set_book(Some(stack("minecraft:written_book", 1)), 4);
     assert_eq!(lectern.get_redstone_signal(), 1);
     lectern.set_page(3);
     assert_eq!(lectern.get_redstone_signal(), MAX_SIGNAL);
+}
 
+fn assert_crafter_redstone_signal_boundaries() {
     let mut crafter = CrafterBlockEntity::new();
     assert_eq!(crafter.redstone_signal(), 0);
     for slot in 0..CrafterBlockEntity::CONTAINER_SIZE {
         crafter.set_slot_state(slot, false);
     }
     assert_eq!(crafter.redstone_signal(), 9);
+}
 
+fn assert_decorated_pot_comparator_boundaries() {
     let mut pot = DecoratedPotBlockEntity::default();
     assert_eq!(pot.comparator_output(), 0);
     pot.item = Some(stack("minecraft:diamond", 1));
     assert_eq!(pot.comparator_output(), 1);
     pot.item = Some(stack("minecraft:diamond", 64));
     assert_eq!(pot.comparator_output(), MAX_SIGNAL);
+}
 
+fn assert_copper_golem_statue_comparator_cycle() {
     let mut statue = CopperGolemStatueBlockEntity::from_block_state(
         "minecraft:copper_golem_statue",
         CopperGolemStatuePose::Standing,
@@ -507,7 +566,9 @@ fn block_entity_comparator_outputs_cover_boundary_states() {
     assert_eq!(statue.comparator_output(), 3);
     statue.update_pose();
     assert_eq!(statue.comparator_output(), 4);
+}
 
+fn assert_creaking_heart_comparator_boundaries() {
     let mut heart = CreakingHeartBlockEntity::new();
     assert_eq!(heart.compute_analog_output_signal(Some(0.0)), 0);
     heart.set_creaking_uuid("protector".to_string());
@@ -826,9 +887,8 @@ fn command_block_editor_packet_and_client_update_require_permission() {
     assert_eq!(command.last_output, None);
 }
 
-
 mod tests_b;
-mod tests_c;
-mod tests_d;
 mod tests_b2;
+mod tests_c;
 mod tests_c2;
+mod tests_d;
