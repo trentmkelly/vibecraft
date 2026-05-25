@@ -304,6 +304,26 @@ fn dimension_return_respawn_keeps_attribute_modifiers_like_vanilla_keep_all_path
 }
 
 #[test]
+fn respawn_packet_id_and_data_to_keep_flags_match_java() {
+    assert_eq!(CLIENTBOUND_RESPAWN_PACKET_ID, 82);
+    let registry = PlayProtocolRegistry::new();
+    assert_eq!(
+        registry.clientbound_name(CLIENTBOUND_RESPAWN_PACKET_ID),
+        Some("respawn")
+    );
+    assert_eq!(RespawnDataToKeep::NONE.bits(), 0);
+    assert_eq!(RespawnDataToKeep::KEEP_ATTRIBUTE_MODIFIERS.bits(), 1);
+    assert_eq!(RespawnDataToKeep::KEEP_ENTITY_DATA.bits(), 2);
+    assert_eq!(RespawnDataToKeep::KEEP_ALL_DATA.bits(), 3);
+    assert!(RespawnDataToKeep::KEEP_ALL_DATA.should_keep(
+        RespawnDataToKeep::KEEP_ATTRIBUTE_MODIFIERS
+    ));
+    assert!(RespawnDataToKeep::KEEP_ALL_DATA.should_keep(RespawnDataToKeep::KEEP_ENTITY_DATA));
+    assert!(!RespawnDataToKeep::KEEP_ATTRIBUTE_MODIFIERS
+        .should_keep(RespawnDataToKeep::KEEP_ENTITY_DATA));
+}
+
+#[test]
 fn player_loaded_packet_moves_session_to_playing() {
     let mut session = PlaySession::new(1, 0);
     assert_eq!(
