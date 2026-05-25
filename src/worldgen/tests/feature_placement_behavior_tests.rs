@@ -22,13 +22,40 @@ use super::*;
         );
 
         assert!(super::super::spring_feature_can_place(
-            true, true, true, true, 4, 1, 4, 1
+            super::super::SpringCanPlaceInput {
+                valid_above: true,
+                requires_block_below: true,
+                valid_below: true,
+                current_is_air_or_valid: true,
+                adjacent_rock_count: 4,
+                adjacent_hole_count: 1,
+                required_rock_count: 4,
+                required_hole_count: 1,
+            }
         ));
         assert!(!super::super::spring_feature_can_place(
-            true, true, false, true, 4, 1, 4, 1
+            super::super::SpringCanPlaceInput {
+                valid_above: true,
+                requires_block_below: true,
+                valid_below: false,
+                current_is_air_or_valid: true,
+                adjacent_rock_count: 4,
+                adjacent_hole_count: 1,
+                required_rock_count: 4,
+                required_hole_count: 1,
+            }
         ));
         assert!(!super::super::spring_feature_can_place(
-            true, false, false, true, 3, 1, 4, 1
+            super::super::SpringCanPlaceInput {
+                valid_above: true,
+                requires_block_below: false,
+                valid_below: false,
+                current_is_air_or_valid: true,
+                adjacent_rock_count: 3,
+                adjacent_hole_count: 1,
+                required_rock_count: 4,
+                required_hole_count: 1,
+            }
         ));
         let spring_config = super::super::SpringConfigurationModel {
             state: "minecraft:water",
@@ -135,15 +162,39 @@ use super::*;
             None
         );
         assert_eq!(
-            super::super::monster_room_shell_state(-3, -1, 0, room_radii, 31, true, true, false, 1),
+            super::super::monster_room_shell_state(super::super::MonsterRoomShellInput {
+                relative_pos: BlockPos { x: -3, y: -1, z: 0 },
+                radii: room_radii,
+                world_y: 31,
+                below_solid: true,
+                current_solid: true,
+                current_is_chest: false,
+                mossy_roll: 1,
+            }),
             Some("minecraft:mossy_cobblestone")
         );
         assert_eq!(
-            super::super::monster_room_shell_state(-3, 0, 0, room_radii, 32, false, true, false, 0),
+            super::super::monster_room_shell_state(super::super::MonsterRoomShellInput {
+                relative_pos: BlockPos { x: -3, y: 0, z: 0 },
+                radii: room_radii,
+                world_y: 32,
+                below_solid: false,
+                current_solid: true,
+                current_is_chest: false,
+                mossy_roll: 0,
+            }),
             Some("minecraft:cave_air")
         );
         assert_eq!(
-            super::super::monster_room_shell_state(0, 0, 0, room_radii, 32, true, true, false, 0),
+            super::super::monster_room_shell_state(super::super::MonsterRoomShellInput {
+                relative_pos: BlockPos { x: 0, y: 0, z: 0 },
+                radii: room_radii,
+                world_y: 32,
+                below_solid: true,
+                current_solid: true,
+                current_is_chest: false,
+                mossy_roll: 0,
+            }),
             Some("minecraft:cave_air")
         );
         assert!(super::super::monster_room_chest_can_place(true, 1));
