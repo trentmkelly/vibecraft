@@ -133,6 +133,20 @@ fn crafting_grid_log_to_planks_full_round_trip() {
 }
 
 #[test]
+fn first_craft_recipe_unlock_builds_highlighted_notification_packet() {
+    let recipes = network_crafting_test_recipes();
+    let packet = build_recipe_book_add(&["minecraft:oak_planks"], &recipes)
+        .expect("known recipe unlock should build recipe-book add packet");
+
+    assert!(!packet.replace);
+    assert_eq!(packet.entries.len(), 1);
+    assert_eq!(
+        packet.entries[0].flags,
+        RecipeBookAddEntry::FLAG_NOTIFICATION | RecipeBookAddEntry::FLAG_HIGHLIGHT
+    );
+}
+
+#[test]
 fn vanilla_oak_log_pickup_to_inventory_grid_populates_planks_result() {
     let recipes = vanilla_recipe_map();
     let mut inventory_menu = InventoryMenu::new(
