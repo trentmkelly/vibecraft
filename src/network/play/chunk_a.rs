@@ -576,10 +576,13 @@ impl PlaySession {
             SERVERBOUND_SET_BEACON_PACKET_ID => {
                 let mut input = &packet.payload[..];
                 match ServerboundSetBeaconPacket::read(&mut input) {
-                    Ok(beacon) => {
+                    Ok(beacon) if input.is_empty() => {
                         self.last_set_beacon = Some(beacon);
                         DispatchOutcome::Handled
                     }
+                    Ok(_) => DispatchOutcome::Disconnect(
+                        "bad set beacon packet: trailing payload".to_string(),
+                    ),
                     Err(err) => {
                         DispatchOutcome::Disconnect(format!("bad set beacon packet: {err}"))
                     }
