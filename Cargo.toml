@@ -6,6 +6,7 @@ license = "UNLICENSED"
 
 [lints.rust]
 unsafe_code = "forbid"
+warnings = "deny"
 
 [lints.clippy]
 cognitive_complexity = "warn"
