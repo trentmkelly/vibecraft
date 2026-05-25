@@ -48,6 +48,11 @@ fn piglin_barter_accepts_gold_and_uses_barter_context() {
 
 #[test]
 fn fishing_loot_uses_tool_origin_luck_and_category_tables() {
+    let engine = fishing_loot_test_engine();
+    assert_fishing_category_loot(&engine);
+}
+
+fn fishing_loot_test_engine() -> LootBehaviorEngine {
     let mut engine = LootBehaviorEngine::new();
     engine.insert_table(
         "minecraft:gameplay/fishing/junk",
@@ -110,9 +115,12 @@ fn fishing_loot_uses_tool_origin_luck_and_category_tables() {
         functions: Vec::new(),
     };
     engine.insert_table("minecraft:gameplay/fishing", fishing_table);
+    engine
+}
 
+fn assert_fishing_category_loot(engine: &LootBehaviorEngine) {
     let no_open_water = resolve_fishing_loot(
-        &engine,
+        engine,
         "minecraft:fishing_rod",
         (3.0, 62.0, 4.0),
         0.0,
@@ -127,7 +135,7 @@ fn fishing_loot_uses_tool_origin_luck_and_category_tables() {
     );
 
     let base_fish = resolve_fishing_loot(
-        &engine,
+        engine,
         "minecraft:fishing_rod",
         (3.0, 62.0, 4.0),
         0.0,
@@ -141,7 +149,7 @@ fn fishing_loot_uses_tool_origin_luck_and_category_tables() {
     );
 
     let lucky_open_water = resolve_fishing_loot(
-        &engine,
+        engine,
         "minecraft:fishing_rod",
         (3.0, 62.0, 4.0),
         2.0,
@@ -245,6 +253,17 @@ fn block_break_loot_uses_block_entity_tool_gamerule_silk_and_fortune() {
 
 #[test]
 fn component_loot_functions_apply_java_item_modifier_surface() {
+    let mut context = java_item_modifier_context();
+    let functions = java_item_modifier_sequence();
+    let stack = functions
+        .apply(LootStack::new("minecraft:raw_iron", 1), &mut context)
+        .unwrap();
+
+    assert_java_item_modifier_components(&stack);
+    assert_copy_name_reads_block_entity_name(&mut context);
+}
+
+fn java_item_modifier_context() -> LootContext {
     let mut context = LootContext::new(LootParamSet::AllParams, 21);
     context.block_on_fire = true;
     context.smelting_results.insert(
@@ -271,8 +290,11 @@ fn component_loot_functions_apply_java_item_modifier_surface() {
             "referenced".to_string(),
         )]))],
     );
+    context
+}
 
-    let functions = LootFunction::Sequence(vec![
+fn java_item_modifier_sequence() -> LootFunction {
+    LootFunction::Sequence(vec![
         LootFunction::SmeltItem,
         LootFunction::SetDamage(NumberProvider::Constant(0.25)),
         LootFunction::SetNbt(HashMap::from([(
@@ -324,12 +346,10 @@ fn component_loot_functions_apply_java_item_modifier_surface() {
             explosions: vec!["small_ball:red".to_string()],
         },
         LootFunction::Reference("minecraft:set_marker".to_string()),
-    ]);
+    ])
+}
 
-    let stack = functions
-        .apply(LootStack::new("minecraft:raw_iron", 1), &mut context)
-        .unwrap();
-
+fn assert_java_item_modifier_components(stack: &LootStack) {
     assert_eq!(stack.item, "minecraft:filled_map");
     assert_eq!(stack.components["minecraft:damage_fraction"], "0.25");
     assert_eq!(stack.components["minecraft:custom_data"], "1b");
@@ -376,11 +396,13 @@ fn component_loot_functions_apply_java_item_modifier_surface() {
     );
     assert_eq!(stack.components["minecraft:fireworks"], "2:small_ball:red");
     assert_eq!(stack.components["minecraft:marker"], "referenced");
+}
 
+fn assert_copy_name_reads_block_entity_name(context: &mut LootContext) {
     let copied_name = LootFunction::CopyName {
         source: "block_entity_name".to_string(),
     }
-    .apply(LootStack::new("minecraft:chest", 1), &mut context)
+    .apply(LootStack::new("minecraft:chest", 1), context)
     .unwrap();
     assert_eq!(
         copied_name.components["minecraft:custom_name"],
@@ -419,6 +441,16 @@ fn apply_bonus_function_covers_uniform_binomial_and_ore_drop_formulas() {
 
 #[test]
 fn vault_loot_resolves_normal_and_ominous_tables_once_per_player() {
+    let engine = vault_loot_test_engine();
+
+    let mut normal = active_vault();
+    assert_normal_vault_unlock_sequence(&engine, &mut normal);
+
+    let mut ominous = ominous_active_vault();
+    assert_ominous_vault_unlock_sequence(&engine, &mut ominous);
+}
+
+fn vault_loot_test_engine() -> LootBehaviorEngine {
     let mut engine = LootBehaviorEngine::new();
     engine.insert_table(
         "minecraft:chests/trial_chambers/reward",
@@ -444,15 +476,21 @@ fn vault_loot_resolves_normal_and_ominous_tables_once_per_player() {
             functions: Vec::new(),
         })),
     );
+    engine
+}
 
-    let mut normal = VaultBlockEntity {
+fn active_vault() -> VaultBlockEntity {
+    VaultBlockEntity {
         state: crate::block_entity::VaultStateModel::Active,
         ..VaultBlockEntity::default()
-    };
+    }
+}
+
+fn assert_normal_vault_unlock_sequence(engine: &LootBehaviorEngine, normal: &mut VaultBlockEntity) {
     assert_eq!(
         resolve_vault_unlock_loot(
-            &engine,
-            &mut normal,
+            engine,
+            normal,
             VaultUnlockLootRequest::new(
                 "player-a",
                 "minecraft:ominous_trial_key",
@@ -468,8 +506,8 @@ fn vault_loot_resolves_normal_and_ominous_tables_once_per_player() {
     );
     assert_eq!(
         resolve_vault_unlock_loot(
-            &engine,
-            &mut normal,
+            engine,
+            normal,
             VaultUnlockLootRequest::new(
                 "player-a",
                 "minecraft:trial_key",
@@ -490,8 +528,8 @@ fn vault_loot_resolves_normal_and_ominous_tables_once_per_player() {
     );
     assert_eq!(
         resolve_vault_unlock_loot(
-            &engine,
-            &mut normal,
+            engine,
+            normal,
             VaultUnlockLootRequest::new(
                 "player-a",
                 "minecraft:trial_key",
@@ -503,8 +541,10 @@ fn vault_loot_resolves_normal_and_ominous_tables_once_per_player() {
         ),
         VaultInsertResult::AlreadyRewarded
     );
+}
 
-    let mut ominous = VaultBlockEntity {
+fn ominous_active_vault() -> VaultBlockEntity {
+    VaultBlockEntity {
         state: crate::block_entity::VaultStateModel::Active,
         is_ominous: true,
         config: crate::block_entity::VaultConfigModel {
@@ -516,11 +556,17 @@ fn vault_loot_resolves_normal_and_ominous_tables_once_per_player() {
             ..crate::block_entity::VaultConfigModel::default()
         },
         ..VaultBlockEntity::default()
-    };
+    }
+}
+
+fn assert_ominous_vault_unlock_sequence(
+    engine: &LootBehaviorEngine,
+    ominous: &mut VaultBlockEntity,
+) {
     assert_eq!(
         resolve_vault_unlock_loot(
-            &engine,
-            &mut ominous,
+            engine,
+            ominous,
             VaultUnlockLootRequest::new(
                 "player-b",
                 "minecraft:ominous_trial_key",
