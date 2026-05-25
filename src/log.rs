@@ -127,6 +127,7 @@ pub struct Logger {
 impl Logger {
     /// Opens the log directory and creates `latest.log`, rotating any existing
     /// non-empty log file.  Defaults to [`LogLevel::Info`] filtering.
+    #[cfg(test)]
     pub fn open(dir: impl AsRef<Path>) -> Result<Self, String> {
         Self::open_with_level(dir, LogLevel::Info)
     }
@@ -153,6 +154,7 @@ impl Logger {
         })
     }
 
+    #[cfg(test)]
     pub fn latest_log(&self) -> &Path {
         &self.latest_log
     }
@@ -163,11 +165,13 @@ impl Logger {
     }
 
     /// Writes a message at WARN level.  Always emitted regardless of configured level.
+    #[cfg(test)]
     pub fn warn(&self, message: &str) -> Result<(), String> {
         self.write("WARN", message)
     }
 
     /// Writes a message at ERROR level.  Always emitted regardless of configured level.
+    #[cfg(test)]
     pub fn error(&self, message: &str) -> Result<(), String> {
         self.write("ERROR", message)
     }
