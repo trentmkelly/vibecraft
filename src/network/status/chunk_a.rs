@@ -240,6 +240,8 @@ struct JoinedPlaySessionStart {
     live_fluid_ticks: LiveFluidTicks,
 }
 
+const ITEM_TICK_INTERVAL: Duration = Duration::from_millis(50);
+
 fn lock_status_mutex<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     match mutex.lock() {
         Ok(guard) => guard,
@@ -1036,6 +1038,128 @@ fn send_existing_item_entities(
     Ok(())
 }
 
+fn tick_keep_alive_and_time(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    clock: &Arc<Mutex<ServerClockManager>>,
+    last_keep_alive: &mut Instant,
+    keep_alive_id: &mut i64,
+    last_time_sync: &mut Instant,
+) -> io::Result<()> {
+    if last_keep_alive.elapsed() >= PLAY_KEEP_ALIVE_INTERVAL {
+        *keep_alive_id = keep_alive_id.wrapping_add(1);
+        write_framed_packet_with_compression(
+            stream,
+            compression,
+            CLIENTBOUND_KEEP_ALIVE_PACKET_ID,
+            |payload| payload.write_all(&keep_alive_id.to_be_bytes()),
+        )?;
+        *last_keep_alive = Instant::now();
+    }
+
+    // Time heartbeat: empty clock map, just the current game_time.
+    // Java: MinecraftServer.forceGameTimeSynchronization() every 20 ticks (~1 second)
+    if last_time_sync.elapsed() >= TIME_SYNC_INTERVAL {
+        let game_time = lock_status_mutex(clock).heartbeat_game_time();
+        write_framed_packet_with_compression(
+            stream,
+            compression,
+            CLIENTBOUND_SET_TIME_PACKET_ID,
+            |payload| {
+                ClientboundSetTimePacket {
+                    game_time,
+                    clock_updates: BTreeMap::new(),
+                }
+                .write(payload)
+            },
+        )?;
+        *last_time_sync = Instant::now();
+    }
+    Ok(())
+}
+
+fn tick_item_entities_for_client(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    world_items: &Arc<Mutex<WorldItemEntities>>,
+    last_item_tick: &mut Instant,
+) -> io::Result<()> {
+    if last_item_tick.elapsed() < ITEM_TICK_INTERVAL {
+        return Ok(());
+    }
+    *last_item_tick = Instant::now();
+    let result = {
+        let mut items = lock_status_mutex(world_items);
+        item_entity::tick(&mut items.entities)
+    };
+    if !result.removed.is_empty() {
+        write_framed_packet_with_compression(
+            stream,
+            compression,
+            CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID,
+            |p| {
+                write_var_i32(p, result.removed.len() as i32)?;
+                for id in &result.removed {
+                    write_var_i32(p, *id)?;
+                }
+                Ok(())
+            },
+        )?;
+    }
+    // Notify the client of any count changes caused by stack merges.
+    // Note: count-update SET_ENTITY_DATA is NOT bundled — bundles are only needed
+    // for the initial ADD_ENTITY + SET_ENTITY_DATA spawn pair.
+    for (entity_id, item_name, new_count) in &result.count_updates {
+        if let Some(item_pid) = item_protocol_id(item_name) {
+            write_framed_packet_with_compression(
+                stream,
+                compression,
+                CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID,
+                |p| {
+                    write_var_i32(p, *entity_id)?;
+                    p.write_all(&[8u8])?; // index 8: ItemEntity.DATA_ITEM
+                    write_var_i32(p, 7)?; // serializer 7: ITEM_STACK
+                    write_var_i32(p, *new_count)?;
+                    write_var_i32(p, item_pid)?;
+                    write_var_i32(p, 0)?; // component add count
+                    write_var_i32(p, 0)?; // component remove count
+                    p.write_all(&[0xFFu8]) // end of metadata
+                },
+            )?;
+        }
+    }
+    Ok(())
+}
+
+fn broadcast_weather_if_changed(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    weather: &Arc<Mutex<WeatherCycle>>,
+    last_sent_rain_level: &mut f32,
+    last_sent_thunder_level: &mut f32,
+) -> io::Result<()> {
+    let (cur_rain, cur_thunder) = {
+        let weather = lock_status_mutex(weather);
+        (weather.rain_level, weather.thunder_level)
+    };
+    if (cur_rain - *last_sent_rain_level).abs() > f32::EPSILON {
+        write_game_event(stream, compression, 7, cur_rain)?;
+        // Also send StopRaining(2) or StartRaining(1) on boundary crossings.
+        // Java: WeatherGameEvent::StopRaining/StartRaining at rain_level 0.2 threshold
+        if *last_sent_rain_level > 0.2 && cur_rain <= 0.2 {
+            write_game_event(stream, compression, 2, 0.0)?;
+        } else if *last_sent_rain_level <= 0.2 && cur_rain > 0.2 {
+            write_game_event(stream, compression, 1, 0.0)?;
+        }
+        *last_sent_rain_level = cur_rain;
+    }
+    if (cur_thunder - *last_sent_thunder_level).abs() > f32::EPSILON {
+        write_game_event(stream, compression, 8, cur_thunder)?;
+        *last_sent_thunder_level = cur_thunder;
+    }
+    Ok(())
+}
+
 fn handle_login_connection(
     stream: &mut TcpStream,
     mut context: LoginConnectionContext<'_>,
@@ -1126,85 +1250,21 @@ fn run_joined_play_session(
     // Java: ServerLevel.advanceWeatherCycle() broadcasts RainLevelChange/ThunderLevelChange
     // Hook A: wall-clock timer driving item entity age ticks at ~20 Hz (50 ms per tick).
     // Java: ItemEntity.tick() — called once per server tick, ~50 ms.
-    const ITEM_TICK_INTERVAL: Duration = Duration::from_millis(50);
     loop {
-        if last_keep_alive.elapsed() >= PLAY_KEEP_ALIVE_INTERVAL {
-            keep_alive_id = keep_alive_id.wrapping_add(1);
-            write_framed_packet_with_compression(
-                stream,
-                compression,
-                CLIENTBOUND_KEEP_ALIVE_PACKET_ID,
-                |payload| payload.write_all(&keep_alive_id.to_be_bytes()),
-            )?;
-            last_keep_alive = Instant::now();
-        }
-
-        // Time heartbeat: empty clock map, just the current game_time.
-        // Java: MinecraftServer.forceGameTimeSynchronization() every 20 ticks (~1 second)
-        if last_time_sync.elapsed() >= TIME_SYNC_INTERVAL {
-            let game_time = lock_status_mutex(clock).heartbeat_game_time();
-            write_framed_packet_with_compression(
-                stream,
-                compression,
-                CLIENTBOUND_SET_TIME_PACKET_ID,
-                |payload| {
-                    ClientboundSetTimePacket {
-                        game_time,
-                        clock_updates: BTreeMap::new(),
-                    }
-                    .write(payload)
-                },
-            )?;
-            last_time_sync = Instant::now();
-        }
+        tick_keep_alive_and_time(
+            stream,
+            compression,
+            clock,
+            &mut last_keep_alive,
+            &mut keep_alive_id,
+            &mut last_time_sync,
+        )?;
 
         // Hook A: Item entity age tick — ~20 Hz wall-clock.
         // Mirrors ItemEntity.tick(): apply drag, decrement pickupDelay, increment age,
         // expire at LIFETIME, and merge nearby same-type stacks.
         // Java: ServerLevel.tick() → entity.tick() → mergeWithNeighbours() for every ItemEntity.
-        if last_item_tick.elapsed() >= ITEM_TICK_INTERVAL {
-            last_item_tick = Instant::now();
-            let result = {
-                let mut items = lock_status_mutex(world_items);
-                item_entity::tick(&mut items.entities)
-            };
-            if !result.removed.is_empty() {
-                write_framed_packet_with_compression(
-                    stream,
-                    compression,
-                    CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID,
-                    |p| {
-                        write_var_i32(p, result.removed.len() as i32)?;
-                        for id in &result.removed {
-                            write_var_i32(p, *id)?;
-                        }
-                        Ok(())
-                    },
-                )?;
-            }
-            // Notify the client of any count changes caused by stack merges.
-            // Note: count-update SET_ENTITY_DATA is NOT bundled — bundles are only needed
-            // for the initial ADD_ENTITY + SET_ENTITY_DATA spawn pair.
-            for (entity_id, item_name, new_count) in &result.count_updates {
-                if let Some(item_pid) = item_protocol_id(item_name) {
-                    write_framed_packet_with_compression(
-                        stream,
-                        compression,
-                        CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID,
-                        |p| {
-                            write_var_i32(p, *entity_id)?;
-                            p.write_all(&[8u8])?; // index 8: ItemEntity.DATA_ITEM
-                            write_var_i32(p, 7)?; // serializer 7: ITEM_STACK
-                            write_var_i32(p, *new_count)?;
-                            write_var_i32(p, item_pid)?;
-                            write_var_i32(p, 0)?; // component add count
-                            write_var_i32(p, 0)?; // component remove count
-                            p.write_all(&[0xFFu8]) // end of metadata
-                        },
-                    )?;
-                }
-            }
-        }
+        tick_item_entities_for_client(stream, compression, world_items, &mut last_item_tick)?;
 
         // Java: ServerPlayer.doTick() calls FoodData.tick(this) every server
         // tick, independent of inbound movement/interaction packets. Entity
@@ -1268,27 +1328,13 @@ fn run_joined_play_session(
 
         // Detect weather level changes and broadcast to client.
         // Java: ServerLevel.advanceWeatherCycle() — RainLevelChange/ThunderLevelChange
-        {
-            let (cur_rain, cur_thunder) = {
-                let wc = lock_status_mutex(weather);
-                (wc.rain_level, wc.thunder_level)
-            };
-            if (cur_rain - last_sent_rain_level).abs() > f32::EPSILON {
-                write_game_event(stream, compression, 7, cur_rain)?;
-                // Also send StopRaining(2) or StartRaining(1) on boundary crossings.
-                // Java: WeatherGameEvent::StopRaining/StartRaining at rain_level 0.2 threshold
-                if last_sent_rain_level > 0.2 && cur_rain <= 0.2 {
-                    write_game_event(stream, compression, 2, 0.0)?;
-                } else if last_sent_rain_level <= 0.2 && cur_rain > 0.2 {
-                    write_game_event(stream, compression, 1, 0.0)?;
-                }
-                last_sent_rain_level = cur_rain;
-            }
-            if (cur_thunder - last_sent_thunder_level).abs() > f32::EPSILON {
-                write_game_event(stream, compression, 8, cur_thunder)?;
-                last_sent_thunder_level = cur_thunder;
-            }
-        }
+        broadcast_weather_if_changed(
+            stream,
+            compression,
+            weather,
+            &mut last_sent_rain_level,
+            &mut last_sent_thunder_level,
+        )?;
 
         match read_packet_with_compression(stream, compression) {
             Ok(packet) => {
