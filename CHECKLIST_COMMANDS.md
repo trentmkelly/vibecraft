@@ -51,7 +51,7 @@
 - [ ] Implement function execution quota/fork limiting using `maxCommandChainLength` / `max_command_sequence_length`, `maxCommandForkCount` / `max_command_forks`, and vanilla queue overflow behavior
 - [ ] Add parity test: `#minecraft:tick` function called every tick, `#minecraft:load` called on reload
 - [x] Add parity test: macro function variable substitution with entity/storage/block NBT source — Java `FunctionCommand` wires `with` through `DataCommands.SOURCE_PROVIDERS` and compound-tag macro instantiation; `function_with_entity_block_and_storage_sources_instantiates_macros` covers entity, block, storage, and missing-source failure with substituted macro commands.
-- [ ] Add parity test: command function execution stops at the vanilla game-rule sequence/fork limits and queue-overflow boundary
+- [x] Add parity test: command function execution stops at the vanilla game-rule sequence/fork limits and queue-overflow boundary — Java `ExecutionContext` stops when command quota reaches zero, rejects fork batches at `>= max_command_forks`, and trips queue overflow only when the pre-enqueue queue size is already over the max depth; covered by `execution_context_runs_commands_with_quota_and_result_callbacks`, `function_continuations_fork_with_limit_and_fallthrough_when_returning_empty`, and `execution_context_matches_vanilla_fork_limit_and_queue_overflow_boundary`
 
 ## Command Testing (Mineflayer / Integration)
 

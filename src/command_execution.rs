@@ -71,6 +71,7 @@ pub struct ExecutionContextModel {
     pub current_depth: usize,
     pub queue: VecDeque<(CommandFrame, CommandTask)>,
     pub queue_overflow: bool,
+    pub fork_limit_reached: bool,
     pub callbacks: Vec<CommandOutcome>,
 }
 
@@ -133,6 +134,7 @@ impl ExecutionContextModel {
             current_depth: 0,
             queue: VecDeque::new(),
             queue_overflow: false,
+            fork_limit_reached: false,
             callbacks: Vec::new(),
         }
     }
@@ -194,8 +196,11 @@ impl ExecutionContextModel {
             }
             return;
         }
-        let allowed_forks = self.fork_limit.saturating_sub(1);
-        for source in current_sources.iter().take(allowed_forks) {
+        if current_sources.len() >= self.fork_limit {
+            self.fork_limit_reached = true;
+            return;
+        }
+        for source in current_sources {
             self.queue_next(
                 current_frame(self.current_depth + 1),
                 CommandTask::Command {
@@ -459,7 +464,7 @@ mod tests {
     #[test]
     fn function_continuations_fork_with_limit_and_fallthrough_when_returning_empty() {
         let source = CommandSourceStackModel::new("server", "overworld", 4);
-        let sources = execute_as(&source, &["a", "b", "c"]);
+        let sources = execute_as(&source, &["a"]);
         let mut context = ExecutionContextModel::new(10, 2);
         context.queue_initial_function("minecraft:tick", &source);
         context.queue_continuation("say hi", &source, &sources, false);
@@ -477,6 +482,7 @@ mod tests {
                 ..
             } if id == "minecraft:tick"
         )));
+        assert!(!context.fork_limit_reached);
 
         let mut empty_returning = ExecutionContextModel::new(10, 2);
         empty_returning.queue_continuation("say no targets", &source, &[], true);
@@ -493,8 +499,15 @@ mod tests {
         let sources = execute_as(&source, &["a", "b", "c", "d"]);
         let mut context = ExecutionContextModel::new(10, 3);
         context.queue_continuation("say fork", &source, &sources, false);
-        assert_eq!(context.queue.len(), 2);
-        assert!(context.queue.iter().all(|(_, task)| matches!(
+        assert!(context.queue.is_empty());
+        assert!(context.fork_limit_reached);
+
+        let allowed_sources = execute_as(&source, &["a", "b"]);
+        let mut allowed = ExecutionContextModel::new(10, 3);
+        allowed.queue_continuation("say fork", &source, &allowed_sources, false);
+        assert_eq!(allowed.queue.len(), 2);
+        assert!(!allowed.fork_limit_reached);
+        assert!(allowed.queue.iter().all(|(_, task)| matches!(
             task,
             CommandTask::Command {
                 command,
