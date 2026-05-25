@@ -49,6 +49,7 @@ pub struct WorldUpgradeRewriteReport {
     pub entity_chunk_count: usize,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DataFixStrategyAction {
     NativeCurrentVersionRewrite,
@@ -56,6 +57,7 @@ pub enum DataFixStrategyAction {
     VersionStampedJsonValidation,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DataFixStrategyFamily {
     pub family: &'static str,
@@ -63,6 +65,7 @@ pub struct DataFixStrategyFamily {
     pub action: DataFixStrategyAction,
 }
 
+#[cfg(test)]
 pub const DATAFIX_STRATEGY: &[DataFixStrategyFamily] = &[
     DataFixStrategyFamily {
         family: "block_id_renames_and_flattening",

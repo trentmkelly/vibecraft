@@ -1,3 +1,4 @@
+#[cfg(test)]
 use crate::game_rules::{GameRuleError, GameRuleSync, GameRules};
 
 use std::collections::{BTreeMap, HashMap};
@@ -180,6 +181,7 @@ impl ServerProperties {
         }
     }
 
+    #[cfg(test)]
     pub fn set(&mut self, key: &str, value: impl Into<String>) {
         let mut raw = self.raw.clone();
         raw.insert(key.to_string(), value.into());
@@ -202,6 +204,7 @@ impl ServerProperties {
             .map_err(|err| format!("Failed to write '{}': {err}", path.display()))
     }
 
+    #[cfg(test)]
     pub fn migrate_legacy_announce_player_achievements(
         &self,
         game_rules: &mut GameRules,

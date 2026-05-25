@@ -23,6 +23,7 @@ pub enum Tag {
     LongArray(Vec<i64>),
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NbtSizeTracker {
     pub payload_bytes: usize,
@@ -30,6 +31,7 @@ pub struct NbtSizeTracker {
     pub max_depth: usize,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NbtFieldSelector {
     pub path: Vec<String>,
@@ -205,6 +207,7 @@ impl Tag {
         }
     }
 
+    #[cfg(test)]
     pub fn payload_size(&self) -> usize {
         match self {
             Tag::End => 0,
@@ -226,6 +229,7 @@ impl Tag {
         }
     }
 
+    #[cfg(test)]
     pub fn tracked_size(&self) -> NbtSizeTracker {
         fn walk(tag: &Tag, depth: usize, tracker: &mut NbtSizeTracker) {
             tracker.payload_bytes += tag.payload_size();
@@ -308,6 +312,7 @@ impl Tag {
         }
     }
 
+    #[cfg(test)]
     pub fn visit_depth_first<F>(&self, visitor: &mut F)
     where
         F: FnMut(&Tag),
@@ -328,6 +333,7 @@ impl Tag {
         }
     }
 
+    #[cfg(test)]
     pub fn select<'a>(&'a self, selector: &NbtFieldSelector) -> Option<&'a Tag> {
         let mut current = self;
         for part in &selector.path {
@@ -341,6 +347,7 @@ impl Tag {
         Some(current)
     }
 
+    #[cfg(test)]
     pub fn visit_selected_fields<'a, F>(&'a self, selectors: &'a [NbtFieldSelector], mut visitor: F)
     where
         F: FnMut(&'a NbtFieldSelector, &'a Tag),
@@ -352,6 +359,7 @@ impl Tag {
         }
     }
 
+    #[cfg(test)]
     pub fn to_text_component(
         &self,
         indentation: &str,
@@ -362,11 +370,13 @@ impl Tag {
         )
     }
 
+    #[cfg(test)]
     pub fn to_text_component_plain(&self, indentation: &str, sort_keys: bool) -> String {
         render_text_component_tag(self, indentation, sort_keys, 0, 0)
     }
 }
 
+#[cfg(test)]
 impl NbtFieldSelector {
     pub fn dotted(path: &str) -> Self {
         Self {
@@ -389,6 +399,7 @@ pub fn read_named_tag<R: Read>(reader: &mut R) -> io::Result<(String, Tag)> {
     Ok((name, payload))
 }
 
+#[cfg(test)]
 pub fn read_named_tag_limited<R: Read>(
     reader: &mut R,
     max_depth: usize,
@@ -450,6 +461,7 @@ fn escape_snbt_string(value: &str) -> String {
     value.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
+#[cfg(test)]
 fn render_text_component_tag(
     tag: &Tag,
     indentation: &str,
@@ -541,6 +553,7 @@ fn render_text_component_tag(
     }
 }
 
+#[cfg(test)]
 fn render_text_component_array(prefix: &str, values: Vec<String>, max_len: usize) -> String {
     let mut rendered = format!("[{prefix};");
     for (index, value) in values.iter().take(max_len).enumerate() {
@@ -557,6 +570,7 @@ fn render_text_component_array(prefix: &str, values: Vec<String>, max_len: usize
     rendered
 }
 
+#[cfg(test)]
 fn render_text_component_wrapped_list(
     values: &[Tag],
     indentation: &str,
@@ -597,6 +611,7 @@ fn render_text_component_wrapped_list(
     rendered
 }
 
+#[cfg(test)]
 fn render_text_component_compound(
     entries: Vec<&(String, Tag)>,
     indentation: &str,
