@@ -12,6 +12,9 @@ pub struct CraftingMenu {
     result: ItemStack,
     recipe_id: Option<&'static str>,
     recipes: RecipeMap,
+    unlocked_recipes: BTreeSet<&'static str>,
+    highlighted_recipes: BTreeSet<&'static str>,
+    recipe_unlock_events: Vec<&'static str>,
 }
 
 impl CraftingMenu {
@@ -31,6 +34,9 @@ impl CraftingMenu {
             result: ItemStack::empty(),
             recipe_id: None,
             recipes,
+            unlocked_recipes: BTreeSet::new(),
+            highlighted_recipes: BTreeSet::new(),
+            recipe_unlock_events: Vec::new(),
         }
     }
 
@@ -40,6 +46,22 @@ impl CraftingMenu {
 
     pub fn recipe_id(&self) -> Option<&'static str> {
         self.recipe_id
+    }
+
+    pub fn recipe_unlock_events(&self) -> &[&'static str] {
+        &self.recipe_unlock_events
+    }
+
+    pub fn drain_recipe_unlock_events(&mut self) -> Vec<&'static str> {
+        std::mem::take(&mut self.recipe_unlock_events)
+    }
+
+    pub fn recipe_book_known_recipes(&self) -> Vec<&'static str> {
+        self.unlocked_recipes.iter().copied().collect()
+    }
+
+    pub fn recipe_book_highlighted_recipes(&self) -> Vec<&'static str> {
+        self.highlighted_recipes.iter().copied().collect()
     }
 
     pub fn slots_changed(&mut self) {
@@ -62,17 +84,57 @@ impl CraftingMenu {
     }
 
     pub fn take_result(&mut self) -> ItemStack {
+        let Some(recipe_id) = self.recipe_id else {
+            return ItemStack::empty();
+        };
         if self.result.is_empty() {
             return ItemStack::empty();
         }
         let result = self.result.clone();
-        for slot in &mut self.grid {
+        self.consume_inputs_and_refresh();
+        if self.unlocked_recipes.insert(recipe_id) {
+            self.highlighted_recipes.insert(recipe_id);
+            self.recipe_unlock_events.push(recipe_id);
+        }
+        result
+    }
+
+    fn consume_inputs_and_refresh(&mut self) {
+        let remaining_items = self
+            .recipe_id
+            .and_then(|recipe_id| self.recipes.by_key(recipe_id))
+            .map(|holder| {
+                let input = self
+                    .grid
+                    .iter()
+                    .map(|stack| {
+                        (!stack.is_empty()).then(|| CraftingStack {
+                            item: stack.item_id(),
+                            count: stack.count() as u32,
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                holder.recipe.get_remaining_items(&input)
+            })
+            .unwrap_or_else(|| vec![None; self.grid.len()]);
+
+        for (slot, remainder) in self.grid.iter_mut().zip(remaining_items) {
             if !slot.is_empty() {
                 slot.shrink(1);
+                if slot.is_empty() {
+                    *slot = ItemStack::empty();
+                }
+            }
+            if let Some(remainder) = remainder {
+                let remainder_stack = ItemStack::new(remainder.item, remainder.count as i32);
+                if slot.is_empty() {
+                    *slot = remainder_stack;
+                } else if same_item_same_components(slot, &remainder_stack) {
+                    slot.grow(remainder_stack.count());
+                }
             }
         }
         self.slots_changed();
-        result
     }
 
     pub fn get_slot(&self, slot: usize, player: &PlayerInventory) -> Option<ItemStack> {
@@ -132,7 +194,7 @@ impl CraftingMenu {
             return ItemStack::empty();
         }
         let mut moving = if slot == 0 {
-            self.take_result()
+            original.clone()
         } else {
             self.set_slot(slot, ItemStack::empty(), player);
             original.clone()
@@ -182,6 +244,9 @@ impl CraftingMenu {
         }
         if !moved {
             return ItemStack::empty();
+        }
+        if slot == 0 {
+            self.take_result();
         }
         original
     }
@@ -505,4 +570,3 @@ impl SmokerMenu {
         Self(AbstractFurnaceMenu::new(FurnaceKind::Smoker, fuel_values))
     }
 }
-
