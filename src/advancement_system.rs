@@ -809,6 +809,29 @@ mod tests {
         );
         assert!(recipe.display.is_none());
 
+        let reward = AdvancementDefinition::from_json(
+            "minecraft:test/reward",
+            r#"{
+                "criteria": {
+                    "tick": {
+                        "trigger": "minecraft:tick"
+                    }
+                },
+                "rewards": {
+                    "experience": 25,
+                    "loot": [
+                        "minecraft:advancements/test_reward"
+                    ]
+                }
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(reward.rewards.experience, 25);
+        assert_eq!(
+            reward.rewards.loot,
+            vec![Identifier::parse("minecraft:advancements/test_reward").unwrap()]
+        );
+
         assign_tree_layout(std::slice::from_mut(&mut root));
         assert_eq!(root.display.as_ref().unwrap().x, 0);
     }
