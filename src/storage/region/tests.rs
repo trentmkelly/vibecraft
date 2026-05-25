@@ -62,6 +62,43 @@ fn creates_header_and_round_trips_location_and_timestamp() {
 }
 
 #[test]
+fn sync_write_policy_propagates_to_region_storage_and_worker() {
+    let mut dir = std::env::temp_dir();
+    dir.push(format!("rustcraft-region-sync-writes-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+
+    let default_region = RegionFile::open(&dir, RegionPos { x: 0, z: 0 }).unwrap();
+    assert!(!default_region.sync_writes());
+
+    let sync_region = RegionFile::open_with_sync(&dir, RegionPos { x: 1, z: 0 }, true).unwrap();
+    assert!(sync_region.sync_writes());
+
+    let storage = RegionFileStorage::open_with_sync(dir.clone(), true).unwrap();
+    assert!(storage.sync_writes());
+    assert!(storage
+        .get_region_file(RegionPos { x: 2, z: 0 })
+        .unwrap()
+        .sync_writes());
+
+    let chunk = ChunkPos { x: 96, z: 0 };
+    let tag = Tag::Compound(vec![("synced".to_string(), Tag::Int(1))]);
+    let mut worker = RegionIoWorker::open_with_sync(dir.clone(), true).unwrap();
+    assert!(worker.sync_writes());
+    worker.store_chunk_nbt(chunk, "", tag.clone());
+    worker.synchronize().unwrap();
+
+    assert_eq!(
+        RegionFile::open(&dir, chunk.region())
+            .unwrap()
+            .read_chunk_nbt(chunk)
+            .unwrap(),
+        Some(("".to_string(), tag))
+    );
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn region_file_open_sanitizes_invalid_header_locations() {
     let mut dir = std::env::temp_dir();
     dir.push(format!(

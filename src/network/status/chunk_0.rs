@@ -290,7 +290,7 @@ impl GeneratedChunkCache {
     /// `spawn_chunk_flush_thread`) and at every play-session exit so a
     /// disconnect within the autosave window doesn't drop the player's
     /// edits.
-    pub fn flush_dirty(&self, world_root: &Path) -> usize {
+    pub fn flush_dirty(&self, world_root: &Path, sync_chunk_writes: bool) -> usize {
         let dirty: Vec<ChunkPos> = {
             let mut d = self.dirty.lock().unwrap();
             d.drain().collect()
@@ -308,7 +308,9 @@ impl GeneratedChunkCache {
         let region_dir = world_root.join("region");
         let mut written = 0_usize;
         for (pos, chunk) in snapshots {
-            let Ok(region) = RegionFile::open(&region_dir, pos.region()) else {
+            let Ok(region) =
+                RegionFile::open_with_sync(&region_dir, pos.region(), sync_chunk_writes)
+            else {
                 continue;
             };
             let nbt = chunk.to_nbt(crate::storage::datafix::TARGET_DATA_VERSION);
@@ -332,13 +334,14 @@ pub fn spawn_chunk_flush_thread(
     cache: GeneratedChunkCache,
     world_root: Arc<PathBuf>,
     interval: Duration,
+    sync_chunk_writes: bool,
 ) {
     thread::Builder::new()
         .name("chunk-flush".to_string())
         .spawn(move || loop {
             thread::sleep(interval);
             let started = Instant::now();
-            let written = cache.flush_dirty(&world_root);
+            let written = cache.flush_dirty(&world_root, sync_chunk_writes);
             if written > 0 {
                 eprintln!(
                     "[chunk-flush] persisted {} dirty chunks in {}ms",
@@ -670,4 +673,3 @@ impl ActiveLoginRegistry {
         ))
     }
 }
-

@@ -4,6 +4,8 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, VecDeque};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
+#[cfg(unix)]
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
 use flate2::read::{GzDecoder, ZlibDecoder};
@@ -50,11 +52,13 @@ pub enum RegionCompression {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RegionFile {
     path: PathBuf,
+    sync_writes: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RegionFileStorage {
     dir: PathBuf,
+    sync_writes: bool,
     region_cache: RefCell<BTreeMap<RegionPos, RegionFile>>,
     region_lru: RefCell<VecDeque<RegionPos>>,
 }
@@ -159,25 +163,32 @@ impl RegionCompression {
 
 impl RegionFile {
     pub fn open(dir: &Path, pos: RegionPos) -> io::Result<Self> {
+        Self::open_with_sync(dir, pos, false)
+    }
+
+    pub fn open_with_sync(dir: &Path, pos: RegionPos, sync_writes: bool) -> io::Result<Self> {
         fs::create_dir_all(dir)?;
         let path = dir.join(pos.file_name());
-        let file = OpenOptions::new()
-            .create(true)
-            .read(true)
-            .write(true)
-            .open(&path)?;
+        let file = open_region_read_write_create(&path, sync_writes)?;
         if file.metadata()?.len() < HEADER_BYTES {
             file.set_len(HEADER_BYTES)?;
+            if sync_writes {
+                file.sync_all()?;
+            }
         }
         drop(file);
 
-        let region = Self { path };
+        let region = Self { path, sync_writes };
         region.sanitize_header_locations()?;
         Ok(region)
     }
 
     pub fn path(&self) -> &Path {
         &self.path
+    }
+
+    pub fn sync_writes(&self) -> bool {
+        self.sync_writes
     }
 
     fn external_chunk_path(&self, chunk: ChunkPos) -> Option<PathBuf> {
@@ -188,7 +199,7 @@ impl RegionFile {
 
     fn sanitize_header_locations(&self) -> io::Result<()> {
         let file_len = fs::metadata(&self.path)?.len();
-        let mut file = OpenOptions::new().read(true).write(true).open(&self.path)?;
+        let mut file = open_region_read_write(&self.path, self.sync_writes)?;
         for index in 0..(CHUNKS_PER_REGION_AXIS * CHUNKS_PER_REGION_AXIS) as usize {
             file.seek(SeekFrom::Start((index * 4) as u64))?;
             let mut bytes = [0u8; 4];
@@ -205,6 +216,9 @@ impl RegionFile {
                 file.seek(SeekFrom::Start((index * 4) as u64))?;
                 file.write_all(&[0, 0, 0, 0])?;
             }
+        }
+        if self.sync_writes {
+            file.sync_all()?;
         }
         Ok(())
     }
@@ -279,10 +293,14 @@ impl RegionFile {
             ));
         }
 
-        let mut file = OpenOptions::new().write(true).open(&self.path)?;
+        let mut file = open_region_write(&self.path, self.sync_writes)?;
         file.seek(SeekFrom::Start((chunk.local_index() * 4) as u64))?;
         let offset = location.sector_offset.to_be_bytes();
-        file.write_all(&[offset[1], offset[2], offset[3], location.sector_count])
+        file.write_all(&[offset[1], offset[2], offset[3], location.sector_count])?;
+        if self.sync_writes {
+            file.sync_all()?;
+        }
+        Ok(())
     }
 
     pub fn read_timestamp(&self, chunk: ChunkPos) -> io::Result<u32> {
@@ -295,10 +313,14 @@ impl RegionFile {
     }
 
     pub fn write_timestamp(&self, chunk: ChunkPos, timestamp: u32) -> io::Result<()> {
-        let mut file = OpenOptions::new().write(true).open(&self.path)?;
+        let mut file = open_region_write(&self.path, self.sync_writes)?;
         let offset = 4096 + (chunk.local_index() * 4) as u64;
         file.seek(SeekFrom::Start(offset))?;
-        file.write_all(&timestamp.to_be_bytes())
+        file.write_all(&timestamp.to_be_bytes())?;
+        if self.sync_writes {
+            file.sync_all()?;
+        }
+        Ok(())
     }
 
     pub fn read_chunk_nbt(&self, chunk: ChunkPos) -> io::Result<Option<(String, Tag)>> {
@@ -403,6 +425,7 @@ impl RegionFile {
                 Err(err) => return Err(err),
             }
         }
+        self.sync_external_dir()?;
         Ok(())
     }
 
@@ -449,7 +472,7 @@ impl RegionFile {
                     "region file path has no parent for external chunk stream",
                 )
             })?;
-            fs::write(external_path, &compressed)?;
+            self.write_external_chunk_payload(&external_path, &compressed)?;
             chunk_bytes.clear();
             chunk_bytes.extend_from_slice(&1u32.to_be_bytes());
             chunk_bytes.push(compression.id() | 0x80);
@@ -464,10 +487,13 @@ impl RegionFile {
         chunk_bytes.resize(sector_count * SECTOR_BYTES as usize, 0);
 
         let sector_start = self.allocate_sectors(sector_count)?;
-        let mut file = OpenOptions::new().read(true).write(true).open(&self.path)?;
+        let mut file = open_region_read_write(&self.path, self.sync_writes)?;
 
         file.seek(SeekFrom::Start(sector_start as u64 * SECTOR_BYTES as u64))?;
         file.write_all(&chunk_bytes)?;
+        if self.sync_writes {
+            file.sync_all()?;
+        }
         drop(file);
 
         self.write_location(
@@ -484,17 +510,54 @@ impl RegionFile {
             .as_secs() as u32;
         self.write_timestamp(chunk, timestamp)
     }
+
+    fn write_external_chunk_payload(
+        &self,
+        external_path: &Path,
+        compressed: &[u8],
+    ) -> io::Result<()> {
+        let mut file = open_region_write_create_truncate(external_path, self.sync_writes)?;
+        file.write_all(compressed)?;
+        if self.sync_writes {
+            file.sync_all()?;
+            self.sync_external_dir()?;
+        }
+        Ok(())
+    }
+
+    fn sync_external_dir(&self) -> io::Result<()> {
+        if !self.sync_writes {
+            return Ok(());
+        }
+        let Some(dir) = self.path.parent() else {
+            return Ok(());
+        };
+        match File::open(dir).and_then(|file| file.sync_all()) {
+            Ok(()) => Ok(()),
+            Err(err) if err.kind() == io::ErrorKind::PermissionDenied => Ok(()),
+            Err(err) => Err(err),
+        }
+    }
 }
 
 impl RegionFileStorage {
     pub fn open(dir: impl Into<PathBuf>) -> io::Result<Self> {
+        Self::open_with_sync(dir, false)
+    }
+
+    pub fn open_with_sync(dir: impl Into<PathBuf>, sync_writes: bool) -> io::Result<Self> {
         let dir = dir.into();
         fs::create_dir_all(&dir)?;
         Ok(Self {
             dir,
+            sync_writes,
             region_cache: RefCell::new(BTreeMap::new()),
             region_lru: RefCell::new(VecDeque::new()),
         })
+    }
+
+    pub fn sync_writes(&self) -> bool {
+        self.sync_writes
     }
 
     pub fn cached_region_count(&self) -> usize {
@@ -506,7 +569,7 @@ impl RegionFileStorage {
             return Ok(region);
         }
 
-        let region = RegionFile::open(&self.dir, region_pos)?;
+        let region = RegionFile::open_with_sync(&self.dir, region_pos, self.sync_writes)?;
         self.cache_region_file(region_pos, region.clone())?;
         Ok(region)
     }
@@ -578,13 +641,21 @@ impl RegionFileStorage {
 
 impl RegionIoWorker {
     pub fn open(dir: impl Into<PathBuf>) -> io::Result<Self> {
+        Self::open_with_sync(dir, false)
+    }
+
+    pub fn open_with_sync(dir: impl Into<PathBuf>, sync_writes: bool) -> io::Result<Self> {
         Ok(Self {
-            storage: RegionFileStorage::open(dir)?,
+            storage: RegionFileStorage::open_with_sync(dir, sync_writes)?,
             pending_writes: BTreeMap::new(),
             old_chunk_mask_cache: RefCell::new(BTreeMap::new()),
             old_chunk_mask_lru: RefCell::new(VecDeque::new()),
             closed: false,
         })
+    }
+
+    pub fn sync_writes(&self) -> bool {
+        self.storage.sync_writes()
     }
 
     pub fn pending_write_count(&self) -> usize {
@@ -869,6 +940,44 @@ fn decode_region_payload(
     }?;
     Ok(Some(tag))
 }
+
+fn open_region_read_write(path: &Path, sync_writes: bool) -> io::Result<File> {
+    let mut options = OpenOptions::new();
+    options.read(true).write(true);
+    apply_region_sync_flag(&mut options, sync_writes);
+    options.open(path)
+}
+
+fn open_region_read_write_create(path: &Path, sync_writes: bool) -> io::Result<File> {
+    let mut options = OpenOptions::new();
+    options.create(true).read(true).write(true);
+    apply_region_sync_flag(&mut options, sync_writes);
+    options.open(path)
+}
+
+fn open_region_write(path: &Path, sync_writes: bool) -> io::Result<File> {
+    let mut options = OpenOptions::new();
+    options.write(true);
+    apply_region_sync_flag(&mut options, sync_writes);
+    options.open(path)
+}
+
+fn open_region_write_create_truncate(path: &Path, sync_writes: bool) -> io::Result<File> {
+    let mut options = OpenOptions::new();
+    options.create(true).truncate(true).write(true);
+    apply_region_sync_flag(&mut options, sync_writes);
+    options.open(path)
+}
+
+#[cfg(unix)]
+fn apply_region_sync_flag(options: &mut OpenOptions, sync_writes: bool) {
+    if sync_writes {
+        options.custom_flags(libc::O_DSYNC);
+    }
+}
+
+#[cfg(not(unix))]
+fn apply_region_sync_flag(_options: &mut OpenOptions, _sync_writes: bool) {}
 
 #[cfg(test)]
 mod tests;

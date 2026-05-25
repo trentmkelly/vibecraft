@@ -214,6 +214,7 @@ pub fn run_status_server(
         chunk_cache.clone(),
         Arc::clone(&world_root),
         Duration::from_secs(30),
+        properties.sync_chunk_writes,
     );
     let player_access = Arc::new(Mutex::new(
         PlayerAccess::load_from_dir(Path::new(".")).unwrap_or_else(|err| {
@@ -1113,7 +1114,7 @@ pub fn handle_login_connection(
                     // Flush any in-memory block changes (player edits,
                     // fluid spreads) that haven't yet hit the periodic
                     // 30 s flush window — disconnect must not lose work.
-                    chunk_cache.flush_dirty(world_root);
+                    chunk_cache.flush_dirty(world_root, properties.sync_chunk_writes);
                     write_framed_packet_with_compression(
                         stream,
                         compression,
@@ -1524,7 +1525,7 @@ pub fn handle_login_connection(
                 play_state.inventory_menu.clear_crafting_to_inventory();
                 let _ = save_play_session_state(world_root, &finished.profile.uuid, &play_state);
                 save_world_item_entities(world_root, &world_items.lock().unwrap());
-                chunk_cache.flush_dirty(world_root);
+                chunk_cache.flush_dirty(world_root, properties.sync_chunk_writes);
                 write_framed_packet_with_compression(
                     stream,
                     compression,
@@ -1554,7 +1555,7 @@ pub fn handle_login_connection(
                 play_state.inventory_menu.clear_crafting_to_inventory();
                 let _ = save_play_session_state(world_root, &finished.profile.uuid, &play_state);
                 save_world_item_entities(world_root, &world_items.lock().unwrap());
-                chunk_cache.flush_dirty(world_root);
+                chunk_cache.flush_dirty(world_root, properties.sync_chunk_writes);
                 return Ok(());
             }
             Err(err) => return Err(err),

@@ -90,7 +90,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [x] Implement `broadcast-rcon-to-ops`. — `ServerProperties` parses Java's default, startup passes it into the RCON session, and command feedback mirrors Java's `shouldRconBroadcast()` admin-notification gate; focused RCON and command-feedback tests cover enabled and disabled behavior.
 - [ ] Implement `broadcast-console-to-ops`.
 - [x] Implement clamped `max-world-size`. — `ServerProperties` parses `max-world-size` and clamps it to Java's `1..=29999984` range from `DedicatedServerProperties`, with `max_world_size_clamps_to_vanilla_property_range` covering both bounds.
-- [ ] Implement `sync-chunk-writes`.
+- [x] Implement `sync-chunk-writes`. — `ServerProperties` parses Java's default, live dirty-chunk autosave/disconnect flush opens region files with the configured sync-write policy, and RegionFile/RegionFileStorage/RegionIoWorker carry the sync flag with tests covering propagation plus write/read persistence.
 - [ ] Implement `region-file-compression` with at least deflate parity.
 - [ ] Implement `enable-jmx-monitoring` or equivalent documented metrics export.
 - [ ] Implement mutable `enable-status`.
