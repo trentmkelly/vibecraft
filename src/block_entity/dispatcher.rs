@@ -38,10 +38,21 @@ impl BlockEntity {
         self.removed = false;
     }
 
-    pub fn set_changed(&mut self) {
-        if self.has_level {
-            self.changed = true;
+    pub fn set_changed(&mut self) -> Option<BlockEntityChangedEffect> {
+        if !self.has_level {
+            return None;
         }
+        self.changed = true;
+        Some(block_entity_changed_effect(self.pos, &self.block_state))
+    }
+
+    pub fn set_changed_in_chunk_manager(
+        &mut self,
+        chunks: &mut ChunkManager,
+    ) -> Option<BlockEntityChangedEffect> {
+        let effect = self.set_changed()?;
+        chunks.mark_dirty(effect.chunk_pos);
+        Some(effect)
     }
 
     pub fn save_custom_only(&self) -> Tag {
@@ -186,6 +197,16 @@ impl TickingBlockEntity {
 
     pub fn type_key(&self) -> &'static str {
         type_info(self.entity.ty).key
+    }
+}
+
+fn block_entity_changed_effect(pos: BlockPos, block_state: &str) -> BlockEntityChangedEffect {
+    BlockEntityChangedEffect {
+        chunk_pos: ChunkPos {
+            x: pos.x.div_euclid(16),
+            z: pos.z.div_euclid(16),
+        },
+        update_output_signal: block_state != "minecraft:air",
     }
 }
 
@@ -638,4 +659,3 @@ pub(super) fn direction_from_name(value: &str) -> Option<Direction> {
         _ => None,
     }
 }
-

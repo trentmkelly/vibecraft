@@ -536,13 +536,37 @@ fn ticking_block_entity_wrapper_exposes_scheduler_shape() {
 }
 
 #[test]
-fn changed_flag_only_sets_when_attached_to_level() {
-    let mut entity = BlockEntity::new(BlockEntityTypeId::Bell, pos(), "minecraft:bell").unwrap();
-    entity.set_changed();
+fn set_changed_marks_attached_chunk_dirty_and_reports_output_signal_update() {
+    let entity_pos = BlockPos {
+        x: -17,
+        y: 64,
+        z: 44,
+    };
+    let chunk_pos = crate::storage::region::ChunkPos { x: -2, z: 2 };
+    let mut chunks = crate::chunk_manager::ChunkManager::new(4);
+    chunks
+        .load_or_generate(chunk_pos, "minecraft:empty")
+        .unwrap();
+    chunks.drain_events();
+
+    let mut entity =
+        BlockEntity::new(BlockEntityTypeId::Bell, entity_pos, "minecraft:bell").unwrap();
+    assert_eq!(entity.set_changed_in_chunk_manager(&mut chunks), None);
     assert!(!entity.changed);
+
     entity.set_level();
-    entity.set_changed();
+    let effect = entity.set_changed_in_chunk_manager(&mut chunks).unwrap();
+    assert_eq!(effect.chunk_pos, chunk_pos);
+    assert!(effect.update_output_signal);
     assert!(entity.changed);
+
+    assert!(chunks.unload_chunk(chunk_pos));
+    assert!(
+        chunks
+            .drain_events()
+            .contains(&crate::chunk_manager::ChunkLifecycleEvent::Saved(chunk_pos)),
+        "attached block-entity change must dirty the containing chunk for save"
+    );
 }
 
 #[test]

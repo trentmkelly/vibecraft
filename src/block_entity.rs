@@ -3,6 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::block_update::{BlockPos, Direction};
+use crate::chunk_manager::ChunkManager;
 use crate::command_execution::{CommandSourceStackModel, Vec3};
 use crate::map_state::DyeColor;
 use crate::recipe_system::FuelValues;
@@ -13,6 +14,7 @@ use crate::special_block::{
 };
 use crate::storage::datafix::require_current_world_data_version;
 use crate::storage::nbt::Tag;
+use crate::storage::region::ChunkPos;
 use crate::vibration::{
     calibrated_sculk_sensor_receive, redstone_strength_for_distance, tick_vibration,
     vibration_frequency, SculkSensorAction, VibrationData, VibrationInfo, VibrationTickAction,
@@ -107,6 +109,12 @@ pub struct ClientboundBlockEntityDataPacket {
     pub pos: BlockPos,
     pub ty: BlockEntityTypeId,
     pub tag: Tag,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BlockEntityChangedEffect {
+    pub chunk_pos: ChunkPos,
+    pub update_output_signal: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
