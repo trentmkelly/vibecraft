@@ -1,3 +1,4 @@
+#[cfg(test)]
 use std::collections::VecDeque;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -23,23 +24,29 @@ pub struct CommandSourceStackModel {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EntityAnchor {
     Feet,
+    #[cfg(test)]
     Eyes,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ResultCallback {
     Empty,
+    #[cfg(test)]
     StoreSuccess,
+    #[cfg(test)]
     StoreResult,
+    #[cfg(test)]
     ReturnFrame,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CommandOutcome {
     pub success: bool,
     pub result: i32,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CommandTask {
     Command {
@@ -55,6 +62,7 @@ pub enum CommandTask {
     Fallthrough,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommandFrame {
     pub depth: usize,
@@ -62,6 +70,7 @@ pub struct CommandFrame {
     pub discarded: bool,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutionContextModel {
     pub command_limit: usize,
@@ -94,6 +103,7 @@ impl CommandSourceStackModel {
         }
     }
 
+    #[cfg(test)]
     pub fn with_entity(mut self, entity: impl Into<String>) -> Self {
         let entity = entity.into();
         self.source = entity.clone();
@@ -106,22 +116,26 @@ impl CommandSourceStackModel {
         self
     }
 
+    #[cfg(test)]
     pub fn with_rotation(mut self, rotation: (f32, f32)) -> Self {
         self.rotation = rotation;
         self
     }
 
+    #[cfg(test)]
     pub fn with_level(mut self, level: impl Into<String>) -> Self {
         self.level = level.into();
         self
     }
 
+    #[cfg(test)]
     pub fn with_callback(mut self, callback: ResultCallback) -> Self {
         self.callbacks = chain_callbacks(&self.callbacks, callback);
         self
     }
 }
 
+#[cfg(test)]
 impl ExecutionContextModel {
     pub const MAX_QUEUE_DEPTH: usize = 10_000_000;
 
@@ -272,6 +286,7 @@ impl ExecutionContextModel {
     }
 }
 
+#[cfg(test)]
 pub fn execute_as(
     source: &CommandSourceStackModel,
     entities: &[&str],
@@ -282,6 +297,7 @@ pub fn execute_as(
         .collect()
 }
 
+#[cfg(test)]
 pub fn execute_positioned(
     source: &CommandSourceStackModel,
     position: Vec3,
@@ -289,6 +305,7 @@ pub fn execute_positioned(
     source.clone().with_position(position)
 }
 
+#[cfg(test)]
 pub fn propagate_results(
     callbacks: &[ResultCallback],
     outcome: CommandOutcome,
@@ -300,6 +317,7 @@ pub fn propagate_results(
         .collect()
 }
 
+#[cfg(test)]
 fn chain_callbacks(existing: &[ResultCallback], next: ResultCallback) -> Vec<ResultCallback> {
     if existing == [ResultCallback::Empty] {
         vec![next]
@@ -312,10 +330,12 @@ fn chain_callbacks(existing: &[ResultCallback], next: ResultCallback) -> Vec<Res
     }
 }
 
+#[cfg(test)]
 fn apply_callback(callbacks: &mut Vec<CommandOutcome>, outcome: CommandOutcome) {
     callbacks.push(outcome);
 }
 
+#[cfg(test)]
 fn current_frame(depth: usize) -> CommandFrame {
     CommandFrame {
         depth,
