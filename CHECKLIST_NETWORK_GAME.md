@@ -151,7 +151,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Sound / Particle Packets
 
-- [ ] `ClientboundSoundPacket` (0x65): sound holder (registered ID + 1 or inline sound event), source VarInt, pos X/Y/Z fixed-point ints, volume, pitch, seed long
+- [x] `ClientboundSoundPacket` (0x75 / decimal 117): sound holder (`SoundEvent.STREAM_CODEC`, registered ID + 1 or inline sound event), source enum VarInt, pos X/Y/Z fixed-point ints using Java `(int)(coord * 8.0)`, volume float, pitch float, and seed long; verified against Java read/write codec, Java play registration/name mapping, Rust packet ID/registry mapping, and focused full-payload byte-layout coverage for both registered and inline sound holders.
 - [ ] `ClientboundSoundEntityPacket` (0x66): sound holder (registered ID + 1 or inline sound event), source VarInt, entity ID VarInt, volume, pitch, seed long
 - [ ] `ClientboundStopSoundPacket` (0x77): flags byte, optional sound source enum, optional sound identifier
 - [x] `ClientboundNamedSoundEffectPacket`: not present in 26.1.2 Java `GamePacketTypes`, play `GameProtocols`, or `net/minecraft/network/protocol/game` packet classes; handled by `ClientboundSoundPacket`/`ClientboundSoundEntityPacket`/`ClientboundStopSoundPacket`, with Rust registry absence coverage for legacy `named_sound` and `named_sound_effect` names.
