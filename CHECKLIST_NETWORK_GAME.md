@@ -97,7 +97,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ServerboundSelectTradePacket` (0x33): item number VarInt
 - [x] `ServerboundSetBeaconPacket` (0x34 / decimal 52): primary and secondary optional MobEffect holder registry IDs; verified against Java `MobEffect.STREAM_CODEC.apply(ByteBufCodecs::optional)`, `ByteBufCodecs.optional` bool framing, `holderRegistry` VarInt `byIdOrThrow` validation, Java play registration/name mapping, Rust protocol registry mapping, and focused read/write/dispatch tests for present, absent, and invalid effect IDs.
 - [x] `ServerboundSetCreativeModeSlotPacket` (0x38): slot short, `ItemStack.OPTIONAL_UNTRUSTED_STREAM_CODEC` with count VarInt, optional item registry ID, and delimited data component patch framing — decoded and applied in creative mode with Java slot, count, and ability gates; creative drop remains deferred until entity item drops are ported.
-- [ ] `ServerboundContainerButtonClickPacket` (0x11): container ID VarInt, button ID VarInt
+- [x] `ServerboundContainerButtonClickPacket` (0x11 / decimal 17): container ID via Java `ByteBufCodecs.CONTAINER_ID`/`FriendlyByteBuf.readContainerId` VarInt and button ID via `ByteBufCodecs.VAR_INT`; verified against Java codec/registration/name mapping, Rust packet ID/registry mapping, and focused read/write/dispatch coverage.
 
 ## Recipe / Advancement / Unlock Packets
 
