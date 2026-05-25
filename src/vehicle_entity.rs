@@ -588,7 +588,7 @@ impl CommandBlockMinecartState {
             success_count: 0,
             last_output: String::new(),
             track_output: true,
-            last_activated_tick: -Self::ACTIVATION_DELAY,
+            last_activated_tick: 0,
         }
     }
 
@@ -1021,11 +1021,15 @@ mod tests {
         assert!(!loaded_without_tracking.track_output);
         assert_eq!(loaded_without_tracking.last_output, "");
         command.command = "Searge".to_string();
-        assert!(command.activate_minecart(true, 0));
+        assert!(!command.activate_minecart(false, 4));
+        assert_eq!(command.success_count, 0);
+        assert!(!command.activate_minecart(true, 3));
+        assert_eq!(command.success_count, 0);
+        assert!(command.activate_minecart(true, 4));
         assert_eq!(command.success_count, 1);
         assert_eq!(command.last_output, "#itzlipofutzli");
-        assert!(!command.activate_minecart(true, 3));
-        assert!(command.activate_minecart(true, 4));
+        assert!(!command.activate_minecart(true, 7));
+        assert!(command.activate_minecart(true, 8));
     }
 
     #[test]

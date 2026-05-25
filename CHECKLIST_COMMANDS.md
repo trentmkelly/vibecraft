@@ -31,9 +31,9 @@
 
 ## Command Block Minecart
 
-- [ ] Implement `CommandBlockMinecart`: per-entity `CommandBlockEntity`-like logic, `delay` counter (4-tick default), activate on powered activator rail
-- [ ] Implement command block minecart NBT round-trip: command, last output, track-output flag
-- [ ] Add parity test: command block minecart activates on powered activator rail at correct delay
+- [x] Implement `CommandBlockMinecart`: per-entity `CommandBlockEntity`-like logic, `delay` counter (4-tick default), activate on powered activator rail — Java `MinecartCommandBlock.activateMinecart()` only runs on powered activator rails after `tickCount - lastActivated >= 4`, while Rust `CommandBlockMinecartState` keeps per-entity command/success/output state and enforces the same 4-tick activation gate; covered by `chest_spawner_and_command_minecarts_keep_special_server_hooks`
+- [x] Implement command block minecart NBT round-trip: command, last output, track-output flag — Java `MinecartCommandBlock` delegates save/load to `BaseCommandBlock` for `Command`, `SuccessCount`, `TrackOutput`, and tracked `LastOutput`; Rust `CommandBlockMinecartState::save_additional()`/`load_additional()` round-trip those fields and suppress last output when tracking is disabled; covered by `chest_spawner_and_command_minecarts_keep_special_server_hooks`
+- [x] Add parity test: command block minecart activates on powered activator rail at correct delay — `chest_spawner_and_command_minecarts_keep_special_server_hooks` covers the Java 4-tick boundary, unpowered no-op behavior, interaction permission gate, Searge output path, and NBT round-trip
 
 ## Functions
 
