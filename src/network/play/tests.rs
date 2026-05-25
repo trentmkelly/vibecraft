@@ -773,6 +773,7 @@ mod set_display_objective_packet_test;
 mod set_objective_packet_test;
 mod set_score_packet_test;
 mod set_player_team_packet_test;
+mod set_titles_animation_packet_test;
 mod cooldown_packet_test;
 mod entity_movement_test;
 mod mount_screen_open_packet_test;
