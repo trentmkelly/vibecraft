@@ -858,6 +858,14 @@ mod tests {
 
     #[test]
     fn gossip_caps_transfer_events_and_timing_match_java() {
+        assert_gossip_constants_match_java();
+        assert_gossip_caps_match_java();
+        assert_gossip_transfer_prunes_low_values();
+        assert_reputation_event_gossips_match_java();
+        assert_villager_gossip_timing_match_java();
+    }
+
+    fn assert_gossip_constants_match_java() {
         assert_eq!(GOSSIP_DISCARD_THRESHOLD, 2);
         assert_eq!(VILLAGER_GOSSIP_INTERVAL_TICKS, 1200);
         assert_eq!(VILLAGER_GOSSIP_TRANSFER_MAX_COUNT, 10);
@@ -874,13 +882,17 @@ mod tests {
         assert_eq!(GossipType::MinorPositive.max(), 25);
         assert_eq!(GossipType::MajorPositive.max(), 20);
         assert_eq!(GossipType::Trading.max(), 25);
+    }
 
+    fn assert_gossip_caps_match_java() {
         let mut capped = GossipContainer::new();
         capped.add("player-a", GossipType::MajorPositive, 30);
         assert_eq!(capped.value("player-a", GossipType::MajorPositive), 20);
         capped.add("player-a", GossipType::MinorPositive, -19);
         assert_eq!(capped.value("player-a", GossipType::MinorPositive), 0);
+    }
 
+    fn assert_gossip_transfer_prunes_low_values() {
         let mut source = GossipContainer::new();
         source.add("player-a", GossipType::MinorNegative, 25);
         source.add("player-b", GossipType::MajorPositive, 20);
@@ -898,7 +910,9 @@ mod tests {
         assert_eq!(target.value("player-a", GossipType::MinorNegative), 5);
         assert_eq!(target.value("player-b", GossipType::MajorPositive), 0);
         assert_eq!(target.value("player-c", GossipType::Trading), 0);
+    }
 
+    fn assert_reputation_event_gossips_match_java() {
         assert_eq!(
             reputation_event_gossips(ReputationEventModel::ZombieVillagerCured),
             &[
@@ -918,6 +932,9 @@ mod tests {
             reputation_event_gossips(ReputationEventModel::VillagerKilled),
             &[(GossipType::MajorNegative, 25)]
         );
+    }
+
+    fn assert_villager_gossip_timing_match_java() {
         assert!(villager_gossip_meeting_allowed(1200, 0, 0));
         assert!(!villager_gossip_meeting_allowed(1199, 0, 0));
         assert!(villager_gossip_meeting_allowed(100, 200, 200));
