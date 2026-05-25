@@ -1397,6 +1397,254 @@ fn handle_position_session_update(
     Ok(())
 }
 
+struct PlayerActionFields {
+    action: i32,
+    packed_pos: i64,
+    sequence: i32,
+    x: i32,
+    y: i32,
+    z: i32,
+}
+
+fn read_player_action_fields<R: Read>(reader: &mut R) -> io::Result<PlayerActionFields> {
+    let action = read_var_i32(reader)?;
+    let mut pos_bytes = [0u8; 8];
+    reader.read_exact(&mut pos_bytes)?;
+    let packed_pos = i64::from_be_bytes(pos_bytes);
+    let mut direction_byte = [0u8; 1];
+    reader.read_exact(&mut direction_byte)?;
+    let sequence = read_var_i32(reader)?;
+    let (x, y, z) = unpack_block_position(packed_pos);
+    Ok(PlayerActionFields {
+        action,
+        packed_pos,
+        sequence,
+        x,
+        y,
+        z,
+    })
+}
+
+struct PlayerActionContext<'a, 'b> {
+    world_root: &'a Path,
+    world_seed: i64,
+    world_layout: &'b WorldLayout,
+    chunk_cache: &'a GeneratedChunkCache,
+    live_fluid_ticks: &'b mut LiveFluidTicks,
+    play_tick_count: u64,
+    world_items: &'a Arc<Mutex<WorldItemEntities>>,
+}
+
+fn handle_player_action_packet<R: Read>(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    input: &mut R,
+    play_state: &mut PlaySessionState,
+    mut context: PlayerActionContext<'_, '_>,
+) -> io::Result<()> {
+    let fields = read_player_action_fields(input)?;
+    log_player_action_debug(&fields, play_state.game_mode, &context);
+    if should_break_for_player_action(&fields, play_state.game_mode, &context) {
+        handle_player_block_break(stream, compression, play_state, &fields, &mut context)?;
+    }
+    // Java: ServerboundPlayerActionPacket.Action.DROP_ALL_ITEMS = 3,
+    //        ServerboundPlayerActionPacket.Action.DROP_ITEM = 4.
+    if fields.action == 3 || fields.action == 4 {
+        handle_drop_item(
+            stream,
+            compression,
+            play_state,
+            context.world_items,
+            fields.action == 3,
+        )?;
+    }
+    Ok(())
+}
+
+fn log_player_action_debug(
+    fields: &PlayerActionFields,
+    game_mode: GameMode,
+    context: &PlayerActionContext<'_, '_>,
+) {
+    crate::log::log_debug(&format!(
+        "player_action action={} pos=({},{},{}) mode={:?}",
+        fields.action, fields.x, fields.y, fields.z, game_mode
+    ));
+    if fields.action != 0 {
+        return;
+    }
+    // Java ServerPlayerGameMode: START_DESTROY_BLOCK with getDestroyProgress
+    // >= 1.0 (destroy_time == 0) -> "insta mine".
+    let chunk_pos = ChunkPos {
+        x: fields.x.div_euclid(16),
+        z: fields.z.div_euclid(16),
+    };
+    let actual_block = read_block_at(
+        context.world_layout,
+        context.world_seed,
+        chunk_pos,
+        fields.x,
+        fields.y,
+        fields.z,
+    );
+    let destroy_time = actual_block
+        .as_deref()
+        .and_then(representative_state_definition)
+        .map(|def| def.physical.destroy_time);
+    crate::log::log_debug(&format!(
+        "instabreak check: actual_block={actual_block:?} destroy_time={destroy_time:?}"
+    ));
+}
+
+fn should_break_for_player_action(
+    fields: &PlayerActionFields,
+    game_mode: GameMode,
+    context: &PlayerActionContext<'_, '_>,
+) -> bool {
+    let is_instabreak = fields.action == 0 && game_mode != GameMode::Creative && {
+        let chunk_pos = ChunkPos {
+            x: fields.x.div_euclid(16),
+            z: fields.z.div_euclid(16),
+        };
+        read_block_at(
+            context.world_layout,
+            context.world_seed,
+            chunk_pos,
+            fields.x,
+            fields.y,
+            fields.z,
+        )
+        .as_deref()
+        .and_then(representative_state_definition)
+        .is_some_and(|def| def.physical.destroy_time == 0.0)
+    };
+    fields.action == 2 || (fields.action == 0 && game_mode == GameMode::Creative) || is_instabreak
+}
+
+fn handle_player_block_break(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    play_state: &PlaySessionState,
+    fields: &PlayerActionFields,
+    context: &mut PlayerActionContext<'_, '_>,
+) -> io::Result<()> {
+    write_block_break_ack_and_air(stream, compression, fields, play_state.game_mode)?;
+    let block_pos = crate::block_update::BlockPos {
+        x: fields.x,
+        y: fields.y,
+        z: fields.z,
+    };
+    // Java mirror: ServerLevel.removeBlock -> LevelChunk.setBlockState.
+    // Mutates the in-memory chunk and marks it unsaved; persistence happens
+    // later via the periodic flush thread.
+    let block_name = context.chunk_cache.set_block(
+        context.world_root,
+        context.world_seed,
+        block_pos,
+        "minecraft:air",
+    );
+    schedule_neighbor_fluids(
+        context.live_fluid_ticks,
+        context.play_tick_count as i64,
+        context.world_layout,
+        context.world_seed,
+        block_pos,
+    );
+    crate::log::log_debug(&format!(
+        "block break at ({},{},{}) block={:?} game_mode={:?}",
+        fields.x, fields.y, fields.z, block_name, play_state.game_mode
+    ));
+    if play_state.game_mode != GameMode::Creative {
+        spawn_block_break_drops(stream, compression, context.world_items, fields, block_name)?;
+    }
+    Ok(())
+}
+
+fn write_block_break_ack_and_air(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    fields: &PlayerActionFields,
+    game_mode: GameMode,
+) -> io::Result<()> {
+    // Packet ordering rationale:
+    //
+    // Java defers BlockChangedAck to the start of the next server tick. Our
+    // server is synchronous; sending the ack first lets the client commit
+    // block prediction before AddEntity arrives, so drops spawn into confirmed AIR.
+    if crate::log::global_level() >= crate::log::LogLevel::Trace {
+        crate::log::log_trace(&format!(
+            "block break seq={} pos=({},{},{}) action={} game_mode={:?}",
+            fields.sequence, fields.x, fields.y, fields.z, fields.action, game_mode
+        ));
+        crate::log::log_trace(&format!(
+            "sending BLOCK_CHANGED_ACK seq={}",
+            fields.sequence
+        ));
+    }
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
+        |payload| write_var_i32(payload, fields.sequence),
+    )?;
+    if crate::log::global_level() >= crate::log::LogLevel::Trace {
+        crate::log::log_trace(&format!(
+            "sending BLOCK_UPDATE pos=({},{},{}) new_state=AIR",
+            fields.x, fields.y, fields.z
+        ));
+    }
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_BLOCK_UPDATE_PACKET_ID,
+        |payload| {
+            payload.write_all(&fields.packed_pos.to_be_bytes())?;
+            write_var_i32(payload, AIR_BLOCK_STATE_ID)
+        },
+    )
+}
+
+fn spawn_block_break_drops(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    world_items: &Arc<Mutex<WorldItemEntities>>,
+    fields: &PlayerActionFields,
+    block_name: Option<String>,
+) -> io::Result<()> {
+    let loot_seed = (fields.x as u64).wrapping_mul(0x9E37_79B9)
+        ^ (fields.y as u64).wrapping_mul(0x6C62_272E)
+        ^ (fields.z as u64).wrapping_mul(0x517C_C1B7);
+    let drops = block_name
+        .as_deref()
+        .map(|name| evaluate_block_loot(name, loot_seed))
+        .unwrap_or_default();
+    for (item_name, count) in drops {
+        let Some(item_pid) = item_protocol_id(item_name) else {
+            continue;
+        };
+        let eid = lock_status_mutex(world_items).alloc_entity_id();
+        // Java: ItemEntity constructor sets initial velocity
+        // (random*0.2-0.1, 0.2, random*0.2-0.1).
+        let item = DroppedItem {
+            entity_id: eid,
+            item: item_name,
+            count,
+            x: fields.x as f64 + 0.5,
+            y: fields.y as f64 + 0.5,
+            z: fields.z as f64 + 0.5,
+            vel_x: pseudo_rand_f32(eid, 0) as f64 * 0.2 - 0.1,
+            vel_y: 0.2,
+            vel_z: pseudo_rand_f32(eid, 1) as f64 * 0.2 - 0.1,
+            pickup_delay: DEFAULT_PICKUP_DELAY,
+            age: 0,
+            target_uuid: None,
+        };
+        write_item_entity_spawn_packets(stream, compression, &item, item_pid)?;
+        lock_status_mutex(world_items).entities.push(item);
+    }
+    Ok(())
+}
+
 fn handle_login_connection(
     stream: &mut TcpStream,
     mut context: LoginConnectionContext<'_>,
@@ -1650,184 +1898,21 @@ fn run_joined_play_session(
                     continue;
                 }
                 if packet_id == SERVERBOUND_PLAYER_ACTION_PACKET_ID {
-                    let action = read_var_i32(&mut input)?;
-                    let mut pos_bytes = [0u8; 8];
-                    input.read_exact(&mut pos_bytes)?;
-                    let packed_pos = i64::from_be_bytes(pos_bytes);
-                    let mut direction_byte = [0u8; 1];
-                    input.read_exact(&mut direction_byte)?;
-                    let sequence = read_var_i32(&mut input)?;
-                    let (dbx, dby, dbz) = unpack_block_position(packed_pos);
-                    crate::log::log_debug(&format!(
-                        "player_action action={action} pos=({dbx},{dby},{dbz}) mode={:?}",
-                        play_state.game_mode
-                    ));
-                    // Java ServerPlayerGameMode: START_DESTROY_BLOCK with getDestroyProgress >= 1.0
-                    // (i.e. destroy_time == 0) → "insta mine" — break immediately, same as creative.
-                    if action == 0 {
-                        let chunk_pos_dbg = ChunkPos {
-                            x: dbx.div_euclid(16),
-                            z: dbz.div_euclid(16),
-                        };
-                        let actual_block =
-                            read_block_at(&world_layout, world_seed, chunk_pos_dbg, dbx, dby, dbz);
-                        let destroy_time = actual_block
-                            .as_deref()
-                            .and_then(representative_state_definition)
-                            .map(|def| def.physical.destroy_time);
-                        crate::log::log_debug(&format!("instabreak check: actual_block={actual_block:?} destroy_time={destroy_time:?}"));
-                    }
-                    let is_instabreak =
-                        action == 0 && play_state.game_mode != GameMode::Creative && {
-                            let chunk_pos_ib = ChunkPos {
-                                x: dbx.div_euclid(16),
-                                z: dbz.div_euclid(16),
-                            };
-                            read_block_at(&world_layout, world_seed, chunk_pos_ib, dbx, dby, dbz)
-                                .as_deref()
-                                .and_then(representative_state_definition)
-                                .map(|def| def.physical.destroy_time == 0.0)
-                                .unwrap_or(false)
-                        };
-                    let should_break = action == 2
-                        || (action == 0 && play_state.game_mode == GameMode::Creative)
-                        || is_instabreak;
-                    if should_break {
-                        // Packet ordering rationale:
-                        //
-                        // Java defers BlockChangedAck to the start of the next server tick
-                        // (~50 ms later via ServerGamePacketListenerImpl.ackBlockChangesUpTo).
-                        // In that window the entity is already spawned, physics-ticked, and
-                        // rendering on the client.  Any block-prediction rollback triggered by
-                        // the delayed ack therefore never touches the stable entity.
-                        //
-                        // Our server is synchronous — all packets go out in one TCP write.
-                        // Testing confirms that sending BlockChangedAck AFTER the entity (Java's
-                        // final wire order) causes the client to process the ack and AddEntity in
-                        // the same packet loop, triggering prediction rollback while the entity
-                        // has just been registered but hasn't been physics-ticked yet — the
-                        // rollback culls it (always invisible).
-                        //
-                        // Sending BlockChangedAck FIRST lets the client commit its block-
-                        // prediction state before AddEntity arrives, so the entity spawns into
-                        // confirmed-AIR and renders correctly.
-                        if crate::log::global_level() >= crate::log::LogLevel::Trace {
-                            crate::log::log_trace(&format!(
-                                "block break seq={sequence} pos=({dbx},{dby},{dbz}) action={action} game_mode={:?}",
-                                play_state.game_mode
-                            ));
-                            crate::log::log_trace(&format!(
-                                "sending BLOCK_CHANGED_ACK seq={sequence}"
-                            ));
-                        }
-                        write_framed_packet_with_compression(
-                            stream,
-                            compression,
-                            CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
-                            |p| write_var_i32(p, sequence),
-                        )?;
-                        if crate::log::global_level() >= crate::log::LogLevel::Trace {
-                            crate::log::log_trace(&format!(
-                                "sending BLOCK_UPDATE pos=({dbx},{dby},{dbz}) new_state=AIR"
-                            ));
-                        }
-                        write_framed_packet_with_compression(
-                            stream,
-                            compression,
-                            CLIENTBOUND_BLOCK_UPDATE_PACKET_ID,
-                            |p| {
-                                p.write_all(&packed_pos.to_be_bytes())?;
-                                write_var_i32(p, AIR_BLOCK_STATE_ID)
-                            },
-                        )?;
-                        let (bx, by, bz) = unpack_block_position(packed_pos);
-                        // Java mirror: ServerLevel.removeBlock → LevelChunk.setBlockState
-                        // — mutates the in-memory chunk and marks it
-                        // unsaved. Persistence happens later via the
-                        // periodic flush thread; no per-break disk I/O.
-                        let block_name = chunk_cache.set_block(
+                    handle_player_action_packet(
+                        stream,
+                        compression,
+                        &mut input,
+                        &mut play_state,
+                        PlayerActionContext {
                             world_root,
                             world_seed,
-                            crate::block_update::BlockPos {
-                                x: bx,
-                                y: by,
-                                z: bz,
-                            },
-                            "minecraft:air",
-                        );
-                        schedule_neighbor_fluids(
-                            &mut live_fluid_ticks,
-                            play_tick_count as i64,
-                            &world_layout,
-                            world_seed,
-                            crate::block_update::BlockPos {
-                                x: bx,
-                                y: by,
-                                z: bz,
-                            },
-                        );
-                        crate::log::log_debug(&format!(
-                            "block break at ({bx},{by},{bz}) block={block_name:?} game_mode={:?}",
-                            play_state.game_mode
-                        ));
-                        if play_state.game_mode != GameMode::Creative {
-                            let loot_seed = (bx as u64).wrapping_mul(0x9E37_79B9)
-                                ^ (by as u64).wrapping_mul(0x6C62_272E)
-                                ^ (bz as u64).wrapping_mul(0x517C_C1B7);
-                            let drops = block_name
-                                .as_deref()
-                                .map(|n| evaluate_block_loot(n, loot_seed))
-                                .unwrap_or_default();
-                            let drop_x = bx as f64 + 0.5;
-                            let drop_y = by as f64 + 0.5;
-                            let drop_z = bz as f64 + 0.5;
-                            for (item_name, count) in drops {
-                                let Some(item_pid) = item_protocol_id(item_name) else {
-                                    continue;
-                                };
-                                let eid = lock_status_mutex(world_items).alloc_entity_id();
-                                // Java: ItemEntity constructor sets initial velocity
-                                // (random*0.2-0.1, 0.2, random*0.2-0.1) — the y=0.2 upward
-                                // component produces the characteristic item "pop" animation
-                                // and ensures the entity is visible on spawn.
-                                let vel_x = pseudo_rand_f32(eid, 0) as f64 * 0.2 - 0.1;
-                                let vel_y = 0.2_f64;
-                                let vel_z = pseudo_rand_f32(eid, 1) as f64 * 0.2 - 0.1;
-                                let item = DroppedItem {
-                                    entity_id: eid,
-                                    item: item_name,
-                                    count,
-                                    x: drop_x,
-                                    y: drop_y,
-                                    z: drop_z,
-                                    vel_x,
-                                    vel_y,
-                                    vel_z,
-                                    pickup_delay: DEFAULT_PICKUP_DELAY,
-                                    age: 0,
-                                    target_uuid: None,
-                                };
-                                write_item_entity_spawn_packets(
-                                    stream,
-                                    compression,
-                                    &item,
-                                    item_pid,
-                                )?;
-                                lock_status_mutex(world_items).entities.push(item);
-                            }
-                        }
-                    }
-                    // Java: ServerboundPlayerActionPacket.Action.DROP_ALL_ITEMS = 3,
-                    //        ServerboundPlayerActionPacket.Action.DROP_ITEM = 4.
-                    if action == 3 || action == 4 {
-                        handle_drop_item(
-                            stream,
-                            compression,
-                            &mut play_state,
+                            world_layout: &world_layout,
+                            chunk_cache,
+                            live_fluid_ticks: &mut live_fluid_ticks,
+                            play_tick_count,
                             world_items,
-                            action == 3,
-                        )?;
-                    }
+                        },
+                    )?;
                     continue;
                 }
                 if packet_id == SERVERBOUND_CONTAINER_CLICK_PACKET_ID {
