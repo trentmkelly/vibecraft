@@ -799,6 +799,7 @@ fn entity_metadata_values_use_vanilla_26_1_2_serializer_ids_and_payloads() {
 }
 
 
+mod add_entity_packet_test;
 mod block_entity_data_packet_test;
 mod boss_event_packet_test;
 mod chat_ack_packet_test;
