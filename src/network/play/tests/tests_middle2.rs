@@ -588,6 +588,22 @@ fn malformed_serverbound_scalar_packets_disconnect_session() {
         )),
         DispatchOutcome::Disconnect(_)
     ));
+    assert!(matches!(
+        session.handle_decoded(decoded(
+            SERVERBOUND_SET_STRUCTURE_BLOCK_PACKET_ID,
+            vec![
+                0, 0, 0, 0, 0, 0, 0, 0, // BlockPos
+                0, 0, 0, // update type, mode, empty name
+                0, 0, 0, // offset
+                0, 0, 0, // size
+                0, 4, // mirror, invalid rotation enum ordinal
+                0, // empty data
+                0x3f, 0x80, 0, 0, // integrity
+                0, 0 // seed, flags
+            ]
+        )),
+        DispatchOutcome::Disconnect(_)
+    ));
 
     let mut overlong_sign = vec![0; 8];
     overlong_sign.push(1);

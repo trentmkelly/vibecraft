@@ -890,7 +890,7 @@ fn small_play_packets_round_trip_vanilla_codecs() {
         0, 0, 0, // update type, mode, empty name
         200, 60, 255, // offset clamps to -48, 48, -1
         255, 60, 10, // size clamps to 0, 48, 10
-        0, 7, 0, // mirror, wrapped rotation, empty data
+        0, 3, 0, // mirror, rotation, empty data
         0x3f, 0xc0, 0, 0, // integrity 1.5 clamps to 1.0
         0, 15,
     ]))

@@ -108,11 +108,12 @@ impl StructureMirror {
 
 impl StructureRotation {
     pub(super) fn from_id(id: i32) -> io::Result<Self> {
-        match id.rem_euclid(4) {
+        match id {
             0 => Ok(Self::None),
             1 => Ok(Self::Clockwise90),
             2 => Ok(Self::Clockwise180),
-            _ => Ok(Self::Counterclockwise90),
+            3 => Ok(Self::Counterclockwise90),
+            _ => Err(invalid_data("invalid structure rotation")),
         }
     }
 
