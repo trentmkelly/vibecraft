@@ -596,20 +596,22 @@ pub(super) fn assert_tree_variant_and_trunk_support() {
         assert!(!super::super::mega_pine_leaves_row_should_skip(4, 0, 4));
         assert!(super::super::mega_pine_leaves_row_should_skip(4, 4, 5));
         let forking_plan = super::super::forking_trunk_placement_plan(
-            BlockPos {
-                x: 200,
-                y: 64,
-                z: 200,
+            super::super::ForkingTrunkPlacementInput {
+                origin: BlockPos {
+                    x: 200,
+                    y: 64,
+                    z: 200,
+                },
+                tree_height: 6,
+                trunk_state: "minecraft:oak_log",
+                below_trunk_state: "minecraft:dirt",
+                lean_direction: HorizontalDirection::East,
+                branch_direction: HorizontalDirection::North,
+                lean_height_roll: 1,
+                lean_steps_roll: 1,
+                branch_pos_roll: 0,
+                branch_steps_roll: 2,
             },
-            6,
-            "minecraft:oak_log",
-            "minecraft:dirt",
-            HorizontalDirection::East,
-            HorizontalDirection::North,
-            1,
-            1,
-            0,
-            2,
         );
         assert!(forking_plan.blocks.iter().any(|block| {
             block.kind == TreePlacementBlockKind::Log
@@ -654,20 +656,22 @@ pub(super) fn assert_tree_variant_and_trunk_support() {
         );
         assert_eq!(
             super::super::forking_trunk_placement_plan(
-                BlockPos {
-                    x: 200,
-                    y: 64,
-                    z: 200,
+                super::super::ForkingTrunkPlacementInput {
+                    origin: BlockPos {
+                        x: 200,
+                        y: 64,
+                        z: 200,
+                    },
+                    tree_height: 6,
+                    trunk_state: "minecraft:oak_log",
+                    below_trunk_state: "minecraft:dirt",
+                    lean_direction: HorizontalDirection::East,
+                    branch_direction: HorizontalDirection::East,
+                    lean_height_roll: 1,
+                    lean_steps_roll: 1,
+                    branch_pos_roll: 0,
+                    branch_steps_roll: 2,
                 },
-                6,
-                "minecraft:oak_log",
-                "minecraft:dirt",
-                HorizontalDirection::East,
-                HorizontalDirection::East,
-                1,
-                1,
-                0,
-                2,
             )
             .attachments
             .len(),
@@ -843,18 +847,20 @@ pub(super) fn assert_tree_variant_and_trunk_support() {
             ]
         );
         let dark_oak_plan = super::super::dark_oak_trunk_placement_plan(
-            BlockPos {
-                x: 260,
-                y: 64,
-                z: 260,
+            super::super::DarkOakTrunkPlacementInput {
+                origin: BlockPos {
+                    x: 260,
+                    y: 64,
+                    z: 260,
+                },
+                tree_height: 6,
+                trunk_state: "minecraft:dark_oak_log",
+                below_trunk_state: "minecraft:dirt",
+                lean_direction: HorizontalDirection::East,
+                lean_height_roll: 1,
+                lean_steps_roll: 1,
+                branch_rolls: &[1, 1, 1, 1, 0, 2, 1, 1, 1, 1, 1, 1, 1, 1],
             },
-            6,
-            "minecraft:dark_oak_log",
-            "minecraft:dirt",
-            HorizontalDirection::East,
-            1,
-            1,
-            &[1, 1, 1, 1, 0, 2, 1, 1, 1, 1, 1, 1, 1, 1],
         );
         assert_eq!(
             dark_oak_plan

@@ -1,37 +1,39 @@
 use super::*;
 
-pub fn forking_trunk_placement_plan(
-    origin: BlockPos,
-    tree_height: i32,
-    trunk_state: &'static str,
-    below_trunk_state: &'static str,
-    lean_direction: HorizontalDirection,
-    branch_direction: HorizontalDirection,
-    lean_height_roll: i32,
-    lean_steps_roll: i32,
-    branch_pos_roll: i32,
-    branch_steps_roll: i32,
-) -> TrunkPlacementPlan {
+pub struct ForkingTrunkPlacementInput {
+    pub origin: BlockPos,
+    pub tree_height: i32,
+    pub trunk_state: &'static str,
+    pub below_trunk_state: &'static str,
+    pub lean_direction: HorizontalDirection,
+    pub branch_direction: HorizontalDirection,
+    pub lean_height_roll: i32,
+    pub lean_steps_roll: i32,
+    pub branch_pos_roll: i32,
+    pub branch_steps_roll: i32,
+}
+
+pub fn forking_trunk_placement_plan(input: ForkingTrunkPlacementInput) -> TrunkPlacementPlan {
     let mut blocks = vec![TreePlacementBlock {
         pos: BlockPos {
-            x: origin.x,
-            y: origin.y - 1,
-            z: origin.z,
+            x: input.origin.x,
+            y: input.origin.y - 1,
+            z: input.origin.z,
         },
-        state: below_trunk_state,
+        state: input.below_trunk_state,
         kind: TreePlacementBlockKind::DirtBelowTrunk,
     }];
     let mut attachments = Vec::new();
-    let lean_height = tree_height - lean_height_roll.rem_euclid(4) - 1;
-    let mut lean_steps = 3 - lean_steps_roll.rem_euclid(3);
-    let mut tx = origin.x;
-    let mut tz = origin.z;
+    let lean_height = input.tree_height - input.lean_height_roll.rem_euclid(4) - 1;
+    let mut lean_steps = 3 - input.lean_steps_roll.rem_euclid(3);
+    let mut tx = input.origin.x;
+    let mut tz = input.origin.z;
     let mut last_top_y = None;
 
-    for y_offset in 0..tree_height {
-        let y = origin.y + y_offset;
+    for y_offset in 0..input.tree_height {
+        let y = input.origin.y + y_offset;
         if y_offset >= lean_height && lean_steps > 0 {
-            let moved = offset_horizontal(BlockPos { x: tx, y, z: tz }, lean_direction, 1);
+            let moved = offset_horizontal(BlockPos { x: tx, y, z: tz }, input.lean_direction, 1);
             tx = moved.x;
             tz = moved.z;
             lean_steps -= 1;
@@ -40,7 +42,7 @@ pub fn forking_trunk_placement_plan(
             &mut blocks,
             TreePlacementBlock {
                 pos: BlockPos { x: tx, y, z: tz },
-                state: trunk_state,
+                state: input.trunk_state,
                 kind: TreePlacementBlockKind::Log,
             },
         );
@@ -55,24 +57,25 @@ pub fn forking_trunk_placement_plan(
         });
     }
 
-    if branch_direction != lean_direction {
-        tx = origin.x;
-        tz = origin.z;
-        let branch_pos = lean_height - branch_pos_roll.rem_euclid(2) - 1;
-        let mut branch_steps = 1 + branch_steps_roll.rem_euclid(3);
+    if input.branch_direction != input.lean_direction {
+        tx = input.origin.x;
+        tz = input.origin.z;
+        let branch_pos = lean_height - input.branch_pos_roll.rem_euclid(2) - 1;
+        let mut branch_steps = 1 + input.branch_steps_roll.rem_euclid(3);
         last_top_y = None;
         let mut y_offset = branch_pos;
-        while y_offset < tree_height && branch_steps > 0 {
+        while y_offset < input.tree_height && branch_steps > 0 {
             if y_offset >= 1 {
-                let y = origin.y + y_offset;
-                let moved = offset_horizontal(BlockPos { x: tx, y, z: tz }, branch_direction, 1);
+                let y = input.origin.y + y_offset;
+                let moved =
+                    offset_horizontal(BlockPos { x: tx, y, z: tz }, input.branch_direction, 1);
                 tx = moved.x;
                 tz = moved.z;
                 push_tree_block(
                     &mut blocks,
                     TreePlacementBlock {
                         pos: BlockPos { x: tx, y, z: tz },
-                        state: trunk_state,
+                        state: input.trunk_state,
                         kind: TreePlacementBlockKind::Log,
                     },
                 );
@@ -264,46 +267,48 @@ pub fn mega_jungle_trunk_placement_plan(
     plan
 }
 
-pub fn dark_oak_trunk_placement_plan(
-    origin: BlockPos,
-    tree_height: i32,
-    trunk_state: &'static str,
-    below_trunk_state: &'static str,
-    lean_direction: HorizontalDirection,
-    lean_height_roll: i32,
-    lean_steps_roll: i32,
-    branch_rolls: &[i32],
-) -> TrunkPlacementPlan {
+pub struct DarkOakTrunkPlacementInput<'a> {
+    pub origin: BlockPos,
+    pub tree_height: i32,
+    pub trunk_state: &'static str,
+    pub below_trunk_state: &'static str,
+    pub lean_direction: HorizontalDirection,
+    pub lean_height_roll: i32,
+    pub lean_steps_roll: i32,
+    pub branch_rolls: &'a [i32],
+}
+
+pub fn dark_oak_trunk_placement_plan(input: DarkOakTrunkPlacementInput<'_>) -> TrunkPlacementPlan {
     let mut blocks = Vec::new();
     for (dx, dz) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
         push_tree_block(
             &mut blocks,
             TreePlacementBlock {
                 pos: BlockPos {
-                    x: origin.x + dx,
-                    y: origin.y - 1,
-                    z: origin.z + dz,
+                    x: input.origin.x + dx,
+                    y: input.origin.y - 1,
+                    z: input.origin.z + dz,
                 },
-                state: below_trunk_state,
+                state: input.below_trunk_state,
                 kind: TreePlacementBlockKind::DirtBelowTrunk,
             },
         );
     }
 
-    let lean_height = tree_height - lean_height_roll.rem_euclid(4);
-    let mut lean_steps = 2 - lean_steps_roll.rem_euclid(3);
-    let mut tx = origin.x;
-    let mut tz = origin.z;
-    let ey = origin.y + tree_height - 1;
-    for y_offset in 0..tree_height {
+    let lean_height = input.tree_height - input.lean_height_roll.rem_euclid(4);
+    let mut lean_steps = 2 - input.lean_steps_roll.rem_euclid(3);
+    let mut tx = input.origin.x;
+    let mut tz = input.origin.z;
+    let ey = input.origin.y + input.tree_height - 1;
+    for y_offset in 0..input.tree_height {
         if y_offset >= lean_height && lean_steps > 0 {
             let moved = offset_horizontal(
                 BlockPos {
                     x: tx,
-                    y: origin.y + y_offset,
+                    y: input.origin.y + y_offset,
                     z: tz,
                 },
-                lean_direction,
+                input.lean_direction,
                 1,
             );
             tx = moved.x;
@@ -316,10 +321,10 @@ pub fn dark_oak_trunk_placement_plan(
                 TreePlacementBlock {
                     pos: BlockPos {
                         x: tx + dx,
-                        y: origin.y + y_offset,
+                        y: input.origin.y + y_offset,
                         z: tz + dz,
                     },
-                    state: trunk_state,
+                    state: input.trunk_state,
                     kind: TreePlacementBlockKind::Log,
                 },
             );
@@ -335,49 +340,58 @@ pub fn dark_oak_trunk_placement_plan(
         radius_offset: 0,
         double_trunk: true,
     }];
+    append_dark_oak_side_branches(&mut blocks, &mut attachments, &input, ey);
+
+    TrunkPlacementPlan {
+        blocks,
+        attachments,
+    }
+}
+
+fn append_dark_oak_side_branches(
+    blocks: &mut Vec<TreePlacementBlock>,
+    attachments: &mut Vec<TreeFoliageAttachmentModel>,
+    input: &DarkOakTrunkPlacementInput<'_>,
+    ey: i32,
+) {
     let mut roll_index = 0;
     for ox in -1..=2 {
         for oz in -1..=2 {
             if (0..=1).contains(&ox) && (0..=1).contains(&oz) {
                 continue;
             }
-            let gate_roll = branch_rolls.get(roll_index).copied().unwrap_or(1);
+            let gate_roll = input.branch_rolls.get(roll_index).copied().unwrap_or(1);
             roll_index += 1;
             if gate_roll.rem_euclid(3) > 0 {
                 continue;
             }
-            let length_roll = branch_rolls.get(roll_index).copied().unwrap_or(0);
+            let length_roll = input.branch_rolls.get(roll_index).copied().unwrap_or(0);
             roll_index += 1;
             let length = length_roll.rem_euclid(3) + 2;
             for branch_y in 0..length {
                 push_tree_block(
-                    &mut blocks,
+                    blocks,
                     TreePlacementBlock {
                         pos: BlockPos {
-                            x: origin.x + ox,
+                            x: input.origin.x + ox,
                             y: ey - branch_y - 1,
-                            z: origin.z + oz,
+                            z: input.origin.z + oz,
                         },
-                        state: trunk_state,
+                        state: input.trunk_state,
                         kind: TreePlacementBlockKind::Log,
                     },
                 );
             }
             attachments.push(TreeFoliageAttachmentModel {
                 pos: BlockPos {
-                    x: origin.x + ox,
+                    x: input.origin.x + ox,
                     y: ey,
-                    z: origin.z + oz,
+                    z: input.origin.z + oz,
                 },
                 radius_offset: 0,
                 double_trunk: false,
             });
         }
-    }
-
-    TrunkPlacementPlan {
-        blocks,
-        attachments,
     }
 }
 
