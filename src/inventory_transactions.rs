@@ -51,14 +51,20 @@ pub fn apply_scripted_packet(
     }
 
     let action = match packet.mode {
-        ContainerInput::Pickup => menu.click_pickup(
-            menu_slot(packet.slot),
-            if packet.button == 1 {
+        ContainerInput::Pickup => {
+            let click_action = if packet.button == 1 {
                 ClickAction::Secondary
             } else {
                 ClickAction::Primary
-            },
-        ),
+            };
+            if packet.slot == OUTSIDE_SLOT {
+                menu.click_pickup(None, click_action)
+            } else if let Some(slot) = valid_slot(packet.slot, menu.slots.len()) {
+                menu.click_pickup(Some(slot), click_action)
+            } else {
+                InventoryAction::Noop
+            }
+        }
         ContainerInput::QuickMove => packet
             .slot
             .try_into()
@@ -108,12 +114,10 @@ pub fn apply_scripted_packet(
     }
 }
 
-fn menu_slot(slot: i32) -> Option<usize> {
-    if slot == OUTSIDE_SLOT {
-        None
-    } else {
-        usize::try_from(slot).ok()
-    }
+fn valid_slot(slot: i32, slot_count: usize) -> Option<usize> {
+    usize::try_from(slot)
+        .ok()
+        .filter(|index| *index < slot_count)
 }
 
 fn collect_corrections(menu: &Menu, packet: &ScriptedContainerClickPacket) -> Vec<SlotCorrection> {
@@ -439,5 +443,45 @@ mod tests {
         );
         assert!(drop.accepted);
         assert_eq!(menu.dropped[0].count(), 1);
+    }
+
+    #[test]
+    fn scripted_invalid_pickup_slot_is_noop_without_treating_it_as_outside_drop() {
+        let mut menu = Menu::new(1);
+        menu.carried = ItemStack::new("minecraft:stick", 4);
+
+        let negative = apply_scripted_packet(
+            &mut menu,
+            0,
+            &packet(
+                0,
+                CARRIED_SLOT,
+                1,
+                ContainerInput::Pickup,
+                vec![],
+                ItemStack::new("minecraft:stick", 4),
+            ),
+        );
+        assert_eq!(negative.action, InventoryAction::Noop);
+        assert!(negative.accepted);
+        assert_eq!(menu.carried.count(), 4);
+        assert!(menu.dropped.is_empty());
+
+        let out_of_range = apply_scripted_packet(
+            &mut menu,
+            1,
+            &packet(
+                1,
+                99,
+                0,
+                ContainerInput::Pickup,
+                vec![],
+                ItemStack::new("minecraft:stick", 4),
+            ),
+        );
+        assert_eq!(out_of_range.action, InventoryAction::Noop);
+        assert!(out_of_range.accepted);
+        assert_eq!(menu.carried.count(), 4);
+        assert!(menu.dropped.is_empty());
     }
 }
