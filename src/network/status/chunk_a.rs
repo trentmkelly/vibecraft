@@ -220,6 +220,26 @@ struct PlayConnectionContext<'a> {
     rate_limiter: &'a mut PacketRateLimiter,
 }
 
+struct JoinedPlaySessionStart {
+    play_state: PlaySessionState,
+    current_chunk_x: i32,
+    current_chunk_z: i32,
+    chunk_batch_radius: i32,
+    loaded_chunks: BTreeSet<(i32, i32)>,
+    chunk_sender: PlayerChunkSender,
+    chunk_pipeline_stats: ChunkPipelineSessionStats,
+    last_keep_alive: Instant,
+    keep_alive_id: i64,
+    last_sent_rain_level: f32,
+    last_sent_thunder_level: f32,
+    last_time_sync: Instant,
+    world_layout: WorldLayout,
+    last_item_tick: Instant,
+    last_player_tick: Instant,
+    play_tick_count: u64,
+    live_fluid_ticks: LiveFluidTicks,
+}
+
 fn lock_status_mutex<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     match mutex.lock() {
         Ok(guard) => guard,
@@ -906,6 +926,116 @@ fn run_known_pack_configuration_exchange(
     Ok(())
 }
 
+fn initialize_joined_play_session(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    finished: &ClientboundLoginFinishedPacket,
+    shared: ConnectionSharedContext<'_>,
+    remote_address: &str,
+) -> io::Result<JoinedPlaySessionStart> {
+    let play_state = load_play_session_state(
+        shared.world_root,
+        &finished.profile.uuid,
+        shared.properties,
+        shared.recipe_manager.recipe_map(),
+        shared.world_seed,
+    );
+
+    // Snapshot current clock and weather state for the join packet.
+    // Java: ServerClockManager.createFullSyncPacket() on player join, ServerLevel.sendLevelInfo()
+    let (join_game_time, join_clock_data) = lock_status_mutex(shared.clock).full_sync_data(true);
+    let (join_rain_level, join_thunder_level) = {
+        let weather = lock_status_mutex(shared.weather);
+        (weather.rain_level, weather.thunder_level)
+    };
+
+    write_minimal_play_join(
+        stream,
+        compression,
+        shared.properties,
+        shared.world_seed,
+        &finished.profile,
+        &play_state,
+        shared.recipe_manager,
+        shared.world_root,
+        join_game_time,
+        join_clock_data,
+        join_rain_level,
+        join_thunder_level,
+    )?;
+    log_info(&player_login_log_message(
+        &finished.profile.name,
+        &loggable_remote_address(shared.properties.log_ips, remote_address),
+        1,
+        play_state.x,
+        play_state.y,
+        play_state.z,
+    ));
+
+    let current_chunk_x = chunk_coordinate(play_state.x);
+    let current_chunk_z = chunk_coordinate(play_state.z);
+    let chunk_batch_radius = chunk_batch_radius(shared.properties);
+    let loaded_chunks = chunk_window(current_chunk_x, current_chunk_z, chunk_batch_radius);
+    let mut chunk_sender = PlayerChunkSender::new(false);
+    seed_chunk_window(
+        &mut chunk_sender,
+        shared.chunk_pipeline,
+        current_chunk_x,
+        current_chunk_z,
+        chunk_batch_radius,
+    );
+    stream.set_read_timeout(Some(SERVER_TICK_DURATION))?;
+    send_existing_item_entities(stream, compression, shared.world_items)?;
+
+    let mut live_fluid_ticks = LiveFluidTicks::new();
+    let play_tick_count = 0_u64;
+    let center = shared.chunk_cache.get_or_load(
+        current_chunk_x,
+        current_chunk_z,
+        shared.world_root,
+        shared.world_seed,
+    );
+    unpack_chunk_fluid_ticks(&mut live_fluid_ticks, play_tick_count as i64, &center);
+
+    Ok(JoinedPlaySessionStart {
+        play_state,
+        current_chunk_x,
+        current_chunk_z,
+        chunk_batch_radius,
+        loaded_chunks,
+        chunk_sender,
+        chunk_pipeline_stats: ChunkPipelineSessionStats::default(),
+        last_keep_alive: Instant::now(),
+        keep_alive_id: 0,
+        last_sent_rain_level: join_rain_level,
+        last_sent_thunder_level: join_thunder_level,
+        last_time_sync: Instant::now(),
+        world_layout: WorldLayout::new(shared.world_root),
+        last_item_tick: Instant::now(),
+        last_player_tick: Instant::now(),
+        play_tick_count,
+        live_fluid_ticks,
+    })
+}
+
+fn send_existing_item_entities(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    world_items: &Arc<Mutex<WorldItemEntities>>,
+) -> io::Result<()> {
+    // On login: re-send ADD_ENTITY + SET_ENTITY_DATA bundles for every item entity that
+    // is already on the ground.  This mirrors Java's ServerEntity.addPairing() called during
+    // ChunkMap.updatePlayerMobTypeMap() when a player enters tracking range of an entity.
+    // Without this, items dropped before a disconnect are invisible after reconnecting.
+    let items = lock_status_mutex(world_items);
+    for item in &items.entities {
+        if let Some(item_pid) = item_protocol_id(item.item) {
+            write_item_entity_spawn_packets(stream, compression, item, item_pid)?;
+        }
+    }
+    Ok(())
+}
+
 fn handle_login_connection(
     stream: &mut TcpStream,
     mut context: LoginConnectionContext<'_>,
@@ -966,51 +1096,25 @@ fn run_joined_play_session(
         world_items,
         ..
     } = shared;
-    let mut play_state = load_play_session_state(
-        world_root,
-        &finished.profile.uuid,
-        properties,
-        recipe_manager.recipe_map(),
-        world_seed,
-    );
-
-    // Snapshot current clock and weather state for the join packet.
-    // Java: ServerClockManager.createFullSyncPacket() on player join, ServerLevel.sendLevelInfo()
-    let (join_game_time, join_clock_data) = {
-        let cm = lock_status_mutex(clock);
-        cm.full_sync_data(true)
-    };
-    let (join_rain_level, join_thunder_level) = {
-        let wc = lock_status_mutex(weather);
-        (wc.rain_level, wc.thunder_level)
-    };
-
-    write_minimal_play_join(
-        stream,
-        compression,
-        properties,
-        world_seed,
-        &finished.profile,
-        &play_state,
-        recipe_manager,
-        world_root,
-        join_game_time,
-        join_clock_data,
-        join_rain_level,
-        join_thunder_level,
-    )?;
-    log_info(&player_login_log_message(
-        &finished.profile.name,
-        &loggable_remote_address(properties.log_ips, remote_address),
-        1,
-        play_state.x,
-        play_state.y,
-        play_state.z,
-    ));
-    let mut current_chunk_x = chunk_coordinate(play_state.x);
-    let mut current_chunk_z = chunk_coordinate(play_state.z);
-    let chunk_batch_radius = chunk_batch_radius(properties);
-    let mut loaded_chunks = chunk_window(current_chunk_x, current_chunk_z, chunk_batch_radius);
+    let JoinedPlaySessionStart {
+        mut play_state,
+        mut current_chunk_x,
+        mut current_chunk_z,
+        chunk_batch_radius,
+        mut loaded_chunks,
+        mut chunk_sender,
+        mut chunk_pipeline_stats,
+        mut last_keep_alive,
+        mut keep_alive_id,
+        mut last_sent_rain_level,
+        mut last_sent_thunder_level,
+        mut last_time_sync,
+        world_layout,
+        mut last_item_tick,
+        mut last_player_tick,
+        mut play_tick_count,
+        mut live_fluid_ticks,
+    } = initialize_joined_play_session(stream, compression, &finished, shared, remote_address)?;
     // Per-session chunk sender (Java mirror: PlayerChunkSender attached to
     // ServerPlayer). Seeded with the initial view-distance window below;
     // the per-tick `drain_chunk_sender` call inside the play loop produces
@@ -1018,49 +1122,10 @@ fn run_joined_play_session(
     // `memory_connection=false` because this is a real socket-backed
     // connection — Java's memory-connection short-circuit (LAN integrated
     // servers) does not apply.
-    let mut chunk_sender = PlayerChunkSender::new(false);
-    let mut chunk_pipeline_stats = ChunkPipelineSessionStats::default();
-    seed_chunk_window(
-        &mut chunk_sender,
-        chunk_pipeline,
-        current_chunk_x,
-        current_chunk_z,
-        chunk_batch_radius,
-    );
-    stream.set_read_timeout(Some(SERVER_TICK_DURATION))?;
-    let mut last_keep_alive = Instant::now();
-    let mut keep_alive_id = 0_i64;
     // Track last sent weather levels so we can detect changes and notify the client.
     // Java: ServerLevel.advanceWeatherCycle() broadcasts RainLevelChange/ThunderLevelChange
-    let mut last_sent_rain_level = join_rain_level;
-    let mut last_sent_thunder_level = join_thunder_level;
-    let mut last_time_sync = Instant::now();
-    let world_layout = WorldLayout::new(world_root);
-
-    // On login: re-send ADD_ENTITY + SET_ENTITY_DATA bundles for every item entity that
-    // is already on the ground.  This mirrors Java's ServerEntity.addPairing() called during
-    // ChunkMap.updatePlayerMobTypeMap() when a player enters tracking range of an entity.
-    // Without this, items dropped before a disconnect are invisible after reconnecting.
-    {
-        let items = lock_status_mutex(world_items);
-        for item in &items.entities {
-            if let Some(item_pid) = item_protocol_id(item.item) {
-                write_item_entity_spawn_packets(stream, compression, item, item_pid)?;
-            }
-        }
-    }
-
     // Hook A: wall-clock timer driving item entity age ticks at ~20 Hz (50 ms per tick).
     // Java: ItemEntity.tick() — called once per server tick, ~50 ms.
-    let mut last_item_tick = Instant::now();
-    let mut last_player_tick = Instant::now();
-    let mut play_tick_count = 0_u64;
-    let mut live_fluid_ticks = LiveFluidTicks::new();
-    {
-        let center =
-            chunk_cache.get_or_load(current_chunk_x, current_chunk_z, world_root, world_seed);
-        unpack_chunk_fluid_ticks(&mut live_fluid_ticks, play_tick_count as i64, &center);
-    }
     const ITEM_TICK_INTERVAL: Duration = Duration::from_millis(50);
     loop {
         if last_keep_alive.elapsed() >= PLAY_KEEP_ALIVE_INTERVAL {
