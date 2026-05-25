@@ -858,28 +858,21 @@ fn shaped_matches(
     grid_height: usize,
     items: &[Option<&'static str>],
 ) -> bool {
-    if recipe_width == 0
-        || recipe_height == 0
-        || recipe_width > grid_width
-        || recipe_height > grid_height
-        || items.len() != grid_width * grid_height
-        || pattern.len() != recipe_width * recipe_height
-    {
+    let input = ShapedMatchInput {
+        recipe_width,
+        recipe_height,
+        pattern,
+        grid_width,
+        grid_height,
+        items,
+    };
+    if !input.has_valid_dimensions() {
         return false;
     }
 
     for y_offset in 0..=(grid_height - recipe_height) {
         for x_offset in 0..=(grid_width - recipe_width) {
-            if shaped_matches_at(
-                recipe_width,
-                recipe_height,
-                pattern,
-                grid_width,
-                grid_height,
-                items,
-                x_offset,
-                y_offset,
-            ) {
+            if shaped_matches_at(&input, x_offset, y_offset) {
                 return true;
             }
         }
@@ -888,25 +881,40 @@ fn shaped_matches(
     false
 }
 
-fn shaped_matches_at(
+struct ShapedMatchInput<'a> {
     recipe_width: usize,
     recipe_height: usize,
-    pattern: &[Option<IngredientSpec>],
+    pattern: &'a [Option<IngredientSpec>],
     grid_width: usize,
     grid_height: usize,
-    items: &[Option<&'static str>],
+    items: &'a [Option<&'static str>],
+}
+
+impl ShapedMatchInput<'_> {
+    fn has_valid_dimensions(&self) -> bool {
+        self.recipe_width != 0
+            && self.recipe_height != 0
+            && self.recipe_width <= self.grid_width
+            && self.recipe_height <= self.grid_height
+            && self.items.len() == self.grid_width * self.grid_height
+            && self.pattern.len() == self.recipe_width * self.recipe_height
+    }
+}
+
+fn shaped_matches_at(
+    input: &ShapedMatchInput<'_>,
     x_offset: usize,
     y_offset: usize,
 ) -> bool {
-    for y in 0..grid_height {
-        for x in 0..grid_width {
-            let grid_item = items[y * grid_width + x];
+    for y in 0..input.grid_height {
+        for x in 0..input.grid_width {
+            let grid_item = input.items[y * input.grid_width + x];
             let pattern_item = if x >= x_offset
-                && x < x_offset + recipe_width
+                && x < x_offset + input.recipe_width
                 && y >= y_offset
-                && y < y_offset + recipe_height
+                && y < y_offset + input.recipe_height
             {
-                pattern[(y - y_offset) * recipe_width + (x - x_offset)].as_ref()
+                input.pattern[(y - y_offset) * input.recipe_width + (x - x_offset)].as_ref()
             } else {
                 None
             };
