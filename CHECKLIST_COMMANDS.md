@@ -126,7 +126,7 @@
 - [ ] Implement `/seed`.
 - [ ] Implement `/serverpack`.
 - [ ] Implement `/setblock`.
-- [ ] Implement `/setidletimeout`.
+- [x] Implement `/setidletimeout` — admin-gated command accepts Java `IntegerArgumentType.integer(0)` minute values, rejects negative and above-`i32` inputs, updates the modeled player idle timeout, emits the enabled/disabled feedback keys, and returns the minute value; covered by `set_idle_timeout_command_updates_minutes_and_feedback`.
 - [ ] Implement `/spawnpoint`, `/setworldspawn`.
 - [ ] Implement `/spawn_armor_trims`.
 - [ ] Implement `/spectate`.

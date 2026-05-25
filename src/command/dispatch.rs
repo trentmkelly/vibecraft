@@ -23,11 +23,14 @@ pub fn execute_builtin_command(
                 return Err(CommandError::InvalidSyntax);
             }
             let minutes = parts[1]
-                .parse::<u32>()
+                .parse::<i32>()
                 .map_err(|_| CommandError::InvalidSyntax)?;
-            state.player_idle_timeout_minutes = minutes;
+            if minutes < 0 {
+                return Err(CommandError::InvalidSyntax);
+            }
+            state.player_idle_timeout_minutes = minutes as u32;
             Ok(CommandResult {
-                success_count: minutes as i32,
+                success_count: minutes,
                 feedback_key: if minutes > 0 {
                     "commands.setidletimeout.success"
                 } else {

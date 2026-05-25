@@ -81,6 +81,22 @@ fn set_idle_timeout_command_updates_minutes_and_feedback() {
         ),
         Err(CommandError::PermissionDenied)
     );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::ADMIN,
+            "setidletimeout -1",
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::ADMIN,
+            "setidletimeout 2147483648",
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
 }
 
 #[test]
