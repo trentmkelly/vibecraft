@@ -154,7 +154,7 @@ pub fn height_provider_sample_with_rolls(
             }
 
             let mut choice = first_roll.rem_euclid(positive_weight_total);
-            let selected = distribution
+            let Some(selected) = distribution
                 .iter()
                 .find(|entry| {
                     let weight = entry.weight.max(0);
@@ -165,7 +165,9 @@ pub fn height_provider_sample_with_rolls(
                         false
                     }
                 })
-                .expect("positive total weight must select a provider");
+            else {
+                return context.min_y;
+            };
             height_provider_sample_with_rolls(
                 selected.provider,
                 context,

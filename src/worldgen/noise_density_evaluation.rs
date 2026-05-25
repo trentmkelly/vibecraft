@@ -682,10 +682,10 @@ pub(super) fn fill_density_array_with_interp(
             rarity_mapper,
         } => {
             fill_density_array_with_interp(*input, chunk, output, mode);
-            for index in 0..output.len() {
-                let input_value = output[index];
+            for (index, output_value) in output.iter_mut().enumerate() {
+                let input_value = *output_value;
                 let (pos_x, pos_y, pos_z) = prepare_density_array_context(chunk, mode, index);
-                output[index] = weird_scaled_sampler_value(
+                *output_value = weird_scaled_sampler_value(
                     chunk,
                     noise,
                     rarity_mapper,

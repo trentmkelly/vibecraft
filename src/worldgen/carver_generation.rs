@@ -170,12 +170,13 @@ fn parse_float_provider_json(value: &serde_json::Value) -> Result<FloatProvider,
     let object = value
         .as_object()
         .ok_or_else(|| "float provider must be a number or object".to_string())?;
-    let provider_type = object
+    let raw_provider_type = object
         .get("type")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| "float provider object missing type".to_string())?
+        .ok_or_else(|| "float provider object missing type".to_string())?;
+    let provider_type = raw_provider_type
         .strip_prefix("minecraft:")
-        .unwrap_or_else(|| object.get("type").and_then(|v| v.as_str()).unwrap());
+        .unwrap_or(raw_provider_type);
     match provider_type {
         "uniform" => Ok(FloatProvider::Uniform {
             min: json_f32(object, "min_inclusive")?,

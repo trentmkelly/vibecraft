@@ -89,14 +89,22 @@ impl NoiseInterpolatorState {
         } else {
             &mut self.slice1
         };
-        for z_idx in 0..=(cell_count_xz as usize) {
+        for (z_idx, slice_z) in slice
+            .iter_mut()
+            .enumerate()
+            .take(cell_count_xz as usize + 1)
+        {
             let block_z = (first_cell_z + z_idx as i32) * cell_width;
-            for y_idx in 0..=(cell_count_y as usize) {
+            for (y_idx, value) in slice_z
+                .iter_mut()
+                .enumerate()
+                .take(cell_count_y as usize + 1)
+            {
                 // The Y corner corresponds to block_y = (cell_noise_min_y + y_idx) * cell_height.
                 // Java iterates y from 0 to cellCountY (inclusive) with inCellY = 0 and
                 // cellStartBlockY = (y_idx + cellNoiseMinY) * cellHeight — exactly this.
                 let block_y = (cell_noise_min_y + y_idx as i32) * cell_height;
-                slice[z_idx][y_idx] = self
+                *value = self
                     .inner_fn
                     .compute_with_noise(seed, settings, block_x, block_y, block_z);
             }

@@ -99,6 +99,8 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                             builtin_noise_router(noise_router_id_for_settings(**noise_settings))
                                 .map(|entry| entry.router)
                                 .unwrap_or(NONE_NOISE_ROUTER);
+                        let surface_rule = load_surface_rule(noise_settings.id)
+                            .ok_or_else(|| format!("missing surface rule {}", noise_settings.id))?;
                         let decoration_context_cache = build_tree_decoration_context_cache(
                             chunk.pos,
                             source_radius,
@@ -106,8 +108,7 @@ pub fn generate_overworld_spawn_chunk_for_preset_with_mode_timed(
                             noise_settings,
                             seed,
                             decoration_context_router,
-                            &load_surface_rule(noise_settings.id)
-                                .expect("normal overworld surface rule must load"),
+                            &surface_rule,
                         );
                         let source_decoration_steps = source_decoration_biome_steps_cache(
                             chunk.pos,
@@ -340,4 +341,3 @@ pub fn generate_overworld_spawn_chunk_region_for_preset_with_mode(
 
     Ok(chunks)
 }
-
