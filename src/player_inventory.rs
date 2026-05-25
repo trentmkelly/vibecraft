@@ -317,7 +317,12 @@ impl PlayerInventory {
             return;
         }
         if self.get(slot).is_empty() {
-            self.set(slot, stack.copy_with_count(0));
+            let moved = stack.count().min(stack.max_stack_size() as i32);
+            self.set(slot, stack.split(moved));
+            if let Some(current) = self.stack_mut(slot) {
+                current.set_pop_time(5);
+            }
+            return;
         }
         let current = self.stack_mut(slot).expect("slot was just initialized");
         let room = current.max_stack_size() as i32 - current.count();
@@ -697,6 +702,21 @@ impl InventoryMenu {
             // inspect `player_inventory().dropped()` separately if needed.
             let _ = self.player.add(item);
         }
+    }
+
+    /// Close the player inventory menu, returning the cursor stack and 2×2 crafting inputs
+    /// to the backing player inventory.
+    ///
+    /// Java: `InventoryMenu.removed(player)` first delegates to
+    /// `AbstractContainerMenu.removed(player)`, which calls
+    /// `Inventory.placeItemBackInInventory(carried)` for a connected server player, then clears
+    /// the 2×2 crafting grid back into the player inventory.
+    pub fn removed(&mut self, carried: &mut ItemStack) {
+        if !carried.is_empty() {
+            let stack = std::mem::replace(carried, ItemStack::empty());
+            let _ = self.player.place_item_back_in_inventory(stack);
+        }
+        self.clear_crafting_to_inventory();
     }
 
     /// Consume this `InventoryMenu` and return the underlying `PlayerInventory`.

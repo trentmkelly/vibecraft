@@ -125,6 +125,11 @@ pub fn update_play_session_state<R: Read>(
             );
             Ok(PlaySessionUpdate::default())
         }
+        SERVERBOUND_CONTAINER_CLOSE_PACKET_ID => {
+            let _packet = ServerboundContainerClosePacket::read(input)?;
+            state.inventory_menu.removed(&mut state.carried_item);
+            Ok(PlaySessionUpdate::default())
+        }
         _ => Ok(PlaySessionUpdate::default()),
     }
 }

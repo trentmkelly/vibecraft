@@ -57,6 +57,7 @@ use crate::network::play::{
     RawItemStack, ReadyChunkBatch, RecipeBookType, RecipeBookTypeSettings,
     ServerboundChatCommandPacket, ServerboundChatCommandSignedPacket, ServerboundChatPacket,
     ServerboundChunkBatchReceivedPacket, ServerboundContainerClickPacket,
+    ServerboundContainerClosePacket,
     ServerboundPlaceRecipePacket, ServerboundPlayerAbilitiesPacket,
     ServerboundRecipeBookChangeSettingsPacket, ServerboundRecipeBookSeenRecipePacket,
     ServerboundSetCreativeModeSlotPacket, ServerboundSwingHand, ServerboundUseItemOnPacket, Vec3,

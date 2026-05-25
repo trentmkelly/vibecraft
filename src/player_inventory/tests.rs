@@ -110,6 +110,19 @@ fn add_prefers_selected_then_offhand_then_existing_inventory_space() {
 }
 
 #[test]
+fn add_to_empty_slot_moves_full_stack_not_single_item() {
+    let mut inventory = PlayerInventory::new();
+
+    assert_eq!(
+        inventory.add(ItemStack::new("minecraft:stone", 64)),
+        InventoryAddResult::FullyAdded
+    );
+    assert_eq!(inventory.get(0).item_id(), "minecraft:stone");
+    assert_eq!(inventory.get(0).count(), 64);
+    assert_eq!(inventory.get(0).pop_time(), 5);
+}
+
+#[test]
 fn inventory_save_load_tracks_only_non_equipment_storage_slots() {
     let mut inventory = PlayerInventory::new();
     inventory.set(0, ItemStack::new("minecraft:apple", 3));

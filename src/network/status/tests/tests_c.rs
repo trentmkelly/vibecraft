@@ -379,6 +379,44 @@ pub fn fresh_creative_session_accepts_and_persists_creative_picker_items() {
 }
 
 #[test]
+pub fn container_close_returns_cursor_stack_to_inventory_before_save() {
+    let mut state = session_state_with_inventory(&[]);
+    state.carried_item = ItemStack::new("minecraft:stone", 64);
+
+    let mut payload = Vec::new();
+    ServerboundContainerClosePacket { container_id: 0 }
+        .write(&mut payload)
+        .unwrap();
+    update_play_session_state(
+        SERVERBOUND_CONTAINER_CLOSE_PACKET_ID,
+        &mut Cursor::new(payload),
+        &mut state,
+    )
+    .unwrap();
+
+    assert!(
+        state.carried_item.is_empty(),
+        "container close must clear the server-side cursor stack"
+    );
+    let slot = state.inventory_menu.get_slot(36).unwrap();
+    assert_eq!(slot.item_id(), "minecraft:stone");
+    assert_eq!(
+        slot.count(),
+        64,
+        "cursor stack should be placed into the first hotbar slot"
+    );
+
+    let tag = play_session_state_to_nbt(&state);
+    let restored =
+        play_session_state_from_nbt(&tag, GameMode::Creative, &RecipeMap::default()).unwrap();
+    assert_eq!(
+        restored.inventory_menu.get_slot(36),
+        Some(ItemStack::new("minecraft:stone", 64)),
+        "cursor stack returned on close must survive playerdata reload"
+    );
+}
+
+#[test]
 pub fn creative_mode_debug_packets_do_not_fall_through_to_unexpected_disconnect() {
     // Java 26.1.2 GameProtocols registers serverbound player_abilities at
     // 40 and set_creative_mode_slot at 56. Both are common in creative mode:
