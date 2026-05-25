@@ -131,7 +131,7 @@
 - [ ] Implement `/spawn_armor_trims`.
 - [ ] Implement `/spectate`.
 - [ ] Implement `/spreadplayers`.
-- [ ] Implement `/stop`.
+- [x] Implement `/stop` — owner-gated command dispatch records the server halt request, emits `commands.stop.stopping`, and returns success count 1, matching Java `StopCommand`; covered by `stop_command_requests_halt_and_requires_owner`.
 - [ ] Implement `/stopwatch`.
 - [ ] Implement `/summon`.
 - [ ] Implement `/swing`.
