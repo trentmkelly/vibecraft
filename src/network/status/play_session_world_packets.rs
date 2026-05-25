@@ -1,131 +1,5 @@
 use super::*;
 
-pub fn write_play_chunk_delta(
-    stream: &mut TcpStream,
-    compression: CompressionState,
-    center_chunk_x: i32,
-    center_chunk_z: i32,
-    chunks: &[(i32, i32)],
-    update_cache_center: bool,
-    world_root: &Path,
-    world_seed: i64,
-    chunk_cache: &GeneratedChunkCache,
-    mut live_fluid_ticks: Option<(&mut LiveFluidTicks, i64, &WorldLayout)>,
-) -> io::Result<()> {
-    let batch_started = Instant::now();
-    eprintln!(
-        "[chunk-batch-timing] start center=({}, {}) chunks={} update_center={} live_fluid_seed={}",
-        center_chunk_x,
-        center_chunk_z,
-        chunks.len(),
-        update_cache_center,
-        live_fluid_ticks.is_some()
-    );
-    if update_cache_center {
-        write_framed_packet_with_compression(
-            stream,
-            compression,
-            CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID,
-            |payload| {
-                write_var_i32(payload, center_chunk_x)?;
-                write_var_i32(payload, center_chunk_z)
-            },
-        )?;
-    }
-    if chunks.is_empty() {
-        eprintln!(
-            "[chunk-batch-timing] finish center=({}, {}) chunks=0 elapsed={}ms",
-            center_chunk_x,
-            center_chunk_z,
-            batch_started.elapsed().as_millis()
-        );
-        return Ok(());
-    }
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID,
-        |_payload| Ok(()),
-    )?;
-
-    // Java schedules chunk status work on the worldgen background executor
-    // (`NoiseBasedChunkGenerator.fillFromNoise` uses `supplyAsync(...,
-    // Util.backgroundExecutor().forName("wgen_fill_noise"))`) and lets the
-    // client receive ready chunks progressively. Generate the complete
-    // configured view-distance set, but do not wait for the entire square before
-    // sending the first finished chunks.
-    let workers = thread::available_parallelism()
-        .map(|count| count.get())
-        .unwrap_or(4)
-        .clamp(1, 4);
-    let worker_count = chunks.len().min(workers);
-    let queue = Arc::new(Mutex::new(VecDeque::from(chunks.to_vec())));
-    let (sender, receiver) = mpsc::channel::<(i32, i32, Arc<LevelChunk>)>();
-    thread::scope(|scope| {
-        for _ in 0..worker_count {
-            let queue = Arc::clone(&queue);
-            let sender = sender.clone();
-            let cache = chunk_cache.clone();
-            scope.spawn(move || loop {
-                let Some((x, z)) = queue.lock().unwrap().pop_front() else {
-                    break;
-                };
-                let chunk = cache.get_or_load(x, z, world_root, world_seed);
-                if sender.send((x, z, chunk)).is_err() {
-                    break;
-                }
-            });
-        }
-        drop(sender);
-
-        for received in 0..chunks.len() {
-            let recv_started = Instant::now();
-            let (_x, _z, chunk) = receiver.recv().map_err(|err| {
-                io::Error::new(
-                    io::ErrorKind::BrokenPipe,
-                    format!("chunk generation worker stopped before batch completed: {err}"),
-                )
-            })?;
-            let recv_ms = recv_started.elapsed().as_millis();
-            let write_started = Instant::now();
-            if let Some((ticks, game_time, _layout)) = live_fluid_ticks.as_mut() {
-                unpack_chunk_fluid_ticks(&mut **ticks, *game_time, &chunk);
-            }
-            write_generated_spawn_chunk_packets_from_chunk(stream, compression, &chunk)?;
-            let write_ms = write_started.elapsed().as_millis();
-            if write_ms >= 10 || recv_ms >= 10 || received + 1 == chunks.len() {
-                eprintln!(
-                    "[chunk-batch-timing] progress center=({}, {}) sent={}/{} chunk=({}, {}) recv_wait={}ms write={}ms elapsed={}ms",
-                    center_chunk_x,
-                    center_chunk_z,
-                    received + 1,
-                    chunks.len(),
-                    chunk.pos.x,
-                    chunk.pos.z,
-                    recv_ms,
-                    write_ms,
-                    batch_started.elapsed().as_millis()
-                );
-            }
-        }
-        Ok::<(), io::Error>(())
-    })?;
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_PLAY_CHUNK_BATCH_FINISHED_PACKET_ID,
-        |payload| write_var_i32(payload, chunks.len() as i32),
-    )?;
-    eprintln!(
-        "[chunk-batch-timing] finish center=({}, {}) chunks={} elapsed={}ms",
-        center_chunk_x,
-        center_chunk_z,
-        chunks.len(),
-        batch_started.elapsed().as_millis()
-    );
-    Ok(())
-}
-
 pub fn write_generated_spawn_chunk_packets_from_chunk<W: Write>(
     writer: &mut W,
     compression: CompressionState,
@@ -353,16 +227,20 @@ pub fn handle_chat_packet<R: Read>(
     )
 }
 
+pub struct ChatCommandContext<'a> {
+    pub profile: &'a NameAndId,
+    pub play_state: &'a mut PlaySessionState,
+    pub properties: &'a ServerProperties,
+    pub player_access: &'a Arc<Mutex<PlayerAccess>>,
+    pub world_seed: i64,
+}
+
 pub fn handle_chat_command_packet<R: Read>(
     stream: &mut TcpStream,
     compression: CompressionState,
     input: &mut R,
     signed: bool,
-    profile: &NameAndId,
-    play_state: &mut PlaySessionState,
-    properties: &ServerProperties,
-    player_access: &Arc<Mutex<PlayerAccess>>,
-    world_seed: i64,
+    context: ChatCommandContext<'_>,
 ) -> io::Result<()> {
     let command = if signed {
         ServerboundChatCommandSignedPacket::read(input)?.command
@@ -380,10 +258,22 @@ pub fn handle_chat_command_packet<R: Read>(
         return Ok(());
     }
 
-    let permissions = player_permission_set(profile, properties, player_access);
-    let mut command_state = command_state_for_player(profile, play_state, properties, world_seed);
+    let permissions =
+        player_permission_set(context.profile, context.properties, context.player_access);
+    let mut command_state = command_state_for_player(
+        context.profile,
+        context.play_state,
+        context.properties,
+        context.world_seed,
+    );
     let result = execute_builtin_command(&mut command_state, permissions, &command);
-    apply_command_side_effects(stream, compression, play_state, profile, &command_state)?;
+    apply_command_side_effects(
+        stream,
+        compression,
+        context.play_state,
+        context.profile,
+        &command_state,
+    )?;
     match result {
         Ok(result) => write_system_chat_text(
             stream,
@@ -617,10 +507,19 @@ pub fn write_default_spawn_position_packet<W: Write>(
     y: i32,
     z: i32,
 ) -> io::Result<()> {
-    write_identifier(writer, &Identifier::parse("minecraft:overworld").unwrap())?;
+    write_identifier(writer, &parse_builtin_identifier("minecraft:overworld")?)?;
     writer.write_all(&block_pos_as_long(x, y, z).to_be_bytes())?;
     writer.write_all(&0.0f32.to_be_bytes())?;
     writer.write_all(&0.0f32.to_be_bytes())
+}
+
+fn parse_builtin_identifier(value: &'static str) -> io::Result<Identifier> {
+    Identifier::parse(value).map_err(|err| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("built-in identifier {value:?} failed to parse: {err}"),
+        )
+    })
 }
 
 pub fn block_pos_as_long(x: i32, y: i32, z: i32) -> i64 {
@@ -693,10 +592,10 @@ pub fn write_generated_spawn_chunk_payload<W: Write>(
     chunk: &LevelChunk,
 ) -> io::Result<()> {
     let started = Instant::now();
-    let light_data = ClientboundLightUpdatePacketData::from_chunk(&chunk);
+    let light_data = ClientboundLightUpdatePacketData::from_chunk(chunk);
     let light_ms = started.elapsed().as_millis();
     let packet_started = Instant::now();
-    let packet = ClientboundLevelChunkWithLightPacket::from_chunk(&chunk, light_data);
+    let packet = ClientboundLevelChunkWithLightPacket::from_chunk(chunk, light_data);
     let packet_build_ms = packet_started.elapsed().as_millis();
     let write_started = Instant::now();
     let result = write_level_chunk_with_light_payload(writer, &packet);
@@ -752,70 +651,7 @@ pub fn load_or_generate_spawn_chunk_uncached(
             true,
         ) {
             Ok((chunk, timings)) => {
-                eprintln!(
-                    "[worldgen] chunk=({}, {}) phases region={}ms preset={}ms terrain={}ms fill={}ms fill_init_sections={}ms fill_noise_chunk_init={}ms fill_aquifer_init={}ms fill_block_loop={}ms fill_density_lookup={}us fill_aquifer_compute={}us fill_ore_vein_lookup={}us fill_ore_decision={}us fill_interpolation_update={}us interpolators={} fill_full_noise_cache={}ms fill_full_noise_cache_fills={} fill_vein_noise_cache={}ms fill_vein_noise_cache_fills={} cache_once_scalar_hits={} cache_once_scalar_misses={} cache_once_array_hits={} cache_once_array_misses={} fill_heightmap_pack={}ms fill_cell_columns={} fill_block_samples={} fill_block_writes={} aquifer_calls={} ore_vein_samples={} surface={}ms surface_noise_setup={}ms surface_prelim={}ms surface_column_loop={}ms surface_columns={} surface_block_samples={} surface_block_writes={} tree_context={}ms tree_context_chunks={} tree_decoration={}ms tree_blocks={} heightmaps={}ms heightmap_decode={}ms heightmap_scan={}ms heightmap_pack={}ms heightmap_sections={} heightmap_samples={} mobs={}ms mob_plan={}ms mob_biome={}ms mob_spawn_plan={}ms mob_apply={}ms mob_top={}ms mob_position_ok={}ms mob_snap_collision={}ms mob_rules={}ms mob_queue={}ms mob_random_walk={}ms mob_batches={} mob_attempts={} mobs_spawned={}",
-                    x,
-                    z,
-                    region_ms,
-                    timings.resolve_preset_ms,
-                    timings.terrain_ms,
-                    timings.terrain.fill_total_ms,
-                    timings.terrain.fill_init_sections_ms,
-                    timings.terrain.fill_noise_chunk_init_ms,
-                    timings.terrain.fill_aquifer_init_ms,
-                    timings.terrain.fill_block_loop_ms,
-                    timings.terrain.fill_density_lookup_us,
-                    timings.terrain.fill_aquifer_compute_us,
-                    timings.terrain.fill_ore_vein_lookup_us,
-                    timings.terrain.fill_ore_decision_us,
-                    timings.terrain.fill_interpolation_update_us,
-                    timings.terrain.interpolator_count,
-                    timings.terrain.fill_full_noise_cache_ms,
-                    timings.terrain.full_noise_cache_fills,
-                    timings.terrain.fill_vein_noise_cache_ms,
-                    timings.terrain.vein_noise_cache_fills,
-                    timings.terrain.cache_once_scalar_hits,
-                    timings.terrain.cache_once_scalar_misses,
-                    timings.terrain.cache_once_array_hits,
-                    timings.terrain.cache_once_array_misses,
-                    timings.terrain.fill_heightmap_pack_ms,
-                    timings.terrain.cell_columns,
-                    timings.terrain.block_samples,
-                    timings.terrain.block_writes,
-                    timings.terrain.aquifer_calls,
-                    timings.terrain.ore_vein_samples,
-                    timings.terrain.surface_total_ms,
-                    timings.terrain.surface_noise_setup_ms,
-                    timings.terrain.surface_prelim_ms,
-                    timings.terrain.surface_column_loop_ms,
-                    timings.terrain.surface_columns,
-                    timings.terrain.surface_block_samples,
-                    timings.terrain.surface_block_writes,
-                    timings.tree_context_ms,
-                    timings.tree_context_chunks,
-                    timings.tree_decoration_ms,
-                    timings.tree_blocks,
-                    timings.heightmaps.total_ms,
-                    timings.heightmaps.decode_sections_ms,
-                    timings.heightmaps.scan_blocks_ms,
-                    timings.heightmaps.pack_store_ms,
-                    timings.heightmaps.sections_decoded,
-                    timings.heightmaps.block_samples,
-                    timings.mobs.total_ms,
-                    timings.mobs.plan_ms,
-                    timings.mobs.biome_ms,
-                    timings.mobs.spawn_plan_ms,
-                    timings.mobs.apply_batches_ms,
-                    timings.mobs.top_position_ms,
-                    timings.mobs.position_ok_ms,
-                    timings.mobs.snap_collision_ms,
-                    timings.mobs.spawn_rules_ms,
-                    timings.mobs.queue_ms,
-                    timings.mobs.random_walk_ms,
-                    timings.mobs.batches,
-                    timings.mobs.attempts,
-                    timings.mobs.mobs_spawned
-                );
+                log_generated_chunk_timings(x, z, region_ms, &timings);
                 chunk
             }
             Err(err) => {
@@ -841,6 +677,78 @@ pub fn load_or_generate_spawn_chunk_uncached(
         started.elapsed().as_millis()
     );
     chunk
+}
+
+fn log_generated_chunk_timings(
+    x: i32,
+    z: i32,
+    region_ms: u128,
+    timings: &LiveChunkGenerationTimings,
+) {
+    eprintln!(
+        "[worldgen] chunk=({}, {}) phases region={}ms preset={}ms terrain={}ms fill={}ms fill_init_sections={}ms fill_noise_chunk_init={}ms fill_aquifer_init={}ms fill_block_loop={}ms fill_density_lookup={}us fill_aquifer_compute={}us fill_ore_vein_lookup={}us fill_ore_decision={}us fill_interpolation_update={}us interpolators={} fill_full_noise_cache={}ms fill_full_noise_cache_fills={} fill_vein_noise_cache={}ms fill_vein_noise_cache_fills={} cache_once_scalar_hits={} cache_once_scalar_misses={} cache_once_array_hits={} cache_once_array_misses={} fill_heightmap_pack={}ms fill_cell_columns={} fill_block_samples={} fill_block_writes={} aquifer_calls={} ore_vein_samples={} surface={}ms surface_noise_setup={}ms surface_prelim={}ms surface_column_loop={}ms surface_columns={} surface_block_samples={} surface_block_writes={} tree_context={}ms tree_context_chunks={} tree_decoration={}ms tree_blocks={} heightmaps={}ms heightmap_decode={}ms heightmap_scan={}ms heightmap_pack={}ms heightmap_sections={} heightmap_samples={} mobs={}ms mob_plan={}ms mob_biome={}ms mob_spawn_plan={}ms mob_apply={}ms mob_top={}ms mob_position_ok={}ms mob_snap_collision={}ms mob_rules={}ms mob_queue={}ms mob_random_walk={}ms mob_batches={} mob_attempts={} mobs_spawned={}",
+        x,
+        z,
+        region_ms,
+        timings.resolve_preset_ms,
+        timings.terrain_ms,
+        timings.terrain.fill_total_ms,
+        timings.terrain.fill_init_sections_ms,
+        timings.terrain.fill_noise_chunk_init_ms,
+        timings.terrain.fill_aquifer_init_ms,
+        timings.terrain.fill_block_loop_ms,
+        timings.terrain.fill_density_lookup_us,
+        timings.terrain.fill_aquifer_compute_us,
+        timings.terrain.fill_ore_vein_lookup_us,
+        timings.terrain.fill_ore_decision_us,
+        timings.terrain.fill_interpolation_update_us,
+        timings.terrain.interpolator_count,
+        timings.terrain.fill_full_noise_cache_ms,
+        timings.terrain.full_noise_cache_fills,
+        timings.terrain.fill_vein_noise_cache_ms,
+        timings.terrain.vein_noise_cache_fills,
+        timings.terrain.cache_once_scalar_hits,
+        timings.terrain.cache_once_scalar_misses,
+        timings.terrain.cache_once_array_hits,
+        timings.terrain.cache_once_array_misses,
+        timings.terrain.fill_heightmap_pack_ms,
+        timings.terrain.cell_columns,
+        timings.terrain.block_samples,
+        timings.terrain.block_writes,
+        timings.terrain.aquifer_calls,
+        timings.terrain.ore_vein_samples,
+        timings.terrain.surface_total_ms,
+        timings.terrain.surface_noise_setup_ms,
+        timings.terrain.surface_prelim_ms,
+        timings.terrain.surface_column_loop_ms,
+        timings.terrain.surface_columns,
+        timings.terrain.surface_block_samples,
+        timings.terrain.surface_block_writes,
+        timings.tree_context_ms,
+        timings.tree_context_chunks,
+        timings.tree_decoration_ms,
+        timings.tree_blocks,
+        timings.heightmaps.total_ms,
+        timings.heightmaps.decode_sections_ms,
+        timings.heightmaps.scan_blocks_ms,
+        timings.heightmaps.pack_store_ms,
+        timings.heightmaps.sections_decoded,
+        timings.heightmaps.block_samples,
+        timings.mobs.total_ms,
+        timings.mobs.plan_ms,
+        timings.mobs.biome_ms,
+        timings.mobs.spawn_plan_ms,
+        timings.mobs.apply_batches_ms,
+        timings.mobs.top_position_ms,
+        timings.mobs.position_ok_ms,
+        timings.mobs.snap_collision_ms,
+        timings.mobs.spawn_rules_ms,
+        timings.mobs.queue_ms,
+        timings.mobs.random_walk_ms,
+        timings.mobs.batches,
+        timings.mobs.attempts,
+        timings.mobs.mobs_spawned
+    );
 }
 
 pub fn live_chunk_generation_mode() -> LiveChunkGenerationMode {
@@ -915,135 +823,150 @@ pub fn generated_chunk_entity_metadata_packet(
 ) -> Option<ClientboundSetEntityDataPacket> {
     let mut packed_items = Vec::new();
     match entity_type {
-        "minecraft:cat" => {
-            if let Some(variant) = tag_string_field(fields, "variant")
-                .and_then(cat_variant_registry_id)
-                .filter(|variant| *variant != 1)
-            {
-                packed_items.push(
-                    EntityDataValue::typed(20, EntityMetadataValue::CatVariant(variant)).ok()?,
-                );
-            }
-            if let Some(sound_variant) = tag_string_field(fields, "sound_variant")
-                .and_then(cat_sound_variant_registry_id)
-                .filter(|sound_variant| *sound_variant != 0)
-            {
-                packed_items.push(
-                    EntityDataValue::typed(24, EntityMetadataValue::CatSoundVariant(sound_variant))
-                        .ok()?,
-                );
-            }
-        }
-        "minecraft:chicken" => {
-            if let Some(variant) = tag_string_field(fields, "variant")
-                .and_then(chicken_variant_registry_id)
-                .filter(|variant| *variant != 1)
-            {
-                packed_items.push(
-                    EntityDataValue::typed(18, EntityMetadataValue::ChickenVariant(variant))
-                        .ok()?,
-                );
-            }
-            if let Some(sound_variant) = tag_string_field(fields, "sound_variant")
-                .and_then(chicken_sound_variant_registry_id)
-                .filter(|sound_variant| *sound_variant != 0)
-            {
-                packed_items.push(
-                    EntityDataValue::typed(
-                        19,
-                        EntityMetadataValue::ChickenSoundVariant(sound_variant),
-                    )
-                    .ok()?,
-                );
-            }
-        }
-        "minecraft:cow" => {
-            if let Some(variant) = tag_string_field(fields, "variant")
-                .and_then(cow_variant_registry_id)
-                .filter(|variant| *variant != 1)
-            {
-                packed_items.push(
-                    EntityDataValue::typed(18, EntityMetadataValue::CowVariant(variant)).ok()?,
-                );
-            }
-            if let Some(sound_variant) = tag_string_field(fields, "sound_variant")
-                .and_then(cow_sound_variant_registry_id)
-                .filter(|sound_variant| *sound_variant != 0)
-            {
-                packed_items.push(
-                    EntityDataValue::typed(19, EntityMetadataValue::CowSoundVariant(sound_variant))
-                        .ok()?,
-                );
-            }
-        }
-        "minecraft:frog" => {
-            if let Some(variant) = tag_string_field(fields, "variant")
-                .and_then(frog_variant_registry_id)
-                .filter(|variant| *variant != 1)
-            {
-                packed_items.push(
-                    EntityDataValue::typed(18, EntityMetadataValue::FrogVariant(variant)).ok()?,
-                );
-            }
-        }
-        "minecraft:pig" => {
-            if let Some(variant) = tag_string_field(fields, "variant")
-                .and_then(pig_variant_registry_id)
-                .filter(|variant| *variant != 1)
-            {
-                packed_items.push(
-                    EntityDataValue::typed(19, EntityMetadataValue::PigVariant(variant)).ok()?,
-                );
-            }
-            if let Some(sound_variant) = tag_string_field(fields, "sound_variant")
-                .and_then(pig_sound_variant_registry_id)
-                .filter(|sound_variant| *sound_variant != 1)
-            {
-                packed_items.push(
-                    EntityDataValue::typed(20, EntityMetadataValue::PigSoundVariant(sound_variant))
-                        .ok()?,
-                );
-            }
-        }
-        "minecraft:wolf" => {
-            if let Some(variant) = tag_string_field(fields, "variant")
-                .and_then(wolf_variant_registry_id)
-                .filter(|variant| *variant != 3)
-            {
-                packed_items.push(
-                    EntityDataValue::typed(23, EntityMetadataValue::WolfVariant(variant)).ok()?,
-                );
-            }
-            if let Some(sound_variant) = tag_string_field(fields, "sound_variant")
-                .and_then(wolf_sound_variant_registry_id)
-                .filter(|sound_variant| *sound_variant != 2)
-            {
-                packed_items.push(
-                    EntityDataValue::typed(
-                        24,
-                        EntityMetadataValue::WolfSoundVariant(sound_variant),
-                    )
-                    .ok()?,
-                );
-            }
-        }
-        "minecraft:zombie_nautilus" => {
-            if let Some(variant) = tag_string_field(fields, "variant")
-                .and_then(zombie_nautilus_variant_registry_id)
-                .filter(|variant| *variant != 0)
-            {
-                packed_items.push(
-                    EntityDataValue::typed(21, EntityMetadataValue::ZombieNautilusVariant(variant))
-                        .ok()?,
-                );
-            }
-        }
+        "minecraft:cat" => push_cat_metadata(fields, &mut packed_items)?,
+        "minecraft:chicken" => push_chicken_metadata(fields, &mut packed_items)?,
+        "minecraft:cow" => push_cow_metadata(fields, &mut packed_items)?,
+        "minecraft:frog" => push_frog_metadata(fields, &mut packed_items)?,
+        "minecraft:pig" => push_pig_metadata(fields, &mut packed_items)?,
+        "minecraft:wolf" => push_wolf_metadata(fields, &mut packed_items)?,
+        "minecraft:zombie_nautilus" => push_zombie_nautilus_metadata(fields, &mut packed_items)?,
         _ => {}
     }
     (!packed_items.is_empty()).then_some(ClientboundSetEntityDataPacket {
         id: runtime_id,
         packed_items,
     })
+}
+
+fn push_cat_metadata(
+    fields: &[(String, Tag)],
+    packed_items: &mut Vec<EntityDataValue>,
+) -> Option<()> {
+    if let Some(variant) = metadata_variant(fields, "variant", cat_variant_registry_id, 1) {
+        packed_items
+            .push(EntityDataValue::typed(20, EntityMetadataValue::CatVariant(variant)).ok()?);
+    }
+    if let Some(sound_variant) =
+        metadata_variant(fields, "sound_variant", cat_sound_variant_registry_id, 0)
+    {
+        packed_items.push(
+            EntityDataValue::typed(24, EntityMetadataValue::CatSoundVariant(sound_variant)).ok()?,
+        );
+    }
+    Some(())
+}
+
+fn push_chicken_metadata(
+    fields: &[(String, Tag)],
+    packed_items: &mut Vec<EntityDataValue>,
+) -> Option<()> {
+    if let Some(variant) = metadata_variant(fields, "variant", chicken_variant_registry_id, 1) {
+        packed_items
+            .push(EntityDataValue::typed(18, EntityMetadataValue::ChickenVariant(variant)).ok()?);
+    }
+    if let Some(sound_variant) = metadata_variant(
+        fields,
+        "sound_variant",
+        chicken_sound_variant_registry_id,
+        0,
+    ) {
+        packed_items.push(
+            EntityDataValue::typed(19, EntityMetadataValue::ChickenSoundVariant(sound_variant))
+                .ok()?,
+        );
+    }
+    Some(())
+}
+
+fn push_cow_metadata(
+    fields: &[(String, Tag)],
+    packed_items: &mut Vec<EntityDataValue>,
+) -> Option<()> {
+    if let Some(variant) = metadata_variant(fields, "variant", cow_variant_registry_id, 1) {
+        packed_items
+            .push(EntityDataValue::typed(18, EntityMetadataValue::CowVariant(variant)).ok()?);
+    }
+    if let Some(sound_variant) =
+        metadata_variant(fields, "sound_variant", cow_sound_variant_registry_id, 0)
+    {
+        packed_items.push(
+            EntityDataValue::typed(19, EntityMetadataValue::CowSoundVariant(sound_variant)).ok()?,
+        );
+    }
+    Some(())
+}
+
+fn push_frog_metadata(
+    fields: &[(String, Tag)],
+    packed_items: &mut Vec<EntityDataValue>,
+) -> Option<()> {
+    if let Some(variant) = metadata_variant(fields, "variant", frog_variant_registry_id, 1) {
+        packed_items
+            .push(EntityDataValue::typed(18, EntityMetadataValue::FrogVariant(variant)).ok()?);
+    }
+    Some(())
+}
+
+fn push_pig_metadata(
+    fields: &[(String, Tag)],
+    packed_items: &mut Vec<EntityDataValue>,
+) -> Option<()> {
+    if let Some(variant) = metadata_variant(fields, "variant", pig_variant_registry_id, 1) {
+        packed_items
+            .push(EntityDataValue::typed(19, EntityMetadataValue::PigVariant(variant)).ok()?);
+    }
+    if let Some(sound_variant) =
+        metadata_variant(fields, "sound_variant", pig_sound_variant_registry_id, 1)
+    {
+        packed_items.push(
+            EntityDataValue::typed(20, EntityMetadataValue::PigSoundVariant(sound_variant)).ok()?,
+        );
+    }
+    Some(())
+}
+
+fn push_wolf_metadata(
+    fields: &[(String, Tag)],
+    packed_items: &mut Vec<EntityDataValue>,
+) -> Option<()> {
+    if let Some(variant) = metadata_variant(fields, "variant", wolf_variant_registry_id, 3) {
+        packed_items
+            .push(EntityDataValue::typed(23, EntityMetadataValue::WolfVariant(variant)).ok()?);
+    }
+    if let Some(sound_variant) =
+        metadata_variant(fields, "sound_variant", wolf_sound_variant_registry_id, 2)
+    {
+        packed_items.push(
+            EntityDataValue::typed(24, EntityMetadataValue::WolfSoundVariant(sound_variant))
+                .ok()?,
+        );
+    }
+    Some(())
+}
+
+fn push_zombie_nautilus_metadata(
+    fields: &[(String, Tag)],
+    packed_items: &mut Vec<EntityDataValue>,
+) -> Option<()> {
+    let Some(variant) = metadata_variant(fields, "variant", zombie_nautilus_variant_registry_id, 0)
+    else {
+        return Some(());
+    };
+    packed_items.push(
+        EntityDataValue::typed(21, EntityMetadataValue::ZombieNautilusVariant(variant)).ok()?,
+    );
+    Some(())
+}
+
+fn metadata_variant(
+    fields: &[(String, Tag)],
+    field_name: &str,
+    registry_id: impl FnOnce(&str) -> Option<i32>,
+    default_id: i32,
+) -> Option<i32> {
+    tag_string_field(fields, field_name)
+        .and_then(registry_id)
+        .filter(|variant| *variant != default_id)
 }
 
 pub fn tag_string_field<'a>(fields: &'a [(String, Tag)], name: &str) -> Option<&'a str> {

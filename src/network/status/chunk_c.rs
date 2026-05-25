@@ -1049,13 +1049,14 @@ pub fn write_play_chunk_batch(
     write_play_chunk_delta(
         stream,
         compression,
-        request.center.x,
-        request.center.z,
-        &chunks,
-        false,
-        request.world_root,
-        request.world_seed,
-        request.chunk_cache,
-        None,
+        PlayChunkDeltaRequest {
+            center: request.center,
+            chunks: &chunks,
+            update_cache_center: false,
+            world_root: request.world_root,
+            world_seed: request.world_seed,
+            chunk_cache: request.chunk_cache,
+            live_fluid_ticks: None,
+        },
     )
 }

@@ -2181,11 +2181,13 @@ fn handle_decoded_play_packet(
             compression,
             &mut input,
             packet_id == SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID,
-            context.profile,
-            play_state,
-            context.properties,
-            context.player_access,
-            context.world_seed,
+            ChatCommandContext {
+                profile: context.profile,
+                play_state,
+                properties: context.properties,
+                player_access: context.player_access,
+                world_seed: context.world_seed,
+            },
         )?;
     } else if packet_id == SERVERBOUND_USE_ITEM_ON_PACKET_ID {
         let packet = ServerboundUseItemOnPacket::read(&mut input)?;

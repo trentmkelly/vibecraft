@@ -128,7 +128,7 @@ use crate::worldgen::{
     generate_overworld_spawn_chunk_region_for_preset_with_mode,
     generator_find_spawn_position_for_stem, resolve_world_preset, spawn_block_kind,
     spawn_search_candidate, spawn_search_candidate_count, spawn_search_radius,
-    LiveChunkGenerationMode, SpawnBlockKind, SPAWN_SELECTION_CONSTANTS,
+    LiveChunkGenerationMode, LiveChunkGenerationTimings, SpawnBlockKind, SPAWN_SELECTION_CONSTANTS,
 };
 
 pub(super) const VERSION_NAME: &str = "26.1.2";
@@ -263,6 +263,9 @@ pub use chunk_b::*;
 
 mod play_session_state_updates;
 pub use play_session_state_updates::*;
+
+mod play_session_chunk_delta;
+pub use play_session_chunk_delta::*;
 
 mod chunk_b_2;
 pub use chunk_b_2::*;
