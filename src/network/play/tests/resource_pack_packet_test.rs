@@ -2,6 +2,33 @@ use super::*;
 use crate::network::common::ResourcePackAction;
 
 #[test]
+fn clientbound_resource_pack_pop_packet_matches_java_codec() {
+    assert_eq!(CLIENTBOUND_RESOURCE_PACK_POP_PACKET_ID, 80);
+    let registry = PlayProtocolRegistry::new();
+    assert_eq!(
+        registry.clientbound_name(CLIENTBOUND_RESOURCE_PACK_POP_PACKET_ID),
+        Some("resource_pack_pop")
+    );
+
+    let absent = ClientboundResourcePackPopPacket { id: None };
+    let mut absent_payload = Vec::new();
+    absent.write(&mut absent_payload).unwrap();
+    assert_eq!(absent_payload, vec![0]);
+
+    let id = Uuid([
+        0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e,
+        0x1f,
+    ]);
+    let present = ClientboundResourcePackPopPacket { id: Some(id) };
+    let mut present_payload = Vec::new();
+    present.write(&mut present_payload).unwrap();
+
+    let mut expected_present = vec![1];
+    expected_present.extend_from_slice(&id.0);
+    assert_eq!(present_payload, expected_present);
+}
+
+#[test]
 fn serverbound_resource_pack_packet_matches_java_codec() {
     assert_eq!(SERVERBOUND_RESOURCE_PACK_PACKET_ID, 49);
     let registry = PlayProtocolRegistry::new();

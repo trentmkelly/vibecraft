@@ -218,7 +218,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Resource State Packets
 
-- [ ] `ClientboundResourcePackPopPacket`: optional resource pack UUID
+- [x] `ClientboundResourcePackPopPacket` (0x50 / decimal 80): optional resource pack UUID encoded with Java `writeOptional(UUIDUtil.STREAM_CODEC)` layout; verified against Java codec/common packet name/play registration, Rust play registry mapping, and focused absent/present UUID byte-layout coverage.
 - [ ] `ClientboundResourcePackPushPacket`: UUID, URL, hash (max 40), required, optional prompt component via trusted context-free network NBT tag
 - [x] `ServerboundResourcePackPacket` (0x31 / decimal 49): UUID followed by Java enum ordinal VarInt action (`SUCCESSFULLY_LOADED`, `DECLINED`, `FAILED_DOWNLOAD`, `ACCEPTED`, `DOWNLOADED`, `INVALID_URL`, `FAILED_RELOAD`, `DISCARDED`); verified against the Java read/write codec and common/play registration name, Rust packet ID/registry mapping, focused byte-layout coverage for all eight actions, play-session response storage, and malformed missing-action/invalid-action/trailing-payload disconnect coverage.
 
