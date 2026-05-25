@@ -162,33 +162,36 @@ impl PoolElementStructurePieceModel {
     }
 }
 
-pub fn jigsaw_child_placement_y(
-    source_projection: JigsawProjectionModel,
-    target_projection: JigsawProjectionModel,
-    source_box_y: i32,
-    source_jigsaw_local_y: i32,
-    target_jigsaw_local_y: i32,
-    source_direction_step_y: i32,
-    source_ground_level_delta: i32,
-    target_ground_level_delta: i32,
-    source_jigsaw_base_height: i32,
-) -> JigsawChildPlacementYModel {
-    let source_rigid = source_projection == JigsawProjectionModel::Rigid;
-    let target_rigid = target_projection == JigsawProjectionModel::Rigid;
-    let delta_y = source_jigsaw_local_y - target_jigsaw_local_y + source_direction_step_y;
+pub struct JigsawChildPlacementYInput {
+    pub source_projection: JigsawProjectionModel,
+    pub target_projection: JigsawProjectionModel,
+    pub source_box_y: i32,
+    pub source_jigsaw_local_y: i32,
+    pub target_jigsaw_local_y: i32,
+    pub source_direction_step_y: i32,
+    pub source_ground_level_delta: i32,
+    pub target_ground_level_delta: i32,
+    pub source_jigsaw_base_height: i32,
+}
+
+pub fn jigsaw_child_placement_y(input: JigsawChildPlacementYInput) -> JigsawChildPlacementYModel {
+    let source_rigid = input.source_projection == JigsawProjectionModel::Rigid;
+    let target_rigid = input.target_projection == JigsawProjectionModel::Rigid;
+    let delta_y =
+        input.source_jigsaw_local_y - input.target_jigsaw_local_y + input.source_direction_step_y;
     let target_box_y = if source_rigid && target_rigid {
-        source_box_y + delta_y
+        input.source_box_y + delta_y
     } else {
-        source_jigsaw_base_height - target_jigsaw_local_y
+        input.source_jigsaw_base_height - input.target_jigsaw_local_y
     };
     let target_ground_level_delta = if target_rigid {
-        source_ground_level_delta - delta_y
+        input.source_ground_level_delta - delta_y
     } else {
-        target_ground_level_delta
+        input.target_ground_level_delta
     };
     let (junction_y, case) = if source_rigid {
         (
-            source_box_y + source_jigsaw_local_y,
+            input.source_box_y + input.source_jigsaw_local_y,
             if target_rigid {
                 JigsawJunctionYOffsetCase::BothRigid
             } else {
@@ -197,12 +200,12 @@ pub fn jigsaw_child_placement_y(
         )
     } else if target_rigid {
         (
-            target_box_y + target_jigsaw_local_y,
+            target_box_y + input.target_jigsaw_local_y,
             JigsawJunctionYOffsetCase::TargetRigid,
         )
     } else {
         (
-            source_jigsaw_base_height + delta_y / 2,
+            input.source_jigsaw_base_height + delta_y / 2,
             JigsawJunctionYOffsetCase::BothTerrainMatching,
         )
     };
@@ -493,4 +496,3 @@ impl JigsawStructureModel {
         }
     }
 }
-

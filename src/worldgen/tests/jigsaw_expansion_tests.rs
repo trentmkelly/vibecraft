@@ -66,17 +66,18 @@
             Some(super::super::LiquidSettingsModel::IgnoreWaterlogging)
         );
 
-        let both_rigid = super::super::jigsaw_child_placement_y(
-            super::super::JigsawProjectionModel::Rigid,
-            super::super::JigsawProjectionModel::Rigid,
-            64,
-            3,
-            1,
-            0,
-            5,
-            1,
-            90,
-        );
+        let both_rigid =
+            super::super::jigsaw_child_placement_y(super::super::JigsawChildPlacementYInput {
+                source_projection: super::super::JigsawProjectionModel::Rigid,
+                target_projection: super::super::JigsawProjectionModel::Rigid,
+                source_box_y: 64,
+                source_jigsaw_local_y: 3,
+                target_jigsaw_local_y: 1,
+                source_direction_step_y: 0,
+                source_ground_level_delta: 5,
+                target_ground_level_delta: 1,
+                source_jigsaw_base_height: 90,
+            });
         assert_eq!(
             both_rigid,
             super::super::JigsawChildPlacementYModel {
@@ -87,17 +88,18 @@
             }
         );
 
-        let terrain_target = super::super::jigsaw_child_placement_y(
-            super::super::JigsawProjectionModel::Rigid,
-            super::super::JigsawProjectionModel::TerrainMatching,
-            64,
-            3,
-            1,
-            0,
-            5,
-            1,
-            90,
-        );
+        let terrain_target =
+            super::super::jigsaw_child_placement_y(super::super::JigsawChildPlacementYInput {
+                source_projection: super::super::JigsawProjectionModel::Rigid,
+                target_projection: super::super::JigsawProjectionModel::TerrainMatching,
+                source_box_y: 64,
+                source_jigsaw_local_y: 3,
+                target_jigsaw_local_y: 1,
+                source_direction_step_y: 0,
+                source_ground_level_delta: 5,
+                target_ground_level_delta: 1,
+                source_jigsaw_base_height: 90,
+            });
         assert_eq!(terrain_target.target_box_y, 89);
         assert_eq!(terrain_target.target_ground_level_delta, 1);
         assert_eq!(
@@ -105,17 +107,18 @@
             super::super::JigsawJunctionYOffsetCase::SourceRigid
         );
 
-        let both_terrain = super::super::jigsaw_child_placement_y(
-            super::super::JigsawProjectionModel::TerrainMatching,
-            super::super::JigsawProjectionModel::TerrainMatching,
-            64,
-            4,
-            1,
-            -1,
-            2,
-            1,
-            91,
-        );
+        let both_terrain =
+            super::super::jigsaw_child_placement_y(super::super::JigsawChildPlacementYInput {
+                source_projection: super::super::JigsawProjectionModel::TerrainMatching,
+                target_projection: super::super::JigsawProjectionModel::TerrainMatching,
+                source_box_y: 64,
+                source_jigsaw_local_y: 4,
+                target_jigsaw_local_y: 1,
+                source_direction_step_y: -1,
+                source_ground_level_delta: 2,
+                target_ground_level_delta: 1,
+                source_jigsaw_base_height: 91,
+            });
         let delta_y = 4 - 1 - 1;
         assert_eq!(both_terrain.target_box_y, 90);
         assert_eq!(both_terrain.junction_y, 91 + delta_y / 2);
@@ -157,17 +160,18 @@
 
     #[test]
     fn jigsaw_child_box_placement_matches_java_raw_box_and_y_offset_math() {
-        let placement = super::super::jigsaw_child_placement_y(
-            super::super::JigsawProjectionModel::Rigid,
-            super::super::JigsawProjectionModel::Rigid,
-            64,
-            5,
-            2,
-            1,
-            0,
-            0,
-            90,
-        );
+        let placement =
+            super::super::jigsaw_child_placement_y(super::super::JigsawChildPlacementYInput {
+                source_projection: super::super::JigsawProjectionModel::Rigid,
+                target_projection: super::super::JigsawProjectionModel::Rigid,
+                source_box_y: 64,
+                source_jigsaw_local_y: 5,
+                target_jigsaw_local_y: 2,
+                source_direction_step_y: 1,
+                source_ground_level_delta: 0,
+                target_ground_level_delta: 0,
+                source_jigsaw_base_height: 90,
+            });
         assert_eq!(placement.target_box_y, 68);
 
         let box_placement = super::super::jigsaw_child_box_placement(
@@ -221,17 +225,18 @@
             }
         );
 
-        let terrain_placement = super::super::jigsaw_child_placement_y(
-            super::super::JigsawProjectionModel::TerrainMatching,
-            super::super::JigsawProjectionModel::Rigid,
-            64,
-            5,
-            2,
-            -1,
-            0,
-            0,
-            91,
-        );
+        let terrain_placement =
+            super::super::jigsaw_child_placement_y(super::super::JigsawChildPlacementYInput {
+                source_projection: super::super::JigsawProjectionModel::TerrainMatching,
+                target_projection: super::super::JigsawProjectionModel::Rigid,
+                source_box_y: 64,
+                source_jigsaw_local_y: 5,
+                target_jigsaw_local_y: 2,
+                source_direction_step_y: -1,
+                source_ground_level_delta: 0,
+                target_ground_level_delta: 0,
+                source_jigsaw_base_height: 91,
+            });
         let moved = super::super::jigsaw_child_box_placement(
             super::super::BlockPos {
                 x: 101,
