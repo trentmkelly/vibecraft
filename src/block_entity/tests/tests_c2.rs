@@ -266,7 +266,14 @@ fn creaking_heart_block_entity_tracks_state_protector_and_output_like_java() {
 
     let mut heart = CreakingHeartBlockEntity::new();
     heart.ticker = -1;
-    let actions = heart.server_tick(true, true, true, true, false, None, false, false, 4);
+    let actions = heart.server_tick(CreakingHeartTickContext {
+        has_required_logs: true,
+        creaking_active: true,
+        spawning_monsters: true,
+        player_nearby: true,
+        next_ticker_offset: 4,
+        ..CreakingHeartTickContext::default()
+    });
     assert_eq!(
         actions,
         vec![
@@ -304,11 +311,26 @@ fn creaking_heart_block_entity_tracks_state_protector_and_output_like_java() {
     );
     assert_eq!(heart.emitter_ticks, 100);
     assert_eq!(heart.creaking_hurt(true, 2), CreakingHeartAction::None);
-    heart.server_tick(true, true, true, true, true, Some(4.0), false, false, 0);
+    heart.server_tick(CreakingHeartTickContext {
+        has_required_logs: true,
+        creaking_active: true,
+        spawning_monsters: true,
+        player_nearby: true,
+        protector_resolved: true,
+        protector_distance: Some(4.0),
+        ..CreakingHeartTickContext::default()
+    });
     assert_eq!(heart.emitter_ticks, 99);
 
     heart.ticker = -1;
-    let actions = heart.server_tick(true, false, true, true, true, Some(35.0), false, false, 0);
+    let actions = heart.server_tick(CreakingHeartTickContext {
+        has_required_logs: true,
+        spawning_monsters: true,
+        player_nearby: true,
+        protector_resolved: true,
+        protector_distance: Some(35.0),
+        ..CreakingHeartTickContext::default()
+    });
     assert!(actions.contains(&CreakingHeartAction::StateChanged(
         CreakingHeartStateModel::Dormant
     )));
@@ -317,7 +339,12 @@ fn creaking_heart_block_entity_tracks_state_protector_and_output_like_java() {
 
     heart.state = CreakingHeartStateModel::Dormant;
     heart.ticker = -1;
-    let actions = heart.server_tick(false, true, true, true, false, None, false, false, 0);
+    let actions = heart.server_tick(CreakingHeartTickContext {
+        creaking_active: true,
+        spawning_monsters: true,
+        player_nearby: true,
+        ..CreakingHeartTickContext::default()
+    });
     assert_eq!(
         actions,
         vec![CreakingHeartAction::StateChanged(
@@ -332,7 +359,13 @@ fn creaking_heart_block_entity_tracks_state_protector_and_output_like_java() {
     unresolved.ticks_existed = 29;
     unresolved.ticker = -1;
     assert!(unresolved
-        .server_tick(true, true, true, true, false, None, false, false, 0)
+        .server_tick(CreakingHeartTickContext {
+            has_required_logs: true,
+            creaking_active: true,
+            spawning_monsters: true,
+            player_nearby: true,
+            ..CreakingHeartTickContext::default()
+        })
         .contains(&CreakingHeartAction::RemoveProtector));
     assert!(unresolved.creaking_uuid.is_none());
 }
@@ -520,4 +553,3 @@ fn save_modes_match_metadata_and_custom_data_boundaries() {
         matches!(entity.save_with_full_metadata(), Tag::Compound(values) if values.iter().any(|(k, v)| k == "x" && *v == Tag::Int(18)))
     );
 }
-

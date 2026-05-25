@@ -818,7 +818,7 @@ pub struct BannerBlockEntity {
     pub custom_name: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PotDecorations {
     pub back: Option<String>,
     pub left: Option<String>,
@@ -838,7 +838,7 @@ pub enum DecoratedPotWobbleStyle {
     Negative,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DecoratedPotBlockEntity {
     pub decorations: PotDecorations,
     pub item: Option<PotItemStack>,
@@ -1035,6 +1035,19 @@ pub struct CreakingHeartBlockEntity {
     pub emitter_ticks: i32,
     pub output_signal: i32,
     pub state: CreakingHeartStateModel,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct CreakingHeartTickContext {
+    pub has_required_logs: bool,
+    pub creaking_active: bool,
+    pub spawning_monsters: bool,
+    pub player_nearby: bool,
+    pub protector_resolved: bool,
+    pub protector_distance: Option<f64>,
+    pub protector_persistent: bool,
+    pub player_stuck_in_protector: bool,
+    pub next_ticker_offset: i32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -488,17 +488,6 @@ impl BannerBlockEntity {
     }
 }
 
-impl Default for PotDecorations {
-    fn default() -> Self {
-        Self {
-            back: None,
-            left: None,
-            right: None,
-            front: None,
-        }
-    }
-}
-
 impl PotDecorations {
     const BRICK: &'static str = "minecraft:brick";
 
@@ -595,7 +584,11 @@ impl FurnaceBlockEntityKind {
         }
     }
 
-    pub(super) fn burn_duration(self, fuel_values: &FuelValues, fuel: Option<&PotItemStack>) -> i32 {
+    pub(super) fn burn_duration(
+        self,
+        fuel_values: &FuelValues,
+        fuel: Option<&PotItemStack>,
+    ) -> i32 {
         let Some(fuel) = fuel else {
             return 0;
         };
@@ -1014,4 +1007,3 @@ impl AbstractFurnaceBlockEntity {
         )
     }
 }
-

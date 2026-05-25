@@ -358,19 +358,6 @@ impl DecoratedPotWobbleStyle {
     }
 }
 
-impl Default for DecoratedPotBlockEntity {
-    fn default() -> Self {
-        Self {
-            decorations: PotDecorations::default(),
-            item: None,
-            loot_table: None,
-            loot_table_seed: 0,
-            wobble_started_at_tick: 0,
-            last_wobble_style: None,
-        }
-    }
-}
-
 impl DecoratedPotBlockEntity {
     pub const EVENT_POT_WOBBLES: i32 = 1;
 

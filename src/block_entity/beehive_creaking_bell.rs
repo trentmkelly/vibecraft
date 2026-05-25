@@ -290,21 +290,10 @@ impl CreakingHeartBlockEntity {
         self.creaking_uuid = None;
     }
 
-    pub fn server_tick(
-        &mut self,
-        has_required_logs: bool,
-        creaking_active: bool,
-        spawning_monsters: bool,
-        player_nearby: bool,
-        protector_resolved: bool,
-        protector_distance: Option<f64>,
-        protector_persistent: bool,
-        player_stuck_in_protector: bool,
-        next_ticker_offset: i32,
-    ) -> Vec<CreakingHeartAction> {
+    pub fn server_tick(&mut self, context: CreakingHeartTickContext) -> Vec<CreakingHeartAction> {
         self.ticks_existed += 1;
         let mut actions = Vec::new();
-        let computed_signal = self.compute_analog_output_signal(protector_distance);
+        let computed_signal = self.compute_analog_output_signal(context.protector_distance);
         if self.output_signal != computed_signal {
             self.output_signal = computed_signal;
         }
@@ -318,9 +307,11 @@ impl CreakingHeartBlockEntity {
             return actions;
         }
         self.ticker = Self::UPDATE_TICKS
-            + next_ticker_offset.clamp(0, Self::UPDATE_TICKS_VARIANCE.saturating_sub(1));
+            + context
+                .next_ticker_offset
+                .clamp(0, Self::UPDATE_TICKS_VARIANCE.saturating_sub(1));
 
-        let updated_state = self.updated_state(has_required_logs, creaking_active);
+        let updated_state = self.updated_state(context.has_required_logs, context.creaking_active);
         if updated_state != self.state {
             self.state = updated_state;
             actions.push(CreakingHeartAction::StateChanged(updated_state));
@@ -330,18 +321,25 @@ impl CreakingHeartBlockEntity {
         }
 
         if self.creaking_uuid.is_none() {
-            if self.state == CreakingHeartStateModel::Awake && spawning_monsters && player_nearby {
+            if self.state == CreakingHeartStateModel::Awake
+                && context.spawning_monsters
+                && context.player_nearby
+            {
                 actions.push(CreakingHeartAction::SpawnProtector {
                     attempts: Self::ATTEMPTS_PER_SPAWN,
                     range_xz: Self::SPAWN_RANGE_XZ,
                     range_y: Self::SPAWN_RANGE_Y,
                 });
             }
-        } else if protector_resolved {
-            let too_far = protector_distance
+        } else if context.protector_resolved {
+            let too_far = context
+                .protector_distance
                 .map(|distance| distance > Self::DISTANCE_CREAKING_TOO_FAR)
                 .unwrap_or(false);
-            if (!creaking_active && !protector_persistent) || too_far || player_stuck_in_protector {
+            if (!context.creaking_active && !context.protector_persistent)
+                || too_far
+                || context.player_stuck_in_protector
+            {
                 self.clear_creaking();
                 actions.push(CreakingHeartAction::RemoveProtector);
             }
@@ -833,10 +831,12 @@ impl BrushableBlockEntity {
 }
 
 pub fn type_info(ty: BlockEntityTypeId) -> &'static BlockEntityTypeInfo {
-    BLOCK_ENTITY_TYPES
-        .iter()
-        .find(|info| info.id == ty)
-        .expect("block entity type table covers every id")
+    if let Some(info) = BLOCK_ENTITY_TYPES.iter().find(|info| info.id == ty) {
+        return info;
+    }
+
+    // BLOCK_ENTITY_TYPES is the canonical table for every BlockEntityTypeId variant.
+    unreachable!("block entity type table does not cover {ty:?}");
 }
 
 pub fn type_by_key(key: &str) -> Option<BlockEntityTypeId> {
@@ -859,4 +859,3 @@ pub fn has_block_entity_for_block(registry_id: &str) -> bool {
         .iter()
         .any(|entry| entry.valid_blocks.contains(&registry_id))
 }
-
