@@ -184,6 +184,13 @@ struct RuntimeSelection {
     server_id: Option<String>,
 }
 
+struct StartupFiles {
+    settings_path: PathBuf,
+    eula_path: PathBuf,
+    properties: ServerProperties,
+    eula: Eula,
+}
+
 fn main() {
     crash::install_panic_hook();
 
@@ -209,67 +216,123 @@ fn main() {
 }
 
 fn run(options: CliOptions) -> Result<(), String> {
-    // Determine the log level using the documented precedence:
-    //   1. --log-level CLI flag
-    //   2. RUSTCRAFT_LOG environment variable
-    //   3. Default: Info
-    let level = options
+    let logger = initialize_logger(&options)?;
+    logger.info("Starting RustCraft target server for Minecraft Java Edition 26.1.2")?;
+    write_pid_file(&options)?;
+
+    if generate_reports_if_requested(&options, &logger)? {
+        return Ok(());
+    }
+
+    let startup = load_startup_files()?;
+    if exit_after_startup_file_gate(&options, &logger, &startup)? {
+        return Ok(());
+    }
+
+    validate_code_of_conduct_configuration(&startup.properties)?;
+
+    let watchdog = runtime::Watchdog::from_max_tick_time_millis(startup.properties.max_tick_time);
+    let runtime = runtime_selection(&options, &startup.properties);
+    log_runtime_selection(&logger, &options, &runtime, &watchdog)?;
+    run_configured_world_upgrade(&logger, &options, &runtime)?;
+
+    let (console_input, _console_handle) = console::spawn_console_input_thread()
+        .map_err(|err| format!("Failed to start server console input thread: {err}"))?;
+    logger.info("Started server console input thread")?;
+
+    let world_options =
+        configure_initial_data_packs(&logger, &options, &startup.properties, &runtime)?;
+    start_network_listeners(
+        &logger,
+        &startup.properties,
+        &runtime,
+        world_options.seed,
+        &console_input,
+    )
+}
+
+fn initialize_logger(options: &CliOptions) -> Result<std::sync::Arc<Logger>, String> {
+    let level = selected_log_level(options);
+    Logger::open_with_level("logs", level).map(crate::log::init)
+}
+
+fn selected_log_level(options: &CliOptions) -> LogLevel {
+    // Keep Java-main-style precedence: CLI flag, environment, then default.
+    options
         .log_level
         .or_else(|| {
             std::env::var("RUSTCRAFT_LOG")
                 .ok()
                 .and_then(|val| LogLevel::from_str(&val).ok())
         })
-        .unwrap_or(LogLevel::Info);
+        .unwrap_or(LogLevel::Info)
+}
 
-    let logger = crate::log::init(Logger::open_with_level("logs", level)?);
-    logger.info("Starting RustCraft target server for Minecraft Java Edition 26.1.2")?;
-
+fn write_pid_file(options: &CliOptions) -> Result<(), String> {
     if let Some(pid_file) = &options.pid_file {
         let pid = process::id().to_string();
         std::fs::write(pid_file, pid)
             .map_err(|err| format!("Failed to write pid file '{}': {err}", pid_file.display()))?;
     }
+    Ok(())
+}
 
-    let settings_path = PathBuf::from("server.properties");
-    let eula_path = PathBuf::from("eula.txt");
-
-    if options.report {
-        generated_reports::generate_reports("generated")?;
-        logger.info("Generated reports under generated/reports")?;
-        return Ok(());
+fn generate_reports_if_requested(options: &CliOptions, logger: &Logger) -> Result<bool, String> {
+    if !options.report {
+        return Ok(false);
     }
 
+    generated_reports::generate_reports("generated")?;
+    logger.info("Generated reports under generated/reports")?;
+    Ok(true)
+}
+
+fn load_startup_files() -> Result<StartupFiles, String> {
+    let settings_path = PathBuf::from("server.properties");
+    let eula_path = PathBuf::from("eula.txt");
     let mut properties = ServerProperties::load_or_default(&settings_path)?;
     properties.save(&settings_path)?;
-    let watchdog = runtime::Watchdog::from_max_tick_time_millis(properties.max_tick_time);
-
     let eula = Eula::load_or_create(&eula_path)?;
 
+    Ok(StartupFiles {
+        settings_path,
+        eula_path,
+        properties,
+        eula,
+    })
+}
+
+fn exit_after_startup_file_gate(
+    options: &CliOptions,
+    logger: &Logger,
+    startup: &StartupFiles,
+) -> Result<bool, String> {
     if options.init_settings {
         logger.info(&format!(
             "Initialized '{}' and '{}'",
-            settings_path.display(),
-            eula_path.display()
+            startup.settings_path.display(),
+            startup.eula_path.display()
         ))?;
-        return Ok(());
+        return Ok(true);
     }
 
-    if !eula.agreed {
+    if !startup.eula.agreed {
         logger.info("You need to agree to the EULA in order to run the server. Go to eula.txt for more info.")?;
-        return Ok(());
+        return Ok(true);
     }
 
-    validate_code_of_conduct_configuration(&properties)?;
+    Ok(false)
+}
 
-    let runtime = runtime_selection(&options, &properties);
-    let world_name = runtime.world_name.clone();
-    let universe = runtime.universe.clone();
-    let port = runtime.port;
-
-    logger.info(&format!("world={world_name}"))?;
-    logger.info(&format!("universe={}", universe.display()))?;
-    logger.info(&format!("port={port}"))?;
+fn log_runtime_selection(
+    logger: &Logger,
+    options: &CliOptions,
+    runtime: &RuntimeSelection,
+    watchdog: &runtime::Watchdog,
+) -> Result<(), String> {
+    logger.info(&format!("world={}", runtime.world_name))?;
+    logger.info(&format!("universe={}", runtime.universe.display()))?;
+    logger.info(&format!("port={}", runtime.port))?;
     logger.info(&format!("nogui={}", options.nogui))?;
     logger.info(&format!("safeMode={}", options.safe_mode))?;
     logger.info(&format!("demo={}", options.demo))?;
@@ -278,40 +341,52 @@ fn run(options: CliOptions) -> Result<(), String> {
         "serverId={}",
         runtime.server_id.as_deref().unwrap_or("")
     ))?;
-    logger.info(&format!("maxTickTime={}", watchdog.max_tick_time_millis()))?;
+    logger.info(&format!("maxTickTime={}", watchdog.max_tick_time_millis()))
+}
 
-    if options.force_upgrade || options.erase_cache || options.recreate_region_files {
-        let layout = WorldLayout::new(universe.join(&world_name));
-        if layout.level_dat().is_file() || layout.level_dat_old().is_file() {
-            let tag = layout
-                .load_level_dat_with_backup()
-                .map_err(|err| format!("Failed to read level.dat for world upgrade: {err}"))?;
-            let version = LevelVersion::parse_level_dat(&tag)
-                .and_then(|version| version.data_version)
-                .ok_or_else(|| "level.dat missing DataVersion for world upgrade".to_string())?;
-            let report = run_world_upgrade(
-                &layout,
-                version,
-                WorldUpgradeOptions {
-                    force_upgrade: options.force_upgrade,
-                    erase_cache: options.erase_cache,
-                    recreate_region_files: options.recreate_region_files,
-                },
-            )?;
-            logger.info(&format!(
-                "worldUpgradeSteps={:?}, chunks={}, entityChunks={}",
-                report.plan.steps, report.chunk_count, report.entity_chunk_count
-            ))?;
-        } else {
-            logger.info("Skipping world upgrade: no level.dat exists yet")?;
-        }
+fn run_configured_world_upgrade(
+    logger: &Logger,
+    options: &CliOptions,
+    runtime: &RuntimeSelection,
+) -> Result<(), String> {
+    if !(options.force_upgrade || options.erase_cache || options.recreate_region_files) {
+        return Ok(());
     }
 
-    let (console_input, _console_handle) = console::spawn_console_input_thread()
-        .map_err(|err| format!("Failed to start server console input thread: {err}"))?;
-    logger.info("Started server console input thread")?;
+    let layout = WorldLayout::new(runtime.universe.join(&runtime.world_name));
+    if !(layout.level_dat().is_file() || layout.level_dat_old().is_file()) {
+        logger.info("Skipping world upgrade: no level.dat exists yet")?;
+        return Ok(());
+    }
 
-    let datapack_dir = universe.join(&world_name).join("datapacks");
+    let tag = layout
+        .load_level_dat_with_backup()
+        .map_err(|err| format!("Failed to read level.dat for world upgrade: {err}"))?;
+    let version = LevelVersion::parse_level_dat(&tag)
+        .and_then(|version| version.data_version)
+        .ok_or_else(|| "level.dat missing DataVersion for world upgrade".to_string())?;
+    let report = run_world_upgrade(
+        &layout,
+        version,
+        WorldUpgradeOptions {
+            force_upgrade: options.force_upgrade,
+            erase_cache: options.erase_cache,
+            recreate_region_files: options.recreate_region_files,
+        },
+    )?;
+    logger.info(&format!(
+        "worldUpgradeSteps={:?}, chunks={}, entityChunks={}",
+        report.plan.steps, report.chunk_count, report.entity_chunk_count
+    ))
+}
+
+fn configure_initial_data_packs(
+    logger: &Logger,
+    options: &CliOptions,
+    properties: &ServerProperties,
+    runtime: &RuntimeSelection,
+) -> Result<WorldOptions, String> {
+    let datapack_dir = runtime.universe.join(&runtime.world_name).join("datapacks");
     let mut pack_repository = DataPackRepository::server_repository(&datapack_dir)?;
     let initial_data_config = WorldDataConfiguration {
         data_packs: DataPackConfig::from_properties(
@@ -351,18 +426,27 @@ fn run(options: CliOptions) -> Result<(), String> {
         "generateBonusChest={}",
         world_options.generate_bonus_chest
     ))?;
+    Ok(world_options)
+}
 
+fn start_network_listeners(
+    logger: &Logger,
+    properties: &ServerProperties,
+    runtime: &RuntimeSelection,
+    world_seed: i64,
+    console_input: &std::sync::mpsc::Receiver<console::ConsoleInput>,
+) -> Result<(), String> {
     logger.info("Starting status/login listener with minimal play join support.")?;
 
-    let bind_ip = listener_bind_ip(&properties);
+    let bind_ip = listener_bind_ip(properties);
     if properties.enable_query {
         let query_info = QueryServerInfo {
             server_name: properties.motd.clone(),
-            world_name: world_name.clone(),
+            world_name: runtime.world_name.clone(),
             server_version: "26.1.2".to_string(),
             plugin_names: String::new(),
             host_ip: bind_ip.to_string(),
-            server_port: port,
+            server_port: runtime.port,
             player_count: 0,
             max_players: properties.max_players as usize,
             player_names: Vec::new(),
@@ -388,17 +472,18 @@ fn run(options: CliOptions) -> Result<(), String> {
             properties.rcon_port
         ))?;
     }
-    logger.info(&format!("Status listener binding to {bind_ip}:{port}"))?;
+    logger.info(&format!(
+        "Status listener binding to {bind_ip}:{}",
+        runtime.port
+    ))?;
     run_status_server(
         bind_ip,
-        port,
-        &properties,
-        &universe.join(&world_name),
-        world_options.seed,
-        &console_input,
-    )?;
-
-    Ok(())
+        runtime.port,
+        properties,
+        &runtime.universe.join(&runtime.world_name),
+        world_seed,
+        console_input,
+    )
 }
 
 fn runtime_selection(options: &CliOptions, properties: &ServerProperties) -> RuntimeSelection {
