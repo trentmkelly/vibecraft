@@ -155,7 +155,7 @@
 - [ ] Add Mineflayer offline-mode command-before-ready tests that attempt chat commands during login/configuration/play transition boundaries and verify vanilla-compatible rejection, queuing, or disconnect behavior.
 - [ ] Add raw 26.1.2 command-before-ready fallback coverage that sends command-suggestion and chat-shaped packets during login/configuration before play readiness and verifies vanilla-compatible rejection/close behavior while Mineflayer lacks target-protocol play support.
 - [ ] Add Mineflayer offline-mode command-result consistency tests that run commands from console, op bot, non-op bot, command block, and function context, then compare success count, feedback visibility, and player-observed side effects.
-- [ ] Add command-model command-result fallback coverage for non-op denial, op self-target side effects, repeated no-op success counts, console explicit-target execution, feedback keys, and admin broadcast flags while live bot command execution remains incomplete.
+- [x] Add command-model command-result fallback coverage for non-op denial, op self-target side effects, repeated no-op success counts, console explicit-target execution, feedback keys, and admin broadcast flags while live bot command execution remains incomplete — Java `GameModeCommand` requires gamemaster permission, returns the number of players whose mode changed, emits self/other success feedback only for changes, and broadcasts admin-visible feedback; `command_results_keep_source_permissions_feedback_and_side_effects_consistent` covers modeled denial, self-target mutation, repeated no-op `0`, explicit console target execution, feedback keys, and admin broadcast flags.
 - [ ] Implement `/tick`.
 - [ ] Implement `/time`.
 - [ ] Implement `/title`.
