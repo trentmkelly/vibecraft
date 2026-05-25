@@ -99,6 +99,105 @@ fn block_predicate_offset_context(
     (y >= context.min_y && y < context.min_y + context.height).then_some(context)
 }
 
+fn block_is_log(block: &str) -> bool {
+    matches!(
+        block,
+        "minecraft:oak_log"
+            | "minecraft:spruce_log"
+            | "minecraft:birch_log"
+            | "minecraft:jungle_log"
+            | "minecraft:acacia_log"
+            | "minecraft:dark_oak_log"
+            | "minecraft:mangrove_log"
+            | "minecraft:cherry_log"
+            | "minecraft:pale_oak_log"
+            | "minecraft:crimson_stem"
+            | "minecraft:warped_stem"
+            | "minecraft:stripped_oak_log"
+            | "minecraft:stripped_spruce_log"
+            | "minecraft:stripped_birch_log"
+            | "minecraft:stripped_jungle_log"
+            | "minecraft:stripped_acacia_log"
+            | "minecraft:stripped_dark_oak_log"
+            | "minecraft:stripped_mangrove_log"
+            | "minecraft:stripped_cherry_log"
+            | "minecraft:stripped_pale_oak_log"
+            | "minecraft:stripped_crimson_stem"
+            | "minecraft:stripped_warped_stem"
+    )
+}
+
+fn block_is_leaf(block: &str) -> bool {
+    matches!(
+        block,
+        "minecraft:oak_leaves"
+            | "minecraft:spruce_leaves"
+            | "minecraft:birch_leaves"
+            | "minecraft:jungle_leaves"
+            | "minecraft:acacia_leaves"
+            | "minecraft:dark_oak_leaves"
+            | "minecraft:mangrove_leaves"
+            | "minecraft:cherry_leaves"
+            | "minecraft:pale_oak_leaves"
+            | "minecraft:azalea_leaves"
+            | "minecraft:flowering_azalea_leaves"
+    )
+}
+
+fn block_is_small_flower(block: &str) -> bool {
+    matches!(
+        block,
+        "minecraft:dandelion"
+            | "minecraft:poppy"
+            | "minecraft:blue_orchid"
+            | "minecraft:allium"
+            | "minecraft:azure_bluet"
+            | "minecraft:red_tulip"
+            | "minecraft:orange_tulip"
+            | "minecraft:white_tulip"
+            | "minecraft:pink_tulip"
+            | "minecraft:oxeye_daisy"
+            | "minecraft:cornflower"
+            | "minecraft:lily_of_the_valley"
+            | "minecraft:wither_rose"
+            | "minecraft:closed_eyeblossom"
+            | "minecraft:open_eyeblossom"
+    )
+}
+
+fn block_is_replaceable_by_tree(block: &str) -> bool {
+    block_is_leaf(block)
+        || block_is_small_flower(block)
+        || matches!(
+            block,
+            "minecraft:pale_moss_carpet"
+                | "minecraft:short_grass"
+                | "minecraft:fern"
+                | "minecraft:dead_bush"
+                | "minecraft:vine"
+                | "minecraft:glow_lichen"
+                | "minecraft:sunflower"
+                | "minecraft:lilac"
+                | "minecraft:rose_bush"
+                | "minecraft:peony"
+                | "minecraft:tall_grass"
+                | "minecraft:large_fern"
+                | "minecraft:hanging_roots"
+                | "minecraft:pitcher_plant"
+                | "minecraft:water"
+                | "minecraft:seagrass"
+                | "minecraft:tall_seagrass"
+                | "minecraft:bush"
+                | "minecraft:firefly_bush"
+                | "minecraft:warped_roots"
+                | "minecraft:nether_sprouts"
+                | "minecraft:crimson_roots"
+                | "minecraft:leaf_litter"
+                | "minecraft:short_dry_grass"
+                | "minecraft:tall_dry_grass"
+        )
+}
+
 pub(super) fn block_matches_tag(block: &str, tag: &str) -> bool {
     let tag = tag.strip_prefix("minecraft:").unwrap_or(tag);
     match tag {
@@ -124,95 +223,10 @@ pub(super) fn block_matches_tag(block: &str, tag: &str) -> bool {
                 "minecraft:netherrack" | "minecraft:basalt" | "minecraft:blackstone"
             )
         }
-        "logs" => matches!(
-            block,
-            "minecraft:oak_log"
-                | "minecraft:spruce_log"
-                | "minecraft:birch_log"
-                | "minecraft:jungle_log"
-                | "minecraft:acacia_log"
-                | "minecraft:dark_oak_log"
-                | "minecraft:mangrove_log"
-                | "minecraft:cherry_log"
-                | "minecraft:pale_oak_log"
-                | "minecraft:crimson_stem"
-                | "minecraft:warped_stem"
-                | "minecraft:stripped_oak_log"
-                | "minecraft:stripped_spruce_log"
-                | "minecraft:stripped_birch_log"
-                | "minecraft:stripped_jungle_log"
-                | "minecraft:stripped_acacia_log"
-                | "minecraft:stripped_dark_oak_log"
-                | "minecraft:stripped_mangrove_log"
-                | "minecraft:stripped_cherry_log"
-                | "minecraft:stripped_pale_oak_log"
-                | "minecraft:stripped_crimson_stem"
-                | "minecraft:stripped_warped_stem"
-        ),
-        "leaves" => matches!(
-            block,
-            "minecraft:oak_leaves"
-                | "minecraft:spruce_leaves"
-                | "minecraft:birch_leaves"
-                | "minecraft:jungle_leaves"
-                | "minecraft:acacia_leaves"
-                | "minecraft:dark_oak_leaves"
-                | "minecraft:mangrove_leaves"
-                | "minecraft:cherry_leaves"
-                | "minecraft:pale_oak_leaves"
-                | "minecraft:azalea_leaves"
-                | "minecraft:flowering_azalea_leaves"
-        ),
-        "small_flowers" => matches!(
-            block,
-            "minecraft:dandelion"
-                | "minecraft:poppy"
-                | "minecraft:blue_orchid"
-                | "minecraft:allium"
-                | "minecraft:azure_bluet"
-                | "minecraft:red_tulip"
-                | "minecraft:orange_tulip"
-                | "minecraft:white_tulip"
-                | "minecraft:pink_tulip"
-                | "minecraft:oxeye_daisy"
-                | "minecraft:cornflower"
-                | "minecraft:lily_of_the_valley"
-                | "minecraft:wither_rose"
-                | "minecraft:closed_eyeblossom"
-                | "minecraft:open_eyeblossom"
-        ),
-        "replaceable_by_trees" => {
-            block_matches_tag(block, "minecraft:leaves")
-                || block_matches_tag(block, "minecraft:small_flowers")
-                || matches!(
-                    block,
-                    "minecraft:pale_moss_carpet"
-                        | "minecraft:short_grass"
-                        | "minecraft:fern"
-                        | "minecraft:dead_bush"
-                        | "minecraft:vine"
-                        | "minecraft:glow_lichen"
-                        | "minecraft:sunflower"
-                        | "minecraft:lilac"
-                        | "minecraft:rose_bush"
-                        | "minecraft:peony"
-                        | "minecraft:tall_grass"
-                        | "minecraft:large_fern"
-                        | "minecraft:hanging_roots"
-                        | "minecraft:pitcher_plant"
-                        | "minecraft:water"
-                        | "minecraft:seagrass"
-                        | "minecraft:tall_seagrass"
-                        | "minecraft:bush"
-                        | "minecraft:firefly_bush"
-                        | "minecraft:warped_roots"
-                        | "minecraft:nether_sprouts"
-                        | "minecraft:crimson_roots"
-                        | "minecraft:leaf_litter"
-                        | "minecraft:short_dry_grass"
-                        | "minecraft:tall_dry_grass"
-                )
-        }
+        "logs" => block_is_log(block),
+        "leaves" => block_is_leaf(block),
+        "small_flowers" => block_is_small_flower(block),
+        "replaceable_by_trees" => block_is_replaceable_by_tree(block),
         "dirt" => matches!(
             block,
             "minecraft:dirt" | "minecraft:coarse_dirt" | "minecraft:rooted_dirt"
