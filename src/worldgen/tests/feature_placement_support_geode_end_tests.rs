@@ -131,7 +131,19 @@ pub(super) fn assert_geode_nether_and_end_support() {
             super::super::geode_inner_placement(&geode_config, 3),
             Some("minecraft:amethyst_cluster")
         );
-        let iceberg_shape = super::super::iceberg_shape_model(0.8, 0.25, 0, 2, 0.8, 5, 0.0, 0, 10, 6, 0);
+        let iceberg_shape = super::super::iceberg_shape_model(super::super::IcebergShapeRolls {
+            snow_roll: 0.8,
+            angle_roll: 0.25,
+            ellipse_a_roll: 0,
+            ellipse_c_roll: 2,
+            ellipse_roll: 0.8,
+            height_roll: 5,
+            tall_roll: 0.0,
+            tall_extra_roll: 0,
+            underwater_roll: 10,
+            width_plus_roll: 6,
+            width_minus_roll: 0,
+        });
         assert_eq!(iceberg_shape.shape_ellipse_a, 11);
         assert_eq!(iceberg_shape.shape_ellipse_c, 5);
         assert!(iceberg_shape.is_ellipse);
