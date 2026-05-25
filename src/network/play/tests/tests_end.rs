@@ -200,8 +200,8 @@ fn vanilla_oak_log_pickup_to_inventory_grid_populates_planks_result() {
     );
 }
 
-/// Parity test: result slot updates after each grid change; stale state ID is rejected with
-/// full slot corrections; second craft of the same recipe does NOT emit another unlock.
+/// Parity test: result slot updates after each grid change; stale state ID still applies the
+/// click and returns a full resync; second craft of the same recipe does NOT emit another unlock.
 #[test]
 fn crafting_grid_result_updates_per_slot_change_stale_id_corrected_no_double_unlock() {
     let recipes = network_crafting_test_recipes();
@@ -230,7 +230,7 @@ fn crafting_grid_result_updates_per_slot_change_stale_id_corrected_no_double_unl
         "result must update immediately after placing log in grid"
     );
 
-    // Stale state-ID click is rejected; server returns full slot corrections.
+    // Java still applies stale state-ID clicks, then sends a full slot resync.
     let stale_click = ServerboundContainerClickPacket {
         container_id: 0,
         state_id: 0, // outdated — correct value is 1
@@ -246,7 +246,10 @@ fn crafting_grid_result_updates_per_slot_change_stale_id_corrected_no_double_unl
         &mut inventory_menu,
         &mut carried,
     );
-    assert_eq!(state_id, 1, "stale click must not advance state ID");
+    assert_eq!(
+        state_id, 2,
+        "stale click still advances state ID after applying"
+    );
     let set_slot_count = corrections
         .iter()
         .filter(|i| matches!(i, PlayInstruction::ContainerSetSlot(_)))
@@ -254,13 +257,13 @@ fn crafting_grid_result_updates_per_slot_change_stale_id_corrected_no_double_unl
     assert_eq!(
         set_slot_count,
         InventoryMenu::SLOT_COUNT,
-        "stale click must send corrections for all 46 slots"
+        "stale click must send a full resync for all 46 slots"
     );
 
     // Take result — log consumed (1→0), result cleared, recipe unlocked.
     let take1 = ServerboundContainerClickPacket {
         container_id: 0,
-        state_id: 1,
+        state_id: 2,
         slot_num: 0,
         button_num: 0,
         container_input: ContainerInput::Pickup,
@@ -269,7 +272,7 @@ fn crafting_grid_result_updates_per_slot_change_stale_id_corrected_no_double_unl
     };
     let take1_instrs =
         handle_container_click(&take1, &mut state_id, &mut inventory_menu, &mut carried);
-    assert_eq!(state_id, 2);
+    assert_eq!(state_id, 3);
     assert_eq!(carried, ItemStack::new("minecraft:oak_planks", 4));
     assert_eq!(
         inventory_menu.get_slot(1),
@@ -293,7 +296,7 @@ fn crafting_grid_result_updates_per_slot_change_stale_id_corrected_no_double_unl
     let mut carried2 = ItemStack::new("minecraft:oak_log", 1);
     let place2 = ServerboundContainerClickPacket {
         container_id: 0,
-        state_id: 2,
+        state_id: 3,
         slot_num: 1,
         button_num: 0,
         container_input: ContainerInput::Pickup,
@@ -303,7 +306,7 @@ fn crafting_grid_result_updates_per_slot_change_stale_id_corrected_no_double_unl
     handle_container_click(&place2, &mut state_id, &mut inventory_menu, &mut carried2);
     let take2 = ServerboundContainerClickPacket {
         container_id: 0,
-        state_id: 3,
+        state_id: 4,
         slot_num: 0,
         button_num: 0,
         container_input: ContainerInput::Pickup,
@@ -318,6 +321,58 @@ fn crafting_grid_result_updates_per_slot_change_stale_id_corrected_no_double_unl
             .any(|i| matches!(i, PlayInstruction::RecipesUnlocked(_))),
         "second craft of the same recipe must NOT emit another RecipesUnlocked"
     );
+}
+
+#[test]
+fn stale_inventory_menu_click_still_places_carried_item_before_full_resync() {
+    let recipes = network_crafting_test_recipes();
+    let mut inventory_menu = InventoryMenu::new(
+        crate::player_inventory::PlayerInventory::new(),
+        recipes.clone(),
+    );
+    let mut carried = ItemStack::new("minecraft:oak_log", 1);
+    let mut state_id: i32 = 4;
+
+    let stale_place = ServerboundContainerClickPacket {
+        container_id: 0,
+        state_id: 3,
+        slot_num: 1,
+        button_num: 0,
+        container_input: ContainerInput::Pickup,
+        changed_slots: BTreeMap::new(),
+        carried_item: HashedStack::empty(),
+    };
+    let instructions = handle_container_click(
+        &stale_place,
+        &mut state_id,
+        &mut inventory_menu,
+        &mut carried,
+    );
+
+    assert_eq!(state_id, 5);
+    assert!(
+        carried.is_empty(),
+        "cursor item must move into the clicked slot"
+    );
+    assert_eq!(
+        inventory_menu.get_slot(1),
+        Some(ItemStack::new("minecraft:oak_log", 1))
+    );
+    assert_eq!(
+        inventory_menu.get_slot(0),
+        Some(ItemStack::new("minecraft:oak_planks", 4))
+    );
+    assert_eq!(
+        instructions
+            .iter()
+            .filter(|i| matches!(i, PlayInstruction::ContainerSetSlot(_)))
+            .count(),
+        InventoryMenu::SLOT_COUNT
+    );
+    assert!(instructions.iter().any(|i| matches!(
+        i,
+        PlayInstruction::SetCursorItem(p) if p.item_stack.count == 0
+    )));
 }
 
 /// Regression test for the pickup→crafting state-ID desync bug.

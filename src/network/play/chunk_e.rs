@@ -622,11 +622,21 @@ pub fn handle_container_click(
 ) -> Vec<PlayInstruction> {
     use crate::inventory::InventoryAction;
 
-    // State-ID guard — reject stale packets and return full corrections.
-    if packet.state_id != *container_state_id {
-        return slot_corrections_from_inventory_menu(inventory_menu, carried, *container_state_id);
+    if !is_valid_inventory_menu_click_slot(packet.slot_num) {
+        return Vec::new();
+    }
+    if packet.slot_num == -1 {
+        if packet.state_id != *container_state_id {
+            return slot_corrections_from_inventory_menu(
+                inventory_menu,
+                carried,
+                *container_state_id,
+            );
+        }
+        return Vec::new();
     }
 
+    let full_resync_needed = packet.state_id != *container_state_id;
     let before_slots = inventory_menu.all_slots();
     let before_carried = carried.clone();
     let slot_idx = usize::try_from(packet.slot_num).ok();
@@ -635,12 +645,12 @@ pub fn handle_container_click(
         if let Some(slot) = slot_idx {
             inventory_menu.quick_move(slot);
         }
-        *container_state_id += 1;
+        *container_state_id = (*container_state_id).wrapping_add(1);
     } else {
         let mut snapshot = inventory_menu_to_flat_menu(inventory_menu, carried);
         let dry_run = apply_scripted_packet(
             &mut snapshot.clone(),
-            *container_state_id,
+            packet.state_id,
             &ScriptedContainerClickPacket {
                 container_id: 0,
                 state_id: packet.state_id,
@@ -660,9 +670,9 @@ pub fn handle_container_click(
             changed_slots: Vec::new(),
             carried: dry_run.carried,
         };
-        let result = apply_scripted_packet(&mut snapshot, *container_state_id, &scripted);
+        let result = apply_scripted_packet(&mut snapshot, packet.state_id, &scripted);
         if result.accepted {
-            *container_state_id = result.next_state_id;
+            *container_state_id = (*container_state_id).wrapping_add(1);
             let result_taken = slot_idx == Some(0)
                 && matches!(result.action, InventoryAction::PickedUp { slot: 0, .. });
             if result_taken {
@@ -675,6 +685,16 @@ pub fn handle_container_click(
                 *carried = snapshot.carried.clone();
             }
         }
+    }
+
+    if full_resync_needed {
+        let mut instructions =
+            slot_corrections_from_inventory_menu(inventory_menu, carried, *container_state_id);
+        let unlock_events = inventory_menu.drain_recipe_unlock_events();
+        if !unlock_events.is_empty() {
+            instructions.push(PlayInstruction::RecipesUnlocked(unlock_events));
+        }
+        return instructions;
     }
 
     let mut instructions: Vec<PlayInstruction> = Vec::new();
@@ -705,6 +725,12 @@ pub fn handle_container_click(
         instructions.push(PlayInstruction::RecipesUnlocked(unlock_events));
     }
     instructions
+}
+
+fn is_valid_inventory_menu_click_slot(slot_num: i16) -> bool {
+    slot_num == -999
+        || slot_num == -1
+        || (0..InventoryMenu::SLOT_COUNT as i16).contains(&slot_num)
 }
 
 /// Build a `ClientboundRecipeBookAddPacket` announcing newly-unlocked recipes.

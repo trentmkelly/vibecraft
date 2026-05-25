@@ -274,43 +274,56 @@ pub fn creative_mode_slot_packet_applies_java_slot_and_ability_gates() {
             components: super::super::RawDataComponentPatch::empty(),
         },
     };
-    assert!(!super::super::player_creative_packets::apply_set_creative_mode_slot_packet(
-        &mut state,
-        packet.clone()
-    ));
+    assert!(
+        super::super::player_creative_packets::apply_set_creative_mode_slot_packet(
+            &mut state,
+            packet.clone()
+        )
+        .is_none()
+    );
     assert_eq!(state.inventory_menu.get_slot(36), Some(ItemStack::empty()));
 
     state.abilities.instabuild = true;
-    assert!(super::super::player_creative_packets::apply_set_creative_mode_slot_packet(
-        &mut state,
-        packet
-    ));
+    let slot_update = super::super::player_creative_packets::apply_set_creative_mode_slot_packet(
+        &mut state, packet,
+    )
+    .expect("creative slot packet should be accepted with instabuild");
     assert_eq!(
         state.inventory_menu.get_slot(36),
         Some(ItemStack::new("minecraft:stone", 64))
     );
     assert_eq!(state.container_state_id, 1);
+    assert_eq!(slot_update.container_id, 0);
+    assert_eq!(slot_update.state_id, 1);
+    assert_eq!(slot_update.slot, 36);
+    assert_eq!(slot_update.item_stack.count, 64);
 
     let invalid_result_slot = super::super::ServerboundSetCreativeModeSlotPacket {
         slot_num: 0,
         item_stack: super::super::RawItemStack::empty(),
     };
-    assert!(!super::super::player_creative_packets::apply_set_creative_mode_slot_packet(
-        &mut state,
-        invalid_result_slot
-    ));
+    assert!(
+        super::super::player_creative_packets::apply_set_creative_mode_slot_packet(
+            &mut state,
+            invalid_result_slot
+        )
+        .is_none()
+    );
     assert_eq!(state.container_state_id, 1);
 
     let clear = super::super::ServerboundSetCreativeModeSlotPacket {
         slot_num: 36,
         item_stack: super::super::RawItemStack::empty(),
     };
-    assert!(super::super::player_creative_packets::apply_set_creative_mode_slot_packet(
-        &mut state,
-        clear
-    ));
+    let clear_update = super::super::player_creative_packets::apply_set_creative_mode_slot_packet(
+        &mut state, clear,
+    )
+    .expect("creative slot clear should be accepted");
     assert_eq!(state.inventory_menu.get_slot(36), Some(ItemStack::empty()));
     assert_eq!(state.container_state_id, 2);
+    assert_eq!(clear_update.state_id, 2);
+    assert_eq!(clear_update.slot, 36);
+    assert_eq!(clear_update.item_stack.count, 0);
 }
 
 #[test]
