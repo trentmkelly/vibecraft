@@ -156,7 +156,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundStopSoundPacket` (0x77): flags byte, optional sound source enum, optional sound identifier
 - [ ] `ClientboundNamedSoundEffectPacket`: not present in 26.1.2 Java `GamePacketTypes`; handled by `ClientboundSoundPacket`
 - [ ] `ClientboundLevelParticlesPacket` (0x29): override-limiter bool, always-show bool, pos X/Y/Z, offset X/Y/Z, max speed, count, particle registry type VarInt plus particle-specific payload
-- [ ] `ClientboundLevelEventPacket` (0x2E): event int, pos BlockPos, data int, global bool
+- [x] `ClientboundLevelEventPacket` (0x2E / decimal 46): event int, pos BlockPos, data int, global bool; verified against Java `ClientboundLevelEventPacket` read/write order, Java play-protocol registration order, Rust protocol registry ID/name mapping, and direct big-endian int/block-pos/bool byte-layout coverage.
 
 ## Map Packets
 
