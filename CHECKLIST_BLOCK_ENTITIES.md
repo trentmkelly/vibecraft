@@ -119,7 +119,7 @@
 
 ## Block Entity Tests (Cross-Cutting)
 
-- [ ] For every block entity type: add placement + immediate chunk-unload/reload round-trip test verifying NBT field identity
+- [x] For every block entity type: add placement + immediate chunk-unload/reload round-trip test verifying NBT field identity: Java 26.1.2 chunk persistence saves block entities through `BlockEntity.saveWithFullMetadata()` and recreates them through `BlockEntity.loadStatic(pos, state, tag, registries)`; Rust `placement_then_chunk_unload_reload_preserves_block_entity_nbt_for_every_type` iterates every registered type, simulates placed runtime flags, saves at unload, reloads through `load_static()`, re-saves, and verifies NBT identity plus non-persistence of runtime scheduler flags; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 placement_then_chunk_unload_reload_preserves_block_entity_nbt_for_every_type`.
 - [ ] For every block entity type: add `getUpdateTag()` / `BlockEntityData` packet field subset test (only expected fields present)
 - [ ] For every tickable block entity: add tick-driven state transition test (e.g., furnace burn progress, spawner delay countdown, campfire cook progress)
 - [ ] For every GUI-bearing block entity: add open-menu / container-id / close test verifying correct `MenuType` and initial slot contents
