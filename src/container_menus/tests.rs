@@ -378,7 +378,18 @@ fn smithing_menu_layout_and_result_rejection() {
 fn stonecutter_menu_layout_and_recipe_index_tracking() {
     let mut menu = StonecutterMenu::new();
     let mut player = PlayerInventory::new();
-    let recipes = vec![
+    let recipes = stonecutter_recipes();
+    assert_eq!(StonecutterMenu::SLOT_COUNT, 38);
+    assert_eq!(menu.get_selected_recipe_index(), -1);
+    assert_eq!(menu.data(0), Some(-1));
+    assert!(!menu.set_data(1, 0));
+
+    assert_stonecutter_selection_and_result_take(&mut menu, &mut player, &recipes);
+    assert_stonecutter_inventory_quick_move(&mut menu, &mut player, &recipes);
+}
+
+fn stonecutter_recipes() -> Vec<StonecutterSelection> {
+    vec![
         StonecutterSelection {
             recipe_id: "minecraft:stone_stairs_from_stone_stonecutting",
             input: IngredientSpec::Item("minecraft:stone"),
@@ -395,19 +406,22 @@ fn stonecutter_menu_layout_and_recipe_index_tracking() {
                 count: 2,
             },
         },
-    ];
-    assert_eq!(StonecutterMenu::SLOT_COUNT, 38);
-    assert_eq!(menu.get_selected_recipe_index(), -1);
-    assert_eq!(menu.data(0), Some(-1));
-    assert!(!menu.set_data(1, 0));
-    menu.set_slot(0, ItemStack::new("minecraft:stone", 2), &mut player);
-    menu.slots_changed(&recipes);
+    ]
+}
+
+fn assert_stonecutter_selection_and_result_take(
+    menu: &mut StonecutterMenu,
+    player: &mut PlayerInventory,
+    recipes: &[StonecutterSelection],
+) {
+    menu.set_slot(0, ItemStack::new("minecraft:stone", 2), player);
+    menu.slots_changed(recipes);
     assert!(menu.has_input_item());
     assert_eq!(menu.get_number_of_visible_recipes(), 2);
     assert!(menu.click_button(1));
     assert_eq!(menu.get_selected_recipe_index(), 1);
     assert_eq!(
-        menu.get_slot(StonecutterMenu::RESULT_SLOT, &player)
+        menu.get_slot(StonecutterMenu::RESULT_SLOT, player)
             .unwrap()
             .item_id(),
         "minecraft:stone_slab"
@@ -418,13 +432,13 @@ fn stonecutter_menu_layout_and_recipe_index_tracking() {
     let taken = menu.take_result();
     assert_eq!(taken.item_id(), "minecraft:stone_slab");
     assert_eq!(
-        menu.get_slot(StonecutterMenu::INPUT_SLOT, &player)
+        menu.get_slot(StonecutterMenu::INPUT_SLOT, player)
             .unwrap()
             .count(),
         1
     );
     assert_eq!(
-        menu.get_slot(StonecutterMenu::RESULT_SLOT, &player)
+        menu.get_slot(StonecutterMenu::RESULT_SLOT, player)
             .unwrap()
             .item_id(),
         "minecraft:stone_slab"
@@ -434,25 +448,31 @@ fn stonecutter_menu_layout_and_recipe_index_tracking() {
     assert!(!menu.has_input_item());
     assert_eq!(menu.get_selected_recipe_index(), -1);
     assert!(menu
-        .get_slot(StonecutterMenu::RESULT_SLOT, &player)
+        .get_slot(StonecutterMenu::RESULT_SLOT, player)
         .unwrap()
         .is_empty());
+}
 
+fn assert_stonecutter_inventory_quick_move(
+    menu: &mut StonecutterMenu,
+    player: &mut PlayerInventory,
+    recipes: &[StonecutterSelection],
+) {
     player.set(9, ItemStack::new("minecraft:stone", 3));
-    let moved = menu.quick_move_with_recipes(StonecutterMenu::INV_START, &mut player, &recipes);
+    let moved = menu.quick_move_with_recipes(StonecutterMenu::INV_START, player, recipes);
     assert_eq!(moved.item_id(), "minecraft:stone");
     assert_eq!(
-        menu.get_slot(StonecutterMenu::INPUT_SLOT, &player)
+        menu.get_slot(StonecutterMenu::INPUT_SLOT, player)
             .unwrap()
             .count(),
         3
     );
     assert_eq!(menu.get_number_of_visible_recipes(), 2);
     player.set(10, ItemStack::new("minecraft:apple", 1));
-    let moved = menu.quick_move_with_recipes(StonecutterMenu::INV_START + 1, &mut player, &recipes);
+    let moved = menu.quick_move_with_recipes(StonecutterMenu::INV_START + 1, player, recipes);
     assert_eq!(moved.item_id(), "minecraft:apple");
     assert_eq!(
-        menu.get_slot(StonecutterMenu::INPUT_SLOT, &player)
+        menu.get_slot(StonecutterMenu::INPUT_SLOT, player)
             .unwrap()
             .count(),
         3
