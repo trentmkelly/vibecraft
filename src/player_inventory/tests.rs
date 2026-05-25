@@ -258,6 +258,25 @@ fn merchant_container_selects_active_offer_and_clears_out_of_stock_results() {
 }
 
 #[test]
+fn merchant_result_take_increments_uses_and_villager_xp() {
+    let offer = MerchantOffer::new(
+        ItemCost::new("minecraft:emerald", 2),
+        None,
+        ItemStack::new("minecraft:apple", 4),
+        3,
+        7,
+        0.0,
+    );
+    let mut container = MerchantContainer::new(vec![offer]);
+    container.set_payment(0, ItemStack::new("minecraft:emerald", 2));
+
+    assert_eq!(container.take_result().item_id(), "minecraft:apple");
+    assert_eq!(container.offers()[0].uses, 1);
+    assert_eq!(container.villager_xp(), 7);
+    assert!(container.result().is_empty());
+}
+
+#[test]
 fn merchant_container_respects_selection_hint_and_payment_slots() {
     let cheap = MerchantOffer::new(
         ItemCost::new("minecraft:emerald", 1),

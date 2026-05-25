@@ -123,6 +123,7 @@ pub struct MerchantContainer {
     active_offer: Option<usize>,
     selection_hint: usize,
     future_xp: i32,
+    villager_xp: i32,
 }
 
 impl MerchantContainer {
@@ -133,6 +134,7 @@ impl MerchantContainer {
             active_offer: None,
             selection_hint: 0,
             future_xp: 0,
+            villager_xp: 0,
         }
     }
 
@@ -172,6 +174,10 @@ impl MerchantContainer {
         self.future_xp
     }
 
+    pub fn villager_xp(&self) -> i32 {
+        self.villager_xp
+    }
+
     pub fn take_result(&mut self) -> ItemStack {
         let result = std::mem::replace(&mut self.slots[2], ItemStack::empty());
         if !result.is_empty() {
@@ -181,6 +187,7 @@ impl MerchantContainer {
                     || self.offers[index].take(&mut rest[0], &mut payment_a[0])
                 {
                     self.offers[index].increase_uses();
+                    self.villager_xp += self.offers[index].xp;
                 }
             }
         }
