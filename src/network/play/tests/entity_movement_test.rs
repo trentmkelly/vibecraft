@@ -794,7 +794,7 @@ fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
             modifiers: vec![AttributeModifierSnapshot {
                 id: Identifier::parse("minecraft:generic.movement_speed").unwrap(),
                 amount: 0.5,
-                operation: AttributeModifierOperation::AddMultipliedTotal,
+                operation: AttributeModifierOperation::MultipliedTotal,
             }],
         }],
     }
@@ -958,8 +958,7 @@ fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
         [vec![1, 7], b"sidebar".to_vec()].concat()
     );
 
-    let score_name =
-        Tag::Compound(vec![("text".to_string(), Tag::String("Kills".to_string()))]);
+    let score_name = Tag::Compound(vec![("text".to_string(), Tag::String("Kills".to_string()))]);
     let mut set_objective = Vec::new();
     ClientboundSetObjectivePacket {
         objective_name: "kills".to_string(),
@@ -1384,7 +1383,7 @@ fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
 
     let mut full_delete_chat = Vec::new();
     ClientboundDeleteChatPacket {
-        message_signature: PackedMessageSignature::Full(MessageSignature([9; 256])),
+        message_signature: PackedMessageSignature::Full(Box::new(MessageSignature([9; 256]))),
     }
     .write(&mut full_delete_chat)
     .unwrap();

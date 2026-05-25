@@ -70,9 +70,9 @@ pub struct AttributeModifierSnapshot {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AttributeModifierOperation {
-    AddValue = 0,
-    AddMultipliedBase = 1,
-    AddMultipliedTotal = 2,
+    Value = 0,
+    MultipliedBase = 1,
+    MultipliedTotal = 2,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -900,7 +900,7 @@ pub struct ClientboundDeleteChatPacket {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackedMessageSignature {
     CacheId(i32),
-    Full(MessageSignature),
+    Full(Box<MessageSignature>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

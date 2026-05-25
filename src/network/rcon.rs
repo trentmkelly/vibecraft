@@ -88,7 +88,7 @@ pub fn read_packet<R: Read>(reader: &mut R) -> std::io::Result<Option<RconPacket
         Err(err) => return Err(err),
     }
     let length = i32::from_le_bytes(length_bytes);
-    if length < 10 || length > 1460 {
+    if !(10..=1460).contains(&length) {
         return Ok(None);
     }
 
@@ -139,7 +139,7 @@ where
         .set_nonblocking(true)
         .map_err(|err| format!("Failed to configure RCON listener: {err}"))?;
     let run_command = Arc::new(run_command);
-    Ok(thread::Builder::new()
+    thread::Builder::new()
         .name("RCON Listener".to_string())
         .spawn(move || loop {
             match listener.accept() {
@@ -158,7 +158,7 @@ where
                 Err(_) => break,
             }
         })
-        .map_err(|err| format!("Failed to start RCON listener thread: {err}"))?)
+        .map_err(|err| format!("Failed to start RCON listener thread: {err}"))
 }
 
 fn handle_client<F>(
@@ -170,11 +170,7 @@ fn handle_client<F>(
     F: Fn(&str) -> String + Send + Sync + 'static,
 {
     let mut session = RconSession::new(password, broadcast_to_ops);
-    loop {
-        let packet = match read_packet(&mut stream) {
-            Ok(Some(packet)) => packet,
-            Ok(None) | Err(_) => break,
-        };
+    while let Ok(Some(packet)) = read_packet(&mut stream) {
         for response in session.handle_packet(packet, |command| Ok(run_command(command))) {
             if write_packet(&mut stream, &response).is_err() {
                 return;

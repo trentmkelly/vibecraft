@@ -237,9 +237,13 @@ impl PlayProtocolRegistry {
 
 impl Default for CommonPlayerSpawnInfo {
     fn default() -> Self {
+        let overworld = match Identifier::new("minecraft", "overworld") {
+            Ok(identifier) => identifier,
+            Err(err) => panic!("hard-coded minecraft:overworld identifier is invalid: {err}"),
+        };
         Self {
-            dimension_type: Identifier::parse("minecraft:overworld").unwrap(),
-            dimension: Identifier::parse("minecraft:overworld").unwrap(),
+            dimension_type: overworld.clone(),
+            dimension: overworld,
             seed: 0,
             game_mode: GameMode::Survival,
             previous_game_mode: None,

@@ -1,7 +1,6 @@
 use super::super::*;
 use super::*;
 
-
 fn always_ready_chunk(pos: ChunkPos) -> Option<Arc<LevelChunk>> {
     Some(Arc::new(LevelChunk::empty(pos)))
 }
@@ -265,10 +264,7 @@ fn set_passengers_packet_uses_java_vehicle_then_varint_array() {
     .write(&mut payload)
     .unwrap();
 
-    assert_eq!(
-        payload,
-        vec![0xac, 0x02, 3, 0, 0xad, 0x02, 0xff, 0x7f]
-    );
+    assert_eq!(payload, vec![0xac, 0x02, 3, 0, 0xad, 0x02, 0xff, 0x7f]);
 }
 
 #[test]
@@ -594,22 +590,16 @@ fn light_update_packet_writes_vanilla_varint_coordinates_then_light_data() {
         0x80, 0x01, // x = 128 as Java VarInt
         0xfe, 0xff, 0xff, 0xff, 0x0f, // z = -2 as Java VarInt
         0x01, // skyYMask long-array length
-        0, 0, 0, 0, 0, 0, 0, 0b10,
-        0x01, // blockYMask long-array length
-        0, 0, 0, 0, 0, 0, 0, 0b100,
-        0x01, // emptySkyYMask long-array length
-        0, 0, 0, 0, 0, 0, 0, 0b1000,
-        0x01, // emptyBlockYMask long-array length
-        0, 0, 0, 0, 0, 0, 0, 0b1_0000,
-        0x01, // sky update list length
+        0, 0, 0, 0, 0, 0, 0, 0b10, 0x01, // blockYMask long-array length
+        0, 0, 0, 0, 0, 0, 0, 0b100, 0x01, // emptySkyYMask long-array length
+        0, 0, 0, 0, 0, 0, 0, 0b1000, 0x01, // emptyBlockYMask long-array length
+        0, 0, 0, 0, 0, 0, 0, 0b1_0000, 0x01, // sky update list length
         0x80, 0x10, // ByteBufCodecs.byteArray(2048) length
         0xff,
     ];
     assert_eq!(&payload[..expected_prefix.len()], &expected_prefix);
     assert!(
-        payload
-            .windows(3)
-            .any(|bytes| bytes == [0x80, 0x10, 0x01]),
+        payload.windows(3).any(|bytes| bytes == [0x80, 0x10, 0x01]),
         "block update list writes a second 2048-byte data layer"
     );
 }
@@ -657,8 +647,7 @@ fn network_chunk_sections_report_vanilla_fluid_counts() {
 
 #[test]
 fn section_fluid_counts_follow_palette_indices() {
-    let mut waterlogged_fence =
-        crate::storage::chunk::BlockStateEntry::new("minecraft:oak_fence");
+    let mut waterlogged_fence = crate::storage::chunk::BlockStateEntry::new("minecraft:oak_fence");
     waterlogged_fence
         .properties
         .insert("waterlogged".to_string(), "true".to_string());
@@ -886,8 +875,7 @@ fn sparse_chunk_sections_are_padded_to_vanilla_overworld_height() {
     chunk.sections = vec![ChunkSection {
         y: 4,
         block_states: PalettedContainer::single(Tag::Int(1), 4096).to_nbt(),
-        biomes: PalettedContainer::single(Tag::String("minecraft:plains".to_string()), 64)
-            .to_nbt(),
+        biomes: PalettedContainer::single(Tag::String("minecraft:plains".to_string()), 64).to_nbt(),
         block_light: None,
         sky_light: Some(vec![-1; 2048]),
     }];
@@ -974,7 +962,7 @@ fn update_attributes_packet_uses_java_snapshot_and_modifier_order() {
                 modifiers: vec![AttributeModifierSnapshot {
                     id: Identifier::parse("minecraft:movement_speed").unwrap(),
                     amount: 0.5,
-                    operation: AttributeModifierOperation::AddMultipliedTotal,
+                    operation: AttributeModifierOperation::MultipliedTotal,
                 }],
             },
             AttributeSnapshot {
