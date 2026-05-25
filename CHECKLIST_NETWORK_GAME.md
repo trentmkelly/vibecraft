@@ -154,7 +154,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundSoundPacket` (0x65): sound holder (registered ID + 1 or inline sound event), source VarInt, pos X/Y/Z fixed-point ints, volume, pitch, seed long
 - [ ] `ClientboundSoundEntityPacket` (0x66): sound holder (registered ID + 1 or inline sound event), source VarInt, entity ID VarInt, volume, pitch, seed long
 - [ ] `ClientboundStopSoundPacket` (0x77): flags byte, optional sound source enum, optional sound identifier
-- [ ] `ClientboundNamedSoundEffectPacket`: not present in 26.1.2 Java `GamePacketTypes`; handled by `ClientboundSoundPacket`
+- [x] `ClientboundNamedSoundEffectPacket`: not present in 26.1.2 Java `GamePacketTypes`, play `GameProtocols`, or `net/minecraft/network/protocol/game` packet classes; handled by `ClientboundSoundPacket`/`ClientboundSoundEntityPacket`/`ClientboundStopSoundPacket`, with Rust registry absence coverage for legacy `named_sound` and `named_sound_effect` names.
 - [ ] `ClientboundLevelParticlesPacket` (0x29): override-limiter bool, always-show bool, pos X/Y/Z, offset X/Y/Z, max speed, count, particle registry type VarInt plus particle-specific payload
 - [x] `ClientboundLevelEventPacket` (0x2E / decimal 46): event int, pos BlockPos, data int, global bool; verified against Java `ClientboundLevelEventPacket` read/write order, Java play-protocol registration order, Rust protocol registry ID/name mapping, and direct big-endian int/block-pos/bool byte-layout coverage.
 

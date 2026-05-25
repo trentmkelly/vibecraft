@@ -787,6 +787,7 @@ mod tab_list_packet_test;
 mod cooldown_packet_test;
 mod entity_movement_test;
 mod mount_screen_open_packet_test;
+mod named_sound_effect_absence_test;
 mod small_play_packets_test;
 mod tests_middle;
 mod tests_middle2;
