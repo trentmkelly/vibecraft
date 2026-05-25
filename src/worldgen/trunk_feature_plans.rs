@@ -592,76 +592,16 @@ where
         state: below_trunk_state,
         kind: TreePlacementBlockKind::DirtBelowTrunk,
     }];
-    let mut foliage_coords = vec![(
-        TreeFoliageAttachmentModel {
-            pos: BlockPos {
-                x: origin.x,
-                y: origin.y + height - 5,
-                z: origin.z,
-            },
-            radius_offset: 0,
-            double_trunk: false,
+    let foliage_coords = fancy_trunk_foliage_coords(
+        FancyTrunkFoliageInput {
+            origin,
+            height,
+            trunk_top_y,
+            clusters_per_y,
+            cluster_rolls,
         },
-        trunk_top_y,
-    )];
-
-    let mut roll_index = 0;
-    for relative_y in (0..=(height - 5)).rev() {
-        let tree_shape = fancy_trunk_tree_shape(height, relative_y);
-        if tree_shape < 0.0 {
-            continue;
-        }
-        for _ in 0..clusters_per_y {
-            let roll =
-                cluster_rolls
-                    .get(roll_index)
-                    .copied()
-                    .unwrap_or(FancyTrunkClusterRollModel {
-                        shape_float: 0.0,
-                        angle_float: 0.0,
-                    });
-            roll_index += 1;
-            let radius = f64::from(tree_shape) * f64::from(roll.shape_float + 0.328);
-            let angle = f64::from(roll.angle_float) * 2.0 * std::f64::consts::PI;
-            let x = radius * angle.sin() + 0.5;
-            let z = radius * angle.cos() + 0.5;
-            let check_start = BlockPos {
-                x: origin.x + x.floor() as i32,
-                y: origin.y + relative_y - 1,
-                z: origin.z + z.floor() as i32,
-            };
-            let dx = origin.x - check_start.x;
-            let dz = origin.z - check_start.z;
-            let branch_height = check_start.y as f64 - f64::from(dx * dx + dz * dz).sqrt() * 0.381;
-            let branch_top_y = if branch_height > f64::from(trunk_top_y) {
-                trunk_top_y
-            } else {
-                branch_height as i32
-            };
-            let check_end = BlockPos {
-                x: check_start.x,
-                y: check_start.y + 5,
-                z: check_start.z,
-            };
-            let branch_base = BlockPos {
-                x: origin.x,
-                y: branch_top_y,
-                z: origin.z,
-            };
-            if fancy_trunk_limb_can_place(check_start, check_end, &mut limb_is_free)
-                && fancy_trunk_limb_can_place(branch_base, check_start, &mut limb_is_free)
-            {
-                foliage_coords.push((
-                    TreeFoliageAttachmentModel {
-                        pos: check_start,
-                        radius_offset: 0,
-                        double_trunk: false,
-                    },
-                    branch_top_y,
-                ));
-            }
-        }
-    }
+        &mut limb_is_free,
+    );
 
     fancy_trunk_place_limb(
         &mut blocks,
@@ -700,6 +640,129 @@ where
     TrunkPlacementPlan {
         blocks,
         attachments,
+    }
+}
+
+struct FancyTrunkFoliageInput<'a> {
+    origin: BlockPos,
+    height: i32,
+    trunk_top_y: i32,
+    clusters_per_y: i32,
+    cluster_rolls: &'a [FancyTrunkClusterRollModel],
+}
+
+fn fancy_trunk_foliage_coords<F>(
+    input: FancyTrunkFoliageInput<'_>,
+    limb_is_free: &mut F,
+) -> Vec<(TreeFoliageAttachmentModel, i32)>
+where
+    F: FnMut(BlockPos) -> bool,
+{
+    let mut foliage_coords = vec![(
+        TreeFoliageAttachmentModel {
+            pos: BlockPos {
+                x: input.origin.x,
+                y: input.origin.y + input.height - 5,
+                z: input.origin.z,
+            },
+            radius_offset: 0,
+            double_trunk: false,
+        },
+        input.trunk_top_y,
+    )];
+
+    let mut roll_index = 0;
+    for relative_y in (0..=(input.height - 5)).rev() {
+        let tree_shape = fancy_trunk_tree_shape(input.height, relative_y);
+        if tree_shape < 0.0 {
+            continue;
+        }
+        append_fancy_trunk_foliage_row(
+            &mut foliage_coords,
+            &input,
+            relative_y,
+            tree_shape,
+            &mut roll_index,
+            limb_is_free,
+        );
+    }
+
+    foliage_coords
+}
+
+fn append_fancy_trunk_foliage_row<F>(
+    foliage_coords: &mut Vec<(TreeFoliageAttachmentModel, i32)>,
+    input: &FancyTrunkFoliageInput<'_>,
+    relative_y: i32,
+    tree_shape: f32,
+    roll_index: &mut usize,
+    limb_is_free: &mut F,
+) where
+    F: FnMut(BlockPos) -> bool,
+{
+    for _ in 0..input.clusters_per_y {
+        let roll =
+            input
+                .cluster_rolls
+                .get(*roll_index)
+                .copied()
+                .unwrap_or(FancyTrunkClusterRollModel {
+                    shape_float: 0.0,
+                    angle_float: 0.0,
+                });
+        *roll_index += 1;
+        let check_start =
+            fancy_trunk_foliage_check_start(input.origin, relative_y, tree_shape, roll);
+        let branch_top_y =
+            fancy_trunk_branch_top_y(input.origin, check_start, input.trunk_top_y);
+        let check_end = BlockPos {
+            x: check_start.x,
+            y: check_start.y + 5,
+            z: check_start.z,
+        };
+        let branch_base = BlockPos {
+            x: input.origin.x,
+            y: branch_top_y,
+            z: input.origin.z,
+        };
+        if fancy_trunk_limb_can_place(check_start, check_end, limb_is_free)
+            && fancy_trunk_limb_can_place(branch_base, check_start, limb_is_free)
+        {
+            foliage_coords.push((
+                TreeFoliageAttachmentModel {
+                    pos: check_start,
+                    radius_offset: 0,
+                    double_trunk: false,
+                },
+                branch_top_y,
+            ));
+        }
+    }
+}
+
+fn fancy_trunk_foliage_check_start(
+    origin: BlockPos,
+    relative_y: i32,
+    tree_shape: f32,
+    roll: FancyTrunkClusterRollModel,
+) -> BlockPos {
+    let radius = f64::from(tree_shape) * f64::from(roll.shape_float + 0.328);
+    let angle = f64::from(roll.angle_float) * 2.0 * std::f64::consts::PI;
+    BlockPos {
+        x: origin.x + (radius * angle.sin() + 0.5).floor() as i32,
+        y: origin.y + relative_y - 1,
+        z: origin.z + (radius * angle.cos() + 0.5).floor() as i32,
+    }
+}
+
+fn fancy_trunk_branch_top_y(origin: BlockPos, check_start: BlockPos, trunk_top_y: i32) -> i32 {
+    let dx = origin.x - check_start.x;
+    let dz = origin.z - check_start.z;
+    let branch_height = check_start.y as f64 - f64::from(dx * dx + dz * dz).sqrt() * 0.381;
+    if branch_height > f64::from(trunk_top_y) {
+        trunk_top_y
+    } else {
+        branch_height as i32
     }
 }
 
