@@ -450,6 +450,13 @@ fn weighted_entries_rolls_bonus_rolls_and_luck_follow_pool_shape() {
     });
     pool.rolls = NumberProvider::Constant(2.0);
     pool.bonus_rolls = NumberProvider::Constant(1.0);
+    pool.conditions.push(LootCondition::ValueCheck {
+        provider: NumberProvider::Constant(1.0),
+        min: 1.0,
+        max: 1.0,
+    });
+    pool.functions
+        .push(LootFunction::LimitCount { min: 1, max: 2 });
 
     let table = table_with_pool(pool);
     let mut context = LootContext::new(LootParamSet::Chest, 11);
@@ -465,6 +472,17 @@ fn weighted_entries_rolls_bonus_rolls_and_luck_follow_pool_shape() {
     let drops = table.evaluate(&mut negative_luck);
 
     assert_eq!(drops, vec![LootStack::new("minecraft:stick", 1)]);
+
+    let mut blocked_pool = LootPool::single(LootEntry::item("minecraft:barrier", 1));
+    blocked_pool.conditions.push(LootCondition::ValueCheck {
+        provider: NumberProvider::Constant(0.0),
+        min: 1.0,
+        max: 1.0,
+    });
+    let mut blocked_context = LootContext::new(LootParamSet::Chest, 11);
+    assert!(table_with_pool(blocked_pool)
+        .evaluate(&mut blocked_context)
+        .is_empty());
 
     let mut engine = LootBehaviorEngine::new();
     let mut pool = LootPool::single(LootEntry::item("minecraft:emerald", 1));
