@@ -297,8 +297,8 @@ pub fn write_command_suggestions_response<R: Read>(
     compression: CompressionState,
     input: &mut R,
 ) -> io::Result<()> {
-    let transaction_id = read_var_i32(input)?;
-    let command = read_string(input, 32767)?;
+    let packet = ServerboundCommandSuggestionPacket::read(input)?;
+    let command = packet.command;
     let query = command.strip_prefix('/').unwrap_or(&command);
     let matches: Vec<&str> = PLAY_COMMAND_SUGGESTIONS
         .iter()
@@ -312,7 +312,7 @@ pub fn write_command_suggestions_response<R: Read>(
         compression,
         CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID,
         |payload| {
-            write_var_i32(payload, transaction_id)?;
+            write_var_i32(payload, packet.id)?;
             write_var_i32(payload, replacement_start)?;
             write_var_i32(payload, query.len() as i32)?;
             write_var_i32(payload, matches.len() as i32)?;

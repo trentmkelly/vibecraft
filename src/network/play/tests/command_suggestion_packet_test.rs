@@ -1,0 +1,72 @@
+use super::*;
+
+#[test]
+fn serverbound_command_suggestion_packet_matches_java_utf_bound() {
+    assert_eq!(SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID, 15);
+    let registry = PlayProtocolRegistry::new();
+    assert_eq!(
+        registry.serverbound_name(SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID),
+        Some("command_suggestion")
+    );
+
+    let packet = ServerboundCommandSuggestionPacket {
+        id: 128,
+        command: "/time set day".to_string(),
+    };
+    let mut payload = Vec::new();
+    packet.write(&mut payload).unwrap();
+    assert_eq!(
+        payload,
+        vec![
+            0x80, 0x01, 13, b'/', b't', b'i', b'm', b'e', b' ', b's', b'e', b't', b' ', b'd', b'a',
+            b'y'
+        ]
+    );
+    assert_eq!(
+        ServerboundCommandSuggestionPacket::read(&mut cursor(payload.clone())).unwrap(),
+        packet
+    );
+
+    let mut session = PlaySession::new(1, 0);
+    session.state = PlayState::Playing;
+    assert_eq!(
+        session.handle_decoded(decoded(SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID, payload)),
+        DispatchOutcome::Handled
+    );
+    assert_eq!(session.last_command_suggestion, Some(packet));
+}
+
+#[test]
+fn serverbound_command_suggestion_packet_rejects_java_overlong_command() {
+    assert!(ServerboundCommandSuggestionPacket {
+        id: 1,
+        command: "x".repeat(ServerboundCommandSuggestionPacket::MAX_COMMAND_CHARS + 1),
+    }
+    .write(&mut Vec::new())
+    .is_err());
+
+    let mut overlong_payload = Vec::new();
+    write_var_i32(&mut overlong_payload, 1).unwrap();
+    write_var_i32(
+        &mut overlong_payload,
+        (ServerboundCommandSuggestionPacket::MAX_COMMAND_CHARS + 1) as i32,
+    )
+    .unwrap();
+    overlong_payload.extend(
+        std::iter::repeat(b'x').take(ServerboundCommandSuggestionPacket::MAX_COMMAND_CHARS + 1),
+    );
+    assert!(
+        ServerboundCommandSuggestionPacket::read(&mut cursor(overlong_payload.clone())).is_err()
+    );
+
+    let mut session = PlaySession::new(1, 0);
+    session.state = PlayState::Playing;
+    assert!(matches!(
+        session.handle_decoded(decoded(
+            SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID,
+            overlong_payload
+        )),
+        DispatchOutcome::Disconnect(reason)
+            if reason.starts_with("bad command suggestion packet:")
+    ));
+}

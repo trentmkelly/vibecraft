@@ -632,16 +632,18 @@ impl ServerboundPlayerAbilitiesPacket {
 }
 
 impl ServerboundCommandSuggestionPacket {
+    pub const MAX_COMMAND_CHARS: usize = 32500;
+
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         Ok(Self {
             id: read_var_i32(reader)?,
-            command: read_string(reader, 32500)?,
+            command: read_string(reader, Self::MAX_COMMAND_CHARS)?,
         })
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.id)?;
-        write_string(writer, &self.command, 32500)
+        write_string(writer, &self.command, Self::MAX_COMMAND_CHARS)
     }
 }
 
