@@ -146,7 +146,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] `ClientboundSetBorderCenterPacket` (0x58 / decimal 88): new center X then new center Z as Java `FriendlyByteBuf.writeDouble` big-endian doubles; verified against Java read/write codec, Java play registration/name mapping, Rust packet ID/registry mapping, and focused byte-layout coverage including a negative Z center.
 - [ ] `ClientboundSetBorderLerpSizePacket` (0x59): old size double, new size double, lerp time VarLong
 - [x] `ClientboundSetBorderSizePacket` (0x5A / decimal 90): new border size as a Java `FriendlyByteBuf.writeDouble` big-endian double; verified against Java read/write codec, Java play registration/name mapping, Rust packet ID/registry mapping, and focused byte-layout coverage.
-- [ ] `ClientboundSetBorderWarningDelayPacket` (0x5B): warning time VarInt
+- [x] `ClientboundSetBorderWarningDelayPacket` (0x5B / decimal 91): warning time as Java `FriendlyByteBuf.writeVarInt`; verified against Java read/write codec, Java play registration/name mapping, Rust packet ID/registry mapping, and focused VarInt byte-layout coverage.
 - [ ] `ClientboundSetBorderWarningDistancePacket` (0x5C): warning blocks VarInt
 
 ## Sound / Particle Packets
