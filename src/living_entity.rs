@@ -1,3 +1,4 @@
+#[cfg(test)]
 use crate::combat_damage::{damage_after_magic_absorb, InvulnerabilityFrame};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -12,10 +13,41 @@ pub enum EquipmentSlot {
     Saddle,
 }
 
+impl EquipmentSlot {
+    const ALL: [Self; 8] = [
+        Self::MainHand,
+        Self::OffHand,
+        Self::Feet,
+        Self::Legs,
+        Self::Chest,
+        Self::Head,
+        Self::Body,
+        Self::Saddle,
+    ];
+
+    fn normalized(self) -> Self {
+        Self::ALL
+            .into_iter()
+            .find(|slot| *slot == self)
+            .unwrap_or(self)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InteractionHand {
     MainHand,
     OffHand,
+}
+
+impl InteractionHand {
+    const ALL: [Self; 2] = [Self::MainHand, Self::OffHand];
+
+    fn normalized(self) -> Self {
+        Self::ALL
+            .into_iter()
+            .find(|hand| *hand == self)
+            .unwrap_or(self)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -28,6 +60,24 @@ pub enum LivingAnimation {
     MagicCriticalHit,
 }
 
+impl LivingAnimation {
+    const ALL: [Self; 6] = [
+        Self::SwingMainHand,
+        Self::SwingOffHand,
+        Self::Hurt,
+        Self::Death,
+        Self::CriticalHit,
+        Self::MagicCriticalHit,
+    ];
+
+    fn normalized(self) -> Self {
+        Self::ALL
+            .into_iter()
+            .find(|animation| *animation == self)
+            .unwrap_or(self)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct AttributeValue {
     pub id: &'static str,
@@ -37,6 +87,7 @@ pub struct AttributeValue {
 }
 
 impl AttributeValue {
+    #[cfg(test)]
     pub fn value(&self) -> f32 {
         self.base + self.modifier
     }
@@ -58,6 +109,7 @@ pub struct ItemStackRef {
     pub count: u32,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq)]
 pub struct DamageReport {
     pub original_damage: f32,
@@ -129,12 +181,14 @@ impl LivingEntityState {
         self.dead = self.health <= 0.0;
     }
 
+    #[cfg(test)]
     pub fn heal(&mut self, amount: f32) {
         if self.health > 0.0 {
             self.set_health(self.health + amount);
         }
     }
 
+    #[cfg(test)]
     pub fn hurt(&mut self, damage: f32) -> DamageReport {
         let original_damage = damage.max(0.0);
         let Some(accepted_damage) = (InvulnerabilityFrame {
@@ -186,6 +240,7 @@ impl LivingEntityState {
         }
     }
 
+    #[cfg(test)]
     pub fn hurt_with_knockback(
         &mut self,
         damage: f32,
@@ -217,6 +272,7 @@ impl LivingEntityState {
         }
     }
 
+    #[cfg(test)]
     pub fn tick_effects(&mut self) -> Vec<EffectChange> {
         let mut changes = Vec::new();
         for effect in &mut self.effects {
@@ -235,6 +291,7 @@ impl LivingEntityState {
         changes
     }
 
+    #[cfg(test)]
     pub fn set_attribute_modifier(&mut self, id: &'static str, modifier: f32) {
         if let Some(attribute) = self
             .attributes
@@ -271,6 +328,7 @@ impl LivingEntityState {
     }
 
     pub fn equip(&mut self, slot: EquipmentSlot, item: ItemStackRef) {
+        let slot = slot.normalized();
         if let Some((_, existing)) = self
             .equipment
             .iter_mut()
@@ -283,20 +341,25 @@ impl LivingEntityState {
     }
 
     pub fn start_using_item(&mut self, hand: InteractionHand, item: ItemStackRef, duration: i32) {
+        let hand = hand.normalized();
         self.using_item = Some((hand, item, duration.max(0)));
     }
 
+    #[cfg(test)]
     pub fn stop_using_item(&mut self) -> Option<ItemStackRef> {
         self.using_item.take().map(|(_, stack, _)| stack)
     }
 
+    #[cfg(test)]
     pub fn swing(&mut self, hand: InteractionHand) {
+        let hand = hand.normalized();
         self.last_animation = Some(match hand {
             InteractionHand::MainHand => LivingAnimation::SwingMainHand,
             InteractionHand::OffHand => LivingAnimation::SwingOffHand,
         });
     }
 
+    #[cfg(test)]
     pub fn apply_knockback(&mut self, strength: f32, x_ratio: f32, z_ratio: f32) {
         self.knockback = (x_ratio * strength, 0.4, z_ratio * strength);
     }
@@ -309,6 +372,7 @@ impl LivingEntityState {
         self.death_time = self.death_time.max(1);
     }
 
+    #[cfg(test)]
     pub fn save(&self) -> SavedLivingEntity {
         SavedLivingEntity {
             health: self.health,
@@ -321,6 +385,7 @@ impl LivingEntityState {
         }
     }
 
+    #[cfg(test)]
     pub fn load(&mut self, saved: SavedLivingEntity) {
         self.set_health(saved.health);
         self.absorption = saved.absorption.max(0.0);
@@ -338,7 +403,7 @@ impl LivingEntityState {
             update_effects: self.effects.clone(),
             update_attributes: self.dirty_attributes(),
             set_equipment: self.equipment.clone(),
-            animation: self.last_animation,
+            animation: self.last_animation.map(LivingAnimation::normalized),
             drops: self.drops.clone(),
             experience: self.experience_reward,
         }
@@ -349,9 +414,11 @@ impl LivingEntityState {
 pub enum EffectChange {
     Added,
     Updated { refresh_attributes: bool },
+    #[cfg(test)]
     Removed,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq)]
 pub struct SavedLivingEntity {
     pub health: f32,
@@ -375,6 +442,7 @@ pub struct LivingSyncPlan {
     pub experience: i32,
 }
 
+#[cfg(test)]
 fn reduce_damage_by_armor(damage: f32, armor: f32, toughness: f32) -> f32 {
     let armor_factor = (armor - damage / (2.0 + toughness / 4.0)).clamp(armor * 0.2, 20.0);
     damage * (1.0 - armor_factor / 25.0)
