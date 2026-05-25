@@ -106,7 +106,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundRecipeBookSettingsPacket` (0x3E): recipe book open/filter flags per book type
 - [ ] `ClientboundUpdateAdvancementsPacket` (0x74): reset/clear flag, added advancement holders, removed advancement IDs, progress map, show-advancements flag
 - [x] `ServerboundRecipeBookChangeSettingsPacket` (0x2E / decimal 46): `RecipeBookType` enum ordinal VarInt (`CRAFTING`, `FURNACE`, `BLAST_FURNACE`, `SMOKER`), is-open bool, and is-filtering bool; verified against Java `readEnum`/`writeEnum` codec, Java handler settings update, Java registration/name mapping, Rust packet ID/registry mapping, invalid enum rejection, focused read/write/dispatch coverage, and Rust session recipe-book settings application.
-- [ ] `ServerboundRecipeBookSeenRecipePacket` (0x2F): recipe display ID VarInt index
+- [x] `ServerboundRecipeBookSeenRecipePacket` (0x2F / decimal 47): `RecipeDisplayId` raw VarInt index; verified against Java `RecipeDisplayId.STREAM_CODEC`, Java out-of-range display lookup behavior, Java registration/name mapping, Rust packet ID/registry mapping, focused read/write/dispatch coverage, and Rust recipe-book highlight clearing/ignored invalid-index application tests.
 
 ## Commands / Suggestions Packets
 

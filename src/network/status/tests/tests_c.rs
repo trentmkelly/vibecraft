@@ -93,6 +93,23 @@ pub fn recipe_book_seen_recipe_packet_clears_highlight_for_display_id() {
             .recipe_book_highlighted_recipes()
             .is_empty()
     );
+
+    state
+        .inventory_menu
+        .load_recipe_book(["minecraft:oak_planks"], ["minecraft:oak_planks"]);
+
+    for recipe_index in [-1, 1] {
+        super::super::apply_recipe_book_seen_recipe_packet(
+            &mut state,
+            crate::network::play::ServerboundRecipeBookSeenRecipePacket { recipe_index },
+            &recipes,
+        );
+    }
+
+    assert_eq!(
+        state.inventory_menu.recipe_book_highlighted_recipes(),
+        vec!["minecraft:oak_planks"]
+    );
 }
 
 #[test]
