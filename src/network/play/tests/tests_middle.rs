@@ -574,6 +574,47 @@ fn light_update_data_uses_vanilla_masks_and_2048_byte_layers() {
 }
 
 #[test]
+fn light_update_packet_writes_vanilla_varint_coordinates_then_light_data() {
+    let packet = ClientboundLightUpdatePacket {
+        pos: ChunkPos { x: 128, z: -2 },
+        light_data: ClientboundLightUpdatePacketData {
+            sky_y_mask: vec![0b10],
+            block_y_mask: vec![0b100],
+            empty_sky_y_mask: vec![0b1000],
+            empty_block_y_mask: vec![0b1_0000],
+            sky_updates: vec![vec![-1; ClientboundLightUpdatePacketData::DATA_LAYER_SIZE]],
+            block_updates: vec![vec![1; ClientboundLightUpdatePacketData::DATA_LAYER_SIZE]],
+        },
+    };
+
+    let mut payload = Vec::new();
+    packet.write(&mut payload).unwrap();
+
+    let expected_prefix = [
+        0x80, 0x01, // x = 128 as Java VarInt
+        0xfe, 0xff, 0xff, 0xff, 0x0f, // z = -2 as Java VarInt
+        0x01, // skyYMask long-array length
+        0, 0, 0, 0, 0, 0, 0, 0b10,
+        0x01, // blockYMask long-array length
+        0, 0, 0, 0, 0, 0, 0, 0b100,
+        0x01, // emptySkyYMask long-array length
+        0, 0, 0, 0, 0, 0, 0, 0b1000,
+        0x01, // emptyBlockYMask long-array length
+        0, 0, 0, 0, 0, 0, 0, 0b1_0000,
+        0x01, // sky update list length
+        0x80, 0x10, // ByteBufCodecs.byteArray(2048) length
+        0xff,
+    ];
+    assert_eq!(&payload[..expected_prefix.len()], &expected_prefix);
+    assert!(
+        payload
+            .windows(3)
+            .any(|bytes| bytes == [0x80, 0x10, 0x01]),
+        "block update list writes a second 2048-byte data layer"
+    );
+}
+
+#[test]
 fn chunk_section_serialization_matches_vanilla_section_field_order() {
     let section = NetworkChunkSection {
         non_empty_block_count: 2,
