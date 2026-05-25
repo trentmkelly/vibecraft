@@ -73,6 +73,7 @@ mod inventory;
 mod inventory_transactions;
 mod item_catalog;
 mod item_entity;
+#[cfg(test)]
 mod item_family_behavior;
 mod item_properties;
 mod item_stack;
