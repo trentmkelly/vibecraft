@@ -189,7 +189,7 @@ fn perlin_noise_snapshot_from_random(
         for (index, amplitude) in parameters.amplitudes.iter().enumerate() {
             if *amplitude != 0.0 {
                 let octave = parameters.first_octave + index as i32;
-                let mut octave_random = positional.from_hash_of(&format!("octave_{octave}"));
+                let mut octave_random = positional.at_hashed_name(&format!("octave_{octave}"));
                 levels[index] = Some(improved_noise_snapshot(&mut octave_random));
             }
         }
@@ -1040,7 +1040,7 @@ pub fn random_state_normal_noise_instantiation_plan(
         };
         random_state_seed_factories(seed, algorithm)
             .base
-            .from_hash_of(parameters.id)
+            .at_hashed_name(parameters.id)
     };
 
     Some(NormalNoiseInstantiationPlan {
