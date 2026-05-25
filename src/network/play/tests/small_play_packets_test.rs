@@ -422,6 +422,15 @@ fn small_play_packets_round_trip_vanilla_codecs() {
         DispatchOutcome::Handled
     );
     assert_eq!(session.last_rename_item, Some(rename_item));
+    assert!(ServerboundRenameItemPacket {
+        name: "a".repeat(32768),
+    }
+    .write(&mut Vec::new())
+    .is_err());
+    let mut oversized_rename_payload = Vec::new();
+    write_var_i32(&mut oversized_rename_payload, 32768).unwrap();
+    oversized_rename_payload.extend(vec![b'a'; 32768]);
+    assert!(ServerboundRenameItemPacket::read(&mut cursor(oversized_rename_payload)).is_err());
 
     let container_close = ServerboundContainerClosePacket { container_id: 128 };
     let mut container_close_payload = Vec::new();
