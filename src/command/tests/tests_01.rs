@@ -619,6 +619,49 @@ fn server_function_tick_queues_load_once_then_tick_when_running() {
         vec!["minecraft:tick/loop".to_string()]
     );
     assert_eq!(command_state.queued_functions.len(), 3);
+
+    command_state.available_functions.extend([
+        CommandFunctionDefinition {
+            id: "minecraft:load/reloaded".to_string(),
+            commands: vec!["say reload".to_string()],
+            macro_parameters: Vec::new(),
+        },
+        CommandFunctionDefinition {
+            id: "minecraft:tick/reloaded".to_string(),
+            commands: vec!["say tick reload".to_string()],
+            macro_parameters: Vec::new(),
+        },
+    ]);
+    command_state.function_tags = vec![
+        CommandFunctionTag {
+            id: "minecraft:load".to_string(),
+            functions: vec!["minecraft:load/reloaded".to_string()],
+        },
+        CommandFunctionTag {
+            id: "minecraft:tick".to_string(),
+            functions: vec!["minecraft:tick/reloaded".to_string()],
+        },
+    ];
+    function_state.post_reload = true;
+
+    assert_eq!(
+        queue_server_function_tick(&mut command_state, &mut function_state, true),
+        vec![
+            "minecraft:load/reloaded".to_string(),
+            "minecraft:tick/reloaded".to_string()
+        ]
+    );
+    assert_eq!(
+        command_state.queued_functions[3..]
+            .iter()
+            .map(|call| call.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["minecraft:load/reloaded", "minecraft:tick/reloaded"]
+    );
+    assert_eq!(
+        queue_server_function_tick(&mut command_state, &mut function_state, true),
+        vec!["minecraft:tick/reloaded".to_string()]
+    );
 }
 
 #[test]
