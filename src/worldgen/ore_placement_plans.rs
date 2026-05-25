@@ -12,142 +12,185 @@ pub fn replace_block_result(
 
 pub fn configured_ore_configuration(id: &str) -> Option<OreConfigurationModel> {
     let name = id.strip_prefix("minecraft:").unwrap_or(id);
-    let natural_stone = RuleTestModel::BlockTag("minecraft:base_stone_overworld");
+    configured_nether_ore(name)
+        .or_else(|| configured_overworld_fill_ore(name))
+        .or_else(|| configured_overworld_common_ore(name))
+        .or_else(|| configured_overworld_gem_ore(name))
+}
+
+fn single_target_ore_config(
+    target: RuleTestModel,
+    state: &'static str,
+    size: i32,
+    discard_chance_on_air_exposure: f32,
+) -> OreConfigurationModel {
+    OreConfigurationModel {
+        target_states: vec![TargetBlockStateModel { target, state }],
+        size,
+        discard_chance_on_air_exposure,
+    }
+}
+
+fn overworld_ore_pair_config(
+    stone_state: &'static str,
+    deepslate_state: &'static str,
+    size: i32,
+    discard_chance_on_air_exposure: f32,
+) -> OreConfigurationModel {
     let stone_ore = RuleTestModel::BlockTag("minecraft:stone_ore_replaceables");
     let deepslate_ore = RuleTestModel::BlockTag("minecraft:deepslate_ore_replaceables");
+    OreConfigurationModel {
+        target_states: vec![
+            TargetBlockStateModel {
+                target: stone_ore,
+                state: stone_state,
+            },
+            TargetBlockStateModel {
+                target: deepslate_ore,
+                state: deepslate_state,
+            },
+        ],
+        size,
+        discard_chance_on_air_exposure,
+    }
+}
+
+fn configured_nether_ore(name: &str) -> Option<OreConfigurationModel> {
     let netherrack = RuleTestModel::BlockMatch("minecraft:netherrack");
     let nether_ore = RuleTestModel::BlockTag("minecraft:base_stone_nether");
-
-    let single_target =
-        |target, state, size, discard_chance_on_air_exposure| OreConfigurationModel {
-            target_states: vec![TargetBlockStateModel { target, state }],
-            size,
-            discard_chance_on_air_exposure,
-        };
-    let overworld_ore_pair =
-        |stone_state, deepslate_state, size, discard_chance_on_air_exposure| {
-            OreConfigurationModel {
-                target_states: vec![
-                    TargetBlockStateModel {
-                        target: stone_ore,
-                        state: stone_state,
-                    },
-                    TargetBlockStateModel {
-                        target: deepslate_ore,
-                        state: deepslate_state,
-                    },
-                ],
-                size,
-                discard_chance_on_air_exposure,
-            }
-        };
-
     Some(match name {
-        "ore_magma" => single_target(netherrack, "minecraft:magma_block", 33, 0.0),
-        "ore_soul_sand" => single_target(netherrack, "minecraft:soul_sand", 12, 0.0),
-        "ore_nether_gold" => single_target(netherrack, "minecraft:nether_gold_ore", 10, 0.0),
-        "ore_quartz" => single_target(netherrack, "minecraft:nether_quartz_ore", 14, 0.0),
-        "ore_gravel_nether" => single_target(netherrack, "minecraft:gravel", 33, 0.0),
-        "ore_blackstone" => single_target(netherrack, "minecraft:blackstone", 33, 0.0),
-        "ore_dirt" => single_target(natural_stone, "minecraft:dirt", 33, 0.0),
-        "ore_gravel" => single_target(natural_stone, "minecraft:gravel", 33, 0.0),
-        "ore_granite" => single_target(natural_stone, "minecraft:granite", 64, 0.0),
-        "ore_diorite" => single_target(natural_stone, "minecraft:diorite", 64, 0.0),
-        "ore_andesite" => single_target(natural_stone, "minecraft:andesite", 64, 0.0),
-        "ore_tuff" => single_target(natural_stone, "minecraft:tuff", 64, 0.0),
-        "ore_coal" => overworld_ore_pair(
+        "ore_magma" => single_target_ore_config(netherrack, "minecraft:magma_block", 33, 0.0),
+        "ore_soul_sand" => single_target_ore_config(netherrack, "minecraft:soul_sand", 12, 0.0),
+        "ore_nether_gold" => {
+            single_target_ore_config(netherrack, "minecraft:nether_gold_ore", 10, 0.0)
+        }
+        "ore_quartz" => {
+            single_target_ore_config(netherrack, "minecraft:nether_quartz_ore", 14, 0.0)
+        }
+        "ore_gravel_nether" => single_target_ore_config(netherrack, "minecraft:gravel", 33, 0.0),
+        "ore_blackstone" => single_target_ore_config(netherrack, "minecraft:blackstone", 33, 0.0),
+        "ore_ancient_debris_large" => {
+            single_target_ore_config(nether_ore, "minecraft:ancient_debris", 3, 1.0)
+        }
+        "ore_ancient_debris_small" => {
+            single_target_ore_config(nether_ore, "minecraft:ancient_debris", 2, 1.0)
+        }
+        _ => return None,
+    })
+}
+
+fn configured_overworld_fill_ore(name: &str) -> Option<OreConfigurationModel> {
+    let natural_stone = RuleTestModel::BlockTag("minecraft:base_stone_overworld");
+    Some(match name {
+        "ore_dirt" => single_target_ore_config(natural_stone, "minecraft:dirt", 33, 0.0),
+        "ore_gravel" => single_target_ore_config(natural_stone, "minecraft:gravel", 33, 0.0),
+        "ore_granite" => single_target_ore_config(natural_stone, "minecraft:granite", 64, 0.0),
+        "ore_diorite" => single_target_ore_config(natural_stone, "minecraft:diorite", 64, 0.0),
+        "ore_andesite" => single_target_ore_config(natural_stone, "minecraft:andesite", 64, 0.0),
+        "ore_tuff" => single_target_ore_config(natural_stone, "minecraft:tuff", 64, 0.0),
+        "ore_clay" => single_target_ore_config(natural_stone, "minecraft:clay", 33, 0.0),
+        _ => return None,
+    })
+}
+
+fn configured_overworld_common_ore(name: &str) -> Option<OreConfigurationModel> {
+    Some(match name {
+        "ore_coal" => overworld_ore_pair_config(
             "minecraft:coal_ore",
             "minecraft:deepslate_coal_ore",
             17,
             0.0,
         ),
-        "ore_coal_buried" => overworld_ore_pair(
+        "ore_coal_buried" => overworld_ore_pair_config(
             "minecraft:coal_ore",
             "minecraft:deepslate_coal_ore",
             17,
             0.5,
         ),
         "ore_iron" => {
-            overworld_ore_pair("minecraft:iron_ore", "minecraft:deepslate_iron_ore", 9, 0.0)
+            overworld_ore_pair_config("minecraft:iron_ore", "minecraft:deepslate_iron_ore", 9, 0.0)
         }
         "ore_iron_small" => {
-            overworld_ore_pair("minecraft:iron_ore", "minecraft:deepslate_iron_ore", 4, 0.0)
+            overworld_ore_pair_config("minecraft:iron_ore", "minecraft:deepslate_iron_ore", 4, 0.0)
         }
         "ore_gold" => {
-            overworld_ore_pair("minecraft:gold_ore", "minecraft:deepslate_gold_ore", 9, 0.0)
+            overworld_ore_pair_config("minecraft:gold_ore", "minecraft:deepslate_gold_ore", 9, 0.0)
         }
         "ore_gold_buried" => {
-            overworld_ore_pair("minecraft:gold_ore", "minecraft:deepslate_gold_ore", 9, 0.5)
+            overworld_ore_pair_config("minecraft:gold_ore", "minecraft:deepslate_gold_ore", 9, 0.5)
         }
-        "ore_redstone" => overworld_ore_pair(
+        "ore_redstone" => overworld_ore_pair_config(
             "minecraft:redstone_ore",
             "minecraft:deepslate_redstone_ore",
             8,
             0.0,
         ),
-        "ore_diamond_small" => overworld_ore_pair(
-            "minecraft:diamond_ore",
-            "minecraft:deepslate_diamond_ore",
-            4,
-            0.5,
-        ),
-        "ore_diamond_large" => overworld_ore_pair(
-            "minecraft:diamond_ore",
-            "minecraft:deepslate_diamond_ore",
-            12,
-            0.7,
-        ),
-        "ore_diamond_buried" => overworld_ore_pair(
-            "minecraft:diamond_ore",
-            "minecraft:deepslate_diamond_ore",
-            8,
-            1.0,
-        ),
-        "ore_diamond_medium" => overworld_ore_pair(
-            "minecraft:diamond_ore",
-            "minecraft:deepslate_diamond_ore",
-            8,
-            0.5,
-        ),
-        "ore_lapis" => overworld_ore_pair(
-            "minecraft:lapis_ore",
-            "minecraft:deepslate_lapis_ore",
-            7,
-            0.0,
-        ),
-        "ore_lapis_buried" => overworld_ore_pair(
-            "minecraft:lapis_ore",
-            "minecraft:deepslate_lapis_ore",
-            7,
-            1.0,
-        ),
-        "ore_infested" => overworld_ore_pair(
-            "minecraft:infested_stone",
-            "minecraft:infested_deepslate",
-            9,
-            0.0,
-        ),
-        "ore_emerald" => overworld_ore_pair(
-            "minecraft:emerald_ore",
-            "minecraft:deepslate_emerald_ore",
-            3,
-            0.0,
-        ),
-        "ore_ancient_debris_large" => single_target(nether_ore, "minecraft:ancient_debris", 3, 1.0),
-        "ore_ancient_debris_small" => single_target(nether_ore, "minecraft:ancient_debris", 2, 1.0),
-        "ore_copper_small" => overworld_ore_pair(
+        "ore_copper_small" => overworld_ore_pair_config(
             "minecraft:copper_ore",
             "minecraft:deepslate_copper_ore",
             10,
             0.0,
         ),
-        "ore_copper_large" => overworld_ore_pair(
+        "ore_copper_large" => overworld_ore_pair_config(
             "minecraft:copper_ore",
             "minecraft:deepslate_copper_ore",
             20,
             0.0,
         ),
-        "ore_clay" => single_target(natural_stone, "minecraft:clay", 33, 0.0),
+        _ => return None,
+    })
+}
+
+fn configured_overworld_gem_ore(name: &str) -> Option<OreConfigurationModel> {
+    Some(match name {
+        "ore_diamond_small" => overworld_ore_pair_config(
+            "minecraft:diamond_ore",
+            "minecraft:deepslate_diamond_ore",
+            4,
+            0.5,
+        ),
+        "ore_diamond_large" => overworld_ore_pair_config(
+            "minecraft:diamond_ore",
+            "minecraft:deepslate_diamond_ore",
+            12,
+            0.7,
+        ),
+        "ore_diamond_buried" => overworld_ore_pair_config(
+            "minecraft:diamond_ore",
+            "minecraft:deepslate_diamond_ore",
+            8,
+            1.0,
+        ),
+        "ore_diamond_medium" => overworld_ore_pair_config(
+            "minecraft:diamond_ore",
+            "minecraft:deepslate_diamond_ore",
+            8,
+            0.5,
+        ),
+        "ore_lapis" => overworld_ore_pair_config(
+            "minecraft:lapis_ore",
+            "minecraft:deepslate_lapis_ore",
+            7,
+            0.0,
+        ),
+        "ore_lapis_buried" => overworld_ore_pair_config(
+            "minecraft:lapis_ore",
+            "minecraft:deepslate_lapis_ore",
+            7,
+            1.0,
+        ),
+        "ore_infested" => overworld_ore_pair_config(
+            "minecraft:infested_stone",
+            "minecraft:infested_deepslate",
+            9,
+            0.0,
+        ),
+        "ore_emerald" => overworld_ore_pair_config(
+            "minecraft:emerald_ore",
+            "minecraft:deepslate_emerald_ore",
+            3,
+            0.0,
+        ),
         _ => return None,
     })
 }
