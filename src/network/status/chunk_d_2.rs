@@ -461,7 +461,12 @@ pub fn handle_drop_item(
     let cos_pitch = pitch_rad.cos();
     let sin_yaw = yaw_rad.sin();
     let cos_yaw = yaw_rad.cos();
-    let eid = world_items.lock().unwrap().alloc_entity_id();
+    let eid = {
+        let mut world_items = world_items
+            .lock()
+            .map_err(|_| io::Error::other("world item entity lock poisoned"))?;
+        world_items.alloc_entity_id()
+    };
     // Java: LivingEntity.drop() scatter randomness uses the counter value before the entity
     // ID is assigned (i.e., eid - 1), matching ItemEntity constructor random offsets.
     let r0 = pseudo_rand_f32(eid.wrapping_sub(1), 0) as f64;
@@ -491,7 +496,11 @@ pub fn handle_drop_item(
         target_uuid: None,
     };
     write_item_entity_spawn_packets(stream, compression, &item, item_pid)?;
-    world_items.lock().unwrap().entities.push(item);
+    world_items
+        .lock()
+        .map_err(|_| io::Error::other("world item entity lock poisoned"))?
+        .entities
+        .push(item);
 
     Ok(())
 }
@@ -613,13 +622,10 @@ pub fn write_empty_bitset<W: Write>(writer: &mut W) -> io::Result<()> {
 }
 
 pub fn write_minimal_damage_type_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
-    write_identifier(writer, &Identifier::parse("minecraft:damage_type").unwrap())?;
+    write_parsed_identifier(writer, "minecraft:damage_type")?;
     write_var_i32(writer, DAMAGE_TYPES.len() as i32)?;
     for damage_type in DAMAGE_TYPES {
-        write_identifier(
-            writer,
-            &Identifier::parse(&format!("minecraft:{damage_type}")).unwrap(),
-        )?;
+        write_parsed_identifier(writer, &format!("minecraft:{damage_type}"))?;
         write_bool(writer, true)?;
         write_network_nbt(
             writer,
@@ -641,22 +647,19 @@ pub fn write_minimal_damage_type_registry_packet<W: Write>(writer: &mut W) -> io
 
 pub fn write_minimal_update_tags_packet<W: Write>(writer: &mut W) -> io::Result<()> {
     write_var_i32(writer, 3)?;
-    write_identifier(writer, &Identifier::parse("minecraft:damage_type").unwrap())?;
+    write_parsed_identifier(writer, "minecraft:damage_type")?;
     write_var_i32(writer, DAMAGE_TYPE_TAGS.len() as i32)?;
     for (tag, entries) in DAMAGE_TYPE_TAGS {
-        write_identifier(writer, &Identifier::parse(tag).unwrap())?;
+        write_parsed_identifier(writer, tag)?;
         write_var_i32(writer, entries.len() as i32)?;
         for entry in *entries {
             write_var_i32(writer, *entry)?;
         }
     }
-    write_identifier(
-        writer,
-        &Identifier::parse("minecraft:banner_pattern").unwrap(),
-    )?;
+    write_parsed_identifier(writer, "minecraft:banner_pattern")?;
     write_var_i32(writer, BANNER_PATTERN_TAGS.len() as i32)?;
     for (tag, entries) in BANNER_PATTERN_TAGS {
-        write_identifier(writer, &Identifier::parse(tag).unwrap())?;
+        write_parsed_identifier(writer, tag)?;
         write_var_i32(writer, entries.len() as i32)?;
         for entry in *entries {
             let index = BANNER_PATTERNS
@@ -682,20 +685,17 @@ pub fn write_minimal_update_tags_packet<W: Write>(writer: &mut W) -> io::Result<
     //   data/minecraft/tags/timeline/in_overworld.json  → [#universal, day, moon, early_game]
     //   data/minecraft/tags/timeline/universal.json     → [villager_schedule]
     // Tags are pre-expanded by the server (nested tag #universal resolved to its elements).
-    write_identifier(writer, &Identifier::parse("minecraft:timeline").unwrap())?;
+    write_parsed_identifier(writer, "minecraft:timeline")?;
     // Two tags: #minecraft:in_overworld and #minecraft:universal.
     write_var_i32(writer, 2)?;
     // #minecraft:in_overworld expands to [villager_schedule=2, day=0, moon=1, early_game=3].
-    write_identifier(
-        writer,
-        &Identifier::parse("minecraft:in_overworld").unwrap(),
-    )?;
+    write_parsed_identifier(writer, "minecraft:in_overworld")?;
     write_var_i32(writer, 4)?;
     for id in [2i32, 0, 1, 3] {
         write_var_i32(writer, id)?;
     }
     // #minecraft:universal expands to [villager_schedule=2].
-    write_identifier(writer, &Identifier::parse("minecraft:universal").unwrap())?;
+    write_parsed_identifier(writer, "minecraft:universal")?;
     write_var_i32(writer, 1)?;
     write_var_i32(writer, 2)?; // villager_schedule = ID 2
     Ok(())
@@ -709,16 +709,10 @@ pub fn write_vanilla_known_packs_packet<W: Write>(writer: &mut W) -> io::Result<
 }
 
 pub fn write_minimal_dimension_type_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
-    write_identifier(
-        writer,
-        &Identifier::parse("minecraft:dimension_type").unwrap(),
-    )?;
+    write_parsed_identifier(writer, "minecraft:dimension_type")?;
     write_var_i32(writer, DIMENSION_TYPES.len() as i32)?;
     for dimension_type in DIMENSION_TYPES {
-        write_identifier(
-            writer,
-            &Identifier::parse(&format!("minecraft:{dimension_type}")).unwrap(),
-        )?;
+        write_parsed_identifier(writer, &format!("minecraft:{dimension_type}"))?;
         write_bool(writer, true)?;
         write_network_nbt(writer, &dimension_type_nbt(dimension_type))?;
     }
@@ -726,13 +720,10 @@ pub fn write_minimal_dimension_type_registry_packet<W: Write>(writer: &mut W) ->
 }
 
 pub fn write_vanilla_chat_type_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
-    write_identifier(writer, &Identifier::parse("minecraft:chat_type").unwrap())?;
+    write_parsed_identifier(writer, "minecraft:chat_type")?;
     write_var_i32(writer, CHAT_TYPES.len() as i32)?;
     for chat_type in CHAT_TYPES {
-        write_identifier(
-            writer,
-            &Identifier::parse(&format!("minecraft:{}", chat_type.id)).unwrap(),
-        )?;
+        write_parsed_identifier(writer, &format!("minecraft:{}", chat_type.id))?;
         write_bool(writer, true)?;
         write_network_nbt(writer, &chat_type_nbt(chat_type))?;
     }
@@ -740,16 +731,10 @@ pub fn write_vanilla_chat_type_registry_packet<W: Write>(writer: &mut W) -> io::
 }
 
 pub fn write_minimal_trim_material_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
-    write_identifier(
-        writer,
-        &Identifier::parse("minecraft:trim_material").unwrap(),
-    )?;
+    write_parsed_identifier(writer, "minecraft:trim_material")?;
     write_var_i32(writer, TRIM_MATERIALS.len() as i32)?;
     for material in TRIM_MATERIALS {
-        write_identifier(
-            writer,
-            &Identifier::parse(&format!("minecraft:{}", material.id)).unwrap(),
-        )?;
+        write_parsed_identifier(writer, &format!("minecraft:{}", material.id))?;
         write_bool(writer, true)?;
         write_network_nbt(writer, &trim_material_nbt(material))?;
     }
@@ -757,16 +742,10 @@ pub fn write_minimal_trim_material_registry_packet<W: Write>(writer: &mut W) -> 
 }
 
 pub fn write_vanilla_jukebox_song_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
-    write_identifier(
-        writer,
-        &Identifier::parse("minecraft:jukebox_song").unwrap(),
-    )?;
+    write_parsed_identifier(writer, "minecraft:jukebox_song")?;
     write_var_i32(writer, JUKEBOX_SONGS.len() as i32)?;
     for song in JUKEBOX_SONGS {
-        write_identifier(
-            writer,
-            &Identifier::parse(&format!("minecraft:{}", song.id)).unwrap(),
-        )?;
+        write_parsed_identifier(writer, &format!("minecraft:{}", song.id))?;
         write_bool(writer, true)?;
         write_network_nbt(writer, &jukebox_song_nbt(song))?;
     }
@@ -774,16 +753,10 @@ pub fn write_vanilla_jukebox_song_registry_packet<W: Write>(writer: &mut W) -> i
 }
 
 pub fn write_vanilla_banner_pattern_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
-    write_identifier(
-        writer,
-        &Identifier::parse("minecraft:banner_pattern").unwrap(),
-    )?;
+    write_parsed_identifier(writer, "minecraft:banner_pattern")?;
     write_var_i32(writer, BANNER_PATTERNS.len() as i32)?;
     for pattern in BANNER_PATTERNS {
-        write_identifier(
-            writer,
-            &Identifier::parse(&format!("minecraft:{pattern}")).unwrap(),
-        )?;
+        write_parsed_identifier(writer, &format!("minecraft:{pattern}"))?;
         write_bool(writer, true)?;
         write_network_nbt(writer, &banner_pattern_nbt(pattern))?;
     }
@@ -791,16 +764,10 @@ pub fn write_vanilla_banner_pattern_registry_packet<W: Write>(writer: &mut W) ->
 }
 
 pub fn write_vanilla_trim_pattern_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
-    write_identifier(
-        writer,
-        &Identifier::parse("minecraft:trim_pattern").unwrap(),
-    )?;
+    write_parsed_identifier(writer, "minecraft:trim_pattern")?;
     write_var_i32(writer, TRIM_PATTERNS.len() as i32)?;
     for pattern in TRIM_PATTERNS {
-        write_identifier(
-            writer,
-            &Identifier::parse(&format!("minecraft:{pattern}")).unwrap(),
-        )?;
+        write_parsed_identifier(writer, &format!("minecraft:{pattern}"))?;
         write_bool(writer, true)?;
         write_network_nbt(writer, &trim_pattern_nbt(pattern))?;
     }
@@ -808,13 +775,10 @@ pub fn write_vanilla_trim_pattern_registry_packet<W: Write>(writer: &mut W) -> i
 }
 
 pub fn write_vanilla_instrument_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
-    write_identifier(writer, &Identifier::parse("minecraft:instrument").unwrap())?;
+    write_parsed_identifier(writer, "minecraft:instrument")?;
     write_var_i32(writer, INSTRUMENTS.len() as i32)?;
     for instrument in INSTRUMENTS {
-        write_identifier(
-            writer,
-            &Identifier::parse(&format!("minecraft:{}", instrument.id)).unwrap(),
-        )?;
+        write_parsed_identifier(writer, &format!("minecraft:{}", instrument.id))?;
         write_bool(writer, true)?;
         write_network_nbt(writer, &instrument_nbt(instrument))?;
     }
@@ -828,18 +792,25 @@ pub fn write_vanilla_instrument_registry_packet<W: Write>(writer: &mut W) -> io:
 /// Java: net/minecraft/resources/RegistryDataLoader.java:125,160 — WORLD_CLOCK is a
 /// datapack-loaded registry that must be synced to clients during the configuration phase.
 pub fn write_world_clock_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
-    write_identifier(writer, &Identifier::parse("minecraft:world_clock").unwrap())?;
+    write_parsed_identifier(writer, "minecraft:world_clock")?;
     write_var_i32(writer, 2)?; // minecraft:overworld (ID 0) and minecraft:the_end (ID 1)
     for name in ["overworld", "the_end"] {
-        write_identifier(
-            writer,
-            &Identifier::parse(&format!("minecraft:{name}")).unwrap(),
-        )?;
+        write_parsed_identifier(writer, &format!("minecraft:{name}"))?;
         write_bool(writer, true)?;
         // WorldClock is a zero-field record; its NBT codec encodes as an empty compound.
         write_network_nbt(writer, &Tag::Compound(vec![]))?;
     }
     Ok(())
+}
+
+fn write_parsed_identifier<W: Write>(writer: &mut W, value: &str) -> io::Result<()> {
+    let identifier = Identifier::parse(value).map_err(|err| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("built-in registry identifier {value:?} failed to parse: {err}"),
+        )
+    })?;
+    write_identifier(writer, &identifier)
 }
 
 // ---------------------------------------------------------------------------

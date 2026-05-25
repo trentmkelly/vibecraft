@@ -285,6 +285,9 @@ pub use play_session_world_packets::*;
 mod chunk_d;
 pub use chunk_d::*;
 
+mod block_loot_tables;
+pub use block_loot_tables::*;
+
 mod chunk_d_2;
 pub use chunk_d_2::*;
 
