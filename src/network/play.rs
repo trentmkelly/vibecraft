@@ -10,10 +10,12 @@ use crate::inventory_transactions::{
     apply_scripted_packet, InventoryTransactionResult, ScriptedContainerClickPacket, SlotCorrection,
 };
 use crate::item_catalog::item_protocol_id;
+use crate::item_properties::ItemComponent;
 use crate::item_stack::ItemStack;
 use crate::network::codec::{
     read_identifier, read_string, read_uuid, write_bitset, write_collection, write_enum_index,
-    write_identifier, write_optional, write_string, write_uuid, Uuid,
+    write_identifier, write_optional, write_string, write_trusted_component, write_uuid,
+    ComponentJson, Uuid,
 };
 use crate::network::common::ServerboundResourcePackPacket;
 use crate::network::dispatch::{DecodedPacket, DispatchOutcome, PacketDirection, ProtocolState};

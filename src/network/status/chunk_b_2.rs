@@ -53,6 +53,7 @@ pub fn play_packet_has_live_status_handler(packet_id: i32) -> bool {
                 | SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID
                 | SERVERBOUND_USE_ITEM_ON_PACKET_ID
                 | SERVERBOUND_PLAYER_ACTION_PACKET_ID
+                | SERVERBOUND_EDIT_BOOK_PACKET_ID
                 | SERVERBOUND_PICK_ITEM_FROM_BLOCK_PACKET_ID
                 | SERVERBOUND_PICK_ITEM_FROM_ENTITY_PACKET_ID
                 | SERVERBOUND_CONTAINER_CLICK_PACKET_ID

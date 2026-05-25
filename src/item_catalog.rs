@@ -508,6 +508,8 @@ pub fn item_static_name(registry_id: &str) -> Option<&'static str> {
         "prismarine_crystals" => "minecraft:prismarine_crystals",
         "snowball" => "minecraft:snowball",
         "book" => "minecraft:book",
+        "writable_book" => "minecraft:writable_book",
+        "written_book" => "minecraft:written_book",
         // Crafted items
         "stick" => "minecraft:stick",
         "wheat_seeds" => "minecraft:wheat_seeds",
@@ -699,6 +701,8 @@ pub fn item_protocol_id(registry_id: &str) -> Option<i32> {
         "prismarine_crystals" => 1249,
         "snowball" => 1017,
         "book" => 1030,
+        "writable_book" => 1221,
+        "written_book" => 1222,
         // Crafted items
         "stick" => 947,
         "wheat_seeds" => 952,
@@ -865,6 +869,8 @@ pub fn item_static_name_from_protocol_id(protocol_id: i32) -> Option<&'static st
         1057 => "minecraft:glowstone_dust",
         1107 => "minecraft:melon_slice",
         1119 => "minecraft:gold_nugget",
+        1221 => "minecraft:writable_book",
+        1222 => "minecraft:written_book",
         1228 => "minecraft:carrot",
         1229 => "minecraft:potato",
         1231 => "minecraft:poisonous_potato",

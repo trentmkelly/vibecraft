@@ -523,7 +523,61 @@ pub fn raw_item_stack_from_item_stack(stack: &ItemStack) -> io::Result<RawItemSt
     Ok(RawItemStack {
         count: stack.count(),
         item_id: Some(item_id),
-        components: RawDataComponentPatch::empty(),
+        components: raw_data_component_patch_from_item_stack(stack)?,
+    })
+}
+
+fn raw_data_component_patch_from_item_stack(
+    stack: &ItemStack,
+) -> io::Result<RawDataComponentPatch> {
+    let mut added = Vec::new();
+    if let Some(ItemComponent::WritableBookContent(pages)) =
+        stack.component("minecraft:writable_book_content")
+    {
+        if !pages.is_empty() {
+            let mut payload = Vec::new();
+            write_var_i32(&mut payload, pages.len() as i32)?;
+            for page in pages {
+                write_string(
+                    &mut payload,
+                    page,
+                    ServerboundEditBookPacket::MAX_PAGE_CHARS,
+                )?;
+                write_bool(&mut payload, false)?;
+            }
+            added.push((54, payload));
+        }
+    }
+    if let Some(ItemComponent::WrittenBookContent {
+        title,
+        author,
+        generation,
+        pages,
+        resolved,
+    }) = stack.component("minecraft:written_book_content")
+    {
+        let mut payload = Vec::new();
+        write_string(
+            &mut payload,
+            title,
+            ServerboundEditBookPacket::MAX_TITLE_CHARS,
+        )?;
+        write_bool(&mut payload, false)?;
+        write_string(&mut payload, author, 32767)?;
+        write_var_i32(&mut payload, *generation)?;
+        write_var_i32(&mut payload, pages.len() as i32)?;
+        for page in pages {
+            let text = serde_json::to_string(page)
+                .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
+            write_trusted_component(&mut payload, &ComponentJson(format!("{{\"text\":{text}}}")))?;
+            write_bool(&mut payload, false)?;
+        }
+        write_bool(&mut payload, *resolved)?;
+        added.push((55, payload));
+    }
+    Ok(RawDataComponentPatch {
+        added,
+        removed: Vec::new(),
     })
 }
 

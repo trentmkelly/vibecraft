@@ -1605,6 +1605,19 @@ pub fn handle_login_connection(
                     );
                     continue;
                 }
+                if packet_id == SERVERBOUND_EDIT_BOOK_PACKET_ID {
+                    let packet = ServerboundEditBookPacket::read(&mut input)?;
+                    if super::player_book_packets::apply_edit_book_packet(
+                        &mut play_state,
+                        packet,
+                        &finished.profile.name,
+                    ) {
+                        play_state.container_state_id =
+                            play_state.container_state_id.wrapping_add(1);
+                        write_inventory_menu_full_sync(stream, compression, &play_state)?;
+                    }
+                    continue;
+                }
                 if packet_id == SERVERBOUND_SET_CREATIVE_MODE_SLOT_PACKET_ID {
                     let packet = ServerboundSetCreativeModeSlotPacket::read(&mut input)?;
                     if let Some(slot_update) =

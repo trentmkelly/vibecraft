@@ -129,31 +129,13 @@ pub fn write_inventory_menu_full_sync(
             write_var_i32(payload, state.container_state_id)?;
             write_var_i32(payload, slots.len() as i32)?;
             for stack in &slots {
-                let raw = if stack.is_empty() {
-                    RawItemStack::empty()
-                } else if let Some(pid) = item_protocol_id(stack.item_id()) {
-                    RawItemStack {
-                        count: stack.count(),
-                        item_id: Some(pid),
-                        components: RawDataComponentPatch::empty(),
-                    }
-                } else {
-                    RawItemStack::empty()
-                };
+                let raw =
+                    raw_item_stack_from_item_stack(stack).unwrap_or_else(|_| RawItemStack::empty());
                 raw.write_optional_trusted(payload)?;
             }
             let carried = &state.carried_item;
-            let raw_carried = if carried.is_empty() {
-                RawItemStack::empty()
-            } else if let Some(pid) = item_protocol_id(carried.item_id()) {
-                RawItemStack {
-                    count: carried.count(),
-                    item_id: Some(pid),
-                    components: RawDataComponentPatch::empty(),
-                }
-            } else {
-                RawItemStack::empty()
-            };
+            let raw_carried =
+                raw_item_stack_from_item_stack(carried).unwrap_or_else(|_| RawItemStack::empty());
             raw_carried.write_optional_trusted(payload)
         },
     )
@@ -505,6 +487,15 @@ pub fn write_minimal_play_join(
         CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID,
         |payload| write_player_abilities_packet(payload, play_state.game_mode),
     )?;
+    // Intentional Java parity divergence: RustCraft exposes `/biome` as an
+    // in-game debugging helper, so the live play join sends a tiny command tree
+    // entry for it even though vanilla 26.1.2 has no root `/biome` command.
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_COMMANDS_PACKET_ID,
+        |payload| rustcraft_debug_commands_packet().write(payload),
+    )?;
     write_framed_packet_with_compression(
         stream,
         compression,
@@ -687,6 +678,35 @@ pub fn write_minimal_play_join(
     // synchronously generated here.
     delay_initial_chunk_batch_for_probe(stream, compression)?;
     Ok(())
+}
+
+/// Builds the RustCraft-only command tree additions required by the vanilla client.
+///
+/// Intentional Java parity divergence: vanilla 26.1.2 has no root `/biome`
+/// command, but exposing it in the client dispatcher makes the server-side
+/// debug command usable from the normal slash-command UI.
+pub fn rustcraft_debug_commands_packet() -> ClientboundCommandsPacket {
+    ClientboundCommandsPacket {
+        root_index: 0,
+        entries: vec![
+            CommandNodeEntryData {
+                stub: CommandNodeStubData::Root,
+                executable: false,
+                restricted: false,
+                redirect: None,
+                children: vec![1],
+            },
+            CommandNodeEntryData {
+                stub: CommandNodeStubData::Literal {
+                    name: "biome".to_string(),
+                },
+                executable: true,
+                restricted: false,
+                redirect: None,
+                children: Vec::new(),
+            },
+        ],
+    }
 }
 
 /// Per-session diagnostic counters for the new async chunk pipeline.

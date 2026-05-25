@@ -737,3 +737,5 @@ mod tests_c;
 pub use tests_c::*;
 mod tests_d;
 pub use tests_d::*;
+mod tests_e;
+pub use tests_e::*;

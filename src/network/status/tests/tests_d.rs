@@ -21,6 +21,26 @@ pub fn write_lp_vec3_round_trips_through_java_decode() {
 }
 
 #[test]
+pub fn rustcraft_debug_commands_packet_exposes_biome_literal() {
+    let packet = rustcraft_debug_commands_packet();
+
+    assert_eq!(packet.root_index, 0);
+    assert_eq!(packet.entries.len(), 2);
+    assert_eq!(packet.entries[0].stub, CommandNodeStubData::Root);
+    assert_eq!(packet.entries[0].children, vec![1]);
+    assert!(!packet.entries[0].executable);
+    assert_eq!(
+        packet.entries[1].stub,
+        CommandNodeStubData::Literal {
+            name: "biome".to_string()
+        }
+    );
+    assert!(packet.entries[1].executable);
+    assert!(packet.entries[1].children.is_empty());
+    assert!(!packet.entries[1].restricted);
+}
+
+#[test]
 pub fn pseudo_rand_f32_produces_values_in_unit_interval() {
     for seed in [-100_i32, 0, 1, 42, i32::MAX, i32::MIN] {
         for index in 0..4_u32 {

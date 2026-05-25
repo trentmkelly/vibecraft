@@ -67,6 +67,14 @@ pub enum ItemComponent {
     UseRemainder(&'static str),
     ItemModel(&'static str),
     ItemName(&'static str),
+    WritableBookContent(Vec<String>),
+    WrittenBookContent {
+        title: String,
+        author: String,
+        generation: i32,
+        pages: Vec<String>,
+        resolved: bool,
+    },
     Custom(&'static str),
 }
 
@@ -189,6 +197,11 @@ impl ItemDefinition {
         self
     }
 
+    pub fn writable_book_content(mut self, pages: Vec<String>) -> Self {
+        self.set(ItemComponent::WritableBookContent(pages));
+        self
+    }
+
     pub fn effective(&self) -> EffectiveItemProperties {
         let mut effective = EffectiveItemProperties {
             registry_id: self.registry_id,
@@ -234,6 +247,8 @@ impl ItemDefinition {
                 | ItemComponent::UseRemainder(_)
                 | ItemComponent::ItemModel(_)
                 | ItemComponent::ItemName(_)
+                | ItemComponent::WritableBookContent(_)
+                | ItemComponent::WrittenBookContent { .. }
                 | ItemComponent::Custom(_) => {}
             }
         }
@@ -265,6 +280,8 @@ impl ItemComponent {
             Self::UseRemainder(_) => "minecraft:use_remainder",
             Self::ItemModel(_) => "minecraft:item_model",
             Self::ItemName(_) => "minecraft:item_name",
+            Self::WritableBookContent(_) => "minecraft:writable_book_content",
+            Self::WrittenBookContent { .. } => "minecraft:written_book_content",
             Self::Custom(name) => name,
         }
     }
@@ -313,6 +330,9 @@ pub fn representative_item_definitions() -> Vec<ItemDefinition> {
             .drink()
             .use_remainder("minecraft:glass_bottle")
             .custom("minecraft:potion_contents"),
+        ItemDefinition::new("minecraft:writable_book")
+            .stacks_to(1)
+            .writable_book_content(Vec::new()),
         ItemDefinition::new("minecraft:written_book")
             .stacks_to(16)
             .tooltip(TooltipBehavior::GlintOverride(true)),
