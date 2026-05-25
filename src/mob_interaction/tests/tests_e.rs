@@ -59,10 +59,7 @@ fn ghast_fireball_spawn_and_movement_gates_match_java_rules() {
             fireball: None,
         }
     );
-    assert_eq!(
-        ghast_shoot_fireball_tick(10, true, 4095.9, true, false, 1).charging,
-        true
-    );
+    assert!(ghast_shoot_fireball_tick(10, true, 4095.9, true, false, 1).charging);
     assert_eq!(
         ghast_shoot_fireball_tick(19, true, 4095.9, true, false, 3),
         GhastShootTick {
@@ -459,8 +456,10 @@ fn witch_drinking_throwing_and_raid_gates_match_java_rules() {
     assert_eq!(WITCH_PARTICLE_CHANCE, 7.5E-4);
     assert_eq!(witch_particle_count(0), 10);
     assert_eq!(witch_particle_count(34), 44);
-    assert!(!WITCH_CAN_BE_RAID_LEADER);
-    assert!(!WITCH_RAID_BUFFS_APPLIED);
+    assert_eq!(
+        (WITCH_CAN_BE_RAID_LEADER, WITCH_RAID_BUFFS_APPLIED),
+        (false, false)
+    );
     assert!(!witch_finalize_can_join_raid(true));
     assert!(witch_finalize_can_join_raid(false));
     assert!(!witch_ravager_rider_in_java_26_1_2());
@@ -761,7 +760,7 @@ fn ravager_attack_stun_roar_and_leaf_griefing_match_java() {
             defender_hurt_marked: true,
         }
     );
-    assert_eq!(ravager_blocked_by_item(5, true).defender_hurt_marked, false);
+    assert!(!ravager_blocked_by_item(5, true).defender_hurt_marked);
 
     assert_eq!(
         ravager_roar_effect("minecraft:player", true, true),

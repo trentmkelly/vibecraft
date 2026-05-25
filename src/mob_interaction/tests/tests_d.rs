@@ -441,8 +441,8 @@ fn slime_and_magma_cube_size_split_spawn_and_jump_match_java_rules() {
     assert_eq!(magma.jump_delay(0, false), 40);
     assert_eq!(magma.ground_jump_y_velocity(0.42), 0.82);
     assert_eq!(magma.lava_jump_y_velocity(), Some(0.42000002));
-    assert_eq!(magma_cube_spawn_allowed(false), true);
-    assert_eq!(magma_cube_spawn_allowed(true), false);
+    assert!(magma_cube_spawn_allowed(false));
+    assert!(!magma_cube_spawn_allowed(true));
     assert!(!magma_cube_is_on_fire());
 }
 

@@ -51,8 +51,8 @@ fn zombified_piglin_anger_alert_spawn_and_portal_gates_match_java_rules() {
             alert_others: true,
         }
     );
-    assert_eq!(
-        zombified_piglin_ai_step(ZombifiedPiglinAiStepInput {
+    assert!(
+        !zombified_piglin_ai_step(ZombifiedPiglinAiStepInput {
             angry: false,
             has_attacking_speed_modifier: true,
             play_first_anger_sound_in: 0,
@@ -60,19 +60,17 @@ fn zombified_piglin_anger_alert_spawn_and_portal_gates_match_java_rules() {
             has_line_of_sight_to_target: false,
             ..piglin_step
         })
-        .has_attacking_speed_modifier,
-        false
+        .has_attacking_speed_modifier
     );
-    assert_eq!(
-        zombified_piglin_ai_step(ZombifiedPiglinAiStepInput {
+    assert!(
+        !zombified_piglin_ai_step(ZombifiedPiglinAiStepInput {
             baby: true,
             play_first_anger_sound_in: 0,
             target_present: false,
             has_line_of_sight_to_target: false,
             ..piglin_step
         })
-        .has_attacking_speed_modifier,
-        false
+        .has_attacking_speed_modifier
     );
     assert!(zombified_piglin_alerts_other(false, false, false, true));
     assert!(!zombified_piglin_alerts_other(true, false, false, true));
@@ -455,8 +453,10 @@ fn husk_daylight_hunger_conversion_and_camel_spawn_match_java_rules() {
     assert_eq!(HUSK_HUNGER_EFFECT_ID, "minecraft:hunger");
     assert_eq!(HUSK_HUNGER_AMPLIFIER, 0);
 
-    assert!(HUSK_CONVERTS_IN_WATER);
-    assert_eq!(HUSK_UNDERWATER_CONVERSION_TARGET, "minecraft:zombie");
+    assert_eq!(
+        (HUSK_CONVERTS_IN_WATER, HUSK_UNDERWATER_CONVERSION_TARGET),
+        (true, "minecraft:zombie")
+    );
     assert_eq!(husk_underwater_conversion_event(false), Some(1041));
     assert_eq!(husk_underwater_conversion_event(true), None);
 
@@ -864,8 +864,7 @@ fn skeleton_family_ranged_conversion_and_variant_gates_match_java() {
     assert_eq!(WITHER_SKELETON_LAVA_PATHFINDING_MALUS, 8.0);
     assert!(!wither_skeleton_can_be_affected("minecraft:wither"));
     assert!(wither_skeleton_can_be_affected("minecraft:slowness"));
-    assert_eq!(BOGGED_MAX_HEALTH, 16.0);
-    assert_eq!(BOGGED_DEFAULT_SHEARED, false);
+    assert_eq!((BOGGED_MAX_HEALTH, BOGGED_DEFAULT_SHEARED), (16.0, false));
     assert!(bogged_ready_for_shearing(false, true));
     assert!(!bogged_ready_for_shearing(true, true));
     assert!(!bogged_ready_for_shearing(false, false));
@@ -925,7 +924,10 @@ fn cave_spider_dimensions_poison_and_inherited_spider_gates_match_java_rules() {
     assert!(!spider_target_goal_can_use(0.5, true));
     assert!(spider_avoids_armadillo(false));
     assert!(!spider_avoids_armadillo(true));
-    assert_eq!(SPIDER_POISON_IMMUNE, true);
+    assert_eq!(
+        (SPIDER_POISON_IMMUNE, spider_can_be_affected("minecraft:poison")),
+        (true, false)
+    );
     assert!(!spider_can_be_affected("minecraft:poison"));
     assert!(spider_can_be_affected("minecraft:speed"));
     assert!(spider_jockey_from_finalize_spawn(0));

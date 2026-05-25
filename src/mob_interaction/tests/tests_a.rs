@@ -59,7 +59,7 @@ fn snow_golem_pumpkin_shearing_melting_trail_and_snowball_match_java() {
 
     let mut golem = SnowGolemState::new();
     assert!(golem.has_pumpkin());
-    assert_eq!(golem.saved_pumpkin(), true);
+    assert!(golem.saved_pumpkin());
     assert!(golem.ready_for_shearing());
     assert_eq!(
         golem.shear(),
@@ -584,9 +584,9 @@ fn panda_genes_flags_interactions_roll_and_sneeze_match_java() {
             delta: (0.0, 0.27, 0.0),
         }
     );
-    assert_eq!(
-        panda_roll_step(32, false, 0.0, (0.1, 0.2, 0.3), (0.0, 0.0, 0.0), true).rolling_after_step,
-        false
+    assert!(
+        !panda_roll_step(32, false, 0.0, (0.1, 0.2, 0.3), (0.0, 0.0, 0.0), true)
+            .rolling_after_step
     );
 
     let mut sneezing = PandaState::new();
@@ -779,8 +779,8 @@ fn parrot_variants_taming_poison_party_shoulder_and_mimic_match_java() {
             can_mount_now: false,
         }
     );
-    assert_eq!(
-        parrot_shoulder_plan(ParrotShoulderInput {
+    assert!(
+        !parrot_shoulder_plan(ParrotShoulderInput {
             has_server_player_owner: true,
             ordered_to_sit: false,
             owner_spectator: false,
@@ -794,11 +794,10 @@ fn parrot_variants_taming_poison_party_shoulder_and_mimic_match_java() {
             owner_is_passenger: true,
             owner_on_ground: true,
         })
-        .can_mount_now,
-        false
+        .can_mount_now
     );
-    assert_eq!(
-        parrot_shoulder_plan(ParrotShoulderInput {
+    assert!(
+        !parrot_shoulder_plan(ParrotShoulderInput {
             has_server_player_owner: true,
             ordered_to_sit: false,
             owner_spectator: false,
@@ -812,8 +811,7 @@ fn parrot_variants_taming_poison_party_shoulder_and_mimic_match_java() {
             owner_is_passenger: false,
             owner_on_ground: false,
         })
-        .can_mount_now,
-        false
+        .can_mount_now
     );
 }
 
@@ -1081,9 +1079,8 @@ fn sniffer_states_digging_seed_drop_and_egg_hatching_match_java() {
         sniffer_digging_tick_plan(SnifferStateModel::Digging, 1121, 1120, 6000, true).particles,
         0
     );
-    assert_eq!(
-        sniffer_digging_tick_plan(SnifferStateModel::Searching, 1120, 1120, 1800, true).drop_seed,
-        false
+    assert!(
+        !sniffer_digging_tick_plan(SnifferStateModel::Searching, 1120, 1120, 1800, true).drop_seed
     );
 
     let explored = sniffer_store_explored_position(&(0..25).collect::<Vec<i32>>(), 99);

@@ -814,7 +814,7 @@ fn pig_saddle_boost_food_on_a_stick_and_lightning_match_java_rules() {
     let mut max_boost = PigState::new();
     assert!(max_boost.boost(840));
     assert_eq!(max_boost.boost_time_total, PIG_BOOST_MAX_TIME);
-    assert!(max_boost.boost(999) == false);
+    assert!(!max_boost.boost(999));
 
     assert_eq!(
         pig_food_on_a_stick_use(true, true, true, true, 0),
