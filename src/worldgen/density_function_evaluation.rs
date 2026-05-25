@@ -1,5 +1,14 @@
 use super::*;
 
+#[derive(Clone, Copy)]
+struct DensityNoiseSampleContext {
+    seed: i64,
+    settings: NoiseGeneratorSettings,
+    block_x: i32,
+    block_y: i32,
+    block_z: i32,
+}
+
 impl DensityFunction {
     pub fn compute(self, block_y: i32) -> f64 {
         match self {
@@ -85,85 +94,122 @@ impl DensityFunction {
         block_y: i32,
         block_z: i32,
     ) -> f64 {
+        self.compute_with_noise_context(DensityNoiseSampleContext {
+            seed,
+            settings,
+            block_x,
+            block_y,
+            block_z,
+        })
+    }
+
+    fn compute_with_noise_context(self, context: DensityNoiseSampleContext) -> f64 {
         match self {
-            DensityFunction::Reference(id) => builtin_density_function(id)
-                .map(|entry| {
-                    entry
-                        .function
-                        .compute_with_noise(seed, settings, block_x, block_y, block_z)
-                })
-                .unwrap_or(0.0),
+            DensityFunction::Reference(_)
+            | DensityFunction::Constant(_)
+            | DensityFunction::YClampedGradient { .. }
+            | DensityFunction::Clamp { .. }
+            | DensityFunction::Mapped { .. }
+            | DensityFunction::Binary { .. }
+            | DensityFunction::RangeChoice { .. }
+            | DensityFunction::Marker { .. }
+            | DensityFunction::BlendDensity { .. } => {
+                self.compute_composed_density_with_noise(context)
+            }
+            DensityFunction::Noise { .. }
+            | DensityFunction::ShiftA { .. }
+            | DensityFunction::ShiftB { .. }
+            | DensityFunction::Shift { .. }
+            | DensityFunction::ShiftedNoise { .. }
+            | DensityFunction::WeirdScaledSampler { .. } => {
+                self.compute_sampled_density_with_noise(context)
+            }
+            DensityFunction::BlendAlpha
+            | DensityFunction::BlendOffset
+            | DensityFunction::BlendedNoise { .. }
+            | DensityFunction::EndIslands { .. }
+            | DensityFunction::Beardifier
+            | DensityFunction::Spline { .. }
+            | DensityFunction::FindTopSurface { .. } => {
+                self.compute_special_density_with_noise(context)
+            }
+        }
+    }
+
+    fn compute_composed_density_with_noise(self, context: DensityNoiseSampleContext) -> f64 {
+        match self {
+            DensityFunction::Reference(id) => compute_density_reference_with_noise(id, context),
             DensityFunction::Constant(value) => value,
-            DensityFunction::YClampedGradient { .. } => self.compute(block_y),
-            DensityFunction::Clamp { input, min, max } => input
-                .compute_with_noise(seed, settings, block_x, block_y, block_z)
-                .clamp(min, max),
+            DensityFunction::YClampedGradient { .. } => self.compute(context.block_y),
+            DensityFunction::Clamp { input, min, max } => {
+                input.compute_with_noise_context(context).clamp(min, max)
+            }
             DensityFunction::Mapped { kind, input } => {
-                kind.transform(input.compute_with_noise(seed, settings, block_x, block_y, block_z))
+                kind.transform(input.compute_with_noise_context(context))
             }
             DensityFunction::Binary {
                 kind,
                 argument1,
                 argument2,
-            } => {
-                let first = argument1.compute_with_noise(seed, settings, block_x, block_y, block_z);
-                kind.apply_lazy(first, argument2.value_bounds(), || {
-                    argument2.compute_with_noise(seed, settings, block_x, block_y, block_z)
-                })
-            }
+            } => compute_binary_density_with_noise(kind, argument1, argument2, context),
             DensityFunction::RangeChoice {
                 input,
                 min_inclusive,
                 max_exclusive,
                 when_in_range,
                 when_out_of_range,
-            } => {
-                let input_value =
-                    input.compute_with_noise(seed, settings, block_x, block_y, block_z);
-                if input_value >= min_inclusive && input_value < max_exclusive {
-                    when_in_range.compute_with_noise(seed, settings, block_x, block_y, block_z)
-                } else {
-                    when_out_of_range.compute_with_noise(seed, settings, block_x, block_y, block_z)
-                }
-            }
+            } => compute_range_choice_density_with_noise(
+                input,
+                min_inclusive,
+                max_exclusive,
+                when_in_range,
+                when_out_of_range,
+                context,
+            ),
             DensityFunction::Marker { input, .. } | DensityFunction::BlendDensity { input } => {
-                input.compute_with_noise(seed, settings, block_x, block_y, block_z)
+                input.compute_with_noise_context(context)
             }
+            _ => unreachable!("composed density dispatch received a non-composed function"),
+        }
+    }
+
+    fn compute_sampled_density_with_noise(self, context: DensityNoiseSampleContext) -> f64 {
+        match self {
             DensityFunction::Noise {
                 noise,
                 xz_scale,
                 y_scale,
             } => random_state_normal_noise_sample(
-                seed,
-                settings,
+                context.seed,
+                context.settings,
                 noise,
-                f64::from(block_x) * xz_scale,
-                f64::from(block_y) * y_scale,
-                f64::from(block_z) * xz_scale,
+                f64::from(context.block_x) * xz_scale,
+                f64::from(context.block_y) * y_scale,
+                f64::from(context.block_z) * xz_scale,
             ),
             DensityFunction::ShiftA { noise } => density_shift_noise_sample(
-                seed,
-                settings,
+                context.seed,
+                context.settings,
                 noise,
-                f64::from(block_x),
+                f64::from(context.block_x),
                 0.0,
-                f64::from(block_z),
+                f64::from(context.block_z),
             ),
             DensityFunction::ShiftB { noise } => density_shift_noise_sample(
-                seed,
-                settings,
+                context.seed,
+                context.settings,
                 noise,
-                f64::from(block_z),
-                f64::from(block_x),
+                f64::from(context.block_z),
+                f64::from(context.block_x),
                 0.0,
             ),
             DensityFunction::Shift { noise } => density_shift_noise_sample(
-                seed,
-                settings,
+                context.seed,
+                context.settings,
                 noise,
-                f64::from(block_x),
-                f64::from(block_y),
-                f64::from(block_z),
+                f64::from(context.block_x),
+                f64::from(context.block_y),
+                f64::from(context.block_z),
             ),
             DensityFunction::ShiftedNoise {
                 shift_x,
@@ -173,32 +219,37 @@ impl DensityFunction {
                 y_scale,
                 noise,
             } => {
-                let x = f64::from(block_x) * xz_scale
-                    + shift_x.compute_with_noise(seed, settings, block_x, block_y, block_z);
-                let y = f64::from(block_y) * y_scale
-                    + shift_y.compute_with_noise(seed, settings, block_x, block_y, block_z);
-                let z = f64::from(block_z) * xz_scale
-                    + shift_z.compute_with_noise(seed, settings, block_x, block_y, block_z);
-                random_state_normal_noise_sample(seed, settings, noise, x, y, z)
+                let x = f64::from(context.block_x) * xz_scale
+                    + shift_x.compute_with_noise_context(context);
+                let y = f64::from(context.block_y) * y_scale
+                    + shift_y.compute_with_noise_context(context);
+                let z = f64::from(context.block_z) * xz_scale
+                    + shift_z.compute_with_noise_context(context);
+                random_state_normal_noise_sample(context.seed, context.settings, noise, x, y, z)
             }
             DensityFunction::WeirdScaledSampler {
                 input,
                 noise,
                 rarity_mapper,
             } => {
-                let rarity = rarity_mapper
-                    .map_value(input.compute_with_noise(seed, settings, block_x, block_y, block_z));
+                let rarity = rarity_mapper.map_value(input.compute_with_noise_context(context));
                 rarity
                     * random_state_normal_noise_sample(
-                        seed,
-                        settings,
+                        context.seed,
+                        context.settings,
                         noise,
-                        f64::from(block_x) / rarity,
-                        f64::from(block_y) / rarity,
-                        f64::from(block_z) / rarity,
+                        f64::from(context.block_x) / rarity,
+                        f64::from(context.block_y) / rarity,
+                        f64::from(context.block_z) / rarity,
                     )
                     .abs()
             }
+            _ => unreachable!("sampled density dispatch received a non-sampled function"),
+        }
+    }
+
+    fn compute_special_density_with_noise(self, context: DensityNoiseSampleContext) -> f64 {
+        match self {
             DensityFunction::BlendAlpha => 1.0,
             DensityFunction::BlendOffset => 0.0,
             DensityFunction::BlendedNoise {
@@ -208,7 +259,7 @@ impl DensityFunction {
                 y_factor,
                 smear_scale_multiplier,
             } => blended_noise_snapshot(
-                random_state_terrain_random(seed, settings),
+                random_state_terrain_random(context.seed, context.settings),
                 xz_scale,
                 y_scale,
                 xz_factor,
@@ -218,9 +269,9 @@ impl DensityFunction {
             .map(|snapshot| {
                 blended_noise_sample(
                     &snapshot,
-                    f64::from(block_x),
-                    f64::from(block_y),
-                    f64::from(block_z),
+                    f64::from(context.block_x),
+                    f64::from(context.block_y),
+                    f64::from(context.block_z),
                 )
             })
             .unwrap_or(0.0),
@@ -228,16 +279,20 @@ impl DensityFunction {
                 seed: function_seed,
             } => end_island_density_sample(
                 if function_seed == 0 {
-                    seed
+                    context.seed
                 } else {
                     function_seed
                 },
-                block_x,
-                block_z,
+                context.block_x,
+                context.block_z,
             ),
             DensityFunction::Beardifier => 0.0,
             DensityFunction::Spline { kind } => terrain_spline(kind).apply(terrain_spline_context(
-                seed, settings, block_x, block_y, block_z,
+                context.seed,
+                context.settings,
+                context.block_x,
+                context.block_y,
+                context.block_z,
             )),
             DensityFunction::FindTopSurface {
                 density,
@@ -245,11 +300,17 @@ impl DensityFunction {
                 lower_bound,
                 cell_height,
             } => find_top_surface_compute(
-                |sample_y| density.compute_with_noise(seed, settings, block_x, sample_y, block_z),
-                upper_bound.compute_with_noise(seed, settings, block_x, block_y, block_z),
+                |sample_y| {
+                    density.compute_with_noise_context(DensityNoiseSampleContext {
+                        block_y: sample_y,
+                        ..context
+                    })
+                },
+                upper_bound.compute_with_noise_context(context),
                 lower_bound,
                 cell_height,
             ),
+            _ => unreachable!("special density dispatch received a non-special function"),
         }
     }
 
@@ -349,6 +410,43 @@ impl DensityFunction {
             }
             DensityFunction::Spline { kind } => terrain_spline(kind).bounds(),
         }
+    }
+}
+
+fn compute_density_reference_with_noise(
+    id: &'static str,
+    context: DensityNoiseSampleContext,
+) -> f64 {
+    builtin_density_function(id)
+        .map(|entry| entry.function.compute_with_noise_context(context))
+        .unwrap_or(0.0)
+}
+
+fn compute_binary_density_with_noise(
+    kind: BinaryDensityFunction,
+    argument1: &'static DensityFunction,
+    argument2: &'static DensityFunction,
+    context: DensityNoiseSampleContext,
+) -> f64 {
+    let first = argument1.compute_with_noise_context(context);
+    kind.apply_lazy(first, argument2.value_bounds(), || {
+        argument2.compute_with_noise_context(context)
+    })
+}
+
+fn compute_range_choice_density_with_noise(
+    input: &'static DensityFunction,
+    min_inclusive: f64,
+    max_exclusive: f64,
+    when_in_range: &'static DensityFunction,
+    when_out_of_range: &'static DensityFunction,
+    context: DensityNoiseSampleContext,
+) -> f64 {
+    let input_value = input.compute_with_noise_context(context);
+    if input_value >= min_inclusive && input_value < max_exclusive {
+        when_in_range.compute_with_noise_context(context)
+    } else {
+        when_out_of_range.compute_with_noise_context(context)
     }
 }
 
@@ -623,4 +721,3 @@ impl RarityValueMapper {
         }
     }
 }
-
