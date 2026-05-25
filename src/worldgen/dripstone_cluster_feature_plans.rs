@@ -70,6 +70,56 @@ pub fn dripstone_cluster_column_plan(
     input: DripstoneClusterColumnInput,
     rolls: DripstoneClusterColumnRolls,
 ) -> DripstoneClusterColumnPlan {
+    let water = dripstone_cluster_water_plan(origin, config, input, rolls);
+    let mut state = dripstone_cluster_initial_column_state(config, input, rolls, water.floor_y);
+    dripstone_cluster_resolve_overlapping_tips(input, rolls, water.floor_y, &mut state);
+    state.merge_tips = dripstone_cluster_should_merge_tips(input, rolls, water.floor_y, state);
+    dripstone_cluster_materialize_column_plan(origin, config, input, water, state)
+}
+
+#[derive(Clone, Copy)]
+struct DripstoneClusterWaterPlan {
+    floor_y: Option<i32>,
+    water_pos: Option<BlockPos>,
+}
+
+#[derive(Clone, Copy)]
+struct DripstoneClusterColumnState {
+    want_stalactite: bool,
+    want_stalagmite: bool,
+    stalactite_height: i32,
+    stalagmite_height: i32,
+    merge_tips: bool,
+}
+
+fn dripstone_cluster_water_plan(
+    origin: BlockPos,
+    config: DripstoneClusterSampledConfig,
+    input: DripstoneClusterColumnInput,
+    rolls: DripstoneClusterColumnRolls,
+) -> DripstoneClusterWaterPlan {
+    let mut floor_y = input.floor_y;
+    let water_pos = if rolls.water_roll < config.wetness && input.floor_pool_supported {
+        input.floor_y.map(|base_floor_y| {
+            floor_y = Some(base_floor_y - 1);
+            BlockPos {
+                x: origin.x + input.dx,
+                y: base_floor_y,
+                z: origin.z + input.dz,
+            }
+        })
+    } else {
+        None
+    };
+    DripstoneClusterWaterPlan { floor_y, water_pos }
+}
+
+fn dripstone_cluster_initial_column_state(
+    config: DripstoneClusterSampledConfig,
+    input: DripstoneClusterColumnInput,
+    rolls: DripstoneClusterColumnRolls,
+    floor_y: Option<i32>,
+) -> DripstoneClusterColumnState {
     let chance = dripstone_cluster_chance_of_column(
         config.x_radius,
         config.z_radius,
@@ -77,91 +127,133 @@ pub fn dripstone_cluster_column_plan(
         input.dz,
         config,
     );
-    let mut floor_y = input.floor_y;
-    let water_pos =
-        if rolls.water_roll < config.wetness && input.floor_pool_supported {
-            input.floor_y.map(|base_floor_y| {
-                floor_y = Some(base_floor_y - 1);
-                BlockPos {
-                    x: origin.x + input.dx,
-                    y: base_floor_y,
-                    z: origin.z + input.dz,
-                }
-            })
-        } else {
-            None
-        };
-
     let want_stalactite = rolls.stalactite_roll < chance;
-    let mut stalactite_height = if let Some(ceiling_y) = input.ceiling_y {
-        if want_stalactite && !input.ceiling_is_lava {
-            let max_height = floor_y
-                .map(|floor| config.height.min(ceiling_y - floor))
-                .unwrap_or(config.height);
-            dripstone_cluster_height_for_column(
-                input.dx,
-                input.dz,
-                config.density,
-                max_height,
-                config,
-                rolls.stalactite_density_roll,
-                rolls.stalactite_biased_height,
-            )
-        } else {
-            0
-        }
-    } else {
-        0
-    };
-
+    let stalactite_height =
+        dripstone_cluster_stalactite_height(config, input, rolls, floor_y, want_stalactite);
     let want_stalagmite = rolls.stalagmite_roll < chance;
-    let mut stalagmite_height = if floor_y.is_some() && want_stalagmite && !input.floor_is_lava {
-        if input.ceiling_y.is_some() {
-            (stalactite_height
-                + inclusive_roll(
-                    rolls.stalagmite_height_diff_roll,
-                    -config.max_stalagmite_stalactite_height_diff,
-                    config.max_stalagmite_stalactite_height_diff,
-                ))
-            .max(0)
-        } else {
-            dripstone_cluster_height_for_column(
-                input.dx,
-                input.dz,
-                config.density,
-                config.height,
-                config,
-                rolls.stalagmite_density_roll,
-                rolls.stalagmite_biased_height,
-            )
-        }
-    } else {
-        0
-    };
-
-    if let (Some(ceiling_y), Some(floor_y_value)) = (input.ceiling_y, floor_y) {
-        if ceiling_y - stalactite_height <= floor_y_value + stalagmite_height {
-            let lowest_stalactite_bottom = (ceiling_y - stalactite_height).max(floor_y_value + 1);
-            let highest_stalagmite_top = (floor_y_value + stalagmite_height).min(ceiling_y - 1);
-            let actual_stalactite_bottom = inclusive_roll(
-                rolls.overlap_split_roll,
-                lowest_stalactite_bottom,
-                highest_stalagmite_top + 1,
-            );
-            let actual_stalagmite_top = actual_stalactite_bottom - 1;
-            stalactite_height = ceiling_y - actual_stalactite_bottom;
-            stalagmite_height = actual_stalagmite_top - floor_y_value;
-        }
+    let stalagmite_height = dripstone_cluster_stalagmite_height(
+        config,
+        input,
+        rolls,
+        floor_y,
+        want_stalagmite,
+        stalactite_height,
+    );
+    DripstoneClusterColumnState {
+        want_stalactite,
+        want_stalagmite,
+        stalactite_height,
+        stalagmite_height,
+        merge_tips: false,
     }
+}
 
+fn dripstone_cluster_stalactite_height(
+    config: DripstoneClusterSampledConfig,
+    input: DripstoneClusterColumnInput,
+    rolls: DripstoneClusterColumnRolls,
+    floor_y: Option<i32>,
+    want_stalactite: bool,
+) -> i32 {
+    let Some(ceiling_y) = input.ceiling_y else {
+        return 0;
+    };
+    if !want_stalactite || input.ceiling_is_lava {
+        return 0;
+    }
+    let max_height = floor_y
+        .map(|floor| config.height.min(ceiling_y - floor))
+        .unwrap_or(config.height);
+    dripstone_cluster_height_for_column(
+        input.dx,
+        input.dz,
+        config.density,
+        max_height,
+        config,
+        rolls.stalactite_density_roll,
+        rolls.stalactite_biased_height,
+    )
+}
+
+fn dripstone_cluster_stalagmite_height(
+    config: DripstoneClusterSampledConfig,
+    input: DripstoneClusterColumnInput,
+    rolls: DripstoneClusterColumnRolls,
+    floor_y: Option<i32>,
+    want_stalagmite: bool,
+    stalactite_height: i32,
+) -> i32 {
+    if floor_y.is_none() || !want_stalagmite || input.floor_is_lava {
+        return 0;
+    }
+    if input.ceiling_y.is_some() {
+        return (stalactite_height
+            + inclusive_roll(
+                rolls.stalagmite_height_diff_roll,
+                -config.max_stalagmite_stalactite_height_diff,
+                config.max_stalagmite_stalactite_height_diff,
+            ))
+        .max(0);
+    }
+    dripstone_cluster_height_for_column(
+        input.dx,
+        input.dz,
+        config.density,
+        config.height,
+        config,
+        rolls.stalagmite_density_roll,
+        rolls.stalagmite_biased_height,
+    )
+}
+
+fn dripstone_cluster_resolve_overlapping_tips(
+    input: DripstoneClusterColumnInput,
+    rolls: DripstoneClusterColumnRolls,
+    floor_y: Option<i32>,
+    state: &mut DripstoneClusterColumnState,
+) {
+    let (Some(ceiling_y), Some(floor_y_value)) = (input.ceiling_y, floor_y) else {
+        return;
+    };
+    if ceiling_y - state.stalactite_height > floor_y_value + state.stalagmite_height {
+        return;
+    }
+    let lowest_stalactite_bottom = (ceiling_y - state.stalactite_height).max(floor_y_value + 1);
+    let highest_stalagmite_top = (floor_y_value + state.stalagmite_height).min(ceiling_y - 1);
+    let actual_stalactite_bottom = inclusive_roll(
+        rolls.overlap_split_roll,
+        lowest_stalactite_bottom,
+        highest_stalagmite_top + 1,
+    );
+    let actual_stalagmite_top = actual_stalactite_bottom - 1;
+    state.stalactite_height = ceiling_y - actual_stalactite_bottom;
+    state.stalagmite_height = actual_stalagmite_top - floor_y_value;
+}
+
+fn dripstone_cluster_should_merge_tips(
+    input: DripstoneClusterColumnInput,
+    rolls: DripstoneClusterColumnRolls,
+    floor_y: Option<i32>,
+    state: DripstoneClusterColumnState,
+) -> bool {
     let column_height = input
         .ceiling_y
         .zip(floor_y)
         .map(|(ceiling, floor)| ceiling - floor);
-    let merge_tips = rolls.merge_tips_roll
-        && stalactite_height > 0
-        && stalagmite_height > 0
-        && column_height.is_some_and(|height| stalactite_height + stalagmite_height == height);
+    rolls.merge_tips_roll
+        && state.stalactite_height > 0
+        && state.stalagmite_height > 0
+        && column_height
+            .is_some_and(|height| state.stalactite_height + state.stalagmite_height == height)
+}
+
+fn dripstone_cluster_materialize_column_plan(
+    origin: BlockPos,
+    config: DripstoneClusterSampledConfig,
+    input: DripstoneClusterColumnInput,
+    water: DripstoneClusterWaterPlan,
+    state: DripstoneClusterColumnState,
+) -> DripstoneClusterColumnPlan {
     let column_xz = BlockPos {
         x: origin.x + input.dx,
         y: origin.y,
@@ -169,10 +261,10 @@ pub fn dripstone_cluster_column_plan(
     };
 
     DripstoneClusterColumnPlan {
-        water_pos,
+        water_pos: water.water_pos,
         ceiling_dripstone_blocks: input
             .ceiling_y
-            .filter(|_| want_stalactite && !input.ceiling_is_lava)
+            .filter(|_| state.want_stalactite && !input.ceiling_is_lava)
             .map(|ceiling_y| {
                 dripstone_block_layer_positions(
                     column_xz,
@@ -182,8 +274,9 @@ pub fn dripstone_cluster_column_plan(
                 )
             })
             .unwrap_or_default(),
-        floor_dripstone_blocks: floor_y
-            .filter(|_| want_stalagmite && !input.floor_is_lava)
+        floor_dripstone_blocks: water
+            .floor_y
+            .filter(|_| state.want_stalagmite && !input.floor_is_lava)
             .map(|floor_y| {
                 dripstone_block_layer_positions(
                     column_xz,
@@ -203,12 +296,13 @@ pub fn dripstone_cluster_column_plan(
                         z: column_xz.z,
                     },
                     PointedDripstoneDirection::Down,
-                    stalactite_height,
-                    merge_tips,
+                    state.stalactite_height,
+                    state.merge_tips,
                 )
             })
             .unwrap_or_default(),
-        stalagmite: floor_y
+        stalagmite: water
+            .floor_y
             .map(|floor_y| {
                 pointed_dripstone_column(
                     BlockPos {
@@ -217,12 +311,12 @@ pub fn dripstone_cluster_column_plan(
                         z: column_xz.z,
                     },
                     PointedDripstoneDirection::Up,
-                    stalagmite_height,
-                    merge_tips,
+                    state.stalagmite_height,
+                    state.merge_tips,
                 )
             })
             .unwrap_or_default(),
-        merge_tips,
+        merge_tips: state.merge_tips,
     }
 }
 
