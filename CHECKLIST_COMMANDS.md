@@ -50,7 +50,7 @@
 - [ ] Implement function-permission-level enforcement: functions run at op-level configured by `function-permission-level` property
 - [ ] Implement function execution quota/fork limiting using `maxCommandChainLength` / `max_command_sequence_length`, `maxCommandForkCount` / `max_command_forks`, and vanilla queue overflow behavior
 - [ ] Add parity test: `#minecraft:tick` function called every tick, `#minecraft:load` called on reload
-- [ ] Add parity test: macro function variable substitution with entity/storage/block NBT source — `function_with_entity_block_and_storage_sources_instantiates_macros` covers all three source forms and missing-source failure
+- [x] Add parity test: macro function variable substitution with entity/storage/block NBT source — Java `FunctionCommand` wires `with` through `DataCommands.SOURCE_PROVIDERS` and compound-tag macro instantiation; `function_with_entity_block_and_storage_sources_instantiates_macros` covers entity, block, storage, and missing-source failure with substituted macro commands.
 - [ ] Add parity test: command function execution stops at the vanilla game-rule sequence/fork limits and queue-overflow boundary
 
 ## Command Testing (Mineflayer / Integration)
