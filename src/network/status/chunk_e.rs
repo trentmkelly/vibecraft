@@ -18,6 +18,32 @@ pub fn timeline_track(modifier: Option<&str>, keyframes: Vec<Tag>, ease: Option<
 /// Builds the NBT compound for `minecraft:day` filtered to syncable tracks only.
 /// Java: data/minecraft/timeline/day.json; Timeline.NETWORK_CODEC removes non-syncable tracks.
 pub fn day_timeline_nbt() -> Tag {
+    let mut tracks = Vec::new();
+    tracks.extend(day_celestial_angle_tracks());
+    tracks.extend(day_rgb_color_tracks());
+    tracks.extend(day_light_tracks());
+    tracks.push((
+        "minecraft:visual/cloud_color".to_string(),
+        day_cloud_color_track(),
+    ));
+    tracks.push((
+        "minecraft:visual/sunrise_sunset_color".to_string(),
+        day_sunrise_sunset_color_track(),
+    ));
+    tracks.extend(day_boolean_tracks());
+
+    Tag::Compound(vec![
+        (
+            "clock".to_string(),
+            Tag::String("minecraft:overworld".to_string()),
+        ),
+        ("period_ticks".to_string(), Tag::Int(24000)),
+        ("tracks".to_string(), Tag::Compound(tracks)),
+        ("time_markers".to_string(), day_time_markers()),
+    ])
+}
+
+fn day_celestial_angle_tracks() -> Vec<(String, Tag)> {
     // symmetricCubicBezier(0.362, 0.241) — shared by sun, moon, and star angle tracks.
     let sym_bezier = cubic_bezier_ease(0.362, 0.241, 0.638, 0.759);
 
@@ -46,7 +72,14 @@ pub fn day_timeline_nbt() -> Tag {
         ],
         Some(sym_bezier),
     );
+    vec![
+        ("minecraft:visual/sun_angle".to_string(), sun_angle),
+        ("minecraft:visual/moon_angle".to_string(), moon_angle),
+        ("minecraft:visual/star_angle".to_string(), star_angle),
+    ]
+}
 
+fn day_rgb_color_tracks() -> Vec<(String, Tag)> {
     // RGB colour tracks: multiply modifier → RgbModifier.argumentCodec = STRING_RGB_COLOR.
     // Primary encoder of STRING_RGB_COLOR is hexColor(6) → Tag::String("#rrggbb").
     let fog_color = timeline_track(
@@ -79,7 +112,17 @@ pub fn day_timeline_nbt() -> Tag {
         ],
         None,
     );
+    vec![
+        ("minecraft:visual/fog_color".to_string(), fog_color),
+        ("minecraft:visual/sky_color".to_string(), sky_color),
+        (
+            "minecraft:visual/sky_light_color".to_string(),
+            sky_light_color,
+        ),
+    ]
+}
 
+fn day_light_tracks() -> Vec<(String, Tag)> {
     // Float tracks: multiply/maximum modifier → FloatModifier.Simple.argumentCodec = Codec.FLOAT.
     let sky_light_factor = timeline_track(
         Some("multiply"),
@@ -120,11 +163,27 @@ pub fn day_timeline_nbt() -> Tag {
         ],
         None,
     );
+    vec![
+        (
+            "minecraft:visual/sky_light_factor".to_string(),
+            sky_light_factor,
+        ),
+        (
+            "minecraft:gameplay/sky_light_level".to_string(),
+            sky_light_level,
+        ),
+        (
+            "minecraft:visual/star_brightness".to_string(),
+            star_brightness,
+        ),
+    ]
+}
 
+fn day_cloud_color_track() -> Tag {
     // ARGB colour: multiply modifier → ArgbModifier.argumentCodec = Either<STRING_ARGB, Codec.INT>.
     // When alpha == 0xFF: Either.right → Codec.INT → Tag::Int.
     // -1 = 0xFFFFFFFF (white); -15132378 = 0xFF1A1A26 (night-tinted dark grey).
-    let cloud_color = timeline_track(
+    timeline_track(
         Some("multiply"),
         vec![
             timeline_keyframe_i32(133, -1),
@@ -133,11 +192,13 @@ pub fn day_timeline_nbt() -> Tag {
             timeline_keyframe_i32(22330, -15132378),
         ],
         None,
-    );
+    )
+}
 
+fn day_sunrise_sunset_color_track() -> Tag {
     // ARGB colour: override modifier → OverrideModifier.argumentCodec = STRING_ARGB_COLOR.
     // Primary encoder is hexColor(8) → Tag::String("#aarrggbb").
-    let sunrise_sunset_color = timeline_track(
+    timeline_track(
         None,
         vec![
             timeline_keyframe_str(71, "#5fefa333"),
@@ -174,8 +235,10 @@ pub fn day_timeline_nbt() -> Tag {
             timeline_keyframe_str(23757, "#b1e78733"),
         ],
         None,
-    );
+    )
+}
 
+fn day_boolean_tracks() -> Vec<(String, Tag)> {
     // Boolean tracks: OR modifier → BooleanModifier.OR.argumentCodec = Codec.BOOL → Tag::Byte.
     let firefly_bush_sounds = timeline_track(
         Some("or"),
@@ -193,11 +256,23 @@ pub fn day_timeline_nbt() -> Tag {
         ],
         None,
     );
+    vec![
+        (
+            "minecraft:audio/firefly_bush_sounds".to_string(),
+            firefly_bush_sounds,
+        ),
+        (
+            "minecraft:gameplay/creaking_active".to_string(),
+            creaking_active,
+        ),
+    ]
+}
 
+fn day_time_markers() -> Tag {
     // Time markers are preserved by NETWORK_CODEC (filterSyncableTracks only touches tracks).
     // TimeMarkerInfo.CODEC: showInCommands=true → Compound{ticks, show_in_commands};
     //                       showInCommands=false → Tag::Int(ticks).
-    let time_markers = Tag::Compound(vec![
+    Tag::Compound(vec![
         (
             "minecraft:day".to_string(),
             Tag::Compound(vec![
@@ -229,54 +304,6 @@ pub fn day_timeline_nbt() -> Tag {
         // showInCommands=false → encoded as plain Tag::Int(ticks).
         ("minecraft:roll_village_siege".to_string(), Tag::Int(18000)),
         ("minecraft:wake_up_from_sleep".to_string(), Tag::Int(0)),
-    ]);
-
-    Tag::Compound(vec![
-        (
-            "clock".to_string(),
-            Tag::String("minecraft:overworld".to_string()),
-        ),
-        ("period_ticks".to_string(), Tag::Int(24000)),
-        (
-            "tracks".to_string(),
-            Tag::Compound(vec![
-                ("minecraft:visual/sun_angle".to_string(), sun_angle),
-                ("minecraft:visual/moon_angle".to_string(), moon_angle),
-                ("minecraft:visual/star_angle".to_string(), star_angle),
-                ("minecraft:visual/fog_color".to_string(), fog_color),
-                ("minecraft:visual/sky_color".to_string(), sky_color),
-                (
-                    "minecraft:visual/sky_light_color".to_string(),
-                    sky_light_color,
-                ),
-                (
-                    "minecraft:visual/sky_light_factor".to_string(),
-                    sky_light_factor,
-                ),
-                (
-                    "minecraft:visual/star_brightness".to_string(),
-                    star_brightness,
-                ),
-                ("minecraft:visual/cloud_color".to_string(), cloud_color),
-                (
-                    "minecraft:visual/sunrise_sunset_color".to_string(),
-                    sunrise_sunset_color,
-                ),
-                (
-                    "minecraft:gameplay/sky_light_level".to_string(),
-                    sky_light_level,
-                ),
-                (
-                    "minecraft:audio/firefly_bush_sounds".to_string(),
-                    firefly_bush_sounds,
-                ),
-                (
-                    "minecraft:gameplay/creaking_active".to_string(),
-                    creaking_active,
-                ),
-            ]),
-        ),
-        ("time_markers".to_string(), time_markers),
     ])
 }
 
@@ -352,24 +379,23 @@ pub fn early_game_timeline_nbt() -> Tag {
 ///   net/minecraft/resources/RegistryDataLoader.java:125,160 — TIMELINE in sync registry list
 ///   net/minecraft/world/timeline/Timeline.java:49 — NETWORK_CODEC = filterSyncableTracks
 pub fn write_vanilla_timeline_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
-    write_identifier(writer, &Identifier::parse("minecraft:timeline").unwrap())?;
+    write_parsed_identifier(writer, "minecraft:timeline")?;
     write_var_i32(writer, 4)?; // day=0, moon=1, villager_schedule=2, early_game=3
-    let entries: &[(&str, fn() -> Tag)] = &[
+    let entries: &[TimelineRegistryEntry] = &[
         ("day", day_timeline_nbt),
         ("moon", moon_timeline_nbt),
         ("villager_schedule", villager_schedule_timeline_nbt),
         ("early_game", early_game_timeline_nbt),
     ];
     for (name, build_nbt) in entries {
-        write_identifier(
-            writer,
-            &Identifier::parse(&format!("minecraft:{name}")).unwrap(),
-        )?;
+        write_parsed_identifier(writer, &format!("minecraft:{name}"))?;
         write_bool(writer, true)?;
         write_network_nbt(writer, &build_nbt())?;
     }
     Ok(())
 }
+
+type TimelineRegistryEntry = (&'static str, fn() -> Tag);
 
 pub fn write_vanilla_cat_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
     const CATS: &[&str] = &[
@@ -453,7 +479,9 @@ pub fn write_vanilla_cat_sound_variant_registry_packet<W: Write>(writer: &mut W)
     })
 }
 
-pub fn write_vanilla_chicken_sound_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+pub fn write_vanilla_chicken_sound_variant_registry_packet<W: Write>(
+    writer: &mut W,
+) -> io::Result<()> {
     const VARIANTS: &[&str] = &["classic", "picky"];
     write_variant_registry(writer, "minecraft:chicken_sound_variant", VARIANTS, |_| {
         chicken_sound_variant_nbt()
@@ -474,7 +502,9 @@ pub fn write_vanilla_pig_sound_variant_registry_packet<W: Write>(writer: &mut W)
     })
 }
 
-pub fn write_vanilla_wolf_sound_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+pub fn write_vanilla_wolf_sound_variant_registry_packet<W: Write>(
+    writer: &mut W,
+) -> io::Result<()> {
     const VARIANTS: &[&str] = &["angry", "big", "classic", "cute", "grumpy", "puglin", "sad"];
     write_variant_registry(writer, "minecraft:wolf_sound_variant", VARIANTS, |_| {
         wolf_sound_variant_nbt()
@@ -563,13 +593,10 @@ where
     F: FnMut(&T) -> Tag,
     T: VariantRegistryElement,
 {
-    write_identifier(writer, &Identifier::parse(registry).unwrap())?;
+    write_parsed_identifier(writer, registry)?;
     write_var_i32(writer, entries.len() as i32)?;
     for entry in entries {
-        write_identifier(
-            writer,
-            &Identifier::parse(&format!("minecraft:{}", entry.id())).unwrap(),
-        )?;
+        write_parsed_identifier(writer, &format!("minecraft:{}", entry.id()))?;
         write_bool(writer, true)?;
         write_network_nbt(writer, &value(entry))?;
     }
@@ -593,20 +620,24 @@ impl VariantRegistryElement for (&str, &str) {
 }
 
 pub fn write_minimal_biome_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
-    write_identifier(
-        writer,
-        &Identifier::parse("minecraft:worldgen/biome").unwrap(),
-    )?;
+    write_parsed_identifier(writer, "minecraft:worldgen/biome")?;
     write_var_i32(writer, BIOMES.len() as i32)?;
     for biome in BIOMES {
-        write_identifier(
-            writer,
-            &Identifier::parse(&format!("minecraft:{biome}")).unwrap(),
-        )?;
+        write_parsed_identifier(writer, &format!("minecraft:{biome}"))?;
         write_bool(writer, true)?;
         write_network_nbt(writer, &vanilla_baseline_biome_nbt(biome))?;
     }
     Ok(())
+}
+
+fn write_parsed_identifier<W: Write>(writer: &mut W, value: &str) -> io::Result<()> {
+    let identifier = Identifier::parse(value).map_err(|err| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("built-in registry identifier {value:?} failed to parse: {err}"),
+        )
+    })?;
+    write_identifier(writer, &identifier)
 }
 
 pub fn vanilla_baseline_biome_nbt(biome: &str) -> Tag {
@@ -646,32 +677,32 @@ pub fn dimension_type_nbt(dimension_type: &str) -> Tag {
     match dimension_type {
         "overworld" => overworld_dimension_type_nbt(false),
         "overworld_caves" => overworld_dimension_type_nbt(true),
-        "the_end" => fixed_dimension_type_nbt(
-            true,
-            false,
-            true,
-            1.0,
-            0,
-            256,
-            256,
-            "#minecraft:infiniburn_end",
-            0.25,
-            Tag::Int(15),
-            0,
-        ),
-        "the_nether" => fixed_dimension_type_nbt(
-            false,
-            true,
-            false,
-            8.0,
-            0,
-            256,
-            128,
-            "#minecraft:infiniburn_nether",
-            0.1,
-            Tag::Int(7),
-            15,
-        ),
+        "the_end" => fixed_dimension_type_nbt(FixedDimensionTypeNbt {
+            has_skylight: true,
+            has_ceiling: false,
+            has_ender_dragon_fight: true,
+            coordinate_scale: 1.0,
+            min_y: 0,
+            height: 256,
+            logical_height: 256,
+            infiniburn: "#minecraft:infiniburn_end",
+            ambient_light: 0.25,
+            monster_spawn_light_level: Tag::Int(15),
+            monster_spawn_block_light_limit: 0,
+        }),
+        "the_nether" => fixed_dimension_type_nbt(FixedDimensionTypeNbt {
+            has_skylight: false,
+            has_ceiling: true,
+            has_ender_dragon_fight: false,
+            coordinate_scale: 8.0,
+            min_y: 0,
+            height: 256,
+            logical_height: 128,
+            infiniburn: "#minecraft:infiniburn_nether",
+            ambient_light: 0.1,
+            monster_spawn_light_level: Tag::Int(7),
+            monster_spawn_block_light_limit: 15,
+        }),
         _ => overworld_dimension_type_nbt(false),
     }
 }
@@ -761,51 +792,59 @@ pub fn overworld_dimension_type_nbt(has_ceiling: bool) -> Tag {
     ])
 }
 
-pub fn fixed_dimension_type_nbt(
-    has_skylight: bool,
-    has_ceiling: bool,
-    has_ender_dragon_fight: bool,
-    coordinate_scale: f64,
-    min_y: i32,
-    height: i32,
-    logical_height: i32,
-    infiniburn: &str,
-    ambient_light: f32,
-    monster_spawn_light_level: Tag,
-    monster_spawn_block_light_limit: i32,
-) -> Tag {
+pub struct FixedDimensionTypeNbt {
+    pub has_skylight: bool,
+    pub has_ceiling: bool,
+    pub has_ender_dragon_fight: bool,
+    pub coordinate_scale: f64,
+    pub min_y: i32,
+    pub height: i32,
+    pub logical_height: i32,
+    pub infiniburn: &'static str,
+    pub ambient_light: f32,
+    pub monster_spawn_light_level: Tag,
+    pub monster_spawn_block_light_limit: i32,
+}
+
+pub fn fixed_dimension_type_nbt(config: FixedDimensionTypeNbt) -> Tag {
     Tag::Compound(vec![
         (
             "has_skylight".to_string(),
-            Tag::Byte(if has_skylight { 1 } else { 0 }),
+            Tag::Byte(if config.has_skylight { 1 } else { 0 }),
         ),
         (
             "has_ceiling".to_string(),
-            Tag::Byte(if has_ceiling { 1 } else { 0 }),
+            Tag::Byte(if config.has_ceiling { 1 } else { 0 }),
         ),
         (
             "has_ender_dragon_fight".to_string(),
-            Tag::Byte(if has_ender_dragon_fight { 1 } else { 0 }),
+            Tag::Byte(if config.has_ender_dragon_fight { 1 } else { 0 }),
         ),
         (
             "coordinate_scale".to_string(),
-            Tag::Double(coordinate_scale),
+            Tag::Double(config.coordinate_scale),
         ),
-        ("min_y".to_string(), Tag::Int(min_y)),
-        ("height".to_string(), Tag::Int(height)),
-        ("logical_height".to_string(), Tag::Int(logical_height)),
+        ("min_y".to_string(), Tag::Int(config.min_y)),
+        ("height".to_string(), Tag::Int(config.height)),
+        (
+            "logical_height".to_string(),
+            Tag::Int(config.logical_height),
+        ),
         (
             "infiniburn".to_string(),
-            Tag::String(infiniburn.to_string()),
+            Tag::String(config.infiniburn.to_string()),
         ),
-        ("ambient_light".to_string(), Tag::Float(ambient_light)),
+        (
+            "ambient_light".to_string(),
+            Tag::Float(config.ambient_light),
+        ),
         (
             "monster_spawn_light_level".to_string(),
-            monster_spawn_light_level,
+            config.monster_spawn_light_level,
         ),
         (
             "monster_spawn_block_light_limit".to_string(),
-            Tag::Int(monster_spawn_block_light_limit),
+            Tag::Int(config.monster_spawn_block_light_limit),
         ),
     ])
 }

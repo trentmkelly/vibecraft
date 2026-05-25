@@ -494,7 +494,7 @@ pub fn png_header(width: u32, height: u32) -> Vec<u8> {
 }
 
 #[test]
-pub fn formats_legacy_status_responses_like_vanilla() {
+pub fn formats_legacy_status_responses_like_vanilla() -> io::Result<()> {
     let properties = test_properties();
 
     assert_eq!(
@@ -506,9 +506,10 @@ pub fn formats_legacy_status_responses_like_vanilla() {
         "§1\x00127\x0026.1.2\0A Minecraft Server\x000\x0020"
     );
 
-    let packet = legacy_disconnect_packet("hello");
+    let packet = legacy_disconnect_packet("hello")?;
     assert_eq!(packet[0], 255);
     assert_eq!(u16::from_be_bytes([packet[1], packet[2]]), 5);
+    Ok(())
 }
 
 #[test]
