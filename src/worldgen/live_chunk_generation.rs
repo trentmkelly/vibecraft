@@ -195,19 +195,6 @@ pub(super) fn add_client_heightmaps_from_blocks_timed(
         };
     }
     let decode_started = Instant::now();
-    let mut world_surface = [0_i32; 16 * 16];
-    let mut ocean_floor = [0_i32; 16 * 16];
-    let mut motion_blocking = [0_i32; 16 * 16];
-    let mut motion_blocking_no_leaves = [0_i32; 16 * 16];
-    let mut found_world_surface = [false; 16 * 16];
-    let mut found_ocean_floor = [false; 16 * 16];
-    let mut found_motion_blocking = [false; 16 * 16];
-    let mut found_motion_blocking_no_leaves = [false; 16 * 16];
-    let mut remaining_world_surface = 16 * 16;
-    let mut remaining_ocean_floor = 16 * 16;
-    let mut remaining_motion_blocking = 16 * 16;
-    let mut remaining_motion_blocking_no_leaves = 16 * 16;
-
     let mut sections: Vec<_> = chunk
         .sections
         .iter()
@@ -221,80 +208,12 @@ pub(super) fn add_client_heightmaps_from_blocks_timed(
     let decode_sections_ms = decode_started.elapsed().as_millis();
 
     let scan_started = Instant::now();
-    let mut block_samples = 0;
-    'sections: for (section_y, container) in sections.into_iter().rev() {
-        let section_min_y = i32::from(section_y) * 16;
-        for local_y in (0..16).rev() {
-            let world_height = section_min_y + local_y as i32 + 1;
-            for z in 0..16 {
-                for x in 0..16 {
-                    let column = z * 16 + x;
-                    if found_world_surface[column]
-                        && found_ocean_floor[column]
-                        && found_motion_blocking[column]
-                        && found_motion_blocking_no_leaves[column]
-                    {
-                        continue;
-                    }
-                    let index = local_y * 256 + z * 16 + x;
-                    let Some(block) = container.get_entry(index).and_then(block_name_from_tag)
-                    else {
-                        continue;
-                    };
-                    block_samples += 1;
-                    if !found_world_surface[column]
-                        && heightmap_opaque(HeightmapKind::WorldSurface, block)
-                    {
-                        world_surface[column] = world_height;
-                        found_world_surface[column] = true;
-                        remaining_world_surface -= 1;
-                    }
-                    if !found_ocean_floor[column]
-                        && heightmap_opaque(HeightmapKind::OceanFloor, block)
-                    {
-                        ocean_floor[column] = world_height;
-                        found_ocean_floor[column] = true;
-                        remaining_ocean_floor -= 1;
-                    }
-                    if !found_motion_blocking[column]
-                        && heightmap_opaque(HeightmapKind::MotionBlocking, block)
-                    {
-                        motion_blocking[column] = world_height;
-                        found_motion_blocking[column] = true;
-                        remaining_motion_blocking -= 1;
-                    }
-                    if !found_motion_blocking_no_leaves[column]
-                        && heightmap_opaque(HeightmapKind::MotionBlockingNoLeaves, block)
-                    {
-                        motion_blocking_no_leaves[column] = world_height;
-                        found_motion_blocking_no_leaves[column] = true;
-                        remaining_motion_blocking_no_leaves -= 1;
-                    }
-                    if remaining_world_surface == 0
-                        && remaining_ocean_floor == 0
-                        && remaining_motion_blocking == 0
-                        && remaining_motion_blocking_no_leaves == 0
-                    {
-                        break 'sections;
-                    }
-                }
-            }
-        }
-    }
+    let mut heightmaps = ClientHeightmapAccumulator::new();
+    let block_samples = scan_client_heightmaps_from_sections(sections, &mut heightmaps);
     let scan_blocks_ms = scan_started.elapsed().as_millis();
 
     let pack_started = Instant::now();
-    for (name, values) in [
-        ("WORLD_SURFACE", world_surface),
-        ("OCEAN_FLOOR", ocean_floor),
-        ("MOTION_BLOCKING", motion_blocking),
-        ("MOTION_BLOCKING_NO_LEAVES", motion_blocking_no_leaves),
-    ] {
-        chunk
-            .heightmaps
-            .entry(name.to_string())
-            .or_insert_with(|| Tag::LongArray(pack_heightmap(values)));
-    }
+    store_final_client_heightmaps(chunk, heightmaps);
     let pack_store_ms = pack_started.elapsed().as_millis();
 
     LiveHeightmapTimings {
@@ -304,6 +223,131 @@ pub(super) fn add_client_heightmaps_from_blocks_timed(
         pack_store_ms,
         sections_decoded: chunk.sections.len(),
         block_samples,
+    }
+}
+
+struct ClientHeightmapAccumulator {
+    world_surface: [i32; 16 * 16],
+    ocean_floor: [i32; 16 * 16],
+    motion_blocking: [i32; 16 * 16],
+    motion_blocking_no_leaves: [i32; 16 * 16],
+    found_world_surface: [bool; 16 * 16],
+    found_ocean_floor: [bool; 16 * 16],
+    found_motion_blocking: [bool; 16 * 16],
+    found_motion_blocking_no_leaves: [bool; 16 * 16],
+    remaining_world_surface: usize,
+    remaining_ocean_floor: usize,
+    remaining_motion_blocking: usize,
+    remaining_motion_blocking_no_leaves: usize,
+}
+
+impl ClientHeightmapAccumulator {
+    fn new() -> Self {
+        Self {
+            world_surface: [0; 16 * 16],
+            ocean_floor: [0; 16 * 16],
+            motion_blocking: [0; 16 * 16],
+            motion_blocking_no_leaves: [0; 16 * 16],
+            found_world_surface: [false; 16 * 16],
+            found_ocean_floor: [false; 16 * 16],
+            found_motion_blocking: [false; 16 * 16],
+            found_motion_blocking_no_leaves: [false; 16 * 16],
+            remaining_world_surface: 16 * 16,
+            remaining_ocean_floor: 16 * 16,
+            remaining_motion_blocking: 16 * 16,
+            remaining_motion_blocking_no_leaves: 16 * 16,
+        }
+    }
+
+    fn complete_at(&self, column: usize) -> bool {
+        self.found_world_surface[column]
+            && self.found_ocean_floor[column]
+            && self.found_motion_blocking[column]
+            && self.found_motion_blocking_no_leaves[column]
+    }
+
+    fn complete_all(&self) -> bool {
+        self.remaining_world_surface == 0
+            && self.remaining_ocean_floor == 0
+            && self.remaining_motion_blocking == 0
+            && self.remaining_motion_blocking_no_leaves == 0
+    }
+
+    fn record_block(&mut self, column: usize, world_height: i32, block: &str) {
+        if !self.found_world_surface[column] && heightmap_opaque(HeightmapKind::WorldSurface, block)
+        {
+            self.world_surface[column] = world_height;
+            self.found_world_surface[column] = true;
+            self.remaining_world_surface -= 1;
+        }
+        if !self.found_ocean_floor[column] && heightmap_opaque(HeightmapKind::OceanFloor, block) {
+            self.ocean_floor[column] = world_height;
+            self.found_ocean_floor[column] = true;
+            self.remaining_ocean_floor -= 1;
+        }
+        if !self.found_motion_blocking[column]
+            && heightmap_opaque(HeightmapKind::MotionBlocking, block)
+        {
+            self.motion_blocking[column] = world_height;
+            self.found_motion_blocking[column] = true;
+            self.remaining_motion_blocking -= 1;
+        }
+        if !self.found_motion_blocking_no_leaves[column]
+            && heightmap_opaque(HeightmapKind::MotionBlockingNoLeaves, block)
+        {
+            self.motion_blocking_no_leaves[column] = world_height;
+            self.found_motion_blocking_no_leaves[column] = true;
+            self.remaining_motion_blocking_no_leaves -= 1;
+        }
+    }
+}
+
+fn scan_client_heightmaps_from_sections(
+    sections: Vec<(i8, PalettedContainer)>,
+    heightmaps: &mut ClientHeightmapAccumulator,
+) -> usize {
+    let mut block_samples = 0;
+    'sections: for (section_y, container) in sections.into_iter().rev() {
+        let section_min_y = i32::from(section_y) * 16;
+        for local_y in (0..16).rev() {
+            let world_height = section_min_y + local_y as i32 + 1;
+            for z in 0..16 {
+                for x in 0..16 {
+                    let column = z * 16 + x;
+                    if heightmaps.complete_at(column) {
+                        continue;
+                    }
+                    let index = local_y * 256 + z * 16 + x;
+                    let Some(block) = container.get_entry(index).and_then(block_name_from_tag)
+                    else {
+                        continue;
+                    };
+                    block_samples += 1;
+                    heightmaps.record_block(column, world_height, block);
+                    if heightmaps.complete_all() {
+                        break 'sections;
+                    }
+                }
+            }
+        }
+    }
+    block_samples
+}
+
+fn store_final_client_heightmaps(chunk: &mut LevelChunk, heightmaps: ClientHeightmapAccumulator) {
+    for (name, values) in [
+        ("WORLD_SURFACE", heightmaps.world_surface),
+        ("OCEAN_FLOOR", heightmaps.ocean_floor),
+        ("MOTION_BLOCKING", heightmaps.motion_blocking),
+        (
+            "MOTION_BLOCKING_NO_LEAVES",
+            heightmaps.motion_blocking_no_leaves,
+        ),
+    ] {
+        chunk
+            .heightmaps
+            .entry(name.to_string())
+            .or_insert_with(|| Tag::LongArray(pack_heightmap(values)));
     }
 }
 
