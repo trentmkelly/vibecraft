@@ -181,8 +181,10 @@ fn data_get_block_exposes_full_nbt_for_every_block_entity_type() {
         assert_eq!(get_int(entries, "y"), Some(probe_pos.y));
         assert_eq!(get_int(entries, "z"), Some(probe_pos.z));
         assert!(
-            entries.iter().any(|(key, value)| key == "DataProbe"
-                && value == &Tag::String(info.key.to_string())),
+            entries
+                .iter()
+                .any(|(key, value)| key == "DataProbe"
+                    && value == &Tag::String(info.key.to_string())),
             "/data custom field missing for {}",
             info.key
         );
@@ -487,12 +489,16 @@ fn ticking_block_entity_wrapper_exposes_scheduler_shape() {
     ticker.entity.set_removed();
     assert!(ticker.is_removed());
     assert!(!ticker.tick());
+
+    ticker.entity.clear_removed();
+    assert!(!ticker.is_removed());
+    assert!(ticker.tick());
+    assert_eq!(ticker.entity.tick_count, 2);
 }
 
 #[test]
 fn changed_flag_only_sets_when_attached_to_level() {
-    let mut entity =
-        BlockEntity::new(BlockEntityTypeId::Bell, pos(), "minecraft:bell").unwrap();
+    let mut entity = BlockEntity::new(BlockEntityTypeId::Bell, pos(), "minecraft:bell").unwrap();
     entity.set_changed();
     assert!(!entity.changed);
     entity.set_level();
@@ -502,8 +508,7 @@ fn changed_flag_only_sets_when_attached_to_level() {
 
 #[test]
 fn update_packets_use_position_type_and_update_tag() {
-    let mut sign =
-        BlockEntity::new(BlockEntityTypeId::Sign, pos(), "minecraft:oak_sign").unwrap();
+    let mut sign = BlockEntity::new(BlockEntityTypeId::Sign, pos(), "minecraft:oak_sign").unwrap();
     sign.custom_data
         .insert("front_text".to_string(), Tag::String("hi".to_string()));
     let packet = sign.get_update_packet();
