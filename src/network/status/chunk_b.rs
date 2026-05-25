@@ -1,6 +1,5 @@
 use super::*;
 
-
 pub fn cache_login_profile(
     player_access: &Arc<Mutex<PlayerAccess>>,
     profile: &NameAndId,
@@ -17,121 +16,6 @@ pub struct PlaySessionUpdate {
     pub position_changed: bool,
     pub health_changed: bool,
     pub respawn_requested: bool,
-}
-
-pub fn update_play_session_state<R: Read>(
-    packet_id: i32,
-    input: &mut R,
-    state: &mut PlaySessionState,
-) -> io::Result<PlaySessionUpdate> {
-    match packet_id {
-        SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID => {
-            let old_x = state.x;
-            let old_y = state.y;
-            let old_z = state.z;
-            state.x = read_f64(input)?;
-            state.y = read_f64(input)?;
-            state.z = read_f64(input)?;
-            state.on_ground = read_bool(input)?;
-            Ok(apply_player_movement(
-                state,
-                state.x - old_x,
-                state.y - old_y,
-                state.z - old_z,
-                true,
-            ))
-        }
-        SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID => {
-            let old_x = state.x;
-            let old_y = state.y;
-            let old_z = state.z;
-            state.x = read_f64(input)?;
-            state.y = read_f64(input)?;
-            state.z = read_f64(input)?;
-            state.yaw = read_f32(input)?;
-            state.pitch = read_f32(input)?;
-            state.on_ground = read_bool(input)?;
-            Ok(apply_player_movement(
-                state,
-                state.x - old_x,
-                state.y - old_y,
-                state.z - old_z,
-                true,
-            ))
-        }
-        SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID => {
-            state.yaw = read_f32(input)?;
-            state.pitch = read_f32(input)?;
-            state.on_ground = read_bool(input)?;
-            Ok(apply_player_fall_movement(state, 0.0, false))
-        }
-        SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID => {
-            state.on_ground = read_bool(input)?;
-            Ok(apply_player_fall_movement(state, 0.0, false))
-        }
-        SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID => {
-            let slot = i32::from(read_i16(input)?);
-            if (0..9).contains(&slot) {
-                state.selected_slot = slot;
-            }
-            Ok(PlaySessionUpdate {
-                position_changed: false,
-                health_changed: false,
-                respawn_requested: false,
-            })
-        }
-        SERVERBOUND_CLIENT_COMMAND_PACKET_ID => {
-            let action = read_var_i32(input)?;
-            // Java ServerboundClientCommandPacket.Action ordinal 0 = PERFORM_RESPAWN.
-            // ServerGamePacketListenerImpl ignores it while the player is alive.
-            Ok(PlaySessionUpdate {
-                position_changed: false,
-                health_changed: false,
-                respawn_requested: action == 0 && state.health <= 0.0,
-            })
-        }
-        SERVERBOUND_PLAYER_INPUT_PACKET_ID => {
-            let flags = read_u8(input)?;
-            let forward = flags & 1 != 0;
-            let backward = flags & 2 != 0;
-            let left = flags & 4 != 0;
-            let right = flags & 8 != 0;
-            let jumping = flags & 16 != 0;
-            let shift = flags & 32 != 0;
-            let sprinting = flags & 64 != 0;
-            if jumping && !state.input_jumping && state.on_ground {
-                add_player_food_exhaustion(
-                    state,
-                    if sprinting {
-                        SPRINT_JUMP_EXHAUSTION
-                    } else {
-                        JUMP_EXHAUSTION
-                    },
-                );
-            }
-            state.input_forward = forward;
-            state.input_backward = backward;
-            state.input_left = left;
-            state.input_right = right;
-            state.input_shift = shift;
-            state.input_jumping = jumping;
-            state.input_sprinting = sprinting;
-            Ok(PlaySessionUpdate::default())
-        }
-        SERVERBOUND_PLAYER_ABILITIES_PACKET_ID => {
-            let packet = ServerboundPlayerAbilitiesPacket::read(input)?;
-            super::player_creative_packets::apply_serverbound_player_abilities_packet(
-                state, packet,
-            );
-            Ok(PlaySessionUpdate::default())
-        }
-        SERVERBOUND_CONTAINER_CLOSE_PACKET_ID => {
-            let _packet = ServerboundContainerClosePacket::read(input)?;
-            state.inventory_menu.removed(&mut state.carried_item);
-            Ok(PlaySessionUpdate::default())
-        }
-        _ => Ok(PlaySessionUpdate::default()),
-    }
 }
 
 pub fn apply_player_fall_movement(
@@ -400,7 +284,7 @@ pub fn tick_play_session_water(
         let should_apply_vertical_fluid_drag =
             !state.on_ground || state.water_velocity_y.abs() > f64::EPSILON || state.eye_in_water;
         if should_apply_vertical_fluid_drag {
-            state.water_velocity_y = state.water_velocity_y * WATER_VERTICAL_SLOWDOWN;
+            state.water_velocity_y *= WATER_VERTICAL_SLOWDOWN;
             if !state.input_sprinting {
                 state.water_velocity_y -= WATER_FALLING_GRAVITY;
             }
@@ -487,7 +371,7 @@ pub fn tick_play_session_food(
     // Java: ServerPlayer.tickRegeneration() runs from LivingEntity.tick()
     // before ServerPlayer.doTick() calls FoodData.tick(this).
     if difficulty == FoodDifficulty::Peaceful && natural_regen {
-        if tick_count % 20 == 0 {
+        if tick_count.is_multiple_of(20) {
             if state.health < 20.0 {
                 state.health = (state.health + 1.0).min(20.0);
             }
@@ -495,7 +379,7 @@ pub fn tick_play_session_food(
                 state.food_saturation += 1.0;
             }
         }
-        if tick_count % 10 == 0 && state.food_level < 20 {
+        if tick_count.is_multiple_of(10) && state.food_level < 20 {
             state.food_level += 1;
         }
     }
@@ -763,11 +647,17 @@ pub fn handle_use_item_on(
             },
             kind,
         );
-        schedule_neighbor_fluids(live_fluid_ticks, game_time, world_layout, world_seed, crate::block_update::BlockPos {
-            x: target_x,
-            y: target_y,
-            z: target_z,
-        });
+        schedule_neighbor_fluids(
+            live_fluid_ticks,
+            game_time,
+            world_layout,
+            world_seed,
+            crate::block_update::BlockPos {
+                x: target_x,
+                y: target_y,
+                z: target_z,
+            },
+        );
     }
 
     // Acknowledge the client's predictive block change.
@@ -891,7 +781,13 @@ pub fn handle_bucket_place_fluid(
         &block_state_model_name(&fluid_state),
     );
     live_fluid_ticks.schedule(game_time, target, kind);
-    schedule_neighbor_fluids(live_fluid_ticks, game_time, world_layout, world_seed, target);
+    schedule_neighbor_fluids(
+        live_fluid_ticks,
+        game_time,
+        world_layout,
+        world_seed,
+        target,
+    );
 
     write_framed_packet_with_compression(
         stream,
@@ -939,9 +835,11 @@ pub fn schedule_neighbor_fluids(
 ) {
     for direction in crate::fluid::fluid_neighbor_order() {
         let neighbor = pos.relative(direction);
-        if let Some(fluid) =
-            crate::fluid::fluid_state_for_block(&read_block_model_at(world_layout, world_seed, neighbor))
-        {
+        if let Some(fluid) = crate::fluid::fluid_state_for_block(&read_block_model_at(
+            world_layout,
+            world_seed,
+            neighbor,
+        )) {
             live_fluid_ticks.schedule(game_time, neighbor, fluid.kind);
         }
     }
@@ -1140,9 +1038,8 @@ pub fn process_live_fluid_ticks(
             for direction in crate::fluid::fluid_neighbor_order() {
                 let neighbor = pos.relative(direction);
                 let neighbor_started = Instant::now();
-                let neighbor_state =
-                    try_read_block_model_at(chunk_cache, world_layout, neighbor)
-                        .unwrap_or_else(crate::block_behavior::BlockStateModel::air);
+                let neighbor_state = try_read_block_model_at(chunk_cache, world_layout, neighbor)
+                    .unwrap_or_else(crate::block_behavior::BlockStateModel::air);
                 neighbor_read_us += neighbor_started.elapsed().as_micros();
                 if let Some(fluid) = crate::fluid::fluid_state_for_block(&neighbor_state) {
                     live_fluid_ticks.schedule(game_time, neighbor, fluid.kind);

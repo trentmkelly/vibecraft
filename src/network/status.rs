@@ -261,6 +261,9 @@ pub use chunk_a::*;
 mod chunk_b;
 pub use chunk_b::*;
 
+mod play_session_state_updates;
+pub use play_session_state_updates::*;
+
 mod chunk_b_2;
 pub use chunk_b_2::*;
 
