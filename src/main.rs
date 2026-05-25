@@ -93,6 +93,7 @@ mod movement_physics;
 #[cfg(test)]
 mod movement_validation;
 mod network;
+#[cfg(test)]
 mod non_living_entity;
 #[cfg(test)]
 mod operational_coverage;
@@ -119,6 +120,7 @@ mod post_processing;
 mod potion_fluid_container;
 mod presentation_data;
 mod project_foundation_tests;
+#[cfg(test)]
 mod projectile_entity;
 mod raid;
 mod random_source;
