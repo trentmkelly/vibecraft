@@ -341,6 +341,7 @@ pub fn rate_limit_disconnect_error(reason: &str) -> io::Error {
     io::Error::new(io::ErrorKind::PermissionDenied, reason.to_string())
 }
 
+#[cfg(test)]
 pub fn wait_for_configuration_packet<R: Read>(
     reader: &mut R,
     compression: CompressionState,

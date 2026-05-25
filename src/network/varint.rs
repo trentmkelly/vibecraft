@@ -73,12 +73,14 @@ pub fn write_var_i64<W: Write>(writer: &mut W, mut value: i64) -> io::Result<()>
     }
 }
 
+#[cfg(test)]
 pub fn encode_var_i32(value: i32) -> Vec<u8> {
     let mut out = Vec::new();
     write_var_i32(&mut out, value).expect("Vec write cannot fail");
     out
 }
 
+#[cfg(test)]
 pub fn encode_var_i64(value: i64) -> Vec<u8> {
     let mut out = Vec::new();
     write_var_i64(&mut out, value).expect("Vec write cannot fail");
@@ -86,6 +88,7 @@ pub fn encode_var_i64(value: i64) -> Vec<u8> {
 }
 
 /// Matches Java `VarInt.getByteSize`: negative values always occupy five bytes.
+#[cfg(test)]
 pub fn var_i32_len(value: i32) -> usize {
     for i in 1..MAX_VAR_I32_SIZE {
         if (value & (-1i32 << (i * 7))) == 0 {
@@ -96,6 +99,7 @@ pub fn var_i32_len(value: i32) -> usize {
 }
 
 /// Matches Java `VarLong.getByteSize`: negative values always occupy ten bytes.
+#[cfg(test)]
 pub fn var_i64_len(value: i64) -> usize {
     for i in 1..MAX_VAR_I64_SIZE {
         if (value & (-1i64 << (i * 7))) == 0 {

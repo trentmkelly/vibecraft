@@ -43,6 +43,7 @@ pub fn play_packet_is_handled_after_state_update(packet_id: i32) -> bool {
     )
 }
 
+#[cfg(test)]
 pub fn play_packet_has_live_status_handler(packet_id: i32) -> bool {
     play_packet_is_handled_after_state_update(packet_id)
         || matches!(

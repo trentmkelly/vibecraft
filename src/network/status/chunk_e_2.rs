@@ -469,6 +469,7 @@ pub fn handle_legacy_status_tcp_connection(
     stream.write_all(&response)
 }
 
+#[cfg(test)]
 pub fn handle_legacy_status_connection<W: Read + Write>(
     stream: &mut W,
     properties: &ServerProperties,

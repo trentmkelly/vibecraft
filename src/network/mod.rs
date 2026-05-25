@@ -19,5 +19,6 @@ pub mod query;
 pub mod rate_limit;
 pub mod rcon;
 pub mod status;
+#[cfg(test)]
 pub mod transfer;
 pub mod varint;

@@ -147,6 +147,7 @@ pub fn chunk_batch_radius(properties: &ServerProperties) -> i32 {
     (properties.view_distance as i32).clamp(MIN_CHUNK_BATCH_RADIUS, MAX_CHUNK_BATCH_RADIUS)
 }
 
+#[cfg(test)]
 pub fn chunk_batch_size(radius: i32) -> i32 {
     (radius * 2 + 1) * (radius * 2 + 1)
 }
@@ -196,6 +197,7 @@ pub fn chunk_window(center_chunk_x: i32, center_chunk_z: i32, radius: i32) -> BT
     chunks
 }
 
+#[cfg(test)]
 pub fn newly_visible_chunks(
     previous: &BTreeSet<(i32, i32)>,
     next: &BTreeSet<(i32, i32)>,
@@ -635,6 +637,7 @@ pub fn block_pos_as_long(x: i32, y: i32, z: i32) -> i64 {
         | ((z as i64 & PACKED_Z_MASK) << Z_OFFSET)
 }
 
+#[cfg(test)]
 pub fn write_generated_spawn_chunk_packet<W: Write>(
     writer: &mut W,
     x: i32,

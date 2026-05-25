@@ -246,6 +246,7 @@ impl GeneratedChunkCache {
     /// we dropped it before `flush_dirty` ran. Java's chunk map has the
     /// same invariant — `LevelChunk.unsaved` blocks unload until the
     /// chunk has been persisted.
+    #[cfg(test)]
     pub fn invalidate(&self, pos: ChunkPos) {
         if self.dirty.lock().unwrap().contains(&pos) {
             return;

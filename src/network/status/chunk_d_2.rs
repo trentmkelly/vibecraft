@@ -213,6 +213,7 @@ pub fn place_block_in_region(
 ///   9–35     → main inventory rows (same index)
 ///   36–44    → hotbar           (inventory indices 0–8)
 ///   45       → offhand          (inventory index 40 = SLOT_OFFHAND)
+#[cfg(test)]
 pub fn inventory_internal_slot(container_slot: usize) -> Option<usize> {
     match container_slot {
         0..=4 => None,                  // crafting result + 2×2 grid — no persistent backing
