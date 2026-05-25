@@ -74,7 +74,10 @@ impl ChunkManager {
 
         self.advance_status(pos, target_status)?;
         self.evict_if_needed();
-        Ok(&self.chunks.get(&pos).expect("loaded chunk").chunk)
+        self.chunks
+            .get(&pos)
+            .map(|chunk| &chunk.chunk)
+            .ok_or_else(|| format!("chunk {pos:?} was evicted before load completed"))
     }
 
     pub fn mark_dirty(&mut self, pos: ChunkPos) {
@@ -131,7 +134,9 @@ impl ChunkManager {
     fn advance_status(&mut self, pos: ChunkPos, target_status: &str) -> Result<(), String> {
         let target = chunk_status(target_status)
             .ok_or_else(|| format!("unknown chunk status {target_status}"))?;
-        let chunk = self.chunks.get_mut(&pos).expect("loaded chunk");
+        let Some(chunk) = self.chunks.get_mut(&pos) else {
+            return Err(format!("chunk {pos:?} is not loaded"));
+        };
         if chunk_status_is_or_after(&chunk.chunk.status, target.id) == Some(true) {
             chunk.last_access_tick = self.tick;
             return Ok(());

@@ -469,13 +469,13 @@ impl ClickEvent {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HoverEvent {
-    ShowText(Box<Component>),
-    ShowItem {
+    Text(Box<Component>),
+    Item {
         item: String,
         count: u32,
         components: Vec<String>,
     },
-    ShowEntity {
+    Entity {
         entity_type: String,
         uuid: String,
         name: Option<Box<Component>>,
@@ -485,18 +485,18 @@ pub enum HoverEvent {
 impl HoverEvent {
     pub fn action(&self) -> &'static str {
         match self {
-            Self::ShowText(_) => "show_text",
-            Self::ShowItem { .. } => "show_item",
-            Self::ShowEntity { .. } => "show_entity",
+            Self::Text(_) => "show_text",
+            Self::Item { .. } => "show_item",
+            Self::Entity { .. } => "show_entity",
         }
     }
 
     fn to_json(&self) -> String {
         match self {
-            Self::ShowText(value) => {
+            Self::Text(value) => {
                 format!("{{\"action\":\"show_text\",\"value\":{}}}", value.to_json())
             }
-            Self::ShowItem {
+            Self::Item {
                 item,
                 count,
                 components,
@@ -511,7 +511,7 @@ impl HoverEvent {
                         .collect()
                 )
             ),
-            Self::ShowEntity {
+            Self::Entity {
                 entity_type,
                 uuid,
                 name,
@@ -893,7 +893,7 @@ mod tests {
             .with_color(TextColor::parse("gold").unwrap())
             .with_bold(true)
             .with_click_event(ClickEvent::RunCommand("/help".to_string()))
-            .with_hover_event(HoverEvent::ShowText(Box::new(Component::literal("Help"))))
+            .with_hover_event(HoverEvent::Text(Box::new(Component::literal("Help"))))
             .with_font(FontDescription::Resource("minecraft:uniform".to_string()));
         style.italic = Some(false);
         style.underlined = Some(true);
@@ -951,13 +951,13 @@ mod tests {
 
     #[test]
     fn hover_event_shapes_cover_text_item_and_entity_payloads() {
-        let text = HoverEvent::ShowText(Box::new(Component::literal("hello")));
-        let item = HoverEvent::ShowItem {
+        let text = HoverEvent::Text(Box::new(Component::literal("hello")));
+        let item = HoverEvent::Item {
             item: "minecraft:diamond".to_string(),
             count: 3,
             components: vec!["minecraft:custom_name".to_string()],
         };
-        let entity = HoverEvent::ShowEntity {
+        let entity = HoverEvent::Entity {
             entity_type: "minecraft:zombie".to_string(),
             uuid: "00000000-0000-0000-0000-000000000001".to_string(),
             name: Some(Box::new(Component::literal("Zombie"))),

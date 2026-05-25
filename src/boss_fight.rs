@@ -741,48 +741,57 @@ pub fn wither_main_head_sync(main_target_entity_id: Option<i32>) -> WitherMainHe
     }
 }
 
-pub fn wither_alt_head_tick_action(
-    head: i32,
-    tick_count: i32,
-    next_head_update: i32,
-    difficulty_allows_idle_attack: bool,
-    idle_head_updates: i32,
-    random_0_to_9: i32,
-    alternative_target_entity_id: Option<i32>,
-    current_target_valid: bool,
-    current_target_distance_sqr: f32,
-    current_target_line_of_sight: bool,
-    nearby_targets_available: bool,
-) -> WitherHeadTickAction {
-    if tick_count < next_head_update {
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct WitherAltHeadTickContext {
+    pub head: i32,
+    pub tick_count: i32,
+    pub next_head_update: i32,
+    pub difficulty_allows_idle_attack: bool,
+    pub idle_head_updates: i32,
+    pub random_0_to_9: i32,
+    pub alternative_target_entity_id: Option<i32>,
+    pub current_target_valid: bool,
+    pub current_target_distance_sqr: f32,
+    pub current_target_line_of_sight: bool,
+    pub nearby_targets_available: bool,
+}
+
+pub fn wither_alt_head_tick_action(context: WitherAltHeadTickContext) -> WitherHeadTickAction {
+    if context.tick_count < context.next_head_update {
         return WitherHeadTickAction::Wait;
     }
     let next_update_delay = WITHER_ALT_HEAD_UPDATE_DELAY_MIN
-        + random_0_to_9.rem_euclid(WITHER_ALT_HEAD_UPDATE_DELAY_RANDOM_BOUND);
-    if difficulty_allows_idle_attack && idle_head_updates > WITHER_IDLE_HEAD_ATTACK_THRESHOLD {
+        + context
+            .random_0_to_9
+            .rem_euclid(WITHER_ALT_HEAD_UPDATE_DELAY_RANDOM_BOUND);
+    if context.difficulty_allows_idle_attack
+        && context.idle_head_updates > WITHER_IDLE_HEAD_ATTACK_THRESHOLD
+    {
         return WitherHeadTickAction::FireIdleBlueSkull {
-            head,
+            head: context.head,
             next_update_delay,
             reset_idle_updates: true,
         };
     }
-    if alternative_target_entity_id.is_some() {
-        if current_target_valid
-            && current_target_distance_sqr <= WITHER_HEAD_TARGET_RANGE_SQUARED
-            && current_target_line_of_sight
+    if context.alternative_target_entity_id.is_some() {
+        if context.current_target_valid
+            && context.current_target_distance_sqr <= WITHER_HEAD_TARGET_RANGE_SQUARED
+            && context.current_target_line_of_sight
         {
             return WitherHeadTickAction::FireAtCurrentTarget {
-                head,
+                head: context.head,
                 dangerous: false,
                 next_update_delay: WITHER_ALT_HEAD_TARGET_ATTACK_DELAY_MIN
-                    + random_0_to_9.rem_euclid(WITHER_ALT_HEAD_TARGET_ATTACK_DELAY_RANDOM_BOUND),
+                    + context
+                        .random_0_to_9
+                        .rem_euclid(WITHER_ALT_HEAD_TARGET_ATTACK_DELAY_RANDOM_BOUND),
                 reset_idle_updates: true,
             };
         }
-        return WitherHeadTickAction::ClearInvalidTarget { head };
+        return WitherHeadTickAction::ClearInvalidTarget { head: context.head };
     }
-    if nearby_targets_available {
-        WitherHeadTickAction::AcquireNearbyTarget { head }
+    if context.nearby_targets_available {
+        WitherHeadTickAction::AcquireNearbyTarget { head: context.head }
     } else {
         WitherHeadTickAction::Wait
     }
