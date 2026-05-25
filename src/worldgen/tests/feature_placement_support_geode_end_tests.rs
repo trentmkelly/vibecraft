@@ -536,26 +536,26 @@ pub(super) fn assert_geode_nether_and_end_support() {
         );
         assert!(super::super::delta_cannot_replace("minecraft:bedrock"));
         assert!(!super::super::delta_cannot_replace("minecraft:netherrack"));
-        assert!(super::super::delta_is_clear(
-            "minecraft:netherrack",
-            "minecraft:lava",
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-        ));
-        assert!(!super::super::delta_is_clear(
-            "minecraft:netherrack",
-            "minecraft:lava",
-            false,
-            false,
-            true,
-            false,
-            false,
-            false,
-        ));
+        assert!(super::super::delta_is_clear(super::super::DeltaClearInput {
+            state: "minecraft:netherrack",
+            contents: "minecraft:lava",
+            up_air: false,
+            down_air: false,
+            north_air: false,
+            south_air: false,
+            west_air: false,
+            east_air: false,
+        }));
+        assert!(!super::super::delta_is_clear(super::super::DeltaClearInput {
+            state: "minecraft:netherrack",
+            contents: "minecraft:lava",
+            up_air: false,
+            down_air: false,
+            north_air: true,
+            south_air: false,
+            west_air: false,
+            east_air: false,
+        }));
         assert!(super::super::delta_has_rim(0.5, 1, 2));
         assert!(!super::super::delta_has_rim(0.95, 1, 2));
         let delta_offsets = super::super::delta_candidate_offsets(2, 1);
