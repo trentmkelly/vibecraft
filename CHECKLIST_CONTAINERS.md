@@ -85,9 +85,9 @@
 ## Furnace Menus
 
 - [ ] Implement `AbstractFurnaceMenu`: input slot (0), fuel slot (1), result slot (2); `ContainerData` sync for `litTime`, `litDuration`, `cookingProgress`, `cookingTotalTime`; `FurnaceFuelSlot` slot type restriction; `FurnaceResultSlot` on-take XP release — `container_menus::AbstractFurnaceMenu` (39 slots, `data: [i16; 4]`, fuel slot accepts fuel-tag items + buckets at max-stack 1, result slot rejects placement)
-- [ ] Implement `FurnaceMenu`: recipe book type `FURNACE` — `container_menus::FurnaceMenu`
-- [ ] Implement `BlastFurnaceMenu`: recipe book type `BLAST_FURNACE` — `container_menus::BlastFurnaceMenu`
-- [ ] Implement `SmokerMenu`: recipe book type `SMOKER` — `container_menus::SmokerMenu`
+- [x] Implement `FurnaceMenu`: Java 26.1.2 `FurnaceMenu` passes `RecipeType.SMELTING`, `RecipePropertySet.FURNACE_INPUT`, and `RecipeBookType.FURNACE` into `AbstractFurnaceMenu`; Rust `container_menus::FurnaceMenu` wraps `AbstractFurnaceMenu::new(FurnaceKind::Furnace, ...)`, which reports `RecipeBookType::Furnace`; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 furnace_wrappers_use_vanilla_recipe_book_types`.
+- [x] Implement `BlastFurnaceMenu`: Java 26.1.2 `BlastFurnaceMenu` passes `RecipeType.BLASTING`, `RecipePropertySet.BLAST_FURNACE_INPUT`, and `RecipeBookType.BLAST_FURNACE`; Rust `container_menus::BlastFurnaceMenu` wraps `FurnaceKind::BlastFurnace`, which reports `RecipeBookType::BlastFurnace`; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 furnace_wrappers_use_vanilla_recipe_book_types`.
+- [x] Implement `SmokerMenu`: Java 26.1.2 `SmokerMenu` passes `RecipeType.SMOKING`, `RecipePropertySet.SMOKER_INPUT`, and `RecipeBookType.SMOKER`; Rust `container_menus::SmokerMenu` wraps `FurnaceKind::Smoker`, which reports `RecipeBookType::Smoker`; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 furnace_wrappers_use_vanilla_recipe_book_types`.
 - [ ] Add parity test: fuel slot accepts only fuel items, result slot releases XP on extraction, progress data sync timing — `furnace_menu_layout_and_fuel_restrictions_match_vanilla`, `furnace_quick_move_result_to_player_and_storage_to_input`
 
 ## Workstation Menus

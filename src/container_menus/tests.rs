@@ -196,6 +196,24 @@ fn furnace_quick_move_result_to_player_and_storage_to_input() {
     );
 }
 
+#[test]
+fn furnace_wrappers_use_vanilla_recipe_book_types() {
+    assert_eq!(
+        FurnaceMenu::new(FuelValues::vanilla()).0.recipe_book_type(),
+        RecipeBookType::Furnace
+    );
+    assert_eq!(
+        BlastFurnaceMenu::new(FuelValues::vanilla())
+            .0
+            .recipe_book_type(),
+        RecipeBookType::BlastFurnace
+    );
+    assert_eq!(
+        SmokerMenu::new(FuelValues::vanilla()).0.recipe_book_type(),
+        RecipeBookType::Smoker
+    );
+}
+
 // -------- ChestMenu --------
 
 #[test]
