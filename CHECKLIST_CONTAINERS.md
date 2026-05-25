@@ -109,14 +109,14 @@
 
 ## Storage and Transfer Menus
 
-- [ ] Implement `ChestMenu`: configurable row count (1–6), player inventory 27/36-slot prefix, chest inventory appended; double-chest = 54 slots — `container_menus::ChestMenu::new(rows)` with `rows ∈ 1..=6`
-- [ ] Implement `DispenserMenu`: 3×3 grid (9 slots), player inventory appended — `container_menus::DispenserMenu`
-- [ ] Implement `HopperMenu`: 5-slot horizontal bar, player inventory appended — `container_menus::HopperMenu`
-- [ ] Implement `ShulkerBoxMenu`: 27-slot grid, player inventory appended — `container_menus::ShulkerBoxMenu` (rejects nested shulker boxes per `ShulkerBoxSlot`)
+- [x] Implement `ChestMenu`: Java 26.1.2 `ChestMenu` supports one through six 9-wide rows, adds chest slots before the standard 27-slot player storage plus 9-slot hotbar, and uses six rows for the 54-slot double-chest menu; Rust `container_menus::ChestMenu::new(rows)` enforces rows `1..=6`, exposes `rows * 9` chest slots followed by the standard 36 player slots, and mirrors Java quick-move chest↔player directions; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 chest_menu_supports_one_through_six_rows_and_player_inventory_append` and `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 chest_menu_quick_move_shifts_between_chest_and_inventory`.
+- [x] Implement `DispenserMenu`: Java 26.1.2 `DispenserMenu` checks a 9-slot container, adds a 3×3 grid before standard player inventory slots, and shift-clicks between grid `0..9` and player `9..45`; Rust `container_menus::DispenserMenu` exposes the same 45-slot layout and transfer direction; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 dispenser_menu_layout_and_quick_move`.
+- [x] Implement `HopperMenu`: Java 26.1.2 `HopperMenu` checks a 5-slot container, adds five horizontal hopper slots before standard player inventory slots, and shift-clicks between hopper `0..5` and player `5..41`; Rust `container_menus::HopperMenu` exposes the same 41-slot layout and transfer direction; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 hopper_menu_5_slots_and_quick_move_to_player`.
+- [x] Implement `ShulkerBoxMenu`: Java 26.1.2 `ShulkerBoxMenu` checks a 27-slot container, uses `ShulkerBoxSlot` before standard player inventory slots, and `ShulkerBoxSlot.mayPlace()` rejects block items whose block is a `ShulkerBoxBlock`; Rust `container_menus::ShulkerBoxMenu` exposes 27 shulker slots plus 36 player slots, rejects base and dyed shulker boxes from shulker slots, and mirrors Java quick-move directions; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 shulker_box_rejects_nested_shulker_boxes`.
 - [ ] Implement `HorseInventoryMenu`: saddle slot (0), armor/chest slot (1), optional saddle-chest slots (2–16 for llama/horse-with-chest), player inventory appended — `container_menus::HorseInventoryMenu` with `HorseLayout`
 - [ ] Implement `AbstractMountInventoryMenu`: base for horse/llama inventory validation — encapsulated in `HorseInventoryMenu`/`NautilusInventoryMenu` quick-move zone logic (saddle/armor/inv → player two-stage)
 - [ ] Implement `NautilusInventoryMenu` (new in 26.1.2): happy ghast harness inventory slots — `container_menus::NautilusInventoryMenu`
-- [ ] Add parity test: double-chest row count = 6, slot offset between chest and player inventory — `chest_menu_supports_one_through_six_rows_and_player_inventory_append`
+- [x] Add parity test: double-chest row count = 6, slot offset between chest and player inventory — `chest_menu_supports_one_through_six_rows_and_player_inventory_append` now verifies row counts 1..=6, total slot count `rows * 9 + 36`, player inventory start `rows * 9`, and hotbar start `rows * 9 + 27`.
 - [ ] Add parity test: horse inventory saddle slot restriction (accepts only saddle item), armor slot restriction — `horse_inventory_saddle_and_armor_slot_restrictions`
 
 ## Merchant Menu

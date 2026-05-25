@@ -222,6 +222,8 @@ fn chest_menu_supports_one_through_six_rows_and_player_inventory_append() {
         let menu = ChestMenu::new(rows);
         assert_eq!(menu.chest_size(), rows * 9);
         assert_eq!(menu.slot_count(), rows * 9 + PLAYER_SLOTS);
+        assert_eq!(menu.inv_start(), rows * 9);
+        assert_eq!(menu.hotbar_start(), rows * 9 + PLAYER_MAIN_STORAGE);
     }
 }
 
