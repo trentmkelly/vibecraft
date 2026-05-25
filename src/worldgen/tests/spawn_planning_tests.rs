@@ -1,5 +1,22 @@
 use super::*;
 
+    fn initial_spawn_input(
+        debug_only_half_world: bool,
+        debug_world_recreate: bool,
+        is_debug: bool,
+        generator_spawn_height: i32,
+    ) -> super::super::InitialSpawnPositionInput {
+        super::super::InitialSpawnPositionInput {
+            debug_only_half_world,
+            debug_world_recreate,
+            is_debug,
+            spawn_chunk: crate::storage::region::ChunkPos { x: 7, z: -3 },
+            generator_spawn_height,
+            min_y: -64,
+            world_surface_height_at_chunk_center: 70,
+        }
+    }
+
     #[test]
     fn spawn_selection_constants_and_initial_positions_match_vanilla() {
         assert_eq!(SPAWN_SELECTION_CONSTANTS.initial_chunk_search_radius, 5);
@@ -11,7 +28,7 @@ use super::*;
         assert_eq!(SPAWN_SELECTION_CONSTANTS.large_search_coprime, 17);
 
         assert_eq!(
-            super::super::initial_spawn_position(true, true, false, 7, -3, 64, -64, 70),
+            super::super::initial_spawn_position(initial_spawn_input(true, true, false, 64)),
             super::super::InitialSpawnKind::DebugHalfWorld {
                 x: 0,
                 y: 64,
@@ -19,11 +36,11 @@ use super::*;
             }
         );
         assert_eq!(
-            super::super::initial_spawn_position(false, false, true, 7, -3, 64, -64, 70),
+            super::super::initial_spawn_position(initial_spawn_input(false, false, true, 64)),
             super::super::InitialSpawnKind::DebugWorld { x: 0, y: 80, z: 0 }
         );
         assert_eq!(
-            super::super::initial_spawn_position(false, false, false, 7, -3, 90, -64, 70),
+            super::super::initial_spawn_position(initial_spawn_input(false, false, false, 90)),
             super::super::InitialSpawnKind::Normal {
                 x: 120,
                 y: 90,
@@ -31,7 +48,7 @@ use super::*;
             }
         );
         assert_eq!(
-            super::super::initial_spawn_position(false, false, false, 7, -3, -80, -64, 70),
+            super::super::initial_spawn_position(initial_spawn_input(false, false, false, -80)),
             super::super::InitialSpawnKind::Normal {
                 x: 120,
                 y: 70,
@@ -481,4 +498,3 @@ use super::*;
             &chunk, pos
         ));
     }
-
