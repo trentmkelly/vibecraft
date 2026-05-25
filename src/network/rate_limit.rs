@@ -9,16 +9,20 @@ pub enum PacketRateDecision {
 #[derive(Debug, Clone)]
 pub struct PacketRateLimiter {
     limit_per_second: u32,
-    window_start: Instant,
-    packets_in_window: u32,
+    last_second_tick: Instant,
+    received_packets: u32,
+    average_received_packets: f32,
+    kicked: bool,
 }
 
 impl PacketRateLimiter {
     pub fn new(limit_per_second: u32, now: Instant) -> Self {
         Self {
             limit_per_second,
-            window_start: now,
-            packets_in_window: 0,
+            last_second_tick: now,
+            received_packets: 0,
+            average_received_packets: 0.0,
+            kicked: false,
         }
     }
 
@@ -27,13 +31,37 @@ impl PacketRateLimiter {
             return PacketRateDecision::Allow;
         }
 
-        if now.duration_since(self.window_start) >= Duration::from_secs(1) {
-            self.window_start = now;
-            self.packets_in_window = 0;
+        if let PacketRateDecision::Kick { reason } = self.tick(now) {
+            return PacketRateDecision::Kick { reason };
         }
 
-        self.packets_in_window += 1;
-        if self.packets_in_window > self.limit_per_second {
+        self.received_packets = self.received_packets.saturating_add(1);
+        self.current_decision()
+    }
+
+    pub fn tick(&mut self, now: Instant) -> PacketRateDecision {
+        if self.limit_per_second == 0 {
+            return PacketRateDecision::Allow;
+        }
+
+        while now.duration_since(self.last_second_tick) >= Duration::from_secs(1) {
+            // Java: Connection.tickSecond() computes
+            // averageReceivedPackets = Mth.lerp(0.75F, receivedPackets, averageReceivedPackets).
+            self.average_received_packets = self.received_packets as f32
+                + 0.75 * (self.average_received_packets - self.received_packets as f32);
+            self.received_packets = 0;
+            self.last_second_tick += Duration::from_secs(1);
+            if let PacketRateDecision::Kick { reason } = self.current_decision() {
+                return PacketRateDecision::Kick { reason };
+            }
+        }
+
+        PacketRateDecision::Allow
+    }
+
+    fn current_decision(&mut self) -> PacketRateDecision {
+        if self.kicked || self.average_received_packets > self.limit_per_second as f32 {
+            self.kicked = true;
             PacketRateDecision::Kick {
                 reason: "disconnect.exceeded_packet_rate".to_string(),
             }
@@ -61,10 +89,11 @@ mod tests {
     fn kicks_after_limit_within_one_second_window() {
         let now = Instant::now();
         let mut limiter = PacketRateLimiter::new(2, now);
-        assert_eq!(limiter.record_packet(now), PacketRateDecision::Allow);
-        assert_eq!(limiter.record_packet(now), PacketRateDecision::Allow);
+        for _ in 0..9 {
+            assert_eq!(limiter.record_packet(now), PacketRateDecision::Allow);
+        }
         assert!(matches!(
-            limiter.record_packet(now),
+            limiter.tick(now + Duration::from_secs(1)),
             PacketRateDecision::Kick { .. }
         ));
     }
@@ -75,8 +104,45 @@ mod tests {
         let mut limiter = PacketRateLimiter::new(1, now);
         assert_eq!(limiter.record_packet(now), PacketRateDecision::Allow);
         assert_eq!(
+            limiter.tick(now + Duration::from_secs(1)),
+            PacketRateDecision::Allow
+        );
+        assert_eq!(
             limiter.record_packet(now + Duration::from_secs(1)),
             PacketRateDecision::Allow
         );
+    }
+
+    #[test]
+    fn sustained_packets_use_java_smoothed_average() {
+        let now = Instant::now();
+        let mut limiter = PacketRateLimiter::new(10, now);
+        for _ in 0..20 {
+            assert_eq!(limiter.record_packet(now), PacketRateDecision::Allow);
+        }
+        assert_eq!(
+            limiter.tick(now + Duration::from_secs(1)),
+            PacketRateDecision::Allow
+        );
+        for _ in 0..20 {
+            assert_eq!(
+                limiter.record_packet(now + Duration::from_secs(1)),
+                PacketRateDecision::Allow
+            );
+        }
+        assert_eq!(
+            limiter.tick(now + Duration::from_secs(2)),
+            PacketRateDecision::Allow
+        );
+        for _ in 0..20 {
+            assert_eq!(
+                limiter.record_packet(now + Duration::from_secs(2)),
+                PacketRateDecision::Allow
+            );
+        }
+        assert!(matches!(
+            limiter.tick(now + Duration::from_secs(3)),
+            PacketRateDecision::Kick { .. }
+        ));
     }
 }

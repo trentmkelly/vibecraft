@@ -407,7 +407,10 @@ pub fn handle_status_connection(
         return handle_legacy_status_tcp_connection(&mut stream, properties);
     }
 
-    let handshake = read_packet(&mut stream)?;
+    let mut rate_limiter =
+        PacketRateLimiter::new(properties.rate_limit_packets_per_second, Instant::now());
+    let handshake =
+        read_packet_with_rate_limit(&mut stream, CompressionState::disabled(), &mut rate_limiter)?;
     let mut input = Cursor::new(handshake);
     let packet_id = read_var_i32(&mut input)?;
     if packet_id != 0 {
@@ -439,6 +442,7 @@ pub fn handle_status_connection(
             remote_address,
             remote_ip,
             login_host_ip(&server_address),
+            &mut rate_limiter,
             clock,
             weather,
             recipe_manager,
@@ -456,7 +460,11 @@ pub fn handle_status_connection(
     }
 
     loop {
-        let packet = read_packet(&mut stream)?;
+        let packet = read_packet_with_rate_limit(
+            &mut stream,
+            CompressionState::disabled(),
+            &mut rate_limiter,
+        )?;
         let mut input = Cursor::new(packet);
         match read_var_i32(&mut input)? {
             0 => {
@@ -503,6 +511,69 @@ pub fn login_compression_threshold(properties: &ServerProperties) -> Option<i32>
         .then_some(properties.network_compression_threshold)
 }
 
+fn is_rate_limit_disconnect_error(err: &io::Error) -> bool {
+    err.kind() == io::ErrorKind::PermissionDenied
+        && err.to_string() == "disconnect.exceeded_packet_rate"
+}
+
+fn write_login_rate_limit_disconnect(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    reason: &str,
+) -> io::Result<()> {
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_LOGIN_DISCONNECT_PACKET_ID,
+        |payload| {
+            ClientboundLoginDisconnectPacket {
+                reason: ComponentJson(format!("{{\"translate\":\"{reason}\"}}")),
+            }
+            .write(payload)
+        },
+    )
+}
+
+fn write_configuration_rate_limit_disconnect(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    reason: &str,
+) -> io::Result<()> {
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_CONFIGURATION_DISCONNECT_PACKET_ID,
+        |payload| {
+            ClientboundDisconnectPacket {
+                reason: ComponentJson(format!("{{\"translate\":\"{reason}\"}}")),
+            }
+            .write(payload)
+        },
+    )
+}
+
+fn wait_for_configuration_packet_or_rate_disconnect(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    expected_packet_id: i32,
+    expected_name: &'static str,
+    rate_limiter: &mut PacketRateLimiter,
+) -> io::Result<()> {
+    match wait_for_configuration_packet_with_rate_limit(
+        stream,
+        compression,
+        expected_packet_id,
+        expected_name,
+        rate_limiter,
+    ) {
+        Ok(()) => Ok(()),
+        Err(err) if is_rate_limit_disconnect_error(&err) => {
+            write_configuration_rate_limit_disconnect(stream, compression, &err.to_string())
+        }
+        Err(err) => Err(err),
+    }
+}
+
 pub fn handle_login_connection(
     stream: &mut TcpStream,
     properties: &ServerProperties,
@@ -515,12 +586,24 @@ pub fn handle_login_connection(
     remote_address: &str,
     remote_ip: &str,
     login_host_ip: Option<String>,
+    rate_limiter: &mut PacketRateLimiter,
     clock: &Arc<Mutex<ServerClockManager>>,
     weather: &Arc<Mutex<WeatherCycle>>,
     recipe_manager: &RecipeManagerModel,
     world_items: &Arc<Mutex<WorldItemEntities>>,
 ) -> io::Result<()> {
-    let packet = read_packet(stream)?;
+    let packet =
+        match read_packet_with_rate_limit(stream, CompressionState::disabled(), rate_limiter) {
+            Ok(packet) => packet,
+            Err(err) if is_rate_limit_disconnect_error(&err) => {
+                return write_login_rate_limit_disconnect(
+                    stream,
+                    CompressionState::disabled(),
+                    &err.to_string(),
+                );
+            }
+            Err(err) => return Err(err),
+        };
     let mut input = Cursor::new(packet);
     let packet_id = read_var_i32(&mut input)?;
     if packet_id != SERVERBOUND_HELLO_PACKET_ID {
@@ -572,7 +655,13 @@ pub fn handle_login_connection(
         |payload| finished.write(payload),
     )?;
 
-    let packet = read_packet_with_compression(stream, compression)?;
+    let packet = match read_packet_with_rate_limit(stream, compression, rate_limiter) {
+        Ok(packet) => packet,
+        Err(err) if is_rate_limit_disconnect_error(&err) => {
+            return write_login_rate_limit_disconnect(stream, compression, &err.to_string());
+        }
+        Err(err) => return Err(err),
+    };
     let mut input = Cursor::new(packet);
     let packet_id = read_var_i32(&mut input)?;
     if packet_id != SERVERBOUND_LOGIN_ACKNOWLEDGED_PACKET_ID {
@@ -806,11 +895,12 @@ pub fn handle_login_connection(
         CLIENTBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID,
         write_vanilla_known_packs_packet,
     )?;
-    wait_for_configuration_packet(
+    wait_for_configuration_packet_or_rate_disconnect(
         stream,
         compression,
         SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID,
         "selected known packs",
+        rate_limiter,
     )?;
     if let Some(code_of_conduct) = load_code_of_conduct_for_language(properties, "en_us")? {
         write_framed_packet_with_compression(
@@ -819,11 +909,12 @@ pub fn handle_login_connection(
             CLIENTBOUND_CONFIGURATION_CODE_OF_CONDUCT_PACKET_ID,
             |payload| ClientboundCodeOfConductPacket { code_of_conduct }.write(payload),
         )?;
-        wait_for_configuration_packet(
+        wait_for_configuration_packet_or_rate_disconnect(
             stream,
             compression,
             SERVERBOUND_CONFIGURATION_ACCEPT_CODE_OF_CONDUCT_PACKET_ID,
             "code of conduct acceptance",
+            rate_limiter,
         )?;
     }
     write_framed_packet_with_compression(
@@ -833,11 +924,12 @@ pub fn handle_login_connection(
         |_payload| Ok(()),
     )?;
 
-    wait_for_configuration_packet(
+    wait_for_configuration_packet_or_rate_disconnect(
         stream,
         compression,
         SERVERBOUND_CONFIGURATION_FINISH_PACKET_ID,
         "finish configuration",
+        rate_limiter,
     )?;
 
     let mut play_state = load_play_session_state(
@@ -909,8 +1001,6 @@ pub fn handle_login_connection(
     let mut last_sent_rain_level = join_rain_level;
     let mut last_sent_thunder_level = join_thunder_level;
     let mut last_time_sync = Instant::now();
-    let mut rate_limiter =
-        PacketRateLimiter::new(properties.rate_limit_packets_per_second, Instant::now());
     let world_layout = WorldLayout::new(world_root);
 
     // On login: re-send ADD_ENTITY + SET_ENTITY_DATA bundles for every item entity that
@@ -1554,7 +1644,34 @@ pub fn handle_login_connection(
                 if matches!(
                     err.kind(),
                     io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
-                ) => {}
+                ) =>
+            {
+                if let PacketRateDecision::Kick { reason } = rate_limiter.tick(Instant::now()) {
+                    // Java: RateKickingConnection sends a common disconnect after the
+                    // per-second average crosses the configured threshold.
+                    play_state.inventory_menu.clear_crafting_to_inventory();
+                    let _ =
+                        save_play_session_state(world_root, &finished.profile.uuid, &play_state);
+                    save_world_item_entities(world_root, &world_items.lock().unwrap());
+                    chunk_cache.flush_dirty(
+                        world_root,
+                        properties.sync_chunk_writes,
+                        RegionCompression::from_property_value(&properties.region_file_compression),
+                    );
+                    write_framed_packet_with_compression(
+                        stream,
+                        compression,
+                        CLIENTBOUND_DISCONNECT_PACKET_ID,
+                        |payload| {
+                            ClientboundDisconnectPacket {
+                                reason: ComponentJson(format!("{{\"translate\":\"{reason}\"}}")),
+                            }
+                            .write(payload)
+                        },
+                    )?;
+                    return Ok(());
+                }
+            }
             Err(err)
                 if matches!(
                     err.kind(),

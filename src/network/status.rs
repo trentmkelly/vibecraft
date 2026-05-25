@@ -124,6 +124,7 @@ use crate::worldgen::{
 pub(super) const VERSION_NAME: &str = "26.1.2";
 pub(super) const PROTOCOL_VERSION: i32 = 775;
 pub(super) const MAX_PACKET_SIZE: usize = 2 * 1024 * 1024;
+pub(super) const CLIENTBOUND_CONFIGURATION_DISCONNECT_PACKET_ID: i32 = 2;
 pub(super) const CLIENTBOUND_CONFIGURATION_FINISH_PACKET_ID: i32 = 3;
 pub(super) const CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID: i32 = 7;
 pub(super) const CLIENTBOUND_CONFIGURATION_UPDATE_ENABLED_FEATURES_PACKET_ID: i32 = 12;

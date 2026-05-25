@@ -334,14 +334,47 @@ pub fn strip_minecraft_formatting(input: &str) -> String {
     out
 }
 
+pub fn read_packet_with_rate_limit<R: Read>(
+    reader: &mut R,
+    compression: CompressionState,
+    rate_limiter: &mut PacketRateLimiter,
+) -> io::Result<Vec<u8>> {
+    let packet = read_packet_with_compression(reader, compression)?;
+    match rate_limiter.record_packet(Instant::now()) {
+        PacketRateDecision::Allow => Ok(packet),
+        PacketRateDecision::Kick { reason } => Err(rate_limit_disconnect_error(&reason)),
+    }
+}
+
+pub fn rate_limit_disconnect_error(reason: &str) -> io::Error {
+    io::Error::new(io::ErrorKind::PermissionDenied, reason.to_string())
+}
+
 pub fn wait_for_configuration_packet<R: Read>(
     reader: &mut R,
     compression: CompressionState,
     expected_packet_id: i32,
     expected_name: &'static str,
 ) -> io::Result<()> {
+    let mut rate_limiter = PacketRateLimiter::new(0, Instant::now());
+    wait_for_configuration_packet_with_rate_limit(
+        reader,
+        compression,
+        expected_packet_id,
+        expected_name,
+        &mut rate_limiter,
+    )
+}
+
+pub fn wait_for_configuration_packet_with_rate_limit<R: Read>(
+    reader: &mut R,
+    compression: CompressionState,
+    expected_packet_id: i32,
+    expected_name: &'static str,
+    rate_limiter: &mut PacketRateLimiter,
+) -> io::Result<()> {
     for _ in 0..32 {
-        let packet = read_packet_with_compression(reader, compression)?;
+        let packet = read_packet_with_rate_limit(reader, compression, rate_limiter)?;
         let mut input = Cursor::new(packet);
         let packet_id = read_var_i32(&mut input)?;
         if packet_id == expected_packet_id {

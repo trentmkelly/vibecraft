@@ -674,6 +674,41 @@ pub fn configuration_wait_rejects_unexpected_packets() {
     assert!(err.to_string().contains("configuration packet 42"));
 }
 
+#[test]
+pub fn configuration_wait_honors_connection_rate_limit() {
+    let now = std::time::Instant::now();
+    let mut rate_limiter = crate::network::rate_limit::PacketRateLimiter::new(1, now);
+    for _ in 0..8 {
+        assert_eq!(
+            rate_limiter.record_packet(now),
+            crate::network::rate_limit::PacketRateDecision::Allow
+        );
+    }
+    assert!(matches!(
+        rate_limiter.tick(now + std::time::Duration::from_secs(1)),
+        crate::network::rate_limit::PacketRateDecision::Kick { .. }
+    ));
+
+    let mut input = Vec::new();
+    write_framed_packet(
+        &mut input,
+        SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID,
+        |payload| write_var_i32(payload, 0),
+    )
+    .unwrap();
+
+    let err = wait_for_configuration_packet_with_rate_limit(
+        &mut Cursor::new(input),
+        CompressionState::disabled(),
+        SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID,
+        "selected known packs",
+        &mut rate_limiter,
+    )
+    .unwrap_err();
+    assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
+    assert_eq!(err.to_string(), "disconnect.exceeded_packet_rate");
+}
+
 pub fn assert_nested_sound_variant_fields(tag: Tag, fields: &[&str]) {
     let adult = compound_field(&tag, "adult_sounds");
     let baby = compound_field(&tag, "baby_sounds");
