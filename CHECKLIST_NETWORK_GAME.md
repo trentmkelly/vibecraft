@@ -147,7 +147,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundSetBorderLerpSizePacket` (0x59): old size double, new size double, lerp time VarLong
 - [x] `ClientboundSetBorderSizePacket` (0x5A / decimal 90): new border size as a Java `FriendlyByteBuf.writeDouble` big-endian double; verified against Java read/write codec, Java play registration/name mapping, Rust packet ID/registry mapping, and focused byte-layout coverage.
 - [x] `ClientboundSetBorderWarningDelayPacket` (0x5B / decimal 91): warning time as Java `FriendlyByteBuf.writeVarInt`; verified against Java read/write codec, Java play registration/name mapping, Rust packet ID/registry mapping, and focused VarInt byte-layout coverage.
-- [ ] `ClientboundSetBorderWarningDistancePacket` (0x5C): warning blocks VarInt
+- [x] `ClientboundSetBorderWarningDistancePacket` (0x5C / decimal 92): warning blocks as Java `FriendlyByteBuf.writeVarInt`; verified against Java read/write codec, Java play registration/name mapping, Rust packet ID/registry mapping, and focused VarInt byte-layout coverage.
 
 ## Sound / Particle Packets
 
