@@ -99,18 +99,20 @@ fn mineshaft_generate_world_box(
     max: BlockPos,
 ) -> Vec<StructurePiecePlacementBlock> {
     structure_piece_generate_box(
-        StructureBoundingBoxModel {
-            min_x: 0,
-            min_y: 0,
-            min_z: 0,
-            max_x: 0,
-            max_y: 0,
-            max_z: 0,
+        StructurePieceBoxInput {
+            bounding_box: StructureBoundingBoxModel {
+                min_x: 0,
+                min_y: 0,
+                min_z: 0,
+                max_x: 0,
+                max_y: 0,
+                max_z: 0,
+            },
+            orientation: None,
+            chunk_bb,
+            min,
+            max,
         },
-        None,
-        chunk_bb,
-        min,
-        max,
         "minecraft:cave_air",
         "minecraft:cave_air",
         false,
@@ -174,21 +176,25 @@ fn mineshaft_apply_piece_to_chunk(
             placed += mineshaft_place_cave_air_blocks(
                 chunk,
                 structure_piece_generate_upper_half_sphere(
-                    *bounding_box,
-                    None,
-                    chunk_bb,
-                    BlockPos {
-                        x: bounding_box.min_x,
-                        y: bounding_box.min_y + 4,
-                        z: bounding_box.min_z,
+                    StructurePieceSphereInput {
+                        box_input: StructurePieceBoxInput {
+                            bounding_box: *bounding_box,
+                            orientation: None,
+                            chunk_bb,
+                            min: BlockPos {
+                                x: bounding_box.min_x,
+                                y: bounding_box.min_y + 4,
+                                z: bounding_box.min_z,
+                            },
+                            max: BlockPos {
+                                x: bounding_box.max_x,
+                                y: bounding_box.max_y,
+                                z: bounding_box.max_z,
+                            },
+                        },
+                        fill_block: "minecraft:cave_air",
+                        skip_air: false,
                     },
-                    BlockPos {
-                        x: bounding_box.max_x,
-                        y: bounding_box.max_y,
-                        z: bounding_box.max_z,
-                    },
-                    "minecraft:cave_air",
-                    false,
                     |_| false,
                 ),
             );
@@ -199,14 +205,16 @@ fn mineshaft_apply_piece_to_chunk(
             let mut placed = mineshaft_place_cave_air_blocks(
                 chunk,
                 structure_piece_generate_box(
-                    model.bounding_box,
-                    Some(model.orientation),
-                    chunk_bb,
-                    BlockPos { x: 0, y: 0, z: 0 },
-                    BlockPos {
-                        x: 2,
-                        y: 1,
-                        z: length,
+                    StructurePieceBoxInput {
+                        bounding_box: model.bounding_box,
+                        orientation: Some(model.orientation),
+                        chunk_bb,
+                        min: BlockPos { x: 0, y: 0, z: 0 },
+                        max: BlockPos {
+                            x: 2,
+                            y: 1,
+                            z: length,
+                        },
                     },
                     "minecraft:cave_air",
                     "minecraft:cave_air",
@@ -226,21 +234,25 @@ fn mineshaft_apply_piece_to_chunk(
             placed += mineshaft_place_cave_air_blocks(
                 chunk,
                 structure_piece_generate_maybe_box(
-                    model.bounding_box,
-                    Some(model.orientation),
-                    chunk_bb,
-                    &ceiling_rolls,
-                    0.8,
-                    BlockPos { x: 0, y: 2, z: 0 },
-                    BlockPos {
-                        x: 2,
-                        y: 2,
-                        z: length,
+                    StructurePieceMaybeBoxInput {
+                        box_input: StructurePieceBoxInput {
+                            bounding_box: model.bounding_box,
+                            orientation: Some(model.orientation),
+                            chunk_bb,
+                            min: BlockPos { x: 0, y: 2, z: 0 },
+                            max: BlockPos {
+                                x: 2,
+                                y: 2,
+                                z: length,
+                            },
+                        },
+                        random_values: &ceiling_rolls,
+                        probability: 0.8,
+                        edge_block: "minecraft:cave_air",
+                        fill_block: "minecraft:cave_air",
+                        skip_air: false,
+                        has_to_be_inside: false,
                     },
-                    "minecraft:cave_air",
-                    "minecraft:cave_air",
-                    false,
-                    false,
                     |_| false,
                     |_| false,
                 ),
@@ -371,11 +383,13 @@ fn mineshaft_apply_piece_to_chunk(
                 placed += mineshaft_place_cave_air_blocks(
                     chunk,
                     structure_piece_generate_box(
-                        *bounding_box,
-                        Some(*direction),
-                        chunk_bb,
-                        min,
-                        max,
+                        StructurePieceBoxInput {
+                            bounding_box: *bounding_box,
+                            orientation: Some(*direction),
+                            chunk_bb,
+                            min,
+                            max,
+                        },
                         "minecraft:cave_air",
                         "minecraft:cave_air",
                         false,
@@ -387,18 +401,20 @@ fn mineshaft_apply_piece_to_chunk(
                 placed += mineshaft_place_cave_air_blocks(
                     chunk,
                     structure_piece_generate_box(
-                        *bounding_box,
-                        Some(*direction),
-                        chunk_bb,
-                        BlockPos {
-                            x: 0,
-                            y: 5 - i - if i < 4 { 1 } else { 0 },
-                            z: 2 + i,
-                        },
-                        BlockPos {
-                            x: 2,
-                            y: 7 - i,
-                            z: 2 + i,
+                        StructurePieceBoxInput {
+                            bounding_box: *bounding_box,
+                            orientation: Some(*direction),
+                            chunk_bb,
+                            min: BlockPos {
+                                x: 0,
+                                y: 5 - i - if i < 4 { 1 } else { 0 },
+                                z: 2 + i,
+                            },
+                            max: BlockPos {
+                                x: 2,
+                                y: 7 - i,
+                                z: 2 + i,
+                            },
                         },
                         "minecraft:cave_air",
                         "minecraft:cave_air",
@@ -429,21 +445,25 @@ fn mineshaft_postprocess_corridor_details(
         placed += mineshaft_place_blocks(
             chunk,
             structure_piece_generate_maybe_box(
-                model.bounding_box,
-                Some(model.orientation),
-                chunk_bb,
-                &spider_rolls,
-                0.6,
-                BlockPos { x: 0, y: 0, z: 0 },
-                BlockPos {
-                    x: 2,
-                    y: 1,
-                    z: length,
+                StructurePieceMaybeBoxInput {
+                    box_input: StructurePieceBoxInput {
+                        bounding_box: model.bounding_box,
+                        orientation: Some(model.orientation),
+                        chunk_bb,
+                        min: BlockPos { x: 0, y: 0, z: 0 },
+                        max: BlockPos {
+                            x: 2,
+                            y: 1,
+                            z: length,
+                        },
+                    },
+                    random_values: &spider_rolls,
+                    probability: 0.6,
+                    edge_block: "minecraft:cobweb",
+                    fill_block: "minecraft:cave_air",
+                    skip_air: false,
+                    has_to_be_inside: true,
                 },
-                "minecraft:cobweb",
-                "minecraft:cave_air",
-                false,
-                true,
                 |_| false,
                 |pos| {
                     mineshaft_world_pos_is_interior(
@@ -809,4 +829,3 @@ pub fn apply_mineshaft_underground_structures_to_chunk(chunk: &mut LevelChunk, s
     }
     placed
 }
-

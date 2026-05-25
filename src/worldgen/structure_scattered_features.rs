@@ -224,11 +224,13 @@ fn swamp_hut_generate_box(
     blocks: &mut Vec<StructurePiecePlacementBlock>,
 ) {
     blocks.extend(structure_piece_generate_box(
-        piece.scattered.bounding_box,
-        Some(piece.scattered.orientation),
-        chunk_bb,
-        min,
-        max,
+        StructurePieceBoxInput {
+            bounding_box: piece.scattered.bounding_box,
+            orientation: Some(piece.scattered.orientation),
+            chunk_bb,
+            min,
+            max,
+        },
         state,
         state,
         false,
@@ -705,4 +707,3 @@ pub fn jungle_temple_post_process(
 
     Some(JungleTemplePostProcessModel { piece, containers })
 }
-

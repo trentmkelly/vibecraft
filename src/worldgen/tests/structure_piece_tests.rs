@@ -160,17 +160,21 @@ use super::*;
         ];
 
         let blocks = super::super::structure_piece_generate_maybe_box(
-            piece_box,
-            Some(super::super::HorizontalDirection::South),
-            chunk_bb,
-            &rolls,
-            0.8,
-            BlockPos { x: 0, y: 2, z: 0 },
-            BlockPos { x: 2, y: 2, z: 4 },
-            "minecraft:cave_air",
-            "minecraft:cave_air",
-            false,
-            false,
+            super::super::StructurePieceMaybeBoxInput {
+                box_input: super::super::StructurePieceBoxInput {
+                    bounding_box: piece_box,
+                    orientation: Some(super::super::HorizontalDirection::South),
+                    chunk_bb,
+                    min: BlockPos { x: 0, y: 2, z: 0 },
+                    max: BlockPos { x: 2, y: 2, z: 4 },
+                },
+                random_values: &rolls,
+                probability: 0.8,
+                edge_block: "minecraft:cave_air",
+                fill_block: "minecraft:cave_air",
+                skip_air: false,
+                has_to_be_inside: false,
+            },
             |_| false,
             |_| true,
         );
@@ -252,11 +256,13 @@ use super::*;
             max_z: 32,
         };
         let blocks = super::super::structure_piece_generate_box(
-            bounding_box,
-            Some(super::super::HorizontalDirection::South),
-            chunk_bb,
-            BlockPos { x: 0, y: 0, z: 0 },
-            BlockPos { x: 2, y: 2, z: 2 },
+            super::super::StructurePieceBoxInput {
+                bounding_box,
+                orientation: Some(super::super::HorizontalDirection::South),
+                chunk_bb,
+                min: BlockPos { x: 0, y: 0, z: 0 },
+                max: BlockPos { x: 2, y: 2, z: 2 },
+            },
             "minecraft:cobblestone",
             "minecraft:mossy_cobblestone",
             false,
@@ -318,11 +324,13 @@ use super::*;
 
         let skipped_world_pos = BlockPos { x: 1, y: 66, z: 3 };
         let blocks = super::super::structure_piece_generate_box(
-            bounding_box,
-            Some(super::super::HorizontalDirection::South),
-            chunk_bb,
-            BlockPos { x: 1, y: 2, z: 3 },
-            BlockPos { x: 2, y: 3, z: 4 },
+            super::super::StructurePieceBoxInput {
+                bounding_box,
+                orientation: Some(super::super::HorizontalDirection::South),
+                chunk_bb,
+                min: BlockPos { x: 1, y: 2, z: 3 },
+                max: BlockPos { x: 2, y: 3, z: 4 },
+            },
             "minecraft:stone_bricks",
             "minecraft:cracked_stone_bricks",
             true,
@@ -346,17 +354,21 @@ use super::*;
         };
         let chunk_bb = bounding_box;
         let blocks = super::super::structure_piece_generate_maybe_box(
-            bounding_box,
-            Some(super::super::HorizontalDirection::South),
-            chunk_bb,
-            &[0.75, 0.76, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60],
-            0.75,
-            BlockPos { x: 0, y: 0, z: 0 },
-            BlockPos { x: 1, y: 1, z: 1 },
-            "minecraft:stone_bricks",
-            "minecraft:cracked_stone_bricks",
-            true,
-            true,
+            super::super::StructurePieceMaybeBoxInput {
+                box_input: super::super::StructurePieceBoxInput {
+                    bounding_box,
+                    orientation: Some(super::super::HorizontalDirection::South),
+                    chunk_bb,
+                    min: BlockPos { x: 0, y: 0, z: 0 },
+                    max: BlockPos { x: 1, y: 1, z: 1 },
+                },
+                random_values: &[0.75, 0.76, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60],
+                probability: 0.75,
+                edge_block: "minecraft:stone_bricks",
+                fill_block: "minecraft:cracked_stone_bricks",
+                skip_air: true,
+                has_to_be_inside: true,
+            },
             |world_pos| world_pos == BlockPos { x: 0, y: 10, z: 0 },
             |world_pos| world_pos.y >= 11,
         );
@@ -417,13 +429,17 @@ use super::*;
             max_z: 40,
         };
         let blocks = super::super::structure_piece_generate_upper_half_sphere(
-            bounding_box,
-            Some(super::super::HorizontalDirection::South),
-            full_chunk,
-            BlockPos { x: 0, y: 0, z: 0 },
-            BlockPos { x: 4, y: 4, z: 4 },
-            "minecraft:smooth_sandstone",
-            false,
+            super::super::StructurePieceSphereInput {
+                box_input: super::super::StructurePieceBoxInput {
+                    bounding_box,
+                    orientation: Some(super::super::HorizontalDirection::South),
+                    chunk_bb: full_chunk,
+                    min: BlockPos { x: 0, y: 0, z: 0 },
+                    max: BlockPos { x: 4, y: 4, z: 4 },
+                },
+                fill_block: "minecraft:smooth_sandstone",
+                skip_air: false,
+            },
             |_| false,
         );
 
@@ -458,13 +474,17 @@ use super::*;
             z: 32,
         };
         let clipped = super::super::structure_piece_generate_upper_half_sphere(
-            bounding_box,
-            Some(super::super::HorizontalDirection::South),
-            clipped_chunk,
-            BlockPos { x: 0, y: 0, z: 0 },
-            BlockPos { x: 4, y: 4, z: 4 },
-            "minecraft:smooth_sandstone",
-            true,
+            super::super::StructurePieceSphereInput {
+                box_input: super::super::StructurePieceBoxInput {
+                    bounding_box,
+                    orientation: Some(super::super::HorizontalDirection::South),
+                    chunk_bb: clipped_chunk,
+                    min: BlockPos { x: 0, y: 0, z: 0 },
+                    max: BlockPos { x: 4, y: 4, z: 4 },
+                },
+                fill_block: "minecraft:smooth_sandstone",
+                skip_air: true,
+            },
             |world_pos| world_pos == skipped,
         );
         assert!(clipped.len() < blocks.len());
@@ -509,14 +529,16 @@ use super::*;
             max_z: 15,
         };
         let blocks = super::super::structure_piece_fill_column_down(
-            bounding_box,
-            Some(super::super::HorizontalDirection::South),
-            chunk_bb,
-            3,
-            4,
-            5,
-            64,
-            "minecraft:sandstone",
+            super::super::StructurePieceFillColumnInput {
+                bounding_box,
+                orientation: Some(super::super::HorizontalDirection::South),
+                chunk_bb,
+                x: 3,
+                start_y: 4,
+                z: 5,
+                min_y: 64,
+                block_state: "minecraft:sandstone",
+            },
             |pos| {
                 if pos.y >= 66 {
                     "minecraft:air"
@@ -538,35 +560,39 @@ use super::*;
         );
 
         let min_limited = super::super::structure_piece_fill_column_down(
-            bounding_box,
-            Some(super::super::HorizontalDirection::South),
-            chunk_bb,
-            3,
-            2,
-            5,
-            64,
-            "minecraft:sandstone",
+            super::super::StructurePieceFillColumnInput {
+                bounding_box,
+                orientation: Some(super::super::HorizontalDirection::South),
+                chunk_bb,
+                x: 3,
+                start_y: 2,
+                z: 5,
+                min_y: 64,
+                block_state: "minecraft:sandstone",
+            },
             |_| "minecraft:air",
         );
         assert_eq!(min_limited.len(), 1);
         assert_eq!(min_limited[0].world_pos.y, 66);
 
         let outside_chunk = super::super::structure_piece_fill_column_down(
-            bounding_box,
-            Some(super::super::HorizontalDirection::South),
-            super::super::StructureBoundingBoxModel {
-                min_x: 10,
-                min_y: -64,
-                min_z: 10,
-                max_x: 15,
-                max_y: 320,
-                max_z: 15,
+            super::super::StructurePieceFillColumnInput {
+                bounding_box,
+                orientation: Some(super::super::HorizontalDirection::South),
+                chunk_bb: super::super::StructureBoundingBoxModel {
+                    min_x: 10,
+                    min_y: -64,
+                    min_z: 10,
+                    max_x: 15,
+                    max_y: 320,
+                    max_z: 15,
+                },
+                x: 3,
+                start_y: 4,
+                z: 5,
+                min_y: 64,
+                block_state: "minecraft:sandstone",
             },
-            3,
-            4,
-            5,
-            64,
-            "minecraft:sandstone",
             |_| "minecraft:air",
         );
         assert!(outside_chunk.is_empty());
