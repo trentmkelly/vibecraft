@@ -73,6 +73,10 @@ fn play_packet_registry_matches_game_protocol_order_and_counts() {
         Some("chunk_batch_start")
     );
     assert_eq!(
+        registry.clientbound_name(CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID),
+        Some("command_suggestions")
+    );
+    assert_eq!(
         registry.clientbound_name(CLIENTBOUND_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID),
         Some("level_chunk_with_light")
     );

@@ -1,6 +1,46 @@
 use super::*;
 
 #[test]
+fn clientbound_command_suggestions_packet_matches_java_entry_codec() {
+    assert_eq!(CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID, 15);
+    let registry = PlayProtocolRegistry::new();
+    assert_eq!(
+        registry.clientbound_name(CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID),
+        Some("command_suggestions")
+    );
+
+    let mut payload = Vec::new();
+    ClientboundCommandSuggestionsPacket {
+        transaction_id: 4,
+        start: 1,
+        length: 2,
+        suggestions: vec![
+            CommandSuggestionEntry {
+                text: "help".to_string(),
+                tooltip: None,
+            },
+            CommandSuggestionEntry {
+                text: "hello".to_string(),
+                tooltip: Some(Tag::Compound(vec![(
+                    "text".to_string(),
+                    Tag::String("tooltip".to_string()),
+                )])),
+            },
+        ],
+    }
+    .write(&mut payload)
+    .unwrap();
+
+    assert_eq!(
+        payload,
+        vec![
+            4, 1, 2, 2, 4, b'h', b'e', b'l', b'p', 0, 5, b'h', b'e', b'l', b'l', b'o', 1, 10,
+            8, 0, 4, b't', b'e', b'x', b't', 0, 7, b't', b'o', b'o', b'l', b't', b'i', b'p', 0,
+        ]
+    );
+}
+
+#[test]
 fn serverbound_command_suggestion_packet_matches_java_utf_bound() {
     assert_eq!(SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID, 15);
     let registry = PlayProtocolRegistry::new();
