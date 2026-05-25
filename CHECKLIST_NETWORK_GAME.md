@@ -130,7 +130,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Scoreboard / Team Packets
 
-- [ ] `ClientboundSetDisplayObjectivePacket` (0x55): slot byte, objective name string
+- [x] `ClientboundSetDisplayObjectivePacket` (0x62 / decimal 98): Java `DisplaySlot` ID encoded with `FriendlyByteBuf.writeById` VarInt followed by objective name UTF string, with empty string representing a cleared display slot; verified against Java read/write codec, Java `DisplaySlot` ID mapping, Java play registration/name mapping, Rust packet ID/registry mapping, and focused byte-layout coverage for sidebar and cleared team-sidebar slots.
 - [ ] `ClientboundSetObjectivePacket` (0x56): objective name, mode byte (0=add, 1=remove, 2=change), optional display name/render-type/number-format
 - [ ] `ClientboundSetScorePacket` (0x5A): owner string, objective name, score VarInt, optional display name, optional number format
 - [x] `ClientboundResetScorePacket` (0x4F / decimal 79): owner UTF string followed by Java `FriendlyByteBuf.writeNullable` objective name (`bool` plus UTF string when present); verified against Java read/write codec, Java nullable encoding helper, Java play registration/name mapping, Rust packet ID/registry mapping, and focused byte-layout coverage for both present and absent objective names.
