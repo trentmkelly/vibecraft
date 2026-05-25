@@ -77,7 +77,8 @@ pub struct BlockPos {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MenuTickContext<'a> {
-    pub player_position: Vec3,
+    pub player_eye_position: Vec3,
+    pub block_interaction_range: f64,
     pub block_at_menu_pos: Option<&'a str>,
     pub block_entity_at_menu_pos: Option<i32>,
 }
@@ -423,7 +424,12 @@ impl Menu {
                 distance_buffer,
             } => {
                 ctx.block_at_menu_pos == Some(expected_block)
-                    && is_within_block_interaction_range(ctx.player_position, pos, distance_buffer)
+                    && is_within_block_interaction_range(
+                        ctx.player_eye_position,
+                        pos,
+                        ctx.block_interaction_range,
+                        distance_buffer,
+                    )
             }
             MenuValidity::BlockEntity {
                 expected_block_entity_id,
@@ -431,7 +437,12 @@ impl Menu {
                 distance_buffer,
             } => {
                 ctx.block_entity_at_menu_pos == Some(expected_block_entity_id)
-                    && is_within_block_interaction_range(ctx.player_position, pos, distance_buffer)
+                    && is_within_block_interaction_range(
+                        ctx.player_eye_position,
+                        pos,
+                        ctx.block_interaction_range,
+                        distance_buffer,
+                    )
             }
         }
     }
@@ -813,18 +824,35 @@ pub fn same_stack(a: &ItemStack, b: &ItemStack) -> bool {
 }
 
 pub fn is_within_block_interaction_range(
-    player_position: Vec3,
+    player_eye_position: Vec3,
     pos: BlockPos,
+    block_interaction_range: f64,
     buffer: f64,
 ) -> bool {
-    let center_x = pos.x as f64 + 0.5;
-    let center_y = pos.y as f64 + 0.5;
-    let center_z = pos.z as f64 + 0.5;
-    let dx = player_position.x - center_x;
-    let dy = player_position.y - center_y;
-    let dz = player_position.z - center_z;
-    dx * dx + dy * dy + dz * dz <= buffer * buffer
+    // Java 26.1.2: Player.isWithinBlockInteractionRange adds the player's
+    // block_interaction_range attribute to the supplied buffer, then checks
+    // AABB(block).distanceToSqr(eye) with a strict less-than comparison.
+    let max_range = block_interaction_range + buffer;
+    let distance_to_block = squared_distance_to_unit_block_aabb(player_eye_position, pos);
+    distance_to_block < max_range * max_range
 }
+
+fn squared_distance_to_unit_block_aabb(point: Vec3, pos: BlockPos) -> f64 {
+    let min_x = pos.x as f64;
+    let min_y = pos.y as f64;
+    let min_z = pos.z as f64;
+    let max_x = min_x + 1.0;
+    let max_y = min_y + 1.0;
+    let max_z = min_z + 1.0;
+
+    let dx = (min_x - point.x).max(point.x - max_x).max(0.0);
+    let dy = (min_y - point.y).max(point.y - max_y).max(0.0);
+    let dz = (min_z - point.z).max(point.z - max_z).max(0.0);
+    dx * dx + dy * dy + dz * dz
+}
+
+#[cfg(test)]
+mod validity_tests;
 
 #[cfg(test)]
 mod tests {
@@ -1113,87 +1141,6 @@ mod tests {
                 }),
                 ContainerListenerEvent::DataChanged(DataChange { id: 0, value: 12 })
             ]
-        );
-    }
-
-    #[test]
-    fn still_valid_keeps_player_inventory_open_but_closes_invalid_block_menus() {
-        let player_inventory = Menu::new(0);
-        let far_context = MenuTickContext {
-            player_position: Vec3 {
-                x: 100.0,
-                y: 64.0,
-                z: 100.0,
-            },
-            block_at_menu_pos: None,
-            block_entity_at_menu_pos: None,
-        };
-        assert_eq!(
-            player_inventory.tick_validity(&far_context),
-            MenuTickResult::StillValid
-        );
-
-        let pos = BlockPos { x: 1, y: 64, z: 1 };
-        let crafting_menu = Menu::new(0).with_block_validity("minecraft:crafting_table", pos, 4.0);
-        let nearby_valid = MenuTickContext {
-            player_position: Vec3 {
-                x: 1.5,
-                y: 64.5,
-                z: 4.5,
-            },
-            block_at_menu_pos: Some("minecraft:crafting_table"),
-            block_entity_at_menu_pos: None,
-        };
-        assert_eq!(
-            crafting_menu.tick_validity(&nearby_valid),
-            MenuTickResult::StillValid
-        );
-
-        let wrong_block = MenuTickContext {
-            block_at_menu_pos: Some("minecraft:air"),
-            ..nearby_valid.clone()
-        };
-        assert_eq!(
-            crafting_menu.tick_validity(&wrong_block),
-            MenuTickResult::CloseMenu
-        );
-
-        let too_far = MenuTickContext {
-            player_position: Vec3 {
-                x: 6.0,
-                y: 64.5,
-                z: 1.5,
-            },
-            ..nearby_valid
-        };
-        assert_eq!(
-            crafting_menu.tick_validity(&too_far),
-            MenuTickResult::CloseMenu
-        );
-    }
-
-    #[test]
-    fn still_valid_block_entity_requires_same_entity_and_range() {
-        let pos = BlockPos { x: 3, y: 65, z: 3 };
-        let chest_menu = Menu::new(0).with_block_entity_validity(17, pos, 4.0);
-        let valid = MenuTickContext {
-            player_position: Vec3 {
-                x: 3.5,
-                y: 65.5,
-                z: 3.5,
-            },
-            block_at_menu_pos: Some("minecraft:chest"),
-            block_entity_at_menu_pos: Some(17),
-        };
-        assert!(chest_menu.still_valid(&valid));
-
-        let replaced = MenuTickContext {
-            block_entity_at_menu_pos: Some(18),
-            ..valid
-        };
-        assert_eq!(
-            chest_menu.tick_validity(&replaced),
-            MenuTickResult::CloseMenu
         );
     }
 }
