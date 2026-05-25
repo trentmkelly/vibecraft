@@ -380,6 +380,45 @@ fn update_tag_subset_is_stable_for_every_type() {
 }
 
 #[test]
+fn block_entity_data_packets_preserve_update_tag_subset_for_every_type() {
+    for info in BLOCK_ENTITY_TYPES {
+        let block_state = info
+            .valid_blocks
+            .first()
+            .expect("every block entity type has at least one valid block");
+        let mut entity = BlockEntity::new(info.id, pos(), block_state).unwrap();
+        entity
+            .custom_data
+            .insert("PacketProbe".to_string(), Tag::String(info.key.to_string()));
+        entity.components.insert(
+            "minecraft:custom_name".to_string(),
+            Tag::String("\"Packet Probe\"".to_string()),
+        );
+
+        let update_tag = entity.get_update_tag();
+        let packet = entity.get_update_packet();
+        assert_eq!(packet.pos, pos(), "{} packet pos", info.key);
+        assert_eq!(packet.ty, info.id, "{} packet type", info.key);
+        assert_eq!(packet.tag, update_tag, "{} packet tag", info.key);
+
+        let (packed_xz, y, ty, chunk_tag) = block_entity_packet_from_chunk(&entity, -64);
+        assert_eq!(packed_xz, 0x23, "{} chunk packet local x/z", info.key);
+        assert_eq!(y, 128, "{} chunk packet y", info.key);
+        assert_eq!(ty, info.id, "{} chunk packet type", info.key);
+        assert_eq!(chunk_tag, update_tag, "{} chunk packet tag", info.key);
+
+        let entries = compound_entries(&chunk_tag).expect("block entity data tag is compound");
+        assert!(
+            entries
+                .iter()
+                .all(|(key, _)| key != "id" && key != "x" && key != "y" && key != "z"),
+            "metadata leaked into block entity data packet for {}",
+            info.key
+        );
+    }
+}
+
+#[test]
 fn wrong_chunk_positions_are_corrected_like_vanilla() {
     let tag = Tag::Compound(vec![
         ("x".to_string(), Tag::Int(34)),
