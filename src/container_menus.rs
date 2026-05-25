@@ -158,7 +158,7 @@ pub(super) fn append_player_slots(out: &mut Vec<ItemStack>, player: &PlayerInven
 /// One "move-plan" entry produced by `plan_move_item_stack_to`.
 /// `set(idx, new_stack)` callers apply these in order.
 #[derive(Debug, Clone)]
-struct MoveWrite {
+pub(super) struct MoveWrite {
     slot: usize,
     new_stack: ItemStack,
 }

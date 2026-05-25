@@ -552,7 +552,7 @@ pub fn write_vanilla_painting_variant_registry_packet<W: Write>(writer: &mut W) 
     })
 }
 
-pub fn write_variant_registry<W, T, F>(
+fn write_variant_registry<W, T, F>(
     writer: &mut W,
     registry: &str,
     entries: &[T],
@@ -845,4 +845,3 @@ pub fn trim_material_nbt(material: &TrimMaterialEntry) -> Tag {
 
     Tag::Compound(fields)
 }
-

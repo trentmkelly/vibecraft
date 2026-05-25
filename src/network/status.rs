@@ -196,7 +196,7 @@ pub(super) const PLAY_COMMAND_SUGGESTIONS: &[&str] = &[
 ];
 
 #[derive(Debug, Clone, PartialEq)]
-pub(super) struct PlaySessionState {
+pub(crate) struct PlaySessionState {
     x: f64,
     y: f64,
     z: f64,
