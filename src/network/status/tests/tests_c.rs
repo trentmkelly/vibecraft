@@ -459,14 +459,26 @@ pub fn container_close_returns_cursor_stack_to_inventory_before_save() {
 #[test]
 pub fn creative_mode_debug_packets_do_not_fall_through_to_unexpected_disconnect() {
     // Java 26.1.2 GameProtocols registers serverbound player_abilities at
-    // 40 and set_creative_mode_slot at 56. Both are common in creative mode:
-    // double-tap space toggles packet 40 and taking an item from the creative
+    // 40, pick_item_from_block/entity at 36/37, and set_creative_mode_slot at 56.
+    // These are common in creative mode: double-tap space toggles packet 40,
+    // middle-click pick-block sends 36/37, and taking an item from the creative
     // inventory sends packet 56.
+    assert_eq!(super::super::SERVERBOUND_PICK_ITEM_FROM_BLOCK_PACKET_ID, 36);
+    assert_eq!(
+        super::super::SERVERBOUND_PICK_ITEM_FROM_ENTITY_PACKET_ID,
+        37
+    );
     assert_eq!(super::super::SERVERBOUND_PLAYER_ABILITIES_PACKET_ID, 40);
     assert_eq!(
         super::super::SERVERBOUND_SET_CREATIVE_MODE_SLOT_PACKET_ID,
         56
     );
+    assert!(super::super::play_packet_has_live_status_handler(
+        super::super::SERVERBOUND_PICK_ITEM_FROM_BLOCK_PACKET_ID
+    ));
+    assert!(super::super::play_packet_has_live_status_handler(
+        super::super::SERVERBOUND_PICK_ITEM_FROM_ENTITY_PACKET_ID
+    ));
     assert!(super::super::play_packet_is_handled_after_state_update(
         super::super::SERVERBOUND_PLAYER_ABILITIES_PACKET_ID
     ));
@@ -474,6 +486,86 @@ pub fn creative_mode_debug_packets_do_not_fall_through_to_unexpected_disconnect(
         super::super::SERVERBOUND_SET_CREATIVE_MODE_SLOT_PACKET_ID
     ));
     assert!(!super::super::play_packet_has_live_status_handler(999));
+}
+
+#[test]
+pub fn pick_item_from_block_selects_existing_or_creative_cloned_block() {
+    let chunk_pos = crate::storage::region::ChunkPos { x: 0, z: 0 };
+    let mut chunk = crate::storage::chunk::LevelChunk::empty(chunk_pos);
+    chunk.set_block_state(1, 64, 0, "minecraft:stone");
+    let cache = super::super::GeneratedChunkCache::default();
+    cache
+        .chunks
+        .lock()
+        .unwrap()
+        .insert(chunk_pos, std::sync::Arc::new(chunk));
+    let world_root =
+        std::env::temp_dir().join(format!("rustcraft-pick-item-block-{}", std::process::id()));
+    let layout = super::super::WorldLayout::new(&world_root);
+
+    let mut state = PlaySessionState {
+        x: 0.5,
+        y: 64.0,
+        z: 0.5,
+        game_mode: GameMode::Creative,
+        abilities: super::super::PlayerNbtAbilities::for_game_mode(GameMode::Creative),
+        ..PlaySessionState::default()
+    };
+
+    let packet = super::super::ServerboundPickItemFromBlockPacket {
+        x: 1,
+        y: 64,
+        z: 0,
+        include_data: true,
+    };
+    assert_eq!(
+        super::super::player_creative_packets::apply_pick_item_from_block_packet(
+            &mut state, packet, &layout, &cache
+        ),
+        super::super::player_creative_packets::PickItemOutcome::Picked {
+            inventory_changed: true
+        }
+    );
+    assert_eq!(state.selected_slot, 0);
+    assert_eq!(
+        state.inventory_menu.get_slot(36),
+        Some(ItemStack::new("minecraft:stone", 1))
+    );
+
+    state
+        .inventory_menu
+        .set_slot(36, ItemStack::new("minecraft:dirt", 1));
+    state
+        .inventory_menu
+        .set_slot(9, ItemStack::new("minecraft:stone", 1));
+    state.selected_slot = 0;
+    assert_eq!(
+        super::super::player_creative_packets::apply_pick_item_from_block_packet(
+            &mut state, packet, &layout, &cache
+        ),
+        super::super::player_creative_packets::PickItemOutcome::Picked {
+            inventory_changed: true
+        }
+    );
+    assert_eq!(state.selected_slot, 1);
+    assert_eq!(
+        state.inventory_menu.get_slot(37),
+        Some(ItemStack::new("minecraft:stone", 1))
+    );
+
+    let far_packet = super::super::ServerboundPickItemFromBlockPacket {
+        x: 100,
+        y: 64,
+        z: 0,
+        include_data: false,
+    };
+    assert_eq!(
+        super::super::player_creative_packets::apply_pick_item_from_block_packet(
+            &mut state, far_packet, &layout, &cache
+        ),
+        super::super::player_creative_packets::PickItemOutcome::NoItem
+    );
+    let _ = std::fs::remove_dir_all(&world_root);
 }
 
 #[test]

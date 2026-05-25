@@ -1568,6 +1568,43 @@ pub fn handle_login_connection(
                     }
                     continue;
                 }
+                if packet_id == SERVERBOUND_PICK_ITEM_FROM_BLOCK_PACKET_ID {
+                    let packet = ServerboundPickItemFromBlockPacket::read(&mut input)?;
+                    if let super::player_creative_packets::PickItemOutcome::Picked {
+                        inventory_changed,
+                    } = super::player_creative_packets::apply_pick_item_from_block_packet(
+                        &mut play_state,
+                        packet,
+                        &world_layout,
+                        chunk_cache,
+                    ) {
+                        write_framed_packet_with_compression(
+                            stream,
+                            compression,
+                            CLIENTBOUND_SET_HELD_SLOT_PACKET_ID,
+                            |payload| {
+                                ClientboundSetHeldSlotPacket {
+                                    slot: play_state.selected_slot,
+                                }
+                                .write(payload)
+                            },
+                        )?;
+                        if inventory_changed {
+                            play_state.container_state_id =
+                                play_state.container_state_id.wrapping_add(1);
+                            write_inventory_menu_full_sync(stream, compression, &play_state)?;
+                        }
+                    }
+                    continue;
+                }
+                if packet_id == SERVERBOUND_PICK_ITEM_FROM_ENTITY_PACKET_ID {
+                    let packet = ServerboundPickItemFromEntityPacket::read(&mut input)?;
+                    let _ = super::player_creative_packets::apply_pick_item_from_entity_packet(
+                        &mut play_state,
+                        packet,
+                    );
+                    continue;
+                }
                 if packet_id == SERVERBOUND_SET_CREATIVE_MODE_SLOT_PACKET_ID {
                     let packet = ServerboundSetCreativeModeSlotPacket::read(&mut input)?;
                     if let Some(slot_update) =
