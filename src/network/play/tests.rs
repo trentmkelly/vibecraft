@@ -761,6 +761,7 @@ mod container_close_packet_test;
 mod container_set_data_packet_test;
 mod cooldown_packet_test;
 mod entity_movement_test;
+mod mount_screen_open_packet_test;
 mod small_play_packets_test;
 mod tests_middle;
 mod tests_middle2;
