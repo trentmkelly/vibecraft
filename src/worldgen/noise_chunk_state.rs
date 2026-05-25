@@ -286,6 +286,214 @@ pub struct NoiseChunk {
     pub noise_router: NoiseRouter,
 }
 
+struct NoiseChunkGrid {
+    cell_width: i32,
+    cell_height: i32,
+    cell_count_xz: i32,
+    cell_count_y: i32,
+    cell_noise_min_y: i32,
+    first_cell_x: i32,
+    first_cell_z: i32,
+    noise_size_xz: i32,
+}
+
+struct NoiseChunkAllocatedState {
+    interpolators: Vec<NoiseInterpolatorState>,
+    cache_all_in_cell: Vec<CacheAllInCellState>,
+    cache_2d: Vec<Cache2DState>,
+    cache_once_values: Vec<CacheOnceState>,
+    flat_cache: Vec<FlatCacheState>,
+    full_noise_values: Vec<f64>,
+    vein_toggle_values: Vec<f64>,
+    vein_ridged_values: Vec<f64>,
+    vein_gap_values: Vec<f64>,
+}
+
+struct NoiseChunkVeinInterpolatorIndexes {
+    toggle: Option<usize>,
+    vein_a: Option<usize>,
+    vein_b: Option<usize>,
+}
+
+fn noise_chunk_grid(
+    chunk_min_block_x: i32,
+    chunk_min_block_z: i32,
+    settings: NoiseGeneratorSettings,
+) -> NoiseChunkGrid {
+    let cell_width = settings.noise.cell_width();
+    let cell_height = settings.noise.cell_height();
+    let cell_count_xz = 16 / cell_width;
+    let cell_count_y = settings.noise.height / cell_height;
+    let cell_noise_min_y = settings.noise.min_y.div_euclid(cell_height);
+    let first_cell_x = chunk_min_block_x.div_euclid(cell_width);
+    let first_cell_z = chunk_min_block_z.div_euclid(cell_width);
+    let noise_size_xz = (cell_count_xz * cell_width) >> 2;
+
+    NoiseChunkGrid {
+        cell_width,
+        cell_height,
+        cell_count_xz,
+        cell_count_y,
+        cell_noise_min_y,
+        first_cell_x,
+        first_cell_z,
+        noise_size_xz,
+    }
+}
+
+fn allocate_noise_chunk_state(
+    chunk_min_block_x: i32,
+    chunk_min_block_z: i32,
+    settings: NoiseGeneratorSettings,
+    seed: i64,
+    grid: &NoiseChunkGrid,
+    template: &NoiseChunkTemplate,
+) -> NoiseChunkAllocatedState {
+    // Allocate one interpolator per unique inner function.
+    let interpolators: Vec<NoiseInterpolatorState> = template
+        .interpolated_inputs
+        .iter()
+        .map(|&fn_ref| {
+            NoiseInterpolatorState::new(
+                grid.cell_count_y as usize,
+                grid.cell_count_xz as usize,
+                fn_ref,
+            )
+        })
+        .collect();
+    let cache_all_in_cell: Vec<CacheAllInCellState> = template
+        .cache_all_inputs
+        .iter()
+        .map(|&fn_ref| CacheAllInCellState::new(grid.cell_width, grid.cell_height, fn_ref))
+        .collect();
+    let cache_2d: Vec<Cache2DState> = template
+        .cache_2d_inputs
+        .iter()
+        .map(|&fn_ref| Cache2DState::new(fn_ref))
+        .collect();
+    let cache_once_values: Vec<CacheOnceState> = template
+        .cache_once_inputs
+        .iter()
+        .map(|_| CacheOnceState::default())
+        .collect();
+    let flat_cache: Vec<FlatCacheState> = template
+        .flat_cache_inputs
+        .iter()
+        .map(|&fn_ref| {
+            FlatCacheState::new(
+                chunk_min_block_x,
+                chunk_min_block_z,
+                grid.noise_size_xz,
+                seed,
+                settings,
+                fn_ref,
+            )
+        })
+        .collect();
+    let cell_value_count = (grid.cell_width * grid.cell_width * grid.cell_height) as usize;
+
+    NoiseChunkAllocatedState {
+        interpolators,
+        cache_all_in_cell,
+        cache_2d,
+        cache_once_values,
+        flat_cache,
+        full_noise_values: vec![0.0; cell_value_count],
+        vein_toggle_values: vec![0.0; cell_value_count],
+        vein_ridged_values: vec![0.0; cell_value_count],
+        vein_gap_values: vec![0.0; cell_value_count],
+    }
+}
+
+fn noise_chunk_vein_interpolator_indexes(
+    template: &NoiseChunkTemplate,
+) -> NoiseChunkVeinInterpolatorIndexes {
+    let lookup_interp = |function: &'static DensityFunction| {
+        lookup_density_index(
+            &template.interp_by_ptr,
+            function as *const DensityFunction as usize,
+        )
+    };
+
+    NoiseChunkVeinInterpolatorIndexes {
+        toggle: lookup_interp(&OVERWORLD_VEIN_TOGGLE_RANGE_DENSITY),
+        vein_a: lookup_interp(&OVERWORLD_VEIN_A_RANGE_DENSITY),
+        vein_b: lookup_interp(&OVERWORLD_VEIN_B_RANGE_DENSITY),
+    }
+}
+
+fn assemble_noise_chunk(
+    grid: NoiseChunkGrid,
+    template: NoiseChunkTemplate,
+    allocated: NoiseChunkAllocatedState,
+    vein_indexes: NoiseChunkVeinInterpolatorIndexes,
+    settings: NoiseGeneratorSettings,
+    seed: i64,
+    noise_router: NoiseRouter,
+) -> NoiseChunk {
+    NoiseChunk {
+        cell_width: grid.cell_width,
+        cell_height: grid.cell_height,
+        cell_count_xz: grid.cell_count_xz,
+        cell_count_y: grid.cell_count_y,
+        cell_noise_min_y: grid.cell_noise_min_y,
+        first_cell_x: grid.first_cell_x,
+        first_cell_z: grid.first_cell_z,
+        noise_size_xz: grid.noise_size_xz,
+        interpolators: allocated.interpolators,
+        interp_by_ptr: template.interp_by_ptr,
+        cache_all_in_cell: allocated.cache_all_in_cell,
+        cache_all_by_ptr: template.cache_all_by_ptr,
+        cache_2d: RefCell::new(allocated.cache_2d),
+        cache_2d_by_ptr: template.cache_2d_by_ptr,
+        flat_cache: allocated.flat_cache,
+        flat_cache_by_ptr: template.flat_cache_by_ptr,
+        full_noise_values: allocated.full_noise_values,
+        vein_toggle_values: allocated.vein_toggle_values,
+        vein_ridged_values: allocated.vein_ridged_values,
+        vein_gap_values: allocated.vein_gap_values,
+        vein_toggle_interp_index: vein_indexes.toggle,
+        vein_a_interp_index: vein_indexes.vein_a,
+        vein_b_interp_index: vein_indexes.vein_b,
+        cell_start_block_x: grid.first_cell_x * grid.cell_width,
+        cell_start_block_y: grid.cell_noise_min_y * grid.cell_height,
+        cell_start_block_z: grid.first_cell_z * grid.cell_width,
+        in_cell_x: 0,
+        in_cell_y: 0,
+        in_cell_z: 0,
+        interpolating: false,
+        prelim_surface_cache: RefCell::new(HashMap::new()),
+        cache_once_values: RefCell::new(allocated.cache_once_values),
+        cache_once_by_ptr: template.cache_once_by_ptr,
+        normal_noise_cache: RefCell::new(HashMap::new()),
+        blended_noise_cache: RefCell::new(Vec::new()),
+        density_value_bounds_cache: RefCell::new(HashMap::new()),
+        terrain_spline_cache: RefCell::new(HashMap::new()),
+        density_array_scratch: Vec::new(),
+        filling_cell_cache: Cell::new(false),
+        filling_cell: false,
+        interpolation_counter: 0,
+        array_interpolation_counter: 0,
+        array_index: 0,
+        fill_stats: NoiseChunkFillStats::default(),
+        cache_once_scalar_hits: Cell::new(0),
+        cache_once_scalar_misses: Cell::new(0),
+        cache_once_array_hits: Cell::new(0),
+        cache_once_array_misses: Cell::new(0),
+        seed,
+        settings,
+        noise_router,
+    }
+}
+
+fn initialize_first_interpolator_slice(mut chunk: NoiseChunk) -> NoiseChunk {
+    // Fill slice0 for the first cell-X column (mirrors initializeForFirstCellX).
+    chunk.interpolating = true;
+    chunk.interpolation_counter = 0;
+    chunk.fill_interpolator_slice(true, chunk.first_cell_x * chunk.cell_width);
+    chunk
+}
+
 impl NoiseChunk {
     /// Create a new `NoiseChunk` for the chunk whose western-most block column
     /// starts at `(chunk_min_block_x, chunk_min_block_z)`.
@@ -301,130 +509,27 @@ impl NoiseChunk {
         seed: i64,
         noise_router: NoiseRouter,
     ) -> Self {
-        let cell_width = settings.noise.cell_width();
-        let cell_height = settings.noise.cell_height();
-        let cell_count_xz = 16 / cell_width;
-        let cell_count_y = settings.noise.height / cell_height;
-        let cell_noise_min_y = settings.noise.min_y.div_euclid(cell_height);
-        let first_cell_x = chunk_min_block_x.div_euclid(cell_width);
-        let first_cell_z = chunk_min_block_z.div_euclid(cell_width);
-        let noise_size_xz = (cell_count_xz * cell_width) >> 2;
-
+        let grid = noise_chunk_grid(chunk_min_block_x, chunk_min_block_z, settings);
         let template = noise_chunk_template(settings.id, noise_router);
-
-        // Allocate one interpolator per unique inner function.
-        let interpolators: Vec<NoiseInterpolatorState> = template
-            .interpolated_inputs
-            .iter()
-            .map(|&fn_ref| {
-                NoiseInterpolatorState::new(cell_count_y as usize, cell_count_xz as usize, fn_ref)
-            })
-            .collect();
-        let cache_all_in_cell: Vec<CacheAllInCellState> = template
-            .cache_all_inputs
-            .iter()
-            .map(|&fn_ref| CacheAllInCellState::new(cell_width, cell_height, fn_ref))
-            .collect();
-        let cache_2d: Vec<Cache2DState> = template
-            .cache_2d_inputs
-            .iter()
-            .map(|&fn_ref| Cache2DState::new(fn_ref))
-            .collect();
-        let cache_once_values: Vec<CacheOnceState> = template
-            .cache_once_inputs
-            .iter()
-            .map(|_| CacheOnceState::default())
-            .collect();
-        let flat_cache: Vec<FlatCacheState> = template
-            .flat_cache_inputs
-            .iter()
-            .map(|&fn_ref| {
-                FlatCacheState::new(
-                    chunk_min_block_x,
-                    chunk_min_block_z,
-                    noise_size_xz,
-                    seed,
-                    settings,
-                    fn_ref,
-                )
-            })
-            .collect();
-        let cell_value_count = (cell_width * cell_width * cell_height) as usize;
-        let full_noise_values = vec![0.0; cell_value_count];
-        let vein_toggle_values = vec![0.0; cell_value_count];
-        let vein_ridged_values = vec![0.0; cell_value_count];
-        let vein_gap_values = vec![0.0; cell_value_count];
-
-        let lookup_interp = |function: &'static DensityFunction| {
-            lookup_density_index(
-                &template.interp_by_ptr,
-                function as *const DensityFunction as usize,
-            )
-        };
-        let vein_toggle_interp_index = lookup_interp(&OVERWORLD_VEIN_TOGGLE_RANGE_DENSITY);
-        let vein_a_interp_index = lookup_interp(&OVERWORLD_VEIN_A_RANGE_DENSITY);
-        let vein_b_interp_index = lookup_interp(&OVERWORLD_VEIN_B_RANGE_DENSITY);
-
-        // Fill slice0 for the first cell-X column (mirrors initializeForFirstCellX).
-        let mut chunk = Self {
-            cell_width,
-            cell_height,
-            cell_count_xz,
-            cell_count_y,
-            cell_noise_min_y,
-            first_cell_x,
-            first_cell_z,
-            noise_size_xz,
-            interpolators,
-            interp_by_ptr: template.interp_by_ptr,
-            cache_all_in_cell,
-            cache_all_by_ptr: template.cache_all_by_ptr,
-            cache_2d: RefCell::new(cache_2d),
-            cache_2d_by_ptr: template.cache_2d_by_ptr,
-            flat_cache,
-            flat_cache_by_ptr: template.flat_cache_by_ptr,
-            full_noise_values,
-            vein_toggle_values,
-            vein_ridged_values,
-            vein_gap_values,
-            vein_toggle_interp_index,
-            vein_a_interp_index,
-            vein_b_interp_index,
-            cell_start_block_x: first_cell_x * cell_width,
-            cell_start_block_y: cell_noise_min_y * cell_height,
-            cell_start_block_z: first_cell_z * cell_width,
-            in_cell_x: 0,
-            in_cell_y: 0,
-            in_cell_z: 0,
-            interpolating: false,
-            prelim_surface_cache: RefCell::new(HashMap::new()),
-            cache_once_values: RefCell::new(cache_once_values),
-            cache_once_by_ptr: template.cache_once_by_ptr,
-            normal_noise_cache: RefCell::new(HashMap::new()),
-            blended_noise_cache: RefCell::new(Vec::new()),
-            density_value_bounds_cache: RefCell::new(HashMap::new()),
-            terrain_spline_cache: RefCell::new(HashMap::new()),
-            density_array_scratch: Vec::new(),
-            filling_cell_cache: Cell::new(false),
-            filling_cell: false,
-            interpolation_counter: 0,
-            array_interpolation_counter: 0,
-            array_index: 0,
-            fill_stats: NoiseChunkFillStats::default(),
-            cache_once_scalar_hits: Cell::new(0),
-            cache_once_scalar_misses: Cell::new(0),
-            cache_once_array_hits: Cell::new(0),
-            cache_once_array_misses: Cell::new(0),
-            seed,
+        let allocated = allocate_noise_chunk_state(
+            chunk_min_block_x,
+            chunk_min_block_z,
             settings,
+            seed,
+            &grid,
+            &template,
+        );
+        let vein_indexes = noise_chunk_vein_interpolator_indexes(&template);
+        let chunk = assemble_noise_chunk(
+            grid,
+            template,
+            allocated,
+            vein_indexes,
+            settings,
+            seed,
             noise_router,
-        };
-
-        // Fill slice0 for the first cell-X column (mirrors initializeForFirstCellX).
-        chunk.interpolating = true;
-        chunk.interpolation_counter = 0;
-        chunk.fill_interpolator_slice(true, first_cell_x * cell_width);
-        chunk
+        );
+        initialize_first_interpolator_slice(chunk)
     }
 
     /// Fill the *next* X-slice (slice1) for `first_cell_x + cell_x_index + 1`
@@ -503,7 +608,13 @@ impl NoiseChunk {
         bounds
     }
 
-    pub(super) fn normal_noise_sample(&self, noise_id: &'static str, x: f64, y: f64, z: f64) -> f64 {
+    pub(super) fn normal_noise_sample(
+        &self,
+        noise_id: &'static str,
+        x: f64,
+        y: f64,
+        z: f64,
+    ) -> f64 {
         if !self.normal_noise_cache.borrow().contains_key(noise_id) {
             let Some(snapshot) =
                 random_state_normal_noise_snapshot(self.seed, self.settings, noise_id)
@@ -570,7 +681,11 @@ impl NoiseChunk {
             .unwrap_or(0.0)
     }
 
-    pub(super) fn terrain_spline_value(&self, kind: TerrainSplineKind, context: TerrainSplineContext) -> f64 {
+    pub(super) fn terrain_spline_value(
+        &self,
+        kind: TerrainSplineKind,
+        context: TerrainSplineContext,
+    ) -> f64 {
         if let Some(value) = {
             let cache = self.terrain_spline_cache.borrow();
             cache.get(&kind).map(|spline| spline.apply(context))
