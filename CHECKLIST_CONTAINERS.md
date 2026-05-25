@@ -52,7 +52,7 @@
 
 ### In-inventory 2×2 crafting — prerequisite chain (must be done in order)
 
-- [ ] **Connect `CraftingGrid` to `RecipeMap`**: `player_inventory.rs` now builds `Vec<Option<&'static str>>` from grid slots, calls `RecipeMap::get_recipe_for("crafting", width, height, items)`, stores the matched recipe holder ID, and assembles the result via `holder.recipe.assemble()`; the unit test covers oak log to oak planks, two-stick torch output, empty result after take, and a mixed invalid recipe.
+- [x] **Connect `CraftingGrid` to `RecipeMap`**: Java 26.1.2 `InventoryMenu.slotsChanged()` routes its 2x2 `CraftingContainer` through `CraftingMenu.slotChangedCraftingGrid()`, which calls `RecipeManager.getRecipeFor(RecipeType.CRAFTING, input, level, hint)`, stores the recipe on the result container, and assembles the output; Rust `player_inventory.rs` builds `Vec<Option<&'static str>>` from grid slots, calls `RecipeMap::get_recipe_for("crafting", width, height, items)`, stores the matched recipe holder ID, and assembles the result via `holder.recipe.assemble()`; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 crafting_grid_updates_result_and_consumes_inputs_after_take`.
 
 - [ ] **Implement `InventoryMenu` slot layout**: `player_inventory::InventoryMenu` owns a `PlayerInventory` + `CraftingGrid` and exposes vanilla `InventoryMenu` slots: result=0, crafting grid=1-4, armor head/chest/legs/feet=5-8, main storage=9-35, hotbar=36-44, offhand=45. Reads/writes delegate to the backing inventory or grid, and slot 0 rejects placement.
 
