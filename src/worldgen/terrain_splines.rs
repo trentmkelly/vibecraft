@@ -277,17 +277,18 @@ pub(super) fn terrain_spline_context(
 
 pub(super) fn terrain_spline(kind: TerrainSplineKind) -> TerrainCubicSpline {
     match kind {
-        TerrainSplineKind::OverworldOffset | TerrainSplineKind::OverworldLargeBiomesOffset => {
+        TerrainSplineKind::Offset | TerrainSplineKind::LargeBiomesOffset => {
             overworld_offset_spline(false)
         }
-        TerrainSplineKind::OverworldAmplifiedOffset => overworld_offset_spline(true),
-        TerrainSplineKind::OverworldFactor | TerrainSplineKind::OverworldLargeBiomesFactor => {
+        TerrainSplineKind::AmplifiedOffset => overworld_offset_spline(true),
+        TerrainSplineKind::Factor | TerrainSplineKind::LargeBiomesFactor => {
             overworld_factor_spline(false)
         }
-        TerrainSplineKind::OverworldAmplifiedFactor => overworld_factor_spline(true),
-        TerrainSplineKind::OverworldJaggedness
-        | TerrainSplineKind::OverworldLargeBiomesJaggedness => overworld_jaggedness_spline(false),
-        TerrainSplineKind::OverworldAmplifiedJaggedness => overworld_jaggedness_spline(true),
+        TerrainSplineKind::AmplifiedFactor => overworld_factor_spline(true),
+        TerrainSplineKind::Jaggedness | TerrainSplineKind::LargeBiomesJaggedness => {
+            overworld_jaggedness_spline(false)
+        }
+        TerrainSplineKind::AmplifiedJaggedness => overworld_jaggedness_spline(true),
     }
 }
 
@@ -596,4 +597,3 @@ fn ridge_spline(
         .point_derivative(1.0, peaks, 0.7 * (peaks - high))
         .build()
 }
-

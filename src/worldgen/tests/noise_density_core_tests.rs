@@ -499,7 +499,7 @@ use super::*;
         let nether = *super::super::builtin_noise_generator_settings("nether").unwrap();
         let nether_sample =
             super::super::BASE_3D_NOISE_NETHER_DENSITY.compute_with_noise(12345, nether, 16, 64, -32);
-        assert!((nether_sample - 0.28724193742768880).abs() < 1e-12);
+        assert!((nether_sample - 0.287_241_937_427_688_8).abs() < 1e-12);
     }
 
     #[test]
@@ -576,15 +576,15 @@ use super::*;
             weirdness: 0.35,
             ridges: super::super::peaks_and_valleys(0.35),
         };
-        let offset = super::super::terrain_spline(super::super::TerrainSplineKind::OverworldOffset);
-        let factor = super::super::terrain_spline(super::super::TerrainSplineKind::OverworldFactor);
-        let jaggedness = super::super::terrain_spline(super::super::TerrainSplineKind::OverworldJaggedness);
+        let offset = super::super::terrain_spline(super::super::TerrainSplineKind::Offset);
+        let factor = super::super::terrain_spline(super::super::TerrainSplineKind::Factor);
+        let jaggedness = super::super::terrain_spline(super::super::TerrainSplineKind::Jaggedness);
         let amplified_offset =
-            super::super::terrain_spline(super::super::TerrainSplineKind::OverworldAmplifiedOffset);
+            super::super::terrain_spline(super::super::TerrainSplineKind::AmplifiedOffset);
         let amplified_factor =
-            super::super::terrain_spline(super::super::TerrainSplineKind::OverworldAmplifiedFactor);
+            super::super::terrain_spline(super::super::TerrainSplineKind::AmplifiedFactor);
         let amplified_jaggedness =
-            super::super::terrain_spline(super::super::TerrainSplineKind::OverworldAmplifiedJaggedness);
+            super::super::terrain_spline(super::super::TerrainSplineKind::AmplifiedJaggedness);
 
         assert!((offset.apply(context) - 0.3207085726435902).abs() < 1e-12);
         assert!((factor.apply(context) - 3.1937037037037035).abs() < 1e-12);

@@ -188,7 +188,7 @@ pub(super) fn noise_preview_tree_blocks(
         let tree_seed = tree_seed ^ (index as i64).wrapping_mul(10_000) as u64;
         let (trunk_state, leaves_state, base_height) =
             noise_preview_tree_materials(generation, tree_seed);
-        let plan = simple_tree_placement_plan(
+        let Ok(plan) = simple_tree_placement_plan(
             BlockPos {
                 x: local_x as i32,
                 y: surface_height,
@@ -212,8 +212,9 @@ pub(super) fn noise_preview_tree_blocks(
             "minecraft:dirt",
             (tree_seed & 0xffff) as i32,
             ((tree_seed >> 16) & 0xffff) as i32,
-        )
-        .expect("hard-coded preview tree configuration must validate");
+        ) else {
+            continue;
+        };
         blocks.extend(plan.blocks);
     }
     blocks
@@ -256,7 +257,7 @@ pub(super) fn live_tree_decoration_blocks(
     let features_per_step = if let Some(features_per_step) = global_features_per_step {
         features_per_step
     } else {
-        local_features_per_step = match build_features_per_step(&biome_steps, true) {
+        local_features_per_step = match build_features_per_step(biome_steps, true) {
             Ok(features) => features,
             Err(_) => return Vec::new(),
         };
@@ -269,8 +270,8 @@ pub(super) fn live_tree_decoration_blocks(
         chunk_pos.x,
         chunk_pos.z,
         settings.noise.min_y.div_euclid(16),
-        &features_per_step,
-        &biome_steps,
+        features_per_step,
+        biome_steps,
     );
     diagnostics.source_plan_ms += started.elapsed().as_millis();
     diagnostics.feature_calls_total += plan.feature_calls.len();
@@ -283,16 +284,14 @@ pub(super) fn live_tree_decoration_blocks(
     let mut blocks = Vec::new();
     let mut block_overlay = TreeBlockOverlay::default();
     let mut accepted_log_positions = trace_trees.then(HashSet::new);
-    for call in plan.feature_calls.iter().filter(|call| {
-        call.step_index == GenerationDecorationStep::VegetalDecoration as usize
-            && noise_preview_tree_feature_count_kind(call.feature).is_some()
+    for (call, count_kind) in plan.feature_calls.iter().filter_map(|call| {
+        let count_kind = noise_preview_tree_feature_count_kind(call.feature)?;
+        (call.step_index == GenerationDecorationStep::VegetalDecoration as usize)
+            .then_some((call, count_kind))
     }) {
         diagnostics.tree_feature_calls += 1;
         let mut random = RandomSourceKind::new(call.seed, RandomAlgorithm::Xoroshiro);
-        let count = live_tree_count(
-            noise_preview_tree_feature_count_kind(call.feature).unwrap(),
-            &mut random,
-        );
+        let count = live_tree_count(count_kind, &mut random);
         diagnostics.tree_attempts += count as usize;
 
         for attempt_index in 0..count {
@@ -644,7 +643,7 @@ pub(super) fn live_tree_decoration_blocks(
             diagnostics.validation_ms += started.elapsed().as_millis();
             diagnostics.validation_accepts += 1;
             let started = Instant::now();
-            let mut plan = live_tree_placement_plan(
+            let Ok(mut plan) = live_tree_placement_plan(
                 block_context,
                 &block_overlay,
                 origin,
@@ -653,8 +652,9 @@ pub(super) fn live_tree_decoration_blocks(
                 rand_b,
                 clipped_tree_height,
                 &mut random,
-            )
-            .expect("hard-coded preview tree configuration must validate");
+            ) else {
+                continue;
+            };
             append_live_tree_decorators(
                 chunk_pos,
                 block_context,
@@ -820,15 +820,13 @@ fn noise_preview_tree_origins(
     );
     let mut origins = Vec::new();
 
-    for call in plan.feature_calls.iter().filter(|call| {
-        call.step_index == GenerationDecorationStep::VegetalDecoration as usize
-            && noise_preview_tree_feature_count_kind(call.feature).is_some()
+    for (call, count_kind) in plan.feature_calls.iter().filter_map(|call| {
+        let count_kind = noise_preview_tree_feature_count_kind(call.feature)?;
+        (call.step_index == GenerationDecorationStep::VegetalDecoration as usize)
+            .then_some((call, count_kind))
     }) {
         let mut random = RandomSourceKind::new(call.seed, RandomAlgorithm::Xoroshiro);
-        let count = live_tree_count(
-            noise_preview_tree_feature_count_kind(call.feature).unwrap(),
-            &mut random,
-        );
+        let count = live_tree_count(count_kind, &mut random);
 
         for _ in 0..count {
             let local_x = feature_random_next_i32_bound(&mut random, 16) as usize;
@@ -1058,15 +1056,15 @@ pub(super) fn noise_preview_ground_cover_blocks(
                 continue;
             }
             let roll = noise_preview_cover_roll(seed, x as u64, z as u64);
-            let state = if sunflowers && roll % 97 == 0 {
+            let state = if sunflowers && roll.is_multiple_of(97) {
                 Some("minecraft:sunflower")
-            } else if flowers && roll % 23 == 0 {
+            } else if flowers && roll.is_multiple_of(23) {
                 Some(if biome == "minecraft:forest" {
                     "minecraft:poppy"
                 } else {
                     "minecraft:dandelion"
                 })
-            } else if grass && roll % 7 == 0 {
+            } else if grass && roll.is_multiple_of(7) {
                 Some("minecraft:short_grass")
             } else {
                 None

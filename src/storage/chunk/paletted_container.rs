@@ -20,11 +20,11 @@ pub fn unpack_palette_indices(data: &[i64], bits_per_entry: usize, count: usize)
     let values_per_long = 64 / bits_per_entry;
     let mask = (1_u64 << bits_per_entry) - 1;
     let mut indices = vec![0_u64; count];
-    for i in 0..count {
+    for (i, index) in indices.iter_mut().enumerate() {
         let word = i / values_per_long;
         let bit = (i % values_per_long) * bits_per_entry;
         if word < data.len() {
-            indices[i] = (data[word] as u64 >> bit) & mask;
+            *index = (data[word] as u64 >> bit) & mask;
         }
     }
     indices
@@ -267,9 +267,12 @@ pub(super) fn set_paletted_container_entry_in_nbt(
             },
             None => {
                 fields.push(("data".to_string(), Tag::LongArray(vec![0_i64; word_len])));
-                match &mut fields.last_mut().expect("data field was just inserted").1 {
+                let Some((_, tag)) = fields.last_mut() else {
+                    return false;
+                };
+                match tag {
                     Tag::LongArray(data) => data,
-                    _ => unreachable!(),
+                    _ => return false,
                 }
             }
         };
@@ -300,4 +303,3 @@ pub(super) fn set_paletted_container_entry_in_nbt(
     }
     true
 }
-

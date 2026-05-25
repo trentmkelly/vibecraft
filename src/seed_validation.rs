@@ -52,9 +52,11 @@ pub fn build_seed_parity_matrix() -> Vec<SeedParitySample> {
 
 pub fn build_seed_parity_sample(seed: i64, chunk_x: i32, chunk_z: i32) -> SeedParitySample {
     let initial_spawn = initial_spawn_position(false, false, false, chunk_x, chunk_z, 64, -64, 70);
-    let spawn_search_candidate =
+    let Some(spawn_search_candidate) =
         spawn_search_candidate(chunk_x * 16 + 8, chunk_z * 16 + 8, 10, 0, 17)
-            .expect("candidate below vanilla cap");
+    else {
+        panic!("seed parity spawn candidate index must stay below the vanilla cap");
+    };
     let structure_chunks = BUILTIN_STRUCTURE_SETS
         .iter()
         .filter_map(|set| match set.placement {

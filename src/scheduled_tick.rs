@@ -206,11 +206,13 @@ impl LevelTickQueues {
             let Some(chunk) = self.next_runnable_container(current_tick, &can_tick_chunk) else {
                 break;
             };
-            let tick = self
+            let Some(tick) = self
                 .containers
                 .get_mut(&chunk)
                 .and_then(TickContainer::poll)
-                .expect("selected runnable container has a tick");
+            else {
+                break;
+            };
             runnable.push(tick);
         }
         runnable

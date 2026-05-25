@@ -278,8 +278,9 @@ impl ServerThreadAccess {
     }
 
     pub fn assert_server_thread(self) {
-        self.check()
-            .expect("server state accessed from a non-server thread");
+        if self.check().is_err() {
+            panic!("server state accessed from a non-server thread");
+        }
     }
 }
 
@@ -773,13 +774,16 @@ impl ThreadPool {
                 thread::Builder::new()
                     .name(name)
                     .spawn(move || loop {
-                        let message = receiver.lock().unwrap().recv();
+                        let message = match receiver.lock() {
+                            Ok(receiver) => receiver.recv(),
+                            Err(_) => break,
+                        };
                         match message {
                             Ok(ThreadPoolMessage::Run(task)) => task(),
                             Ok(ThreadPoolMessage::Shutdown) | Err(_) => break,
                         }
                     })
-                    .expect("failed to spawn async runtime worker"),
+                    .unwrap_or_else(|err| panic!("failed to spawn async runtime worker: {err}")),
             );
         }
 
@@ -796,11 +800,9 @@ impl ThreadPool {
         R: Send + 'static,
     {
         let (result_sender, result_receiver) = mpsc::channel();
-        self.sender
-            .send(ThreadPoolMessage::Run(Box::new(move || {
-                let _ = result_sender.send(task());
-            })))
-            .expect("async runtime worker pool has stopped");
+        let _ = self.sender.send(ThreadPoolMessage::Run(Box::new(move || {
+            let _ = result_sender.send(task());
+        })));
         result_receiver
     }
 }

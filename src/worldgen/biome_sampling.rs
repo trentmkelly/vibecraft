@@ -124,11 +124,9 @@ pub fn get_biome(
 
 pub(super) fn biome_manager_obfuscate_seed(seed: i64) -> i64 {
     let digest = Sha256::digest(seed.to_le_bytes());
-    i64::from_le_bytes(
-        digest[0..8]
-            .try_into()
-            .expect("sha256 digest always has at least 8 bytes"),
-    )
+    i64::from_le_bytes([
+        digest[0], digest[1], digest[2], digest[3], digest[4], digest[5], digest[6], digest[7],
+    ])
 }
 
 pub(super) fn biome_manager_lcg_next(value: i64, salt: i64) -> i64 {
@@ -340,12 +338,11 @@ impl ChunkNoiseBiomeCache {
             else {
                 continue;
             };
-            for index in 0..BIOME_SECTION_VOLUME {
+            for (index, section_biome) in sections[section_index as usize].iter_mut().enumerate() {
                 let Some(Tag::String(biome)) = container.get_entry(index) else {
                     continue;
                 };
-                sections[section_index as usize][index] =
-                    static_biome_id(biome).unwrap_or("minecraft:plains");
+                *section_biome = static_biome_id(biome).unwrap_or("minecraft:plains");
             }
         }
         Self {
