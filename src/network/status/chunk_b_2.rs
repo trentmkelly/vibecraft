@@ -279,8 +279,11 @@ pub fn handle_play_respawn_request(
         compression,
         CLIENTBOUND_RESPAWN_PACKET_ID,
         |payload| {
-            write_common_spawn_info(payload, &spawn_info)?;
-            payload.write_all(&[0])
+            ClientboundRespawnPacket {
+                spawn_info,
+                data_to_keep: RespawnDataToKeep::NONE,
+            }
+            .write(payload)
         },
     )?;
 

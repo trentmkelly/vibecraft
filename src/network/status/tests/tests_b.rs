@@ -27,6 +27,61 @@ pub fn live_spawn_chunk_packet_uses_generated_level_chunk_serialization() {
 }
 
 #[test]
+pub fn live_login_writer_reuses_vanilla_common_spawn_codec() {
+    let login = ClientboundLoginPacket {
+        player_id: 42,
+        hardcore: true,
+        levels: vec![
+            Identifier::parse("minecraft:overworld").unwrap(),
+            Identifier::parse("minecraft:the_nether").unwrap(),
+        ],
+        max_players: 20,
+        chunk_radius: 10,
+        simulation_distance: 8,
+        reduced_debug_info: false,
+        show_death_screen: true,
+        do_limited_crafting: false,
+        spawn_info: CommonPlayerSpawnInfo {
+            dimension_type: Identifier::parse("minecraft:the_nether").unwrap(),
+            dimension: Identifier::parse("minecraft:the_nether").unwrap(),
+            seed: -7,
+            game_mode: GameMode::Creative,
+            previous_game_mode: Some(GameMode::Survival),
+            is_debug: false,
+            is_flat: true,
+            last_death_location: Some((
+                Identifier::parse("minecraft:overworld").unwrap(),
+                [1, 64, -2],
+            )),
+            portal_cooldown: 20,
+            sea_level: 32,
+        },
+        enforces_secure_chat: true,
+    };
+
+    let mut live_payload = Vec::new();
+    write_clientbound_login_packet(&mut live_payload, &login).unwrap();
+    let mut packet_payload = Vec::new();
+    login.write(&mut packet_payload).unwrap();
+    assert_eq!(live_payload, packet_payload);
+
+    let packed_position = pack_block_position(1, 64, -2).to_be_bytes();
+    assert!(live_payload
+        .windows(packed_position.len())
+        .any(|window| window == packed_position));
+
+    let fixed_int_position = [
+        1i32.to_be_bytes(),
+        64i32.to_be_bytes(),
+        (-2i32).to_be_bytes(),
+    ]
+    .concat();
+    assert!(!live_payload
+        .windows(fixed_int_position.len())
+        .any(|window| window == fixed_int_position));
+}
+
+#[test]
 pub fn generated_chunk_entity_add_packets_reads_queued_chunk_mob_nbt() {
     let mut chunk = LevelChunk::empty(ChunkPos { x: 2, z: -3 });
     chunk.entities.push(Tag::Compound(vec![

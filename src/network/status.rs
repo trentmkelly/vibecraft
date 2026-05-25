@@ -32,7 +32,7 @@ use crate::loot_system::{
     NumberProvider,
 };
 use crate::network::codec::ComponentJson;
-use crate::network::codec::{write_bitset, write_identifier, write_optional, write_uuid, Uuid};
+use crate::network::codec::{write_bitset, write_identifier, write_uuid, Uuid};
 use crate::network::common::{
     ClientboundDisconnectPacket, ClientboundServerLinksPacket, ServerLinkEntry, ServerLinkLabel,
     ServerLinkType,
@@ -53,13 +53,13 @@ use crate::network::play::{
     ClientboundAddEntityPacket, ClientboundContainerSetSlotPacket, ClientboundLevelChunkPacketData,
     ClientboundLevelChunkWithLightPacket, ClientboundLightUpdatePacketData, ClientboundLoginPacket,
     ClientboundCommandsPacket, ClientboundRecipeBookSettingsPacket,
-    ClientboundRemoveEntitiesPacket, ClientboundSetEntityDataPacket,
+    ClientboundRemoveEntitiesPacket, ClientboundRespawnPacket, ClientboundSetEntityDataPacket,
     ClientboundSetEntityMotionPacket, ClientboundSetHeldSlotPacket,
     ClientboundSetPlayerInventoryPacket, ClientboundSetTimePacket, ClientboundSystemChatPacket,
     ClientboundTakeItemEntityPacket, CommandNodeEntryData, CommandNodeStubData,
     CommonPlayerSpawnInfo, Direction3d, EntityDataValue, EntityMetadataValue, GameMode,
     PlayInstruction, PlayerChunkSender, RawDataComponentPatch, RawItemStack, ReadyChunkBatch,
-    RecipeBookType, RecipeBookTypeSettings,
+    RecipeBookType, RecipeBookTypeSettings, RespawnDataToKeep,
     ServerboundChatCommandPacket, ServerboundChatCommandSignedPacket, ServerboundChatPacket,
     ServerboundChunkBatchReceivedPacket, ServerboundCommandSuggestionPacket,
     ServerboundContainerClickPacket,

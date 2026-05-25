@@ -277,55 +277,7 @@ pub fn write_clientbound_login_packet<W: Write>(
     writer: &mut W,
     packet: &ClientboundLoginPacket,
 ) -> io::Result<()> {
-    writer.write_all(&packet.player_id.to_be_bytes())?;
-    write_bool(writer, packet.hardcore)?;
-    write_var_i32(writer, packet.levels.len() as i32)?;
-    for level in &packet.levels {
-        write_identifier(writer, level)?;
-    }
-    write_var_i32(writer, packet.max_players)?;
-    write_var_i32(writer, packet.chunk_radius)?;
-    write_var_i32(writer, packet.simulation_distance)?;
-    write_bool(writer, packet.reduced_debug_info)?;
-    write_bool(writer, packet.show_death_screen)?;
-    write_bool(writer, packet.do_limited_crafting)?;
-    write_common_spawn_info(writer, &packet.spawn_info)?;
-    write_bool(writer, packet.enforces_secure_chat)
-}
-
-pub fn write_common_spawn_info<W: Write>(
-    writer: &mut W,
-    spawn_info: &CommonPlayerSpawnInfo,
-) -> io::Result<()> {
-    write_var_i32(
-        writer,
-        dimension_type_registry_id(&spawn_info.dimension_type)?,
-    )?;
-    write_identifier(writer, &spawn_info.dimension)?;
-    writer.write_all(&spawn_info.seed.to_be_bytes())?;
-    writer.write_all(&[spawn_info.game_mode as u8])?;
-    writer.write_all(&[match spawn_info.previous_game_mode {
-        Some(GameMode::Survival) => 0,
-        Some(GameMode::Creative) => 1,
-        Some(GameMode::Adventure) => 2,
-        Some(GameMode::Spectator) => 3,
-        None => 255,
-    }])?;
-    write_bool(writer, spawn_info.is_debug)?;
-    write_bool(writer, spawn_info.is_flat)?;
-    write_optional(
-        writer,
-        spawn_info.last_death_location.as_ref(),
-        |writer, (dimension, pos)| {
-            write_identifier(writer, dimension)?;
-            for coordinate in pos {
-                writer.write_all(&coordinate.to_be_bytes())?;
-            }
-            Ok(())
-        },
-    )?;
-    write_var_i32(writer, spawn_info.portal_cooldown)?;
-    write_var_i32(writer, spawn_info.sea_level)
+    packet.write(writer)
 }
 
 pub fn game_mode_legacy_id(game_mode: GameMode) -> i32 {
@@ -355,17 +307,6 @@ pub fn game_mode_from_name(name: &str) -> GameMode {
         "adventure" => GameMode::Adventure,
         "spectator" => GameMode::Spectator,
         _ => GameMode::Survival,
-    }
-}
-
-pub fn dimension_type_registry_id(dimension_type: &Identifier) -> io::Result<i32> {
-    if dimension_type.namespace() == "minecraft" && dimension_type.path() == "overworld" {
-        Ok(0)
-    } else {
-        Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!("unsupported dimension type {dimension_type} in login packet"),
-        ))
     }
 }
 
@@ -796,4 +737,3 @@ pub fn escape_json_string(value: &str) -> String {
     }
     out
 }
-
