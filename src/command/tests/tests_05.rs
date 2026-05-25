@@ -2,8 +2,10 @@ use super::*;
 
 #[test]
 fn transfer_command_requires_admin_and_valid_port() {
-    let mut state = ServerCommandState::default();
-    state.command_source_player = Some(NameAndId::create_offline("Steve"));
+    let mut state = ServerCommandState {
+        command_source_player: Some(NameAndId::create_offline("Steve")),
+        ..Default::default()
+    };
     assert_eq!(
         command_required_permission("transfer"),
         PermissionLevel::Admins
@@ -683,7 +685,7 @@ fn random_value_and_roll_sample_ranges_without_permission() {
     assert!((1..=6).contains(&value.success_count));
     assert_eq!(value.feedback_key, "commands.random.sample.success");
     assert!(!value.broadcast_to_admins);
-    assert_eq!(state.random_broadcasts[0].announced, false);
+    assert!(!state.random_broadcasts[0].announced);
 
     let roll = execute_builtin_command(
         &mut state,
@@ -693,7 +695,7 @@ fn random_value_and_roll_sample_ranges_without_permission() {
     .unwrap();
     assert!((-2..=2).contains(&roll.success_count));
     assert_eq!(roll.feedback_key, "commands.random.roll");
-    assert_eq!(state.random_broadcasts[1].announced, true);
+    assert!(state.random_broadcasts[1].announced);
 }
 
 #[test]
