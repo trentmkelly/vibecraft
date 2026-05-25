@@ -513,19 +513,22 @@ pub fn resolve_vault_unlock_loot(
     player: impl Into<String>,
     inserted_key: impl Into<String>,
     origin: (f64, f64, f64),
+    player_luck: f32,
     seed: u64,
     game_time: i64,
 ) -> VaultInsertResult {
     let player = player.into();
-    let table = if vault.is_ominous {
-        "minecraft:trial_chambers/reward_ominous"
-    } else {
-        "minecraft:trial_chambers/reward"
+    let table = vault.config.loot_table.clone();
+    let inserted = PotItemStack {
+        item_id: inserted_key.into(),
+        count: 1,
     };
     let mut request = LootRequest::new(LootSurface::Vault, table);
     request.origin = origin;
     request.actor = Some(player.clone());
     request.target_entity = request.actor.clone();
+    request.tool = Some(inserted.item_id.clone());
+    request.luck = player_luck;
     let rewards = match engine.resolve(request, seed).delivery {
         LootDelivery::DropAt(_, stacks) => stacks
             .into_iter()
@@ -535,10 +538,6 @@ pub fn resolve_vault_unlock_loot(
             })
             .collect(),
         _ => Vec::new(),
-    };
-    let inserted = PotItemStack {
-        item_id: inserted_key.into(),
-        count: 1,
     };
     vault.try_insert_key(player, &inserted, rewards, game_time)
 }

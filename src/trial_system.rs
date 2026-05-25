@@ -24,8 +24,8 @@ impl TrialMode {
 
     pub fn reward_table(self) -> &'static str {
         match self {
-            Self::Normal => "minecraft:trial_chambers/reward",
-            Self::Ominous => "minecraft:trial_chambers/reward_ominous",
+            Self::Normal => "minecraft:chests/trial_chambers/reward",
+            Self::Ominous => "minecraft:chests/trial_chambers/reward_ominous",
         }
     }
 }
@@ -490,7 +490,7 @@ mod tests {
             reward,
             TrialSpawnerEvent::EjectReward {
                 item: "minecraft:trial_key".to_string(),
-                loot_table: "minecraft:trial_chambers/reward".to_string()
+                loot_table: "minecraft:chests/trial_chambers/reward".to_string()
             }
         );
         assert_eq!(
@@ -516,7 +516,7 @@ mod tests {
             normal.try_unlock("player-a", "minecraft:trial_key"),
             VaultUnlockResult::Unlocked {
                 player: "player-a".to_string(),
-                loot_table: "minecraft:trial_chambers/reward".to_string()
+                loot_table: "minecraft:chests/trial_chambers/reward".to_string()
             }
         );
         assert_eq!(

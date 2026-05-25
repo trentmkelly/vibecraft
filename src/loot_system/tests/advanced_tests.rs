@@ -380,15 +380,28 @@ fn apply_bonus_function_covers_uniform_binomial_and_ore_drop_formulas() {
 fn vault_loot_resolves_normal_and_ominous_tables_once_per_player() {
     let mut engine = LootBehaviorEngine::new();
     engine.insert_table(
-        "minecraft:trial_chambers/reward",
-        table_with_pool(LootPool::single(LootEntry::item("minecraft:emerald", 1))),
+        "minecraft:chests/trial_chambers/reward",
+        table_with_pool(LootPool::single(LootEntry::Item {
+            item: "minecraft:emerald".to_string(),
+            weight: 1,
+            quality: 0,
+            conditions: vec![LootCondition::MatchTool {
+                item: "minecraft:trial_key".to_string(),
+            }],
+            functions: Vec::new(),
+        })),
     );
     engine.insert_table(
-        "minecraft:trial_chambers/reward_ominous",
-        table_with_pool(LootPool::single(LootEntry::item(
-            "minecraft:ominous_bottle",
-            1,
-        ))),
+        "minecraft:chests/trial_chambers/reward_ominous",
+        table_with_pool(LootPool::single(LootEntry::Item {
+            item: "minecraft:ominous_bottle".to_string(),
+            weight: 1,
+            quality: 0,
+            conditions: vec![LootCondition::MatchTool {
+                item: "minecraft:ominous_trial_key".to_string(),
+            }],
+            functions: Vec::new(),
+        })),
     );
 
     let mut normal = VaultBlockEntity::default();
@@ -400,6 +413,7 @@ fn vault_loot_resolves_normal_and_ominous_tables_once_per_player() {
             "player-a",
             "minecraft:ominous_trial_key",
             (0.0, 64.0, 0.0),
+            0.0,
             9,
             20,
         ),
@@ -414,6 +428,7 @@ fn vault_loot_resolves_normal_and_ominous_tables_once_per_player() {
             "player-a",
             "minecraft:trial_key",
             (0.0, 64.0, 0.0),
+            0.0,
             9,
             40,
         ),
@@ -433,6 +448,7 @@ fn vault_loot_resolves_normal_and_ominous_tables_once_per_player() {
             "player-a",
             "minecraft:trial_key",
             (0.0, 64.0, 0.0),
+            0.0,
             9,
             60,
         ),
@@ -443,6 +459,7 @@ fn vault_loot_resolves_normal_and_ominous_tables_once_per_player() {
     ominous.state = crate::block_entity::VaultStateModel::Active;
     ominous.is_ominous = true;
     ominous.config.key_item.item_id = "minecraft:ominous_trial_key".to_string();
+    ominous.config.loot_table = "minecraft:chests/trial_chambers/reward_ominous".to_string();
     assert_eq!(
         resolve_vault_unlock_loot(
             &engine,
@@ -450,6 +467,7 @@ fn vault_loot_resolves_normal_and_ominous_tables_once_per_player() {
             "player-b",
             "minecraft:ominous_trial_key",
             (0.0, 64.0, 0.0),
+            0.0,
             10,
             80,
         ),
