@@ -185,6 +185,163 @@ pub fn write_component<W: Write>(writer: &mut W, component: &ComponentJson) -> i
     write_string(writer, &component.0, 262144)
 }
 
+pub fn read_trusted_component<R: Read>(reader: &mut R) -> io::Result<ComponentJson> {
+    let tag = read_network_nbt(reader)?;
+    let value = component_tag_to_json(&tag);
+    serde_json::to_string(&value)
+        .map(ComponentJson)
+        .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))
+}
+
+pub fn write_trusted_component<W: Write>(
+    writer: &mut W,
+    component: &ComponentJson,
+) -> io::Result<()> {
+    let tag = component_json_to_network_tag(&component.0);
+    write_network_nbt(writer, &tag)
+}
+
+fn read_network_nbt<R: Read>(reader: &mut R) -> io::Result<Tag> {
+    let mut id = [0u8; 1];
+    reader.read_exact(&mut id)?;
+    if id[0] == 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "expected non-null NBT tag",
+        ));
+    }
+    Tag::read_payload(id[0], reader)
+}
+
+fn write_network_nbt<W: Write>(writer: &mut W, tag: &Tag) -> io::Result<()> {
+    if matches!(tag, Tag::End) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "expected non-null NBT tag",
+        ));
+    }
+    writer.write_all(&[tag.id()])?;
+    tag.write_payload(writer)
+}
+
+fn component_json_to_network_tag(json: &str) -> Tag {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(json) else {
+        return Tag::String(json.to_string());
+    };
+
+    if let Some(text) = collapsible_literal_text(&value) {
+        return Tag::String(text.to_string());
+    }
+
+    json_value_to_nbt(&value).unwrap_or_else(|| Tag::String(json.to_string()))
+}
+
+fn collapsible_literal_text(value: &serde_json::Value) -> Option<&str> {
+    let serde_json::Value::Object(object) = value else {
+        return value.as_str();
+    };
+    if object.len() == 1 {
+        object.get("text").and_then(serde_json::Value::as_str)
+    } else {
+        None
+    }
+}
+
+fn json_value_to_nbt(value: &serde_json::Value) -> Option<Tag> {
+    match value {
+        serde_json::Value::Null => None,
+        serde_json::Value::Bool(value) => Some(Tag::Byte(i8::from(*value))),
+        serde_json::Value::Number(value) => {
+            if let Some(value) = value.as_i64() {
+                i32::try_from(value)
+                    .map(Tag::Int)
+                    .ok()
+                    .or_else(|| Some(Tag::Long(value)))
+            } else {
+                value.as_f64().map(Tag::Double)
+            }
+        }
+        serde_json::Value::String(value) => Some(Tag::String(value.clone())),
+        serde_json::Value::Array(values) => {
+            let mut tags = Vec::with_capacity(values.len());
+            for value in values {
+                tags.push(json_value_to_nbt(value)?);
+            }
+            Some(Tag::List(tags))
+        }
+        serde_json::Value::Object(object) => Some(Tag::Compound(
+            object
+                .iter()
+                .filter_map(|(key, value)| {
+                    json_value_to_nbt(value).map(|value| (key.clone(), value))
+                })
+                .collect(),
+        )),
+    }
+}
+
+fn component_tag_to_json(tag: &Tag) -> serde_json::Value {
+    match tag {
+        Tag::String(value) => {
+            let mut object = serde_json::Map::new();
+            object.insert(
+                "text".to_string(),
+                serde_json::Value::String(value.to_string()),
+            );
+            serde_json::Value::Object(object)
+        }
+        Tag::Compound(values) => serde_json::Value::Object(
+            values
+                .iter()
+                .map(|(key, value)| (key.clone(), nbt_tag_to_json(value)))
+                .collect(),
+        ),
+        other => nbt_tag_to_json(other),
+    }
+}
+
+fn nbt_tag_to_json(tag: &Tag) -> serde_json::Value {
+    match tag {
+        Tag::End => serde_json::Value::Null,
+        Tag::Byte(value) => serde_json::Value::Bool(*value != 0),
+        Tag::Short(value) => serde_json::Value::Number(i64::from(*value).into()),
+        Tag::Int(value) => serde_json::Value::Number(i64::from(*value).into()),
+        Tag::Long(value) => serde_json::Value::Number((*value).into()),
+        Tag::Float(value) => serde_json::Number::from_f64(f64::from(*value))
+            .map(serde_json::Value::Number)
+            .unwrap_or(serde_json::Value::Null),
+        Tag::Double(value) => serde_json::Number::from_f64(*value)
+            .map(serde_json::Value::Number)
+            .unwrap_or(serde_json::Value::Null),
+        Tag::ByteArray(values) => serde_json::Value::Array(
+            values
+                .iter()
+                .map(|value| serde_json::Value::Number(i64::from(*value).into()))
+                .collect(),
+        ),
+        Tag::String(value) => serde_json::Value::String(value.clone()),
+        Tag::List(values) => serde_json::Value::Array(values.iter().map(nbt_tag_to_json).collect()),
+        Tag::Compound(values) => serde_json::Value::Object(
+            values
+                .iter()
+                .map(|(key, value)| (key.clone(), nbt_tag_to_json(value)))
+                .collect(),
+        ),
+        Tag::IntArray(values) => serde_json::Value::Array(
+            values
+                .iter()
+                .map(|value| serde_json::Value::Number(i64::from(*value).into()))
+                .collect(),
+        ),
+        Tag::LongArray(values) => serde_json::Value::Array(
+            values
+                .iter()
+                .map(|value| serde_json::Value::Number((*value).into()))
+                .collect(),
+        ),
+    }
+}
+
 pub fn read_registry_value_id<R: Read>(reader: &mut R) -> io::Result<RegistryValueId> {
     Ok(RegistryValueId(read_var_i32(reader)?))
 }

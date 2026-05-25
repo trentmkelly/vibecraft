@@ -47,14 +47,21 @@ fn round_trips_keepalive_ping_pong_and_disconnect() {
     disconnect.write(&mut bytes).unwrap();
     assert_eq!(
         bytes,
-        vec![10, 8, 0, 4, b't', b'e', b'x', b't', 0, 3, b'b', b'y', b'e', 0]
+        vec![8, 0, 3, b'b', b'y', b'e'],
+        "Java's component codec collapses plain literal text to a TAG_String"
+    );
+    assert_eq!(
+        ClientboundDisconnectPacket::read(&mut Cursor::new(bytes)).unwrap(),
+        disconnect
     );
 }
 
 #[test]
 fn common_disconnect_uses_trusted_component_nbt_not_login_json() {
     let disconnect = ClientboundDisconnectPacket {
-        reason: ComponentJson("{\"text\":\"unexpected play packet 7\"}".to_string()),
+        reason: ComponentJson(
+            "{\"translate\":\"multiplayer.disconnect.outdated_client\"}".to_string(),
+        ),
     };
     let mut bytes = Vec::new();
     disconnect.write(&mut bytes).unwrap();
@@ -66,6 +73,10 @@ fn common_disconnect_uses_trusted_component_nbt_not_login_json() {
     assert!(
         !bytes.starts_with(&[b'{']) && !bytes.starts_with(&[0x20]),
         "common disconnect must not use login JSON/string component encoding"
+    );
+    assert_eq!(
+        ClientboundDisconnectPacket::read(&mut Cursor::new(bytes)).unwrap(),
+        disconnect
     );
 }
 

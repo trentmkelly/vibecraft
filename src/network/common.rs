@@ -5,8 +5,9 @@ use std::io::{self, Read, Write};
 
 use crate::network::codec::{
     read_collection, read_component, read_enum_index, read_identifier, read_optional, read_string,
-    read_uuid, write_collection, write_component, write_enum_index, write_identifier,
-    write_optional, write_string, write_uuid, ComponentJson, Uuid,
+    read_trusted_component, read_uuid, write_collection, write_component, write_enum_index,
+    write_identifier, write_optional, write_string, write_trusted_component, write_uuid,
+    ComponentJson, Uuid,
 };
 use crate::network::cookie::CookieState;
 use crate::network::varint::{read_var_i32, write_var_i32};
@@ -294,12 +295,12 @@ impl ServerboundPongPacket {
 impl ClientboundDisconnectPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         Ok(Self {
-            reason: read_component(reader)?,
+            reason: read_trusted_component(reader)?,
         })
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-        write_trusted_text_component(writer, &component_plain_text(&self.reason.0))
+        write_trusted_component(writer, &self.reason)
     }
 }
 
