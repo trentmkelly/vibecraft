@@ -510,7 +510,7 @@ fn play_game_mode(game_mode: crate::command::GameMode) -> GameMode {
     }
 }
 
-fn command_feedback_text(
+pub(super) fn command_feedback_text(
     result: &crate::command::CommandResult,
     state: &ServerCommandState,
 ) -> String {

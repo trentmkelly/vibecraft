@@ -45,6 +45,34 @@ pub fn rustcraft_debug_commands_packet_exposes_biome_literal() {
 }
 
 #[test]
+pub fn biome_debug_command_feedback_prints_current_biome() {
+    let mut state = crate::command::ServerCommandState {
+        command_source_position: crate::command::Vec3 {
+            x: 7.9,
+            y: 64.0,
+            z: -1.0,
+        },
+        biomes: vec![crate::command::BiomeEntry {
+            dimension: "minecraft:overworld".to_string(),
+            position: crate::command::BlockPos { x: 4, y: 64, z: -4 },
+            biome: "minecraft:forest".to_string(),
+        }],
+        ..crate::command::ServerCommandState::default()
+    };
+    let result = crate::command::execute_builtin_command(
+        &mut state,
+        crate::command::LevelBasedPermissionSet::ALL,
+        "biome",
+    )
+    .unwrap();
+
+    assert_eq!(
+        command_feedback_text(&result, &state),
+        "Biome: minecraft:forest"
+    );
+}
+
+#[test]
 pub fn pseudo_rand_f32_produces_values_in_unit_interval() {
     for seed in [-100_i32, 0, 1, 42, i32::MAX, i32::MIN] {
         for index in 0..4_u32 {

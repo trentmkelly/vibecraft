@@ -272,8 +272,8 @@ mod player_creative_packets;
 mod chunk_c;
 pub use chunk_c::*;
 
-mod chunk_c_2;
-pub use chunk_c_2::*;
+mod play_session_world_packets;
+pub use play_session_world_packets::*;
 
 mod chunk_d;
 pub use chunk_d::*;
