@@ -228,7 +228,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundCustomPayloadPacket` (0x18) — `minecraft:brand` and unknown payload channels up to vanilla 1 MiB cap
 - [ ] `ClientboundStartConfigurationPacket` (0x69): triggers switch from play back to configuration state
 - [ ] `ServerboundConfigurationAcknowledgedPacket` (0x10): empty terminal payload; triggers play→configuration ack
-- [ ] `ClientboundPingPacket` (0x3D): ID int
+- [x] `ClientboundPingPacket` (0x3D / decimal 61): signed ID int (big-endian); verified against Java common `readInt`/`writeInt`, `CommonPacketTypes.CLIENTBOUND_PING`, play registration order, Rust protocol registry ID/name mapping, and direct read/write byte coverage including negative IDs.
 - [ ] `ServerboundPongPacket` (0x2D): ID int
 - [ ] `ClientboundDisconnectPacket` (0x20 in 26.1.2 play/common): reason component via `ComponentSerialization.TRUSTED_CONTEXT_FREE_STREAM_CODEC` network NBT tag
 - [ ] `ServerboundSignUpdatePacket` (0x3D): block pos, is-front-text bool, 4 UTF-8 lines capped at 384 chars each
