@@ -474,87 +474,93 @@ pub(super) fn assert_tree_size_and_basic_tree_support() {
             2
         ));
         let root_plan = super::super::root_system_placement_plan(
-            BlockPos {
-                x: 400,
-                y: 64,
-                z: 400,
-            },
-            true,
-            &root_system_config,
-            &[
-                super::super::RootSystemTreeCandidateModel {
-                    pos: BlockPos {
-                        x: 400,
-                        y: 65,
-                        z: 400,
-                    },
-                    allowed_tree_position: true,
-                    vertical_space_states: vec![
-                        "minecraft:air",
-                        "minecraft:water",
-                        "minecraft:air",
-                    ],
-                    below_state: "minecraft:stone",
-                    tree_feature_places: false,
-                },
-                super::super::RootSystemTreeCandidateModel {
-                    pos: BlockPos {
-                        x: 400,
-                        y: 66,
-                        z: 400,
-                    },
-                    allowed_tree_position: true,
-                    vertical_space_states: vec!["minecraft:air", "minecraft:air", "minecraft:air"],
-                    below_state: "minecraft:dirt",
-                    tree_feature_places: true,
-                },
-            ],
-            &[
-                super::super::RootSystemOffsetRoll {
-                    positive_x: 2,
-                    negative_x: 1,
-                    positive_z: 1,
-                    ..Default::default()
-                },
-                super::super::RootSystemOffsetRoll {
-                    positive_x: 0,
-                    negative_x: 0,
-                    positive_z: 0,
-                    negative_z: 1,
-                    ..Default::default()
-                },
-            ],
-            &[
-                super::super::RootSystemOffsetRoll {
-                    positive_x: 1,
-                    positive_y: 1,
-                    positive_z: 0,
-                    ..Default::default()
-                },
-                super::super::RootSystemOffsetRoll {
-                    negative_x: 1,
-                    negative_y: 1,
-                    negative_z: 1,
-                    ..Default::default()
-                },
-            ],
-            &[
-                BlockPos {
-                    x: 401,
-                    y: 64,
-                    z: 401,
-                },
-                BlockPos {
+            super::super::RootSystemPlacementInput {
+                origin: BlockPos {
                     x: 400,
                     y: 64,
-                    z: 399,
+                    z: 400,
                 },
-            ],
-            &[BlockPos {
-                x: 401,
-                y: 65,
-                z: 400,
-            }],
+                origin_is_air: true,
+                config: &root_system_config,
+                tree_candidates: &[
+                    super::super::RootSystemTreeCandidateModel {
+                        pos: BlockPos {
+                            x: 400,
+                            y: 65,
+                            z: 400,
+                        },
+                        allowed_tree_position: true,
+                        vertical_space_states: vec![
+                            "minecraft:air",
+                            "minecraft:water",
+                            "minecraft:air",
+                        ],
+                        below_state: "minecraft:stone",
+                        tree_feature_places: false,
+                    },
+                    super::super::RootSystemTreeCandidateModel {
+                        pos: BlockPos {
+                            x: 400,
+                            y: 66,
+                            z: 400,
+                        },
+                        allowed_tree_position: true,
+                        vertical_space_states: vec![
+                            "minecraft:air",
+                            "minecraft:air",
+                            "minecraft:air",
+                        ],
+                        below_state: "minecraft:dirt",
+                        tree_feature_places: true,
+                    },
+                ],
+                root_rolls: &[
+                    super::super::RootSystemOffsetRoll {
+                        positive_x: 2,
+                        negative_x: 1,
+                        positive_z: 1,
+                        ..Default::default()
+                    },
+                    super::super::RootSystemOffsetRoll {
+                        positive_x: 0,
+                        negative_x: 0,
+                        positive_z: 0,
+                        negative_z: 1,
+                        ..Default::default()
+                    },
+                ],
+                hanging_root_rolls: &[
+                    super::super::RootSystemOffsetRoll {
+                        positive_x: 1,
+                        positive_y: 1,
+                        positive_z: 0,
+                        ..Default::default()
+                    },
+                    super::super::RootSystemOffsetRoll {
+                        negative_x: 1,
+                        negative_y: 1,
+                        negative_z: 1,
+                        ..Default::default()
+                    },
+                ],
+                root_replaceable_positions: &[
+                    BlockPos {
+                        x: 401,
+                        y: 64,
+                        z: 401,
+                    },
+                    BlockPos {
+                        x: 400,
+                        y: 64,
+                        z: 399,
+                    },
+                ],
+                hanging_root_candidates: &[BlockPos {
+                    x: 401,
+                    y: 65,
+                    z: 400,
+                }],
+            },
         )
         .unwrap();
         assert_eq!(
@@ -599,18 +605,20 @@ pub(super) fn assert_tree_size_and_basic_tree_support() {
         );
         assert!(
             !super::super::root_system_placement_plan(
-                BlockPos {
-                    x: 400,
-                    y: 64,
-                    z: 400,
+                super::super::RootSystemPlacementInput {
+                    origin: BlockPos {
+                        x: 400,
+                        y: 64,
+                        z: 400,
+                    },
+                    origin_is_air: false,
+                    config: &root_system_config,
+                    tree_candidates: &[],
+                    root_rolls: &[],
+                    hanging_root_rolls: &[],
+                    root_replaceable_positions: &[],
+                    hanging_root_candidates: &[],
                 },
-                false,
-                &root_system_config,
-                &[],
-                &[],
-                &[],
-                &[],
-                &[],
             )
             .unwrap()
             .attempted_roots
