@@ -258,7 +258,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] Add a Mineflayer offline-mode login transport-framing test that captures raw packet boundaries around handshake, login success, compression enablement, and configuration entry, then compares official-vs-RustCraft framing and disconnect behavior.
 - [ ] Add a Mineflayer offline-mode half-open login test that leaves a bot socket idle after TCP connect, after handshake, and after login start, then verifies vanilla-compatible timeout, slot cleanup, and later successful login.
 - [ ] Implement Netty-equivalent pipeline behavior: frame decode, packet decode, compression, encryption, packet encode, frame encode.
-- [ ] Implement VarInt and VarLong exactly.
+- [x] Implement VarInt and VarLong exactly. — `network::varint` matches Java `VarInt`/`VarLong` unsigned-shift write loops, five-byte/ten-byte maximum sizes, Java `getByteSize` boundary behavior, signed min/max and negative encodings, and oversized/truncated decoder errors; covered by focused `network::varint` tests.
 - [ ] Implement string, identifier, UUID, optional, collection, enum, bitset, NBT, component, and registry-aware byte buffer codecs.
 - [ ] Implement packet size limits and malformed packet disconnect behavior.
 - [ ] Implement legacy ping/status compatibility if still accepted by 26.1.2 clients.
