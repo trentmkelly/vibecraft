@@ -177,7 +177,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundAwardStatsPacket` (0x05): stat map (stat type VarInt, stat ID VarInt -> value VarInt)
 - [x] `ClientboundSetExperiencePacket` (0x67 / decimal 103): experience-progress float, level VarInt, total-experience VarInt; verified field order against Java, Rust packet round-trip coverage, and live raw join.
 - [x] `ClientboundSetHealthPacket` (0x68 / decimal 104): health float, food VarInt, saturation float; verified field order against Java, Rust packet round-trip coverage, and live raw join.
-- [ ] `ClientboundGameEventPacket` (0x26): event unsigned byte and float parameter (also covers mode-change event 3 = change game mode)
+- [x] `ClientboundGameEventPacket` (0x26): event unsigned byte and float parameter (also covers mode-change event 3 = change game mode); verified by the Join/World-state packet audit above against Java `ClientboundGameEventPacket`, direct Rust packet byte-layout/malformed-input coverage, and live mode-change emission through `write_game_event`.
 - [ ] `ClientboundPlayerLookAtPacket` (0x47): from-anchor enum VarInt, target X/Y/Z doubles, optional entity ID VarInt and to-anchor enum VarInt
 
 ## Interactions / Block / Entity Actions (Serverbound)
