@@ -267,6 +267,9 @@ pub use play_session_state_updates::*;
 mod chunk_b_2;
 pub use chunk_b_2::*;
 
+mod play_session_state_nbt;
+pub use play_session_state_nbt::*;
+
 mod player_book_packets;
 mod player_creative_packets;
 
