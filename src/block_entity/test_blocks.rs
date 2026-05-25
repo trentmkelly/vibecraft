@@ -196,15 +196,6 @@ impl TestInstanceBlockEntityData {
     }
 }
 
-impl Default for TestInstanceBlockEntityState {
-    fn default() -> Self {
-        Self {
-            data: TestInstanceBlockEntityData::default(),
-            errors: Vec::new(),
-        }
-    }
-}
-
 impl TestInstanceBlockEntityState {
     pub fn save_additional(&self) -> Tag {
         let mut fields = vec![("data".to_string(), self.data.to_tag())];

@@ -364,16 +364,6 @@ impl HangingSignAttachment {
     }
 }
 
-impl Default for SignLine {
-    fn default() -> Self {
-        Self {
-            raw: String::new(),
-            filtered: String::new(),
-            click_command: None,
-        }
-    }
-}
-
 impl SignLine {
     pub fn new(raw: impl Into<String>, filtered: impl Into<String>) -> Self {
         Self {
@@ -498,17 +488,6 @@ impl SignText {
             .unwrap_or(DyeColor::Black);
         text.has_glowing_text = get_bool(entries, "has_glowing_text").unwrap_or(false);
         text
-    }
-}
-
-impl Default for SignBlockEntityModel {
-    fn default() -> Self {
-        Self {
-            front_text: SignText::default(),
-            back_text: SignText::default(),
-            is_waxed: false,
-            player_who_may_edit: None,
-        }
     }
 }
 

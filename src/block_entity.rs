@@ -207,7 +207,7 @@ pub struct TestInstanceErrorMarker {
     pub text: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TestInstanceBlockEntityState {
     pub data: TestInstanceBlockEntityData,
     pub errors: Vec<TestInstanceErrorMarker>,
@@ -461,7 +461,7 @@ pub enum HangingSignAttachment {
     CeilingMiddle,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SignLine {
     pub raw: String,
     pub filtered: String,
@@ -475,7 +475,7 @@ pub struct SignText {
     pub has_glowing_text: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SignBlockEntityModel {
     pub front_text: SignText,
     pub back_text: SignText,

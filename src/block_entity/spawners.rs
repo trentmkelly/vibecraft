@@ -143,13 +143,12 @@ impl SpawnerBlockEntity {
     }
 
     pub fn get_or_create_next_spawn_data(&mut self, random_roll: usize) -> &SpawnDataModel {
-        if self.next_spawn_data.is_none() {
+        self.next_spawn_data.get_or_insert_with(|| {
             let selected = weighted_spawn_data(&self.spawn_potentials, random_roll)
                 .cloned()
                 .unwrap_or_default();
-            self.next_spawn_data = Some(selected);
-        }
-        self.next_spawn_data.as_ref().unwrap()
+            selected
+        })
     }
 
     pub fn set_entity_id(&mut self, entity_id: impl Into<String>) {
@@ -614,124 +613,146 @@ impl TrialSpawnerBlockEntity {
         }
 
         match self.state {
-            TrialSpawnerStateModel::Inactive => {
-                self.state = TrialSpawnerStateModel::WaitingForPlayers;
-                TrialSpawnerTickResult::StateChanged(self.state)
-            }
-            TrialSpawnerStateModel::WaitingForPlayers => {
-                if !context.can_spawn_in_level || self.active_config().spawn_potentials.is_empty() {
-                    return TrialSpawnerTickResult::Waiting;
-                }
-                self.detect_players(context.detected_player_count, context.game_time);
-                if self.detected_players.is_empty() {
-                    TrialSpawnerTickResult::Waiting
-                } else {
-                    self.state = TrialSpawnerStateModel::Active;
-                    TrialSpawnerTickResult::DetectedPlayers(self.detected_players.len())
-                }
-            }
-            TrialSpawnerStateModel::Active => {
-                if !context.can_spawn_in_level {
-                    self.state = TrialSpawnerStateModel::WaitingForPlayers;
-                    return TrialSpawnerTickResult::StateChanged(self.state);
-                }
-                self.detect_players(context.detected_player_count, context.game_time);
-                let additional_players = self.detected_players.len().saturating_sub(1);
-                let target_total = self.active_config().target_total_mobs(additional_players);
-                if self.total_mobs_spawned >= target_total {
-                    if self.current_mobs.is_empty() {
-                        self.cooldown_ends_at =
-                            context.game_time + i64::from(self.config.target_cooldown_length);
-                        self.total_mobs_spawned = 0;
-                        self.next_mob_spawns_at = 0;
-                        self.state = TrialSpawnerStateModel::WaitingForRewardEjection;
-                        return TrialSpawnerTickResult::ReadyForRewards;
-                    }
-                    return TrialSpawnerTickResult::Waiting;
-                }
-                let simultaneous = self
-                    .active_config()
-                    .target_simultaneous_mobs(additional_players);
-                if context.game_time >= self.next_mob_spawns_at
-                    && (self.current_mobs.len() as i32) < simultaneous
-                    && context.spawn_success
-                {
-                    let spawn_data = self.select_next_spawn_data(context.roll);
-                    let entity_id = spawn_data
-                        .entity_id()
-                        .unwrap_or("minecraft:pig")
-                        .to_string();
-                    self.current_mobs
-                        .push(format!("mob-{}", self.total_mobs_spawned + 1));
-                    self.total_mobs_spawned += 1;
-                    self.next_mob_spawns_at =
-                        context.game_time + i64::from(self.active_config().ticks_between_spawn);
-                    self.next_spawn_data =
-                        weighted_spawn_data(&self.active_config().spawn_potentials, context.roll)
-                            .cloned();
-                    TrialSpawnerTickResult::SpawnMob { entity_id }
-                } else {
-                    TrialSpawnerTickResult::Waiting
-                }
-            }
+            TrialSpawnerStateModel::Inactive => self.tick_inactive(),
+            TrialSpawnerStateModel::WaitingForPlayers => self.tick_waiting_for_players(context),
+            TrialSpawnerStateModel::Active => self.tick_active(context),
             TrialSpawnerStateModel::WaitingForRewardEjection => {
-                let cooldown_started_at =
-                    self.cooldown_ends_at - i64::from(self.config.target_cooldown_length);
-                if context.game_time >= cooldown_started_at + Self::DETECT_PLAYER_SPAWN_BUFFER {
-                    self.state = TrialSpawnerStateModel::EjectingReward;
-                    TrialSpawnerTickResult::StateChanged(self.state)
-                } else {
-                    TrialSpawnerTickResult::Waiting
-                }
+                self.tick_waiting_for_reward_ejection(context.game_time)
             }
-            TrialSpawnerStateModel::EjectingReward => {
-                let cooldown_started_at =
-                    self.cooldown_ends_at - i64::from(self.config.target_cooldown_length);
-                if (context.game_time - cooldown_started_at) % Self::TIME_BETWEEN_REWARD_EJECTIONS
-                    != 0
-                {
-                    return TrialSpawnerTickResult::Waiting;
-                }
-                if self.detected_players.is_empty() {
-                    self.ejecting_loot_table = None;
-                    self.state = TrialSpawnerStateModel::Cooldown;
-                    return TrialSpawnerTickResult::StateChanged(self.state);
-                }
-                let loot_table = self
-                    .ejecting_loot_table
-                    .clone()
-                    .or_else(|| {
-                        self.active_config()
-                            .loot_tables_to_eject
-                            .get(context.roll)
-                            .cloned()
-                    })
-                    .unwrap_or_else(|| "minecraft:empty".to_string());
-                self.ejecting_loot_table = Some(loot_table.clone());
-                self.detected_players.remove(0);
-                TrialSpawnerTickResult::EjectedReward {
-                    loot_table,
-                    remaining_players: self.detected_players.len(),
-                }
-            }
-            TrialSpawnerStateModel::Cooldown => {
-                self.detect_players(context.detected_player_count, context.game_time);
-                if !self.detected_players.is_empty() {
-                    self.total_mobs_spawned = 0;
-                    self.next_mob_spawns_at = 0;
-                    self.state = TrialSpawnerStateModel::Active;
-                    TrialSpawnerTickResult::StateChanged(self.state)
-                } else if context.game_time >= self.cooldown_ends_at {
-                    self.is_ominous = false;
-                    self.current_mobs.clear();
-                    self.next_spawn_data = None;
-                    self.ejecting_loot_table = None;
-                    self.state = TrialSpawnerStateModel::WaitingForPlayers;
-                    TrialSpawnerTickResult::CooldownFinished
-                } else {
-                    TrialSpawnerTickResult::Waiting
-                }
-            }
+            TrialSpawnerStateModel::EjectingReward => self.tick_ejecting_reward(context),
+            TrialSpawnerStateModel::Cooldown => self.tick_cooldown(context),
+        }
+    }
+
+    fn tick_inactive(&mut self) -> TrialSpawnerTickResult {
+        self.state = TrialSpawnerStateModel::WaitingForPlayers;
+        TrialSpawnerTickResult::StateChanged(self.state)
+    }
+
+    fn tick_waiting_for_players(
+        &mut self,
+        context: TrialSpawnerTickContext,
+    ) -> TrialSpawnerTickResult {
+        if !context.can_spawn_in_level || self.active_config().spawn_potentials.is_empty() {
+            return TrialSpawnerTickResult::Waiting;
+        }
+        self.detect_players(context.detected_player_count, context.game_time);
+        if self.detected_players.is_empty() {
+            TrialSpawnerTickResult::Waiting
+        } else {
+            self.state = TrialSpawnerStateModel::Active;
+            TrialSpawnerTickResult::DetectedPlayers(self.detected_players.len())
+        }
+    }
+
+    fn tick_active(&mut self, context: TrialSpawnerTickContext) -> TrialSpawnerTickResult {
+        if !context.can_spawn_in_level {
+            self.state = TrialSpawnerStateModel::WaitingForPlayers;
+            return TrialSpawnerTickResult::StateChanged(self.state);
+        }
+        self.detect_players(context.detected_player_count, context.game_time);
+        let additional_players = self.detected_players.len().saturating_sub(1);
+        let target_total = self.active_config().target_total_mobs(additional_players);
+        if self.total_mobs_spawned >= target_total {
+            return self.finish_spawning_if_mobs_defeated(context.game_time);
+        }
+
+        let simultaneous = self
+            .active_config()
+            .target_simultaneous_mobs(additional_players);
+        if context.game_time >= self.next_mob_spawns_at
+            && (self.current_mobs.len() as i32) < simultaneous
+            && context.spawn_success
+        {
+            self.spawn_trial_mob(context)
+        } else {
+            TrialSpawnerTickResult::Waiting
+        }
+    }
+
+    fn finish_spawning_if_mobs_defeated(&mut self, game_time: i64) -> TrialSpawnerTickResult {
+        if !self.current_mobs.is_empty() {
+            return TrialSpawnerTickResult::Waiting;
+        }
+        self.cooldown_ends_at = game_time + i64::from(self.config.target_cooldown_length);
+        self.total_mobs_spawned = 0;
+        self.next_mob_spawns_at = 0;
+        self.state = TrialSpawnerStateModel::WaitingForRewardEjection;
+        TrialSpawnerTickResult::ReadyForRewards
+    }
+
+    fn spawn_trial_mob(&mut self, context: TrialSpawnerTickContext) -> TrialSpawnerTickResult {
+        let spawn_data = self.select_next_spawn_data(context.roll);
+        let entity_id = spawn_data
+            .entity_id()
+            .unwrap_or("minecraft:pig")
+            .to_string();
+        self.current_mobs
+            .push(format!("mob-{}", self.total_mobs_spawned + 1));
+        self.total_mobs_spawned += 1;
+        self.next_mob_spawns_at =
+            context.game_time + i64::from(self.active_config().ticks_between_spawn);
+        self.next_spawn_data =
+            weighted_spawn_data(&self.active_config().spawn_potentials, context.roll).cloned();
+        TrialSpawnerTickResult::SpawnMob { entity_id }
+    }
+
+    fn tick_waiting_for_reward_ejection(&mut self, game_time: i64) -> TrialSpawnerTickResult {
+        let cooldown_started_at =
+            self.cooldown_ends_at - i64::from(self.config.target_cooldown_length);
+        if game_time >= cooldown_started_at + Self::DETECT_PLAYER_SPAWN_BUFFER {
+            self.state = TrialSpawnerStateModel::EjectingReward;
+            TrialSpawnerTickResult::StateChanged(self.state)
+        } else {
+            TrialSpawnerTickResult::Waiting
+        }
+    }
+
+    fn tick_ejecting_reward(&mut self, context: TrialSpawnerTickContext) -> TrialSpawnerTickResult {
+        let cooldown_started_at =
+            self.cooldown_ends_at - i64::from(self.config.target_cooldown_length);
+        if (context.game_time - cooldown_started_at) % Self::TIME_BETWEEN_REWARD_EJECTIONS != 0 {
+            return TrialSpawnerTickResult::Waiting;
+        }
+        if self.detected_players.is_empty() {
+            self.ejecting_loot_table = None;
+            self.state = TrialSpawnerStateModel::Cooldown;
+            return TrialSpawnerTickResult::StateChanged(self.state);
+        }
+        let loot_table = self
+            .ejecting_loot_table
+            .clone()
+            .or_else(|| {
+                self.active_config()
+                    .loot_tables_to_eject
+                    .get(context.roll)
+                    .cloned()
+            })
+            .unwrap_or_else(|| "minecraft:empty".to_string());
+        self.ejecting_loot_table = Some(loot_table.clone());
+        self.detected_players.remove(0);
+        TrialSpawnerTickResult::EjectedReward {
+            loot_table,
+            remaining_players: self.detected_players.len(),
+        }
+    }
+
+    fn tick_cooldown(&mut self, context: TrialSpawnerTickContext) -> TrialSpawnerTickResult {
+        self.detect_players(context.detected_player_count, context.game_time);
+        if !self.detected_players.is_empty() {
+            self.total_mobs_spawned = 0;
+            self.next_mob_spawns_at = 0;
+            self.state = TrialSpawnerStateModel::Active;
+            TrialSpawnerTickResult::StateChanged(self.state)
+        } else if context.game_time >= self.cooldown_ends_at {
+            self.is_ominous = false;
+            self.current_mobs.clear();
+            self.next_spawn_data = None;
+            self.ejecting_loot_table = None;
+            self.state = TrialSpawnerStateModel::WaitingForPlayers;
+            TrialSpawnerTickResult::CooldownFinished
+        } else {
+            TrialSpawnerTickResult::Waiting
         }
     }
 
