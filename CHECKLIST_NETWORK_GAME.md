@@ -174,7 +174,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 ## Player Abilities / Stats / Game Mode Packets
 
 - [x] `ClientboundPlayerAbilitiesPacket` (0x40 / decimal 64): flags byte (invulnerable/flying/allow-flying/instant-build), flying speed float, walking speed float; verified field order against Java, Rust byte-layout coverage, and live raw join.
-- [ ] `ClientboundAwardStatsPacket` (0x05): stat map (stat type VarInt, stat ID VarInt -> value VarInt)
+- [x] `ClientboundAwardStatsPacket` (0x03 / decimal 3): stat map length VarInt followed by stat type VarInt, stat value VarInt, and value VarInt entries; verified against Java `ClientboundAwardStatsPacket` `ByteBufCodecs.map(Stat.STREAM_CODEC, VAR_INT)`, Java play-protocol registration order, Rust protocol registry ID/name mapping, and direct VarInt byte-layout coverage.
 - [x] `ClientboundSetExperiencePacket` (0x67 / decimal 103): experience-progress float, level VarInt, total-experience VarInt; verified field order against Java, Rust packet round-trip coverage, and live raw join.
 - [x] `ClientboundSetHealthPacket` (0x68 / decimal 104): health float, food VarInt, saturation float; verified field order against Java, Rust packet round-trip coverage, and live raw join.
 - [x] `ClientboundGameEventPacket` (0x26): event unsigned byte and float parameter (also covers mode-change event 3 = change game mode); verified by the Join/World-state packet audit above against Java `ClientboundGameEventPacket`, direct Rust packet byte-layout/malformed-input coverage, and live mode-change emission through `write_game_event`.
