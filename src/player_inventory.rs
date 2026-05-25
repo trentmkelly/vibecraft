@@ -870,61 +870,64 @@ impl InventoryMenu {
         let Some(source) = InventoryMenuSlot::from_vanilla_slot(slot) else {
             return ItemStack::empty();
         };
-        let mut moving = if source == InventoryMenuSlot::Result {
-            self.take_result()
-        } else {
-            let stack = self.get_slot(slot).unwrap_or_else(ItemStack::empty);
-            if stack.is_empty() {
-                return ItemStack::empty();
-            }
-            self.set_slot(slot, ItemStack::empty());
-            stack
-        };
-        let original = moving.clone();
+        let original = self.get_slot(slot).unwrap_or_else(ItemStack::empty);
+        if original.is_empty() {
+            return ItemStack::empty();
+        }
+        let mut moving = original.clone();
 
         match source {
             InventoryMenuSlot::Result => {
-                self.insert_into_ranges(&mut moving, &[36..45, 9..36]);
+                self.insert_into_range(&mut moving, 9..45, true);
             }
             InventoryMenuSlot::Hotbar(_) => {
-                self.insert_into_ranges(&mut moving, &[9..36]);
+                self.insert_into_range(&mut moving, 9..36, false);
             }
             InventoryMenuSlot::Storage(_) => {
-                self.insert_into_armor_slot_if_possible(&mut moving);
-                self.insert_into_ranges(&mut moving, &[36..45]);
+                self.insert_into_equipment_slot_if_possible(&mut moving);
+                self.insert_into_range(&mut moving, 36..45, false);
             }
             _ => {
-                self.insert_into_ranges(&mut moving, &[9..36, 36..45]);
+                self.insert_into_range(&mut moving, 9..45, false);
             }
         }
 
-        if !moving.is_empty() && source != InventoryMenuSlot::Result {
-            self.set_slot(slot, moving);
+        if moving.count() == original.count() {
+            return ItemStack::empty();
         }
+        if source == InventoryMenuSlot::Result {
+            return self.take_result();
+        }
+        self.set_slot(slot, moving);
         original
     }
 
-    fn insert_into_ranges(&mut self, stack: &mut ItemStack, ranges: &[std::ops::Range<usize>]) {
-        for range in ranges {
-            for slot in range.clone() {
-                if stack.is_empty() {
-                    return;
-                }
-                self.merge_into_slot(slot, stack);
-            }
+    fn insert_into_range(
+        &mut self,
+        stack: &mut ItemStack,
+        range: std::ops::Range<usize>,
+        backwards: bool,
+    ) {
+        let mut slots: Vec<usize> = range.collect();
+        if backwards {
+            slots.reverse();
         }
-        for range in ranges {
-            for slot in range.clone() {
-                if stack.is_empty() {
-                    return;
-                }
-                self.move_into_empty_slot(slot, stack);
+        for &slot in &slots {
+            if stack.is_empty() {
+                return;
             }
+            self.merge_into_slot(slot, stack);
+        }
+        for &slot in &slots {
+            if stack.is_empty() {
+                return;
+            }
+            self.move_into_empty_slot(slot, stack);
         }
     }
 
-    fn insert_into_armor_slot_if_possible(&mut self, stack: &mut ItemStack) {
-        let Some(slot) = matching_armor_menu_slot(stack.item_id()) else {
+    fn insert_into_equipment_slot_if_possible(&mut self, stack: &mut ItemStack) {
+        let Some(slot) = matching_equipment_menu_slot(stack) else {
             return;
         };
         self.move_into_empty_slot(slot, stack);
@@ -1055,6 +1058,20 @@ fn find_player_slot_matching(
         (!stack.is_empty() && stack.count() >= amount && ingredient.matches(stack.item_id()))
             .then_some((slot, stack.item_id()))
     })
+}
+
+fn matching_equipment_menu_slot(stack: &ItemStack) -> Option<usize> {
+    match stack.component("minecraft:equippable") {
+        Some(crate::item_properties::ItemComponent::Equippable { slot, .. }) => match slot {
+            crate::item_properties::EquipmentSlot::Head => Some(5),
+            crate::item_properties::EquipmentSlot::Chest => Some(6),
+            crate::item_properties::EquipmentSlot::Legs => Some(7),
+            crate::item_properties::EquipmentSlot::Feet => Some(8),
+            crate::item_properties::EquipmentSlot::OffHand => Some(45),
+            _ => None,
+        },
+        _ => matching_armor_menu_slot(stack.item_id()),
+    }
 }
 
 fn matching_armor_menu_slot(item_id: &str) -> Option<usize> {

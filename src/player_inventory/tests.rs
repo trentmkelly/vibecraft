@@ -525,7 +525,7 @@ fn inventory_menu_quick_move_uses_vanilla_inventory_zones() {
     let crafted = menu.quick_move(0);
     assert_eq!(crafted.item_id(), "minecraft:oak_planks");
     assert_eq!(crafted.count(), 4);
-    assert_eq!(menu.get_slot(36).unwrap().item_id(), "minecraft:oak_planks");
+    assert_eq!(menu.get_slot(44).unwrap().item_id(), "minecraft:oak_planks");
     assert!(menu.get_slot(1).unwrap().is_empty());
     assert!(menu.get_slot(0).unwrap().is_empty());
 
@@ -543,6 +543,11 @@ fn inventory_menu_quick_move_uses_vanilla_inventory_zones() {
     assert_eq!(storage.item_id(), "minecraft:apple");
     assert_eq!(menu.get_slot(36).unwrap().item_id(), "minecraft:apple");
 
+    menu.set_slot(11, ItemStack::new("minecraft:shield", 1));
+    let shield = menu.quick_move(11);
+    assert_eq!(shield.item_id(), "minecraft:shield");
+    assert_eq!(menu.get_slot(45).unwrap().item_id(), "minecraft:shield");
+
     menu.set_slot(10, ItemStack::new("minecraft:leather_boots", 1));
     let boots = menu.quick_move(10);
     assert_eq!(boots.item_id(), "minecraft:leather_boots");
@@ -550,6 +555,15 @@ fn inventory_menu_quick_move_uses_vanilla_inventory_zones() {
         menu.get_slot(8).unwrap().item_id(),
         "minecraft:leather_boots"
     );
+
+    let mut full = InventoryMenu::new(PlayerInventory::new(), crafting_test_recipes());
+    full.set_slot(1, ItemStack::new("minecraft:oak_log", 1));
+    for slot in 9..45 {
+        full.set_slot(slot, ItemStack::new("minecraft:cobblestone", 64));
+    }
+    assert!(full.quick_move(0).is_empty());
+    assert_eq!(full.get_slot(1).unwrap().item_id(), "minecraft:oak_log");
+    assert_eq!(full.get_slot(0).unwrap().item_id(), "minecraft:oak_planks");
 }
 
 #[test]
