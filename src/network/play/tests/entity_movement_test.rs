@@ -842,7 +842,7 @@ fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
         block_entity,
         [
             pack_block_position(1, 64, -2).to_be_bytes().to_vec(),
-            vec![1, 0],
+            vec![1, 10, 0],
         ]
         .concat()
     );

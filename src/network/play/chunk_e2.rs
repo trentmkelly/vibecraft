@@ -370,7 +370,6 @@ pub(super) fn write_i64<W: Write>(writer: &mut W, value: i64) -> io::Result<()> 
 
 pub(super) fn write_network_compound_tag<W: Write>(writer: &mut W, tag: &Tag) -> io::Result<()> {
     match tag {
-        Tag::Compound(fields) if fields.is_empty() => writer.write_all(&[0]),
         Tag::Compound(_) => write_network_tag(writer, tag),
         _ => Err(io::Error::new(
             io::ErrorKind::InvalidInput,
