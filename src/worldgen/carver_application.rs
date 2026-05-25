@@ -171,20 +171,20 @@ fn carve_ellipsoid_into_chunk(
     noise_chunk: &NoiseChunk,
     mut aquifer: Option<&mut NoiseBasedAquifer>,
 ) -> usize {
-    let positions = carver_ellipsoid_candidate_positions(
+    let positions = carver_ellipsoid_candidate_positions(CarverEllipsoidInput {
         chunk_min_x,
         chunk_min_z,
         height_context,
-        false,
+        upgrading: false,
         x,
         y,
         z,
         horizontal_radius,
         vertical_radius,
-        mask,
-        false,
+        existing_mask_indices: mask,
+        debug_enabled: false,
         skip_model,
-    );
+    });
     let mut carved = 0;
     for pos in positions {
         let Some(block) = chunk.get_block_state_name(pos.x, pos.y, pos.z) else {

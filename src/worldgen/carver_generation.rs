@@ -429,53 +429,61 @@ pub fn carver_carve_block(
     })
 }
 
-pub fn carver_ellipsoid_candidate_positions(
-    chunk_min_x: i32,
-    chunk_min_z: i32,
-    height_context: WorldGenerationHeightContext,
-    upgrading: bool,
-    x: f64,
-    y: f64,
-    z: f64,
-    horizontal_radius: f64,
-    vertical_radius: f64,
-    existing_mask_indices: &[usize],
-    debug_enabled: bool,
-    skip_model: CarverSkipModel<'_>,
-) -> Vec<BlockPos> {
-    let chunk_middle_x = chunk_min_x + 8;
-    let chunk_middle_z = chunk_min_z + 8;
-    let max_delta = 16.0 + horizontal_radius * 2.0;
-    if (x - f64::from(chunk_middle_x)).abs() > max_delta
-        || (z - f64::from(chunk_middle_z)).abs() > max_delta
+pub struct CarverEllipsoidInput<'a> {
+    pub chunk_min_x: i32,
+    pub chunk_min_z: i32,
+    pub height_context: WorldGenerationHeightContext,
+    pub upgrading: bool,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+    pub horizontal_radius: f64,
+    pub vertical_radius: f64,
+    pub existing_mask_indices: &'a [usize],
+    pub debug_enabled: bool,
+    pub skip_model: CarverSkipModel<'a>,
+}
+
+pub fn carver_ellipsoid_candidate_positions(input: CarverEllipsoidInput<'_>) -> Vec<BlockPos> {
+    let chunk_middle_x = input.chunk_min_x + 8;
+    let chunk_middle_z = input.chunk_min_z + 8;
+    let max_delta = 16.0 + input.horizontal_radius * 2.0;
+    if (input.x - f64::from(chunk_middle_x)).abs() > max_delta
+        || (input.z - f64::from(chunk_middle_z)).abs() > max_delta
     {
         return Vec::new();
     }
 
-    let min_x_index = ((x - horizontal_radius).floor() as i32 - chunk_min_x - 1).max(0);
-    let max_x_index = ((x + horizontal_radius).floor() as i32 - chunk_min_x).min(15);
-    let min_y = ((y - vertical_radius).floor() as i32 - 1).max(height_context.min_y + 1);
-    let protected_blocks_on_top = if upgrading { 0 } else { 7 };
-    let max_y = ((y + vertical_radius).floor() as i32 + 1)
-        .min(height_context.min_y + height_context.height - 1 - protected_blocks_on_top);
-    let min_z_index = ((z - horizontal_radius).floor() as i32 - chunk_min_z - 1).max(0);
-    let max_z_index = ((z + horizontal_radius).floor() as i32 - chunk_min_z).min(15);
+    let min_x_index =
+        ((input.x - input.horizontal_radius).floor() as i32 - input.chunk_min_x - 1).max(0);
+    let max_x_index =
+        ((input.x + input.horizontal_radius).floor() as i32 - input.chunk_min_x).min(15);
+    let min_y =
+        ((input.y - input.vertical_radius).floor() as i32 - 1).max(input.height_context.min_y + 1);
+    let protected_blocks_on_top = if input.upgrading { 0 } else { 7 };
+    let max_y = ((input.y + input.vertical_radius).floor() as i32 + 1).min(
+        input.height_context.min_y + input.height_context.height - 1 - protected_blocks_on_top,
+    );
+    let min_z_index =
+        ((input.z - input.horizontal_radius).floor() as i32 - input.chunk_min_z - 1).max(0);
+    let max_z_index =
+        ((input.z + input.horizontal_radius).floor() as i32 - input.chunk_min_z).min(15);
     let mut positions = Vec::new();
 
     for x_index in min_x_index..=max_x_index {
-        let world_x = chunk_min_x + x_index;
-        let xd = (f64::from(world_x) + 0.5 - x) / horizontal_radius;
+        let world_x = input.chunk_min_x + x_index;
+        let xd = (f64::from(world_x) + 0.5 - input.x) / input.horizontal_radius;
         for z_index in min_z_index..=max_z_index {
-            let world_z = chunk_min_z + z_index;
-            let zd = (f64::from(world_z) + 0.5 - z) / horizontal_radius;
+            let world_z = input.chunk_min_z + z_index;
+            let zd = (f64::from(world_z) + 0.5 - input.z) / input.horizontal_radius;
             if xd * xd + zd * zd >= 1.0 {
                 continue;
             }
             for world_y in (min_y + 1..=max_y).rev() {
-                let yd = (f64::from(world_y) - 0.5 - y) / vertical_radius;
+                let yd = (f64::from(world_y) - 0.5 - input.y) / input.vertical_radius;
                 if carver_should_skip_ellipsoid_cell(
-                    skip_model,
-                    height_context,
+                    input.skip_model,
+                    input.height_context,
                     xd,
                     yd,
                     zd,
@@ -484,11 +492,11 @@ pub fn carver_ellipsoid_candidate_positions(
                     continue;
                 }
                 let Some(mask_index) =
-                    carver_mask_index(world_x, world_y, world_z, height_context.min_y)
+                    carver_mask_index(world_x, world_y, world_z, input.height_context.min_y)
                 else {
                     continue;
                 };
-                if debug_enabled || !existing_mask_indices.contains(&mask_index) {
+                if input.debug_enabled || !input.existing_mask_indices.contains(&mask_index) {
                     positions.push(BlockPos {
                         x: world_x,
                         y: world_y,
@@ -571,30 +579,37 @@ pub fn cave_room_radii(thickness: f32, y_scale: f64) -> (f64, f64) {
     (horizontal_radius, horizontal_radius * y_scale)
 }
 
-pub fn cave_tunnel_steps(
-    chunk_middle_x: f64,
-    chunk_middle_z: f64,
-    mut x: f64,
-    mut y: f64,
-    mut z: f64,
-    thickness: f32,
-    mut horizontal_rotation: f32,
-    mut vertical_rotation: f32,
-    distance: i32,
-    y_scale: f64,
-    horizontal_radius_multiplier: f64,
-    vertical_radius_multiplier: f64,
-    random_quarter_skip_rolls: &[i32],
-    rotation_rolls: &[(f32, f32, f32, f32, f32, f32)],
-) -> Vec<CaveTunnelStep> {
+pub struct CaveTunnelInput<'a> {
+    pub chunk_middle_x: f64,
+    pub chunk_middle_z: f64,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+    pub thickness: f32,
+    pub horizontal_rotation: f32,
+    pub vertical_rotation: f32,
+    pub distance: i32,
+    pub y_scale: f64,
+    pub horizontal_radius_multiplier: f64,
+    pub vertical_radius_multiplier: f64,
+    pub random_quarter_skip_rolls: &'a [i32],
+    pub rotation_rolls: &'a [(f32, f32, f32, f32, f32, f32)],
+}
+
+pub fn cave_tunnel_steps(input: CaveTunnelInput<'_>) -> Vec<CaveTunnelStep> {
     let mut steps = Vec::new();
     let mut y_rota = 0.0_f32;
     let mut x_rota = 0.0_f32;
-    for current_step in 0..distance {
+    let mut x = input.x;
+    let mut y = input.y;
+    let mut z = input.z;
+    let mut horizontal_rotation = input.horizontal_rotation;
+    let mut vertical_rotation = input.vertical_rotation;
+    for current_step in 0..input.distance {
         let horizontal_radius = 1.5
-            + f64::from((std::f32::consts::PI * current_step as f32 / distance as f32).sin())
-                * f64::from(thickness);
-        let vertical_radius = horizontal_radius * y_scale;
+            + f64::from((std::f32::consts::PI * current_step as f32 / input.distance as f32).sin())
+                * f64::from(input.thickness);
+        let vertical_radius = horizontal_radius * input.y_scale;
         let cos_x = vertical_rotation.cos();
         x += f64::from(horizontal_rotation.cos() * cos_x);
         y += f64::from(vertical_rotation.sin());
@@ -604,29 +619,31 @@ pub fn cave_tunnel_steps(
         horizontal_rotation += y_rota * 0.1;
         x_rota *= 0.9;
         y_rota *= 0.75;
-        let (xr_a, xr_b, xr_c, yr_a, yr_b, yr_c) = rotation_rolls
+        let (xr_a, xr_b, xr_c, yr_a, yr_b, yr_c) = input
+            .rotation_rolls
             .get(current_step as usize)
             .copied()
             .unwrap_or((0.5, 0.5, 0.0, 0.5, 0.5, 0.0));
         x_rota += (xr_a - xr_b) * xr_c * 2.0;
         y_rota += (yr_a - yr_b) * yr_c * 4.0;
-        let carve = random_quarter_skip_rolls
+        let carve = input
+            .random_quarter_skip_rolls
             .get(current_step as usize)
             .copied()
             .unwrap_or(1)
             .rem_euclid(4)
             != 0;
-        let can_reach = (x - chunk_middle_x) * (x - chunk_middle_x)
-            + (z - chunk_middle_z) * (z - chunk_middle_z)
-            - f64::from(distance - current_step).powi(2)
-            <= f64::from(thickness + 18.0).powi(2);
+        let can_reach = (x - input.chunk_middle_x) * (x - input.chunk_middle_x)
+            + (z - input.chunk_middle_z) * (z - input.chunk_middle_z)
+            - f64::from(input.distance - current_step).powi(2)
+            <= f64::from(input.thickness + 18.0).powi(2);
         steps.push(CaveTunnelStep {
             step: current_step,
             x,
             y,
             z,
-            horizontal_radius: horizontal_radius * horizontal_radius_multiplier,
-            vertical_radius: vertical_radius * vertical_radius_multiplier,
+            horizontal_radius: horizontal_radius * input.horizontal_radius_multiplier,
+            vertical_radius: vertical_radius * input.vertical_radius_multiplier,
             can_reach,
             carve,
         });
@@ -637,29 +654,36 @@ pub fn cave_tunnel_steps(
     steps
 }
 
-pub fn cave_tunnel_split_branch(
-    mut x: f64,
-    mut y: f64,
-    mut z: f64,
-    thickness: f32,
-    mut horizontal_rotation: f32,
-    mut vertical_rotation: f32,
-    distance: i32,
-    split_roll: i32,
-    steep_roll: i32,
-    left_thickness_roll: f32,
-    right_thickness_roll: f32,
-    rotation_rolls: &[(f32, f32, f32, f32, f32, f32)],
-) -> Option<CaveTunnelBranch> {
-    if distance < 2 || thickness <= 1.0 {
+pub struct CaveTunnelSplitInput<'a> {
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+    pub thickness: f32,
+    pub horizontal_rotation: f32,
+    pub vertical_rotation: f32,
+    pub distance: i32,
+    pub split_roll: i32,
+    pub steep_roll: i32,
+    pub left_thickness_roll: f32,
+    pub right_thickness_roll: f32,
+    pub rotation_rolls: &'a [(f32, f32, f32, f32, f32, f32)],
+}
+
+pub fn cave_tunnel_split_branch(input: CaveTunnelSplitInput<'_>) -> Option<CaveTunnelBranch> {
+    if input.distance < 2 || input.thickness <= 1.0 {
         return None;
     }
-    let split_point = split_roll.rem_euclid(distance / 2) + distance / 4;
-    let steep = steep_roll.rem_euclid(6) == 0;
+    let split_point = input.split_roll.rem_euclid(input.distance / 2) + input.distance / 4;
+    let steep = input.steep_roll.rem_euclid(6) == 0;
     let mut y_rota = 0.0_f32;
     let mut x_rota = 0.0_f32;
+    let mut x = input.x;
+    let mut y = input.y;
+    let mut z = input.z;
+    let mut horizontal_rotation = input.horizontal_rotation;
+    let mut vertical_rotation = input.vertical_rotation;
 
-    for current_step in 0..distance {
+    for current_step in 0..input.distance {
         let cos_x = vertical_rotation.cos();
         x += f64::from(horizontal_rotation.cos() * cos_x);
         y += f64::from(vertical_rotation.sin());
@@ -669,7 +693,8 @@ pub fn cave_tunnel_split_branch(
         horizontal_rotation += y_rota * 0.1;
         x_rota *= 0.9;
         y_rota *= 0.75;
-        let (xr_a, xr_b, xr_c, yr_a, yr_b, yr_c) = rotation_rolls
+        let (xr_a, xr_b, xr_c, yr_a, yr_b, yr_c) = input
+            .rotation_rolls
             .get(current_step as usize)
             .copied()
             .unwrap_or((0.5, 0.5, 0.0, 0.5, 0.5, 0.0));
@@ -682,12 +707,12 @@ pub fn cave_tunnel_split_branch(
                 x,
                 y,
                 z,
-                left_thickness: left_thickness_roll * 0.5 + 0.5,
-                right_thickness: right_thickness_roll * 0.5 + 0.5,
+                left_thickness: input.left_thickness_roll * 0.5 + 0.5,
+                right_thickness: input.right_thickness_roll * 0.5 + 0.5,
                 left_horizontal_rotation: horizontal_rotation - std::f32::consts::FRAC_PI_2,
                 right_horizontal_rotation: horizontal_rotation + std::f32::consts::FRAC_PI_2,
                 vertical_rotation: vertical_rotation / 3.0,
-                distance,
+                distance: input.distance,
             });
         }
     }
@@ -695,45 +720,54 @@ pub fn cave_tunnel_split_branch(
     None
 }
 
-pub fn canyon_tunnel_steps(
-    chunk_middle_x: f64,
-    chunk_middle_z: f64,
-    mut x: f64,
-    mut y: f64,
-    mut z: f64,
-    thickness: f32,
-    mut horizontal_rotation: f32,
-    mut vertical_rotation: f32,
-    distance: i32,
-    y_scale: f64,
-    default_vertical_factor: f32,
-    center_vertical_factor: f32,
-    random_quarter_skip_rolls: &[i32],
-    horizontal_radius_factor_rolls: &[f32],
-    vertical_radius_rolls: &[f32],
-    rotation_rolls: &[(f32, f32, f32, f32, f32, f32)],
-) -> Vec<CaveTunnelStep> {
+pub struct CanyonTunnelInput<'a> {
+    pub chunk_middle_x: f64,
+    pub chunk_middle_z: f64,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+    pub thickness: f32,
+    pub horizontal_rotation: f32,
+    pub vertical_rotation: f32,
+    pub distance: i32,
+    pub y_scale: f64,
+    pub default_vertical_factor: f32,
+    pub center_vertical_factor: f32,
+    pub random_quarter_skip_rolls: &'a [i32],
+    pub horizontal_radius_factor_rolls: &'a [f32],
+    pub vertical_radius_rolls: &'a [f32],
+    pub rotation_rolls: &'a [(f32, f32, f32, f32, f32, f32)],
+}
+
+pub fn canyon_tunnel_steps(input: CanyonTunnelInput<'_>) -> Vec<CaveTunnelStep> {
     let mut steps = Vec::new();
     let mut y_rota = 0.0_f32;
     let mut x_rota = 0.0_f32;
-    for current_step in 0..distance {
+    let mut x = input.x;
+    let mut y = input.y;
+    let mut z = input.z;
+    let mut horizontal_rotation = input.horizontal_rotation;
+    let mut vertical_rotation = input.vertical_rotation;
+    for current_step in 0..input.distance {
         let base_horizontal_radius = 1.5
-            + f64::from((current_step as f32 * std::f32::consts::PI / distance as f32).sin())
-                * f64::from(thickness);
-        let horizontal_factor = horizontal_radius_factor_rolls
+            + f64::from((current_step as f32 * std::f32::consts::PI / input.distance as f32).sin())
+                * f64::from(input.thickness);
+        let horizontal_factor = input
+            .horizontal_radius_factor_rolls
             .get(current_step as usize)
             .copied()
             .unwrap_or(1.0);
-        let vertical_roll = vertical_radius_rolls
+        let vertical_roll = input
+            .vertical_radius_rolls
             .get(current_step as usize)
             .copied()
             .unwrap_or(1.0);
         let horizontal_radius = base_horizontal_radius * f64::from(horizontal_factor);
         let vertical_radius = canyon_vertical_radius(
-            default_vertical_factor,
-            center_vertical_factor,
-            base_horizontal_radius * y_scale,
-            distance,
+            input.default_vertical_factor,
+            input.center_vertical_factor,
+            base_horizontal_radius * input.y_scale,
+            input.distance,
             current_step,
             vertical_roll,
         );
@@ -746,22 +780,24 @@ pub fn canyon_tunnel_steps(
         horizontal_rotation += y_rota * 0.05;
         x_rota *= 0.8;
         y_rota *= 0.5;
-        let (xr_a, xr_b, xr_c, yr_a, yr_b, yr_c) = rotation_rolls
+        let (xr_a, xr_b, xr_c, yr_a, yr_b, yr_c) = input
+            .rotation_rolls
             .get(current_step as usize)
             .copied()
             .unwrap_or((0.5, 0.5, 0.0, 0.5, 0.5, 0.0));
         x_rota += (xr_a - xr_b) * xr_c * 2.0;
         y_rota += (yr_a - yr_b) * yr_c * 4.0;
-        let carve = random_quarter_skip_rolls
+        let carve = input
+            .random_quarter_skip_rolls
             .get(current_step as usize)
             .copied()
             .unwrap_or(1)
             .rem_euclid(4)
             != 0;
-        let can_reach = (x - chunk_middle_x) * (x - chunk_middle_x)
-            + (z - chunk_middle_z) * (z - chunk_middle_z)
-            - f64::from(distance - current_step).powi(2)
-            <= f64::from(thickness + 18.0).powi(2);
+        let can_reach = (x - input.chunk_middle_x) * (x - input.chunk_middle_x)
+            + (z - input.chunk_middle_z) * (z - input.chunk_middle_z)
+            - f64::from(input.distance - current_step).powi(2)
+            <= f64::from(input.thickness + 18.0).powi(2);
         steps.push(CaveTunnelStep {
             step: current_step,
             x,
