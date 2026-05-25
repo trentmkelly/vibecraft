@@ -214,6 +214,12 @@ struct LoginConnectionContext<'a> {
     rate_limiter: &'a mut PacketRateLimiter,
 }
 
+struct PlayConnectionContext<'a> {
+    shared: ConnectionSharedContext<'a>,
+    remote_address: &'a str,
+    rate_limiter: &'a mut PacketRateLimiter,
+}
+
 fn lock_status_mutex<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     match mutex.lock() {
         Ok(guard) => guard,
@@ -922,6 +928,29 @@ fn handle_login_connection(
         remote_address,
         rate_limiter,
         ..
+    } = context;
+    run_joined_play_session(
+        stream,
+        compression,
+        finished,
+        PlayConnectionContext {
+            shared,
+            remote_address,
+            rate_limiter,
+        },
+    )
+}
+
+fn run_joined_play_session(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    finished: ClientboundLoginFinishedPacket,
+    context: PlayConnectionContext<'_>,
+) -> io::Result<()> {
+    let PlayConnectionContext {
+        shared,
+        remote_address,
+        rate_limiter,
     } = context;
     let ConnectionSharedContext {
         properties,
