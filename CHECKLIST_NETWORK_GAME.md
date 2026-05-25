@@ -207,7 +207,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Block / Entity Action Packets (Clientbound)
 
-- [ ] `ClientboundBlockUpdatePacket` (0x08): block pos, block state VarInt
+- [x] `ClientboundBlockUpdatePacket` (0x08 / decimal 8): block pos followed by block-state registry VarInt; verified against Java `ClientboundBlockUpdatePacket` `BlockPos.STREAM_CODEC` plus `Block.BLOCK_STATE_REGISTRY` id mapper, Java play-protocol registration order, Rust protocol registry ID/name mapping, and direct packet byte-layout coverage.
 - [ ] `ClientboundSectionBlocksUpdatePacket` (0x47): section pos long, VarInt count, packed VarLong entries (`block_state_id << 12 | packed_section_pos`)
 - [ ] `ClientboundBlockEntityDataPacket` (0x07): block pos, block entity type registry VarInt, trusted compound NBT tag
 - [x] `ClientboundBlockEventPacket` (0x07 / decimal 7): block pos, action unsigned byte, param unsigned byte, block type registry VarInt; verified against Java `ClientboundBlockEventPacket` read/write order, Java play-protocol registration order, Rust protocol registry ID/name mapping, and direct packet byte-layout coverage.
