@@ -135,7 +135,7 @@ impl ClientboundTakeItemEntityPacket {
 impl ClientboundSetPlayerInventoryPacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.slot)?;
-        self.contents.write_optional_untrusted(writer)
+        self.contents.write_optional_trusted(writer)
     }
 }
 
@@ -237,7 +237,7 @@ impl EntityMetadataValue {
                 writer.write_all(payload)
             }
             Self::OptionalComponent(value) => write_optional_raw_payload(writer, value.as_deref()),
-            Self::ItemStack(stack) => stack.write_optional_untrusted(writer),
+            Self::ItemStack(stack) => stack.write_optional_trusted(writer),
             Self::Boolean(value) => write_bool(writer, *value),
             Self::Rotations(value) => {
                 write_f32(writer, value.x)?;
@@ -774,7 +774,7 @@ impl ClientboundSetEquipmentPacket {
                 slot | 0x80
             };
             writer.write_all(&[encoded_slot])?;
-            entry.item_stack.write_optional_untrusted(writer)?;
+            entry.item_stack.write_optional_trusted(writer)?;
         }
         Ok(())
     }

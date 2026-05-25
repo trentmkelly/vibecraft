@@ -2,7 +2,7 @@ use super::*;
 
 impl ClientboundSetCursorItemPacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-        self.item_stack.write_optional_untrusted(writer)
+        self.item_stack.write_optional_trusted(writer)
     }
 }
 

@@ -181,7 +181,7 @@ pub fn process_item_pickups(
                     } else {
                         RawItemStack::empty()
                     };
-                    raw.write_optional_untrusted(payload)?;
+                    raw.write_optional_trusted(payload)?;
                 }
                 // Cursor (carried) item — must reflect the actual server state.
                 // The player may have an item on their cursor (picked up via an earlier
@@ -199,7 +199,7 @@ pub fn process_item_pickups(
                 } else {
                     RawItemStack::empty()
                 };
-                raw_carried.write_optional_untrusted(payload)
+                raw_carried.write_optional_trusted(payload)
             },
         )?;
     }

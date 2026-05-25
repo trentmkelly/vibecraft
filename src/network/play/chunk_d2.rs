@@ -386,6 +386,21 @@ impl RawItemStack {
         self.components.write_delimited(writer)
     }
 
+    pub fn write_optional_trusted<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        if self.count <= 0 {
+            return write_var_i32(writer, 0);
+        }
+        let item_id = self.item_id.ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "non-empty item stack missing item id",
+            )
+        })?;
+        write_var_i32(writer, self.count)?;
+        write_var_i32(writer, item_id)?;
+        self.components.write_trusted(writer)
+    }
+
     pub fn write_required_trusted<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         if self.count <= 0 {
             return Err(io::Error::new(

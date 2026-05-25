@@ -755,6 +755,7 @@ fn entity_metadata_values_use_vanilla_26_1_2_serializer_ids_and_payloads() {
 }
 
 
+mod inventory_packet_item_stack_test;
 mod entity_movement_test;
 mod small_play_packets_test;
 mod tests_middle;

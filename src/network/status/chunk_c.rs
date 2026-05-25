@@ -140,7 +140,7 @@ pub fn write_inventory_menu_full_sync(
                 } else {
                     RawItemStack::empty()
                 };
-                raw.write_optional_untrusted(payload)?;
+                raw.write_optional_trusted(payload)?;
             }
             let carried = &state.carried_item;
             let raw_carried = if carried.is_empty() {
@@ -154,7 +154,7 @@ pub fn write_inventory_menu_full_sync(
             } else {
                 RawItemStack::empty()
             };
-            raw_carried.write_optional_untrusted(payload)
+            raw_carried.write_optional_trusted(payload)
         },
     )
 }
@@ -577,7 +577,7 @@ pub fn write_minimal_play_join(
                 } else {
                     RawItemStack::empty()
                 };
-                raw.write_optional_untrusted(payload)?;
+                raw.write_optional_trusted(payload)?;
             }
             // Carried (cursor) item.
             // Java: ServerPlayer.containerMenu.setRemoteCarried(carried)
@@ -593,7 +593,7 @@ pub fn write_minimal_play_join(
             } else {
                 RawItemStack::empty()
             };
-            raw_carried.write_optional_untrusted(payload)
+            raw_carried.write_optional_trusted(payload)
         },
     )?;
     write_framed_packet_with_compression(

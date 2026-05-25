@@ -495,9 +495,9 @@ impl ClientboundContainerPacket {
         write_var_i32(writer, self.state_id)?;
         write_var_i32(writer, self.slots.len() as i32)?;
         for slot in &self.slots {
-            slot.write_optional_untrusted(writer)?;
+            slot.write_optional_trusted(writer)?;
         }
-        self.carried_item.write_optional_untrusted(writer)
+        self.carried_item.write_optional_trusted(writer)
     }
 }
 
@@ -506,7 +506,7 @@ impl ClientboundContainerSetSlotPacket {
         write_var_i32(writer, self.container_id)?;
         write_var_i32(writer, self.state_id)?;
         write_i16(writer, self.slot)?;
-        self.item_stack.write_optional_untrusted(writer)
+        self.item_stack.write_optional_trusted(writer)
     }
 }
 
