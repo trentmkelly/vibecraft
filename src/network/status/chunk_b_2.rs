@@ -16,7 +16,9 @@ pub fn player_login_log_message(
     y: f64,
     z: f64,
 ) -> String {
-    format!("{player_name}[{loggable_address}] logged in with entity id {entity_id} at ({x}, {y}, {z})")
+    format!(
+        "{player_name}[{loggable_address}] logged in with entity id {entity_id} at ({x}, {y}, {z})"
+    )
 }
 
 pub fn play_packet_is_handled_after_state_update(packet_id: i32) -> bool {
@@ -66,6 +68,143 @@ pub fn play_packet_has_live_status_handler(packet_id: i32) -> bool {
         )
 }
 
+struct PickupEvent {
+    entity_id: i32,
+    picked_up: i32,
+    fully_consumed: bool,
+}
+
+fn collect_item_pickup_events(
+    state: &mut PlaySessionState,
+    player_uuid: &str,
+    world_items: &Arc<Mutex<WorldItemEntities>>,
+) -> io::Result<Vec<PickupEvent>> {
+    let mut events: Vec<PickupEvent> = Vec::new();
+    let mut items = world_items
+        .lock()
+        .map_err(|_| io::Error::other("world item entity lock poisoned"))?;
+    let (px, py, pz) = (state.x, state.y, state.z);
+    for entity in &mut items.entities {
+        if !entity.can_be_picked_up_by(player_uuid) {
+            continue;
+        }
+        if !item_entity::in_pickup_range(px, py, pz, entity.x, entity.y, entity.z) {
+            continue;
+        }
+        let original_count = entity.count;
+        let stack = ItemStack::new(entity.item, entity.count);
+        let (picked_up, new_count) = match state.inventory_menu.player_inventory_mut().add(stack) {
+            InventoryAddResult::FullyAdded => (original_count, 0),
+            InventoryAddResult::PartiallyAdded { remaining } => {
+                (original_count - remaining, remaining)
+            }
+            // Inventory rejected the item (e.g. full) -- skip.
+            InventoryAddResult::Rejected | InventoryAddResult::Dropped { .. } => continue,
+        };
+        entity.count = new_count;
+        events.push(PickupEvent {
+            entity_id: entity.entity_id,
+            picked_up,
+            fully_consumed: new_count <= 0,
+        });
+    }
+    items.entities.retain(|entity| entity.count > 0);
+    Ok(events)
+}
+
+fn write_item_pickup_packets<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    events: &[PickupEvent],
+) -> io::Result<()> {
+    for event in events {
+        write_take_item_entity_packet(writer, compression, event)?;
+        if event.fully_consumed {
+            write_remove_item_entity_packet(writer, compression, event.entity_id)?;
+        }
+    }
+    Ok(())
+}
+
+fn write_take_item_entity_packet<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    event: &PickupEvent,
+) -> io::Result<()> {
+    // Java: player.take(this, orgCount) sends TakeItemEntityPacket to all trackers.
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        CLIENTBOUND_TAKE_ITEM_ENTITY_PACKET_ID,
+        |payload| {
+            ClientboundTakeItemEntityPacket {
+                item_entity_id: event.entity_id,
+                collector_entity_id: 1, // player always has entity ID 1 in single-session setup
+                amount: event.picked_up,
+            }
+            .write(payload)
+        },
+    )
+}
+
+fn write_remove_item_entity_packet<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    entity_id: i32,
+) -> io::Result<()> {
+    // Java: if (itemStack.isEmpty()) this.discard() -> RemoveEntitiesPacket.
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID,
+        |payload| {
+            write_var_i32(payload, 1)?;
+            write_var_i32(payload, entity_id)
+        },
+    )
+}
+
+fn raw_item_stack_for_inventory_sync(stack: &ItemStack) -> RawItemStack {
+    if stack.is_empty() {
+        return RawItemStack::empty();
+    }
+    item_protocol_id(stack.item_id()).map_or_else(RawItemStack::empty, |pid| RawItemStack {
+        count: stack.count(),
+        item_id: Some(pid),
+        components: RawDataComponentPatch::empty(),
+    })
+}
+
+fn write_pickup_inventory_sync<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    state: &mut PlaySessionState,
+    times_changed_before: u32,
+) -> io::Result<()> {
+    if state.inventory_menu.player_inventory().times_changed() == times_changed_before {
+        return Ok(());
+    }
+    state.container_state_id = state.container_state_id.wrapping_add(1);
+    let new_state_id = state.container_state_id;
+    let slots = state.inventory_menu.all_slots();
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID,
+        |payload| {
+            payload.write_all(&[0])?; // container ID 0 = player inventory menu
+            write_var_i32(payload, new_state_id)?;
+            write_var_i32(payload, slots.len() as i32)?;
+            for stack in &slots {
+                raw_item_stack_for_inventory_sync(stack).write_optional_trusted(payload)?;
+            }
+            // The carried item must reflect server state so a ground pickup cannot
+            // wipe an item already held on the cursor by an earlier ContainerClick.
+            raw_item_stack_for_inventory_sync(&state.carried_item).write_optional_trusted(payload)
+        },
+    )
+}
+
 pub fn process_item_pickups(
     stream: &mut TcpStream,
     compression: CompressionState,
@@ -73,142 +212,13 @@ pub fn process_item_pickups(
     player_uuid: &str,
     world_items: &Arc<Mutex<WorldItemEntities>>,
 ) -> io::Result<()> {
-    // Snapshot which slots exist before any mutation so we can send only dirty ones.
-    // Java: Inventory.add() mutates slots; we detect changes via PlayerInventory.times_changed().
+    // Java: Inventory.add() mutates slots; we detect changes via times_changed().
     let times_changed_before = state.inventory_menu.player_inventory().times_changed();
-
-    // Phase 1: Under the lock, compute all pickups, mutate entity counts and inventory,
-    // then remove fully-consumed entities.  Packet sends are deferred to Phase 2 so the
-    // Mutex is not held during network I/O.
-    struct PickupEvent {
-        entity_id: i32,
-        picked_up: i32,
-        fully_consumed: bool,
-    }
-    let mut events: Vec<PickupEvent> = Vec::new();
-    {
-        let mut items = world_items.lock().unwrap();
-        let (px, py, pz) = (state.x, state.y, state.z);
-        for entity in items.entities.iter_mut() {
-            if !entity.can_be_picked_up_by(player_uuid) {
-                continue;
-            }
-            if !item_entity::in_pickup_range(px, py, pz, entity.x, entity.y, entity.z) {
-                continue;
-            }
-            let original_count = entity.count;
-            let stack = ItemStack::new(entity.item, entity.count);
-            let (picked_up, new_count) =
-                match state.inventory_menu.player_inventory_mut().add(stack) {
-                    InventoryAddResult::FullyAdded => (original_count, 0),
-                    InventoryAddResult::PartiallyAdded { remaining } => {
-                        (original_count - remaining, remaining)
-                    }
-                    // Inventory rejected the item (e.g. full) — skip.
-                    InventoryAddResult::Rejected | InventoryAddResult::Dropped { .. } => continue,
-                };
-            entity.count = new_count;
-            events.push(PickupEvent {
-                entity_id: entity.entity_id,
-                picked_up,
-                fully_consumed: new_count <= 0,
-            });
-        }
-        // Remove fully-consumed entities from the world store.
-        items.entities.retain(|e| e.count > 0);
-    }
-
-    // Phase 2: Send packets — lock is released, safe to block on network I/O.
-    for event in &events {
-        // 1. TakeItemEntity — triggers the client-side pickup animation and sound.
-        //    Java: player.take(this, orgCount) → sends TakeItemEntityPacket to all trackers.
-        write_framed_packet_with_compression(
-            stream,
-            compression,
-            CLIENTBOUND_TAKE_ITEM_ENTITY_PACKET_ID,
-            |p| {
-                ClientboundTakeItemEntityPacket {
-                    item_entity_id: event.entity_id,
-                    collector_entity_id: 1, // player always has entity ID 1 in single-session setup
-                    amount: event.picked_up,
-                }
-                .write(p)
-            },
-        )?;
-        // 2. RemoveEntities — only once the entire stack has been consumed.
-        //    Java: if (itemStack.isEmpty()) this.discard() → RemoveEntitiesPacket.
-        if event.fully_consumed {
-            write_framed_packet_with_compression(
-                stream,
-                compression,
-                CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID,
-                |p| {
-                    write_var_i32(p, 1)?;
-                    write_var_i32(p, event.entity_id)
-                },
-            )?;
-        }
-    }
-
-    // 3. ContainerSetContent — re-sync all 46 InventoryMenu slots so the client sees the
-    //    newly picked-up items AND receives the updated container_state_id it must echo in
-    //    its next ContainerClick.  Using SetPlayerInventory here would be wrong: that packet
-    //    carries no state_id, so incrementing container_state_id on the server while sending
-    //    it leaves the client tracking the old value, causing every subsequent crafting click
-    //    to be rejected as stale and the crafting result slot to remain empty.
-    //
-    //    Java: AbstractContainerMenu.broadcastChanges() → synchronizer.sendSlotChange()
-    //          → ClientboundContainerSetSlotPacket(containerId, incrementStateId(), slot, item).
-    //    We send the full ContainerSetContent (equivalent to broadcastFullState) rather than
-    //    per-slot ContainerSetSlot packets for simplicity.
-    if state.inventory_menu.player_inventory().times_changed() != times_changed_before {
-        state.container_state_id = state.container_state_id.wrapping_add(1);
-        let new_state_id = state.container_state_id;
-        let slots = state.inventory_menu.all_slots();
-        write_framed_packet_with_compression(
-            stream,
-            compression,
-            CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID,
-            |payload| {
-                payload.write_all(&[0])?; // container ID 0 = player inventory menu
-                write_var_i32(payload, new_state_id)?;
-                write_var_i32(payload, slots.len() as i32)?;
-                for stack in &slots {
-                    let raw = if stack.is_empty() {
-                        RawItemStack::empty()
-                    } else if let Some(pid) = item_protocol_id(stack.item_id()) {
-                        RawItemStack {
-                            count: stack.count(),
-                            item_id: Some(pid),
-                            components: RawDataComponentPatch::empty(),
-                        }
-                    } else {
-                        RawItemStack::empty()
-                    };
-                    raw.write_optional_trusted(payload)?;
-                }
-                // Cursor (carried) item — must reflect the actual server state.
-                // The player may have an item on their cursor (picked up via an earlier
-                // ContainerClick) at the same time a ground pickup fires; sending empty
-                // here would wipe the cursor on the client and make the held item vanish.
-                let carried = &state.carried_item;
-                let raw_carried = if carried.is_empty() {
-                    RawItemStack::empty()
-                } else if let Some(pid) = item_protocol_id(carried.item_id()) {
-                    RawItemStack {
-                        count: carried.count(),
-                        item_id: Some(pid),
-                        components: RawDataComponentPatch::empty(),
-                    }
-                } else {
-                    RawItemStack::empty()
-                };
-                raw_carried.write_optional_trusted(payload)
-            },
-        )?;
-    }
-
-    Ok(())
+    let events = collect_item_pickup_events(state, player_uuid, world_items)?;
+    write_item_pickup_packets(stream, compression, &events)?;
+    // Java: AbstractContainerMenu.broadcastChanges() sends slot updates with an
+    // incremented state ID. We send full ContainerSetContent for simplicity.
+    write_pickup_inventory_sync(stream, compression, state, times_changed_before)
 }
 
 pub fn load_play_session_state(
@@ -249,6 +259,163 @@ pub fn save_play_session_state(
     WorldLayout::new(world_root).save_player_data(uuid, &play_session_state_to_nbt(state))
 }
 
+fn respawn_last_death_location(pos: &PlayerGlobalPosData) -> io::Result<(Identifier, [i32; 3])> {
+    let dimension = Identifier::parse(&pos.dimension)
+        .or_else(|_| Identifier::new("minecraft", "overworld"))
+        .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
+    Ok((dimension, [pos.x, pos.y, pos.z]))
+}
+
+fn respawn_spawn_info(
+    state: &PlaySessionState,
+    world_seed: i64,
+) -> io::Result<CommonPlayerSpawnInfo> {
+    Ok(CommonPlayerSpawnInfo {
+        seed: world_seed,
+        game_mode: state.game_mode,
+        previous_game_mode: state.previous_game_mode,
+        last_death_location: state
+            .last_death_location
+            .as_ref()
+            .map(respawn_last_death_location)
+            .transpose()?,
+        ..CommonPlayerSpawnInfo::default()
+    })
+}
+
+fn write_respawn_packet<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    state: &PlaySessionState,
+    world_seed: i64,
+) -> io::Result<()> {
+    let spawn_info = respawn_spawn_info(state, world_seed)?;
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        CLIENTBOUND_RESPAWN_PACKET_ID,
+        |payload| {
+            ClientboundRespawnPacket {
+                spawn_info,
+                data_to_keep: RespawnDataToKeep::NONE,
+            }
+            .write(payload)
+        },
+    )
+}
+
+fn write_respawn_chunk_cache_packets<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    properties: &ServerProperties,
+    state: &PlaySessionState,
+) -> io::Result<()> {
+    let center_chunk_x = chunk_coordinate(state.x);
+    let center_chunk_z = chunk_coordinate(state.z);
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID,
+        |payload| {
+            write_var_i32(payload, center_chunk_x)?;
+            write_var_i32(payload, center_chunk_z)
+        },
+    )?;
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID,
+        |payload| write_var_i32(payload, properties.view_distance as i32),
+    )
+}
+
+fn write_respawn_position_packet<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    state: &PlaySessionState,
+) -> io::Result<()> {
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        CLIENTBOUND_PLAYER_POSITION_PACKET_ID,
+        |payload| {
+            write_var_i32(payload, 0)?;
+            write_vec3(payload, state.x, state.y, state.z)?;
+            write_vec3(payload, 0.0, 0.0, 0.0)?;
+            payload.write_all(&state.yaw.to_be_bytes())?;
+            payload.write_all(&state.pitch.to_be_bytes())?;
+            payload.write_all(&0_i32.to_be_bytes())
+        },
+    )
+}
+
+fn write_respawn_default_spawn_packet<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    world_root: &Path,
+    world_seed: i64,
+) -> io::Result<()> {
+    let default_spawn = world_spawn_suggestion(world_root, world_seed);
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID,
+        |payload| {
+            write_default_spawn_position_packet(
+                payload,
+                default_spawn.0,
+                default_spawn.1,
+                default_spawn.2,
+            )
+        },
+    )
+}
+
+fn write_respawn_status_packets<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    state: &PlaySessionState,
+) -> io::Result<()> {
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID,
+        |payload| {
+            payload.write_all(&[1])?;
+            write_bool(payload, false)
+        },
+    )?;
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        CLIENTBOUND_SET_EXPERIENCE_PACKET_ID,
+        |payload| {
+            payload.write_all(&state.xp_progress.to_be_bytes())?;
+            write_var_i32(payload, state.xp_level)?;
+            write_var_i32(payload, state.xp_total)
+        },
+    )
+}
+
+fn write_respawn_game_events<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    state: &PlaySessionState,
+) -> io::Result<()> {
+    write_game_event_to_writer(writer, compression, 2, 0.0)?;
+    write_play_state_health_packet(writer, compression, state)?;
+    write_play_state_air_supply_packet(writer, compression, state)?;
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        CLIENTBOUND_GAME_EVENT_PACKET_ID,
+        |payload| {
+            payload.write_all(&[LEVEL_CHUNKS_LOAD_START_GAME_EVENT_ID])?;
+            payload.write_all(&0.0f32.to_be_bytes())
+        },
+    )
+}
+
 pub fn handle_play_respawn_request(
     stream: &mut TcpStream,
     compression: CompressionState,
@@ -261,113 +428,16 @@ pub fn handle_play_respawn_request(
     apply_spawn_placement_to_state(state, spawn);
     reset_play_state_after_death_respawn(state);
 
-    let spawn_info = CommonPlayerSpawnInfo {
-        seed: world_seed,
-        game_mode: state.game_mode,
-        previous_game_mode: state.previous_game_mode,
-        last_death_location: state.last_death_location.as_ref().map(|pos| {
-            (
-                Identifier::parse(&pos.dimension).unwrap_or_else(|_| {
-                    Identifier::parse("minecraft:overworld").expect("valid fallback identifier")
-                }),
-                [pos.x, pos.y, pos.z],
-            )
-        }),
-        ..CommonPlayerSpawnInfo::default()
-    };
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_RESPAWN_PACKET_ID,
-        |payload| {
-            ClientboundRespawnPacket {
-                spawn_info,
-                data_to_keep: RespawnDataToKeep::NONE,
-            }
-            .write(payload)
-        },
-    )?;
-
-    let center_chunk_x = chunk_coordinate(state.x);
-    let center_chunk_z = chunk_coordinate(state.z);
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_SET_CHUNK_CACHE_CENTER_PACKET_ID,
-        |payload| {
-            write_var_i32(payload, center_chunk_x)?;
-            write_var_i32(payload, center_chunk_z)
-        },
-    )?;
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_PACKET_ID,
-        |payload| write_var_i32(payload, properties.view_distance as i32),
-    )?;
+    write_respawn_packet(stream, compression, state, world_seed)?;
+    write_respawn_chunk_cache_packets(stream, compression, properties, state)?;
     // Chunk payloads after respawn are flushed by the per-tick
     // drain_chunk_sender call in the play loop — the caller is responsible
     // for re-seeding the per-session PlayerChunkSender with the new
     // visible window. See handle_login_connection's respawn handling.
-
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_PLAYER_POSITION_PACKET_ID,
-        |payload| {
-            write_var_i32(payload, 0)?;
-            write_vec3(payload, state.x, state.y, state.z)?;
-            write_vec3(payload, 0.0, 0.0, 0.0)?;
-            payload.write_all(&state.yaw.to_be_bytes())?;
-            payload.write_all(&state.pitch.to_be_bytes())?;
-            payload.write_all(&0_i32.to_be_bytes())
-        },
-    )?;
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_PACKET_ID,
-        |payload| {
-            let default_spawn = world_spawn_suggestion(world_root, world_seed);
-            write_default_spawn_position_packet(
-                payload,
-                default_spawn.0,
-                default_spawn.1,
-                default_spawn.2,
-            )
-        },
-    )?;
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID,
-        |payload| {
-            payload.write_all(&[1])?;
-            write_bool(payload, false)
-        },
-    )?;
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_SET_EXPERIENCE_PACKET_ID,
-        |payload| {
-            payload.write_all(&state.xp_progress.to_be_bytes())?;
-            write_var_i32(payload, state.xp_level)?;
-            write_var_i32(payload, state.xp_total)
-        },
-    )?;
-    write_game_event_to_writer(stream, compression, 2, 0.0)?;
-    write_play_state_health_packet(stream, compression, state)?;
-    write_play_state_air_supply_packet(stream, compression, state)?;
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_GAME_EVENT_PACKET_ID,
-        |payload| {
-            payload.write_all(&[LEVEL_CHUNKS_LOAD_START_GAME_EVENT_ID])?;
-            payload.write_all(&0.0f32.to_be_bytes())
-        },
-    )?;
+    write_respawn_position_packet(stream, compression, state)?;
+    write_respawn_default_spawn_packet(stream, compression, world_root, world_seed)?;
+    write_respawn_status_packets(stream, compression, state)?;
+    write_respawn_game_events(stream, compression, state)?;
     delay_initial_chunk_batch_for_probe(stream, compression)
 }
 
@@ -413,7 +483,7 @@ pub fn find_default_player_spawn(
     game_mode: GameMode,
 ) -> PlayerSpawnPlacement {
     let suggestion = world_spawn_suggestion(world_root, world_seed);
-    find_player_spawn_near(world_root, world_seed, suggestion, game_mode).unwrap_or_else(|| {
+    find_player_spawn_near(world_root, world_seed, suggestion, game_mode).unwrap_or({
         PlayerSpawnPlacement {
             x: suggestion.0 as f64 + 0.5,
             y: suggestion.1 as f64,
@@ -522,7 +592,11 @@ pub fn spawn_search_offset(world_seed: i64, x: i32, z: i32, candidate_count: i32
     (mixed % candidate_count as u64) as i32
 }
 
-pub fn overworld_respawn_pos_in_chunk(chunk: &LevelChunk, x: i32, z: i32) -> Option<(i32, i32, i32)> {
+pub fn overworld_respawn_pos_in_chunk(
+    chunk: &LevelChunk,
+    x: i32,
+    z: i32,
+) -> Option<(i32, i32, i32)> {
     let local_x = x.rem_euclid(16) as usize;
     let local_z = z.rem_euclid(16) as usize;
     let index = local_z * 16 + local_x;
