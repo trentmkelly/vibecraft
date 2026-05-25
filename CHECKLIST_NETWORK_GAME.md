@@ -143,7 +143,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 ## World Border Packets
 
 - [ ] `ClientboundInitializeBorderPacket` (0x2B): new center X/Z doubles, old size double, new size double, lerp time VarLong, new absolute max size VarInt, warning blocks VarInt, warning time VarInt
-- [ ] `ClientboundSetBorderCenterPacket` (0x58): new center X/Z doubles
+- [x] `ClientboundSetBorderCenterPacket` (0x58 / decimal 88): new center X then new center Z as Java `FriendlyByteBuf.writeDouble` big-endian doubles; verified against Java read/write codec, Java play registration/name mapping, Rust packet ID/registry mapping, and focused byte-layout coverage including a negative Z center.
 - [ ] `ClientboundSetBorderLerpSizePacket` (0x59): old size double, new size double, lerp time VarLong
 - [ ] `ClientboundSetBorderSizePacket` (0x5A): new size double
 - [ ] `ClientboundSetBorderWarningDelayPacket` (0x5B): warning time VarInt

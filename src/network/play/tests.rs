@@ -769,6 +769,7 @@ mod update_advancements_packet_test;
 mod system_chat_packet_test;
 mod player_info_remove_packet_test;
 mod reset_score_packet_test;
+mod set_border_center_packet_test;
 mod set_display_objective_packet_test;
 mod set_objective_packet_test;
 mod set_score_packet_test;
