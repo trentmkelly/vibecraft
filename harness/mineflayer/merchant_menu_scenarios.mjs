@@ -47,6 +47,77 @@ export const MERCHANT_MENU_SCENARIOS = {
     'observe-offer-flagged-out-of-stock'
   ],
 
+  // Invalid payment stacks and out-of-stock offers must leave the result slot
+  // empty and must not increment uses.
+  rejectedTradeInputs: [
+    'open-merchant-window',
+    'select-trade',
+    'place-invalid-payment-items',
+    'observe-result-slot-empty',
+    'attempt-shift-click-result-slot',
+    'observe-uses-unchanged',
+    'observe-payment-items-unchanged'
+  ],
+
+  // Stale or out-of-range SelectTradePacket indices must not switch the active
+  // offer or refill the payment/result slots.
+  staleOfferSelection: [
+    'open-merchant-window',
+    'select-trade',
+    'send-stale-select-trade-packet',
+    'observe-selected-offer-unchanged',
+    'observe-payment-slots-unchanged',
+    'observe-result-slot-unchanged'
+  ],
+
+  // A successful trade increments offer uses, awards merchant/villager XP when
+  // `rewardExp` is true, and updates price metadata sent to the client.
+  xpAndPriceUpdateAfterTrade: [
+    'open-merchant-window',
+    'select-trade-with-reward-exp',
+    'shift-click-result-slot',
+    'observe-uses-incremented',
+    'observe-merchant-xp-increased',
+    'observe-special-price-or-demand-packet-update'
+  ],
+
+  // Villager restock calls updateDemand, resets offer uses, restores normal
+  // trading, and is capped by the vanilla daily restock schedule.
+  restockTiming: [
+    'open-merchant-window',
+    'select-trade',
+    'trade-until-out-of-stock',
+    'advance-to-restock-window',
+    'observe-demand-updated',
+    'observe-uses-reset',
+    'observe-result-slot-restored',
+    'observe-daily-restock-cap'
+  ],
+
+  // Closing and reopening a merchant window should preserve the merchant's
+  // offer state while returning transient payment/cursor stacks to inventory.
+  closeReopenPreservesOfferState: [
+    'open-merchant-window',
+    'select-trade',
+    'place-payment-items',
+    'close-window',
+    'reopen-merchant-window',
+    'observe-offer-uses-and-prices-preserved',
+    'observe-payment-slots-empty'
+  ],
+
+  // Disconnecting mid-trade follows the same cleanup path as closing the menu:
+  // cursor and payment items are returned/dropped according to inventory room.
+  disconnectMidTradeReturnsPayments: [
+    'open-merchant-window',
+    'select-trade',
+    'place-payment-items',
+    'disconnect-mid-window',
+    'reconnect',
+    'observe-payment-items-returned-or-dropped',
+    'observe-offer-uses-unchanged'
+  ],
+
   // Closing the merchant window while carrying items returns the cursor
   // and the payment slots to the player inventory (Java:
   // MerchantMenu.removed → Inventory.placeItemBackInInventory).
@@ -117,6 +188,12 @@ function defaultUsername(kind) {
     selectOfferAutoFillsPayment: 'MerchantSelectBot',
     shiftClickTradeResult: 'MerchantShiftClickBot',
     exhaustOffer: 'MerchantExhaustBot',
+    rejectedTradeInputs: 'MerchantRejectBot',
+    staleOfferSelection: 'MerchantStaleBot',
+    xpAndPriceUpdateAfterTrade: 'MerchantXpBot',
+    restockTiming: 'MerchantRestockBot',
+    closeReopenPreservesOfferState: 'MerchantReopenBot',
+    disconnectMidTradeReturnsPayments: 'MerchantDisconnectBot',
     closeWhileCarryingReturnsItems: 'MerchantCloseBot'
   }[kind] ?? 'MerchantBot'
 }

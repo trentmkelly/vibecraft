@@ -9,6 +9,27 @@ import {
 } from './merchant_menu_scenarios.mjs'
 import { offlineUuid } from './runner.mjs'
 
+const REQUIRED_MERCHANT_SCENARIOS = [
+  'openSendsThirtyNineSlots',
+  'selectOfferAutoFillsPayment',
+  'shiftClickTradeResult',
+  'exhaustOffer',
+  'rejectedTradeInputs',
+  'staleOfferSelection',
+  'xpAndPriceUpdateAfterTrade',
+  'restockTiming',
+  'closeReopenPreservesOfferState',
+  'disconnectMidTradeReturnsPayments',
+  'closeWhileCarryingReturnsItems'
+]
+
+test('merchant menu scenario plan covers the checklist behaviors', () => {
+  for (const kind of REQUIRED_MERCHANT_SCENARIOS) {
+    assert.ok(MERCHANT_MENU_SCENARIOS[kind], `missing scenario ${kind}`)
+    assert.ok(MERCHANT_MENU_SCENARIOS[kind].length > 0, `scenario ${kind} has no steps`)
+  }
+})
+
 for (const kind of Object.keys(MERCHANT_MENU_SCENARIOS)) {
   test(`createMerchantMenuScenarioPlan covers ${kind}`, () => {
     const plan = createMerchantMenuScenarioPlan(kind)
