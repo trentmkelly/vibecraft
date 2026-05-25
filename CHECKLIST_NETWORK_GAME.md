@@ -210,7 +210,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundBlockUpdatePacket` (0x08): block pos, block state VarInt
 - [ ] `ClientboundSectionBlocksUpdatePacket` (0x47): section pos long, VarInt count, packed VarLong entries (`block_state_id << 12 | packed_section_pos`)
 - [ ] `ClientboundBlockEntityDataPacket` (0x07): block pos, block entity type registry VarInt, trusted compound NBT tag
-- [ ] `ClientboundBlockEventPacket` (0x07): block pos, action unsigned byte, param unsigned byte, block type VarInt
+- [x] `ClientboundBlockEventPacket` (0x07 / decimal 7): block pos, action unsigned byte, param unsigned byte, block type registry VarInt; verified against Java `ClientboundBlockEventPacket` read/write order, Java play-protocol registration order, Rust protocol registry ID/name mapping, and direct packet byte-layout coverage.
 - [x] `ClientboundBlockDestructionPacket` (0x05 / decimal 5): entity ID VarInt, block pos, progress unsigned byte (0-9, 10=done); verified against Java `ClientboundBlockDestructionPacket` read/write order, Java play-protocol registration order, Rust protocol registry ID/name mapping, and direct packet byte-layout coverage.
 - [ ] `ClientboundExplodePacket` (0x1D): center Vec3, radius float, block count int, optional player knockback Vec3, explosion particle, sound holder, weighted block explosion particles
 - [ ] `ClientboundEntityPositionSyncPacket` (0x23): entity ID VarInt, `PositionMoveRotation` (position Vec3, delta movement Vec3, yaw/pitch floats), on-ground bool
