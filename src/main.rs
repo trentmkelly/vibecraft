@@ -1,13 +1,16 @@
+#[cfg(test)]
 mod advancement_system;
 mod ai_system;
 mod attribute_system;
 mod base_entity;
 mod biome;
 mod block_behavior;
+#[cfg(test)]
 mod block_behavior_tests;
 mod block_catalog;
 mod block_entity;
 mod block_metadata;
+#[cfg(test)]
 mod block_regression;
 mod block_update;
 mod boss_fight;
@@ -24,34 +27,45 @@ mod command;
 mod command_execution;
 mod command_feedback;
 mod command_parity;
+#[cfg(test)]
 mod command_selector;
 mod command_tree;
 mod console;
 mod container_block;
 mod container_menus;
 mod crash;
+#[cfg(test)]
 mod crash_recovery_tests;
+#[cfg(test)]
 mod creative_inventory;
 mod damage_type;
+#[cfg(test)]
 mod datapack_reload_tests;
+#[cfg(test)]
 mod dialog_system;
 mod dispenser_cauldron;
 mod enchantment_system;
+#[cfg(test)]
 mod entity_behavior_tests;
 mod entity_category;
+#[cfg(test)]
 mod entity_metadata;
 mod entity_physics;
 mod entity_validation;
+#[cfg(test)]
 mod entity_variants;
 mod environment_attributes;
+#[cfg(test)]
 mod equipment_trim;
 mod eula;
 mod experience_system;
 mod fire;
 mod fluid;
+#[cfg(test)]
 mod fuzz_tests;
 mod game_event;
 mod game_rules;
+#[cfg(test)]
 mod gametest_resources;
 mod generated_reports;
 mod gravity;
@@ -77,9 +91,13 @@ mod movement_physics;
 mod movement_validation;
 mod network;
 mod non_living_entity;
+#[cfg(test)]
 mod operational_coverage;
+#[cfg(test)]
 mod parity_harness;
+#[cfg(test)]
 mod performance_benchmarks;
+#[cfg(test)]
 mod persistence_roundtrip_tests;
 mod plant;
 mod player;
@@ -89,12 +107,16 @@ mod player_game_mode;
 mod player_inventory;
 mod player_list;
 mod player_online_auth;
+#[cfg(test)]
 mod player_presentation;
+#[cfg(test)]
 mod player_profile_key;
 mod portal;
 mod post_processing;
+#[cfg(test)]
 mod potion_fluid_container;
 mod presentation_data;
+#[cfg(test)]
 mod project_foundation_tests;
 mod projectile_entity;
 mod raid;
@@ -111,15 +133,18 @@ mod seed_validation;
 mod server_properties;
 mod spawning;
 mod special_block;
+#[cfg(test)]
 mod statistics;
 mod status_effect;
 mod storage;
 mod structure_resources;
 mod trial_system;
+#[cfg(test)]
 mod vehicle_entity;
 mod vibration;
 mod villager_system;
 mod villager_trade_resources;
+#[cfg(test)]
 mod waypoint;
 mod weather;
 mod world;
