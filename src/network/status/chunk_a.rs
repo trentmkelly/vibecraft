@@ -1160,6 +1160,127 @@ fn broadcast_weather_if_changed(
     Ok(())
 }
 
+struct PlayerTickContext<'a, 'b> {
+    properties: &'a ServerProperties,
+    world_root: &'a Path,
+    world_seed: i64,
+    chunk_cache: &'a GeneratedChunkCache,
+    chunk_pipeline: &'a ChunkPipeline,
+    current_chunk_x: i32,
+    current_chunk_z: i32,
+    chunk_sender: &'b mut PlayerChunkSender,
+    chunk_pipeline_stats: &'b mut ChunkPipelineSessionStats,
+    live_fluid_ticks: &'b mut LiveFluidTicks,
+    world_layout: &'b WorldLayout,
+    last_player_tick: &'b mut Instant,
+    play_tick_count: &'b mut u64,
+}
+
+fn tick_player_and_chunk_sender(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    play_state: &mut PlaySessionState,
+    context: PlayerTickContext<'_, '_>,
+) -> io::Result<()> {
+    let PlayerTickContext {
+        properties,
+        world_root,
+        world_seed,
+        chunk_cache,
+        chunk_pipeline,
+        current_chunk_x,
+        current_chunk_z,
+        chunk_sender,
+        chunk_pipeline_stats,
+        live_fluid_ticks,
+        world_layout,
+        last_player_tick,
+        play_tick_count,
+    } = context;
+    if last_player_tick.elapsed() < SERVER_TICK_DURATION {
+        return Ok(());
+    }
+
+    *last_player_tick = Instant::now();
+    *play_tick_count = (*play_tick_count).wrapping_add(1);
+    let tick_count = *play_tick_count;
+    process_live_fluid_ticks(
+        stream,
+        compression,
+        live_fluid_ticks,
+        tick_count as i64,
+        world_layout,
+        world_seed,
+        chunk_cache,
+    )?;
+    let fluid_state =
+        detect_play_session_fluid_state(play_state, world_root, world_seed, chunk_cache);
+    let water_update = tick_play_session_water(play_state, fluid_state);
+    if water_update.air_changed {
+        write_play_state_air_supply_packet(stream, compression, play_state)?;
+    }
+    if water_update.motion_changed {
+        write_play_state_motion_packet(stream, compression, play_state)?;
+    }
+    if tick_play_session_food(
+        play_state,
+        food_difficulty_from_properties(properties),
+        true,
+        tick_count,
+    ) || water_update.health_changed
+    {
+        write_play_state_health_packet(stream, compression, play_state)?;
+    }
+
+    // Per-tick chunk send drain (Java mirror:
+    // MinecraftServer.tickChildren -> chunkSender.sendNextChunks).
+    // Sits at the end of the player tick so fluid/entity ticking sees
+    // the same chunk snapshot as the chunks being flushed.
+    let drained = drain_chunk_sender(
+        stream,
+        compression,
+        chunk_sender,
+        chunk_pipeline,
+        ChunkPos {
+            x: current_chunk_x,
+            z: current_chunk_z,
+        },
+        Some((live_fluid_ticks, tick_count as i64)),
+    )?;
+    chunk_pipeline_stats.sent_total = chunk_pipeline_stats
+        .sent_total
+        .saturating_add(drained as u64);
+    maybe_log_chunk_pipeline_stats(
+        chunk_pipeline_stats,
+        chunk_sender,
+        chunk_pipeline,
+        tick_count,
+    );
+    Ok(())
+}
+
+fn persist_play_disconnect_state(
+    properties: &ServerProperties,
+    world_root: &Path,
+    profile_uuid: &str,
+    play_state: &mut PlaySessionState,
+    world_items: &Arc<Mutex<WorldItemEntities>>,
+    chunk_cache: &GeneratedChunkCache,
+) {
+    // Java: InventoryMenu.removed() clears the crafting grid and returns
+    // items to inventory before the player state is persisted.
+    play_state.inventory_menu.clear_crafting_to_inventory();
+    let _ = save_play_session_state(world_root, profile_uuid, play_state);
+    save_world_item_entities(world_root, &lock_status_mutex(world_items));
+    // Flush any in-memory block changes (player edits, fluid spreads) that
+    // have not reached the periodic flush window; disconnect must not lose work.
+    chunk_cache.flush_dirty(
+        world_root,
+        properties.sync_chunk_writes,
+        RegionCompression::from_property_value(&properties.region_file_compression),
+    );
+}
+
 fn handle_login_connection(
     stream: &mut TcpStream,
     mut context: LoginConnectionContext<'_>,
@@ -1269,62 +1390,26 @@ fn run_joined_play_session(
         // Java: ServerPlayer.doTick() calls FoodData.tick(this) every server
         // tick, independent of inbound movement/interaction packets. Entity
         // base ticking updates fluid contact and air supply on the same tick.
-        if last_player_tick.elapsed() >= SERVER_TICK_DURATION {
-            last_player_tick = Instant::now();
-            play_tick_count = play_tick_count.wrapping_add(1);
-            process_live_fluid_ticks(
-                stream,
-                compression,
-                &mut live_fluid_ticks,
-                play_tick_count as i64,
-                &world_layout,
+        tick_player_and_chunk_sender(
+            stream,
+            compression,
+            &mut play_state,
+            PlayerTickContext {
+                properties,
+                world_root,
                 world_seed,
                 chunk_cache,
-            )?;
-            let fluid_state =
-                detect_play_session_fluid_state(&play_state, world_root, world_seed, chunk_cache);
-            let water_update = tick_play_session_water(&mut play_state, fluid_state);
-            if water_update.air_changed {
-                write_play_state_air_supply_packet(stream, compression, &play_state)?;
-            }
-            if water_update.motion_changed {
-                write_play_state_motion_packet(stream, compression, &play_state)?;
-            }
-            if tick_play_session_food(
-                &mut play_state,
-                food_difficulty_from_properties(properties),
-                true,
-                play_tick_count,
-            ) || water_update.health_changed
-            {
-                write_play_state_health_packet(stream, compression, &play_state)?;
-            }
-
-            // Per-tick chunk send drain (Java mirror:
-            // MinecraftServer.tickChildren → chunkSender.sendNextChunks).
-            // Sits at the end of the player tick so fluid/entity ticking
-            // sees the same chunk snapshot as the chunks being flushed.
-            let drained = drain_chunk_sender(
-                stream,
-                compression,
-                &mut chunk_sender,
                 chunk_pipeline,
-                ChunkPos {
-                    x: current_chunk_x,
-                    z: current_chunk_z,
-                },
-                Some((&mut live_fluid_ticks, play_tick_count as i64)),
-            )?;
-            chunk_pipeline_stats.sent_total = chunk_pipeline_stats
-                .sent_total
-                .saturating_add(drained as u64);
-            maybe_log_chunk_pipeline_stats(
-                &mut chunk_pipeline_stats,
-                &chunk_sender,
-                chunk_pipeline,
-                play_tick_count,
-            );
-        }
+                current_chunk_x,
+                current_chunk_z,
+                chunk_sender: &mut chunk_sender,
+                chunk_pipeline_stats: &mut chunk_pipeline_stats,
+                live_fluid_ticks: &mut live_fluid_ticks,
+                world_layout: &world_layout,
+                last_player_tick: &mut last_player_tick,
+                play_tick_count: &mut play_tick_count,
+            },
+        )?;
 
         // Detect weather level changes and broadcast to client.
         // Java: ServerLevel.advanceWeatherCycle() — RainLevelChange/ThunderLevelChange
@@ -1341,19 +1426,13 @@ fn run_joined_play_session(
                 if let PacketRateDecision::Kick { reason } =
                     rate_limiter.record_packet(Instant::now())
                 {
-                    // Java: InventoryMenu.removed() clears the crafting grid and returns
-                    // items to inventory before the player state is persisted.
-                    play_state.inventory_menu.clear_crafting_to_inventory();
-                    let _ =
-                        save_play_session_state(world_root, &finished.profile.uuid, &play_state);
-                    save_world_item_entities(world_root, &lock_status_mutex(world_items));
-                    // Flush any in-memory block changes (player edits,
-                    // fluid spreads) that haven't yet hit the periodic
-                    // 30 s flush window — disconnect must not lose work.
-                    chunk_cache.flush_dirty(
+                    persist_play_disconnect_state(
+                        properties,
                         world_root,
-                        properties.sync_chunk_writes,
-                        RegionCompression::from_property_value(&properties.region_file_compression),
+                        &finished.profile.uuid,
+                        &mut play_state,
+                        world_items,
+                        chunk_cache,
                     );
                     write_framed_packet_with_compression(
                         stream,
@@ -1819,13 +1898,13 @@ fn run_joined_play_session(
                 if play_packet_is_handled_after_state_update(packet_id) {
                     continue;
                 }
-                play_state.inventory_menu.clear_crafting_to_inventory();
-                let _ = save_play_session_state(world_root, &finished.profile.uuid, &play_state);
-                save_world_item_entities(world_root, &lock_status_mutex(world_items));
-                chunk_cache.flush_dirty(
+                persist_play_disconnect_state(
+                    properties,
                     world_root,
-                    properties.sync_chunk_writes,
-                    RegionCompression::from_property_value(&properties.region_file_compression),
+                    &finished.profile.uuid,
+                    &mut play_state,
+                    world_items,
+                    chunk_cache,
                 );
                 write_framed_packet_with_compression(
                     stream,
@@ -1851,14 +1930,13 @@ fn run_joined_play_session(
                 if let PacketRateDecision::Kick { reason } = rate_limiter.tick(Instant::now()) {
                     // Java: RateKickingConnection sends a common disconnect after the
                     // per-second average crosses the configured threshold.
-                    play_state.inventory_menu.clear_crafting_to_inventory();
-                    let _ =
-                        save_play_session_state(world_root, &finished.profile.uuid, &play_state);
-                    save_world_item_entities(world_root, &lock_status_mutex(world_items));
-                    chunk_cache.flush_dirty(
+                    persist_play_disconnect_state(
+                        properties,
                         world_root,
-                        properties.sync_chunk_writes,
-                        RegionCompression::from_property_value(&properties.region_file_compression),
+                        &finished.profile.uuid,
+                        &mut play_state,
+                        world_items,
+                        chunk_cache,
                     );
                     write_framed_packet_with_compression(
                         stream,
@@ -1880,13 +1958,13 @@ fn run_joined_play_session(
                     io::ErrorKind::UnexpectedEof | io::ErrorKind::ConnectionReset
                 ) =>
             {
-                play_state.inventory_menu.clear_crafting_to_inventory();
-                let _ = save_play_session_state(world_root, &finished.profile.uuid, &play_state);
-                save_world_item_entities(world_root, &lock_status_mutex(world_items));
-                chunk_cache.flush_dirty(
+                persist_play_disconnect_state(
+                    properties,
                     world_root,
-                    properties.sync_chunk_writes,
-                    RegionCompression::from_property_value(&properties.region_file_compression),
+                    &finished.profile.uuid,
+                    &mut play_state,
+                    world_items,
+                    chunk_cache,
                 );
                 return Ok(());
             }
