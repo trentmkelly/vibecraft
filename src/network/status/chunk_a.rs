@@ -2187,11 +2187,13 @@ fn handle_decoded_play_packet(
             stream,
             compression,
             play_state,
-            context.world_layout,
-            context.world_seed,
-            context.chunk_cache,
-            context.live_fluid_ticks,
-            context.play_tick_count as i64,
+            UseItemOnContext {
+                world_layout: context.world_layout,
+                world_seed: context.world_seed,
+                chunk_cache: context.chunk_cache,
+                live_fluid_ticks: context.live_fluid_ticks,
+                game_time: context.play_tick_count as i64,
+            },
             &packet,
         )?;
     } else if packet_id == SERVERBOUND_PLAYER_ACTION_PACKET_ID {
