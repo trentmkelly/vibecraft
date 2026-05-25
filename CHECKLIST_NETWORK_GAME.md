@@ -76,7 +76,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 ## Inventory / Container Packets (Clientbound)
 
 - [ ] `ClientboundContainerSetContentPacket` (0x12): window ID byte, state ID VarInt, items list, carried item
-- [ ] `ClientboundContainerSetSlotPacket` (0x13): window ID byte, state ID VarInt, slot short, item
+- [x] `ClientboundContainerSetSlotPacket` (0x14 / decimal 20): container ID encoded with Java `FriendlyByteBuf.readContainerId`/`writeContainerId` VarInt, state ID VarInt, signed big-endian slot short, and `ItemStack.OPTIONAL_STREAM_CODEC` trusted item payload; verified against Java read/write codec, Java play registration/name mapping, Rust packet ID/registry mapping, existing trusted optional item-stack coverage, and focused byte-layout coverage for multibyte container/state IDs plus a negative slot.
 - [x] `ClientboundContainerSetDataPacket` (0x13 / decimal 19): container ID encoded with Java `FriendlyByteBuf.readContainerId`/`writeContainerId` VarInt, followed by signed big-endian property short and value short; verified against Java read/write codec, Java play registration/name mapping, Rust packet ID/registry mapping, and focused byte-layout coverage for a multibyte container ID plus signed short payloads.
 - [ ] `ClientboundOpenScreenPacket` (0x35): window ID VarInt, menu type VarInt, title component
 - [x] `ClientboundContainerClosePacket` (0x11 / decimal 17): container ID encoded with Java `FriendlyByteBuf.readContainerId`/`writeContainerId` VarInt; verified against Java read/write codec, Java play registration/name mapping, Rust packet ID/registry mapping, and focused byte-layout coverage for multibyte container IDs.
