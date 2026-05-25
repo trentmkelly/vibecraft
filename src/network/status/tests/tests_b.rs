@@ -714,6 +714,112 @@ pub fn configuration_wait_ignores_vanilla_common_packets_before_known_packs() {
 }
 
 #[test]
+pub fn raw_play_command_packets_reject_before_login_hello() {
+    let command_like_play_packets = [
+        SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID,
+        SERVERBOUND_CHAT_PACKET_ID,
+        SERVERBOUND_CHAT_COMMAND_PACKET_ID,
+        SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID,
+    ];
+
+    for packet_id in command_like_play_packets {
+        let mut input = Vec::new();
+        write_framed_packet(&mut input, packet_id, |payload| {
+            write_command_like_play_payload(packet_id, payload)
+        })
+        .unwrap();
+
+        let mut rate_limiter =
+            crate::network::rate_limit::PacketRateLimiter::new(0, std::time::Instant::now());
+        let err = read_expected_login_hello_packet(&mut Cursor::new(input), &mut rate_limiter)
+            .unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        assert_eq!(err.to_string(), "expected login hello");
+    }
+}
+
+#[test]
+pub fn raw_play_command_packets_reject_during_configuration_wait() {
+    let command_like_play_packets = [
+        SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID,
+        SERVERBOUND_CHAT_PACKET_ID,
+        SERVERBOUND_CHAT_COMMAND_PACKET_ID,
+        SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID,
+    ];
+
+    for packet_id in command_like_play_packets {
+        let mut input = Vec::new();
+        write_framed_packet(&mut input, packet_id, |payload| {
+            write_command_like_play_payload(packet_id, payload)
+        })
+        .unwrap();
+
+        let err = wait_for_configuration_packet(
+            &mut Cursor::new(input),
+            CompressionState::disabled(),
+            SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID,
+            "selected known packs",
+        )
+        .unwrap_err();
+        assert!(
+            matches!(
+                err.kind(),
+                io::ErrorKind::InvalidData | io::ErrorKind::UnexpectedEof
+            ),
+            "packet {packet_id} was not rejected at the configuration boundary: {err}"
+        );
+        if packet_id == SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID {
+            assert!(err
+                .to_string()
+                .contains(&format!("configuration packet {packet_id}")));
+        }
+    }
+}
+
+fn write_command_like_play_payload<W: Write>(packet_id: i32, payload: &mut W) -> io::Result<()> {
+    match packet_id {
+        SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID => {
+            crate::network::play::ServerboundCommandSuggestionPacket {
+                id: 12,
+                command: "/list".to_string(),
+            }
+            .write(payload)
+        }
+        SERVERBOUND_CHAT_PACKET_ID => crate::network::play::ServerboundChatPacket {
+            message: "hello".to_string(),
+            timestamp_epoch_millis: 0,
+            salt: 0,
+            signature: None,
+            last_seen_messages: empty_last_seen_messages(),
+        }
+        .write(payload),
+        SERVERBOUND_CHAT_COMMAND_PACKET_ID => crate::network::play::ServerboundChatCommandPacket {
+            command: "list".to_string(),
+        }
+        .write(payload),
+        SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID => {
+            crate::network::play::ServerboundChatCommandSignedPacket {
+                command: "list".to_string(),
+                timestamp_epoch_millis: 0,
+                salt: 0,
+                argument_signatures: Vec::new(),
+                last_seen_messages: empty_last_seen_messages(),
+            }
+            .write(payload)
+        }
+        _ => unreachable!("test only supplies command-like play packet ids"),
+    }
+}
+
+fn empty_last_seen_messages() -> crate::network::play::LastSeenMessagesUpdate {
+    crate::network::play::LastSeenMessagesUpdate {
+        offset: 0,
+        acknowledged: vec![0; crate::network::play::LastSeenMessagesUpdate::ACKNOWLEDGED_BYTES],
+        checksum: 0,
+    }
+}
+
+#[test]
 pub fn configuration_wait_rejects_unexpected_packets() {
     let mut input = Vec::new();
     write_framed_packet(&mut input, 42, |_payload| Ok(())).unwrap();

@@ -592,29 +592,19 @@ pub fn handle_login_connection(
     recipe_manager: &RecipeManagerModel,
     world_items: &Arc<Mutex<WorldItemEntities>>,
 ) -> io::Result<()> {
-    let packet =
-        match read_packet_with_rate_limit(stream, CompressionState::disabled(), rate_limiter) {
-            Ok(packet) => packet,
-            Err(err) if is_rate_limit_disconnect_error(&err) => {
-                return write_login_rate_limit_disconnect(
-                    stream,
-                    CompressionState::disabled(),
-                    &err.to_string(),
-                );
-            }
-            Err(err) => return Err(err),
-        };
-    let mut input = Cursor::new(packet);
-    let packet_id = read_var_i32(&mut input)?;
-    if packet_id != SERVERBOUND_HELLO_PACKET_ID {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "expected login hello",
-        ));
-    }
-
     let mut login = LoginSession::default();
-    let finished = login.accept_offline_hello(ServerboundHelloPacket::read(&mut input)?);
+    let hello = match read_expected_login_hello_packet(stream, rate_limiter) {
+        Ok(hello) => hello,
+        Err(err) if is_rate_limit_disconnect_error(&err) => {
+            return write_login_rate_limit_disconnect(
+                stream,
+                CompressionState::disabled(),
+                &err.to_string(),
+            );
+        }
+        Err(err) => return Err(err),
+    };
+    let finished = login.accept_offline_hello(hello);
     if let Some(reason) = login_access_disconnect_reason(
         properties,
         player_access,
@@ -1748,4 +1738,20 @@ pub fn handle_login_connection(
             Err(err) => return Err(err),
         }
     }
+}
+
+pub(super) fn read_expected_login_hello_packet<R: Read>(
+    reader: &mut R,
+    rate_limiter: &mut PacketRateLimiter,
+) -> io::Result<ServerboundHelloPacket> {
+    let packet = read_packet_with_rate_limit(reader, CompressionState::disabled(), rate_limiter)?;
+    let mut input = Cursor::new(packet);
+    let packet_id = read_var_i32(&mut input)?;
+    if packet_id != SERVERBOUND_HELLO_PACKET_ID {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "expected login hello",
+        ));
+    }
+    ServerboundHelloPacket::read(&mut input)
 }
