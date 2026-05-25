@@ -495,10 +495,27 @@ fn beacon_payment_slot_accepts_only_payment_items() {
     for item in BEACON_PAYMENT_ITEMS {
         assert!(menu.may_place(0, &ItemStack::new(item, 1)), "{item}");
     }
+    assert!(!menu.may_place(0, &ItemStack::empty()));
     assert!(!menu.may_place(0, &ItemStack::new("minecraft:apple", 1)));
     // Max stack 1 for payment slot.
     menu.set_slot(0, ItemStack::new("minecraft:emerald", 64), &mut player);
     assert_eq!(menu.get_slot(0, &player).unwrap().count(), 1);
+    assert!(menu.has_payment());
+
+    assert!(menu.set_data(BeaconMenu::LEVELS_DATA, 4));
+    assert_eq!(menu.get_levels(), 4);
+    assert_eq!(BeaconMenu::encode_effect(Some(0)), Some(1));
+    assert_eq!(BeaconMenu::decode_effect(10), Some(9));
+    assert_eq!(BeaconMenu::encode_effect(Some(40)), None);
+    assert!(menu.update_effects(Some(0), Some(9)));
+    assert_eq!(menu.primary_effect_id(), Some(0));
+    assert_eq!(menu.secondary_effect_id(), Some(9));
+    assert!(!menu.has_payment());
+    assert!(!menu.update_effects(Some(0), None));
+
+    menu.set_slot(0, ItemStack::new("minecraft:diamond", 1), &mut player);
+    assert_eq!(menu.removed().item_id(), "minecraft:diamond");
+    assert!(!menu.has_payment());
 }
 
 // -------- CrafterMenu --------

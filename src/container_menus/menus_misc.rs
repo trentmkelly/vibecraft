@@ -108,6 +108,10 @@ pub struct BeaconMenu {
 impl BeaconMenu {
     pub const PAYMENT_SLOT: usize = 0;
     pub const MENU_SLOTS: usize = 1;
+    pub const DATA_COUNT: usize = 3;
+    pub const LEVELS_DATA: usize = 0;
+    pub const PRIMARY_EFFECT_DATA: usize = 1;
+    pub const SECONDARY_EFFECT_DATA: usize = 2;
     pub const INV_START: usize = 1;
     pub const HOTBAR_END: usize = 37;
     pub const SLOT_COUNT: usize = 37;
@@ -117,6 +121,76 @@ impl BeaconMenu {
             payment: ItemStack::empty(),
             data: [0; 3],
         }
+    }
+
+    pub fn data(&self, index: usize) -> Option<i32> {
+        self.data.get(index).copied()
+    }
+
+    pub fn set_data(&mut self, index: usize, value: i32) -> bool {
+        let Some(slot) = self.data.get_mut(index) else {
+            return false;
+        };
+        *slot = value;
+        true
+    }
+
+    pub fn get_levels(&self) -> i32 {
+        self.data[Self::LEVELS_DATA]
+    }
+
+    pub fn encode_effect(effect_id: Option<i32>) -> Option<i32> {
+        match effect_id {
+            None => Some(0),
+            Some(id) if (0..crate::status_effect::STATUS_EFFECTS.len() as i32).contains(&id) => {
+                Some(id + 1)
+            }
+            Some(_) => None,
+        }
+    }
+
+    pub fn decode_effect(encoded_id: i32) -> Option<i32> {
+        if encoded_id == 0 {
+            return None;
+        }
+        let effect_id = encoded_id - 1;
+        (0..crate::status_effect::STATUS_EFFECTS.len() as i32)
+            .contains(&effect_id)
+            .then_some(effect_id)
+    }
+
+    pub fn primary_effect_id(&self) -> Option<i32> {
+        Self::decode_effect(self.data[Self::PRIMARY_EFFECT_DATA])
+    }
+
+    pub fn secondary_effect_id(&self) -> Option<i32> {
+        Self::decode_effect(self.data[Self::SECONDARY_EFFECT_DATA])
+    }
+
+    pub fn has_payment(&self) -> bool {
+        !self.payment.is_empty()
+    }
+
+    /// Java `BeaconMenu.updateEffects`: only a present payment applies the
+    /// selected effects, then one payment item is consumed.
+    pub fn update_effects(&mut self, primary: Option<i32>, secondary: Option<i32>) -> bool {
+        if !self.has_payment() {
+            return false;
+        }
+        let Some(primary) = Self::encode_effect(primary) else {
+            return false;
+        };
+        let Some(secondary) = Self::encode_effect(secondary) else {
+            return false;
+        };
+        self.data[Self::PRIMARY_EFFECT_DATA] = primary;
+        self.data[Self::SECONDARY_EFFECT_DATA] = secondary;
+        self.payment.shrink(1);
+        true
+    }
+
+    pub fn removed(&mut self) -> ItemStack {
+        std::mem::replace(&mut self.payment, ItemStack::empty())
     }
 
     pub fn get_slot(&self, slot: usize, player: &PlayerInventory) -> Option<ItemStack> {
@@ -151,7 +225,7 @@ impl BeaconMenu {
 
     pub fn may_place(&self, slot: usize, stack: &ItemStack) -> bool {
         match slot {
-            0 => stack.is_empty() || BEACON_PAYMENT_ITEMS.contains(&stack.item_id()),
+            0 => !stack.is_empty() && BEACON_PAYMENT_ITEMS.contains(&stack.item_id()),
             s if s < Self::SLOT_COUNT => true,
             _ => false,
         }
