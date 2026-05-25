@@ -38,6 +38,6 @@ Authentication, secure profile, signed chat, and abuse-reporting metadata parity
 - [ ] Implement command signing and signed argument tracking.
 - [ ] Implement text filtering integration and fallbacks.
 - [ ] Implement player reporting-relevant metadata where clients expect it.
-- [ ] Implement prevent-proxy-connections behavior.
-- [ ] Implement IP logging controls.
+- [x] Implement prevent-proxy-connections behavior — `ServerProperties` loads Java's default-false `prevent-proxy-connections`, online-mode authentication forwards the remote address to session verification when enabled, and the login access gate rejects mismatched handshake/socket IPs with `multiplayer.disconnect.unverified_username`; covered by `player_online_auth` proxy tests, `prevent_proxy_connections_rejects_host_socket_ip_mismatch`, and `prevent_proxy_connections_rejects_mismatched_handshake_ip`.
+- [x] Implement IP logging controls — `ServerProperties` loads Java's default-true `log-ips`, `loggable_remote_address` mirrors `Connection.getLoggableAddress(false)` by emitting `IP hidden`, and login logs use the redacted address shape; covered by `ip_log_policy_redacts_remote_addresses_when_disabled` and `log_ips_uses_java_loggable_address_redaction_and_login_shape`.
 - [ ] Implement management server secret and TLS behavior.
