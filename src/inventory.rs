@@ -45,6 +45,9 @@ pub struct Menu {
     pub creative: bool,
     pub dropped: Vec<ItemStack>,
     pub validity: MenuValidity,
+    quick_craft_status: i32,
+    quick_craft_type: i32,
+    quick_craft_slots: Vec<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -384,6 +387,9 @@ impl Menu {
             creative: false,
             dropped: Vec::new(),
             validity: MenuValidity::Always,
+            quick_craft_status: 0,
+            quick_craft_type: -1,
+            quick_craft_slots: Vec::new(),
         }
     }
 
@@ -769,28 +775,6 @@ impl Menu {
         }
     }
 
-    pub fn quick_craft(&mut self, slot_indices: &[usize]) -> InventoryAction {
-        if self.carried.is_empty() || slot_indices.is_empty() {
-            return InventoryAction::Noop;
-        }
-        let each = self.carried.count() / slot_indices.len() as i32;
-        if each <= 0 {
-            return InventoryAction::Noop;
-        }
-        let mut changed = 0;
-        for &slot_index in slot_indices {
-            if let Some(slot) = self.slots.get_mut(slot_index) {
-                if slot.safe_insert(&mut self.carried, each) > 0 {
-                    changed += 1;
-                }
-            }
-        }
-        InventoryAction::QuickCrafted {
-            slots: changed,
-            each,
-        }
-    }
-
     pub fn pickup_all(&mut self, start_slot: usize) -> InventoryAction {
         if self.carried.is_empty() || start_slot >= self.slots.len() {
             return InventoryAction::Noop;
@@ -850,6 +834,8 @@ fn squared_distance_to_unit_block_aabb(point: Vec3, pos: BlockPos) -> f64 {
     let dz = (min_z - point.z).max(point.z - max_z).max(0.0);
     dx * dx + dy * dy + dz * dz
 }
+
+mod quick_craft;
 
 #[cfg(test)]
 mod validity_tests;
