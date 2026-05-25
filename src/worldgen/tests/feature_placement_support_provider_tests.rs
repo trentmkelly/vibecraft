@@ -842,14 +842,16 @@ pub(super) fn assert_provider_and_ore_support() {
         );
         assert_eq!(
             super::super::coral_block_placement_plan(
-                BlockPos { x: 4, y: 55, z: 4 },
-                "minecraft:water",
-                "minecraft:water",
-                "minecraft:brain_coral_block",
-                0.9,
-                0.01,
-                1,
-                &[(super::super::HorizontalDirection::East, 0.1, true)],
+                super::super::CoralBlockPlacementInput {
+                    pos: BlockPos { x: 4, y: 55, z: 4 },
+                    current_block: "minecraft:water",
+                    above_block: "minecraft:water",
+                    coral_state: "minecraft:brain_coral_block",
+                    coral_roll: 0.9,
+                    sea_pickle_roll: 0.01,
+                    pickle_count_roll: 1,
+                    wall_fan_rolls: &[(super::super::HorizontalDirection::East, 0.1, true)],
+                },
             ),
             vec![
                 super::super::AquaticPlacementBlock {
@@ -867,14 +869,16 @@ pub(super) fn assert_provider_and_ore_support() {
             ]
         );
         assert!(super::super::coral_block_placement_plan(
-            BlockPos { x: 4, y: 55, z: 4 },
-            "minecraft:stone",
-            "minecraft:water",
-            "minecraft:brain_coral_block",
-            0.0,
-            0.0,
-            0,
-            &[],
+            super::super::CoralBlockPlacementInput {
+                pos: BlockPos { x: 4, y: 55, z: 4 },
+                current_block: "minecraft:stone",
+                above_block: "minecraft:water",
+                coral_state: "minecraft:brain_coral_block",
+                coral_roll: 0.0,
+                sea_pickle_roll: 0.0,
+                pickle_count_roll: 0,
+                wall_fan_rolls: &[],
+            },
         )
         .is_empty());
         let coral_tree = super::super::coral_tree_positions(
