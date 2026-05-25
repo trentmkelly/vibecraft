@@ -389,13 +389,15 @@ use super::*;
         );
 
         let generation = super::super::nether_fossil_find_generation_point(
-            ChunkPos { x: -2, z: 3 },
-            5,
-            11,
-            72,
-            31,
-            6,
-            super::super::StructureRotation::Counterclockwise90,
+            super::super::NetherFossilGenerationInput {
+                chunk_pos: ChunkPos { x: -2, z: 3 },
+                block_x_roll: 5,
+                block_z_roll: 11,
+                sampled_y: 72,
+                sea_level: 31,
+                template_index: 6,
+                rotation: super::super::StructureRotation::Counterclockwise90,
+            },
             |y| {
                 if y == 70 {
                     "minecraft:air"
@@ -433,13 +435,15 @@ use super::*;
         );
 
         let sturdy_generation = super::super::nether_fossil_find_generation_point(
-            ChunkPos { x: 0, z: 0 },
-            0,
-            0,
-            50,
-            31,
-            0,
-            super::super::StructureRotation::None,
+            super::super::NetherFossilGenerationInput {
+                chunk_pos: ChunkPos { x: 0, z: 0 },
+                block_x_roll: 0,
+                block_z_roll: 0,
+                sampled_y: 50,
+                sea_level: 31,
+                template_index: 0,
+                rotation: super::super::StructureRotation::None,
+            },
             |y| {
                 if y == 45 {
                     "minecraft:air"
@@ -454,13 +458,15 @@ use super::*;
         assert_eq!(sturdy_generation.position, BlockPos { x: 0, y: 44, z: 0 });
 
         let too_low = super::super::nether_fossil_find_generation_point(
-            ChunkPos { x: 0, z: 0 },
-            0,
-            0,
-            33,
-            31,
-            0,
-            super::super::StructureRotation::None,
+            super::super::NetherFossilGenerationInput {
+                chunk_pos: ChunkPos { x: 0, z: 0 },
+                block_x_roll: 0,
+                block_z_roll: 0,
+                sampled_y: 33,
+                sea_level: 31,
+                template_index: 0,
+                rotation: super::super::StructureRotation::None,
+            },
             |_| "minecraft:netherrack",
             |_| false,
         )
@@ -1042,4 +1048,3 @@ use super::*;
         );
         assert_eq!(flat.template_position.y, 70);
     }
-
