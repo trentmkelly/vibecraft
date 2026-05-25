@@ -126,7 +126,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ServerboundChatCommandPacket` (0x07): command string max 32767
 - [ ] `ServerboundChatCommandSignedPacket` (0x08): command string max 32767, timestamp epoch millis long, salt long, argument signatures capped at 8 entries with 16-char names and 256-byte signatures, last-seen update
 - [ ] `ServerboundChatSessionUpdatePacket` (0x0A): chat session UUID, profile public key data (expires-at epoch millis, public key byte array capped at 512 bytes, signature byte array capped at 4096 bytes)
-- [ ] `ServerboundChatAckPacket` (0x06): message acknowledgement offset VarInt
+- [x] `ServerboundChatAckPacket` (0x06 / decimal 6): message acknowledgement offset VarInt; verified against Java read/write codec, Java play registration/name mapping, Rust packet ID/registry mapping, focused read/write byte-layout coverage, and play-session dispatch coverage.
 
 ## Scoreboard / Team Packets
 

@@ -61,6 +61,10 @@ fn play_packet_registry_matches_game_protocol_order_and_counts() {
         Some("chunk_batch_received")
     );
     assert_eq!(
+        registry.serverbound_name(SERVERBOUND_CHAT_ACK_PACKET_ID),
+        Some("chat_ack")
+    );
+    assert_eq!(
         registry.clientbound_name(CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID),
         Some("bundle")
     );
@@ -780,6 +784,7 @@ fn entity_metadata_values_use_vanilla_26_1_2_serializer_ids_and_payloads() {
 
 
 mod block_entity_data_packet_test;
+mod chat_ack_packet_test;
 mod explode_packet_test;
 mod inventory_packet_item_stack_test;
 mod command_suggestion_packet_test;
