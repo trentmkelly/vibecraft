@@ -373,6 +373,17 @@ static GLOBAL_BLENDED_NOISE_SNAPSHOT_CACHE: OnceLock<
     Mutex<HashMap<BlendedNoiseSnapshotCacheKey, BlendedNoiseSnapshot>>,
 > = OnceLock::new();
 
+fn blended_noise_snapshot_cache(
+) -> std::sync::MutexGuard<'static, HashMap<BlendedNoiseSnapshotCacheKey, BlendedNoiseSnapshot>> {
+    match GLOBAL_BLENDED_NOISE_SNAPSHOT_CACHE
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+    {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct BlendedNoiseSnapshotCacheKey {
     seed: i64,
@@ -402,13 +413,7 @@ pub(super) fn random_state_blended_noise_snapshot(
         y_factor: y_factor.to_bits(),
         smear_scale_multiplier: smear_scale_multiplier.to_bits(),
     };
-    if let Some(snapshot) = GLOBAL_BLENDED_NOISE_SNAPSHOT_CACHE
-        .get_or_init(|| Mutex::new(HashMap::new()))
-        .lock()
-        .expect("global blended noise snapshot cache lock should not be poisoned")
-        .get(&key)
-        .cloned()
-    {
+    if let Some(snapshot) = blended_noise_snapshot_cache().get(&key).cloned() {
         return Ok(snapshot);
     }
 
@@ -420,11 +425,7 @@ pub(super) fn random_state_blended_noise_snapshot(
         y_factor,
         smear_scale_multiplier,
     )?;
-    GLOBAL_BLENDED_NOISE_SNAPSHOT_CACHE
-        .get_or_init(|| Mutex::new(HashMap::new()))
-        .lock()
-        .expect("global blended noise snapshot cache lock should not be poisoned")
-        .insert(key, snapshot.clone());
+    blended_noise_snapshot_cache().insert(key, snapshot.clone());
     Ok(snapshot)
 }
 
@@ -690,9 +691,15 @@ pub fn perlin_simplex_noise_snapshot(
     random: &mut RandomSourceKind,
     octave_list: &[i32],
 ) -> PerlinSimplexNoiseSnapshot {
-    assert!(!octave_list.is_empty(), "Need some octaves!");
-    let first_octave = *octave_list.iter().min().unwrap();
-    let last_octave = *octave_list.iter().max().unwrap();
+    let Some((&first_entry, remaining_entries)) = octave_list.split_first() else {
+        panic!("Need some octaves!");
+    };
+    let mut first_octave = first_entry;
+    let mut last_octave = first_entry;
+    for &octave in remaining_entries {
+        first_octave = first_octave.min(octave);
+        last_octave = last_octave.max(octave);
+    }
     let low_freq_octaves = -first_octave;
     let high_freq_octaves = last_octave;
     let octave_count = (low_freq_octaves + high_freq_octaves + 1) as usize;
@@ -714,10 +721,15 @@ pub fn perlin_simplex_noise_snapshot(
 
     // Negative octaves (lower frequency) come from the main random, placed at indices above
     // zero_octave_index.  Skipped octaves still consume 262 random values to stay in sync.
-    for i in (zero_octave_index + 1)..octave_count {
+    for (i, level) in levels
+        .iter_mut()
+        .enumerate()
+        .take(octave_count)
+        .skip(zero_octave_index + 1)
+    {
         let octave_num = zero_octave_index as i32 - i as i32;
         if octave_list.contains(&octave_num) {
-            levels[i] = Some(simplex_noise_snapshot(random));
+            *level = Some(simplex_noise_snapshot(random));
         } else {
             random.consume_count(262);
         }
@@ -856,6 +868,17 @@ thread_local! {
 static GLOBAL_NOISE_SNAPSHOT_CACHE: OnceLock<Mutex<HashMap<String, NormalNoiseSnapshot>>> =
     OnceLock::new();
 
+fn normal_noise_snapshot_cache(
+) -> std::sync::MutexGuard<'static, HashMap<String, NormalNoiseSnapshot>> {
+    match GLOBAL_NOISE_SNAPSHOT_CACHE
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+    {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct StaticNoiseSnapshotCacheKey {
     seed: i64,
@@ -906,13 +929,7 @@ pub fn random_state_normal_noise_snapshot(
         return Some(snapshot);
     }
 
-    if let Some(snapshot) = GLOBAL_NOISE_SNAPSHOT_CACHE
-        .get_or_init(|| Mutex::new(HashMap::new()))
-        .lock()
-        .expect("global noise snapshot cache lock should not be poisoned")
-        .get(&cache_key)
-        .cloned()
-    {
+    if let Some(snapshot) = normal_noise_snapshot_cache().get(&cache_key).cloned() {
         NOISE_SNAPSHOT_CACHE.with(|cell| {
             if let Some(ref mut m) = *cell.borrow_mut() {
                 m.insert(cache_key.clone(), snapshot.clone());
@@ -925,11 +942,7 @@ pub fn random_state_normal_noise_snapshot(
     let parameters = builtin_normal_noise_parameters(plan.id)?;
     let snapshot =
         normal_noise_snapshot(plan.random, *parameters, plan.use_new_initialization).ok()?;
-    GLOBAL_NOISE_SNAPSHOT_CACHE
-        .get_or_init(|| Mutex::new(HashMap::new()))
-        .lock()
-        .expect("global noise snapshot cache lock should not be poisoned")
-        .insert(cache_key.clone(), snapshot.clone());
+    normal_noise_snapshot_cache().insert(cache_key.clone(), snapshot.clone());
 
     // Store in cache if active.
     NOISE_SNAPSHOT_CACHE.with(|cell| {
