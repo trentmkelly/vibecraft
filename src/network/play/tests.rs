@@ -775,6 +775,7 @@ mod set_score_packet_test;
 mod set_player_team_packet_test;
 mod set_action_bar_text_packet_test;
 mod set_subtitle_text_packet_test;
+mod set_title_text_packet_test;
 mod set_titles_animation_packet_test;
 mod cooldown_packet_test;
 mod entity_movement_test;

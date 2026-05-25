@@ -164,7 +164,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Title / Action Bar / Tab-List Packets
 
-- [ ] `ClientboundSetTitleTextPacket` (0x60): title component via `ComponentSerialization.TRUSTED_STREAM_CODEC` network NBT tag
+- [x] `ClientboundSetTitleTextPacket` (0x72 / decimal 114): title component via `ComponentSerialization.TRUSTED_STREAM_CODEC` as a trusted network NBT tag; verified against Java composite codec, Java play registration/name mapping, Rust packet ID/registry mapping, and focused network-NBT byte-layout coverage.
 - [x] `ClientboundSetSubtitleTextPacket` (0x70 / decimal 112): subtitle component via `ComponentSerialization.TRUSTED_STREAM_CODEC` as a trusted network NBT tag; verified against Java composite codec, Java play registration/name mapping, Rust packet ID/registry mapping, and focused network-NBT byte-layout coverage.
 - [x] `ClientboundSetTitlesAnimationPacket` (0x73 / decimal 115): fade-in ticks, stay ticks, and fade-out ticks as signed big-endian Java `FriendlyByteBuf.writeInt` values; verified against Java read/write codec, Java play registration/name mapping, Rust packet ID/registry mapping, and focused byte-layout coverage including a negative fade-out value.
 - [x] `ClientboundClearTitlesPacket` (0x0E / decimal 14): reset-times bool; verified against Java `ClientboundClearTitlesPacket` read/write order, Java play-protocol registration order, Rust protocol registry ID/name mapping, and direct bool byte-layout coverage.
