@@ -820,6 +820,7 @@ mod custom_payload_packet_test;
 mod entity_position_sync_packet_test;
 mod open_screen_packet_test;
 mod merchant_offers_packet_test;
+mod player_chat_packet_test;
 mod player_info_update_packet_test;
 mod player_position_packet_test;
 mod recipe_book_remove_packet_test;

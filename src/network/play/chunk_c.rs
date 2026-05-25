@@ -230,7 +230,7 @@ impl FilterMaskData {
 
 impl BoundChatTypeData {
     pub(super) fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-        write_var_i32(writer, self.chat_type_id)?;
+        write_var_i32(writer, self.chat_type_id + 1)?;
         writer.write_all(&self.name_payload)?;
         write_optional(
             writer,

@@ -529,7 +529,7 @@ fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
     assert_eq!(&player_chat[297..553], &[7; 256]);
     assert_eq!(
         &player_chat[553..],
-        &[0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0]
+        &[0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 5, 1, 0, 0]
     );
 
     let mut recipe_add = Vec::new();
