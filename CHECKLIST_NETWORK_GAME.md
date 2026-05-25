@@ -224,7 +224,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Debug / Misc Packets
 
-- [ ] `ClientboundDebugSamplePacket` (0x17): sample array longs, sample type VarInt
+- [x] `ClientboundDebugSamplePacket` (0x1E / decimal 30): sample long array (VarInt length + i64 entries), sample type enum VarInt; verified against Java `readLongArray`/`writeLongArray` and `readEnum`/`writeEnum`, Java `debug_sample` registration order, Rust protocol registry ID/name mapping, and direct byte-layout coverage.
 - [ ] `ClientboundCustomPayloadPacket` (0x18) — `minecraft:brand` and unknown payload channels up to vanilla 1 MiB cap
 - [ ] `ClientboundStartConfigurationPacket` (0x69): triggers switch from play back to configuration state
 - [ ] `ServerboundConfigurationAcknowledgedPacket` (0x10): empty terminal payload; triggers play→configuration ack
