@@ -914,6 +914,55 @@ fn sparse_chunk_sections_are_padded_to_vanilla_overworld_height() {
 }
 
 #[test]
+fn map_item_data_packet_uses_java_optional_lists_patch_and_rotation_mask() {
+    let mut with_patch = Vec::new();
+    ClientboundMapItemDataPacket {
+        map_id: 300,
+        scale: 2,
+        locked: true,
+        decorations: Some(vec![MapDecorationData {
+            decoration_type_id: 7,
+            x: -1,
+            y: 2,
+            rotation: 19,
+            name: None,
+        }]),
+        color_patch: Some(MapPatch {
+            width: 2,
+            height: 1,
+            start_x: 4,
+            start_y: 5,
+            colors: vec![6, 7],
+        }),
+    }
+    .write(&mut with_patch)
+    .unwrap();
+
+    assert_eq!(
+        with_patch,
+        vec![
+            0xac, 0x02, // MapId.STREAM_CODEC delegates to VarInt.
+            2, 1, // scale byte, locked bool.
+            1, 1, // optional decorations present, list length.
+            7, 0xff, 2, 3, 0, // type, x, y, rot & 15, optional name absent.
+            2, 1, 4, 5, 2, 6, 7, // patch width/height/start/colors byte array.
+        ]
+    );
+
+    let mut empty_update = Vec::new();
+    ClientboundMapItemDataPacket {
+        map_id: 1,
+        scale: 0,
+        locked: false,
+        decorations: None,
+        color_patch: None,
+    }
+    .write(&mut empty_update)
+    .unwrap();
+    assert_eq!(empty_update, vec![1, 0, 0, 0, 0]);
+}
+
+#[test]
 fn join_sequence_enters_play_with_login_held_slot_and_position_packets() {
     let mut session = PlaySession::new(42, 3);
     let login = ClientboundLoginPacket {

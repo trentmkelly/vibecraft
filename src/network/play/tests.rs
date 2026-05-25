@@ -81,6 +81,10 @@ fn play_packet_registry_matches_game_protocol_order_and_counts() {
         Some("light_update")
     );
     assert_eq!(
+        registry.clientbound_name(CLIENTBOUND_MAP_ITEM_DATA_PACKET_ID),
+        Some("map_item_data")
+    );
+    assert_eq!(
         registry.clientbound_name(CLIENTBOUND_GAME_RULE_VALUES_PACKET_ID),
         Some("game_rule_values")
     );

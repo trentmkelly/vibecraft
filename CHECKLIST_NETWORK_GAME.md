@@ -45,7 +45,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [x] `ClientboundSetChunkCacheCenterPacket` (0x5E / decimal 94): chunk X/Z VarInts; verified field order against Java and live raw join.
 - [x] `ClientboundSetChunkCacheRadiusPacket` (0x5F / decimal 95): view-distance VarInt; verified field order against Java and live raw join.
 - [x] `ClientboundSetSimulationDistancePacket` (0x6F / decimal 111): simulation-distance VarInt; verified field order against Java and Rust packet round-trip coverage.
-- [ ] `ClientboundMapItemDataPacket` (0x2D): map ID, scale, locked, optional tracking-position/decorations array, color patch or full color array; exact codec verified
+- [x] `ClientboundMapItemDataPacket` (0x33 / decimal 51): `MapId` VarInt, scale byte, locked bool, optional decoration list (`MapDecorationType` holder VarInt, x/y/rotation bytes, optional component tag), and optional color patch encoded as width byte `0` when absent or width/height/startX/startY plus byte array when present; verified against Java composite codec, Java `MapDecoration` rotation mask, Java `MapPatch` optional codec, Java play registration/name mapping, Rust packet ID/registry mapping, and focused byte-layout coverage for present and absent optional payloads.
 
 ## Entity Lifecycle Packets
 
@@ -160,7 +160,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Map Packets
 
-- [ ] `ClientboundMapItemDataPacket` (0x2D): map ID, scale byte, locked bool, optional decorations list (type/x/y/rot/optional label), optional patch (dirty x/y/width/height/colors bytes) or full 128x128 colors
+- [x] `ClientboundMapItemDataPacket` (0x33 / decimal 51): `MapId` VarInt, scale byte, locked bool, optional decorations list (type/x/y/rot masked to 4 bits/optional label), optional patch (`width=0` absent, otherwise width/height/startX/startY/colors byte array, including full-map patches when width/height cover 128x128); verified against Java composite codec, Java `MapDecoration` and `MapPatch` codecs, Java play registration/name mapping, Rust packet ID/registry mapping, and focused byte-layout coverage.
 
 ## Title / Action Bar / Tab-List Packets
 

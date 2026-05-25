@@ -1138,7 +1138,7 @@ fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
     }
     .write(&mut map_item)
     .unwrap();
-    assert_eq!(&map_item[..10], &[0xac, 0x02, 2, 1, 1, 1, 7, 0xff, 2, 19]);
+    assert_eq!(&map_item[..10], &[0xac, 0x02, 2, 1, 1, 1, 7, 0xff, 2, 3]);
     assert!(map_item.windows(2).any(|window| window == [1, 10]));
     assert_eq!(&map_item[map_item.len() - 7..], &[2, 1, 4, 5, 2, 6, 7]);
 

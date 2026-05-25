@@ -166,7 +166,7 @@ impl ClientboundMapItemDataPacket {
 impl MapDecorationData {
     pub(super) fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.decoration_type_id)?;
-        writer.write_all(&[self.x as u8, self.y as u8, self.rotation as u8])?;
+        writer.write_all(&[self.x as u8, self.y as u8, (self.rotation & 15) as u8])?;
         write_optional(writer, self.name.as_ref(), |writer, name| {
             write_network_tag(writer, name)
         })
