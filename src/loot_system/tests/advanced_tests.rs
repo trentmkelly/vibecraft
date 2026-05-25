@@ -150,6 +150,10 @@ fn block_break_loot_uses_block_entity_tool_gamerule_silk_and_fortune() {
                     key: "block_entity".to_string(),
                     value: "minecraft:test_block_entity".to_string(),
                 },
+                LootCondition::EntityProperty {
+                    key: "this_entity".to_string(),
+                    value: "Steve".to_string(),
+                },
                 LootCondition::AnyOf(vec![
                     LootCondition::EntityProperty {
                         key: "correct_tool".to_string(),
@@ -160,6 +164,7 @@ fn block_break_loot_uses_block_entity_tool_gamerule_silk_and_fortune() {
                         value: "true".to_string(),
                     },
                 ]),
+                LootCondition::SurvivesExplosion,
             ],
             functions: vec![LootFunction::ApplyFortuneBonus {
                 per_level: NumberProvider::Constant(1.0),
@@ -173,6 +178,7 @@ fn block_break_loot_uses_block_entity_tool_gamerule_silk_and_fortune() {
     request.block = Some("minecraft:diamond_ore".to_string());
     request.block_entity = Some("minecraft:test_block_entity".to_string());
     request.tool = Some("minecraft:diamond_pickaxe".to_string());
+    request.target_entity = Some("Steve".to_string());
     request.fortune_level = 3;
 
     let resolution = resolve_block_break_loot(&engine, request.clone(), 5);
@@ -191,6 +197,13 @@ fn block_break_loot_uses_block_entity_tool_gamerule_silk_and_fortune() {
     );
 
     request.do_tile_drops = true;
+    request.explosion_radius = Some(f32::MAX);
+    assert_eq!(
+        resolve_block_break_loot(&engine, request.clone(), 0x1234_5678_9abc_def0).delivery,
+        LootDelivery::DropAt((1.0, 64.0, 2.0), Vec::new())
+    );
+
+    request.explosion_radius = Some(1.0);
     request.correct_tool = false;
     request.silk_touch = true;
     assert_eq!(
