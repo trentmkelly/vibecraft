@@ -30,6 +30,7 @@ pub enum ProxyConnectionDecision {
     RejectPreventProxyConnections,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BlockPos {
     pub x: i32,
@@ -37,6 +38,7 @@ pub struct BlockPos {
     pub z: i32,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpawnProtection {
     pub radius: u32,
@@ -44,12 +46,14 @@ pub struct SpawnProtection {
     pub spawn_pos: BlockPos,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IpLogPolicy {
     Include,
     Redact,
 }
 
+#[cfg(test)]
 impl IpLogPolicy {
     pub fn format_remote(self, ip: &str) -> String {
         match self {
@@ -66,6 +70,7 @@ pub struct PlayerAccess {
     whitelist: Vec<NameAndId>,
     ops: Vec<OpEntry>,
     user_cache: Vec<NameAndId>,
+    #[cfg(test)]
     profile_cache: ProfileCache,
 }
 
@@ -83,23 +88,27 @@ impl PlayerAccess {
         Ok(access)
     }
 
+    #[cfg(test)]
     pub fn ban_player(&mut self, entry: BanEntry<NameAndId>) {
         self.banned_players
             .retain(|existing| existing.user.uuid != entry.user.uuid);
         self.banned_players.push(entry);
     }
 
+    #[cfg(test)]
     pub fn ban_ip(&mut self, entry: BanEntry<String>) {
         self.banned_ips
             .retain(|existing| existing.user != entry.user);
         self.banned_ips.push(entry);
     }
 
+    #[cfg(test)]
     pub fn whitelist(&mut self, user: NameAndId) {
         self.whitelist.retain(|existing| existing.uuid != user.uuid);
         self.whitelist.push(user);
     }
 
+    #[cfg(test)]
     pub fn op(&mut self, entry: OpEntry) {
         self.ops
             .retain(|existing| existing.user.uuid != entry.user.uuid);
@@ -109,10 +118,12 @@ impl PlayerAccess {
     pub fn cache_user(&mut self, user: NameAndId) {
         self.user_cache
             .retain(|existing| existing.uuid != user.uuid);
+        #[cfg(test)]
         self.profile_cache.insert(user.clone(), SystemTime::now());
         self.user_cache.push(user);
     }
 
+    #[cfg(test)]
     pub fn lookup_cached_profile(&mut self, name: &str, now: SystemTime) -> Option<NameAndId> {
         self.profile_cache.lookup(name, now)
     }
@@ -138,6 +149,7 @@ impl PlayerAccess {
             .map(|entry| entry.level)
     }
 
+    #[cfg(test)]
     pub fn has_ops(&self) -> bool {
         !self.ops.is_empty()
     }
@@ -146,6 +158,7 @@ impl PlayerAccess {
         self.op_level(uuid).is_some()
     }
 
+    #[cfg(test)]
     pub fn is_under_spawn_protection(
         &self,
         protection: &SpawnProtection,
@@ -179,6 +192,7 @@ impl PlayerAccess {
         }
     }
 
+    #[cfg(test)]
     pub fn ip_log_policy(&self, log_ips: bool) -> IpLogPolicy {
         if log_ips {
             IpLogPolicy::Include
@@ -187,6 +201,7 @@ impl PlayerAccess {
         }
     }
 
+    #[cfg(test)]
     pub fn save_all(&self, dir: &Path) -> std::io::Result<()> {
         fs::create_dir_all(dir)?;
         fs::write(dir.join("banned-players.json"), self.banned_players_json())?;
@@ -203,6 +218,7 @@ impl PlayerAccess {
         Ok(())
     }
 
+    #[cfg(test)]
     fn banned_players_json(&self) -> String {
         json_array(
             self.banned_players
@@ -222,6 +238,7 @@ impl PlayerAccess {
         )
     }
 
+    #[cfg(test)]
     fn banned_ips_json(&self) -> String {
         json_array(
             self.banned_ips
@@ -240,10 +257,12 @@ impl PlayerAccess {
         )
     }
 
+    #[cfg(test)]
     fn whitelist_json(&self) -> String {
         json_array(self.whitelist.iter().map(name_and_id_json).collect())
     }
 
+    #[cfg(test)]
     fn ops_json(&self) -> String {
         json_array(
             self.ops
@@ -404,12 +423,14 @@ fn md5(input: &[u8]) -> [u8; 16] {
     out
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone)]
 pub struct ProfileCache {
     entries: Vec<ProfileCacheEntry>,
     ttl: Duration,
 }
 
+#[cfg(test)]
 impl Default for ProfileCache {
     fn default() -> Self {
         Self {
@@ -419,6 +440,7 @@ impl Default for ProfileCache {
     }
 }
 
+#[cfg(test)]
 impl ProfileCache {
     pub fn insert(&mut self, profile: NameAndId, now: SystemTime) {
         self.entries
@@ -443,12 +465,14 @@ impl ProfileCache {
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone)]
 struct ProfileCacheEntry {
     profile: NameAndId,
     cached_at: SystemTime,
 }
 
+#[cfg(test)]
 fn name_and_id_json(user: &NameAndId) -> String {
     format!(
         "{{\"uuid\":\"{}\",\"name\":\"{}\"}}",
