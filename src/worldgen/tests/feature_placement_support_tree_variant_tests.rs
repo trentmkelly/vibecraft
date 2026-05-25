@@ -674,18 +674,20 @@ pub(super) fn assert_tree_variant_and_trunk_support() {
             1
         );
         let bending_plan = super::super::bending_trunk_placement_plan(
-            BlockPos {
-                x: 220,
-                y: 64,
-                z: 220,
+            super::super::BendingTrunkPlacementInput {
+                origin: BlockPos {
+                    x: 220,
+                    y: 64,
+                    z: 220,
+                },
+                tree_height: 5,
+                trunk_state: "minecraft:oak_log",
+                below_trunk_state: "minecraft:dirt",
+                direction: HorizontalDirection::South,
+                min_height_for_leaves: 2,
+                bend_length: 2,
+                bend_start_roll: 0,
             },
-            5,
-            "minecraft:oak_log",
-            "minecraft:dirt",
-            HorizontalDirection::South,
-            2,
-            2,
-            0,
         );
         assert!(bending_plan.blocks.iter().any(|block| {
             block.kind == TreePlacementBlockKind::Log

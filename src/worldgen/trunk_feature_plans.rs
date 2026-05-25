@@ -97,42 +97,44 @@ pub fn forking_trunk_placement_plan(
     }
 }
 
-pub fn bending_trunk_placement_plan(
-    origin: BlockPos,
-    tree_height: i32,
-    trunk_state: &'static str,
-    below_trunk_state: &'static str,
-    direction: HorizontalDirection,
-    min_height_for_leaves: i32,
-    bend_length: i32,
-    bend_start_roll: i32,
-) -> TrunkPlacementPlan {
+pub struct BendingTrunkPlacementInput {
+    pub origin: BlockPos,
+    pub tree_height: i32,
+    pub trunk_state: &'static str,
+    pub below_trunk_state: &'static str,
+    pub direction: HorizontalDirection,
+    pub min_height_for_leaves: i32,
+    pub bend_length: i32,
+    pub bend_start_roll: i32,
+}
+
+pub fn bending_trunk_placement_plan(input: BendingTrunkPlacementInput) -> TrunkPlacementPlan {
     let mut blocks = vec![TreePlacementBlock {
         pos: BlockPos {
-            x: origin.x,
-            y: origin.y - 1,
-            z: origin.z,
+            x: input.origin.x,
+            y: input.origin.y - 1,
+            z: input.origin.z,
         },
-        state: below_trunk_state,
+        state: input.below_trunk_state,
         kind: TreePlacementBlockKind::DirtBelowTrunk,
     }];
     let mut attachments = Vec::new();
-    let log_height = tree_height - 1;
-    let mut pos = origin;
+    let log_height = input.tree_height - 1;
+    let mut pos = input.origin;
 
     for i in 0..=log_height {
-        if i + 1 >= log_height + bend_start_roll.rem_euclid(2) {
-            pos = offset_horizontal(pos, direction, 1);
+        if i + 1 >= log_height + input.bend_start_roll.rem_euclid(2) {
+            pos = offset_horizontal(pos, input.direction, 1);
         }
         push_tree_block(
             &mut blocks,
             TreePlacementBlock {
                 pos,
-                state: trunk_state,
+                state: input.trunk_state,
                 kind: TreePlacementBlockKind::Log,
             },
         );
-        if i >= min_height_for_leaves {
+        if i >= input.min_height_for_leaves {
             attachments.push(TreeFoliageAttachmentModel {
                 pos,
                 radius_offset: 0,
@@ -142,12 +144,12 @@ pub fn bending_trunk_placement_plan(
         pos.y += 1;
     }
 
-    for _ in 0..=bend_length {
+    for _ in 0..=input.bend_length {
         push_tree_block(
             &mut blocks,
             TreePlacementBlock {
                 pos,
-                state: trunk_state,
+                state: input.trunk_state,
                 kind: TreePlacementBlockKind::Log,
             },
         );
@@ -156,7 +158,7 @@ pub fn bending_trunk_placement_plan(
             radius_offset: 0,
             double_trunk: false,
         });
-        pos = offset_horizontal(pos, direction, 1);
+        pos = offset_horizontal(pos, input.direction, 1);
     }
 
     TrunkPlacementPlan {
