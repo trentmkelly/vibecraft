@@ -67,50 +67,6 @@ impl NoiseInterpolatorState {
         }
     }
 
-    /// Evaluate `inner_fn` at every (Z, Y) cell-corner for the given X
-    /// cell-column and store the results into either `slice0` or `slice1`.
-    ///
-    /// Mirrors Java's `NoiseChunk.fillSlice` / `NoiseInterpolator.fillArray`.
-    fn fill_slice(
-        &mut self,
-        use_slice0: bool,
-        block_x: i32,
-        cell_count_y: i32,
-        cell_noise_min_y: i32,
-        cell_height: i32,
-        first_cell_z: i32,
-        cell_count_xz: i32,
-        cell_width: i32,
-        seed: i64,
-        settings: NoiseGeneratorSettings,
-    ) {
-        let slice = if use_slice0 {
-            &mut self.slice0
-        } else {
-            &mut self.slice1
-        };
-        for (z_idx, slice_z) in slice
-            .iter_mut()
-            .enumerate()
-            .take(cell_count_xz as usize + 1)
-        {
-            let block_z = (first_cell_z + z_idx as i32) * cell_width;
-            for (y_idx, value) in slice_z
-                .iter_mut()
-                .enumerate()
-                .take(cell_count_y as usize + 1)
-            {
-                // The Y corner corresponds to block_y = (cell_noise_min_y + y_idx) * cell_height.
-                // Java iterates y from 0 to cellCountY (inclusive) with inCellY = 0 and
-                // cellStartBlockY = (y_idx + cellNoiseMinY) * cellHeight — exactly this.
-                let block_y = (cell_noise_min_y + y_idx as i32) * cell_height;
-                *value = self
-                    .inner_fn
-                    .compute_with_noise(seed, settings, block_x, block_y, block_z);
-            }
-        }
-    }
-
     /// Load the 8 corner values for the cell at `(cell_y_idx, cell_z_idx)`.
     ///
     /// Mirrors Java `NoiseInterpolator.selectCellYZ`.
