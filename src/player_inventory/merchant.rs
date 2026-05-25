@@ -177,7 +177,9 @@ impl MerchantContainer {
         if !result.is_empty() {
             if let Some(index) = self.active_offer {
                 let (payment_a, rest) = self.slots.split_at_mut(1);
-                if self.offers[index].take(&mut payment_a[0], &mut rest[0]) {
+                if self.offers[index].take(&mut payment_a[0], &mut rest[0])
+                    || self.offers[index].take(&mut rest[0], &mut payment_a[0])
+                {
                     self.offers[index].increase_uses();
                 }
             }

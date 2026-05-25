@@ -301,6 +301,31 @@ fn merchant_container_respects_selection_hint_and_payment_slots() {
 }
 
 #[test]
+fn merchant_container_take_result_consumes_swapped_payment_slot() {
+    let offer = MerchantOffer::new(
+        ItemCost::new("minecraft:emerald", 2),
+        None,
+        ItemStack::new("minecraft:apple", 4),
+        3,
+        1,
+        0.0,
+    );
+    let mut container = MerchantContainer::new(vec![offer]);
+
+    // Java MerchantResultSlot.onTake tries offer.take(buyA, buyB) and then
+    // offer.take(buyB, buyA), so a payment placed in slot 1 is consumed too.
+    container.set_payment(1, ItemStack::new("minecraft:emerald", 2));
+    assert!(container.can_trade());
+    assert_eq!(container.result().item_id(), "minecraft:apple");
+
+    let result = container.take_result();
+    assert_eq!(result.item_id(), "minecraft:apple");
+    assert!(container.result().is_empty());
+    assert!(container.offer(0).unwrap().needs_restock());
+    assert!(!container.can_trade());
+}
+
+#[test]
 fn merchant_offer_demand_increases_after_purchase_and_resets_after_restock() {
     // Java parity: trading consumes uses; updateDemand uses the formula
     // demand += uses - (maxUses - uses); restock then clears uses.
