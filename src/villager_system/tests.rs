@@ -358,6 +358,7 @@ fn trading_adds_xp_gossip_demand_and_restock_caps_twice_per_day() {
     );
     assert!(villager.offers[0].is_out_of_stock());
     assert_eq!(villager.xp, 2);
+    assert_eq!(villager.last_traded_player.as_deref(), Some("player-a"));
     assert_eq!(villager.gossip.reputation("player-a"), 2);
 
     assert!(villager.restock(1_000));
@@ -371,6 +372,48 @@ fn trading_adds_xp_gossip_demand_and_restock_caps_twice_per_day() {
     villager.trade(0, "player-a");
     assert!(!villager.restock(1_300));
     assert!(villager.restock(25_000));
+}
+
+#[test]
+fn trade_xp_grant_sets_delayed_profession_level_up_like_java() {
+    let mut villager = VillagerTradeState::new(VillagerProfession::Toolsmith);
+    villager.offers.push(MerchantOffer::new(
+        ItemCost::new("minecraft:emerald", 1),
+        None,
+        ItemStack::new("minecraft:stone_shovel", 1),
+        4,
+        10,
+        0.2,
+    ));
+    villager.offers[0].reward_exp = false;
+
+    // Java Villager.rewardTradeXp always adds offer XP to villager career XP,
+    // even when rewardExp=false suppresses the visible experience orb.
+    villager.trade(0, "player-a").unwrap();
+    assert_eq!(villager.xp, 10);
+    assert_eq!(villager.level, VillagerLevel::Novice);
+    assert!(villager.should_increase_level());
+    assert_eq!(villager.update_merchant_timer, VILLAGER_LEVEL_UP_DELAY_TICKS);
+    assert!(villager.increase_profession_level_on_update);
+
+    for _ in 0..VILLAGER_LEVEL_UP_DELAY_TICKS {
+        assert!(!villager.tick_level_progression(true));
+    }
+    assert_eq!(villager.update_merchant_timer, VILLAGER_LEVEL_UP_DELAY_TICKS);
+    assert_eq!(villager.level, VillagerLevel::Novice);
+
+    for _ in 1..VILLAGER_LEVEL_UP_DELAY_TICKS {
+        assert!(!villager.tick_level_progression(false));
+    }
+    assert_eq!(villager.level, VillagerLevel::Novice);
+    assert!(villager.tick_level_progression(false));
+    assert_eq!(villager.update_merchant_timer, 0);
+    assert_eq!(villager.level, VillagerLevel::Apprentice);
+    assert!(!villager.increase_profession_level_on_update);
+    assert!(villager
+        .offers
+        .iter()
+        .any(|offer| offer.result.item_id() == "minecraft:stone_pickaxe"));
 }
 
 #[test]

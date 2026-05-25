@@ -493,6 +493,9 @@ pub struct VillagerTradeState {
     pub xp: i32,
     pub offers: Vec<MerchantOffer>,
     pub gossip: GossipContainer,
+    pub last_traded_player: Option<String>,
+    pub update_merchant_timer: i32,
+    pub increase_profession_level_on_update: bool,
     pub restocks_today: i32,
     pub last_restock_game_time: i64,
     pub workstation: Option<PoiTicket>,
@@ -506,6 +509,9 @@ impl VillagerTradeState {
             xp: 0,
             offers: Vec::new(),
             gossip: GossipContainer::new(),
+            last_traded_player: None,
+            update_merchant_timer: 0,
+            increase_profession_level_on_update: false,
             restocks_today: 0,
             last_restock_game_time: 0,
             workstation: profession.workstation().map(|poi_type| PoiTicket {
@@ -547,9 +553,51 @@ impl VillagerTradeState {
         let result = offer.assemble();
         offer.increase_uses();
         self.xp += offer.xp;
-        self.level = VillagerLevel::from_xp(self.xp);
+        self.last_traded_player = Some(player.to_string());
+        if self.should_increase_level() {
+            self.update_merchant_timer = VILLAGER_LEVEL_UP_DELAY_TICKS;
+            self.increase_profession_level_on_update = true;
+        }
         self.gossip.add(player, GossipType::Trading, 2);
         Some(result)
+    }
+
+    pub fn should_increase_level(&self) -> bool {
+        let current_level = self.level as i32;
+        villager_can_level_up(current_level) && self.xp >= villager_max_xp_per_level(current_level)
+    }
+
+    /// Advance the delayed trade-level-up timer.
+    ///
+    /// Java `Villager.customServerAiStep` only decrements `updateMerchantTimer`
+    /// while the villager is not trading. When the timer reaches zero,
+    /// `increaseMerchantCareer` increments the profession level and adds the
+    /// next level's trade set.
+    pub fn tick_level_progression(&mut self, is_trading: bool) -> bool {
+        if is_trading || self.update_merchant_timer <= 0 {
+            return false;
+        }
+        self.update_merchant_timer -= 1;
+        if self.update_merchant_timer > 0 {
+            return false;
+        }
+        if self.increase_profession_level_on_update {
+            self.increase_profession_level_on_update = false;
+            self.increase_merchant_career();
+            return true;
+        }
+        false
+    }
+
+    fn increase_merchant_career(&mut self) {
+        self.level = match self.level {
+            VillagerLevel::Novice => VillagerLevel::Apprentice,
+            VillagerLevel::Apprentice => VillagerLevel::Journeyman,
+            VillagerLevel::Journeyman => VillagerLevel::Expert,
+            VillagerLevel::Expert => VillagerLevel::Master,
+            VillagerLevel::Master => VillagerLevel::Master,
+        };
+        self.generate_level_offers();
     }
 
     pub fn restock(&mut self, game_time: i64) -> bool {
