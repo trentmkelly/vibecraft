@@ -1,7 +1,4 @@
-use std::fs::{self, File, OpenOptions};
-use std::io::Write;
-#[cfg(unix)]
-use std::os::fd::AsRawFd;
+use std::fs::{self, File};
 use std::path::{Component, Path};
 
 use crate::storage::nbt::{read_gzip_named_tag, read_named_tag, write_gzip_named_tag, write_named_tag, Tag};
@@ -26,37 +23,12 @@ pub(super) fn lock_file_exclusive_nonblocking(file: &File, lock_path: &Path) -> 
     })
 }
 
-#[cfg(unix)]
 pub(super) fn try_lock_file_exclusive_nonblocking(file: &File) -> std::io::Result<()> {
-    let result = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
-    if result == 0 {
-        Ok(())
-    } else {
-        Err(std::io::Error::last_os_error())
-    }
+    Ok(file.try_lock()?)
 }
 
-#[cfg(unix)]
 pub(super) fn unlock_file(file: &File) -> std::io::Result<()> {
-    let result = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_UN) };
-    if result == 0 {
-        Ok(())
-    } else {
-        Err(std::io::Error::last_os_error())
-    }
-}
-
-#[cfg(not(unix))]
-pub(super) fn try_lock_file_exclusive_nonblocking(_file: &File) -> std::io::Result<()> {
-    Err(std::io::Error::new(
-        std::io::ErrorKind::Unsupported,
-        "session.lock file locking is only implemented on Unix targets",
-    ))
-}
-
-#[cfg(not(unix))]
-pub(super) fn unlock_file(_file: &File) -> std::io::Result<()> {
-    Ok(())
+    file.unlock()
 }
 
 pub(super) fn is_would_block_lock_error(err: &std::io::Error) -> bool {
@@ -432,4 +404,3 @@ pub(super) fn checked_json_data_version(surface: &str, json: &str) -> std::io::R
     require_current_world_data_version(version as i32)
         .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))
 }
-

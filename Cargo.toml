@@ -4,6 +4,15 @@ version = "0.1.0"
 edition = "2021"
 license = "UNLICENSED"
 
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+cognitive_complexity = "warn"
+expect_used = "deny"
+too_many_lines = "warn"
+unwrap_used = "deny"
+
 [dependencies]
 aes = "0.8"
 flate2 = "1"

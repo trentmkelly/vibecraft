@@ -34,9 +34,10 @@ fn main() {
         return;
     }
 
-    let manifest_dir = env::var_os("CARGO_MANIFEST_DIR")
-        .map(PathBuf::from)
-        .expect("CARGO_MANIFEST_DIR must be set when running build script");
+    let manifest_dir = match env::var_os("CARGO_MANIFEST_DIR") {
+        Some(dir) => PathBuf::from(dir),
+        None => panic!("CARGO_MANIFEST_DIR must be set when running build script"),
+    };
     let src_dir = manifest_dir.join("src");
 
     let mut offenders: Vec<(PathBuf, usize)> = Vec::new();
@@ -78,7 +79,10 @@ fn collect_offenders(root: &Path, dir: &Path, out: &mut Vec<(PathBuf, usize)>) {
     };
 
     for entry in entries {
-        let entry = entry.expect("failed to read directory entry");
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(err) => panic!("failed to read directory entry in {}: {}", dir.display(), err),
+        };
         let path = entry.path();
         let file_type = entry
             .file_type()

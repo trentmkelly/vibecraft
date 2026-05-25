@@ -43,13 +43,10 @@ impl LootBehaviorEngine {
             LootSurface::Vault => {
                 LootDelivery::DropAt(request.origin, table.evaluate(&mut context))
             }
-            LootSurface::Command if request.actor.is_some() => LootDelivery::GiveToEntity(
-                request.actor.clone().unwrap(),
-                table.evaluate(&mut context),
-            ),
-            LootSurface::Command => {
-                LootDelivery::DropAt(request.origin, table.evaluate(&mut context))
-            }
+            LootSurface::Command => match &request.actor {
+                Some(actor) => LootDelivery::GiveToEntity(actor.clone(), table.evaluate(&mut context)),
+                None => LootDelivery::DropAt(request.origin, table.evaluate(&mut context)),
+            },
             LootSurface::BlockBreak
             | LootSurface::EntityDeath
             | LootSurface::FishingRetrieve

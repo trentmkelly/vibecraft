@@ -1,0 +1,4 @@
+# Tests use unwrap/expect for fixture setup and invariant assertions; production
+# code is denied through Cargo.toml and must handle errors or justify exceptions.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
