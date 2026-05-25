@@ -2,6 +2,8 @@
 
 use crate::base_entity::Vec3;
 use crate::item_stack::ItemStack;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ClickAction {
@@ -86,15 +88,24 @@ pub enum MenuTickResult {
     CloseMenu,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct DataSlot {
-    value: i32,
+    value: DataSlotValue,
     previous_value: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContainerData {
-    values: Vec<i32>,
+    values: Rc<RefCell<Vec<i32>>>,
+}
+
+#[derive(Debug, Clone)]
+enum DataSlotValue {
+    Standalone(i32),
+    Container {
+        values: Rc<RefCell<Vec<i32>>>,
+        index: usize,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -201,50 +212,78 @@ impl Slot {
 impl DataSlot {
     pub fn standalone() -> Self {
         Self {
-            value: 0,
+            value: DataSlotValue::Standalone(0),
             previous_value: 0,
         }
     }
 
     pub fn with_value(value: i32) -> Self {
         Self {
-            value,
-            previous_value: value,
+            value: DataSlotValue::Standalone(value),
+            previous_value: 0,
+        }
+    }
+
+    pub fn for_container(container: &ContainerData, data_id: usize) -> Self {
+        Self {
+            value: DataSlotValue::Container {
+                values: Rc::clone(&container.values),
+                index: data_id,
+            },
+            previous_value: 0,
         }
     }
 
     pub fn get(&self) -> i32 {
-        self.value
+        match &self.value {
+            DataSlotValue::Standalone(value) => *value,
+            DataSlotValue::Container { values, index } => values.borrow()[*index],
+        }
     }
 
     pub fn set(&mut self, value: i32) {
-        self.value = value;
+        match &mut self.value {
+            DataSlotValue::Standalone(slot) => *slot = value,
+            DataSlotValue::Container { values, index } => values.borrow_mut()[*index] = value,
+        }
     }
 
     pub fn check_and_clear_update_flag(&mut self) -> bool {
-        let changed = self.value != self.previous_value;
-        self.previous_value = self.value;
+        let current = self.get();
+        let changed = current != self.previous_value;
+        self.previous_value = current;
         changed
     }
 }
 
+impl PartialEq for DataSlot {
+    fn eq(&self, other: &Self) -> bool {
+        self.get() == other.get() && self.previous_value == other.previous_value
+    }
+}
+
+impl Eq for DataSlot {}
+
 impl ContainerData {
     pub fn new(count: usize) -> Self {
         Self {
-            values: vec![0; count],
+            values: Rc::new(RefCell::new(vec![0; count])),
         }
     }
 
     pub fn from_values(values: Vec<i32>) -> Self {
-        Self { values }
+        Self {
+            values: Rc::new(RefCell::new(values)),
+        }
     }
 
     pub fn get(&self, data_id: usize) -> Option<i32> {
-        self.values.get(data_id).copied()
+        self.values.borrow().get(data_id).copied()
     }
 
     pub fn set(&mut self, data_id: usize, value: i32) -> bool {
-        let Some(slot) = self.values.get_mut(data_id) else {
+        let mut values = self.values.borrow_mut();
+        let Some(slot) = values.get_mut(data_id) else {
             return false;
         };
         *slot = value;
@@ -252,11 +291,7 @@ impl ContainerData {
     }
 
     pub fn get_count(&self) -> usize {
-        self.values.len()
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = i32> + '_ {
-        self.values.iter().copied()
+        self.values.borrow().len()
     }
 }
 
@@ -437,8 +472,8 @@ impl Menu {
     }
 
     pub fn add_data_slots(&mut self, container: &ContainerData) {
-        for value in container.iter() {
-            self.add_data_slot(DataSlot::with_value(value));
+        for id in 0..container.get_count() {
+            self.add_data_slot(DataSlot::for_container(container, id));
         }
     }
 
@@ -983,6 +1018,37 @@ mod tests {
         let changes = menu.send_data_changes();
         assert_eq!(changes, vec![DataChange { id: 1, value: 7 }]);
         assert!(menu.send_data_changes().is_empty());
+    }
+
+    #[test]
+    fn data_slots_share_container_data_backing_values() {
+        let mut container = ContainerData::from_values(vec![1, 2]);
+        let mut menu = Menu::new(0);
+        menu.add_data_slots(&container);
+
+        assert!(container.set(1, 5));
+        assert_eq!(menu.data_slots[1].get(), 5);
+
+        menu.data_slots[0].set(9);
+        assert_eq!(container.get(0), Some(9));
+    }
+
+    #[test]
+    fn initial_nonzero_data_slot_notifies_listener_without_remote_resend() {
+        let mut menu = Menu::new(0);
+        menu.add_data_slot(DataSlot::with_value(5));
+        let full = menu.send_all_data_to_remote();
+        assert_eq!(full.data, vec![DataChange { id: 0, value: 5 }]);
+
+        menu.add_listener(ContainerListener::new());
+        assert_eq!(
+            menu.listeners[0].events,
+            vec![ContainerListenerEvent::DataChanged(DataChange {
+                id: 0,
+                value: 5
+            })]
+        );
+        assert!(menu.broadcast_changes().data.is_empty());
     }
 
     #[test]
