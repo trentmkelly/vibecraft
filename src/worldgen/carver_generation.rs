@@ -10,6 +10,86 @@ pub fn configured_carver(id: &str) -> Option<&'static ConfiguredCarver> {
     })
 }
 
+fn parse_cave_carver_shape_json(
+    id: &str,
+    config: &serde_json::Map<String, serde_json::Value>,
+) -> Result<CarverShape, String> {
+    Ok(CarverShape::Cave {
+        horizontal_radius_multiplier: parse_float_provider_json(
+            config
+                .get("horizontal_radius_multiplier")
+                .ok_or_else(|| format!("configured carver {id} missing horizontal radius"))?,
+        )?,
+        vertical_radius_multiplier: parse_float_provider_json(
+            config
+                .get("vertical_radius_multiplier")
+                .ok_or_else(|| format!("configured carver {id} missing vertical radius"))?,
+        )?,
+        floor_level: parse_float_provider_json(
+            config
+                .get("floor_level")
+                .ok_or_else(|| format!("configured carver {id} missing floor_level"))?,
+        )?,
+    })
+}
+
+fn parse_canyon_shape_configuration_json(
+    id: &str,
+    shape: &serde_json::Map<String, serde_json::Value>,
+) -> Result<CanyonShapeConfiguration, String> {
+    Ok(CanyonShapeConfiguration {
+        distance_factor: parse_float_provider_json(
+            shape
+                .get("distance_factor")
+                .ok_or_else(|| format!("configured carver {id} missing distance_factor"))?,
+        )?,
+        thickness: parse_float_provider_json(
+            shape
+                .get("thickness")
+                .ok_or_else(|| format!("configured carver {id} missing thickness"))?,
+        )?,
+        width_smoothness: json_i32(shape, "width_smoothness")?,
+        horizontal_radius_factor: parse_float_provider_json(
+            shape.get("horizontal_radius_factor").ok_or_else(|| {
+                format!("configured carver {id} missing horizontal_radius_factor")
+            })?,
+        )?,
+        vertical_radius_default_factor: json_f32(shape, "vertical_radius_default_factor")?,
+        vertical_radius_center_factor: json_f32(shape, "vertical_radius_center_factor")?,
+    })
+}
+
+fn parse_canyon_carver_shape_json(
+    id: &str,
+    config: &serde_json::Map<String, serde_json::Value>,
+) -> Result<CarverShape, String> {
+    let shape = config
+        .get("shape")
+        .and_then(|v| v.as_object())
+        .ok_or_else(|| format!("configured carver {id} missing canyon shape"))?;
+    Ok(CarverShape::Canyon {
+        vertical_rotation: parse_float_provider_json(
+            config
+                .get("vertical_rotation")
+                .ok_or_else(|| format!("configured carver {id} missing vertical_rotation"))?,
+        )?,
+        shape: parse_canyon_shape_configuration_json(id, shape)?,
+    })
+}
+
+fn parse_carver_shape_json(
+    id: &str,
+    carver_type: WorldCarverType,
+    config: &serde_json::Map<String, serde_json::Value>,
+) -> Result<CarverShape, String> {
+    match carver_type {
+        WorldCarverType::Cave | WorldCarverType::NetherCave => {
+            parse_cave_carver_shape_json(id, config)
+        }
+        WorldCarverType::Canyon => parse_canyon_carver_shape_json(id, config),
+    }
+}
+
 pub fn parse_configured_carver_from_json(
     id: &'static str,
     value: &serde_json::Value,
@@ -48,64 +128,7 @@ pub fn parse_configured_carver_from_json(
         .and_then(vanilla_carver_replaceable_tag)
         .ok_or_else(|| format!("configured carver {id} has unknown replaceable tag"))?;
     let debug = parse_carver_debug_settings_json(config.get("debug_settings"))?;
-    let shape = match carver_type {
-        WorldCarverType::Cave | WorldCarverType::NetherCave => CarverShape::Cave {
-            horizontal_radius_multiplier: parse_float_provider_json(
-                config
-                    .get("horizontal_radius_multiplier")
-                    .ok_or_else(|| format!("configured carver {id} missing horizontal radius"))?,
-            )?,
-            vertical_radius_multiplier: parse_float_provider_json(
-                config
-                    .get("vertical_radius_multiplier")
-                    .ok_or_else(|| format!("configured carver {id} missing vertical radius"))?,
-            )?,
-            floor_level: parse_float_provider_json(
-                config
-                    .get("floor_level")
-                    .ok_or_else(|| format!("configured carver {id} missing floor_level"))?,
-            )?,
-        },
-        WorldCarverType::Canyon => {
-            let shape = config
-                .get("shape")
-                .and_then(|v| v.as_object())
-                .ok_or_else(|| format!("configured carver {id} missing canyon shape"))?;
-            CarverShape::Canyon {
-                vertical_rotation: parse_float_provider_json(
-                    config.get("vertical_rotation").ok_or_else(|| {
-                        format!("configured carver {id} missing vertical_rotation")
-                    })?,
-                )?,
-                shape: CanyonShapeConfiguration {
-                    distance_factor: parse_float_provider_json(
-                        shape.get("distance_factor").ok_or_else(|| {
-                            format!("configured carver {id} missing distance_factor")
-                        })?,
-                    )?,
-                    thickness: parse_float_provider_json(
-                        shape
-                            .get("thickness")
-                            .ok_or_else(|| format!("configured carver {id} missing thickness"))?,
-                    )?,
-                    width_smoothness: json_i32(shape, "width_smoothness")?,
-                    horizontal_radius_factor: parse_float_provider_json(
-                        shape.get("horizontal_radius_factor").ok_or_else(|| {
-                            format!("configured carver {id} missing horizontal_radius_factor")
-                        })?,
-                    )?,
-                    vertical_radius_default_factor: json_f32(
-                        shape,
-                        "vertical_radius_default_factor",
-                    )?,
-                    vertical_radius_center_factor: json_f32(
-                        shape,
-                        "vertical_radius_center_factor",
-                    )?,
-                },
-            }
-        }
-    };
+    let shape = parse_carver_shape_json(id, carver_type, config)?;
 
     Ok(ConfiguredCarver {
         id,
