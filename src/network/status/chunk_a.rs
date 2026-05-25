@@ -1877,6 +1877,104 @@ fn handle_place_recipe_packet<R: Read>(
     Ok(())
 }
 
+struct PlayDisconnectContext<'a, 'b> {
+    properties: &'a ServerProperties,
+    world_root: &'a Path,
+    profile_uuid: &'a str,
+    play_state: &'b mut PlaySessionState,
+    world_items: &'a Arc<Mutex<WorldItemEntities>>,
+    chunk_cache: &'a GeneratedChunkCache,
+}
+
+enum PlayPacketReadOutcome {
+    Packet(Vec<u8>),
+    Continue,
+    EndSession,
+}
+
+fn read_play_packet_or_handle_disconnect(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    rate_limiter: &mut PacketRateLimiter,
+    context: PlayDisconnectContext<'_, '_>,
+) -> io::Result<PlayPacketReadOutcome> {
+    match read_packet_with_compression(stream, compression) {
+        Ok(packet) => {
+            if let PacketRateDecision::Kick { reason } = rate_limiter.record_packet(Instant::now())
+            {
+                persist_play_disconnect_state(
+                    context.properties,
+                    context.world_root,
+                    context.profile_uuid,
+                    context.play_state,
+                    context.world_items,
+                    context.chunk_cache,
+                );
+                write_translatable_play_disconnect(stream, compression, &reason)?;
+                return Ok(PlayPacketReadOutcome::EndSession);
+            }
+            Ok(PlayPacketReadOutcome::Packet(packet))
+        }
+        Err(err)
+            if matches!(
+                err.kind(),
+                io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
+            ) =>
+        {
+            if let PacketRateDecision::Kick { reason } = rate_limiter.tick(Instant::now()) {
+                // Java: RateKickingConnection sends a common disconnect after the
+                // per-second average crosses the configured threshold.
+                persist_play_disconnect_state(
+                    context.properties,
+                    context.world_root,
+                    context.profile_uuid,
+                    context.play_state,
+                    context.world_items,
+                    context.chunk_cache,
+                );
+                write_translatable_play_disconnect(stream, compression, &reason)?;
+                return Ok(PlayPacketReadOutcome::EndSession);
+            }
+            Ok(PlayPacketReadOutcome::Continue)
+        }
+        Err(err)
+            if matches!(
+                err.kind(),
+                io::ErrorKind::UnexpectedEof | io::ErrorKind::ConnectionReset
+            ) =>
+        {
+            persist_play_disconnect_state(
+                context.properties,
+                context.world_root,
+                context.profile_uuid,
+                context.play_state,
+                context.world_items,
+                context.chunk_cache,
+            );
+            Ok(PlayPacketReadOutcome::EndSession)
+        }
+        Err(err) => Err(err),
+    }
+}
+
+fn write_translatable_play_disconnect(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    reason: &str,
+) -> io::Result<()> {
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_DISCONNECT_PACKET_ID,
+        |payload| {
+            ClientboundDisconnectPacket {
+                reason: ComponentJson(format!("{{\"translate\":\"{reason}\"}}")),
+            }
+            .write(payload)
+        },
+    )
+}
+
 fn handle_login_connection(
     stream: &mut TcpStream,
     mut context: LoginConnectionContext<'_>,
@@ -2017,32 +2115,20 @@ fn run_joined_play_session(
             &mut last_sent_thunder_level,
         )?;
 
-        match read_packet_with_compression(stream, compression) {
-            Ok(packet) => {
-                if let PacketRateDecision::Kick { reason } =
-                    rate_limiter.record_packet(Instant::now())
-                {
-                    persist_play_disconnect_state(
-                        properties,
-                        world_root,
-                        &finished.profile.uuid,
-                        &mut play_state,
-                        world_items,
-                        chunk_cache,
-                    );
-                    write_framed_packet_with_compression(
-                        stream,
-                        compression,
-                        CLIENTBOUND_DISCONNECT_PACKET_ID,
-                        |payload| {
-                            ClientboundDisconnectPacket {
-                                reason: ComponentJson(format!("{{\"translate\":\"{reason}\"}}")),
-                            }
-                            .write(payload)
-                        },
-                    )?;
-                    return Ok(());
-                }
+        match read_play_packet_or_handle_disconnect(
+            stream,
+            compression,
+            rate_limiter,
+            PlayDisconnectContext {
+                properties,
+                world_root,
+                profile_uuid: &finished.profile.uuid,
+                play_state: &mut play_state,
+                world_items,
+                chunk_cache,
+            },
+        )? {
+            PlayPacketReadOutcome::Packet(packet) => {
                 let mut input = Cursor::new(packet);
                 let packet_id = read_var_i32(&mut input)?;
                 let session_update =
@@ -2197,54 +2283,8 @@ fn run_joined_play_session(
                 )?;
                 return Ok(());
             }
-            Err(err)
-                if matches!(
-                    err.kind(),
-                    io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
-                ) =>
-            {
-                if let PacketRateDecision::Kick { reason } = rate_limiter.tick(Instant::now()) {
-                    // Java: RateKickingConnection sends a common disconnect after the
-                    // per-second average crosses the configured threshold.
-                    persist_play_disconnect_state(
-                        properties,
-                        world_root,
-                        &finished.profile.uuid,
-                        &mut play_state,
-                        world_items,
-                        chunk_cache,
-                    );
-                    write_framed_packet_with_compression(
-                        stream,
-                        compression,
-                        CLIENTBOUND_DISCONNECT_PACKET_ID,
-                        |payload| {
-                            ClientboundDisconnectPacket {
-                                reason: ComponentJson(format!("{{\"translate\":\"{reason}\"}}")),
-                            }
-                            .write(payload)
-                        },
-                    )?;
-                    return Ok(());
-                }
-            }
-            Err(err)
-                if matches!(
-                    err.kind(),
-                    io::ErrorKind::UnexpectedEof | io::ErrorKind::ConnectionReset
-                ) =>
-            {
-                persist_play_disconnect_state(
-                    properties,
-                    world_root,
-                    &finished.profile.uuid,
-                    &mut play_state,
-                    world_items,
-                    chunk_cache,
-                );
-                return Ok(());
-            }
-            Err(err) => return Err(err),
+            PlayPacketReadOutcome::Continue => continue,
+            PlayPacketReadOutcome::EndSession => return Ok(()),
         }
     }
 }
