@@ -486,7 +486,7 @@ pub(super) fn build_surface_for_chunk_timed_with_sections(
                                 continue;
                             }
                             let debug_started = surface_debug.then(Instant::now);
-                            section_blocks.set_name(block_x, y, block_z, &new_block);
+                            section_blocks.set_name(block_x, y, block_z, new_block);
                             if let Some(started) = debug_started {
                                 surface_write_us += started.elapsed().as_micros();
                             }

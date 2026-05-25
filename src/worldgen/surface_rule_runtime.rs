@@ -639,7 +639,7 @@ fn dyn_surface_condition_compute(
     settings: NoiseGeneratorSettings,
 ) -> bool {
     match cond {
-        DynSurfaceCondition::Biome(biomes) => biomes.iter().any(|b| b == &state.biome),
+        DynSurfaceCondition::Biome(biomes) => biomes.iter().any(|b| b == state.biome),
         DynSurfaceCondition::NoiseThreshold { noise, min, max } => {
             // Sample the named noise at (blockX, 0, blockZ).
             // Uses the thread-local noise cache when active.
@@ -747,7 +747,7 @@ fn dyn_surface_condition_compute_live(
     match cond {
         DynSurfaceCondition::Biome(biomes) => {
             state.resolve_biome(biome_resolver);
-            biomes.iter().any(|b| b == &state.biome)
+            biomes.iter().any(|b| b == state.biome)
         }
         DynSurfaceCondition::Temperature => {
             state.resolve_biome(biome_resolver);

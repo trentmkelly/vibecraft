@@ -849,9 +849,9 @@ pub fn normal_noise_sample(snapshot: &NormalNoiseSnapshot, x: f64, y: f64, z: f6
 // Set up via `with_noise_snapshot_cache` before calling `fill_from_noise_chunk`.
 thread_local! {
     static NOISE_SNAPSHOT_CACHE: std::cell::RefCell<Option<HashMap<String, NormalNoiseSnapshot>>>
-        = std::cell::RefCell::new(None);
+        = const { std::cell::RefCell::new(None) };
     static STATIC_NOISE_SNAPSHOT_CACHE: std::cell::RefCell<Option<HashMap<StaticNoiseSnapshotCacheKey, NormalNoiseSnapshot>>>
-        = std::cell::RefCell::new(None);
+        = const { std::cell::RefCell::new(None) };
 }
 static GLOBAL_NOISE_SNAPSHOT_CACHE: OnceLock<Mutex<HashMap<String, NormalNoiseSnapshot>>> =
     OnceLock::new();

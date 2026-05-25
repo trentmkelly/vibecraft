@@ -148,7 +148,7 @@ pub(super) fn carve_configured_carver_from_source_chunk(
                 mask,
                 settings,
                 noise_chunk,
-                aquifer.as_deref_mut(),
+                aquifer,
             )
         }
     }

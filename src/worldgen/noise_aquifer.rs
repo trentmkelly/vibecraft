@@ -213,7 +213,7 @@ fn aq_calculate_pressure(
     };
 
     // Only sample barrier noise when gradient is in the influential range.
-    let noise_val = if gradient >= -2.0 && gradient <= 2.0 {
+    let noise_val = if (-2.0..=2.0).contains(&gradient) {
         *barrier_cache.get_or_insert_with(|| {
             if let Some(chunk) = noise_chunk {
                 eval_density_fn_with_interp(noise_router.barrier, chunk, pos_x, pos_y, pos_z)
@@ -769,8 +769,8 @@ impl NoiseBasedAquifer {
     }
 
     fn get_aquifer_status(&mut self, index: usize, noise_chunk: &NoiseChunk) -> FluidStatus {
-        if self.aquifer_cache[index].is_some() {
-            return self.aquifer_cache[index].clone().unwrap();
+        if let Some(status) = self.aquifer_cache[index] {
+            return status;
         }
         let loc = self.aquifer_location_cache[index];
         let x = aq_unpack_x(loc);
@@ -785,7 +785,7 @@ impl NoiseBasedAquifer {
             self.noise_router,
             Some(noise_chunk),
         );
-        self.aquifer_cache[index] = Some(status.clone());
+        self.aquifer_cache[index] = Some(status);
         status
     }
 }
