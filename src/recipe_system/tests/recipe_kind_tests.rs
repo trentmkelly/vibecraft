@@ -631,6 +631,19 @@ fn core_recipe_interface_methods_match_java_defaults() {
     assert_eq!(normal.group, "tools");
     assert!(!normal.is_incomplete());
     assert!(!normal.placement_info.is_impossible_to_place());
+
+    let categories = [
+        (
+            CraftingBookCategoryModel::Building,
+            "crafting_building_blocks",
+        ),
+        (CraftingBookCategoryModel::Equipment, "crafting_equipment"),
+        (CraftingBookCategoryModel::Redstone, "crafting_redstone"),
+        (CraftingBookCategoryModel::Misc, "crafting_misc"),
+    ];
+    for (category, expected) in categories {
+        assert_eq!(category.recipe_book_category(), expected);
+    }
 }
 
 #[test]

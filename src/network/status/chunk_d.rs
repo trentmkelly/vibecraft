@@ -330,32 +330,6 @@ pub fn visible_spawn_surface_top_block_id(
     }
 }
 
-pub fn get_block_state_at(x: i32, y: i32, z: i32) -> i32 {
-    let chunk_x = x.div_euclid(16);
-    let chunk_z = z.div_euclid(16);
-    let local_x = x.rem_euclid(16) as usize;
-    let local_z = z.rem_euclid(16) as usize;
-    let top_y = visible_spawn_terrain_height(chunk_x, chunk_z, local_x, local_z);
-    if y < TERRAIN_BASE_Y || y > top_y + 1 {
-        return AIR_BLOCK_STATE_ID;
-    }
-    if y == TERRAIN_BASE_Y {
-        return BEDROCK_BLOCK_STATE_ID;
-    }
-    if y == top_y + 1 {
-        let surface = visible_spawn_surface_top_block_id(chunk_x, chunk_z, local_x, local_z);
-        if surface == GRASS_BLOCK_STATE_ID {
-            return visible_spawn_surface_feature_id(chunk_x, chunk_z, local_x, local_z)
-                .unwrap_or(AIR_BLOCK_STATE_ID);
-        }
-        return AIR_BLOCK_STATE_ID;
-    }
-    if y == top_y {
-        return visible_spawn_surface_top_block_id(chunk_x, chunk_z, local_x, local_z);
-    }
-    STONE_BLOCK_STATE_ID
-}
-
 /// Builds the block loot table for `block_name`, matching the JSON loot tables
 /// from data/minecraft/loot_table/blocks/ in the Java source.
 pub fn block_loot_table(block_name: &str) -> Option<LootTable> {

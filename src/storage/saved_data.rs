@@ -109,10 +109,6 @@ impl SavedDataStorage {
         Ok(&mut self.cache.get_mut(&id).unwrap().as_mut().unwrap().data)
     }
 
-    pub fn set(&mut self, id: ResourceLocation, data: Tag) {
-        self.cache.insert(id, Some(SavedDataEntry::new(data)));
-    }
-
     pub fn schedule_save(&mut self) -> io::Result<Vec<PathBuf>> {
         if self.closed {
             return Err(io::Error::new(
@@ -145,18 +141,6 @@ impl SavedDataStorage {
 
     pub fn save_and_join(&mut self) -> io::Result<Vec<PathBuf>> {
         self.schedule_save()
-    }
-
-    pub fn close(&mut self) -> io::Result<Vec<PathBuf>> {
-        if self.closed {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Trying to close SavedDataStorage when it is already closed",
-            ));
-        }
-        let saved = self.save_and_join()?;
-        self.closed = true;
-        Ok(saved)
     }
 
     fn read_saved_data(&self, id: &ResourceLocation) -> io::Result<Option<Tag>> {

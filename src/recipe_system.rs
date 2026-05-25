@@ -1058,10 +1058,6 @@ impl FuelValues {
     pub fn is_fuel(&self, item: &str) -> bool {
         self.burn_duration(Some(item)) > 0
     }
-
-    pub fn fuel_items(&self) -> Vec<&'static str> {
-        self.entries.iter().map(|(item, _)| *item).collect()
-    }
 }
 
 fn push_fuel(entries: &mut Vec<(&'static str, i32)>, item: &'static str, ticks: i32) {

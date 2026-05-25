@@ -62,8 +62,6 @@ impl PlayerAbilitiesState {
 
 /// Exhaustion cost per metre sprinted on ground (ServerPlayer.checkMovementStatistics).
 pub const SPRINT_EXHAUSTION_PER_METER: f32 = 0.1;
-/// Exhaustion cost per metre walked/crouched on ground (0.0F in vanilla — explicit no-op).
-pub const WALK_EXHAUSTION_PER_METER: f32 = 0.0;
 /// Exhaustion cost per metre swum, walked under/on water (ServerPlayer.checkMovementStatistics).
 pub const SWIM_EXHAUSTION_PER_METER: f32 = 0.01;
 /// Exhaustion cost for a non-sprint jump (ServerPlayer.jumpFromGround).

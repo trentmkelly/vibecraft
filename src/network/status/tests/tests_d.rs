@@ -1,7 +1,8 @@
 use super::super::*;
 use super::*;
 
-pub fn write_lp_vec3_round_trips_through_java_decode() {
+#[test]
+fn write_lp_vec3_round_trips_through_java_decode() {
     // Verify the encoded x/y/z can be recovered within float precision.
     // Java unpack: (value & 0x7FFF).min(32766) * 2.0 / 32766.0 - 1.0
     // where value is extracted from the buffer at the appropriate bit offset.

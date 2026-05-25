@@ -76,11 +76,6 @@ impl<'a> TagValueInput<'a> {
         }
     }
 
-    pub fn child_or_empty(&mut self, name: &str) -> TagValueInput<'a> {
-        self.child(name)
-            .unwrap_or_else(|| Self::with_path(self.child_path(name), &[]))
-    }
-
     pub fn children_list(&mut self, name: &str) -> Option<CompoundListInput<'a>> {
         match self.field(name) {
             Some(Tag::List(values)) => {
@@ -110,15 +105,6 @@ impl<'a> TagValueInput<'a> {
             }
             None => None,
         }
-    }
-
-    pub fn children_list_or_empty(&mut self, name: &str) -> CompoundListInput<'a> {
-        self.children_list(name)
-            .unwrap_or_else(|| CompoundListInput {
-                path: self.child_path(name),
-                entries: Vec::new(),
-                problems: Vec::new(),
-            })
     }
 
     pub fn get_boolean_or(&mut self, name: &str, default_value: bool) -> bool {
@@ -151,10 +137,6 @@ impl<'a> TagValueInput<'a> {
         self.numeric_i64(name)
     }
 
-    pub fn get_long_or(&mut self, name: &str, default_value: i64) -> i64 {
-        self.get_long(name).unwrap_or(default_value)
-    }
-
     pub fn get_float_or(&mut self, name: &str, default_value: f32) -> f32 {
         self.numeric_f64(name)
             .map(|value| value as f32)
@@ -174,13 +156,6 @@ impl<'a> TagValueInput<'a> {
             }
             None => None,
         }
-    }
-
-    pub fn get_string_or<'b>(&'b mut self, name: &str, default_value: &'b str) -> &'b str
-    where
-        'a: 'b,
-    {
-        self.get_string(name).unwrap_or(default_value)
     }
 
     pub fn get_int_array(&mut self, name: &str) -> Option<&'a [i32]> {
@@ -260,10 +235,6 @@ impl<'a> CompoundListInput<'a> {
         self.entries.len()
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
-    }
-
     pub fn problems(&self) -> &[TagValueProblem] {
         &self.problems
     }
@@ -298,20 +269,8 @@ impl TagValueOutput {
         }
     }
 
-    pub fn problems(&self) -> &[TagValueProblem] {
-        &self.problems
-    }
-
     pub fn put_boolean(&mut self, name: &str, value: bool) {
         self.put(name, Tag::Byte(i8::from(value)));
-    }
-
-    pub fn put_byte(&mut self, name: &str, value: i8) {
-        self.put(name, Tag::Byte(value));
-    }
-
-    pub fn put_short(&mut self, name: &str, value: i16) {
-        self.put(name, Tag::Short(value));
     }
 
     pub fn put_int(&mut self, name: &str, value: i32) {
@@ -322,20 +281,8 @@ impl TagValueOutput {
         self.put(name, Tag::Long(value));
     }
 
-    pub fn put_float(&mut self, name: &str, value: f32) {
-        self.put(name, Tag::Float(value));
-    }
-
-    pub fn put_double(&mut self, name: &str, value: f64) {
-        self.put(name, Tag::Double(value));
-    }
-
     pub fn put_string(&mut self, name: &str, value: impl Into<String>) {
         self.put(name, Tag::String(value.into()));
-    }
-
-    pub fn put_int_array(&mut self, name: &str, value: Vec<i32>) {
-        self.put(name, Tag::IntArray(value));
     }
 
     pub fn child(&mut self, name: &str) -> TagValueOutput {
@@ -365,10 +312,6 @@ impl TagValueOutput {
 
     pub fn discard(&mut self, name: &str) {
         self.output.retain(|(field_name, _)| field_name != name);
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.output.is_empty()
     }
 
     pub fn build_result(self) -> Tag {
@@ -402,13 +345,6 @@ impl CompoundListOutput {
         self.entries.push(Tag::Compound(child.output));
     }
 
-    pub fn discard_last(&mut self) {
-        self.entries.pop();
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
-    }
 }
 
 fn tag_type_name(tag: &Tag) -> &'static str {

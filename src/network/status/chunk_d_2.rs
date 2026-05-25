@@ -495,49 +495,6 @@ pub fn handle_drop_item(
     Ok(())
 }
 
-pub fn visual_terrain_block_at(bx: i32, by: i32, bz: i32) -> Option<&'static str> {
-    let chunk_x = bx.div_euclid(16);
-    let chunk_z = bz.div_euclid(16);
-    let local_x = bx.rem_euclid(16) as usize;
-    let local_z = bz.rem_euclid(16) as usize;
-    let top_y = visible_spawn_terrain_height(chunk_x, chunk_z, local_x, local_z);
-    if by == TERRAIN_BASE_Y {
-        return Some("minecraft:bedrock");
-    }
-    if by < TERRAIN_BASE_Y || by > top_y + 1 {
-        return None;
-    }
-    if by == top_y + 1 {
-        let surface_id = visible_spawn_surface_top_block_id(chunk_x, chunk_z, local_x, local_z);
-        if surface_id == GRASS_BLOCK_STATE_ID {
-            return visible_spawn_surface_feature_id(chunk_x, chunk_z, local_x, local_z)
-                .map(visual_block_state_id_to_name);
-        }
-        return None;
-    }
-    if by == top_y {
-        return Some(visual_block_state_id_to_name(
-            visible_spawn_surface_top_block_id(chunk_x, chunk_z, local_x, local_z),
-        ));
-    }
-    Some("minecraft:stone")
-}
-
-pub fn visual_block_state_id_to_name(id: i32) -> &'static str {
-    match id {
-        STONE_BLOCK_STATE_ID => "minecraft:stone",
-        GRANITE_BLOCK_STATE_ID => "minecraft:granite",
-        DIORITE_BLOCK_STATE_ID => "minecraft:diorite",
-        ANDESITE_BLOCK_STATE_ID => "minecraft:andesite",
-        GRASS_BLOCK_STATE_ID => "minecraft:grass_block",
-        DIRT_BLOCK_STATE_ID => "minecraft:dirt",
-        DANDELION_BLOCK_STATE_ID => "minecraft:dandelion",
-        POPPY_BLOCK_STATE_ID => "minecraft:poppy",
-        SHORT_GRASS_BLOCK_STATE_ID => "minecraft:short_grass",
-        _ => "minecraft:air",
-    }
-}
-
 pub fn section_min_y(section_index: usize) -> i32 {
     -64 + section_index as i32 * 16
 }
@@ -951,4 +908,3 @@ pub fn cubic_bezier_ease(x1: f32, y1: f32, x2: f32, y2: f32) -> Tag {
         ]),
     )])
 }
-
