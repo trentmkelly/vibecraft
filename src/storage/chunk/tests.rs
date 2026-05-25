@@ -843,7 +843,7 @@ fn level_chunk_reports_light_section_status_from_air_only_sections() {
 
     chunk.set_block_state(1, 3, 1, "minecraft:torch");
 
-    assert_eq!(chunk.sections[0].has_only_air(), true);
+    assert!(chunk.sections[0].has_only_air());
     assert_eq!(
         chunk.light_section_status_updates(),
         vec![

@@ -413,7 +413,9 @@ fn section_positions_and_palettes_match_vanilla_shapes() {
 
     let pos = SectionBlockPos::new(3, 5, 7).unwrap();
     assert_eq!(pos.block_state_index(), 5 * 256 + 7 * 16 + 3);
-    assert_eq!(pos.biome_index(), 1 * 16 + 1 * 4);
+    let expected_biome_index =
+        usize::from(pos.y / 4) * 16 + usize::from(pos.z / 4) * 4 + usize::from(pos.x / 4);
+    assert_eq!(pos.biome_index(), expected_biome_index);
 
     let mut oak = BlockStateEntry::new("minecraft:oak_log");
     oak.properties.insert("axis".to_string(), "y".to_string());
