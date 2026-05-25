@@ -700,14 +700,16 @@ use super::*;
 
         assert_eq!(
             super::super::nether_fortress_child_anchor(
-                start.bounding_box,
-                crossing_box,
-                super::super::HorizontalDirection::South,
-                0,
-                super::super::NetherFortressChildDirectionModel::Forward,
-                8,
-                3,
-                false,
+                super::super::NetherFortressChildAnchorInput {
+                    start_box: start.bounding_box,
+                    piece_box: crossing_box,
+                    piece_orientation: super::super::HorizontalDirection::South,
+                    piece_depth: 0,
+                    child_direction: super::super::NetherFortressChildDirectionModel::Forward,
+                    x_or_y_off: 8,
+                    y_or_z_off: 3,
+                    is_castle: false,
+                },
             ),
             super::super::NetherFortressChildAnchorModel {
                 foot: BlockPos {
@@ -723,28 +725,32 @@ use super::*;
         );
         assert_eq!(
             super::super::nether_fortress_child_anchor(
-                start.bounding_box,
-                crossing_box,
-                super::super::HorizontalDirection::South,
-                0,
-                super::super::NetherFortressChildDirectionModel::Left,
-                3,
-                8,
-                false,
+                super::super::NetherFortressChildAnchorInput {
+                    start_box: start.bounding_box,
+                    piece_box: crossing_box,
+                    piece_orientation: super::super::HorizontalDirection::South,
+                    piece_depth: 0,
+                    child_direction: super::super::NetherFortressChildDirectionModel::Left,
+                    x_or_y_off: 3,
+                    y_or_z_off: 8,
+                    is_castle: false,
+                },
             )
             .direction,
             super::super::HorizontalDirection::West
         );
         assert!(
             !super::super::nether_fortress_child_anchor(
-                start.bounding_box,
-                crossing_box.moved(300, 0, 0),
-                super::super::HorizontalDirection::South,
-                0,
-                super::super::NetherFortressChildDirectionModel::Right,
-                3,
-                8,
-                true,
+                super::super::NetherFortressChildAnchorInput {
+                    start_box: start.bounding_box,
+                    piece_box: crossing_box.moved(300, 0, 0),
+                    piece_orientation: super::super::HorizontalDirection::South,
+                    piece_depth: 0,
+                    child_direction: super::super::NetherFortressChildDirectionModel::Right,
+                    x_or_y_off: 3,
+                    y_or_z_off: 8,
+                    is_castle: true,
+                },
             )
             .within_start_range
         );
