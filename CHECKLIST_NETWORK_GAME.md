@@ -89,7 +89,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 ## Inventory / Container Packets (Serverbound)
 
 - [ ] `ServerboundContainerClickPacket` (0x12): container ID VarInt, state ID VarInt, slot short, button byte, container input VarInt id mapper, changed slots map capped at 128 entries, carried `HashedStack`
-- [ ] `ServerboundContainerClosePacket` (0x13): container ID VarInt
+- [x] `ServerboundContainerClosePacket` (0x13 / decimal 19): container ID via Java `FriendlyByteBuf.readContainerId`/`writeContainerId` VarInt; verified against Java codec/registration/name mapping, Java `handleContainerClose` behavior that ignores the packet ID and closes the active container, Rust packet ID/registry mapping, focused read/write/dispatch coverage, and Rust close handling that returns the cursor stack before save even for nonzero container IDs.
 - [ ] `ServerboundSetCarriedItemPacket` (0x35): slot short
 - [ ] `ServerboundPickItemFromBlockPacket` (0x24): block pos, include-data bool; `ServerboundPickItemFromEntityPacket` (0x25): entity ID VarInt, include-data bool
 - [ ] `ServerboundEditBookPacket` (0x18): slot VarInt, pages list capped at 100 entries with 1024-char UTF-8 pages, optional 32-char title

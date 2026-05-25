@@ -431,6 +431,29 @@ pub fn container_close_returns_cursor_stack_to_inventory_before_save() {
         Some(ItemStack::new("minecraft:stone", 64)),
         "cursor stack returned on close must survive playerdata reload"
     );
+
+    let mut state = session_state_with_inventory(&[]);
+    state.carried_item = ItemStack::new("minecraft:dirt", 32);
+
+    let mut payload = Vec::new();
+    ServerboundContainerClosePacket { container_id: 128 }
+        .write(&mut payload)
+        .unwrap();
+    update_play_session_state(
+        SERVERBOUND_CONTAINER_CLOSE_PACKET_ID,
+        &mut Cursor::new(payload),
+        &mut state,
+    )
+    .unwrap();
+
+    assert!(state.carried_item.is_empty());
+    let slot = state.inventory_menu.get_slot(36).unwrap();
+    assert_eq!(slot.item_id(), "minecraft:dirt");
+    assert_eq!(
+        slot.count(),
+        32,
+        "serverbound close intentionally ignores the packet container ID like Java"
+    );
 }
 
 #[test]
