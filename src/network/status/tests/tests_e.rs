@@ -89,7 +89,7 @@ pub fn edit_book_packet_rejects_java_bounded_page_and_title_payloads() {
     write_var_i32(&mut overlong_page, 0).unwrap();
     write_var_i32(&mut overlong_page, 1).unwrap();
     write_var_i32(&mut overlong_page, 1025).unwrap();
-    overlong_page.extend(std::iter::repeat(b'x').take(1025));
+    overlong_page.extend(std::iter::repeat_n(b'x', 1025));
     assert!(ServerboundEditBookPacket::read(&mut Cursor::new(overlong_page)).is_err());
 
     let mut overlong_title = Vec::new();
@@ -97,7 +97,7 @@ pub fn edit_book_packet_rejects_java_bounded_page_and_title_payloads() {
     write_var_i32(&mut overlong_title, 0).unwrap();
     overlong_title.push(1);
     write_var_i32(&mut overlong_title, 33).unwrap();
-    overlong_title.extend(std::iter::repeat(b't').take(33));
+    overlong_title.extend(std::iter::repeat_n(b't', 33));
     assert!(ServerboundEditBookPacket::read(&mut Cursor::new(overlong_title)).is_err());
 
     assert!(ServerboundEditBookPacket {
