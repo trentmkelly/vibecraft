@@ -35,6 +35,7 @@ pub struct CommandTree {
     pub root: usize,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseResult {
     pub path: Vec<usize>,
@@ -44,6 +45,7 @@ pub struct ParseResult {
     pub fork: bool,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedArgument {
     pub name: &'static str,
@@ -51,6 +53,7 @@ pub struct ParsedArgument {
     pub signed: bool,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParseError {
     Empty,
@@ -102,6 +105,7 @@ impl CommandTree {
         self.nodes[node].fork = fork;
     }
 
+    #[cfg(test)]
     pub fn parse(&self, input: &str, permission_level: u8) -> Result<ParseResult, ParseError> {
         let mut parts = input.split_whitespace().peekable();
         let first = parts.next().ok_or(ParseError::Empty)?;
@@ -189,10 +193,12 @@ impl CommandTree {
         })
     }
 
+    #[cfg(test)]
     pub fn suggestions(&self, input: &str, permission_level: u8) -> Vec<String> {
         self.suggestions_with_dynamic_values(input, permission_level, &[])
     }
 
+    #[cfg(test)]
     pub fn function_suggestions(
         &self,
         input: &str,
@@ -215,6 +221,7 @@ impl CommandTree {
         )
     }
 
+    #[cfg(test)]
     fn suggestions_with_dynamic_values(
         &self,
         input: &str,
@@ -273,6 +280,7 @@ impl CommandTree {
             .collect()
     }
 
+    #[cfg(test)]
     pub fn signed_arguments(&self, parse: &ParseResult) -> Vec<ParsedArgument> {
         parse
             .arguments
@@ -282,6 +290,7 @@ impl CommandTree {
             .collect()
     }
 
+    #[cfg(test)]
     fn node_accepts(&self, node: usize, token: &str) -> bool {
         match self.nodes[node].kind {
             CommandNodeKind::Root => false,
@@ -290,6 +299,7 @@ impl CommandTree {
         }
     }
 
+    #[cfg(test)]
     fn argument_name_for_children(&self, node: usize) -> Option<&'static str> {
         self.nodes[node].children.iter().find_map(|child| {
             if let CommandNodeKind::Argument { name, .. } = self.nodes[*child].kind {
@@ -301,6 +311,7 @@ impl CommandTree {
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ArgumentSuggestionValues {
     parser: ArgumentParser,
@@ -375,6 +386,7 @@ pub fn vanilla_like_tree() -> CommandTree {
     tree
 }
 
+#[cfg(test)]
 fn argument_matches(parser: ArgumentParser, value: &str) -> bool {
     match parser {
         ArgumentParser::Word => !value.is_empty() && !value.chars().any(char::is_whitespace),
@@ -395,6 +407,7 @@ fn argument_matches(parser: ArgumentParser, value: &str) -> bool {
     }
 }
 
+#[cfg(test)]
 fn valid_resource_namespace(value: &str) -> bool {
     !value.is_empty()
         && value
@@ -402,6 +415,7 @@ fn valid_resource_namespace(value: &str) -> bool {
             .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '_' || ch == '-')
 }
 
+#[cfg(test)]
 fn valid_resource_path(value: &str) -> bool {
     !value.is_empty()
         && value.chars().all(|ch| {
@@ -414,6 +428,7 @@ fn valid_resource_path(value: &str) -> bool {
         })
 }
 
+#[cfg(test)]
 fn break_if_greedy(_parser: ArgumentParser) {}
 
 #[cfg(test)]
