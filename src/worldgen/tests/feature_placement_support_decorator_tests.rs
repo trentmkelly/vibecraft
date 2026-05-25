@@ -27,14 +27,16 @@ pub(super) fn assert_decorator_spring_and_monster_room_support() {
             &[false, false, false],
         ));
         let fallen_plan = super::super::fallen_tree_placement_plan(
-            BlockPos { x: 0, y: 64, z: 0 },
-            &fallen_config,
-            super::super::HorizontalDirection::East,
-            1,
-            0,
-            &[true],
-            &[true, true, true],
-            &[true, true, true],
+            super::super::FallenTreePlacementInput {
+                origin: BlockPos { x: 0, y: 64, z: 0 },
+                config: &fallen_config,
+                direction: super::super::HorizontalDirection::East,
+                log_length_roll: 1,
+                distance_roll: 0,
+                ground_probe: &[true],
+                valid_tree_positions: &[true, true, true],
+                over_solid_ground: &[true, true, true],
+            },
         )
         .unwrap();
         assert_eq!(fallen_plan.stump_decorators, 1);
