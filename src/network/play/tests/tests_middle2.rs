@@ -912,10 +912,11 @@ fn teleport_ack_and_held_slot_follow_play_state_validation() {
     ServerboundSetCarriedItemPacket { slot: 9 }
         .write(&mut invalid)
         .unwrap();
-    assert!(matches!(
+    assert_eq!(
         session.handle_decoded(decoded(SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID, invalid)),
-        DispatchOutcome::Disconnect(_)
-    ));
+        DispatchOutcome::Handled
+    );
+    assert_eq!(session.selected_slot, 8);
 }
 
 #[test]

@@ -559,14 +559,12 @@ impl PlaySession {
             SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID => {
                 let mut input = &packet.payload[..];
                 match ServerboundSetCarriedItemPacket::read(&mut input) {
-                    Ok(held) if (0..=8).contains(&held.slot) => {
-                        self.selected_slot = held.slot;
+                    Ok(held) => {
+                        if (0..=8).contains(&held.slot) {
+                            self.selected_slot = held.slot;
+                        }
                         DispatchOutcome::Handled
                     }
-                    Ok(held) => DispatchOutcome::Disconnect(format!(
-                        "invalid carried item slot {}",
-                        held.slot
-                    )),
                     Err(err) => {
                         DispatchOutcome::Disconnect(format!("bad carried item packet: {err}"))
                     }

@@ -90,7 +90,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 - [ ] `ServerboundContainerClickPacket` (0x12): container ID VarInt, state ID VarInt, slot short, button byte, container input VarInt id mapper, changed slots map capped at 128 entries, carried `HashedStack`
 - [x] `ServerboundContainerClosePacket` (0x13 / decimal 19): container ID via Java `FriendlyByteBuf.readContainerId`/`writeContainerId` VarInt; verified against Java codec/registration/name mapping, Java `handleContainerClose` behavior that ignores the packet ID and closes the active container, Rust packet ID/registry mapping, focused read/write/dispatch coverage, and Rust close handling that returns the cursor stack before save even for nonzero container IDs.
-- [ ] `ServerboundSetCarriedItemPacket` (0x35): slot short
+- [x] `ServerboundSetCarriedItemPacket` (0x35 / decimal 53): selected hotbar slot signed big-endian short; verified against Java `readShort`/`writeShort` codec, Java registration/name mapping, Java handler valid range `0..Inventory.getSelectionSize()` with invalid slots ignored/logged rather than disconnected, Rust packet ID/registry mapping, focused read/write/dispatch coverage, and Rust play-state selected-slot application tests.
 - [ ] `ServerboundPickItemFromBlockPacket` (0x24): block pos, include-data bool; `ServerboundPickItemFromEntityPacket` (0x25): entity ID VarInt, include-data bool
 - [ ] `ServerboundEditBookPacket` (0x18): slot VarInt, pages list capped at 100 entries with 1024-char UTF-8 pages, optional 32-char title
 - [ ] `ServerboundRenameItemPacket` (0x30): name UTF-8 string capped at 32767 chars
