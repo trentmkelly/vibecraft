@@ -327,6 +327,58 @@ pub fn creative_mode_slot_packet_applies_java_slot_and_ability_gates() {
 }
 
 #[test]
+pub fn fresh_creative_session_accepts_and_persists_creative_picker_items() {
+    let mut properties = crate::server_properties::ServerProperties::load_or_default(
+        std::path::Path::new("/tmp/rustcraft-missing-server.properties"),
+    )
+    .unwrap();
+    properties.game_mode = "creative".to_string();
+
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let world_root = std::env::temp_dir().join(format!(
+        "rustcraft-creative-session-{unique}-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&world_root).unwrap();
+
+    let mut state = super::super::load_play_session_state(
+        &world_root,
+        "00000000-0000-4000-8000-000000000333",
+        &properties,
+        &RecipeMap::default(),
+        0,
+    );
+    let _ = std::fs::remove_dir_all(&world_root);
+
+    assert_eq!(state.game_mode, GameMode::Creative);
+    assert!(state.abilities.instabuild);
+    assert!(state.abilities.mayfly);
+    assert!(state.abilities.invulnerable);
+
+    let packet = super::super::ServerboundSetCreativeModeSlotPacket {
+        slot_num: 36,
+        item_stack: super::super::RawItemStack {
+            count: 64,
+            item_id: crate::item_catalog::item_protocol_id("minecraft:stone"),
+            components: super::super::RawDataComponentPatch::empty(),
+        },
+    };
+    super::super::player_creative_packets::apply_set_creative_mode_slot_packet(&mut state, packet)
+        .expect("creative picker item should be accepted by a creative player");
+
+    let tag = play_session_state_to_nbt(&state);
+    let restored =
+        play_session_state_from_nbt(&tag, GameMode::Creative, &RecipeMap::default()).unwrap();
+    assert_eq!(
+        restored.inventory_menu.get_slot(36),
+        Some(ItemStack::new("minecraft:stone", 64))
+    );
+}
+
+#[test]
 pub fn creative_mode_debug_packets_do_not_fall_through_to_unexpected_disconnect() {
     // Java 26.1.2 GameProtocols registers serverbound player_abilities at
     // 40 and set_creative_mode_slot at 56. Both are common in creative mode:
@@ -1028,7 +1080,9 @@ pub fn play_session_state_nbt_round_trip_preserves_full_playerdata_surface() {
     assert_eq!(restored.root_vehicle, state.root_vehicle);
     assert_eq!(restored.active_effects, state.active_effects);
     assert_eq!(restored.ender_items, state.ender_items);
-    assert_eq!(restored.abilities, state.abilities);
+    let mut expected_abilities = state.abilities;
+    expected_abilities.apply_game_mode(state.game_mode);
+    assert_eq!(restored.abilities, expected_abilities);
 }
 
 #[test]

@@ -107,6 +107,37 @@ impl PlayerNbtAbilities {
             walk_speed: 0.1,
         }
     }
+
+    pub fn for_game_mode(game_mode: GameMode) -> Self {
+        let mut abilities = Self::default_survival();
+        abilities.apply_game_mode(game_mode);
+        abilities
+    }
+
+    pub fn apply_game_mode(&mut self, game_mode: GameMode) {
+        // Java: GameType.updatePlayerAbilities mutates the permission flags
+        // after loading player NBT and whenever the server changes gamemode.
+        match game_mode {
+            GameMode::Creative => {
+                self.mayfly = true;
+                self.instabuild = true;
+                self.invulnerable = true;
+                self.flying = false;
+            }
+            GameMode::Spectator => {
+                self.mayfly = true;
+                self.instabuild = false;
+                self.invulnerable = true;
+                self.flying = true;
+            }
+            GameMode::Survival | GameMode::Adventure => {
+                self.mayfly = false;
+                self.instabuild = false;
+                self.invulnerable = false;
+                self.flying = false;
+            }
+        }
+    }
 }
 #[allow(dead_code)]
 pub const SPAWN_CHUNK_SECTION_COUNT: usize = 24;

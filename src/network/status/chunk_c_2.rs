@@ -472,27 +472,7 @@ fn apply_command_side_effects(
         if new_game_mode != play_state.game_mode {
             play_state.previous_game_mode = Some(play_state.game_mode);
             play_state.game_mode = new_game_mode;
-            play_state.abilities = match play_state.game_mode {
-                GameMode::Survival | GameMode::Adventure => PlayerNbtAbilities::default_survival(),
-                GameMode::Creative => PlayerNbtAbilities {
-                    invulnerable: true,
-                    flying: false,
-                    mayfly: true,
-                    instabuild: true,
-                    may_build: true,
-                    fly_speed: 0.05,
-                    walk_speed: 0.1,
-                },
-                GameMode::Spectator => PlayerNbtAbilities {
-                    invulnerable: true,
-                    flying: true,
-                    mayfly: true,
-                    instabuild: false,
-                    may_build: false,
-                    fly_speed: 0.05,
-                    walk_speed: 0.1,
-                },
-            };
+            play_state.abilities.apply_game_mode(play_state.game_mode);
             // Java ServerPlayer.setGameMode sends CHANGE_GAME_MODE followed by abilities.
             write_game_event(stream, compression, 3, play_state.game_mode as i32 as f32)?;
             write_framed_packet_with_compression(

@@ -223,6 +223,7 @@ pub fn load_play_session_state(
         .unwrap_or_else(|| {
             let mut state = PlaySessionState {
                 game_mode: default_game_mode,
+                abilities: PlayerNbtAbilities::for_game_mode(default_game_mode),
                 ..PlaySessionState::default()
             };
             let spawn = find_default_player_spawn(world_root, world_seed, default_game_mode);
@@ -231,6 +232,7 @@ pub fn load_play_session_state(
         });
     if properties.force_game_mode {
         state.game_mode = default_game_mode;
+        state.abilities.apply_game_mode(default_game_mode);
     }
     state
 }
@@ -927,7 +929,7 @@ pub fn play_session_state_from_nbt(
         Some(Tag::List(values)) => values.clone(),
         _ => Vec::new(),
     };
-    let abilities = match compound_tag(compound, "abilities") {
+    let mut abilities = match compound_tag(compound, "abilities") {
         Some(Tag::Compound(fields)) => PlayerNbtAbilities {
             invulnerable: compound_bool_byte(fields, "invulnerable", false),
             flying: compound_bool_byte(fields, "flying", false),
@@ -939,6 +941,7 @@ pub fn play_session_state_from_nbt(
         },
         _ => PlayerNbtAbilities::default_survival(),
     };
+    abilities.apply_game_mode(game_mode);
     // Restore hotbar and main inventory (slots 0-35) from the TAG_List written by
     // play_session_state_to_nbt.
     // Java: ServerPlayer.readAdditionalSaveData() → Inventory.load()
