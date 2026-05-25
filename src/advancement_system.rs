@@ -473,7 +473,7 @@ impl PlayerAdvancementSet {
             .is_some_and(|progress| progress.criteria.values().any(Option::is_some))
     }
 
-    pub fn to_packet(
+    pub fn drain_packet(
         &mut self,
         definitions: &[AdvancementDefinition],
     ) -> ClientboundAdvancementsPacket {
@@ -744,11 +744,11 @@ mod tests {
         player.grant(&definitions[1], "iron", 2);
         assert!(player.is_done(&definitions[1].id));
 
-        let packet = player.to_packet(&definitions);
+        let packet = player.drain_packet(&definitions);
         assert_eq!(packet.added.len(), 2);
         assert_eq!(packet.removed.len(), 0);
         assert!(!packet.reset);
-        assert!(player.to_packet(&definitions).added.is_empty());
+        assert!(player.drain_packet(&definitions).added.is_empty());
 
         let json = player.to_vanilla_json(4189);
         assert!(json.contains("\"DataVersion\":4189"));
@@ -890,7 +890,7 @@ mod tests {
                     show_notification: true,
                 },
             ],
-            &[advancement.clone()],
+            std::slice::from_ref(&advancement),
             &triggers,
             &mut progress,
             10,

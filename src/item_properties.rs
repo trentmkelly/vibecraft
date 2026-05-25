@@ -403,7 +403,7 @@ mod tests {
         assert!(ids.contains(&"minecraft:diamond_sword"));
         assert!(ids.contains(&"minecraft:elytra"));
         assert!(ids.contains(&"minecraft:ominous_bottle"));
-        assert!(ids.windows(2).all(|pair| pair[0] < pair[1]) == false);
+        assert!(!ids.windows(2).all(|pair| pair[0] < pair[1]));
     }
 
     #[test]

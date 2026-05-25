@@ -1,17 +1,19 @@
 use super::super::*;
 use super::*;
 
+type RecipeKindCoverageCase = (
+    &'static str,
+    RecipeKind,
+    usize,
+    usize,
+    Vec<Option<&'static str>>,
+    bool,
+    Option<ItemAmount>,
+);
+
 #[test]
 fn every_recipe_kind_has_matches_assemble_remaining_and_unlock_coverage() {
-    let cases: Vec<(
-        &str,
-        RecipeKind,
-        usize,
-        usize,
-        Vec<Option<&'static str>>,
-        bool,
-        Option<ItemAmount>,
-    )> = vec![
+    let cases: Vec<RecipeKindCoverageCase> = vec![
         (
             "minecraft:crafting_table",
             RecipeKind::Shaped {
@@ -288,7 +290,7 @@ fn every_recipe_kind_has_matches_assemble_remaining_and_unlock_coverage() {
             recipe: recipe_definition.id.clone(),
         }];
         let events = unlocks.unlock_recipes(
-            &[recipe_definition.clone()],
+            std::slice::from_ref(&recipe_definition),
             std::slice::from_ref(&advancement),
             &triggers,
             &mut advancements,

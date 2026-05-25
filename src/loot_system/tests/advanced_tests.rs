@@ -445,8 +445,10 @@ fn vault_loot_resolves_normal_and_ominous_tables_once_per_player() {
         })),
     );
 
-    let mut normal = VaultBlockEntity::default();
-    normal.state = crate::block_entity::VaultStateModel::Active;
+    let mut normal = VaultBlockEntity {
+        state: crate::block_entity::VaultStateModel::Active,
+        ..VaultBlockEntity::default()
+    };
     assert_eq!(
         resolve_vault_unlock_loot(
             &engine,
@@ -502,11 +504,19 @@ fn vault_loot_resolves_normal_and_ominous_tables_once_per_player() {
         VaultInsertResult::AlreadyRewarded
     );
 
-    let mut ominous = VaultBlockEntity::default();
-    ominous.state = crate::block_entity::VaultStateModel::Active;
-    ominous.is_ominous = true;
-    ominous.config.key_item.item_id = "minecraft:ominous_trial_key".to_string();
-    ominous.config.loot_table = "minecraft:chests/trial_chambers/reward_ominous".to_string();
+    let mut ominous = VaultBlockEntity {
+        state: crate::block_entity::VaultStateModel::Active,
+        is_ominous: true,
+        config: crate::block_entity::VaultConfigModel {
+            key_item: PotItemStack {
+                item_id: "minecraft:ominous_trial_key".to_string(),
+                count: 1,
+            },
+            loot_table: "minecraft:chests/trial_chambers/reward_ominous".to_string(),
+            ..crate::block_entity::VaultConfigModel::default()
+        },
+        ..VaultBlockEntity::default()
+    };
     assert_eq!(
         resolve_vault_unlock_loot(
             &engine,

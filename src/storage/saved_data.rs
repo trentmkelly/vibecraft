@@ -111,8 +111,7 @@ impl SavedDataStorage {
 
     pub fn schedule_save(&mut self) -> io::Result<Vec<PathBuf>> {
         if self.closed {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
+            return Err(io::Error::other(
                 "Trying to schedule save when SavedDataStorage is already closed",
             ));
         }

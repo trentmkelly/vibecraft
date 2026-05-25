@@ -88,7 +88,7 @@ fn serverbound_chat_packet_encodes_absent_signature_and_enforces_java_limits() {
 
     let mut overlong_message = Vec::new();
     write_var_i32(&mut overlong_message, 257).unwrap();
-    overlong_message.extend(std::iter::repeat(b'x').take(257));
+    overlong_message.extend(std::iter::repeat_n(b'x', 257));
     assert!(ServerboundChatPacket::read(&mut cursor(overlong_message)).is_err());
 
     let mut short_signature = chat_prefix("hi", 100, -7);

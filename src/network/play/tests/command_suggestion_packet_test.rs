@@ -92,9 +92,10 @@ fn serverbound_command_suggestion_packet_rejects_java_overlong_command() {
         (ServerboundCommandSuggestionPacket::MAX_COMMAND_CHARS + 1) as i32,
     )
     .unwrap();
-    overlong_payload.extend(
-        std::iter::repeat(b'x').take(ServerboundCommandSuggestionPacket::MAX_COMMAND_CHARS + 1),
-    );
+    overlong_payload.extend(std::iter::repeat_n(
+        b'x',
+        ServerboundCommandSuggestionPacket::MAX_COMMAND_CHARS + 1,
+    ));
     assert!(
         ServerboundCommandSuggestionPacket::read(&mut cursor(overlong_payload.clone())).is_err()
     );

@@ -75,9 +75,11 @@ mod tests {
 
     #[test]
     fn command_parity_cases_cover_success_counts_and_feedback_keys() {
-        let mut state = ServerCommandState::default();
-        state.online_players = vec![player("Steve"), player("Alex")];
-        state.world_seed = 12_345;
+        let mut state = ServerCommandState {
+            online_players: vec![player("Steve"), player("Alex")],
+            world_seed: 12_345,
+            ..ServerCommandState::default()
+        };
         let cases = vec![
             CommandParityExpectation {
                 input: "/list",

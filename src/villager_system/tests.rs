@@ -31,8 +31,10 @@ fn villager_profession_assignment_and_job_site_loss_match_java() {
     assert_eq!(VILLAGER_MIN_LEVEL, 1);
     assert_eq!(VILLAGER_MAX_LEVEL, 5);
     assert_eq!(VILLAGER_LEVEL_XP_THRESHOLDS, [0, 10, 70, 150, 250]);
-    assert!(VILLAGER_ASSIGN_PROFESSION_CLEAR_TICK);
-    assert_eq!(VILLAGER_UNHAPPY_COUNTER_TICKS, 40);
+    assert_eq!(
+        (VILLAGER_ASSIGN_PROFESSION_CLEAR_TICK, VILLAGER_UNHAPPY_COUNTER_TICKS),
+        (true, 40)
+    );
     assert_eq!(VILLAGER_LEVEL_UP_DELAY_TICKS, 40);
     assert_eq!(VILLAGER_LEVEL_UP_REGENERATION_TICKS, 200);
     assert_eq!(VillagerLevel::from_xp(9), VillagerLevel::Novice);
