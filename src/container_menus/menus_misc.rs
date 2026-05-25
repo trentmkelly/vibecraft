@@ -13,11 +13,19 @@ pub struct LecternMenu {
     pub page: i32,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct LecternButtonResult {
+    pub handled: bool,
+    pub taken_book: ItemStack,
+}
+
 impl LecternMenu {
     pub const BUTTON_PREV_PAGE: i32 = 1;
     pub const BUTTON_NEXT_PAGE: i32 = 2;
     pub const BUTTON_TAKE_BOOK: i32 = 3;
     pub const BUTTON_PAGE_JUMP_RANGE_START: i32 = 100;
+    pub const DATA_COUNT: usize = 1;
+    pub const PAGE_DATA: usize = 0;
     pub const SLOT_COUNT: usize = 1;
 
     pub fn new() -> Self {
@@ -33,6 +41,26 @@ impl LecternMenu {
 
     pub fn book(&self) -> &ItemStack {
         &self.book
+    }
+
+    pub fn get_book(&self) -> &ItemStack {
+        &self.book
+    }
+
+    pub fn get_page(&self) -> i32 {
+        self.page
+    }
+
+    pub fn data(&self, index: usize) -> Option<i32> {
+        (index == Self::PAGE_DATA).then_some(self.page)
+    }
+
+    pub fn set_data(&mut self, index: usize, value: i32) -> bool {
+        if index != Self::PAGE_DATA {
+            return false;
+        }
+        self.page = value;
+        true
     }
 
     pub fn get_slot(&self, slot: usize) -> Option<ItemStack> {
@@ -69,21 +97,48 @@ impl LecternMenu {
 
     /// `clickMenuButton` — see Java for button IDs.
     pub fn click_button(&mut self, button_id: i32) -> bool {
+        self.click_button_with_permission(button_id, true).handled
+    }
+
+    /// Java `LecternMenu.clickMenuButton`, with the player's `mayBuild` gate
+    /// passed in so callers can model the take-book permission check.
+    pub fn click_button_with_permission(
+        &mut self,
+        button_id: i32,
+        may_build: bool,
+    ) -> LecternButtonResult {
         if button_id >= Self::BUTTON_PAGE_JUMP_RANGE_START {
-            self.page = button_id - Self::BUTTON_PAGE_JUMP_RANGE_START;
-            return true;
+            self.set_data(
+                Self::PAGE_DATA,
+                button_id - Self::BUTTON_PAGE_JUMP_RANGE_START,
+            );
+            return LecternButtonResult {
+                handled: true,
+                taken_book: ItemStack::empty(),
+            };
         }
-        match button_id {
+        let handled = match button_id {
             Self::BUTTON_PREV_PAGE => {
-                self.page = (self.page - 1).max(0);
+                self.set_data(Self::PAGE_DATA, self.page - 1);
                 true
             }
             Self::BUTTON_NEXT_PAGE => {
-                self.page += 1;
+                self.set_data(Self::PAGE_DATA, self.page + 1);
                 true
             }
-            Self::BUTTON_TAKE_BOOK => true,
+            Self::BUTTON_TAKE_BOOK if may_build => {
+                let taken_book = std::mem::replace(&mut self.book, ItemStack::empty());
+                return LecternButtonResult {
+                    handled: true,
+                    taken_book,
+                };
+            }
+            Self::BUTTON_TAKE_BOOK => false,
             _ => false,
+        };
+        LecternButtonResult {
+            handled,
+            taken_book: ItemStack::empty(),
         }
     }
 }

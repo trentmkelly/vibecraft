@@ -481,16 +481,31 @@ fn loom_menu_slot_restrictions() {
 
 #[test]
 fn lectern_menu_page_buttons() {
-    let mut menu = LecternMenu::new();
+    let mut menu = LecternMenu::with_book(ItemStack::new("minecraft:written_book", 1));
     assert_eq!(LecternMenu::SLOT_COUNT, 1);
-    menu.page = 2;
+    assert_eq!(LecternMenu::DATA_COUNT, 1);
+    assert_eq!(menu.get_book().item_id(), "minecraft:written_book");
+    assert_eq!(menu.data(LecternMenu::PAGE_DATA), Some(0));
+    assert!(menu.set_data(LecternMenu::PAGE_DATA, 2));
+    assert!(!menu.set_data(LecternMenu::DATA_COUNT, 1));
     assert!(menu.click_button(LecternMenu::BUTTON_PREV_PAGE));
-    assert_eq!(menu.page, 1);
+    assert_eq!(menu.get_page(), 1);
     assert!(menu.click_button(LecternMenu::BUTTON_NEXT_PAGE));
-    assert_eq!(menu.page, 2);
+    assert_eq!(menu.get_page(), 2);
     assert!(menu.click_button(LecternMenu::BUTTON_PAGE_JUMP_RANGE_START + 7));
-    assert_eq!(menu.page, 7);
+    assert_eq!(menu.get_page(), 7);
+    assert!(menu.set_data(LecternMenu::PAGE_DATA, 0));
+    assert!(menu.click_button(LecternMenu::BUTTON_PREV_PAGE));
+    assert_eq!(menu.get_page(), -1);
     assert!(!menu.click_button(42));
+    let denied_take = menu.click_button_with_permission(LecternMenu::BUTTON_TAKE_BOOK, false);
+    assert!(!denied_take.handled);
+    assert!(denied_take.taken_book.is_empty());
+    assert_eq!(menu.get_book().item_id(), "minecraft:written_book");
+    let allowed_take = menu.click_button_with_permission(LecternMenu::BUTTON_TAKE_BOOK, true);
+    assert!(allowed_take.handled);
+    assert_eq!(allowed_take.taken_book.item_id(), "minecraft:written_book");
+    assert!(menu.get_book().is_empty());
     // Quick-move always returns empty.
     assert!(menu.quick_move(0).is_empty());
 }
