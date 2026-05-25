@@ -81,6 +81,7 @@ impl Default for ServerCommandState {
             world_clock_ticks: 0,
             world_clock_paused: false,
             world_clock_rate: 1.0,
+            world_preset: "minecraft:normal".to_string(),
             stopwatches: Vec::new(),
             scheduled_functions: Vec::new(),
             available_functions: Vec::new(),

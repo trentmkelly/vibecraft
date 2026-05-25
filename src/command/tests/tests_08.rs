@@ -897,9 +897,9 @@ fn command_visibility_surface_filters_by_permission_tier_in_stable_order() {
     let owner = visible_command_usages(LevelBasedPermissionSet::OWNER);
 
     assert!(all.starts_with(&[
+        "/biome",
         "/chase <follow|lead|stop> [host|bind_address] [port]",
         "/help [command]",
-        "/list [uuids]",
     ]));
     assert!(all.contains(&"/msg <targets> <message>"));
     assert!(!all.contains(&"/gamemode <gamemode> [target]"));

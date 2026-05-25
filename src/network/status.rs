@@ -13,7 +13,8 @@ use std::time::{Duration, Instant};
 
 use crate::block_metadata::representative_state_definition;
 use crate::command::{
-    execute_builtin_command, LevelBasedPermissionSet, PermissionLevel, ServerCommandState,
+    debug_biome_at_command_source, execute_builtin_command, LevelBasedPermissionSet,
+    PermissionLevel, ServerCommandState,
 };
 use crate::console::ConsoleInput;
 use crate::fluid::{

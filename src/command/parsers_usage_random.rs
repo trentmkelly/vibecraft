@@ -288,6 +288,8 @@ pub(super) fn known_command_usages() -> &'static [(&'static str, &'static str)] 
         ("ban", "/ban <targets> [reason]"),
         ("ban-ip", "/ban-ip <target> [reason]"),
         ("banlist", "/banlist [ips|players]"),
+        // RustCraft-only debug helper; vanilla 26.1.2 has no `/biome` command.
+        ("biome", "/biome"),
         ("bossbar", "/bossbar <add|remove|list|set|get> ..."),
         ("chase", "/chase <follow|lead|stop> [host|bind_address] [port]"),
         ("clear", "/clear [targets] [item] [maxCount]"),

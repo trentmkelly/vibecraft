@@ -136,6 +136,7 @@ pub struct ServerCommandState {
     pub world_clock_ticks: i64,
     pub world_clock_paused: bool,
     pub world_clock_rate: f32,
+    pub world_preset: String,
     pub stopwatches: Vec<StopwatchState>,
     pub scheduled_functions: Vec<ScheduledFunction>,
     pub available_functions: Vec<CommandFunctionDefinition>,

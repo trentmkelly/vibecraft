@@ -112,6 +112,7 @@ pub fn execute_builtin_command(
         "jfr" => jfr_command(state, &parts),
         "advancement" => advancement_command(state, &parts),
         "attribute" => attribute_command(state, &parts),
+        "biome" => biome_command(state, &parts),
         "bossbar" => bossbar_command(state, &parts),
         "chase" => chase_command(state, &parts),
         "clear" => clear_command(state, &parts),

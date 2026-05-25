@@ -437,6 +437,12 @@ fn command_state_for_player(
 ) -> ServerCommandState {
     let mut state = ServerCommandState {
         command_source_player: Some(profile.clone()),
+        command_source_position: crate::command::Vec3 {
+            x: play_state.x,
+            y: play_state.y,
+            z: play_state.z,
+        },
+        world_preset: properties.level_type.clone(),
         online_players: vec![profile.clone()],
         max_players: properties.max_players,
         world_seed,
@@ -523,6 +529,10 @@ fn command_feedback_text(
         ),
         "commands.gamemode.success.self" => "Set own game mode".to_string(),
         "commands.say.success" => "Message sent".to_string(),
+        // RustCraft-only debug command feedback; vanilla has no `/biome` command.
+        "commands.rustcraft.debug.biome" => {
+            format!("Biome: {}", debug_biome_at_command_source(state))
+        }
         key => format!("{key} ({})", result.success_count),
     }
 }

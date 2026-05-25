@@ -2,8 +2,9 @@ use super::*;
 
 pub fn command_required_permission(command: &str) -> PermissionLevel {
     match command {
-        "" | "chase" | "help" | "list" | "me" | "msg" | "random" | "teammsg" | "tell" | "tm"
-        | "trigger" | "w" | "version" => PermissionLevel::All,
+        // `biome` is a RustCraft-only debug command, not a Java parity command.
+        "" | "biome" | "chase" | "help" | "list" | "me" | "msg" | "random" | "teammsg" | "tell"
+        | "tm" | "trigger" | "w" | "version" => PermissionLevel::All,
         "ban" | "ban-ip" | "banlist" | "deop" | "debug" | "debugconfig" | "kick" | "op"
         | "pardon" | "pardon-ip" | "setidletimeout" | "tick" | "transfer" | "whitelist" => {
             PermissionLevel::Admins

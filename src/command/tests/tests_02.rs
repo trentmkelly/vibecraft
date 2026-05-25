@@ -815,6 +815,40 @@ fn fillbiome_command_quantizes_replaces_and_filters_biomes() {
 }
 
 #[test]
+fn biome_debug_command_reports_quantized_source_biome() {
+    let mut state = ServerCommandState {
+        command_source_position: Vec3 {
+            x: 7.9,
+            y: 64.0,
+            z: -1.0,
+        },
+        biomes: vec![BiomeEntry {
+            dimension: "minecraft:overworld".to_string(),
+            position: BlockPos { x: 4, y: 64, z: -4 },
+            biome: "minecraft:forest".to_string(),
+        }],
+        ..ServerCommandState::default()
+    };
+
+    assert_eq!(command_required_permission("biome"), PermissionLevel::All);
+    assert_eq!(
+        command_usage("biome", LevelBasedPermissionSet::ALL),
+        Some("/biome")
+    );
+    assert_eq!(debug_biome_at_command_source(&state), "minecraft:forest");
+
+    let result =
+        execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "biome").unwrap();
+    assert_eq!(result.success_count, 1);
+    assert_eq!(result.feedback_key, "commands.rustcraft.debug.biome");
+    assert!(!result.broadcast_to_admins);
+    assert_eq!(
+        execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "biome extra"),
+        Err(CommandError::InvalidSyntax)
+    );
+}
+
+#[test]
 fn fillbiome_command_reports_volume_and_syntax_failures() {
     let mut state = ServerCommandState {
         max_block_modifications: 1,

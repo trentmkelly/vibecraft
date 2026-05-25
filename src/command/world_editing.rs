@@ -469,6 +469,36 @@ pub(super) fn fill_biome_command(
     })
 }
 
+/// RustCraft-only debugging command.
+///
+/// Intentional Java parity divergence: vanilla 26.1.2 exposes `/fillbiome` but not
+/// a root `/biome` command. This reports the source player's current biome so we
+/// can debug generated terrain and client state without leaving the game.
+pub(super) fn biome_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    if parts.len() != 1 {
+        return Err(CommandError::InvalidSyntax);
+    }
+    let _ = debug_biome_at_command_source(state);
+    Ok(CommandResult {
+        success_count: 1,
+        feedback_key: "commands.rustcraft.debug.biome",
+        broadcast_to_admins: false,
+    })
+}
+
+/// Returns the command source's current biome for RustCraft's `/biome` debug command.
+///
+/// Intentional Java parity divergence: this function supports a non-vanilla command,
+/// but it still uses Java's biome quart-coordinate convention for the lookup.
+pub fn debug_biome_at_command_source(state: &ServerCommandState) -> String {
+    let block_pos = block_pos_containing(state.command_source_position);
+    let biome_pos = quantize_biome_pos(block_pos);
+    biome_at_explicit_or_generated(state, &state.command_source_dimension, biome_pos)
+}
+
 pub(super) fn is_boundary(region: BoundingBox, position: BlockPos) -> bool {
     position.x == region.min.x
         || position.x == region.max.x
@@ -493,6 +523,67 @@ pub(super) fn biome_at(state: &ServerCommandState, dimension: &str, position: Bl
         .find(|entry| entry.dimension == dimension && entry.position == position)
         .map(|entry| entry.biome.clone())
         .unwrap_or_else(|| "minecraft:plains".to_string())
+}
+
+fn biome_at_explicit_or_generated(
+    state: &ServerCommandState,
+    dimension: &str,
+    position: BlockPos,
+) -> String {
+    if let Some(entry) = state
+        .biomes
+        .iter()
+        .find(|entry| entry.dimension == dimension && entry.position == position)
+    {
+        return entry.biome.clone();
+    }
+
+    generated_biome_at(state, dimension, position).unwrap_or_else(|| "minecraft:plains".to_string())
+}
+
+fn generated_biome_at(
+    state: &ServerCommandState,
+    dimension: &str,
+    position: BlockPos,
+) -> Option<String> {
+    let preset = resolve_world_preset(&state.world_preset)
+        .or_else(|_| resolve_world_preset(state.world_preset.trim_start_matches("minecraft:")))
+        .ok()?;
+    let stem = match dimension {
+        "minecraft:the_nether" => &preset.nether,
+        "minecraft:the_end" => &preset.end,
+        _ => &preset.overworld,
+    };
+    let quart_x = position.x.div_euclid(4);
+    let quart_y = position.y.div_euclid(4);
+    let quart_z = position.z.div_euclid(4);
+    match &stem.generator {
+        ResolvedChunkGenerator::Noise {
+            biome_source_model,
+            noise_settings,
+            ..
+        } => {
+            let router = builtin_noise_router(noise_router_id_for_settings(**noise_settings))?;
+            let sampler = ClimateSampler::from_noise_router(
+                &router.router,
+                state.world_seed,
+                **noise_settings,
+            );
+            get_biome(biome_source_model, quart_x, quart_y, quart_z, &sampler).map(str::to_string)
+        }
+        ResolvedChunkGenerator::Flat {
+            biome_source_model, ..
+        } => crate::biome::select_biome_from_source(
+            biome_source_model,
+            quart_x,
+            quart_y,
+            quart_z,
+            crate::biome::climate_target(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+            0.0,
+        )
+        .map(str::to_string),
+        ResolvedChunkGenerator::Debug { biome, .. } => Some((*biome).to_string()),
+    }
 }
 
 pub(super) fn set_biome_in_dimension(
