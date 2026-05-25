@@ -785,6 +785,7 @@ mod set_title_text_packet_test;
 mod set_titles_animation_packet_test;
 mod sound_entity_packet_test;
 mod sound_packet_test;
+mod start_configuration_packet_test;
 mod stop_sound_packet_test;
 mod tab_list_packet_test;
 mod cooldown_packet_test;

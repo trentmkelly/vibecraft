@@ -226,7 +226,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 - [x] `ClientboundDebugSamplePacket` (0x1E / decimal 30): sample long array (VarInt length + i64 entries), sample type enum VarInt; verified against Java `readLongArray`/`writeLongArray` and `readEnum`/`writeEnum`, Java `debug_sample` registration order, Rust protocol registry ID/name mapping, and direct byte-layout coverage.
 - [ ] `ClientboundCustomPayloadPacket` (0x18) — `minecraft:brand` and unknown payload channels up to vanilla 1 MiB cap
-- [ ] `ClientboundStartConfigurationPacket` (0x69): triggers switch from play back to configuration state
+- [x] `ClientboundStartConfigurationPacket` (0x76 / decimal 118): Java `StreamCodec.unit(INSTANCE)` terminal play packet with no payload that triggers play-to-configuration start; verified against Java codec/terminal behavior, Java play registration/name mapping, Rust packet ID/registry mapping, and focused zero-payload coverage.
 - [ ] `ServerboundConfigurationAcknowledgedPacket` (0x10): empty terminal payload; triggers play→configuration ack
 - [x] `ClientboundPingPacket` (0x3D / decimal 61): signed ID int (big-endian); verified against Java common `readInt`/`writeInt`, `CommonPacketTypes.CLIENTBOUND_PING`, play registration order, Rust protocol registry ID/name mapping, and direct read/write byte coverage including negative IDs.
 - [x] `ServerboundPongPacket` (0x2D / decimal 45): signed ID int (big-endian); verified against Java common `readInt`/`writeInt`, `CommonPacketTypes.SERVERBOUND_PONG`, play registration order, Rust protocol registry ID/name mapping, play-session dispatch storage, and direct read/write byte coverage.
