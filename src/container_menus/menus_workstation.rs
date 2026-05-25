@@ -380,6 +380,7 @@ impl Default for SmithingMenu {
 pub struct StonecutterMenu {
     input: ItemStack,
     result: ItemStack,
+    recipes_for_input: Vec<StonecutterSelection>,
     pub selected_recipe_index: i32,
 }
 
@@ -388,6 +389,8 @@ impl StonecutterMenu {
     pub const RESULT_SLOT: usize = 1;
     pub const MENU_SLOTS: usize = 2;
     pub const INV_START: usize = 2;
+    pub const INV_END: usize = 29;
+    pub const USE_ROW_SLOT_START: usize = 29;
     pub const HOTBAR_END: usize = 38;
     pub const SLOT_COUNT: usize = 38;
 
@@ -395,8 +398,37 @@ impl StonecutterMenu {
         Self {
             input: ItemStack::empty(),
             result: ItemStack::empty(),
+            recipes_for_input: Vec::new(),
             selected_recipe_index: -1,
         }
+    }
+
+    pub fn get_selected_recipe_index(&self) -> i32 {
+        self.selected_recipe_index
+    }
+
+    pub fn get_visible_recipes(&self) -> &[StonecutterSelection] {
+        &self.recipes_for_input
+    }
+
+    pub fn get_number_of_visible_recipes(&self) -> usize {
+        self.recipes_for_input.len()
+    }
+
+    pub fn has_input_item(&self) -> bool {
+        !self.input.is_empty() && !self.recipes_for_input.is_empty()
+    }
+
+    pub fn data(&self, index: usize) -> Option<i32> {
+        (index == 0).then_some(self.selected_recipe_index)
+    }
+
+    pub fn set_data(&mut self, index: usize, value: i32) -> bool {
+        if index != 0 {
+            return false;
+        }
+        self.selected_recipe_index = value;
+        true
     }
 
     pub fn get_slot(&self, slot: usize, player: &PlayerInventory) -> Option<ItemStack> {
@@ -420,7 +452,13 @@ impl StonecutterMenu {
             return false;
         }
         match slot {
-            0 => self.input = stack,
+            0 => {
+                let item_changed = self.input.item_id() != stack.item_id();
+                self.input = stack;
+                if item_changed {
+                    self.clear_recipe_selection();
+                }
+            }
             1 => return false,
             _ => write_player_slot(slot, Self::INV_START, player, stack),
         }
@@ -429,6 +467,35 @@ impl StonecutterMenu {
 
     pub fn set_result_internal(&mut self, stack: ItemStack) {
         self.result = stack;
+    }
+
+    pub fn slots_changed(&mut self, stonecutter_recipes: &[StonecutterSelection]) {
+        self.setup_recipe_list(stonecutter_recipes);
+    }
+
+    pub fn click_button(&mut self, button_id: i32) -> bool {
+        if self.selected_recipe_index == button_id {
+            return false;
+        }
+        if self.is_valid_recipe_index(button_id) {
+            self.selected_recipe_index = button_id;
+            self.setup_result_slot(button_id);
+        }
+        true
+    }
+
+    pub fn take_result(&mut self) -> ItemStack {
+        let taken = std::mem::replace(&mut self.result, ItemStack::empty());
+        if taken.is_empty() {
+            return taken;
+        }
+        self.input.shrink(1);
+        if self.input.is_empty() {
+            self.clear_recipe_selection();
+        } else {
+            self.setup_result_slot(self.selected_recipe_index);
+        }
+        taken
     }
 
     pub fn may_place(&self, slot: usize, _stack: &ItemStack) -> bool {
@@ -448,6 +515,15 @@ impl StonecutterMenu {
     }
 
     pub fn quick_move(&mut self, slot: usize, player: &mut PlayerInventory) -> ItemStack {
+        self.quick_move_with_recipes(slot, player, &[])
+    }
+
+    pub fn quick_move_with_recipes(
+        &mut self,
+        slot: usize,
+        player: &mut PlayerInventory,
+        stonecutter_recipes: &[StonecutterSelection],
+    ) -> ItemStack {
         if slot >= Self::SLOT_COUNT {
             return ItemStack::empty();
         }
@@ -471,13 +547,17 @@ impl StonecutterMenu {
                 player,
             ),
             _ => {
-                // Try input slot first, otherwise main↔hotbar.
-                if self.move_into_range(&mut moving, 0, 1, false, player) {
+                // Java only routes player stacks into the input slot when the
+                // recipe manager has at least one stonecutting recipe for them.
+                if Self::accepts_stonecutter_input(&moving, stonecutter_recipes)
+                    && self.move_into_range(&mut moving, 0, 1, false, player)
+                {
+                    self.setup_recipe_list(stonecutter_recipes);
                     true
-                } else if slot >= Self::INV_START && slot < Self::INV_START + PLAYER_MAIN_STORAGE {
+                } else if slot >= Self::INV_START && slot < Self::INV_END {
                     self.move_into_range(
                         &mut moving,
-                        Self::INV_START + PLAYER_MAIN_STORAGE,
+                        Self::USE_ROW_SLOT_START,
                         Self::HOTBAR_END,
                         false,
                         player,
@@ -493,11 +573,21 @@ impl StonecutterMenu {
                 }
             }
         };
-        if !moving.is_empty() && slot != 1 {
+        if slot == 1 && !moving.is_empty() {
+            self.result = moving;
+        } else if !moving.is_empty() {
             self.set_slot(slot, moving, player);
         }
         if !moved {
             return ItemStack::empty();
+        }
+        if slot == 1 {
+            self.input.shrink(1);
+            if self.input.is_empty() {
+                self.clear_recipe_selection();
+            } else {
+                self.setup_result_slot(self.selected_recipe_index);
+            }
         }
         original
     }
@@ -524,6 +614,44 @@ impl StonecutterMenu {
         }
         *stack = leftover;
         moved
+    }
+
+    fn clear_recipe_selection(&mut self) {
+        self.selected_recipe_index = -1;
+        self.result = ItemStack::empty();
+        self.recipes_for_input.clear();
+    }
+
+    fn setup_recipe_list(&mut self, stonecutter_recipes: &[StonecutterSelection]) {
+        self.selected_recipe_index = -1;
+        self.result = ItemStack::empty();
+        self.recipes_for_input = if self.input.is_empty() {
+            Vec::new()
+        } else {
+            stonecutter_recipes_for_input(stonecutter_recipes, self.input.item_id())
+        };
+    }
+
+    fn setup_result_slot(&mut self, index: i32) {
+        self.result = self
+            .recipes_for_input
+            .get(index as usize)
+            .map(|selection| item_amount_to_stack(&selection.result))
+            .unwrap_or_else(ItemStack::empty);
+    }
+
+    fn is_valid_recipe_index(&self, button_id: i32) -> bool {
+        button_id >= 0 && (button_id as usize) < self.recipes_for_input.len()
+    }
+
+    fn accepts_stonecutter_input(
+        stack: &ItemStack,
+        stonecutter_recipes: &[StonecutterSelection],
+    ) -> bool {
+        !stack.is_empty()
+            && stonecutter_recipes
+                .iter()
+                .any(|recipe| recipe.matches_input(stack.item_id()))
     }
 }
 

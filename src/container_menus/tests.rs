@@ -1,5 +1,7 @@
 use super::*;
-use crate::recipe_system::{IngredientSpec, ItemAmount, RecipeHolder, RecipeKind, RecipeMap};
+use crate::recipe_system::{
+    IngredientSpec, ItemAmount, RecipeHolder, RecipeKind, RecipeMap, StonecutterSelection,
+};
 
 fn empty_recipes() -> RecipeMap {
     RecipeMap::create(Vec::new())
@@ -376,13 +378,87 @@ fn smithing_menu_layout_and_result_rejection() {
 fn stonecutter_menu_layout_and_recipe_index_tracking() {
     let mut menu = StonecutterMenu::new();
     let mut player = PlayerInventory::new();
+    let recipes = vec![
+        StonecutterSelection {
+            recipe_id: "minecraft:stone_stairs_from_stone_stonecutting",
+            input: IngredientSpec::Item("minecraft:stone"),
+            result: ItemAmount {
+                item: "minecraft:stone_stairs",
+                count: 1,
+            },
+        },
+        StonecutterSelection {
+            recipe_id: "minecraft:stone_slab_from_stone_stonecutting",
+            input: IngredientSpec::Item("minecraft:stone"),
+            result: ItemAmount {
+                item: "minecraft:stone_slab",
+                count: 2,
+            },
+        },
+    ];
     assert_eq!(StonecutterMenu::SLOT_COUNT, 38);
-    assert_eq!(menu.selected_recipe_index, -1);
-    menu.selected_recipe_index = 2;
-    menu.set_slot(0, ItemStack::new("minecraft:stone", 4), &mut player);
-    menu.set_result_internal(ItemStack::new("minecraft:stone_stairs", 4));
-    let moved = menu.quick_move(1, &mut player);
-    assert_eq!(moved.item_id(), "minecraft:stone_stairs");
+    assert_eq!(menu.get_selected_recipe_index(), -1);
+    assert_eq!(menu.data(0), Some(-1));
+    assert!(!menu.set_data(1, 0));
+    menu.set_slot(0, ItemStack::new("minecraft:stone", 2), &mut player);
+    menu.slots_changed(&recipes);
+    assert!(menu.has_input_item());
+    assert_eq!(menu.get_number_of_visible_recipes(), 2);
+    assert!(menu.click_button(1));
+    assert_eq!(menu.get_selected_recipe_index(), 1);
+    assert_eq!(
+        menu.get_slot(StonecutterMenu::RESULT_SLOT, &player)
+            .unwrap()
+            .item_id(),
+        "minecraft:stone_slab"
+    );
+    assert!(!menu.click_button(1));
+    assert!(menu.click_button(42));
+    assert_eq!(menu.get_selected_recipe_index(), 1);
+    let taken = menu.take_result();
+    assert_eq!(taken.item_id(), "minecraft:stone_slab");
+    assert_eq!(
+        menu.get_slot(StonecutterMenu::INPUT_SLOT, &player)
+            .unwrap()
+            .count(),
+        1
+    );
+    assert_eq!(
+        menu.get_slot(StonecutterMenu::RESULT_SLOT, &player)
+            .unwrap()
+            .item_id(),
+        "minecraft:stone_slab"
+    );
+    let taken = menu.take_result();
+    assert_eq!(taken.item_id(), "minecraft:stone_slab");
+    assert!(!menu.has_input_item());
+    assert_eq!(menu.get_selected_recipe_index(), -1);
+    assert!(menu
+        .get_slot(StonecutterMenu::RESULT_SLOT, &player)
+        .unwrap()
+        .is_empty());
+
+    player.set(9, ItemStack::new("minecraft:stone", 3));
+    let moved = menu.quick_move_with_recipes(StonecutterMenu::INV_START, &mut player, &recipes);
+    assert_eq!(moved.item_id(), "minecraft:stone");
+    assert_eq!(
+        menu.get_slot(StonecutterMenu::INPUT_SLOT, &player)
+            .unwrap()
+            .count(),
+        3
+    );
+    assert_eq!(menu.get_number_of_visible_recipes(), 2);
+    player.set(10, ItemStack::new("minecraft:apple", 1));
+    let moved = menu.quick_move_with_recipes(StonecutterMenu::INV_START + 1, &mut player, &recipes);
+    assert_eq!(moved.item_id(), "minecraft:apple");
+    assert_eq!(
+        menu.get_slot(StonecutterMenu::INPUT_SLOT, &player)
+            .unwrap()
+            .count(),
+        3
+    );
+    assert!(player.get(10).is_empty());
+    assert_eq!(player.get(0).item_id(), "minecraft:apple");
 }
 
 // -------- GrindstoneMenu --------

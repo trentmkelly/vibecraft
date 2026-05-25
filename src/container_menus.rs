@@ -27,7 +27,10 @@ use crate::item_stack::ItemStack;
 use crate::player_inventory::{
     ItemCost, MerchantOffer, PlayerInventory, HOTBAR_SIZE, INVENTORY_SIZE,
 };
-use crate::recipe_system::{CraftingStack, FuelValues, RecipeMap};
+use crate::recipe_system::{
+    stonecutter_recipes_for_input, CraftingStack, FuelValues, ItemAmount, RecipeMap,
+    StonecutterSelection,
+};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Number of vanilla "main storage" slots (3 rows of 9, excluding the hotbar).
@@ -134,6 +137,10 @@ pub(super) fn is_filled_map(item_id: &str) -> bool {
 /// here matching vanilla).
 pub(super) fn is_grindstone_input(stack: &ItemStack) -> bool {
     stack.is_damageable_item() || stack.max_damage() > 0
+}
+
+pub(super) fn item_amount_to_stack(amount: &ItemAmount) -> ItemStack {
+    ItemStack::new(amount.item, amount.count as i32)
 }
 
 /// Common slot-mutation helpers shared by every menu. Operates on a contiguous
