@@ -51,7 +51,7 @@ use super::*;
         assert!((s1 - 0.4287227533851657).abs() < 1e-12);
         assert!((s2 - -0.00018184261442075536).abs() < 1e-12);
         // With useNoiseStart=true the octave offsets are added, yielding a different result.
-        assert!((s3 - -0.42113689021641942).abs() < 1e-12);
+        assert!((s3 - -0.421_136_890_216_419_4).abs() < 1e-12);
     }
 
     #[test]
@@ -64,9 +64,9 @@ use super::*;
         // valueFactor = 1/(2^3 - 1) = 1/7
         assert!((frozen.highest_freq_value_factor - 1.0 / 7.0).abs() < 1e-15);
         // Octave 0 is at index 0 (highest freq in this set), octave -1 at 1, octave -2 at 2.
-        assert!((frozen.levels[0].as_ref().unwrap().xo - 219.41716397887680).abs() < 1e-12);
+        assert!((frozen.levels[0].as_ref().unwrap().xo - 219.417_163_978_876_8).abs() < 1e-12);
         assert!((frozen.levels[1].as_ref().unwrap().xo - 243.14770176472922).abs() < 1e-12);
-        assert!((frozen.levels[2].as_ref().unwrap().xo - 165.63902799171129).abs() < 1e-12);
+        assert!((frozen.levels[2].as_ref().unwrap().xo - 165.639_027_991_711_3).abs() < 1e-12);
     }
 
     #[test]
@@ -630,4 +630,3 @@ use super::*;
         assert!((derivative[1] - -0.5169489231200556).abs() < 1e-12);
         assert!((derivative[2] - 0.7581942371593413).abs() < 1e-12);
     }
-

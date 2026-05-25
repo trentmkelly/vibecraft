@@ -173,7 +173,7 @@ fn recipe_display_model_covers_all_vanilla_display_and_slot_variants() {
     settings.set_open(RecipeBookType::Furnace, true);
     settings.set_filtering(RecipeBookType::Smoker, true);
 
-    let displays = vec![
+    let displays = [
         RecipeDisplay::ShapedCrafting {
             width: 2,
             height: 2,

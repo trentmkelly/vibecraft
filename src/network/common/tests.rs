@@ -71,7 +71,7 @@ fn common_disconnect_uses_trusted_component_nbt_not_login_json() {
         "trusted component must start with an NBT compound tag"
     );
     assert!(
-        !bytes.starts_with(&[b'{']) && !bytes.starts_with(&[0x20]),
+        !bytes.starts_with(b"{") && !bytes.starts_with(b" "),
         "common disconnect must not use login JSON/string component encoding"
     );
     assert_eq!(

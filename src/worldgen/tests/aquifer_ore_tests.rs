@@ -21,7 +21,7 @@ use super::*;
             i64::MIN,
             i64::MAX,
             0x1234_5678_9abc_def0_i64,
-            -0x1234_5678_9abc_def_i64,
+            -0x0123_4567_89ab_cdef_i64,
             6_364_136_223_846_793_005_i64,
             -6_364_136_223_846_793_005_i64,
         ] {
@@ -532,4 +532,3 @@ use super::*;
              the first 3 vein-zone chunks at Y=0..=50 — ore vein integration broken"
         );
     }
-

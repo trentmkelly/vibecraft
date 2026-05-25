@@ -449,8 +449,10 @@ mod tests {
         let dir = temp_workdir("init-settings");
         let _guard = CurrentDirGuard::enter(&dir);
 
-        let mut options = CliOptions::default();
-        options.init_settings = true;
+        let options = CliOptions {
+            init_settings: true,
+            ..CliOptions::default()
+        };
 
         run(options).expect("init settings run");
 
@@ -484,8 +486,10 @@ mod tests {
         let dir = temp_workdir("pid-file");
         let _guard = CurrentDirGuard::enter(&dir);
 
-        let mut options = CliOptions::default();
-        options.pid_file = Some(PathBuf::from("server.pid"));
+        let options = CliOptions {
+            pid_file: Some(PathBuf::from("server.pid")),
+            ..CliOptions::default()
+        };
 
         run(options).expect("pid-file run");
 
@@ -516,11 +520,13 @@ mod tests {
         assert_eq!(defaulted.port, 25570);
         assert_eq!(defaulted.server_id, None);
 
-        let mut options = CliOptions::default();
-        options.world = Some("from_cli".to_string());
-        options.universe = PathBuf::from("worlds");
-        options.port = 25566;
-        options.server_id = Some("server-123".to_string());
+        let options = CliOptions {
+            world: Some("from_cli".to_string()),
+            universe: PathBuf::from("worlds"),
+            port: 25566,
+            server_id: Some("server-123".to_string()),
+            ..CliOptions::default()
+        };
 
         let selected = runtime_selection(&options, &properties);
         assert_eq!(selected.world_name, "from_cli");
@@ -568,8 +574,10 @@ mod tests {
         let dir = temp_workdir("report");
         let _guard = CurrentDirGuard::enter(&dir);
 
-        let mut options = CliOptions::default();
-        options.report = true;
+        let options = CliOptions {
+            report: true,
+            ..CliOptions::default()
+        };
 
         run(options).expect("report run");
 

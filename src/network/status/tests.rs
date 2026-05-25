@@ -503,7 +503,7 @@ pub fn formats_legacy_status_responses_like_vanilla() {
     );
     assert_eq!(
         legacy_version1_response(&properties),
-        "§1\0127\026.1.2\0A Minecraft Server\00\020"
+        "§1\x00127\x0026.1.2\0A Minecraft Server\x000\x0020"
     );
 
     let packet = legacy_disconnect_packet("hello");

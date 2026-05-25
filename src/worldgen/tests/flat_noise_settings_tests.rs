@@ -233,7 +233,7 @@ use super::*;
         // Oracle command used against official 26.1.2:
         // VanillaRegistries.createLookup() -> RandomState.create(OVERWORLD, seed 0) ->
         // router().finalDensity().compute(SinglePointContext(0, 100, 0)).
-        const VANILLA_FINAL_DENSITY_0_100_0_SEED_0: f64 = -0.45833333333333330;
+        const VANILLA_FINAL_DENSITY_0_100_0_SEED_0: f64 = -0.458_333_333_333_333_3;
         let seed = 0_i64;
 
         // Confirm the registry entry resolves.
@@ -306,7 +306,7 @@ use super::*;
 
         let samples = [
             ((0, 62, 0), -3.7094676845533336, -3.7094676845533336),
-            ((3, 62, 0), -3.3318550257927586, -2.9289862624467620),
+            ((3, 62, 0), -3.3318550257927586, -2.928_986_262_446_762),
             ((31, 62, 6), -0.42489011889609285, -0.4626364685144386),
         ];
 

@@ -652,10 +652,10 @@ fn command_block_entity_persists_base_fields_and_models_execution_gate() {
         command.execution_action(true, true),
         SpecialBlockAction::ExecuteCommand { success_count: 1 }
     );
-    assert_eq!(command.perform_command(42, true, true, true), true);
+    assert!(command.perform_command(42, true, true, true));
     assert_eq!(command.success_count, 1);
     assert_eq!(command.last_execution, 42);
-    assert_eq!(command.perform_command(42, true, true, true), false);
+    assert!(!command.perform_command(42, true, true, true));
 
     let mut blocked = CommandBlockEntity::new(CommandBlockMode::Auto, false);
     blocked.set_command("say no");

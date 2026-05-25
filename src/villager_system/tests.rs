@@ -286,9 +286,8 @@ fn villager_restock_timing_new_day_and_catchup_match_java() {
             reset_for_new_day: false,
         }
     );
-    assert_eq!(
-        villager_should_restock_plan(first, 2501, 0, false).should_restock,
-        false
+    assert!(
+        !villager_should_restock_plan(first, 2501, 0, false).should_restock
     );
     assert_eq!(
         villager_should_restock_plan(second, 14_502, 0, true),
@@ -372,7 +371,7 @@ fn trading_adds_xp_gossip_demand_and_restock_caps_twice_per_day() {
     assert!(!villager.offers[0].is_out_of_stock());
     assert_eq!(villager.offers[0].demand, 1);
     assert_eq!(villager.offers[manual_offer_index].demand, 2);
-    assert_eq!(villager.restock(1_100), false);
+    assert!(!villager.restock(1_100));
 
     villager.trade(0, "player-a");
     assert!(villager.restock(1_200));
@@ -522,7 +521,7 @@ fn wandering_trader_spawn_data_updates_chance_and_sample_trade_groups() {
         spawn_delay: 1,
         spawn_chance: 50,
     };
-    let spawned = wandering_trader_tick(data.clone(), true, true, 10);
+    let spawned = wandering_trader_tick(data, true, true, 10);
     assert!(spawned.should_spawn);
     assert_eq!(spawned.next_data.spawn_chance, 25);
 

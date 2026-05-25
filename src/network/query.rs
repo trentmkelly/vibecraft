@@ -380,7 +380,7 @@ mod tests {
         for field in [
             b"splitnum\0".as_slice(),
             b"game_id\0MINECRAFT\0",
-            b"version\026.1.2\0",
+            b"version\x0026.1.2\0",
             b"player_\0\0Alex\0Steve\0\0",
         ] {
             assert!(bytes.windows(field.len()).any(|window| window == field));
