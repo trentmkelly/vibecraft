@@ -380,49 +380,67 @@ fn bossbar_set_mutates_values_players_and_reports_unchanged_errors() {
     )
     .unwrap();
 
+    let (max, value, hidden, players) = set_bossbar_event_values(&mut state);
+    assert_bossbar_event_values(&state, max, value, hidden, players);
+    assert_bossbar_event_unchanged_errors(&mut state);
+    assert_bossbar_event_players_clear(&mut state);
+}
+
+fn set_bossbar_event_values(
+    state: &mut ServerCommandState,
+) -> (CommandResult, CommandResult, CommandResult, CommandResult) {
     execute_builtin_command(
-        &mut state,
+        state,
         LevelBasedPermissionSet::GAMEMASTER,
         "bossbar set event name Dragon Fight",
     )
     .unwrap();
     execute_builtin_command(
-        &mut state,
+        state,
         LevelBasedPermissionSet::GAMEMASTER,
         "bossbar set event color purple",
     )
     .unwrap();
     execute_builtin_command(
-        &mut state,
+        state,
         LevelBasedPermissionSet::GAMEMASTER,
         "bossbar set event style notched_10",
     )
     .unwrap();
     let max = execute_builtin_command(
-        &mut state,
+        state,
         LevelBasedPermissionSet::GAMEMASTER,
         "bossbar set event max 250",
     )
     .unwrap();
     let value = execute_builtin_command(
-        &mut state,
+        state,
         LevelBasedPermissionSet::GAMEMASTER,
         "bossbar set event value 125",
     )
     .unwrap();
     let hidden = execute_builtin_command(
-        &mut state,
+        state,
         LevelBasedPermissionSet::GAMEMASTER,
         "bossbar set event visible false",
     )
     .unwrap();
     let players = execute_builtin_command(
-        &mut state,
+        state,
         LevelBasedPermissionSet::GAMEMASTER,
         "bossbar set event players Steve Alex",
     )
     .unwrap();
+    (max, value, hidden, players)
+}
 
+fn assert_bossbar_event_values(
+    state: &ServerCommandState,
+    max: CommandResult,
+    value: CommandResult,
+    hidden: CommandResult,
+    players: CommandResult,
+) {
     assert_eq!(max.success_count, 250);
     assert_eq!(value.success_count, 125);
     assert_eq!(
@@ -434,9 +452,12 @@ fn bossbar_set_mutates_values_players_and_reports_unchanged_errors() {
     assert_eq!(state.bossbars[0].color, BossBarCommandColor::Purple);
     assert_eq!(state.bossbars[0].overlay, BossBarCommandOverlay::Notched10);
     assert!(!state.bossbars[0].visible);
+}
+
+fn assert_bossbar_event_unchanged_errors(state: &mut ServerCommandState) {
     assert_eq!(
         execute_builtin_command(
-            &mut state,
+            state,
             LevelBasedPermissionSet::GAMEMASTER,
             "bossbar get event players"
         )
@@ -447,7 +468,7 @@ fn bossbar_set_mutates_values_players_and_reports_unchanged_errors() {
 
     assert_eq!(
         execute_builtin_command(
-            &mut state,
+            state,
             LevelBasedPermissionSet::GAMEMASTER,
             "bossbar set event value 125"
         ),
@@ -455,7 +476,7 @@ fn bossbar_set_mutates_values_players_and_reports_unchanged_errors() {
     );
     assert_eq!(
         execute_builtin_command(
-            &mut state,
+            state,
             LevelBasedPermissionSet::GAMEMASTER,
             "bossbar set event visible false"
         ),
@@ -463,14 +484,17 @@ fn bossbar_set_mutates_values_players_and_reports_unchanged_errors() {
     );
     assert_eq!(
         execute_builtin_command(
-            &mut state,
+            state,
             LevelBasedPermissionSet::GAMEMASTER,
             "bossbar set event players Steve Alex"
         ),
         Err(CommandError::BossBarPlayersUnchanged)
     );
+}
+
+fn assert_bossbar_event_players_clear(state: &mut ServerCommandState) {
     let cleared = execute_builtin_command(
-        &mut state,
+        state,
         LevelBasedPermissionSet::GAMEMASTER,
         "bossbar set event players",
     )
