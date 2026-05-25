@@ -93,60 +93,66 @@ pub(super) fn live_tree_state_with_previous_overlay<'a>(
         .unwrap_or(Cow::Borrowed("minecraft:air"))
 }
 
+pub(super) struct LiveStraightBlobTreeInput {
+    pub(super) origin: BlockPos,
+    pub(super) trunk: TrunkPlacerModel,
+    pub(super) clipped_tree_height: i32,
+    pub(super) foliage: FoliagePlacerModel,
+    pub(super) trunk_state: &'static str,
+    pub(super) foliage_state: &'static str,
+    pub(super) below_trunk_state: &'static str,
+    pub(super) rand_a: i32,
+    pub(super) rand_b: i32,
+}
+
 pub(super) fn live_straight_blob_tree_placement_plan(
-    origin: BlockPos,
-    trunk: TrunkPlacerModel,
-    clipped_tree_height: i32,
-    foliage: FoliagePlacerModel,
-    trunk_state: &'static str,
-    foliage_state: &'static str,
-    below_trunk_state: &'static str,
-    rand_a: i32,
-    rand_b: i32,
+    input: LiveStraightBlobTreeInput,
     random: &mut RandomSourceKind,
 ) -> Result<TreePlacementPlan, String> {
-    validate_trunk_placer(trunk)?;
-    validate_foliage_placer(foliage)?;
-    if trunk.kind != TrunkPlacerKind::Straight {
+    validate_trunk_placer(input.trunk)?;
+    validate_foliage_placer(input.foliage)?;
+    if input.trunk.kind != TrunkPlacerKind::Straight {
         return Err("live blob tree placement requires a straight trunk placer".to_string());
     }
     let FoliagePlacerKind::Blob {
         height: foliage_height,
-    } = foliage.kind
+    } = input.foliage.kind
     else {
         return Err("live straight tree placement currently requires blob foliage".to_string());
     };
 
-    let leaf_radius = sample_inclusive_i32(foliage.radius_min, foliage.radius_max, rand_a);
-    let foliage_offset = sample_inclusive_i32(foliage.offset_min, foliage.offset_max, rand_b);
+    let leaf_radius =
+        sample_inclusive_i32(input.foliage.radius_min, input.foliage.radius_max, input.rand_a);
+    let foliage_offset =
+        sample_inclusive_i32(input.foliage.offset_min, input.foliage.offset_max, input.rand_b);
     let foliage_origin = BlockPos {
-        x: origin.x,
-        y: origin.y + clipped_tree_height + foliage_offset,
-        z: origin.z,
+        x: input.origin.x,
+        y: input.origin.y + input.clipped_tree_height + foliage_offset,
+        z: input.origin.z,
     };
     let mut blocks = Vec::new();
     push_tree_block(
         &mut blocks,
         TreePlacementBlock {
             pos: BlockPos {
-                x: origin.x,
-                y: origin.y - 1,
-                z: origin.z,
+                x: input.origin.x,
+                y: input.origin.y - 1,
+                z: input.origin.z,
             },
-            state: below_trunk_state,
+            state: input.below_trunk_state,
             kind: TreePlacementBlockKind::DirtBelowTrunk,
         },
     );
-    for y in 0..clipped_tree_height {
+    for y in 0..input.clipped_tree_height {
         push_tree_block(
             &mut blocks,
             TreePlacementBlock {
                 pos: BlockPos {
-                    x: origin.x,
-                    y: origin.y + y,
-                    z: origin.z,
+                    x: input.origin.x,
+                    y: input.origin.y + y,
+                    z: input.origin.z,
                 },
-                state: trunk_state,
+                state: input.trunk_state,
                 kind: TreePlacementBlockKind::Log,
             },
         );
@@ -159,7 +165,7 @@ pub(super) fn live_straight_blob_tree_placement_plan(
             foliage_origin,
             current_radius,
             y_offset,
-            foliage_state,
+            input.foliage_state,
             random,
         );
     }

@@ -124,21 +124,23 @@ use super::*;
         }
 
         let plan = super::super::live_straight_blob_tree_placement_plan(
-            origin,
-            trunk,
-            super::super::trunk_placer_height(trunk, 1, 0),
-            FoliagePlacerModel {
-                radius_min: 2,
-                radius_max: 2,
-                offset_min: 0,
-                offset_max: 0,
-                kind: FoliagePlacerKind::Blob { height: 3 },
+            super::super::LiveStraightBlobTreeInput {
+                origin,
+                trunk,
+                clipped_tree_height: super::super::trunk_placer_height(trunk, 1, 0),
+                foliage: FoliagePlacerModel {
+                    radius_min: 2,
+                    radius_max: 2,
+                    offset_min: 0,
+                    offset_max: 0,
+                    kind: FoliagePlacerKind::Blob { height: 3 },
+                },
+                trunk_state: "minecraft:oak_log",
+                foliage_state: "minecraft:oak_leaves",
+                below_trunk_state: "minecraft:dirt",
+                rand_a: 1,
+                rand_b: 0,
             },
-            "minecraft:oak_log",
-            "minecraft:oak_leaves",
-            "minecraft:dirt",
-            1,
-            0,
             &mut random,
         )
         .expect("live straight blob tree should plan");
@@ -187,21 +189,23 @@ use super::*;
         );
 
         let plan = super::super::live_straight_blob_tree_placement_plan(
-            origin,
-            trunk,
-            clipped_tree_height,
-            FoliagePlacerModel {
-                radius_min: 2,
-                radius_max: 2,
-                offset_min: 0,
-                offset_max: 0,
-                kind: FoliagePlacerKind::Blob { height: 3 },
+            super::super::LiveStraightBlobTreeInput {
+                origin,
+                trunk,
+                clipped_tree_height,
+                foliage: FoliagePlacerModel {
+                    radius_min: 2,
+                    radius_max: 2,
+                    offset_min: 0,
+                    offset_max: 0,
+                    kind: FoliagePlacerKind::Blob { height: 3 },
+                },
+                trunk_state: "minecraft:oak_log",
+                foliage_state: "minecraft:oak_leaves",
+                below_trunk_state: "minecraft:dirt",
+                rand_a: 1,
+                rand_b: 0,
             },
-            "minecraft:oak_log",
-            "minecraft:oak_leaves",
-            "minecraft:dirt",
-            1,
-            0,
             &mut random,
         )
         .expect("live straight blob tree should plan");
@@ -756,4 +760,3 @@ use super::*;
             );
         }
     }
-

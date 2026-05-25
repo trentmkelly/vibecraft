@@ -26,15 +26,17 @@ pub(super) fn live_tree_placement_plan(
     };
     if !matches!(trunk.kind, TrunkPlacerKind::Fancy) {
         let mut plan = live_straight_blob_tree_placement_plan(
-            input.origin,
-            trunk,
-            input.clipped_tree_height,
-            input.config.foliage,
-            input.config.trunk_state,
-            input.config.leaves_state,
-            "minecraft:dirt",
-            input.rand_a,
-            input.rand_b,
+            LiveStraightBlobTreeInput {
+                origin: input.origin,
+                trunk,
+                clipped_tree_height: input.clipped_tree_height,
+                foliage: input.config.foliage,
+                trunk_state: input.config.trunk_state,
+                foliage_state: input.config.leaves_state,
+                below_trunk_state: "minecraft:dirt",
+                rand_a: input.rand_a,
+                rand_b: input.rand_b,
+            },
             random,
         )?;
         filter_live_tree_feature_blocks_like_java(
