@@ -79,7 +79,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundContainerSetSlotPacket` (0x13): window ID byte, state ID VarInt, slot short, item
 - [ ] `ClientboundContainerSetDataPacket` (0x13): container ID VarInt, property short, value short
 - [ ] `ClientboundOpenScreenPacket` (0x35): window ID VarInt, menu type VarInt, title component
-- [ ] `ClientboundContainerClosePacket` (0x11): container ID VarInt
+- [x] `ClientboundContainerClosePacket` (0x11 / decimal 17): container ID encoded with Java `FriendlyByteBuf.readContainerId`/`writeContainerId` VarInt; verified against Java read/write codec, Java play registration/name mapping, Rust packet ID/registry mapping, and focused byte-layout coverage for multibyte container IDs.
 - [ ] `ClientboundMountScreenOpenPacket` (0x29, replaces older HorseScreenOpen): container ID VarInt, inventory columns VarInt, entity ID fixed int
 - [ ] `ClientboundMerchantOffersPacket` (0x31): container ID, offers list (input1 `ItemCost`, result `ItemStack`, optional input2 `ItemCost`, out-of-stock, uses, maxUses, xp, specialPrice, priceMultiplier, demand), villager level, xp, show-progress, can-restock
 - [x] `ClientboundSetHeldSlotPacket` (0x69 / decimal 105): slot VarInt; verified field order against Java, Rust packet round-trip coverage, and live raw join.
