@@ -476,6 +476,7 @@ impl LoadedTags {
 }
 
 mod builtin;
+#[cfg(test)]
 use builtin::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

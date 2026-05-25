@@ -1132,6 +1132,7 @@ mod test_blocks;
 mod structures;
 
 mod functional_blocks;
+#[cfg(test)]
 use functional_blocks::*;
 
 mod beacon_signs_brewing;

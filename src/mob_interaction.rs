@@ -223,72 +223,93 @@ fn lerp(part: f32, start: f32, end: f32) -> f32 {
 }
 
 mod golems;
+#[cfg(test)]
 use golems::*;
 
 mod frogs_foxes;
+#[cfg(test)]
 use frogs_foxes::*;
 
 mod pandas;
+#[cfg(test)]
 use pandas::*;
 
 mod parrots_happy_ghasts;
+#[cfg(test)]
 use parrots_happy_ghasts::*;
 
 mod dried_ghasts_sniffers;
+#[cfg(test)]
 use dried_ghasts_sniffers::*;
 
 mod turtles;
+#[cfg(test)]
 use turtles::*;
 
 mod armadillos;
+#[cfg(test)]
 use armadillos::*;
 
 mod allays;
+#[cfg(test)]
 use allays::*;
 
 mod felines;
+#[cfg(test)]
 use felines::*;
 
 mod creepers;
+#[cfg(test)]
 use creepers::*;
 
 mod slimes;
+#[cfg(test)]
 use slimes::*;
 
 mod phantoms;
+#[cfg(test)]
 use phantoms::*;
 
 mod vexes;
+#[cfg(test)]
 use vexes::*;
 
 mod silverfish;
+#[cfg(test)]
 use silverfish::*;
 
 mod piglin_hoglin_types;
 pub use piglin_hoglin_types::*;
 
 mod hoglins_piglins;
+#[cfg(test)]
 use hoglins_piglins::*;
 
 mod ghasts;
+#[cfg(test)]
 use ghasts::*;
 
 mod striders;
+#[cfg(test)]
 use striders::*;
 
 mod witches;
+#[cfg(test)]
 use witches::*;
 
 mod guardians;
 pub use guardians::*;
 
 mod ravagers;
+#[cfg(test)]
 use ravagers::*;
 
 mod shulkers;
+#[cfg(test)]
 use shulkers::*;
 
 mod giants;
+#[cfg(test)]
 use giants::*;
 
 mod zombies;
@@ -297,85 +318,105 @@ pub use zombies::*;
 mod zombie_villagers;
 #[cfg(test)]
 pub use zombie_villagers::*;
-#[cfg(not(test))]
-use zombie_villagers::*;
 
 mod blazes;
+#[cfg(test)]
 use blazes::*;
 
 mod zombified_piglins;
 pub use zombified_piglins::*;
 
 mod drowned;
+#[cfg(test)]
 use drowned::*;
 
 mod husks;
+#[cfg(test)]
 use husks::*;
 
 mod endermites;
+#[cfg(test)]
 use endermites::*;
 
 mod endermen;
+#[cfg(test)]
 use endermen::*;
 
 mod skeletons;
+#[cfg(test)]
 use skeletons::*;
 
 mod spiders;
+#[cfg(test)]
 use spiders::*;
 
 mod common;
 pub use common::*;
 
 mod axolotls;
+#[cfg(test)]
 use axolotls::*;
 
 mod chickens_cows;
+#[cfg(test)]
 use chickens_cows::*;
 
 mod dolphins;
+#[cfg(test)]
 use dolphins::*;
 
 mod bees;
+#[cfg(test)]
 use bees::*;
 
 mod camels;
+#[cfg(test)]
 use camels::*;
 
 mod goats;
+#[cfg(test)]
 use goats::*;
 
 mod pigs;
+#[cfg(test)]
 use pigs::*;
 
 mod polar_bears;
+#[cfg(test)]
 use polar_bears::*;
 
 mod rabbits;
+#[cfg(test)]
 use rabbits::*;
 
 mod sheep;
+#[cfg(test)]
 use sheep::*;
 
 mod squids;
+#[cfg(test)]
 use squids::*;
 
 mod fish_variants;
+#[cfg(test)]
 use fish_variants::*;
 
 mod fish_common;
+#[cfg(test)]
 use fish_common::*;
 
 mod bucketables_mooshrooms;
 pub use bucketables_mooshrooms::*;
 
 mod horses_llamas;
+#[cfg(test)]
 use horses_llamas::*;
 
 mod villagers_anger_conversion;
 pub use villagers_anger_conversion::*;
 
 mod coverage;
+#[cfg(test)]
 use coverage::*;
 
 #[cfg(test)]

@@ -1129,6 +1129,7 @@ mod nbt_helpers;
 
 pub use level_chunk_impl::*;
 pub use paletted_container::*;
+#[cfg(test)]
 use chunk_generation::*;
 use nbt_helpers::*;
 

@@ -292,11 +292,17 @@ mod menus_table;
 mod menus_misc;
 mod menus_entity;
 
+#[cfg(test)]
 use menus_crafting_and_furnace::*;
+#[cfg(test)]
 use menus_storage::*;
+#[cfg(test)]
 use menus_workstation::*;
+#[cfg(test)]
 use menus_table::*;
+#[cfg(test)]
 use menus_misc::*;
+#[cfg(test)]
 use menus_entity::*;
 
 #[cfg(test)]
