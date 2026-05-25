@@ -120,7 +120,8 @@ pub(super) fn command_inventory_mut<'a>(
         player: player.clone(),
         items: Vec::new(),
     });
-    state.player_inventories.last_mut().unwrap()
+    let index = state.player_inventories.len() - 1;
+    &mut state.player_inventories[index]
 }
 
 pub(super) fn give_command(

@@ -125,14 +125,14 @@ pub(super) fn spawn_armor_trims_command(
         ["spawn_armor_trims", "*_lag_my_game"] => VANILLA_TRIM_PATTERNS.to_vec(),
         ["spawn_armor_trims", pattern] => {
             let pattern = parse_resource_identifier(pattern)?;
-            if !VANILLA_TRIM_PATTERNS.contains(&pattern.as_str()) {
-                return Err(CommandError::InvalidArmorTrimPattern);
-            }
-            vec![VANILLA_TRIM_PATTERNS
+            let Some(pattern) = VANILLA_TRIM_PATTERNS
                 .iter()
                 .copied()
                 .find(|entry| *entry == pattern)
-                .expect("pattern was checked above")]
+            else {
+                return Err(CommandError::InvalidArmorTrimPattern);
+            };
+            vec![pattern]
         }
         _ => return Err(CommandError::InvalidSyntax),
     };
@@ -470,7 +470,7 @@ pub(super) fn game_rule_value(
         .game_rules
         .iter()
         .find(|entry| entry.name == normalized)
-        .map(|entry| entry.value.clone())
+        .map(|entry| entry.value)
         .ok_or(CommandError::InvalidSyntax)
 }
 

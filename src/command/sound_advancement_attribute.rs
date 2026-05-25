@@ -338,7 +338,8 @@ pub(super) fn player_advancement_progress_mut<'a>(
         advancement: advancement.to_string(),
         completed_criteria: Vec::new(),
     });
-    state.player_advancements.last_mut().unwrap()
+    let index = state.player_advancements.len() - 1;
+    &mut state.player_advancements[index]
 }
 
 pub(super) fn attribute_command(
@@ -426,9 +427,9 @@ pub(super) fn attribute_modifier_command(
             let id = parse_resource_identifier(id)?;
             let value = parse_f64(value)?;
             let operation = match *operation {
-                "add_value" => AttributeOperation::AddValue,
-                "add_multiplied_base" => AttributeOperation::AddMultipliedBase,
-                "add_multiplied_total" => AttributeOperation::AddMultipliedTotal,
+                "add_value" => AttributeOperation::Value,
+                "add_multiplied_base" => AttributeOperation::MultipliedBase,
+                "add_multiplied_total" => AttributeOperation::MultipliedTotal,
                 _ => return Err(CommandError::InvalidSyntax),
             };
             let attribute = entity_attribute_mut(state, target, attribute)?;
@@ -487,18 +488,18 @@ impl EntityAttributeState {
         let add_value = self
             .modifiers
             .iter()
-            .filter(|modifier| modifier.operation == AttributeOperation::AddValue)
+            .filter(|modifier| modifier.operation == AttributeOperation::Value)
             .map(|modifier| modifier.value)
             .sum::<f64>();
         let base = self.base + add_value;
         let multiplied_base = self
             .modifiers
             .iter()
-            .filter(|modifier| modifier.operation == AttributeOperation::AddMultipliedBase)
+            .filter(|modifier| modifier.operation == AttributeOperation::MultipliedBase)
             .fold(base, |value, modifier| value + self.base * modifier.value);
         self.modifiers
             .iter()
-            .filter(|modifier| modifier.operation == AttributeOperation::AddMultipliedTotal)
+            .filter(|modifier| modifier.operation == AttributeOperation::MultipliedTotal)
             .fold(multiplied_base, |value, modifier| {
                 value * (1.0 + modifier.value)
             })

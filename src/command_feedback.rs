@@ -158,11 +158,11 @@ pub fn arg_component(name: &'static str, value: Component) -> FeedbackArgument {
 }
 
 pub fn feedback_style(success: bool) -> Style {
-    if success {
-        Style::empty().with_color(TextColor::parse("gray").unwrap())
-    } else {
-        Style::empty().with_color(TextColor::parse("red").unwrap())
-    }
+    let color_name = if success { "gray" } else { "red" };
+    let Some(color) = TextColor::parse(color_name) else {
+        unreachable!("built-in feedback color {color_name} must be a known legacy color");
+    };
+    Style::empty().with_color(color)
 }
 
 fn admin_broadcast_component(source_name: &str, component: Component) -> Component {

@@ -413,7 +413,8 @@ pub(super) fn player_experience_mut<'a>(
             progress: 0.0,
             total: 0,
         });
-        state.player_experience.last_mut().unwrap()
+        let index = state.player_experience.len() - 1;
+        &mut state.player_experience[index]
     }
 }
 
