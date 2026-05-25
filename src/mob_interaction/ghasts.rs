@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GhastAttributes {
     pub max_health: f32,
@@ -187,8 +186,8 @@ pub fn ghast_shoot_fireball_tick(
 
 pub fn ghast_random_float_can_use(move_control_has_wanted: bool, wanted_distance_sqr: f64) -> bool {
     !move_control_has_wanted
-        || wanted_distance_sqr < GHAST_RANDOM_FLOAT_REACHED_DISTANCE_SQR
-        || wanted_distance_sqr > GHAST_RANDOM_FLOAT_TOO_FAR_DISTANCE_SQR
+        || !(GHAST_RANDOM_FLOAT_REACHED_DISTANCE_SQR..=GHAST_RANDOM_FLOAT_TOO_FAR_DISTANCE_SQR)
+            .contains(&wanted_distance_sqr)
 }
 
 pub fn ghast_random_float_target(
@@ -213,4 +212,3 @@ pub fn ghast_move_float_duration_tick(current_duration: i32, random_0_to_4: i32)
 pub fn large_fireball_hit_outcome(mob_griefing: bool, explosion_power: i32) -> (f32, bool, bool) {
     (explosion_power as f32, mob_griefing, true)
 }
-

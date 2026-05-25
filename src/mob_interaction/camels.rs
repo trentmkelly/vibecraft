@@ -155,36 +155,48 @@ pub fn camel_dash_impulse(
     )
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CamelPassengerAttachmentInput {
+    pub passenger_index: usize,
+    pub passenger_count: usize,
+    pub passenger_is_animal: bool,
+    pub camel_sitting: bool,
+    pub removed: bool,
+    pub dimensions_width: f32,
+    pub dimensions_height: f32,
+    pub scale: f32,
+}
+
 pub fn camel_passenger_attachment_point(
-    passenger_index: usize,
-    passenger_count: usize,
-    passenger_is_animal: bool,
-    camel_sitting: bool,
-    removed: bool,
-    dimensions_width: f32,
-    dimensions_height: f32,
-    scale: f32,
+    input: CamelPassengerAttachmentInput,
 ) -> CamelPassengerAttachment {
-    let driver = passenger_index == 0;
+    let driver = input.passenger_index == 0;
     let mut offset = 0.5;
-    let height = if removed {
+    let height = if input.removed {
         0.01
     } else {
-        camel_body_anchor_y(camel_sitting, false, driver, 0.0, dimensions_height, scale)
+        camel_body_anchor_y(
+            input.camel_sitting,
+            false,
+            driver,
+            0.0,
+            input.dimensions_height,
+            input.scale,
+        )
     };
-    if passenger_count > 1 {
+    if input.passenger_count > 1 {
         if !driver {
             offset = -0.7;
         }
-        if passenger_is_animal {
+        if input.passenger_is_animal {
             offset += 0.2;
         }
     }
-    let _ = dimensions_width;
+    let _ = input.dimensions_width;
     CamelPassengerAttachment {
         x: 0.0,
         y: height,
-        z: offset as f64 * scale as f64,
+        z: offset * f64::from(input.scale),
     }
 }
 

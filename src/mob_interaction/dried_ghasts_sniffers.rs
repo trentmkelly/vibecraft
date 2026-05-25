@@ -130,26 +130,29 @@ pub fn sniffer_can_sniff(
     !tempted && !panicking && !in_water && !in_love && on_ground && !passenger && !leashed
 }
 
-pub fn sniffer_can_dig_body_state(
-    panicking: bool,
-    tempted: bool,
-    baby: bool,
-    in_water: bool,
-    on_ground: bool,
-    passenger: bool,
-    head_block_below_diggable: bool,
-    explored_position: bool,
-    path_can_reach: bool,
-) -> bool {
-    !panicking
-        && !tempted
-        && !baby
-        && !in_water
-        && on_ground
-        && !passenger
-        && head_block_below_diggable
-        && !explored_position
-        && path_can_reach
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SnifferDigBodyStateInput {
+    pub panicking: bool,
+    pub tempted: bool,
+    pub baby: bool,
+    pub in_water: bool,
+    pub on_ground: bool,
+    pub passenger: bool,
+    pub head_block_below_diggable: bool,
+    pub explored_position: bool,
+    pub path_can_reach: bool,
+}
+
+pub fn sniffer_can_dig_body_state(input: SnifferDigBodyStateInput) -> bool {
+    !input.panicking
+        && !input.tempted
+        && !input.baby
+        && !input.in_water
+        && input.on_ground
+        && !input.passenger
+        && input.head_block_below_diggable
+        && !input.explored_position
+        && input.path_can_reach
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -329,4 +332,3 @@ pub fn sniffer_egg_tick_plan(hatch_level: i32) -> SnifferEggTickPlan {
         }
     }
 }
-

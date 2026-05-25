@@ -99,32 +99,35 @@ pub fn zombified_piglin_set_target_delays(
     ))
 }
 
-pub fn zombified_piglin_ai_step(
-    angry: bool,
-    baby: bool,
-    has_attacking_speed_modifier: bool,
-    play_first_anger_sound_in: i32,
-    target_present: bool,
-    ticks_until_next_alert: i32,
-    has_line_of_sight_to_target: bool,
-    sampled_next_alert_interval: i32,
-) -> ZombifiedPiglinAiStep {
-    let next_modifier = angry && (!baby || has_attacking_speed_modifier);
-    let mut next_sound = play_first_anger_sound_in;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ZombifiedPiglinAiStepInput {
+    pub angry: bool,
+    pub baby: bool,
+    pub has_attacking_speed_modifier: bool,
+    pub play_first_anger_sound_in: i32,
+    pub target_present: bool,
+    pub ticks_until_next_alert: i32,
+    pub has_line_of_sight_to_target: bool,
+    pub sampled_next_alert_interval: i32,
+}
+
+pub fn zombified_piglin_ai_step(input: ZombifiedPiglinAiStepInput) -> ZombifiedPiglinAiStep {
+    let next_modifier = input.angry && (!input.baby || input.has_attacking_speed_modifier);
+    let mut next_sound = input.play_first_anger_sound_in;
     let mut played_first_anger_sound = false;
-    if angry && next_sound > 0 {
+    if input.angry && next_sound > 0 {
         next_sound -= 1;
         played_first_anger_sound = next_sound == 0;
     }
 
-    let mut next_alert = ticks_until_next_alert;
+    let mut next_alert = input.ticks_until_next_alert;
     let mut alert_others = false;
-    if target_present {
+    if input.target_present {
         if next_alert > 0 {
             next_alert -= 1;
         } else {
-            alert_others = has_line_of_sight_to_target;
-            next_alert = sampled_next_alert_interval.clamp(
+            alert_others = input.has_line_of_sight_to_target;
+            next_alert = input.sampled_next_alert_interval.clamp(
                 ZOMBIFIED_PIGLIN_ALERT_INTERVAL_MIN_TICKS,
                 ZOMBIFIED_PIGLIN_ALERT_INTERVAL_MAX_TICKS,
             );
@@ -220,4 +223,3 @@ pub struct DrownedEntityTypeSurface {
     pub water_pathfinding_malus: f32,
     pub can_spawn_in_liquids: bool,
 }
-

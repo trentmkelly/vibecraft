@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ZombieAttributes {
     pub follow_range: f32,
@@ -273,100 +272,109 @@ pub fn zombie_killed_villager_outcome(
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ZombieFinalizeSpawnInput {
+    pub spawn_reason_conversion: bool,
+    pub spawn_reason_load_or_dimension_travel: bool,
+    pub group_data_present: bool,
+    pub group_baby: bool,
+    pub group_can_spawn_jockey: bool,
+    pub spawn_baby_random_float: f32,
+    pub loot_random_float: f32,
+    pub difficulty_special_multiplier: f32,
+    pub existing_chicken_random_float: f32,
+    pub existing_chicken_available: bool,
+    pub new_chicken_random_float: f32,
+    pub door_random_float: f32,
+    pub halloween: bool,
+    pub head_empty: bool,
+    pub halloween_head_random_float: f32,
+    pub jack_o_lantern_random_float: f32,
+    pub reinforcement_base_random_double: f64,
+    pub knockback_random_double: f64,
+    pub follow_range_random_double: f64,
+    pub leader_random_float: f32,
+    pub leader_reinforcement_random_double: f64,
+    pub leader_health_random_double: f64,
+}
+
 pub fn zombie_finalize_spawn_outcome(
-    spawn_reason_conversion: bool,
-    spawn_reason_load_or_dimension_travel: bool,
-    group_data_present: bool,
-    group_baby: bool,
-    group_can_spawn_jockey: bool,
-    spawn_baby_random_float: f32,
-    loot_random_float: f32,
-    difficulty_special_multiplier: f32,
-    existing_chicken_random_float: f32,
-    existing_chicken_available: bool,
-    new_chicken_random_float: f32,
-    door_random_float: f32,
-    halloween: bool,
-    head_empty: bool,
-    halloween_head_random_float: f32,
-    jack_o_lantern_random_float: f32,
-    reinforcement_base_random_double: f64,
-    knockback_random_double: f64,
-    follow_range_random_double: f64,
-    leader_random_float: f32,
-    leader_reinforcement_random_double: f64,
-    leader_health_random_double: f64,
+    input: ZombieFinalizeSpawnInput,
 ) -> ZombieFinalizeSpawnOutcome {
-    let is_baby = if group_data_present {
-        group_baby
+    let is_baby = if input.group_data_present {
+        input.group_baby
     } else {
-        zombie_spawn_as_baby(spawn_baby_random_float)
+        zombie_spawn_as_baby(input.spawn_baby_random_float)
     };
-    let can_pick_up_loot = (!spawn_reason_conversion).then_some(
-        loot_random_float < ZOMBIE_LOOT_PICKUP_CHANCE_SCALE * difficulty_special_multiplier,
+    let can_pick_up_loot = (!input.spawn_reason_conversion).then_some(
+        input.loot_random_float
+            < ZOMBIE_LOOT_PICKUP_CHANCE_SCALE * input.difficulty_special_multiplier,
     );
 
     let mut tried_existing_chicken_jockey = false;
     let mut spawned_new_chicken_jockey = false;
-    if is_baby && group_can_spawn_jockey {
-        if existing_chicken_random_float < ZOMBIE_CHICKEN_JOCKEY_EXISTING_CHANCE {
+    if is_baby && input.group_can_spawn_jockey {
+        if input.existing_chicken_random_float < ZOMBIE_CHICKEN_JOCKEY_EXISTING_CHANCE {
             tried_existing_chicken_jockey = true;
-        } else if new_chicken_random_float < ZOMBIE_CHICKEN_JOCKEY_NEW_CHANCE {
+        } else if input.new_chicken_random_float < ZOMBIE_CHICKEN_JOCKEY_NEW_CHANCE {
             spawned_new_chicken_jockey = true;
         }
     }
 
-    let mut can_break_doors =
-        door_random_float < difficulty_special_multiplier * ZOMBIE_BREAK_DOOR_CHANCE_SCALE;
-    let leader = leader_random_float < difficulty_special_multiplier * ZOMBIE_LEADER_CHANCE_SCALE;
+    let mut can_break_doors = input.door_random_float
+        < input.difficulty_special_multiplier * ZOMBIE_BREAK_DOOR_CHANCE_SCALE;
+    let leader = input.leader_random_float
+        < input.difficulty_special_multiplier * ZOMBIE_LEADER_CHANCE_SCALE;
     if leader {
         can_break_doors = true;
     }
 
-    let halloween_head =
-        if head_empty && halloween && halloween_head_random_float < ZOMBIE_HALLOWEEN_HEAD_CHANCE {
-            Some(
-                if jack_o_lantern_random_float < ZOMBIE_HALLOWEEN_JACK_O_LANTERN_CHANCE {
-                    "minecraft:jack_o_lantern"
-                } else {
-                    "minecraft:carved_pumpkin"
-                },
-            )
-        } else {
-            None
-        };
+    let halloween_head = if input.head_empty
+        && input.halloween
+        && input.halloween_head_random_float < ZOMBIE_HALLOWEEN_HEAD_CHANCE
+    {
+        Some(
+            if input.jack_o_lantern_random_float < ZOMBIE_HALLOWEEN_JACK_O_LANTERN_CHANCE {
+                "minecraft:jack_o_lantern"
+            } else {
+                "minecraft:carved_pumpkin"
+            },
+        )
+    } else {
+        None
+    };
 
-    let follow_range_bonus = follow_range_random_double
+    let follow_range_bonus = input.follow_range_random_double
         * ZOMBIE_FOLLOW_RANGE_BONUS_SCALE
-        * difficulty_special_multiplier as f64;
+        * input.difficulty_special_multiplier as f64;
     let leader_reinforcement_bonus = leader.then_some(
-        leader_reinforcement_random_double * ZOMBIE_LEADER_REINFORCEMENT_BONUS_RANGE
+        input.leader_reinforcement_random_double * ZOMBIE_LEADER_REINFORCEMENT_BONUS_RANGE
             + ZOMBIE_LEADER_REINFORCEMENT_BONUS_MIN,
     );
     let leader_max_health_bonus = leader.then_some(
-        leader_health_random_double * ZOMBIE_LEADER_MAX_HEALTH_BONUS_RANGE
+        input.leader_health_random_double * ZOMBIE_LEADER_MAX_HEALTH_BONUS_RANGE
             + ZOMBIE_LEADER_MAX_HEALTH_BONUS_MIN,
     );
 
     ZombieFinalizeSpawnOutcome {
         can_pick_up_loot,
         is_baby,
-        tried_existing_chicken_jockey: tried_existing_chicken_jockey && existing_chicken_available,
+        tried_existing_chicken_jockey: tried_existing_chicken_jockey
+            && input.existing_chicken_available,
         spawned_new_chicken_jockey,
         can_break_doors,
         halloween_head,
         halloween_head_drop_chance: halloween_head.map(|_| 0.0),
-        reinforcement_base_chance: reinforcement_base_random_double
+        reinforcement_base_chance: input.reinforcement_base_random_double
             * ZOMBIE_RANDOM_REINFORCEMENT_BASE_MAX,
-        knockback_resistance_bonus: knockback_random_double
+        knockback_resistance_bonus: input.knockback_random_double
             * ZOMBIE_RANDOM_KNOCKBACK_RESISTANCE_MAX,
         follow_range_bonus: (follow_range_bonus > ZOMBIE_FOLLOW_RANGE_BONUS_THRESHOLD)
             .then_some(follow_range_bonus),
         leader_reinforcement_bonus,
         leader_max_health_bonus,
         reset_health_to_max: leader
-            && !spawn_reason_conversion
-            && !spawn_reason_load_or_dimension_travel,
+            && !input.spawn_reason_conversion
+            && !input.spawn_reason_load_or_dimension_travel,
     }
 }
-

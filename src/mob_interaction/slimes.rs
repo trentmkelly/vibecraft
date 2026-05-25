@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SlimeFamilyKind {
     Slime,
@@ -240,39 +239,30 @@ impl SlimeFamilyState {
             && has_slime_move_control
     }
 
-    pub fn move_control_step(
-        self,
-        operation_move_to: bool,
-        on_ground: bool,
-        speed_modifier: f32,
-        movement_speed_attribute: f32,
-        jump_delay: i32,
-        random_0_to_19: i32,
-        aggressive: bool,
-    ) -> SlimeMoveControlStep {
-        if !operation_move_to {
+    pub fn move_control_step(self, input: SlimeMoveControlInput) -> SlimeMoveControlStep {
+        if !input.operation_move_to {
             return SlimeMoveControlStep {
                 speed: 0.0,
                 jump: false,
                 play_jump_sound: false,
-                next_jump_delay: jump_delay,
+                next_jump_delay: input.jump_delay,
                 zero_strafe: false,
             };
         }
 
-        let speed = speed_modifier * movement_speed_attribute;
-        if !on_ground {
+        let speed = input.speed_modifier * input.movement_speed_attribute;
+        if !input.on_ground {
             return SlimeMoveControlStep {
                 speed,
                 jump: false,
                 play_jump_sound: false,
-                next_jump_delay: jump_delay,
+                next_jump_delay: input.jump_delay,
                 zero_strafe: false,
             };
         }
 
-        if jump_delay <= 0 {
-            let next_jump_delay = self.jump_delay(random_0_to_19, aggressive);
+        if input.jump_delay <= 0 {
+            let next_jump_delay = self.jump_delay(input.random_0_to_19, input.aggressive);
             SlimeMoveControlStep {
                 speed,
                 jump: true,
@@ -285,7 +275,7 @@ impl SlimeFamilyState {
                 speed: 0.0,
                 jump: false,
                 play_jump_sound: false,
-                next_jump_delay: jump_delay - 1,
+                next_jump_delay: input.jump_delay - 1,
                 zero_strafe: true,
             }
         }
@@ -320,6 +310,17 @@ impl SlimeFamilyState {
 
 pub fn clamp_slime_size(size: i32) -> i32 {
     size.clamp(SLIME_MIN_SIZE, SLIME_MAX_SIZE)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SlimeMoveControlInput {
+    pub operation_move_to: bool,
+    pub on_ground: bool,
+    pub speed_modifier: f32,
+    pub movement_speed_attribute: f32,
+    pub jump_delay: i32,
+    pub random_0_to_19: i32,
+    pub aggressive: bool,
 }
 
 pub fn slime_finalize_spawn_size(
@@ -363,4 +364,3 @@ pub fn magma_cube_spawn_allowed(peaceful: bool) -> bool {
 pub fn magma_cube_is_on_fire() -> bool {
     MAGMA_CUBE_IS_ON_FIRE
 }
-

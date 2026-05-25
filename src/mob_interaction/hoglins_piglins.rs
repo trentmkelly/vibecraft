@@ -287,43 +287,46 @@ pub fn hoglin_base_attack_damage(
     }
 }
 
-pub fn hoglin_base_throw_target(
-    body_x: f64,
-    body_z: f64,
-    target_x: f64,
-    target_z: f64,
-    attack_knockback: f64,
-    target_knockback_resistance: f64,
-    random_y_rot_minus_10_to_10: f64,
-    random_float_0_to_1_for_horizontal: f64,
-    random_float_0_to_1_for_vertical: f64,
-) -> Option<HoglinBaseThrowVector> {
-    let effective_knockback_power = attack_knockback - target_knockback_resistance;
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HoglinThrowTargetInput {
+    pub body_x: f64,
+    pub body_z: f64,
+    pub target_x: f64,
+    pub target_z: f64,
+    pub attack_knockback: f64,
+    pub target_knockback_resistance: f64,
+    pub random_y_rot_minus_10_to_10: f64,
+    pub random_float_0_to_1_for_horizontal: f64,
+    pub random_float_0_to_1_for_vertical: f64,
+}
+
+pub fn hoglin_base_throw_target(input: HoglinThrowTargetInput) -> Option<HoglinBaseThrowVector> {
+    let effective_knockback_power = input.attack_knockback - input.target_knockback_resistance;
     if effective_knockback_power <= 0.0 {
         return None;
     }
 
-    let dx = target_x - body_x;
-    let dz = target_z - body_z;
+    let dx = input.target_x - input.body_x;
+    let dz = input.target_z - input.body_z;
     let length = (dx * dx + dz * dz).sqrt();
     if length == 0.0 {
         return Some(HoglinBaseThrowVector {
             x: 0.0,
-            y: effective_knockback_power * random_float_0_to_1_for_vertical * 0.5,
+            y: effective_knockback_power * input.random_float_0_to_1_for_vertical * 0.5,
             z: 0.0,
             hurt_marked: true,
         });
     }
 
     let horizontal_scale =
-        effective_knockback_power * (random_float_0_to_1_for_horizontal * 0.5 + 0.2);
+        effective_knockback_power * (input.random_float_0_to_1_for_horizontal * 0.5 + 0.2);
     let x = dx / length * horizontal_scale;
     let z = dz / length * horizontal_scale;
-    let cos = random_y_rot_minus_10_to_10.cos();
-    let sin = random_y_rot_minus_10_to_10.sin();
+    let cos = input.random_y_rot_minus_10_to_10.cos();
+    let sin = input.random_y_rot_minus_10_to_10.sin();
     Some(HoglinBaseThrowVector {
         x: x * cos + z * sin,
-        y: effective_knockback_power * random_float_0_to_1_for_vertical * 0.5,
+        y: effective_knockback_power * input.random_float_0_to_1_for_vertical * 0.5,
         z: z * cos - x * sin,
         hurt_marked: true,
     })
@@ -430,9 +433,8 @@ pub fn hoglin_was_hurt_action(
 ) -> HoglinAiAction {
     if baby {
         HoglinAiAction::SetAvoidTarget
-    } else if active_activity_avoid && attacker_entity_type == "minecraft:piglin" {
-        HoglinAiAction::None
-    } else if attacker_entity_type == "minecraft:hoglin"
+    } else if (active_activity_avoid && attacker_entity_type == "minecraft:piglin")
+        || attacker_entity_type == "minecraft:hoglin"
         || other_target_much_further
         || !sensor_attackable
     {
@@ -480,4 +482,3 @@ pub fn hoglin_next_attack_animation_ticks(current_ticks: i32) -> i32 {
 pub fn hoglin_blocked_by_item_throws_target(baby: bool) -> bool {
     !baby
 }
-

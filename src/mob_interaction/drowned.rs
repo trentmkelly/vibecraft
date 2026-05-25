@@ -95,39 +95,48 @@ pub fn drowned_baby_dimensions() -> DrownedBabyDimensions {
     }
 }
 
-pub fn drowned_spawn_allowed(
-    below_is_water: bool,
-    pos_is_water: bool,
-    spawner_reason: bool,
-    reinforcement_reason: bool,
-    ignores_light_requirements: bool,
-    difficulty_peaceful: bool,
-    dark_enough_to_spawn: bool,
-    more_frequent_drowned_biome: bool,
-    random_roll: i32,
-    y: i32,
-    sea_level: i32,
-) -> bool {
-    if !below_is_water && !spawner_reason {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DrownedSpawnInput {
+    pub below_is_water: bool,
+    pub pos_is_water: bool,
+    pub spawner_reason: bool,
+    pub reinforcement_reason: bool,
+    pub ignores_light_requirements: bool,
+    pub difficulty_peaceful: bool,
+    pub dark_enough_to_spawn: bool,
+    pub more_frequent_drowned_biome: bool,
+    pub random_roll: i32,
+    pub y: i32,
+    pub sea_level: i32,
+}
+
+pub fn drowned_spawn_allowed(input: DrownedSpawnInput) -> bool {
+    if !input.below_is_water && !input.spawner_reason {
         return false;
     }
 
-    let can_monster_spawn = !difficulty_peaceful
-        && (ignores_light_requirements || dark_enough_to_spawn)
-        && (spawner_reason || pos_is_water);
+    let can_monster_spawn = !input.difficulty_peaceful
+        && (input.ignores_light_requirements || input.dark_enough_to_spawn)
+        && (input.spawner_reason || input.pos_is_water);
     if !can_monster_spawn {
         return false;
     }
 
-    if spawner_reason || reinforcement_reason {
+    if input.spawner_reason || input.reinforcement_reason {
         return true;
     }
 
-    if more_frequent_drowned_biome {
-        random_roll.rem_euclid(DROWNED_MORE_FREQUENT_SPAWN_RANDOM_BOUND) == 0
+    if input.more_frequent_drowned_biome {
+        input
+            .random_roll
+            .rem_euclid(DROWNED_MORE_FREQUENT_SPAWN_RANDOM_BOUND)
+            == 0
     } else {
-        random_roll.rem_euclid(DROWNED_DEFAULT_SPAWN_RANDOM_BOUND) == 0
-            && y < sea_level - DROWNED_DEEP_SPAWN_SEA_LEVEL_OFFSET
+        input
+            .random_roll
+            .rem_euclid(DROWNED_DEFAULT_SPAWN_RANDOM_BOUND)
+            == 0
+            && input.y < input.sea_level - DROWNED_DEEP_SPAWN_SEA_LEVEL_OFFSET
     }
 }
 
@@ -145,28 +154,33 @@ pub fn drowned_default_main_hand_item(
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DrownedFinalizeSpawnInput {
+    pub offhand_empty: bool,
+    pub nautilus_random_float: f32,
+    pub natural_or_structure_spawn: bool,
+    pub structure_spawn: bool,
+    pub main_hand_trident: bool,
+    pub zombie_nautilus_random_float: f32,
+    pub baby: bool,
+    pub more_frequent_drowned_biome: bool,
+}
+
 pub fn drowned_finalize_spawn_outcome(
-    offhand_empty: bool,
-    nautilus_random_float: f32,
-    natural_or_structure_spawn: bool,
-    structure_spawn: bool,
-    main_hand_trident: bool,
-    zombie_nautilus_random_float: f32,
-    baby: bool,
-    more_frequent_drowned_biome: bool,
+    input: DrownedFinalizeSpawnInput,
 ) -> DrownedFinalizeSpawnOutcome {
     let offhand_nautilus_shell =
-        offhand_empty && nautilus_random_float < DROWNED_NAUTILUS_SHELL_CHANCE;
-    let spawned_zombie_nautilus_jockey = natural_or_structure_spawn
-        && main_hand_trident
-        && zombie_nautilus_random_float < DROWNED_ZOMBIE_NAUTILUS_JOCKEY_CHANCE
-        && !baby
-        && !more_frequent_drowned_biome;
+        input.offhand_empty && input.nautilus_random_float < DROWNED_NAUTILUS_SHELL_CHANCE;
+    let spawned_zombie_nautilus_jockey = input.natural_or_structure_spawn
+        && input.main_hand_trident
+        && input.zombie_nautilus_random_float < DROWNED_ZOMBIE_NAUTILUS_JOCKEY_CHANCE
+        && !input.baby
+        && !input.more_frequent_drowned_biome;
     DrownedFinalizeSpawnOutcome {
         offhand_nautilus_shell,
         guaranteed_offhand_drop: offhand_nautilus_shell,
         spawned_zombie_nautilus_jockey,
-        zombie_nautilus_persistent: spawned_zombie_nautilus_jockey && structure_spawn,
+        zombie_nautilus_persistent: spawned_zombie_nautilus_jockey && input.structure_spawn,
     }
 }
 
@@ -250,4 +264,3 @@ pub fn drowned_swim_up_goal_can_use(
 ) -> bool {
     !bright_outside && in_water && y < sea_level - DROWNED_SWIM_UP_SEA_LEVEL_OFFSET
 }
-

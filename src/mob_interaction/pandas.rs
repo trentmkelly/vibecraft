@@ -194,65 +194,68 @@ pub enum PandaInteractResult {
     },
 }
 
-pub fn panda_interact_plan(
-    item: &'static str,
-    scared: bool,
-    on_back: bool,
-    target_present: bool,
-    can_age_up: bool,
-    baby: bool,
-    age: i32,
-    can_fall_in_love: bool,
-    sitting: bool,
-    in_water: bool,
-    current_held_item: Option<&'static str>,
-    player_infinite_materials: bool,
-) -> PandaInteractResult {
-    if scared {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PandaInteractInput {
+    pub item: &'static str,
+    pub scared: bool,
+    pub on_back: bool,
+    pub target_present: bool,
+    pub can_age_up: bool,
+    pub baby: bool,
+    pub age: i32,
+    pub can_fall_in_love: bool,
+    pub sitting: bool,
+    pub in_water: bool,
+    pub current_held_item: Option<&'static str>,
+    pub player_infinite_materials: bool,
+}
+
+pub fn panda_interact_plan(input: PandaInteractInput) -> PandaInteractResult {
+    if input.scared {
         return PandaInteractResult::Pass;
     }
-    if on_back {
+    if input.on_back {
         return PandaInteractResult::Success { on_back: false };
     }
-    if !panda_food_item(item) {
+    if !panda_food_item(input.item) {
         return PandaInteractResult::Pass;
     }
-    if target_present {
+    if input.target_present {
         return PandaInteractResult::SuccessServer {
             consumed: 0,
-            sit: sitting,
+            sit: input.sitting,
             eat: false,
-            held_item: current_held_item,
+            held_item: input.current_held_item,
         };
     }
-    if can_age_up {
+    if input.can_age_up {
         return PandaInteractResult::SuccessServer {
             consumed: 1,
-            sit: sitting,
+            sit: input.sitting,
             eat: false,
-            held_item: current_held_item,
+            held_item: input.current_held_item,
         };
     }
-    if baby {
+    if input.baby {
         return PandaInteractResult::Pass;
     }
-    if age == 0 && can_fall_in_love {
+    if input.age == 0 && input.can_fall_in_love {
         return PandaInteractResult::SuccessServer {
             consumed: 1,
-            sit: sitting,
+            sit: input.sitting,
             eat: false,
-            held_item: current_held_item,
+            held_item: input.current_held_item,
         };
     }
-    if sitting || in_water {
+    if input.sitting || input.in_water {
         return PandaInteractResult::Pass;
     }
-    let _drops_previous = current_held_item.is_some() && !player_infinite_materials;
+    let _drops_previous = input.current_held_item.is_some() && !input.player_infinite_materials;
     PandaInteractResult::SuccessServer {
         consumed: 1,
         sit: true,
         eat: true,
-        held_item: Some(item),
+        held_item: Some(input.item),
     }
 }
 
@@ -347,4 +350,3 @@ pub fn panda_sneeze_goal_can_use(
 ) -> bool {
     baby && can_perform_action && ((weak && weak_roll_one_of_500) || normal_roll_one_of_6000)
 }
-
