@@ -83,7 +83,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundMountScreenOpenPacket` (0x29, replaces older HorseScreenOpen): container ID VarInt, inventory columns VarInt, entity ID fixed int
 - [ ] `ClientboundMerchantOffersPacket` (0x31): container ID, offers list (input1 `ItemCost`, result `ItemStack`, optional input2 `ItemCost`, out-of-stock, uses, maxUses, xp, specialPrice, priceMultiplier, demand), villager level, xp, show-progress, can-restock
 - [x] `ClientboundSetHeldSlotPacket` (0x69 / decimal 105): slot VarInt; verified field order against Java, Rust packet round-trip coverage, and live raw join.
-- [ ] `ClientboundCooldownPacket` (0x16): cooldown group Identifier, cooldown duration VarInt
+- [x] `ClientboundCooldownPacket` (0x16 / decimal 22): cooldown group `Identifier` followed by duration VarInt; verified against Java composite codec (`Identifier.STREAM_CODEC`, `ByteBufCodecs.VAR_INT`), Java play registration/name mapping, Rust packet ID/registry mapping, and focused byte-layout coverage including a multibyte VarInt duration.
 - [x] `ClientboundSetCursorItemPacket` (0x4F): cursor item encoded with Java `ItemStack.OPTIONAL_STREAM_CODEC`; verified against Java `ClientboundSetCursorItemPacket` composite codec, Java play-protocol registration order, Rust packet registry ID/name mapping, trusted/raw data-component patch byte layout, and live inventory-click emission through `PlayInstruction::SetCursorItem`.
 
 ## Inventory / Container Packets (Serverbound)
