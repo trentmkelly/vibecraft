@@ -1105,20 +1105,22 @@ pub(super) fn assert_provider_and_ore_support() {
         );
         assert_eq!(
             super::super::fossil_placement_plan(
-                &fossil_config,
-                BlockPos {
-                    x: 100,
-                    y: 40,
-                    z: 200
+                super::super::FossilPlacementInput {
+                    config: &fossil_config,
+                    origin: BlockPos {
+                        x: 100,
+                        y: 40,
+                        z: 200
+                    },
+                    rotated_size_x: 12,
+                    rotated_size_z: 8,
+                    lowest_surface_y: 50,
+                    min_y: -64,
+                    rotation_roll: 1,
+                    fossil_index_roll: 1,
+                    depth_roll: 0,
+                    empty_corners: 4,
                 },
-                12,
-                8,
-                50,
-                -64,
-                1,
-                1,
-                0,
-                4,
             ),
             Some(super::super::FossilPlacementPlan {
                 fossil_structure: "minecraft:fossil/skull_1",
@@ -1135,20 +1137,22 @@ pub(super) fn assert_provider_and_ore_support() {
         );
         assert_eq!(
             super::super::fossil_placement_plan(
-                &fossil_config,
-                BlockPos {
-                    x: 100,
-                    y: 40,
-                    z: 200
+                super::super::FossilPlacementInput {
+                    config: &fossil_config,
+                    origin: BlockPos {
+                        x: 100,
+                        y: 40,
+                        z: 200
+                    },
+                    rotated_size_x: 12,
+                    rotated_size_z: 8,
+                    lowest_surface_y: 50,
+                    min_y: -64,
+                    rotation_roll: 1,
+                    fossil_index_roll: 1,
+                    depth_roll: 0,
+                    empty_corners: 5,
                 },
-                12,
-                8,
-                50,
-                -64,
-                1,
-                1,
-                0,
-                5,
             ),
             None
         );
