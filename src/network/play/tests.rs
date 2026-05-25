@@ -839,6 +839,7 @@ mod set_border_size_packet_test;
 mod set_border_warning_delay_packet_test;
 mod set_border_warning_distance_packet_test;
 mod set_display_objective_packet_test;
+mod set_entity_data_packet_test;
 mod set_objective_packet_test;
 mod set_score_packet_test;
 mod set_player_team_packet_test;

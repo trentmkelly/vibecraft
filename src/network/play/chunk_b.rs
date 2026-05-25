@@ -170,6 +170,12 @@ impl EntityDataValue {
     }
 
     pub(super) fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        if self.index == 0xff {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "entity metadata index 255 is reserved as EOF",
+            ));
+        }
         writer.write_all(&[self.index])?;
         write_var_i32(writer, self.serializer_id)?;
         writer.write_all(&self.encoded_payload)
