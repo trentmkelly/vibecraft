@@ -24,6 +24,10 @@ pub fn write_lp_vec3_round_trips_through_java_decode() {
 pub fn rustcraft_debug_commands_packet_exposes_biome_literal() {
     let packet = rustcraft_debug_commands_packet();
 
+    // Intentional Java parity divergence: `/biome` is a RustCraft debugging
+    // command, so the live fallback suggestion list must expose it alongside
+    // the command tree even though vanilla 26.1.2 has no root `/biome`.
+    assert!(PLAY_COMMAND_SUGGESTIONS.contains(&"biome"));
     assert_eq!(packet.root_index, 0);
     assert_eq!(packet.entries.len(), 2);
     assert_eq!(packet.entries[0].stub, CommandNodeStubData::Root);

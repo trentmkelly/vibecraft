@@ -179,6 +179,7 @@ pub(super) const MIN_CHUNK_BATCH_RADIUS: i32 = 2;
 pub(super) const MAX_CHUNK_BATCH_RADIUS: i32 = 16;
 pub(super) const PLAY_COMMAND_SUGGESTIONS: &[&str] = &[
     "ban",
+    "biome",
     "deop",
     "gamemode",
     "give",
