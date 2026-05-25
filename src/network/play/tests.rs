@@ -77,6 +77,10 @@ fn play_packet_registry_matches_game_protocol_order_and_counts() {
         Some("command_suggestions")
     );
     assert_eq!(
+        registry.clientbound_name(CLIENTBOUND_DELETE_CHAT_PACKET_ID),
+        Some("delete_chat")
+    );
+    assert_eq!(
         registry.clientbound_name(CLIENTBOUND_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID),
         Some("level_chunk_with_light")
     );
@@ -820,6 +824,7 @@ mod start_configuration_packet_test;
 mod stop_sound_packet_test;
 mod tab_list_packet_test;
 mod cooldown_packet_test;
+mod delete_chat_packet_test;
 mod entity_movement_test;
 mod mount_screen_open_packet_test;
 mod named_sound_effect_absence_test;
