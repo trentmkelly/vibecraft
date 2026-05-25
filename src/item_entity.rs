@@ -56,7 +56,7 @@ impl DroppedItem {
     ///
     /// Java: `ItemEntity.playerTouch` — `pickupDelay == 0 && (target == null || target.equals(player.getUUID()))`
     pub fn can_be_picked_up_by(&self, player_uuid: &str) -> bool {
-        self.pickup_delay == 0 && self.target_uuid.as_ref().map_or(true, |t| t == player_uuid)
+        self.pickup_delay == 0 && self.target_uuid.as_ref().is_none_or(|t| t == player_uuid)
     }
 }
 

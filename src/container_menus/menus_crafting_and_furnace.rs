@@ -491,8 +491,7 @@ impl AbstractFurnaceMenu {
     }
 
     pub fn take_result(&mut self) -> ItemStack {
-        let taken = self.take_result_with_xp_roll(1.0);
-        taken
+        self.take_result_with_xp_roll(1.0)
     }
 
     pub fn take_result_with_xp_roll(&mut self, fraction_roll: f32) -> ItemStack {
@@ -564,7 +563,7 @@ impl AbstractFurnaceMenu {
                     self.move_into_range(&mut moving, 0, 1, false, player)
                 } else if self.is_fuel(&moving) {
                     self.move_into_range(&mut moving, 1, 2, false, player)
-                } else if slot >= Self::INV_START && slot < Self::HOTBAR_START {
+                } else if (Self::INV_START..Self::HOTBAR_START).contains(&slot) {
                     self.move_into_range(
                         &mut moving,
                         Self::HOTBAR_START,

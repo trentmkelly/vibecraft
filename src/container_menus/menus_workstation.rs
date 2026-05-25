@@ -329,10 +329,8 @@ impl SmithingMenu {
             ),
             _ => self.move_into_range(&mut moving, 0, 3, false, player),
         };
-        if !moving.is_empty() {
-            if slot != 3 {
-                self.set_slot(slot, moving, player);
-            }
+        if !moving.is_empty() && slot != 3 {
+            self.set_slot(slot, moving, player);
         }
         if !moved {
             return ItemStack::empty();
@@ -554,7 +552,7 @@ impl StonecutterMenu {
                 {
                     self.setup_recipe_list(stonecutter_recipes);
                     true
-                } else if slot >= Self::INV_START && slot < Self::INV_END {
+                } else if (Self::INV_START..Self::INV_END).contains(&slot) {
                     self.move_into_range(
                         &mut moving,
                         Self::USE_ROW_SLOT_START,
@@ -1182,4 +1180,3 @@ impl Default for BrewingStandMenu {
         Self::new()
     }
 }
-

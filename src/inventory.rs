@@ -56,8 +56,9 @@ pub struct SlotChange {
     pub stack: ItemStack,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum MenuValidity {
+    #[default]
     Always,
     Block {
         expected_block: &'static str,
@@ -362,12 +363,6 @@ impl ContainerSynchronizer {
 impl Default for ContainerSynchronizer {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl Default for MenuValidity {
-    fn default() -> Self {
-        Self::Always
     }
 }
 

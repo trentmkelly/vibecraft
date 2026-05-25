@@ -62,8 +62,11 @@ static GLOBAL_LOGGER: OnceLock<Arc<Logger>> = OnceLock::new();
 pub fn init(logger: Logger) -> Arc<Logger> {
     let arc = Arc::new(logger);
     // If already set, discard our new arc and return the existing one.
-    let _ = GLOBAL_LOGGER.set(arc.clone());
-    GLOBAL_LOGGER.get().expect("just set").clone()
+    if GLOBAL_LOGGER.set(arc.clone()).is_ok() {
+        arc
+    } else {
+        GLOBAL_LOGGER.get().map_or(arc, Arc::clone)
+    }
 }
 
 /// Returns the current global log level.  Defaults to [`LogLevel::Info`] when

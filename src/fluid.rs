@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 
 use crate::block_behavior::BlockStateModel;
-use crate::block_update::{BlockPos, Direction};
 use crate::block_metadata::{representative_state_definition, ShapeKind};
+use crate::block_update::{BlockPos, Direction};
 use crate::scheduled_tick::{SavedTick, ScheduledTick, TickPriority};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -138,7 +138,9 @@ pub fn block_state_model_name(state: &BlockStateModel) -> String {
 }
 
 fn fluid_state_from_legacy_level(kind: FluidKind, level: Option<&str>) -> FluidState {
-    let legacy = level.and_then(|value| value.parse::<u8>().ok()).unwrap_or(0);
+    let legacy = level
+        .and_then(|value| value.parse::<u8>().ok())
+        .unwrap_or(0);
     if legacy == 0 {
         kind.source()
     } else if legacy >= 8 {
@@ -317,7 +319,14 @@ pub fn tick_fluid(
         }
     }
 
-    spread(pos, &block_state, fluid, &get_block, &mut changes, &mut schedule);
+    spread(
+        pos,
+        &block_state,
+        fluid,
+        &get_block,
+        &mut changes,
+        &mut schedule,
+    );
     FluidTickResult { changes, schedule }
 }
 
@@ -340,17 +349,23 @@ fn spread(
         &below_state,
         below_fluid,
         fluid.kind,
-    )
-        && can_replace_fluid(below_fluid, fluid.kind, Direction::Down)
+    ) && can_replace_fluid(below_fluid, fluid.kind, Direction::Down)
         && can_hold_specific_fluid(&below_state, fluid.kind)
     {
-        let new_below = get_new_liquid(below_pos, &below_state, fluid.kind, get_block)
-            .unwrap_or(FluidState {
+        let new_below =
+            get_new_liquid(below_pos, &below_state, fluid.kind, get_block).unwrap_or(FluidState {
                 kind: fluid.kind,
                 level: 8,
                 falling: true,
             });
-        spread_to(below_pos, &below_state, Direction::Down, new_below, changes, schedule);
+        spread_to(
+            below_pos,
+            &below_state,
+            Direction::Down,
+            new_below,
+            changes,
+            schedule,
+        );
         if source_neighbor_count(pos, fluid.kind, get_block) >= 3 {
             spread_to_sides(pos, state, fluid, get_block, changes, schedule);
         }
@@ -380,7 +395,14 @@ fn spread_to_sides(
     for (direction, new_fluid) in get_spread(pos, state, fluid.kind, get_block) {
         let target = pos.relative(direction);
         let target_state = get_block(target);
-        spread_to(target, &target_state, direction, new_fluid, changes, schedule);
+        spread_to(
+            target,
+            &target_state,
+            direction,
+            new_fluid,
+            changes,
+            schedule,
+        );
     }
 }
 
@@ -416,10 +438,10 @@ fn get_new_liquid(
         let relative_pos = pos.relative(direction);
         let block_state = get_block(relative_pos);
         let fluid_state = fluid_state_for_block(&block_state);
-        if fluid_state.is_some_and(|fluid| fluid.kind == kind)
-            && can_pass_through_wall(direction, state, &block_state)
-        {
-            let fluid = fluid_state.unwrap();
+        if let Some(fluid) = fluid_state.filter(|fluid| fluid.kind == kind) {
+            if !can_pass_through_wall(direction, state, &block_state) {
+                continue;
+            }
             if fluid.is_source() {
                 source_neighbors += 1;
             }
@@ -430,7 +452,9 @@ fn get_new_liquid(
     if source_neighbors >= 2 && kind == FluidKind::Water {
         let below = get_block(pos.relative(Direction::Down));
         let below_fluid = fluid_state_for_block(&below);
-        if block_is_solid(&below) || below_fluid.is_some_and(|fluid| fluid.kind == kind && fluid.is_source()) {
+        if block_is_solid(&below)
+            || below_fluid.is_some_and(|fluid| fluid.kind == kind && fluid.is_source())
+        {
             return Some(kind.source());
         }
     }
@@ -486,7 +510,14 @@ fn get_spread(
             let distance = if is_hole(test_pos, &test_state, kind, get_block) {
                 0
             } else {
-                slope_distance(test_pos, 1, direction.opposite(), &test_state, kind, get_block)
+                slope_distance(
+                    test_pos,
+                    1,
+                    direction.opposite(),
+                    &test_state,
+                    kind,
+                    get_block,
+                )
             };
             if distance < lowest {
                 result.clear();
@@ -516,7 +547,15 @@ fn slope_distance(
         let test_pos = pos.relative(direction);
         let test_state = get_block(test_pos);
         let test_fluid = fluid_state_for_block(&test_state);
-        if can_pass_through(pos, state, direction, test_pos, &test_state, test_fluid, kind) {
+        if can_pass_through(
+            pos,
+            state,
+            direction,
+            test_pos,
+            &test_state,
+            test_fluid,
+            kind,
+        ) {
             if is_hole(test_pos, &test_state, kind, get_block) {
                 return pass;
             }
@@ -611,12 +650,20 @@ fn can_hold_specific_fluid(state: &BlockStateModel, kind: FluidKind) -> bool {
     state.property("waterlogged").is_none() || kind == FluidKind::Water
 }
 
-fn can_replace_fluid(existing: Option<FluidState>, new_kind: FluidKind, direction: Direction) -> bool {
+fn can_replace_fluid(
+    existing: Option<FluidState>,
+    new_kind: FluidKind,
+    direction: Direction,
+) -> bool {
     match existing {
         None => true,
         Some(fluid) if fluid.kind == new_kind && !fluid.is_source() => true,
-        Some(fluid) if fluid.kind == FluidKind::Water && new_kind == FluidKind::Lava => direction == Direction::Down,
-        Some(fluid) if fluid.kind == FluidKind::Lava && new_kind == FluidKind::Water => fluid_height(fluid) >= 0.44444445,
+        Some(fluid) if fluid.kind == FluidKind::Water && new_kind == FluidKind::Lava => {
+            direction == Direction::Down
+        }
+        Some(fluid) if fluid.kind == FluidKind::Lava && new_kind == FluidKind::Water => {
+            fluid_height(fluid) >= 0.44444445
+        }
         _ => false,
     }
 }
@@ -673,7 +720,8 @@ fn lava_should_convert_to_solid(
     }
     fluid_neighbor_order().into_iter().any(|direction| {
         let neighbor = pos.relative(direction.opposite());
-        fluid_state_for_block(&get_block(neighbor)).is_some_and(|fluid| fluid.kind == FluidKind::Water)
+        fluid_state_for_block(&get_block(neighbor))
+            .is_some_and(|fluid| fluid.kind == FluidKind::Water)
     })
 }
 
@@ -800,11 +848,15 @@ mod tests {
     #[test]
     fn normal_block_items_can_replace_liquid_blocks_but_not_solid_blocks() {
         assert!(block_item_can_replace(&BlockStateModel::air()));
-        assert!(block_item_can_replace(&BlockStateModel::new("minecraft:water")));
+        assert!(block_item_can_replace(&BlockStateModel::new(
+            "minecraft:water"
+        )));
         assert!(block_item_can_replace(
             &BlockStateModel::new("minecraft:lava").with_property("level", "8")
         ));
-        assert!(!block_item_can_replace(&BlockStateModel::new("minecraft:stone")));
+        assert!(!block_item_can_replace(&BlockStateModel::new(
+            "minecraft:stone"
+        )));
     }
 
     #[test]
@@ -892,17 +944,18 @@ mod tests {
     #[test]
     fn source_water_tick_flows_down_with_falling_legacy_level() {
         let source = BlockStateModel::new("minecraft:water").with_property("level", "0");
-        let result = tick_fluid(
-            BlockPos { x: 0, y: 64, z: 0 },
-            &source,
-            |pos| match (pos.x, pos.y, pos.z) {
+        let result = tick_fluid(BlockPos { x: 0, y: 64, z: 0 }, &source, |pos| {
+            match (pos.x, pos.y, pos.z) {
                 (0, 63, 0) => BlockStateModel::air(),
                 _ => BlockStateModel::new("minecraft:stone"),
-            },
-        );
+            }
+        });
         assert_eq!(result.changes.len(), 1);
         assert_eq!(result.changes[0].0, BlockPos { x: 0, y: 63, z: 0 });
-        assert_eq!(block_state_model_name(&result.changes[0].1), "minecraft:water[level=8]");
+        assert_eq!(
+            block_state_model_name(&result.changes[0].1),
+            "minecraft:water[level=8]"
+        );
     }
 
     #[test]
@@ -918,18 +971,19 @@ mod tests {
     #[test]
     fn two_water_sources_regenerate_middle_source_like_vanilla_gamerule_default() {
         let flowing = BlockStateModel::new("minecraft:water").with_property("level", "4");
-        let result = tick_fluid(
-            BlockPos { x: 0, y: 64, z: 0 },
-            &flowing,
-            |pos| match (pos.x, pos.y, pos.z) {
+        let result = tick_fluid(BlockPos { x: 0, y: 64, z: 0 }, &flowing, |pos| {
+            match (pos.x, pos.y, pos.z) {
                 (-1, 64, 0) | (1, 64, 0) => {
                     BlockStateModel::new("minecraft:water").with_property("level", "0")
                 }
                 (0, 63, 0) => BlockStateModel::new("minecraft:stone"),
                 _ => BlockStateModel::air(),
-            },
-        );
+            }
+        });
         assert_eq!(result.changes[0].0, BlockPos { x: 0, y: 64, z: 0 });
-        assert_eq!(block_state_model_name(&result.changes[0].1), "minecraft:water[level=0]");
+        assert_eq!(
+            block_state_model_name(&result.changes[0].1),
+            "minecraft:water[level=0]"
+        );
     }
 }

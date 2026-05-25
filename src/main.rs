@@ -307,7 +307,8 @@ fn run(options: CliOptions) -> Result<(), String> {
         }
     }
 
-    let (console_input, _console_handle) = console::spawn_console_input_thread();
+    let (console_input, _console_handle) = console::spawn_console_input_thread()
+        .map_err(|err| format!("Failed to start server console input thread: {err}"))?;
     logger.info("Started server console input thread")?;
 
     let datapack_dir = universe.join(&world_name).join("datapacks");
@@ -436,7 +437,8 @@ fn validate_code_of_conduct_configuration(properties: &ServerProperties) -> Resu
 #[cfg(test)]
 mod tests {
     use super::{
-        listener_bind_ip, run, runtime_selection, validate_code_of_conduct_configuration, CliOptions,
+        listener_bind_ip, run, runtime_selection, validate_code_of_conduct_configuration,
+        CliOptions,
     };
     use crate::server_properties::ServerProperties;
     use std::fs;
@@ -539,8 +541,7 @@ mod tests {
             "level-name=from_properties\nserver-port=25570\n",
         )
         .expect("write server.properties");
-        let properties =
-            ServerProperties::load_or_default(Path::new("server.properties")).unwrap();
+        let properties = ServerProperties::load_or_default(Path::new("server.properties")).unwrap();
 
         let defaulted = runtime_selection(&CliOptions::default(), &properties);
         assert_eq!(defaulted.world_name, "from_properties");

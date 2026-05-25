@@ -1,7 +1,5 @@
 #![allow(dead_code)]
-
 use std::collections::HashMap;
-
 use super::*;
 
 pub struct LootBehaviorEngine {
@@ -44,7 +42,9 @@ impl LootBehaviorEngine {
                 LootDelivery::DropAt(request.origin, table.evaluate(&mut context))
             }
             LootSurface::Command => match &request.actor {
-                Some(actor) => LootDelivery::GiveToEntity(actor.clone(), table.evaluate(&mut context)),
+                Some(actor) => {
+                    LootDelivery::GiveToEntity(actor.clone(), table.evaluate(&mut context))
+                }
                 None => LootDelivery::DropAt(request.origin, table.evaluate(&mut context)),
             },
             LootSurface::BlockBreak
@@ -797,8 +797,8 @@ impl LootCondition {
                 raining,
                 thundering,
             } => {
-                raining.map_or(true, |expected| context.weather_raining == expected)
-                    && thundering.map_or(true, |expected| context.weather_thundering == expected)
+                raining.is_none_or(|expected| context.weather_raining == expected)
+                    && thundering.is_none_or(|expected| context.weather_thundering == expected)
             }
             Self::TimeCheck { min, max } => context.game_time >= *min && context.game_time <= *max,
             Self::ValueCheck { provider, min, max } => {

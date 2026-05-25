@@ -9,7 +9,7 @@ pub struct ConsoleInput {
     pub line: String,
 }
 
-pub fn spawn_console_input_thread() -> (Receiver<ConsoleInput>, JoinHandle<()>) {
+pub fn spawn_console_input_thread() -> io::Result<(Receiver<ConsoleInput>, JoinHandle<()>)> {
     let (sender, receiver) = mpsc::channel();
     let handle = thread::Builder::new()
         .name("Server console handler".to_string())
@@ -17,9 +17,8 @@ pub fn spawn_console_input_thread() -> (Receiver<ConsoleInput>, JoinHandle<()>) 
             let stdin = io::stdin();
             let reader = stdin.lock();
             let _ = read_console_lines(reader, &sender);
-        })
-        .expect("failed to spawn console input thread");
-    (receiver, handle)
+        })?;
+    Ok((receiver, handle))
 }
 
 pub fn read_console_lines<R: BufRead>(
@@ -47,9 +46,9 @@ mod tests {
     use std::sync::mpsc;
 
     #[test]
-    fn console_reader_queues_utf8_lines_without_newline_markers() {
+    fn console_reader_queues_utf8_lines_without_newline_markers() -> std::io::Result<()> {
         let (sender, receiver) = mpsc::channel();
-        read_console_lines(Cursor::new("list\nsay hello\r\nstop\n"), &sender).unwrap();
+        read_console_lines(Cursor::new("list\nsay hello\r\nstop\n"), &sender)?;
         drop(sender);
 
         let lines = receiver.into_iter().collect::<Vec<_>>();
@@ -67,12 +66,13 @@ mod tests {
                 },
             ]
         );
+        Ok(())
     }
 
     #[test]
-    fn console_reader_stops_cleanly_when_receiver_is_gone() {
+    fn console_reader_stops_cleanly_when_receiver_is_gone() -> std::io::Result<()> {
         let (sender, receiver) = mpsc::channel();
         drop(receiver);
-        read_console_lines(Cursor::new("stop\n"), &sender).unwrap();
+        read_console_lines(Cursor::new("stop\n"), &sender)
     }
 }

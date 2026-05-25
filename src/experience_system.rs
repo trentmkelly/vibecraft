@@ -335,7 +335,7 @@ pub fn smelting_xp(recipe_id: &str, times_used: i32, experience_per_use: f32) ->
     let total = times_used as f32 * experience_per_use;
     let base = total.floor() as i32;
     let fractional = total - base as f32;
-    if fractional > 0.0 && recipe_id.len() % 2 == 0 {
+    if fractional > 0.0 && recipe_id.len().is_multiple_of(2) {
         base + 1
     } else {
         base
