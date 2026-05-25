@@ -189,14 +189,16 @@ pub fn simple_tree_placement_plan(
         for (y_offset, current_radius) in cherry_foliage_rows(foliage_height, leaf_radius) {
             place_cherry_leaves_row(
                 &mut blocks,
-                cherry_origin,
-                current_radius,
-                y_offset,
-                foliage_state,
-                wide_bottom_layer_hole_chance,
-                corner_hole_chance,
-                rand_a,
-                rand_b,
+                CherryLeavesRowInput {
+                    origin: cherry_origin,
+                    radius: current_radius,
+                    y_offset,
+                    state: foliage_state,
+                    wide_bottom_layer_hole_chance,
+                    corner_hole_chance,
+                    rand_a,
+                    rand_b,
+                },
             );
         }
     } else if let FoliagePlacerKind::RandomSpread {
@@ -263,13 +265,15 @@ pub fn simple_tree_placement_plan(
             }
             place_simple_leaves_row(
                 &mut blocks,
-                foliage_origin,
-                current_radius,
-                y_offset,
-                foliage_state,
-                matches!(foliage.kind, FoliagePlacerKind::Blob { .. }),
-                rand_a,
-                rand_b,
+                SimpleLeavesRowInput {
+                    origin: foliage_origin,
+                    radius: current_radius,
+                    y_offset,
+                    state: foliage_state,
+                    blob_shape: matches!(foliage.kind, FoliagePlacerKind::Blob { .. }),
+                    rand_a,
+                    rand_b,
+                },
             );
         }
     }

@@ -417,10 +417,28 @@ pub(super) fn assert_tree_variant_and_trunk_support() {
                     }
         }));
         assert!(!super::super::cherry_leaves_row_should_skip(
-            3, -1, 0, 3, 0.0, 0.0, 0, 0
+            super::super::CherryLeavesSkipInput {
+                dx: 3,
+                y_offset: -1,
+                dz: 0,
+                radius: 3,
+                wide_bottom_layer_hole_chance: 0.0,
+                corner_hole_chance: 0.0,
+                rand_a: 0,
+                rand_b: 0,
+            }
         ));
         assert!(super::super::cherry_leaves_row_should_skip(
-            3, -1, 0, 3, 1.0, 0.0, 0, 0
+            super::super::CherryLeavesSkipInput {
+                dx: 3,
+                y_offset: -1,
+                dz: 0,
+                radius: 3,
+                wide_bottom_layer_hole_chance: 1.0,
+                corner_hole_chance: 0.0,
+                rand_a: 0,
+                rand_b: 0,
+            }
         ));
         let pine_plan = super::super::simple_tree_placement_plan(
             BlockPos {
