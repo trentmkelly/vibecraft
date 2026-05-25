@@ -954,16 +954,18 @@ fn initialize_joined_play_session(
     write_minimal_play_join(
         stream,
         compression,
-        shared.properties,
-        shared.world_seed,
-        &finished.profile,
-        &play_state,
-        shared.recipe_manager,
-        shared.world_root,
-        join_game_time,
-        join_clock_data,
-        join_rain_level,
-        join_thunder_level,
+        MinimalPlayJoinContext {
+            properties: shared.properties,
+            world_seed: shared.world_seed,
+            profile: &finished.profile,
+            play_state: &play_state,
+            recipe_manager: shared.recipe_manager,
+            world_root: shared.world_root,
+            clock_game_time: join_game_time,
+            clock_data: &join_clock_data,
+            rain_level: join_rain_level,
+            thunder_level: join_thunder_level,
+        },
     )?;
     log_info(&player_login_log_message(
         &finished.profile.name,
@@ -1472,14 +1474,18 @@ fn handle_position_session_update(
         apply_chunk_movement(
             stream,
             compression,
-            chunk_sender,
-            chunk_pipeline,
-            loaded_chunks,
-            *current_chunk_x,
-            *current_chunk_z,
-            chunk_batch_radius,
-            world_root,
-            world_seed,
+            ChunkMovementContext {
+                chunk_sender,
+                chunk_pipeline,
+                loaded_chunks,
+                new_center: ChunkPos {
+                    x: *current_chunk_x,
+                    z: *current_chunk_z,
+                },
+                radius: chunk_batch_radius,
+                world_root,
+                world_seed,
+            },
         )?;
     }
     // Hook B: Pickup check — mirrors Player.aiStep() proximity sweep.

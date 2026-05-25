@@ -15,9 +15,7 @@ pub(in crate::network::status) fn apply_set_creative_mode_slot_packet(
         return None;
     }
 
-    let Some(stack) = raw_creative_item_stack_to_inventory_stack(&packet.item_stack) else {
-        return None;
-    };
+    let stack = raw_creative_item_stack_to_inventory_stack(&packet.item_stack)?;
     let valid_data = stack.is_empty() || packet.item_stack.count <= stack.max_stack_size() as i32;
     if !(valid_data && (1..=45).contains(&packet.slot_num)) {
         return None;
