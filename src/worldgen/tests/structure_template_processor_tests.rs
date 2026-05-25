@@ -335,7 +335,7 @@ use super::*;
         );
 
         let (cached, cached_attempts) =
-            manager.try_load_from_sources(id.clone(), &[resources.clone()]);
+            manager.try_load_from_sources(id.clone(), std::slice::from_ref(&resources));
         assert_eq!(cached, Some("generated_nbt"));
         assert!(cached_attempts.is_empty());
 
@@ -359,7 +359,7 @@ use super::*;
             ]
         );
         let (cached_missing, cached_missing_attempts) =
-            manager.try_load_from_sources(missing, &[resources.clone()]);
+            manager.try_load_from_sources(missing, std::slice::from_ref(&resources));
         assert_eq!(cached_missing, None);
         assert!(cached_missing_attempts.is_empty());
 

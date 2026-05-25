@@ -735,8 +735,8 @@ use super::*;
             .direction,
             super::super::HorizontalDirection::West
         );
-        assert_eq!(
-            super::super::nether_fortress_child_anchor(
+        assert!(
+            !super::super::nether_fortress_child_anchor(
                 start.bounding_box,
                 crossing_box.moved(300, 0, 0),
                 super::super::HorizontalDirection::South,
@@ -746,8 +746,7 @@ use super::*;
                 8,
                 true,
             )
-            .within_start_range,
-            false
+            .within_start_range
         );
 
         assert_eq!(
@@ -759,4 +758,3 @@ use super::*;
             11
         );
     }
-

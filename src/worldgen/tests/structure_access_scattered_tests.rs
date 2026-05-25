@@ -372,9 +372,7 @@ use super::*;
         let placement = super::super::buried_treasure_place(piece, 75, 60, |pos| {
             if pos.y == 69 && pos.x == -23 && pos.z == 57 {
                 "minecraft:stone"
-            } else if pos.y == 70 && pos.x == -23 && pos.z == 57 {
-                "minecraft:water"
-            } else if pos.y == 69 {
+            } else if pos.y == 69 || (pos.y == 70 && pos.x == -23 && pos.z == 57) {
                 "minecraft:water"
             } else {
                 "minecraft:air"
@@ -488,4 +486,3 @@ use super::*;
         };
         assert!(super::super::swamp_hut_post_process(piece, outside_chunk, |_, _| 70).is_none());
     }
-

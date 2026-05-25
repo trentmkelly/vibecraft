@@ -596,7 +596,10 @@ use super::*;
             Some(start.clone())
         );
         assert_eq!(
-            super::super::first_structure_start_with_piece_at(inside_union_gap, &[start.clone()]),
+            super::super::first_structure_start_with_piece_at(
+                inside_union_gap,
+                std::slice::from_ref(&start),
+            ),
             None
         );
         assert_eq!(
