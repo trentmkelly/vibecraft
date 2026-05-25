@@ -358,9 +358,11 @@ pub(super) fn live_tree_decoration_blocks(
             let Some(candidate_biome) = biome_manager_get_biome_cached(
                 biome_source_model,
                 biome_zoom_seed,
-                world_x,
-                surface_height,
-                world_z,
+                BlockPos {
+                    x: world_x,
+                    y: surface_height,
+                    z: world_z,
+                },
                 climate_sampler,
                 None,
                 &mut biome_filter_cache,

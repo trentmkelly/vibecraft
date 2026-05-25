@@ -240,16 +240,14 @@ pub(super) fn biome_manager_get_biome(
 pub(super) fn biome_manager_get_biome_cached(
     source: &BiomeSourceModel,
     biome_zoom_seed: i64,
-    block_x: i32,
-    block_y: i32,
-    block_z: i32,
+    block_pos: BlockPos,
     sampler: &ClimateSampler,
     chunk_biomes: Option<&ChunkNoiseBiomeCache>,
     noise_biome_cache: &mut HashMap<(i32, i32, i32), &'static str>,
 ) -> Option<&'static str> {
-    let absolute_x = block_x - 2;
-    let absolute_y = block_y - 2;
-    let absolute_z = block_z - 2;
+    let absolute_x = block_pos.x - 2;
+    let absolute_y = block_pos.y - 2;
+    let absolute_z = block_pos.z - 2;
     let parent_x = absolute_x >> 2;
     let parent_y = absolute_y >> 2;
     let parent_z = absolute_z >> 2;

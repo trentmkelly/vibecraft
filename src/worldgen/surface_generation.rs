@@ -456,9 +456,11 @@ pub(super) fn build_surface_for_chunk_timed_with_sections(
                             let biome = biome_manager_get_biome_cached(
                                 biome_source_model,
                                 biome_zoom_seed,
-                                block_x,
-                                biome_y,
-                                block_z,
+                                BlockPos {
+                                    x: block_x,
+                                    y: biome_y,
+                                    z: block_z,
+                                },
                                 &climate_sampler,
                                 Some(&chunk_noise_biomes),
                                 &mut surface_noise_biome_cache,
