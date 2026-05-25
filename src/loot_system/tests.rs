@@ -13,82 +13,102 @@ fn table_with_pool(pool: LootPool) -> LootTable {
 
 #[test]
 fn context_entity_types_params_and_dynamic_params_cover_java_surface() {
-    let surfaces = [
-        (
-            LootSurface::BlockBreak,
-            LootParamSet::Block,
-            LootContextEntityType::Block,
-        ),
-        (
-            LootSurface::EntityDeath,
-            LootParamSet::Entity,
-            LootContextEntityType::Entity,
-        ),
-        (
-            LootSurface::ChestOpen,
-            LootParamSet::Chest,
-            LootContextEntityType::Chest,
-        ),
-        (
-            LootSurface::FishingRetrieve,
-            LootParamSet::Fishing,
-            LootContextEntityType::Fishing,
-        ),
-        (
-            LootSurface::ArchaeologyBrush,
-            LootParamSet::Archaeology,
-            LootContextEntityType::Archaeology,
-        ),
-        (
-            LootSurface::AdvancementReward,
-            LootParamSet::AdvancementReward,
-            LootContextEntityType::AdvancementReward,
-        ),
-        (
-            LootSurface::Gift,
-            LootParamSet::Gift,
-            LootContextEntityType::Gift,
-        ),
-        (
-            LootSurface::PiglinBarter,
-            LootParamSet::Barter,
-            LootContextEntityType::Barter,
-        ),
-        (
-            LootSurface::Vault,
-            LootParamSet::Vault,
-            LootContextEntityType::Vault,
-        ),
-        (
-            LootSurface::Command,
-            LootParamSet::Command,
-            LootContextEntityType::Command,
-        ),
-        (
-            LootSurface::Selector,
-            LootParamSet::Selector,
-            LootContextEntityType::Selector,
-        ),
-        (
-            LootSurface::AdvancementEntity,
-            LootParamSet::AdvancementEntity,
-            LootContextEntityType::AdvancementEntity,
-        ),
-        (
-            LootSurface::Equipment,
-            LootParamSet::Equipment,
-            LootContextEntityType::Equipment,
-        ),
-    ];
-    assert_eq!(surfaces.len(), 13);
-    for (surface, param_set, entity_type) in surfaces {
+    assert_java_surface_matrix_matches_param_sets();
+    assert_loot_params_accept_every_java_surface_value();
+    assert_loot_context_applies_params_and_dynamic_values();
+}
+
+fn assert_java_surface_matrix_matches_param_sets() {
+    assert_eq!(JAVA_SURFACE_MATRIX.len(), 13);
+    for (surface, param_set, entity_type) in JAVA_SURFACE_MATRIX {
         assert_eq!(surface.param_set(), param_set);
         assert_eq!(surface.entity_type(), entity_type);
         assert_eq!(entity_type.param_set(), param_set);
     }
+}
 
+const JAVA_SURFACE_MATRIX: [(LootSurface, LootParamSet, LootContextEntityType); 13] = [
+    (
+        LootSurface::BlockBreak,
+        LootParamSet::Block,
+        LootContextEntityType::Block,
+    ),
+    (
+        LootSurface::EntityDeath,
+        LootParamSet::Entity,
+        LootContextEntityType::Entity,
+    ),
+    (
+        LootSurface::ChestOpen,
+        LootParamSet::Chest,
+        LootContextEntityType::Chest,
+    ),
+    (
+        LootSurface::FishingRetrieve,
+        LootParamSet::Fishing,
+        LootContextEntityType::Fishing,
+    ),
+    (
+        LootSurface::ArchaeologyBrush,
+        LootParamSet::Archaeology,
+        LootContextEntityType::Archaeology,
+    ),
+    (
+        LootSurface::AdvancementReward,
+        LootParamSet::AdvancementReward,
+        LootContextEntityType::AdvancementReward,
+    ),
+    (
+        LootSurface::Gift,
+        LootParamSet::Gift,
+        LootContextEntityType::Gift,
+    ),
+    (
+        LootSurface::PiglinBarter,
+        LootParamSet::Barter,
+        LootContextEntityType::Barter,
+    ),
+    (
+        LootSurface::Vault,
+        LootParamSet::Vault,
+        LootContextEntityType::Vault,
+    ),
+    (
+        LootSurface::Command,
+        LootParamSet::Command,
+        LootContextEntityType::Command,
+    ),
+    (
+        LootSurface::Selector,
+        LootParamSet::Selector,
+        LootContextEntityType::Selector,
+    ),
+    (
+        LootSurface::AdvancementEntity,
+        LootParamSet::AdvancementEntity,
+        LootContextEntityType::AdvancementEntity,
+    ),
+    (
+        LootSurface::Equipment,
+        LootParamSet::Equipment,
+        LootContextEntityType::Equipment,
+    ),
+];
+
+fn assert_loot_params_accept_every_java_surface_value() {
     let mut params = LootParams::default();
-    for value in [
+    for value in java_surface_param_values() {
+        params.insert(value);
+    }
+    assert_eq!(params.keys().len(), 17);
+    assert!(matches!(
+        params.get(LootParamKey::DamageSource),
+        Some(LootParamValue::DamageSource(id)) if id == "minecraft:player_attack"
+    ));
+}
+
+fn java_surface_param_values() -> [LootParamValue; 17] {
+    [
         LootParamValue::InteractingEntity("Steve".to_string()),
         LootParamValue::TargetEntity("Cow".to_string()),
         LootParamValue::BlockState("minecraft:stone".to_string()),
@@ -106,15 +126,10 @@ fn context_entity_types_params_and_dynamic_params_cover_java_surface() {
         LootParamValue::EnchantmentLevel(4),
         LootParamValue::EnchantmentActive(true),
         LootParamValue::AdditionalCostComponentAllowed,
-    ] {
-        params.insert(value);
-    }
-    assert_eq!(params.keys().len(), 17);
-    assert!(matches!(
-        params.get(LootParamKey::DamageSource),
-        Some(LootParamValue::DamageSource(id)) if id == "minecraft:player_attack"
-    ));
+    ]
+}
 
+fn assert_loot_context_applies_params_and_dynamic_values() {
     let mut context = LootContext::new(LootParamSet::Entity, 4);
     context.insert_param(LootParamValue::ThisEntity("Zombie".to_string()));
     context.insert_param(LootParamValue::InteractingEntity("Steve".to_string()));
