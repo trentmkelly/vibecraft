@@ -1281,6 +1281,122 @@ fn persist_play_disconnect_state(
     );
 }
 
+struct RespawnSessionContext<'a, 'b> {
+    properties: &'a ServerProperties,
+    world_root: &'a Path,
+    world_seed: i64,
+    profile_uuid: &'a str,
+    chunk_pipeline: &'a ChunkPipeline,
+    current_chunk_x: &'b mut i32,
+    current_chunk_z: &'b mut i32,
+    chunk_batch_radius: i32,
+    loaded_chunks: &'b mut BTreeSet<(i32, i32)>,
+    chunk_sender: &'b mut PlayerChunkSender,
+}
+
+fn handle_respawn_session_update(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    play_state: &mut PlaySessionState,
+    context: RespawnSessionContext<'_, '_>,
+) -> io::Result<()> {
+    let RespawnSessionContext {
+        properties,
+        world_root,
+        world_seed,
+        profile_uuid,
+        chunk_pipeline,
+        current_chunk_x,
+        current_chunk_z,
+        chunk_batch_radius,
+        loaded_chunks,
+        chunk_sender,
+    } = context;
+    handle_play_respawn_request(
+        stream,
+        compression,
+        play_state,
+        properties,
+        world_root,
+        world_seed,
+    )?;
+    *current_chunk_x = chunk_coordinate(play_state.x);
+    *current_chunk_z = chunk_coordinate(play_state.z);
+    *loaded_chunks = chunk_window(*current_chunk_x, *current_chunk_z, chunk_batch_radius);
+    // Re-seed the per-session sender for the new spawn location. Pending
+    // chunks from before the respawn no longer make sense because the center
+    // and visible window changed.
+    *chunk_sender = PlayerChunkSender::new(false);
+    seed_chunk_window(
+        chunk_sender,
+        chunk_pipeline,
+        *current_chunk_x,
+        *current_chunk_z,
+        chunk_batch_radius,
+    );
+    let _ = save_play_session_state(world_root, profile_uuid, play_state);
+    Ok(())
+}
+
+struct PositionSessionContext<'a, 'b> {
+    world_root: &'a Path,
+    world_seed: i64,
+    profile_uuid: &'a str,
+    world_items: &'a Arc<Mutex<WorldItemEntities>>,
+    chunk_pipeline: &'a ChunkPipeline,
+    current_chunk_x: &'b mut i32,
+    current_chunk_z: &'b mut i32,
+    chunk_batch_radius: i32,
+    loaded_chunks: &'b mut BTreeSet<(i32, i32)>,
+    chunk_sender: &'b mut PlayerChunkSender,
+}
+
+fn handle_position_session_update(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    play_state: &mut PlaySessionState,
+    context: PositionSessionContext<'_, '_>,
+) -> io::Result<()> {
+    let PositionSessionContext {
+        world_root,
+        world_seed,
+        profile_uuid,
+        world_items,
+        chunk_pipeline,
+        current_chunk_x,
+        current_chunk_z,
+        chunk_batch_radius,
+        loaded_chunks,
+        chunk_sender,
+    } = context;
+    let next_chunk_x = chunk_coordinate(play_state.x);
+    let next_chunk_z = chunk_coordinate(play_state.z);
+    if next_chunk_x != *current_chunk_x || next_chunk_z != *current_chunk_z {
+        *current_chunk_x = next_chunk_x;
+        *current_chunk_z = next_chunk_z;
+        // Diff old/new visible windows: forget chunks leaving the window and
+        // enqueue chunks entering it. Java mirror: ChunkMap.applyChunkTrackingView.
+        apply_chunk_movement(
+            stream,
+            compression,
+            chunk_sender,
+            chunk_pipeline,
+            loaded_chunks,
+            *current_chunk_x,
+            *current_chunk_z,
+            chunk_batch_radius,
+            world_root,
+            world_seed,
+        )?;
+    }
+    // Hook B: Pickup check — mirrors Player.aiStep() proximity sweep.
+    // Spectators cannot pick up items.
+    if play_state.game_mode != GameMode::Spectator {
+        process_item_pickups(stream, compression, play_state, profile_uuid, world_items)?;
+    }
+    Ok(())
+}
+
 fn handle_login_connection(
     stream: &mut TcpStream,
     mut context: LoginConnectionContext<'_>,
@@ -1455,73 +1571,43 @@ fn run_joined_play_session(
                     write_play_state_health_packet(stream, compression, &play_state)?;
                 }
                 if session_update.respawn_requested {
-                    handle_play_respawn_request(
+                    handle_respawn_session_update(
                         stream,
                         compression,
                         &mut play_state,
-                        properties,
-                        world_root,
-                        world_seed,
+                        RespawnSessionContext {
+                            properties,
+                            world_root,
+                            world_seed,
+                            profile_uuid: &finished.profile.uuid,
+                            chunk_pipeline,
+                            current_chunk_x: &mut current_chunk_x,
+                            current_chunk_z: &mut current_chunk_z,
+                            chunk_batch_radius,
+                            loaded_chunks: &mut loaded_chunks,
+                            chunk_sender: &mut chunk_sender,
+                        },
                     )?;
-                    current_chunk_x = chunk_coordinate(play_state.x);
-                    current_chunk_z = chunk_coordinate(play_state.z);
-                    loaded_chunks =
-                        chunk_window(current_chunk_x, current_chunk_z, chunk_batch_radius);
-                    // Re-seed the per-session sender for the new spawn location.
-                    // Pending chunks from before the respawn no longer make
-                    // sense (different center, different visible window).
-                    chunk_sender = PlayerChunkSender::new(false);
-                    seed_chunk_window(
-                        &mut chunk_sender,
-                        chunk_pipeline,
-                        current_chunk_x,
-                        current_chunk_z,
-                        chunk_batch_radius,
-                    );
-                    let _ =
-                        save_play_session_state(world_root, &finished.profile.uuid, &play_state);
                     continue;
                 }
                 if session_update.position_changed {
-                    let next_chunk_x = chunk_coordinate(play_state.x);
-                    let next_chunk_z = chunk_coordinate(play_state.z);
-                    if next_chunk_x != current_chunk_x || next_chunk_z != current_chunk_z {
-                        current_chunk_x = next_chunk_x;
-                        current_chunk_z = next_chunk_z;
-                        // Diff old/new visible windows: forget chunks
-                        // leaving the window (or just drop them from
-                        // pending if they had not been flushed yet), and
-                        // enqueue chunks entering it. Java mirror:
-                        // ChunkMap.applyChunkTrackingView when the player's
-                        // tracked chunk position changes. The actual chunk
-                        // payloads are flushed by the next-tick
-                        // drain_chunk_sender; this path never blocks on
-                        // worldgen.
-                        apply_chunk_movement(
-                            stream,
-                            compression,
-                            &mut chunk_sender,
-                            chunk_pipeline,
-                            &mut loaded_chunks,
-                            current_chunk_x,
-                            current_chunk_z,
-                            chunk_batch_radius,
+                    handle_position_session_update(
+                        stream,
+                        compression,
+                        &mut play_state,
+                        PositionSessionContext {
                             world_root,
                             world_seed,
-                        )?;
-                    }
-                    // Hook B: Pickup check — mirrors Player.aiStep() proximity sweep.
-                    // Spectators cannot pick up items.
-                    // Java: Player.aiStep() — inflate AABB, iterate nearby entities, call playerTouch.
-                    if play_state.game_mode != GameMode::Spectator {
-                        process_item_pickups(
-                            stream,
-                            compression,
-                            &mut play_state,
-                            &finished.profile.uuid,
+                            profile_uuid: &finished.profile.uuid,
                             world_items,
-                        )?;
-                    }
+                            chunk_pipeline,
+                            current_chunk_x: &mut current_chunk_x,
+                            current_chunk_z: &mut current_chunk_z,
+                            chunk_batch_radius,
+                            loaded_chunks: &mut loaded_chunks,
+                            chunk_sender: &mut chunk_sender,
+                        },
+                    )?;
                     continue;
                 }
                 if packet_id == SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID {
