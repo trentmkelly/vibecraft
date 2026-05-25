@@ -138,7 +138,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 
 ## Bossbar Packet
 
-- [ ] `ClientboundBossEventPacket` (0x0A): boss UUID, operation (add with name/progress/color/overlay/flags, remove, update-progress, update-name, update-style, update-flags)
+- [x] `ClientboundBossEventPacket` (0x09 / decimal 9): boss UUID followed by Java `OperationType` enum VarInt (`ADD`, `REMOVE`, `UPDATE_PROGRESS`, `UPDATE_NAME`, `UPDATE_STYLE`, `UPDATE_PROPERTIES`); add/update-name encode trusted component network NBT, progress uses big-endian float, style uses `BossBarColor`/`BossBarOverlay` enum ordinals, and properties pack darken/music/fog flags into bits 1/2/4. Verified against Java packet codec, `BossEvent` enum declaration order, Java play registration/name mapping, Rust packet ID/registry mapping, and focused byte-layout coverage for all six operation variants.
 
 ## World Border Packets
 

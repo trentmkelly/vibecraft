@@ -800,6 +800,7 @@ fn entity_metadata_values_use_vanilla_26_1_2_serializer_ids_and_payloads() {
 
 
 mod block_entity_data_packet_test;
+mod boss_event_packet_test;
 mod chat_ack_packet_test;
 mod chat_command_packet_test;
 mod chat_command_signed_packet_test;
