@@ -600,7 +600,9 @@ pub fn slot_corrections_to_set_slot_packets(
 }
 
 /// Convert the network-layer `ContainerInput` to the inventory-layer `ContainerInput`.
-pub(super) fn play_container_input_to_inventory(input: ContainerInput) -> crate::inventory::ContainerInput {
+pub(super) fn play_container_input_to_inventory(
+    input: ContainerInput,
+) -> crate::inventory::ContainerInput {
     match input {
         ContainerInput::Pickup => crate::inventory::ContainerInput::Pickup,
         ContainerInput::QuickMove => crate::inventory::ContainerInput::QuickMove,
@@ -782,9 +784,7 @@ pub fn handle_container_click(
 }
 
 fn is_valid_inventory_menu_click_slot(slot_num: i16) -> bool {
-    slot_num == -999
-        || slot_num == -1
-        || (0..InventoryMenu::SLOT_COUNT as i16).contains(&slot_num)
+    slot_num == -999 || slot_num == -1 || (0..InventoryMenu::SLOT_COUNT as i16).contains(&slot_num)
 }
 
 /// Build a `ClientboundRecipeBookAddPacket` announcing newly-unlocked recipes.
@@ -807,264 +807,319 @@ pub fn build_recipe_book_add_with_flags(
     replace: bool,
     highlighted_recipe_ids: Option<&[&str]>,
 ) -> Option<ClientboundRecipeBookAddPacket> {
-    use crate::recipe_system::{CookingKind, IngredientSpec, RecipeKind};
-
-    pub(super) fn ingredient_to_slot(spec: &IngredientSpec) -> SlotDisplayData {
-        match spec {
-            IngredientSpec::Empty => SlotDisplayData::Empty,
-            IngredientSpec::Item(name) => {
-                if let Some(pid) = item_protocol_id(name) {
-                    SlotDisplayData::Item { item_id: pid }
-                } else {
-                    SlotDisplayData::Empty
-                }
-            }
-            IngredientSpec::AnyOf(names) => {
-                let items: Vec<SlotDisplayData> = names
-                    .iter()
-                    .filter_map(|name| {
-                        item_protocol_id(name).map(|pid| SlotDisplayData::Item { item_id: pid })
-                    })
-                    .collect();
-                if items.is_empty() {
-                    SlotDisplayData::Empty
-                } else if items.len() == 1 {
-                    items.into_iter().next().unwrap()
-                } else {
-                    SlotDisplayData::Composite(items)
-                }
-            }
-        }
-    }
-
-    pub(super) fn item_amount_to_slot(item: &str, count: u32) -> SlotDisplayData {
-        let Some(pid) = item_protocol_id(item) else {
-            return SlotDisplayData::Empty;
-        };
-        if count == 1 {
-            SlotDisplayData::Item { item_id: pid }
-        } else {
-            SlotDisplayData::ItemStack {
-                stack: RawItemStack {
-                    count: count as i32,
-                    item_id: Some(pid),
-                    components: RawDataComponentPatch::empty(),
-                },
-            }
-        }
-    }
-
-    pub(super) fn ingredient_to_req(spec: &IngredientSpec) -> Option<RecipeIngredientData> {
-        match spec {
-            IngredientSpec::Empty => None,
-            IngredientSpec::Item(name) => {
-                item_protocol_id(name).map(|pid| RecipeIngredientData::DirectItems(vec![pid]))
-            }
-            IngredientSpec::AnyOf(names) => {
-                let pids: Vec<i32> = names.iter().filter_map(|n| item_protocol_id(n)).collect();
-                if pids.is_empty() {
-                    None
-                } else {
-                    Some(RecipeIngredientData::DirectItems(pids))
-                }
-            }
-        }
-    }
-
-    let crafting_station_id = item_protocol_id("minecraft:crafting_table")
-        .map(|pid| SlotDisplayData::Item { item_id: pid })
-        .unwrap_or(SlotDisplayData::Empty);
-
     let all_holders = recipe_map.values();
-    let mut entries: Vec<RecipeBookAddEntry> = Vec::new();
-
-    for recipe_id in recipe_ids {
-        let Some(holder) = recipe_map.by_key(recipe_id) else {
-            continue;
-        };
-        // Use the recipe's position in the global list as its stable display ID.
-        // Java: RecipeManager assigns RecipeDisplay IDs sequentially during server reload.
-        let display_id = all_holders
-            .iter()
-            .position(|h| h.id == holder.id)
-            .unwrap_or(0) as i32;
-
-        let display = match &holder.recipe {
-            RecipeKind::Shapeless {
-                ingredients,
-                result,
-            } => {
-                let ing_slots: Vec<SlotDisplayData> =
-                    ingredients.iter().map(ingredient_to_slot).collect();
-                let req_slots: Vec<RecipeIngredientData> =
-                    ingredients.iter().filter_map(ingredient_to_req).collect();
-                Some((
-                    RecipeDisplayData::CraftingShapeless {
-                        ingredients: ing_slots,
-                        result: item_amount_to_slot(result.item, result.count),
-                        crafting_station: crafting_station_id.clone(),
-                    },
-                    if req_slots.is_empty() {
-                        None
-                    } else {
-                        Some(req_slots)
-                    },
-                    3i32, // category_id: 3 = misc
-                ))
-            }
-            RecipeKind::Shaped {
-                width,
-                height,
-                pattern,
-                result,
-            } => {
-                let ing_slots: Vec<SlotDisplayData> = pattern
-                    .iter()
-                    .map(|opt| {
-                        opt.as_ref()
-                            .map_or(SlotDisplayData::Empty, ingredient_to_slot)
-                    })
-                    .collect();
-                let req_slots: Vec<RecipeIngredientData> = pattern
-                    .iter()
-                    .filter_map(|opt| opt.as_ref().and_then(ingredient_to_req))
-                    .collect();
-                Some((
-                    RecipeDisplayData::CraftingShaped {
-                        width: *width as i32,
-                        height: *height as i32,
-                        ingredients: ing_slots,
-                        result: item_amount_to_slot(result.item, result.count),
-                        crafting_station: crafting_station_id.clone(),
-                    },
-                    if req_slots.is_empty() {
-                        None
-                    } else {
-                        Some(req_slots)
-                    },
-                    3i32,
-                ))
-            }
-            RecipeKind::Cooking {
-                kind,
-                ingredient,
-                result,
-                experience_millis,
-                cooking_time,
-            } => {
-                let station_name = match kind {
-                    CookingKind::Smelting => "minecraft:furnace",
-                    CookingKind::Blasting => "minecraft:blast_furnace",
-                    CookingKind::Smoking => "minecraft:smoker",
-                    CookingKind::CampfireCooking => "minecraft:campfire",
-                };
-                let station = item_protocol_id(station_name)
-                    .map(|pid| SlotDisplayData::Item { item_id: pid })
-                    .unwrap_or(SlotDisplayData::Empty);
-                let default_time = match kind {
-                    CookingKind::Smelting => 200,
-                    _ => 100,
-                };
-                Some((
-                    RecipeDisplayData::Furnace {
-                        ingredient: ingredient_to_slot(ingredient),
-                        fuel: SlotDisplayData::AnyFuel,
-                        result: item_amount_to_slot(result.item, result.count),
-                        crafting_station: station,
-                        duration: cooking_time.unwrap_or(default_time),
-                        experience_bits: experience_millis.unsigned_abs(),
-                    },
-                    None,
-                    3i32,
-                ))
-            }
-            RecipeKind::Stonecutting { ingredient, result } => {
-                let station = item_protocol_id("minecraft:stonecutter")
-                    .map(|pid| SlotDisplayData::Item { item_id: pid })
-                    .unwrap_or(SlotDisplayData::Empty);
-                let req = ingredient_to_req(ingredient);
-                Some((
-                    RecipeDisplayData::Stonecutter {
-                        ingredient: ingredient_to_slot(ingredient),
-                        result: item_amount_to_slot(result.item, result.count),
-                        crafting_station: station,
-                    },
-                    req.map(|r| vec![r]),
-                    3i32,
-                ))
-            }
-            RecipeKind::SmithingTransform {
-                template,
-                base,
-                addition,
-                result,
-            } => {
-                let station = item_protocol_id("minecraft:smithing_table")
-                    .map(|pid| SlotDisplayData::Item { item_id: pid })
-                    .unwrap_or(SlotDisplayData::Empty);
-                Some((
-                    RecipeDisplayData::Smithing {
-                        template: ingredient_to_slot(template),
-                        base: ingredient_to_slot(base),
-                        addition: ingredient_to_slot(addition),
-                        result: item_amount_to_slot(result.item, result.count),
-                        crafting_station: station,
-                    },
-                    None,
-                    3i32,
-                ))
-            }
-            RecipeKind::SmithingTrim {
-                template,
-                base,
-                addition,
-            } => {
-                let station = item_protocol_id("minecraft:smithing_table")
-                    .map(|pid| SlotDisplayData::Item { item_id: pid })
-                    .unwrap_or(SlotDisplayData::Empty);
-                Some((
-                    RecipeDisplayData::Smithing {
-                        template: ingredient_to_slot(template),
-                        base: ingredient_to_slot(base),
-                        addition: ingredient_to_slot(addition),
-                        result: SlotDisplayData::Empty, // trim result depends on armor type
-                        crafting_station: station,
-                    },
-                    None,
-                    3i32,
-                ))
-            }
-            // Special/transmute/imbue recipes — omit from recipe book for now.
-            // Java: These use dedicated server-side logic, not generic RecipeDisplay.
-            RecipeKind::Special { .. }
-            | RecipeKind::Transmute { .. }
-            | RecipeKind::Imbue { .. } => None,
-        };
-
-        if let Some((display_data, crafting_requirements, category_id)) = display {
-            let entry_highlight = highlighted_recipe_ids
-                .map(|ids| ids.contains(recipe_id))
-                .unwrap_or(highlight);
-            entries.push(RecipeBookAddEntry::new(
-                RecipeDisplayEntryData {
-                    id: display_id,
-                    display: display_data,
-                    group: None,
-                    category_id,
-                    crafting_requirements,
-                },
+    let entries = recipe_ids
+        .iter()
+        .filter_map(|recipe_id| {
+            recipe_book_add_entry(
+                recipe_id,
+                recipe_map,
+                all_holders,
                 notification,
-                entry_highlight,
-            ));
+                highlight,
+                highlighted_recipe_ids,
+            )
+        })
+        .collect::<Vec<_>>();
+
+    (!entries.is_empty()).then_some(ClientboundRecipeBookAddPacket { entries, replace })
+}
+
+struct RecipeBookDisplayBuild {
+    display: RecipeDisplayData,
+    crafting_requirements: Option<Vec<RecipeIngredientData>>,
+    category_id: i32,
+}
+
+fn recipe_book_add_entry(
+    recipe_id: &str,
+    recipe_map: &crate::recipe_system::RecipeMap,
+    all_holders: &[crate::recipe_system::RecipeHolder],
+    notification: bool,
+    highlight: bool,
+    highlighted_recipe_ids: Option<&[&str]>,
+) -> Option<RecipeBookAddEntry> {
+    let holder = recipe_map.by_key(recipe_id)?;
+    let display_id = recipe_display_id(holder, all_holders);
+    let display = recipe_book_display(holder)?;
+    let entry_highlight = highlighted_recipe_ids
+        .map(|ids| ids.contains(&recipe_id))
+        .unwrap_or(highlight);
+    Some(RecipeBookAddEntry::new(
+        RecipeDisplayEntryData {
+            id: display_id,
+            display: display.display,
+            group: None,
+            category_id: display.category_id,
+            crafting_requirements: display.crafting_requirements,
+        },
+        notification,
+        entry_highlight,
+    ))
+}
+
+fn recipe_display_id(
+    holder: &crate::recipe_system::RecipeHolder,
+    all_holders: &[crate::recipe_system::RecipeHolder],
+) -> i32 {
+    all_holders
+        .iter()
+        .position(|candidate| candidate.id == holder.id)
+        .unwrap_or(0) as i32
+}
+
+fn recipe_book_display(
+    holder: &crate::recipe_system::RecipeHolder,
+) -> Option<RecipeBookDisplayBuild> {
+    use crate::recipe_system::RecipeKind;
+
+    match &holder.recipe {
+        RecipeKind::Shapeless {
+            ingredients,
+            result,
+        } => Some(recipe_book_shapeless_display(ingredients, result)),
+        RecipeKind::Shaped {
+            width,
+            height,
+            pattern,
+            result,
+        } => Some(recipe_book_shaped_display(*width, *height, pattern, result)),
+        RecipeKind::Cooking {
+            kind,
+            ingredient,
+            result,
+            experience_millis,
+            cooking_time,
+        } => Some(recipe_book_cooking_display(
+            *kind,
+            ingredient,
+            result,
+            *experience_millis,
+            *cooking_time,
+        )),
+        RecipeKind::Stonecutting { ingredient, result } => {
+            Some(recipe_book_stonecutting_display(ingredient, result))
+        }
+        RecipeKind::SmithingTransform {
+            template,
+            base,
+            addition,
+            result,
+        } => Some(recipe_book_smithing_transform_display(
+            template, base, addition, result,
+        )),
+        RecipeKind::SmithingTrim {
+            template,
+            base,
+            addition,
+        } => Some(recipe_book_smithing_trim_display(template, base, addition)),
+        // Special/transmute/imbue recipes — omit from recipe book for now.
+        // Java: These use dedicated server-side logic, not generic RecipeDisplay.
+        RecipeKind::Special { .. } | RecipeKind::Transmute { .. } | RecipeKind::Imbue { .. } => {
+            None
         }
     }
+}
 
-    if entries.is_empty() {
-        None
-    } else {
-        Some(ClientboundRecipeBookAddPacket {
-            entries,
-            replace,
-        })
+fn recipe_book_shapeless_display(
+    ingredients: &[crate::recipe_system::IngredientSpec],
+    result: &crate::recipe_system::ItemAmount,
+) -> RecipeBookDisplayBuild {
+    let requirement_slots = ingredients
+        .iter()
+        .filter_map(ingredient_to_req)
+        .collect::<Vec<_>>();
+    RecipeBookDisplayBuild {
+        display: RecipeDisplayData::CraftingShapeless {
+            ingredients: ingredients.iter().map(ingredient_to_slot).collect(),
+            result: item_amount_to_slot(result.item, result.count),
+            crafting_station: station_slot("minecraft:crafting_table"),
+        },
+        crafting_requirements: recipe_requirements(requirement_slots),
+        category_id: 3,
     }
+}
+
+fn recipe_book_shaped_display(
+    width: usize,
+    height: usize,
+    pattern: &[Option<crate::recipe_system::IngredientSpec>],
+    result: &crate::recipe_system::ItemAmount,
+) -> RecipeBookDisplayBuild {
+    let requirement_slots = pattern
+        .iter()
+        .filter_map(|ingredient| ingredient.as_ref().and_then(ingredient_to_req))
+        .collect::<Vec<_>>();
+    RecipeBookDisplayBuild {
+        display: RecipeDisplayData::CraftingShaped {
+            width: width as i32,
+            height: height as i32,
+            ingredients: pattern
+                .iter()
+                .map(|ingredient| {
+                    ingredient
+                        .as_ref()
+                        .map_or(SlotDisplayData::Empty, ingredient_to_slot)
+                })
+                .collect(),
+            result: item_amount_to_slot(result.item, result.count),
+            crafting_station: station_slot("minecraft:crafting_table"),
+        },
+        crafting_requirements: recipe_requirements(requirement_slots),
+        category_id: 3,
+    }
+}
+
+fn recipe_book_cooking_display(
+    kind: crate::recipe_system::CookingKind,
+    ingredient: &crate::recipe_system::IngredientSpec,
+    result: &crate::recipe_system::ItemAmount,
+    experience_millis: i32,
+    cooking_time: Option<i32>,
+) -> RecipeBookDisplayBuild {
+    let station_name = match kind {
+        crate::recipe_system::CookingKind::Smelting => "minecraft:furnace",
+        crate::recipe_system::CookingKind::Blasting => "minecraft:blast_furnace",
+        crate::recipe_system::CookingKind::Smoking => "minecraft:smoker",
+        crate::recipe_system::CookingKind::CampfireCooking => "minecraft:campfire",
+    };
+    let default_time = match kind {
+        crate::recipe_system::CookingKind::Smelting => 200,
+        _ => 100,
+    };
+    RecipeBookDisplayBuild {
+        display: RecipeDisplayData::Furnace {
+            ingredient: ingredient_to_slot(ingredient),
+            fuel: SlotDisplayData::AnyFuel,
+            result: item_amount_to_slot(result.item, result.count),
+            crafting_station: station_slot(station_name),
+            duration: cooking_time.unwrap_or(default_time),
+            experience_bits: experience_millis.unsigned_abs(),
+        },
+        crafting_requirements: None,
+        category_id: 3,
+    }
+}
+
+fn recipe_book_stonecutting_display(
+    ingredient: &crate::recipe_system::IngredientSpec,
+    result: &crate::recipe_system::ItemAmount,
+) -> RecipeBookDisplayBuild {
+    RecipeBookDisplayBuild {
+        display: RecipeDisplayData::Stonecutter {
+            ingredient: ingredient_to_slot(ingredient),
+            result: item_amount_to_slot(result.item, result.count),
+            crafting_station: station_slot("minecraft:stonecutter"),
+        },
+        crafting_requirements: ingredient_to_req(ingredient).map(|requirement| vec![requirement]),
+        category_id: 3,
+    }
+}
+
+fn recipe_book_smithing_transform_display(
+    template: &crate::recipe_system::IngredientSpec,
+    base: &crate::recipe_system::IngredientSpec,
+    addition: &crate::recipe_system::IngredientSpec,
+    result: &crate::recipe_system::ItemAmount,
+) -> RecipeBookDisplayBuild {
+    RecipeBookDisplayBuild {
+        display: smithing_display(
+            template,
+            base,
+            addition,
+            item_amount_to_slot(result.item, result.count),
+        ),
+        crafting_requirements: None,
+        category_id: 3,
+    }
+}
+
+fn recipe_book_smithing_trim_display(
+    template: &crate::recipe_system::IngredientSpec,
+    base: &crate::recipe_system::IngredientSpec,
+    addition: &crate::recipe_system::IngredientSpec,
+) -> RecipeBookDisplayBuild {
+    RecipeBookDisplayBuild {
+        display: smithing_display(template, base, addition, SlotDisplayData::Empty),
+        crafting_requirements: None,
+        category_id: 3,
+    }
+}
+
+fn smithing_display(
+    template: &crate::recipe_system::IngredientSpec,
+    base: &crate::recipe_system::IngredientSpec,
+    addition: &crate::recipe_system::IngredientSpec,
+    result: SlotDisplayData,
+) -> RecipeDisplayData {
+    RecipeDisplayData::Smithing {
+        template: ingredient_to_slot(template),
+        base: ingredient_to_slot(base),
+        addition: ingredient_to_slot(addition),
+        result,
+        crafting_station: station_slot("minecraft:smithing_table"),
+    }
+}
+
+fn station_slot(item: &str) -> SlotDisplayData {
+    item_protocol_id(item)
+        .map(|item_id| SlotDisplayData::Item { item_id })
+        .unwrap_or(SlotDisplayData::Empty)
+}
+
+fn ingredient_to_slot(spec: &crate::recipe_system::IngredientSpec) -> SlotDisplayData {
+    match spec {
+        crate::recipe_system::IngredientSpec::Empty => SlotDisplayData::Empty,
+        crate::recipe_system::IngredientSpec::Item(name) => station_slot(name),
+        crate::recipe_system::IngredientSpec::AnyOf(names) => any_of_ingredient_to_slot(names),
+    }
+}
+
+fn any_of_ingredient_to_slot(names: &[&'static str]) -> SlotDisplayData {
+    let items = names
+        .iter()
+        .filter_map(|name| item_protocol_id(name).map(|item_id| SlotDisplayData::Item { item_id }))
+        .collect::<Vec<_>>();
+    match items.as_slice() {
+        [] => SlotDisplayData::Empty,
+        [item] => item.clone(),
+        _ => SlotDisplayData::Composite(items),
+    }
+}
+
+fn item_amount_to_slot(item: &str, count: u32) -> SlotDisplayData {
+    let Some(item_id) = item_protocol_id(item) else {
+        return SlotDisplayData::Empty;
+    };
+    if count == 1 {
+        SlotDisplayData::Item { item_id }
+    } else {
+        SlotDisplayData::ItemStack {
+            stack: RawItemStack {
+                count: count as i32,
+                item_id: Some(item_id),
+                components: RawDataComponentPatch::empty(),
+            },
+        }
+    }
+}
+
+fn ingredient_to_req(spec: &crate::recipe_system::IngredientSpec) -> Option<RecipeIngredientData> {
+    match spec {
+        crate::recipe_system::IngredientSpec::Empty => None,
+        crate::recipe_system::IngredientSpec::Item(name) => {
+            item_protocol_id(name).map(|item_id| RecipeIngredientData::DirectItems(vec![item_id]))
+        }
+        crate::recipe_system::IngredientSpec::AnyOf(names) => {
+            let item_ids = names
+                .iter()
+                .filter_map(|name| item_protocol_id(name))
+                .collect::<Vec<_>>();
+            recipe_requirements(item_ids).map(RecipeIngredientData::DirectItems)
+        }
+    }
+}
+
+fn recipe_requirements<T>(requirements: Vec<T>) -> Option<Vec<T>> {
+    (!requirements.is_empty()).then_some(requirements)
 }
