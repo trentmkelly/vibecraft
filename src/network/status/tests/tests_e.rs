@@ -1,5 +1,4 @@
 use super::super::*;
-use super::*;
 use crate::item_properties::ItemComponent;
 
 #[test]

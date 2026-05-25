@@ -378,7 +378,7 @@ use super::*;
     #[test]
     fn overworld_climate_sampler_and_rtree_agree_at_seed_0_block_0_64_0() {
         use super::super::{ClimateSampler, OVERWORLD_NOISE_ROUTER};
-        use crate::biome::{overworld_biome_parameters, ClimateBiomeEntry, ClimateParameterList};
+        use crate::biome::{overworld_biome_parameters, ClimateParameterList};
 
         let seed = 0_i64;
         let settings = *builtin_noise_generator_settings("minecraft:overworld")

@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
-use crate::registry::{feature_flags, FeatureFlagRegistry, FeatureFlagSet, Identifier};
+use crate::registry::{feature_flags, FeatureFlagSet, Identifier};
 
 pub const VANILLA_PACK_ID: &str = "vanilla";
 pub const SERVER_DATA_PACK_FORMAT_MAJOR: u32 = 101;

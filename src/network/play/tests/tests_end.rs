@@ -1,4 +1,3 @@
-use super::super::*;
 use super::*;
 
 
@@ -16,7 +15,6 @@ fn crafting_grid_log_to_planks_full_round_trip() {
         crate::player_inventory::PlayerInventory::new(),
         recipes.clone(),
     );
-    let mut carried = ItemStack::empty();
     let mut state_id: i32 = 0;
 
     // Step 1: place oak log into crafting grid slot 1.
@@ -29,7 +27,7 @@ fn crafting_grid_log_to_planks_full_round_trip() {
         changed_slots: BTreeMap::new(),
         carried_item: HashedStack::empty(),
     };
-    carried = ItemStack::new("minecraft:oak_log", 1);
+    let mut carried = ItemStack::new("minecraft:oak_log", 1);
     let instructions =
         handle_container_click(&place_log, &mut state_id, &mut inventory_menu, &mut carried);
 

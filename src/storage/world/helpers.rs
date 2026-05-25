@@ -1,7 +1,7 @@
 use std::fs::{self, File};
 use std::path::{Component, Path};
 
-use crate::storage::nbt::{read_gzip_named_tag, read_named_tag, write_gzip_named_tag, write_named_tag, Tag};
+use crate::storage::nbt::{read_gzip_named_tag, read_named_tag, Tag};
 
 use crate::storage::datafix::{
     require_current_tag_data_version, require_current_world_data_version, TARGET_DATA_VERSION,

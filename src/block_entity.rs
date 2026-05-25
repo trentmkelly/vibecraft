@@ -1128,28 +1128,21 @@ pub enum BlockEntityError {
 }
 
 mod test_blocks;
-pub use test_blocks::*;
 
 mod structures;
-pub use structures::*;
 
 mod functional_blocks;
 pub use functional_blocks::*;
 
 mod beacon_signs_brewing;
-pub use beacon_signs_brewing::*;
 
 mod spawners;
-pub use spawners::*;
 
 mod vault_banner_furnace;
-pub use vault_banner_furnace::*;
 
 mod container_decorative;
-pub use container_decorative::*;
 
 mod sculk_conduit_campfire;
-pub use sculk_conduit_campfire::*;
 
 mod beehive_creaking_bell;
 pub use beehive_creaking_bell::*;

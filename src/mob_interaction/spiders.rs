@@ -1,4 +1,3 @@
-use super::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CaveSpiderAttributes {

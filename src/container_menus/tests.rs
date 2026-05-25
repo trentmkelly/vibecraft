@@ -465,7 +465,7 @@ fn stonecutter_menu_layout_and_recipe_index_tracking() {
 
 #[test]
 fn grindstone_input_accepts_damageable_only_and_result_rejects_placement() {
-    let mut menu = GrindstoneMenu::new();
+    let menu = GrindstoneMenu::new();
     assert_eq!(GrindstoneMenu::SLOT_COUNT, 39);
     assert!(!menu.may_place(2, &ItemStack::new("minecraft:apple", 1)));
     // Diamond sword is damageable in item_properties (matches vanilla).

@@ -18,7 +18,7 @@ use crate::command::{
 };
 use crate::console::ConsoleInput;
 use crate::fluid::{
-    block_item_can_replace, block_state_model_name, fluid_state_for_block, place_liquid,
+    block_item_can_replace, block_state_model_name, place_liquid,
     tick_fluid, FluidKind, LiquidPlaceResult,
 };
 use crate::inventory::same_item_same_components;

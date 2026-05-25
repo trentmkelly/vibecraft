@@ -1,4 +1,3 @@
-use super::*;
 
 pub const NETHER_WASTES_FEATURE_STEPS: &[&[&str]] = &[
     &[],

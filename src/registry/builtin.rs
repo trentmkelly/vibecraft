@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use super::{Identifier, Lifecycle, LoadedTags, Registry, RegistryEntry, TagFile};
+use super::{Identifier, Lifecycle, LoadedTags, Registry, TagFile};
 
 pub mod registries {
     pub const BLOCK: &str = "minecraft:block";

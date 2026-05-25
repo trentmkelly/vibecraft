@@ -406,7 +406,7 @@ mod tests {
     #[test]
     fn start_destroy_instant_mine_when_progress_gte_1() {
         let mut state = BlockBreakState::default();
-        let ctx = BlockBreakInputContext {
+        let _ctx = BlockBreakInputContext {
             block_hardness: 0.0, // sand/gravel hardness = 0.5, but 0.0 would be instant
             tool_speed: 1.0,
             ..default_ctx(

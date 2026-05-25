@@ -1,5 +1,4 @@
 use super::*;
-use crate::inventory::Slot;
 use crate::item_stack::ItemStack;
 use crate::network::codec::{cursor, read_identifier, read_string};
 

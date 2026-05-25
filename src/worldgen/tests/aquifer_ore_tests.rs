@@ -164,7 +164,7 @@ use super::*;
             .any(|(cx, cz)| {
                 let chunk =
                     fill_from_noise_chunk(ChunkPos { x: cx, z: cz }, settings, 0, noise_router);
-                let min_y = settings.noise.min_y;
+                let _min_y = settings.noise.min_y;
                 // Look for water between the lava floor (-54) and sea level in any column.
                 (-54..sea).any(|y| {
                     (0..16_i32)

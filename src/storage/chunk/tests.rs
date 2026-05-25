@@ -1,14 +1,12 @@
 use super::{
-    chunk_status, chunk_status_is_after, chunk_status_is_before, chunk_status_is_or_after,
-    chunk_status_is_or_before, chunk_status_list, chunk_status_max, default_biomes_container,
-    default_block_states_container, empty_structures_payload, pack_postprocessing_offset,
+    default_biomes_container,
+    default_block_states_container, pack_postprocessing_offset,
     saved_tick_tag, string_field, unpack_postprocessing_offset, BlockStateEntry,
-    ChunkInitializeLightPlan, ChunkLightCompletionPlan, ChunkPyramidKind, ChunkSection,
-    ChunkStatusTaskKind, ChunkType, HeightmapKind, LevelChunk, LightLayer,
-    LightSectionStatusUpdate, PalettedContainer, QueuedSectionLightData, SectionBlockPos,
-    TickPriority, BIOME_SECTION_VOLUME, CHUNK_STATUS_PIPELINE, CHUNK_WIDTH, FINAL_HEIGHTMAPS,
+    ChunkInitializeLightPlan, ChunkLightCompletionPlan, ChunkSection, LevelChunk, LightLayer,
+    LightSectionStatusUpdate, QueuedSectionLightData,
+    TickPriority,
     LIGHT_DATA_LAYER_LENGTH, LIGHT_DATA_LAYER_NIBBLE_COUNT, LIGHT_DATA_LAYER_ROW_SIZE,
-    LIGHT_DATA_LAYER_WIDTH, SECTION_VOLUME, WORLDGEN_HEIGHTMAPS,
+    LIGHT_DATA_LAYER_WIDTH,
 };
 use crate::storage::datafix::TARGET_DATA_VERSION;
 use crate::storage::nbt::Tag;

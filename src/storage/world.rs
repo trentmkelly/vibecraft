@@ -2,18 +2,14 @@
 
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
-#[cfg(unix)]
-use std::os::fd::AsRawFd;
 use std::path::{Component, Path, PathBuf};
 
 use crate::storage::nbt::{
-    read_gzip_named_tag, read_named_tag, write_gzip_named_tag, write_named_tag, Tag,
+    read_named_tag, write_gzip_named_tag, write_named_tag, Tag,
 };
 use crate::storage::region::{ChunkPos, RegionFile};
 
-use super::datafix::{
-    require_current_tag_data_version, require_current_world_data_version, TARGET_DATA_VERSION,
-};
+use super::datafix::require_current_world_data_version;
 
 const SESSION_LOCK_MARKER: &[u8] = "\u{2603}".as_bytes();
 const CURRENT_VERSION_NAME: &str = "26.1.2";

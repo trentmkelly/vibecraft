@@ -71,15 +71,14 @@ use self::block_state_support::*;
 mod noise_generator_settings;
 pub use self::noise_generator_settings::{
     builtin_density_function, builtin_noise_router, cave_generation_family, density_function_type,
-    noise_router_id_for_settings, BUILTIN_NOISE_GENERATOR_SETTINGS, END_ISLANDS_DENSITY,
-    END_LEVEL_STEM, EXTRACTED_NOISE_SETTINGS_REGISTRY_EXPECTATIONS, NETHER_LEVEL_STEM,
+    noise_router_id_for_settings, BUILTIN_NOISE_GENERATOR_SETTINGS, END_ISLANDS_DENSITY, EXTRACTED_NOISE_SETTINGS_REGISTRY_EXPECTATIONS,
     OVERWORLD_SPAWN_TARGET, TEST_CACHE_ALL_IN_CELL_DENSITY, TEST_NEGATIVE_DENSITY,
     TEST_POSITIVE_DENSITY, TEST_RANGE_CHOICE_DENSITY, WORLD_PRESETS,
 };
 
 mod underground_ore_decoration;
 pub use self::underground_ore_decoration::{
-    ore_vein_decision, ore_vein_decision_at, ore_vein_richness, ore_vein_type_for_toggle,
+    ore_vein_decision, ore_vein_decision_at, ore_vein_richness,
 };
 use self::underground_ore_decoration::{
     apply_underground_ore_decoration_from_source_into_region,
@@ -89,20 +88,17 @@ use self::underground_ore_decoration::{
 
 mod noise_preview_chunk;
 use self::noise_preview_chunk::{
-    live_tree_count, live_tree_decoration_blocks, noise_preview_block_at,
+    live_tree_count, live_tree_decoration_blocks,
     noise_preview_ground_cover_blocks, noise_preview_terrain_height, noise_preview_tree_blocks,
     NoisePreviewTreeCountKind,
 };
-pub use self::noise_preview_chunk::{
-    materialize_noise_preview_chunk, noise_preview_base_column, noise_preview_base_height,
-};
+pub use self::noise_preview_chunk::materialize_noise_preview_chunk;
 
 mod simple_vegetation;
 use self::simple_vegetation::{
     apply_initial_simple_vegetation_decoration_to_chunk, block_predicate_test_in_chunk,
     block_predicate_test_in_region, configured_simple_vegetation_block,
-    place_configured_simple_vegetation_in_target_chunk,
-    place_simple_vegetation_feature_positions_depth_first, placed_simple_vegetation_feature,
+    place_configured_simple_vegetation_in_target_chunk, placed_simple_vegetation_feature,
     region_static_block_name, sample_triangle_int, seedless_noise_salt, simple_vegetation_phase,
     simple_vegetation_source_height, vegetation_flower_noise, PlacedSimpleVegetationFeature,
     SimpleVegetationPhase,
@@ -201,7 +197,7 @@ pub use self::overworld_chunk_generation::*;
 mod worldgen_registry_parsing;
 pub use self::worldgen_registry_parsing::*;
 mod terrain_splines;
-pub use self::terrain_splines::*;
+use self::terrain_splines::*;
 mod density_function_evaluation;
 pub use self::density_function_evaluation::*;
 mod noise_aquifer;
@@ -209,7 +205,7 @@ pub use self::noise_aquifer::*;
 mod noise_sampling;
 pub use self::noise_sampling::*;
 mod generated_sections;
-pub use self::generated_sections::*;
+use self::generated_sections::*;
 mod surface_rule_runtime;
 pub use self::surface_rule_runtime::*;
 mod surface_generation;
@@ -219,7 +215,7 @@ pub use self::carver_generation::*;
 mod carver_application;
 pub use self::carver_application::*;
 mod tree_decoration_generation;
-pub use self::tree_decoration_generation::*;
+use self::tree_decoration_generation::*;
 mod underground_decoration_cache;
 use self::underground_decoration_cache::*;
 mod underground_decoration_placement;
@@ -317,7 +313,6 @@ pub use self::trunk_feature_plans::*;
 mod fallen_tree_feature_plans;
 pub use self::fallen_tree_feature_plans::*;
 mod jigsaw_pool_models;
-pub use self::jigsaw_pool_models::*;
 mod jigsaw_placement;
 pub use self::jigsaw_placement::*;
 mod structure_template_support;
@@ -1026,19 +1021,17 @@ mod tests {
         builtin_density_function, builtin_noise_generator_settings, builtin_noise_router,
         density_function_type, random_state_normal_noise_snapshot, AquiferNoiseSettings,
         BinaryDensityFunction, BiomeGenerationSettingsModel, BlendingDataPacked, BlendingOutput,
-        BlockPos, BlockPredicate, BlockPredicateContext, BlockStateProviderModel, CarverShape,
+        BlockPos, BlockPredicate, BlockPredicateContext, CarverShape,
         CaveDensityOutput, CaveSurface, ConfiguredFeatureSource, DensityFunction, DensityMarker,
-        FeatureConfigurationKind, FeatureFamily, FeatureSizeModel, FlatLayerInfo, FloatProvider,
+        FeatureConfigurationKind, FeatureFamily, FlatLayerInfo, FloatProvider,
         FluidStatus, FoliagePlacerKind, FoliagePlacerModel, GenerationDecorationStep,
-        HeightProvider, HeightRange, HorizontalDirection, MangroveRootPlacementModel,
+        HeightProvider, HeightRange,
         MappedDensityFunction, MobSpawnerDataModel, NoiseRouterPreset, NoiseSettings,
         OreVeinDecisionInput, OreVeinifierConstants, PlacedFeatureSource, PlacementContextModel,
-        PlacementModifier, RandomSpreadType, RandomStateNoiseCache, RootPlacerModel,
-        RuleBasedBlockStateProviderRule, SpawnBlockKind, SpawnColumnHeights, StructureFamily,
+        PlacementModifier, RandomSpreadType, RandomStateNoiseCache, SpawnBlockKind, SpawnColumnHeights, StructureFamily,
         StructurePlacementKind, SurfaceConditionSource, SurfaceMaterialContext, SurfaceRuleKind,
-        SurfaceRulePreset, SurfaceRuleSource, TreeDecoratorModel, TreeFoliageAttachmentModel,
-        TreePlacementBlockKind, TrunkPlacerKind, TrunkPlacerModel, VerticalAnchor,
-        WeightedBlockState, WeightedHeightProvider, WorldCarverType, WorldGenerationHeightContext,
+        SurfaceRulePreset, SurfaceRuleSource,
+        TreePlacementBlockKind, TrunkPlacerKind, TrunkPlacerModel, VerticalAnchor, WeightedHeightProvider, WorldCarverType, WorldGenerationHeightContext,
         AQUIFER_NOISE_SETTINGS, AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS,
         BLENDING_CELL_COLUMN_COUNT, BLENDING_CONSTANTS, BLENDING_NO_VALUE, BLOCK_PREDICATE_TYPES,
         BUILTIN_DENSITY_FUNCTIONS, BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS,
@@ -1054,7 +1047,7 @@ mod tests {
         STRUCTURE_PIECE_TYPES, STRUCTURE_POOL_ELEMENT_TYPES, STRUCTURE_POS_RULE_TEST_TYPES,
         STRUCTURE_PROCESSOR_LISTS, STRUCTURE_PROCESSOR_TYPES, STRUCTURE_RULE_TEST_TYPES,
         STRUCTURE_TYPES, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, SYNTH_NOISE_SOURCES,
-        TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES,
+        TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL,
         WORLD_CARVER_TYPES, WORLD_PRESETS, Y_DENSITY,
     };
     use crate::biome::{quantize_coord, BiomeSourceModel};
