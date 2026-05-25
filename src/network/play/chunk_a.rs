@@ -179,373 +179,282 @@ impl PlaySession {
             ));
         }
 
-        match packet.id {
+        self.handle_play_packet(packet.id, &packet.payload)
+    }
+
+    fn handle_play_packet(&mut self, packet_id: i32, payload: &[u8]) -> DispatchOutcome {
+        match packet_id {
+            SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID => {
+                self.handle_move_payload(payload, MoveShape::Pos)
+            }
+            SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID => {
+                self.handle_move_payload(payload, MoveShape::PosRot)
+            }
+            SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID => {
+                self.handle_move_payload(payload, MoveShape::Rot)
+            }
+            SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID => {
+                self.handle_move_payload(payload, MoveShape::StatusOnly)
+            }
+            _ => {
+                if let Some(outcome) = self.handle_control_or_chat_packet(packet_id, payload) {
+                    return outcome;
+                }
+                if let Some(outcome) = self.handle_container_or_book_packet(packet_id, payload) {
+                    return outcome;
+                }
+                if let Some(outcome) = self.handle_world_interaction_packet(packet_id, payload) {
+                    return outcome;
+                }
+                if let Some(outcome) = self.handle_misc_play_packet(packet_id, payload) {
+                    return outcome;
+                }
+                self.handle_unknown_play_packet(packet_id)
+            }
+        }
+    }
+
+    fn handle_control_or_chat_packet(
+        &mut self,
+        packet_id: i32,
+        payload: &[u8],
+    ) -> Option<DispatchOutcome> {
+        Some(match packet_id {
             SERVERBOUND_ACCEPT_TELEPORTATION_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundAcceptTeleportationPacket::read(&mut input) {
+                match read_serverbound_play_packet(payload, "teleport ack", |input| {
+                    ServerboundAcceptTeleportationPacket::read(input)
+                }) {
                     Ok(ack) => {
                         self.pending_teleports.remove(&ack.teleport_id);
                         DispatchOutcome::Handled
                     }
-                    Err(err) => DispatchOutcome::Disconnect(format!("bad teleport ack: {err}")),
+                    Err(outcome) => outcome,
                 }
             }
             SERVERBOUND_CHANGE_DIFFICULTY_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundChangeDifficultyPacket::read(&mut input) {
-                    Ok(_) => DispatchOutcome::Handled,
-                    Err(err) => {
-                        DispatchOutcome::Disconnect(format!("bad change difficulty packet: {err}"))
-                    }
-                }
+                self.decode_ignored(payload, "change difficulty packet", |input| {
+                    ServerboundChangeDifficultyPacket::read(input)
+                })
             }
-            SERVERBOUND_CHAT_ACK_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundChatAckPacket::read(&mut input) {
-                    Ok(ack) => {
-                        self.last_chat_ack = Some(ack);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => DispatchOutcome::Disconnect(format!("bad chat ack packet: {err}")),
-                }
-            }
-            SERVERBOUND_CHAT_COMMAND_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundChatCommandPacket::read(&mut input) {
-                    Ok(command) => {
-                        self.last_chat_command = Some(command);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => {
-                        DispatchOutcome::Disconnect(format!("bad chat command packet: {err}"))
-                    }
-                }
-            }
-            SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundChatCommandSignedPacket::read(&mut input) {
-                    Ok(command) => {
-                        self.last_signed_chat_command = Some(command);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => DispatchOutcome::Disconnect(format!(
-                        "bad signed chat command packet: {err}"
-                    )),
-                }
-            }
-            SERVERBOUND_CHAT_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundChatPacket::read(&mut input) {
-                    Ok(chat) => {
-                        self.last_chat = Some(chat);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => DispatchOutcome::Disconnect(format!("bad chat packet: {err}")),
-                }
-            }
-            SERVERBOUND_CHAT_SESSION_UPDATE_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundChatSessionUpdatePacket::read(&mut input) {
-                    Ok(update) => {
-                        self.last_chat_session_update = Some(update);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => DispatchOutcome::Disconnect(format!(
-                        "bad chat session update packet: {err}"
-                    )),
-                }
-            }
+            SERVERBOUND_CHAT_ACK_PACKET_ID => self.decode_and_store(
+                payload,
+                "chat ack packet",
+                |input| ServerboundChatAckPacket::read(input),
+                |session, ack| session.last_chat_ack = Some(ack),
+            ),
+            SERVERBOUND_CHAT_COMMAND_PACKET_ID => self.decode_and_store(
+                payload,
+                "chat command packet",
+                |input| ServerboundChatCommandPacket::read(input),
+                |session, command| session.last_chat_command = Some(command),
+            ),
+            SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID => self.decode_and_store(
+                payload,
+                "signed chat command packet",
+                |input| ServerboundChatCommandSignedPacket::read(input),
+                |session, command| session.last_signed_chat_command = Some(command),
+            ),
+            SERVERBOUND_CHAT_PACKET_ID => self.decode_and_store(
+                payload,
+                "chat packet",
+                |input| ServerboundChatPacket::read(input),
+                |session, chat| session.last_chat = Some(chat),
+            ),
+            SERVERBOUND_CHAT_SESSION_UPDATE_PACKET_ID => self.decode_and_store(
+                payload,
+                "chat session update packet",
+                |input| ServerboundChatSessionUpdatePacket::read(input),
+                |session, update| session.last_chat_session_update = Some(update),
+            ),
             SERVERBOUND_CLIENT_COMMAND_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundClientCommandPacket::read(&mut input) {
-                    Ok(_) => DispatchOutcome::Handled,
-                    Err(err) => {
-                        DispatchOutcome::Disconnect(format!("bad client command packet: {err}"))
-                    }
-                }
+                self.decode_ignored(payload, "client command packet", |input| {
+                    ServerboundClientCommandPacket::read(input)
+                })
             }
             SERVERBOUND_CLIENT_TICK_END_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundClientTickEndPacket::read(&mut input) {
-                    Ok(_) => DispatchOutcome::Handled,
-                    Err(err) => {
-                        DispatchOutcome::Disconnect(format!("bad client tick end packet: {err}"))
-                    }
-                }
+                self.decode_ignored(payload, "client tick end packet", |input| {
+                    ServerboundClientTickEndPacket::read(input)
+                })
             }
             SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundChunkBatchReceivedPacket::read(&mut input) {
-                    Ok(_) => DispatchOutcome::Handled,
-                    Err(err) => {
-                        DispatchOutcome::Disconnect(format!("bad chunk batch received: {err}"))
-                    }
-                }
+                self.decode_ignored(payload, "chunk batch received", |input| {
+                    ServerboundChunkBatchReceivedPacket::read(input)
+                })
             }
-            SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundCommandSuggestionPacket::read(&mut input) {
-                    Ok(suggestion) => {
-                        self.last_command_suggestion = Some(suggestion);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => {
-                        DispatchOutcome::Disconnect(format!("bad command suggestion packet: {err}"))
-                    }
-                }
-            }
+            SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID => self.decode_and_store(
+                payload,
+                "command suggestion packet",
+                |input| ServerboundCommandSuggestionPacket::read(input),
+                |session, suggestion| session.last_command_suggestion = Some(suggestion),
+            ),
             SERVERBOUND_CONFIGURATION_ACKNOWLEDGED_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundConfigurationAcknowledgedPacket::read(&mut input) {
+                match read_serverbound_play_packet(
+                    payload,
+                    "configuration acknowledged packet",
+                    |input| ServerboundConfigurationAcknowledgedPacket::read(input),
+                ) {
                     Ok(_) => {
                         self.state = PlayState::Reconfiguring;
                         DispatchOutcome::Handled
                     }
-                    Err(err) => DispatchOutcome::Disconnect(format!(
-                        "bad configuration acknowledged packet: {err}"
-                    )),
+                    Err(outcome) => outcome,
                 }
             }
-            SERVERBOUND_CONTAINER_BUTTON_CLICK_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundContainerButtonClickPacket::read(&mut input) {
-                    Ok(click) => {
-                        self.last_container_button_click = Some(click);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => DispatchOutcome::Disconnect(format!(
-                        "bad container button click packet: {err}"
-                    )),
-                }
-            }
-            SERVERBOUND_CONTAINER_CLICK_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundContainerClickPacket::read(&mut input) {
-                    Ok(click) => {
-                        self.last_container_click = Some(click);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => {
-                        DispatchOutcome::Disconnect(format!("bad container click packet: {err}"))
-                    }
-                }
-            }
-            SERVERBOUND_CONTAINER_CLOSE_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundContainerClosePacket::read(&mut input) {
-                    Ok(close) => {
-                        self.last_container_close = Some(close);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => {
-                        DispatchOutcome::Disconnect(format!("bad container close packet: {err}"))
-                    }
-                }
-            }
-            SERVERBOUND_EDIT_BOOK_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundEditBookPacket::read(&mut input) {
-                    Ok(book) => {
-                        self.last_edit_book = Some(book);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => DispatchOutcome::Disconnect(format!("bad edit book packet: {err}")),
-                }
-            }
-            SERVERBOUND_INTERACT_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundInteractPacket::read(&mut input) {
-                    Ok(interact) => {
-                        self.last_interact = Some(interact);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => DispatchOutcome::Disconnect(format!("bad interact packet: {err}")),
-                }
-            }
-            SERVERBOUND_JIGSAW_GENERATE_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundJigsawGeneratePacket::read(&mut input) {
-                    Ok(jigsaw) => {
-                        self.last_jigsaw_generate = Some(jigsaw);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => {
-                        DispatchOutcome::Disconnect(format!("bad jigsaw generate packet: {err}"))
-                    }
-                }
-            }
+            _ => return None,
+        })
+    }
+
+    fn handle_container_or_book_packet(
+        &mut self,
+        packet_id: i32,
+        payload: &[u8],
+    ) -> Option<DispatchOutcome> {
+        Some(match packet_id {
+            SERVERBOUND_CONTAINER_BUTTON_CLICK_PACKET_ID => self.decode_and_store(
+                payload,
+                "container button click packet",
+                |input| ServerboundContainerButtonClickPacket::read(input),
+                |session, click| session.last_container_button_click = Some(click),
+            ),
+            SERVERBOUND_CONTAINER_CLICK_PACKET_ID => self.decode_and_store(
+                payload,
+                "container click packet",
+                |input| ServerboundContainerClickPacket::read(input),
+                |session, click| session.last_container_click = Some(click),
+            ),
+            SERVERBOUND_CONTAINER_CLOSE_PACKET_ID => self.decode_and_store(
+                payload,
+                "container close packet",
+                |input| ServerboundContainerClosePacket::read(input),
+                |session, close| session.last_container_close = Some(close),
+            ),
+            SERVERBOUND_EDIT_BOOK_PACKET_ID => self.decode_and_store(
+                payload,
+                "edit book packet",
+                |input| ServerboundEditBookPacket::read(input),
+                |session, book| session.last_edit_book = Some(book),
+            ),
+            _ => return None,
+        })
+    }
+
+    fn handle_world_interaction_packet(
+        &mut self,
+        packet_id: i32,
+        payload: &[u8],
+    ) -> Option<DispatchOutcome> {
+        Some(match packet_id {
+            SERVERBOUND_INTERACT_PACKET_ID => self.decode_and_store(
+                payload,
+                "interact packet",
+                |input| ServerboundInteractPacket::read(input),
+                |session, interact| session.last_interact = Some(interact),
+            ),
+            SERVERBOUND_JIGSAW_GENERATE_PACKET_ID => self.decode_and_store(
+                payload,
+                "jigsaw generate packet",
+                |input| ServerboundJigsawGeneratePacket::read(input),
+                |session, jigsaw| session.last_jigsaw_generate = Some(jigsaw),
+            ),
             SERVERBOUND_LOCK_DIFFICULTY_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundLockDifficultyPacket::read(&mut input) {
-                    Ok(_) => DispatchOutcome::Handled,
-                    Err(err) => {
-                        DispatchOutcome::Disconnect(format!("bad lock difficulty packet: {err}"))
-                    }
-                }
+                self.decode_ignored(payload, "lock difficulty packet", |input| {
+                    ServerboundLockDifficultyPacket::read(input)
+                })
             }
-            SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID => {
-                self.handle_move_payload(packet.payload, MoveShape::Pos)
-            }
-            SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID => {
-                self.handle_move_payload(packet.payload, MoveShape::PosRot)
-            }
-            SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID => {
-                self.handle_move_payload(packet.payload, MoveShape::Rot)
-            }
-            SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID => {
-                self.handle_move_payload(packet.payload, MoveShape::StatusOnly)
-            }
-            SERVERBOUND_MOVE_VEHICLE_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundMoveVehiclePacket::read(&mut input) {
-                    Ok(packet) => {
-                        self.last_vehicle_move = Some(packet);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => {
-                        DispatchOutcome::Disconnect(format!("bad vehicle movement packet: {err}"))
-                    }
-                }
-            }
+            SERVERBOUND_MOVE_VEHICLE_PACKET_ID => self.decode_and_store(
+                payload,
+                "vehicle movement packet",
+                |input| ServerboundMoveVehiclePacket::read(input),
+                |session, packet| session.last_vehicle_move = Some(packet),
+            ),
             SERVERBOUND_PADDLE_BOAT_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundPaddleBoatPacket::read(&mut input) {
-                    Ok(_) => DispatchOutcome::Handled,
-                    Err(err) => {
-                        DispatchOutcome::Disconnect(format!("bad paddle boat packet: {err}"))
-                    }
-                }
+                self.decode_ignored(payload, "paddle boat packet", |input| {
+                    ServerboundPaddleBoatPacket::read(input)
+                })
             }
-            SERVERBOUND_PICK_ITEM_FROM_BLOCK_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundPickItemFromBlockPacket::read(&mut input) {
-                    Ok(pick) => {
-                        self.last_pick_item_from_block = Some(pick);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => DispatchOutcome::Disconnect(format!(
-                        "bad pick item from block packet: {err}"
-                    )),
-                }
-            }
-            SERVERBOUND_PICK_ITEM_FROM_ENTITY_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundPickItemFromEntityPacket::read(&mut input) {
-                    Ok(pick) => {
-                        self.last_pick_item_from_entity = Some(pick);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => DispatchOutcome::Disconnect(format!(
-                        "bad pick item from entity packet: {err}"
-                    )),
-                }
-            }
+            SERVERBOUND_PICK_ITEM_FROM_BLOCK_PACKET_ID => self.decode_and_store(
+                payload,
+                "pick item from block packet",
+                |input| ServerboundPickItemFromBlockPacket::read(input),
+                |session, pick| session.last_pick_item_from_block = Some(pick),
+            ),
+            SERVERBOUND_PICK_ITEM_FROM_ENTITY_PACKET_ID => self.decode_and_store(
+                payload,
+                "pick item from entity packet",
+                |input| ServerboundPickItemFromEntityPacket::read(input),
+                |session, pick| session.last_pick_item_from_entity = Some(pick),
+            ),
             SERVERBOUND_PLAYER_INPUT_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundPlayerInputPacket::read(&mut input) {
-                    Ok(_) => DispatchOutcome::Handled,
-                    Err(err) => {
-                        DispatchOutcome::Disconnect(format!("bad player input packet: {err}"))
-                    }
-                }
+                self.decode_ignored(payload, "player input packet", |input| {
+                    ServerboundPlayerInputPacket::read(input)
+                })
             }
             SERVERBOUND_PLAYER_LOADED_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundPlayerLoadedPacket::read(&mut input) {
+                match read_serverbound_play_packet(payload, "player loaded packet", |input| {
+                    ServerboundPlayerLoadedPacket::read(input)
+                }) {
                     Ok(_) => {
                         self.loaded = true;
                         self.state = PlayState::Playing;
                         DispatchOutcome::Handled
                     }
-                    Err(err) => {
-                        DispatchOutcome::Disconnect(format!("bad player loaded packet: {err}"))
-                    }
+                    Err(outcome) => outcome,
                 }
             }
-            SERVERBOUND_PLAYER_COMMAND_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundPlayerCommandPacket::read(&mut input) {
-                    Ok(command) => {
-                        self.last_player_command = Some(command);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => {
-                        DispatchOutcome::Disconnect(format!("bad player command packet: {err}"))
-                    }
-                }
-            }
-            SERVERBOUND_PLAYER_ACTION_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundPlayerActionPacket::read(&mut input) {
-                    Ok(action) => {
-                        self.last_player_action = Some(action);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => {
-                        DispatchOutcome::Disconnect(format!("bad player action packet: {err}"))
-                    }
-                }
-            }
-            SERVERBOUND_PLAYER_ABILITIES_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundPlayerAbilitiesPacket::read(&mut input) {
-                    Ok(abilities) => {
-                        self.last_player_abilities = Some(abilities);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => {
-                        DispatchOutcome::Disconnect(format!("bad player abilities packet: {err}"))
-                    }
-                }
-            }
-            SERVERBOUND_PONG_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundPongPacket::read(&mut input) {
-                    Ok(pong) => {
-                        self.last_pong = Some(pong);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => DispatchOutcome::Disconnect(format!("bad pong packet: {err}")),
-                }
-            }
-            SERVERBOUND_RECIPE_BOOK_CHANGE_SETTINGS_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundRecipeBookChangeSettingsPacket::read(&mut input) {
-                    Ok(settings) => {
-                        self.last_recipe_book_change_settings = Some(settings);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => DispatchOutcome::Disconnect(format!(
-                        "bad recipe book change settings packet: {err}"
-                    )),
-                }
-            }
-            SERVERBOUND_RECIPE_BOOK_SEEN_RECIPE_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundRecipeBookSeenRecipePacket::read(&mut input) {
-                    Ok(recipe) => {
-                        self.last_recipe_book_seen_recipe = Some(recipe);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => DispatchOutcome::Disconnect(format!(
-                        "bad recipe book seen recipe packet: {err}"
-                    )),
-                }
-            }
-            SERVERBOUND_RENAME_ITEM_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundRenameItemPacket::read(&mut input) {
-                    Ok(rename_item) => {
-                        self.last_rename_item = Some(rename_item);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => {
-                        DispatchOutcome::Disconnect(format!("bad rename item packet: {err}"))
-                    }
-                }
-            }
+            SERVERBOUND_PLAYER_COMMAND_PACKET_ID => self.decode_and_store(
+                payload,
+                "player command packet",
+                |input| ServerboundPlayerCommandPacket::read(input),
+                |session, command| session.last_player_command = Some(command),
+            ),
+            SERVERBOUND_PLAYER_ACTION_PACKET_ID => self.decode_and_store(
+                payload,
+                "player action packet",
+                |input| ServerboundPlayerActionPacket::read(input),
+                |session, action| session.last_player_action = Some(action),
+            ),
+            SERVERBOUND_PLAYER_ABILITIES_PACKET_ID => self.decode_and_store(
+                payload,
+                "player abilities packet",
+                |input| ServerboundPlayerAbilitiesPacket::read(input),
+                |session, abilities| session.last_player_abilities = Some(abilities),
+            ),
+            SERVERBOUND_PONG_PACKET_ID => self.decode_and_store(
+                payload,
+                "pong packet",
+                |input| ServerboundPongPacket::read(input),
+                |session, pong| session.last_pong = Some(pong),
+            ),
+            _ => return None,
+        })
+    }
+
+    fn handle_misc_play_packet(
+        &mut self,
+        packet_id: i32,
+        payload: &[u8],
+    ) -> Option<DispatchOutcome> {
+        Some(match packet_id {
+            SERVERBOUND_RECIPE_BOOK_CHANGE_SETTINGS_PACKET_ID => self.decode_and_store(
+                payload,
+                "recipe book change settings packet",
+                |input| ServerboundRecipeBookChangeSettingsPacket::read(input),
+                |session, settings| session.last_recipe_book_change_settings = Some(settings),
+            ),
+            SERVERBOUND_RECIPE_BOOK_SEEN_RECIPE_PACKET_ID => self.decode_and_store(
+                payload,
+                "recipe book seen recipe packet",
+                |input| ServerboundRecipeBookSeenRecipePacket::read(input),
+                |session, recipe| session.last_recipe_book_seen_recipe = Some(recipe),
+            ),
+            SERVERBOUND_RENAME_ITEM_PACKET_ID => self.decode_and_store(
+                payload,
+                "rename item packet",
+                |input| ServerboundRenameItemPacket::read(input),
+                |session, rename_item| session.last_rename_item = Some(rename_item),
+            ),
             SERVERBOUND_RESOURCE_PACK_PACKET_ID => {
-                let mut input = &packet.payload[..];
+                let mut input = payload;
                 match ServerboundResourcePackPacket::read(&mut input) {
                     Ok(response) if input.is_empty() => {
                         self.last_resource_pack_response = Some(response);
@@ -554,27 +463,24 @@ impl PlaySession {
                     Ok(_) => DispatchOutcome::Disconnect(
                         "bad resource pack packet: trailing payload".to_string(),
                     ),
-                    Err(err) => {
-                        DispatchOutcome::Disconnect(format!("bad resource pack packet: {err}"))
-                    }
+                    Err(err) => bad_play_packet("resource pack packet", err),
                 }
             }
             SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundSetCarriedItemPacket::read(&mut input) {
+                match read_serverbound_play_packet(payload, "carried item packet", |input| {
+                    ServerboundSetCarriedItemPacket::read(input)
+                }) {
                     Ok(held) => {
                         if (0..=8).contains(&held.slot) {
                             self.selected_slot = held.slot;
                         }
                         DispatchOutcome::Handled
                     }
-                    Err(err) => {
-                        DispatchOutcome::Disconnect(format!("bad carried item packet: {err}"))
-                    }
+                    Err(outcome) => outcome,
                 }
             }
             SERVERBOUND_SET_BEACON_PACKET_ID => {
-                let mut input = &packet.payload[..];
+                let mut input = payload;
                 match ServerboundSetBeaconPacket::read(&mut input) {
                     Ok(beacon) if input.is_empty() => {
                         self.last_set_beacon = Some(beacon);
@@ -583,119 +489,107 @@ impl PlaySession {
                     Ok(_) => DispatchOutcome::Disconnect(
                         "bad set beacon packet: trailing payload".to_string(),
                     ),
-                    Err(err) => {
-                        DispatchOutcome::Disconnect(format!("bad set beacon packet: {err}"))
-                    }
+                    Err(err) => bad_play_packet("set beacon packet", err),
                 }
             }
-            SERVERBOUND_SET_COMMAND_BLOCK_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundSetCommandBlockPacket::read(&mut input) {
-                    Ok(command) => {
-                        self.last_set_command_block = Some(command);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => {
-                        DispatchOutcome::Disconnect(format!("bad set command block packet: {err}"))
-                    }
-                }
+            _ => return self.handle_command_or_item_play_packet(packet_id, payload),
+        })
+    }
+
+    fn handle_command_or_item_play_packet(
+        &mut self,
+        packet_id: i32,
+        payload: &[u8],
+    ) -> Option<DispatchOutcome> {
+        Some(match packet_id {
+            SERVERBOUND_SET_COMMAND_BLOCK_PACKET_ID => self.decode_and_store(
+                payload,
+                "set command block packet",
+                |input| ServerboundSetCommandBlockPacket::read(input),
+                |session, command| session.last_set_command_block = Some(command),
+            ),
+            SERVERBOUND_SET_COMMAND_MINECART_PACKET_ID => self.decode_and_store(
+                payload,
+                "set command minecart packet",
+                |input| ServerboundSetCommandMinecartPacket::read(input),
+                |session, command| session.last_set_command_minecart = Some(command),
+            ),
+            SERVERBOUND_SET_CREATIVE_MODE_SLOT_PACKET_ID => self.decode_and_store(
+                payload,
+                "set creative mode slot packet",
+                |input| ServerboundSetCreativeModeSlotPacket::read(input),
+                |session, slot| session.last_set_creative_mode_slot = Some(slot),
+            ),
+            SERVERBOUND_SET_STRUCTURE_BLOCK_PACKET_ID => self.decode_and_store(
+                payload,
+                "set structure block packet",
+                |input| ServerboundSetStructureBlockPacket::read(input),
+                |session, structure| session.last_set_structure_block = Some(structure),
+            ),
+            SERVERBOUND_SELECT_TRADE_PACKET_ID => self.decode_and_store(
+                payload,
+                "select trade packet",
+                |input| ServerboundSelectTradePacket::read(input),
+                |session, select_trade| session.last_select_trade = Some(select_trade),
+            ),
+            SERVERBOUND_SIGN_UPDATE_PACKET_ID => self.decode_and_store(
+                payload,
+                "sign update packet",
+                |input| ServerboundSignUpdatePacket::read(input),
+                |session, sign_update| session.last_sign_update = Some(sign_update),
+            ),
+            SERVERBOUND_SWING_PACKET_ID => self.decode_ignored(payload, "swing packet", |input| {
+                ServerboundSwingPacket::read(input)
+            }),
+            SERVERBOUND_USE_ITEM_PACKET_ID => self.decode_and_store(
+                payload,
+                "use item packet",
+                |input| ServerboundUseItemPacket::read(input),
+                |session, use_item| session.last_use_item = Some(use_item),
+            ),
+            SERVERBOUND_USE_ITEM_ON_PACKET_ID => self.decode_and_store(
+                payload,
+                "use item on packet",
+                |input| ServerboundUseItemOnPacket::read(input),
+                |session, use_item_on| session.last_use_item_on = Some(use_item_on),
+            ),
+            _ => return None,
+        })
+    }
+
+    fn handle_unknown_play_packet(&self, packet_id: i32) -> DispatchOutcome {
+        if PlayProtocolRegistry::new().is_serverbound_play_packet(packet_id) {
+            DispatchOutcome::Handled
+        } else {
+            DispatchOutcome::Disconnect(format!("unknown play packet id {packet_id}"))
+        }
+    }
+
+    fn decode_and_store<T>(
+        &mut self,
+        payload: &[u8],
+        packet_name: &'static str,
+        read: impl FnOnce(&mut &[u8]) -> io::Result<T>,
+        store: impl FnOnce(&mut Self, T),
+    ) -> DispatchOutcome {
+        match read_serverbound_play_packet(payload, packet_name, read) {
+            Ok(packet) => {
+                store(self, packet);
+                DispatchOutcome::Handled
             }
-            SERVERBOUND_SET_COMMAND_MINECART_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundSetCommandMinecartPacket::read(&mut input) {
-                    Ok(command) => {
-                        self.last_set_command_minecart = Some(command);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => DispatchOutcome::Disconnect(format!(
-                        "bad set command minecart packet: {err}"
-                    )),
-                }
-            }
-            SERVERBOUND_SET_CREATIVE_MODE_SLOT_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundSetCreativeModeSlotPacket::read(&mut input) {
-                    Ok(slot) => {
-                        self.last_set_creative_mode_slot = Some(slot);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => DispatchOutcome::Disconnect(format!(
-                        "bad set creative mode slot packet: {err}"
-                    )),
-                }
-            }
-            SERVERBOUND_SET_STRUCTURE_BLOCK_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundSetStructureBlockPacket::read(&mut input) {
-                    Ok(structure) => {
-                        self.last_set_structure_block = Some(structure);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => DispatchOutcome::Disconnect(format!(
-                        "bad set structure block packet: {err}"
-                    )),
-                }
-            }
-            SERVERBOUND_SELECT_TRADE_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundSelectTradePacket::read(&mut input) {
-                    Ok(select_trade) => {
-                        self.last_select_trade = Some(select_trade);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => {
-                        DispatchOutcome::Disconnect(format!("bad select trade packet: {err}"))
-                    }
-                }
-            }
-            SERVERBOUND_SIGN_UPDATE_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundSignUpdatePacket::read(&mut input) {
-                    Ok(sign_update) => {
-                        self.last_sign_update = Some(sign_update);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => {
-                        DispatchOutcome::Disconnect(format!("bad sign update packet: {err}"))
-                    }
-                }
-            }
-            SERVERBOUND_SWING_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundSwingPacket::read(&mut input) {
-                    Ok(_) => DispatchOutcome::Handled,
-                    Err(err) => DispatchOutcome::Disconnect(format!("bad swing packet: {err}")),
-                }
-            }
-            SERVERBOUND_USE_ITEM_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundUseItemPacket::read(&mut input) {
-                    Ok(use_item) => {
-                        self.last_use_item = Some(use_item);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => DispatchOutcome::Disconnect(format!("bad use item packet: {err}")),
-                }
-            }
-            SERVERBOUND_USE_ITEM_ON_PACKET_ID => {
-                let mut input = &packet.payload[..];
-                match ServerboundUseItemOnPacket::read(&mut input) {
-                    Ok(use_item_on) => {
-                        self.last_use_item_on = Some(use_item_on);
-                        DispatchOutcome::Handled
-                    }
-                    Err(err) => {
-                        DispatchOutcome::Disconnect(format!("bad use item on packet: {err}"))
-                    }
-                }
-            }
-            _ => {
-                if PlayProtocolRegistry::new().is_serverbound_play_packet(packet.id) {
-                    DispatchOutcome::Handled
-                } else {
-                    DispatchOutcome::Disconnect(format!("unknown play packet id {}", packet.id))
-                }
-            }
+            Err(outcome) => outcome,
+        }
+    }
+
+    fn decode_ignored<T>(
+        &mut self,
+        payload: &[u8],
+        packet_name: &'static str,
+        read: impl FnOnce(&mut &[u8]) -> io::Result<T>,
+    ) -> DispatchOutcome {
+        match read_serverbound_play_packet(payload, packet_name, read) {
+            Ok(_) => DispatchOutcome::Handled,
+            Err(outcome) => outcome,
         }
     }
 
@@ -758,8 +652,12 @@ impl PlaySession {
         instructions
     }
 
-    pub(super) fn handle_move_payload(&mut self, payload: Vec<u8>, shape: MoveShape) -> DispatchOutcome {
-        let mut input = &payload[..];
+    pub(super) fn handle_move_payload(
+        &mut self,
+        payload: &[u8],
+        shape: MoveShape,
+    ) -> DispatchOutcome {
+        let mut input = payload;
         match ServerboundMovePlayerPacket::read_shape(&mut input, shape) {
             Ok(packet) => {
                 self.last_move = Some(packet);
@@ -768,6 +666,19 @@ impl PlaySession {
             Err(err) => DispatchOutcome::Disconnect(format!("bad movement packet: {err}")),
         }
     }
+}
+
+fn read_serverbound_play_packet<T>(
+    payload: &[u8],
+    packet_name: &'static str,
+    read: impl FnOnce(&mut &[u8]) -> io::Result<T>,
+) -> Result<T, DispatchOutcome> {
+    let mut input = payload;
+    read(&mut input).map_err(|err| bad_play_packet(packet_name, err))
+}
+
+fn bad_play_packet(packet_name: &str, err: io::Error) -> DispatchOutcome {
+    DispatchOutcome::Disconnect(format!("bad {packet_name}: {err}"))
 }
 
 pub(super) fn is_command_like_play_packet(packet_id: i32) -> bool {
@@ -920,8 +831,7 @@ impl PlayerChunkSender {
         // of distant terrain while the near ring is still loading.
         let chunks = if !self.memory_connection && self.pending_chunks.len() > max_batch_size {
             let mut nearest_positions: Vec<_> = self.pending_chunks.iter().copied().collect();
-            nearest_positions
-                .sort_by_key(|pos| (chunk_distance_squared(player_pos, *pos), *pos));
+            nearest_positions.sort_by_key(|pos| (chunk_distance_squared(player_pos, *pos), *pos));
             nearest_positions.truncate(max_batch_size);
             nearest_positions
                 .into_iter()
@@ -959,7 +869,9 @@ pub(super) fn write_bool<W: Write>(writer: &mut W, value: bool) -> io::Result<()
     writer.write_all(&[u8::from(value)])
 }
 
-pub(super) fn read_nullable_signature<R: Read>(reader: &mut R) -> io::Result<Option<MessageSignature>> {
+pub(super) fn read_nullable_signature<R: Read>(
+    reader: &mut R,
+) -> io::Result<Option<MessageSignature>> {
     if read_bool(reader)? {
         Ok(Some(MessageSignature::read(reader)?))
     } else {
@@ -1009,6 +921,11 @@ pub(super) fn read_block_position<R: Read>(reader: &mut R) -> io::Result<(i32, i
     Ok(unpack_block_position(i64::from_be_bytes(bytes)))
 }
 
-pub(super) fn write_block_position<W: Write>(writer: &mut W, x: i32, y: i32, z: i32) -> io::Result<()> {
+pub(super) fn write_block_position<W: Write>(
+    writer: &mut W,
+    x: i32,
+    y: i32,
+    z: i32,
+) -> io::Result<()> {
     writer.write_all(&pack_block_position(x, y, z).to_be_bytes())
 }
