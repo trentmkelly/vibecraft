@@ -88,7 +88,9 @@ mod map_state;
 #[cfg(test)]
 mod mob_family;
 mod mob_interaction;
+#[cfg(test)]
 mod movement_physics;
+#[cfg(test)]
 mod movement_validation;
 mod network;
 mod non_living_entity;
