@@ -203,6 +203,13 @@ fn merchant_offer_applies_special_price_demand_stock_and_payment_consumption() {
     offer.demand = 3;
     offer.special_price_diff = -1;
     assert_eq!(offer.cost_a_count(), 7);
+    offer.special_price_diff = -100;
+    assert_eq!(offer.cost_a_count(), 1);
+    offer.demand = 100;
+    offer.special_price_diff = 0;
+    assert_eq!(offer.cost_a_count(), 64);
+    offer.demand = 3;
+    offer.special_price_diff = -1;
 
     let mut emeralds = ItemStack::new("minecraft:emerald", 8);
     let mut book = ItemStack::new("minecraft:book", 1);

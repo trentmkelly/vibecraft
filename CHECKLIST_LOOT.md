@@ -114,7 +114,7 @@
 ## Villager Trading System
 
 - [ ] Implement `MerchantOffer`: input1, input2 (optional), result, `uses`, `maxUses`, `rewardExp`, `specialPrice`, `priceMultiplier`, `demand`, `ignoreDiscount` flag
-- [ ] Implement trade price formula: Java `MerchantOffer.getModifiedCostCount`: `clamp(baseCost + max(0, floor(baseCost * demand * priceMultiplier)) + specialPrice, 1, maxStackSize)`
+- [x] Implement trade price formula: Java `MerchantOffer.getModifiedCostCount`: `clamp(baseCost + max(0, floor(baseCost * demand * priceMultiplier)) + specialPrice, 1, maxStackSize)` - Java 26.1.2 computes demand inflation with `max(0, floor(basePrice * demand * priceMultiplier))`, adds `specialPriceDiff`, then clamps to `1..cost.itemStack().getMaxStackSize()`; Rust `MerchantOffer::cost_a_count` mirrors that formula and `get_cost_a`/trade consumption use the modified count; covered by `merchant_offer_applies_special_price_demand_stock_and_payment_consumption`, including demand inflation plus both clamp bounds.
 - [ ] Implement demand mechanics: demand increments after each purchase, decays toward 0 after restocking
 - [ ] Implement `specialPrice` modification from hero-of-the-village effect (discount per level)
 - [ ] Implement trade-use XP grant to villager on successful trade
