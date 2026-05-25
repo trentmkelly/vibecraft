@@ -506,8 +506,11 @@ fn horse_inventory_saddle_and_armor_slot_restrictions() {
     assert_eq!(menu.slot_count(), 2 + 15 + PLAYER_SLOTS);
     assert!(menu.may_place(0, &ItemStack::new("minecraft:saddle", 1)));
     assert!(!menu.may_place(0, &ItemStack::new("minecraft:apple", 1)));
+    assert!(menu.may_place(1, &ItemStack::new("minecraft:copper_horse_armor", 1)));
     assert!(menu.may_place(1, &ItemStack::new("minecraft:iron_horse_armor", 1)));
     assert!(menu.may_place(1, &ItemStack::new("minecraft:diamond_horse_armor", 1)));
+    assert!(menu.may_place(1, &ItemStack::new("minecraft:netherite_horse_armor", 1)));
+    assert!(!menu.may_place(1, &ItemStack::new("minecraft:wolf_armor", 1)));
     assert!(!menu.may_place(1, &ItemStack::new("minecraft:apple", 1)));
 
     // Llamas accept colored carpets in the armor slot.
@@ -520,6 +523,60 @@ fn horse_inventory_saddle_and_armor_slot_restrictions() {
     let llama = HorseInventoryMenu::new(llama_layout);
     assert!(llama.may_place(1, &ItemStack::new("minecraft:red_carpet", 1)));
     assert!(!llama.may_place(1, &ItemStack::new("minecraft:iron_horse_armor", 1)));
+
+    let inactive = HorseInventoryMenu::new(HorseLayout {
+        saddle_active: false,
+        armor_active: false,
+        is_llama: false,
+        inventory_columns: 0,
+    });
+    assert!(!inactive.may_place(0, &ItemStack::new("minecraft:saddle", 1)));
+    assert!(!inactive.may_place(1, &ItemStack::new("minecraft:iron_horse_armor", 1)));
+}
+
+#[test]
+fn horse_inventory_quick_move_prioritizes_mount_slots_then_storage() {
+    let layout = HorseLayout {
+        saddle_active: true,
+        armor_active: true,
+        is_llama: false,
+        inventory_columns: 5,
+    };
+    let mut menu = HorseInventoryMenu::new(layout);
+    let mut player = PlayerInventory::new();
+
+    player.set(0, ItemStack::new("minecraft:iron_horse_armor", 1));
+    let armor_slot = layout.player_start() + PLAYER_MAIN_STORAGE;
+    let moved_armor = menu.quick_move(armor_slot, &mut player);
+    assert_eq!(moved_armor.item_id(), "minecraft:iron_horse_armor");
+    assert_eq!(
+        menu.get_slot(HorseInventoryMenu::SLOT_ARMOR, &player)
+            .unwrap()
+            .item_id(),
+        "minecraft:iron_horse_armor"
+    );
+
+    player.set(1, ItemStack::new("minecraft:saddle", 1));
+    let saddle_slot = layout.player_start() + PLAYER_MAIN_STORAGE + 1;
+    let moved_saddle = menu.quick_move(saddle_slot, &mut player);
+    assert_eq!(moved_saddle.item_id(), "minecraft:saddle");
+    assert_eq!(
+        menu.get_slot(HorseInventoryMenu::SLOT_SADDLE, &player)
+            .unwrap()
+            .item_id(),
+        "minecraft:saddle"
+    );
+
+    player.set(2, ItemStack::new("minecraft:wheat", 4));
+    let storage_slot = layout.player_start() + PLAYER_MAIN_STORAGE + 2;
+    let moved_storage = menu.quick_move(storage_slot, &mut player);
+    assert_eq!(moved_storage.item_id(), "minecraft:wheat");
+    assert_eq!(
+        menu.get_slot(HorseInventoryMenu::SLOT_INVENTORY_START, &player)
+            .unwrap()
+            .item_id(),
+        "minecraft:wheat"
+    );
 }
 
 // -------- NautilusInventoryMenu --------
@@ -530,8 +587,38 @@ fn nautilus_inventory_saddle_and_armor_restrictions() {
     assert_eq!(NautilusInventoryMenu::SLOT_COUNT, 38);
     assert!(menu.may_place(0, &ItemStack::new("minecraft:saddle", 1)));
     assert!(!menu.may_place(0, &ItemStack::new("minecraft:apple", 1)));
-    assert!(menu.may_place(1, &ItemStack::new("minecraft:nautilus_armor", 1)));
+    assert!(menu.may_place(1, &ItemStack::new("minecraft:copper_nautilus_armor", 1)));
+    assert!(menu.may_place(1, &ItemStack::new("minecraft:iron_nautilus_armor", 1)));
+    assert!(menu.may_place(1, &ItemStack::new("minecraft:netherite_nautilus_armor", 1)));
     assert!(!menu.may_place(1, &ItemStack::new("minecraft:iron_horse_armor", 1)));
+}
+
+#[test]
+fn nautilus_inventory_quick_move_prioritizes_equipment_slots() {
+    let mut menu = NautilusInventoryMenu::new();
+    let mut player = PlayerInventory::new();
+
+    player.set(0, ItemStack::new("minecraft:diamond_nautilus_armor", 1));
+    let armor_slot = NautilusInventoryMenu::INV_START + PLAYER_MAIN_STORAGE;
+    let moved_armor = menu.quick_move(armor_slot, &mut player);
+    assert_eq!(moved_armor.item_id(), "minecraft:diamond_nautilus_armor");
+    assert_eq!(
+        menu.get_slot(NautilusInventoryMenu::SLOT_ARMOR, &player)
+            .unwrap()
+            .item_id(),
+        "minecraft:diamond_nautilus_armor"
+    );
+
+    player.set(1, ItemStack::new("minecraft:saddle", 1));
+    let saddle_slot = NautilusInventoryMenu::INV_START + PLAYER_MAIN_STORAGE + 1;
+    let moved_saddle = menu.quick_move(saddle_slot, &mut player);
+    assert_eq!(moved_saddle.item_id(), "minecraft:saddle");
+    assert_eq!(
+        menu.get_slot(NautilusInventoryMenu::SLOT_SADDLE, &player)
+            .unwrap()
+            .item_id(),
+        "minecraft:saddle"
+    );
 }
 
 // -------- MerchantMenu --------
@@ -734,9 +821,8 @@ fn double_click_collect_gathers_items_into_cursor_from_chest() {
     let mut player = PlayerInventory::new();
     menu.set_slot(0, ItemStack::new("minecraft:diamond", 3), &mut player);
     menu.set_slot(1, ItemStack::new("minecraft:diamond", 5), &mut player);
-    let total = 2
-        + menu.get_slot(0, &player).unwrap().count()
-        + menu.get_slot(1, &player).unwrap().count();
+    let total =
+        2 + menu.get_slot(0, &player).unwrap().count() + menu.get_slot(1, &player).unwrap().count();
     assert_eq!(total, 10);
 }
 

@@ -6,8 +6,7 @@ use super::*;
 
 /// Saddle / armor / mount-chest inventory menu used by horse, llama, etc.
 /// Slot 0 = saddle (only saddle item), slot 1 = body armor (only horse armor
-/// or carpet for llamas — relaxed to "any armor-like" here since the catalog
-/// is data-driven).
+/// or carpet for llamas).
 #[derive(Debug, Clone, PartialEq)]
 pub struct HorseInventoryMenu {
     saddle: ItemStack,
@@ -94,8 +93,15 @@ impl HorseInventoryMenu {
 
     pub fn may_place(&self, slot: usize, stack: &ItemStack) -> bool {
         match slot {
-            0 => stack.is_empty() || stack.item_id() == "minecraft:saddle",
-            1 => stack.is_empty() || Self::is_horse_armor(stack.item_id(), self.layout.is_llama),
+            0 => {
+                stack.is_empty()
+                    || (self.layout.saddle_active && stack.item_id() == "minecraft:saddle")
+            }
+            1 => {
+                stack.is_empty()
+                    || (self.layout.armor_active
+                        && Self::is_horse_armor(stack.item_id(), self.layout.is_llama))
+            }
             s if s < self.slot_count() => true,
             _ => false,
         }
@@ -108,10 +114,11 @@ impl HorseInventoryMenu {
         matches!(
             item_id,
             "minecraft:leather_horse_armor"
+                | "minecraft:copper_horse_armor"
                 | "minecraft:iron_horse_armor"
                 | "minecraft:golden_horse_armor"
                 | "minecraft:diamond_horse_armor"
-                | "minecraft:wolf_armor"
+                | "minecraft:netherite_horse_armor"
         )
     }
 
@@ -254,10 +261,21 @@ impl NautilusInventoryMenu {
     pub fn may_place(&self, slot: usize, stack: &ItemStack) -> bool {
         match slot {
             0 => stack.is_empty() || stack.item_id() == "minecraft:saddle",
-            1 => stack.is_empty() || stack.item_id() == "minecraft:nautilus_armor",
+            1 => stack.is_empty() || Self::is_nautilus_armor(stack.item_id()),
             s if s < Self::SLOT_COUNT => true,
             _ => false,
         }
+    }
+
+    fn is_nautilus_armor(item_id: &str) -> bool {
+        matches!(
+            item_id,
+            "minecraft:copper_nautilus_armor"
+                | "minecraft:iron_nautilus_armor"
+                | "minecraft:golden_nautilus_armor"
+                | "minecraft:diamond_nautilus_armor"
+                | "minecraft:netherite_nautilus_armor"
+        )
     }
 
     pub fn all_slots(&self, player: &PlayerInventory) -> Vec<ItemStack> {
@@ -642,4 +660,3 @@ impl Default for MerchantMenu {
         Self::new()
     }
 }
-
