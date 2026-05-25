@@ -64,6 +64,10 @@ impl CraftingMenu {
         self.highlighted_recipes.iter().copied().collect()
     }
 
+    pub fn recipe_book_type(&self) -> RecipeBookType {
+        RecipeBookType::Crafting
+    }
+
     pub fn slots_changed(&mut self) {
         let items: Vec<Option<&'static str>> = self
             .grid

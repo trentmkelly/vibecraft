@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 
 use crate::inventory::same_item_same_components;
 use crate::item_stack::ItemStack;
-use crate::recipe_system::{CraftingStack, IngredientSpec, RecipeKind, RecipeMap};
+use crate::recipe_system::{CraftingStack, IngredientSpec, RecipeBookType, RecipeKind, RecipeMap};
 
 pub const INVENTORY_SIZE: usize = 36;
 pub const HOTBAR_SIZE: usize = 9;
@@ -772,6 +772,10 @@ impl InventoryMenu {
         self.highlighted_recipes.remove(recipe_id);
     }
 
+    pub fn recipe_book_type(&self) -> RecipeBookType {
+        RecipeBookType::Crafting
+    }
+
     pub fn place_recipe_from_inventory(&mut self, recipe_id: &str, use_max_items: bool) -> bool {
         if !self.unlocked_recipes.contains(recipe_id) {
             return false;
@@ -779,7 +783,9 @@ impl InventoryMenu {
         let Some(holder) = self.recipes.by_key(recipe_id) else {
             return false;
         };
-        let Some(placement) = crafting_recipe_placement(&holder.recipe, self.crafting.width, self.crafting.height) else {
+        let Some(placement) =
+            crafting_recipe_placement(&holder.recipe, self.crafting.width, self.crafting.height)
+        else {
             return false;
         };
 
@@ -799,7 +805,9 @@ impl InventoryMenu {
             let Some(ingredient) = ingredient else {
                 continue;
             };
-            let Some((player_slot, item_id)) = find_player_slot_matching(&next.player, ingredient, amount) else {
+            let Some((player_slot, item_id)) =
+                find_player_slot_matching(&next.player, ingredient, amount)
+            else {
                 return false;
             };
             next.player.remove(player_slot, amount);

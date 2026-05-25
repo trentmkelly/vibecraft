@@ -786,6 +786,7 @@ mod tests_b;
 pub use tests_b::*;
 mod tests_c;
 pub use tests_c::*;
+mod recipe_book_packets;
 mod tests_d;
 pub use tests_d::*;
 mod tests_e;

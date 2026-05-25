@@ -1,6 +1,5 @@
 use super::*;
 
-
 pub fn default_recipe_book_settings() -> ClientboundRecipeBookSettingsPacket {
     ClientboundRecipeBookSettingsPacket {
         crafting: RecipeBookTypeSettings::CLOSED_UNFILTERED,
@@ -33,7 +32,11 @@ pub fn load_recipe_book_from_nbt(
         },
         blast_furnace: RecipeBookTypeSettings {
             open: compound_bool_byte(recipe_book, "isBlastingFurnaceGuiOpen", false),
-            filtering: compound_bool_byte(recipe_book, "isBlastingFurnaceFilteringCraftable", false),
+            filtering: compound_bool_byte(
+                recipe_book,
+                "isBlastingFurnaceFilteringCraftable",
+                false,
+            ),
         },
         smoker: RecipeBookTypeSettings {
             open: compound_bool_byte(recipe_book, "isSmokerGuiOpen", false),
@@ -97,6 +100,9 @@ pub fn apply_place_recipe_packet(
     packet: ServerboundPlaceRecipePacket,
     recipes: &RecipeMap,
 ) -> bool {
+    if packet.container_id != 0 {
+        return false;
+    }
     if packet.recipe_index < 0 {
         return false;
     }
@@ -232,7 +238,10 @@ fn java_untrusted_http_uri(link: &str) -> Option<&str> {
         "http" | "https" => {}
         _ => return None,
     }
-    if link.chars().any(|ch| ch.is_ascii_control() || ch.is_ascii_whitespace()) {
+    if link
+        .chars()
+        .any(|ch| ch.is_ascii_control() || ch.is_ascii_whitespace())
+    {
         return None;
     }
     Some(link)
@@ -761,8 +770,8 @@ pub fn drain_chunk_sender(
     player_chunk_pos: ChunkPos,
     mut live_fluid_unpack: Option<(&mut LiveFluidTicks, i64)>,
 ) -> io::Result<usize> {
-    let Some(batch) = chunk_sender
-        .send_next_chunks(player_chunk_pos, |pos| chunk_pipeline.try_get_ready(pos))
+    let Some(batch) =
+        chunk_sender.send_next_chunks(player_chunk_pos, |pos| chunk_pipeline.try_get_ready(pos))
     else {
         return Ok(0);
     };
