@@ -55,7 +55,15 @@ fn fishing_loot_uses_tool_origin_luck_and_category_tables() {
     );
     engine.insert_table(
         "minecraft:gameplay/fishing/fish",
-        table_with_pool(LootPool::single(LootEntry::item("minecraft:cod", 1))),
+        table_with_pool(LootPool::single(LootEntry::Item {
+            item: "minecraft:cod".to_string(),
+            weight: 1,
+            quality: 0,
+            conditions: vec![LootCondition::MatchTool {
+                item: "minecraft:fishing_rod".to_string(),
+            }],
+            functions: Vec::new(),
+        })),
     );
     engine.insert_table(
         "minecraft:gameplay/fishing/treasure",
@@ -68,24 +76,30 @@ fn fishing_loot_uses_tool_origin_luck_and_category_tables() {
             entries: vec![
                 LootEntry::WeightedNestedTable {
                     table: "minecraft:gameplay/fishing/junk".to_string(),
-                    weight: 1,
-                    quality: -1,
-                    conditions: Vec::new(),
-                },
-                LootEntry::WeightedNestedTable {
-                    table: "minecraft:gameplay/fishing/fish".to_string(),
-                    weight: 0,
-                    quality: 0,
+                    weight: 10,
+                    quality: -2,
                     conditions: Vec::new(),
                 },
                 LootEntry::WeightedNestedTable {
                     table: "minecraft:gameplay/fishing/treasure".to_string(),
-                    weight: 1,
+                    weight: 5,
                     quality: 2,
-                    conditions: vec![LootCondition::EntityProperty {
-                        key: "in_open_water".to_string(),
-                        value: "true".to_string(),
-                    }],
+                    conditions: vec![
+                        LootCondition::EntityProperty {
+                            key: "this_entity".to_string(),
+                            value: "FishingHook".to_string(),
+                        },
+                        LootCondition::EntityProperty {
+                            key: "in_open_water".to_string(),
+                            value: "true".to_string(),
+                        },
+                    ],
+                },
+                LootEntry::WeightedNestedTable {
+                    table: "minecraft:gameplay/fishing/fish".to_string(),
+                    weight: 85,
+                    quality: -1,
+                    conditions: Vec::new(),
                 },
             ],
             conditions: Vec::new(),
@@ -104,12 +118,26 @@ fn fishing_loot_uses_tool_origin_luck_and_category_tables() {
         0.0,
         0.0,
         false,
-        3,
+        2,
     );
     assert_eq!(no_open_water.param_set, LootParamSet::Fishing);
     assert_eq!(
         no_open_water.delivery,
         LootDelivery::DropAt((3.0, 62.0, 4.0), vec![LootStack::new("minecraft:bowl", 1)])
+    );
+
+    let base_fish = resolve_fishing_loot(
+        &engine,
+        "minecraft:fishing_rod",
+        (3.0, 62.0, 4.0),
+        0.0,
+        0.0,
+        false,
+        1,
+    );
+    assert_eq!(
+        base_fish.delivery,
+        LootDelivery::DropAt((3.0, 62.0, 4.0), vec![LootStack::new("minecraft:cod", 1)])
     );
 
     let lucky_open_water = resolve_fishing_loot(
@@ -119,7 +147,7 @@ fn fishing_loot_uses_tool_origin_luck_and_category_tables() {
         2.0,
         8.0,
         true,
-        3,
+        4,
     );
     assert_eq!(
         lucky_open_water.delivery,
