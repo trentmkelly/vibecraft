@@ -700,7 +700,7 @@ pub fn cache_set_block_clones_via_arc_make_mut_so_in_flight_readers_see_old_snap
     assert!(in_flight_snapshot
         .get_block_state(block_pos.x, block_pos.y, block_pos.z)
         .as_deref()
-        .map_or(true, |n| n == "minecraft:air"));
+        .is_none_or(|n| n == "minecraft:air"));
     assert_eq!(
         cache
             .try_get_ready(pos)
@@ -792,7 +792,7 @@ pub fn unpack_chunk_fluid_ticks_restores_saved_ticks_without_scanning_blocks() {
         ("i".to_string(), Tag::String("minecraft:water".to_string())),
         ("x".to_string(), Tag::Int(2 * 16 + 5)),
         ("y".to_string(), Tag::Int(64)),
-        ("z".to_string(), Tag::Int(-1 * 16 + 9)),
+        ("z".to_string(), Tag::Int(-16 + 9)),
         ("t".to_string(), Tag::Int(7)),
         ("p".to_string(), Tag::Int(0)),
     ]));
@@ -807,7 +807,7 @@ pub fn unpack_chunk_fluid_ticks_restores_saved_ticks_without_scanning_blocks() {
     assert_eq!(due.len(), 1, "exactly the one saved tick fired");
     assert_eq!(due[0].pos.x, 2 * 16 + 5);
     assert_eq!(due[0].pos.y, 64);
-    assert_eq!(due[0].pos.z, -1 * 16 + 9);
+    assert_eq!(due[0].pos.z, -16 + 9);
     assert_eq!(due[0].ty, "minecraft:water");
 }
 
