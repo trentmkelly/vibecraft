@@ -117,7 +117,7 @@
 - [ ] Implement `/random`.
 - [ ] Implement `/recipe`.
 - [ ] Implement `/reload`.
-- [ ] Implement `/return`.
+- [x] Implement `/return` — `return_command()` covers Java's gamemaster-gated `return <value>`, `return fail`, and `return run <command>` surfaces, records return/discard events for the execution model, and is covered by `return_command_requires_gamemaster_and_records_success_or_failure`, `return_command_records_forwarded_command_and_rejects_invalid_syntax`, and `return_value_discards_same_depth_continuations`.
 - [ ] Implement `/ride`.
 - [ ] Implement `/rotate`.
 - [ ] Implement `/save-all`, `/save-off`, `/save-on`.
