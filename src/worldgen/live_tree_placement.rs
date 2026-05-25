@@ -1,20 +1,24 @@
 use super::*;
 
+pub(super) struct LiveTreePlacementInput<'a, 'ctx> {
+    pub(super) block_context: &'a TreeDecorationBlockContext<'ctx>,
+    pub(super) previous_source_blocks: &'a TreeBlockOverlay,
+    pub(super) origin: BlockPos,
+    pub(super) config: LiveTreeFeatureConfig,
+    pub(super) rand_a: i32,
+    pub(super) rand_b: i32,
+    pub(super) clipped_tree_height: i32,
+}
+
 pub(super) fn live_tree_placement_plan(
-    block_context: &TreeDecorationBlockContext<'_>,
-    previous_source_blocks: &TreeBlockOverlay,
-    origin: BlockPos,
-    config: LiveTreeFeatureConfig,
-    rand_a: i32,
-    rand_b: i32,
-    clipped_tree_height: i32,
+    input: LiveTreePlacementInput<'_, '_>,
     random: &mut RandomSourceKind,
 ) -> Result<TreePlacementPlan, String> {
     let trunk = TrunkPlacerModel {
-        base_height: config.base_height,
-        height_rand_a: config.height_rand_a,
-        height_rand_b: config.height_rand_b,
-        kind: if matches!(config.foliage.kind, FoliagePlacerKind::Fancy { .. }) {
+        base_height: input.config.base_height,
+        height_rand_a: input.config.height_rand_a,
+        height_rand_b: input.config.height_rand_b,
+        kind: if matches!(input.config.foliage.kind, FoliagePlacerKind::Fancy { .. }) {
             TrunkPlacerKind::Fancy
         } else {
             TrunkPlacerKind::Straight
@@ -22,43 +26,47 @@ pub(super) fn live_tree_placement_plan(
     };
     if !matches!(trunk.kind, TrunkPlacerKind::Fancy) {
         let mut plan = live_straight_blob_tree_placement_plan(
-            origin,
+            input.origin,
             trunk,
-            clipped_tree_height,
-            config.foliage,
-            config.trunk_state,
-            config.leaves_state,
+            input.clipped_tree_height,
+            input.config.foliage,
+            input.config.trunk_state,
+            input.config.leaves_state,
             "minecraft:dirt",
-            rand_a,
-            rand_b,
+            input.rand_a,
+            input.rand_b,
             random,
         )?;
-        filter_live_tree_feature_blocks_like_java(block_context, previous_source_blocks, &mut plan);
+        filter_live_tree_feature_blocks_like_java(
+            input.block_context,
+            input.previous_source_blocks,
+            &mut plan,
+        );
         return Ok(plan);
     }
 
-    let cluster_rolls = (0..fancy_trunk_cluster_roll_count(clipped_tree_height))
+    let cluster_rolls = (0..fancy_trunk_cluster_roll_count(input.clipped_tree_height))
         .map(|_| FancyTrunkClusterRollModel {
             shape_float: feature_random_next_f32(random),
             angle_float: feature_random_next_f32(random),
         })
         .collect::<Vec<_>>();
     let trunk_plan = live_fancy_trunk_placement_plan(
-        block_context,
-        previous_source_blocks,
-        origin,
-        clipped_tree_height,
-        config.trunk_state,
+        input.block_context,
+        input.previous_source_blocks,
+        input.origin,
+        input.clipped_tree_height,
+        input.config.trunk_state,
         "minecraft:dirt",
         &cluster_rolls,
     );
     let mut blocks = trunk_plan.blocks;
-    let (foliage_height, foliage_offset) = match config.foliage.kind {
-        FoliagePlacerKind::Fancy { height } => (height, config.foliage.offset_min),
+    let (foliage_height, foliage_offset) = match input.config.foliage.kind {
+        FoliagePlacerKind::Fancy { height } => (height, input.config.foliage.offset_min),
         _ => (0, 0),
     };
     let leaf_radius =
-        sample_inclusive_i32(config.foliage.radius_min, config.foliage.radius_max, rand_a);
+        sample_inclusive_i32(input.config.foliage.radius_min, input.config.foliage.radius_max, input.rand_a);
     for attachment in trunk_plan.attachments {
         for (y_offset, current_radius) in fancy_foliage_rows(
             foliage_offset,
@@ -70,12 +78,16 @@ pub(super) fn live_tree_placement_plan(
                 attachment.pos,
                 current_radius,
                 y_offset,
-                config.leaves_state,
+                input.config.leaves_state,
             );
         }
     }
     let mut plan = TreePlacementPlan { blocks };
-    filter_live_tree_feature_blocks_like_java(block_context, previous_source_blocks, &mut plan);
+    filter_live_tree_feature_blocks_like_java(
+        input.block_context,
+        input.previous_source_blocks,
+        &mut plan,
+    );
     Ok(plan)
 }
 
@@ -106,17 +118,21 @@ fn filter_live_tree_feature_blocks_like_java(
     plan.blocks = accepted;
 }
 
+pub(super) struct LiveTreeDecoratorInput<'a, 'ctx, 'heights> {
+    pub(super) source_pos: ChunkPos,
+    pub(super) block_context: &'a TreeDecorationBlockContext<'ctx>,
+    pub(super) source_terrain_heights: SourceTerrainHeights<'heights>,
+    pub(super) settings: &'a NoiseGeneratorSettings,
+    pub(super) previous_source_blocks: &'a TreeBlockOverlay,
+    pub(super) decorators: LiveTreeDecoratorSet,
+}
+
 pub(super) fn append_live_tree_decorators(
-    source_pos: ChunkPos,
-    block_context: &TreeDecorationBlockContext<'_>,
-    source_terrain_heights: SourceTerrainHeights<'_>,
-    settings: &NoiseGeneratorSettings,
-    previous_source_blocks: &TreeBlockOverlay,
+    input: LiveTreeDecoratorInput<'_, '_, '_>,
     plan: &mut TreePlacementPlan,
-    decorators: LiveTreeDecoratorSet,
     random: &mut RandomSourceKind,
 ) {
-    if decorators == LiveTreeDecoratorSet::None {
+    if input.decorators == LiveTreeDecoratorSet::None {
         return;
     }
 
@@ -124,7 +140,7 @@ pub(super) fn append_live_tree_decorators(
         .blocks
         .iter()
         .filter(|block| block.kind == TreePlacementBlockKind::Log)
-        .map(|block| local_tree_block_to_world(source_pos, block.pos))
+        .map(|block| local_tree_block_to_world(input.source_pos, block.pos))
         .collect::<Vec<_>>();
     if logs.is_empty() {
         return;
@@ -133,10 +149,10 @@ pub(super) fn append_live_tree_decorators(
         .blocks
         .iter()
         .filter(|block| block.kind == TreePlacementBlockKind::Leaves)
-        .map(|block| local_tree_block_to_world(source_pos, block.pos))
+        .map(|block| local_tree_block_to_world(input.source_pos, block.pos))
         .collect::<Vec<_>>();
 
-    let beehive_probability = match decorators {
+    let beehive_probability = match input.decorators {
         LiveTreeDecoratorSet::None => 0,
         LiveTreeDecoratorSet::Bees {
             probability_per_tree,
@@ -147,31 +163,35 @@ pub(super) fn append_live_tree_decorators(
     };
     consume_live_beehive_decorator_random(&logs, &leaves, beehive_probability, random);
 
-    if matches!(decorators, LiveTreeDecoratorSet::BeesAndLeafLitter { .. }) {
+    if matches!(input.decorators, LiveTreeDecoratorSet::BeesAndLeafLitter { .. }) {
         append_live_place_on_ground_leaf_litter(
-            source_pos,
-            block_context,
-            source_terrain_heights,
-            settings,
-            previous_source_blocks,
+            LiveLeafLitterInput {
+                source_pos: input.source_pos,
+                block_context: input.block_context,
+                source_terrain_heights: input.source_terrain_heights,
+                settings: input.settings,
+                previous_source_blocks: input.previous_source_blocks,
+                tries: 96,
+                radius: 4,
+                height: 2,
+            },
             plan,
             &logs,
-            96,
-            4,
-            2,
             random,
         );
         append_live_place_on_ground_leaf_litter(
-            source_pos,
-            block_context,
-            source_terrain_heights,
-            settings,
-            previous_source_blocks,
+            LiveLeafLitterInput {
+                source_pos: input.source_pos,
+                block_context: input.block_context,
+                source_terrain_heights: input.source_terrain_heights,
+                settings: input.settings,
+                previous_source_blocks: input.previous_source_blocks,
+                tries: 150,
+                radius: 2,
+                height: 2,
+            },
             plan,
             &logs,
-            150,
-            2,
-            2,
             random,
         );
     }
@@ -214,18 +234,21 @@ fn consume_live_beehive_decorator_random(
     let _bee_count_roll = feature_random_next_i32_bound(random, 2);
 }
 
-#[allow(clippy::too_many_arguments)]
-fn append_live_place_on_ground_leaf_litter(
+struct LiveLeafLitterInput<'a, 'ctx, 'heights> {
     source_pos: ChunkPos,
-    block_context: &TreeDecorationBlockContext<'_>,
-    source_terrain_heights: SourceTerrainHeights<'_>,
-    settings: &NoiseGeneratorSettings,
-    previous_source_blocks: &TreeBlockOverlay,
-    plan: &mut TreePlacementPlan,
-    logs_world: &[BlockPos],
+    block_context: &'a TreeDecorationBlockContext<'ctx>,
+    source_terrain_heights: SourceTerrainHeights<'heights>,
+    settings: &'a NoiseGeneratorSettings,
+    previous_source_blocks: &'a TreeBlockOverlay,
     tries: i32,
     radius: i32,
     height: i32,
+}
+
+fn append_live_place_on_ground_leaf_litter(
+    input: LiveLeafLitterInput<'_, '_, '_>,
+    plan: &mut TreePlacementPlan,
+    logs_world: &[BlockPos],
     random: &mut RandomSourceKind,
 ) {
     let mut lowest = logs_world.to_vec();
@@ -245,13 +268,14 @@ fn append_live_place_on_ground_leaf_litter(
         max_z = max_z.max(position.z);
     }
 
-    let mut decorator_blocks: HashMap<(i32, i32, i32), &'static str> = previous_source_blocks
+    let mut decorator_blocks: HashMap<(i32, i32, i32), &'static str> = input
+        .previous_source_blocks
         .iter()
         .map(|(pos, state)| (*pos, *state))
         .collect();
     for block in &plan.blocks {
         decorator_blocks.insert(
-            local_tree_block_to_world_key(source_pos, block.pos),
+            local_tree_block_to_world_key(input.source_pos, block.pos),
             block.state,
         );
     }
@@ -266,28 +290,31 @@ fn append_live_place_on_ground_leaf_litter(
                 .or_insert(height);
         }
     }
-    for _ in 0..tries {
-        let x =
-            min_x - radius + feature_random_next_i32_bound(random, max_x - min_x + radius * 2 + 1);
-        let y = min_y - height + feature_random_next_i32_bound(random, height * 2 + 1);
-        let z =
-            min_z - radius + feature_random_next_i32_bound(random, max_z - min_z + radius * 2 + 1);
+    for _ in 0..input.tries {
+        let x = min_x - input.radius
+            + feature_random_next_i32_bound(random, max_x - min_x + input.radius * 2 + 1);
+        let y = min_y - input.height + feature_random_next_i32_bound(random, input.height * 2 + 1);
+        let z = min_z - input.radius
+            + feature_random_next_i32_bound(random, max_z - min_z + input.radius * 2 + 1);
         let pos = BlockPos { x, y, z };
         let above = BlockPos { x, y: y + 1, z };
-        let above_state = live_tree_decorator_state(block_context, &decorator_blocks, above);
-        let pos_state = live_tree_decorator_state(block_context, &decorator_blocks, pos);
+        let above_state =
+            live_tree_decorator_state(input.block_context, &decorator_blocks, above);
+        let pos_state = live_tree_decorator_state(input.block_context, &decorator_blocks, pos);
         if !matches!(
             block_state_id(&above_state),
             "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air" | "minecraft:vine"
         ) || !tree_decorator_solid_render(&pos_state)
             || {
                 let motion_height = live_tree_motion_blocking_no_leaves_height(
-                    source_pos,
-                    source_terrain_heights,
-                    block_context,
-                    &decorator_blocks,
-                    &motion_height_overlay,
-                    settings,
+                    LiveTreeMotionHeightInput {
+                        source_pos: input.source_pos,
+                        source_terrain_heights: input.source_terrain_heights,
+                        block_context: input.block_context,
+                        decorator_blocks: &decorator_blocks,
+                        motion_height_overlay: &motion_height_overlay,
+                        settings: input.settings,
+                    },
                     x,
                     z,
                 );
@@ -299,7 +326,7 @@ fn append_live_place_on_ground_leaf_litter(
 
         let _state_roll = feature_random_next_i32_bound(random, 12);
         plan.blocks.push(TreePlacementBlock {
-            pos: world_tree_block_to_local(source_pos, above),
+            pos: world_tree_block_to_local(input.source_pos, above),
             state: "minecraft:leaf_litter",
             kind: TreePlacementBlockKind::GroundCover,
         });
@@ -307,37 +334,43 @@ fn append_live_place_on_ground_leaf_litter(
     }
 }
 
-fn live_tree_motion_blocking_no_leaves_height(
+struct LiveTreeMotionHeightInput<'a, 'ctx, 'heights, 'maps> {
     source_pos: ChunkPos,
-    source_terrain_heights: SourceTerrainHeights<'_>,
-    block_context: &TreeDecorationBlockContext<'_>,
-    decorator_blocks: &HashMap<(i32, i32, i32), &'static str>,
-    motion_height_overlay: &HashMap<(i32, i32), i32>,
-    settings: &NoiseGeneratorSettings,
+    source_terrain_heights: SourceTerrainHeights<'heights>,
+    block_context: &'a TreeDecorationBlockContext<'ctx>,
+    decorator_blocks: &'maps HashMap<(i32, i32, i32), &'static str>,
+    motion_height_overlay: &'maps HashMap<(i32, i32), i32>,
+    settings: &'a NoiseGeneratorSettings,
+}
+
+fn live_tree_motion_blocking_no_leaves_height(
+    input: LiveTreeMotionHeightInput<'_, '_, '_, '_>,
     world_x: i32,
     world_z: i32,
 ) -> i32 {
-    let mut height = source_terrain_heights.world_height(
-        source_pos,
+    let mut height = input.source_terrain_heights.world_height(
+        input.source_pos,
         HeightmapKind::MotionBlockingNoLeaves,
         world_x,
         world_z,
-        settings.noise.min_y,
+        input.settings.noise.min_y,
     );
-    if let Some(overlay_height) = motion_height_overlay.get(&(world_x, world_z)) {
+    if let Some(overlay_height) = input.motion_height_overlay.get(&(world_x, world_z)) {
         height = height.max(*overlay_height);
     }
-    if height > settings.noise.min_y {
+    if height > input.settings.noise.min_y {
         return height;
     }
 
     // Rare border case: a tree decorator can probe outside its source chunk. Fall
     // back to the level view there because the source heightmap only covers the
     // chunk that owns the feature.
-    for y in (settings.noise.min_y..settings.noise.min_y + settings.noise.height).rev() {
+    for y in (input.settings.noise.min_y..input.settings.noise.min_y + input.settings.noise.height)
+        .rev()
+    {
         let state = live_tree_decorator_state(
-            block_context,
-            decorator_blocks,
+            input.block_context,
+            input.decorator_blocks,
             BlockPos {
                 x: world_x,
                 y,

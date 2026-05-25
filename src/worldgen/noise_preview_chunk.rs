@@ -646,25 +646,29 @@ pub(super) fn live_tree_decoration_blocks(
             diagnostics.validation_accepts += 1;
             let started = Instant::now();
             let Ok(mut plan) = live_tree_placement_plan(
-                block_context,
-                &block_overlay,
-                origin,
-                tree_config,
-                rand_a,
-                rand_b,
-                clipped_tree_height,
+                LiveTreePlacementInput {
+                    block_context,
+                    previous_source_blocks: &block_overlay,
+                    origin,
+                    config: tree_config,
+                    rand_a,
+                    rand_b,
+                    clipped_tree_height,
+                },
                 &mut random,
             ) else {
                 continue;
             };
             append_live_tree_decorators(
-                chunk_pos,
-                block_context,
-                terrain_heights,
-                settings,
-                &block_overlay,
+                LiveTreeDecoratorInput {
+                    source_pos: chunk_pos,
+                    block_context,
+                    source_terrain_heights: terrain_heights,
+                    settings,
+                    previous_source_blocks: &block_overlay,
+                    decorators: tree_config.decorators,
+                },
                 &mut plan,
-                tree_config.decorators,
                 &mut random,
             );
             diagnostics.placement_plan_ms += started.elapsed().as_millis();

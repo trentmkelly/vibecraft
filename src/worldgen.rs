@@ -122,7 +122,10 @@ use self::live_tree_selection::{
 
 mod live_tree_placement;
 #[cfg(test)] use self::live_tree_placement::tree_decorator_solid_render;
-use self::live_tree_placement::{append_live_tree_decorators, live_tree_placement_plan};
+use self::live_tree_placement::{
+    append_live_tree_decorators, live_tree_placement_plan, LiveTreeDecoratorInput,
+    LiveTreePlacementInput,
+};
 
 mod density_registry;
 pub use self::density_registry::*;
