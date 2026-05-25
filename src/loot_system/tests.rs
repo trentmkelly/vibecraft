@@ -15,30 +15,79 @@ fn table_with_pool(pool: LootPool) -> LootTable {
 
 #[test]
 fn context_entity_types_params_and_dynamic_params_cover_java_surface() {
-    let entity_types = [
-        LootContextEntityType::Block,
-        LootContextEntityType::Entity,
-        LootContextEntityType::Chest,
-        LootContextEntityType::Fishing,
-        LootContextEntityType::Archaeology,
-        LootContextEntityType::AdvancementReward,
-        LootContextEntityType::Gift,
-        LootContextEntityType::Barter,
-        LootContextEntityType::Vault,
-        LootContextEntityType::Command,
-        LootContextEntityType::Selector,
-        LootContextEntityType::AdvancementEntity,
-        LootContextEntityType::Equipment,
+    let surfaces = [
+        (
+            LootSurface::BlockBreak,
+            LootParamSet::Block,
+            LootContextEntityType::Block,
+        ),
+        (
+            LootSurface::EntityDeath,
+            LootParamSet::Entity,
+            LootContextEntityType::Entity,
+        ),
+        (
+            LootSurface::ChestOpen,
+            LootParamSet::Chest,
+            LootContextEntityType::Chest,
+        ),
+        (
+            LootSurface::FishingRetrieve,
+            LootParamSet::Fishing,
+            LootContextEntityType::Fishing,
+        ),
+        (
+            LootSurface::ArchaeologyBrush,
+            LootParamSet::Archaeology,
+            LootContextEntityType::Archaeology,
+        ),
+        (
+            LootSurface::AdvancementReward,
+            LootParamSet::AdvancementReward,
+            LootContextEntityType::AdvancementReward,
+        ),
+        (
+            LootSurface::Gift,
+            LootParamSet::Gift,
+            LootContextEntityType::Gift,
+        ),
+        (
+            LootSurface::PiglinBarter,
+            LootParamSet::Barter,
+            LootContextEntityType::Barter,
+        ),
+        (
+            LootSurface::Vault,
+            LootParamSet::Vault,
+            LootContextEntityType::Vault,
+        ),
+        (
+            LootSurface::Command,
+            LootParamSet::Command,
+            LootContextEntityType::Command,
+        ),
+        (
+            LootSurface::Selector,
+            LootParamSet::Selector,
+            LootContextEntityType::Selector,
+        ),
+        (
+            LootSurface::AdvancementEntity,
+            LootParamSet::AdvancementEntity,
+            LootContextEntityType::AdvancementEntity,
+        ),
+        (
+            LootSurface::Equipment,
+            LootParamSet::Equipment,
+            LootContextEntityType::Equipment,
+        ),
     ];
-    assert_eq!(entity_types.len(), 13);
-    assert_eq!(
-        LootSurface::Vault.entity_type(),
-        LootContextEntityType::Vault
-    );
-    assert_eq!(
-        LootContextEntityType::Equipment.param_set(),
-        LootParamSet::Equipment
-    );
+    assert_eq!(surfaces.len(), 13);
+    for (surface, param_set, entity_type) in surfaces {
+        assert_eq!(surface.param_set(), param_set);
+        assert_eq!(surface.entity_type(), entity_type);
+        assert_eq!(entity_type.param_set(), param_set);
+    }
 
     let mut params = LootParams::default();
     for value in [
@@ -130,6 +179,30 @@ fn context_entity_types_params_and_dynamic_params_cover_java_surface() {
     assert_eq!(
         context.entity_properties.get("direct_attacking_entity"),
         Some(&"Arrow".to_string())
+    );
+}
+
+#[test]
+fn loot_table_evaluates_pool_list_and_table_functions_in_java_order() {
+    let table = LootTable {
+        param_set: LootParamSet::Chest,
+        random_sequence: None,
+        pools: vec![
+            LootPool::single(LootEntry::item("minecraft:apple", 1)),
+            LootPool::single(LootEntry::item("minecraft:bread", 2)),
+        ],
+        functions: vec![LootFunction::SetCount(NumberProvider::Constant(5.0))],
+    };
+    let mut context = LootContext::new(LootParamSet::Chest, 4);
+
+    let drops = table.evaluate(&mut context);
+
+    assert_eq!(
+        drops,
+        vec![
+            LootStack::new("minecraft:apple", 5),
+            LootStack::new("minecraft:bread", 5),
+        ]
     );
 }
 

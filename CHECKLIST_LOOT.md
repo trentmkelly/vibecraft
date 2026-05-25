@@ -23,7 +23,7 @@
 
 ## Loot Table Core
 
-- [ ] Implement `LootTable` with `LootPool` list and `LootContext.EntityType` discriminator (block/entity/chest/fishing/archaeology/advancement_reward/gift/barter/vault/command/selector/advancement_entity/equipment) - `loot_system::LootTable` evaluates pool lists and table functions, while `LootContextEntityType`/`LootSurface::entity_type()` cover the named Java context surfaces including vault, selector, advancement-entity, and equipment.
+- [x] Implement `LootTable` with `LootPool` list and `LootContext.EntityType` discriminator (block/entity/chest/fishing/archaeology/advancement_reward/gift/barter/vault/command/selector/advancement_entity/equipment) - Java 26.1.2 `LootTable` stores a param-set `type`, pool list, and table functions, and `LootContextParamSets` defines the listed context surfaces; Rust `loot_system::LootTable` evaluates pool lists before table functions, while `LootContextEntityType`/`LootSurface::entity_type()` cover the named Java context surfaces including vault, selector, advancement-entity, and equipment; covered by `context_entity_types_params_and_dynamic_params_cover_java_surface`, `loot_table_evaluates_pool_list_and_table_functions_in_java_order`, and `cargo test -q -j 1 loot_system`.
 - [ ] Implement `LootPool`: roll count from `NumberProvider`, bonus rolls, entry list, condition list, function list
 - [ ] Implement all loot entry types: `LootItem` (item entry), `TagEntry` (item tag, expand or random), `LootTableReference` (nested table), `DynamicLoot` (block entity dynamic loot), `GroupEntry`, `AlternativesEntry`, `SequenceEntry`, `EmptyLootItem`
 - [ ] Implement entry weight, quality (luck-scaled), and condition gating
