@@ -1132,7 +1132,7 @@ mod test_blocks;
 mod structures;
 
 mod functional_blocks;
-pub use functional_blocks::*;
+use functional_blocks::*;
 
 mod beacon_signs_brewing;
 

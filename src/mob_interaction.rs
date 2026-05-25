@@ -223,157 +223,160 @@ fn lerp(part: f32, start: f32, end: f32) -> f32 {
 }
 
 mod golems;
-pub use golems::*;
+use golems::*;
 
 mod frogs_foxes;
-pub use frogs_foxes::*;
+use frogs_foxes::*;
 
 mod pandas;
-pub use pandas::*;
+use pandas::*;
 
 mod parrots_happy_ghasts;
-pub use parrots_happy_ghasts::*;
+use parrots_happy_ghasts::*;
 
 mod dried_ghasts_sniffers;
-pub use dried_ghasts_sniffers::*;
+use dried_ghasts_sniffers::*;
 
 mod turtles;
-pub use turtles::*;
+use turtles::*;
 
 mod armadillos;
-pub use armadillos::*;
+use armadillos::*;
 
 mod allays;
-pub use allays::*;
+use allays::*;
 
 mod felines;
-pub use felines::*;
+use felines::*;
 
 mod creepers;
-pub use creepers::*;
+use creepers::*;
 
 mod slimes;
-pub use slimes::*;
+use slimes::*;
 
 mod phantoms;
-pub use phantoms::*;
+use phantoms::*;
 
 mod vexes;
-pub use vexes::*;
+use vexes::*;
 
 mod silverfish;
-pub use silverfish::*;
+use silverfish::*;
 
 mod piglin_hoglin_types;
 pub use piglin_hoglin_types::*;
 
 mod hoglins_piglins;
-pub use hoglins_piglins::*;
+use hoglins_piglins::*;
 
 mod ghasts;
-pub use ghasts::*;
+use ghasts::*;
 
 mod striders;
-pub use striders::*;
+use striders::*;
 
 mod witches;
-pub use witches::*;
+use witches::*;
 
 mod guardians;
 pub use guardians::*;
 
 mod ravagers;
-pub use ravagers::*;
+use ravagers::*;
 
 mod shulkers;
-pub use shulkers::*;
+use shulkers::*;
 
 mod giants;
-pub use giants::*;
+use giants::*;
 
 mod zombies;
 pub use zombies::*;
 
 mod zombie_villagers;
+#[cfg(test)]
 pub use zombie_villagers::*;
+#[cfg(not(test))]
+use zombie_villagers::*;
 
 mod blazes;
-pub use blazes::*;
+use blazes::*;
 
 mod zombified_piglins;
 pub use zombified_piglins::*;
 
 mod drowned;
-pub use drowned::*;
+use drowned::*;
 
 mod husks;
-pub use husks::*;
+use husks::*;
 
 mod endermites;
-pub use endermites::*;
+use endermites::*;
 
 mod endermen;
-pub use endermen::*;
+use endermen::*;
 
 mod skeletons;
-pub use skeletons::*;
+use skeletons::*;
 
 mod spiders;
-pub use spiders::*;
+use spiders::*;
 
 mod common;
 pub use common::*;
 
 mod axolotls;
-pub use axolotls::*;
+use axolotls::*;
 
 mod chickens_cows;
-pub use chickens_cows::*;
+use chickens_cows::*;
 
 mod dolphins;
-pub use dolphins::*;
+use dolphins::*;
 
 mod bees;
-pub use bees::*;
+use bees::*;
 
 mod camels;
-pub use camels::*;
+use camels::*;
 
 mod goats;
-pub use goats::*;
+use goats::*;
 
 mod pigs;
-pub use pigs::*;
+use pigs::*;
 
 mod polar_bears;
-pub use polar_bears::*;
+use polar_bears::*;
 
 mod rabbits;
-pub use rabbits::*;
+use rabbits::*;
 
 mod sheep;
-pub use sheep::*;
+use sheep::*;
 
 mod squids;
-pub use squids::*;
+use squids::*;
 
 mod fish_variants;
-pub use fish_variants::*;
+use fish_variants::*;
 
 mod fish_common;
-pub use fish_common::*;
+use fish_common::*;
 
 mod bucketables_mooshrooms;
 pub use bucketables_mooshrooms::*;
 
 mod horses_llamas;
-pub use horses_llamas::*;
+use horses_llamas::*;
 
 mod villagers_anger_conversion;
 pub use villagers_anger_conversion::*;
 
 mod coverage;
-pub use coverage::*;
+use coverage::*;
 
 #[cfg(test)]
 mod tests;

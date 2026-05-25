@@ -319,7 +319,7 @@ pub fn visible_spawn_surface_top_block_id(
 ) -> i32 {
     let world_x = chunk_x * 16 + local_x as i32;
     let world_z = chunk_z * 16 + local_z as i32;
-    let hash = world_x.wrapping_mul(193_496_63) ^ world_z.wrapping_mul(83_492_791);
+    let hash = world_x.wrapping_mul(19_349_663) ^ world_z.wrapping_mul(83_492_791);
     match hash.rem_euclid(43) {
         0 => STONE_BLOCK_STATE_ID,
         9 => GRANITE_BLOCK_STATE_ID,

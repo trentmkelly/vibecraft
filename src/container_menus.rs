@@ -292,12 +292,12 @@ mod menus_table;
 mod menus_misc;
 mod menus_entity;
 
-pub use menus_crafting_and_furnace::*;
-pub use menus_storage::*;
-pub use menus_workstation::*;
-pub use menus_table::*;
-pub use menus_misc::*;
-pub use menus_entity::*;
+use menus_crafting_and_furnace::*;
+use menus_storage::*;
+use menus_workstation::*;
+use menus_table::*;
+use menus_misc::*;
+use menus_entity::*;
 
 #[cfg(test)]
 mod tests;

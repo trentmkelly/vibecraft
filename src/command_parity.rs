@@ -1,10 +1,15 @@
 #![allow(dead_code)]
 
 use crate::command::{
-    execute_builtin_command, ChatCommandKind, CommandError, CommandResult, LevelBasedPermissionSet,
+    execute_builtin_command, CommandError, CommandResult, LevelBasedPermissionSet,
     ServerCommandState,
 };
-use crate::command_tree::{ArgumentParser, CommandNodeKind, CommandTree, ParseError};
+#[cfg(test)]
+use crate::command::ChatCommandKind;
+use crate::command_tree::{ArgumentParser, CommandNodeKind, CommandTree};
+#[cfg(test)]
+use crate::command_tree::ParseError;
+#[cfg(test)]
 use crate::player_access::NameAndId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -7,7 +7,7 @@ pub fn blue_ice_can_start(
     below_state: &str,
     adjacent_without_down: &[&str],
 ) -> bool {
-    origin_y <= sea_level - 1
+    origin_y < sea_level
         && (origin_state == "minecraft:water" || below_state == "minecraft:water")
         && adjacent_without_down
             .iter()

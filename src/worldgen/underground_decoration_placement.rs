@@ -752,7 +752,7 @@ pub(super) fn height_provider_sample_with_random(
         } => {
             let min = min_inclusive.resolve_y(context);
             let max = max_inclusive.resolve_y(context);
-            if max - min - inner + 1 <= 0 {
+            if max - min < inner {
                 min
             } else {
                 let upper = random_next_i32_between_inclusive(random, min + inner, max);

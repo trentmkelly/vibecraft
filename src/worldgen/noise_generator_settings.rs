@@ -442,7 +442,6 @@ pub fn noise_router_id_for_settings(settings: NoiseGeneratorSettings) -> &'stati
 }
 
 /// Returns the Y value of the highest non-air block + 1 (or 0 if not present).
-
 pub fn cave_generation_family(id: &str) -> Option<&'static CaveGenerationFamily> {
     let name = id.strip_prefix("minecraft:").unwrap_or(id);
     CAVE_GENERATION_FAMILIES.iter().find(|entry| {

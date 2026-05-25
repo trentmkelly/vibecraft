@@ -5,7 +5,6 @@
 /// A `DroppedItem` is created whenever a block drop is spawned (via `Block.popResource`)
 /// or a player Q-drops an item.  All live item entities are stored in the world-level
 /// `WorldItemEntities` store so they persist across player sessions.
-
 /// Ticks before an item entity despawns.  Java: `ItemEntity.LIFETIME = 6000`.
 pub const ITEM_LIFETIME: i32 = 6000;
 

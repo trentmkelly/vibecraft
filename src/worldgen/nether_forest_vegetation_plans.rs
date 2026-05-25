@@ -9,8 +9,8 @@ pub fn nether_forest_vegetation_can_start(
     matches!(
         below_state,
         "minecraft:crimson_nylium" | "minecraft:warped_nylium"
-    ) && y >= min_y + 1
-        && y + 1 <= max_y
+    ) && y > min_y
+        && y < max_y
 }
 
 pub fn validate_nether_forest_vegetation_config(

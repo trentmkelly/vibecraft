@@ -127,8 +127,8 @@ pub(super) fn eval_density_fn_with_interp(
                     let cache = &chunk.flat_cache[cache_index];
                     let quart_x = x >> 2;
                     let quart_z = z >> 2;
-                    let local_x = quart_x - (chunk.first_cell_x * chunk.cell_width >> 2);
-                    let local_z = quart_z - (chunk.first_cell_z * chunk.cell_width >> 2);
+                    let local_x = quart_x - ((chunk.first_cell_x * chunk.cell_width) >> 2);
+                    let local_z = quart_z - ((chunk.first_cell_z * chunk.cell_width) >> 2);
                     if local_x >= 0
                         && local_z >= 0
                         && (local_x as usize) < cache.size_xz
@@ -314,8 +314,8 @@ pub(super) fn eval_density_fn_single_point(
                     let cache = &chunk.flat_cache[cache_index];
                     let quart_x = x >> 2;
                     let quart_z = z >> 2;
-                    let local_x = quart_x - (chunk.first_cell_x * chunk.cell_width >> 2);
-                    let local_z = quart_z - (chunk.first_cell_z * chunk.cell_width >> 2);
+                    let local_x = quart_x - ((chunk.first_cell_x * chunk.cell_width) >> 2);
+                    let local_z = quart_z - ((chunk.first_cell_z * chunk.cell_width) >> 2);
                     if local_x >= 0
                         && local_z >= 0
                         && (local_x as usize) < cache.size_xz

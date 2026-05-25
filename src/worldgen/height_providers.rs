@@ -59,7 +59,7 @@ pub fn height_provider_sample_bounds(
         } => {
             let min = min_inclusive.resolve_y(context);
             let max = max_inclusive.resolve_y(context);
-            if max - min - inner + 1 <= 0 {
+            if max - min < inner {
                 (min, min)
             } else {
                 (min, max - 1)
@@ -116,7 +116,7 @@ pub fn height_provider_sample_with_rolls(
         } => {
             let min = min_inclusive.resolve_y(context);
             let max = max_inclusive.resolve_y(context);
-            if max - min - inner + 1 <= 0 {
+            if max - min < inner {
                 min
             } else {
                 let upper = min + inner + first_roll.rem_euclid(max - (min + inner) + 1);
