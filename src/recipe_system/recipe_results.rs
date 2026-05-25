@@ -2,6 +2,7 @@ use super::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SpecialRecipeKind {
+    #[cfg(test)]
     Transmute,
     MapCloning,
     MapExtending,
@@ -10,11 +11,13 @@ pub enum SpecialRecipeKind {
     FireworkRocket,
     FireworkStar,
     FireworkStarFade,
+    #[cfg(test)]
     SuspiciousStew,
     BookCloning,
     RepairItem,
     DyedItem,
     DecoratedPot,
+    #[cfg(test)]
     Imbue,
 }
 
@@ -90,6 +93,7 @@ impl RecipeKind {
         }
     }
 
+    #[cfg(test)]
     pub fn serializer(&self) -> &'static str {
         match self {
             RecipeKind::Shaped { .. } => "crafting_shaped",
@@ -119,10 +123,12 @@ impl RecipeKind {
         }
     }
 
+    #[cfg(test)]
     pub fn is_special(&self) -> bool {
         matches!(self, RecipeKind::Special { .. })
     }
 
+    #[cfg(test)]
     pub fn recipe_book_category(&self) -> &'static str {
         match self {
             RecipeKind::Shaped { .. }
@@ -151,10 +157,12 @@ impl RecipeKind {
         }
     }
 
+    #[cfg(test)]
     pub fn show_notification(&self) -> bool {
         !self.is_special()
     }
 
+    #[cfg(test)]
     pub fn single_item_input(&self) -> Option<&IngredientSpec> {
         match self {
             RecipeKind::Cooking { ingredient, .. }
@@ -163,6 +171,7 @@ impl RecipeKind {
         }
     }
 
+    #[cfg(test)]
     pub fn single_item_result(&self) -> Option<&ItemAmount> {
         match self {
             RecipeKind::Cooking { result, .. } | RecipeKind::Stonecutting { result, .. } => {
@@ -172,6 +181,7 @@ impl RecipeKind {
         }
     }
 
+    #[cfg(test)]
     pub fn cooking_experience_millis(&self) -> Option<i32> {
         match self {
             RecipeKind::Cooking {
@@ -181,6 +191,7 @@ impl RecipeKind {
         }
     }
 
+    #[cfg(test)]
     pub fn smithing_placement_info(&self) -> Option<PlacementInfo> {
         match self {
             RecipeKind::SmithingTransform {
@@ -202,6 +213,7 @@ impl RecipeKind {
         }
     }
 
+    #[cfg(test)]
     pub fn smithing_is_incomplete(&self) -> Option<bool> {
         self.smithing_placement_info()
             .map(|placement| placement.is_impossible_to_place())
@@ -301,6 +313,7 @@ impl RecipeKind {
         }
     }
 
+    #[cfg(test)]
     pub fn cooking_time(&self) -> Option<i32> {
         match self {
             RecipeKind::Cooking {
@@ -311,6 +324,7 @@ impl RecipeKind {
     }
 }
 
+#[cfg(test)]
 fn optional_ingredient(ingredient: &IngredientSpec) -> Option<IngredientSpec> {
     (!ingredient.is_empty()).then(|| ingredient.clone())
 }
@@ -371,7 +385,9 @@ fn imbue_matches(
     }
 
     items.iter().enumerate().all(|(index, item)| {
-        let item = item.expect("checked non-empty imbue grid");
+        let Some(item) = item else {
+            return false;
+        };
         if index == 4 {
             source.matches(item)
         } else {
@@ -380,6 +396,7 @@ fn imbue_matches(
     })
 }
 
+#[cfg(test)]
 pub fn transmute_result(
     result: &ItemAmount,
     input: &ComponentCraftingStack,
@@ -393,6 +410,7 @@ pub fn transmute_result(
     output
 }
 
+#[cfg(test)]
 pub fn imbue_result(
     result: &ItemAmount,
     source: &ComponentCraftingStack,
@@ -418,6 +436,7 @@ fn transmute_result_count(
     }
 }
 
+#[cfg(test)]
 pub fn banner_duplicate_result(
     result_item: &'static str,
     input: &[Option<ComponentCraftingStack>],
@@ -467,6 +486,7 @@ pub fn banner_duplicate_result(
     Some((result, remaining))
 }
 
+#[cfg(test)]
 pub fn book_cloning_result(
     result_item: &'static str,
     input: &[Option<ComponentCraftingStack>],
@@ -519,6 +539,7 @@ pub fn book_cloning_result(
     Some((result, remaining))
 }
 
+#[cfg(test)]
 pub fn decorated_pot_result(
     input: &[Option<ComponentCraftingStack>],
 ) -> Option<ComponentCraftingStack> {
@@ -545,6 +566,7 @@ pub fn decorated_pot_result(
     Some(result)
 }
 
+#[cfg(test)]
 pub fn dye_result(
     result_item: &'static str,
     input: &[Option<ComponentCraftingStack>],
@@ -570,6 +592,7 @@ pub fn dye_result(
     Some(result)
 }
 
+#[cfg(test)]
 pub fn firework_rocket_result(
     result_item: &'static str,
     result_count: u32,
@@ -612,6 +635,7 @@ pub fn firework_rocket_result(
     Some(result)
 }
 
+#[cfg(test)]
 pub fn firework_star_result(
     input: &[Option<ComponentCraftingStack>],
 ) -> Option<ComponentCraftingStack> {
@@ -649,6 +673,7 @@ pub fn firework_star_result(
     Some(result)
 }
 
+#[cfg(test)]
 pub fn firework_star_fade_result(
     input: &[Option<ComponentCraftingStack>],
 ) -> Option<ComponentCraftingStack> {
@@ -690,6 +715,7 @@ pub fn firework_star_fade_result(
     Some(result)
 }
 
+#[cfg(test)]
 pub fn map_extending_result(
     input: &[Option<ComponentCraftingStack>],
 ) -> Option<ComponentCraftingStack> {
@@ -719,6 +745,7 @@ pub fn map_extending_result(
     Some(result)
 }
 
+#[cfg(test)]
 pub fn repair_item_result(
     input: &[Option<ComponentCraftingStack>],
 ) -> Option<ComponentCraftingStack> {
@@ -740,6 +767,7 @@ pub fn repair_item_result(
     Some(result)
 }
 
+#[cfg(test)]
 pub fn shield_decoration_result(
     input: &[Option<ComponentCraftingStack>],
 ) -> Option<ComponentCraftingStack> {
@@ -770,6 +798,7 @@ pub fn shield_decoration_result(
     Some(result)
 }
 
+#[cfg(test)]
 fn present_stacks(input: &[Option<ComponentCraftingStack>]) -> Vec<&ComponentCraftingStack> {
     input
         .iter()
@@ -778,14 +807,17 @@ fn present_stacks(input: &[Option<ComponentCraftingStack>]) -> Vec<&ComponentCra
         .collect()
 }
 
+#[cfg(test)]
 fn is_banner(item: &str) -> bool {
     item.ends_with("_banner")
 }
 
+#[cfg(test)]
 fn is_pot_ingredient(item: &str) -> bool {
     item == "minecraft:brick" || item.ends_with("_pottery_sherd")
 }
 
+#[cfg(test)]
 fn blend_dyes(current: Option<u32>, dyes: &[u32]) -> u32 {
     let mut colors = Vec::new();
     if let Some(current) = current {
@@ -799,6 +831,7 @@ fn blend_dyes(current: Option<u32>, dyes: &[u32]) -> u32 {
     (red << 16) | (green << 8) | blue
 }
 
+#[cfg(test)]
 fn merge_curses(
     first: &[EnchantmentComponent],
     second: &[EnchantmentComponent],
@@ -908,4 +941,3 @@ fn shapeless_matches(ingredients: &[IngredientSpec], items: &[Option<&'static st
         true
     })
 }
-
