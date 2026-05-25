@@ -105,10 +105,7 @@ impl ExperienceOrb {
     }
 
     pub fn can_merge(&self, id: i32, value: i32) -> bool {
-        !self.removed
-            && (self.id - id) % 40 == 0
-            && self.value == value
-            && merged_xp_total(self.value, self.count + 1) <= 10
+        !self.removed && (self.id - id) % 40 == 0 && self.value == value
     }
 
     pub fn merge(&mut self, other: &mut ExperienceOrb) -> bool {
@@ -116,7 +113,6 @@ impl ExperienceOrb {
             || other.removed
             || (other.id - self.id) % 40 != 0
             || self.value != other.value
-            || merged_xp_total(self.value, self.count + other.count) > 10
         {
             return false;
         }
@@ -393,9 +389,15 @@ mod tests {
         assert!(first.merge(&mut second));
         assert_eq!(first.count, 3);
         assert_eq!(merged_xp_total(first.value, first.count), 9);
-        assert!(!first.can_merge(160, 3));
+        assert!(first.can_merge(160, 3));
+        let mut third = ExperienceOrb::new(160, 3);
+        third.count = 5;
+        assert!(first.merge(&mut third));
+        assert_eq!(first.count, 8);
+        assert_eq!(merged_xp_total(first.value, first.count), 24);
         assert_eq!(first.age, 0);
         assert!(second.removed);
+        assert!(third.removed);
         assert!(first.hurt(2));
         assert_eq!(first.health, 3);
         assert!(first.hurt(3));

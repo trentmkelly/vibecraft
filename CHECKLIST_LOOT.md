@@ -124,7 +124,7 @@
 
 ## XP Rewards and Economy
 
-- [ ] Implement experience orb entity: value-based merge into nearby orb (max orb merge = total XP ≤ 10 per group), pickup range 1 block, pickup lifetime 5 minutes, orb despawn - `experience_system::ExperienceOrb` and `non_living_entity::ExperienceOrbState` enforce merge grouping, collection, health, 6000-tick despawn, and one-block pickup range helpers; covered by focused XP/orb tests.
+- [x] Implement experience orb entity: value-based merge into nearby orb, pickup range 1 block, pickup lifetime 5 minutes, orb despawn - `experience_system::ExperienceOrb` and `non_living_entity::ExperienceOrbState` enforce Java 26.1.2 merge predicates (not removed, matching value, ID congruent modulo 40; no total-XP cap), collection, health, 6000-tick despawn, and one-block pickup range helpers; covered by `orb_merge_age_health_and_lifetime_follow_entity_rules` and `experience_orbs_split_merge_collect_and_expire`.
 - [ ] Implement experience orb spawn rules: from mob kills (by type), from mining/smelting (hardcoded table), from breeding, from trading (villager level XP) - `experience_system` exposes reward helpers for mob kills, mining blocks, smelting recipe usage, breeding, trading, commands, and experience bottles.
 - [ ] Implement `Player.giveExperiencePoints()` and level threshold calculation
 - [ ] Add Mineflayer XP reward tests: collect orbs from mining, smelting, breeding, trading, commands, mob kills, advancements; verify level bar updates, orb merge timing, death drops, reconnect persistence
