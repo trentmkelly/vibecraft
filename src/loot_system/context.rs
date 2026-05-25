@@ -185,6 +185,10 @@ impl LootContext {
                 self.entity_properties
                     .insert("attacking_entity".to_string(), entity.clone());
             }
+            LootDynamicParamValue::DirectAttackingEntity(entity) => {
+                self.entity_properties
+                    .insert("direct_attacking_entity".to_string(), entity.clone());
+            }
         }
         self.dynamic_params.insert(value.key(), value);
     }

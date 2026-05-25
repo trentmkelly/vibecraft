@@ -238,6 +238,7 @@ pub enum LootDynamicParamValue {
     EnchantmentLevel(i32),
     EnchantmentActive(bool),
     AttackingEntity(String),
+    DirectAttackingEntity(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -245,6 +246,7 @@ pub enum LootDynamicParamKey {
     EnchantmentLevel,
     EnchantmentActive,
     AttackingEntity,
+    DirectAttackingEntity,
 }
 
 impl LootDynamicParamValue {
@@ -253,6 +255,7 @@ impl LootDynamicParamValue {
             Self::EnchantmentLevel(_) => LootDynamicParamKey::EnchantmentLevel,
             Self::EnchantmentActive(_) => LootDynamicParamKey::EnchantmentActive,
             Self::AttackingEntity(_) => LootDynamicParamKey::AttackingEntity,
+            Self::DirectAttackingEntity(_) => LootDynamicParamKey::DirectAttackingEntity,
         }
     }
 }

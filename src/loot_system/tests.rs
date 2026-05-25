@@ -68,6 +68,9 @@ fn context_entity_types_params_and_dynamic_params_cover_java_surface() {
     context.insert_dynamic_param(LootDynamicParamValue::EnchantmentLevel(5));
     context.insert_dynamic_param(LootDynamicParamValue::EnchantmentActive(true));
     context.insert_dynamic_param(LootDynamicParamValue::AttackingEntity("Steve".to_string()));
+    context.insert_dynamic_param(LootDynamicParamValue::DirectAttackingEntity(
+        "Arrow".to_string(),
+    ));
 
     assert_eq!(context.params.keys().len(), 3);
     assert_eq!(context.enchantment_level, 5);
@@ -84,6 +87,16 @@ fn context_entity_types_params_and_dynamic_params_cover_java_surface() {
             .get(&LootDynamicParamKey::AttackingEntity),
         Some(LootDynamicParamValue::AttackingEntity(entity)) if entity == "Steve"
     ));
+    assert!(matches!(
+        context
+            .dynamic_params
+            .get(&LootDynamicParamKey::DirectAttackingEntity),
+        Some(LootDynamicParamValue::DirectAttackingEntity(entity)) if entity == "Arrow"
+    ));
+    assert_eq!(
+        context.entity_properties.get("direct_attacking_entity"),
+        Some(&"Arrow".to_string())
+    );
 }
 
 #[test]

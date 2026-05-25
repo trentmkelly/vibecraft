@@ -32,7 +32,7 @@
 ## Loot Contexts and Parameters
 
 - [ ] Implement `LootParams` with all parameter types: `BLOCK_STATE`, `BLOCK_ENTITY`, `ORIGIN`, `TOOL`, `THIS_ENTITY`, `LAST_DAMAGE_PLAYER`, `KILLER_ENTITY`, `DIRECT_KILLER_ENTITY`, `EXPLOSION_RADIUS`, `DAMAGE_SOURCE` - `loot_system::LootParams` stores typed `LootParamValue` entries for the full named parameter surface and `LootBehaviorEngine` maps request fields into the evaluator context.
-- [ ] Implement `LootContext` dynamic parameters: `ENCHANTMENT_LEVEL`, `ENCHANTMENT_ACTIVE`, `ATTACKING_ENTITY` - `LootContext` now tracks typed dynamic params plus evaluator fields for enchantment level/active state and attacking entity; covered by `context_entity_types_params_and_dynamic_params_cover_java_surface`.
+- [x] Implement `LootContext` dynamic parameters: `ENCHANTMENT_LEVEL`, `ENCHANTMENT_ACTIVE`, `ATTACKING_ENTITY`, `DIRECT_ATTACKING_ENTITY` - Java 26.1.2 `LootContextParams` and `Enchantment.damageContext` use enchantment level, enchantment active state, attacking entity, and direct attacking entity across enchanted loot contexts; `LootContext` tracks typed dynamic params plus evaluator fields for enchantment level/active state and attacking/direct-attacking entities; covered by `context_entity_types_params_and_dynamic_params_cover_java_surface`.
 - [ ] Implement luck parameter from `LootContext.LUCK` (player luck attribute)
 
 ## Loot Functions
