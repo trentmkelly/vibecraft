@@ -1,5 +1,9 @@
 use super::*;
-use crate::network::common::ResourcePackAction;
+use crate::network::codec::ComponentJson;
+use crate::network::common::{
+    ClientboundResourcePackPushPacket as CommonClientboundResourcePackPushPacket,
+    ResourcePackAction,
+};
 
 #[test]
 fn clientbound_resource_pack_pop_packet_matches_java_codec() {
@@ -26,6 +30,44 @@ fn clientbound_resource_pack_pop_packet_matches_java_codec() {
     let mut expected_present = vec![1];
     expected_present.extend_from_slice(&id.0);
     assert_eq!(present_payload, expected_present);
+}
+
+#[test]
+fn clientbound_resource_pack_push_packet_matches_java_codec() {
+    assert_eq!(CLIENTBOUND_RESOURCE_PACK_PUSH_PACKET_ID, 81);
+    let registry = PlayProtocolRegistry::new();
+    assert_eq!(
+        registry.clientbound_name(CLIENTBOUND_RESOURCE_PACK_PUSH_PACKET_ID),
+        Some("resource_pack_push")
+    );
+
+    let packet = CommonClientboundResourcePackPushPacket {
+        id: Uuid([
+            0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d,
+            0x2e, 0x2f,
+        ]),
+        url: "https://example.invalid/pack.zip".to_string(),
+        hash: "0123456789abcdef0123456789abcdef01234567".to_string(),
+        required: true,
+        prompt: Some(ComponentJson("{\"text\":\"Use pack?\"}".to_string())),
+    };
+    let mut payload = Vec::new();
+    packet.write(&mut payload).unwrap();
+
+    let mut expected = packet.id.0.to_vec();
+    expected.push(packet.url.len() as u8);
+    expected.extend_from_slice(packet.url.as_bytes());
+    expected.push(packet.hash.len() as u8);
+    expected.extend_from_slice(packet.hash.as_bytes());
+    expected.push(1);
+    expected.push(1);
+    expected.extend_from_slice(&[8, 0, 9]);
+    expected.extend_from_slice(b"Use pack?");
+    assert_eq!(payload, expected);
+    assert_eq!(
+        CommonClientboundResourcePackPushPacket::read(&mut cursor(payload)).unwrap(),
+        packet
+    );
 }
 
 #[test]

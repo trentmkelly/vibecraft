@@ -173,8 +173,20 @@ fn round_trips_resource_pack_packets() {
     };
     let mut bytes = Vec::new();
     push.write(&mut bytes).unwrap();
-    assert!(bytes.windows(5).any(|window| window == [1, 10, 8, 0, 4]));
-    assert!(bytes.ends_with(&[0]));
+    let mut expected = id.0.to_vec();
+    expected.push(push.url.len() as u8);
+    expected.extend_from_slice(push.url.as_bytes());
+    expected.push(push.hash.len() as u8);
+    expected.extend_from_slice(push.hash.as_bytes());
+    expected.push(1);
+    expected.push(1);
+    expected.extend_from_slice(&[8, 0, 9]);
+    expected.extend_from_slice(b"Use pack?");
+    assert_eq!(bytes, expected);
+    assert_eq!(
+        ClientboundResourcePackPushPacket::read(&mut Cursor::new(bytes)).unwrap(),
+        push
+    );
 
     let pop = ClientboundResourcePackPopPacket { id: Some(id) };
     let mut bytes = Vec::new();

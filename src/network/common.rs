@@ -304,68 +304,6 @@ impl ClientboundDisconnectPacket {
     }
 }
 
-fn write_trusted_text_component<W: Write>(writer: &mut W, text: &str) -> io::Result<()> {
-    writer.write_all(&[10])?;
-    writer.write_all(&[8])?;
-    write_nbt_string(writer, "text")?;
-    write_nbt_string(writer, text)?;
-    writer.write_all(&[0])
-}
-
-fn write_nbt_string<W: Write>(writer: &mut W, value: &str) -> io::Result<()> {
-    let length = u16::try_from(value.len())
-        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "NBT string too long"))?;
-    writer.write_all(&length.to_be_bytes())?;
-    writer.write_all(value.as_bytes())
-}
-
-fn component_plain_text(json: &str) -> String {
-    if let Some(text) = extract_json_string_field(json, "\"text\"") {
-        return text;
-    }
-    if let Some(translate) = extract_json_string_field(json, "\"translate\"") {
-        return translate;
-    }
-    json.to_string()
-}
-
-fn extract_json_string_field(json: &str, field: &str) -> Option<String> {
-    let start = json.find(field)?;
-    let after_field = &json[start + field.len()..];
-    let colon = after_field.find(':')?;
-    let after_colon = after_field[colon + 1..].trim_start();
-    let mut chars = after_colon.chars();
-    if chars.next()? != '"' {
-        return None;
-    }
-
-    let mut value = String::new();
-    let mut escaped = false;
-    for c in chars {
-        if escaped {
-            value.push(match c {
-                '"' => '"',
-                '\\' => '\\',
-                '/' => '/',
-                'b' => '\u{0008}',
-                'f' => '\u{000c}',
-                'n' => '\n',
-                'r' => '\r',
-                't' => '\t',
-                other => other,
-            });
-            escaped = false;
-        } else if c == '\\' {
-            escaped = true;
-        } else if c == '"' {
-            return Some(value);
-        } else {
-            value.push(c);
-        }
-    }
-    None
-}
-
 impl ClientboundClearDialogPacket {
     pub fn read<R: Read>(_reader: &mut R) -> io::Result<Self> {
         Ok(Self)
@@ -668,7 +606,7 @@ impl ClientboundResourcePackPushPacket {
             url: read_string(reader, 32767)?,
             hash: read_string(reader, Self::MAX_HASH_LENGTH)?,
             required: read_bool(reader)?,
-            prompt: read_optional(reader, read_component)?,
+            prompt: read_optional(reader, read_trusted_component)?,
         })
     }
 
@@ -684,7 +622,7 @@ impl ClientboundResourcePackPushPacket {
         write_string(writer, &self.hash, Self::MAX_HASH_LENGTH)?;
         write_bool(writer, self.required)?;
         write_optional(writer, self.prompt.as_ref(), |writer, prompt| {
-            write_trusted_text_component(writer, &component_plain_text(&prompt.0))
+            write_trusted_component(writer, prompt)
         })
     }
 }
