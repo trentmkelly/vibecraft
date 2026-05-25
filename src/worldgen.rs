@@ -102,7 +102,8 @@ use self::simple_vegetation::{
     apply_initial_simple_vegetation_decoration_to_chunk, block_predicate_test_in_region,
     configured_simple_vegetation_block, placed_simple_vegetation_feature, region_static_block_name,
     sample_triangle_int, seedless_noise_salt, simple_vegetation_phase, simple_vegetation_source_height,
-    vegetation_flower_noise, PlacedSimpleVegetationFeature, SimpleVegetationPhase,
+    vegetation_flower_noise, PlacedSimpleVegetationFeature, SimpleVegetationDecorationInput,
+    SimpleVegetationPhase,
 };
 #[cfg(test)] use self::simple_vegetation::{
     block_predicate_test_in_chunk, place_configured_simple_vegetation_in_target_chunk,

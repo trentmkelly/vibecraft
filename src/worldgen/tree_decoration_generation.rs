@@ -145,17 +145,18 @@ pub(super) fn apply_initial_tree_decoration_to_chunk(
     let target_pos = chunk.pos;
     let terrain_heights = &*target_terrain_heights
         .get_or_insert_with(|| tree_decoration_terrain_heights(chunk, settings));
-    placed += apply_initial_simple_vegetation_decoration_to_chunk(
-        chunk,
-        biome_source_model,
-        settings,
-        seed,
-        &target_region_biome_steps,
-        source_region_biome_steps,
-        terrain_heights,
-        &context_cache,
-        SimpleVegetationPhase::BeforeTrees,
-    );
+    placed +=
+        apply_initial_simple_vegetation_decoration_to_chunk(SimpleVegetationDecorationInput {
+            chunk,
+            biome_source_model,
+            settings,
+            seed,
+            decoration_region_biome_steps: &target_region_biome_steps,
+            source_region_biome_steps,
+            target_terrain_heights: terrain_heights,
+            context_cache: &context_cache,
+            phase: SimpleVegetationPhase::BeforeTrees,
+        });
     let mut generated_chunks = HashMap::new();
     for (pos, cached) in &context_cache.cached_region_chunks {
         generated_chunks.insert(*pos, TreeContextChunkRef::Lightweight(cached));
@@ -279,17 +280,18 @@ pub(super) fn apply_initial_tree_decoration_to_chunk(
 
     let terrain_heights = &*target_terrain_heights
         .get_or_insert_with(|| tree_decoration_terrain_heights(chunk, settings));
-    placed += apply_initial_simple_vegetation_decoration_to_chunk(
-        chunk,
-        biome_source_model,
-        settings,
-        seed,
-        &target_region_biome_steps,
-        source_region_biome_steps,
-        terrain_heights,
-        &context_cache,
-        SimpleVegetationPhase::AfterTrees,
-    );
+    placed +=
+        apply_initial_simple_vegetation_decoration_to_chunk(SimpleVegetationDecorationInput {
+            chunk,
+            biome_source_model,
+            settings,
+            seed,
+            decoration_region_biome_steps: &target_region_biome_steps,
+            source_region_biome_steps,
+            target_terrain_heights: terrain_heights,
+            context_cache: &context_cache,
+            phase: SimpleVegetationPhase::AfterTrees,
+        });
     TreeDecorationResult {
         placed_blocks: placed,
         context_build_ms: diagnostics.context_chunk_build_ms,
