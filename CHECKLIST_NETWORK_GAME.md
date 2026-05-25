@@ -167,7 +167,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundSetTitleTextPacket` (0x60): title component via `ComponentSerialization.TRUSTED_STREAM_CODEC` network NBT tag
 - [ ] `ClientboundSetSubtitleTextPacket` (0x5F): subtitle component via `ComponentSerialization.TRUSTED_STREAM_CODEC` network NBT tag
 - [ ] `ClientboundSetTitlesAnimationPacket` (0x73): fade-in ticks int, stay ticks int, fade-out ticks int
-- [ ] `ClientboundClearTitlesPacket` (0x0E): reset-times bool
+- [x] `ClientboundClearTitlesPacket` (0x0E / decimal 14): reset-times bool; verified against Java `ClientboundClearTitlesPacket` read/write order, Java play-protocol registration order, Rust protocol registry ID/name mapping, and direct bool byte-layout coverage.
 - [ ] `ClientboundSetActionBarTextPacket` (0x4D): action bar component via `ComponentSerialization.TRUSTED_STREAM_CODEC` network NBT tag
 - [ ] `ClientboundTabListPacket` (0x6D): header component, footer component via `ComponentSerialization.TRUSTED_STREAM_CODEC` network NBT tags
 
