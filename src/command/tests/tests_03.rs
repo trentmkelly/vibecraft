@@ -153,7 +153,7 @@ fn version_command_reports_26_1_2_metadata() {
 
     let result =
         execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "/version").unwrap();
-    assert_eq!(result.success_count, lines.len() as i32);
+    assert_eq!(result.success_count, 1);
     assert_eq!(result.feedback_key, "commands.version.header");
     assert!(!result.broadcast_to_admins);
 }

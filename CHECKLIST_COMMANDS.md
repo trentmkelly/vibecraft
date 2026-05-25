@@ -161,7 +161,7 @@
 - [ ] Implement `/title`.
 - [ ] Implement `/transfer`.
 - [ ] Implement `/trigger`.
-- [ ] Implement `/version`.
+- [x] Implement `/version` — Java `VersionCommand` emits `commands.version.header`, dumps `SharedConstants.getCurrentVersion()` fields, and returns success count `1`; Rust `VersionInfo::CURRENT_26_1_2` models the 26.1.2 id, data/protocol, pack versions, build time, and stable flag, and `/version` now returns Java's success count; covered by `version_command_reports_26_1_2_metadata`.
 - [ ] Implement `/warden_spawn_tracker`.
 - [ ] Implement `/waypoint`.
 - [ ] Implement `/weather`.

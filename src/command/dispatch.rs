@@ -313,7 +313,7 @@ pub fn execute_builtin_command(
                 return Err(CommandError::InvalidSyntax);
             }
             Ok(CommandResult {
-                success_count: state.version.command_lines().len() as i32,
+                success_count: 1,
                 feedback_key: "commands.version.header",
                 broadcast_to_admins: false,
             })
