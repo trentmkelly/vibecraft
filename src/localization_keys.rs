@@ -126,6 +126,8 @@ pub const LOCALIZATION_KEYS: &[MessageKeyDef] = &[
     key("commands.gamemode.success.self", MessageKeyFamily::Command, &["mode"]),
     key("commands.gamemode.success.other", MessageKeyFamily::Command, &["player", "mode"]),
     key("commands.seed.success", MessageKeyFamily::Command, &["seed"]),
+    // RustCraft-only debug command feedback; vanilla 26.1.2 has no `/biome` command.
+    key("commands.rustcraft.debug.biome", MessageKeyFamily::Command, &[]),
     key("commands.save.saving", MessageKeyFamily::Command, &[]),
     key("commands.save.success", MessageKeyFamily::Command, &[]),
     key("commands.stop.stopping", MessageKeyFamily::Command, &[]),
@@ -418,6 +420,7 @@ mod tests {
         "commands.return.fail",
         "commands.return.run",
         "commands.return.success",
+        "commands.rustcraft.debug.biome",
         "commands.say.success",
         "commands.serverpack.pop",
         "commands.serverpack.push",
