@@ -94,7 +94,7 @@
 
 - [ ] Implement all number providers: `ConstantValue`, `UniformGenerator` (min–max), `BinomialDistributionGenerator` (n, p), `ScoreboardValue` (entity selector + objective → score), `StorageValue` (NBT path from storage), `EnchantmentLevelProvider` - `loot_system::NumberProvider` covers constant, uniform, binomial, score, storage, and enchantment-level values, including score/storage maps and dynamic enchantment level lookup.
 - [x] Implement score providers: `ContextScoreboardNameProvider`, `FixedScoreboardNameProvider` - Java 26.1.2 registers only `context` and `fixed` score provider codecs, with context resolving an entity target from the loot context and fixed wrapping a literal name; Rust `loot_system::ScoreProvider` models those two variants and resolves context-backed scoreboard names or fixed names, covered by `score_and_nbt_providers_resolve_context_and_storage_values`.
-- [ ] Implement NBT providers: `ContextNbtProvider` (from entity/block entity), `StorageNbtProvider` - `loot_system::NbtProvider` resolves context and storage NBT paths from loot context maps; covered by `score_and_nbt_providers_resolve_context_and_storage_values` and `cargo test -q loot_system`.
+- [x] Implement NBT providers: `ContextNbtProvider` (from entity/block entity), `StorageNbtProvider` - Java 26.1.2 registers `context` and `storage` NBT provider codecs, with context reading entity/block-entity NBT from loot context and storage reading command storage by resource id; Rust `loot_system::NbtProvider` resolves context and storage NBT paths from loot context maps, covered by `score_and_nbt_providers_resolve_context_and_storage_values`.
 
 ## Block, Entity, Chest, and Special Loot Behaviors
 
