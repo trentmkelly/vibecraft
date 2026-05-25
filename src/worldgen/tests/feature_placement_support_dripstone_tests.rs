@@ -303,31 +303,33 @@ pub(super) fn assert_disk_dripstone_and_large_dripstone_support() {
             None
         );
         let pointed_plan = super::super::pointed_dripstone_feature_plan(
-            BlockPos { x: 4, y: 70, z: 4 },
-            pointed_config,
-            true,
-            false,
-            false,
-            0.25,
-            true,
-            &[
-                super::super::PointedDripstoneSpreadRoll {
-                    direction: HorizontalDirection::East,
-                    direction_roll: 0.2,
-                    radius2_roll: 0.2,
-                    radius2_direction: HorizontalDirection::South,
-                    radius3_roll: 0.2,
-                    radius3_direction: HorizontalDirection::West,
-                },
-                super::super::PointedDripstoneSpreadRoll {
-                    direction: HorizontalDirection::North,
-                    direction_roll: 0.9,
-                    radius2_roll: 0.0,
-                    radius2_direction: HorizontalDirection::North,
-                    radius3_roll: 0.0,
-                    radius3_direction: HorizontalDirection::North,
-                },
-            ],
+            super::super::PointedDripstoneFeatureInput {
+                origin: BlockPos { x: 4, y: 70, z: 4 },
+                config: pointed_config,
+                can_place_above: true,
+                can_place_below: false,
+                choose_down_when_both: false,
+                taller_roll: 0.25,
+                next_position_empty_or_water: true,
+                spread_rolls: &[
+                    super::super::PointedDripstoneSpreadRoll {
+                        direction: HorizontalDirection::East,
+                        direction_roll: 0.2,
+                        radius2_roll: 0.2,
+                        radius2_direction: HorizontalDirection::South,
+                        radius3_roll: 0.2,
+                        radius3_direction: HorizontalDirection::West,
+                    },
+                    super::super::PointedDripstoneSpreadRoll {
+                        direction: HorizontalDirection::North,
+                        direction_roll: 0.9,
+                        radius2_roll: 0.0,
+                        radius2_direction: HorizontalDirection::North,
+                        radius3_roll: 0.0,
+                        radius3_direction: HorizontalDirection::North,
+                    },
+                ],
+            },
         )
         .unwrap();
         assert_eq!(
