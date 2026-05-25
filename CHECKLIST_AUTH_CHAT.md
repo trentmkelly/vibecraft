@@ -29,9 +29,9 @@ Authentication, secure profile, signed chat, and abuse-reporting metadata parity
 - [ ] Add focused raw 26.1.2 usercache-corruption fallback coverage that starts isolated servers with missing, empty, malformed, stale, and duplicate `usercache.json`, joins generated offline profiles, and verifies repaired UUID/name/expiresOn entries plus stale bogus UUID removal while Mineflayer lacks target-protocol play support.
 - [ ] Add a Mineflayer offline-mode auth-file hot-edit test that edits `ops.json`, `whitelist.json`, `banned-players.json`, and `banned-ips.json` while bots are online, runs the vanilla reload path, and verifies current and reconnecting bots observe the same effects as official `server.jar`.
 - [ ] Add raw 26.1.2 auth-file hot-edit fallback coverage that edits `banned-players.json` while the server process is online, runs console `reload`/`whitelist reload`, and verifies reconnecting offline profiles observe the new ban and subsequent pardon while Mineflayer lacks target-protocol play support.
-- [ ] Implement banned profile and banned IP checks.
-- [ ] Implement whitelist checks.
-- [ ] Implement operator permission lookup.
+- [x] Implement banned profile and banned IP checks — `PlayerAccess` loads vanilla `banned-players.json`/`banned-ips.json`, exposes UUID/IP checks, persists the files, and the login gate now matches Java `PlayerList.canPlayerLogin` precedence (profile ban before whitelist before IP ban); covered by `player_access` load/save/check tests, command ban/pardon tests, and `login_access_gate_matches_java_ban_whitelist_and_op_order`.
+- [x] Implement whitelist checks — `PlayerAccess` loads/persists `whitelist.json`, command handling mutates the whitelist model, and `login_access_disconnect_reason` enforces `enforce-whitelist` with Java's op bypass behavior; covered by whitelist command tests, player-access load/save tests, and login-gate precedence coverage.
+- [x] Implement operator permission lookup — `PlayerAccess` loads/persists `ops.json`, exposes op levels and op bypass checks used by login/spawn-protection/permission surfaces, and command handling updates operator state; covered by operator command tests, player-access load/save/hot-edit tests, and login-gate op-bypass coverage.
 - [ ] Implement secure chat chain validation.
 - [ ] Implement signed message body, link, signature, cache, and last-seen validation.
 - [ ] Implement unsigned, modified, filtered, and deleted chat behavior.

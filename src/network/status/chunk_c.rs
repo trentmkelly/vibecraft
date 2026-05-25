@@ -188,9 +188,6 @@ pub fn login_access_disconnect_reason(
             return Ok(Some("multiplayer.disconnect.unverified_username"));
         }
     }
-    if access.is_ip_banned(remote_ip) {
-        return Ok(Some("multiplayer.disconnect.ip_banned"));
-    }
     if access.is_player_banned(&profile.uuid) {
         return Ok(Some("multiplayer.disconnect.banned"));
     }
@@ -199,6 +196,9 @@ pub fn login_access_disconnect_reason(
         && !access.is_whitelisted(&profile.uuid)
     {
         return Ok(Some("multiplayer.disconnect.not_whitelisted"));
+    }
+    if access.is_ip_banned(remote_ip) {
+        return Ok(Some("multiplayer.disconnect.ip_banned"));
     }
     Ok(None)
 }

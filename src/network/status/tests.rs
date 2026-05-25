@@ -421,6 +421,57 @@ pub fn prevent_proxy_connections_rejects_mismatched_handshake_ip() {
 }
 
 #[test]
+pub fn login_access_gate_matches_java_ban_whitelist_and_op_order() {
+    let mut properties = test_properties();
+    properties.set("enforce-whitelist", "true");
+    let steve = crate::player_access::NameAndId::create_offline("Steve");
+    let alex = crate::player_access::NameAndId::create_offline("Alex");
+    let griefer = crate::player_access::NameAndId::create_offline("Griefer");
+    let op = crate::player_access::NameAndId::create_offline("Operator");
+    let mut access = crate::player_access::PlayerAccess::default();
+    access.ban_player(crate::player_access::BanEntry {
+        user: griefer.clone(),
+        created: "2026-05-25 00:00:00 +0000".to_string(),
+        source: "Server".to_string(),
+        expires: None,
+        reason: Some("test".to_string()),
+    });
+    access.ban_ip(crate::player_access::BanEntry {
+        user: "203.0.113.7".to_string(),
+        created: "2026-05-25 00:00:00 +0000".to_string(),
+        source: "Server".to_string(),
+        expires: None,
+        reason: Some("test".to_string()),
+    });
+    access.whitelist(alex.clone());
+    access.op(crate::player_access::OpEntry {
+        user: op.clone(),
+        level: 4,
+        bypasses_player_limit: true,
+    });
+    let access = Arc::new(Mutex::new(access));
+
+    assert_eq!(
+        login_access_disconnect_reason(&properties, &access, &griefer, "203.0.113.7", None)
+            .unwrap(),
+        Some("multiplayer.disconnect.banned")
+    );
+    assert_eq!(
+        login_access_disconnect_reason(&properties, &access, &steve, "203.0.113.7", None)
+            .unwrap(),
+        Some("multiplayer.disconnect.not_whitelisted")
+    );
+    assert_eq!(
+        login_access_disconnect_reason(&properties, &access, &alex, "203.0.113.7", None).unwrap(),
+        Some("multiplayer.disconnect.ip_banned")
+    );
+    assert_eq!(
+        login_access_disconnect_reason(&properties, &access, &op, "198.51.100.4", None).unwrap(),
+        None
+    );
+}
+
+#[test]
 pub fn includes_favicon_when_present() {
     let properties = test_properties();
     let json = status_json(&properties, Some("data:image/png;base64,iVBORw0KGgo="));
