@@ -1,5 +1,67 @@
 use super::*;
 
+pub fn loggable_remote_address(log_ips: bool, remote_address: &str) -> String {
+    if log_ips {
+        remote_address.to_string()
+    } else {
+        "IP hidden".to_string()
+    }
+}
+
+pub fn player_login_log_message(
+    player_name: &str,
+    loggable_address: &str,
+    entity_id: i32,
+    x: f64,
+    y: f64,
+    z: f64,
+) -> String {
+    format!("{player_name}[{loggable_address}] logged in with entity id {entity_id} at ({x}, {y}, {z})")
+}
+
+pub fn play_packet_is_handled_after_state_update(packet_id: i32) -> bool {
+    matches!(
+        packet_id,
+        SERVERBOUND_KEEP_ALIVE_PACKET_ID
+            | SERVERBOUND_ACCEPT_TELEPORTATION_PACKET_ID
+            | SERVERBOUND_CHAT_ACK_PACKET_ID
+            | SERVERBOUND_CLIENT_COMMAND_PACKET_ID
+            | SERVERBOUND_CLIENT_INFORMATION_PACKET_ID
+            | SERVERBOUND_CLIENT_TICK_END_PACKET_ID
+            | SERVERBOUND_CONTAINER_CLOSE_PACKET_ID
+            | SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID
+            | SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID
+            | SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID
+            | SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID
+            | SERVERBOUND_PLAYER_ABILITIES_PACKET_ID
+            | SERVERBOUND_PLAYER_COMMAND_PACKET_ID
+            | SERVERBOUND_PLAYER_INPUT_PACKET_ID
+            | SERVERBOUND_PLAYER_LOADED_PACKET_ID
+            | SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID
+            | SERVERBOUND_SWING_PACKET_ID
+            | SERVERBOUND_USE_ITEM_PACKET_ID
+    )
+}
+
+pub fn play_packet_has_live_status_handler(packet_id: i32) -> bool {
+    play_packet_is_handled_after_state_update(packet_id)
+        || matches!(
+            packet_id,
+            SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID
+                | SERVERBOUND_CHAT_PACKET_ID
+                | SERVERBOUND_CHAT_COMMAND_PACKET_ID
+                | SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID
+                | SERVERBOUND_USE_ITEM_ON_PACKET_ID
+                | SERVERBOUND_PLAYER_ACTION_PACKET_ID
+                | SERVERBOUND_CONTAINER_CLICK_PACKET_ID
+                | SERVERBOUND_SET_CREATIVE_MODE_SLOT_PACKET_ID
+                | SERVERBOUND_RECIPE_BOOK_CHANGE_SETTINGS_PACKET_ID
+                | SERVERBOUND_RECIPE_BOOK_SEEN_RECIPE_PACKET_ID
+                | SERVERBOUND_PLACE_RECIPE_PACKET_ID
+                | SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID
+        )
+}
+
 pub fn process_item_pickups(
     stream: &mut TcpStream,
     compression: CompressionState,

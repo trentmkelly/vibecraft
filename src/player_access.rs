@@ -54,7 +54,7 @@ impl IpLogPolicy {
     pub fn format_remote(self, ip: &str) -> String {
         match self {
             Self::Include => ip.to_string(),
-            Self::Redact => "<redacted>".to_string(),
+            Self::Redact => "IP hidden".to_string(),
         }
     }
 }
@@ -1021,7 +1021,7 @@ mod tests {
         );
         assert_eq!(
             access.ip_log_policy(false).format_remote("203.0.113.10"),
-            "<redacted>"
+            "IP hidden"
         );
     }
 

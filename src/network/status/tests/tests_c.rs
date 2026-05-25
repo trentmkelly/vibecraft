@@ -334,6 +334,22 @@ pub fn creative_mode_debug_packets_do_not_fall_through_to_unexpected_disconnect(
 }
 
 #[test]
+pub fn log_ips_uses_java_loggable_address_redaction_and_login_shape() {
+    assert_eq!(
+        super::super::loggable_remote_address(true, "203.0.113.10:25565"),
+        "203.0.113.10:25565"
+    );
+    assert_eq!(
+        super::super::loggable_remote_address(false, "203.0.113.10:25565"),
+        "IP hidden"
+    );
+    assert_eq!(
+        super::super::player_login_log_message("Steve", "IP hidden", 1, 0.5, 64.0, -12.25),
+        "Steve[IP hidden] logged in with entity id 1 at (0.5, 64, -12.25)"
+    );
+}
+
+#[test]
 pub fn player_fluid_detection_tracks_body_and_eye_water() {
     let mut state = session_state_with_inventory(&[]);
     state.x = 0.5;

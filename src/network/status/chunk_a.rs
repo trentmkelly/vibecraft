@@ -315,11 +315,9 @@ pub fn run_status_server(
                 let recipe_manager = Arc::clone(&recipe_manager);
                 let world_items = Arc::clone(&world_items);
                 let remote_ip = peer_addr.ip().to_string();
-                let remote_for_log = if properties.log_ips {
-                    remote_ip.clone()
-                } else {
-                    "<redacted>".to_string()
-                };
+                let remote_address = peer_addr.to_string();
+                let remote_for_log =
+                    loggable_remote_address(properties.log_ips, &remote_address);
                 thread::spawn(move || {
                     if let Err(err) = handle_status_connection(
                         stream,
@@ -331,6 +329,7 @@ pub fn run_status_server(
                         &player_access,
                         &world_root,
                         world_seed,
+                        &remote_address,
                         &remote_ip,
                         &clock,
                         &weather,
@@ -391,6 +390,7 @@ pub fn handle_status_connection(
     player_access: &Arc<Mutex<PlayerAccess>>,
     world_root: &Path,
     world_seed: i64,
+    remote_address: &str,
     remote_ip: &str,
     clock: &Arc<Mutex<ServerClockManager>>,
     weather: &Arc<Mutex<WeatherCycle>>,
@@ -434,6 +434,7 @@ pub fn handle_status_connection(
             player_access,
             world_root,
             world_seed,
+            remote_address,
             remote_ip,
             login_host_ip(&server_address),
             clock,
@@ -509,6 +510,7 @@ pub fn handle_login_connection(
     player_access: &Arc<Mutex<PlayerAccess>>,
     world_root: &Path,
     world_seed: i64,
+    remote_address: &str,
     remote_ip: &str,
     login_host_ip: Option<String>,
     clock: &Arc<Mutex<ServerClockManager>>,
@@ -869,6 +871,14 @@ pub fn handle_login_connection(
         join_rain_level,
         join_thunder_level,
     )?;
+    log_info(&player_login_log_message(
+        &finished.profile.name,
+        &loggable_remote_address(properties.log_ips, remote_address),
+        1,
+        play_state.x,
+        play_state.y,
+        play_state.z,
+    ));
     let mut current_chunk_x = chunk_coordinate(play_state.x);
     let mut current_chunk_z = chunk_coordinate(play_state.z);
     let chunk_batch_radius = chunk_batch_radius(properties);
