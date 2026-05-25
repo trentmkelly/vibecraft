@@ -102,7 +102,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 ## Recipe / Advancement / Unlock Packets
 
 - [ ] `ClientboundRecipeBookAddPacket` (0x3C): recipe entries list (display entry, notification/highlight flags), replace flag
-- [ ] `ClientboundRecipeBookRemovePacket` (0x3D): recipe IDs list
+- [x] `ClientboundRecipeBookRemovePacket` (0x4B / decimal 75): recipes are a Java `ByteBufCodecs.list()` VarInt-counted list of `RecipeDisplayId.STREAM_CODEC` entries, where each `RecipeDisplayId.index` is a raw VarInt; verified against Java composite codec, `RecipeDisplayId` stream codec, Java play registration/name mapping, Rust packet ID/registry mapping, and focused byte-layout coverage for single- and multibyte display IDs.
 - [ ] `ClientboundRecipeBookSettingsPacket` (0x3E): recipe book open/filter flags per book type
 - [ ] `ClientboundUpdateAdvancementsPacket` (0x74): reset/clear flag, added advancement holders, removed advancement IDs, progress map, show-advancements flag
 - [x] `ServerboundRecipeBookChangeSettingsPacket` (0x2E / decimal 46): `RecipeBookType` enum ordinal VarInt (`CRAFTING`, `FURNACE`, `BLAST_FURNACE`, `SMOKER`), is-open bool, and is-filtering bool; verified against Java `readEnum`/`writeEnum` codec, Java handler settings update, Java registration/name mapping, Rust packet ID/registry mapping, invalid enum rejection, focused read/write/dispatch coverage, and Rust session recipe-book settings application.
