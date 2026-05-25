@@ -53,12 +53,14 @@ pub enum RegionCompression {
 pub struct RegionFile {
     path: PathBuf,
     sync_writes: bool,
+    compression: RegionCompression,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RegionFileStorage {
     dir: PathBuf,
     sync_writes: bool,
+    compression: RegionCompression,
     region_cache: RefCell<BTreeMap<RegionPos, RegionFile>>,
     region_lru: RefCell<VecDeque<RegionPos>>,
 }
@@ -156,6 +158,10 @@ impl RegionCompression {
         }
     }
 
+    pub fn from_property_value(option_name: &str) -> Self {
+        Self::from_option_name(option_name).unwrap_or(Self::DEFAULT)
+    }
+
     pub fn is_valid_id(id: u8) -> bool {
         Self::from_id(id).is_some()
     }
@@ -163,10 +169,27 @@ impl RegionCompression {
 
 impl RegionFile {
     pub fn open(dir: &Path, pos: RegionPos) -> io::Result<Self> {
-        Self::open_with_sync(dir, pos, false)
+        Self::open_with_options(dir, pos, false, RegionCompression::DEFAULT)
     }
 
     pub fn open_with_sync(dir: &Path, pos: RegionPos, sync_writes: bool) -> io::Result<Self> {
+        Self::open_with_options(dir, pos, sync_writes, RegionCompression::DEFAULT)
+    }
+
+    pub fn open_with_compression(
+        dir: &Path,
+        pos: RegionPos,
+        compression: RegionCompression,
+    ) -> io::Result<Self> {
+        Self::open_with_options(dir, pos, false, compression)
+    }
+
+    pub fn open_with_options(
+        dir: &Path,
+        pos: RegionPos,
+        sync_writes: bool,
+        compression: RegionCompression,
+    ) -> io::Result<Self> {
         fs::create_dir_all(dir)?;
         let path = dir.join(pos.file_name());
         let file = open_region_read_write_create(&path, sync_writes)?;
@@ -178,7 +201,11 @@ impl RegionFile {
         }
         drop(file);
 
-        let region = Self { path, sync_writes };
+        let region = Self {
+            path,
+            sync_writes,
+            compression,
+        };
         region.sanitize_header_locations()?;
         Ok(region)
     }
@@ -189,6 +216,10 @@ impl RegionFile {
 
     pub fn sync_writes(&self) -> bool {
         self.sync_writes
+    }
+
+    pub fn compression(&self) -> RegionCompression {
+        self.compression
     }
 
     fn external_chunk_path(&self, chunk: ChunkPos) -> Option<PathBuf> {
@@ -399,7 +430,7 @@ impl RegionFile {
     }
 
     pub fn write_chunk_nbt(&self, chunk: ChunkPos, name: &str, tag: &Tag) -> io::Result<()> {
-        self.write_chunk_nbt_with_compression(chunk, name, tag, RegionCompression::DEFAULT)
+        self.write_chunk_nbt_with_compression(chunk, name, tag, self.compression)
     }
 
     pub fn clear_chunk_nbt(&self, chunk: ChunkPos) -> io::Result<()> {
@@ -542,15 +573,31 @@ impl RegionFile {
 
 impl RegionFileStorage {
     pub fn open(dir: impl Into<PathBuf>) -> io::Result<Self> {
-        Self::open_with_sync(dir, false)
+        Self::open_with_options(dir, false, RegionCompression::DEFAULT)
     }
 
     pub fn open_with_sync(dir: impl Into<PathBuf>, sync_writes: bool) -> io::Result<Self> {
+        Self::open_with_options(dir, sync_writes, RegionCompression::DEFAULT)
+    }
+
+    pub fn open_with_compression(
+        dir: impl Into<PathBuf>,
+        compression: RegionCompression,
+    ) -> io::Result<Self> {
+        Self::open_with_options(dir, false, compression)
+    }
+
+    pub fn open_with_options(
+        dir: impl Into<PathBuf>,
+        sync_writes: bool,
+        compression: RegionCompression,
+    ) -> io::Result<Self> {
         let dir = dir.into();
         fs::create_dir_all(&dir)?;
         Ok(Self {
             dir,
             sync_writes,
+            compression,
             region_cache: RefCell::new(BTreeMap::new()),
             region_lru: RefCell::new(VecDeque::new()),
         })
@@ -558,6 +605,10 @@ impl RegionFileStorage {
 
     pub fn sync_writes(&self) -> bool {
         self.sync_writes
+    }
+
+    pub fn compression(&self) -> RegionCompression {
+        self.compression
     }
 
     pub fn cached_region_count(&self) -> usize {
@@ -569,7 +620,12 @@ impl RegionFileStorage {
             return Ok(region);
         }
 
-        let region = RegionFile::open_with_sync(&self.dir, region_pos, self.sync_writes)?;
+        let region = RegionFile::open_with_options(
+            &self.dir,
+            region_pos,
+            self.sync_writes,
+            self.compression,
+        )?;
         self.cache_region_file(region_pos, region.clone())?;
         Ok(region)
     }
@@ -641,12 +697,27 @@ impl RegionFileStorage {
 
 impl RegionIoWorker {
     pub fn open(dir: impl Into<PathBuf>) -> io::Result<Self> {
-        Self::open_with_sync(dir, false)
+        Self::open_with_options(dir, false, RegionCompression::DEFAULT)
     }
 
     pub fn open_with_sync(dir: impl Into<PathBuf>, sync_writes: bool) -> io::Result<Self> {
+        Self::open_with_options(dir, sync_writes, RegionCompression::DEFAULT)
+    }
+
+    pub fn open_with_compression(
+        dir: impl Into<PathBuf>,
+        compression: RegionCompression,
+    ) -> io::Result<Self> {
+        Self::open_with_options(dir, false, compression)
+    }
+
+    pub fn open_with_options(
+        dir: impl Into<PathBuf>,
+        sync_writes: bool,
+        compression: RegionCompression,
+    ) -> io::Result<Self> {
         Ok(Self {
-            storage: RegionFileStorage::open_with_sync(dir, sync_writes)?,
+            storage: RegionFileStorage::open_with_options(dir, sync_writes, compression)?,
             pending_writes: BTreeMap::new(),
             old_chunk_mask_cache: RefCell::new(BTreeMap::new()),
             old_chunk_mask_lru: RefCell::new(VecDeque::new()),
@@ -656,6 +727,10 @@ impl RegionIoWorker {
 
     pub fn sync_writes(&self) -> bool {
         self.storage.sync_writes()
+    }
+
+    pub fn compression(&self) -> RegionCompression {
+        self.storage.compression()
     }
 
     pub fn pending_write_count(&self) -> usize {

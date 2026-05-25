@@ -838,8 +838,62 @@ fn region_compression_versions_match_vanilla_ids_and_options() {
         RegionCompression::from_option_name("lz4"),
         Some(RegionCompression::Lz4)
     );
+    assert_eq!(
+        RegionCompression::from_property_value("none"),
+        RegionCompression::None
+    );
+    assert_eq!(
+        RegionCompression::from_property_value("invalid"),
+        RegionCompression::DEFAULT
+    );
     assert!(RegionCompression::is_valid_id(4));
     assert!(!RegionCompression::is_valid_id(5));
+}
+
+#[test]
+fn configured_region_compression_propagates_to_storage_and_worker_writes() {
+    let mut dir = std::env::temp_dir();
+    dir.push(format!(
+        "rustcraft-region-configured-compression-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&dir);
+
+    let region =
+        RegionFile::open_with_compression(&dir, RegionPos { x: 0, z: 0 }, RegionCompression::None)
+            .unwrap();
+    assert_eq!(region.compression(), RegionCompression::None);
+
+    let storage = RegionFileStorage::open_with_compression(dir.clone(), RegionCompression::Lz4)
+        .unwrap();
+    assert_eq!(storage.compression(), RegionCompression::Lz4);
+    assert_eq!(
+        storage
+            .get_region_file(RegionPos { x: 1, z: 0 })
+            .unwrap()
+            .compression(),
+        RegionCompression::Lz4
+    );
+
+    let chunk = ChunkPos { x: 64, z: 0 };
+    let tag = Tag::Compound(vec![("compression".to_string(), Tag::Int(4))]);
+    let mut worker =
+        RegionIoWorker::open_with_compression(dir.clone(), RegionCompression::Lz4).unwrap();
+    assert_eq!(worker.compression(), RegionCompression::Lz4);
+    worker.store_chunk_nbt(chunk, "", tag.clone());
+    worker.synchronize().unwrap();
+
+    let region = RegionFile::open(&dir, chunk.region()).unwrap();
+    let location = region.read_location(chunk).unwrap().unwrap();
+    let bytes = fs::read(region.path()).unwrap();
+    let offset = location.sector_offset as usize * super::SECTOR_BYTES as usize;
+    assert_eq!(bytes[offset + 4], RegionCompression::Lz4.id());
+    assert_eq!(
+        region.read_chunk_nbt(chunk).unwrap(),
+        Some(("".to_string(), tag))
+    );
+
+    let _ = fs::remove_dir_all(&dir);
 }
 
 #[test]

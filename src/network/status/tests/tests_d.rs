@@ -631,6 +631,48 @@ pub fn cache_invalidate_refuses_to_drop_dirty_chunks() {
 }
 
 #[test]
+pub fn cache_flush_dirty_uses_configured_region_compression() {
+    let mut world_root = std::env::temp_dir();
+    world_root.push(format!(
+        "rustcraft-cache-region-compression-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&world_root);
+
+    let cache = super::super::GeneratedChunkCache::default();
+    let pos = crate::storage::region::ChunkPos { x: 2, z: 0 };
+    cache.chunks.lock().unwrap().insert(
+        pos,
+        std::sync::Arc::new(crate::storage::chunk::LevelChunk::empty(pos)),
+    );
+    cache.set_block(
+        &world_root,
+        42,
+        crate::block_update::BlockPos { x: 32, y: 64, z: 0 },
+        "minecraft:stone",
+    );
+
+    assert_eq!(
+        cache.flush_dirty(&world_root, false, crate::storage::region::RegionCompression::Lz4),
+        1
+    );
+    let region = crate::storage::region::RegionFile::open(
+        &world_root.join("region"),
+        pos.region(),
+    )
+    .unwrap();
+    let location = region.read_location(pos).unwrap().unwrap();
+    let bytes = std::fs::read(region.path()).unwrap();
+    let offset = location.sector_offset as usize * crate::storage::region::SECTOR_BYTES as usize;
+    assert_eq!(
+        bytes[offset + 4],
+        crate::storage::region::RegionCompression::Lz4.id()
+    );
+
+    let _ = std::fs::remove_dir_all(&world_root);
+}
+
+#[test]
 pub fn unpack_chunk_fluid_ticks_restores_saved_ticks_without_scanning_blocks() {
     // Java-parity guard: chunk load only restores saved fluid_ticks
     // (LevelChunkTicks.unpack); it never scans the chunk for fluid

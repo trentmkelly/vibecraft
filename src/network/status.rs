@@ -108,7 +108,7 @@ use crate::scheduled_tick::{LevelTickQueues, TickPriority};
 use crate::server_properties::ServerProperties;
 use crate::storage::chunk::{HeightmapKind, LevelChunk, PalettedContainer, SECTION_VOLUME};
 use crate::storage::nbt::Tag;
-use crate::storage::region::{ChunkPos, RegionFile};
+use crate::storage::region::{ChunkPos, RegionCompression, RegionFile};
 use crate::storage::world::{PrimaryLevelData, WorldLayout};
 use crate::weather::{WeatherCycle, WeatherData, WeatherRandomDurations};
 use crate::world_time::{ClockNetworkState, ScheduledTimeChanges, ServerClockManager};
