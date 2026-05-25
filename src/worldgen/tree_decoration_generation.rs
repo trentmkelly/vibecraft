@@ -98,9 +98,9 @@ pub(super) fn apply_initial_tree_decoration_to_chunk(
     let noise_router = builtin_noise_router(router_id)
         .map(|entry| entry.router)
         .unwrap_or(NONE_NOISE_ROUTER);
-    if load_surface_rule(settings.id).is_none() {
+    let Some(surface_rule) = load_surface_rule(settings.id) else {
         return TreeDecorationResult::default();
-    }
+    };
     let climate_sampler = ClimateSampler::from_noise_router(&noise_router, seed, *settings);
     let global_biome_steps = possible_biome_feature_steps_for_source(biome_source_model);
     let global_features_per_step = if global_biome_steps.is_empty() {
@@ -135,7 +135,7 @@ pub(super) fn apply_initial_tree_decoration_to_chunk(
             settings,
             seed,
             noise_router,
-            &load_surface_rule(settings.id).expect("surface rule was checked above"),
+            &surface_rule,
         )
     });
     diagnostics.context_chunks = context_cache.context_chunks;
@@ -958,10 +958,10 @@ pub(super) fn build_lightweight_tree_context_chunks(
         handles
             .into_iter()
             .flat_map(|handle| {
-                handle
-                    .join()
-                    .expect("tree context worker should not panic")
-                    .into_iter()
+                match handle.join() {
+                    Ok(chunks) => chunks.into_iter(),
+                    Err(payload) => std::panic::resume_unwind(payload),
+                }
             })
             .collect::<Vec<_>>()
     })

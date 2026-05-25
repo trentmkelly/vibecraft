@@ -791,7 +791,7 @@ pub(super) fn height_provider_sample_with_random(
             }
 
             let mut choice = feature_random_next_i32_bound(random, positive_weight_total);
-            let selected = distribution
+            let Some(selected) = distribution
                 .iter()
                 .find(|entry| {
                     let weight = entry.weight.max(0);
@@ -802,7 +802,9 @@ pub(super) fn height_provider_sample_with_random(
                         false
                     }
                 })
-                .expect("positive total weight must select a provider");
+            else {
+                return context.min_y;
+            };
             height_provider_sample_with_random(selected.provider, context, random)
         }
     }

@@ -349,8 +349,9 @@ impl OreBlockCache {
             None
         };
         if let Some(section) = self.section_mut_for_chunk(chunk_pos, section_y) {
-            let palette_index = cached_palette_index.unwrap_or_else(|| {
-                let entry = entry.as_ref().expect("entry exists when uncached");
+            let palette_index = if let Some(palette_index) = cached_palette_index {
+                palette_index
+            } else if let Some(entry) = entry.as_ref() {
                 let palette_index = section
                     .palette
                     .iter()
@@ -366,7 +367,9 @@ impl OreBlockCache {
                         .push(paletted_block_name(entry).map(str::to_string));
                 }
                 palette_index
-            });
+            } else {
+                return;
+            };
             if let Some(current) = section.indices.get_mut(index) {
                 *current = palette_index as u64;
                 section.dirty = true;
