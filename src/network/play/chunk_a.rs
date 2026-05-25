@@ -547,10 +547,13 @@ impl PlaySession {
             SERVERBOUND_RESOURCE_PACK_PACKET_ID => {
                 let mut input = &packet.payload[..];
                 match ServerboundResourcePackPacket::read(&mut input) {
-                    Ok(response) => {
+                    Ok(response) if input.is_empty() => {
                         self.last_resource_pack_response = Some(response);
                         DispatchOutcome::Handled
                     }
+                    Ok(_) => DispatchOutcome::Disconnect(
+                        "bad resource pack packet: trailing payload".to_string(),
+                    ),
                     Err(err) => {
                         DispatchOutcome::Disconnect(format!("bad resource pack packet: {err}"))
                     }
