@@ -763,6 +763,7 @@ mod container_close_packet_test;
 mod container_set_content_packet_test;
 mod container_set_slot_packet_test;
 mod container_set_data_packet_test;
+mod custom_payload_packet_test;
 mod entity_position_sync_packet_test;
 mod open_screen_packet_test;
 mod merchant_offers_packet_test;
