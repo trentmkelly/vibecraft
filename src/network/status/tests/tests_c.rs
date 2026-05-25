@@ -314,6 +314,26 @@ pub fn creative_mode_slot_packet_applies_java_slot_and_ability_gates() {
 }
 
 #[test]
+pub fn creative_mode_debug_packets_do_not_fall_through_to_unexpected_disconnect() {
+    // Java 26.1.2 GameProtocols registers serverbound player_abilities at
+    // 40 and set_creative_mode_slot at 56. Both are common in creative mode:
+    // double-tap space toggles packet 40 and taking an item from the creative
+    // inventory sends packet 56.
+    assert_eq!(super::super::SERVERBOUND_PLAYER_ABILITIES_PACKET_ID, 40);
+    assert_eq!(
+        super::super::SERVERBOUND_SET_CREATIVE_MODE_SLOT_PACKET_ID,
+        56
+    );
+    assert!(super::super::play_packet_is_handled_after_state_update(
+        super::super::SERVERBOUND_PLAYER_ABILITIES_PACKET_ID
+    ));
+    assert!(super::super::play_packet_has_live_status_handler(
+        super::super::SERVERBOUND_SET_CREATIVE_MODE_SLOT_PACKET_ID
+    ));
+    assert!(!super::super::play_packet_has_live_status_handler(999));
+}
+
+#[test]
 pub fn player_fluid_detection_tracks_body_and_eye_water() {
     let mut state = session_state_with_inventory(&[]);
     state.x = 0.5;
