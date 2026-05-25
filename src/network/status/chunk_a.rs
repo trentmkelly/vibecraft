@@ -1645,6 +1645,238 @@ fn spawn_block_break_drops(
     Ok(())
 }
 
+struct InventoryPacketContext<'a, 'b> {
+    recipe_manager: &'a RecipeManagerModel,
+    world_layout: &'b WorldLayout,
+    chunk_cache: &'a GeneratedChunkCache,
+    profile_name: &'a str,
+}
+
+fn try_handle_inventory_packet<R: Read>(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    input: &mut R,
+    packet_id: i32,
+    play_state: &mut PlaySessionState,
+    context: InventoryPacketContext<'_, '_>,
+) -> io::Result<bool> {
+    match packet_id {
+        SERVERBOUND_CONTAINER_CLICK_PACKET_ID => {
+            handle_container_click_packet(
+                stream,
+                compression,
+                input,
+                play_state,
+                context.recipe_manager,
+            )?;
+        }
+        SERVERBOUND_PICK_ITEM_FROM_BLOCK_PACKET_ID => {
+            handle_pick_item_from_block_packet(stream, compression, input, play_state, &context)?;
+        }
+        SERVERBOUND_PICK_ITEM_FROM_ENTITY_PACKET_ID => {
+            handle_pick_item_from_entity_packet(stream, compression, input, play_state)?;
+        }
+        SERVERBOUND_EDIT_BOOK_PACKET_ID => {
+            handle_edit_book_packet(stream, compression, input, play_state, context.profile_name)?;
+        }
+        SERVERBOUND_SET_CREATIVE_MODE_SLOT_PACKET_ID => {
+            handle_set_creative_mode_slot_packet(stream, compression, input, play_state)?;
+        }
+        SERVERBOUND_RECIPE_BOOK_CHANGE_SETTINGS_PACKET_ID => {
+            let packet = ServerboundRecipeBookChangeSettingsPacket::read(input)?;
+            apply_recipe_book_settings_packet(play_state, packet);
+        }
+        SERVERBOUND_RECIPE_BOOK_SEEN_RECIPE_PACKET_ID => {
+            let packet = ServerboundRecipeBookSeenRecipePacket::read(input)?;
+            apply_recipe_book_seen_recipe_packet(
+                play_state,
+                packet,
+                context.recipe_manager.recipe_map(),
+            );
+        }
+        SERVERBOUND_PLACE_RECIPE_PACKET_ID => {
+            handle_place_recipe_packet(
+                stream,
+                compression,
+                input,
+                play_state,
+                context.recipe_manager,
+            )?;
+        }
+        _ => return Ok(false),
+    }
+    Ok(true)
+}
+
+fn handle_container_click_packet<R: Read>(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    input: &mut R,
+    play_state: &mut PlaySessionState,
+    recipe_manager: &RecipeManagerModel,
+) -> io::Result<()> {
+    // Only handle player inventory (container_id 0) for now.
+    // Java: ServerGamePacketListenerImpl.handleContainerClick()
+    let Ok(click) = ServerboundContainerClickPacket::read(input) else {
+        return Ok(());
+    };
+    if click.container_id != 0 {
+        return Ok(());
+    }
+    let instructions = handle_container_click(
+        &click,
+        &mut play_state.container_state_id,
+        &mut play_state.inventory_menu,
+        &mut play_state.carried_item,
+    );
+    for instruction in instructions {
+        write_container_click_instruction(stream, compression, instruction, recipe_manager)?;
+    }
+    Ok(())
+}
+
+fn write_container_click_instruction(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    instruction: PlayInstruction,
+    recipe_manager: &RecipeManagerModel,
+) -> io::Result<()> {
+    match instruction {
+        PlayInstruction::ContainerSetSlot(packet) => write_framed_packet_with_compression(
+            stream,
+            compression,
+            CLIENTBOUND_CONTAINER_SET_SLOT_PACKET_ID,
+            |payload| packet.write(payload),
+        ),
+        PlayInstruction::SetCursorItem(packet) => write_framed_packet_with_compression(
+            stream,
+            compression,
+            CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID,
+            |payload| packet.write(payload),
+        ),
+        PlayInstruction::RecipesUnlocked(ids) => {
+            let Some(packet) = build_recipe_book_add(&ids, recipe_manager.recipe_map()) else {
+                return Ok(());
+            };
+            write_framed_packet_with_compression(
+                stream,
+                compression,
+                CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID,
+                |payload| packet.write(payload),
+            )
+        }
+        _ => Ok(()),
+    }
+}
+
+fn handle_pick_item_from_block_packet<R: Read>(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    input: &mut R,
+    play_state: &mut PlaySessionState,
+    context: &InventoryPacketContext<'_, '_>,
+) -> io::Result<()> {
+    let packet = ServerboundPickItemFromBlockPacket::read(input)?;
+    let outcome = super::player_creative_packets::apply_pick_item_from_block_packet(
+        play_state,
+        packet,
+        context.world_layout,
+        context.chunk_cache,
+    );
+    write_pick_item_outcome(stream, compression, play_state, outcome)
+}
+
+fn handle_pick_item_from_entity_packet<R: Read>(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    input: &mut R,
+    play_state: &mut PlaySessionState,
+) -> io::Result<()> {
+    let packet = ServerboundPickItemFromEntityPacket::read(input)?;
+    let outcome =
+        super::player_creative_packets::apply_pick_item_from_entity_packet(play_state, packet);
+    write_pick_item_outcome(stream, compression, play_state, outcome)
+}
+
+fn write_pick_item_outcome(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    play_state: &mut PlaySessionState,
+    outcome: super::player_creative_packets::PickItemOutcome,
+) -> io::Result<()> {
+    let super::player_creative_packets::PickItemOutcome::Picked { inventory_changed } = outcome
+    else {
+        return Ok(());
+    };
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_SET_HELD_SLOT_PACKET_ID,
+        |payload| {
+            ClientboundSetHeldSlotPacket {
+                slot: play_state.selected_slot,
+            }
+            .write(payload)
+        },
+    )?;
+    if inventory_changed {
+        play_state.container_state_id = play_state.container_state_id.wrapping_add(1);
+        write_inventory_menu_full_sync(stream, compression, play_state)?;
+    }
+    Ok(())
+}
+
+fn handle_edit_book_packet<R: Read>(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    input: &mut R,
+    play_state: &mut PlaySessionState,
+    profile_name: &str,
+) -> io::Result<()> {
+    let packet = ServerboundEditBookPacket::read(input)?;
+    if super::player_book_packets::apply_edit_book_packet(play_state, packet, profile_name) {
+        play_state.container_state_id = play_state.container_state_id.wrapping_add(1);
+        write_inventory_menu_full_sync(stream, compression, play_state)?;
+    }
+    Ok(())
+}
+
+fn handle_set_creative_mode_slot_packet<R: Read>(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    input: &mut R,
+    play_state: &mut PlaySessionState,
+) -> io::Result<()> {
+    let packet = ServerboundSetCreativeModeSlotPacket::read(input)?;
+    let Some(slot_update) =
+        super::player_creative_packets::apply_set_creative_mode_slot_packet(play_state, packet)
+    else {
+        return Ok(());
+    };
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_CONTAINER_SET_SLOT_PACKET_ID,
+        |payload| slot_update.write(payload),
+    )
+}
+
+fn handle_place_recipe_packet<R: Read>(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    input: &mut R,
+    play_state: &mut PlaySessionState,
+    recipe_manager: &RecipeManagerModel,
+) -> io::Result<()> {
+    let packet = ServerboundPlaceRecipePacket::read(input)?;
+    if packet.container_id == 0
+        && apply_place_recipe_packet(play_state, packet, recipe_manager.recipe_map())
+    {
+        write_inventory_menu_full_sync(stream, compression, play_state)?;
+    }
+    Ok(())
+}
+
 fn handle_login_connection(
     stream: &mut TcpStream,
     mut context: LoginConnectionContext<'_>,
@@ -1915,146 +2147,19 @@ fn run_joined_play_session(
                     )?;
                     continue;
                 }
-                if packet_id == SERVERBOUND_CONTAINER_CLICK_PACKET_ID {
-                    // Only handle player inventory (container_id 0) for now.
-                    // Java: ServerGamePacketListenerImpl.handleContainerClick()
-                    if let Ok(click) = ServerboundContainerClickPacket::read(&mut input) {
-                        if click.container_id == 0 {
-                            let instructions = handle_container_click(
-                                &click,
-                                &mut play_state.container_state_id,
-                                &mut play_state.inventory_menu,
-                                &mut play_state.carried_item,
-                            );
-                            for instruction in instructions {
-                                match instruction {
-                                    PlayInstruction::ContainerSetSlot(pkt) => {
-                                        write_framed_packet_with_compression(
-                                            stream,
-                                            compression,
-                                            CLIENTBOUND_CONTAINER_SET_SLOT_PACKET_ID,
-                                            |p| pkt.write(p),
-                                        )?;
-                                    }
-                                    PlayInstruction::SetCursorItem(pkt) => {
-                                        write_framed_packet_with_compression(
-                                            stream,
-                                            compression,
-                                            CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID,
-                                            |p| pkt.write(p),
-                                        )?;
-                                    }
-                                    PlayInstruction::RecipesUnlocked(ids) => {
-                                        if let Some(pkt) =
-                                            build_recipe_book_add(&ids, recipe_manager.recipe_map())
-                                        {
-                                            write_framed_packet_with_compression(
-                                                stream,
-                                                compression,
-                                                CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID,
-                                                |p| pkt.write(p),
-                                            )?;
-                                        }
-                                    }
-                                    _ => {}
-                                }
-                            }
-                        }
-                    }
-                    continue;
-                }
-                if packet_id == SERVERBOUND_PICK_ITEM_FROM_BLOCK_PACKET_ID {
-                    let packet = ServerboundPickItemFromBlockPacket::read(&mut input)?;
-                    if let super::player_creative_packets::PickItemOutcome::Picked {
-                        inventory_changed,
-                    } = super::player_creative_packets::apply_pick_item_from_block_packet(
-                        &mut play_state,
-                        packet,
-                        &world_layout,
+                if try_handle_inventory_packet(
+                    stream,
+                    compression,
+                    &mut input,
+                    packet_id,
+                    &mut play_state,
+                    InventoryPacketContext {
+                        recipe_manager,
+                        world_layout: &world_layout,
                         chunk_cache,
-                    ) {
-                        write_framed_packet_with_compression(
-                            stream,
-                            compression,
-                            CLIENTBOUND_SET_HELD_SLOT_PACKET_ID,
-                            |payload| {
-                                ClientboundSetHeldSlotPacket {
-                                    slot: play_state.selected_slot,
-                                }
-                                .write(payload)
-                            },
-                        )?;
-                        if inventory_changed {
-                            play_state.container_state_id =
-                                play_state.container_state_id.wrapping_add(1);
-                            write_inventory_menu_full_sync(stream, compression, &play_state)?;
-                        }
-                    }
-                    continue;
-                }
-                if packet_id == SERVERBOUND_PICK_ITEM_FROM_ENTITY_PACKET_ID {
-                    let packet = ServerboundPickItemFromEntityPacket::read(&mut input)?;
-                    let _ = super::player_creative_packets::apply_pick_item_from_entity_packet(
-                        &mut play_state,
-                        packet,
-                    );
-                    continue;
-                }
-                if packet_id == SERVERBOUND_EDIT_BOOK_PACKET_ID {
-                    let packet = ServerboundEditBookPacket::read(&mut input)?;
-                    if super::player_book_packets::apply_edit_book_packet(
-                        &mut play_state,
-                        packet,
-                        &finished.profile.name,
-                    ) {
-                        play_state.container_state_id =
-                            play_state.container_state_id.wrapping_add(1);
-                        write_inventory_menu_full_sync(stream, compression, &play_state)?;
-                    }
-                    continue;
-                }
-                if packet_id == SERVERBOUND_SET_CREATIVE_MODE_SLOT_PACKET_ID {
-                    let packet = ServerboundSetCreativeModeSlotPacket::read(&mut input)?;
-                    if let Some(slot_update) =
-                        super::player_creative_packets::apply_set_creative_mode_slot_packet(
-                            &mut play_state,
-                            packet,
-                        )
-                    {
-                        write_framed_packet_with_compression(
-                            stream,
-                            compression,
-                            CLIENTBOUND_CONTAINER_SET_SLOT_PACKET_ID,
-                            |payload| slot_update.write(payload),
-                        )?;
-                    }
-                    continue;
-                }
-                if packet_id == SERVERBOUND_RECIPE_BOOK_CHANGE_SETTINGS_PACKET_ID {
-                    let packet = ServerboundRecipeBookChangeSettingsPacket::read(&mut input)?;
-                    apply_recipe_book_settings_packet(&mut play_state, packet);
-                    continue;
-                }
-                if packet_id == SERVERBOUND_RECIPE_BOOK_SEEN_RECIPE_PACKET_ID {
-                    let packet = ServerboundRecipeBookSeenRecipePacket::read(&mut input)?;
-                    apply_recipe_book_seen_recipe_packet(
-                        &mut play_state,
-                        packet,
-                        recipe_manager.recipe_map(),
-                    );
-                    continue;
-                }
-                if packet_id == SERVERBOUND_PLACE_RECIPE_PACKET_ID {
-                    let packet = ServerboundPlaceRecipePacket::read(&mut input)?;
-                    if packet.container_id == 0
-                        && apply_place_recipe_packet(
-                            &mut play_state,
-                            packet,
-                            recipe_manager.recipe_map(),
-                        )
-                    {
-                        write_inventory_menu_full_sync(stream, compression, &play_state)?;
-                    }
+                        profile_name: &finished.profile.name,
+                    },
+                )? {
                     continue;
                 }
                 if packet_id == SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID {
