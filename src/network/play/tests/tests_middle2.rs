@@ -588,6 +588,15 @@ fn malformed_serverbound_scalar_packets_disconnect_session() {
         )),
         DispatchOutcome::Disconnect(_)
     ));
+
+    let mut overlong_sign = vec![0; 8];
+    overlong_sign.push(1);
+    overlong_sign.extend([0x81, 0x03]);
+    overlong_sign.extend(vec![b'a'; 385]);
+    assert!(matches!(
+        session.handle_decoded(decoded(SERVERBOUND_SIGN_UPDATE_PACKET_ID, overlong_sign)),
+        DispatchOutcome::Disconnect(_)
+    ));
 }
 
 #[test]
