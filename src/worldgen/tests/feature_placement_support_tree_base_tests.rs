@@ -223,28 +223,30 @@ pub(super) fn assert_tree_size_and_basic_tree_support() {
             super::super::tree_max_free_height(5, min_size, &[&vine_row], false),
             -2
         );
-        assert!(super::super::tree_can_place(
-            BlockPos { x: 0, y: 64, z: 0 },
-            BlockPos { x: 0, y: 64, z: 0 },
-            5,
+        assert!(super::super::tree_can_place(super::super::TreeCanPlaceInput {
+            origin: BlockPos { x: 0, y: 64, z: 0 },
+            trunk_origin: BlockPos { x: 0, y: 64, z: 0 },
+            tree_height: 5,
             min_size,
-            Some(3),
-            -64,
-            320,
-            &[&free_row, &free_row, &free_row, &free_row, &free_row, &free_row, &free_row,],
-            true,
-        ));
-        assert!(!super::super::tree_can_place(
-            BlockPos { x: 0, y: -64, z: 0 },
-            BlockPos { x: 0, y: -64, z: 0 },
-            5,
+            min_clipped_height: Some(3),
+            build_min_y: -64,
+            build_max_y: 320,
+            rows: &[
+                &free_row, &free_row, &free_row, &free_row, &free_row, &free_row, &free_row,
+            ],
+            ignore_vines: true,
+        }));
+        assert!(!super::super::tree_can_place(super::super::TreeCanPlaceInput {
+            origin: BlockPos { x: 0, y: -64, z: 0 },
+            trunk_origin: BlockPos { x: 0, y: -64, z: 0 },
+            tree_height: 5,
             min_size,
-            Some(3),
-            -64,
-            320,
-            &[&free_row],
-            true,
-        ));
+            min_clipped_height: Some(3),
+            build_min_y: -64,
+            build_max_y: 320,
+            rows: &[&free_row],
+            ignore_vines: true,
+        }));
         assert_eq!(
             super::super::validate_trunk_placer(TrunkPlacerModel {
                 base_height: 33,
