@@ -386,6 +386,31 @@ fn weighted_entries_rolls_bonus_rolls_and_luck_follow_pool_shape() {
     assert_eq!(drops.len(), 4);
     assert!(drops.iter().all(|stack| stack.item == "minecraft:diamond"));
     assert!(drops.iter().all(|stack| stack.count == 2));
+
+    let mut negative_luck = LootContext::new(LootParamSet::Chest, 11);
+    negative_luck.luck = -0.25;
+    let drops = table.evaluate(&mut negative_luck);
+
+    assert_eq!(drops, vec![LootStack::new("minecraft:stick", 1)]);
+
+    let mut engine = LootBehaviorEngine::new();
+    let mut pool = LootPool::single(LootEntry::item("minecraft:emerald", 1));
+    pool.bonus_rolls = NumberProvider::Constant(1.0);
+    engine.insert_table("minecraft:commands/luck_probe", table_with_pool(pool));
+    let mut request = LootRequest::new(LootSurface::Command, "minecraft:commands/luck_probe");
+    request.luck = 2.0;
+
+    assert_eq!(
+        engine.resolve(request, 11).delivery,
+        LootDelivery::DropAt(
+            (0.0, 0.0, 0.0),
+            vec![
+                LootStack::new("minecraft:emerald", 1),
+                LootStack::new("minecraft:emerald", 1),
+                LootStack::new("minecraft:emerald", 1),
+            ]
+        )
+    );
 }
 
 #[test]
