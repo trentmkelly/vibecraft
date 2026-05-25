@@ -451,12 +451,14 @@ fn vault_loot_resolves_normal_and_ominous_tables_once_per_player() {
         resolve_vault_unlock_loot(
             &engine,
             &mut normal,
-            "player-a",
-            "minecraft:ominous_trial_key",
-            (0.0, 64.0, 0.0),
-            0.0,
-            9,
-            20,
+            VaultUnlockLootRequest::new(
+                "player-a",
+                "minecraft:ominous_trial_key",
+                (0.0, 64.0, 0.0),
+                0.0,
+                9,
+                20,
+            ),
         ),
         VaultInsertResult::WrongKey {
             expected: "minecraft:trial_key".to_string()
@@ -466,12 +468,14 @@ fn vault_loot_resolves_normal_and_ominous_tables_once_per_player() {
         resolve_vault_unlock_loot(
             &engine,
             &mut normal,
-            "player-a",
-            "minecraft:trial_key",
-            (0.0, 64.0, 0.0),
-            0.0,
-            9,
-            40,
+            VaultUnlockLootRequest::new(
+                "player-a",
+                "minecraft:trial_key",
+                (0.0, 64.0, 0.0),
+                0.0,
+                9,
+                40,
+            ),
         ),
         VaultInsertResult::Unlocking { items_to_eject: 1 }
     );
@@ -486,12 +490,14 @@ fn vault_loot_resolves_normal_and_ominous_tables_once_per_player() {
         resolve_vault_unlock_loot(
             &engine,
             &mut normal,
-            "player-a",
-            "minecraft:trial_key",
-            (0.0, 64.0, 0.0),
-            0.0,
-            9,
-            60,
+            VaultUnlockLootRequest::new(
+                "player-a",
+                "minecraft:trial_key",
+                (0.0, 64.0, 0.0),
+                0.0,
+                9,
+                60,
+            ),
         ),
         VaultInsertResult::AlreadyRewarded
     );
@@ -505,12 +511,14 @@ fn vault_loot_resolves_normal_and_ominous_tables_once_per_player() {
         resolve_vault_unlock_loot(
             &engine,
             &mut ominous,
-            "player-b",
-            "minecraft:ominous_trial_key",
-            (0.0, 64.0, 0.0),
-            0.0,
-            10,
-            80,
+            VaultUnlockLootRequest::new(
+                "player-b",
+                "minecraft:ominous_trial_key",
+                (0.0, 64.0, 0.0),
+                0.0,
+                10,
+                80,
+            ),
         ),
         VaultInsertResult::Unlocking { items_to_eject: 1 }
     );

@@ -507,29 +507,53 @@ pub fn resolve_block_break_loot(
     engine.resolve(request, seed)
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct VaultUnlockLootRequest {
+    pub player: String,
+    pub inserted_key: String,
+    pub origin: (f64, f64, f64),
+    pub player_luck: f32,
+    pub seed: u64,
+    pub game_time: i64,
+}
+
+impl VaultUnlockLootRequest {
+    pub fn new(
+        player: impl Into<String>,
+        inserted_key: impl Into<String>,
+        origin: (f64, f64, f64),
+        player_luck: f32,
+        seed: u64,
+        game_time: i64,
+    ) -> Self {
+        Self {
+            player: player.into(),
+            inserted_key: inserted_key.into(),
+            origin,
+            player_luck,
+            seed,
+            game_time,
+        }
+    }
+}
+
 pub fn resolve_vault_unlock_loot(
     engine: &LootBehaviorEngine,
     vault: &mut VaultBlockEntity,
-    player: impl Into<String>,
-    inserted_key: impl Into<String>,
-    origin: (f64, f64, f64),
-    player_luck: f32,
-    seed: u64,
-    game_time: i64,
+    unlock: VaultUnlockLootRequest,
 ) -> VaultInsertResult {
-    let player = player.into();
     let table = vault.config.loot_table.clone();
     let inserted = PotItemStack {
-        item_id: inserted_key.into(),
+        item_id: unlock.inserted_key,
         count: 1,
     };
     let mut request = LootRequest::new(LootSurface::Vault, table);
-    request.origin = origin;
-    request.actor = Some(player.clone());
+    request.origin = unlock.origin;
+    request.actor = Some(unlock.player.clone());
     request.target_entity = request.actor.clone();
     request.tool = Some(inserted.item_id.clone());
-    request.luck = player_luck;
-    let rewards = match engine.resolve(request, seed).delivery {
+    request.luck = unlock.player_luck;
+    let rewards = match engine.resolve(request, unlock.seed).delivery {
         LootDelivery::DropAt(_, stacks) => stacks
             .into_iter()
             .map(|stack| PotItemStack {
@@ -539,7 +563,7 @@ pub fn resolve_vault_unlock_loot(
             .collect(),
         _ => Vec::new(),
     };
-    vault.try_insert_key(player, &inserted, rewards, game_time)
+    vault.try_insert_key(unlock.player, &inserted, rewards, unlock.game_time)
 }
 
 pub fn hero_of_the_village_gift_table(
@@ -763,6 +787,7 @@ fn json_string_value(value: &serde_json::Value) -> Result<String, String> {
 
 mod runtime_engine;
 pub use runtime_engine::*;
+mod runtime_functions;
 
 mod context;
 pub use context::*;
