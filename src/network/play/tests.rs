@@ -852,6 +852,7 @@ mod stop_sound_packet_test;
 mod tab_list_packet_test;
 mod cooldown_packet_test;
 mod delete_chat_packet_test;
+mod disguised_chat_packet_test;
 mod entity_movement_test;
 mod mount_screen_open_packet_test;
 mod named_sound_effect_absence_test;
