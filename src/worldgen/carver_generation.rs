@@ -926,20 +926,21 @@ pub fn apply_configured_carvers_to_chunk(
                 if !carver_is_start_chunk(carver, random.next_f32()) {
                     continue;
                 }
-                carved_blocks += carve_configured_carver_from_source_chunk(
-                    chunk,
-                    height_context,
-                    carver,
-                    source_chunk_x,
-                    source_chunk_z,
-                    chunk_min_x,
-                    chunk_min_z,
-                    &mut random,
-                    &mut mask,
-                    settings,
-                    &noise_chunk,
-                    aquifer.as_mut(),
-                );
+                carved_blocks +=
+                    carve_configured_carver_from_source_chunk(SourceChunkCarverInput {
+                        chunk,
+                        height_context,
+                        carver,
+                        source_chunk_x,
+                        source_chunk_z,
+                        target_chunk_min_x: chunk_min_x,
+                        target_chunk_min_z: chunk_min_z,
+                        random: &mut random,
+                        mask: &mut mask,
+                        settings,
+                        noise_chunk: &noise_chunk,
+                        aquifer: aquifer.as_mut(),
+                    });
             }
         }
     }
@@ -1061,20 +1062,21 @@ pub(super) fn apply_configured_carvers_for_biome_source_with_noise_context(
                 if !carver_is_start_chunk(carver, random.next_f32()) {
                     continue;
                 }
-                carved_blocks += carve_configured_carver_from_source_chunk(
-                    chunk,
-                    height_context,
-                    carver,
-                    source_chunk_x,
-                    source_chunk_z,
-                    chunk_min_x,
-                    chunk_min_z,
-                    &mut random,
-                    &mut mask,
-                    settings,
-                    &noise_context.noise_chunk,
-                    noise_context.aquifer.as_mut(),
-                );
+                carved_blocks +=
+                    carve_configured_carver_from_source_chunk(SourceChunkCarverInput {
+                        chunk,
+                        height_context,
+                        carver,
+                        source_chunk_x,
+                        source_chunk_z,
+                        target_chunk_min_x: chunk_min_x,
+                        target_chunk_min_z: chunk_min_z,
+                        random: &mut random,
+                        mask: &mut mask,
+                        settings,
+                        noise_chunk: &noise_context.noise_chunk,
+                        aquifer: noise_context.aquifer.as_mut(),
+                    });
             }
         }
     }

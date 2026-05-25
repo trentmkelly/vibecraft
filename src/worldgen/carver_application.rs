@@ -13,145 +13,211 @@ pub fn pack_carving_mask_indices(indices: &[usize]) -> Vec<i64> {
     words
 }
 
+pub(super) struct SourceChunkCarverInput<'a> {
+    pub chunk: &'a mut LevelChunk,
+    pub height_context: WorldGenerationHeightContext,
+    pub carver: &'a ConfiguredCarver,
+    pub source_chunk_x: i32,
+    pub source_chunk_z: i32,
+    pub target_chunk_min_x: i32,
+    pub target_chunk_min_z: i32,
+    pub random: &'a mut LegacyRandom,
+    pub mask: &'a mut Vec<usize>,
+    pub settings: &'a NoiseGeneratorSettings,
+    pub noise_chunk: &'a NoiseChunk,
+    pub aquifer: Option<&'a mut NoiseBasedAquifer>,
+}
+
 pub(super) fn carve_configured_carver_from_source_chunk(
-    chunk: &mut LevelChunk,
-    height_context: WorldGenerationHeightContext,
-    carver: &ConfiguredCarver,
-    source_chunk_x: i32,
-    source_chunk_z: i32,
-    target_chunk_min_x: i32,
-    target_chunk_min_z: i32,
-    random: &mut LegacyRandom,
-    mask: &mut Vec<usize>,
-    settings: &NoiseGeneratorSettings,
-    noise_chunk: &NoiseChunk,
-    mut aquifer: Option<&mut NoiseBasedAquifer>,
+    input: SourceChunkCarverInput<'_>,
 ) -> usize {
-    match carver.shape {
+    match input.carver.shape {
         CarverShape::Cave {
             horizontal_radius_multiplier,
             vertical_radius_multiplier,
             floor_level,
-        } => {
-            let cave_count = sample_cave_carver_cave_count(carver.carver_type, random);
-            let max_distance = (4 * 2 - 1) << 4;
-            let mut carved = 0;
-            for _ in 0..cave_count {
-                let x = f64::from(source_chunk_x * 16 + random.next_i32_bound(16));
-                let y = f64::from(sample_carver_y(carver.y, height_context, random));
-                let z = f64::from(source_chunk_z * 16 + random.next_i32_bound(16));
-                let horizontal_radius_multiplier =
-                    f64::from(sample_float_provider(horizontal_radius_multiplier, random));
-                let vertical_radius_multiplier =
-                    f64::from(sample_float_provider(vertical_radius_multiplier, random));
-                let floor_level = f64::from(sample_float_provider(floor_level, random));
-                let mut tunnels = 1;
-                if random.next_i32_bound(4) == 0 {
-                    let y_scale = sample_float_provider(carver.y_scale, random) as f64;
-                    let thickness = 1.0 + random.next_f32() * 6.0;
-                    let (base_horizontal_radius, base_vertical_radius) =
-                        cave_room_radii(thickness, y_scale);
-                    carved += carve_ellipsoid_into_chunk(CarveEllipsoidChunkInput {
-                        chunk,
-                        height_context,
-                        carver,
-                        chunk_min_x: target_chunk_min_x,
-                        chunk_min_z: target_chunk_min_z,
-                        x: x + 1.0,
-                        y,
-                        z,
-                        horizontal_radius: base_horizontal_radius,
-                        vertical_radius: base_vertical_radius,
-                        skip_model: CarverSkipModel::Cave { floor_level },
-                        mask,
-                        settings,
-                        noise_chunk,
-                        aquifer: aquifer.as_deref_mut(),
-                    });
-                    tunnels += random.next_i32_bound(4);
-                }
-                for _ in 0..tunnels {
-                    let horizontal_rotation = random.next_f32() * std::f32::consts::TAU;
-                    let vertical_rotation = (random.next_f32() - 0.5) / 4.0;
-                    let thickness = match carver.carver_type {
-                        WorldCarverType::NetherCave => {
-                            nether_carver_thickness(random.next_f32(), random.next_f32())
-                        }
-                        _ => {
-                            let mut thickness = random.next_f32() * 2.0 + random.next_f32();
-                            if random.next_i32_bound(10) == 0 {
-                                thickness *= random.next_f32() * random.next_f32() * 3.0 + 1.0;
-                            }
-                            thickness
-                        }
-                    };
-                    let distance = max_distance - random.next_i32_bound(max_distance / 4);
-                    carved += carve_cave_tunnel_into_chunk(
-                        chunk,
-                        height_context,
-                        carver,
-                        target_chunk_min_x,
-                        target_chunk_min_z,
-                        random.next_i64(),
-                        x,
-                        y,
-                        z,
-                        horizontal_radius_multiplier,
-                        vertical_radius_multiplier,
-                        thickness,
-                        horizontal_rotation,
-                        vertical_rotation,
-                        0,
-                        distance,
-                        carver_tunnel_y_scale(carver.carver_type),
-                        floor_level,
-                        mask,
-                        0,
-                        settings,
-                        noise_chunk,
-                        aquifer.as_deref_mut(),
-                    );
-                }
-            }
-            carved
-        }
+        } => carve_cave_configured_carver_from_source_chunk(
+            input,
+            horizontal_radius_multiplier,
+            vertical_radius_multiplier,
+            floor_level,
+        ),
         CarverShape::Canyon {
             vertical_rotation,
-            ref shape,
-        } => {
-            let max_distance = (4 * 2 - 1) << 4;
-            let x = f64::from(source_chunk_x * 16 + random.next_i32_bound(16));
-            let y = f64::from(sample_carver_y(carver.y, height_context, random));
-            let z = f64::from(source_chunk_z * 16 + random.next_i32_bound(16));
-            let horizontal_rotation = random.next_f32() * std::f32::consts::TAU;
-            let vertical_rotation = sample_float_provider(vertical_rotation, random);
-            let y_scale = sample_float_provider(carver.y_scale, random) as f64;
-            let thickness = sample_float_provider(shape.thickness, random);
-            let distance =
-                (max_distance as f32 * sample_float_provider(shape.distance_factor, random)) as i32;
-            carve_canyon_tunnel_into_chunk(
-                chunk,
-                height_context,
-                carver,
-                target_chunk_min_x,
-                target_chunk_min_z,
-                random.next_i64(),
+            shape,
+        } => carve_canyon_configured_carver_from_source_chunk(input, vertical_rotation, shape),
+    }
+}
+
+fn carve_cave_configured_carver_from_source_chunk(
+    mut input: SourceChunkCarverInput<'_>,
+    horizontal_radius_multiplier: FloatProvider,
+    vertical_radius_multiplier: FloatProvider,
+    floor_level: FloatProvider,
+) -> usize {
+    let cave_count = sample_cave_carver_cave_count(input.carver.carver_type, input.random);
+    let max_distance = (4 * 2 - 1) << 4;
+    let mut carved = 0;
+    for _ in 0..cave_count {
+        let x = f64::from(input.source_chunk_x * 16 + input.random.next_i32_bound(16));
+        let y = f64::from(sample_carver_y(
+            input.carver.y,
+            input.height_context,
+            input.random,
+        ));
+        let z = f64::from(input.source_chunk_z * 16 + input.random.next_i32_bound(16));
+        let horizontal_radius_multiplier = f64::from(sample_float_provider(
+            horizontal_radius_multiplier,
+            input.random,
+        ));
+        let vertical_radius_multiplier = f64::from(sample_float_provider(
+            vertical_radius_multiplier,
+            input.random,
+        ));
+        let floor_level = f64::from(sample_float_provider(floor_level, input.random));
+        let mut tunnels = 1;
+        if input.random.next_i32_bound(4) == 0 {
+            let y_scale = sample_float_provider(input.carver.y_scale, input.random) as f64;
+            let thickness = 1.0 + input.random.next_f32() * 6.0;
+            let (base_horizontal_radius, base_vertical_radius) =
+                cave_room_radii(thickness, y_scale);
+            carved += carve_ellipsoid_into_chunk(CarveEllipsoidChunkInput {
+                chunk: &mut *input.chunk,
+                height_context: input.height_context,
+                carver: input.carver,
+                chunk_min_x: input.target_chunk_min_x,
+                chunk_min_z: input.target_chunk_min_z,
+                x: x + 1.0,
+                y,
+                z,
+                horizontal_radius: base_horizontal_radius,
+                vertical_radius: base_vertical_radius,
+                skip_model: CarverSkipModel::Cave { floor_level },
+                mask: &mut *input.mask,
+                settings: input.settings,
+                noise_chunk: input.noise_chunk,
+                aquifer: input.aquifer.as_deref_mut(),
+            });
+            tunnels += input.random.next_i32_bound(4);
+        }
+        carved += carve_cave_tunnels_from_source_position(
+            &mut input,
+            CaveSourceTunnelBatch {
                 x,
                 y,
                 z,
-                thickness,
-                horizontal_rotation,
-                vertical_rotation,
-                distance,
-                y_scale,
-                shape,
-                mask,
-                settings,
-                noise_chunk,
-                aquifer,
-            )
-        }
+                horizontal_radius_multiplier,
+                vertical_radius_multiplier,
+                floor_level,
+                tunnels,
+                max_distance,
+            },
+        );
     }
+    carved
+}
+
+struct CaveSourceTunnelBatch {
+    x: f64,
+    y: f64,
+    z: f64,
+    horizontal_radius_multiplier: f64,
+    vertical_radius_multiplier: f64,
+    floor_level: f64,
+    tunnels: i32,
+    max_distance: i32,
+}
+
+fn carve_cave_tunnels_from_source_position(
+    input: &mut SourceChunkCarverInput<'_>,
+    batch: CaveSourceTunnelBatch,
+) -> usize {
+    let mut carved = 0;
+    for _ in 0..batch.tunnels {
+        let horizontal_rotation = input.random.next_f32() * std::f32::consts::TAU;
+        let vertical_rotation = (input.random.next_f32() - 0.5) / 4.0;
+        let thickness = match input.carver.carver_type {
+            WorldCarverType::NetherCave => {
+                nether_carver_thickness(input.random.next_f32(), input.random.next_f32())
+            }
+            _ => {
+                let mut thickness = input.random.next_f32() * 2.0 + input.random.next_f32();
+                if input.random.next_i32_bound(10) == 0 {
+                    thickness *= input.random.next_f32() * input.random.next_f32() * 3.0 + 1.0;
+                }
+                thickness
+            }
+        };
+        let distance = batch.max_distance - input.random.next_i32_bound(batch.max_distance / 4);
+        carved += carve_cave_tunnel_into_chunk(
+            input.chunk,
+            input.height_context,
+            input.carver,
+            input.target_chunk_min_x,
+            input.target_chunk_min_z,
+            input.random.next_i64(),
+            batch.x,
+            batch.y,
+            batch.z,
+            batch.horizontal_radius_multiplier,
+            batch.vertical_radius_multiplier,
+            thickness,
+            horizontal_rotation,
+            vertical_rotation,
+            0,
+            distance,
+            carver_tunnel_y_scale(input.carver.carver_type),
+            batch.floor_level,
+            input.mask,
+            0,
+            input.settings,
+            input.noise_chunk,
+            input.aquifer.as_deref_mut(),
+        );
+    }
+    carved
+}
+
+fn carve_canyon_configured_carver_from_source_chunk(
+    input: SourceChunkCarverInput<'_>,
+    vertical_rotation: FloatProvider,
+    shape: CanyonShapeConfiguration,
+) -> usize {
+    let max_distance = (4 * 2 - 1) << 4;
+    let x = f64::from(input.source_chunk_x * 16 + input.random.next_i32_bound(16));
+    let y = f64::from(sample_carver_y(
+        input.carver.y,
+        input.height_context,
+        input.random,
+    ));
+    let z = f64::from(input.source_chunk_z * 16 + input.random.next_i32_bound(16));
+    let horizontal_rotation = input.random.next_f32() * std::f32::consts::TAU;
+    let vertical_rotation = sample_float_provider(vertical_rotation, input.random);
+    let y_scale = sample_float_provider(input.carver.y_scale, input.random) as f64;
+    let thickness = sample_float_provider(shape.thickness, input.random);
+    let distance =
+        (max_distance as f32 * sample_float_provider(shape.distance_factor, input.random)) as i32;
+    carve_canyon_tunnel_into_chunk(
+        input.chunk,
+        input.height_context,
+        input.carver,
+        input.target_chunk_min_x,
+        input.target_chunk_min_z,
+        input.random.next_i64(),
+        x,
+        y,
+        z,
+        thickness,
+        horizontal_rotation,
+        vertical_rotation,
+        distance,
+        y_scale,
+        &shape,
+        input.mask,
+        input.settings,
+        input.noise_chunk,
+        input.aquifer,
+    )
 }
 
 struct CarveEllipsoidChunkInput<'a> {
