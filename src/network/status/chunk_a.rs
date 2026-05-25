@@ -645,6 +645,17 @@ fn wait_for_configuration_packet_or_rate_disconnect(
     }
 }
 
+fn write_vanilla_feature_flags_packet<W: Write>(payload: &mut W) -> io::Result<()> {
+    let vanilla = Identifier::parse("minecraft:vanilla").map_err(|err| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("invalid built-in feature flag identifier: {err}"),
+        )
+    })?;
+    write_var_i32(payload, 1)?;
+    write_identifier(payload, &vanilla)
+}
+
 fn handle_login_connection(
     stream: &mut TcpStream,
     context: LoginConnectionContext<'_>,
@@ -752,10 +763,7 @@ fn handle_login_connection(
         stream,
         compression,
         CLIENTBOUND_CONFIGURATION_UPDATE_ENABLED_FEATURES_PACKET_ID,
-        |payload| {
-            write_var_i32(payload, 1)?;
-            write_identifier(payload, &Identifier::parse("minecraft:vanilla").unwrap())
-        },
+        write_vanilla_feature_flags_packet,
     )?;
     // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
     // Registries.BIOME uses Biome.NETWORK_CODEC.
@@ -1011,11 +1019,11 @@ fn handle_login_connection(
     // Snapshot current clock and weather state for the join packet.
     // Java: ServerClockManager.createFullSyncPacket() on player join, ServerLevel.sendLevelInfo()
     let (join_game_time, join_clock_data) = {
-        let cm = clock.lock().unwrap();
+        let cm = lock_status_mutex(clock);
         cm.full_sync_data(true)
     };
     let (join_rain_level, join_thunder_level) = {
-        let wc = weather.lock().unwrap();
+        let wc = lock_status_mutex(weather);
         (wc.rain_level, wc.thunder_level)
     };
 
@@ -1076,7 +1084,7 @@ fn handle_login_connection(
     // ChunkMap.updatePlayerMobTypeMap() when a player enters tracking range of an entity.
     // Without this, items dropped before a disconnect are invisible after reconnecting.
     {
-        let items = world_items.lock().unwrap();
+        let items = lock_status_mutex(world_items);
         for item in &items.entities {
             if let Some(item_pid) = item_protocol_id(item.item) {
                 write_item_entity_spawn_packets(stream, compression, item, item_pid)?;
@@ -1111,7 +1119,7 @@ fn handle_login_connection(
         // Time heartbeat: empty clock map, just the current game_time.
         // Java: MinecraftServer.forceGameTimeSynchronization() every 20 ticks (~1 second)
         if last_time_sync.elapsed() >= TIME_SYNC_INTERVAL {
-            let game_time = clock.lock().unwrap().heartbeat_game_time();
+            let game_time = lock_status_mutex(clock).heartbeat_game_time();
             write_framed_packet_with_compression(
                 stream,
                 compression,
@@ -1134,7 +1142,7 @@ fn handle_login_connection(
         if last_item_tick.elapsed() >= ITEM_TICK_INTERVAL {
             last_item_tick = Instant::now();
             let result = {
-                let mut items = world_items.lock().unwrap();
+                let mut items = lock_status_mutex(world_items);
                 item_entity::tick(&mut items.entities)
             };
             if !result.removed.is_empty() {
@@ -1239,7 +1247,7 @@ fn handle_login_connection(
         // Java: ServerLevel.advanceWeatherCycle() — RainLevelChange/ThunderLevelChange
         {
             let (cur_rain, cur_thunder) = {
-                let wc = weather.lock().unwrap();
+                let wc = lock_status_mutex(weather);
                 (wc.rain_level, wc.thunder_level)
             };
             if (cur_rain - last_sent_rain_level).abs() > f32::EPSILON {
@@ -1269,7 +1277,7 @@ fn handle_login_connection(
                     play_state.inventory_menu.clear_crafting_to_inventory();
                     let _ =
                         save_play_session_state(world_root, &finished.profile.uuid, &play_state);
-                    save_world_item_entities(world_root, &world_items.lock().unwrap());
+                    save_world_item_entities(world_root, &lock_status_mutex(world_items));
                     // Flush any in-memory block changes (player edits,
                     // fluid spreads) that haven't yet hit the periodic
                     // 30 s flush window — disconnect must not lose work.
@@ -1431,7 +1439,7 @@ fn handle_login_connection(
                             read_block_at(&world_layout, world_seed, chunk_pos_dbg, dbx, dby, dbz);
                         let destroy_time = actual_block
                             .as_deref()
-                            .and_then(|name| representative_state_definition(name))
+                            .and_then(representative_state_definition)
                             .map(|def| def.physical.destroy_time);
                         crate::log::log_debug(&format!("instabreak check: actual_block={actual_block:?} destroy_time={destroy_time:?}"));
                     }
@@ -1443,7 +1451,7 @@ fn handle_login_connection(
                             };
                             read_block_at(&world_layout, world_seed, chunk_pos_ib, dbx, dby, dbz)
                                 .as_deref()
-                                .and_then(|name| representative_state_definition(name))
+                                .and_then(representative_state_definition)
                                 .map(|def| def.physical.destroy_time == 0.0)
                                 .unwrap_or(false)
                         };
@@ -1543,7 +1551,7 @@ fn handle_login_connection(
                                 let Some(item_pid) = item_protocol_id(item_name) else {
                                     continue;
                                 };
-                                let eid = world_items.lock().unwrap().alloc_entity_id();
+                                let eid = lock_status_mutex(world_items).alloc_entity_id();
                                 // Java: ItemEntity constructor sets initial velocity
                                 // (random*0.2-0.1, 0.2, random*0.2-0.1) — the y=0.2 upward
                                 // component produces the characteristic item "pop" animation
@@ -1571,7 +1579,7 @@ fn handle_login_connection(
                                     &item,
                                     item_pid,
                                 )?;
-                                world_items.lock().unwrap().entities.push(item);
+                                lock_status_mutex(world_items).entities.push(item);
                             }
                         }
                     }
@@ -1719,14 +1727,14 @@ fn handle_login_connection(
                 }
                 if packet_id == SERVERBOUND_PLACE_RECIPE_PACKET_ID {
                     let packet = ServerboundPlaceRecipePacket::read(&mut input)?;
-                    if packet.container_id == 0 {
-                        if apply_place_recipe_packet(
+                    if packet.container_id == 0
+                        && apply_place_recipe_packet(
                             &mut play_state,
                             packet,
                             recipe_manager.recipe_map(),
-                        ) {
-                            write_inventory_menu_full_sync(stream, compression, &play_state)?;
-                        }
+                        )
+                    {
+                        write_inventory_menu_full_sync(stream, compression, &play_state)?;
                     }
                     continue;
                 }
@@ -1744,7 +1752,7 @@ fn handle_login_connection(
                 }
                 play_state.inventory_menu.clear_crafting_to_inventory();
                 let _ = save_play_session_state(world_root, &finished.profile.uuid, &play_state);
-                save_world_item_entities(world_root, &world_items.lock().unwrap());
+                save_world_item_entities(world_root, &lock_status_mutex(world_items));
                 chunk_cache.flush_dirty(
                     world_root,
                     properties.sync_chunk_writes,
@@ -1777,7 +1785,7 @@ fn handle_login_connection(
                     play_state.inventory_menu.clear_crafting_to_inventory();
                     let _ =
                         save_play_session_state(world_root, &finished.profile.uuid, &play_state);
-                    save_world_item_entities(world_root, &world_items.lock().unwrap());
+                    save_world_item_entities(world_root, &lock_status_mutex(world_items));
                     chunk_cache.flush_dirty(
                         world_root,
                         properties.sync_chunk_writes,
@@ -1805,7 +1813,7 @@ fn handle_login_connection(
             {
                 play_state.inventory_menu.clear_crafting_to_inventory();
                 let _ = save_play_session_state(world_root, &finished.profile.uuid, &play_state);
-                save_world_item_entities(world_root, &world_items.lock().unwrap());
+                save_world_item_entities(world_root, &lock_status_mutex(world_items));
                 chunk_cache.flush_dirty(
                     world_root,
                     properties.sync_chunk_writes,
