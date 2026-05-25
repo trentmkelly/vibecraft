@@ -40,11 +40,11 @@ use crate::network::common::{
 use crate::network::compression::CompressionState;
 use crate::network::configuration::ClientboundCodeOfConductPacket;
 use crate::network::login::{
-    ClientboundLoginCompressionPacket, ClientboundLoginDisconnectPacket, LoginSession,
-    ServerboundHelloPacket, ServerboundLoginAcknowledgedPacket,
-    CLIENTBOUND_LOGIN_COMPRESSION_PACKET_ID, CLIENTBOUND_LOGIN_DISCONNECT_PACKET_ID,
-    CLIENTBOUND_LOGIN_FINISHED_PACKET_ID, SERVERBOUND_HELLO_PACKET_ID,
-    SERVERBOUND_LOGIN_ACKNOWLEDGED_PACKET_ID,
+    ClientboundLoginCompressionPacket, ClientboundLoginDisconnectPacket,
+    ClientboundLoginFinishedPacket, LoginSession, ServerboundHelloPacket,
+    ServerboundLoginAcknowledgedPacket, CLIENTBOUND_LOGIN_COMPRESSION_PACKET_ID,
+    CLIENTBOUND_LOGIN_DISCONNECT_PACKET_ID, CLIENTBOUND_LOGIN_FINISHED_PACKET_ID,
+    SERVERBOUND_HELLO_PACKET_ID, SERVERBOUND_LOGIN_ACKNOWLEDGED_PACKET_ID,
 };
 use crate::network::ping::{ClientboundPongResponsePacket, ServerboundPingRequestPacket};
 use crate::network::play::{

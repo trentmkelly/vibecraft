@@ -656,66 +656,74 @@ fn write_vanilla_feature_flags_packet<W: Write>(payload: &mut W) -> io::Result<(
     write_identifier(payload, &vanilla)
 }
 
-fn handle_login_connection(
+struct CompletedLogin {
+    finished: ClientboundLoginFinishedPacket,
+    compression: CompressionState,
+}
+
+enum LoginHandshakeOutcome {
+    Complete(CompletedLogin),
+    Closed,
+}
+
+fn complete_login_handshake(
     stream: &mut TcpStream,
-    context: LoginConnectionContext<'_>,
-) -> io::Result<()> {
-    let LoginConnectionContext {
-        shared,
-        remote_address,
-        remote_ip,
-        login_host_ip,
-        rate_limiter,
-    } = context;
-    let ConnectionSharedContext {
-        properties,
-        favicon: _,
-        active_logins,
-        chunk_cache,
-        chunk_pipeline,
-        player_access,
-        world_root,
-        world_seed,
-        clock,
-        weather,
-        recipe_manager,
-        world_items,
-    } = shared;
+    context: &mut LoginConnectionContext<'_>,
+) -> io::Result<LoginHandshakeOutcome> {
     let mut login = LoginSession::default();
-    let hello = match read_expected_login_hello_packet(stream, rate_limiter) {
+    let hello = match read_expected_login_hello_packet(stream, context.rate_limiter) {
         Ok(hello) => hello,
         Err(err) if is_rate_limit_disconnect_error(&err) => {
             return write_login_rate_limit_disconnect(
                 stream,
                 CompressionState::disabled(),
                 &err.to_string(),
-            );
+            )
+            .map(|()| LoginHandshakeOutcome::Closed);
         }
         Err(err) => return Err(err),
     };
     let finished = login.accept_offline_hello(hello);
     if let Some(reason) = login_access_disconnect_reason(
-        properties,
-        player_access,
+        context.shared.properties,
+        context.shared.player_access,
         &finished.profile,
-        remote_ip,
-        login_host_ip.as_deref(),
+        context.remote_ip,
+        context.login_host_ip.as_deref(),
     )? {
-        return write_framed_packet(stream, CLIENTBOUND_LOGIN_DISCONNECT_PACKET_ID, |payload| {
+        write_framed_packet(stream, CLIENTBOUND_LOGIN_DISCONNECT_PACKET_ID, |payload| {
             ClientboundLoginDisconnectPacket {
                 reason: crate::network::codec::ComponentJson(format!(
                     "{{\"translate\":\"{reason}\"}}"
                 )),
             }
             .write(payload)
-        });
+        })?;
+        return Ok(LoginHandshakeOutcome::Closed);
     }
-    let (_active_login, replaced_stream) =
-        active_logins.register_replacing(&finished.profile.uuid, stream)?;
+    let (_active_login, replaced_stream) = context
+        .shared
+        .active_logins
+        .register_replacing(&finished.profile.uuid, stream)?;
     if let Some(replaced_stream) = replaced_stream {
         let _ = replaced_stream.shutdown(Shutdown::Both);
     }
-    cache_login_profile(player_access, &finished.profile)?;
+    cache_login_profile(context.shared.player_access, &finished.profile)?;
+    let compression =
+        send_login_success_packets(stream, context.shared.properties, &mut login, &finished)?;
+    wait_for_login_acknowledgement(stream, compression, context.rate_limiter, &mut login)?;
+    Ok(LoginHandshakeOutcome::Complete(CompletedLogin {
+        finished,
+        compression,
+    }))
+}
+
+fn send_login_success_packets(
+    stream: &mut TcpStream,
+    properties: &ServerProperties,
+    login: &mut LoginSession,
+    finished: &ClientboundLoginFinishedPacket,
+) -> io::Result<CompressionState> {
     let mut compression = CompressionState::disabled();
     if let Some(threshold) = login_compression_threshold(properties) {
         write_framed_packet(stream, CLIENTBOUND_LOGIN_COMPRESSION_PACKET_ID, |payload| {
@@ -733,7 +741,15 @@ fn handle_login_connection(
         CLIENTBOUND_LOGIN_FINISHED_PACKET_ID,
         |payload| finished.write(payload),
     )?;
+    Ok(compression)
+}
 
+fn wait_for_login_acknowledgement(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    rate_limiter: &mut PacketRateLimiter,
+    login: &mut LoginSession,
+) -> io::Result<()> {
     let packet = match read_packet_with_rate_limit(stream, compression, rate_limiter) {
         Ok(packet) => packet,
         Err(err) if is_rate_limit_disconnect_error(&err) => {
@@ -750,7 +766,66 @@ fn handle_login_connection(
         ));
     }
     login.acknowledge(ServerboundLoginAcknowledgedPacket::read(&mut input)?);
+    Ok(())
+}
 
+type ConfigurationRegistryWriter = fn(&mut Vec<u8>) -> io::Result<()>;
+
+fn write_configuration_registry_packet(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    writer: ConfigurationRegistryWriter,
+) -> io::Result<()> {
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        writer,
+    )
+}
+
+fn write_configuration_registry_packets(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+) -> io::Result<()> {
+    let registry_writers: &[ConfigurationRegistryWriter] = &[
+        write_minimal_biome_registry_packet::<Vec<u8>>,
+        write_vanilla_chat_type_registry_packet::<Vec<u8>>,
+        write_vanilla_trim_pattern_registry_packet::<Vec<u8>>,
+        write_minimal_trim_material_registry_packet::<Vec<u8>>,
+        write_vanilla_wolf_variant_registry_packet::<Vec<u8>>,
+        write_vanilla_wolf_sound_variant_registry_packet::<Vec<u8>>,
+        write_vanilla_pig_variant_registry_packet::<Vec<u8>>,
+        write_vanilla_pig_sound_variant_registry_packet::<Vec<u8>>,
+        write_vanilla_frog_variant_registry_packet::<Vec<u8>>,
+        write_vanilla_cat_variant_registry_packet::<Vec<u8>>,
+        write_vanilla_cat_sound_variant_registry_packet::<Vec<u8>>,
+        write_vanilla_cow_sound_variant_registry_packet::<Vec<u8>>,
+        write_vanilla_cow_variant_registry_packet::<Vec<u8>>,
+        write_vanilla_chicken_sound_variant_registry_packet::<Vec<u8>>,
+        write_vanilla_chicken_variant_registry_packet::<Vec<u8>>,
+        write_vanilla_zombie_nautilus_variant_registry_packet::<Vec<u8>>,
+        write_vanilla_painting_variant_registry_packet::<Vec<u8>>,
+        write_minimal_dimension_type_registry_packet::<Vec<u8>>,
+        write_minimal_damage_type_registry_packet::<Vec<u8>>,
+        write_vanilla_banner_pattern_registry_packet::<Vec<u8>>,
+        write_vanilla_jukebox_song_registry_packet::<Vec<u8>>,
+        write_vanilla_instrument_registry_packet::<Vec<u8>>,
+        write_world_clock_registry_packet::<Vec<u8>>,
+        write_vanilla_timeline_registry_packet::<Vec<u8>>,
+    ];
+    for writer in registry_writers {
+        write_configuration_registry_packet(stream, compression, *writer)?;
+    }
+    Ok(())
+}
+
+fn run_configuration_handshake(
+    stream: &mut TcpStream,
+    properties: &ServerProperties,
+    compression: CompressionState,
+    rate_limiter: &mut PacketRateLimiter,
+) -> io::Result<()> {
     if let Some(packet) = bug_report_server_links_packet(properties) {
         write_framed_packet_with_compression(
             stream,
@@ -765,206 +840,35 @@ fn handle_login_connection(
         CLIENTBOUND_CONFIGURATION_UPDATE_ENABLED_FEATURES_PACKET_ID,
         write_vanilla_feature_flags_packet,
     )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.BIOME uses Biome.NETWORK_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_minimal_biome_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.CHAT_TYPE uses ChatType.DIRECT_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_chat_type_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.TRIM_PATTERN uses TrimPattern.DIRECT_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_trim_pattern_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.TRIM_MATERIAL uses TrimMaterial.DIRECT_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_minimal_trim_material_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.WOLF_VARIANT uses WolfVariant.NETWORK_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_wolf_variant_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.WOLF_SOUND_VARIANT uses WolfSoundVariant.NETWORK_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_wolf_sound_variant_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.PIG_VARIANT uses PigVariant.NETWORK_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_pig_variant_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.PIG_SOUND_VARIANT uses PigSoundVariant.NETWORK_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_pig_sound_variant_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.FROG_VARIANT uses FrogVariant.NETWORK_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_frog_variant_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.CAT_VARIANT uses CatVariant.NETWORK_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_cat_variant_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.CAT_SOUND_VARIANT uses CatSoundVariant.NETWORK_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_cat_sound_variant_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.COW_SOUND_VARIANT uses CowSoundVariant.DIRECT_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_cow_sound_variant_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.COW_VARIANT uses CowVariant.NETWORK_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_cow_variant_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.CHICKEN_SOUND_VARIANT uses ChickenSoundVariant.DIRECT_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_chicken_sound_variant_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.CHICKEN_VARIANT uses ChickenVariant.NETWORK_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_chicken_variant_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.ZOMBIE_NAUTILUS_VARIANT uses ZombieNautilusVariant.NETWORK_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_zombie_nautilus_variant_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.PAINTING_VARIANT uses PaintingVariant.DIRECT_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_painting_variant_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.DIMENSION_TYPE uses DimensionType.NETWORK_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_minimal_dimension_type_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.DAMAGE_TYPE uses DamageType.DIRECT_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_minimal_damage_type_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.BANNER_PATTERN uses BannerPattern.DIRECT_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_banner_pattern_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.JUKEBOX_SONG uses JukeboxSong.DIRECT_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_jukebox_song_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.INSTRUMENT uses Instrument.DIRECT_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_instrument_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java:125,160
-    // Registries.WORLD_CLOCK uses WorldClock.DIRECT_CODEC (MapCodec.unitCodec — empty compound).
-    // Must be sent before any ClientboundSetTimePacket so the client can resolve clock VarInt IDs.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_world_clock_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java:125,160
-    // Registries.TIMELINE uses Timeline.NETWORK_CODEC (syncable tracks only).
-    // Must be sent before the tags packet so timeline tag IDs can reference these entries.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_timeline_registry_packet,
-    )?;
+    write_configuration_registry_packets(stream, compression)?;
     write_framed_packet_with_compression(
         stream,
         compression,
         CLIENTBOUND_CONFIGURATION_UPDATE_TAGS_PACKET_ID,
         write_minimal_update_tags_packet,
     )?;
+    run_known_pack_configuration_exchange(stream, properties, compression, rate_limiter)?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_CONFIGURATION_FINISH_PACKET_ID,
+        |_payload| Ok(()),
+    )?;
+    wait_for_configuration_packet_or_rate_disconnect(
+        stream,
+        compression,
+        SERVERBOUND_CONFIGURATION_FINISH_PACKET_ID,
+        "finish configuration",
+        rate_limiter,
+    )
+}
+
+fn run_known_pack_configuration_exchange(
+    stream: &mut TcpStream,
+    properties: &ServerProperties,
+    compression: CompressionState,
+    rate_limiter: &mut PacketRateLimiter,
+) -> io::Result<()> {
     write_framed_packet_with_compression(
         stream,
         compression,
@@ -993,21 +897,46 @@ fn handle_login_connection(
             rate_limiter,
         )?;
     }
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_FINISH_PACKET_ID,
-        |_payload| Ok(()),
-    )?;
+    Ok(())
+}
 
-    wait_for_configuration_packet_or_rate_disconnect(
-        stream,
+fn handle_login_connection(
+    stream: &mut TcpStream,
+    mut context: LoginConnectionContext<'_>,
+) -> io::Result<()> {
+    let LoginHandshakeOutcome::Complete(CompletedLogin {
+        finished,
         compression,
-        SERVERBOUND_CONFIGURATION_FINISH_PACKET_ID,
-        "finish configuration",
+    }) = complete_login_handshake(stream, &mut context)?
+    else {
+        return Ok(());
+    };
+    run_configuration_handshake(
+        stream,
+        context.shared.properties,
+        compression,
+        context.rate_limiter,
+    )?;
+    let LoginConnectionContext {
+        shared,
+        remote_address,
         rate_limiter,
-    )?;
-
+        ..
+    } = context;
+    let ConnectionSharedContext {
+        properties,
+        favicon: _,
+        chunk_cache,
+        chunk_pipeline,
+        player_access,
+        world_root,
+        world_seed,
+        clock,
+        weather,
+        recipe_manager,
+        world_items,
+        ..
+    } = shared;
     let mut play_state = load_play_session_state(
         world_root,
         &finished.profile.uuid,
