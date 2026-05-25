@@ -26,10 +26,10 @@ pub fn random_selector_feature<'a>(
     Some(config.default_feature)
 }
 
-pub fn simple_random_selector_feature<'a>(
-    config: &'a SimpleRandomFeatureConfigurationModel,
+pub fn simple_random_selector_feature(
+    config: &SimpleRandomFeatureConfigurationModel,
     index_roll: i32,
-) -> Option<&'a str> {
+) -> Option<&str> {
     if config.features.is_empty() {
         None
     } else {

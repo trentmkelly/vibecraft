@@ -58,7 +58,7 @@ pub fn spring_placement_plan(
 }
 
 pub fn monster_room_opening_count_is_valid(openings: i32) -> bool {
-    openings >= MONSTER_ROOM_BOUNDS.min_openings && openings <= MONSTER_ROOM_BOUNDS.max_openings
+    (MONSTER_ROOM_BOUNDS.min_openings..=MONSTER_ROOM_BOUNDS.max_openings).contains(&openings)
 }
 
 pub fn monster_room_radii(x_roll: i32, z_roll: i32) -> MonsterRoomRadii {

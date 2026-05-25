@@ -161,16 +161,19 @@ pub fn iceberg_smooth_action(
     below_is_air: bool,
     horizontal_non_iceberg_neighbors: i32,
 ) -> IcebergBlockAction {
-    if matches!(
-        current_state,
-        "minecraft:packed_ice" | "minecraft:snow_block" | "minecraft:blue_ice" | "minecraft:snow"
-    ) && below_is_air
-    {
-        IcebergBlockAction::Air
-    } else if matches!(
-        current_state,
-        "minecraft:packed_ice" | "minecraft:snow_block" | "minecraft:blue_ice"
-    ) && horizontal_non_iceberg_neighbors >= 3
+    if (below_is_air
+        && matches!(
+            current_state,
+            "minecraft:packed_ice"
+                | "minecraft:snow_block"
+                | "minecraft:blue_ice"
+                | "minecraft:snow"
+        ))
+        || (horizontal_non_iceberg_neighbors >= 3
+            && matches!(
+                current_state,
+                "minecraft:packed_ice" | "minecraft:snow_block" | "minecraft:blue_ice"
+            ))
     {
         IcebergBlockAction::Air
     } else {

@@ -261,10 +261,9 @@ pub fn overworld_respawn_y(
         y -= 1;
     }
     if cave_world && blocks_from_top_plus_one_down.is_empty() {
-        None
-    } else {
-        None
+        return None;
     }
+    None
 }
 
 pub fn fixup_spawn_height(

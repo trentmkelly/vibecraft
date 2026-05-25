@@ -212,13 +212,13 @@ impl GeneratedSectionBlocks {
     }
 }
 
-pub(super) fn get_generated_block<'a>(
-    sections: &'a [PalettedContainer],
+pub(super) fn get_generated_block(
+    sections: &[PalettedContainer],
     min_section: i32,
     world_x: i32,
     world_y: i32,
     world_z: i32,
-) -> &'a str {
+) -> &str {
     let Some(section_index) = section_index_for_y(min_section, sections.len(), world_y) else {
         return "minecraft:air";
     };

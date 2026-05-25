@@ -78,20 +78,19 @@ pub fn dripstone_cluster_column_plan(
         config,
     );
     let mut floor_y = input.floor_y;
-    let water_pos = if rolls.water_roll < config.wetness
-        && input.floor_y.is_some()
-        && input.floor_pool_supported
-    {
-        let base_floor_y = input.floor_y.unwrap();
-        floor_y = Some(base_floor_y - 1);
-        Some(BlockPos {
-            x: origin.x + input.dx,
-            y: base_floor_y,
-            z: origin.z + input.dz,
-        })
-    } else {
-        None
-    };
+    let water_pos =
+        if rolls.water_roll < config.wetness && input.floor_pool_supported {
+            input.floor_y.map(|base_floor_y| {
+                floor_y = Some(base_floor_y - 1);
+                BlockPos {
+                    x: origin.x + input.dx,
+                    y: base_floor_y,
+                    z: origin.z + input.dz,
+                }
+            })
+        } else {
+            None
+        };
 
     let want_stalactite = rolls.stalactite_roll < chance;
     let mut stalactite_height = if let Some(ceiling_y) = input.ceiling_y {

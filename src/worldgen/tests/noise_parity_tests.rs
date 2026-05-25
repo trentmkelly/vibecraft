@@ -89,7 +89,7 @@ use super::*;
         let s1 = super::super::perlin_simplex_noise_sample(&info, 100.0 * 0.2, -200.0 * 0.2, false);
         let s2 = super::super::perlin_simplex_noise_sample(&info, 100.0 * 0.09, -200.0 * 0.09, false);
         assert!((s1 - -0.486_592_879_751_187_5).abs() < 1e-12);
-        assert!((s2 - 0.932_733_285_771_640_1).abs() < 1e-12);
+        assert!((s2 - 0.932_733_285_771_64).abs() < 1e-12);
     }
 
     #[test]

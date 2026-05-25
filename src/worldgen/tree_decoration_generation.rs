@@ -151,7 +151,7 @@ pub(super) fn apply_initial_tree_decoration_to_chunk(
         settings,
         seed,
         &target_region_biome_steps,
-        &source_region_biome_steps,
+        source_region_biome_steps,
         terrain_heights,
         &context_cache,
         SimpleVegetationPhase::BeforeTrees,
@@ -214,7 +214,6 @@ pub(super) fn apply_initial_tree_decoration_to_chunk(
                 source_terrain_heights,
                 &mut diagnostics,
             );
-            drop(block_context);
             for block in planned_blocks {
                 diagnostics.output_blocks_seen += 1;
                 let started = Instant::now();
@@ -286,7 +285,7 @@ pub(super) fn apply_initial_tree_decoration_to_chunk(
         settings,
         seed,
         &target_region_biome_steps,
-        &source_region_biome_steps,
+        source_region_biome_steps,
         terrain_heights,
         &context_cache,
         SimpleVegetationPhase::AfterTrees,
@@ -361,8 +360,6 @@ pub(super) fn apply_initial_tree_decoration_from_source_into_region(
         SourceTerrainHeights::Full(&terrain_heights),
         &mut diagnostics,
     );
-    drop(block_context);
-
     let source_min_x = source_pos.x * 16;
     let source_min_z = source_pos.z * 16;
     let mut placed = 0;
