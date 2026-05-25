@@ -270,7 +270,7 @@ fn function_command_queues_single_function_tags_and_arguments() {
             },
             CommandFunctionDefinition {
                 id: "minecraft:tick/bar".to_string(),
-                commands: vec!["say two".to_string()],
+                commands: vec!["say $(name)".to_string()],
                 macro_parameters: vec!["name".to_string()],
             },
         ],
@@ -331,7 +331,7 @@ fn function_command_queues_single_function_tags_and_arguments() {
     );
     assert_eq!(
         state.queued_functions[2].commands,
-        vec!["say two".to_string()]
+        vec!["say Steve".to_string()]
     );
 }
 
