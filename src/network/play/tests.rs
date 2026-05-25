@@ -808,6 +808,7 @@ mod chat_packet_test;
 mod chat_session_update_packet_test;
 mod explode_packet_test;
 mod inventory_packet_item_stack_test;
+mod level_particles_packet_test;
 mod command_suggestion_packet_test;
 mod container_close_packet_test;
 mod container_set_content_packet_test;
