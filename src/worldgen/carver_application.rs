@@ -51,23 +51,23 @@ pub(super) fn carve_configured_carver_from_source_chunk(
                     let thickness = 1.0 + random.next_f32() * 6.0;
                     let (base_horizontal_radius, base_vertical_radius) =
                         cave_room_radii(thickness, y_scale);
-                    carved += carve_ellipsoid_into_chunk(
+                    carved += carve_ellipsoid_into_chunk(CarveEllipsoidChunkInput {
                         chunk,
                         height_context,
                         carver,
-                        target_chunk_min_x,
-                        target_chunk_min_z,
-                        x + 1.0,
+                        chunk_min_x: target_chunk_min_x,
+                        chunk_min_z: target_chunk_min_z,
+                        x: x + 1.0,
                         y,
                         z,
-                        base_horizontal_radius,
-                        base_vertical_radius,
-                        CarverSkipModel::Cave { floor_level },
+                        horizontal_radius: base_horizontal_radius,
+                        vertical_radius: base_vertical_radius,
+                        skip_model: CarverSkipModel::Cave { floor_level },
                         mask,
                         settings,
                         noise_chunk,
-                        aquifer.as_deref_mut(),
-                    );
+                        aquifer: aquifer.as_deref_mut(),
+                    });
                     tunnels += random.next_i32_bound(4);
                 }
                 for _ in 0..tunnels {
@@ -154,10 +154,10 @@ pub(super) fn carve_configured_carver_from_source_chunk(
     }
 }
 
-fn carve_ellipsoid_into_chunk(
-    chunk: &mut LevelChunk,
+struct CarveEllipsoidChunkInput<'a> {
+    chunk: &'a mut LevelChunk,
     height_context: WorldGenerationHeightContext,
-    carver: &ConfiguredCarver,
+    carver: &'a ConfiguredCarver,
     chunk_min_x: i32,
     chunk_min_z: i32,
     x: f64,
@@ -165,70 +165,74 @@ fn carve_ellipsoid_into_chunk(
     z: f64,
     horizontal_radius: f64,
     vertical_radius: f64,
-    skip_model: CarverSkipModel<'_>,
-    mask: &mut Vec<usize>,
-    settings: &NoiseGeneratorSettings,
-    noise_chunk: &NoiseChunk,
-    mut aquifer: Option<&mut NoiseBasedAquifer>,
-) -> usize {
+    skip_model: CarverSkipModel<'a>,
+    mask: &'a mut Vec<usize>,
+    settings: &'a NoiseGeneratorSettings,
+    noise_chunk: &'a NoiseChunk,
+    aquifer: Option<&'a mut NoiseBasedAquifer>,
+}
+
+fn carve_ellipsoid_into_chunk(mut input: CarveEllipsoidChunkInput<'_>) -> usize {
     let positions = carver_ellipsoid_candidate_positions(CarverEllipsoidInput {
-        chunk_min_x,
-        chunk_min_z,
-        height_context,
+        chunk_min_x: input.chunk_min_x,
+        chunk_min_z: input.chunk_min_z,
+        height_context: input.height_context,
         upgrading: false,
-        x,
-        y,
-        z,
-        horizontal_radius,
-        vertical_radius,
-        existing_mask_indices: mask,
+        x: input.x,
+        y: input.y,
+        z: input.z,
+        horizontal_radius: input.horizontal_radius,
+        vertical_radius: input.vertical_radius,
+        existing_mask_indices: input.mask,
         debug_enabled: false,
-        skip_model,
+        skip_model: input.skip_model,
     });
     let mut carved = 0;
     for pos in positions {
-        let Some(block) = chunk.get_block_state_name(pos.x, pos.y, pos.z) else {
+        let Some(block) = input.chunk.get_block_state_name(pos.x, pos.y, pos.z) else {
             continue;
         };
         let Some(block) = carver_static_block_name(block) else {
             continue;
         };
         let (aquifer_state, should_schedule_fluid_update) = carver_aquifer_carve_state(
-            carver,
-            height_context,
-            settings,
-            noise_chunk,
-            aquifer.as_deref_mut(),
+            input.carver,
+            input.height_context,
+            input.settings,
+            input.noise_chunk,
+            input.aquifer.as_deref_mut(),
             pos,
         );
-        let input = CarverBlockInput {
+        let block_input = CarverBlockInput {
             pos,
             block,
-            was_masked: carver_mask_index(pos.x, pos.y, pos.z, height_context.min_y)
-                .is_some_and(|index| mask.contains(&index)),
+            was_masked: carver_mask_index(pos.x, pos.y, pos.z, input.height_context.min_y)
+                .is_some_and(|index| input.mask.contains(&index)),
             aquifer_state,
             should_schedule_fluid_update,
             debug_enabled: false,
         };
-        let outcome = carver_carve_block(carver, height_context, input);
+        let outcome = carver_carve_block(input.carver, input.height_context, block_input);
         if carver_trace_matches(pos) {
             eprintln!(
                 "[carver-trace] carver={} pos=({},{},{}) block={} was_masked={} aquifer_state={:?} outcome={:?}",
-                carver.id,
+                input.carver.id,
                 pos.x,
                 pos.y,
                 pos.z,
                 block,
-                input.was_masked,
-                input.aquifer_state,
+                block_input.was_masked,
+                block_input.aquifer_state,
                 outcome.as_ref().map(|outcome| outcome.state)
             );
         }
         let Some(outcome) = outcome else {
             continue;
         };
-        chunk.set_block_state(pos.x, pos.y, pos.z, outcome.state);
-        mask.push(outcome.mask_index);
+        input
+            .chunk
+            .set_block_state(pos.x, pos.y, pos.z, outcome.state);
+        input.mask.push(outcome.mask_index);
         carved += 1;
     }
     carved
@@ -385,7 +389,7 @@ pub(super) fn carve_cave_tunnel_into_chunk(
         if !can_reach {
             return carved;
         }
-        carved += carve_ellipsoid_into_chunk(
+        carved += carve_ellipsoid_into_chunk(CarveEllipsoidChunkInput {
             chunk,
             height_context,
             carver,
@@ -394,14 +398,14 @@ pub(super) fn carve_cave_tunnel_into_chunk(
             x,
             y,
             z,
-            horizontal_radius * horizontal_radius_multiplier,
-            vertical_radius * vertical_radius_multiplier,
-            CarverSkipModel::Cave { floor_level },
+            horizontal_radius: horizontal_radius * horizontal_radius_multiplier,
+            vertical_radius: vertical_radius * vertical_radius_multiplier,
+            skip_model: CarverSkipModel::Cave { floor_level },
             mask,
             settings,
             noise_chunk,
-            aquifer.as_deref_mut(),
-        );
+            aquifer: aquifer.as_deref_mut(),
+        });
     }
 
     carved
@@ -483,7 +487,7 @@ pub(super) fn carve_canyon_tunnel_into_chunk(
         if !can_reach {
             return carved;
         }
-        carved += carve_ellipsoid_into_chunk(
+        carved += carve_ellipsoid_into_chunk(CarveEllipsoidChunkInput {
             chunk,
             height_context,
             carver,
@@ -494,14 +498,14 @@ pub(super) fn carve_canyon_tunnel_into_chunk(
             z,
             horizontal_radius,
             vertical_radius,
-            CarverSkipModel::Canyon {
+            skip_model: CarverSkipModel::Canyon {
                 width_factors: &width_factors,
             },
             mask,
             settings,
             noise_chunk,
-            aquifer.as_deref_mut(),
-        );
+            aquifer: aquifer.as_deref_mut(),
+        });
     }
 
     carved
