@@ -423,21 +423,31 @@ fn enchant_menu_lapis_only_in_lapis_slot_and_item_slot_max_1() {
 
 #[test]
 fn brewing_stand_slot_restrictions_match_vanilla() {
-    let menu = BrewingStandMenu::new();
+    let mut menu = BrewingStandMenu::new();
     assert_eq!(BrewingStandMenu::SLOT_COUNT, 41);
     // Potion slot accepts potion / glass bottle.
     assert!(menu.may_place(0, &ItemStack::new("minecraft:potion", 1)));
     assert!(menu.may_place(0, &ItemStack::new("minecraft:glass_bottle", 1)));
+    assert!(!menu.may_place(0, &ItemStack::empty()));
     assert!(!menu.may_place(0, &ItemStack::new("minecraft:apple", 1)));
     // Ingredient slot accepts brewing ingredients.
     assert!(menu.may_place(3, &ItemStack::new("minecraft:nether_wart", 1)));
+    assert!(!menu.may_place(3, &ItemStack::empty()));
     assert!(!menu.may_place(3, &ItemStack::new("minecraft:apple", 1)));
     // Fuel slot accepts blaze powder.
     assert!(menu.may_place(4, &ItemStack::new("minecraft:blaze_powder", 1)));
+    assert!(!menu.may_place(4, &ItemStack::empty()));
     assert!(!menu.may_place(4, &ItemStack::new("minecraft:coal", 1)));
     // Potion slots cap at max stack size 1.
     assert_eq!(menu.max_stack_size(0), 1);
     assert_eq!(menu.max_stack_size(3), 64);
+
+    assert!(menu.set_data(BrewingStandMenu::BREW_TIME_DATA, 399));
+    assert!(menu.set_data(BrewingStandMenu::FUEL_LEVEL_DATA, 20));
+    assert_eq!(menu.get_brewing_ticks(), 399);
+    assert_eq!(menu.get_fuel(), 20);
+    assert_eq!(menu.data(BrewingStandMenu::FUEL_LEVEL_DATA), Some(20));
+    assert!(!menu.set_data(BrewingStandMenu::DATA_COUNT, 1));
 }
 
 // -------- CartographyTableMenu --------

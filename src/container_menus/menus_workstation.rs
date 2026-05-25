@@ -869,6 +869,9 @@ impl BrewingStandMenu {
     pub const INGREDIENT_SLOT: usize = 3;
     pub const FUEL_SLOT: usize = 4;
     pub const MENU_SLOTS: usize = 5;
+    pub const DATA_COUNT: usize = 2;
+    pub const BREW_TIME_DATA: usize = 0;
+    pub const FUEL_LEVEL_DATA: usize = 1;
     pub const INV_START: usize = 5;
     pub const HOTBAR_END: usize = 41;
     pub const SLOT_COUNT: usize = 41;
@@ -880,6 +883,26 @@ impl BrewingStandMenu {
             fuel: ItemStack::empty(),
             data: [0, 0],
         }
+    }
+
+    pub fn data(&self, index: usize) -> Option<i32> {
+        self.data.get(index).copied()
+    }
+
+    pub fn set_data(&mut self, index: usize, value: i32) -> bool {
+        let Some(slot) = self.data.get_mut(index) else {
+            return false;
+        };
+        *slot = value;
+        true
+    }
+
+    pub fn get_brewing_ticks(&self) -> i32 {
+        self.data[Self::BREW_TIME_DATA]
+    }
+
+    pub fn get_fuel(&self) -> i32 {
+        self.data[Self::FUEL_LEVEL_DATA]
     }
 
     pub fn get_slot(&self, slot: usize, player: &PlayerInventory) -> Option<ItemStack> {
@@ -918,9 +941,9 @@ impl BrewingStandMenu {
 
     pub fn may_place(&self, slot: usize, stack: &ItemStack) -> bool {
         match slot {
-            0..=2 => stack.is_empty() || is_potion_or_bottle(stack.item_id()),
-            3 => stack.is_empty() || is_brewing_ingredient(stack.item_id()),
-            4 => stack.is_empty() || BREWING_FUEL_ITEMS.contains(&stack.item_id()),
+            0..=2 => !stack.is_empty() && is_potion_or_bottle(stack.item_id()),
+            3 => !stack.is_empty() && is_brewing_ingredient(stack.item_id()),
+            4 => !stack.is_empty() && BREWING_FUEL_ITEMS.contains(&stack.item_id()),
             s if s < Self::SLOT_COUNT => true,
             _ => false,
         }
