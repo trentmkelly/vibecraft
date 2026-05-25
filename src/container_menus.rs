@@ -28,7 +28,7 @@ use crate::player_inventory::{
     ItemCost, MerchantOffer, PlayerInventory, HOTBAR_SIZE, INVENTORY_SIZE,
 };
 use crate::recipe_system::{CraftingStack, FuelValues, RecipeMap};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Number of vanilla "main storage" slots (3 rows of 9, excluding the hotbar).
 pub const PLAYER_MAIN_STORAGE: usize = 27;

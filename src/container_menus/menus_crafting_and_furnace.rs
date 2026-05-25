@@ -319,6 +319,12 @@ pub mod furnace_data {
     pub const COOKING_TOTAL_TIME: usize = 3;
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FurnaceResultAward {
+    pub recipe_ids: Vec<String>,
+    pub experience: i32,
+}
+
 /// Implementation shared by `FurnaceMenu`, `BlastFurnaceMenu`, `SmokerMenu`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AbstractFurnaceMenu {
@@ -329,6 +335,8 @@ pub struct AbstractFurnaceMenu {
     /// `[litTime, litDuration, cookingProgress, cookingTotalTime]`.
     pub data: [i16; 4],
     fuel_values: FuelValues,
+    recipes_used: BTreeMap<String, (i32, i32)>,
+    pending_result_award: FurnaceResultAward,
 }
 
 impl AbstractFurnaceMenu {
@@ -350,6 +358,8 @@ impl AbstractFurnaceMenu {
             result: ItemStack::empty(),
             data: [0; 4],
             fuel_values,
+            recipes_used: BTreeMap::new(),
+            pending_result_award: FurnaceResultAward::default(),
         }
     }
 
@@ -363,6 +373,40 @@ impl AbstractFurnaceMenu {
 
     pub fn is_fuel(&self, stack: &ItemStack) -> bool {
         !stack.is_empty() && self.fuel_values.is_fuel(stack.item_id())
+    }
+
+    pub fn data(&self, index: usize) -> Option<i16> {
+        self.data.get(index).copied()
+    }
+
+    pub fn set_data(&mut self, index: usize, value: i16) -> bool {
+        let Some(slot) = self.data.get_mut(index) else {
+            return false;
+        };
+        *slot = value;
+        true
+    }
+
+    pub fn burn_progress(&self) -> f32 {
+        let current = self.data[furnace_data::COOKING_PROGRESS];
+        let total = self.data[furnace_data::COOKING_TOTAL_TIME];
+        if current == 0 || total == 0 {
+            0.0
+        } else {
+            (current as f32 / total as f32).clamp(0.0, 1.0)
+        }
+    }
+
+    pub fn lit_progress(&self) -> f32 {
+        let lit_duration = match self.data[furnace_data::LIT_DURATION] {
+            0 => 200,
+            value => value,
+        };
+        (self.data[furnace_data::LIT_TIME] as f32 / lit_duration as f32).clamp(0.0, 1.0)
+    }
+
+    pub fn is_lit(&self) -> bool {
+        self.data[furnace_data::LIT_TIME] > 0
     }
 
     /// `AbstractFurnaceMenu.canSmelt` — datapack-driven set of input items the
@@ -417,7 +461,44 @@ impl AbstractFurnaceMenu {
         self.result = stack;
     }
 
+    pub fn record_recipe_use(
+        &mut self,
+        recipe_id: impl Into<String>,
+        times_used: i32,
+        experience_millis: i32,
+    ) {
+        if times_used <= 0 {
+            return;
+        }
+        let entry = self
+            .recipes_used
+            .entry(recipe_id.into())
+            .or_insert((0, experience_millis.max(0)));
+        entry.0 += times_used;
+        entry.1 = experience_millis.max(0);
+    }
+
+    pub fn recipes_used(&self) -> &BTreeMap<String, (i32, i32)> {
+        &self.recipes_used
+    }
+
+    /// Java `FurnaceResultSlot.checkTakeAchievements` delegates to
+    /// `AbstractFurnaceBlockEntity.awardUsedRecipesAndPopExperience` whenever
+    /// the result slot is taken. The Rust menu has no world object to spawn XP
+    /// orbs into, so it exposes the same side effect as a drainable award.
+    pub fn drain_result_award(&mut self) -> FurnaceResultAward {
+        std::mem::take(&mut self.pending_result_award)
+    }
+
     pub fn take_result(&mut self) -> ItemStack {
+        let taken = self.take_result_with_xp_roll(1.0);
+        taken
+    }
+
+    pub fn take_result_with_xp_roll(&mut self, fraction_roll: f32) -> ItemStack {
+        if !self.result.is_empty() {
+            self.queue_result_award(fraction_roll);
+        }
         std::mem::replace(&mut self.result, ItemStack::empty())
     }
 
@@ -503,6 +584,7 @@ impl AbstractFurnaceMenu {
             }
         };
 
+        let result_count_changed = slot == Self::RESULT_SLOT && moving.count() != original.count();
         if !moving.is_empty() {
             if slot == 2 {
                 self.result = moving;
@@ -513,7 +595,47 @@ impl AbstractFurnaceMenu {
         if !moved {
             return ItemStack::empty();
         }
+        if result_count_changed {
+            self.queue_result_award(1.0);
+        }
         original
+    }
+
+    fn queue_result_award(&mut self, fraction_roll: f32) {
+        let award = self.award_used_recipes_and_pop_experience(fraction_roll);
+        if award.recipe_ids.is_empty() && award.experience == 0 {
+            return;
+        }
+        self.pending_result_award
+            .recipe_ids
+            .extend(award.recipe_ids);
+        self.pending_result_award.experience += award.experience;
+    }
+
+    fn award_used_recipes_and_pop_experience(&mut self, fraction_roll: f32) -> FurnaceResultAward {
+        let recipe_ids = self.recipes_used.keys().cloned().collect();
+        let experience = self
+            .recipes_used
+            .values()
+            .map(|(times_used, experience_millis)| {
+                if *times_used <= 0 || *experience_millis <= 0 {
+                    return 0;
+                }
+                let total_millis = *times_used * *experience_millis;
+                let whole = total_millis / 1000;
+                let fraction = (total_millis % 1000) as f32 / 1000.0;
+                if fraction != 0.0 && fraction_roll < fraction {
+                    whole + 1
+                } else {
+                    whole
+                }
+            })
+            .sum();
+        self.recipes_used.clear();
+        FurnaceResultAward {
+            recipe_ids,
+            experience,
+        }
     }
 
     fn move_into_range(

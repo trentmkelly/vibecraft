@@ -165,6 +165,16 @@ fn furnace_menu_layout_and_fuel_restrictions_match_vanilla() {
     assert!(!menu.set_slot(2, ItemStack::new("minecraft:iron_ingot", 1), &mut player));
     menu.set_result_internal(ItemStack::new("minecraft:iron_ingot", 1));
     assert_eq!(menu.get_slot(2, &player).unwrap().count(), 1);
+
+    assert!(menu.set_data(furnace_data::LIT_TIME, 40));
+    assert!(menu.set_data(furnace_data::LIT_DURATION, 80));
+    assert!(menu.set_data(furnace_data::COOKING_PROGRESS, 50));
+    assert!(menu.set_data(furnace_data::COOKING_TOTAL_TIME, 200));
+    assert_eq!(menu.data(furnace_data::LIT_TIME), Some(40));
+    assert!(menu.is_lit());
+    assert_eq!(menu.lit_progress(), 0.5);
+    assert_eq!(menu.burn_progress(), 0.25);
+    assert!(!menu.set_data(4, 1));
 }
 
 #[test]
@@ -194,6 +204,34 @@ fn furnace_quick_move_result_to_player_and_storage_to_input() {
         menu.get_slot(1, &player).unwrap().item_id(),
         "minecraft:coal"
     );
+}
+
+#[test]
+fn furnace_result_extraction_releases_xp_and_clears_recipe_ledger() {
+    let recipes = planks_recipe();
+    let mut menu = AbstractFurnaceMenu::new(FurnaceKind::Furnace, FuelValues::vanilla());
+    let mut player = PlayerInventory::new();
+
+    menu.set_result_internal(ItemStack::new("minecraft:iron_ingot", 2));
+    menu.record_recipe_use("minecraft:iron_ingot_from_smelting_raw_iron", 2, 500);
+    let moved = menu.quick_move(2, &recipes, &mut player);
+
+    assert_eq!(moved.item_id(), "minecraft:iron_ingot");
+    assert!(menu.get_slot(2, &player).unwrap().is_empty());
+    assert!(menu.recipes_used().is_empty());
+    assert_eq!(
+        menu.drain_result_award(),
+        FurnaceResultAward {
+            recipe_ids: vec!["minecraft:iron_ingot_from_smelting_raw_iron".to_string()],
+            experience: 1,
+        }
+    );
+
+    menu.set_result_internal(ItemStack::new("minecraft:iron_ingot", 1));
+    menu.record_recipe_use("minecraft:iron_ingot_from_smelting_raw_iron", 1, 700);
+    let taken = menu.take_result_with_xp_roll(0.0);
+    assert_eq!(taken.count(), 1);
+    assert_eq!(menu.drain_result_award().experience, 1);
 }
 
 #[test]
