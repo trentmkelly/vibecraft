@@ -171,45 +171,66 @@ impl LootContextEntityType {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum LootParamValue {
+    InteractingEntity(String),
+    TargetEntity(String),
     BlockState(String),
     BlockEntity(String),
     Origin(f64, f64, f64),
     Tool(String),
     ThisEntity(String),
     LastDamagePlayer(String),
+    AttackingEntity(String),
+    DirectAttackingEntity(String),
     KillerEntity(String),
     DirectKillerEntity(String),
     ExplosionRadius(f32),
     DamageSource(String),
+    EnchantmentLevel(i32),
+    EnchantmentActive(bool),
+    AdditionalCostComponentAllowed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LootParamKey {
+    InteractingEntity,
+    TargetEntity,
     BlockState,
     BlockEntity,
     Origin,
     Tool,
     ThisEntity,
     LastDamagePlayer,
+    AttackingEntity,
+    DirectAttackingEntity,
     KillerEntity,
     DirectKillerEntity,
     ExplosionRadius,
     DamageSource,
+    EnchantmentLevel,
+    EnchantmentActive,
+    AdditionalCostComponentAllowed,
 }
 
 impl LootParamValue {
     pub fn key(&self) -> LootParamKey {
         match self {
+            Self::InteractingEntity(_) => LootParamKey::InteractingEntity,
+            Self::TargetEntity(_) => LootParamKey::TargetEntity,
             Self::BlockState(_) => LootParamKey::BlockState,
             Self::BlockEntity(_) => LootParamKey::BlockEntity,
             Self::Origin(..) => LootParamKey::Origin,
             Self::Tool(_) => LootParamKey::Tool,
             Self::ThisEntity(_) => LootParamKey::ThisEntity,
             Self::LastDamagePlayer(_) => LootParamKey::LastDamagePlayer,
+            Self::AttackingEntity(_) => LootParamKey::AttackingEntity,
+            Self::DirectAttackingEntity(_) => LootParamKey::DirectAttackingEntity,
             Self::KillerEntity(_) => LootParamKey::KillerEntity,
             Self::DirectKillerEntity(_) => LootParamKey::DirectKillerEntity,
             Self::ExplosionRadius(_) => LootParamKey::ExplosionRadius,
             Self::DamageSource(_) => LootParamKey::DamageSource,
+            Self::EnchantmentLevel(_) => LootParamKey::EnchantmentLevel,
+            Self::EnchantmentActive(_) => LootParamKey::EnchantmentActive,
+            Self::AdditionalCostComponentAllowed => LootParamKey::AdditionalCostComponentAllowed,
         }
     }
 }

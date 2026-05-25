@@ -103,10 +103,10 @@ impl LootBehaviorEngine {
             context.insert_param(LootParamValue::ThisEntity(target.clone()));
         }
         if let Some(killer) = &request.killer_entity {
-            context.insert_param(LootParamValue::KillerEntity(killer.clone()));
+            context.insert_param(LootParamValue::AttackingEntity(killer.clone()));
         }
         if let Some(direct_killer) = &request.direct_killer_entity {
-            context.insert_param(LootParamValue::DirectKillerEntity(direct_killer.clone()));
+            context.insert_param(LootParamValue::DirectAttackingEntity(direct_killer.clone()));
         }
         if let Some(last_damage_player) = &request.last_damage_player {
             context.insert_param(LootParamValue::LastDamagePlayer(last_damage_player.clone()));
@@ -1004,6 +1004,7 @@ impl LootFunction {
                 if let Some(player) = context
                     .entity_properties
                     .get("last_damage_player")
+                    .or_else(|| context.entity_properties.get("attacking_entity"))
                     .or_else(|| context.entity_properties.get("killer_entity"))
                 {
                     stack

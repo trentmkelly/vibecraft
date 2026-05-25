@@ -42,20 +42,27 @@ fn context_entity_types_params_and_dynamic_params_cover_java_surface() {
 
     let mut params = LootParams::default();
     for value in [
+        LootParamValue::InteractingEntity("Steve".to_string()),
+        LootParamValue::TargetEntity("Cow".to_string()),
         LootParamValue::BlockState("minecraft:stone".to_string()),
         LootParamValue::BlockEntity("Chest".to_string()),
         LootParamValue::Origin(1.0, 64.0, 2.0),
         LootParamValue::Tool("minecraft:diamond_pickaxe".to_string()),
         LootParamValue::ThisEntity("Zombie".to_string()),
         LootParamValue::LastDamagePlayer("Steve".to_string()),
+        LootParamValue::AttackingEntity("Steve".to_string()),
+        LootParamValue::DirectAttackingEntity("Arrow".to_string()),
         LootParamValue::KillerEntity("Steve".to_string()),
         LootParamValue::DirectKillerEntity("Arrow".to_string()),
         LootParamValue::ExplosionRadius(2.0),
         LootParamValue::DamageSource("minecraft:player_attack".to_string()),
+        LootParamValue::EnchantmentLevel(4),
+        LootParamValue::EnchantmentActive(true),
+        LootParamValue::AdditionalCostComponentAllowed,
     ] {
         params.insert(value);
     }
-    assert_eq!(params.keys().len(), 10);
+    assert_eq!(params.keys().len(), 17);
     assert!(matches!(
         params.get(LootParamKey::DamageSource),
         Some(LootParamValue::DamageSource(id)) if id == "minecraft:player_attack"
@@ -63,8 +70,13 @@ fn context_entity_types_params_and_dynamic_params_cover_java_surface() {
 
     let mut context = LootContext::new(LootParamSet::Entity, 4);
     context.insert_param(LootParamValue::ThisEntity("Zombie".to_string()));
+    context.insert_param(LootParamValue::InteractingEntity("Steve".to_string()));
+    context.insert_param(LootParamValue::TargetEntity("Cow".to_string()));
+    context.insert_param(LootParamValue::AttackingEntity("Steve".to_string()));
+    context.insert_param(LootParamValue::DirectAttackingEntity("Arrow".to_string()));
     context.insert_param(LootParamValue::LastDamagePlayer("Steve".to_string()));
     context.insert_param(LootParamValue::ExplosionRadius(3.0));
+    context.insert_param(LootParamValue::AdditionalCostComponentAllowed);
     context.insert_dynamic_param(LootDynamicParamValue::EnchantmentLevel(5));
     context.insert_dynamic_param(LootDynamicParamValue::EnchantmentActive(true));
     context.insert_dynamic_param(LootDynamicParamValue::AttackingEntity("Steve".to_string()));
@@ -72,11 +84,33 @@ fn context_entity_types_params_and_dynamic_params_cover_java_surface() {
         "Arrow".to_string(),
     ));
 
-    assert_eq!(context.params.keys().len(), 3);
+    assert_eq!(context.params.keys().len(), 8);
     assert_eq!(context.enchantment_level, 5);
     assert!(context.enchantment_active);
     assert!(context.killed_by_player);
     assert_eq!(context.explosion_radius, Some(3.0));
+    assert_eq!(
+        context.entity_properties.get("interacting_entity"),
+        Some(&"Steve".to_string())
+    );
+    assert_eq!(
+        context.entity_properties.get("target_entity"),
+        Some(&"Cow".to_string())
+    );
+    assert_eq!(
+        context.entity_properties.get("attacking_entity"),
+        Some(&"Steve".to_string())
+    );
+    assert_eq!(
+        context.entity_properties.get("direct_attacking_entity"),
+        Some(&"Arrow".to_string())
+    );
+    assert_eq!(
+        context
+            .entity_properties
+            .get("additional_cost_component_allowed"),
+        Some(&"true".to_string())
+    );
     assert_eq!(
         NumberProvider::EnchantmentLevel { scale: 2.0 }.float(&mut context),
         10.0

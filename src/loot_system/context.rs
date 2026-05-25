@@ -141,6 +141,14 @@ impl LootContext {
 
     pub fn insert_param(&mut self, value: LootParamValue) {
         match &value {
+            LootParamValue::InteractingEntity(entity) => {
+                self.entity_properties
+                    .insert("interacting_entity".to_string(), entity.clone());
+            }
+            LootParamValue::TargetEntity(entity) => {
+                self.entity_properties
+                    .insert("target_entity".to_string(), entity.clone());
+            }
             LootParamValue::BlockState(block) => self.block = Some(block.clone()),
             LootParamValue::Origin(x, y, z) => {
                 self.entity_properties
@@ -156,13 +164,29 @@ impl LootContext {
                 self.entity_properties
                     .insert("last_damage_player".to_string(), player.clone());
             }
+            LootParamValue::AttackingEntity(entity) => {
+                self.entity_properties
+                    .insert("attacking_entity".to_string(), entity.clone());
+                self.entity_properties
+                    .insert("killer_entity".to_string(), entity.clone());
+            }
+            LootParamValue::DirectAttackingEntity(entity) => {
+                self.entity_properties
+                    .insert("direct_attacking_entity".to_string(), entity.clone());
+                self.entity_properties
+                    .insert("direct_killer_entity".to_string(), entity.clone());
+            }
             LootParamValue::KillerEntity(entity) => {
                 self.entity_properties
                     .insert("killer_entity".to_string(), entity.clone());
+                self.entity_properties
+                    .insert("attacking_entity".to_string(), entity.clone());
             }
             LootParamValue::DirectKillerEntity(entity) => {
                 self.entity_properties
                     .insert("direct_killer_entity".to_string(), entity.clone());
+                self.entity_properties
+                    .insert("direct_attacking_entity".to_string(), entity.clone());
             }
             LootParamValue::ExplosionRadius(radius) => self.explosion_radius = Some(*radius),
             LootParamValue::DamageSource(source) => {
@@ -172,6 +196,14 @@ impl LootContext {
             LootParamValue::BlockEntity(entity) => {
                 self.entity_properties
                     .insert("block_entity".to_string(), entity.clone());
+            }
+            LootParamValue::EnchantmentLevel(level) => self.enchantment_level = *level,
+            LootParamValue::EnchantmentActive(active) => self.enchantment_active = *active,
+            LootParamValue::AdditionalCostComponentAllowed => {
+                self.entity_properties.insert(
+                    "additional_cost_component_allowed".to_string(),
+                    "true".to_string(),
+                );
             }
         }
         self.params.insert(value);
