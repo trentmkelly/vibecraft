@@ -81,6 +81,17 @@ pub struct MapUpdatePacket {
     pub patch: Option<MapPatch>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct MapDecorationUpdate {
+    pub kind: MapDecorationKind,
+    pub key: String,
+    pub x_pos: f64,
+    pub z_pos: f64,
+    pub y_rot: f64,
+    pub name: Option<String>,
+    pub game_time: i64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MapState {
     pub center_x: i32,
@@ -168,32 +179,27 @@ impl MapState {
         }
     }
 
-    pub fn add_decoration(
-        &mut self,
-        kind: MapDecorationKind,
-        key: impl Into<String>,
-        x_pos: f64,
-        z_pos: f64,
-        y_rot: f64,
-        name: Option<String>,
-        game_time: i64,
-    ) -> bool {
-        let key = key.into();
+    pub fn add_decoration(&mut self, update: MapDecorationUpdate) -> bool {
         let scale = 1_i32 << self.scale;
-        let x_delta = ((x_pos - f64::from(self.center_x)) / f64::from(scale)) as f32;
-        let y_delta = ((z_pos - f64::from(self.center_z)) / f64::from(scale)) as f32;
-        let Some((kind, rot)) = self.decoration_location(kind, x_delta, y_delta, y_rot, game_time)
-        else {
-            return self.remove_decoration(&key);
+        let x_delta = ((update.x_pos - f64::from(self.center_x)) / f64::from(scale)) as f32;
+        let y_delta = ((update.z_pos - f64::from(self.center_z)) / f64::from(scale)) as f32;
+        let Some((kind, rot)) = self.decoration_location(
+            update.kind,
+            x_delta,
+            y_delta,
+            update.y_rot,
+            update.game_time,
+        ) else {
+            return self.remove_decoration(&update.key);
         };
         let decoration = MapDecoration {
             kind,
             x: clamp_map_coordinate(x_delta),
             y: clamp_map_coordinate(y_delta),
             rot,
-            name,
+            name: update.name,
         };
-        let previous = self.decorations.insert(key, decoration.clone());
+        let previous = self.decorations.insert(update.key, decoration.clone());
         if previous.as_ref() != Some(&decoration) {
             self.adjust_tracked_count(previous.as_ref(), -1);
             self.adjust_tracked_count(Some(&decoration), 1);
@@ -236,15 +242,15 @@ impl MapState {
         if self.is_tracked_count_over_limit(MAX_TRACKED_DECORATIONS) {
             return false;
         }
-        self.add_decoration(
-            banner.decoration_kind(),
-            id.clone(),
+        self.add_decoration(MapDecorationUpdate {
+            kind: banner.decoration_kind(),
+            key: id.clone(),
             x_pos,
             z_pos,
-            180.0,
-            banner.name.clone(),
-            0,
-        );
+            y_rot: 180.0,
+            name: banner.name.clone(),
+            game_time: 0,
+        });
         self.banner_markers.insert(id, banner);
         true
     }
@@ -272,15 +278,15 @@ impl MapState {
 
     pub fn add_frame(&mut self, frame: MapFrame) -> bool {
         let key = frame_key(frame.entity_id);
-        let changed = self.add_decoration(
-            MapDecorationKind::Frame,
+        let changed = self.add_decoration(MapDecorationUpdate {
+            kind: MapDecorationKind::Frame,
             key,
-            f64::from(frame.pos.x),
-            f64::from(frame.pos.z),
-            f64::from(frame.rotation),
-            None,
-            0,
-        );
+            x_pos: f64::from(frame.pos.x),
+            z_pos: f64::from(frame.pos.z),
+            y_rot: f64::from(frame.rotation),
+            name: None,
+            game_time: 0,
+        });
         let old = self.frame_markers.insert(frame.id(), frame.clone());
         changed || old.as_ref() != Some(&frame)
     }
@@ -296,15 +302,15 @@ impl MapState {
         pos: BlockPos,
         kind: MapDecorationKind,
     ) -> bool {
-        self.add_decoration(
+        self.add_decoration(MapDecorationUpdate {
             kind,
-            key,
-            f64::from(pos.x),
-            f64::from(pos.z),
-            180.0,
-            None,
-            0,
-        )
+            key: key.into(),
+            x_pos: f64::from(pos.x),
+            z_pos: f64::from(pos.z),
+            y_rot: 180.0,
+            name: None,
+            game_time: 0,
+        })
     }
 
     pub fn next_update_packet(&mut self) -> Option<MapUpdatePacket> {
@@ -317,7 +323,7 @@ impl MapState {
                 height: self.max_dirty_y + 1 - self.min_dirty_y,
             }
         });
-        let decorations = if self.dirty_decorations && self.update_tick % 5 == 0 {
+        let decorations = if self.dirty_decorations && self.update_tick.is_multiple_of(5) {
             self.dirty_decorations = false;
             Some(
                 self.decorations
@@ -470,15 +476,15 @@ mod tests {
     #[test]
     fn decorations_use_vanilla_coordinate_clamp_rotation_and_off_map_rules() {
         let mut map = MapState::new(0, 0, 0, "minecraft:overworld", true, false, false);
-        assert!(map.add_decoration(
-            MapDecorationKind::Player,
-            "Steve",
-            10.0,
-            -63.0,
-            90.0,
-            None,
-            0
-        ));
+        assert!(map.add_decoration(MapDecorationUpdate {
+            kind: MapDecorationKind::Player,
+            key: "Steve".to_string(),
+            x_pos: 10.0,
+            z_pos: -63.0,
+            y_rot: 90.0,
+            name: None,
+            game_time: 0,
+        }));
         assert_eq!(
             map.decorations["Steve"],
             MapDecoration {
@@ -490,24 +496,40 @@ mod tests {
             }
         );
 
-        assert!(map.add_decoration(MapDecorationKind::Player, "Alex", 100.0, 0.0, 0.0, None, 0));
+        assert!(map.add_decoration(MapDecorationUpdate {
+            kind: MapDecorationKind::Player,
+            key: "Alex".to_string(),
+            x_pos: 100.0,
+            z_pos: 0.0,
+            y_rot: 0.0,
+            name: None,
+            game_time: 0,
+        }));
         assert_eq!(
             map.decorations["Alex"].kind,
             MapDecorationKind::PlayerOffMap
         );
-        assert!(!map.add_decoration(MapDecorationKind::Player, "Far", 400.0, 0.0, 0.0, None, 0));
+        assert!(!map.add_decoration(MapDecorationUpdate {
+            kind: MapDecorationKind::Player,
+            key: "Far".to_string(),
+            x_pos: 400.0,
+            z_pos: 0.0,
+            y_rot: 0.0,
+            name: None,
+            game_time: 0,
+        }));
         assert!(!map.decorations.contains_key("Far"));
 
         let mut unlimited = MapState::new(0, 0, 0, "minecraft:overworld", true, true, false);
-        assert!(unlimited.add_decoration(
-            MapDecorationKind::Player,
-            "Far",
-            400.0,
-            0.0,
-            0.0,
-            None,
-            0
-        ));
+        assert!(unlimited.add_decoration(MapDecorationUpdate {
+            kind: MapDecorationKind::Player,
+            key: "Far".to_string(),
+            x_pos: 400.0,
+            z_pos: 0.0,
+            y_rot: 0.0,
+            name: None,
+            game_time: 0,
+        }));
         assert_eq!(
             unlimited.decorations["Far"].kind,
             MapDecorationKind::PlayerOffLimits
@@ -605,7 +627,15 @@ mod tests {
     #[test]
     fn nether_rotation_and_tracking_limit_match_saved_data_edges() {
         let mut map = MapState::new(0, 0, 0, "minecraft:the_nether", true, false, false);
-        assert!(map.add_decoration(MapDecorationKind::Player, "Steve", 0.0, 0.0, 0.0, None, 20));
+        assert!(map.add_decoration(MapDecorationUpdate {
+            kind: MapDecorationKind::Player,
+            key: "Steve".to_string(),
+            x_pos: 0.0,
+            z_pos: 0.0,
+            y_rot: 0.0,
+            name: None,
+            game_time: 20,
+        }));
         assert_eq!(map.decorations["Steve"].rot, 13);
 
         map.tracked_decoration_count = MAX_TRACKED_DECORATIONS;
