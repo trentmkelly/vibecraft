@@ -121,7 +121,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] `ClientboundDisguisedChatPacket` (0x19): content component, chat type bound with registered chat type holder, sender name, optional target name
 - [ ] `ClientboundDeleteChatPacket` (0x1F): packed message signature (`VarInt(id + 1)` or full 256-byte signature)
 - [ ] `ClientboundPlayerInfoUpdatePacket` (0x3D): action fixed-bitset, entries list (UUID + per-action data: add-player name/properties, initialize-chat session, update-game-mode, update-listed, update-latency, update-display-name, update-list-order, update-hat)
-- [ ] `ClientboundPlayerInfoRemovePacket` (0x45): UUID list
+- [x] `ClientboundPlayerInfoRemovePacket` (0x45 / decimal 69): profile ID list encoded with Java `FriendlyByteBuf.writeCollection(..., UUIDUtil.STREAM_CODEC)`, i.e. VarInt count followed by 16-byte big-endian UUID values; verified against Java read/write codec, `UUIDUtil.STREAM_CODEC`, Java play registration/name mapping, Rust packet ID/registry mapping, and focused byte-layout coverage for multiple UUIDs.
 - [ ] `ServerboundChatPacket` (0x09): message string max 256, timestamp epoch millis long, salt long, optional 256-byte signature, last-seen update (offset VarInt + fixed 20-bit acknowledgment bitset + checksum byte)
 - [ ] `ServerboundChatCommandPacket` (0x07): command string max 32767
 - [ ] `ServerboundChatCommandSignedPacket` (0x08): command string max 32767, timestamp epoch millis long, salt long, argument signatures capped at 8 entries with 16-char names and 256-byte signatures, last-seen update
