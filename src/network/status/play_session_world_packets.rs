@@ -292,8 +292,8 @@ pub fn write_player_abilities_packet<W: Write>(
     writer.write_all(&0.1f32.to_be_bytes())
 }
 
-pub fn write_command_suggestions_response<R: Read>(
-    stream: &mut TcpStream,
+pub fn write_command_suggestions_response<W: Write, R: Read>(
+    stream: &mut W,
     compression: CompressionState,
     input: &mut R,
 ) -> io::Result<()> {

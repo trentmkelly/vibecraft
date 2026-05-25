@@ -73,6 +73,59 @@ pub fn biome_debug_command_feedback_prints_current_biome() {
 }
 
 #[test]
+pub fn raw_command_suggestion_response_keeps_stream_open_for_keepalive() {
+    let mut request = Vec::new();
+    ServerboundCommandSuggestionPacket {
+        id: 42,
+        command: "/li".to_string(),
+    }
+    .write(&mut request)
+    .unwrap();
+
+    let mut written = Vec::new();
+    write_command_suggestions_response(
+        &mut written,
+        CompressionState::disabled(),
+        &mut Cursor::new(request),
+    )
+    .unwrap();
+    write_framed_packet_with_compression(
+        &mut written,
+        CompressionState::disabled(),
+        CLIENTBOUND_KEEP_ALIVE_PACKET_ID,
+        |payload| crate::network::common::ClientboundKeepAlivePacket { id: 99 }.write(payload),
+    )
+    .unwrap();
+
+    let mut stream = Cursor::new(written);
+    let suggestion_frame = read_packet(&mut stream).unwrap();
+    let mut suggestion = Cursor::new(suggestion_frame);
+    assert_eq!(
+        read_var_i32(&mut suggestion).unwrap(),
+        CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID
+    );
+    assert_eq!(read_var_i32(&mut suggestion).unwrap(), 42);
+    assert_eq!(read_var_i32(&mut suggestion).unwrap(), 1);
+    assert_eq!(read_var_i32(&mut suggestion).unwrap(), 2);
+    assert_eq!(read_var_i32(&mut suggestion).unwrap(), 1);
+    assert_eq!(read_string(&mut suggestion, 32767).unwrap(), "list");
+    assert!(!read_bool(&mut suggestion).unwrap());
+
+    let keepalive_frame = read_packet(&mut stream).unwrap();
+    let mut keepalive = Cursor::new(keepalive_frame);
+    assert_eq!(
+        read_var_i32(&mut keepalive).unwrap(),
+        CLIENTBOUND_KEEP_ALIVE_PACKET_ID
+    );
+    assert_eq!(
+        crate::network::common::ClientboundKeepAlivePacket::read(&mut keepalive)
+            .unwrap()
+            .id,
+        99
+    );
+}
+
+#[test]
 pub fn pseudo_rand_f32_produces_values_in_unit_interval() {
     for seed in [-100_i32, 0, 1, 42, i32::MAX, i32::MIN] {
         for index in 0..4_u32 {
