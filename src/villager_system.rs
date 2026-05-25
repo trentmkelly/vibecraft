@@ -559,19 +559,16 @@ impl VillagerTradeState {
         if self.restocks_today >= 2 {
             return false;
         }
-        let mut changed = false;
+        if !self.offers.iter().any(MerchantOffer::needs_restock) {
+            return false;
+        }
         for offer in &mut self.offers {
-            if offer.needs_restock() {
-                offer.update_demand();
-                offer.reset_uses();
-                changed = true;
-            }
+            offer.update_demand();
+            offer.reset_uses();
         }
-        if changed {
-            self.restocks_today += 1;
-            self.last_restock_game_time = game_time;
-        }
-        changed
+        self.restocks_today += 1;
+        self.last_restock_game_time = game_time;
+        true
     }
 
     fn restock_window_changed(&self, game_time: i64) -> bool {

@@ -342,6 +342,15 @@ fn trading_adds_xp_gossip_demand_and_restock_caps_twice_per_day() {
     let mut villager = VillagerTradeState::new(VillagerProfession::Librarian);
     villager.generate_level_offers();
     villager.offers[0].max_uses = 1;
+    villager.offers.push(MerchantOffer::new(
+        ItemCost::new("minecraft:emerald", 5),
+        None,
+        ItemStack::new("minecraft:compass", 1),
+        4,
+        1,
+        0.05,
+    ));
+    villager.offers[1].demand = 6;
 
     assert_eq!(
         villager.trade(0, "player-a").unwrap().item_id(),
@@ -354,6 +363,7 @@ fn trading_adds_xp_gossip_demand_and_restock_caps_twice_per_day() {
     assert!(villager.restock(1_000));
     assert!(!villager.offers[0].is_out_of_stock());
     assert_eq!(villager.offers[0].demand, 1);
+    assert_eq!(villager.offers[1].demand, 2);
     assert_eq!(villager.restock(1_100), false);
 
     villager.trade(0, "player-a");
