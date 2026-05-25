@@ -764,6 +764,7 @@ mod container_set_data_packet_test;
 mod entity_position_sync_packet_test;
 mod open_screen_packet_test;
 mod merchant_offers_packet_test;
+mod player_position_packet_test;
 mod recipe_book_remove_packet_test;
 mod recipe_book_settings_packet_test;
 mod resource_pack_packet_test;
