@@ -43,7 +43,9 @@ impl ClimateRTree {
     fn bounding_box_of(
         mut iter: impl Iterator<Item = [ClimateParameter; 7]>,
     ) -> [ClimateParameter; 7] {
-        let first = iter.next().expect("non-empty iterator");
+        let Some(first) = iter.next() else {
+            unreachable!("R-tree bounding boxes are only built from non-empty node lists");
+        };
         iter.fold(first, |mut acc, ps| {
             for i in 0..7 {
                 acc[i] = acc[i].span_parameter(Some(ps[i]));
@@ -54,6 +56,80 @@ impl ClimateRTree {
 
     fn bounding_box_cost(ps: &[ClimateParameter; 7]) -> i64 {
         ps.iter().map(|p| (p.max - p.min).abs()).sum()
+    }
+
+    fn center(nodes: &[Self], index: usize, dimension: usize) -> i64 {
+        let parameter = &nodes[index].parameter_space()[dimension];
+        (parameter.min + parameter.max) / 2
+    }
+
+    fn sort_indices_by_dimension(indices: &mut [usize], nodes: &[Self], start_dimension: usize) {
+        const DIMS: usize = 7;
+        indices.sort_by(|&left, &right| {
+            for offset in 0..DIMS {
+                let dimension = (start_dimension + offset) % DIMS;
+                match Self::center(nodes, left, dimension)
+                    .cmp(&Self::center(nodes, right, dimension))
+                {
+                    std::cmp::Ordering::Equal => {}
+                    ordering => return ordering,
+                }
+            }
+            std::cmp::Ordering::Equal
+        });
+    }
+
+    fn bucket_cost(indices: &[usize], nodes: &[Self], bucket_size: usize) -> i64 {
+        indices
+            .chunks(bucket_size)
+            .map(|bucket| {
+                let parameter_space =
+                    Self::bounding_box_of(bucket.iter().map(|&i| *nodes[i].parameter_space()));
+                Self::bounding_box_cost(&parameter_space)
+            })
+            .sum()
+    }
+
+    fn bucket_groups(indices: &[usize], bucket_size: usize) -> Vec<Vec<usize>> {
+        indices
+            .chunks(bucket_size)
+            .map(|bucket| bucket.to_vec())
+            .collect()
+    }
+
+    fn sort_bucket_groups_by_dimension(
+        bucket_groups: &mut [Vec<usize>],
+        nodes: &[Self],
+        dimension: usize,
+    ) {
+        bucket_groups.sort_by_key(|bucket| {
+            let (lo, hi) = bucket
+                .iter()
+                .fold((i64::MAX, i64::MIN), |(lo, hi), &index| {
+                    let parameter = &nodes[index].parameter_space()[dimension];
+                    (lo.min(parameter.min), hi.max(parameter.max))
+                });
+            ((lo + hi) / 2).abs()
+        });
+    }
+
+    fn build_children_from_buckets(nodes: Vec<Self>, bucket_groups: Vec<Vec<usize>>) -> Vec<Self> {
+        let mut slots: Vec<Option<Self>> = nodes.into_iter().map(Some).collect();
+        bucket_groups
+            .into_iter()
+            .map(|bucket| {
+                let bucket_nodes: Vec<Self> = bucket
+                    .into_iter()
+                    .map(|index| {
+                        let Some(node) = slots[index].take() else {
+                            unreachable!("bucket groups contain each node index exactly once");
+                        };
+                        node
+                    })
+                    .collect();
+                Self::build_internal(bucket_nodes)
+            })
+            .collect()
     }
 
     /// Recursive tree builder. Mirrors Java's `RTree.build(dimensions, children)`.
@@ -68,7 +144,10 @@ impl ClimateRTree {
         const DIMS: usize = 7;
 
         if nodes.len() == 1 {
-            return nodes.into_iter().next().unwrap();
+            let Some(node) = nodes.into_iter().next() else {
+                unreachable!("node length was checked before consuming the vector");
+            };
+            return node;
         }
 
         if nodes.len() <= MAX_CHILDREN {
@@ -94,11 +173,6 @@ impl ClimateRTree {
             6usize.pow(exp).max(1)
         };
 
-        let center = |nodes: &[Self], i: usize, d: usize| -> i64 {
-            let p = &nodes[i].parameter_space()[d];
-            (p.min + p.max) / 2
-        };
-
         let mut indices: Vec<usize> = (0..n).collect();
         let mut min_cost = i64::MAX;
         let mut best_dim = 0usize;
@@ -106,24 +180,8 @@ impl ClimateRTree {
         for d in 0..DIMS {
             // Lexicographic sort: primary = dim d, tiebreak by (d+1)%7 … (d+6)%7.
             // Matches Java's `sort(children, dimensions, d, false)`.
-            indices.sort_by(|&a, &b| {
-                for k in 0..DIMS {
-                    let dim = (d + k) % DIMS;
-                    match center(&nodes, a, dim).cmp(&center(&nodes, b, dim)) {
-                        std::cmp::Ordering::Equal => {}
-                        ord => return ord,
-                    }
-                }
-                std::cmp::Ordering::Equal
-            });
-            let cost: i64 = indices
-                .chunks(expected)
-                .map(|bucket| {
-                    let ps =
-                        Self::bounding_box_of(bucket.iter().map(|&i| *nodes[i].parameter_space()));
-                    Self::bounding_box_cost(&ps)
-                })
-                .sum();
+            Self::sort_indices_by_dimension(&mut indices, &nodes, d);
+            let cost = Self::bucket_cost(&indices, &nodes, expected);
             if cost < min_cost {
                 min_cost = cost;
                 best_dim = d;
@@ -131,57 +189,12 @@ impl ClimateRTree {
         }
 
         // Re-sort by the winning dimension (matches Java's re-sort before grouping).
-        indices.sort_by(|&a, &b| {
-            for k in 0..DIMS {
-                let dim = (best_dim + k) % DIMS;
-                match center(&nodes, a, dim).cmp(&center(&nodes, b, dim)) {
-                    std::cmp::Ordering::Equal => {}
-                    ord => return ord,
-                }
-            }
-            std::cmp::Ordering::Equal
-        });
-
-        // Group into buckets of size `expected`.
-        let mut bucket_groups: Vec<Vec<usize>> = {
-            let mut groups: Vec<Vec<usize>> = Vec::new();
-            let mut current: Vec<usize> = Vec::with_capacity(expected);
-            for &i in &indices {
-                current.push(i);
-                if current.len() >= expected {
-                    groups.push(std::mem::replace(
-                        &mut current,
-                        Vec::with_capacity(expected),
-                    ));
-                }
-            }
-            if !current.is_empty() {
-                groups.push(current);
-            }
-            groups
-        };
+        Self::sort_indices_by_dimension(&mut indices, &nodes, best_dim);
+        let mut bucket_groups = Self::bucket_groups(&indices, expected);
 
         // Sort bucket groups by |center| of best_dim (matches Java's `sort(minBuckets, …, true)`).
-        bucket_groups.sort_by_key(|bucket| {
-            let (lo, hi) = bucket.iter().fold((i64::MAX, i64::MIN), |(lo, hi), &i| {
-                let p = &nodes[i].parameter_space()[best_dim];
-                (lo.min(p.min), hi.max(p.max))
-            });
-            ((lo + hi) / 2).abs()
-        });
-
-        // Consume nodes into buckets and recursively build each.
-        let mut slots: Vec<Option<Self>> = nodes.into_iter().map(Some).collect();
-        let children: Vec<Self> = bucket_groups
-            .into_iter()
-            .map(|bucket| {
-                let bucket_nodes: Vec<Self> = bucket
-                    .into_iter()
-                    .map(|i| slots[i].take().unwrap())
-                    .collect();
-                Self::build_internal(bucket_nodes)
-            })
-            .collect();
+        Self::sort_bucket_groups_by_dimension(&mut bucket_groups, &nodes, best_dim);
+        let children = Self::build_children_from_buckets(nodes, bucket_groups);
 
         let ps = Self::bounding_box_of(children.iter().map(|c| *c.parameter_space()));
         Self::SubTree {

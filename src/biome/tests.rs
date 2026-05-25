@@ -3,9 +3,9 @@ use super::{
     climate_node_distance, climate_point, climate_sampler_sample, climate_target,
     multi_noise_parameter_list_preset, overworld_biome_parameters, parse_biome_json,
     parse_multi_noise_preset_json, quantize_coord, quart_to_block, select_biome_from_source,
-    select_climate_biome, select_end_biome, unquantize_coord,
-    BiomeSourceModel, ClimateBiomeEntry, ClimateParameter, ClimateParameterList,
-    ClimateSamplerInput, ClimateTarget, MobCategory, BUILTIN_BIOMES, NETHER_BIOME_PARAMETERS,
+    select_climate_biome, select_end_biome, unquantize_coord, BiomeSourceModel, ClimateBiomeEntry,
+    ClimateParameter, ClimateParameterList, ClimateSamplerInput, ClimateTarget, MobCategory,
+    BUILTIN_BIOMES, NETHER_BIOME_PARAMETERS,
 };
 
 #[test]
@@ -418,8 +418,8 @@ fn plains_biome_generation_and_mob_spawn_settings_match_vanilla_json() {
     )
     .expect("plains.json must be present in decompiled server data");
 
-    let biome = parse_biome_json("minecraft:plains", &json)
-        .expect("plains.json must parse without error");
+    let biome =
+        parse_biome_json("minecraft:plains", &json).expect("plains.json must parse without error");
 
     assert_eq!(biome.id, "minecraft:plains");
     assert!(biome.has_precipitation);

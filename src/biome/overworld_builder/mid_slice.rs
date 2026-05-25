@@ -1,8 +1,12 @@
 use super::super::*;
-use super::OverworldBiomeBuilder;
+use super::{ClimateEntryParameters, OverworldBiomeBuilder};
 
 impl OverworldBiomeBuilder {
-    pub(super) fn add_mid_slice(&self, entries: &mut Vec<ClimateBiomeEntry>, weird: ClimateParameter) {
+    pub(super) fn add_mid_slice(
+        &self,
+        entries: &mut Vec<ClimateBiomeEntry>,
+        weird: ClimateParameter,
+    ) {
         let near_far = Self::p_span(self.near_inland_cont, self.far_inland_cont);
         let coast_near = Self::p_span(self.coast_cont, self.near_inland_cont);
         let near_mid = Self::p_span(self.near_inland_cont, self.mid_inland_cont);
@@ -14,32 +18,38 @@ impl OverworldBiomeBuilder {
 
         self.add_surface_biome(
             entries,
-            self.full_range,
-            self.full_range,
-            self.coast_cont,
-            eros02,
-            weird,
-            0.0,
+            ClimateEntryParameters::new(
+                self.full_range,
+                self.full_range,
+                self.coast_cont,
+                eros02,
+                weird,
+                0.0,
+            ),
             "minecraft:stony_shore",
         );
         self.add_surface_biome(
             entries,
-            temp12,
-            self.full_range,
-            near_far,
-            self.erosions[6],
-            weird,
-            0.0,
+            ClimateEntryParameters::new(
+                temp12,
+                self.full_range,
+                near_far,
+                self.erosions[6],
+                weird,
+                0.0,
+            ),
             "minecraft:swamp",
         );
         self.add_surface_biome(
             entries,
-            temp34,
-            self.full_range,
-            near_far,
-            self.erosions[6],
-            weird,
-            0.0,
+            ClimateEntryParameters::new(
+                temp34,
+                self.full_range,
+                near_far,
+                self.erosions[6],
+                weird,
+                0.0,
+            ),
             "minecraft:mangrove_swamp",
         );
 
@@ -61,185 +71,190 @@ impl OverworldBiomeBuilder {
 
                 self.add_surface_biome(
                     entries,
-                    temp,
-                    hum,
-                    near_far,
-                    self.erosions[0],
-                    weird,
-                    0.0,
+                    ClimateEntryParameters::new(temp, hum, near_far, self.erosions[0], weird, 0.0),
                     slope,
                 );
                 self.add_surface_biome(
                     entries,
-                    temp,
-                    hum,
-                    near_mid,
-                    self.erosions[1],
-                    weird,
-                    0.0,
+                    ClimateEntryParameters::new(temp, hum, near_mid, self.erosions[1], weird, 0.0),
                     middle_or_badlands_or_slope,
                 );
                 let far_e1 = if ti == 0 { slope } else { plateau };
                 self.add_surface_biome(
                     entries,
-                    temp,
-                    hum,
-                    self.far_inland_cont,
-                    self.erosions[1],
-                    weird,
-                    0.0,
+                    ClimateEntryParameters::new(
+                        temp,
+                        hum,
+                        self.far_inland_cont,
+                        self.erosions[1],
+                        weird,
+                        0.0,
+                    ),
                     far_e1,
                 );
                 self.add_surface_biome(
                     entries,
-                    temp,
-                    hum,
-                    self.near_inland_cont,
-                    self.erosions[2],
-                    weird,
-                    0.0,
+                    ClimateEntryParameters::new(
+                        temp,
+                        hum,
+                        self.near_inland_cont,
+                        self.erosions[2],
+                        weird,
+                        0.0,
+                    ),
                     middle,
                 );
                 self.add_surface_biome(
                     entries,
-                    temp,
-                    hum,
-                    self.mid_inland_cont,
-                    self.erosions[2],
-                    weird,
-                    0.0,
+                    ClimateEntryParameters::new(
+                        temp,
+                        hum,
+                        self.mid_inland_cont,
+                        self.erosions[2],
+                        weird,
+                        0.0,
+                    ),
                     middle_or_badlands,
                 );
                 self.add_surface_biome(
                     entries,
-                    temp,
-                    hum,
-                    self.far_inland_cont,
-                    self.erosions[2],
-                    weird,
-                    0.0,
+                    ClimateEntryParameters::new(
+                        temp,
+                        hum,
+                        self.far_inland_cont,
+                        self.erosions[2],
+                        weird,
+                        0.0,
+                    ),
                     plateau,
                 );
                 self.add_surface_biome(
                     entries,
-                    temp,
-                    hum,
-                    coast_near,
-                    self.erosions[3],
-                    weird,
-                    0.0,
+                    ClimateEntryParameters::new(
+                        temp,
+                        hum,
+                        coast_near,
+                        self.erosions[3],
+                        weird,
+                        0.0,
+                    ),
                     middle,
                 );
                 self.add_surface_biome(
                     entries,
-                    temp,
-                    hum,
-                    mid_far,
-                    self.erosions[3],
-                    weird,
-                    0.0,
+                    ClimateEntryParameters::new(temp, hum, mid_far, self.erosions[3], weird, 0.0),
                     middle_or_badlands,
                 );
                 if weird.max < 0 {
                     self.add_surface_biome(
                         entries,
-                        temp,
-                        hum,
-                        self.coast_cont,
-                        self.erosions[4],
-                        weird,
-                        0.0,
+                        ClimateEntryParameters::new(
+                            temp,
+                            hum,
+                            self.coast_cont,
+                            self.erosions[4],
+                            weird,
+                            0.0,
+                        ),
                         beach,
                     );
                     self.add_surface_biome(
                         entries,
-                        temp,
-                        hum,
-                        near_far,
-                        self.erosions[4],
-                        weird,
-                        0.0,
+                        ClimateEntryParameters::new(
+                            temp,
+                            hum,
+                            near_far,
+                            self.erosions[4],
+                            weird,
+                            0.0,
+                        ),
                         middle,
                     );
                 } else {
                     self.add_surface_biome(
                         entries,
-                        temp,
-                        hum,
-                        coast_far,
-                        self.erosions[4],
-                        weird,
-                        0.0,
+                        ClimateEntryParameters::new(
+                            temp,
+                            hum,
+                            coast_far,
+                            self.erosions[4],
+                            weird,
+                            0.0,
+                        ),
                         middle,
                     );
                 }
                 self.add_surface_biome(
                     entries,
-                    temp,
-                    hum,
-                    self.coast_cont,
-                    self.erosions[5],
-                    weird,
-                    0.0,
+                    ClimateEntryParameters::new(
+                        temp,
+                        hum,
+                        self.coast_cont,
+                        self.erosions[5],
+                        weird,
+                        0.0,
+                    ),
                     shattered_coast,
                 );
                 self.add_surface_biome(
                     entries,
-                    temp,
-                    hum,
-                    self.near_inland_cont,
-                    self.erosions[5],
-                    weird,
-                    0.0,
+                    ClimateEntryParameters::new(
+                        temp,
+                        hum,
+                        self.near_inland_cont,
+                        self.erosions[5],
+                        weird,
+                        0.0,
+                    ),
                     middle_or_windswept,
                 );
                 self.add_surface_biome(
                     entries,
-                    temp,
-                    hum,
-                    mid_far,
-                    self.erosions[5],
-                    weird,
-                    0.0,
+                    ClimateEntryParameters::new(temp, hum, mid_far, self.erosions[5], weird, 0.0),
                     shattered,
                 );
                 if weird.max < 0 {
                     self.add_surface_biome(
                         entries,
-                        temp,
-                        hum,
-                        self.coast_cont,
-                        self.erosions[6],
-                        weird,
-                        0.0,
+                        ClimateEntryParameters::new(
+                            temp,
+                            hum,
+                            self.coast_cont,
+                            self.erosions[6],
+                            weird,
+                            0.0,
+                        ),
                         beach,
                     );
                 } else {
                     self.add_surface_biome(
                         entries,
-                        temp,
-                        hum,
-                        self.coast_cont,
-                        self.erosions[6],
-                        weird,
-                        0.0,
+                        ClimateEntryParameters::new(
+                            temp,
+                            hum,
+                            self.coast_cont,
+                            self.erosions[6],
+                            weird,
+                            0.0,
+                        ),
                         middle,
                     );
                 }
                 if ti == 0 {
                     self.add_surface_biome(
                         entries,
-                        temp,
-                        hum,
-                        near_far,
-                        self.erosions[6],
-                        weird,
-                        0.0,
+                        ClimateEntryParameters::new(
+                            temp,
+                            hum,
+                            near_far,
+                            self.erosions[6],
+                            weird,
+                            0.0,
+                        ),
                         middle,
                     );
                 }
             }
         }
     }
-
 }

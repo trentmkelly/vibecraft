@@ -2,7 +2,6 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BiomeKey {
     pub id: &'static str,
@@ -722,11 +721,14 @@ impl ClimateParameterList {
     }
 
     pub fn find_value_bruteforce(&self, target: ClimateTarget) -> &'static str {
-        self.values
+        let Some(entry) = self
+            .values
             .iter()
             .min_by_key(|entry| entry.parameters.fitness(target))
-            .expect("parameter list is non-empty")
-            .biome
+        else {
+            unreachable!("ClimateParameterList::new rejects empty parameter lists");
+        };
+        entry.biome
     }
 
     /// Finds the nearest biome using the R-tree index.
@@ -737,7 +739,6 @@ impl ClimateParameterList {
 }
 
 mod climate_rtree;
-
 
 pub fn climate_node_distance(parameter_space: [ClimateParameter; 7], target: [i64; 7]) -> i64 {
     parameter_space
@@ -858,128 +859,145 @@ pub fn parse_biome_json(id: &str, json: &str) -> Result<BiomeData, String> {
         .and_then(|v| v.as_f64())
         .ok_or("missing 'downfall' field")? as f32;
 
-    // --- BiomeGenerationSettings ---
+    Ok(BiomeData {
+        id: id.to_string(),
+        has_precipitation,
+        temperature,
+        downfall,
+        generation_settings: parse_generation_settings(obj)?,
+        mob_spawn_settings: parse_mob_spawn_settings(obj)?,
+    })
+}
 
-    let carvers: Vec<String> = match obj.get("carvers") {
+fn parse_generation_settings(
+    obj: &serde_json::Map<String, serde_json::Value>,
+) -> Result<BiomeGenerationSettings, String> {
+    let carvers = match obj.get("carvers") {
         Some(serde_json::Value::Array(arr)) => arr
             .iter()
-            .filter_map(|v| v.as_str().map(String::from))
+            .filter_map(|value| value.as_str().map(String::from))
             .collect(),
         Some(_) => return Err("'carvers' must be an array".to_string()),
         None => Vec::new(),
     };
+    Ok(BiomeGenerationSettings {
+        carvers,
+        features: parse_generation_features(obj)?,
+    })
+}
 
-    let empty_arr: Vec<serde_json::Value> = Vec::new();
-    let raw_features: &Vec<serde_json::Value> = match obj.get("features") {
+fn parse_generation_features(
+    obj: &serde_json::Map<String, serde_json::Value>,
+) -> Result<[Vec<String>; 11], String> {
+    let empty_arr = Vec::new();
+    let raw_features = match obj.get("features") {
         Some(serde_json::Value::Array(arr)) => arr,
         Some(_) => return Err("'features' must be an array".to_string()),
         None => &empty_arr,
     };
 
     let mut features: [Vec<String>; 11] = Default::default();
-    for (step_idx, step_val) in raw_features.iter().enumerate() {
-        if step_idx >= 11 {
-            break;
-        }
-        match step_val.as_array() {
-            Some(entries) => {
-                features[step_idx] = entries
-                    .iter()
-                    .filter_map(|e| e.as_str().map(String::from))
-                    .collect();
-            }
-            None => return Err(format!("features[{step_idx}] must be an array")),
-        }
+    for (step_idx, step_val) in raw_features.iter().take(11).enumerate() {
+        let entries = step_val
+            .as_array()
+            .ok_or_else(|| format!("features[{step_idx}] must be an array"))?;
+        features[step_idx] = entries
+            .iter()
+            .filter_map(|entry| entry.as_str().map(String::from))
+            .collect();
     }
+    Ok(features)
+}
 
-    let generation_settings = BiomeGenerationSettings { carvers, features };
-
-    // --- MobSpawnSettings ---
-
-    let creature_spawn_probability = obj
-        .get("creature_spawn_probability")
-        .and_then(|v| v.as_f64())
-        .unwrap_or(0.1) as f32;
-
-    let mut spawners: HashMap<MobCategory, Vec<SpawnerData>> = HashMap::new();
-    if let Some(spawners_obj) = obj.get("spawners").and_then(|v| v.as_object()) {
-        for (cat_name, cat_val) in spawners_obj {
-            let category = MobCategory::from_str(cat_name)
-                .ok_or_else(|| format!("unknown MobCategory '{cat_name}'"))?;
-            let entries = cat_val
-                .as_array()
-                .ok_or_else(|| format!("spawners['{cat_name}'] must be an array"))?;
-            let mut data_list: Vec<SpawnerData> = Vec::with_capacity(entries.len());
-            for entry in entries {
-                let e = entry
-                    .as_object()
-                    .ok_or_else(|| format!("spawners['{cat_name}'] entries must be objects"))?;
-                let entity_type = e
-                    .get("type")
-                    .and_then(|v| v.as_str())
-                    .ok_or("spawner entry missing 'type'")?
-                    .to_string();
-                let weight = e
-                    .get("weight")
-                    .and_then(|v| v.as_i64())
-                    .ok_or("spawner entry missing 'weight'")? as i32;
-                let min_count =
-                    e.get("minCount")
-                        .and_then(|v| v.as_i64())
-                        .ok_or("spawner entry missing 'minCount'")? as i32;
-                let max_count =
-                    e.get("maxCount")
-                        .and_then(|v| v.as_i64())
-                        .ok_or("spawner entry missing 'maxCount'")? as i32;
-                data_list.push(SpawnerData {
-                    entity_type,
-                    weight,
-                    min_count,
-                    max_count,
-                });
-            }
-            spawners.insert(category, data_list);
-        }
-    }
-
-    let mut spawn_costs: HashMap<String, SpawnCost> = HashMap::new();
-    if let Some(costs_obj) = obj.get("spawn_costs").and_then(|v| v.as_object()) {
-        for (entity_type, cost_val) in costs_obj {
-            let c = cost_val
-                .as_object()
-                .ok_or_else(|| format!("spawn_costs['{entity_type}'] must be an object"))?;
-            let energy_budget = c
-                .get("energy_budget")
-                .and_then(|v| v.as_f64())
-                .ok_or("spawn cost missing 'energy_budget'")?;
-            let charge = c
-                .get("charge")
-                .and_then(|v| v.as_f64())
-                .ok_or("spawn cost missing 'charge'")?;
-            spawn_costs.insert(
-                entity_type.clone(),
-                SpawnCost {
-                    energy_budget,
-                    charge,
-                },
-            );
-        }
-    }
-
-    let mob_spawn_settings = MobSpawnSettings {
-        creature_spawn_probability,
-        spawners,
-        spawn_costs,
-    };
-
-    Ok(BiomeData {
-        id: id.to_string(),
-        has_precipitation,
-        temperature,
-        downfall,
-        generation_settings,
-        mob_spawn_settings,
+fn parse_mob_spawn_settings(
+    obj: &serde_json::Map<String, serde_json::Value>,
+) -> Result<MobSpawnSettings, String> {
+    Ok(MobSpawnSettings {
+        creature_spawn_probability: obj
+            .get("creature_spawn_probability")
+            .and_then(|value| value.as_f64())
+            .unwrap_or(0.1) as f32,
+        spawners: parse_spawners(obj)?,
+        spawn_costs: parse_spawn_costs(obj)?,
     })
+}
+
+fn parse_spawners(
+    obj: &serde_json::Map<String, serde_json::Value>,
+) -> Result<HashMap<MobCategory, Vec<SpawnerData>>, String> {
+    let mut spawners = HashMap::new();
+    let Some(spawners_obj) = obj.get("spawners").and_then(|value| value.as_object()) else {
+        return Ok(spawners);
+    };
+    for (cat_name, cat_val) in spawners_obj {
+        let category = MobCategory::from_str(cat_name)
+            .ok_or_else(|| format!("unknown MobCategory '{cat_name}'"))?;
+        let entries = cat_val
+            .as_array()
+            .ok_or_else(|| format!("spawners['{cat_name}'] must be an array"))?;
+        let data_list = entries
+            .iter()
+            .map(|entry| parse_spawner_entry(cat_name, entry))
+            .collect::<Result<Vec<_>, _>>()?;
+        spawners.insert(category, data_list);
+    }
+    Ok(spawners)
+}
+
+fn parse_spawner_entry(
+    category_name: &str,
+    entry: &serde_json::Value,
+) -> Result<SpawnerData, String> {
+    let object = entry
+        .as_object()
+        .ok_or_else(|| format!("spawners['{category_name}'] entries must be objects"))?;
+    Ok(SpawnerData {
+        entity_type: object
+            .get("type")
+            .and_then(|value| value.as_str())
+            .ok_or("spawner entry missing 'type'")?
+            .to_string(),
+        weight: object
+            .get("weight")
+            .and_then(|value| value.as_i64())
+            .ok_or("spawner entry missing 'weight'")? as i32,
+        min_count: object
+            .get("minCount")
+            .and_then(|value| value.as_i64())
+            .ok_or("spawner entry missing 'minCount'")? as i32,
+        max_count: object
+            .get("maxCount")
+            .and_then(|value| value.as_i64())
+            .ok_or("spawner entry missing 'maxCount'")? as i32,
+    })
+}
+
+fn parse_spawn_costs(
+    obj: &serde_json::Map<String, serde_json::Value>,
+) -> Result<HashMap<String, SpawnCost>, String> {
+    let mut spawn_costs = HashMap::new();
+    let Some(costs_obj) = obj.get("spawn_costs").and_then(|value| value.as_object()) else {
+        return Ok(spawn_costs);
+    };
+    for (entity_type, cost_val) in costs_obj {
+        let cost = cost_val
+            .as_object()
+            .ok_or_else(|| format!("spawn_costs['{entity_type}'] must be an object"))?;
+        spawn_costs.insert(
+            entity_type.clone(),
+            SpawnCost {
+                energy_budget: cost
+                    .get("energy_budget")
+                    .and_then(|value| value.as_f64())
+                    .ok_or("spawn cost missing 'energy_budget'")?,
+                charge: cost
+                    .get("charge")
+                    .and_then(|value| value.as_f64())
+                    .ok_or("spawn cost missing 'charge'")?,
+            },
+        );
+    }
+    Ok(spawn_costs)
 }
 
 pub fn checkerboard_biome_source(
@@ -1070,13 +1088,16 @@ static OVERWORLD_BIOME_PARAMETERS_CACHE: OnceLock<Vec<ClimateBiomeEntry>> = Once
 static OVERWORLD_BIOME_PARAMETER_LIST_CACHE: OnceLock<ClimateParameterList> = OnceLock::new();
 
 pub fn overworld_biome_parameters() -> &'static [ClimateBiomeEntry] {
-    OVERWORLD_BIOME_PARAMETERS_CACHE.get_or_init(|| overworld_builder::OverworldBiomeBuilder::new().build())
+    OVERWORLD_BIOME_PARAMETERS_CACHE
+        .get_or_init(|| overworld_builder::OverworldBiomeBuilder::new().build())
 }
 
 fn overworld_biome_parameter_list() -> &'static ClimateParameterList {
     OVERWORLD_BIOME_PARAMETER_LIST_CACHE.get_or_init(|| {
-        ClimateParameterList::new(overworld_biome_parameters().to_vec())
-            .expect("overworld biome parameter list is non-empty")
+        match ClimateParameterList::new(overworld_biome_parameters().to_vec()) {
+            Ok(list) => list,
+            Err(_) => unreachable!("overworld biome builder always emits parameters"),
+        }
     })
 }
 
