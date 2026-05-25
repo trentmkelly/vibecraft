@@ -117,7 +117,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 ## Chat Packets
 
 - [ ] `ClientboundPlayerChatPacket` (0x3A): global index, sender UUID, message index, optional signature, packed signed body, optional unsigned content, filter mask, chat type bound (type + sender name + optional target name)
-- [ ] `ClientboundSystemChatPacket` (0x6C): content component via `ComponentSerialization.TRUSTED_STREAM_CODEC` network NBT tag, overlay bool
+- [x] `ClientboundSystemChatPacket` (0x79 / decimal 121): Java `ComponentSerialization.TRUSTED_STREAM_CODEC` component as an unnamed network NBT tag followed by `ByteBufCodecs.BOOL` overlay; verified against Java composite codec, Java skippable packet definition, Java play registration/name mapping, Rust packet ID/registry mapping, and focused byte-layout coverage for trusted component NBT plus overlay.
 - [ ] `ClientboundDisguisedChatPacket` (0x19): content component, chat type bound with registered chat type holder, sender name, optional target name
 - [ ] `ClientboundDeleteChatPacket` (0x1F): packed message signature (`VarInt(id + 1)` or full 256-byte signature)
 - [ ] `ClientboundPlayerInfoUpdatePacket` (0x3D): action fixed-bitset, entries list (UUID + per-action data: add-player name/properties, initialize-chat session, update-game-mode, update-listed, update-latency, update-display-name, update-list-order, update-hat)
