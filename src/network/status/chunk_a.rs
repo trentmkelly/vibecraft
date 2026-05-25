@@ -184,6 +184,36 @@ struct StatusServerRuntime {
     world_items: Arc<Mutex<WorldItemEntities>>,
 }
 
+#[derive(Clone, Copy)]
+struct ConnectionSharedContext<'a> {
+    properties: &'a ServerProperties,
+    favicon: Option<&'a str>,
+    active_logins: &'a ActiveLoginRegistry,
+    chunk_cache: &'a GeneratedChunkCache,
+    chunk_pipeline: &'a ChunkPipeline,
+    player_access: &'a Arc<Mutex<PlayerAccess>>,
+    world_root: &'a Path,
+    world_seed: i64,
+    clock: &'a Arc<Mutex<ServerClockManager>>,
+    weather: &'a Arc<Mutex<WeatherCycle>>,
+    recipe_manager: &'a RecipeManagerModel,
+    world_items: &'a Arc<Mutex<WorldItemEntities>>,
+}
+
+struct StatusConnectionContext<'a> {
+    shared: ConnectionSharedContext<'a>,
+    remote_address: &'a str,
+    remote_ip: &'a str,
+}
+
+struct LoginConnectionContext<'a> {
+    shared: ConnectionSharedContext<'a>,
+    remote_address: &'a str,
+    remote_ip: &'a str,
+    login_host_ip: Option<String>,
+    rate_limiter: &'a mut PacketRateLimiter,
+}
+
 fn lock_status_mutex<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     match mutex.lock() {
         Ok(guard) => guard,
@@ -376,23 +406,25 @@ fn run_status_accept_loop(
                 let remote_address = peer_addr.to_string();
                 let remote_for_log = loggable_remote_address(properties.log_ips, &remote_address);
                 thread::spawn(move || {
-                    if let Err(err) = handle_status_connection(
-                        stream,
-                        &properties,
-                        favicon.as_deref(),
-                        &active_logins,
-                        &chunk_cache,
-                        &chunk_pipeline,
-                        &player_access,
-                        &world_root,
-                        world_seed,
-                        &remote_address,
-                        &remote_ip,
-                        &clock,
-                        &weather,
-                        &recipe_manager,
-                        &world_items,
-                    ) {
+                    let context = StatusConnectionContext {
+                        shared: ConnectionSharedContext {
+                            properties: &properties,
+                            favicon: favicon.as_deref(),
+                            active_logins: &active_logins,
+                            chunk_cache: &chunk_cache,
+                            chunk_pipeline: &chunk_pipeline,
+                            player_access: &player_access,
+                            world_root: &world_root,
+                            world_seed,
+                            clock: &clock,
+                            weather: &weather,
+                            recipe_manager: &recipe_manager,
+                            world_items: &world_items,
+                        },
+                        remote_address: &remote_address,
+                        remote_ip: &remote_ip,
+                    };
+                    if let Err(err) = handle_status_connection(stream, context) {
                         eprintln!("status connection error from {remote_for_log}: {err}");
                     }
                 });
@@ -435,23 +467,17 @@ pub fn should_stop(
     }
 }
 
-pub fn handle_status_connection(
+fn handle_status_connection(
     mut stream: TcpStream,
-    properties: &ServerProperties,
-    favicon: Option<&str>,
-    active_logins: &ActiveLoginRegistry,
-    chunk_cache: &GeneratedChunkCache,
-    chunk_pipeline: &ChunkPipeline,
-    player_access: &Arc<Mutex<PlayerAccess>>,
-    world_root: &Path,
-    world_seed: i64,
-    remote_address: &str,
-    remote_ip: &str,
-    clock: &Arc<Mutex<ServerClockManager>>,
-    weather: &Arc<Mutex<WeatherCycle>>,
-    recipe_manager: &RecipeManagerModel,
-    world_items: &Arc<Mutex<WorldItemEntities>>,
+    context: StatusConnectionContext<'_>,
 ) -> io::Result<()> {
+    let StatusConnectionContext {
+        shared,
+        remote_address,
+        remote_ip,
+    } = context;
+    let properties = shared.properties;
+    let favicon = shared.favicon;
     stream.set_read_timeout(Some(Duration::from_secs(30)))?;
     stream.set_write_timeout(Some(Duration::from_secs(30)))?;
 
@@ -485,21 +511,13 @@ pub fn handle_status_connection(
         }
         return handle_login_connection(
             &mut stream,
-            properties,
-            active_logins,
-            chunk_cache,
-            chunk_pipeline,
-            player_access,
-            world_root,
-            world_seed,
-            remote_address,
-            remote_ip,
-            login_host_ip(&server_address),
-            &mut rate_limiter,
-            clock,
-            weather,
-            recipe_manager,
-            world_items,
+            LoginConnectionContext {
+                shared,
+                remote_address,
+                remote_ip,
+                login_host_ip: login_host_ip(&server_address),
+                rate_limiter: &mut rate_limiter,
+            },
         );
     }
     if next_state != 1 {
@@ -627,24 +645,31 @@ fn wait_for_configuration_packet_or_rate_disconnect(
     }
 }
 
-pub fn handle_login_connection(
+fn handle_login_connection(
     stream: &mut TcpStream,
-    properties: &ServerProperties,
-    active_logins: &ActiveLoginRegistry,
-    chunk_cache: &GeneratedChunkCache,
-    chunk_pipeline: &ChunkPipeline,
-    player_access: &Arc<Mutex<PlayerAccess>>,
-    world_root: &Path,
-    world_seed: i64,
-    remote_address: &str,
-    remote_ip: &str,
-    login_host_ip: Option<String>,
-    rate_limiter: &mut PacketRateLimiter,
-    clock: &Arc<Mutex<ServerClockManager>>,
-    weather: &Arc<Mutex<WeatherCycle>>,
-    recipe_manager: &RecipeManagerModel,
-    world_items: &Arc<Mutex<WorldItemEntities>>,
+    context: LoginConnectionContext<'_>,
 ) -> io::Result<()> {
+    let LoginConnectionContext {
+        shared,
+        remote_address,
+        remote_ip,
+        login_host_ip,
+        rate_limiter,
+    } = context;
+    let ConnectionSharedContext {
+        properties,
+        favicon: _,
+        active_logins,
+        chunk_cache,
+        chunk_pipeline,
+        player_access,
+        world_root,
+        world_seed,
+        clock,
+        weather,
+        recipe_manager,
+        world_items,
+    } = shared;
     let mut login = LoginSession::default();
     let hello = match read_expected_login_hello_packet(stream, rate_limiter) {
         Ok(hello) => hello,
