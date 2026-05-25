@@ -76,11 +76,13 @@ pub struct PlayerAccess {
 
 impl PlayerAccess {
     pub fn load_from_dir(dir: &Path) -> std::io::Result<Self> {
-        let mut access = Self::default();
-        access.banned_players = load_name_ban_entries(&dir.join("banned-players.json"))?;
-        access.banned_ips = load_ip_ban_entries(&dir.join("banned-ips.json"))?;
-        access.whitelist = load_name_and_id_entries(&dir.join("whitelist.json"))?;
-        access.ops = load_op_entries(&dir.join("ops.json"))?;
+        let mut access = Self {
+            banned_players: load_name_ban_entries(&dir.join("banned-players.json"))?,
+            banned_ips: load_ip_ban_entries(&dir.join("banned-ips.json"))?,
+            whitelist: load_name_and_id_entries(&dir.join("whitelist.json"))?,
+            ops: load_op_entries(&dir.join("ops.json"))?,
+            ..Self::default()
+        };
         let cached = load_user_cache_entries(&dir.join("usercache.json"), SystemTime::now())?;
         for user in cached {
             access.cache_user(user);

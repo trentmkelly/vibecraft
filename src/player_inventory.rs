@@ -324,14 +324,15 @@ impl PlayerInventory {
             }
             return;
         }
-        let current = self.stack_mut(slot).expect("slot was just initialized");
-        let room = current.max_stack_size() as i32 - current.count();
-        let moved = stack.count().min(room.max(0));
-        current.grow(moved);
-        current.set_pop_time(5);
-        stack.shrink(moved);
-        if moved > 0 {
-            self.set_changed();
+        if let Some(current) = self.stack_mut(slot) {
+            let room = current.max_stack_size() as i32 - current.count();
+            let moved = stack.count().min(room.max(0));
+            current.grow(moved);
+            current.set_pop_time(5);
+            stack.shrink(moved);
+            if moved > 0 {
+                self.set_changed();
+            }
         }
     }
 

@@ -134,6 +134,17 @@ pub struct RespawnPlan {
     pub packets: Vec<RespawnPacket>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RespawnRequest {
+    pub uuid: Uuid,
+    pub keep_all_player_data: bool,
+    pub removal_reason: RemovalReason,
+    pub missing_respawn_block: bool,
+    pub anchor_depleted: bool,
+    pub dimension: Identifier,
+    pub game_mode: GameMode,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RemovalReason {
     Killed,
@@ -363,27 +374,18 @@ impl PlayerListModel {
         })
     }
 
-    pub fn plan_respawn(
-        &mut self,
-        uuid: Uuid,
-        keep_all_player_data: bool,
-        removal_reason: RemovalReason,
-        missing_respawn_block: bool,
-        anchor_depleted: bool,
-        dimension: Identifier,
-        game_mode: GameMode,
-    ) -> Option<RespawnPlan> {
+    pub fn plan_respawn(&mut self, request: RespawnRequest) -> Option<RespawnPlan> {
         self.players
             .iter()
-            .find(|player| player.profile.uuid == uuid)?;
+            .find(|player| player.profile.uuid == request.uuid)?;
         let mut packets = Vec::new();
-        if missing_respawn_block {
+        if request.missing_respawn_block {
             packets.push(RespawnPacket::NoRespawnBlockAvailable);
         }
         packets.extend([
             RespawnPacket::Respawn {
-                dimension,
-                game_mode,
+                dimension: request.dimension,
+                game_mode: request.game_mode,
             },
             RespawnPacket::TeleportToRespawnPosition,
             RespawnPacket::SetDefaultSpawnPosition,
@@ -394,17 +396,17 @@ impl PlayerListModel {
             RespawnPacket::SendPermissionLevel,
             RespawnPacket::InitInventoryMenu,
         ]);
-        if anchor_depleted && !keep_all_player_data {
+        if request.anchor_depleted && !request.keep_all_player_data {
             packets.push(RespawnPacket::RespawnAnchorDepleteSound);
         }
 
         Some(RespawnPlan {
-            profile_id: uuid,
-            keep_all_player_data,
-            removal_reason,
-            missing_respawn_block,
-            data_to_keep: u8::from(keep_all_player_data),
-            copy_respawn_position: !missing_respawn_block,
+            profile_id: request.uuid,
+            keep_all_player_data: request.keep_all_player_data,
+            removal_reason: request.removal_reason,
+            missing_respawn_block: request.missing_respawn_block,
+            data_to_keep: u8::from(request.keep_all_player_data),
+            copy_respawn_position: !request.missing_respawn_block,
             packets,
         })
     }
@@ -440,7 +442,7 @@ impl From<Uuid> for UuidKey {
 mod tests {
     use super::{
         LoginDecision, PlayerInfoAction, PlayerListModel, PlayerProfile, ProfileProperty,
-        RemovalReason, RespawnPacket, TransferDecision, BANNED_DISCONNECT,
+        RemovalReason, RespawnPacket, RespawnRequest, TransferDecision, BANNED_DISCONNECT,
         DUPLICATE_LOGIN_DISCONNECT, NOT_WHITELISTED_DISCONNECT, SERVER_FULL_DISCONNECT,
         SERVER_SHUTDOWN_DISCONNECT,
     };
@@ -656,15 +658,15 @@ mod tests {
         let dimension = Identifier::parse("minecraft:overworld").unwrap();
 
         let plan = list
-            .plan_respawn(
-                uuid(1),
-                false,
-                RemovalReason::Killed,
-                true,
-                true,
-                dimension.clone(),
-                GameMode::Survival,
-            )
+            .plan_respawn(RespawnRequest {
+                uuid: uuid(1),
+                keep_all_player_data: false,
+                removal_reason: RemovalReason::Killed,
+                missing_respawn_block: true,
+                anchor_depleted: true,
+                dimension: dimension.clone(),
+                game_mode: GameMode::Survival,
+            })
             .expect("respawn plan");
 
         assert_eq!(plan.data_to_keep, 0);
