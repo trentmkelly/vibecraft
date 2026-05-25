@@ -210,9 +210,7 @@ const INTENTIONALLY_OMITTED_REGISTRIES: &[(&str, &str)] = &[
     ),
 ];
 
-fn parse_java_constant_to_path_mapping(
-    source: &str,
-) -> std::collections::BTreeMap<String, String> {
+fn parse_java_constant_to_path_mapping(source: &str) -> std::collections::BTreeMap<String, String> {
     let mut mapping = std::collections::BTreeMap::new();
     let create_call = "createRegistryKey(";
     let mut cursor = 0usize;
@@ -296,8 +294,9 @@ fn parse_builtin_registry_ids() -> std::collections::BTreeSet<String> {
         "../../../decompiled-server-26.1.2/net/minecraft/core/registries/Registries.java"
     );
     let mapping = parse_java_constant_to_path_mapping(registries_java);
-    let source =
-        include_str!("../../../decompiled-server-26.1.2/net/minecraft/core/registries/BuiltInRegistries.java");
+    let source = include_str!(
+        "../../../decompiled-server-26.1.2/net/minecraft/core/registries/BuiltInRegistries.java"
+    );
     let mut registry_ids = std::collections::BTreeSet::new();
     for constant in parse_java_registry_refs_from_source(source, "Registries.") {
         if constant == "ROOT_REGISTRY_NAME" || constant == "REGISTRY" {
@@ -501,8 +500,8 @@ fn registry_data_pack_overrides_preserve_existing_ids_and_append_new_entries() {
 }
 
 #[test]
-fn builtin_registries_bootstrap_before_datapack_overrides() {
-    let builtins = super::BuiltInRegistries::bootstrap_26_1_2();
+fn builtin_registries_bootstrap_before_datapack_overrides() -> Result<(), String> {
+    let builtins = super::BuiltInRegistries::bootstrap_26_1_2()?;
     assert_eq!(
         builtins.registry_ids(),
         vec![
@@ -534,6 +533,7 @@ fn builtin_registries_bootstrap_before_datapack_overrides() {
     assert!(builtins.entity_types.is_frozen());
     assert!(builtins.dimension_types.is_frozen());
     assert!(builtins.biomes.is_frozen());
+    Ok(())
 }
 
 #[test]
@@ -569,7 +569,9 @@ fn builtin_registry_descriptors_cover_java_builtins_or_are_documented() {
                 "omission reason missing for intentionally omitted {registry_id}"
             );
         } else {
-            panic!("missing built-in registry descriptor for {registry_id} with no omission reason");
+            panic!(
+                "missing built-in registry descriptor for {registry_id} with no omission reason"
+            );
         }
     }
 
@@ -610,8 +612,8 @@ fn builtin_registry_manifest_matches_26_1_2_builtin_registration_order() {
 }
 
 #[test]
-fn dynamic_registry_access_applies_datapack_entries_over_builtins() {
-    let builtins = super::BuiltInRegistries::bootstrap_26_1_2();
+fn dynamic_registry_access_applies_datapack_entries_over_builtins() -> Result<(), String> {
+    let builtins = super::BuiltInRegistries::bootstrap_26_1_2()?;
     let mut dynamic = super::DynamicRegistryAccess::from_builtins(&builtins);
     dynamic
         .apply_data_pack_entries(vec![
@@ -654,11 +656,12 @@ fn dynamic_registry_access_applies_datapack_entries_over_builtins() {
         .registry(&Identifier::parse(registries::BIOME).unwrap())
         .unwrap()
         .is_frozen());
+    Ok(())
 }
 
 #[test]
-fn dynamic_registry_access_preserves_builtin_then_datapack_registry_order() {
-    let builtins = super::BuiltInRegistries::bootstrap_26_1_2();
+fn dynamic_registry_access_preserves_builtin_then_datapack_registry_order() -> Result<(), String> {
+    let builtins = super::BuiltInRegistries::bootstrap_26_1_2()?;
     let mut dynamic = super::DynamicRegistryAccess::from_builtins(&builtins);
     dynamic
         .apply_data_pack_entries(vec![
@@ -695,6 +698,7 @@ fn dynamic_registry_access_preserves_builtin_then_datapack_registry_order() {
             Identifier::parse("minecraft:damage_type").unwrap(),
         ]
     );
+    Ok(())
 }
 
 #[test]
@@ -774,8 +778,9 @@ fn tag_loading_handles_replace_optional_entries_and_errors() {
 }
 
 #[test]
-fn reloadable_server_registries_order_datapack_registries_before_tags_and_freeze() {
-    let builtins = super::BuiltInRegistries::bootstrap_26_1_2();
+fn reloadable_server_registries_order_datapack_registries_before_tags_and_freeze(
+) -> Result<(), String> {
+    let builtins = super::BuiltInRegistries::bootstrap_26_1_2()?;
     let mut reloadable = super::ReloadableServerRegistries::new(builtins);
     let biome_registry = Identifier::parse(registries::BIOME).unwrap();
     let custom_biome = Identifier::parse("example:glade").unwrap();
@@ -836,11 +841,12 @@ fn reloadable_server_registries_order_datapack_registries_before_tags_and_freeze
             .values(&biome_registry, &tag),
         Some([custom_biome].as_slice())
     );
+    Ok(())
 }
 
 #[test]
-fn reloadable_server_registries_keep_last_successful_state_on_tag_failure() {
-    let builtins = super::BuiltInRegistries::bootstrap_26_1_2();
+fn reloadable_server_registries_keep_last_successful_state_on_tag_failure() -> Result<(), String> {
+    let builtins = super::BuiltInRegistries::bootstrap_26_1_2()?;
     let mut reloadable = super::ReloadableServerRegistries::new(builtins);
     let item_registry = Identifier::parse(registries::ITEM).unwrap();
     let stick = Identifier::parse("minecraft:stick").unwrap();
@@ -894,6 +900,7 @@ fn reloadable_server_registries_keep_last_successful_state_on_tag_failure() {
             .id(),
         before
     );
+    Ok(())
 }
 
 #[test]
@@ -909,8 +916,8 @@ fn represents_holders_and_named_tag_sets() {
 }
 
 #[test]
-fn feature_flags_match_26_1_2_defaults() {
-    let registry = FeatureFlagRegistry::main_26_1_2();
+fn feature_flags_match_26_1_2_defaults() -> Result<(), String> {
+    let registry = FeatureFlagRegistry::main_26_1_2()?;
     let defaults = feature_flags::default_flags_26_1_2();
     assert!(defaults.contains(feature_flags::VANILLA));
     assert!(!defaults.contains(feature_flags::TRADE_REBALANCE));
@@ -924,4 +931,5 @@ fn feature_flags_match_26_1_2_defaults() {
     ]));
     assert!(defaults.is_subset_of(experimental));
     assert!(!experimental.is_subset_of(defaults));
+    Ok(())
 }

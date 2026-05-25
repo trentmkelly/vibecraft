@@ -543,37 +543,35 @@ pub struct FeatureFlagRegistry {
 }
 
 impl FeatureFlagRegistry {
-    pub fn main_26_1_2() -> Self {
-        Self {
+    pub fn main_26_1_2() -> Result<Self, String> {
+        Ok(Self {
             names: vec![
+                (Identifier::parse("vanilla")?, feature_flags::VANILLA),
                 (
-                    Identifier::parse("vanilla").unwrap(),
-                    feature_flags::VANILLA,
-                ),
-                (
-                    Identifier::parse("trade_rebalance").unwrap(),
+                    Identifier::parse("trade_rebalance")?,
                     feature_flags::TRADE_REBALANCE,
                 ),
                 (
-                    Identifier::parse("redstone_experiments").unwrap(),
+                    Identifier::parse("redstone_experiments")?,
                     feature_flags::REDSTONE_EXPERIMENTS,
                 ),
                 (
-                    Identifier::parse("minecart_improvements").unwrap(),
+                    Identifier::parse("minecart_improvements")?,
                     feature_flags::MINECART_IMPROVEMENTS,
                 ),
             ],
-        }
+        })
     }
 
     pub fn to_names(&self, set: FeatureFlagSet) -> Vec<Identifier> {
         self.names
             .iter()
-            .filter_map(|(id, flag)| set.contains(*flag).then(|| id.clone()))
+            .filter(|(_id, flag)| set.contains(*flag))
+            .map(|(id, _flag)| id.clone())
             .collect()
     }
 
-    pub fn from_names(&self, names: &[Identifier]) -> Result<FeatureFlagSet, Vec<Identifier>> {
+    pub fn resolve_names(&self, names: &[Identifier]) -> Result<FeatureFlagSet, Vec<Identifier>> {
         let mut unknown = Vec::new();
         let mut set = FeatureFlagSet::empty();
         for name in names {

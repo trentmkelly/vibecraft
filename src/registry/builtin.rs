@@ -649,95 +649,69 @@ const fn descriptor(
 }
 
 impl BuiltInRegistries {
-    pub fn bootstrap_26_1_2() -> Self {
-        let mut blocks = Registry::new(Identifier::parse(registries::BLOCK).unwrap());
-        for id in [
-            "minecraft:air",
-            "minecraft:stone",
-            "minecraft:dirt",
-            "minecraft:grass_block",
-            "minecraft:bedrock",
-            "minecraft:water",
-            "minecraft:lava",
-        ] {
-            blocks
-                .register(
-                    Identifier::parse(id).unwrap(),
-                    id.to_string(),
-                    Lifecycle::Stable,
-                )
-                .unwrap();
-        }
+    pub fn bootstrap_26_1_2() -> Result<Self, String> {
+        let mut blocks = Registry::new(builtin_identifier(registries::BLOCK)?);
+        register_stable_ids(
+            &mut blocks,
+            &[
+                "minecraft:air",
+                "minecraft:stone",
+                "minecraft:dirt",
+                "minecraft:grass_block",
+                "minecraft:bedrock",
+                "minecraft:water",
+                "minecraft:lava",
+            ],
+        )?;
 
-        let mut items = Registry::new(Identifier::parse(registries::ITEM).unwrap());
-        for id in [
-            "minecraft:air",
-            "minecraft:stick",
-            "minecraft:apple",
-            "minecraft:stone",
-            "minecraft:dirt",
-            "minecraft:diamond_sword",
-            "minecraft:netherite_chestplate",
-        ] {
-            items
-                .register(
-                    Identifier::parse(id).unwrap(),
-                    id.to_string(),
-                    Lifecycle::Stable,
-                )
-                .unwrap();
-        }
+        let mut items = Registry::new(builtin_identifier(registries::ITEM)?);
+        register_stable_ids(
+            &mut items,
+            &[
+                "minecraft:air",
+                "minecraft:stick",
+                "minecraft:apple",
+                "minecraft:stone",
+                "minecraft:dirt",
+                "minecraft:diamond_sword",
+                "minecraft:netherite_chestplate",
+            ],
+        )?;
 
-        let mut entity_types = Registry::new(Identifier::parse(registries::ENTITY_TYPE).unwrap());
-        for id in [
-            "minecraft:player",
-            "minecraft:pig",
-            "minecraft:cow",
-            "minecraft:armor_stand",
-            "minecraft:item",
-        ] {
-            entity_types
-                .register(
-                    Identifier::parse(id).unwrap(),
-                    id.to_string(),
-                    Lifecycle::Stable,
-                )
-                .unwrap();
-        }
+        let mut entity_types = Registry::new(builtin_identifier(registries::ENTITY_TYPE)?);
+        register_stable_ids(
+            &mut entity_types,
+            &[
+                "minecraft:player",
+                "minecraft:pig",
+                "minecraft:cow",
+                "minecraft:armor_stand",
+                "minecraft:item",
+            ],
+        )?;
 
-        let mut dimension_types =
-            Registry::new(Identifier::parse(registries::DIMENSION_TYPE).unwrap());
-        for id in [
-            "minecraft:overworld",
-            "minecraft:overworld_caves",
-            "minecraft:the_nether",
-            "minecraft:the_end",
-        ] {
-            dimension_types
-                .register(
-                    Identifier::parse(id).unwrap(),
-                    id.to_string(),
-                    Lifecycle::Stable,
-                )
-                .unwrap();
-        }
+        let mut dimension_types = Registry::new(builtin_identifier(registries::DIMENSION_TYPE)?);
+        register_stable_ids(
+            &mut dimension_types,
+            &[
+                "minecraft:overworld",
+                "minecraft:overworld_caves",
+                "minecraft:the_nether",
+                "minecraft:the_end",
+            ],
+        )?;
 
-        let mut biomes = Registry::new(Identifier::parse(registries::BIOME).unwrap());
-        for id in [
-            "minecraft:plains",
-            "minecraft:forest",
-            "minecraft:desert",
-            "minecraft:nether_wastes",
-            "minecraft:the_end",
-        ] {
-            biomes
-                .register(
-                    Identifier::parse(id).unwrap(),
-                    id.to_string(),
-                    Lifecycle::Stable,
-                )
-                .unwrap();
-        }
+        let mut biomes = Registry::new(builtin_identifier(registries::BIOME)?);
+        register_stable_ids(
+            &mut biomes,
+            &[
+                "minecraft:plains",
+                "minecraft:forest",
+                "minecraft:desert",
+                "minecraft:nether_wastes",
+                "minecraft:the_end",
+            ],
+        )?;
 
         blocks.freeze();
         items.freeze();
@@ -745,13 +719,13 @@ impl BuiltInRegistries {
         dimension_types.freeze();
         biomes.freeze();
 
-        Self {
+        Ok(Self {
             blocks,
             items,
             entity_types,
             dimension_types,
             biomes,
-        }
+        })
     }
 
     pub fn registry_ids(&self) -> Vec<Identifier> {
@@ -763,4 +737,20 @@ impl BuiltInRegistries {
             self.biomes.registry_id().clone(),
         ]
     }
+}
+
+fn builtin_identifier(value: &str) -> Result<Identifier, String> {
+    Identifier::parse(value)
+        .map_err(|err| format!("built-in identifier {value:?} is invalid: {err}"))
+}
+
+fn register_stable_ids(registry: &mut Registry<String>, ids: &[&str]) -> Result<(), String> {
+    for id in ids {
+        registry.register(
+            builtin_identifier(id)?,
+            (*id).to_string(),
+            Lifecycle::Stable,
+        )?;
+    }
+    Ok(())
 }
