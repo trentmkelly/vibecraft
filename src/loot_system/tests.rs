@@ -134,6 +134,84 @@ fn score_and_nbt_providers_resolve_context_and_storage_values() {
 }
 
 #[test]
+fn number_providers_cover_java_26_1_2_provider_registry() {
+    let mut context = LootContext::new(LootParamSet::AllParams, 17);
+    context.scores.insert("kills".to_string(), 7);
+    context
+        .storage_numbers
+        .insert("minecraft:loot_state:bonus".to_string(), 4.5);
+    context
+        .environment_attributes
+        .insert("minecraft:local_difficulty".to_string(), 2.25);
+    context.insert_dynamic_param(LootDynamicParamValue::EnchantmentLevel(3));
+
+    assert_eq!(NumberProvider::Constant(1.6).int(&mut context), 2);
+    assert_eq!(
+        NumberProvider::UniformProvider {
+            min: Box::new(NumberProvider::Constant(3.0)),
+            max: Box::new(NumberProvider::Constant(3.0)),
+        }
+        .int(&mut context),
+        3
+    );
+    assert_eq!(
+        NumberProvider::UniformProvider {
+            min: Box::new(NumberProvider::Constant(2.5)),
+            max: Box::new(NumberProvider::Constant(2.5)),
+        }
+        .float(&mut context),
+        2.5
+    );
+    assert_eq!(
+        NumberProvider::BinomialProvider {
+            n: Box::new(NumberProvider::Constant(4.0)),
+            p: Box::new(NumberProvider::Constant(1.0)),
+        }
+        .int(&mut context),
+        4
+    );
+    assert_eq!(
+        NumberProvider::Score {
+            name: "kills".to_string(),
+            scale: 0.5,
+        }
+        .float(&mut context),
+        3.5
+    );
+    assert_eq!(
+        NumberProvider::Storage {
+            key: "minecraft:loot_state:bonus".to_string(),
+            scale: 2.0,
+        }
+        .float(&mut context),
+        9.0
+    );
+    assert_eq!(
+        NumberProvider::EnchantmentLevel { scale: 2.0 }.float(&mut context),
+        6.0
+    );
+    assert_eq!(
+        NumberProvider::Sum(vec![
+            NumberProvider::Constant(1.25),
+            NumberProvider::Constant(2.5),
+            NumberProvider::Score {
+                name: "kills".to_string(),
+                scale: 0.25,
+            },
+        ])
+        .float(&mut context),
+        5.5
+    );
+    assert_eq!(
+        NumberProvider::EnvironmentAttribute {
+            attribute: "minecraft:local_difficulty".to_string(),
+        }
+        .float(&mut context),
+        2.25
+    );
+}
+
+#[test]
 fn loot_predicates_cover_java_condition_surface() {
     let mut context = LootContext::new(LootParamSet::AllParams, 13);
     context.insert_param(LootParamValue::BlockState("minecraft:oak_log".to_string()));

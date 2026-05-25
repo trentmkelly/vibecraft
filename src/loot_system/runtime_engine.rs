@@ -502,11 +502,37 @@ impl ExpandedEntry {
 #[derive(Debug, Clone, PartialEq)]
 pub enum NumberProvider {
     Constant(f32),
-    Uniform { min: f32, max: f32 },
-    Binomial { n: i32, p: f32 },
-    Score { name: String, scale: f32 },
-    Storage { key: String, scale: f32 },
-    EnchantmentLevel { scale: f32 },
+    Uniform {
+        min: f32,
+        max: f32,
+    },
+    Binomial {
+        n: i32,
+        p: f32,
+    },
+    UniformProvider {
+        min: Box<NumberProvider>,
+        max: Box<NumberProvider>,
+    },
+    BinomialProvider {
+        n: Box<NumberProvider>,
+        p: Box<NumberProvider>,
+    },
+    Score {
+        name: String,
+        scale: f32,
+    },
+    Storage {
+        key: String,
+        scale: f32,
+    },
+    EnchantmentLevel {
+        scale: f32,
+    },
+    Sum(Vec<NumberProvider>),
+    EnvironmentAttribute {
+        attribute: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -549,21 +575,53 @@ impl NbtProvider {
 
 impl NumberProvider {
     pub fn int(&self, context: &mut LootContext) -> i32 {
-        self.float(context).floor() as i32
+        match self {
+            Self::Uniform { min, max } => {
+                let min = (*min).round() as i32;
+                let max = (*max).round() as i32;
+                min + context
+                    .random
+                    .next_i32(max.saturating_sub(min).saturating_add(1))
+            }
+            Self::UniformProvider { min, max } => {
+                let min = min.int(context);
+                let max = max.int(context);
+                min + context
+                    .random
+                    .next_i32(max.saturating_sub(min).saturating_add(1))
+            }
+            Self::Binomial { n, p } => binomial_roll(context, *n, *p),
+            Self::BinomialProvider { n, p } => {
+                let n = n.int(context);
+                let p = p.float(context);
+                binomial_roll(context, n, p)
+            }
+            Self::Storage { key, .. } => {
+                context.storage_numbers.get(key).copied().unwrap_or(0.0) as i32
+            }
+            Self::Sum(summands) => summands
+                .iter()
+                .map(|provider| provider.float(context))
+                .sum::<f32>()
+                .floor() as i32,
+            _ => self.float(context).round() as i32,
+        }
     }
 
     pub fn float(&self, context: &mut LootContext) -> f32 {
         match self {
             Self::Constant(value) => *value,
             Self::Uniform { min, max } => *min + (*max - *min) * context.random.next_f32(),
-            Self::Binomial { n, p } => {
-                let mut successes = 0;
-                for _ in 0..(*n).max(0) {
-                    if context.random.next_f32() < *p {
-                        successes += 1;
-                    }
-                }
-                successes as f32
+            Self::Binomial { n, p } => binomial_roll(context, *n, *p) as f32,
+            Self::UniformProvider { min, max } => {
+                let min = min.float(context);
+                let max = max.float(context);
+                min + (max - min) * context.random.next_f32()
+            }
+            Self::BinomialProvider { n, p } => {
+                let n = n.int(context);
+                let p = p.float(context);
+                binomial_roll(context, n, p) as f32
             }
             Self::Score { name, scale } => {
                 context.scores.get(name).copied().unwrap_or(0) as f32 * *scale
@@ -572,6 +630,15 @@ impl NumberProvider {
                 context.storage_numbers.get(key).copied().unwrap_or(0.0) * *scale
             }
             Self::EnchantmentLevel { scale } => context.enchantment_level as f32 * *scale,
+            Self::Sum(summands) => summands
+                .iter()
+                .map(|provider| provider.float(context))
+                .sum(),
+            Self::EnvironmentAttribute { attribute } => context
+                .environment_attributes
+                .get(attribute)
+                .copied()
+                .unwrap_or(0.0),
         }
     }
 
@@ -579,11 +646,24 @@ impl NumberProvider {
         match self {
             Self::Constant(value) => *value,
             Self::Uniform { min, .. } => *min,
-            Self::Binomial { .. } => 0.0,
+            Self::UniformProvider { min, .. } => min.minimum(),
+            Self::Binomial { .. } | Self::BinomialProvider { .. } => 0.0,
             Self::Score { .. } | Self::Storage { .. } => f32::MIN,
             Self::EnchantmentLevel { .. } => 0.0,
+            Self::Sum(summands) => summands.iter().map(NumberProvider::minimum).sum(),
+            Self::EnvironmentAttribute { .. } => f32::MIN,
         }
     }
+}
+
+fn binomial_roll(context: &mut LootContext, n: i32, p: f32) -> i32 {
+    let mut successes = 0;
+    for _ in 0..n.max(0) {
+        if context.random.next_f32() < p {
+            successes += 1;
+        }
+    }
+    successes
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1111,4 +1191,3 @@ impl LootBonusFormula {
         }
     }
 }
-
