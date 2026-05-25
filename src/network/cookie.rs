@@ -1,12 +1,17 @@
 use std::collections::{HashMap, HashSet};
-use std::io::{self, Read, Write};
+use std::io;
+#[cfg(test)]
+use std::io::{Read, Write};
 
+#[cfg(test)]
 use crate::network::codec::{read_identifier, read_optional, write_identifier, write_optional};
+#[cfg(test)]
 use crate::network::varint::{read_var_i32, write_var_i32};
 use crate::registry::Identifier;
 
 pub const MAX_COOKIE_PAYLOAD_SIZE: usize = 5120;
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientboundCookieRequestPacket {
     pub key: Identifier,
@@ -18,6 +23,7 @@ pub struct ServerboundCookieResponsePacket {
     pub payload: Option<Vec<u8>>,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientboundStoreCookiePacket {
     pub key: Identifier,
@@ -36,6 +42,7 @@ pub enum CookieResponseStatus {
     Empty,
 }
 
+#[cfg(test)]
 impl ClientboundCookieRequestPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         Ok(Self {
@@ -49,6 +56,7 @@ impl ClientboundCookieRequestPacket {
 }
 
 impl ServerboundCookieResponsePacket {
+    #[cfg(test)]
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         Ok(Self {
             key: read_identifier(reader)?,
@@ -56,6 +64,7 @@ impl ServerboundCookieResponsePacket {
         })
     }
 
+    #[cfg(test)]
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_identifier(writer, &self.key)?;
         write_optional(writer, self.payload.as_ref(), |writer, payload| {
@@ -64,6 +73,7 @@ impl ServerboundCookieResponsePacket {
     }
 }
 
+#[cfg(test)]
 impl ClientboundStoreCookiePacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         Ok(Self {
@@ -79,11 +89,13 @@ impl ClientboundStoreCookiePacket {
 }
 
 impl CookieState {
+    #[cfg(test)]
     pub fn request_cookie(&mut self, key: Identifier) -> ClientboundCookieRequestPacket {
         self.pending_requests.insert(key.clone());
         ClientboundCookieRequestPacket { key }
     }
 
+    #[cfg(test)]
     pub fn store_cookie(
         &mut self,
         key: Identifier,
@@ -128,15 +140,18 @@ impl CookieState {
         }
     }
 
+    #[cfg(test)]
     pub fn get(&self, key: &Identifier) -> Option<&[u8]> {
         self.stored.get(key).map(Vec::as_slice)
     }
 
+    #[cfg(test)]
     pub fn has_pending_request(&self, key: &Identifier) -> bool {
         self.pending_requests.contains(key)
     }
 }
 
+#[cfg(test)]
 fn read_payload<R: Read>(reader: &mut R) -> io::Result<Vec<u8>> {
     let len = read_var_i32(reader)?;
     if len < 0 || len as usize > MAX_COOKIE_PAYLOAD_SIZE {
@@ -150,6 +165,7 @@ fn read_payload<R: Read>(reader: &mut R) -> io::Result<Vec<u8>> {
     Ok(payload)
 }
 
+#[cfg(test)]
 fn write_payload<W: Write>(writer: &mut W, payload: &[u8]) -> io::Result<()> {
     if payload.len() > MAX_COOKIE_PAYLOAD_SIZE {
         return Err(io::Error::new(
