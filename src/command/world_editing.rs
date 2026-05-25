@@ -317,96 +317,22 @@ pub(super) fn fill_command(
     let begin = parse_block_pos(parts[1], parts[2], parts[3])?;
     let end = parse_block_pos(parts[4], parts[5], parts[6])?;
     let block = parse_resource_identifier(parts[7])?;
-    let mut mode = FillMode::Replace;
-    let mut strict = false;
-    let mut filter = None;
-    match parts.get(8).copied() {
-        None => {}
-        Some("replace") => {
-            if let Some(predicate) = parts.get(9) {
-                filter = Some(parse_resource_identifier(predicate)?);
-                if parts.len() != 10 {
-                    return Err(CommandError::InvalidSyntax);
-                }
-            } else if parts.len() != 9 {
-                return Err(CommandError::InvalidSyntax);
-            }
-        }
-        Some("outline") => {
-            mode = FillMode::Outline;
-            if parts.len() != 9 {
-                return Err(CommandError::InvalidSyntax);
-            }
-        }
-        Some("hollow") => {
-            mode = FillMode::Hollow;
-            if parts.len() != 9 {
-                return Err(CommandError::InvalidSyntax);
-            }
-        }
-        Some("destroy") => {
-            mode = FillMode::Destroy;
-            if parts.len() != 9 {
-                return Err(CommandError::InvalidSyntax);
-            }
-        }
-        Some("keep") => {
-            mode = FillMode::Keep;
-            if parts.len() != 9 {
-                return Err(CommandError::InvalidSyntax);
-            }
-        }
-        Some("strict") => {
-            strict = true;
-            if parts.len() != 9 {
-                return Err(CommandError::InvalidSyntax);
-            }
-        }
-        Some(_) => return Err(CommandError::InvalidSyntax),
-    }
+    let options = parse_fill_options(&parts[8..])?;
     let region = BoundingBox::from_corners(begin, end);
     if region.volume() > i64::from(state.max_block_modifications) {
         return Err(CommandError::FillTooBig);
     }
 
     let dimension = state.command_source_dimension.clone();
-    let mut count = 0;
-    for position in region.positions() {
-        let old_block = block_at(state, &dimension, position);
-        if filter
-            .as_deref()
-            .is_some_and(|predicate| predicate != old_block)
-        {
-            continue;
-        }
-        let replacement = match mode {
-            FillMode::Replace => Some(block.clone()),
-            FillMode::Keep if old_block == "minecraft:air" => Some(block.clone()),
-            FillMode::Keep => None,
-            FillMode::Destroy => Some(block.clone()),
-            FillMode::Outline if is_boundary(region, position) => Some(block.clone()),
-            FillMode::Outline => None,
-            FillMode::Hollow if is_boundary(region, position) => Some(block.clone()),
-            FillMode::Hollow => Some("minecraft:air".to_string()),
-        };
-        if let Some(replacement) = replacement {
-            if replacement != old_block || mode == FillMode::Destroy {
-                set_block_in_dimension(state, &dimension, position, replacement);
-                count += 1;
-            }
-        }
-    }
-    if count == 0 {
-        return Err(CommandError::FillFailed);
-    }
+    let count = apply_fill_region(state, &dimension, region, &block, &options)?;
     state.fill_events.push(FillEvent {
         dimension,
         begin,
         end,
         block,
-        mode,
-        filter,
-        strict,
+        mode: options.mode,
+        filter: options.filter,
+        strict: options.strict,
         count,
     });
     Ok(CommandResult {
@@ -414,6 +340,108 @@ pub(super) fn fill_command(
         feedback_key: "commands.fill.success",
         broadcast_to_admins: true,
     })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct FillOptions {
+    mode: FillMode,
+    filter: Option<String>,
+    strict: bool,
+}
+
+fn parse_fill_options(parts: &[&str]) -> Result<FillOptions, CommandError> {
+    let mut mode = FillMode::Replace;
+    let mut strict = false;
+    let mut filter = None;
+    match parts.first().copied() {
+        None => {}
+        Some("replace") => {
+            if let Some(predicate) = parts.get(1) {
+                filter = Some(parse_resource_identifier(predicate)?);
+                if parts.len() != 2 {
+                    return Err(CommandError::InvalidSyntax);
+                }
+            } else if parts.len() != 1 {
+                return Err(CommandError::InvalidSyntax);
+            }
+        }
+        Some("outline") => {
+            mode = FillMode::Outline;
+            if parts.len() != 1 {
+                return Err(CommandError::InvalidSyntax);
+            }
+        }
+        Some("hollow") => {
+            mode = FillMode::Hollow;
+            if parts.len() != 1 {
+                return Err(CommandError::InvalidSyntax);
+            }
+        }
+        Some("destroy") => {
+            mode = FillMode::Destroy;
+            if parts.len() != 1 {
+                return Err(CommandError::InvalidSyntax);
+            }
+        }
+        Some("keep") => {
+            mode = FillMode::Keep;
+            if parts.len() != 1 {
+                return Err(CommandError::InvalidSyntax);
+            }
+        }
+        Some("strict") => {
+            strict = true;
+            if parts.len() != 1 {
+                return Err(CommandError::InvalidSyntax);
+            }
+        }
+        Some(_) => return Err(CommandError::InvalidSyntax),
+    }
+    Ok(FillOptions {
+        mode,
+        filter,
+        strict,
+    })
+}
+
+fn apply_fill_region(
+    state: &mut ServerCommandState,
+    dimension: &str,
+    region: BoundingBox,
+    block: &str,
+    options: &FillOptions,
+) -> Result<i32, CommandError> {
+    let mut count = 0;
+    for position in region.positions() {
+        let old_block = block_at(state, dimension, position);
+        if options
+            .filter
+            .as_deref()
+            .is_some_and(|predicate| predicate != old_block)
+        {
+            continue;
+        }
+        let replacement = match options.mode {
+            FillMode::Replace => Some(block.to_string()),
+            FillMode::Keep if old_block == "minecraft:air" => Some(block.to_string()),
+            FillMode::Keep => None,
+            FillMode::Destroy => Some(block.to_string()),
+            FillMode::Outline if is_boundary(region, position) => Some(block.to_string()),
+            FillMode::Outline => None,
+            FillMode::Hollow if is_boundary(region, position) => Some(block.to_string()),
+            FillMode::Hollow => Some("minecraft:air".to_string()),
+        };
+        if let Some(replacement) = replacement {
+            if replacement != old_block || options.mode == FillMode::Destroy {
+                set_block_in_dimension(state, dimension, position, replacement);
+                count += 1;
+            }
+        }
+    }
+    if count == 0 {
+        return Err(CommandError::FillFailed);
+    }
+    Ok(count)
 }
 
 pub(super) fn fill_biome_command(

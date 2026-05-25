@@ -211,6 +211,30 @@ pub(super) fn item_command(
     state: &mut ServerCommandState,
     parts: &[&str],
 ) -> Result<CommandResult, CommandError> {
+    match parts.get(1).copied() {
+        Some("replace") => item_replace_command(state, parts),
+        Some("modify") => item_modify_command(state, parts),
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn item_replace_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    if parts.contains(&"with") {
+        item_replace_with_command(state, parts)
+    } else if parts.contains(&"from") {
+        item_replace_from_command(state, parts)
+    } else {
+        Err(CommandError::InvalidSyntax)
+    }
+}
+
+fn item_replace_with_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
     match parts {
         ["item", "replace", "entity", targets, slot, "with", item] => {
             let stack = CommandItemStack {
@@ -254,6 +278,15 @@ pub(super) fn item_command(
             };
             set_block_item(state, pos, &parse_item_slot(slot)?, stack)
         }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn item_replace_from_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
         ["item", "replace", "entity", targets, target_slot, "from", "entity", source, source_slot] =>
         {
             let source = entity_ref(source);
@@ -324,6 +357,15 @@ pub(super) fn item_command(
             let stack = apply_item_modifier(state, None, modifier, stack)?;
             set_block_item(state, target, &target_slot, stack)
         }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn item_modify_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
         ["item", "modify", "entity", targets, slot, modifier] => {
             let targets = parse_entity_list(targets);
             let slot = parse_item_slot(slot)?;
