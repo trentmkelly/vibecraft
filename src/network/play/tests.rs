@@ -770,6 +770,7 @@ mod system_chat_packet_test;
 mod player_info_remove_packet_test;
 mod reset_score_packet_test;
 mod set_border_center_packet_test;
+mod set_border_lerp_size_packet_test;
 mod set_border_size_packet_test;
 mod set_border_warning_delay_packet_test;
 mod set_border_warning_distance_packet_test;
