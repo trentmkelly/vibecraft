@@ -1,11 +1,14 @@
 #![allow(dead_code)]
 
-use std::path::Path;
-
 use crate::ai_system::{GossipContainer, GossipType, PoiTicket};
 use crate::item_stack::ItemStack;
 use crate::player_inventory::{ItemCost, MerchantOffer};
 use crate::spawning::WanderingTraderData;
+
+pub use crate::villager_trade_resources::{
+    load_trade_set_resource, load_villager_trade_resource, parse_trade_set_resource,
+    parse_villager_trade_resource, HolderSetResource, NumberProviderResource,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum VillagerLevel {
@@ -535,11 +538,7 @@ impl VillagerTradeState {
     pub fn generate_level_offers(&mut self) {
         let templates = profession_offers(self.profession, self.level);
         for template in templates {
-            if !self
-                .offers
-                .iter()
-                .any(|offer| offer.result.item_id() == template.result.item_id())
-            {
+            if !self.offers.iter().any(|offer| offer == &template) {
                 self.offers.push(template);
             }
         }
@@ -653,302 +652,43 @@ pub fn profession_offers(
     profession: VillagerProfession,
     level: VillagerLevel,
 ) -> Vec<MerchantOffer> {
-    match (profession, level) {
-        (VillagerProfession::Farmer, VillagerLevel::Novice) => vec![
-            MerchantOffer::new(
-                ItemCost::new("minecraft:wheat", 20),
-                None,
-                ItemStack::new("minecraft:emerald", 1),
-                16,
-                2,
-                0.05,
-            ),
-            MerchantOffer::new(
-                ItemCost::new("minecraft:emerald", 1),
-                None,
-                ItemStack::new("minecraft:bread", 6),
-                16,
-                1,
-                0.05,
-            ),
-        ],
-        (VillagerProfession::Librarian, VillagerLevel::Novice) => vec![MerchantOffer::new(
-            ItemCost::new("minecraft:paper", 24),
-            None,
-            ItemStack::new("minecraft:emerald", 1),
-            16,
-            2,
-            0.05,
-        )],
-        (VillagerProfession::Toolsmith, VillagerLevel::Apprentice) => vec![MerchantOffer::new(
-            ItemCost::new("minecraft:emerald", 4),
-            None,
-            ItemStack::new("minecraft:stone_pickaxe", 1),
-            12,
-            10,
-            0.2,
-        )],
-        _ => Vec::new(),
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct VillagerTradeResource {
-    pub wants: TradeCostResource,
-    pub additional_wants: Option<TradeCostResource>,
-    pub gives: ItemStackTemplateResource,
-    pub max_uses: NumberProviderResource,
-    pub reputation_discount: NumberProviderResource,
-    pub xp: NumberProviderResource,
-    pub merchant_predicate: Option<serde_json::Value>,
-    pub given_item_modifiers: Vec<serde_json::Value>,
-    pub double_trade_price_enchantments: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct TradeSetResource {
-    pub trades: HolderSetResource,
-    pub amount: NumberProviderResource,
-    pub allow_duplicates: bool,
-    pub random_sequence: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct TradeCostResource {
-    pub item_id: String,
-    pub count: NumberProviderResource,
-    pub components: Option<serde_json::Map<String, serde_json::Value>>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ItemStackTemplateResource {
-    pub item_id: String,
-    pub count: i32,
-    pub components: Option<serde_json::Map<String, serde_json::Value>>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum NumberProviderResource {
-    Constant(f64),
-    Provider(serde_json::Value),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum HolderSetResource {
-    Tag(String),
-    List(Vec<String>),
-}
-
-pub fn parse_villager_trade_resource(raw: &str) -> Result<VillagerTradeResource, String> {
-    let value: serde_json::Value =
-        serde_json::from_str(raw).map_err(|err| format!("invalid villager trade JSON: {err}"))?;
-    let object = value
-        .as_object()
-        .ok_or_else(|| "villager trade must be a JSON object".to_string())?;
-
-    Ok(VillagerTradeResource {
-        wants: parse_trade_cost(required_value(object, "wants")?)?,
-        additional_wants: object
-            .get("additional_wants")
-            .map(parse_trade_cost)
-            .transpose()?,
-        gives: parse_item_stack_template(required_value(object, "gives")?)?,
-        max_uses: object
-            .get("max_uses")
-            .map(parse_number_provider)
-            .transpose()?
-            .unwrap_or(NumberProviderResource::Constant(4.0)),
-        reputation_discount: object
-            .get("reputation_discount")
-            .map(parse_number_provider)
-            .transpose()?
-            .unwrap_or(NumberProviderResource::Constant(0.0)),
-        xp: object
-            .get("xp")
-            .map(parse_number_provider)
-            .transpose()?
-            .unwrap_or(NumberProviderResource::Constant(1.0)),
-        merchant_predicate: object.get("merchant_predicate").cloned(),
-        given_item_modifiers: object
-            .get("given_item_modifiers")
-            .map(parse_value_list)
-            .transpose()?
-            .unwrap_or_default(),
-        double_trade_price_enchantments: object
-            .get("double_trade_price_enchantments")
-            .map(parse_holder_set_id)
-            .transpose()?,
-    })
-}
-
-pub fn parse_trade_set_resource(raw: &str) -> Result<TradeSetResource, String> {
-    let value: serde_json::Value =
-        serde_json::from_str(raw).map_err(|err| format!("invalid trade set JSON: {err}"))?;
-    let object = value
-        .as_object()
-        .ok_or_else(|| "trade set must be a JSON object".to_string())?;
-
-    Ok(TradeSetResource {
-        trades: parse_holder_set(required_value(object, "trades")?)?,
-        amount: parse_number_provider(required_value(object, "amount")?)?,
-        allow_duplicates: object
-            .get("allow_duplicates")
-            .and_then(serde_json::Value::as_bool)
-            .unwrap_or(false),
-        random_sequence: object
-            .get("random_sequence")
-            .map(json_string_value)
-            .transpose()?,
-    })
-}
-
-pub fn load_villager_trade_resource(
-    path: impl AsRef<Path>,
-) -> Result<VillagerTradeResource, String> {
-    let raw = std::fs::read_to_string(path.as_ref())
-        .map_err(|err| format!("failed to read {}: {err}", path.as_ref().display()))?;
-    parse_villager_trade_resource(&raw)
-}
-
-pub fn load_trade_set_resource(path: impl AsRef<Path>) -> Result<TradeSetResource, String> {
-    let raw = std::fs::read_to_string(path.as_ref())
-        .map_err(|err| format!("failed to read {}: {err}", path.as_ref().display()))?;
-    parse_trade_set_resource(&raw)
-}
-
-fn parse_trade_cost(value: &serde_json::Value) -> Result<TradeCostResource, String> {
-    let object = value
-        .as_object()
-        .ok_or_else(|| "trade cost must be a JSON object".to_string())?;
-    Ok(TradeCostResource {
-        item_id: json_string(object, "id")?,
-        count: object
-            .get("count")
-            .map(parse_number_provider)
-            .transpose()?
-            .unwrap_or(NumberProviderResource::Constant(1.0)),
-        components: object
-            .get("components")
-            .map(json_object_value)
-            .transpose()?,
-    })
-}
-
-fn parse_item_stack_template(
-    value: &serde_json::Value,
-) -> Result<ItemStackTemplateResource, String> {
-    let object = value
-        .as_object()
-        .ok_or_else(|| "item stack template must be a JSON object".to_string())?;
-    Ok(ItemStackTemplateResource {
-        item_id: json_string(object, "id")?,
-        count: object
-            .get("count")
-            .map(json_i32_value)
-            .transpose()?
-            .unwrap_or(1),
-        components: object
-            .get("components")
-            .map(json_object_value)
-            .transpose()?,
-    })
-}
-
-fn parse_number_provider(value: &serde_json::Value) -> Result<NumberProviderResource, String> {
-    if let Some(number) = value.as_f64() {
-        return Ok(NumberProviderResource::Constant(number));
-    }
-    if value.as_object().is_some() {
-        return Ok(NumberProviderResource::Provider(value.clone()));
-    }
-    Err("number provider must be a number or object".to_string())
-}
-
-fn parse_holder_set(value: &serde_json::Value) -> Result<HolderSetResource, String> {
-    if let Some(id) = value.as_str() {
-        return if let Some(tag) = id.strip_prefix('#') {
-            Ok(HolderSetResource::Tag(tag.to_string()))
-        } else {
-            Ok(HolderSetResource::List(vec![id.to_string()]))
-        };
-    }
-    let entries = value
-        .as_array()
-        .ok_or_else(|| "holder set must be a tag string, id string, or list".to_string())?;
-    entries
-        .iter()
-        .map(json_string_value)
-        .collect::<Result<Vec<_>, _>>()
-        .map(HolderSetResource::List)
-}
-
-fn parse_holder_set_id(value: &serde_json::Value) -> Result<String, String> {
-    match parse_holder_set(value)? {
-        HolderSetResource::Tag(tag) => Ok(format!("#{tag}")),
-        HolderSetResource::List(entries) => Ok(entries.join(",")),
-    }
-}
-
-fn parse_value_list(value: &serde_json::Value) -> Result<Vec<serde_json::Value>, String> {
-    value
-        .as_array()
-        .cloned()
-        .ok_or_else(|| "value must be a list".to_string())
-}
-
-fn required_value<'a>(
-    object: &'a serde_json::Map<String, serde_json::Value>,
-    field: &str,
-) -> Result<&'a serde_json::Value, String> {
-    object
-        .get(field)
-        .ok_or_else(|| format!("{field} is required"))
-}
-
-fn json_string(
-    object: &serde_json::Map<String, serde_json::Value>,
-    field: &str,
-) -> Result<String, String> {
-    object
-        .get(field)
-        .map(json_string_value)
-        .transpose()?
-        .ok_or_else(|| format!("{field} must be a string"))
-}
-
-fn json_string_value(value: &serde_json::Value) -> Result<String, String> {
-    value
-        .as_str()
-        .map(ToString::to_string)
-        .ok_or_else(|| "value must be a string".to_string())
-}
-
-fn json_i32_value(value: &serde_json::Value) -> Result<i32, String> {
-    let integer = value
-        .as_i64()
-        .ok_or_else(|| "value must be an integer".to_string())?;
-    i32::try_from(integer).map_err(|_| "value is out of i32 range".to_string())
-}
-
-fn json_object_value(
-    value: &serde_json::Value,
-) -> Result<serde_json::Map<String, serde_json::Value>, String> {
-    value
-        .as_object()
-        .cloned()
-        .ok_or_else(|| "value must be an object".to_string())
+    crate::villager_trade_resources::profession_offers_from_default_data(profession, level)
+        .unwrap_or_default()
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct WanderingTraderOffers {
-    pub generic: Vec<MerchantOffer>,
-    pub rare: Vec<MerchantOffer>,
+    pub buying: Vec<MerchantOffer>,
+    pub uncommon: Vec<MerchantOffer>,
+    pub common: Vec<MerchantOffer>,
 }
 
 impl WanderingTraderOffers {
     pub fn vanilla_sample() -> Self {
+        Self::from_default_data().unwrap_or_else(|_| Self::fallback_sample())
+    }
+
+    pub fn from_default_data() -> Result<Self, String> {
+        let resources = crate::villager_trade_resources::load_villager_trade_data_root(
+            "../decompiled-server-26.1.2/data/minecraft",
+        )?;
+        Self::from_resources(&resources)
+    }
+
+    pub fn from_resources(resources: &crate::resources::DataResourceIndex) -> Result<Self, String> {
+        let (buying, uncommon, common) =
+            crate::villager_trade_resources::wandering_trader_offers_from_resources(resources)?;
+        Ok(Self {
+            buying,
+            uncommon,
+            common,
+        })
+    }
+
+    fn fallback_sample() -> Self {
         Self {
-            generic: vec![
+            buying: Vec::new(),
+            common: vec![
                 MerchantOffer::new(
                     ItemCost::new("minecraft:emerald", 1),
                     None,
@@ -966,7 +706,7 @@ impl WanderingTraderOffers {
                     0.05,
                 ),
             ],
-            rare: vec![MerchantOffer::new(
+            uncommon: vec![MerchantOffer::new(
                 ItemCost::new("minecraft:emerald", 5),
                 None,
                 ItemStack::new("minecraft:nautilus_shell", 1),

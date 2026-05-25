@@ -1,4 +1,8 @@
 use super::*;
+use crate::villager_trade_resources::{
+    load_villager_trade_data_root, profession_offers_from_resources,
+    wandering_trader_offers_from_resources,
+};
 use std::collections::BTreeSet;
 use std::fs;
 
@@ -11,10 +15,12 @@ fn professions_expose_workstations_and_generate_level_offers() {
 
     farmer.generate_level_offers();
     assert_eq!(farmer.offers.len(), 2);
-    assert!(farmer
-        .offers
-        .iter()
-        .any(|offer| offer.result.item_id() == "minecraft:bread"));
+    assert_eq!(farmer.offers[0].base_cost_a.item_id, "minecraft:wheat");
+    assert_eq!(farmer.offers[0].base_cost_a.count, 20);
+    assert_eq!(farmer.offers[0].result.item_id(), "minecraft:emerald");
+    assert_eq!(farmer.offers[1].base_cost_a.item_id, "minecraft:potato");
+    assert_eq!(farmer.offers[1].base_cost_a.count, 26);
+    assert_eq!(farmer.offers[1].result.item_id(), "minecraft:emerald");
 
     farmer.release_workstation();
     assert!(farmer.assign_workstation());
@@ -350,7 +356,8 @@ fn trading_adds_xp_gossip_demand_and_restock_caps_twice_per_day() {
         1,
         0.05,
     ));
-    villager.offers[1].demand = 6;
+    let manual_offer_index = villager.offers.len() - 1;
+    villager.offers[manual_offer_index].demand = 6;
 
     assert_eq!(
         villager.trade(0, "player-a").unwrap().item_id(),
@@ -364,7 +371,7 @@ fn trading_adds_xp_gossip_demand_and_restock_caps_twice_per_day() {
     assert!(villager.restock(1_000));
     assert!(!villager.offers[0].is_out_of_stock());
     assert_eq!(villager.offers[0].demand, 1);
-    assert_eq!(villager.offers[1].demand, 2);
+    assert_eq!(villager.offers[manual_offer_index].demand, 2);
     assert_eq!(villager.restock(1_100), false);
 
     villager.trade(0, "player-a");
@@ -393,13 +400,19 @@ fn trade_xp_grant_sets_delayed_profession_level_up_like_java() {
     assert_eq!(villager.xp, 10);
     assert_eq!(villager.level, VillagerLevel::Novice);
     assert!(villager.should_increase_level());
-    assert_eq!(villager.update_merchant_timer, VILLAGER_LEVEL_UP_DELAY_TICKS);
+    assert_eq!(
+        villager.update_merchant_timer,
+        VILLAGER_LEVEL_UP_DELAY_TICKS
+    );
     assert!(villager.increase_profession_level_on_update);
 
     for _ in 0..VILLAGER_LEVEL_UP_DELAY_TICKS {
         assert!(!villager.tick_level_progression(true));
     }
-    assert_eq!(villager.update_merchant_timer, VILLAGER_LEVEL_UP_DELAY_TICKS);
+    assert_eq!(
+        villager.update_merchant_timer,
+        VILLAGER_LEVEL_UP_DELAY_TICKS
+    );
     assert_eq!(villager.level, VillagerLevel::Novice);
 
     for _ in 1..VILLAGER_LEVEL_UP_DELAY_TICKS {
@@ -413,7 +426,11 @@ fn trade_xp_grant_sets_delayed_profession_level_up_like_java() {
     assert!(villager
         .offers
         .iter()
-        .any(|offer| offer.result.item_id() == "minecraft:stone_pickaxe"));
+        .any(|offer| offer.result.item_id() == "minecraft:bell"));
+    assert!(villager
+        .offers
+        .iter()
+        .any(|offer| offer.result.item_id() == "minecraft:emerald"));
 }
 
 #[test]
@@ -429,8 +446,21 @@ fn reputation_changes_special_prices_and_level_unlocks_follow_xp_thresholds() {
     villager.apply_reputation_prices("player-a");
 
     assert_eq!(villager.level, VillagerLevel::Apprentice);
-    assert_eq!(villager.offers[0].special_price_diff, -20);
-    assert_eq!(villager.offers[0].cost_a_count(), 1);
+    let iron_for_emerald = villager
+        .offers
+        .iter()
+        .find(|offer| offer.result.item_id() == "minecraft:emerald")
+        .unwrap();
+    assert_eq!(iron_for_emerald.special_price_diff, -5);
+    assert_eq!(iron_for_emerald.cost_a_count(), 1);
+
+    let bell = villager
+        .offers
+        .iter()
+        .find(|offer| offer.result.item_id() == "minecraft:bell")
+        .unwrap();
+    assert_eq!(bell.special_price_diff, -20);
+    assert_eq!(bell.cost_a_count(), 16);
 }
 
 #[test]
@@ -462,16 +492,31 @@ fn zombie_villager_cure_duration_and_cured_reputation_discount_values_match_java
 
     villager.apply_reputation_prices(player);
 
-    assert_eq!(villager.offers[0].price_multiplier, 0.2);
-    assert_eq!(villager.offers[0].special_price_diff, -25);
-    assert_eq!(villager.offers[0].cost_a_count(), 1);
+    let iron_for_emerald = villager
+        .offers
+        .iter()
+        .find(|offer| offer.result.item_id() == "minecraft:emerald")
+        .unwrap();
+    assert_eq!(iron_for_emerald.price_multiplier, 0.05);
+    assert_eq!(iron_for_emerald.special_price_diff, -6);
+    assert_eq!(iron_for_emerald.cost_a_count(), 1);
+
+    let bell = villager
+        .offers
+        .iter()
+        .find(|offer| offer.result.item_id() == "minecraft:bell")
+        .unwrap();
+    assert_eq!(bell.price_multiplier, 0.2);
+    assert_eq!(bell.special_price_diff, -25);
+    assert_eq!(bell.cost_a_count(), 11);
 }
 
 #[test]
 fn wandering_trader_spawn_data_updates_chance_and_sample_trade_groups() {
     let trades = WanderingTraderOffers::vanilla_sample();
-    assert!(!trades.generic.is_empty());
-    assert!(!trades.rare.is_empty());
+    assert!(!trades.buying.is_empty());
+    assert!(!trades.uncommon.is_empty());
+    assert!(!trades.common.is_empty());
 
     let data = WanderingTraderData {
         spawn_delay: 1,
@@ -695,6 +740,57 @@ fn trade_set_resources_decode_all_vanilla_entries() {
 
     assert_eq!(tag_count, 68);
     assert_eq!(wandering_sets, 3);
+}
+
+#[test]
+fn profession_offer_generation_resolves_vanilla_trade_sets_and_tags() {
+    let resources =
+        load_villager_trade_data_root("../decompiled-server-26.1.2/data/minecraft").unwrap();
+
+    let farmer = profession_offers_from_resources(
+        &resources,
+        VillagerProfession::Farmer,
+        VillagerLevel::Novice,
+    )
+    .unwrap();
+    assert_eq!(farmer.len(), 2);
+    assert_eq!(farmer[0].base_cost_a.item_id, "minecraft:wheat");
+    assert_eq!(farmer[0].base_cost_a.count, 20);
+    assert_eq!(farmer[0].result.item_id(), "minecraft:emerald");
+    assert_eq!(farmer[0].max_uses, 16);
+    assert_eq!(farmer[0].xp, 2);
+    assert_eq!(farmer[1].base_cost_a.item_id, "minecraft:potato");
+    assert_eq!(farmer[1].result.item_id(), "minecraft:emerald");
+
+    let toolsmith = profession_offers_from_resources(
+        &resources,
+        VillagerProfession::Toolsmith,
+        VillagerLevel::Apprentice,
+    )
+    .unwrap();
+    assert_eq!(toolsmith.len(), 2);
+    assert!(toolsmith
+        .iter()
+        .any(|offer| offer.result.item_id() == "minecraft:bell"));
+    assert!(toolsmith
+        .iter()
+        .any(|offer| offer.result.item_id() == "minecraft:emerald"));
+}
+
+#[test]
+fn wandering_trader_offer_generation_resolves_vanilla_trade_sets() {
+    let resources =
+        load_villager_trade_data_root("../decompiled-server-26.1.2/data/minecraft").unwrap();
+    let (buying, uncommon, common) = wandering_trader_offers_from_resources(&resources).unwrap();
+
+    assert_eq!(buying.len(), 2);
+    assert_eq!(uncommon.len(), 2);
+    assert_eq!(common.len(), 5);
+    assert!(buying
+        .iter()
+        .all(|offer| offer.result.item_id() == "minecraft:emerald"));
+    assert!(uncommon.iter().any(|offer| offer.xp > 0));
+    assert!(common.iter().any(|offer| offer.max_uses > 0));
 }
 
 #[test]

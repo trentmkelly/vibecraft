@@ -517,8 +517,9 @@ fn mob_gift_loot_covers_cat_villager_and_wandering_trader_surfaces() {
     );
 
     let trader_offers = wandering_trader_reward_offers();
-    assert!(!trader_offers.generic.is_empty());
-    assert!(!trader_offers.rare.is_empty());
+    assert!(!trader_offers.buying.is_empty());
+    assert!(!trader_offers.uncommon.is_empty());
+    assert!(!trader_offers.common.is_empty());
 }
 
 #[test]

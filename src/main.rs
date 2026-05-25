@@ -119,6 +119,7 @@ mod trial_system;
 mod vehicle_entity;
 mod vibration;
 mod villager_system;
+mod villager_trade_resources;
 mod waypoint;
 mod weather;
 mod world;
