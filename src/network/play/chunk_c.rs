@@ -87,7 +87,10 @@ impl RecipeIngredientData {
     }
 }
 
-pub(super) fn write_optional_var_i32<W: Write>(writer: &mut W, value: Option<i32>) -> io::Result<()> {
+pub(super) fn write_optional_var_i32<W: Write>(
+    writer: &mut W,
+    value: Option<i32>,
+) -> io::Result<()> {
     match value {
         Some(value) => write_var_i32(writer, value + 1),
         None => write_var_i32(writer, 0),
@@ -159,9 +162,10 @@ impl ClientboundPlayerInfoUpdatePacket {
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_all(&[player_info_action_mask(&self.actions)?])?;
+        let actions = player_info_actions_in_java_order(&self.actions);
         write_collection(writer, &self.entries, |writer, entry| {
             write_uuid(writer, entry.profile_id)?;
-            for action in &self.actions {
+            for action in &actions {
                 action.write_entry(writer, entry)?;
             }
             Ok(())
@@ -236,7 +240,10 @@ impl BoundChatTypeData {
     }
 }
 
-pub(super) fn write_message_signature<W: Write>(writer: &mut W, signature: &[u8]) -> io::Result<()> {
+pub(super) fn write_message_signature<W: Write>(
+    writer: &mut W,
+    signature: &[u8],
+) -> io::Result<()> {
     if signature.len() != 256 {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -334,6 +341,26 @@ pub(super) fn player_info_action_mask(actions: &[PlayerInfoUpdateAction]) -> io:
         mask |= bit;
     }
     Ok(mask)
+}
+
+pub(super) fn player_info_actions_in_java_order(
+    actions: &[PlayerInfoUpdateAction],
+) -> Vec<PlayerInfoUpdateAction> {
+    const JAVA_ORDER: [PlayerInfoUpdateAction; 8] = [
+        PlayerInfoUpdateAction::AddPlayer,
+        PlayerInfoUpdateAction::InitializeChat,
+        PlayerInfoUpdateAction::UpdateGameMode,
+        PlayerInfoUpdateAction::UpdateListed,
+        PlayerInfoUpdateAction::UpdateLatency,
+        PlayerInfoUpdateAction::UpdateDisplayName,
+        PlayerInfoUpdateAction::UpdateListOrder,
+        PlayerInfoUpdateAction::UpdateHat,
+    ];
+    JAVA_ORDER
+        .iter()
+        .copied()
+        .filter(|action| actions.contains(action))
+        .collect()
 }
 
 impl AdvancementHolderData {
@@ -731,4 +758,3 @@ pub(super) fn write_optional_number_format<W: Write>(
         number_format.write(writer)
     })
 }
-
