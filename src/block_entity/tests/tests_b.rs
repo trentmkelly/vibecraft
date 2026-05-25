@@ -94,11 +94,15 @@ fn command_block_chain_executes_facing_order_and_respects_conditional_flag() {
 #[test]
 fn jukebox_block_entity_tracks_disc_playback_ticks_and_outputs() {
     let mut jukebox = JukeboxBlockEntity::new();
-    let disc = PotItemStack {
-        item_id: "minecraft:music_disc_13".to_string(),
-        count: 1,
-    };
-    assert!(jukebox.can_place_item(&disc));
+    let disc = stack("minecraft:music_disc_13", 1);
+    assert_jukebox_plays_and_persists_disc(&mut jukebox, &disc);
+    assert_jukebox_rejects_second_disc_and_pops_item(&mut jukebox, disc);
+    assert_jukebox_inert_item_paths();
+    assert_jukebox_set_without_playing_path();
+}
+
+fn assert_jukebox_plays_and_persists_disc(jukebox: &mut JukeboxBlockEntity, disc: &PotItemStack) {
+    assert!(jukebox.can_place_item(disc));
     assert_eq!(
         jukebox.set_the_item(Some(disc.clone())),
         JukeboxSongEvent::Started
@@ -122,7 +126,12 @@ fn jukebox_block_entity_tracks_disc_playback_ticks_and_outputs() {
     assert_eq!(loaded.ticks_since_song_started, 1);
     assert!(!loaded.is_playing);
     assert_eq!(loaded.comparator_output(), 1);
+}
 
+fn assert_jukebox_rejects_second_disc_and_pops_item(
+    jukebox: &mut JukeboxBlockEntity,
+    disc: PotItemStack,
+) {
     assert!(!jukebox.can_place_item(&PotItemStack {
         item_id: "minecraft:music_disc_5".to_string(),
         count: 1,
@@ -132,7 +141,9 @@ fn jukebox_block_entity_tracks_disc_playback_ticks_and_outputs() {
     assert_eq!(jukebox.redstone_signal(), 0);
     assert_eq!(jukebox.comparator_output(), 0);
     assert_eq!(jukebox.save_additional(), Tag::Compound(Vec::new()));
+}
 
+fn assert_jukebox_inert_item_paths() {
     let mut inert = JukeboxBlockEntity::new();
     assert_eq!(
         inert.set_the_item(Some(PotItemStack {
@@ -149,7 +160,9 @@ fn jukebox_block_entity_tracks_disc_playback_ticks_and_outputs() {
     }));
     assert!(inert.can_take_item(true));
     assert!(!inert.can_take_item(false));
+}
 
+fn assert_jukebox_set_without_playing_path() {
     let mut without_playing = JukeboxBlockEntity::new();
     assert_eq!(
         without_playing.set_song_item_without_playing(PotItemStack {
@@ -295,6 +308,13 @@ fn shelf_block_entity_saves_three_items_align_flag_and_swaps_slots() {
 
 #[test]
 fn beacon_tier_effect_payment_and_beam_state_match_vanilla_rules() {
+    assert_beacon_base_tiers_match_java();
+    let mut beacon = assert_beacon_effect_applications_match_java();
+    assert_beacon_payment_and_persistence_match_java(&mut beacon);
+    assert_beacon_beam_sections_match_java();
+}
+
+fn assert_beacon_base_tiers_match_java() {
     let pos = BlockPos { x: 0, y: 64, z: 0 };
     let full_four_tier = |block: BlockPos| {
         let dy = pos.y - block.y;
@@ -316,7 +336,9 @@ fn beacon_tier_effect_payment_and_beam_state_match_vanilla_rules() {
         BeaconBlockEntity::update_base(BlockPos { x: 0, y: 1, z: 0 }, 1, |_| true),
         0
     );
+}
 
+fn assert_beacon_effect_applications_match_java() -> BeaconBlockEntity {
     let mut beacon = BeaconBlockEntity::new();
     beacon.levels = 4;
     beacon.set_primary_power(Some("minecraft:speed"));
@@ -352,6 +374,10 @@ fn beacon_tier_effect_payment_and_beam_state_match_vanilla_rules() {
 
     beacon.set_primary_power(Some("minecraft:night_vision"));
     assert_eq!(beacon.primary_power, None);
+    beacon
+}
+
+fn assert_beacon_payment_and_persistence_match_java(beacon: &mut BeaconBlockEntity) {
     assert!(BeaconBlockEntity::can_pay_with(&PotItemStack {
         item_id: "minecraft:amethyst_shard".to_string(),
         count: 1,
@@ -380,7 +406,9 @@ fn beacon_tier_effect_payment_and_beam_state_match_vanilla_rules() {
     assert_eq!(loaded.display_name(), "\"Beacon\"");
     assert_eq!(loaded.lock_key.as_deref(), Some("secret"));
     assert_eq!(loaded.get_update_tag(), loaded.save_additional());
+}
 
+fn assert_beacon_beam_sections_match_java() {
     let sections = BeaconBlockEntity::scan_beam([
         BeaconBeamBlock::TintedGlass(0xFFFF_0000u32 as i32),
         BeaconBeamBlock::TintedGlass(0xFFFF_0000u32 as i32),
@@ -552,6 +580,7 @@ fn sign_block_entities_track_front_back_text_filtering_wax_and_hanging_shape() {
     );
     assert_eq!(loaded_hanging.sign.front_text.lines[0].raw, "raw one");
 }
+
 
 #[test]
 fn brewing_stand_ticks_fuel_recipes_sided_slots_and_save_load_like_java() {
@@ -957,4 +986,3 @@ fn spawner_block_entity_tracks_spawn_data_rules_delay_and_nbt_like_java() {
     assert_eq!(spawner.spawn_delay, spawner.min_spawn_delay);
     assert!(!spawner.on_event_triggered(true, 99));
 }
-
