@@ -34,7 +34,6 @@ mod console;
 mod container_block;
 mod container_menus;
 mod crash;
-#[cfg(test)]
 mod crash_recovery_tests;
 #[cfg(test)]
 mod creative_inventory;
@@ -95,7 +94,6 @@ mod non_living_entity;
 mod operational_coverage;
 #[cfg(test)]
 mod parity_harness;
-#[cfg(test)]
 mod performance_benchmarks;
 #[cfg(test)]
 mod persistence_roundtrip_tests;
@@ -116,7 +114,6 @@ mod post_processing;
 #[cfg(test)]
 mod potion_fluid_container;
 mod presentation_data;
-#[cfg(test)]
 mod project_foundation_tests;
 mod projectile_entity;
 mod raid;
