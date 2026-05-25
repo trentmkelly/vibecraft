@@ -169,6 +169,28 @@ pub fn save_world_item_entities(world_root: &Path, store: &WorldItemEntities) {
     }
 }
 
+struct StatusServerRuntime {
+    address: String,
+    listener: TcpListener,
+    favicon: Option<String>,
+    active_logins: ActiveLoginRegistry,
+    world_root: Arc<PathBuf>,
+    chunk_cache: GeneratedChunkCache,
+    chunk_pipeline: ChunkPipeline,
+    player_access: Arc<Mutex<PlayerAccess>>,
+    clock: Arc<Mutex<ServerClockManager>>,
+    weather: Arc<Mutex<WeatherCycle>>,
+    recipe_manager: Arc<RecipeManagerModel>,
+    world_items: Arc<Mutex<WorldItemEntities>>,
+}
+
+fn lock_status_mutex<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    match mutex.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    }
+}
+
 pub fn run_status_server(
     bind_ip: &str,
     port: u16,
@@ -177,90 +199,118 @@ pub fn run_status_server(
     world_seed: i64,
     console_input: &Receiver<ConsoleInput>,
 ) -> Result<(), String> {
-    let address = format!("{bind_ip}:{port}");
-    let listener = TcpListener::bind(&address)
-        .map_err(|err| format!("Failed to bind status listener on {address}: {err}"))?;
-    listener
-        .set_nonblocking(true)
-        .map_err(|err| format!("Failed to configure status listener on {address}: {err}"))?;
-    let favicon = load_favicon(Path::new("server-icon.png"))
-        .map_err(|err| format!("Failed to load server-icon.png: {err}"))?;
-    let active_logins = ActiveLoginRegistry::default();
-    let world_root = Arc::new(world_root.to_path_buf());
-    let chunk_cache = GeneratedChunkCache::default();
-    // Async chunk generation coordinator (Phase 2/3 of the chunking rework).
-    // Wired through every play-session entry point alongside `chunk_cache`,
-    // but the legacy blocking batch path still calls `cache.get_or_load`
-    // directly. The new per-tick drain in `run_play_loop` is what actually
-    // consumes ready chunks from this pipeline; see CHECKLIST_CHUNKING_CHANGES.md.
-    let chunk_pipeline_workers = thread::available_parallelism()
-        .map(|count| count.get())
-        .unwrap_or(4)
-        .clamp(2, 8);
-    let chunk_pipeline = ChunkPipeline::new(
-        chunk_cache.clone(),
-        (*world_root).clone(),
-        world_seed,
-        chunk_pipeline_workers,
-    );
-    // Periodic chunk save loop. Java mirror: MinecraftServer's autosave
-    // pass invoked from tickServer — block updates mutate the in-memory
-    // chunk + set the unsaved flag; this thread is what actually pushes
-    // the bytes to disk on a coarse interval. We use 30 s (vanilla
-    // default is 5 min / `RustcraftDefault.WORLD_AUTOSAVE_INTERVAL`); a
-    // shorter window keeps the disconnect-vs-save race tight without
-    // making the writes themselves any more expensive.
-    spawn_chunk_flush_thread(
-        chunk_cache.clone(),
-        Arc::clone(&world_root),
-        Duration::from_secs(30),
-        properties.sync_chunk_writes,
-        RegionCompression::from_property_value(&properties.region_file_compression),
-    );
-    let player_access = Arc::new(Mutex::new(
-        PlayerAccess::load_from_dir(Path::new(".")).unwrap_or_else(|err| {
-            eprintln!("status access file load error: {err}");
-            PlayerAccess::default()
-        }),
-    ));
+    let runtime = StatusServerRuntime::new(bind_ip, port, properties, world_root, world_seed)?;
+    runtime.start_tick_thread();
+    println!("Status listener bound to {}", runtime.address);
+    run_status_accept_loop(runtime, properties, world_seed, console_input);
+    Ok(())
+}
 
-    // Load or initialise shared clock/weather/item-entity state.
-    // Java: ServerClockManager.TYPE SavedData (key "world_clocks"), ServerLevel weather data,
-    //       EntityStorage loads entities from per-chunk region files under <world>/entities/.
-    let initial_clock = load_server_clock_state(&world_root).unwrap_or_default();
-    let initial_weather = load_server_weather_state(&world_root)
-        .unwrap_or_else(|| WeatherCycle::new(WeatherData::default()));
-    let clock: Arc<Mutex<ServerClockManager>> = Arc::new(Mutex::new(initial_clock));
-    let weather: Arc<Mutex<WeatherCycle>> = Arc::new(Mutex::new(initial_weather));
-    // World-level item entity store.  Shared across all player sessions and persisted to
-    // item_entities.json so items survive both player disconnects and server restarts.
-    // Java: ServerLevel.entityStorage — entity lists belong to the world, not any connection.
-    let world_items: Arc<Mutex<WorldItemEntities>> =
-        Arc::new(Mutex::new(load_world_item_entities(&world_root)));
+impl StatusServerRuntime {
+    fn new(
+        bind_ip: &str,
+        port: u16,
+        properties: &ServerProperties,
+        world_root: &Path,
+        world_seed: i64,
+    ) -> Result<Self, String> {
+        let address = format!("{bind_ip}:{port}");
+        let listener = TcpListener::bind(&address)
+            .map_err(|err| format!("Failed to bind status listener on {address}: {err}"))?;
+        listener
+            .set_nonblocking(true)
+            .map_err(|err| format!("Failed to configure status listener on {address}: {err}"))?;
+        let favicon = load_favicon(Path::new("server-icon.png"))
+            .map_err(|err| format!("Failed to load server-icon.png: {err}"))?;
+        let active_logins = ActiveLoginRegistry::default();
+        let world_root = Arc::new(world_root.to_path_buf());
+        let chunk_cache = GeneratedChunkCache::default();
+        // Async chunk generation coordinator (Phase 2/3 of the chunking rework).
+        // Wired through every play-session entry point alongside `chunk_cache`,
+        // but the legacy blocking batch path still calls `cache.get_or_load`
+        // directly. The new per-tick drain in `run_play_loop` is what actually
+        // consumes ready chunks from this pipeline; see CHECKLIST_CHUNKING_CHANGES.md.
+        let chunk_pipeline_workers = thread::available_parallelism()
+            .map(|count| count.get())
+            .unwrap_or(4)
+            .clamp(2, 8);
+        let chunk_pipeline = ChunkPipeline::new(
+            chunk_cache.clone(),
+            (*world_root).clone(),
+            world_seed,
+            chunk_pipeline_workers,
+        );
+        // Periodic chunk save loop. Java mirror: MinecraftServer's autosave
+        // pass invoked from tickServer — block updates mutate the in-memory
+        // chunk + set the unsaved flag; this thread is what actually pushes
+        // the bytes to disk on a coarse interval. We use 30 s (vanilla
+        // default is 5 min / `RustcraftDefault.WORLD_AUTOSAVE_INTERVAL`); a
+        // shorter window keeps the disconnect-vs-save race tight without
+        // making the writes themselves any more expensive.
+        spawn_chunk_flush_thread(
+            chunk_cache.clone(),
+            Arc::clone(&world_root),
+            Duration::from_secs(30),
+            properties.sync_chunk_writes,
+            RegionCompression::from_property_value(&properties.region_file_compression),
+        );
+        let player_access = Arc::new(Mutex::new(
+            PlayerAccess::load_from_dir(Path::new(".")).unwrap_or_else(|err| {
+                eprintln!("status access file load error: {err}");
+                PlayerAccess::default()
+            }),
+        ));
 
-    // Load vanilla recipes once at startup and share via Arc.
-    // Java: MinecraftServer.loadDataPacks() → RecipeManager.apply()
-    let recipe_dir =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("vanilla-data/data/minecraft/recipe");
-    let recipe_manager = load_recipe_directory(&recipe_dir).unwrap_or_else(|err| {
-        panic!(
-            "failed to load bundled vanilla recipes from {}: {err}",
-            recipe_dir.display()
-        )
-    });
-    log_info(&format!(
-        "loaded {} bundled vanilla recipes",
-        recipe_manager.recipe_map().values().len()
-    ));
-    let recipe_manager: Arc<RecipeManagerModel> = Arc::new(recipe_manager);
+        // Load or initialise shared clock/weather/item-entity state.
+        // Java: ServerClockManager.TYPE SavedData (key "world_clocks"), ServerLevel weather data,
+        //       EntityStorage loads entities from per-chunk region files under <world>/entities/.
+        let initial_clock = load_server_clock_state(&world_root).unwrap_or_default();
+        let initial_weather = load_server_weather_state(&world_root)
+            .unwrap_or_else(|| WeatherCycle::new(WeatherData::default()));
+        let clock: Arc<Mutex<ServerClockManager>> = Arc::new(Mutex::new(initial_clock));
+        let weather: Arc<Mutex<WeatherCycle>> = Arc::new(Mutex::new(initial_weather));
+        // World-level item entity store.  Shared across all player sessions and persisted to
+        // item_entities.json so items survive both player disconnects and server restarts.
+        // Java: ServerLevel.entityStorage — entity lists belong to the world, not any connection.
+        let world_items: Arc<Mutex<WorldItemEntities>> =
+            Arc::new(Mutex::new(load_world_item_entities(&world_root)));
 
-    // Background tick thread: advances clocks and weather at 20 TPS.
-    // Java: MinecraftServer.tickChildren() — clockManager.tick() + advanceWeatherCycle()
-    {
-        let clock_t = Arc::clone(&clock);
-        let weather_t = Arc::clone(&weather);
-        let world_root_t = Arc::clone(&world_root);
-        let world_items_t = Arc::clone(&world_items);
+        // Load vanilla recipes once at startup and share via Arc.
+        // Java: MinecraftServer.loadDataPacks() → RecipeManager.apply()
+        let recipe_dir =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("vanilla-data/data/minecraft/recipe");
+        let recipe_manager = load_recipe_directory(&recipe_dir).unwrap_or_else(|err| {
+            panic!(
+                "failed to load bundled vanilla recipes from {}: {err}",
+                recipe_dir.display()
+            )
+        });
+        log_info(&format!(
+            "loaded {} bundled vanilla recipes",
+            recipe_manager.recipe_map().values().len()
+        ));
+        let recipe_manager: Arc<RecipeManagerModel> = Arc::new(recipe_manager);
+        Ok(Self {
+            address,
+            listener,
+            favicon,
+            active_logins,
+            world_root,
+            chunk_cache,
+            chunk_pipeline,
+            player_access,
+            clock,
+            weather,
+            recipe_manager,
+            world_items,
+        })
+    }
+
+    fn start_tick_thread(&self) {
+        let clock_t = Arc::clone(&self.clock);
+        let weather_t = Arc::clone(&self.weather);
+        let world_root_t = Arc::clone(&self.world_root);
+        let world_items_t = Arc::clone(&self.world_items);
         thread::spawn(move || {
             let mut scheduled = ScheduledTimeChanges::default();
             let mut next_tick = Instant::now() + SERVER_TICK_DURATION;
@@ -274,52 +324,57 @@ pub fn run_status_server(
                 tick_count += 1;
 
                 // advance_time=true: no per-world gamerule access yet; always advance.
-                clock_t.lock().unwrap().tick(true, &mut scheduled);
+                lock_status_mutex(&clock_t).tick(true, &mut scheduled);
 
                 // Advance weather. can_have_weather=true for overworld.
-                weather_t
-                    .lock()
-                    .unwrap()
-                    .advance(true, true, DEFAULT_WEATHER_DURATIONS);
+                lock_status_mutex(&weather_t).advance(true, true, DEFAULT_WEATHER_DURATIONS);
 
                 // Persist every ~5 minutes.
                 // Java: MinecraftServer.saveEverything() — entities flushed via EntityStorage.
-                if tick_count % PERSISTENCE_INTERVAL_TICKS == 0 {
-                    save_server_clock_state(&world_root_t, &clock_t.lock().unwrap());
-                    save_server_weather_state(&world_root_t, &weather_t.lock().unwrap());
-                    save_world_item_entities(&world_root_t, &world_items_t.lock().unwrap());
+                if tick_count.is_multiple_of(PERSISTENCE_INTERVAL_TICKS) {
+                    save_server_clock_state(&world_root_t, &lock_status_mutex(&clock_t));
+                    save_server_weather_state(&world_root_t, &lock_status_mutex(&weather_t));
+                    save_world_item_entities(&world_root_t, &lock_status_mutex(&world_items_t));
                 }
             }
         });
     }
 
-    println!("Status listener bound to {address}");
+    fn save_shared_state(&self) {
+        save_server_clock_state(&self.world_root, &lock_status_mutex(&self.clock));
+        save_server_weather_state(&self.world_root, &lock_status_mutex(&self.weather));
+        save_world_item_entities(&self.world_root, &lock_status_mutex(&self.world_items));
+    }
+}
 
+fn run_status_accept_loop(
+    runtime: StatusServerRuntime,
+    properties: &ServerProperties,
+    world_seed: i64,
+    console_input: &Receiver<ConsoleInput>,
+) {
     loop {
-        if should_stop(console_input, &player_access) {
+        if should_stop(console_input, &runtime.player_access) {
             println!("Status listener stopping");
-            save_server_clock_state(&world_root, &clock.lock().unwrap());
-            save_server_weather_state(&world_root, &weather.lock().unwrap());
-            save_world_item_entities(&world_root, &world_items.lock().unwrap());
+            runtime.save_shared_state();
             break;
         }
-        match listener.accept() {
+        match runtime.listener.accept() {
             Ok((stream, peer_addr)) => {
                 let properties = properties.clone();
-                let favicon = favicon.clone();
-                let active_logins = active_logins.clone();
-                let chunk_cache = chunk_cache.clone();
-                let chunk_pipeline = chunk_pipeline.clone();
-                let world_root = Arc::clone(&world_root);
-                let player_access = Arc::clone(&player_access);
-                let clock = Arc::clone(&clock);
-                let weather = Arc::clone(&weather);
-                let recipe_manager = Arc::clone(&recipe_manager);
-                let world_items = Arc::clone(&world_items);
+                let favicon = runtime.favicon.clone();
+                let active_logins = runtime.active_logins.clone();
+                let chunk_cache = runtime.chunk_cache.clone();
+                let chunk_pipeline = runtime.chunk_pipeline.clone();
+                let world_root = Arc::clone(&runtime.world_root);
+                let player_access = Arc::clone(&runtime.player_access);
+                let clock = Arc::clone(&runtime.clock);
+                let weather = Arc::clone(&runtime.weather);
+                let recipe_manager = Arc::clone(&runtime.recipe_manager);
+                let world_items = Arc::clone(&runtime.world_items);
                 let remote_ip = peer_addr.ip().to_string();
                 let remote_address = peer_addr.to_string();
-                let remote_for_log =
-                    loggable_remote_address(properties.log_ips, &remote_address);
+                let remote_for_log = loggable_remote_address(properties.log_ips, &remote_address);
                 thread::spawn(move || {
                     if let Err(err) = handle_status_connection(
                         stream,
@@ -348,8 +403,6 @@ pub fn run_status_server(
             Err(err) => eprintln!("status accept error: {err}"),
         }
     }
-
-    Ok(())
 }
 
 pub fn should_stop(
