@@ -23,20 +23,23 @@ pub fn validate_nether_forest_vegetation_config(
     }
 }
 
-pub fn nether_forest_vegetation_offset(
-    spread_width: i32,
-    spread_height: i32,
-    x_a: i32,
-    x_b: i32,
-    y_a: i32,
-    y_b: i32,
-    z_a: i32,
-    z_b: i32,
-) -> BlockPos {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NetherForestVegetationOffsetInput {
+    pub spread_width: i32,
+    pub spread_height: i32,
+    pub x_rolls: (i32, i32),
+    pub y_rolls: (i32, i32),
+    pub z_rolls: (i32, i32),
+}
+
+pub fn nether_forest_vegetation_offset(input: NetherForestVegetationOffsetInput) -> BlockPos {
     BlockPos {
-        x: x_a.rem_euclid(spread_width) - x_b.rem_euclid(spread_width),
-        y: y_a.rem_euclid(spread_height) - y_b.rem_euclid(spread_height),
-        z: z_a.rem_euclid(spread_width) - z_b.rem_euclid(spread_width),
+        x: input.x_rolls.0.rem_euclid(input.spread_width)
+            - input.x_rolls.1.rem_euclid(input.spread_width),
+        y: input.y_rolls.0.rem_euclid(input.spread_height)
+            - input.y_rolls.1.rem_euclid(input.spread_height),
+        z: input.z_rolls.0.rem_euclid(input.spread_width)
+            - input.z_rolls.1.rem_euclid(input.spread_width),
     }
 }
 

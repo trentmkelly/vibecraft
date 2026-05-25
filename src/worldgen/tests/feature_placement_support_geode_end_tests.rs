@@ -597,7 +597,15 @@ pub(super) fn assert_geode_nether_and_end_support() {
         ));
         assert_eq!(super::super::nether_forest_vegetation_attempts(8), 64);
         assert_eq!(
-            super::super::nether_forest_vegetation_offset(8, 4, 7, 1, 3, 1, 2, 6),
+            super::super::nether_forest_vegetation_offset(
+                super::super::NetherForestVegetationOffsetInput {
+                    spread_width: 8,
+                    spread_height: 4,
+                    x_rolls: (7, 1),
+                    y_rolls: (3, 1),
+                    z_rolls: (2, 6),
+                },
+            ),
             BlockPos { x: 6, y: 2, z: -4 }
         );
         assert!(super::super::twisting_vines_valid_ground(
