@@ -210,6 +210,7 @@ fn light_source(name: &str) -> Option<LightBlockProperties> {
         "minecraft:large_amethyst_bud" => transparent_emission(4),
         "minecraft:medium_amethyst_bud" => transparent_emission(2),
         "minecraft:small_amethyst_bud" => transparent_emission(1),
+        "minecraft:firefly_bush" => transparent_emission(2),
         "minecraft:cave_vines" | "minecraft:cave_vines_plant" => {
             // Emission only when bearing berries; we ship the non-berry
             // value here. The berry-bearing variant would emit 14, but our
@@ -262,7 +263,6 @@ fn is_forest_floor_decoration(name: &str) -> bool {
             | "minecraft:pale_moss_carpet"
             | "minecraft:pink_petals"
             | "minecraft:wildflowers"
-            | "minecraft:firefly_bush"
             | "minecraft:bush"
             | "minecraft:short_grass"
             | "minecraft:fern"
