@@ -41,13 +41,13 @@
 
 - [ ] Add Mineflayer combat/damage tests: melee attack (hit animation, damage value, knockback), projectile (arrow damage falloff with range), fall damage (formula: `max(0, height - 3) * 1.5`), fire damage (1/tick), drowning damage (2/tick when air = 0), void damage (4/tick below world bottom), shield blocking (negate projectile + reduce melee), armor mitigation (damage factor formula), invulnerability frames (0.5 s), vanilla-compatible damage/death messages
 - [ ] Implement `LivingEntity.hurt()`: invulnerability frame check, absorb through absorption attribute, armor/enchantment/effect protection calculation, knockback application, death check — `LivingEntityState::hurt()` now applies cooldown delta rules, armor plus enchantment/effect protection, absorption, hurt/death timers, and death animation; `hurt_with_knockback()` applies knockback only when damage lands; covered by `cargo test -q living_entity`.
-- [ ] Implement armor protection formula: `max(0, ceil(armor * 0.04 * rawDamage)) = armorPoints / 25 * 0.04 + armorToughness` (vanilla formula from `CombatRules.getDamageAfterAbsorb`)
+- [x] Implement armor protection formula: `toughness = 2 + armorToughness / 4; effectiveArmor = clamp(armor - damage / toughness, armor * 0.2, 20); result = damage * (1 - effectiveArmor / 25)` (vanilla `CombatRules.getDamageAfterAbsorb`) — `combat_damage::damage_after_armor` matches Java, `damage_after_magic_absorb` matches `getDamageAfterMagicAbsorb`; verified by reading Java `CombatRules.java` and comparing numeric outputs for iron/diamond armor
 - [ ] Implement `CombatTracker`: track last-damage source and killer for death message generation, `getDeathMessage()` component building using `DamageType.deathMessageType()`
 - [ ] Implement shield blocking: `LivingEntity.isBlocking()` check, blocking reduces projectile damage to 0 and melee to 0 if within blocking arc, 5-tick cooldown after strong hit
 - [ ] Implement sweeping attack: when sprinting melee with sword, deal sweeping damage to entities within radius using `EnchantmentHelper.getSweepingDamageRatio()` — `combat_damage::plan_player_attack()` gates sweeping to full-strength grounded non-sprinting sweep weapons and computes `sweeping_damage` through `sweeping_damage_ratio()`; covered by `attack_plan_covers_knockback_critical_sweeping_and_thorns`.
 - [ ] Implement critical hit: in the air, not blind, not sprinting → 1.5× base damage multiplier, star particles — `combat_damage::plan_player_attack()` applies the full-strength airborne/non-blind/non-water critical gate, multiplies damage by 1.5, and emits `minecraft:crit`; covered by `attack_plan_covers_knockback_critical_sweeping_and_thorns`.
 - [ ] Add parity test: death messages for fall, fire, drowning, suffocation, void, mob attack, player attack, arrow, fireball, TNT match vanilla localization keys
-- [ ] Add parity test: armor mitigation calculation for iron chestplate (8 armor points) vs. full diamond (20 armor points) against representative damage values
+- [x] Add parity test: armor mitigation calculation for iron chestplate (8 armor points) vs. full diamond (20 armor points) against representative damage values — `armor_mitigation_parity_iron_chestplate_vs_full_diamond` verifies iron (8 armor, 0 toughness) and diamond (20 armor, 8 toughness) at 10hp and 20hp damage with expected Java outputs; verified by hand-computing Java `CombatRules.getDamageAfterAbsorb` with matching inputs
 
 ## Status Effects
 
@@ -84,7 +84,7 @@
   - [ ] Darkness: darkness visual effect, sculk catalyst adjacency — `status_effect::client_visual_effect` identifies darkness visual behavior while the registry preserves blend timing for darkness pulses.
 - [ ] Implement effect ambient flag (beacon-given effects show less intrusive particles) — `status_effect::particle_alpha` and mob-effect packet flag helpers model ambient particle opacity/flags and are covered by `particles_icons_flags_and_serialization_are_visible_to_clients`
 - [ ] Implement effect serialization in playerdata NBT (`active_effects` list with `id`, `amplifier`, `duration`, `ambient`, `show_particles`, `show_icon`, `hidden_effect`, `factor_calculation_data`) — `StatusEffectNbt` now preserves all listed fields, hidden effects, and factor calculation data through active-effect list serialization/deserialization
-- [ ] Add parity test: regeneration tick interval per amplifier matches vanilla for amplifier 0, 1, 4 — `regeneration_tick_interval_per_amplifier_matches_vanilla` covers amplifier 0, 1, and 4 intervals plus full-health no-op behavior
+- [x] Add parity test: regeneration tick interval per amplifier matches vanilla for amplifier 0, 1, 4 — `regeneration_tick_interval_per_amplifier_matches_vanilla` covers amplifier 0, 1, and 4 intervals plus full-health no-op behavior; verified against Java `RegenerationMobEffect.shouldApplyEffectTickThisTick(tickCount, amplification)` with `interval = 50 >> amplification`, `PoisonMobEffect` (25 >> amp), and `WitherMobEffect` (40 >> amp)
 
 ## Weather, Time, and Day-Night Cycle
 
@@ -96,7 +96,7 @@
 - [ ] Implement skylight effect of weather: CLEAR = 15, RAIN = 10, THUNDER = 10 — `weather::effective_sky_light` maps clear/rain/thunder to 15/10/10 and `sky_darken_amount_matches_vanilla_clear_rain_thunder` verifies the parity values
 - [ ] Add Mineflayer weather tests: rain/thunder transitions triggered by `/weather`, lightning `ClientboundLevelEventPacket` observed by bot, weather command feedback, client state after reconnect
 - [ ] Implement sleep mechanics: `SleepStatus` counting sleeping players, `anyPlayersSleeping()` threshold (≥50% in multiplayer, or gamerule `playersSleepingPercentage`), morning transition (day time set to `24000`), `doInsomnia` gamerule gate, insomnia counter reset on sleep — `world_time.rs` models sleeper counts/thresholds, deep-sleep gating, wake-up time marker jumps, weather reset, and phantom-insomnia counters; covered by the sleep test group
-- [ ] Add parity test: time-of-day jumps to correct morning value on sleep-skip, not just dawn (0)
+- [x] Add parity test: time-of-day jumps to correct morning value on sleep-skip, not just dawn (0) — `sleep_skip_jumps_to_next_day_start_not_just_dawn_zero` tests day 0 time 13000 → 24000, day 1 time 37000 → 48000, time 0 → 24000; verified against Java `ClockTimeMarkers.WAKE_UP_FROM_SLEEP` at position 0 via `Timelines.java` line 51
 
 ## World Border
 
