@@ -153,6 +153,14 @@ fn assert_trial_spawner_override_update_tag_and_save_load(spawner: &mut TrialSpa
 #[test]
 fn vault_block_entity_tracks_key_unlock_ejection_shared_update_and_nbt_like_java() {
     let mut vault = VaultBlockEntity::default();
+    assert_vault_defaults_and_inactive_key_insert(&mut vault);
+    assert_vault_activation_wrong_key_and_unlock(&mut vault);
+    assert_vault_ejects_rewards_and_resets(&mut vault);
+    assert_vault_rewarded_player_cap(&mut vault);
+    assert_vault_display_update_tag_and_persistence(&mut vault);
+}
+
+fn assert_vault_defaults_and_inactive_key_insert(vault: &mut VaultBlockEntity) {
     assert_eq!(vault.state, VaultStateModel::Inactive);
     assert_eq!(vault.state.light_level(), 6);
     assert_eq!(vault.config.activation_range, 4.0);
@@ -162,19 +170,15 @@ fn vault_block_entity_tracks_key_unlock_ejection_shared_update_and_nbt_like_java
     assert_eq!(
         vault.try_insert_key(
             "player-a",
-            &PotItemStack {
-                item_id: "minecraft:trial_key".to_string(),
-                count: 1,
-            },
-            vec![PotItemStack {
-                item_id: "minecraft:diamond".to_string(),
-                count: 1,
-            }],
+            &stack("minecraft:trial_key", 1),
+            vec![stack("minecraft:diamond", 1)],
             0,
         ),
         VaultInsertResult::IgnoredInactive
     );
+}
 
+fn assert_vault_activation_wrong_key_and_unlock(vault: &mut VaultBlockEntity) {
     assert_eq!(
         vault.tick_server(20, &["player-a".to_string()], None),
         VaultTickResult::StateChanged(VaultStateModel::Active)
@@ -188,14 +192,8 @@ fn vault_block_entity_tracks_key_unlock_ejection_shared_update_and_nbt_like_java
     assert_eq!(
         vault.try_insert_key(
             "player-a",
-            &PotItemStack {
-                item_id: "minecraft:stick".to_string(),
-                count: 1,
-            },
-            vec![PotItemStack {
-                item_id: "minecraft:diamond".to_string(),
-                count: 1,
-            }],
+            &stack("minecraft:stick", 1),
+            vec![stack("minecraft:diamond", 1)],
             21,
         ),
         VaultInsertResult::WrongKey {
@@ -207,51 +205,29 @@ fn vault_block_entity_tracks_key_unlock_ejection_shared_update_and_nbt_like_java
     assert_eq!(
         vault.try_insert_key(
             "player-a",
-            &PotItemStack {
-                item_id: "minecraft:trial_key".to_string(),
-                count: 1,
-            },
-            vec![
-                PotItemStack {
-                    item_id: "minecraft:emerald".to_string(),
-                    count: 2,
-                },
-                PotItemStack {
-                    item_id: "minecraft:diamond".to_string(),
-                    count: 1,
-                },
-            ],
+            &stack("minecraft:trial_key", 1),
+            vec![stack("minecraft:emerald", 2), stack("minecraft:diamond", 1)],
             22,
         ),
         VaultInsertResult::Unlocking { items_to_eject: 2 }
     );
     assert_eq!(vault.state, VaultStateModel::Unlocking);
     assert_eq!(vault.state_updating_resumes_at, 36);
-    assert_eq!(
-        vault.display_item,
-        Some(PotItemStack {
-            item_id: "minecraft:diamond".to_string(),
-            count: 1,
-        })
-    );
+    assert_eq!(vault.display_item, Some(stack("minecraft:diamond", 1)));
     assert!(vault.rewarded_players.contains("player-a"));
 
     assert_eq!(
         vault.try_insert_key(
             "player-a",
-            &PotItemStack {
-                item_id: "minecraft:trial_key".to_string(),
-                count: 1,
-            },
-            vec![PotItemStack {
-                item_id: "minecraft:gold_ingot".to_string(),
-                count: 1,
-            }],
+            &stack("minecraft:trial_key", 1),
+            vec![stack("minecraft:gold_ingot", 1)],
             37,
         ),
         VaultInsertResult::AlreadyRewarded
     );
+}
 
+fn assert_vault_ejects_rewards_and_resets(vault: &mut VaultBlockEntity) {
     assert_eq!(
         vault.tick_server(35, &["player-a".to_string()], None),
         VaultTickResult::Waiting
@@ -262,31 +238,21 @@ fn vault_block_entity_tracks_key_unlock_ejection_shared_update_and_nbt_like_java
     );
     assert_eq!(
         vault.tick_server(56, &["player-a".to_string()], None),
-        VaultTickResult::EjectedItem(PotItemStack {
-            item_id: "minecraft:diamond".to_string(),
-            count: 1,
-        })
+        VaultTickResult::EjectedItem(stack("minecraft:diamond", 1))
     );
-    assert_eq!(
-        vault.display_item,
-        Some(PotItemStack {
-            item_id: "minecraft:emerald".to_string(),
-            count: 2,
-        })
-    );
+    assert_eq!(vault.display_item, Some(stack("minecraft:emerald", 2)));
     assert_eq!(
         vault.tick_server(76, &["player-a".to_string()], None),
-        VaultTickResult::EjectedItem(PotItemStack {
-            item_id: "minecraft:emerald".to_string(),
-            count: 2,
-        })
+        VaultTickResult::EjectedItem(stack("minecraft:emerald", 2))
     );
     assert_eq!(
         vault.tick_server(96, &["player-a".to_string()], None),
         VaultTickResult::EjectionFinished
     );
     assert_eq!(vault.state, VaultStateModel::Inactive);
+}
 
+fn assert_vault_rewarded_player_cap(vault: &mut VaultBlockEntity) {
     for index in 0..130 {
         vault.add_rewarded_player(format!("player-{index:03}"));
     }
@@ -296,21 +262,17 @@ fn vault_block_entity_tracks_key_unlock_ejection_shared_update_and_nbt_like_java
     );
     assert!(!vault.rewarded_players.contains("player-000"));
     assert!(vault.rewarded_players.contains("player-129"));
+}
 
+fn assert_vault_display_update_tag_and_persistence(vault: &mut VaultBlockEntity) {
     vault.state = VaultStateModel::Active;
     assert_eq!(
         vault.tick_server(
             120,
             &["player-new".to_string()],
-            Some(PotItemStack {
-                item_id: "minecraft:apple".to_string(),
-                count: 1,
-            }),
+            Some(stack("minecraft:apple", 1)),
         ),
-        VaultTickResult::DisplayItemCycled(Some(PotItemStack {
-            item_id: "minecraft:apple".to_string(),
-            count: 1,
-        }))
+        VaultTickResult::DisplayItemCycled(Some(stack("minecraft:apple", 1)))
     );
     vault.tick_client();
     assert_eq!(vault.previous_spin, 0.0);
