@@ -122,7 +122,6 @@ impl PlayerNbtAbilities {
                 self.mayfly = true;
                 self.instabuild = true;
                 self.invulnerable = true;
-                self.flying = false;
             }
             GameMode::Spectator => {
                 self.mayfly = true;
@@ -137,6 +136,10 @@ impl PlayerNbtAbilities {
                 self.flying = false;
             }
         }
+        // Java: abilities.mayBuild = !this.isBlockPlacingRestricted()
+        // isBlockPlacingRestricted returns true for ADVENTURE and SPECTATOR.
+        self.may_build =
+            !matches!(game_mode, GameMode::Adventure | GameMode::Spectator);
     }
 }
 #[allow(dead_code)]
