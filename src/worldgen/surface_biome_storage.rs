@@ -22,13 +22,10 @@ pub(super) fn populate_noise_chunk_biomes(
     );
     let cache_ms = cache_started.map(|started| started.elapsed().as_millis());
     let mut biome_tags: HashMap<&'static str, Tag> = HashMap::new();
-    let overworld_column_biomes =
-        overworld_column_biomes_from_climate(overworld_2d_climate.as_ref());
     let population = NoiseChunkBiomePopulation {
         biome_source_model,
         climate_sampler: &climate_sampler,
         overworld_2d_climate: overworld_2d_climate.as_ref(),
-        overworld_column_biomes,
         chunk_quart_x,
         chunk_quart_z,
     };
@@ -64,12 +61,26 @@ struct NoiseChunkBiomePopulation<'a> {
     biome_source_model: &'a BiomeSourceModel,
     climate_sampler: &'a ClimateSampler,
     overworld_2d_climate: Option<&'a [OverworldBiome2dClimate; 16]>,
-    overworld_column_biomes: Option<[&'static str; 16]>,
     chunk_quart_x: i32,
     chunk_quart_z: i32,
 }
 
 impl NoiseChunkBiomePopulation<'_> {
+    /// Resolve the biome at a single quart-position inside the chunk.
+    ///
+    /// Mirrors Java's `MultiNoiseBiomeSource.getNoiseBiome(quartX, quartY,
+    /// quartZ, Climate.Sampler)` — the climate point is **depth-aware** at
+    /// every `quartY` because the depth density function depends on the
+    /// block-Y. The previous version of this method shorted out via an
+    /// `overworld_column_biomes` table that was computed once per chunk at
+    /// `depth = 0.0` and reused for every Y in the column. That hardcoded
+    /// depth produced a biome that disagreed with the surface generator's
+    /// own `biome_manager_get_biome_cached` lookup whenever the
+    /// fiddled-distance lookup landed on a neighbour-chunk quart (which
+    /// always happens on the 1-block-wide strip immediately inside each
+    /// chunk edge). The disagreement was visible in-game as a terracotta
+    /// outline around every chunk in the badlands and as a sand outline in
+    /// the beach biome.
     fn biome_at(
         &self,
         local_x: usize,
@@ -77,10 +88,6 @@ impl NoiseChunkBiomePopulation<'_> {
         local_z: usize,
         section_quart_y: i32,
     ) -> &'static str {
-        if let Some(column_biomes) = &self.overworld_column_biomes {
-            return column_biomes[local_z * 4 + local_x];
-        }
-
         let quart_x = self.chunk_quart_x + local_x as i32;
         let quart_y = section_quart_y + local_y as i32;
         let quart_z = self.chunk_quart_z + local_z as i32;
@@ -117,31 +124,6 @@ impl NoiseChunkBiomePopulation<'_> {
             })
             .unwrap_or("minecraft:plains")
     }
-}
-
-fn overworld_column_biomes_from_climate(
-    climate_cache: Option<&[OverworldBiome2dClimate; 16]>,
-) -> Option<[&'static str; 16]> {
-    climate_cache.map(|cache| {
-        let mut biomes = ["minecraft:plains"; 16];
-        for local_z in 0..4_usize {
-            for local_x in 0..4_usize {
-                let cached = cache[local_z * 4 + local_x];
-                let climate = climate_target(
-                    cached.temperature,
-                    cached.humidity,
-                    cached.continentalness,
-                    cached.erosion,
-                    0.0,
-                    cached.weirdness,
-                );
-                biomes[local_z * 4 + local_x] =
-                    select_climate_biome(overworld_biome_parameters(), climate)
-                        .unwrap_or("minecraft:plains");
-            }
-        }
-        biomes
-    })
 }
 
 fn populate_noise_chunk_biome_section(

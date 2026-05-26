@@ -315,15 +315,23 @@ fn static_dimension_type(id: &str) -> Option<&'static str> {
 }
 
 pub(super) fn static_biome_id(id: &str) -> Option<&'static str> {
-    match strip_minecraft(id) {
-        "plains" => Some("minecraft:plains"),
-        "the_void" => Some("minecraft:the_void"),
-        "desert" => Some("minecraft:desert"),
-        "deep_ocean" => Some("minecraft:deep_ocean"),
-        "snowy_plains" => Some("minecraft:snowy_plains"),
-        "windswept_hills" => Some("minecraft:windswept_hills"),
-        _ => None,
-    }
+    // Look the biome up in the full vanilla registry (`BUILTIN_BIOMES`) so
+    // every biome string we ever produce (forest, badlands, jungle, …) can
+    // be round-tripped through the chunk's biome storage. The previous
+    // hardcoded six-biome match silently coerced every other biome back to
+    // `minecraft:plains` when chunks were re-read via
+    // `ChunkNoiseBiomeCache::from_chunk`, which produced the visible
+    // chunk-border outline in badlands/beach biomes — the surface
+    // generator's fallback path correctly resolved the depth-aware biome
+    // for the chunk-border 1-block strip, while the cache path returned
+    // the coerced plains for the chunk interior.
+    let needle = id.strip_prefix("minecraft:").unwrap_or(id);
+    crate::biome::BUILTIN_BIOMES
+        .iter()
+        .map(|entry| entry.id)
+        .find(|registered| {
+            registered.strip_prefix("minecraft:").unwrap_or(registered) == needle
+        })
 }
 
 fn static_block_id(id: &str) -> Option<&'static str> {

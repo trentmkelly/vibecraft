@@ -10,8 +10,8 @@ use sha2::{Digest, Sha256};
 
 use crate::biome::{
     biome_source_from_stem_id, climate_target, multi_noise_parameter_list_preset,
-    overworld_biome_parameters, select_biome_from_source, select_climate_biome, select_end_biome,
-    span, BiomeSourceModel, ClimateParameterPoint, ClimateTarget,
+    select_biome_from_source, select_end_biome, span, BiomeSourceModel, ClimateParameterPoint,
+    ClimateTarget,
 };
 pub use crate::random_source::RandomAlgorithm;
 

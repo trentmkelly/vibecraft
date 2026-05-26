@@ -1,6 +1,95 @@
 use super::*;
 
 #[test]
+fn chunk_biome_storage_is_depth_aware_at_every_quart_position() {
+    // Regression: the chunk-biome populator used to bypass depth on the
+    // overworld via a column-only shortcut (`overworld_column_biomes`
+    // computed with `depth = 0.0`). The surface generator's biome
+    // resolver, in contrast, always sampled the depth-aware climate when
+    // the fiddled-distance lookup landed on a neighbour-chunk quart —
+    // which is what happens for the 1-block-wide strip on every chunk
+    // edge. The result was a terracotta outline around every chunk in the
+    // badlands biome and a similar sand outline in the beach biome.
+    //
+    // This test exercises the full chunk pipeline and asserts that the
+    // stored biome at every quart matches what `get_biome` (the
+    // depth-aware reference) reports for the same `(quart_x, quart_y,
+    // quart_z)`. If they agree, the cache-hit and cache-miss paths of the
+    // surface biome resolver always agree and the chunk-border outline
+    // cannot reappear.
+    let pos = ChunkPos { x: 4, z: 4 };
+    let seed = 0;
+    let chunk = super::super::generate_overworld_chunk_for_preset_with_mode(
+        pos,
+        "normal",
+        super::super::LiveChunkGenerationMode::RealSurface,
+        seed,
+    )
+    .expect("real-surface chunk should generate for biome storage check");
+
+    let settings = *super::super::builtin_noise_generator_settings("overworld").unwrap();
+    let router = super::super::builtin_noise_router(super::super::noise_router_id_for_settings(
+        settings,
+    ))
+    .expect("normal overworld must have a router")
+    .router;
+    let climate_sampler = super::super::ClimateSampler::from_noise_router(&router, seed, settings);
+    let biome_source = super::super::BiomeSourceModel::MultiNoisePreset {
+        preset: "minecraft:overworld",
+    };
+
+    let stored = super::super::ChunkNoiseBiomeCache::from_chunk(&chunk);
+    let min_section_y = chunk.min_section_y;
+    let max_section_y = chunk
+        .sections
+        .iter()
+        .map(|section| i32::from(section.y))
+        .max()
+        .unwrap_or(min_section_y);
+
+    let mut mismatches: Vec<(i32, i32, i32, &'static str, &'static str)> = Vec::new();
+    for section_y in min_section_y..=max_section_y {
+        for local_y in 0..4_i32 {
+            let quart_y = section_y * 4 + local_y;
+            for local_z in 0..4_i32 {
+                let quart_z = pos.z * 4 + local_z;
+                for local_x in 0..4_i32 {
+                    let quart_x = pos.x * 4 + local_x;
+                    let Some(stored_biome) = stored.get(quart_x, quart_y, quart_z) else {
+                        continue;
+                    };
+                    let reference = super::super::get_biome(
+                        &biome_source,
+                        quart_x,
+                        quart_y,
+                        quart_z,
+                        &climate_sampler,
+                    )
+                    .unwrap_or("minecraft:plains");
+                    if stored_biome != reference {
+                        mismatches.push((quart_x, quart_y, quart_z, stored_biome, reference));
+                    }
+                }
+            }
+        }
+    }
+
+    if !mismatches.is_empty() {
+        for (qx, qy, qz, stored_biome, reference) in mismatches.iter().take(10) {
+            eprintln!(
+                "[chunk-biome-mismatch] quart=({qx}, {qy}, {qz}) stored={stored_biome} \
+                 reference={reference}"
+            );
+        }
+        panic!(
+            "{} chunk-biome quart(s) disagreed with the depth-aware reference \
+             — this regresses the badlands/beach chunk-outline fix",
+            mismatches.len()
+        );
+    }
+}
+
+#[test]
 fn real_surface_generation_mode_uses_noise_and_surface_pipeline() {
     let chunk = super::super::generate_overworld_chunk_for_preset_with_mode(
         ChunkPos { x: 0, z: 0 },
