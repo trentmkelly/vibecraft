@@ -535,6 +535,15 @@ fn assert_furnace_sided_slots_and_container_helpers(
 
 #[test]
 fn container_block_entities_track_loot_openers_lids_redstone_and_hopper_like_java() {
+    assert_chest_loot_lock_lid_and_persistence();
+    assert_trapped_chest_signal_tracks_openers();
+    assert_barrel_open_state_tracks_viewers();
+    assert_shulker_box_animation_and_sided_insertion();
+    assert_dispenser_and_dropper_activation_slots();
+    assert_hopper_slots_cooldown_push_pull_and_persistence();
+}
+
+fn assert_chest_loot_lock_lid_and_persistence() {
     let mut chest = ContainerBlockEntityModel::new(ContainerBlockEntityKind::Chest);
     chest.custom_name = Some("Supply Cache".to_string());
     chest.lock_key = Some("brass_key".to_string());
@@ -553,13 +562,7 @@ fn container_block_entities_track_loot_openers_lids_redstone_and_hopper_like_jav
     assert!(chest.loot_table.is_none());
     assert_eq!(chest.loot_table_seed, 0);
 
-    assert!(chest.set_item(
-        0,
-        Some(PotItemStack {
-            item_id: "minecraft:apple".to_string(),
-            count: 32,
-        }),
-    ));
+    assert!(chest.set_item(0, Some(stack("minecraft:apple", 32))));
     assert!(chest.comparator_output() > 0);
     assert_eq!(chest.merged_chest_access_size(false), 27);
     assert_eq!(chest.merged_chest_access_size(true), 54);
@@ -581,14 +584,10 @@ fn container_block_entities_track_loot_openers_lids_redstone_and_hopper_like_jav
     );
     assert_eq!(loaded_chest.custom_name.as_deref(), Some("Supply Cache"));
     assert_eq!(loaded_chest.lock_key.as_deref(), Some("brass_key"));
-    assert_eq!(
-        loaded_chest.items[0],
-        Some(PotItemStack {
-            item_id: "minecraft:apple".to_string(),
-            count: 32,
-        })
-    );
+    assert_eq!(loaded_chest.items[0], Some(stack("minecraft:apple", 32)));
+}
 
+fn assert_trapped_chest_signal_tracks_openers() {
     let mut trapped = ContainerBlockEntityModel::new(ContainerBlockEntityKind::TrappedChest);
     for _ in 0..20 {
         trapped.start_open();
@@ -598,7 +597,9 @@ fn container_block_entities_track_loot_openers_lids_redstone_and_hopper_like_jav
         trapped.stop_open();
     }
     assert_eq!(trapped.trapped_chest_signal(), 14);
+}
 
+fn assert_barrel_open_state_tracks_viewers() {
     let mut barrel = ContainerBlockEntityModel::new(ContainerBlockEntityKind::Barrel);
     barrel.start_open();
     barrel.tick_lid();
@@ -606,7 +607,9 @@ fn container_block_entities_track_loot_openers_lids_redstone_and_hopper_like_jav
     assert_eq!(barrel.lid_progress, 0.0);
     barrel.stop_open();
     assert!(!barrel.barrel_is_open());
+}
 
+fn assert_shulker_box_animation_and_sided_insertion() {
     let mut shulker = ContainerBlockEntityModel::new(ContainerBlockEntityKind::ShulkerBox);
     shulker.shulker_color = Some(DyeColor::Purple);
     assert_eq!(shulker.kind.size(), 27);
@@ -624,66 +627,39 @@ fn container_block_entities_track_loot_openers_lids_redstone_and_hopper_like_jav
         shulker.tick_lid();
     }
     assert!(shulker.shulker_is_closed());
+}
 
+fn assert_dispenser_and_dropper_activation_slots() {
     let mut dispenser = ContainerBlockEntityModel::new(ContainerBlockEntityKind::Dispenser);
     assert_eq!(dispenser.kind.size(), 9);
-    dispenser.set_item(
-        1,
-        Some(PotItemStack {
-            item_id: "minecraft:arrow".to_string(),
-            count: 1,
-        }),
-    );
-    dispenser.set_item(
-        5,
-        Some(PotItemStack {
-            item_id: "minecraft:egg".to_string(),
-            count: 1,
-        }),
-    );
+    dispenser.set_item(1, Some(stack("minecraft:arrow", 1)));
+    dispenser.set_item(5, Some(stack("minecraft:egg", 1)));
     assert_eq!(
         dispenser.activate_once(&[0, 1]),
         ContainerActivation::Dispense { slot: 1 }
     );
 
     let mut dropper = ContainerBlockEntityModel::new(ContainerBlockEntityKind::Dropper);
-    dropper.set_item(
-        2,
-        Some(PotItemStack {
-            item_id: "minecraft:cobblestone".to_string(),
-            count: 1,
-        }),
-    );
+    dropper.set_item(2, Some(stack("minecraft:cobblestone", 1)));
     assert_eq!(
         dropper.activate_once(&[0]),
         ContainerActivation::Drop { slot: 2 }
     );
+}
 
+fn assert_hopper_slots_cooldown_push_pull_and_persistence() {
     let mut hopper = ContainerBlockEntityModel::new(ContainerBlockEntityKind::Hopper);
     assert_eq!(hopper.kind.size(), 5);
     assert_eq!(
         hopper.transfer_cooldown,
         ContainerBlockEntityModel::HOPPER_NO_COOLDOWN
     );
-    hopper.set_item(
-        0,
-        Some(PotItemStack {
-            item_id: "minecraft:iron_ingot".to_string(),
-            count: 1,
-        }),
-    );
+    hopper.set_item(0, Some(stack("minecraft:iron_ingot", 1)));
     assert_eq!(
         hopper.hopper_slots_for_face(Direction::Down),
         vec![0, 1, 2, 3, 4]
     );
-    assert!(hopper.hopper_can_place_item(
-        1,
-        &PotItemStack {
-            item_id: "minecraft:gold_ingot".to_string(),
-            count: 1,
-        },
-        Direction::Up,
-    ));
+    assert!(hopper.hopper_can_place_item(1, &stack("minecraft:gold_ingot", 1), Direction::Up,));
     assert!(hopper.hopper_can_take_item(0, Direction::Down));
     assert_eq!(
         hopper.hopper_tick(true, true, true),
