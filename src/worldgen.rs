@@ -90,7 +90,7 @@ use self::underground_ore_decoration::{
 };
 
 mod noise_preview_chunk;
-use self::noise_preview_chunk::live_tree_decoration_blocks;
+use self::noise_preview_chunk::{live_tree_decoration_blocks, LiveTreeDecorationInput};
 #[cfg(test)] use self::noise_preview_chunk::{
     live_tree_count, noise_preview_ground_cover_blocks, noise_preview_terrain_height,
     noise_preview_tree_blocks, NoisePreviewTreeCountKind,

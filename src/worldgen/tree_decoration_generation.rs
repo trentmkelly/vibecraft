@@ -286,15 +286,17 @@ fn apply_tree_decoration_source_to_chunk(
         .cloned()
         .unwrap_or_else(|| possible_biome_feature_steps_for_source(input.biome_source_model));
     let planned_blocks = live_tree_decoration_blocks(
-        source_pos,
-        input.seed,
-        input.settings,
-        input.biome_source_model,
-        input.climate_sampler,
-        input.global_features_per_step,
-        &source_region_biome_steps,
-        &block_context,
-        source_terrain_heights,
+        LiveTreeDecorationInput {
+            chunk_pos: source_pos,
+            world_seed: input.seed,
+            settings: input.settings,
+            biome_source_model: input.biome_source_model,
+            climate_sampler: input.climate_sampler,
+            global_features_per_step: input.global_features_per_step,
+            region_biome_steps: &source_region_biome_steps,
+            block_context: &block_context,
+            terrain_heights: source_terrain_heights,
+        },
         input.diagnostics,
     );
     write_planned_tree_blocks_to_chunk(
@@ -471,15 +473,17 @@ pub(super) fn apply_initial_tree_decoration_from_source_into_region(
     };
     let mut diagnostics = TreeDecorationDiagnostics::default();
     let planned_blocks = live_tree_decoration_blocks(
-        source_pos,
-        seed,
-        settings,
-        biome_source_model,
-        &climate_sampler,
-        global_features_per_step.as_deref(),
-        &region_biome_steps,
-        &block_context,
-        SourceTerrainHeights::Full(&terrain_heights),
+        LiveTreeDecorationInput {
+            chunk_pos: source_pos,
+            world_seed: seed,
+            settings,
+            biome_source_model,
+            climate_sampler: &climate_sampler,
+            global_features_per_step: global_features_per_step.as_deref(),
+            region_biome_steps: &region_biome_steps,
+            block_context: &block_context,
+            terrain_heights: SourceTerrainHeights::Full(&terrain_heights),
+        },
         &mut diagnostics,
     );
     let source_min_x = source_pos.x * 16;
