@@ -678,7 +678,10 @@ pub(super) fn block_predicate_context_for_state(
     }
 }
 
-pub(super) fn sample_int_provider(provider: IntProviderModel, random: &mut RandomSourceKind) -> i32 {
+pub(super) fn sample_int_provider(
+    provider: IntProviderModel,
+    random: &mut RandomSourceKind,
+) -> i32 {
     match provider {
         IntProviderModel::Constant(value) => value,
         IntProviderModel::Uniform {
@@ -791,18 +794,15 @@ pub(super) fn height_provider_sample_with_random(
             }
 
             let mut choice = feature_random_next_i32_bound(random, positive_weight_total);
-            let Some(selected) = distribution
-                .iter()
-                .find(|entry| {
-                    let weight = entry.weight.max(0);
-                    if choice < weight {
-                        true
-                    } else {
-                        choice -= weight;
-                        false
-                    }
-                })
-            else {
+            let Some(selected) = distribution.iter().find(|entry| {
+                let weight = entry.weight.max(0);
+                if choice < weight {
+                    true
+                } else {
+                    choice -= weight;
+                    false
+                }
+            }) else {
                 return context.min_y;
             };
             height_provider_sample_with_random(selected.provider, context, random)
@@ -939,18 +939,15 @@ fn place_configured_ore_in_chunk(
         placed += 1;
     }
     let block_us = block_started.elapsed().as_micros();
-    if std::env::var_os("RUSTCRAFT_WORLDGEN_ORE_DETAIL_DEBUG").is_some() {
-        eprintln!(
-            "[ore-detail] total={}ms candidates={}us block={}us candidate_count={} in_chunk={} placed={} size={}",
-            total_started.elapsed().as_millis(),
-            candidate_us,
-            block_us,
-            candidate_count,
-            in_chunk_candidates,
-            placed,
-            config.size
-        );
-    }
+    log_ore_detail_if_enabled(OreDetailDebug {
+        total_started,
+        candidate_us,
+        block_us,
+        candidate_count,
+        in_chunk_candidates,
+        placed,
+        size: config.size,
+    });
 
     OrePlacementReport {
         placed,
@@ -962,6 +959,32 @@ fn place_configured_ore_in_chunk(
         candidate_us,
         block_us,
     }
+}
+
+struct OreDetailDebug {
+    total_started: Instant,
+    candidate_us: u128,
+    block_us: u128,
+    candidate_count: usize,
+    in_chunk_candidates: usize,
+    placed: usize,
+    size: i32,
+}
+
+fn log_ore_detail_if_enabled(debug: OreDetailDebug) {
+    if std::env::var_os("RUSTCRAFT_WORLDGEN_ORE_DETAIL_DEBUG").is_none() {
+        return;
+    }
+    eprintln!(
+        "[ore-detail] total={}ms candidates={}us block={}us candidate_count={} in_chunk={} placed={} size={}",
+        debug.total_started.elapsed().as_millis(),
+        debug.candidate_us,
+        debug.block_us,
+        debug.candidate_count,
+        debug.in_chunk_candidates,
+        debug.placed,
+        debug.size
+    );
 }
 
 pub(super) fn ore_origin_overlaps_ocean_floor_wg(
