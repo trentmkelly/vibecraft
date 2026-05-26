@@ -263,6 +263,8 @@ fn is_forest_floor_decoration(name: &str) -> bool {
             | "minecraft:pale_moss_carpet"
             | "minecraft:pink_petals"
             | "minecraft:wildflowers"
+            | "minecraft:open_eyeblossom"
+            | "minecraft:closed_eyeblossom"
             | "minecraft:bush"
             | "minecraft:short_grass"
             | "minecraft:fern"
