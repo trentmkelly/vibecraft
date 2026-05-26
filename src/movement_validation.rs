@@ -232,6 +232,58 @@ pub fn validate_player_move(
     packet: MovePacket,
     env: ValidationEnvironment,
 ) -> MovementDecision {
+    let resolved = match resolve_player_move_inputs(state, packet) {
+        Ok(resolved) => resolved,
+        Err(decision) => return decision,
+    };
+
+    if let Some(decision) =
+        awaiting_teleport_decision(state, resolved.target_y_rot, resolved.target_x_rot)
+    {
+        return decision;
+    }
+
+    if state.passenger {
+        return passenger_move_acceptance(
+            state,
+            packet,
+            resolved.target_y_rot,
+            resolved.target_x_rot,
+        );
+    }
+
+    let moved_from_first = sub(resolved.target, state.first_good).length_sqr();
+    if let Some(decision) = sleeping_move_decision(state, packet, resolved, moved_from_first) {
+        return decision;
+    }
+
+    let received_count = match player_move_packet_count_or_speed_correction(
+        state,
+        env.tick_rate_runs_normally,
+        moved_from_first,
+    ) {
+        Ok(received_count) => received_count,
+        Err(decision) => return decision,
+    };
+
+    if let Some(decision) = player_collision_correction(state, env, resolved) {
+        return decision;
+    }
+
+    accepted_player_move(state, packet, resolved, received_count)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct ResolvedPlayerMove {
+    target: Vec3,
+    target_y_rot: f32,
+    target_x_rot: f32,
+}
+
+fn resolve_player_move_inputs(
+    state: ServerMovementState,
+    packet: MovePacket,
+) -> Result<ResolvedPlayerMove, MovementDecision> {
     let raw_x = packet_value_f64(packet.x, state.current.x, packet.has_position);
     let raw_y = packet_value_f64(packet.y, state.current.y, packet.has_position);
     let raw_z = packet_value_f64(packet.z, state.current.z, packet.has_position);
@@ -239,72 +291,98 @@ pub fn validate_player_move(
     let raw_x_rot = packet_value_f32(packet.x_rot, state.x_rot, packet.has_rotation);
 
     if contains_invalid_values(raw_x, raw_y, raw_z, raw_y_rot, raw_x_rot) {
-        return MovementDecision::Disconnect("multiplayer.disconnect.invalid_player_movement");
+        return Err(MovementDecision::Disconnect(
+            "multiplayer.disconnect.invalid_player_movement",
+        ));
     }
     if !state.client_loaded {
-        return MovementDecision::IgnoreUntilLoaded;
+        return Err(MovementDecision::IgnoreUntilLoaded);
     }
 
-    let target_y_rot = wrap_degrees(raw_y_rot);
-    let target_x_rot = wrap_degrees(raw_x_rot);
-    if let Some(awaiting) = state.awaiting_teleport {
-        if state.tick_count - awaiting.sent_tick > 20 {
-            return MovementDecision::ResendAwaitingTeleport {
-                target: awaiting.target,
-            };
-        }
-        return MovementDecision::RotateWhileAwaitingTeleport {
-            y_rot: target_y_rot,
-            x_rot: target_x_rot,
-        };
-    }
+    Ok(ResolvedPlayerMove {
+        target: Vec3 {
+            x: clamp_horizontal(raw_x),
+            y: clamp_vertical(raw_y),
+            z: clamp_horizontal(raw_z),
+        },
+        target_y_rot: wrap_degrees(raw_y_rot),
+        target_x_rot: wrap_degrees(raw_x_rot),
+    })
+}
 
-    let target = Vec3 {
-        x: clamp_horizontal(raw_x),
-        y: clamp_vertical(raw_y),
-        z: clamp_horizontal(raw_z),
-    };
-
-    if state.passenger {
-        return MovementDecision::Accept(AcceptedMove {
-            target: state.current,
-            y_rot: target_y_rot,
-            x_rot: target_x_rot,
-            client_delta: Vec3::ZERO,
-            on_ground: packet.on_ground,
-            horizontal_collision: packet.horizontal_collision,
-            client_is_floating: false,
-            reset_impulse_context: packet.on_ground,
-            reset_fall_distance: false,
-            updated_move_packet_count: state.received_move_packet_count,
-            updated_last_good: state.last_good,
+fn awaiting_teleport_decision(
+    state: ServerMovementState,
+    target_y_rot: f32,
+    target_x_rot: f32,
+) -> Option<MovementDecision> {
+    let awaiting = state.awaiting_teleport?;
+    if state.tick_count - awaiting.sent_tick > 20 {
+        return Some(MovementDecision::ResendAwaitingTeleport {
+            target: awaiting.target,
         });
     }
+    Some(MovementDecision::RotateWhileAwaitingTeleport {
+        y_rot: target_y_rot,
+        x_rot: target_x_rot,
+    })
+}
 
-    let first_delta = sub(target, state.first_good);
-    let moved_from_first = first_delta.length_sqr();
-    if state.sleeping {
-        if moved_from_first > 1.0 {
-            return MovementDecision::TeleportBack(TeleportCorrection {
-                target: state.current,
-                y_rot: target_y_rot,
-                x_rot: target_x_rot,
-                reason: CorrectionReason::SleepingMovedTooFar,
-            });
-        }
-        return accept(
-            state,
-            packet,
-            target,
-            target_y_rot,
-            target_x_rot,
-            Vec3::ZERO,
-            false,
-        );
+fn passenger_move_acceptance(
+    state: ServerMovementState,
+    packet: MovePacket,
+    target_y_rot: f32,
+    target_x_rot: f32,
+) -> MovementDecision {
+    MovementDecision::Accept(AcceptedMove {
+        target: state.current,
+        y_rot: target_y_rot,
+        x_rot: target_x_rot,
+        client_delta: Vec3::ZERO,
+        on_ground: packet.on_ground,
+        horizontal_collision: packet.horizontal_collision,
+        client_is_floating: false,
+        reset_impulse_context: packet.on_ground,
+        reset_fall_distance: false,
+        updated_move_packet_count: state.received_move_packet_count,
+        updated_last_good: state.last_good,
+    })
+}
+
+fn sleeping_move_decision(
+    state: ServerMovementState,
+    packet: MovePacket,
+    resolved: ResolvedPlayerMove,
+    moved_from_first: f64,
+) -> Option<MovementDecision> {
+    if !state.sleeping {
+        return None;
     }
+    if moved_from_first > 1.0 {
+        return Some(MovementDecision::TeleportBack(TeleportCorrection {
+            target: state.current,
+            y_rot: resolved.target_y_rot,
+            x_rot: resolved.target_x_rot,
+            reason: CorrectionReason::SleepingMovedTooFar,
+        }));
+    }
+    Some(accept(
+        state,
+        packet,
+        resolved.target,
+        resolved.target_y_rot,
+        resolved.target_x_rot,
+        Vec3::ZERO,
+        false,
+    ))
+}
 
+fn player_move_packet_count_or_speed_correction(
+    state: ServerMovementState,
+    tick_rate_runs_normally: bool,
+    moved_from_first: f64,
+) -> Result<i32, MovementDecision> {
     let mut received_count = state.received_move_packet_count;
-    if env.tick_rate_runs_normally {
+    if tick_rate_runs_normally {
         received_count += 1;
         let raw_delta_packets = received_count - state.known_move_packet_count;
         let delta_packets = if raw_delta_packets > 5 {
@@ -317,18 +395,23 @@ pub fn validate_player_move(
             if moved_from_first - state.velocity.length_sqr()
                 > meters_per_tick * f64::from(delta_packets)
             {
-                return MovementDecision::TeleportBack(TeleportCorrection {
+                return Err(MovementDecision::TeleportBack(TeleportCorrection {
                     target: state.current,
                     y_rot: state.y_rot,
                     x_rot: state.x_rot,
                     reason: CorrectionReason::MovedTooQuickly,
-                });
+                }));
             }
         }
     }
+    Ok(received_count)
+}
 
-    let requested_delta = sub(target, state.last_good);
-    let moved_upwards = requested_delta.y > 0.0;
+fn player_collision_correction(
+    state: ServerMovementState,
+    env: ValidationEnvironment,
+    resolved: ResolvedPlayerMove,
+) -> Option<MovementDecision> {
     let remainder = env.collision_remainder;
     let adjusted_remainder = Vec3 {
         x: remainder.x,
@@ -349,19 +432,29 @@ pub fn validate_player_move(
     if !state.no_physics
         && ((moved_wrongly && env.old_box_still_clear) || env.collides_with_new_blocks)
     {
-        return MovementDecision::TeleportBack(TeleportCorrection {
+        return Some(MovementDecision::TeleportBack(TeleportCorrection {
             target: state.current,
-            y_rot: target_y_rot,
-            x_rot: target_x_rot,
+            y_rot: resolved.target_y_rot,
+            x_rot: resolved.target_x_rot,
             reason: if moved_wrongly {
                 CorrectionReason::MovedWrongly
             } else {
                 CorrectionReason::NewCollision
             },
-        });
+        }));
     }
+    None
+}
 
-    let client_delta = sub(target, state.current);
+fn accepted_player_move(
+    state: ServerMovementState,
+    packet: MovePacket,
+    resolved: ResolvedPlayerMove,
+    received_count: i32,
+) -> MovementDecision {
+    let requested_delta = sub(resolved.target, state.last_good);
+    let moved_upwards = requested_delta.y > 0.0;
+    let client_delta = sub(resolved.target, state.current);
     let client_is_floating = requested_delta.y >= -0.03125
         && !state.vertical_collision_below
         && !state.spectator
@@ -373,9 +466,9 @@ pub fn validate_player_move(
         && state.no_blocks_around;
 
     MovementDecision::Accept(AcceptedMove {
-        target,
-        y_rot: target_y_rot,
-        x_rot: target_x_rot,
+        target: resolved.target,
+        y_rot: resolved.target_y_rot,
+        x_rot: resolved.target_x_rot,
         client_delta,
         on_ground: packet.on_ground,
         horizontal_collision: packet.horizontal_collision,
@@ -386,7 +479,7 @@ pub fn validate_player_move(
             || state.auto_spin_attack,
         reset_fall_distance: moved_upwards,
         updated_move_packet_count: received_count,
-        updated_last_good: target,
+        updated_last_good: resolved.target,
     })
 }
 
