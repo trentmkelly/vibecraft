@@ -42,10 +42,10 @@
 
 ## Saved Data Storage
 
-- [ ] Implement `SavedDataStorage`: per-level `.dat` files under `data/` folder, `get(key)` loads, `computeIfAbsent(key, factory)` creates on miss, `set(key, data)` marks dirty, autosave on level save — `storage::saved_data::SavedDataStorage` caches loaded data, wraps saves in `{data,DataVersion}`, writes gzip NBT under namespaced data paths, and clears dirty state after save
-- [ ] Implement `CommandStorage`: `minecraft:` and function-namespaced NBT storage, `/data storage` command access — `storage::saved_data::CommandStorage` stores per-namespace `command_storage.dat` containers, removes empty compounds, lists keys, and persists through `SavedDataStorage`
-- [ ] Implement tag value helpers: `TagValueInput`, `TagValueOutput` for NBT-backed data — `storage::tag_value` wraps Rust NBT compounds with vanilla-style typed reads/writes, child compounds, compound lists, discard/replacement, and mismatch problem reporting
-- [ ] Add parity test: command storage NBT written by `/data merge storage` command is readable by `/data get storage` — `command_storage_data_merge_then_get_matches_java_storage_accessor` exercises Java-equivalent `StorageDataAccessor` semantics: recursive compound merge, unchanged-merge detection, invalid non-compound rejection, then retrieval through `data_get_storage`
+- [x] Implement `SavedDataStorage`: per-level `.dat` files under `data/` folder, `get(key)` loads, `computeIfAbsent(key, factory)` creates on miss, `set(key, data)` marks dirty, autosave on level save — `storage::saved_data::SavedDataStorage` caches loaded data, wraps saves in `{data,DataVersion}`, writes gzip NBT under namespaced data paths, and clears dirty state after save; 6 tests pass.
+- [x] Implement `CommandStorage`: `minecraft:` and function-namespaced NBT storage, `/data storage` command access — `storage::saved_data::CommandStorage` stores per-namespace `command_storage.dat` containers, removes empty compounds, lists keys, and persists through `SavedDataStorage`; 2 tests pass.
+- [x] Implement tag value helpers: `TagValueInput`, `TagValueOutput` for NBT-backed data — `storage::tag_value` wraps Rust NBT compounds with vanilla-style typed reads/writes, child compounds, compound lists, discard/replacement, and mismatch problem reporting; 3 tests pass.
+- [x] Add parity test: command storage NBT written by `/data merge storage` command is readable by `/data get storage` — `command_storage_data_merge_then_get_matches_java_storage_accessor` exercises Java-equivalent `StorageDataAccessor` semantics: recursive compound merge, unchanged-merge detection, invalid non-compound rejection, then retrieval through `data_get_storage`; test passes.
 
 ## DataFixer Strategy
 
