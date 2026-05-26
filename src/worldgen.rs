@@ -1124,6 +1124,8 @@ mod tests {
 
     mod feature_placement_support_geode_end_tests;
 
+    mod feature_placement_support_end_structures_tests;
+
     mod feature_placement_support_dripstone_tests;
 
     mod feature_placement_support_tree_base_tests;
