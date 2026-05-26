@@ -311,52 +311,77 @@ fn assert_vault_display_update_tag_and_persistence(vault: &mut VaultBlockEntity)
 #[test]
 fn furnace_family_ticks_fuel_recipes_xp_sided_slots_and_speed_like_java() {
     let fuels = FuelValues::vanilla();
-    let smelting = FurnaceCookingRecipe::new(
-        "minecraft:iron_ingot_from_smelting_raw_iron",
-        "smelting",
-        "minecraft:raw_iron",
-        "minecraft:iron_ingot",
-        200,
-        700,
-    );
-    let blasting = FurnaceCookingRecipe::new(
-        "minecraft:iron_ingot_from_blasting_raw_iron",
-        "blasting",
-        "minecraft:raw_iron",
-        "minecraft:iron_ingot",
-        100,
-        700,
-    );
-    let smoking = FurnaceCookingRecipe::new(
-        "minecraft:cooked_beef_from_smoking",
-        "smoking",
-        "minecraft:beef",
-        "minecraft:cooked_beef",
-        100,
-        350,
-    );
+    let (smelting, blasting, smoking) = furnace_test_recipes();
+    assert_smelting_furnace_ticks_fuel_xp_and_persists(&fuels, &smelting);
+    assert_invalid_fuel_does_not_start(&fuels, &smelting);
+    assert_blast_furnace_uses_java_speed(&fuels, &blasting);
+    let smoker = assert_smoker_uses_java_speed(&fuels, &smoking);
+    assert_furnace_sided_slots_and_container_helpers(&fuels, &smoker);
+}
 
+fn furnace_test_recipes() -> (
+    FurnaceCookingRecipe,
+    FurnaceCookingRecipe,
+    FurnaceCookingRecipe,
+) {
+    (
+        FurnaceCookingRecipe::new(
+            "minecraft:iron_ingot_from_smelting_raw_iron",
+            "smelting",
+            "minecraft:raw_iron",
+            "minecraft:iron_ingot",
+            200,
+            700,
+        ),
+        FurnaceCookingRecipe::new(
+            "minecraft:iron_ingot_from_blasting_raw_iron",
+            "blasting",
+            "minecraft:raw_iron",
+            "minecraft:iron_ingot",
+            100,
+            700,
+        ),
+        FurnaceCookingRecipe::new(
+            "minecraft:cooked_beef_from_smoking",
+            "smoking",
+            "minecraft:beef",
+            "minecraft:cooked_beef",
+            100,
+            350,
+        ),
+    )
+}
+
+fn set_furnace_stack(
+    furnace: &mut AbstractFurnaceBlockEntity,
+    slot: usize,
+    item_id: &str,
+    recipe: &FurnaceCookingRecipe,
+) {
+    furnace.set_item(slot, Some(stack(item_id, 1)), Some(recipe));
+}
+
+fn assert_smelting_furnace_ticks_fuel_xp_and_persists(
+    fuels: &FuelValues,
+    smelting: &FurnaceCookingRecipe,
+) {
     let mut furnace = AbstractFurnaceBlockEntity::furnace();
     assert_eq!(furnace.kind.recipe_type(), "smelting");
     assert_eq!(furnace.kind.default_cooking_time(), 200);
-    furnace.set_item(
+    set_furnace_stack(
+        &mut furnace,
         AbstractFurnaceBlockEntity::INGREDIENT_SLOT,
-        Some(PotItemStack {
-            item_id: "minecraft:raw_iron".to_string(),
-            count: 1,
-        }),
-        Some(&smelting),
+        "minecraft:raw_iron",
+        smelting,
     );
-    furnace.set_item(
+    set_furnace_stack(
+        &mut furnace,
         AbstractFurnaceBlockEntity::FUEL_SLOT,
-        Some(PotItemStack {
-            item_id: "minecraft:coal".to_string(),
-            count: 1,
-        }),
-        Some(&smelting),
+        "minecraft:coal",
+        smelting,
     );
     assert_eq!(
-        furnace.server_tick(&fuels, Some(&smelting)),
+        furnace.server_tick(fuels, Some(smelting)),
         FurnaceTickResult::LitChanged { lit: true }
     );
     assert_eq!(furnace.lit_time_remaining, 1600);
@@ -365,19 +390,16 @@ fn furnace_family_ticks_fuel_recipes_xp_sided_slots_and_speed_like_java() {
     assert!(furnace.items[AbstractFurnaceBlockEntity::FUEL_SLOT].is_none());
 
     for _ in 1..199 {
-        furnace.server_tick(&fuels, Some(&smelting));
+        furnace.server_tick(fuels, Some(smelting));
     }
     assert_eq!(
-        furnace.server_tick(&fuels, Some(&smelting)),
+        furnace.server_tick(fuels, Some(smelting)),
         FurnaceTickResult::Burned { output_count: 1 }
     );
     assert!(furnace.items[AbstractFurnaceBlockEntity::INGREDIENT_SLOT].is_none());
     assert_eq!(
         furnace.items[AbstractFurnaceBlockEntity::RESULT_SLOT],
-        Some(PotItemStack {
-            item_id: "minecraft:iron_ingot".to_string(),
-            count: 1,
-        })
+        Some(stack("minecraft:iron_ingot", 1))
     );
     assert_eq!(
         furnace
@@ -392,86 +414,89 @@ fn furnace_family_ticks_fuel_recipes_xp_sided_slots_and_speed_like_java() {
     let loaded =
         AbstractFurnaceBlockEntity::load_additional(FurnaceBlockEntityKind::Furnace, &saved);
     assert_eq!(loaded, furnace);
+}
 
+fn assert_invalid_fuel_does_not_start(fuels: &FuelValues, smelting: &FurnaceCookingRecipe) {
     let mut invalid_fuel = AbstractFurnaceBlockEntity::furnace();
-    invalid_fuel.set_item(
+    set_furnace_stack(
+        &mut invalid_fuel,
         AbstractFurnaceBlockEntity::INGREDIENT_SLOT,
-        Some(PotItemStack {
-            item_id: "minecraft:raw_iron".to_string(),
-            count: 1,
-        }),
-        Some(&smelting),
+        "minecraft:raw_iron",
+        smelting,
     );
-    invalid_fuel.set_item(
+    set_furnace_stack(
+        &mut invalid_fuel,
         AbstractFurnaceBlockEntity::FUEL_SLOT,
-        Some(PotItemStack {
-            item_id: "minecraft:stone".to_string(),
-            count: 1,
-        }),
-        Some(&smelting),
+        "minecraft:stone",
+        smelting,
     );
     assert_eq!(
-        invalid_fuel.server_tick(&fuels, Some(&smelting)),
+        invalid_fuel.server_tick(fuels, Some(smelting)),
         FurnaceTickResult::Idle
     );
     assert_eq!(invalid_fuel.cooking_time_spent, 0);
+}
 
+fn assert_blast_furnace_uses_java_speed(fuels: &FuelValues, blasting: &FurnaceCookingRecipe) {
     let mut blast = AbstractFurnaceBlockEntity::blast_furnace();
     assert_eq!(blast.kind.recipe_type(), "blasting");
     assert_eq!(blast.kind.default_cooking_time(), 100);
-    blast.set_item(
+    set_furnace_stack(
+        &mut blast,
         AbstractFurnaceBlockEntity::INGREDIENT_SLOT,
-        Some(PotItemStack {
-            item_id: "minecraft:raw_iron".to_string(),
-            count: 1,
-        }),
-        Some(&blasting),
+        "minecraft:raw_iron",
+        blasting,
     );
-    blast.set_item(
+    set_furnace_stack(
+        &mut blast,
         AbstractFurnaceBlockEntity::FUEL_SLOT,
-        Some(PotItemStack {
-            item_id: "minecraft:coal".to_string(),
-            count: 1,
-        }),
-        Some(&blasting),
+        "minecraft:coal",
+        blasting,
     );
     assert_eq!(
-        blast.server_tick(&fuels, Some(&blasting)),
+        blast.server_tick(fuels, Some(blasting)),
         FurnaceTickResult::LitChanged { lit: true }
     );
     assert_eq!(blast.lit_total_time, 800);
     for _ in 1..99 {
-        blast.server_tick(&fuels, Some(&blasting));
+        blast.server_tick(fuels, Some(blasting));
     }
     assert_eq!(
-        blast.server_tick(&fuels, Some(&blasting)),
+        blast.server_tick(fuels, Some(blasting)),
         FurnaceTickResult::Burned { output_count: 1 }
     );
+}
 
+fn assert_smoker_uses_java_speed(
+    fuels: &FuelValues,
+    smoking: &FurnaceCookingRecipe,
+) -> AbstractFurnaceBlockEntity {
     let mut smoker = AbstractFurnaceBlockEntity::smoker();
-    smoker.set_item(
+    set_furnace_stack(
+        &mut smoker,
         AbstractFurnaceBlockEntity::INGREDIENT_SLOT,
-        Some(PotItemStack {
-            item_id: "minecraft:beef".to_string(),
-            count: 1,
-        }),
-        Some(&smoking),
+        "minecraft:beef",
+        smoking,
     );
-    smoker.set_item(
+    set_furnace_stack(
+        &mut smoker,
         AbstractFurnaceBlockEntity::FUEL_SLOT,
-        Some(PotItemStack {
-            item_id: "minecraft:coal".to_string(),
-            count: 1,
-        }),
-        Some(&smoking),
+        "minecraft:coal",
+        smoking,
     );
     assert_eq!(
-        smoker.server_tick(&fuels, Some(&smoking)),
+        smoker.server_tick(fuels, Some(smoking)),
         FurnaceTickResult::LitChanged { lit: true }
     );
     assert_eq!(smoker.kind.recipe_type(), "smoking");
     assert_eq!(smoker.lit_total_time, 800);
+    smoker
+}
 
+fn assert_furnace_sided_slots_and_container_helpers(
+    fuels: &FuelValues,
+    smoker: &AbstractFurnaceBlockEntity,
+) {
     assert_eq!(
         AbstractFurnaceBlockEntity::get_slots_for_face(Direction::Up),
         &[AbstractFurnaceBlockEntity::INGREDIENT_SLOT]
@@ -495,19 +520,13 @@ fn furnace_family_ticks_fuel_recipes_xp_sided_slots_and_speed_like_java() {
     ));
     assert!(!smoker.can_place_item(
         AbstractFurnaceBlockEntity::RESULT_SLOT,
-        &PotItemStack {
-            item_id: "minecraft:iron_ingot".to_string(),
-            count: 1,
-        },
-        &fuels,
+        &stack("minecraft:iron_ingot", 1),
+        fuels,
     ));
     assert_eq!(
         smoker.max_stack_size(
             AbstractFurnaceBlockEntity::FUEL_SLOT,
-            &PotItemStack {
-                item_id: "minecraft:bucket".to_string(),
-                count: 16,
-            },
+            &stack("minecraft:bucket", 16),
         ),
         1
     );
