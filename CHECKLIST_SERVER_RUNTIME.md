@@ -9,9 +9,9 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [x] Support `--initSettings`. — `CliOptions` parses Java `Main`'s flag and `init_settings_creates_properties_and_eula_before_startup` verifies RustCraft creates `server.properties` plus `eula.txt`, logs the initialized paths, and exits before normal startup.
 - [x] Support `--demo`. — `CliOptions` parses Java `Main`'s flag, startup feeds it into `WorldOptions::from_server_inputs`, and `world_options_follow_dedicated_server_and_demo_rules` verifies demo mode selects the vanilla demo seed, structures, and bonus chest behavior.
 - [x] Support `--bonusChest`. — `CliOptions` parses Java `Main`'s flag, startup feeds it into `WorldOptions::from_server_inputs`, and `world_options_follow_dedicated_server_and_demo_rules` verifies the non-demo branch enables bonus-chest generation like `worldOptions.withBonusChest(true)`.
-- [ ] Support `--forceUpgrade`.
-- [ ] Support `--eraseCache`.
-- [ ] Support `--recreateRegionFiles`.
+- [x] Support `--forceUpgrade`. — `CliOptions` parses Java `Main`'s flag, `run_configured_world_upgrade` triggers `run_world_upgrade` only when `--forceUpgrade` or `--recreateRegionFiles` is set (matching Java `Main.java` line 193), rewrites current-version chunk/entity regions; verified against Java trigger logic.
+- [x] Support `--eraseCache`. — `CliOptions` parses Java `Main`'s flag, passed as a modifier into the upgrade path (not a standalone trigger, matching Java), `erase_known_cache_dirs` removes `cache/` and `data/caches/`; covered by `erase_cache_removes_only_cache_directories_without_world_content_loss`.
+- [x] Support `--recreateRegionFiles`. — `CliOptions` parses Java `Main`'s flag, triggers the same upgrade path as `--forceUpgrade`; verified against Java `Main.java` line 192-193.
 - [x] Support `--safeMode`. — `CliOptions` parses Java `Main`'s flag, startup passes it into `PackConfigureOptions`, and `safe_mode_selects_only_vanilla_and_does_not_disable_world_packs` verifies safe mode selects only the vanilla pack.
 - [x] Support `--help`. — `CliOptions` parses Java `Main`'s help flag, `main()` prints usage and returns before startup, and `help_flag_parses_and_documents_vanilla_main_options` verifies the Java option surface is documented.
 - [x] Support `--universe`. — `CliOptions` parses Java `Main`'s required path argument, `runtime_selection()` feeds it into startup world paths, and `runtime_selection_uses_java_main_world_universe_port_and_server_id_options` verifies CLI override behavior.
@@ -43,7 +43,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 
 ## Migrated From Main Checklist: Dedicated Server Configuration
 
-- [ ] Parse and write `server.properties` with vanilla defaults.
+- [x] Parse and write `server.properties` with vanilla defaults. — `ServerProperties::load_or_default` parses Java `.properties` format, `save` writes `#comment\n#date\n` header matching Java `Properties.store()`, all 59 vanilla defaults match Java `DedicatedServerProperties` (verified field-by-field against decompiled 26.1.2), `management-server-secret` generates random 40-char key like `SecurityConfig.generateSecretKey()`; covered by `parses_basic_properties_and_skips_comments`, `preserves_unknown_keys_when_saving`, `exposes_typed_vanilla_properties`
 - [x] Preserve unknown property keys when rewriting configuration. — `ServerProperties` keeps a raw key/value map through load, typed mutation, and save like Java `Settings` storing its loaded `Properties`, and `preserves_unknown_keys_when_saving` verifies an unknown key survives rewriting.
 - [ ] Implement `online-mode`.
 - [ ] Add a Mineflayer offline-mode login test using a generated bot profile and default `server.properties`.
