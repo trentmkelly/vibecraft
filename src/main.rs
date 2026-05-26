@@ -401,11 +401,19 @@ fn check_world_version_compatibility(
 
     let tag = match layout.load_level_dat_with_backup() {
         Ok(tag) => tag,
-        Err(_) => return Ok(()),
+        Err(err) => {
+            // Java Main.java line 133-135: corrupted level.dat → refuse startup.
+            let _ = logger.info("Failed to load world data. World files may be corrupted. Shutting down.");
+            return Err(format!(
+                "Failed to read level.dat: {err}"
+            ));
+        }
     };
 
     let Some(version) = LevelVersion::parse_level_dat(&tag) else {
-        return Ok(());
+        // level.dat exists but has no parseable version info — treat as corrupted
+        let _ = logger.info("Failed to load world data. World files may be corrupted. Shutting down.");
+        return Err("level.dat exists but has no parseable version information".to_string());
     };
 
     if version.minecraft_version.series != "main" {
@@ -801,6 +809,33 @@ mod tests {
             result.unwrap_err().contains("experimental_snapshot"),
             "error should name the incompatible series"
         );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn corrupted_world_metadata_refuses_startup() {
+        use crate::log::{LogLevel, Logger};
+        use crate::storage::world::WorldLayout;
+
+        let dir = temp_workdir("corrupted_metadata");
+        let world = dir.join("world");
+        let layout = WorldLayout::new(&world);
+        fs::create_dir_all(layout.root()).expect("mkdir");
+        let log_dir = dir.join("logs");
+        fs::create_dir_all(&log_dir).expect("logs dir");
+        let logger = Logger::open_with_level(&log_dir, LogLevel::Info).expect("logger");
+
+        // Write garbage bytes as level.dat
+        fs::write(layout.level_dat(), b"not valid nbt data").expect("write corrupt level.dat");
+
+        let runtime = super::RuntimeSelection {
+            world_name: "world".to_string(),
+            universe: dir.clone(),
+            port: 25565,
+            server_id: None,
+        };
+        let result = super::check_world_version_compatibility(&logger, &runtime);
+        assert!(result.is_err(), "should refuse corrupted level.dat");
         let _ = fs::remove_dir_all(&dir);
     }
 }
