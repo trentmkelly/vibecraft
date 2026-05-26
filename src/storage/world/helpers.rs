@@ -314,16 +314,33 @@ pub(super) fn read_gzip_named_tag_file(path: &Path) -> std::io::Result<(String, 
     read_gzip_named_tag(bytes.as_slice())
 }
 
+/// Matches Java `FileNameDateFormatter.FORMATTER`: `yyyy-MM-dd_HH-mm-ss`
+/// using the system local timezone (same as Java `ZonedDateTime.now()`).
 pub(super) fn corruption_backup_stamp() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    let seconds = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_secs())
-        .unwrap_or(0);
-    seconds.to_string()
+    std::process::Command::new("date")
+        .arg("+%Y-%m-%d_%H-%M-%S")
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| {
+            use std::time::{SystemTime, UNIX_EPOCH};
+            let secs = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            secs.to_string()
+        })
 }
 
+/// Mirrors Java `Util.safeReplaceFile(target, newFile, backup)`:
+/// 1. Rename existing target → backup (if target exists and backup is given)
+/// 2. Delete target (if it still exists after rename)
+/// 3. Rename temp → target
+/// 4. On failure, attempt rollback from backup → target
+///
+/// Each step retries up to 10 times to match Java's `runWithRetries`.
 pub(super) fn durable_write_with_backup(
     target: &Path,
     backup: Option<&Path>,
@@ -333,15 +350,43 @@ pub(super) fn durable_write_with_backup(
         fs::create_dir_all(parent)?;
     }
 
+    let tmp = target.with_extension("tmp");
+    fs::write(&tmp, bytes)?;
+
     if let Some(backup) = backup {
         if target.exists() {
-            fs::copy(target, backup)?;
+            let _ = fs::remove_file(backup);
+            retry_io(10, || fs::rename(target, backup))?;
         }
     }
 
-    let tmp = target.with_extension("tmp");
-    fs::write(&tmp, bytes)?;
-    fs::rename(tmp, target)
+    if target.exists() {
+        retry_io(10, || fs::remove_file(target))?;
+    }
+
+    if let Err(err) = retry_io(10, || fs::rename(&tmp, target)) {
+        if let Some(backup) = backup {
+            if backup.exists() {
+                let _ = fs::rename(backup, target);
+            }
+        }
+        return Err(err);
+    }
+
+    Ok(())
+}
+
+fn retry_io<F: FnMut() -> std::io::Result<()>>(max_retries: u32, mut f: F) -> std::io::Result<()> {
+    let mut last_err = None;
+    for _ in 0..max_retries {
+        match f() {
+            Ok(()) => return Ok(()),
+            Err(err) => last_err = Some(err),
+        }
+    }
+    Err(last_err.unwrap_or_else(|| {
+        std::io::Error::other("retry exhausted with no attempts")
+    }))
 }
 
 pub(super) fn tag_with_data_version(tag: &Tag) -> Tag {

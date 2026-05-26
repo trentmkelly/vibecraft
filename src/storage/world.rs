@@ -915,7 +915,8 @@ impl WorldLayout {
         match read_gzip_named_tag_file(&self.player_data_file(uuid)) {
             Ok((_name, tag)) => checked_saved_tag("playerdata", tag),
             Err(primary_err) => {
-                self.backup_corrupt_player_data(uuid, ".dat")?;
+                // Java catches backup failures silently (logs warning, continues).
+                let _ = self.backup_corrupt_player_data(uuid, ".dat");
                 match read_gzip_named_tag_file(&self.player_data_old_file(uuid)) {
                     Ok((_name, tag)) => checked_saved_tag("playerdata backup", tag),
                     Err(_) => Err(primary_err),
