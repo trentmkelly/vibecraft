@@ -344,24 +344,41 @@ fn mineshaft_generated_piece_type(piece: &MineshaftGeneratedPieceModel) -> Mines
     }
 }
 
-fn mineshaft_create_random_piece(
-    random: &mut RandomSourceKind,
-    foot_x: i32,
-    foot_y: i32,
-    foot_z: i32,
+#[derive(Clone, Copy)]
+struct MineshaftPieceRequest {
+    foot: BlockPos,
     direction: HorizontalDirection,
     gen_depth: i32,
     mineshaft_type: MineshaftTypeModel,
+}
+
+#[derive(Clone, Copy)]
+enum MineshaftRoomExitSide {
+    North,
+    South,
+    West,
+    East,
+}
+
+struct MineshaftChildGenerator<'a, 'b> {
+    start_box: StructureBoundingBoxModel,
+    pieces: &'a mut Vec<MineshaftGeneratedPieceModel>,
+    random: &'b mut RandomSourceKind,
+}
+
+fn mineshaft_create_random_piece(
+    random: &mut RandomSourceKind,
+    request: MineshaftPieceRequest,
     existing_pieces: &[MineshaftGeneratedPieceModel],
 ) -> Option<MineshaftGeneratedPieceModel> {
     let existing_boxes = mineshaft_piece_bounding_boxes(existing_pieces);
     match mineshaft_random_piece_kind(random_next_i32_bound(random, 100)).ok()? {
         MineshaftPieceKindModel::Crossing => {
             let bounding_box = mineshaft_find_crossing(
-                foot_x,
-                foot_y,
-                foot_z,
-                direction,
+                request.foot.x,
+                request.foot.y,
+                request.foot.z,
+                request.direction,
                 random_next_i32_bound(random, 4),
                 &existing_boxes,
             )
@@ -369,28 +386,33 @@ fn mineshaft_create_random_piece(
             .flatten()?;
             Some(MineshaftGeneratedPieceModel::Crossing {
                 bounding_box,
-                direction,
-                mineshaft_type,
+                direction: request.direction,
+                mineshaft_type: request.mineshaft_type,
                 is_two_floored: bounding_box.max_y - bounding_box.min_y + 1 > 3,
-                gen_depth,
+                gen_depth: request.gen_depth,
             })
         }
         MineshaftPieceKindModel::Stairs => {
-            let bounding_box =
-                mineshaft_find_stairs(foot_x, foot_y, foot_z, direction, &existing_boxes)?;
+            let bounding_box = mineshaft_find_stairs(
+                request.foot.x,
+                request.foot.y,
+                request.foot.z,
+                request.direction,
+                &existing_boxes,
+            )?;
             Some(MineshaftGeneratedPieceModel::Stairs {
                 bounding_box,
-                direction,
-                mineshaft_type,
-                gen_depth,
+                direction: request.direction,
+                mineshaft_type: request.mineshaft_type,
+                gen_depth: request.gen_depth,
             })
         }
         MineshaftPieceKindModel::Corridor => {
             let bounding_box = mineshaft_find_corridor_size(
-                foot_x,
-                foot_y,
-                foot_z,
-                direction,
+                request.foot.x,
+                request.foot.y,
+                request.foot.z,
+                request.direction,
                 random_next_i32_bound(random, 3),
                 &existing_boxes,
             )
@@ -408,683 +430,556 @@ fn mineshaft_create_random_piece(
             };
             let model = mineshaft_corridor(
                 bounding_box,
-                direction,
-                mineshaft_type,
+                request.direction,
+                request.mineshaft_type,
                 rails_roll,
                 spider_roll,
             )
             .ok()?;
-            Some(MineshaftGeneratedPieceModel::Corridor { model, gen_depth })
+            Some(MineshaftGeneratedPieceModel::Corridor {
+                model,
+                gen_depth: request.gen_depth,
+            })
         }
     }
 }
 
-fn mineshaft_generate_and_add_piece(
-    start_box: StructureBoundingBoxModel,
-    pieces: &mut Vec<MineshaftGeneratedPieceModel>,
-    random: &mut RandomSourceKind,
-    foot_x: i32,
-    foot_y: i32,
-    foot_z: i32,
-    direction: HorizontalDirection,
-    depth: i32,
-) -> Option<StructureBoundingBoxModel> {
-    if depth > 8 || (foot_x - start_box.min_x).abs() > 80 || (foot_z - start_box.min_z).abs() > 80 {
-        return None;
+impl<'a, 'b> MineshaftChildGenerator<'a, 'b> {
+    fn generate_and_add_piece(
+        &mut self,
+        foot: BlockPos,
+        direction: HorizontalDirection,
+        depth: i32,
+    ) -> Option<StructureBoundingBoxModel> {
+        if depth > 8
+            || (foot.x - self.start_box.min_x).abs() > 80
+            || (foot.z - self.start_box.min_z).abs() > 80
+        {
+            return None;
+        }
+        let mineshaft_type = self
+            .pieces
+            .first()
+            .map(mineshaft_generated_piece_type)
+            .unwrap_or(MineshaftTypeModel::Normal);
+        let request = MineshaftPieceRequest {
+            foot,
+            direction,
+            gen_depth: depth + 1,
+            mineshaft_type,
+        };
+        let piece = mineshaft_create_random_piece(self.random, request, self.pieces)?;
+        let bounding_box = piece.bounding_box();
+        self.pieces.push(piece);
+        self.add_children(self.pieces.len() - 1);
+        Some(bounding_box)
     }
-    let mineshaft_type = pieces
-        .first()
-        .map(mineshaft_generated_piece_type)
-        .unwrap_or(MineshaftTypeModel::Normal);
-    let piece = mineshaft_create_random_piece(
-        random,
-        foot_x,
-        foot_y,
-        foot_z,
-        direction,
-        depth + 1,
-        mineshaft_type,
-        pieces,
-    )?;
-    let bounding_box = piece.bounding_box();
-    pieces.push(piece);
-    let piece_index = pieces.len() - 1;
-    mineshaft_add_children(piece_index, start_box, pieces, random);
-    Some(bounding_box)
-}
 
-fn mineshaft_add_children(
-    piece_index: usize,
-    start_box: StructureBoundingBoxModel,
-    pieces: &mut Vec<MineshaftGeneratedPieceModel>,
-    random: &mut RandomSourceKind,
-) {
-    let piece = pieces[piece_index].clone();
-    match piece {
-        MineshaftGeneratedPieceModel::Room {
-            bounding_box,
-            gen_depth,
-            ..
-        } => {
-            let mut entrance_boxes = Vec::new();
-            let mut height_space = bounding_box.max_y - bounding_box.min_y + 1 - 3 - 1;
-            if height_space <= 0 {
-                height_space = 1;
-            }
-
-            let mut pos = 0;
-            while pos < bounding_box.max_x - bounding_box.min_x + 1 {
-                pos += random_next_i32_bound(random, bounding_box.max_x - bounding_box.min_x + 1);
-                if pos + 3 > bounding_box.max_x - bounding_box.min_x + 1 {
-                    break;
-                }
-                let foot_y = bounding_box.min_y + random_next_i32_bound(random, height_space) + 1;
-                if let Some(child_box) = mineshaft_generate_and_add_piece(
-                    start_box,
-                    pieces,
-                    random,
-                    bounding_box.min_x + pos,
-                    foot_y,
-                    bounding_box.min_z - 1,
-                    HorizontalDirection::North,
-                    gen_depth,
-                ) {
-                    entrance_boxes.push(StructureBoundingBoxModel {
-                        min_x: child_box.min_x,
-                        min_y: child_box.min_y,
-                        min_z: bounding_box.min_z,
-                        max_x: child_box.max_x,
-                        max_y: child_box.max_y,
-                        max_z: bounding_box.min_z + 1,
-                    });
-                }
-                pos += 4;
-            }
-
-            pos = 0;
-            while pos < bounding_box.max_x - bounding_box.min_x + 1 {
-                pos += random_next_i32_bound(random, bounding_box.max_x - bounding_box.min_x + 1);
-                if pos + 3 > bounding_box.max_x - bounding_box.min_x + 1 {
-                    break;
-                }
-                let foot_y = bounding_box.min_y + random_next_i32_bound(random, height_space) + 1;
-                if let Some(child_box) = mineshaft_generate_and_add_piece(
-                    start_box,
-                    pieces,
-                    random,
-                    bounding_box.min_x + pos,
-                    foot_y,
-                    bounding_box.max_z + 1,
-                    HorizontalDirection::South,
-                    gen_depth,
-                ) {
-                    entrance_boxes.push(StructureBoundingBoxModel {
-                        min_x: child_box.min_x,
-                        min_y: child_box.min_y,
-                        min_z: bounding_box.max_z - 1,
-                        max_x: child_box.max_x,
-                        max_y: child_box.max_y,
-                        max_z: bounding_box.max_z,
-                    });
-                }
-                pos += 4;
-            }
-
-            pos = 0;
-            while pos < bounding_box.max_z - bounding_box.min_z + 1 {
-                pos += random_next_i32_bound(random, bounding_box.max_z - bounding_box.min_z + 1);
-                if pos + 3 > bounding_box.max_z - bounding_box.min_z + 1 {
-                    break;
-                }
-                let foot_y = bounding_box.min_y + random_next_i32_bound(random, height_space) + 1;
-                if let Some(child_box) = mineshaft_generate_and_add_piece(
-                    start_box,
-                    pieces,
-                    random,
-                    bounding_box.min_x - 1,
-                    foot_y,
-                    bounding_box.min_z + pos,
-                    HorizontalDirection::West,
-                    gen_depth,
-                ) {
-                    entrance_boxes.push(StructureBoundingBoxModel {
-                        min_x: bounding_box.min_x,
-                        min_y: child_box.min_y,
-                        min_z: child_box.min_z,
-                        max_x: bounding_box.min_x + 1,
-                        max_y: child_box.max_y,
-                        max_z: child_box.max_z,
-                    });
-                }
-                pos += 4;
-            }
-
-            pos = 0;
-            while pos < bounding_box.max_z - bounding_box.min_z + 1 {
-                pos += random_next_i32_bound(random, bounding_box.max_z - bounding_box.min_z + 1);
-                if pos + 3 > bounding_box.max_z - bounding_box.min_z + 1 {
-                    break;
-                }
-                let foot_y = bounding_box.min_y + random_next_i32_bound(random, height_space) + 1;
-                if let Some(child_box) = mineshaft_generate_and_add_piece(
-                    start_box,
-                    pieces,
-                    random,
-                    bounding_box.max_x + 1,
-                    foot_y,
-                    bounding_box.min_z + pos,
-                    HorizontalDirection::East,
-                    gen_depth,
-                ) {
-                    entrance_boxes.push(StructureBoundingBoxModel {
-                        min_x: bounding_box.max_x - 1,
-                        min_y: child_box.min_y,
-                        min_z: child_box.min_z,
-                        max_x: bounding_box.max_x,
-                        max_y: child_box.max_y,
-                        max_z: child_box.max_z,
-                    });
-                }
-                pos += 4;
-            }
-
-            if let MineshaftGeneratedPieceModel::Room {
-                child_entrance_boxes,
+    fn add_children(&mut self, piece_index: usize) {
+        match self.pieces[piece_index].clone() {
+            MineshaftGeneratedPieceModel::Room {
+                bounding_box,
+                gen_depth,
                 ..
-            } = &mut pieces[piece_index]
-            {
-                *child_entrance_boxes = entrance_boxes;
+            } => self.add_room_children(piece_index, bounding_box, gen_depth),
+            MineshaftGeneratedPieceModel::Corridor { model, gen_depth } => {
+                self.add_corridor_children(model, gen_depth);
             }
+            MineshaftGeneratedPieceModel::Crossing {
+                bounding_box,
+                direction,
+                is_two_floored,
+                gen_depth,
+                ..
+            } => self.add_crossing_children(bounding_box, direction, is_two_floored, gen_depth),
+            MineshaftGeneratedPieceModel::Stairs {
+                bounding_box,
+                direction,
+                gen_depth,
+                ..
+            } => self.add_stairs_child(bounding_box, direction, gen_depth),
         }
-        MineshaftGeneratedPieceModel::Corridor { model, gen_depth } => {
-            let end_selection = random_next_i32_bound(random, 4);
-            match model.orientation {
-                HorizontalDirection::North => {
-                    if end_selection <= 1 {
-                        let foot_y =
-                            model.bounding_box.min_y - 1 + random_next_i32_bound(random, 3);
-                        mineshaft_generate_and_add_piece(
-                            start_box,
-                            pieces,
-                            random,
-                            model.bounding_box.min_x,
-                            foot_y,
-                            model.bounding_box.min_z - 1,
-                            model.orientation,
-                            gen_depth,
-                        );
-                    } else if end_selection == 2 {
-                        let foot_y =
-                            model.bounding_box.min_y - 1 + random_next_i32_bound(random, 3);
-                        mineshaft_generate_and_add_piece(
-                            start_box,
-                            pieces,
-                            random,
-                            model.bounding_box.min_x - 1,
-                            foot_y,
-                            model.bounding_box.min_z,
-                            HorizontalDirection::West,
-                            gen_depth,
-                        );
-                    } else {
-                        let foot_y =
-                            model.bounding_box.min_y - 1 + random_next_i32_bound(random, 3);
-                        mineshaft_generate_and_add_piece(
-                            start_box,
-                            pieces,
-                            random,
-                            model.bounding_box.max_x + 1,
-                            foot_y,
-                            model.bounding_box.min_z,
-                            HorizontalDirection::East,
-                            gen_depth,
-                        );
-                    }
-                }
-                HorizontalDirection::South => {
-                    if end_selection <= 1 {
-                        let foot_y =
-                            model.bounding_box.min_y - 1 + random_next_i32_bound(random, 3);
-                        mineshaft_generate_and_add_piece(
-                            start_box,
-                            pieces,
-                            random,
-                            model.bounding_box.min_x,
-                            foot_y,
-                            model.bounding_box.max_z + 1,
-                            model.orientation,
-                            gen_depth,
-                        );
-                    } else if end_selection == 2 {
-                        let foot_y =
-                            model.bounding_box.min_y - 1 + random_next_i32_bound(random, 3);
-                        mineshaft_generate_and_add_piece(
-                            start_box,
-                            pieces,
-                            random,
-                            model.bounding_box.min_x - 1,
-                            foot_y,
-                            model.bounding_box.max_z - 3,
-                            HorizontalDirection::West,
-                            gen_depth,
-                        );
-                    } else {
-                        let foot_y =
-                            model.bounding_box.min_y - 1 + random_next_i32_bound(random, 3);
-                        mineshaft_generate_and_add_piece(
-                            start_box,
-                            pieces,
-                            random,
-                            model.bounding_box.max_x + 1,
-                            foot_y,
-                            model.bounding_box.max_z - 3,
-                            HorizontalDirection::East,
-                            gen_depth,
-                        );
-                    }
-                }
-                HorizontalDirection::West => {
-                    if end_selection <= 1 {
-                        let foot_y =
-                            model.bounding_box.min_y - 1 + random_next_i32_bound(random, 3);
-                        mineshaft_generate_and_add_piece(
-                            start_box,
-                            pieces,
-                            random,
-                            model.bounding_box.min_x - 1,
-                            foot_y,
-                            model.bounding_box.min_z,
-                            model.orientation,
-                            gen_depth,
-                        );
-                    } else if end_selection == 2 {
-                        let foot_y =
-                            model.bounding_box.min_y - 1 + random_next_i32_bound(random, 3);
-                        mineshaft_generate_and_add_piece(
-                            start_box,
-                            pieces,
-                            random,
-                            model.bounding_box.min_x,
-                            foot_y,
-                            model.bounding_box.min_z - 1,
-                            HorizontalDirection::North,
-                            gen_depth,
-                        );
-                    } else {
-                        let foot_y =
-                            model.bounding_box.min_y - 1 + random_next_i32_bound(random, 3);
-                        mineshaft_generate_and_add_piece(
-                            start_box,
-                            pieces,
-                            random,
-                            model.bounding_box.min_x,
-                            foot_y,
-                            model.bounding_box.max_z + 1,
-                            HorizontalDirection::South,
-                            gen_depth,
-                        );
-                    }
-                }
-                HorizontalDirection::East => {
-                    if end_selection <= 1 {
-                        let foot_y =
-                            model.bounding_box.min_y - 1 + random_next_i32_bound(random, 3);
-                        mineshaft_generate_and_add_piece(
-                            start_box,
-                            pieces,
-                            random,
-                            model.bounding_box.max_x + 1,
-                            foot_y,
-                            model.bounding_box.min_z,
-                            model.orientation,
-                            gen_depth,
-                        );
-                    } else if end_selection == 2 {
-                        let foot_y =
-                            model.bounding_box.min_y - 1 + random_next_i32_bound(random, 3);
-                        mineshaft_generate_and_add_piece(
-                            start_box,
-                            pieces,
-                            random,
-                            model.bounding_box.max_x - 3,
-                            foot_y,
-                            model.bounding_box.min_z - 1,
-                            HorizontalDirection::North,
-                            gen_depth,
-                        );
-                    } else {
-                        let foot_y =
-                            model.bounding_box.min_y - 1 + random_next_i32_bound(random, 3);
-                        mineshaft_generate_and_add_piece(
-                            start_box,
-                            pieces,
-                            random,
-                            model.bounding_box.max_x - 3,
-                            foot_y,
-                            model.bounding_box.max_z + 1,
-                            HorizontalDirection::South,
-                            gen_depth,
-                        );
-                    }
-                }
-            }
-
-            if gen_depth < 8 {
-                if !matches!(
-                    model.orientation,
-                    HorizontalDirection::North | HorizontalDirection::South
-                ) {
-                    let mut x = model.bounding_box.min_x + 3;
-                    while x + 3 <= model.bounding_box.max_x {
-                        match random_next_i32_bound(random, 5) {
-                            0 => {
-                                mineshaft_generate_and_add_piece(
-                                    start_box,
-                                    pieces,
-                                    random,
-                                    x,
-                                    model.bounding_box.min_y,
-                                    model.bounding_box.min_z - 1,
-                                    HorizontalDirection::North,
-                                    gen_depth + 1,
-                                );
-                            }
-                            1 => {
-                                mineshaft_generate_and_add_piece(
-                                    start_box,
-                                    pieces,
-                                    random,
-                                    x,
-                                    model.bounding_box.min_y,
-                                    model.bounding_box.max_z + 1,
-                                    HorizontalDirection::South,
-                                    gen_depth + 1,
-                                );
-                            }
-                            _ => {}
-                        }
-                        x += 5;
-                    }
-                } else {
-                    let mut z = model.bounding_box.min_z + 3;
-                    while z + 3 <= model.bounding_box.max_z {
-                        match random_next_i32_bound(random, 5) {
-                            0 => {
-                                mineshaft_generate_and_add_piece(
-                                    start_box,
-                                    pieces,
-                                    random,
-                                    model.bounding_box.min_x - 1,
-                                    model.bounding_box.min_y,
-                                    z,
-                                    HorizontalDirection::West,
-                                    gen_depth + 1,
-                                );
-                            }
-                            1 => {
-                                mineshaft_generate_and_add_piece(
-                                    start_box,
-                                    pieces,
-                                    random,
-                                    model.bounding_box.max_x + 1,
-                                    model.bounding_box.min_y,
-                                    z,
-                                    HorizontalDirection::East,
-                                    gen_depth + 1,
-                                );
-                            }
-                            _ => {}
-                        }
-                        z += 5;
-                    }
-                }
-            }
-        }
-        MineshaftGeneratedPieceModel::Crossing {
-            bounding_box,
-            direction,
-            is_two_floored,
-            gen_depth,
-            ..
-        } => {
-            match direction {
-                HorizontalDirection::North => {
-                    mineshaft_generate_and_add_piece(
-                        start_box,
-                        pieces,
-                        random,
-                        bounding_box.min_x + 1,
-                        bounding_box.min_y,
-                        bounding_box.min_z - 1,
-                        HorizontalDirection::North,
-                        gen_depth,
-                    );
-                    mineshaft_generate_and_add_piece(
-                        start_box,
-                        pieces,
-                        random,
-                        bounding_box.min_x - 1,
-                        bounding_box.min_y,
-                        bounding_box.min_z + 1,
-                        HorizontalDirection::West,
-                        gen_depth,
-                    );
-                    mineshaft_generate_and_add_piece(
-                        start_box,
-                        pieces,
-                        random,
-                        bounding_box.max_x + 1,
-                        bounding_box.min_y,
-                        bounding_box.min_z + 1,
-                        HorizontalDirection::East,
-                        gen_depth,
-                    );
-                }
-                HorizontalDirection::South => {
-                    mineshaft_generate_and_add_piece(
-                        start_box,
-                        pieces,
-                        random,
-                        bounding_box.min_x + 1,
-                        bounding_box.min_y,
-                        bounding_box.max_z + 1,
-                        HorizontalDirection::South,
-                        gen_depth,
-                    );
-                    mineshaft_generate_and_add_piece(
-                        start_box,
-                        pieces,
-                        random,
-                        bounding_box.min_x - 1,
-                        bounding_box.min_y,
-                        bounding_box.min_z + 1,
-                        HorizontalDirection::West,
-                        gen_depth,
-                    );
-                    mineshaft_generate_and_add_piece(
-                        start_box,
-                        pieces,
-                        random,
-                        bounding_box.max_x + 1,
-                        bounding_box.min_y,
-                        bounding_box.min_z + 1,
-                        HorizontalDirection::East,
-                        gen_depth,
-                    );
-                }
-                HorizontalDirection::West => {
-                    mineshaft_generate_and_add_piece(
-                        start_box,
-                        pieces,
-                        random,
-                        bounding_box.min_x + 1,
-                        bounding_box.min_y,
-                        bounding_box.min_z - 1,
-                        HorizontalDirection::North,
-                        gen_depth,
-                    );
-                    mineshaft_generate_and_add_piece(
-                        start_box,
-                        pieces,
-                        random,
-                        bounding_box.min_x + 1,
-                        bounding_box.min_y,
-                        bounding_box.max_z + 1,
-                        HorizontalDirection::South,
-                        gen_depth,
-                    );
-                    mineshaft_generate_and_add_piece(
-                        start_box,
-                        pieces,
-                        random,
-                        bounding_box.min_x - 1,
-                        bounding_box.min_y,
-                        bounding_box.min_z + 1,
-                        HorizontalDirection::West,
-                        gen_depth,
-                    );
-                }
-                HorizontalDirection::East => {
-                    mineshaft_generate_and_add_piece(
-                        start_box,
-                        pieces,
-                        random,
-                        bounding_box.min_x + 1,
-                        bounding_box.min_y,
-                        bounding_box.min_z - 1,
-                        HorizontalDirection::North,
-                        gen_depth,
-                    );
-                    mineshaft_generate_and_add_piece(
-                        start_box,
-                        pieces,
-                        random,
-                        bounding_box.min_x + 1,
-                        bounding_box.min_y,
-                        bounding_box.max_z + 1,
-                        HorizontalDirection::South,
-                        gen_depth,
-                    );
-                    mineshaft_generate_and_add_piece(
-                        start_box,
-                        pieces,
-                        random,
-                        bounding_box.max_x + 1,
-                        bounding_box.min_y,
-                        bounding_box.min_z + 1,
-                        HorizontalDirection::East,
-                        gen_depth,
-                    );
-                }
-            }
-
-            if is_two_floored {
-                if crate::random_source::random_source_next_bool(random) {
-                    mineshaft_generate_and_add_piece(
-                        start_box,
-                        pieces,
-                        random,
-                        bounding_box.min_x + 1,
-                        bounding_box.min_y + 4,
-                        bounding_box.min_z - 1,
-                        HorizontalDirection::North,
-                        gen_depth,
-                    );
-                }
-                if crate::random_source::random_source_next_bool(random) {
-                    mineshaft_generate_and_add_piece(
-                        start_box,
-                        pieces,
-                        random,
-                        bounding_box.min_x - 1,
-                        bounding_box.min_y + 4,
-                        bounding_box.min_z + 1,
-                        HorizontalDirection::West,
-                        gen_depth,
-                    );
-                }
-                if crate::random_source::random_source_next_bool(random) {
-                    mineshaft_generate_and_add_piece(
-                        start_box,
-                        pieces,
-                        random,
-                        bounding_box.max_x + 1,
-                        bounding_box.min_y + 4,
-                        bounding_box.min_z + 1,
-                        HorizontalDirection::East,
-                        gen_depth,
-                    );
-                }
-                if crate::random_source::random_source_next_bool(random) {
-                    mineshaft_generate_and_add_piece(
-                        start_box,
-                        pieces,
-                        random,
-                        bounding_box.min_x + 1,
-                        bounding_box.min_y + 4,
-                        bounding_box.max_z + 1,
-                        HorizontalDirection::South,
-                        gen_depth,
-                    );
-                }
-            }
-        }
-        MineshaftGeneratedPieceModel::Stairs {
-            bounding_box,
-            direction,
-            gen_depth,
-            ..
-        } => match direction {
-            HorizontalDirection::North => {
-                mineshaft_generate_and_add_piece(
-                    start_box,
-                    pieces,
-                    random,
-                    bounding_box.min_x,
-                    bounding_box.min_y,
-                    bounding_box.min_z - 1,
-                    HorizontalDirection::North,
-                    gen_depth,
-                );
-            }
-            HorizontalDirection::South => {
-                mineshaft_generate_and_add_piece(
-                    start_box,
-                    pieces,
-                    random,
-                    bounding_box.min_x,
-                    bounding_box.min_y,
-                    bounding_box.max_z + 1,
-                    HorizontalDirection::South,
-                    gen_depth,
-                );
-            }
-            HorizontalDirection::West => {
-                mineshaft_generate_and_add_piece(
-                    start_box,
-                    pieces,
-                    random,
-                    bounding_box.min_x - 1,
-                    bounding_box.min_y,
-                    bounding_box.min_z,
-                    HorizontalDirection::West,
-                    gen_depth,
-                );
-            }
-            HorizontalDirection::East => {
-                mineshaft_generate_and_add_piece(
-                    start_box,
-                    pieces,
-                    random,
-                    bounding_box.max_x + 1,
-                    bounding_box.min_y,
-                    bounding_box.min_z,
-                    HorizontalDirection::East,
-                    gen_depth,
-                );
-            }
-        },
     }
+
+    fn add_room_children(
+        &mut self,
+        piece_index: usize,
+        bounding_box: StructureBoundingBoxModel,
+        gen_depth: i32,
+    ) {
+        let height_space = (bounding_box.max_y - bounding_box.min_y + 1 - 3 - 1).max(1);
+        let mut entrance_boxes = Vec::new();
+        self.add_room_exits_along_x(
+            bounding_box,
+            gen_depth,
+            height_space,
+            MineshaftRoomExitSide::North,
+            &mut entrance_boxes,
+        );
+        self.add_room_exits_along_x(
+            bounding_box,
+            gen_depth,
+            height_space,
+            MineshaftRoomExitSide::South,
+            &mut entrance_boxes,
+        );
+        self.add_room_exits_along_z(
+            bounding_box,
+            gen_depth,
+            height_space,
+            MineshaftRoomExitSide::West,
+            &mut entrance_boxes,
+        );
+        self.add_room_exits_along_z(
+            bounding_box,
+            gen_depth,
+            height_space,
+            MineshaftRoomExitSide::East,
+            &mut entrance_boxes,
+        );
+        if let MineshaftGeneratedPieceModel::Room {
+            child_entrance_boxes,
+            ..
+        } = &mut self.pieces[piece_index]
+        {
+            *child_entrance_boxes = entrance_boxes;
+        }
+    }
+
+    fn add_room_exits_along_x(
+        &mut self,
+        room_box: StructureBoundingBoxModel,
+        gen_depth: i32,
+        height_space: i32,
+        side: MineshaftRoomExitSide,
+        entrance_boxes: &mut Vec<StructureBoundingBoxModel>,
+    ) {
+        let span = room_box.max_x - room_box.min_x + 1;
+        let mut pos = 0;
+        while pos < span {
+            pos += random_next_i32_bound(self.random, span);
+            if pos + 3 > span {
+                break;
+            }
+            let foot_y = room_box.min_y + random_next_i32_bound(self.random, height_space) + 1;
+            let foot_z = match side {
+                MineshaftRoomExitSide::North => room_box.min_z - 1,
+                MineshaftRoomExitSide::South => room_box.max_z + 1,
+                MineshaftRoomExitSide::West | MineshaftRoomExitSide::East => unreachable!(),
+            };
+            if let Some(child_box) = self.generate_and_add_piece(
+                BlockPos {
+                    x: room_box.min_x + pos,
+                    y: foot_y,
+                    z: foot_z,
+                },
+                room_exit_direction(side),
+                gen_depth,
+            ) {
+                entrance_boxes.push(room_x_entrance_box(side, room_box, child_box));
+            }
+            pos += 4;
+        }
+    }
+
+    fn add_room_exits_along_z(
+        &mut self,
+        room_box: StructureBoundingBoxModel,
+        gen_depth: i32,
+        height_space: i32,
+        side: MineshaftRoomExitSide,
+        entrance_boxes: &mut Vec<StructureBoundingBoxModel>,
+    ) {
+        let span = room_box.max_z - room_box.min_z + 1;
+        let mut pos = 0;
+        while pos < span {
+            pos += random_next_i32_bound(self.random, span);
+            if pos + 3 > span {
+                break;
+            }
+            let foot_y = room_box.min_y + random_next_i32_bound(self.random, height_space) + 1;
+            let foot_x = match side {
+                MineshaftRoomExitSide::West => room_box.min_x - 1,
+                MineshaftRoomExitSide::East => room_box.max_x + 1,
+                MineshaftRoomExitSide::North | MineshaftRoomExitSide::South => unreachable!(),
+            };
+            if let Some(child_box) = self.generate_and_add_piece(
+                BlockPos {
+                    x: foot_x,
+                    y: foot_y,
+                    z: room_box.min_z + pos,
+                },
+                room_exit_direction(side),
+                gen_depth,
+            ) {
+                entrance_boxes.push(room_z_entrance_box(side, room_box, child_box));
+            }
+            pos += 4;
+        }
+    }
+
+    fn add_corridor_children(&mut self, model: MineshaftCorridorModel, gen_depth: i32) {
+        self.add_corridor_end_child(model, gen_depth);
+        if gen_depth < 8 {
+            self.add_corridor_side_children(model, gen_depth);
+        }
+    }
+
+    fn add_corridor_end_child(&mut self, model: MineshaftCorridorModel, gen_depth: i32) {
+        let end_selection = random_next_i32_bound(self.random, 4);
+        let foot_y = model.bounding_box.min_y - 1 + random_next_i32_bound(self.random, 3);
+        let (x, z, direction) = corridor_end_child(model, end_selection);
+        self.generate_and_add_piece(BlockPos { x, y: foot_y, z }, direction, gen_depth);
+    }
+
+    fn add_corridor_side_children(&mut self, model: MineshaftCorridorModel, gen_depth: i32) {
+        if matches!(
+            model.orientation,
+            HorizontalDirection::North | HorizontalDirection::South
+        ) {
+            self.add_corridor_side_children_along_z(model, gen_depth);
+        } else {
+            self.add_corridor_side_children_along_x(model, gen_depth);
+        }
+    }
+
+    fn add_corridor_side_children_along_x(
+        &mut self,
+        model: MineshaftCorridorModel,
+        gen_depth: i32,
+    ) {
+        let mut x = model.bounding_box.min_x + 3;
+        while x + 3 <= model.bounding_box.max_x {
+            match random_next_i32_bound(self.random, 5) {
+                0 => {
+                    self.generate_and_add_piece(
+                        BlockPos {
+                            x,
+                            y: model.bounding_box.min_y,
+                            z: model.bounding_box.min_z - 1,
+                        },
+                        HorizontalDirection::North,
+                        gen_depth + 1,
+                    );
+                }
+                1 => {
+                    self.generate_and_add_piece(
+                        BlockPos {
+                            x,
+                            y: model.bounding_box.min_y,
+                            z: model.bounding_box.max_z + 1,
+                        },
+                        HorizontalDirection::South,
+                        gen_depth + 1,
+                    );
+                }
+                _ => {}
+            }
+            x += 5;
+        }
+    }
+
+    fn add_corridor_side_children_along_z(
+        &mut self,
+        model: MineshaftCorridorModel,
+        gen_depth: i32,
+    ) {
+        let mut z = model.bounding_box.min_z + 3;
+        while z + 3 <= model.bounding_box.max_z {
+            match random_next_i32_bound(self.random, 5) {
+                0 => {
+                    self.generate_and_add_piece(
+                        BlockPos {
+                            x: model.bounding_box.min_x - 1,
+                            y: model.bounding_box.min_y,
+                            z,
+                        },
+                        HorizontalDirection::West,
+                        gen_depth + 1,
+                    );
+                }
+                1 => {
+                    self.generate_and_add_piece(
+                        BlockPos {
+                            x: model.bounding_box.max_x + 1,
+                            y: model.bounding_box.min_y,
+                            z,
+                        },
+                        HorizontalDirection::East,
+                        gen_depth + 1,
+                    );
+                }
+                _ => {}
+            }
+            z += 5;
+        }
+    }
+
+    fn add_crossing_children(
+        &mut self,
+        bounding_box: StructureBoundingBoxModel,
+        direction: HorizontalDirection,
+        is_two_floored: bool,
+        gen_depth: i32,
+    ) {
+        for (foot, direction) in crossing_base_children(bounding_box, direction) {
+            self.generate_and_add_piece(foot, direction, gen_depth);
+        }
+        if is_two_floored {
+            self.add_crossing_upper_children(bounding_box, gen_depth);
+        }
+    }
+
+    fn add_crossing_upper_children(
+        &mut self,
+        bounding_box: StructureBoundingBoxModel,
+        gen_depth: i32,
+    ) {
+        for (foot, direction) in crossing_upper_children(bounding_box) {
+            if crate::random_source::random_source_next_bool(self.random) {
+                self.generate_and_add_piece(foot, direction, gen_depth);
+            }
+        }
+    }
+
+    fn add_stairs_child(
+        &mut self,
+        bounding_box: StructureBoundingBoxModel,
+        direction: HorizontalDirection,
+        gen_depth: i32,
+    ) {
+        let foot = match direction {
+            HorizontalDirection::North => BlockPos {
+                x: bounding_box.min_x,
+                y: bounding_box.min_y,
+                z: bounding_box.min_z - 1,
+            },
+            HorizontalDirection::South => BlockPos {
+                x: bounding_box.min_x,
+                y: bounding_box.min_y,
+                z: bounding_box.max_z + 1,
+            },
+            HorizontalDirection::West => BlockPos {
+                x: bounding_box.min_x - 1,
+                y: bounding_box.min_y,
+                z: bounding_box.min_z,
+            },
+            HorizontalDirection::East => BlockPos {
+                x: bounding_box.max_x + 1,
+                y: bounding_box.min_y,
+                z: bounding_box.min_z,
+            },
+        };
+        self.generate_and_add_piece(foot, direction, gen_depth);
+    }
+}
+
+fn room_exit_direction(side: MineshaftRoomExitSide) -> HorizontalDirection {
+    match side {
+        MineshaftRoomExitSide::North => HorizontalDirection::North,
+        MineshaftRoomExitSide::South => HorizontalDirection::South,
+        MineshaftRoomExitSide::West => HorizontalDirection::West,
+        MineshaftRoomExitSide::East => HorizontalDirection::East,
+    }
+}
+
+fn room_x_entrance_box(
+    side: MineshaftRoomExitSide,
+    room_box: StructureBoundingBoxModel,
+    child_box: StructureBoundingBoxModel,
+) -> StructureBoundingBoxModel {
+    let (min_z, max_z) = match side {
+        MineshaftRoomExitSide::North => (room_box.min_z, room_box.min_z + 1),
+        MineshaftRoomExitSide::South => (room_box.max_z - 1, room_box.max_z),
+        MineshaftRoomExitSide::West | MineshaftRoomExitSide::East => unreachable!(),
+    };
+    StructureBoundingBoxModel {
+        min_x: child_box.min_x,
+        min_y: child_box.min_y,
+        min_z,
+        max_x: child_box.max_x,
+        max_y: child_box.max_y,
+        max_z,
+    }
+}
+
+fn room_z_entrance_box(
+    side: MineshaftRoomExitSide,
+    room_box: StructureBoundingBoxModel,
+    child_box: StructureBoundingBoxModel,
+) -> StructureBoundingBoxModel {
+    let (min_x, max_x) = match side {
+        MineshaftRoomExitSide::West => (room_box.min_x, room_box.min_x + 1),
+        MineshaftRoomExitSide::East => (room_box.max_x - 1, room_box.max_x),
+        MineshaftRoomExitSide::North | MineshaftRoomExitSide::South => unreachable!(),
+    };
+    StructureBoundingBoxModel {
+        min_x,
+        min_y: child_box.min_y,
+        min_z: child_box.min_z,
+        max_x,
+        max_y: child_box.max_y,
+        max_z: child_box.max_z,
+    }
+}
+
+fn corridor_end_child(
+    model: MineshaftCorridorModel,
+    end_selection: i32,
+) -> (i32, i32, HorizontalDirection) {
+    let box_ = model.bounding_box;
+    match (model.orientation, end_selection) {
+        (HorizontalDirection::North, 0 | 1) => (box_.min_x, box_.min_z - 1, model.orientation),
+        (HorizontalDirection::North, 2) => (box_.min_x - 1, box_.min_z, HorizontalDirection::West),
+        (HorizontalDirection::North, _) => (box_.max_x + 1, box_.min_z, HorizontalDirection::East),
+        (HorizontalDirection::South, 0 | 1) => (box_.min_x, box_.max_z + 1, model.orientation),
+        (HorizontalDirection::South, 2) => {
+            (box_.min_x - 1, box_.max_z - 3, HorizontalDirection::West)
+        }
+        (HorizontalDirection::South, _) => {
+            (box_.max_x + 1, box_.max_z - 3, HorizontalDirection::East)
+        }
+        (HorizontalDirection::West, 0 | 1) => (box_.min_x - 1, box_.min_z, model.orientation),
+        (HorizontalDirection::West, 2) => (box_.min_x, box_.min_z - 1, HorizontalDirection::North),
+        (HorizontalDirection::West, _) => (box_.min_x, box_.max_z + 1, HorizontalDirection::South),
+        (HorizontalDirection::East, 0 | 1) => (box_.max_x + 1, box_.min_z, model.orientation),
+        (HorizontalDirection::East, 2) => {
+            (box_.max_x - 3, box_.min_z - 1, HorizontalDirection::North)
+        }
+        (HorizontalDirection::East, _) => {
+            (box_.max_x - 3, box_.max_z + 1, HorizontalDirection::South)
+        }
+    }
+}
+
+fn crossing_base_children(
+    bounding_box: StructureBoundingBoxModel,
+    direction: HorizontalDirection,
+) -> [(BlockPos, HorizontalDirection); 3] {
+    let box_ = bounding_box;
+    match direction {
+        HorizontalDirection::North => [
+            mineshaft_child(
+                box_.min_x + 1,
+                box_.min_y,
+                box_.min_z - 1,
+                HorizontalDirection::North,
+            ),
+            mineshaft_child(
+                box_.min_x - 1,
+                box_.min_y,
+                box_.min_z + 1,
+                HorizontalDirection::West,
+            ),
+            mineshaft_child(
+                box_.max_x + 1,
+                box_.min_y,
+                box_.min_z + 1,
+                HorizontalDirection::East,
+            ),
+        ],
+        HorizontalDirection::South => [
+            mineshaft_child(
+                box_.min_x + 1,
+                box_.min_y,
+                box_.max_z + 1,
+                HorizontalDirection::South,
+            ),
+            mineshaft_child(
+                box_.min_x - 1,
+                box_.min_y,
+                box_.min_z + 1,
+                HorizontalDirection::West,
+            ),
+            mineshaft_child(
+                box_.max_x + 1,
+                box_.min_y,
+                box_.min_z + 1,
+                HorizontalDirection::East,
+            ),
+        ],
+        HorizontalDirection::West => [
+            mineshaft_child(
+                box_.min_x + 1,
+                box_.min_y,
+                box_.min_z - 1,
+                HorizontalDirection::North,
+            ),
+            mineshaft_child(
+                box_.min_x + 1,
+                box_.min_y,
+                box_.max_z + 1,
+                HorizontalDirection::South,
+            ),
+            mineshaft_child(
+                box_.min_x - 1,
+                box_.min_y,
+                box_.min_z + 1,
+                HorizontalDirection::West,
+            ),
+        ],
+        HorizontalDirection::East => [
+            mineshaft_child(
+                box_.min_x + 1,
+                box_.min_y,
+                box_.min_z - 1,
+                HorizontalDirection::North,
+            ),
+            mineshaft_child(
+                box_.min_x + 1,
+                box_.min_y,
+                box_.max_z + 1,
+                HorizontalDirection::South,
+            ),
+            mineshaft_child(
+                box_.max_x + 1,
+                box_.min_y,
+                box_.min_z + 1,
+                HorizontalDirection::East,
+            ),
+        ],
+    }
+}
+
+fn crossing_upper_children(
+    bounding_box: StructureBoundingBoxModel,
+) -> [(BlockPos, HorizontalDirection); 4] {
+    let box_ = bounding_box;
+    [
+        mineshaft_child(
+            box_.min_x + 1,
+            box_.min_y + 4,
+            box_.min_z - 1,
+            HorizontalDirection::North,
+        ),
+        mineshaft_child(
+            box_.min_x - 1,
+            box_.min_y + 4,
+            box_.min_z + 1,
+            HorizontalDirection::West,
+        ),
+        mineshaft_child(
+            box_.max_x + 1,
+            box_.min_y + 4,
+            box_.min_z + 1,
+            HorizontalDirection::East,
+        ),
+        mineshaft_child(
+            box_.min_x + 1,
+            box_.min_y + 4,
+            box_.max_z + 1,
+            HorizontalDirection::South,
+        ),
+    ]
+}
+
+const fn mineshaft_child(
+    x: i32,
+    y: i32,
+    z: i32,
+    direction: HorizontalDirection,
+) -> (BlockPos, HorizontalDirection) {
+    (BlockPos { x, y, z }, direction)
 }
 
 fn mineshaft_move_pieces(pieces: &mut [MineshaftGeneratedPieceModel], dy: i32) {
@@ -1138,7 +1033,12 @@ pub fn mineshaft_generate_pieces_for_start(
         child_entrance_boxes: Vec::new(),
         gen_depth: 0,
     }];
-    mineshaft_add_children(0, start_box, &mut pieces, &mut random);
+    MineshaftChildGenerator {
+        start_box,
+        pieces: &mut pieces,
+        random: &mut random,
+    }
+    .add_children(0);
     let aggregate = pieces
         .iter()
         .map(MineshaftGeneratedPieceModel::bounding_box)
