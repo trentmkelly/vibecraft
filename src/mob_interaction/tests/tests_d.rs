@@ -2,6 +2,13 @@ use crate::mob_interaction::*;
 
 #[test]
 fn sheep_wool_shearing_eating_and_color_rules_match_java() {
+    assert_sheep_constants_and_dye_color_ids();
+    let mut sheep = assert_sheep_state_color_and_shearing_flags();
+    assert_sheep_interaction_eating_and_animation(&mut sheep);
+    assert_sheep_spawn_and_offspring_colors();
+}
+
+fn assert_sheep_constants_and_dye_color_ids() {
     assert_eq!(SHEEP_EAT_ANIMATION_TICKS, 40);
     assert_eq!(SHEEP_SHEARED_FLAG, 16);
     assert_eq!(SHEEP_COLOR_MASK, 15);
@@ -38,7 +45,9 @@ fn sheep_wool_shearing_eating_and_color_rules_match_java() {
         assert_eq!(DyeColorModel::by_id(id as u8), color);
     }
     assert_eq!(DyeColorModel::by_id(99), DyeColorModel::White);
+}
 
+fn assert_sheep_state_color_and_shearing_flags() -> SheepState {
     let mut sheep = SheepState::new();
     assert_eq!(sheep.color(), DyeColorModel::White);
     assert!(!sheep.is_sheared());
@@ -54,7 +63,10 @@ fn sheep_wool_shearing_eating_and_color_rules_match_java() {
     assert!(sheep.ready_for_shearing(true, false));
     assert!(!sheep.ready_for_shearing(false, false));
     assert!(!sheep.ready_for_shearing(true, true));
+    sheep
+}
 
+fn assert_sheep_interaction_eating_and_animation(sheep: &mut SheepState) {
     assert_eq!(
         sheep_interaction("minecraft:shears", true, true),
         SheepInteraction::ShearServer
@@ -90,7 +102,9 @@ fn sheep_wool_shearing_eating_and_color_rules_match_java() {
     assert!(sheep.head_eat_angle_scale(0.0, 30.0) > 0.0);
     sheep.eat_animation_tick = 0;
     assert!((sheep.head_eat_angle_scale(0.0, 30.0) - std::f32::consts::PI / 6.0).abs() < 0.00001);
+}
 
+fn assert_sheep_spawn_and_offspring_colors() {
     assert_eq!(sheep_spawn_color(false, false, 0, 0), DyeColorModel::Black);
     assert_eq!(sheep_spawn_color(false, false, 5, 0), DyeColorModel::Gray);
     assert_eq!(
@@ -122,6 +136,13 @@ fn sheep_wool_shearing_eating_and_color_rules_match_java() {
 
 #[test]
 fn squid_and_glow_squid_ink_flee_and_dark_ticks_match_java_rules() {
+    assert_squid_constants();
+    assert_squid_state_events();
+    assert_squid_flee_vectors_and_bubbles();
+    assert_glow_squid_dark_ticks_and_spawn_rules();
+}
+
+fn assert_squid_constants() {
     assert_eq!(SQUID_MAX_HEALTH, 10.0);
     assert_eq!(SQUID_DEFAULT_GRAVITY, 0.08);
     assert_eq!(SQUID_SOUND_VOLUME, 0.4);
@@ -141,7 +162,9 @@ fn squid_and_glow_squid_ink_flee_and_dark_ticks_match_java_rules() {
     assert_eq!(GLOW_SQUID_DEFAULT_DARK_TICKS_REMAINING, 0);
     assert_eq!(GLOW_SQUID_DARK_TICKS_ON_HURT, 100);
     assert_eq!(GLOW_SQUID_SPAWN_SEA_LEVEL_OFFSET, 33);
+}
 
+fn assert_squid_state_events() {
     let mut squid = SquidState::new(0.0);
     assert_eq!(squid.tentacle_speed, 0.2);
     assert!(!squid.has_movement_vector());
@@ -155,6 +178,9 @@ fn squid_and_glow_squid_ink_flee_and_dark_ticks_match_java_rules() {
     assert!(squid_hurt_spawns_ink(true, true));
     assert!(!squid_hurt_spawns_ink(true, false));
     assert!(!squid_hurt_spawns_ink(false, true));
+}
+
+fn assert_squid_flee_vectors_and_bubbles() {
     assert!(squid_flee_can_use(true, true, 99.99));
     assert!(!squid_flee_can_use(true, true, 100.0));
     assert!(!squid_flee_can_use(false, true, 1.0));
@@ -179,7 +205,9 @@ fn squid_and_glow_squid_ink_flee_and_dark_ticks_match_java_rules() {
     assert!(squid_flee_emits_bubble(5));
     assert!(squid_flee_emits_bubble(15));
     assert!(!squid_flee_emits_bubble(6));
+}
 
+fn assert_glow_squid_dark_ticks_and_spawn_rules() {
     let mut glow = GlowSquidState::new();
     assert_eq!(glow.dark_ticks_remaining, 0);
     glow.on_hurt(true);
@@ -196,6 +224,12 @@ fn squid_and_glow_squid_ink_flee_and_dark_ticks_match_java_rules() {
 
 #[test]
 fn creeper_fuse_ignition_power_and_cloud_match_java_rules() {
+    assert_creeper_state_save_and_igniter_rules();
+    assert_creeper_fuse_tick_and_lingering_cloud();
+    assert_creeper_powered_loot_and_target_rules();
+}
+
+fn assert_creeper_state_save_and_igniter_rules() {
     let mut creeper = CreeperState::new();
     assert_eq!(creeper.swell_dir, CREEPER_DEFAULT_SWELL_DIR);
     assert_eq!(creeper.max_swell, 30);
@@ -227,7 +261,9 @@ fn creeper_fuse_ignition_power_and_cloud_match_java_rules() {
         creeper_igniter_use(true, true),
         CreeperIgniterUse::DamageOne
     );
+}
 
+fn assert_creeper_fuse_tick_and_lingering_cloud() {
     let mut ticking = CreeperState::new();
     ticking.ignite();
     let first = ticking.tick(0);
@@ -256,7 +292,9 @@ fn creeper_fuse_ignition_power_and_cloud_match_java_rules() {
             radius_per_tick: -2.5 / 300.0,
         }
     );
+}
 
+fn assert_creeper_powered_loot_and_target_rules() {
     let mut powered = CreeperState::new();
     powered.thunder_hit();
     assert_eq!(powered.effective_explosion_radius(), 6.0);
@@ -269,6 +307,13 @@ fn creeper_fuse_ignition_power_and_cloud_match_java_rules() {
 
 #[test]
 fn slime_and_magma_cube_size_split_spawn_and_jump_match_java_rules() {
+    assert_slime_constants_size_and_basic_state();
+    assert_slime_jump_move_control_and_split_rules();
+    assert_slime_spawn_rules();
+    assert_magma_cube_attributes_jump_and_spawn_rules();
+}
+
+fn assert_slime_constants_size_and_basic_state() {
     assert_eq!(clamp_slime_size(0), 1);
     assert_eq!(clamp_slime_size(200), 127);
     assert_eq!(SLIME_MAX_NATURAL_SIZE, 4);
@@ -298,6 +343,10 @@ fn slime_and_magma_cube_size_split_spawn_and_jump_match_java_rules() {
     );
     assert!(slime.deals_damage(true));
     assert!(!SlimeFamilyState::new(SlimeFamilyKind::Slime, 1).deals_damage(true));
+}
+
+fn assert_slime_jump_move_control_and_split_rules() {
+    let slime = SlimeFamilyState::new(SlimeFamilyKind::Slime, 4);
     assert_eq!(slime.jump_delay(19, false), 29);
     assert_eq!(slime.jump_delay(19, true), 9);
     assert_eq!(
@@ -389,7 +438,9 @@ fn slime_and_magma_cube_size_split_spawn_and_jump_match_java_rules() {
     assert_eq!(squish.target_squish, -0.3);
     assert_eq!(squish.tick_squish(false), 0);
     assert_eq!(squish.target_squish, 0.6);
+}
 
+fn assert_slime_spawn_rules() {
     let surface = SlimeSpawnRuleInput {
         peaceful: false,
         spawner_reason: false,
@@ -424,7 +475,9 @@ fn slime_and_magma_cube_size_split_spawn_and_jump_match_java_rules() {
         underground_random_bound_10: 0,
         ..surface
     }));
+}
 
+fn assert_magma_cube_attributes_jump_and_spawn_rules() {
     let magma = SlimeFamilyState::new(SlimeFamilyKind::MagmaCube, 4);
     assert_eq!(
         magma.attributes(),
@@ -448,6 +501,12 @@ fn slime_and_magma_cube_size_split_spawn_and_jump_match_java_rules() {
 
 #[test]
 fn phantom_size_anchor_swoop_and_cat_gates_match_java_rules() {
+    assert_phantom_size_anchor_and_flap_rules();
+    assert_phantom_target_anchor_and_strategy_rules();
+    assert_phantom_swoop_cat_and_loot_rules();
+}
+
+fn assert_phantom_size_anchor_and_flap_rules() {
     let mut phantom = PhantomState::new();
     phantom.set_size(200);
     assert_eq!(phantom.size, 64);
@@ -480,7 +539,9 @@ fn phantom_size_anchor_swoop_and_cat_gates_match_java_rules() {
     assert_eq!(PHANTOM_TARGET_RANGE, 64.0);
     assert_eq!(PHANTOM_TARGET_BOX_INFLATE_XZ, 16.0);
     assert_eq!(PHANTOM_TARGET_BOX_INFLATE_Y, 64.0);
+}
 
+fn assert_phantom_target_anchor_and_strategy_rules() {
     let target = PhantomBlockPos {
         x: 10,
         y: 50,
@@ -520,7 +581,9 @@ fn phantom_size_anchor_swoop_and_cat_gates_match_java_rules() {
     assert_eq!(swoop.attack_phase, PhantomAttackPhase::Swoop);
     assert_eq!(swoop.next_sweep_tick, 220);
     assert!(swoop.played_swoop_sound);
+}
 
+fn assert_phantom_swoop_cat_and_loot_rules() {
     assert_eq!(
         phantom_can_continue_swoop(true, true, false, false, PhantomAttackPhase::Swoop, true),
         PhantomSwoopContinuation::StopScaredOfCat
@@ -554,6 +617,12 @@ fn phantom_size_anchor_swoop_and_cat_gates_match_java_rules() {
 
 #[test]
 fn vex_lifetime_charge_and_evoker_summon_gates_match_java_rules() {
+    assert_vex_attributes_lifetime_and_charging_flags();
+    assert_vex_charge_copy_target_and_random_move_rules();
+    assert_evoker_vex_summon_rules();
+}
+
+fn assert_vex_attributes_lifetime_and_charging_flags() {
     assert_eq!(
         vex_attributes(),
         VexAttributes {
@@ -592,7 +661,9 @@ fn vex_lifetime_charge_and_evoker_summon_gates_match_java_rules() {
         }
     );
     assert!(!vex_tick(false, 0).starve_damage);
+}
 
+fn assert_vex_charge_copy_target_and_random_move_rules() {
     assert!(vex_charge_attack_can_use(true, true, false, 0, 4.1));
     assert!(!vex_charge_attack_can_use(true, true, false, 1, 4.1));
     assert!(!vex_charge_attack_can_use(true, true, true, 0, 4.1));
@@ -616,7 +687,9 @@ fn vex_lifetime_charge_and_evoker_summon_gates_match_java_rules() {
     assert_eq!(VEX_MOVE_ACCELERATION, 0.05);
     assert_eq!(VEX_MOVE_CLOSE_DAMPING, 0.5);
     assert_eq!(VEX_OWNER_TARGET_RANGE, 16.0);
+}
 
+fn assert_evoker_vex_summon_rules() {
     assert!(evoker_vex_summon_can_use(true, 2, 3));
     assert!(!evoker_vex_summon_can_use(true, 3, 3));
     assert!(!evoker_vex_summon_can_use(false, 0, 8));
@@ -640,6 +713,12 @@ fn vex_lifetime_charge_and_evoker_summon_gates_match_java_rules() {
 
 #[test]
 fn silverfish_infested_merge_and_wake_rules_match_java_rules() {
+    assert_silverfish_attributes_spawn_and_infested_mappings();
+    assert_silverfish_merge_and_hurt_wake_rules();
+    assert_silverfish_wake_scan_and_step_rules();
+}
+
+fn assert_silverfish_attributes_spawn_and_infested_mappings() {
     assert_eq!(
         silverfish_attributes(),
         SilverfishAttributes {
@@ -689,7 +768,9 @@ fn silverfish_infested_merge_and_wake_rules_match_java_rules() {
         silverfish_host_block_for_infested("minecraft:infested_deepslate"),
         Some("minecraft:deepslate")
     );
+}
 
+fn assert_silverfish_merge_and_hurt_wake_rules() {
     assert_eq!(
         silverfish_walk_target_value("minecraft:stone", 0.25),
         SILVERFISH_WALK_TARGET_HOST_VALUE
@@ -754,7 +835,9 @@ fn silverfish_infested_merge_and_wake_rules_match_java_rules() {
     assert!(silverfish_infested_break_spawns_silverfish(true, false));
     assert!(!silverfish_infested_break_spawns_silverfish(false, false));
     assert!(!silverfish_infested_break_spawns_silverfish(true, true));
+}
 
+fn assert_silverfish_wake_scan_and_step_rules() {
     let offsets = silverfish_wake_scan_offsets();
     assert_eq!(offsets.len(), 11 * 21 * 21);
     assert_eq!(offsets[0], (0, 0, 0));
@@ -803,6 +886,19 @@ fn silverfish_infested_merge_and_wake_rules_match_java_rules() {
 
 #[test]
 fn zoglin_attack_target_and_hoglin_conversion_rules_match_java_rules() {
+    assert_zoglin_attributes_and_constants();
+    assert_zoglin_targeting_and_attack_rules();
+    assert_hoglin_attributes_and_spawn_rules();
+    assert_hoglin_target_and_hurt_response_rules();
+    assert_hoglin_social_ai_and_activity_rules();
+    assert_hoglin_constants();
+    assert_hoglin_conversion_rules();
+    assert_abstract_piglin_conversion_rules();
+    assert_piglin_brute_rules();
+    assert_hoglin_base_attack_damage_and_throw_rules();
+}
+
+fn assert_zoglin_attributes_and_constants() {
     assert_eq!(
         zoglin_attributes(),
         ZoglinAttributes {
@@ -827,7 +923,9 @@ fn zoglin_attack_target_and_hoglin_conversion_rules_match_java_rules() {
     assert_eq!(ZOGLIN_LOOK_INTERVAL_MAX_TICKS, 60);
     assert_eq!(ZOGLIN_DO_NOTHING_MIN_TICKS, 30);
     assert_eq!(ZOGLIN_DO_NOTHING_MAX_TICKS, 60);
+}
 
+fn assert_zoglin_targeting_and_attack_rules() {
     assert!(zoglin_valid_attack_target("minecraft:player", true));
     assert!(!zoglin_valid_attack_target("minecraft:zoglin", true));
     assert!(!zoglin_valid_attack_target("minecraft:creeper", true));
@@ -857,7 +955,9 @@ fn zoglin_attack_target_and_hoglin_conversion_rules_match_java_rules() {
     assert_eq!(ZOGLIN_HURT_RETARGET_DISTANCE_MARGIN, 4.0);
     assert_eq!(ZOGLIN_STEP_SOUND_VOLUME, 0.15);
     assert_eq!(ZOGLIN_STEP_SOUND_PITCH, 1.0);
+}
 
+fn assert_hoglin_attributes_and_spawn_rules() {
     assert_eq!(
         hoglin_attributes(),
         HoglinAttributes {
@@ -905,6 +1005,9 @@ fn zoglin_attack_target_and_hoglin_conversion_rules_match_java_rules() {
     assert!(hoglin_piglins_outnumber_hoglins(false, 3, 1));
     assert!(!hoglin_piglins_outnumber_hoglins(false, 2, 1));
     assert!(!hoglin_piglins_outnumber_hoglins(true, 3, 1));
+}
+
+fn assert_hoglin_target_and_hurt_response_rules() {
     assert_eq!(
         hoglin_on_hit_target_action(false, "minecraft:piglin", true),
         HoglinAiAction::BroadcastRetreat
@@ -936,6 +1039,9 @@ fn zoglin_attack_target_and_hoglin_conversion_rules_match_java_rules() {
     assert!(hoglin_find_nearest_valid_attack_target(false, false, true));
     assert!(!hoglin_find_nearest_valid_attack_target(true, false, true));
     assert!(!hoglin_find_nearest_valid_attack_target(false, true, true));
+}
+
+fn assert_hoglin_social_ai_and_activity_rules() {
     assert_eq!(
         hoglin_activity_sound("avoid", false, false, false),
         Some("minecraft:entity.hoglin.retreat")
@@ -959,6 +1065,9 @@ fn zoglin_attack_target_and_hoglin_conversion_rules_match_java_rules() {
     assert_eq!(hoglin_next_attack_animation_ticks(0), 0);
     assert!(hoglin_blocked_by_item_throws_target(false));
     assert!(!hoglin_blocked_by_item_throws_target(true));
+}
+
+fn assert_hoglin_constants() {
     assert_eq!(HOGLIN_REPELLENT_DETECTION_HORIZONTAL, 8);
     assert_eq!(HOGLIN_REPELLENT_DETECTION_VERTICAL, 4);
     assert_eq!(HOGLIN_REPELLENT_PACIFY_TIME, 200);
@@ -980,7 +1089,9 @@ fn zoglin_attack_target_and_hoglin_conversion_rules_match_java_rules() {
     assert_eq!(HOGLIN_DO_NOTHING_MAX_TICKS, 60);
     assert_eq!(HOGLIN_STEP_SOUND_VOLUME, 0.15);
     assert_eq!(HOGLIN_STEP_SOUND_PITCH, 1.0);
+}
 
+fn assert_hoglin_conversion_rules() {
     assert_eq!(
         hoglin_conversion_tick(299, false, false, true),
         HoglinConversionTick {
@@ -1013,7 +1124,9 @@ fn zoglin_attack_target_and_hoglin_conversion_rules_match_java_rules() {
         hoglin_conversion_tick(42, false, false, false).time_in_overworld,
         0
     );
+}
 
+fn assert_abstract_piglin_conversion_rules() {
     assert!(abstract_piglin_is_converting(false, false, true));
     assert!(!abstract_piglin_is_converting(true, false, true));
     assert!(!abstract_piglin_is_converting(false, true, true));
@@ -1053,7 +1166,9 @@ fn zoglin_attack_target_and_hoglin_conversion_rules_match_java_rules() {
             nausea_ticks: 200,
         }
     );
+}
 
+fn assert_piglin_brute_rules() {
     assert_eq!(
         piglin_brute_attributes(),
         PiglinBruteAttributes {
@@ -1112,7 +1227,9 @@ fn zoglin_attack_target_and_hoglin_conversion_rules_match_java_rules() {
         "attacking_with_melee_weapon"
     );
     assert_eq!(piglin_brute_arm_pose(true, false), "default");
+}
 
+fn assert_hoglin_base_attack_damage_and_throw_rules() {
     assert_eq!(hoglin_base_attack_damage(false, 6.0, 5), 8.0);
     assert_eq!(hoglin_base_attack_damage(false, 6.0, 6), 3.0);
     assert_eq!(hoglin_base_attack_damage(true, 0.5, 0), 0.5);
