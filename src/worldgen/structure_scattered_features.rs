@@ -238,6 +238,119 @@ fn swamp_hut_generate_box(
     ));
 }
 
+type SwampHutBox = (BlockPos, BlockPos, &'static str);
+type SwampHutBlock = (BlockPos, &'static str);
+
+const SWAMP_HUT_BOXES: [SwampHutBox; 15] = [
+    (
+        BlockPos { x: 1, y: 1, z: 1 },
+        BlockPos { x: 5, y: 1, z: 7 },
+        "minecraft:spruce_planks",
+    ),
+    (
+        BlockPos { x: 1, y: 4, z: 2 },
+        BlockPos { x: 5, y: 4, z: 7 },
+        "minecraft:spruce_planks",
+    ),
+    (
+        BlockPos { x: 2, y: 1, z: 0 },
+        BlockPos { x: 4, y: 1, z: 0 },
+        "minecraft:spruce_planks",
+    ),
+    (
+        BlockPos { x: 2, y: 2, z: 2 },
+        BlockPos { x: 3, y: 3, z: 2 },
+        "minecraft:spruce_planks",
+    ),
+    (
+        BlockPos { x: 1, y: 2, z: 3 },
+        BlockPos { x: 1, y: 3, z: 6 },
+        "minecraft:spruce_planks",
+    ),
+    (
+        BlockPos { x: 5, y: 2, z: 3 },
+        BlockPos { x: 5, y: 3, z: 6 },
+        "minecraft:spruce_planks",
+    ),
+    (
+        BlockPos { x: 2, y: 2, z: 7 },
+        BlockPos { x: 4, y: 3, z: 7 },
+        "minecraft:spruce_planks",
+    ),
+    (
+        BlockPos { x: 1, y: 0, z: 2 },
+        BlockPos { x: 1, y: 3, z: 2 },
+        "minecraft:oak_log",
+    ),
+    (
+        BlockPos { x: 5, y: 0, z: 2 },
+        BlockPos { x: 5, y: 3, z: 2 },
+        "minecraft:oak_log",
+    ),
+    (
+        BlockPos { x: 1, y: 0, z: 7 },
+        BlockPos { x: 1, y: 3, z: 7 },
+        "minecraft:oak_log",
+    ),
+    (
+        BlockPos { x: 5, y: 0, z: 7 },
+        BlockPos { x: 5, y: 3, z: 7 },
+        "minecraft:oak_log",
+    ),
+    (
+        BlockPos { x: 0, y: 4, z: 1 },
+        BlockPos { x: 6, y: 4, z: 1 },
+        "minecraft:spruce_stairs[facing=north]",
+    ),
+    (
+        BlockPos { x: 0, y: 4, z: 2 },
+        BlockPos { x: 0, y: 4, z: 7 },
+        "minecraft:spruce_stairs[facing=east]",
+    ),
+    (
+        BlockPos { x: 6, y: 4, z: 2 },
+        BlockPos { x: 6, y: 4, z: 7 },
+        "minecraft:spruce_stairs[facing=west]",
+    ),
+    (
+        BlockPos { x: 0, y: 4, z: 8 },
+        BlockPos { x: 6, y: 4, z: 8 },
+        "minecraft:spruce_stairs[facing=south]",
+    ),
+];
+
+const SWAMP_HUT_BLOCKS: [SwampHutBlock; 14] = [
+    (BlockPos { x: 2, y: 3, z: 2 }, "minecraft:oak_fence"),
+    (BlockPos { x: 3, y: 3, z: 7 }, "minecraft:oak_fence"),
+    (BlockPos { x: 1, y: 3, z: 4 }, "minecraft:air"),
+    (BlockPos { x: 5, y: 3, z: 4 }, "minecraft:air"),
+    (BlockPos { x: 5, y: 3, z: 5 }, "minecraft:air"),
+    (
+        BlockPos { x: 1, y: 3, z: 5 },
+        "minecraft:potted_red_mushroom",
+    ),
+    (BlockPos { x: 3, y: 2, z: 6 }, "minecraft:crafting_table"),
+    (BlockPos { x: 4, y: 2, z: 6 }, "minecraft:cauldron"),
+    (BlockPos { x: 1, y: 2, z: 1 }, "minecraft:oak_fence"),
+    (BlockPos { x: 5, y: 2, z: 1 }, "minecraft:oak_fence"),
+    (
+        BlockPos { x: 0, y: 4, z: 1 },
+        "minecraft:spruce_stairs[facing=north,shape=outer_right]",
+    ),
+    (
+        BlockPos { x: 6, y: 4, z: 1 },
+        "minecraft:spruce_stairs[facing=north,shape=outer_left]",
+    ),
+    (
+        BlockPos { x: 0, y: 4, z: 8 },
+        "minecraft:spruce_stairs[facing=south,shape=outer_left]",
+    ),
+    (
+        BlockPos { x: 6, y: 4, z: 8 },
+        "minecraft:spruce_stairs[facing=south,shape=outer_right]",
+    ),
+];
+
 pub fn swamp_hut_post_process(
     mut piece: SwampHutPieceModel,
     chunk_bb: StructureBoundingBoxModel,
@@ -249,126 +362,40 @@ pub fn swamp_hut_post_process(
     }
 
     let mut blocks = Vec::new();
-    swamp_hut_generate_box(
-        &piece,
-        chunk_bb,
-        BlockPos { x: 1, y: 1, z: 1 },
-        BlockPos { x: 5, y: 1, z: 7 },
-        "minecraft:spruce_planks",
-        &mut blocks,
-    );
-    swamp_hut_generate_box(
-        &piece,
-        chunk_bb,
-        BlockPos { x: 1, y: 4, z: 2 },
-        BlockPos { x: 5, y: 4, z: 7 },
-        "minecraft:spruce_planks",
-        &mut blocks,
-    );
-    for (min, max, state) in [
-        (
-            BlockPos { x: 2, y: 1, z: 0 },
-            BlockPos { x: 4, y: 1, z: 0 },
-            "minecraft:spruce_planks",
-        ),
-        (
-            BlockPos { x: 2, y: 2, z: 2 },
-            BlockPos { x: 3, y: 3, z: 2 },
-            "minecraft:spruce_planks",
-        ),
-        (
-            BlockPos { x: 1, y: 2, z: 3 },
-            BlockPos { x: 1, y: 3, z: 6 },
-            "minecraft:spruce_planks",
-        ),
-        (
-            BlockPos { x: 5, y: 2, z: 3 },
-            BlockPos { x: 5, y: 3, z: 6 },
-            "minecraft:spruce_planks",
-        ),
-        (
-            BlockPos { x: 2, y: 2, z: 7 },
-            BlockPos { x: 4, y: 3, z: 7 },
-            "minecraft:spruce_planks",
-        ),
-        (
-            BlockPos { x: 1, y: 0, z: 2 },
-            BlockPos { x: 1, y: 3, z: 2 },
-            "minecraft:oak_log",
-        ),
-        (
-            BlockPos { x: 5, y: 0, z: 2 },
-            BlockPos { x: 5, y: 3, z: 2 },
-            "minecraft:oak_log",
-        ),
-        (
-            BlockPos { x: 1, y: 0, z: 7 },
-            BlockPos { x: 1, y: 3, z: 7 },
-            "minecraft:oak_log",
-        ),
-        (
-            BlockPos { x: 5, y: 0, z: 7 },
-            BlockPos { x: 5, y: 3, z: 7 },
-            "minecraft:oak_log",
-        ),
-        (
-            BlockPos { x: 0, y: 4, z: 1 },
-            BlockPos { x: 6, y: 4, z: 1 },
-            "minecraft:spruce_stairs[facing=north]",
-        ),
-        (
-            BlockPos { x: 0, y: 4, z: 2 },
-            BlockPos { x: 0, y: 4, z: 7 },
-            "minecraft:spruce_stairs[facing=east]",
-        ),
-        (
-            BlockPos { x: 6, y: 4, z: 2 },
-            BlockPos { x: 6, y: 4, z: 7 },
-            "minecraft:spruce_stairs[facing=west]",
-        ),
-        (
-            BlockPos { x: 0, y: 4, z: 8 },
-            BlockPos { x: 6, y: 4, z: 8 },
-            "minecraft:spruce_stairs[facing=south]",
-        ),
-    ] {
-        swamp_hut_generate_box(&piece, chunk_bb, min, max, state, &mut blocks);
-    }
+    swamp_hut_add_boxes(&piece, chunk_bb, &mut blocks);
+    swamp_hut_add_blocks(&piece, chunk_bb, &mut blocks);
+    let fill_columns = swamp_hut_fill_columns(&piece);
+    let entity_spawns = swamp_hut_entity_spawns(&mut piece, chunk_bb);
 
-    for (local_pos, state) in [
-        (BlockPos { x: 2, y: 3, z: 2 }, "minecraft:oak_fence"),
-        (BlockPos { x: 3, y: 3, z: 7 }, "minecraft:oak_fence"),
-        (BlockPos { x: 1, y: 3, z: 4 }, "minecraft:air"),
-        (BlockPos { x: 5, y: 3, z: 4 }, "minecraft:air"),
-        (BlockPos { x: 5, y: 3, z: 5 }, "minecraft:air"),
-        (
-            BlockPos { x: 1, y: 3, z: 5 },
-            "minecraft:potted_red_mushroom",
-        ),
-        (BlockPos { x: 3, y: 2, z: 6 }, "minecraft:crafting_table"),
-        (BlockPos { x: 4, y: 2, z: 6 }, "minecraft:cauldron"),
-        (BlockPos { x: 1, y: 2, z: 1 }, "minecraft:oak_fence"),
-        (BlockPos { x: 5, y: 2, z: 1 }, "minecraft:oak_fence"),
-        (
-            BlockPos { x: 0, y: 4, z: 1 },
-            "minecraft:spruce_stairs[facing=north,shape=outer_right]",
-        ),
-        (
-            BlockPos { x: 6, y: 4, z: 1 },
-            "minecraft:spruce_stairs[facing=north,shape=outer_left]",
-        ),
-        (
-            BlockPos { x: 0, y: 4, z: 8 },
-            "minecraft:spruce_stairs[facing=south,shape=outer_left]",
-        ),
-        (
-            BlockPos { x: 6, y: 4, z: 8 },
-            "minecraft:spruce_stairs[facing=south,shape=outer_right]",
-        ),
-    ] {
-        swamp_hut_place_block(&piece, chunk_bb, local_pos, state, &mut blocks);
-    }
+    Some(SwampHutPostProcessModel {
+        piece,
+        blocks,
+        fill_columns,
+        entity_spawns,
+    })
+}
 
+fn swamp_hut_add_boxes(
+    piece: &SwampHutPieceModel,
+    chunk_bb: StructureBoundingBoxModel,
+    blocks: &mut Vec<StructurePiecePlacementBlock>,
+) {
+    for (min, max, state) in SWAMP_HUT_BOXES {
+        swamp_hut_generate_box(piece, chunk_bb, min, max, state, blocks);
+    }
+}
+
+fn swamp_hut_add_blocks(
+    piece: &SwampHutPieceModel,
+    chunk_bb: StructureBoundingBoxModel,
+    blocks: &mut Vec<StructurePiecePlacementBlock>,
+) {
+    for (local_pos, state) in SWAMP_HUT_BLOCKS {
+        swamp_hut_place_block(piece, chunk_bb, local_pos, state, blocks);
+    }
+}
+
+fn swamp_hut_fill_columns(piece: &SwampHutPieceModel) -> Vec<BlockPos> {
     let mut fill_columns = Vec::new();
     for z in [2, 7] {
         for x in [1, 5] {
@@ -381,7 +408,13 @@ pub fn swamp_hut_post_process(
             ));
         }
     }
+    fill_columns
+}
 
+fn swamp_hut_entity_spawns(
+    piece: &mut SwampHutPieceModel,
+    chunk_bb: StructureBoundingBoxModel,
+) -> Vec<SwampHutEntitySpawnModel> {
     let spawn_pos = structure_piece_world_pos(
         piece.scattered.bounding_box,
         Some(piece.scattered.orientation),
@@ -389,30 +422,26 @@ pub fn swamp_hut_post_process(
         2,
         5,
     );
-    let mut entity_spawns = Vec::new();
-    if chunk_bb.is_inside(spawn_pos) {
-        if !piece.spawned_witch {
-            piece.spawned_witch = true;
-            entity_spawns.push(SwampHutEntitySpawnModel {
-                entity: "minecraft:witch",
-                pos: spawn_pos,
-            });
-        }
-        if !piece.spawned_cat {
-            piece.spawned_cat = true;
-            entity_spawns.push(SwampHutEntitySpawnModel {
-                entity: "minecraft:cat",
-                pos: spawn_pos,
-            });
-        }
+    if !chunk_bb.is_inside(spawn_pos) {
+        return Vec::new();
     }
 
-    Some(SwampHutPostProcessModel {
-        piece,
-        blocks,
-        fill_columns,
-        entity_spawns,
-    })
+    let mut entity_spawns = Vec::new();
+    if !piece.spawned_witch {
+        piece.spawned_witch = true;
+        entity_spawns.push(SwampHutEntitySpawnModel {
+            entity: "minecraft:witch",
+            pos: spawn_pos,
+        });
+    }
+    if !piece.spawned_cat {
+        piece.spawned_cat = true;
+        entity_spawns.push(SwampHutEntitySpawnModel {
+            entity: "minecraft:cat",
+            pos: spawn_pos,
+        });
+    }
+    entity_spawns
 }
 
 pub fn desert_pyramid_generation_piece(
