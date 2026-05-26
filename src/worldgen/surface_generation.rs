@@ -183,332 +183,208 @@ pub(super) fn build_surface_for_chunk_timed(
     build_surface_for_chunk_timed_with_sections(
         chunk,
         None,
-        rule,
-        biome_source_model,
-        noise_router,
-        settings,
-        seed,
+        SurfaceBuildInput {
+            rule,
+            biome_source_model,
+            noise_router,
+            settings,
+            seed,
+        },
         timings,
     );
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn build_surface_for_chunk_timed_with_sections(
+#[derive(Clone, Copy)]
+struct SurfaceBuildInput<'a> {
+    rule: &'a DynSurfaceRule,
+    biome_source_model: &'a BiomeSourceModel,
+    noise_router: NoiseRouter,
+    settings: &'a NoiseGeneratorSettings,
+    seed: i64,
+}
+
+#[derive(Clone, Copy)]
+struct SurfacePreliminaryLevels {
+    north_west: i32,
+    north_east: i32,
+    south_west: i32,
+    south_east: i32,
+}
+
+#[derive(Default)]
+struct SurfaceDebugCounters {
+    noise_sample_us: u128,
+    rng_us: u128,
+    height_read_us: u128,
+    biome_us: u128,
+    block_read_us: u128,
+    ceiling_scan_us: u128,
+    rule_us: u128,
+    write_us: u128,
+    flush_us: u128,
+}
+
+struct SurfaceBuildLoop<'a, 'b> {
+    chunk: &'a crate::storage::chunk::LevelChunk,
+    section_blocks: &'a mut GeneratedSectionBlocks,
+    input: SurfaceBuildInput<'b>,
+    algorithm: RandomAlgorithm,
+    default_block: &'static str,
+    surface_noise: Option<NormalNoiseSnapshot>,
+    surface_secondary_noise: Option<NormalNoiseSnapshot>,
+    chunk_min_x: i32,
+    chunk_min_z: i32,
+    prelim: SurfacePreliminaryLevels,
+    base_rng: PositionalRandomFactory,
+    climate_sampler: ClimateSampler,
+    biome_zoom_seed: i64,
+    surface_context: SurfaceRulesContext,
+    chunk_noise_biomes: ChunkNoiseBiomeCache,
+    surface_biome_cache: HashMap<(i32, i32, i32), (&'static str, f32)>,
+    surface_noise_biome_cache: HashMap<(i32, i32, i32), &'static str>,
+    default_block_id: u16,
+    air_id: u16,
+    water_id: u16,
+    lava_id: u16,
+    debug_enabled: bool,
+    debug: SurfaceDebugCounters,
+    timings: &'a mut LiveTerrainTimings,
+}
+
+struct SurfaceColumnState {
+    block_x: i32,
+    block_z: i32,
+    local_x: usize,
+    local_z: usize,
+    surface_depth: i32,
+    surface_secondary: f64,
+    min_surface_level: i32,
+    stone_depth_above: i32,
+    water_height: i32,
+    next_ceiling_stone_y: i32,
+    end_y: i32,
+    start_height: i32,
+}
+
+struct SurfaceBiomeResolver<'a, 'b> {
+    input: SurfaceBuildInput<'b>,
+    biome_zoom_seed: i64,
+    climate_sampler: &'a ClimateSampler,
+    chunk_noise_biomes: &'a ChunkNoiseBiomeCache,
+    surface_biome_cache: &'a mut HashMap<(i32, i32, i32), (&'static str, f32)>,
+    surface_noise_biome_cache: &'a mut HashMap<(i32, i32, i32), &'static str>,
+    debug_enabled: bool,
+    debug: &'a mut SurfaceDebugCounters,
+}
+
+fn build_surface_for_chunk_timed_with_sections(
     chunk: &mut crate::storage::chunk::LevelChunk,
     predecoded_section_blocks: Option<&mut GeneratedSectionBlocks>,
-    rule: &DynSurfaceRule,
-    biome_source_model: &BiomeSourceModel,
-    noise_router: NoiseRouter,
-    settings: &NoiseGeneratorSettings,
-    seed: i64,
+    input: SurfaceBuildInput<'_>,
     timings: &mut LiveTerrainTimings,
 ) {
     let total_started = Instant::now();
-    let min_y = settings.noise.min_y;
-    let heights = WorldGenerationHeightContext {
-        min_y,
-        height: settings.noise.height,
-    };
-    let algorithm = if settings.legacy_random_source {
-        RandomAlgorithm::Legacy
-    } else {
-        RandomAlgorithm::Xoroshiro
-    };
-    let default_block = settings.default_block;
-
-    // Java uses DimensionType.WAY_BELOW_MIN_Y = Integer.MIN_VALUE / 2 as the
-    // "no ceiling stone found" sentinel.
-    const WAY_BELOW_MIN_Y: i32 = i32::MIN / 2;
-
-    let started = Instant::now();
-    // Pre-sample surface/secondary noises (thread-local cache keeps this cheap).
-    let surface_noise = random_state_normal_noise_snapshot(seed, *settings, "minecraft:surface");
-    let surface_secondary_noise =
-        random_state_normal_noise_snapshot(seed, *settings, "minecraft:surface_secondary");
-    timings.surface_noise_setup_ms = started.elapsed().as_millis();
-
-    let chunk_min_x = chunk.pos.x * 16;
-    let chunk_min_z = chunk.pos.z * 16;
     let mut owned_section_blocks;
-    let section_blocks: &mut GeneratedSectionBlocks = if let Some(section_blocks) =
-        predecoded_section_blocks
-    {
-        section_blocks
-    } else {
-        owned_section_blocks = chunk.sections.iter().fold(
-            GeneratedSectionBlocks::new(chunk.min_section_y, chunk.sections.len() as i32),
-            |mut generated, section| {
-                if let Ok(container) =
-                    PalettedContainer::from_nbt(&section.block_states, SECTION_VOLUME)
-                {
-                    let section_index = i32::from(section.y) - generated.min_section_y;
-                    if section_index >= 0 && (section_index as usize) < generated.sections.len() {
-                        for index in 0..SECTION_VOLUME {
-                            let Some(name) = container
-                                .get_entry(index)
-                                .and_then(block_name_from_tag_fast)
-                            else {
-                                continue;
-                            };
-                            if name == "minecraft:air" {
-                                continue;
-                            }
-                            let id = generated.id_for(name);
-                            let section_cache = &mut generated.sections[section_index as usize];
-                            section_cache.ids[index] = id;
-                            section_cache.non_air_blocks += 1;
-                        }
-                    }
-                }
-                generated
-            },
-        );
-        &mut owned_section_blocks
-    };
-
+    let section_blocks: &mut GeneratedSectionBlocks =
+        if let Some(section_blocks) = predecoded_section_blocks {
+            section_blocks
+        } else {
+            owned_section_blocks = generated_section_blocks_for_surface(chunk);
+            &mut owned_section_blocks
+        };
     let started = Instant::now();
-    // Pre-compute the 4 preliminary-surface-level corner values used by all
-    // columns in this chunk for the minSurfaceLevel bilinear interpolation.
-    // Java: cornerCellX = blockX >> 4; surfaceCellToBlockCoord(cornerCellX) = cornerCellX << 4
-    // ⟹ for any blockX in the chunk, cornerCellX * 16 == chunk_min_x.
-    let prelim_fn = noise_router.preliminary_surface_level;
-    let prelim_q = |bx: i32, bz: i32| {
-        let qx = (bx >> 2) << 2; // QuartPos round-down
-        let qz = (bz >> 2) << 2;
-        prelim_fn
-            .compute_with_noise(seed, *settings, qx, 0, qz)
-            .floor() as i32
+    let (surface_context, mut debug) = {
+        let mut surface_loop = SurfaceBuildLoop::new(chunk, section_blocks, input, timings);
+        surface_loop.run_columns();
+        surface_loop.finish()
     };
-    let prelim00 = prelim_q(chunk_min_x, chunk_min_z);
-    let prelim10 = prelim_q(chunk_min_x + 16, chunk_min_z);
-    let prelim01 = prelim_q(chunk_min_x, chunk_min_z + 16);
-    let prelim11 = prelim_q(chunk_min_x + 16, chunk_min_z + 16);
-    timings.surface_prelim_ms = started.elapsed().as_millis();
-
-    let base_rng = random_state_seed_factories(seed, algorithm).base;
-    let climate_sampler = ClimateSampler::from_noise_router(&noise_router, seed, *settings);
-    let biome_zoom_seed = biome_manager_obfuscate_seed(seed);
-    let mut surface_context = SurfaceRulesContext::new(seed, algorithm, heights);
-    let chunk_noise_biomes = ChunkNoiseBiomeCache::from_chunk(chunk);
-    let mut surface_biome_cache: HashMap<(i32, i32, i32), (&'static str, f32)> = HashMap::new();
-    let mut surface_noise_biome_cache: HashMap<(i32, i32, i32), &'static str> = HashMap::new();
-    let default_block_id = section_blocks.id_for(default_block);
-    let air_id = section_blocks.id_for("minecraft:air");
-    let water_id = section_blocks.id_for("minecraft:water");
-    let lava_id = section_blocks.id_for("minecraft:lava");
-    let surface_debug = std::env::var_os("RUSTCRAFT_WORLDGEN_SURFACE_DEBUG").is_some();
-    let mut surface_noise_sample_us = 0_u128;
-    let mut surface_rng_us = 0_u128;
-    let mut surface_height_read_us = 0_u128;
-    let mut surface_biome_us = 0_u128;
-    let mut surface_block_read_us = 0_u128;
-    let mut surface_ceiling_scan_us = 0_u128;
-    let mut surface_rule_us = 0_u128;
-    let mut surface_write_us = 0_u128;
-    let started = Instant::now();
-    for local_z in 0..16_i32 {
-        for local_x in 0..16_i32 {
-            timings.surface_columns += 1;
-            let block_x = chunk_min_x + local_x;
-            let block_z = chunk_min_z + local_z;
-            let lx = local_x as usize;
-            let lz = local_z as usize;
-
-            // getSurfaceDepth: (int)(surfaceNoise * 2.75 + 3.0 + random * 0.25)
-            let debug_started = surface_debug.then(Instant::now);
-            let surface_noise_val = surface_noise
-                .as_ref()
-                .map(|snap| normal_noise_sample(snap, block_x as f64, 0.0, block_z as f64))
-                .unwrap_or(0.0);
-            if let Some(started) = debug_started {
-                surface_noise_sample_us += started.elapsed().as_micros();
-            }
-            let surface_depth = {
-                let debug_started = surface_debug.then(Instant::now);
-                let mut at_rng = base_rng.at(block_x, 0, block_z);
-                let jitter = random_next_f64(&mut at_rng) * 0.25;
-                if let Some(started) = debug_started {
-                    surface_rng_us += started.elapsed().as_micros();
-                }
-                (surface_noise_val * 2.75 + 3.0 + jitter) as i32
-            };
-
-            // getSurfaceSecondary: surfaceSecondaryNoise.getValue(blockX, 0, blockZ)
-            let debug_started = surface_debug.then(Instant::now);
-            let surface_secondary = surface_secondary_noise
-                .as_ref()
-                .map(|snap| normal_noise_sample(snap, block_x as f64, 0.0, block_z as f64))
-                .unwrap_or(0.0);
-            if let Some(started) = debug_started {
-                surface_noise_sample_us += started.elapsed().as_micros();
-            }
-
-            // Steep: height-diff ≥ 4 between neighbouring columns.
-            let debug_started = surface_debug.then(Instant::now);
-            let h_n = read_world_surface_wg(chunk, lx, lz.saturating_sub(1));
-            let h_s = read_world_surface_wg(chunk, lx, (lz + 1).min(15));
-            let h_w = read_world_surface_wg(chunk, lx.saturating_sub(1), lz);
-            let h_e = read_world_surface_wg(chunk, (lx + 1).min(15), lz);
-            if let Some(started) = debug_started {
-                surface_height_read_us += started.elapsed().as_micros();
-            }
-            let steep = h_s >= h_n + 4 || h_w >= h_e + 4;
-            let hole = surface_depth <= 0;
-
-            // minSurfaceLevel: bilinear interpolation of the 4 corner preliminary
-            // levels + surfaceDepth - HOW_FAR_BELOW_PRELIMINARY_SURFACE_LEVEL_TO_BUILD_SURFACE
-            let tx = local_x as f64 / 16.0;
-            let tz = local_z as f64 / 16.0;
-            let prelim = lerp(
-                tz,
-                lerp(tx, prelim00 as f64, prelim10 as f64),
-                lerp(tx, prelim01 as f64, prelim11 as f64),
-            )
-            .floor() as i32;
-            // Java: HOW_FAR_BELOW = 8
-            let min_surface_level = prelim + surface_depth - 8;
-
-            surface_context.update_xz(
-                block_x,
-                block_z,
-                surface_depth,
-                surface_secondary,
-                steep,
-                hole,
-                min_surface_level,
-            );
-
-            let mut stone_depth_above: i32 = 0;
-            let mut water_height: i32 = i32::MIN;
-            let mut next_ceiling_stone_y: i32 = i32::MAX;
-            let end_y = min_y;
-            let start_height = read_world_surface_wg(chunk, lx, lz) + 1;
-
-            for y in (end_y..=start_height).rev() {
-                timings.surface_block_samples += 1;
-                let debug_started = surface_debug.then(Instant::now);
-                let block_id = section_blocks.get_id(block_x, y, block_z);
-                if let Some(started) = debug_started {
-                    surface_block_read_us += started.elapsed().as_micros();
-                }
-
-                if block_id == air_id {
-                    stone_depth_above = 0;
-                    water_height = i32::MIN;
-                } else if block_id == water_id || block_id == lava_id {
-                    if water_height == i32::MIN {
-                        water_height = y + 1;
-                    }
-                } else {
-                    // Solid block.
-                    if next_ceiling_stone_y >= y {
-                        next_ceiling_stone_y = WAY_BELOW_MIN_Y;
-                        let mut la = y - 1;
-                        let debug_started = surface_debug.then(Instant::now);
-                        while la >= end_y - 1 {
-                            let la_block_id = section_blocks.get_id(block_x, la, block_z);
-                            if la_block_id == air_id
-                                || la_block_id == water_id
-                                || la_block_id == lava_id
-                            {
-                                next_ceiling_stone_y = la + 1;
-                                break;
-                            }
-                            la -= 1;
-                        }
-                        if let Some(started) = debug_started {
-                            surface_ceiling_scan_us += started.elapsed().as_micros();
-                        }
-                    }
-
-                    stone_depth_above += 1;
-                    let stone_depth_below = y - next_ceiling_stone_y + 1;
-
-                    if block_id == default_block_id {
-                        // Overworld surface rules are top-level:
-                        // bedrock floor, above_preliminary_surface, then the
-                        // low-Y deepslate gradient. Between the preliminary
-                        // surface gate and y=8, Java can only fall through, so
-                        // avoid resolving the expensive biome supplier there.
-                        if y < min_surface_level && y >= 8 {
-                            continue;
-                        }
-                        surface_context.update_y(
-                            stone_depth_above,
-                            stone_depth_below,
-                            water_height,
-                            y,
-                        );
-                        let band_fn = |wx: i32, by: i32, wz: i32| {
-                            get_clay_band(seed, algorithm, *settings, wx, by, wz)
-                        };
-                        let mut biome_resolver = |block_x: i32, block_y: i32, block_z: i32| {
-                            let biome_y = if settings.legacy_random_source {
-                                0
-                            } else {
-                                block_y
-                            };
-                            let biome_key = (block_x, biome_y, block_z);
-                            if let Some(cached) = surface_biome_cache.get(&biome_key).copied() {
-                                return cached;
-                            }
-                            let debug_started = surface_debug.then(Instant::now);
-                            let biome = biome_manager_get_biome_cached(
-                                biome_source_model,
-                                biome_zoom_seed,
-                                BlockPos {
-                                    x: block_x,
-                                    y: biome_y,
-                                    z: block_z,
-                                },
-                                &climate_sampler,
-                                Some(&chunk_noise_biomes),
-                                &mut surface_noise_biome_cache,
-                            )
-                            .unwrap_or("minecraft:plains");
-                            let temperature = surface_biome_temperature(biome);
-                            if let Some(started) = debug_started {
-                                surface_biome_us += started.elapsed().as_micros();
-                            }
-                            surface_biome_cache.insert(biome_key, (biome, temperature));
-                            (biome, temperature)
-                        };
-                        let debug_started = surface_debug.then(Instant::now);
-                        if let Some(new_block) = dyn_surface_rule_apply(
-                            rule,
-                            &mut surface_context,
-                            *settings,
-                            &band_fn,
-                            &mut biome_resolver,
-                        ) {
-                            if let Some(started) = debug_started {
-                                surface_rule_us += started.elapsed().as_micros();
-                            }
-                            if new_block == default_block {
-                                continue;
-                            }
-                            let debug_started = surface_debug.then(Instant::now);
-                            section_blocks.set_name(block_x, y, block_z, new_block);
-                            if let Some(started) = debug_started {
-                                surface_write_us += started.elapsed().as_micros();
-                            }
-                            timings.surface_block_writes += 1;
-                        } else if let Some(started) = debug_started {
-                            surface_rule_us += started.elapsed().as_micros();
-                        }
-                    }
-                }
-            }
-        }
-    }
-    let flush_started = surface_debug.then(Instant::now);
+    let flush_started = std::env::var_os("RUSTCRAFT_WORLDGEN_SURFACE_DEBUG")
+        .is_some()
+        .then(Instant::now);
     add_client_heightmaps_from_generated_sections(chunk, section_blocks);
     flush_generated_section_blocks(chunk, section_blocks);
-    let surface_flush_us = flush_started
+    debug.flush_us = flush_started
         .map(|started| started.elapsed().as_micros())
         .unwrap_or(0);
     timings.surface_column_loop_ms = started.elapsed().as_millis();
     timings.surface_total_ms = total_started.elapsed().as_millis();
+    log_surface_rule_debug(timings, &surface_context, &debug);
+}
+
+fn generated_section_blocks_for_surface(
+    chunk: &crate::storage::chunk::LevelChunk,
+) -> GeneratedSectionBlocks {
+    chunk.sections.iter().fold(
+        GeneratedSectionBlocks::new(chunk.min_section_y, chunk.sections.len() as i32),
+        |mut generated, section| {
+            copy_section_blocks_for_surface(&mut generated, section);
+            generated
+        },
+    )
+}
+
+fn copy_section_blocks_for_surface(
+    generated: &mut GeneratedSectionBlocks,
+    section: &crate::storage::chunk::ChunkSection,
+) {
+    let Ok(container) = PalettedContainer::from_nbt(&section.block_states, SECTION_VOLUME) else {
+        return;
+    };
+    let section_index = i32::from(section.y) - generated.min_section_y;
+    if section_index < 0 || (section_index as usize) >= generated.sections.len() {
+        return;
+    }
+    for index in 0..SECTION_VOLUME {
+        let Some(name) = container
+            .get_entry(index)
+            .and_then(block_name_from_tag_fast)
+        else {
+            continue;
+        };
+        if name == "minecraft:air" {
+            continue;
+        }
+        let id = generated.id_for(name);
+        let section_cache = &mut generated.sections[section_index as usize];
+        section_cache.ids[index] = id;
+        section_cache.non_air_blocks += 1;
+    }
+}
+
+fn surface_random_algorithm(settings: &NoiseGeneratorSettings) -> RandomAlgorithm {
+    if settings.legacy_random_source {
+        RandomAlgorithm::Legacy
+    } else {
+        RandomAlgorithm::Xoroshiro
+    }
+}
+
+fn surface_preliminary_levels(
+    input: SurfaceBuildInput<'_>,
+    chunk_min_x: i32,
+    chunk_min_z: i32,
+) -> SurfacePreliminaryLevels {
+    let prelim_fn = input.noise_router.preliminary_surface_level;
+    let prelim_q = |bx: i32, bz: i32| {
+        let qx = (bx >> 2) << 2; // QuartPos round-down
+        let qz = (bz >> 2) << 2;
+        prelim_fn
+            .compute_with_noise(input.seed, *input.settings, qx, 0, qz)
+            .floor() as i32
+    };
+    SurfacePreliminaryLevels {
+        north_west: prelim_q(chunk_min_x, chunk_min_z),
+        north_east: prelim_q(chunk_min_x + 16, chunk_min_z),
+        south_west: prelim_q(chunk_min_x, chunk_min_z + 16),
+        south_east: prelim_q(chunk_min_x + 16, chunk_min_z + 16),
+    }
+}
+
+fn log_surface_rule_debug(
+    timings: &LiveTerrainTimings,
+    surface_context: &SurfaceRulesContext,
+    debug: &SurfaceDebugCounters,
+) {
     if let Some(profile) = &surface_context.profile {
         let profile = *profile.borrow();
         eprintln!(
@@ -518,15 +394,15 @@ pub(super) fn build_surface_for_chunk_timed_with_sections(
             timings.surface_columns,
             timings.surface_block_samples,
             timings.surface_block_writes,
-            surface_noise_sample_us,
-            surface_rng_us,
-            surface_height_read_us,
-            surface_biome_us,
-            surface_block_read_us,
-            surface_ceiling_scan_us,
-            surface_rule_us,
-            surface_write_us,
-            surface_flush_us,
+            debug.noise_sample_us,
+            debug.rng_us,
+            debug.height_read_us,
+            debug.biome_us,
+            debug.block_read_us,
+            debug.ceiling_scan_us,
+            debug.rule_us,
+            debug.write_us,
+            debug.flush_us,
             profile.rule_visits,
             profile.sequence_rule_visits,
             profile.condition_rule_visits,
@@ -559,6 +435,360 @@ pub(super) fn build_surface_for_chunk_timed_with_sections(
             profile.above_preliminary_surface,
         );
         print_kind("temperature", profile.temperature);
+    }
+}
+
+impl<'a, 'b> SurfaceBuildLoop<'a, 'b> {
+    fn new(
+        chunk: &'a crate::storage::chunk::LevelChunk,
+        section_blocks: &'a mut GeneratedSectionBlocks,
+        input: SurfaceBuildInput<'b>,
+        timings: &'a mut LiveTerrainTimings,
+    ) -> Self {
+        let algorithm = surface_random_algorithm(input.settings);
+        let heights = WorldGenerationHeightContext {
+            min_y: input.settings.noise.min_y,
+            height: input.settings.noise.height,
+        };
+        let started = Instant::now();
+        let surface_noise =
+            random_state_normal_noise_snapshot(input.seed, *input.settings, "minecraft:surface");
+        let surface_secondary_noise = random_state_normal_noise_snapshot(
+            input.seed,
+            *input.settings,
+            "minecraft:surface_secondary",
+        );
+        timings.surface_noise_setup_ms = started.elapsed().as_millis();
+
+        let chunk_min_x = chunk.pos.x * 16;
+        let chunk_min_z = chunk.pos.z * 16;
+        let started = Instant::now();
+        let prelim = surface_preliminary_levels(input, chunk_min_x, chunk_min_z);
+        timings.surface_prelim_ms = started.elapsed().as_millis();
+
+        let default_block_id = section_blocks.id_for(input.settings.default_block);
+        let air_id = section_blocks.id_for("minecraft:air");
+        let water_id = section_blocks.id_for("minecraft:water");
+        let lava_id = section_blocks.id_for("minecraft:lava");
+        Self {
+            chunk,
+            section_blocks,
+            input,
+            algorithm,
+            default_block: input.settings.default_block,
+            surface_noise,
+            surface_secondary_noise,
+            chunk_min_x,
+            chunk_min_z,
+            prelim,
+            base_rng: random_state_seed_factories(input.seed, algorithm).base,
+            climate_sampler: ClimateSampler::from_noise_router(
+                &input.noise_router,
+                input.seed,
+                *input.settings,
+            ),
+            biome_zoom_seed: biome_manager_obfuscate_seed(input.seed),
+            surface_context: SurfaceRulesContext::new(input.seed, algorithm, heights),
+            chunk_noise_biomes: ChunkNoiseBiomeCache::from_chunk(chunk),
+            surface_biome_cache: HashMap::new(),
+            surface_noise_biome_cache: HashMap::new(),
+            default_block_id,
+            air_id,
+            water_id,
+            lava_id,
+            debug_enabled: std::env::var_os("RUSTCRAFT_WORLDGEN_SURFACE_DEBUG").is_some(),
+            debug: SurfaceDebugCounters::default(),
+            timings,
+        }
+    }
+
+    fn run_columns(&mut self) {
+        for local_z in 0..16_i32 {
+            for local_x in 0..16_i32 {
+                self.build_column(local_x, local_z);
+            }
+        }
+    }
+
+    fn finish(self) -> (SurfaceRulesContext, SurfaceDebugCounters) {
+        (self.surface_context, self.debug)
+    }
+
+    fn build_column(&mut self, local_x: i32, local_z: i32) {
+        self.timings.surface_columns += 1;
+        let mut column = self.prepare_column(local_x, local_z);
+        let steep = self.is_steep_column(column.local_x, column.local_z);
+        self.surface_context.update_xz(
+            column.block_x,
+            column.block_z,
+            column.surface_depth,
+            column.surface_secondary,
+            steep,
+            column.surface_depth <= 0,
+            column.min_surface_level,
+        );
+        for y in (column.end_y..=column.start_height).rev() {
+            self.process_column_y(&mut column, y);
+        }
+    }
+
+    fn prepare_column(&mut self, local_x: i32, local_z: i32) -> SurfaceColumnState {
+        let block_x = self.chunk_min_x + local_x;
+        let block_z = self.chunk_min_z + local_z;
+        let local_x_usize = local_x as usize;
+        let local_z_usize = local_z as usize;
+        let surface_depth = self.surface_depth(block_x, block_z);
+        let surface_secondary = self.surface_secondary(block_x, block_z);
+        let min_surface_level = self.min_surface_level(local_x, local_z, surface_depth);
+        SurfaceColumnState {
+            block_x,
+            block_z,
+            local_x: local_x_usize,
+            local_z: local_z_usize,
+            surface_depth,
+            surface_secondary,
+            min_surface_level,
+            stone_depth_above: 0,
+            water_height: i32::MIN,
+            next_ceiling_stone_y: i32::MAX,
+            end_y: self.input.settings.noise.min_y,
+            start_height: read_world_surface_wg(self.chunk, local_x_usize, local_z_usize) + 1,
+        }
+    }
+
+    fn surface_depth(&mut self, block_x: i32, block_z: i32) -> i32 {
+        let debug_started = self.debug_enabled.then(Instant::now);
+        let surface_noise = self
+            .surface_noise
+            .as_ref()
+            .map(|snap| normal_noise_sample(snap, f64::from(block_x), 0.0, f64::from(block_z)))
+            .unwrap_or(0.0);
+        self.add_debug_time(debug_started, |debug, elapsed| {
+            debug.noise_sample_us += elapsed;
+        });
+
+        let debug_started = self.debug_enabled.then(Instant::now);
+        let mut at_rng = self.base_rng.at(block_x, 0, block_z);
+        let jitter = random_next_f64(&mut at_rng) * 0.25;
+        self.add_debug_time(debug_started, |debug, elapsed| {
+            debug.rng_us += elapsed;
+        });
+        (surface_noise * 2.75 + 3.0 + jitter) as i32
+    }
+
+    fn surface_secondary(&mut self, block_x: i32, block_z: i32) -> f64 {
+        let debug_started = self.debug_enabled.then(Instant::now);
+        let surface_secondary = self
+            .surface_secondary_noise
+            .as_ref()
+            .map(|snap| normal_noise_sample(snap, f64::from(block_x), 0.0, f64::from(block_z)))
+            .unwrap_or(0.0);
+        self.add_debug_time(debug_started, |debug, elapsed| {
+            debug.noise_sample_us += elapsed;
+        });
+        surface_secondary
+    }
+
+    fn is_steep_column(&mut self, local_x: usize, local_z: usize) -> bool {
+        let debug_started = self.debug_enabled.then(Instant::now);
+        let h_n = read_world_surface_wg(self.chunk, local_x, local_z.saturating_sub(1));
+        let h_s = read_world_surface_wg(self.chunk, local_x, (local_z + 1).min(15));
+        let h_w = read_world_surface_wg(self.chunk, local_x.saturating_sub(1), local_z);
+        let h_e = read_world_surface_wg(self.chunk, (local_x + 1).min(15), local_z);
+        self.add_debug_time(debug_started, |debug, elapsed| {
+            debug.height_read_us += elapsed;
+        });
+        h_s >= h_n + 4 || h_w >= h_e + 4
+    }
+
+    fn min_surface_level(&self, local_x: i32, local_z: i32, surface_depth: i32) -> i32 {
+        let tx = f64::from(local_x) / 16.0;
+        let tz = f64::from(local_z) / 16.0;
+        let prelim = lerp(
+            tz,
+            lerp(
+                tx,
+                f64::from(self.prelim.north_west),
+                f64::from(self.prelim.north_east),
+            ),
+            lerp(
+                tx,
+                f64::from(self.prelim.south_west),
+                f64::from(self.prelim.south_east),
+            ),
+        )
+        .floor() as i32;
+        prelim + surface_depth - 8
+    }
+
+    fn process_column_y(&mut self, column: &mut SurfaceColumnState, y: i32) {
+        self.timings.surface_block_samples += 1;
+        let block_id = self.block_id_with_debug(column.block_x, y, column.block_z);
+        if block_id == self.air_id {
+            column.stone_depth_above = 0;
+            column.water_height = i32::MIN;
+        } else if block_id == self.water_id || block_id == self.lava_id {
+            if column.water_height == i32::MIN {
+                column.water_height = y + 1;
+            }
+        } else {
+            self.process_solid_block(column, y, block_id);
+        }
+    }
+
+    fn block_id_with_debug(&mut self, block_x: i32, y: i32, block_z: i32) -> u16 {
+        let debug_started = self.debug_enabled.then(Instant::now);
+        let block_id = self.section_blocks.get_id(block_x, y, block_z);
+        self.add_debug_time(debug_started, |debug, elapsed| {
+            debug.block_read_us += elapsed;
+        });
+        block_id
+    }
+
+    fn process_solid_block(&mut self, column: &mut SurfaceColumnState, y: i32, block_id: u16) {
+        self.refresh_next_ceiling_stone_y(column, y);
+        column.stone_depth_above += 1;
+        let stone_depth_below = y - column.next_ceiling_stone_y + 1;
+        if block_id == self.default_block_id {
+            self.apply_default_block_surface_rule(column, y, stone_depth_below);
+        }
+    }
+
+    fn refresh_next_ceiling_stone_y(&mut self, column: &mut SurfaceColumnState, y: i32) {
+        if column.next_ceiling_stone_y < y {
+            return;
+        }
+        const WAY_BELOW_MIN_Y: i32 = i32::MIN / 2;
+        column.next_ceiling_stone_y = WAY_BELOW_MIN_Y;
+        let debug_started = self.debug_enabled.then(Instant::now);
+        let mut la = y - 1;
+        while la >= column.end_y - 1 {
+            let la_block_id = self
+                .section_blocks
+                .get_id(column.block_x, la, column.block_z);
+            if la_block_id == self.air_id
+                || la_block_id == self.water_id
+                || la_block_id == self.lava_id
+            {
+                column.next_ceiling_stone_y = la + 1;
+                break;
+            }
+            la -= 1;
+        }
+        self.add_debug_time(debug_started, |debug, elapsed| {
+            debug.ceiling_scan_us += elapsed;
+        });
+    }
+
+    fn apply_default_block_surface_rule(
+        &mut self,
+        column: &mut SurfaceColumnState,
+        y: i32,
+        stone_depth_below: i32,
+    ) {
+        if y < column.min_surface_level && y >= 8 {
+            return;
+        }
+        self.surface_context.update_y(
+            column.stone_depth_above,
+            stone_depth_below,
+            column.water_height,
+            y,
+        );
+        let band_fn = |wx: i32, by: i32, wz: i32| {
+            get_clay_band(
+                self.input.seed,
+                self.algorithm,
+                *self.input.settings,
+                wx,
+                by,
+                wz,
+            )
+        };
+        let mut resolver = SurfaceBiomeResolver {
+            input: self.input,
+            biome_zoom_seed: self.biome_zoom_seed,
+            climate_sampler: &self.climate_sampler,
+            chunk_noise_biomes: &self.chunk_noise_biomes,
+            surface_biome_cache: &mut self.surface_biome_cache,
+            surface_noise_biome_cache: &mut self.surface_noise_biome_cache,
+            debug_enabled: self.debug_enabled,
+            debug: &mut self.debug,
+        };
+        let mut biome_resolver =
+            |block_x: i32, block_y: i32, block_z: i32| resolver.resolve(block_x, block_y, block_z);
+        let debug_started = self.debug_enabled.then(Instant::now);
+        let new_block = dyn_surface_rule_apply(
+            self.input.rule,
+            &mut self.surface_context,
+            *self.input.settings,
+            &band_fn,
+            &mut biome_resolver,
+        );
+        self.add_debug_time(debug_started, |debug, elapsed| {
+            debug.rule_us += elapsed;
+        });
+        if let Some(new_block) = new_block {
+            self.write_surface_block(column, y, new_block);
+        }
+    }
+
+    fn write_surface_block(&mut self, column: &SurfaceColumnState, y: i32, new_block: &str) {
+        if new_block == self.default_block {
+            return;
+        }
+        let debug_started = self.debug_enabled.then(Instant::now);
+        self.section_blocks
+            .set_name(column.block_x, y, column.block_z, new_block);
+        self.add_debug_time(debug_started, |debug, elapsed| {
+            debug.write_us += elapsed;
+        });
+        self.timings.surface_block_writes += 1;
+    }
+
+    fn add_debug_time(
+        &mut self,
+        started: Option<Instant>,
+        add: impl FnOnce(&mut SurfaceDebugCounters, u128),
+    ) {
+        if let Some(started) = started {
+            add(&mut self.debug, started.elapsed().as_micros());
+        }
+    }
+}
+
+impl SurfaceBiomeResolver<'_, '_> {
+    fn resolve(&mut self, block_x: i32, block_y: i32, block_z: i32) -> (&'static str, f32) {
+        let biome_y = if self.input.settings.legacy_random_source {
+            0
+        } else {
+            block_y
+        };
+        let biome_key = (block_x, biome_y, block_z);
+        if let Some(cached) = self.surface_biome_cache.get(&biome_key).copied() {
+            return cached;
+        }
+        let debug_started = self.debug_enabled.then(Instant::now);
+        let biome = biome_manager_get_biome_cached(
+            self.input.biome_source_model,
+            self.biome_zoom_seed,
+            BlockPos {
+                x: block_x,
+                y: biome_y,
+                z: block_z,
+            },
+            self.climate_sampler,
+            Some(self.chunk_noise_biomes),
+            self.surface_noise_biome_cache,
+        )
+        .unwrap_or("minecraft:plains");
+        let temperature = surface_biome_temperature(biome);
+        if let Some(started) = debug_started {
+            self.debug.biome_us += started.elapsed().as_micros();
+        }
+        self.surface_biome_cache
+            .insert(biome_key, (biome, temperature));
+        (biome, temperature)
     }
 }
 
@@ -628,11 +858,13 @@ pub(super) fn fill_noise_and_build_surface_timed_with_context(
         build_surface_for_chunk_timed_with_sections(
             &mut chunk,
             Some(&mut section_blocks),
-            surface_rule,
-            biome_source_model,
-            noise_router,
-            settings,
-            seed,
+            SurfaceBuildInput {
+                rule: surface_rule,
+                biome_source_model,
+                noise_router,
+                settings,
+                seed,
+            },
             &mut timings,
         );
         chunk.status = "minecraft:surface".to_string();
