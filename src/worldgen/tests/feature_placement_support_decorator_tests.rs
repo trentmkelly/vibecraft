@@ -1,6 +1,24 @@
 use super::super::*;
 
 pub(super) fn assert_decorator_spring_and_monster_room_support() {
+    assert_fallen_tree_support();
+    assert_tree_decorator_validation();
+    assert_lowest_trunk_or_root_positions();
+    assert_trunk_vine_decorator_support();
+    assert_leaf_vine_decorator_support();
+    assert_cocoa_decorator_support();
+    assert_beehive_and_creaking_heart_decorators();
+    assert_pale_moss_decorator_support();
+    assert_place_on_ground_decorator_validation();
+    assert_place_on_ground_decorator_placement();
+    assert_alter_ground_decorator_support();
+    assert_attached_to_logs_decorator_support();
+    assert_attached_to_leaves_decorator_validation();
+    assert_attached_to_leaves_decorator_success();
+    assert_attached_to_leaves_decorator_empty_when_probability_roll_fails();
+}
+
+fn assert_fallen_tree_support() {
     let fallen_config = super::super::FallenTreeConfigurationModel {
         trunk_provider: BlockStateProviderModel::Simple("minecraft:oak_log"),
         min_log_length: 4,
@@ -53,6 +71,9 @@ pub(super) fn assert_decorator_spring_and_monster_room_support() {
         state: "minecraft:oak_log[axis=x]",
         mark_above_for_post_processing: true,
     }));
+}
+
+fn assert_tree_decorator_validation() {
     assert_eq!(
         super::super::validate_tree_decorator(TreeDecoratorModel::Cocoa { probability: 0.25 }),
         Ok(TreeDecoratorModel::Cocoa { probability: 0.25 })
@@ -114,6 +135,9 @@ pub(super) fn assert_decorator_spring_and_monster_room_support() {
     );
     assert!(super::super::tree_decorator_should_place(0.25, 0.249));
     assert!(!super::super::tree_decorator_should_place(0.25, 0.25));
+}
+
+fn assert_lowest_trunk_or_root_positions() {
     assert_eq!(
         super::super::tree_lowest_trunk_or_root_positions(
             &[BlockPos { x: 0, y: 3, z: 0 }, BlockPos { x: 0, y: 1, z: 0 },],
@@ -141,6 +165,9 @@ pub(super) fn assert_decorator_spring_and_monster_room_support() {
         ),
         vec![BlockPos { x: 0, y: 1, z: 0 }, BlockPos { x: 1, y: 1, z: 0 },]
     );
+}
+
+fn assert_trunk_vine_decorator_support() {
     assert_eq!(
         super::super::trunk_vine_decorator_placement(
             &[
@@ -196,6 +223,9 @@ pub(super) fn assert_decorator_spring_and_monster_room_support() {
             },
         ]
     );
+}
+
+fn assert_leaf_vine_decorator_support() {
     assert_eq!(
         super::super::leave_vine_decorator_placement(
             &[
@@ -292,6 +322,9 @@ pub(super) fn assert_decorator_spring_and_monster_room_support() {
             },
         ]
     );
+}
+
+fn assert_cocoa_decorator_support() {
     assert_eq!(
         super::super::cocoa_decorator_placement(
             &[
@@ -360,6 +393,9 @@ pub(super) fn assert_decorator_spring_and_monster_room_support() {
         &[0; 4],
     )
     .is_empty());
+}
+
+fn assert_beehive_and_creaking_heart_decorators() {
     assert_eq!(
         super::super::beehive_decorator_placement(super::super::BeehiveDecoratorInput {
             logs: &[
@@ -438,6 +474,9 @@ pub(super) fn assert_decorator_spring_and_monster_room_support() {
         &[(BlockPos { x: 5, y: 64, z: 5 }, [true; 6])],
     )
     .is_none());
+}
+
+fn assert_pale_moss_decorator_support() {
     assert_eq!(
         super::super::pale_moss_decorator_placement(super::super::PaleMossDecoratorInput {
             logs: &[
@@ -507,6 +546,9 @@ pub(super) fn assert_decorator_spring_and_monster_room_support() {
         })
         .is_empty()
     );
+}
+
+fn assert_place_on_ground_decorator_validation() {
     assert_eq!(
         super::super::validate_place_on_ground_decorator_fields(1, 0, 0),
         Ok(())
@@ -519,6 +561,9 @@ pub(super) fn assert_decorator_spring_and_monster_room_support() {
         super::super::validate_place_on_ground_decorator_fields(1, -1, 0).unwrap_err(),
         "place-on-ground radius and height must be non-negative".to_string()
     );
+}
+
+fn assert_place_on_ground_decorator_placement() {
     assert_eq!(
         super::super::place_on_ground_decorator_placement(
             &[
@@ -612,6 +657,9 @@ pub(super) fn assert_decorator_spring_and_monster_room_support() {
     assert!(super::super::tree_decorator_solid_render(
         "minecraft:grass_block"
     ));
+}
+
+fn assert_alter_ground_decorator_support() {
     let alter_ground = super::super::alter_ground_decorator_placement(
         &[
             BlockPos { x: 0, y: 64, z: 0 },
@@ -698,6 +746,9 @@ pub(super) fn assert_decorator_spring_and_monster_room_support() {
         })
     );
     assert!(super::super::alter_ground_decorator_placement(&[], &[], &[]).is_empty());
+}
+
+fn assert_attached_to_logs_decorator_support() {
     assert_eq!(
         super::super::attached_to_logs_decorator_placement(
             &[
@@ -768,6 +819,9 @@ pub(super) fn assert_decorator_spring_and_monster_room_support() {
             },
         ]
     );
+}
+
+fn assert_attached_to_leaves_decorator_validation() {
     assert_eq!(
         super::super::validate_attached_to_leaves_decorator_fields(16, 0, 1, 1),
         Ok(())
@@ -784,6 +838,9 @@ pub(super) fn assert_decorator_spring_and_monster_room_support() {
         super::super::validate_attached_to_leaves_decorator_fields(0, 0, 1, 0).unwrap_err(),
         "attached-to-leaves directions list must be non-empty".to_string()
     );
+}
+
+fn assert_attached_to_leaves_decorator_success() {
     assert_eq!(
         super::super::attached_to_leaves_decorator_placement(
             super::super::AttachedToLeavesDecoratorInput {
@@ -884,6 +941,9 @@ pub(super) fn assert_decorator_spring_and_monster_room_support() {
             },
         ]
     );
+}
+
+fn assert_attached_to_leaves_decorator_empty_when_probability_roll_fails() {
     assert!(super::super::attached_to_leaves_decorator_placement(
         super::super::AttachedToLeavesDecoratorInput {
             leaves: &[BlockPos { x: 0, y: 64, z: 0 }],
