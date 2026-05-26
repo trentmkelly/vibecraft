@@ -71,7 +71,7 @@
 ## Operational Files
 
 - [ ] Implement all operator-facing files: `eula.txt`, `server.properties`, `ops.json`, `whitelist.json`, `banned-players.json`, `banned-ips.json`, `usercache.json` with vanilla-compatible JSON schemas and field names
-- [ ] Implement `session.lock`: written on world open, exclusive lock enforced, released on clean shutdown; startup refuses if lock held by another process
+- [x] Implement `session.lock`: written on world open, exclusive lock enforced, released on clean shutdown; startup refuses if lock held by another process — `SessionLock::acquire` writes the lock marker and acquires an exclusive file lock matching Java `DirectoryLock`; `main::run()` acquires the lock before loading world data; covered by `session_lock` test and verified against Java `LevelStorageAccess` constructor.
 - [ ] Implement `level.dat` + `level.dat_old` rotation: write new `level.dat` atomically (temp file + rename), keep previous as `level.dat_old`
 - [ ] Implement region file compression: supports both `zlib` (type 2) and `lz4` (type 4, if `region-file-compression=lz4`) in chunk headers
 - [ ] Implement entity region files: `<dim>/entities/*.mca` separate from block region files
