@@ -349,6 +349,301 @@ mod tests {
     };
     use crate::registry::Identifier;
 
+    type FieldOrderCheck = (PacketDirection, &'static str, &'static str);
+
+    const SCALAR_FIELD_ORDER_CHECKS: &[FieldOrderCheck] = &[
+        (
+            PacketDirection::Serverbound,
+            "change_difficulty",
+            "difficulty:difficulty_enum",
+        ),
+        (
+            PacketDirection::Serverbound,
+            "chunk_batch_received",
+            "desired_chunks_per_tick:f32",
+        ),
+        (
+            PacketDirection::Serverbound,
+            "client_command",
+            "action:enum",
+        ),
+        (
+            PacketDirection::Serverbound,
+            "client_tick_end",
+            "empty_payload",
+        ),
+        (
+            PacketDirection::Serverbound,
+            "lock_difficulty",
+            "locked:bool",
+        ),
+        (
+            PacketDirection::Serverbound,
+            "paddle_boat",
+            "left:bool, right:bool",
+        ),
+        (
+            PacketDirection::Serverbound,
+            "player_input",
+            "input:Input.STREAM_CODEC",
+        ),
+        (
+            PacketDirection::Serverbound,
+            "player_loaded",
+            "empty_payload",
+        ),
+        (
+            PacketDirection::Serverbound,
+            "set_carried_item",
+            "slot:i16_be",
+        ),
+        (PacketDirection::Serverbound, "swing", "hand:enum"),
+        (
+            PacketDirection::Clientbound,
+            "change_difficulty",
+            "difficulty:difficulty_enum, locked:bool",
+        ),
+        (
+            PacketDirection::Clientbound,
+            "set_chunk_cache_center",
+            "x:var_int, z:var_int",
+        ),
+        (
+            PacketDirection::Clientbound,
+            "set_chunk_cache_radius",
+            "radius:var_int",
+        ),
+        (
+            PacketDirection::Clientbound,
+            "set_default_spawn_position",
+            "respawn_data:LevelData.RespawnData.STREAM_CODEC",
+        ),
+        (
+            PacketDirection::Clientbound,
+            "set_experience",
+            "experience_progress:f32, experience_level:var_int, total_experience:var_int",
+        ),
+        (
+            PacketDirection::Clientbound,
+            "set_health",
+            "health:f32, food:var_int, saturation:f32",
+        ),
+        (
+            PacketDirection::Clientbound,
+            "set_held_slot",
+            "slot:var_int",
+        ),
+        (
+            PacketDirection::Clientbound,
+            "set_simulation_distance",
+            "simulation_distance:var_int",
+        ),
+        (
+            PacketDirection::Clientbound,
+            "set_time",
+            "game_time:i64, clock_updates:map",
+        ),
+        (
+            PacketDirection::Clientbound,
+            "game_event",
+            "event:u8, param:f32",
+        ),
+        (
+            PacketDirection::Clientbound,
+            "ticking_state",
+            "tick_rate:f32, is_frozen:bool",
+        ),
+        (
+            PacketDirection::Clientbound,
+            "ticking_step",
+            "tick_steps:var_int",
+        ),
+    ];
+
+    const COMMON_FIELD_ORDER_CHECKS: &[FieldOrderCheck] = &[
+        (
+            PacketDirection::Serverbound,
+            "client_information",
+            "language:String max 16, view_distance:i8, chat_visibility:enum VarInt, chat_colors:bool, model_customisation:u8, main_hand:enum VarInt, text_filtering_enabled:bool, allows_listing:bool, particle_status:enum VarInt",
+        ),
+        (
+            PacketDirection::Serverbound,
+            "cookie_response",
+            "key:Identifier, payload:Optional<bytes VarInt length max 5120>",
+        ),
+        (
+            PacketDirection::Serverbound,
+            "custom_payload",
+            "payload:CustomPacketPayload (channel Identifier, minecraft:brand string or unknown payload up to 32767 bytes)",
+        ),
+        (PacketDirection::Serverbound, "keep_alive", "id:i64_be"),
+        (PacketDirection::Serverbound, "ping_request", "time:i64_be"),
+        (PacketDirection::Clientbound, "cookie_request", "key:Identifier"),
+        (PacketDirection::Clientbound, "keep_alive", "id:i64_be"),
+        (PacketDirection::Clientbound, "pong_response", "time:i64_be"),
+        (
+            PacketDirection::Clientbound,
+            "store_cookie",
+            "key:Identifier, payload:bytes VarInt length max 5120",
+        ),
+        (
+            PacketDirection::Clientbound,
+            "transfer",
+            "host:String max 32767, port:VarInt",
+        ),
+        (
+            PacketDirection::Clientbound,
+            "custom_report_details",
+            "details:List max 32 of key:String max 128, value:String max 4096",
+        ),
+        (
+            PacketDirection::Clientbound,
+            "server_links",
+            "links:List(label:known bool + known enum VarInt or custom Component, link:String max 32767)",
+        ),
+        (PacketDirection::Clientbound, "clear_dialog", "empty_payload"),
+        (
+            PacketDirection::Clientbound,
+            "show_dialog",
+            "payload:remaining bytes max 1 MiB",
+        ),
+    ];
+
+    const GAME_FIELD_ORDER_CHECKS: &[FieldOrderCheck] = &[
+        (PacketDirection::Serverbound, "attack", "entity_id:VarInt"),
+        (
+            PacketDirection::Serverbound,
+            "block_entity_tag_query",
+            "transaction_id:VarInt, pos:BlockPos",
+        ),
+        (
+            PacketDirection::Serverbound,
+            "bundle_item_selected",
+            "slot_id:VarInt, selected_item_index:VarInt (-1 or >=0)",
+        ),
+        (
+            PacketDirection::Serverbound,
+            "change_game_mode",
+            "mode:GameType enum VarInt",
+        ),
+        (
+            PacketDirection::Serverbound,
+            "container_slot_state_changed",
+            "slot_id:VarInt, container_id:CONTAINER_ID, new_state:bool",
+        ),
+        (
+            PacketDirection::Serverbound,
+            "debug_subscription_request",
+            "subscriptions:Set<DebugSubscription registry holder VarInt>",
+        ),
+        (
+            PacketDirection::Serverbound,
+            "entity_tag_query",
+            "transaction_id:VarInt, entity_id:VarInt",
+        ),
+        (
+            PacketDirection::Serverbound,
+            "place_recipe",
+            "container_id:CONTAINER_ID, recipe:RecipeDisplayId VarInt, use_max_items:bool",
+        ),
+        (
+            PacketDirection::Serverbound,
+            "player_abilities",
+            "flags:u8 bit1 flying",
+        ),
+        (
+            PacketDirection::Serverbound,
+            "seen_advancements",
+            "action:enum VarInt, tab:Identifier only when action OPENED_TAB",
+        ),
+        (
+            PacketDirection::Serverbound,
+            "set_game_rule",
+            "entries:List(game_rule:ResourceKey<GameRule> Identifier, value:String UTF-8)",
+        ),
+        (
+            PacketDirection::Serverbound,
+            "set_jigsaw_block",
+            "pos:BlockPos, name:Identifier, target:Identifier, pool:Identifier, final_state:String, joint:String, selection_priority:VarInt, placement_priority:VarInt",
+        ),
+        (
+            PacketDirection::Serverbound,
+            "set_test_block",
+            "position:BlockPos, mode:TestBlockMode, message:String UTF-8",
+        ),
+        (
+            PacketDirection::Serverbound,
+            "spectate_entity",
+            "entity_id:VarInt",
+        ),
+        (PacketDirection::Serverbound, "teleport_to_entity", "uuid:UUID"),
+        (
+            PacketDirection::Serverbound,
+            "test_instance_block_action",
+            "pos:BlockPos, action:enum VarInt, data:TestInstanceBlockEntity.Data",
+        ),
+        (
+            PacketDirection::Serverbound,
+            "custom_click_action",
+            "id:Identifier, payload:Optional<Tag> length-prefixed max 65536 with NBT accounter 32768",
+        ),
+        (
+            PacketDirection::Clientbound,
+            "block_changed_ack",
+            "sequence:VarInt",
+        ),
+        (
+            PacketDirection::Clientbound,
+            "chunk_batch_start",
+            "empty_payload",
+        ),
+        (
+            PacketDirection::Clientbound,
+            "forget_level_chunk",
+            "pos:ChunkPos i64",
+        ),
+        (
+            PacketDirection::Clientbound,
+            "game_rule_values",
+            "values:Map<GameRule ResourceKey Identifier, String UTF-8>",
+        ),
+        (
+            PacketDirection::Clientbound,
+            "open_book",
+            "hand:InteractionHand enum VarInt",
+        ),
+        (
+            PacketDirection::Clientbound,
+            "open_sign_editor",
+            "pos:BlockPos, is_front_text:bool",
+        ),
+        (
+            PacketDirection::Clientbound,
+            "player_combat_kill",
+            "player_id:VarInt, message:ComponentSerialization.TRUSTED_STREAM_CODEC",
+        ),
+        (
+            PacketDirection::Clientbound,
+            "set_camera",
+            "camera_id:VarInt",
+        ),
+        (
+            PacketDirection::Clientbound,
+            "set_player_inventory",
+            "slot:VarInt, contents:ItemStack.OPTIONAL_STREAM_CODEC",
+        ),
+        (
+            PacketDirection::Clientbound,
+            "tag_query",
+            "transaction_id:VarInt, tag:nullable CompoundTag",
+        ),
+        (
+            PacketDirection::Clientbound,
+            "take_item_entity",
+            "item_id:VarInt, player_id:VarInt, amount:VarInt",
+        ),
+    ];
+
     #[test]
     fn protocol_packet_class_manifest_matches_decompiled_26_1_2_tree() {
         assert_eq!(covered_packet_class_count(), TOTAL_PACKET_CLASSES_26_1_2);
@@ -523,358 +818,37 @@ mod tests {
     #[test]
     fn play_packet_specification_scalar_fields_are_concretely_decoded() {
         let specs = play_packet_specs_26_1_2();
-        let checks: &[(PacketDirection, &str, &str)] = &[
-            (
-                PacketDirection::Serverbound,
-                "change_difficulty",
-                "difficulty:difficulty_enum",
-            ),
-            (
-                PacketDirection::Serverbound,
-                "chunk_batch_received",
-                "desired_chunks_per_tick:f32",
-            ),
-            (
-                PacketDirection::Serverbound,
-                "client_command",
-                "action:enum",
-            ),
-            (
-                PacketDirection::Serverbound,
-                "client_tick_end",
-                "empty_payload",
-            ),
-            (
-                PacketDirection::Serverbound,
-                "lock_difficulty",
-                "locked:bool",
-            ),
-            (
-                PacketDirection::Serverbound,
-                "paddle_boat",
-                "left:bool, right:bool",
-            ),
-            (
-                PacketDirection::Serverbound,
-                "player_input",
-                "input:Input.STREAM_CODEC",
-            ),
-            (
-                PacketDirection::Serverbound,
-                "player_loaded",
-                "empty_payload",
-            ),
-            (
-                PacketDirection::Serverbound,
-                "set_carried_item",
-                "slot:i16_be",
-            ),
-            (PacketDirection::Serverbound, "swing", "hand:enum"),
-            (
-                PacketDirection::Clientbound,
-                "change_difficulty",
-                "difficulty:difficulty_enum, locked:bool",
-            ),
-            (
-                PacketDirection::Clientbound,
-                "set_chunk_cache_center",
-                "x:var_int, z:var_int",
-            ),
-            (
-                PacketDirection::Clientbound,
-                "set_chunk_cache_radius",
-                "radius:var_int",
-            ),
-            (
-                PacketDirection::Clientbound,
-                "set_default_spawn_position",
-                "respawn_data:LevelData.RespawnData.STREAM_CODEC",
-            ),
-            (
-                PacketDirection::Clientbound,
-                "set_experience",
-                "experience_progress:f32, experience_level:var_int, total_experience:var_int",
-            ),
-            (
-                PacketDirection::Clientbound,
-                "set_health",
-                "health:f32, food:var_int, saturation:f32",
-            ),
-            (
-                PacketDirection::Clientbound,
-                "set_held_slot",
-                "slot:var_int",
-            ),
-            (
-                PacketDirection::Clientbound,
-                "set_simulation_distance",
-                "simulation_distance:var_int",
-            ),
-            (
-                PacketDirection::Clientbound,
-                "set_time",
-                "game_time:i64, clock_updates:map",
-            ),
-            (
-                PacketDirection::Clientbound,
-                "game_event",
-                "event:u8, param:f32",
-            ),
-            (
-                PacketDirection::Clientbound,
-                "ticking_state",
-                "tick_rate:f32, is_frozen:bool",
-            ),
-            (
-                PacketDirection::Clientbound,
-                "ticking_step",
-                "tick_steps:var_int",
-            ),
-        ];
-
-        for (direction, wire_name, expected) in checks {
-            let spec = specs
-                .iter()
-                .find(|entry| entry.direction == *direction && entry.wire_name == *wire_name)
-                .unwrap_or_else(|| panic!("missing manifest entry for {direction:?} {wire_name}"));
-            assert_eq!(
-                spec.field_order, *expected,
-                "{direction:?} {wire_name} field-order drift"
-            );
-        }
+        assert_field_order_checks(specs, SCALAR_FIELD_ORDER_CHECKS, false);
     }
 
     #[test]
     fn play_packet_specification_common_packets_have_concrete_field_orders() {
         let specs = play_packet_specs_26_1_2();
-        let checks: &[(PacketDirection, &str, &str)] = &[
-            (
-                PacketDirection::Serverbound,
-                "client_information",
-                "language:String max 16, view_distance:i8, chat_visibility:enum VarInt, chat_colors:bool, model_customisation:u8, main_hand:enum VarInt, text_filtering_enabled:bool, allows_listing:bool, particle_status:enum VarInt",
-            ),
-            (
-                PacketDirection::Serverbound,
-                "cookie_response",
-                "key:Identifier, payload:Optional<bytes VarInt length max 5120>",
-            ),
-            (
-                PacketDirection::Serverbound,
-                "custom_payload",
-                "payload:CustomPacketPayload (channel Identifier, minecraft:brand string or unknown payload up to 32767 bytes)",
-            ),
-            (PacketDirection::Serverbound, "keep_alive", "id:i64_be"),
-            (PacketDirection::Serverbound, "ping_request", "time:i64_be"),
-            (
-                PacketDirection::Clientbound,
-                "cookie_request",
-                "key:Identifier",
-            ),
-            (PacketDirection::Clientbound, "keep_alive", "id:i64_be"),
-            (PacketDirection::Clientbound, "pong_response", "time:i64_be"),
-            (
-                PacketDirection::Clientbound,
-                "store_cookie",
-                "key:Identifier, payload:bytes VarInt length max 5120",
-            ),
-            (
-                PacketDirection::Clientbound,
-                "transfer",
-                "host:String max 32767, port:VarInt",
-            ),
-            (
-                PacketDirection::Clientbound,
-                "custom_report_details",
-                "details:List max 32 of key:String max 128, value:String max 4096",
-            ),
-            (
-                PacketDirection::Clientbound,
-                "server_links",
-                "links:List(label:known bool + known enum VarInt or custom Component, link:String max 32767)",
-            ),
-            (
-                PacketDirection::Clientbound,
-                "clear_dialog",
-                "empty_payload",
-            ),
-            (
-                PacketDirection::Clientbound,
-                "show_dialog",
-                "payload:remaining bytes max 1 MiB",
-            ),
-        ];
-
-        for (direction, wire_name, expected) in checks {
-            let spec = specs
-                .iter()
-                .find(|entry| entry.direction == *direction && entry.wire_name == *wire_name)
-                .unwrap_or_else(|| panic!("missing manifest entry for {direction:?} {wire_name}"));
-            assert_ne!(
-                spec.field_order, "unparsed",
-                "{direction:?} {wire_name} must stay concretely documented"
-            );
-            assert_eq!(
-                spec.field_order, *expected,
-                "{direction:?} {wire_name} field-order drift"
-            );
-        }
+        assert_field_order_checks(specs, COMMON_FIELD_ORDER_CHECKS, true);
     }
 
     #[test]
     fn play_packet_specification_decompiled_game_packets_have_concrete_field_orders() {
         let specs = play_packet_specs_26_1_2();
-        let checks: &[(PacketDirection, &str, &str)] = &[
-            (
-                PacketDirection::Serverbound,
-                "attack",
-                "entity_id:VarInt",
-            ),
-            (
-                PacketDirection::Serverbound,
-                "block_entity_tag_query",
-                "transaction_id:VarInt, pos:BlockPos",
-            ),
-            (
-                PacketDirection::Serverbound,
-                "bundle_item_selected",
-                "slot_id:VarInt, selected_item_index:VarInt (-1 or >=0)",
-            ),
-            (
-                PacketDirection::Serverbound,
-                "change_game_mode",
-                "mode:GameType enum VarInt",
-            ),
-            (
-                PacketDirection::Serverbound,
-                "container_slot_state_changed",
-                "slot_id:VarInt, container_id:CONTAINER_ID, new_state:bool",
-            ),
-            (
-                PacketDirection::Serverbound,
-                "debug_subscription_request",
-                "subscriptions:Set<DebugSubscription registry holder VarInt>",
-            ),
-            (
-                PacketDirection::Serverbound,
-                "entity_tag_query",
-                "transaction_id:VarInt, entity_id:VarInt",
-            ),
-            (
-                PacketDirection::Serverbound,
-                "place_recipe",
-                "container_id:CONTAINER_ID, recipe:RecipeDisplayId VarInt, use_max_items:bool",
-            ),
-            (
-                PacketDirection::Serverbound,
-                "player_abilities",
-                "flags:u8 bit1 flying",
-            ),
-            (
-                PacketDirection::Serverbound,
-                "seen_advancements",
-                "action:enum VarInt, tab:Identifier only when action OPENED_TAB",
-            ),
-            (
-                PacketDirection::Serverbound,
-                "set_game_rule",
-                "entries:List(game_rule:ResourceKey<GameRule> Identifier, value:String UTF-8)",
-            ),
-            (
-                PacketDirection::Serverbound,
-                "set_jigsaw_block",
-                "pos:BlockPos, name:Identifier, target:Identifier, pool:Identifier, final_state:String, joint:String, selection_priority:VarInt, placement_priority:VarInt",
-            ),
-            (
-                PacketDirection::Serverbound,
-                "set_test_block",
-                "position:BlockPos, mode:TestBlockMode, message:String UTF-8",
-            ),
-            (
-                PacketDirection::Serverbound,
-                "spectate_entity",
-                "entity_id:VarInt",
-            ),
-            (
-                PacketDirection::Serverbound,
-                "teleport_to_entity",
-                "uuid:UUID",
-            ),
-            (
-                PacketDirection::Serverbound,
-                "test_instance_block_action",
-                "pos:BlockPos, action:enum VarInt, data:TestInstanceBlockEntity.Data",
-            ),
-            (
-                PacketDirection::Serverbound,
-                "custom_click_action",
-                "id:Identifier, payload:Optional<Tag> length-prefixed max 65536 with NBT accounter 32768",
-            ),
-            (
-                PacketDirection::Clientbound,
-                "block_changed_ack",
-                "sequence:VarInt",
-            ),
-            (
-                PacketDirection::Clientbound,
-                "chunk_batch_start",
-                "empty_payload",
-            ),
-            (
-                PacketDirection::Clientbound,
-                "forget_level_chunk",
-                "pos:ChunkPos i64",
-            ),
-            (
-                PacketDirection::Clientbound,
-                "game_rule_values",
-                "values:Map<GameRule ResourceKey Identifier, String UTF-8>",
-            ),
-            (
-                PacketDirection::Clientbound,
-                "open_book",
-                "hand:InteractionHand enum VarInt",
-            ),
-            (
-                PacketDirection::Clientbound,
-                "open_sign_editor",
-                "pos:BlockPos, is_front_text:bool",
-            ),
-            (
-                PacketDirection::Clientbound,
-                "player_combat_kill",
-                "player_id:VarInt, message:ComponentSerialization.TRUSTED_STREAM_CODEC",
-            ),
-            (
-                PacketDirection::Clientbound,
-                "set_camera",
-                "camera_id:VarInt",
-            ),
-            (
-                PacketDirection::Clientbound,
-                "set_player_inventory",
-                "slot:VarInt, contents:ItemStack.OPTIONAL_STREAM_CODEC",
-            ),
-            (
-                PacketDirection::Clientbound,
-                "tag_query",
-                "transaction_id:VarInt, tag:nullable CompoundTag",
-            ),
-            (
-                PacketDirection::Clientbound,
-                "take_item_entity",
-                "item_id:VarInt, player_id:VarInt, amount:VarInt",
-            ),
-        ];
+        assert_field_order_checks(specs, GAME_FIELD_ORDER_CHECKS, true);
+    }
 
+    fn assert_field_order_checks(
+        specs: &[super::PlayPacketSpec],
+        checks: &[FieldOrderCheck],
+        require_concrete: bool,
+    ) {
         for (direction, wire_name, expected) in checks {
             let spec = specs
                 .iter()
                 .find(|entry| entry.direction == *direction && entry.wire_name == *wire_name)
                 .unwrap_or_else(|| panic!("missing manifest entry for {direction:?} {wire_name}"));
-            assert_ne!(
-                spec.field_order, "unparsed",
-                "{direction:?} {wire_name} must stay concretely documented"
-            );
+            if require_concrete {
+                assert_ne!(
+                    spec.field_order, "unparsed",
+                    "{direction:?} {wire_name} must stay concretely documented"
+                );
+            }
             assert_eq!(
                 spec.field_order, *expected,
                 "{direction:?} {wire_name} field-order drift"
