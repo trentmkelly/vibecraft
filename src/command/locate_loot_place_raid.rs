@@ -478,84 +478,105 @@ pub(super) fn place_command(
         ["place", "structure", structure, x, y, z] => {
             place_structure_command(state, structure, parse_block_pos(x, y, z)?)
         }
-        ["place", "template", template] => place_template_command(
-            state,
-            template,
-            command_source_block_pos(state),
-            "none",
-            "none",
-            1.0,
-            0,
-            false,
-        ),
-        ["place", "template", template, x, y, z] => place_template_command(
-            state,
-            template,
-            parse_block_pos(x, y, z)?,
-            "none",
-            "none",
-            1.0,
-            0,
-            false,
-        ),
-        ["place", "template", template, x, y, z, rotation] => place_template_command(
-            state,
-            template,
-            parse_block_pos(x, y, z)?,
-            rotation,
-            "none",
-            1.0,
-            0,
-            false,
-        ),
-        ["place", "template", template, x, y, z, rotation, mirror] => place_template_command(
-            state,
-            template,
-            parse_block_pos(x, y, z)?,
-            rotation,
-            mirror,
-            1.0,
-            0,
-            false,
-        ),
-        ["place", "template", template, x, y, z, rotation, mirror, integrity] => {
-            place_template_command(
-                state,
-                template,
-                parse_block_pos(x, y, z)?,
-                rotation,
-                mirror,
-                parse_integrity(integrity)?,
-                0,
-                false,
-            )
-        }
-        ["place", "template", template, x, y, z, rotation, mirror, integrity, seed] => {
-            place_template_command(
-                state,
-                template,
-                parse_block_pos(x, y, z)?,
-                rotation,
-                mirror,
-                parse_integrity(integrity)?,
-                parse_i32(seed)?,
-                false,
-            )
-        }
-        ["place", "template", template, x, y, z, rotation, mirror, integrity, seed, "strict"] => {
-            place_template_command(
-                state,
-                template,
-                parse_block_pos(x, y, z)?,
-                rotation,
-                mirror,
-                parse_integrity(integrity)?,
-                parse_i32(seed)?,
-                true,
-            )
+        ["place", "template", template, args @ ..] => {
+            place_template_from_parts(state, template, args)
         }
         _ => Err(CommandError::InvalidSyntax),
     }
+}
+
+fn place_template_from_parts(
+    state: &mut ServerCommandState,
+    template: &str,
+    args: &[&str],
+) -> Result<CommandResult, CommandError> {
+    let options = parse_place_template_options(state, args)?;
+    place_template_command(
+        state,
+        template,
+        options.position,
+        options.rotation,
+        options.mirror,
+        options.integrity,
+        options.seed,
+        options.strict,
+    )
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct PlaceTemplateOptions<'a> {
+    position: BlockPos,
+    rotation: &'a str,
+    mirror: &'a str,
+    integrity: f32,
+    seed: i32,
+    strict: bool,
+}
+
+fn parse_place_template_options<'a>(
+    state: &ServerCommandState,
+    args: &'a [&'a str],
+) -> Result<PlaceTemplateOptions<'a>, CommandError> {
+    let options = match args {
+        [] => PlaceTemplateOptions {
+            position: command_source_block_pos(state),
+            rotation: "none",
+            mirror: "none",
+            integrity: 1.0,
+            seed: 0,
+            strict: false,
+        },
+        [x, y, z] => PlaceTemplateOptions {
+            position: parse_block_pos(x, y, z)?,
+            rotation: "none",
+            mirror: "none",
+            integrity: 1.0,
+            seed: 0,
+            strict: false,
+        },
+        [x, y, z, rotation] => PlaceTemplateOptions {
+            position: parse_block_pos(x, y, z)?,
+            rotation,
+            mirror: "none",
+            integrity: 1.0,
+            seed: 0,
+            strict: false,
+        },
+        [x, y, z, rotation, mirror] => PlaceTemplateOptions {
+            position: parse_block_pos(x, y, z)?,
+            rotation,
+            mirror,
+            integrity: 1.0,
+            seed: 0,
+            strict: false,
+        },
+        [x, y, z, rotation, mirror, integrity] => PlaceTemplateOptions {
+            position: parse_block_pos(x, y, z)?,
+            rotation,
+            mirror,
+            integrity: parse_integrity(integrity)?,
+            seed: 0,
+            strict: false,
+        },
+        [x, y, z, rotation, mirror, integrity, seed] => PlaceTemplateOptions {
+            position: parse_block_pos(x, y, z)?,
+            rotation,
+            mirror,
+            integrity: parse_integrity(integrity)?,
+            seed: parse_i32(seed)?,
+            strict: false,
+        },
+        [x, y, z, rotation, mirror, integrity, seed, "strict"] => PlaceTemplateOptions {
+            position: parse_block_pos(x, y, z)?,
+            rotation,
+            mirror,
+            integrity: parse_integrity(integrity)?,
+            seed: parse_i32(seed)?,
+            strict: true,
+        },
+        _ => return Err(CommandError::InvalidSyntax),
+    };
+    Ok(options)
 }
 
 pub(super) fn place_feature_command(

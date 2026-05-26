@@ -1,5 +1,9 @@
 use super::*;
 
+fn section_block_index(y: usize, z: usize, x: usize) -> usize {
+    y * 256 + z * 16 + x
+}
+
 #[test]
     fn final_client_heightmaps_are_computed_from_blocks() {
         let mut chunk = crate::storage::chunk::LevelChunk::empty(ChunkPos { x: 0, z: 0 });
@@ -8,11 +12,11 @@ use super::*;
             crate::storage::chunk::SECTION_VOLUME,
         );
         block_states.set_entry(
-            1 * 256 + 0 * 16 + 0,
+            section_block_index(1, 0, 0),
             super::super::block_state_tag("minecraft:dirt"),
         );
         block_states.set_entry(
-            2 * 256 + 0 * 16 + 0,
+            section_block_index(2, 0, 0),
             super::super::block_state_tag("minecraft:oak_leaves"),
         );
         chunk.sections.push(crate::storage::chunk::ChunkSection {
@@ -189,7 +193,7 @@ use super::*;
         let mut block_states =
             PalettedContainer::single(super::super::block_state_tag("minecraft:air"), SECTION_VOLUME);
         block_states.set_entry(
-            0 * 256 + 1 * 16 + 1,
+            section_block_index(0, 1, 1),
             super::super::block_state_tag("minecraft:grass_block"),
         );
         chunk.sections.push(ChunkSection {
@@ -337,7 +341,7 @@ use super::*;
         let mut block_states =
             PalettedContainer::single(super::super::block_state_tag("minecraft:stone"), SECTION_VOLUME);
         block_states.set_entry(
-            1 * 256 + 5 * 16 + 15,
+            section_block_index(1, 5, 15),
             super::super::block_state_tag("minecraft:dirt"),
         );
         chunk.sections.push(ChunkSection {
@@ -454,4 +458,3 @@ use super::*;
             Some("minecraft:iron_ore")
         );
     }
-

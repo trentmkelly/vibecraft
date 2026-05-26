@@ -1,5 +1,7 @@
 use super::*;
 
+const RESOURCE_USAGE_LOG_INTERVAL_TICKS: u64 = 100;
+
 /// Loads clock state from `{world_root}/server_clocks.json`.
 /// Returns `None` on missing or malformed file; caller falls back to `ServerClockManager::default()`.
 /// Java: ServerClockManager.TYPE SavedData — key "world_clocks"
@@ -169,6 +171,86 @@ pub fn save_world_item_entities(world_root: &Path, store: &WorldItemEntities) {
     }
 }
 
+struct StatusServerRuntime {
+    address: String,
+    listener: TcpListener,
+    favicon: Option<String>,
+    active_logins: ActiveLoginRegistry,
+    world_root: Arc<PathBuf>,
+    chunk_cache: GeneratedChunkCache,
+    chunk_pipeline: ChunkPipeline,
+    player_access: Arc<Mutex<PlayerAccess>>,
+    clock: Arc<Mutex<ServerClockManager>>,
+    weather: Arc<Mutex<WeatherCycle>>,
+    recipe_manager: Arc<RecipeManagerModel>,
+    world_items: Arc<Mutex<WorldItemEntities>>,
+}
+
+#[derive(Clone, Copy)]
+struct ConnectionSharedContext<'a> {
+    properties: &'a ServerProperties,
+    favicon: Option<&'a str>,
+    active_logins: &'a ActiveLoginRegistry,
+    chunk_cache: &'a GeneratedChunkCache,
+    chunk_pipeline: &'a ChunkPipeline,
+    player_access: &'a Arc<Mutex<PlayerAccess>>,
+    world_root: &'a Path,
+    world_seed: i64,
+    clock: &'a Arc<Mutex<ServerClockManager>>,
+    weather: &'a Arc<Mutex<WeatherCycle>>,
+    recipe_manager: &'a RecipeManagerModel,
+    world_items: &'a Arc<Mutex<WorldItemEntities>>,
+}
+
+struct StatusConnectionContext<'a> {
+    shared: ConnectionSharedContext<'a>,
+    remote_address: &'a str,
+    remote_ip: &'a str,
+}
+
+struct LoginConnectionContext<'a> {
+    shared: ConnectionSharedContext<'a>,
+    remote_address: &'a str,
+    remote_ip: &'a str,
+    login_host_ip: Option<String>,
+    rate_limiter: &'a mut PacketRateLimiter,
+}
+
+struct PlayConnectionContext<'a> {
+    shared: ConnectionSharedContext<'a>,
+    remote_address: &'a str,
+    rate_limiter: &'a mut PacketRateLimiter,
+}
+
+struct JoinedPlaySessionStart {
+    play_state: PlaySessionState,
+    current_chunk_x: i32,
+    current_chunk_z: i32,
+    chunk_batch_radius: i32,
+    loaded_chunks: BTreeSet<(i32, i32)>,
+    chunk_sender: PlayerChunkSender,
+    chunk_pipeline_stats: ChunkPipelineSessionStats,
+    last_keep_alive: Instant,
+    keep_alive_id: i64,
+    last_sent_rain_level: f32,
+    last_sent_thunder_level: f32,
+    last_time_sync: Instant,
+    world_layout: WorldLayout,
+    last_item_tick: Instant,
+    last_player_tick: Instant,
+    play_tick_count: u64,
+    live_fluid_ticks: LiveFluidTicks,
+}
+
+const ITEM_TICK_INTERVAL: Duration = Duration::from_millis(50);
+
+fn lock_status_mutex<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    match mutex.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    }
+}
+
 pub fn run_status_server(
     bind_ip: &str,
     port: u16,
@@ -177,94 +259,123 @@ pub fn run_status_server(
     world_seed: i64,
     console_input: &Receiver<ConsoleInput>,
 ) -> Result<(), String> {
-    let address = format!("{bind_ip}:{port}");
-    let listener = TcpListener::bind(&address)
-        .map_err(|err| format!("Failed to bind status listener on {address}: {err}"))?;
-    listener
-        .set_nonblocking(true)
-        .map_err(|err| format!("Failed to configure status listener on {address}: {err}"))?;
-    let favicon = load_favicon(Path::new("server-icon.png"))
-        .map_err(|err| format!("Failed to load server-icon.png: {err}"))?;
-    let active_logins = ActiveLoginRegistry::default();
-    let world_root = Arc::new(world_root.to_path_buf());
-    let chunk_cache = GeneratedChunkCache::default();
-    // Async chunk generation coordinator (Phase 2/3 of the chunking rework).
-    // Wired through every play-session entry point alongside `chunk_cache`,
-    // but the legacy blocking batch path still calls `cache.get_or_load`
-    // directly. The new per-tick drain in `run_play_loop` is what actually
-    // consumes ready chunks from this pipeline; see CHECKLIST_CHUNKING_CHANGES.md.
-    let chunk_pipeline_workers = thread::available_parallelism()
-        .map(|count| count.get())
-        .unwrap_or(4)
-        .clamp(2, 8);
-    let chunk_pipeline = ChunkPipeline::new(
-        chunk_cache.clone(),
-        (*world_root).clone(),
-        world_seed,
-        chunk_pipeline_workers,
-    );
-    // Periodic chunk save loop. Java mirror: MinecraftServer's autosave
-    // pass invoked from tickServer — block updates mutate the in-memory
-    // chunk + set the unsaved flag; this thread is what actually pushes
-    // the bytes to disk on a coarse interval. We use 30 s (vanilla
-    // default is 5 min / `RustcraftDefault.WORLD_AUTOSAVE_INTERVAL`); a
-    // shorter window keeps the disconnect-vs-save race tight without
-    // making the writes themselves any more expensive.
-    spawn_chunk_flush_thread(
-        chunk_cache.clone(),
-        Arc::clone(&world_root),
-        Duration::from_secs(30),
-        properties.sync_chunk_writes,
-        RegionCompression::from_property_value(&properties.region_file_compression),
-    );
-    let player_access = Arc::new(Mutex::new(
-        PlayerAccess::load_from_dir(Path::new(".")).unwrap_or_else(|err| {
-            eprintln!("status access file load error: {err}");
-            PlayerAccess::default()
-        }),
-    ));
+    let runtime = StatusServerRuntime::new(bind_ip, port, properties, world_root, world_seed)?;
+    runtime.start_tick_thread();
+    println!("Status listener bound to {}", runtime.address);
+    run_status_accept_loop(runtime, properties, world_seed, console_input);
+    Ok(())
+}
 
-    // Load or initialise shared clock/weather/item-entity state.
-    // Java: ServerClockManager.TYPE SavedData (key "world_clocks"), ServerLevel weather data,
-    //       EntityStorage loads entities from per-chunk region files under <world>/entities/.
-    let initial_clock = load_server_clock_state(&world_root).unwrap_or_default();
-    let initial_weather = load_server_weather_state(&world_root)
-        .unwrap_or_else(|| WeatherCycle::new(WeatherData::default()));
-    let clock: Arc<Mutex<ServerClockManager>> = Arc::new(Mutex::new(initial_clock));
-    let weather: Arc<Mutex<WeatherCycle>> = Arc::new(Mutex::new(initial_weather));
-    // World-level item entity store.  Shared across all player sessions and persisted to
-    // item_entities.json so items survive both player disconnects and server restarts.
-    // Java: ServerLevel.entityStorage — entity lists belong to the world, not any connection.
-    let world_items: Arc<Mutex<WorldItemEntities>> =
-        Arc::new(Mutex::new(load_world_item_entities(&world_root)));
+impl StatusServerRuntime {
+    fn new(
+        bind_ip: &str,
+        port: u16,
+        properties: &ServerProperties,
+        world_root: &Path,
+        world_seed: i64,
+    ) -> Result<Self, String> {
+        let address = format!("{bind_ip}:{port}");
+        let listener = TcpListener::bind(&address)
+            .map_err(|err| format!("Failed to bind status listener on {address}: {err}"))?;
+        listener
+            .set_nonblocking(true)
+            .map_err(|err| format!("Failed to configure status listener on {address}: {err}"))?;
+        let favicon = load_favicon(Path::new("server-icon.png"))
+            .map_err(|err| format!("Failed to load server-icon.png: {err}"))?;
+        let active_logins = ActiveLoginRegistry::default();
+        let world_root = Arc::new(world_root.to_path_buf());
+        let chunk_cache = GeneratedChunkCache::default();
+        // Async chunk generation coordinator (Phase 2/3 of the chunking rework).
+        // Wired through every play-session entry point alongside `chunk_cache`,
+        // but the legacy blocking batch path still calls `cache.get_or_load`
+        // directly. The new per-tick drain in `run_play_loop` is what actually
+        // consumes ready chunks from this pipeline; see CHECKLIST_CHUNKING_CHANGES.md.
+        let chunk_pipeline_workers = thread::available_parallelism()
+            .map(|count| count.get())
+            .unwrap_or(4)
+            .clamp(2, 8);
+        let chunk_pipeline = ChunkPipeline::new(
+            chunk_cache.clone(),
+            (*world_root).clone(),
+            world_seed,
+            chunk_pipeline_workers,
+        );
+        // Periodic chunk save loop. Java mirror: MinecraftServer's autosave
+        // pass invoked from tickServer — block updates mutate the in-memory
+        // chunk + set the unsaved flag; this thread is what actually pushes
+        // the bytes to disk on a coarse interval. We use 30 s (vanilla
+        // default is 5 min / `RustcraftDefault.WORLD_AUTOSAVE_INTERVAL`); a
+        // shorter window keeps the disconnect-vs-save race tight without
+        // making the writes themselves any more expensive.
+        spawn_chunk_flush_thread(
+            chunk_cache.clone(),
+            Arc::clone(&world_root),
+            Duration::from_secs(30),
+            properties.sync_chunk_writes,
+            RegionCompression::from_property_value(&properties.region_file_compression),
+        );
+        let player_access = Arc::new(Mutex::new(
+            PlayerAccess::load_from_dir(Path::new(".")).unwrap_or_else(|err| {
+                eprintln!("status access file load error: {err}");
+                PlayerAccess::default()
+            }),
+        ));
 
-    // Load vanilla recipes once at startup and share via Arc.
-    // Java: MinecraftServer.loadDataPacks() → RecipeManager.apply()
-    let recipe_dir =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("vanilla-data/data/minecraft/recipe");
-    let recipe_manager = load_recipe_directory(&recipe_dir).unwrap_or_else(|err| {
-        panic!(
-            "failed to load bundled vanilla recipes from {}: {err}",
-            recipe_dir.display()
-        )
-    });
-    log_info(&format!(
-        "loaded {} bundled vanilla recipes",
-        recipe_manager.recipe_map().values().len()
-    ));
-    let recipe_manager: Arc<RecipeManagerModel> = Arc::new(recipe_manager);
+        // Load or initialise shared clock/weather/item-entity state.
+        // Java: ServerClockManager.TYPE SavedData (key "world_clocks"), ServerLevel weather data,
+        //       EntityStorage loads entities from per-chunk region files under <world>/entities/.
+        let initial_clock = load_server_clock_state(&world_root).unwrap_or_default();
+        let initial_weather = load_server_weather_state(&world_root)
+            .unwrap_or_else(|| WeatherCycle::new(WeatherData::default()));
+        let clock: Arc<Mutex<ServerClockManager>> = Arc::new(Mutex::new(initial_clock));
+        let weather: Arc<Mutex<WeatherCycle>> = Arc::new(Mutex::new(initial_weather));
+        // World-level item entity store.  Shared across all player sessions and persisted to
+        // item_entities.json so items survive both player disconnects and server restarts.
+        // Java: ServerLevel.entityStorage — entity lists belong to the world, not any connection.
+        let world_items: Arc<Mutex<WorldItemEntities>> =
+            Arc::new(Mutex::new(load_world_item_entities(&world_root)));
 
-    // Background tick thread: advances clocks and weather at 20 TPS.
-    // Java: MinecraftServer.tickChildren() — clockManager.tick() + advanceWeatherCycle()
-    {
-        let clock_t = Arc::clone(&clock);
-        let weather_t = Arc::clone(&weather);
-        let world_root_t = Arc::clone(&world_root);
-        let world_items_t = Arc::clone(&world_items);
+        // Load vanilla recipes once at startup and share via Arc.
+        // Java: MinecraftServer.loadDataPacks() → RecipeManager.apply()
+        let recipe_dir =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("vanilla-data/data/minecraft/recipe");
+        let recipe_manager = load_recipe_directory(&recipe_dir).unwrap_or_else(|err| {
+            panic!(
+                "failed to load bundled vanilla recipes from {}: {err}",
+                recipe_dir.display()
+            )
+        });
+        log_info(&format!(
+            "loaded {} bundled vanilla recipes",
+            recipe_manager.recipe_map().values().len()
+        ));
+        let recipe_manager: Arc<RecipeManagerModel> = Arc::new(recipe_manager);
+        Ok(Self {
+            address,
+            listener,
+            favicon,
+            active_logins,
+            world_root,
+            chunk_cache,
+            chunk_pipeline,
+            player_access,
+            clock,
+            weather,
+            recipe_manager,
+            world_items,
+        })
+    }
+
+    fn start_tick_thread(&self) {
+        let clock_t = Arc::clone(&self.clock);
+        let weather_t = Arc::clone(&self.weather);
+        let world_root_t = Arc::clone(&self.world_root);
+        let world_items_t = Arc::clone(&self.world_items);
         thread::spawn(move || {
             let mut scheduled = ScheduledTimeChanges::default();
             let mut next_tick = Instant::now() + SERVER_TICK_DURATION;
             let mut tick_count: u64 = 0;
+            let mut resource_usage = ResourceUsageSampler::new();
             loop {
                 let now = Instant::now();
                 if now < next_tick {
@@ -274,70 +385,166 @@ pub fn run_status_server(
                 tick_count += 1;
 
                 // advance_time=true: no per-world gamerule access yet; always advance.
-                clock_t.lock().unwrap().tick(true, &mut scheduled);
+                lock_status_mutex(&clock_t).tick(true, &mut scheduled);
 
                 // Advance weather. can_have_weather=true for overworld.
-                weather_t
-                    .lock()
-                    .unwrap()
-                    .advance(true, true, DEFAULT_WEATHER_DURATIONS);
+                lock_status_mutex(&weather_t).advance(true, true, DEFAULT_WEATHER_DURATIONS);
+
+                if tick_count.is_multiple_of(RESOURCE_USAGE_LOG_INTERVAL_TICKS) {
+                    resource_usage.log_current_usage(tick_count);
+                }
 
                 // Persist every ~5 minutes.
                 // Java: MinecraftServer.saveEverything() — entities flushed via EntityStorage.
-                if tick_count % PERSISTENCE_INTERVAL_TICKS == 0 {
-                    save_server_clock_state(&world_root_t, &clock_t.lock().unwrap());
-                    save_server_weather_state(&world_root_t, &weather_t.lock().unwrap());
-                    save_world_item_entities(&world_root_t, &world_items_t.lock().unwrap());
+                if tick_count.is_multiple_of(PERSISTENCE_INTERVAL_TICKS) {
+                    save_server_clock_state(&world_root_t, &lock_status_mutex(&clock_t));
+                    save_server_weather_state(&world_root_t, &lock_status_mutex(&weather_t));
+                    save_world_item_entities(&world_root_t, &lock_status_mutex(&world_items_t));
                 }
             }
         });
     }
 
-    println!("Status listener bound to {address}");
+    fn save_shared_state(&self) {
+        save_server_clock_state(&self.world_root, &lock_status_mutex(&self.clock));
+        save_server_weather_state(&self.world_root, &lock_status_mutex(&self.weather));
+        save_world_item_entities(&self.world_root, &lock_status_mutex(&self.world_items));
+    }
+}
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CpuUsageSample {
+    process_jiffies: u64,
+    total_jiffies: u64,
+}
+
+#[derive(Debug)]
+struct ResourceUsageSampler {
+    previous_cpu_sample: Option<CpuUsageSample>,
+    logical_cpus: u64,
+}
+
+impl ResourceUsageSampler {
+    fn new() -> Self {
+        Self {
+            previous_cpu_sample: read_cpu_usage_sample(),
+            logical_cpus: std::thread::available_parallelism()
+                .map(|count| count.get() as u64)
+                .unwrap_or(1),
+        }
+    }
+
+    fn log_current_usage(&mut self, tick_count: u64) {
+        let memory = current_resident_memory_kib()
+            .map(|kib| format!("{} MiB", kib / 1024))
+            .unwrap_or_else(|| "unavailable".to_string());
+        let cpu = self
+            .current_cpu_percent()
+            .map(|percent| format!("{percent:.1}%"))
+            .unwrap_or_else(|| "unavailable".to_string());
+        log_info(&format!(
+            "resource usage at tick {tick_count}: memory={memory}, cpu={cpu}"
+        ));
+    }
+
+    fn current_cpu_percent(&mut self) -> Option<f64> {
+        let current = read_cpu_usage_sample()?;
+        let previous = self.previous_cpu_sample.replace(current)?;
+        let process_delta = current
+            .process_jiffies
+            .checked_sub(previous.process_jiffies)?;
+        let total_delta = current.total_jiffies.checked_sub(previous.total_jiffies)?;
+        if total_delta == 0 {
+            return None;
+        }
+        let cpu_fraction = process_delta as f64 / total_delta as f64;
+        Some(cpu_fraction * self.logical_cpus as f64 * 100.0)
+    }
+}
+
+fn read_cpu_usage_sample() -> Option<CpuUsageSample> {
+    Some(CpuUsageSample {
+        process_jiffies: read_process_cpu_jiffies(&fs::read_to_string("/proc/self/stat").ok()?)?,
+        total_jiffies: read_total_cpu_jiffies(&fs::read_to_string("/proc/stat").ok()?)?,
+    })
+}
+
+fn read_process_cpu_jiffies(stat: &str) -> Option<u64> {
+    let end_of_comm = stat.rfind(") ")?;
+    let fields_after_comm = stat.get(end_of_comm + 2..)?.split_whitespace();
+    let fields = fields_after_comm.collect::<Vec<_>>();
+    let user_time = fields.get(11)?.parse::<u64>().ok()?;
+    let system_time = fields.get(12)?.parse::<u64>().ok()?;
+    user_time.checked_add(system_time)
+}
+
+fn read_total_cpu_jiffies(stat: &str) -> Option<u64> {
+    let cpu_line = stat.lines().find(|line| line.starts_with("cpu "))?;
+    cpu_line
+        .split_whitespace()
+        .skip(1)
+        .map(str::parse::<u64>)
+        .try_fold(0_u64, |total, value| total.checked_add(value.ok()?))
+}
+
+fn current_resident_memory_kib() -> Option<u64> {
+    let status = fs::read_to_string("/proc/self/status").ok()?;
+    parse_resident_memory_kib(&status)
+}
+
+fn parse_resident_memory_kib(status: &str) -> Option<u64> {
+    let line = status.lines().find(|line| line.starts_with("VmRSS:"))?;
+    line.split_whitespace().nth(1)?.parse::<u64>().ok()
+}
+
+fn run_status_accept_loop(
+    runtime: StatusServerRuntime,
+    properties: &ServerProperties,
+    world_seed: i64,
+    console_input: &Receiver<ConsoleInput>,
+) {
     loop {
-        if should_stop(console_input, &player_access) {
+        if should_stop(console_input, &runtime.player_access) {
             println!("Status listener stopping");
-            save_server_clock_state(&world_root, &clock.lock().unwrap());
-            save_server_weather_state(&world_root, &weather.lock().unwrap());
-            save_world_item_entities(&world_root, &world_items.lock().unwrap());
+            runtime.save_shared_state();
             break;
         }
-        match listener.accept() {
+        match runtime.listener.accept() {
             Ok((stream, peer_addr)) => {
                 let properties = properties.clone();
-                let favicon = favicon.clone();
-                let active_logins = active_logins.clone();
-                let chunk_cache = chunk_cache.clone();
-                let chunk_pipeline = chunk_pipeline.clone();
-                let world_root = Arc::clone(&world_root);
-                let player_access = Arc::clone(&player_access);
-                let clock = Arc::clone(&clock);
-                let weather = Arc::clone(&weather);
-                let recipe_manager = Arc::clone(&recipe_manager);
-                let world_items = Arc::clone(&world_items);
+                let favicon = runtime.favicon.clone();
+                let active_logins = runtime.active_logins.clone();
+                let chunk_cache = runtime.chunk_cache.clone();
+                let chunk_pipeline = runtime.chunk_pipeline.clone();
+                let world_root = Arc::clone(&runtime.world_root);
+                let player_access = Arc::clone(&runtime.player_access);
+                let clock = Arc::clone(&runtime.clock);
+                let weather = Arc::clone(&runtime.weather);
+                let recipe_manager = Arc::clone(&runtime.recipe_manager);
+                let world_items = Arc::clone(&runtime.world_items);
                 let remote_ip = peer_addr.ip().to_string();
                 let remote_address = peer_addr.to_string();
-                let remote_for_log =
-                    loggable_remote_address(properties.log_ips, &remote_address);
+                let remote_for_log = loggable_remote_address(properties.log_ips, &remote_address);
                 thread::spawn(move || {
-                    if let Err(err) = handle_status_connection(
-                        stream,
-                        &properties,
-                        favicon.as_deref(),
-                        &active_logins,
-                        &chunk_cache,
-                        &chunk_pipeline,
-                        &player_access,
-                        &world_root,
-                        world_seed,
-                        &remote_address,
-                        &remote_ip,
-                        &clock,
-                        &weather,
-                        &recipe_manager,
-                        &world_items,
-                    ) {
+                    let context = StatusConnectionContext {
+                        shared: ConnectionSharedContext {
+                            properties: &properties,
+                            favicon: favicon.as_deref(),
+                            active_logins: &active_logins,
+                            chunk_cache: &chunk_cache,
+                            chunk_pipeline: &chunk_pipeline,
+                            player_access: &player_access,
+                            world_root: &world_root,
+                            world_seed,
+                            clock: &clock,
+                            weather: &weather,
+                            recipe_manager: &recipe_manager,
+                            world_items: &world_items,
+                        },
+                        remote_address: &remote_address,
+                        remote_ip: &remote_ip,
+                    };
+                    if let Err(err) = handle_status_connection(stream, context) {
                         eprintln!("status connection error from {remote_for_log}: {err}");
                     }
                 });
@@ -348,8 +555,6 @@ pub fn run_status_server(
             Err(err) => eprintln!("status accept error: {err}"),
         }
     }
-
-    Ok(())
 }
 
 pub fn should_stop(
@@ -382,23 +587,17 @@ pub fn should_stop(
     }
 }
 
-pub fn handle_status_connection(
+fn handle_status_connection(
     mut stream: TcpStream,
-    properties: &ServerProperties,
-    favicon: Option<&str>,
-    active_logins: &ActiveLoginRegistry,
-    chunk_cache: &GeneratedChunkCache,
-    chunk_pipeline: &ChunkPipeline,
-    player_access: &Arc<Mutex<PlayerAccess>>,
-    world_root: &Path,
-    world_seed: i64,
-    remote_address: &str,
-    remote_ip: &str,
-    clock: &Arc<Mutex<ServerClockManager>>,
-    weather: &Arc<Mutex<WeatherCycle>>,
-    recipe_manager: &RecipeManagerModel,
-    world_items: &Arc<Mutex<WorldItemEntities>>,
+    context: StatusConnectionContext<'_>,
 ) -> io::Result<()> {
+    let StatusConnectionContext {
+        shared,
+        remote_address,
+        remote_ip,
+    } = context;
+    let properties = shared.properties;
+    let favicon = shared.favicon;
     stream.set_read_timeout(Some(Duration::from_secs(30)))?;
     stream.set_write_timeout(Some(Duration::from_secs(30)))?;
 
@@ -432,21 +631,13 @@ pub fn handle_status_connection(
         }
         return handle_login_connection(
             &mut stream,
-            properties,
-            active_logins,
-            chunk_cache,
-            chunk_pipeline,
-            player_access,
-            world_root,
-            world_seed,
-            remote_address,
-            remote_ip,
-            login_host_ip(&server_address),
-            &mut rate_limiter,
-            clock,
-            weather,
-            recipe_manager,
-            world_items,
+            LoginConnectionContext {
+                shared,
+                remote_address,
+                remote_ip,
+                login_host_ip: login_host_ip(&server_address),
+                rate_limiter: &mut rate_limiter,
+            },
         );
     }
     if next_state != 1 {
@@ -574,59 +765,85 @@ fn wait_for_configuration_packet_or_rate_disconnect(
     }
 }
 
-pub fn handle_login_connection(
+fn write_vanilla_feature_flags_packet<W: Write>(payload: &mut W) -> io::Result<()> {
+    let vanilla = Identifier::parse("minecraft:vanilla").map_err(|err| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("invalid built-in feature flag identifier: {err}"),
+        )
+    })?;
+    write_var_i32(payload, 1)?;
+    write_identifier(payload, &vanilla)
+}
+
+struct CompletedLogin {
+    finished: ClientboundLoginFinishedPacket,
+    compression: CompressionState,
+}
+
+enum LoginHandshakeOutcome {
+    Complete(CompletedLogin),
+    Closed,
+}
+
+fn complete_login_handshake(
     stream: &mut TcpStream,
-    properties: &ServerProperties,
-    active_logins: &ActiveLoginRegistry,
-    chunk_cache: &GeneratedChunkCache,
-    chunk_pipeline: &ChunkPipeline,
-    player_access: &Arc<Mutex<PlayerAccess>>,
-    world_root: &Path,
-    world_seed: i64,
-    remote_address: &str,
-    remote_ip: &str,
-    login_host_ip: Option<String>,
-    rate_limiter: &mut PacketRateLimiter,
-    clock: &Arc<Mutex<ServerClockManager>>,
-    weather: &Arc<Mutex<WeatherCycle>>,
-    recipe_manager: &RecipeManagerModel,
-    world_items: &Arc<Mutex<WorldItemEntities>>,
-) -> io::Result<()> {
+    context: &mut LoginConnectionContext<'_>,
+) -> io::Result<LoginHandshakeOutcome> {
     let mut login = LoginSession::default();
-    let hello = match read_expected_login_hello_packet(stream, rate_limiter) {
+    let hello = match read_expected_login_hello_packet(stream, context.rate_limiter) {
         Ok(hello) => hello,
         Err(err) if is_rate_limit_disconnect_error(&err) => {
             return write_login_rate_limit_disconnect(
                 stream,
                 CompressionState::disabled(),
                 &err.to_string(),
-            );
+            )
+            .map(|()| LoginHandshakeOutcome::Closed);
         }
         Err(err) => return Err(err),
     };
     let finished = login.accept_offline_hello(hello);
     if let Some(reason) = login_access_disconnect_reason(
-        properties,
-        player_access,
+        context.shared.properties,
+        context.shared.player_access,
         &finished.profile,
-        remote_ip,
-        login_host_ip.as_deref(),
+        context.remote_ip,
+        context.login_host_ip.as_deref(),
     )? {
-        return write_framed_packet(stream, CLIENTBOUND_LOGIN_DISCONNECT_PACKET_ID, |payload| {
+        write_framed_packet(stream, CLIENTBOUND_LOGIN_DISCONNECT_PACKET_ID, |payload| {
             ClientboundLoginDisconnectPacket {
                 reason: crate::network::codec::ComponentJson(format!(
                     "{{\"translate\":\"{reason}\"}}"
                 )),
             }
             .write(payload)
-        });
+        })?;
+        return Ok(LoginHandshakeOutcome::Closed);
     }
-    let (_active_login, replaced_stream) =
-        active_logins.register_replacing(&finished.profile.uuid, stream)?;
+    let (_active_login, replaced_stream) = context
+        .shared
+        .active_logins
+        .register_replacing(&finished.profile.uuid, stream)?;
     if let Some(replaced_stream) = replaced_stream {
         let _ = replaced_stream.shutdown(Shutdown::Both);
     }
-    cache_login_profile(player_access, &finished.profile)?;
+    cache_login_profile(context.shared.player_access, &finished.profile)?;
+    let compression =
+        send_login_success_packets(stream, context.shared.properties, &mut login, &finished)?;
+    wait_for_login_acknowledgement(stream, compression, context.rate_limiter, &mut login)?;
+    Ok(LoginHandshakeOutcome::Complete(CompletedLogin {
+        finished,
+        compression,
+    }))
+}
+
+fn send_login_success_packets(
+    stream: &mut TcpStream,
+    properties: &ServerProperties,
+    login: &mut LoginSession,
+    finished: &ClientboundLoginFinishedPacket,
+) -> io::Result<CompressionState> {
     let mut compression = CompressionState::disabled();
     if let Some(threshold) = login_compression_threshold(properties) {
         write_framed_packet(stream, CLIENTBOUND_LOGIN_COMPRESSION_PACKET_ID, |payload| {
@@ -644,7 +861,15 @@ pub fn handle_login_connection(
         CLIENTBOUND_LOGIN_FINISHED_PACKET_ID,
         |payload| finished.write(payload),
     )?;
+    Ok(compression)
+}
 
+fn wait_for_login_acknowledgement(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    rate_limiter: &mut PacketRateLimiter,
+    login: &mut LoginSession,
+) -> io::Result<()> {
     let packet = match read_packet_with_rate_limit(stream, compression, rate_limiter) {
         Ok(packet) => packet,
         Err(err) if is_rate_limit_disconnect_error(&err) => {
@@ -661,7 +886,66 @@ pub fn handle_login_connection(
         ));
     }
     login.acknowledge(ServerboundLoginAcknowledgedPacket::read(&mut input)?);
+    Ok(())
+}
 
+type ConfigurationRegistryWriter = fn(&mut Vec<u8>) -> io::Result<()>;
+
+fn write_configuration_registry_packet(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    writer: ConfigurationRegistryWriter,
+) -> io::Result<()> {
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
+        writer,
+    )
+}
+
+fn write_configuration_registry_packets(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+) -> io::Result<()> {
+    let registry_writers: &[ConfigurationRegistryWriter] = &[
+        write_minimal_biome_registry_packet::<Vec<u8>>,
+        write_vanilla_chat_type_registry_packet::<Vec<u8>>,
+        write_vanilla_trim_pattern_registry_packet::<Vec<u8>>,
+        write_minimal_trim_material_registry_packet::<Vec<u8>>,
+        write_vanilla_wolf_variant_registry_packet::<Vec<u8>>,
+        write_vanilla_wolf_sound_variant_registry_packet::<Vec<u8>>,
+        write_vanilla_pig_variant_registry_packet::<Vec<u8>>,
+        write_vanilla_pig_sound_variant_registry_packet::<Vec<u8>>,
+        write_vanilla_frog_variant_registry_packet::<Vec<u8>>,
+        write_vanilla_cat_variant_registry_packet::<Vec<u8>>,
+        write_vanilla_cat_sound_variant_registry_packet::<Vec<u8>>,
+        write_vanilla_cow_sound_variant_registry_packet::<Vec<u8>>,
+        write_vanilla_cow_variant_registry_packet::<Vec<u8>>,
+        write_vanilla_chicken_sound_variant_registry_packet::<Vec<u8>>,
+        write_vanilla_chicken_variant_registry_packet::<Vec<u8>>,
+        write_vanilla_zombie_nautilus_variant_registry_packet::<Vec<u8>>,
+        write_vanilla_painting_variant_registry_packet::<Vec<u8>>,
+        write_minimal_dimension_type_registry_packet::<Vec<u8>>,
+        write_minimal_damage_type_registry_packet::<Vec<u8>>,
+        write_vanilla_banner_pattern_registry_packet::<Vec<u8>>,
+        write_vanilla_jukebox_song_registry_packet::<Vec<u8>>,
+        write_vanilla_instrument_registry_packet::<Vec<u8>>,
+        write_world_clock_registry_packet::<Vec<u8>>,
+        write_vanilla_timeline_registry_packet::<Vec<u8>>,
+    ];
+    for writer in registry_writers {
+        write_configuration_registry_packet(stream, compression, *writer)?;
+    }
+    Ok(())
+}
+
+fn run_configuration_handshake(
+    stream: &mut TcpStream,
+    properties: &ServerProperties,
+    compression: CompressionState,
+    rate_limiter: &mut PacketRateLimiter,
+) -> io::Result<()> {
     if let Some(packet) = bug_report_server_links_packet(properties) {
         write_framed_packet_with_compression(
             stream,
@@ -674,211 +958,37 @@ pub fn handle_login_connection(
         stream,
         compression,
         CLIENTBOUND_CONFIGURATION_UPDATE_ENABLED_FEATURES_PACKET_ID,
-        |payload| {
-            write_var_i32(payload, 1)?;
-            write_identifier(payload, &Identifier::parse("minecraft:vanilla").unwrap())
-        },
+        write_vanilla_feature_flags_packet,
     )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.BIOME uses Biome.NETWORK_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_minimal_biome_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.CHAT_TYPE uses ChatType.DIRECT_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_chat_type_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.TRIM_PATTERN uses TrimPattern.DIRECT_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_trim_pattern_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.TRIM_MATERIAL uses TrimMaterial.DIRECT_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_minimal_trim_material_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.WOLF_VARIANT uses WolfVariant.NETWORK_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_wolf_variant_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.WOLF_SOUND_VARIANT uses WolfSoundVariant.NETWORK_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_wolf_sound_variant_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.PIG_VARIANT uses PigVariant.NETWORK_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_pig_variant_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.PIG_SOUND_VARIANT uses PigSoundVariant.NETWORK_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_pig_sound_variant_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.FROG_VARIANT uses FrogVariant.NETWORK_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_frog_variant_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.CAT_VARIANT uses CatVariant.NETWORK_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_cat_variant_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.CAT_SOUND_VARIANT uses CatSoundVariant.NETWORK_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_cat_sound_variant_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.COW_SOUND_VARIANT uses CowSoundVariant.DIRECT_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_cow_sound_variant_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.COW_VARIANT uses CowVariant.NETWORK_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_cow_variant_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.CHICKEN_SOUND_VARIANT uses ChickenSoundVariant.DIRECT_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_chicken_sound_variant_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.CHICKEN_VARIANT uses ChickenVariant.NETWORK_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_chicken_variant_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.ZOMBIE_NAUTILUS_VARIANT uses ZombieNautilusVariant.NETWORK_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_zombie_nautilus_variant_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.PAINTING_VARIANT uses PaintingVariant.DIRECT_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_painting_variant_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.DIMENSION_TYPE uses DimensionType.NETWORK_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_minimal_dimension_type_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.DAMAGE_TYPE uses DamageType.DIRECT_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_minimal_damage_type_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.BANNER_PATTERN uses BannerPattern.DIRECT_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_banner_pattern_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.JUKEBOX_SONG uses JukeboxSong.DIRECT_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_jukebox_song_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java
-    // Registries.INSTRUMENT uses Instrument.DIRECT_CODEC.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_instrument_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java:125,160
-    // Registries.WORLD_CLOCK uses WorldClock.DIRECT_CODEC (MapCodec.unitCodec — empty compound).
-    // Must be sent before any ClientboundSetTimePacket so the client can resolve clock VarInt IDs.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_world_clock_registry_packet,
-    )?;
-    // Java source: decompiled-server-26.1.2/net/minecraft/resources/RegistryDataLoader.java:125,160
-    // Registries.TIMELINE uses Timeline.NETWORK_CODEC (syncable tracks only).
-    // Must be sent before the tags packet so timeline tag IDs can reference these entries.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        write_vanilla_timeline_registry_packet,
-    )?;
+    write_configuration_registry_packets(stream, compression)?;
     write_framed_packet_with_compression(
         stream,
         compression,
         CLIENTBOUND_CONFIGURATION_UPDATE_TAGS_PACKET_ID,
         write_minimal_update_tags_packet,
     )?;
+    run_known_pack_configuration_exchange(stream, properties, compression, rate_limiter)?;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_CONFIGURATION_FINISH_PACKET_ID,
+        |_payload| Ok(()),
+    )?;
+    wait_for_configuration_packet_or_rate_disconnect(
+        stream,
+        compression,
+        SERVERBOUND_CONFIGURATION_FINISH_PACKET_ID,
+        "finish configuration",
+        rate_limiter,
+    )
+}
+
+fn run_known_pack_configuration_exchange(
+    stream: &mut TcpStream,
+    properties: &ServerProperties,
+    compression: CompressionState,
+    rate_limiter: &mut PacketRateLimiter,
+) -> io::Result<()> {
     write_framed_packet_with_compression(
         stream,
         compression,
@@ -907,66 +1017,1494 @@ pub fn handle_login_connection(
             rate_limiter,
         )?;
     }
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_FINISH_PACKET_ID,
-        |_payload| Ok(()),
-    )?;
+    Ok(())
+}
 
-    wait_for_configuration_packet_or_rate_disconnect(
-        stream,
-        compression,
-        SERVERBOUND_CONFIGURATION_FINISH_PACKET_ID,
-        "finish configuration",
-        rate_limiter,
-    )?;
-
-    let mut play_state = load_play_session_state(
-        world_root,
+fn initialize_joined_play_session(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    finished: &ClientboundLoginFinishedPacket,
+    shared: ConnectionSharedContext<'_>,
+    remote_address: &str,
+) -> io::Result<JoinedPlaySessionStart> {
+    let play_state = load_play_session_state(
+        shared.world_root,
         &finished.profile.uuid,
-        properties,
-        recipe_manager.recipe_map(),
-        world_seed,
+        shared.properties,
+        shared.recipe_manager.recipe_map(),
+        shared.world_seed,
     );
 
     // Snapshot current clock and weather state for the join packet.
     // Java: ServerClockManager.createFullSyncPacket() on player join, ServerLevel.sendLevelInfo()
-    let (join_game_time, join_clock_data) = {
-        let cm = clock.lock().unwrap();
-        cm.full_sync_data(true)
-    };
+    let (join_game_time, join_clock_data) = lock_status_mutex(shared.clock).full_sync_data(true);
     let (join_rain_level, join_thunder_level) = {
-        let wc = weather.lock().unwrap();
-        (wc.rain_level, wc.thunder_level)
+        let weather = lock_status_mutex(shared.weather);
+        (weather.rain_level, weather.thunder_level)
     };
 
     write_minimal_play_join(
         stream,
         compression,
-        properties,
-        world_seed,
-        &finished.profile,
-        &play_state,
-        recipe_manager,
-        world_root,
-        join_game_time,
-        join_clock_data,
-        join_rain_level,
-        join_thunder_level,
+        MinimalPlayJoinContext {
+            properties: shared.properties,
+            world_seed: shared.world_seed,
+            profile: &finished.profile,
+            play_state: &play_state,
+            recipe_manager: shared.recipe_manager,
+            world_root: shared.world_root,
+            clock_game_time: join_game_time,
+            clock_data: &join_clock_data,
+            rain_level: join_rain_level,
+            thunder_level: join_thunder_level,
+        },
     )?;
     log_info(&player_login_log_message(
         &finished.profile.name,
-        &loggable_remote_address(properties.log_ips, remote_address),
+        &loggable_remote_address(shared.properties.log_ips, remote_address),
         1,
         play_state.x,
         play_state.y,
         play_state.z,
     ));
-    let mut current_chunk_x = chunk_coordinate(play_state.x);
-    let mut current_chunk_z = chunk_coordinate(play_state.z);
-    let chunk_batch_radius = chunk_batch_radius(properties);
-    let mut loaded_chunks = chunk_window(current_chunk_x, current_chunk_z, chunk_batch_radius);
+
+    let current_chunk_x = chunk_coordinate(play_state.x);
+    let current_chunk_z = chunk_coordinate(play_state.z);
+    let chunk_batch_radius = chunk_batch_radius(shared.properties);
+    let loaded_chunks = chunk_window(current_chunk_x, current_chunk_z, chunk_batch_radius);
+    let mut chunk_sender = PlayerChunkSender::new(false);
+    seed_chunk_window(
+        &mut chunk_sender,
+        shared.chunk_pipeline,
+        current_chunk_x,
+        current_chunk_z,
+        chunk_batch_radius,
+    );
+    stream.set_read_timeout(Some(SERVER_TICK_DURATION))?;
+    send_existing_item_entities(stream, compression, shared.world_items)?;
+
+    let mut live_fluid_ticks = LiveFluidTicks::new();
+    let play_tick_count = 0_u64;
+    let center = shared.chunk_cache.get_or_load(
+        current_chunk_x,
+        current_chunk_z,
+        shared.world_root,
+        shared.world_seed,
+    );
+    unpack_chunk_fluid_ticks(&mut live_fluid_ticks, play_tick_count as i64, &center);
+
+    Ok(JoinedPlaySessionStart {
+        play_state,
+        current_chunk_x,
+        current_chunk_z,
+        chunk_batch_radius,
+        loaded_chunks,
+        chunk_sender,
+        chunk_pipeline_stats: ChunkPipelineSessionStats::default(),
+        last_keep_alive: Instant::now(),
+        keep_alive_id: 0,
+        last_sent_rain_level: join_rain_level,
+        last_sent_thunder_level: join_thunder_level,
+        last_time_sync: Instant::now(),
+        world_layout: WorldLayout::new(shared.world_root),
+        last_item_tick: Instant::now(),
+        last_player_tick: Instant::now(),
+        play_tick_count,
+        live_fluid_ticks,
+    })
+}
+
+fn send_existing_item_entities(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    world_items: &Arc<Mutex<WorldItemEntities>>,
+) -> io::Result<()> {
+    // On login: re-send ADD_ENTITY + SET_ENTITY_DATA bundles for every item entity that
+    // is already on the ground.  This mirrors Java's ServerEntity.addPairing() called during
+    // ChunkMap.updatePlayerMobTypeMap() when a player enters tracking range of an entity.
+    // Without this, items dropped before a disconnect are invisible after reconnecting.
+    let items = lock_status_mutex(world_items);
+    for item in &items.entities {
+        if let Some(item_pid) = item_protocol_id(item.item) {
+            write_item_entity_spawn_packets(stream, compression, item, item_pid)?;
+        }
+    }
+    Ok(())
+}
+
+fn tick_keep_alive_and_time(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    clock: &Arc<Mutex<ServerClockManager>>,
+    last_keep_alive: &mut Instant,
+    keep_alive_id: &mut i64,
+    last_time_sync: &mut Instant,
+) -> io::Result<()> {
+    if last_keep_alive.elapsed() >= PLAY_KEEP_ALIVE_INTERVAL {
+        *keep_alive_id = keep_alive_id.wrapping_add(1);
+        write_framed_packet_with_compression(
+            stream,
+            compression,
+            CLIENTBOUND_KEEP_ALIVE_PACKET_ID,
+            |payload| payload.write_all(&keep_alive_id.to_be_bytes()),
+        )?;
+        *last_keep_alive = Instant::now();
+    }
+
+    // Time heartbeat: empty clock map, just the current game_time.
+    // Java: MinecraftServer.forceGameTimeSynchronization() every 20 ticks (~1 second)
+    if last_time_sync.elapsed() >= TIME_SYNC_INTERVAL {
+        let game_time = lock_status_mutex(clock).heartbeat_game_time();
+        write_framed_packet_with_compression(
+            stream,
+            compression,
+            CLIENTBOUND_SET_TIME_PACKET_ID,
+            |payload| {
+                ClientboundSetTimePacket {
+                    game_time,
+                    clock_updates: BTreeMap::new(),
+                }
+                .write(payload)
+            },
+        )?;
+        *last_time_sync = Instant::now();
+    }
+    Ok(())
+}
+
+fn tick_item_entities_for_client(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    world_items: &Arc<Mutex<WorldItemEntities>>,
+    last_item_tick: &mut Instant,
+) -> io::Result<()> {
+    if last_item_tick.elapsed() < ITEM_TICK_INTERVAL {
+        return Ok(());
+    }
+    *last_item_tick = Instant::now();
+    let result = {
+        let mut items = lock_status_mutex(world_items);
+        item_entity::tick(&mut items.entities)
+    };
+    if !result.removed.is_empty() {
+        write_framed_packet_with_compression(
+            stream,
+            compression,
+            CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID,
+            |p| {
+                write_var_i32(p, result.removed.len() as i32)?;
+                for id in &result.removed {
+                    write_var_i32(p, *id)?;
+                }
+                Ok(())
+            },
+        )?;
+    }
+    // Notify the client of any count changes caused by stack merges.
+    // Note: count-update SET_ENTITY_DATA is NOT bundled — bundles are only needed
+    // for the initial ADD_ENTITY + SET_ENTITY_DATA spawn pair.
+    for (entity_id, item_name, new_count) in &result.count_updates {
+        if let Some(item_pid) = item_protocol_id(item_name) {
+            write_framed_packet_with_compression(
+                stream,
+                compression,
+                CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID,
+                |p| {
+                    write_var_i32(p, *entity_id)?;
+                    p.write_all(&[8u8])?; // index 8: ItemEntity.DATA_ITEM
+                    write_var_i32(p, 7)?; // serializer 7: ITEM_STACK
+                    write_var_i32(p, *new_count)?;
+                    write_var_i32(p, item_pid)?;
+                    write_var_i32(p, 0)?; // component add count
+                    write_var_i32(p, 0)?; // component remove count
+                    p.write_all(&[0xFFu8]) // end of metadata
+                },
+            )?;
+        }
+    }
+    Ok(())
+}
+
+fn broadcast_weather_if_changed(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    weather: &Arc<Mutex<WeatherCycle>>,
+    last_sent_rain_level: &mut f32,
+    last_sent_thunder_level: &mut f32,
+) -> io::Result<()> {
+    let (cur_rain, cur_thunder) = {
+        let weather = lock_status_mutex(weather);
+        (weather.rain_level, weather.thunder_level)
+    };
+    if (cur_rain - *last_sent_rain_level).abs() > f32::EPSILON {
+        write_game_event(stream, compression, 7, cur_rain)?;
+        // Also send StopRaining(2) or StartRaining(1) on boundary crossings.
+        // Java: WeatherGameEvent::StopRaining/StartRaining at rain_level 0.2 threshold
+        if *last_sent_rain_level > 0.2 && cur_rain <= 0.2 {
+            write_game_event(stream, compression, 2, 0.0)?;
+        } else if *last_sent_rain_level <= 0.2 && cur_rain > 0.2 {
+            write_game_event(stream, compression, 1, 0.0)?;
+        }
+        *last_sent_rain_level = cur_rain;
+    }
+    if (cur_thunder - *last_sent_thunder_level).abs() > f32::EPSILON {
+        write_game_event(stream, compression, 8, cur_thunder)?;
+        *last_sent_thunder_level = cur_thunder;
+    }
+    Ok(())
+}
+
+struct PlayerTickContext<'a, 'b> {
+    properties: &'a ServerProperties,
+    world_root: &'a Path,
+    world_seed: i64,
+    chunk_cache: &'a GeneratedChunkCache,
+    chunk_pipeline: &'a ChunkPipeline,
+    current_chunk_x: i32,
+    current_chunk_z: i32,
+    chunk_sender: &'b mut PlayerChunkSender,
+    chunk_pipeline_stats: &'b mut ChunkPipelineSessionStats,
+    live_fluid_ticks: &'b mut LiveFluidTicks,
+    world_layout: &'b WorldLayout,
+    last_player_tick: &'b mut Instant,
+    play_tick_count: &'b mut u64,
+}
+
+fn tick_player_and_chunk_sender(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    play_state: &mut PlaySessionState,
+    context: PlayerTickContext<'_, '_>,
+) -> io::Result<()> {
+    let PlayerTickContext {
+        properties,
+        world_root,
+        world_seed,
+        chunk_cache,
+        chunk_pipeline,
+        current_chunk_x,
+        current_chunk_z,
+        chunk_sender,
+        chunk_pipeline_stats,
+        live_fluid_ticks,
+        world_layout,
+        last_player_tick,
+        play_tick_count,
+    } = context;
+    if last_player_tick.elapsed() < SERVER_TICK_DURATION {
+        return Ok(());
+    }
+
+    *last_player_tick = Instant::now();
+    *play_tick_count = (*play_tick_count).wrapping_add(1);
+    let tick_count = *play_tick_count;
+    process_live_fluid_ticks(
+        stream,
+        compression,
+        live_fluid_ticks,
+        tick_count as i64,
+        world_layout,
+        world_seed,
+        chunk_cache,
+    )?;
+    let fluid_state =
+        detect_play_session_fluid_state(play_state, world_root, world_seed, chunk_cache);
+    let water_update = tick_play_session_water(play_state, fluid_state);
+    if water_update.air_changed {
+        write_play_state_air_supply_packet(stream, compression, play_state)?;
+    }
+    if water_update.motion_changed {
+        write_play_state_motion_packet(stream, compression, play_state)?;
+    }
+    if tick_play_session_food(
+        play_state,
+        food_difficulty_from_properties(properties),
+        true,
+        tick_count,
+    ) || water_update.health_changed
+    {
+        write_play_state_health_packet(stream, compression, play_state)?;
+    }
+
+    // Per-tick chunk send drain (Java mirror:
+    // MinecraftServer.tickChildren -> chunkSender.sendNextChunks).
+    // Sits at the end of the player tick so fluid/entity ticking sees
+    // the same chunk snapshot as the chunks being flushed.
+    let drained = drain_chunk_sender(
+        stream,
+        compression,
+        chunk_sender,
+        chunk_pipeline,
+        ChunkPos {
+            x: current_chunk_x,
+            z: current_chunk_z,
+        },
+        Some((live_fluid_ticks, tick_count as i64)),
+    )?;
+    chunk_pipeline_stats.sent_total = chunk_pipeline_stats
+        .sent_total
+        .saturating_add(drained as u64);
+    maybe_log_chunk_pipeline_stats(
+        chunk_pipeline_stats,
+        chunk_sender,
+        chunk_pipeline,
+        tick_count,
+    );
+    Ok(())
+}
+
+struct JoinedPlayLoopTickContext<'a, 'b> {
+    properties: &'a ServerProperties,
+    world_root: &'a Path,
+    world_seed: i64,
+    clock: &'a Arc<Mutex<ServerClockManager>>,
+    weather: &'a Arc<Mutex<WeatherCycle>>,
+    world_items: &'a Arc<Mutex<WorldItemEntities>>,
+    chunk_cache: &'a GeneratedChunkCache,
+    chunk_pipeline: &'a ChunkPipeline,
+    current_chunk_x: i32,
+    current_chunk_z: i32,
+    chunk_sender: &'b mut PlayerChunkSender,
+    chunk_pipeline_stats: &'b mut ChunkPipelineSessionStats,
+    world_layout: &'b WorldLayout,
+    last_keep_alive: &'b mut Instant,
+    keep_alive_id: &'b mut i64,
+    last_time_sync: &'b mut Instant,
+    last_item_tick: &'b mut Instant,
+    last_player_tick: &'b mut Instant,
+    play_tick_count: &'b mut u64,
+    live_fluid_ticks: &'b mut LiveFluidTicks,
+    last_sent_rain_level: &'b mut f32,
+    last_sent_thunder_level: &'b mut f32,
+}
+
+fn tick_joined_play_session_loop(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    play_state: &mut PlaySessionState,
+    context: JoinedPlayLoopTickContext<'_, '_>,
+) -> io::Result<()> {
+    let JoinedPlayLoopTickContext {
+        properties,
+        world_root,
+        world_seed,
+        clock,
+        weather,
+        world_items,
+        chunk_cache,
+        chunk_pipeline,
+        current_chunk_x,
+        current_chunk_z,
+        chunk_sender,
+        chunk_pipeline_stats,
+        world_layout,
+        last_keep_alive,
+        keep_alive_id,
+        last_time_sync,
+        last_item_tick,
+        last_player_tick,
+        play_tick_count,
+        live_fluid_ticks,
+        last_sent_rain_level,
+        last_sent_thunder_level,
+    } = context;
+    tick_keep_alive_and_time(
+        stream,
+        compression,
+        clock,
+        last_keep_alive,
+        keep_alive_id,
+        last_time_sync,
+    )?;
+    tick_item_entities_for_client(stream, compression, world_items, last_item_tick)?;
+    tick_player_and_chunk_sender(
+        stream,
+        compression,
+        play_state,
+        PlayerTickContext {
+            properties,
+            world_root,
+            world_seed,
+            chunk_cache,
+            chunk_pipeline,
+            current_chunk_x,
+            current_chunk_z,
+            chunk_sender,
+            chunk_pipeline_stats,
+            live_fluid_ticks,
+            world_layout,
+            last_player_tick,
+            play_tick_count,
+        },
+    )?;
+    broadcast_weather_if_changed(
+        stream,
+        compression,
+        weather,
+        last_sent_rain_level,
+        last_sent_thunder_level,
+    )
+}
+
+fn persist_play_disconnect_state(
+    properties: &ServerProperties,
+    world_root: &Path,
+    profile_uuid: &str,
+    play_state: &mut PlaySessionState,
+    world_items: &Arc<Mutex<WorldItemEntities>>,
+    chunk_cache: &GeneratedChunkCache,
+) {
+    // Java: InventoryMenu.removed() clears the crafting grid and returns
+    // items to inventory before the player state is persisted.
+    play_state.inventory_menu.clear_crafting_to_inventory();
+    let _ = save_play_session_state(world_root, profile_uuid, play_state);
+    save_world_item_entities(world_root, &lock_status_mutex(world_items));
+    // Flush any in-memory block changes (player edits, fluid spreads) that
+    // have not reached the periodic flush window; disconnect must not lose work.
+    chunk_cache.flush_dirty(
+        world_root,
+        properties.sync_chunk_writes,
+        RegionCompression::from_property_value(&properties.region_file_compression),
+    );
+}
+
+struct RespawnSessionContext<'a, 'b> {
+    properties: &'a ServerProperties,
+    world_root: &'a Path,
+    world_seed: i64,
+    profile_uuid: &'a str,
+    chunk_pipeline: &'a ChunkPipeline,
+    current_chunk_x: &'b mut i32,
+    current_chunk_z: &'b mut i32,
+    chunk_batch_radius: i32,
+    loaded_chunks: &'b mut BTreeSet<(i32, i32)>,
+    chunk_sender: &'b mut PlayerChunkSender,
+}
+
+fn handle_respawn_session_update(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    play_state: &mut PlaySessionState,
+    context: RespawnSessionContext<'_, '_>,
+) -> io::Result<()> {
+    let RespawnSessionContext {
+        properties,
+        world_root,
+        world_seed,
+        profile_uuid,
+        chunk_pipeline,
+        current_chunk_x,
+        current_chunk_z,
+        chunk_batch_radius,
+        loaded_chunks,
+        chunk_sender,
+    } = context;
+    handle_play_respawn_request(
+        stream,
+        compression,
+        play_state,
+        properties,
+        world_root,
+        world_seed,
+    )?;
+    *current_chunk_x = chunk_coordinate(play_state.x);
+    *current_chunk_z = chunk_coordinate(play_state.z);
+    *loaded_chunks = chunk_window(*current_chunk_x, *current_chunk_z, chunk_batch_radius);
+    // Re-seed the per-session sender for the new spawn location. Pending
+    // chunks from before the respawn no longer make sense because the center
+    // and visible window changed.
+    *chunk_sender = PlayerChunkSender::new(false);
+    seed_chunk_window(
+        chunk_sender,
+        chunk_pipeline,
+        *current_chunk_x,
+        *current_chunk_z,
+        chunk_batch_radius,
+    );
+    let _ = save_play_session_state(world_root, profile_uuid, play_state);
+    Ok(())
+}
+
+struct PositionSessionContext<'a, 'b> {
+    world_root: &'a Path,
+    world_seed: i64,
+    profile_uuid: &'a str,
+    world_items: &'a Arc<Mutex<WorldItemEntities>>,
+    chunk_pipeline: &'a ChunkPipeline,
+    current_chunk_x: &'b mut i32,
+    current_chunk_z: &'b mut i32,
+    chunk_batch_radius: i32,
+    loaded_chunks: &'b mut BTreeSet<(i32, i32)>,
+    chunk_sender: &'b mut PlayerChunkSender,
+}
+
+fn handle_position_session_update(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    play_state: &mut PlaySessionState,
+    context: PositionSessionContext<'_, '_>,
+) -> io::Result<()> {
+    let PositionSessionContext {
+        world_root,
+        world_seed,
+        profile_uuid,
+        world_items,
+        chunk_pipeline,
+        current_chunk_x,
+        current_chunk_z,
+        chunk_batch_radius,
+        loaded_chunks,
+        chunk_sender,
+    } = context;
+    let next_chunk_x = chunk_coordinate(play_state.x);
+    let next_chunk_z = chunk_coordinate(play_state.z);
+    if next_chunk_x != *current_chunk_x || next_chunk_z != *current_chunk_z {
+        *current_chunk_x = next_chunk_x;
+        *current_chunk_z = next_chunk_z;
+        // Diff old/new visible windows: forget chunks leaving the window and
+        // enqueue chunks entering it. Java mirror: ChunkMap.applyChunkTrackingView.
+        apply_chunk_movement(
+            stream,
+            compression,
+            ChunkMovementContext {
+                chunk_sender,
+                chunk_pipeline,
+                loaded_chunks,
+                new_center: ChunkPos {
+                    x: *current_chunk_x,
+                    z: *current_chunk_z,
+                },
+                radius: chunk_batch_radius,
+                world_root,
+                world_seed,
+            },
+        )?;
+    }
+    // Hook B: Pickup check — mirrors Player.aiStep() proximity sweep.
+    // Spectators cannot pick up items.
+    if play_state.game_mode != GameMode::Spectator {
+        process_item_pickups(stream, compression, play_state, profile_uuid, world_items)?;
+    }
+    Ok(())
+}
+
+struct PlayerActionFields {
+    action: i32,
+    packed_pos: i64,
+    sequence: i32,
+    x: i32,
+    y: i32,
+    z: i32,
+}
+
+fn read_player_action_fields<R: Read>(reader: &mut R) -> io::Result<PlayerActionFields> {
+    let action = read_var_i32(reader)?;
+    let mut pos_bytes = [0u8; 8];
+    reader.read_exact(&mut pos_bytes)?;
+    let packed_pos = i64::from_be_bytes(pos_bytes);
+    let mut direction_byte = [0u8; 1];
+    reader.read_exact(&mut direction_byte)?;
+    let sequence = read_var_i32(reader)?;
+    let (x, y, z) = unpack_block_position(packed_pos);
+    Ok(PlayerActionFields {
+        action,
+        packed_pos,
+        sequence,
+        x,
+        y,
+        z,
+    })
+}
+
+struct PlayerActionContext<'a, 'b> {
+    world_root: &'a Path,
+    world_seed: i64,
+    world_layout: &'b WorldLayout,
+    chunk_cache: &'a GeneratedChunkCache,
+    live_fluid_ticks: &'b mut LiveFluidTicks,
+    play_tick_count: u64,
+    world_items: &'a Arc<Mutex<WorldItemEntities>>,
+}
+
+fn handle_player_action_packet<R: Read>(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    input: &mut R,
+    play_state: &mut PlaySessionState,
+    mut context: PlayerActionContext<'_, '_>,
+) -> io::Result<()> {
+    let fields = read_player_action_fields(input)?;
+    log_player_action_debug(&fields, play_state.game_mode, &context);
+    if should_break_for_player_action(&fields, play_state.game_mode, &context) {
+        handle_player_block_break(stream, compression, play_state, &fields, &mut context)?;
+    }
+    // Java: ServerboundPlayerActionPacket.Action.DROP_ALL_ITEMS = 3,
+    //        ServerboundPlayerActionPacket.Action.DROP_ITEM = 4.
+    if fields.action == 3 || fields.action == 4 {
+        handle_drop_item(
+            stream,
+            compression,
+            play_state,
+            context.world_items,
+            fields.action == 3,
+        )?;
+    }
+    Ok(())
+}
+
+fn log_player_action_debug(
+    fields: &PlayerActionFields,
+    game_mode: GameMode,
+    context: &PlayerActionContext<'_, '_>,
+) {
+    crate::log::log_debug(&format!(
+        "player_action action={} pos=({},{},{}) mode={:?}",
+        fields.action, fields.x, fields.y, fields.z, game_mode
+    ));
+    if fields.action != 0 {
+        return;
+    }
+    // Java ServerPlayerGameMode: START_DESTROY_BLOCK with getDestroyProgress
+    // >= 1.0 (destroy_time == 0) -> "insta mine".
+    let chunk_pos = ChunkPos {
+        x: fields.x.div_euclid(16),
+        z: fields.z.div_euclid(16),
+    };
+    let actual_block = read_block_at(
+        context.world_layout,
+        context.world_seed,
+        chunk_pos,
+        fields.x,
+        fields.y,
+        fields.z,
+    );
+    let destroy_time = actual_block
+        .as_deref()
+        .and_then(representative_state_definition)
+        .map(|def| def.physical.destroy_time);
+    crate::log::log_debug(&format!(
+        "instabreak check: actual_block={actual_block:?} destroy_time={destroy_time:?}"
+    ));
+}
+
+fn should_break_for_player_action(
+    fields: &PlayerActionFields,
+    game_mode: GameMode,
+    context: &PlayerActionContext<'_, '_>,
+) -> bool {
+    let is_instabreak = fields.action == 0 && game_mode != GameMode::Creative && {
+        let chunk_pos = ChunkPos {
+            x: fields.x.div_euclid(16),
+            z: fields.z.div_euclid(16),
+        };
+        read_block_at(
+            context.world_layout,
+            context.world_seed,
+            chunk_pos,
+            fields.x,
+            fields.y,
+            fields.z,
+        )
+        .as_deref()
+        .and_then(representative_state_definition)
+        .is_some_and(|def| def.physical.destroy_time == 0.0)
+    };
+    fields.action == 2 || (fields.action == 0 && game_mode == GameMode::Creative) || is_instabreak
+}
+
+fn handle_player_block_break(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    play_state: &PlaySessionState,
+    fields: &PlayerActionFields,
+    context: &mut PlayerActionContext<'_, '_>,
+) -> io::Result<()> {
+    write_block_break_ack_and_air(stream, compression, fields, play_state.game_mode)?;
+    let block_pos = crate::block_update::BlockPos {
+        x: fields.x,
+        y: fields.y,
+        z: fields.z,
+    };
+    // Java mirror: ServerLevel.removeBlock -> LevelChunk.setBlockState.
+    // Mutates the in-memory chunk and marks it unsaved; persistence happens
+    // later via the periodic flush thread.
+    let block_name = context.chunk_cache.set_block(
+        context.world_root,
+        context.world_seed,
+        block_pos,
+        "minecraft:air",
+    );
+    schedule_neighbor_fluids(
+        context.live_fluid_ticks,
+        context.play_tick_count as i64,
+        context.world_layout,
+        context.world_seed,
+        block_pos,
+    );
+    crate::log::log_debug(&format!(
+        "block break at ({},{},{}) block={:?} game_mode={:?}",
+        fields.x, fields.y, fields.z, block_name, play_state.game_mode
+    ));
+    if play_state.game_mode != GameMode::Creative {
+        spawn_block_break_drops(stream, compression, context.world_items, fields, block_name)?;
+    }
+    Ok(())
+}
+
+fn write_block_break_ack_and_air(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    fields: &PlayerActionFields,
+    game_mode: GameMode,
+) -> io::Result<()> {
+    // Packet ordering rationale:
+    //
+    // Java defers BlockChangedAck to the start of the next server tick. Our
+    // server is synchronous; sending the ack first lets the client commit
+    // block prediction before AddEntity arrives, so drops spawn into confirmed AIR.
+    if crate::log::global_level() >= crate::log::LogLevel::Trace {
+        crate::log::log_trace(&format!(
+            "block break seq={} pos=({},{},{}) action={} game_mode={:?}",
+            fields.sequence, fields.x, fields.y, fields.z, fields.action, game_mode
+        ));
+        crate::log::log_trace(&format!(
+            "sending BLOCK_CHANGED_ACK seq={}",
+            fields.sequence
+        ));
+    }
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
+        |payload| write_var_i32(payload, fields.sequence),
+    )?;
+    if crate::log::global_level() >= crate::log::LogLevel::Trace {
+        crate::log::log_trace(&format!(
+            "sending BLOCK_UPDATE pos=({},{},{}) new_state=AIR",
+            fields.x, fields.y, fields.z
+        ));
+    }
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_BLOCK_UPDATE_PACKET_ID,
+        |payload| {
+            payload.write_all(&fields.packed_pos.to_be_bytes())?;
+            write_var_i32(payload, AIR_BLOCK_STATE_ID)
+        },
+    )
+}
+
+fn spawn_block_break_drops(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    world_items: &Arc<Mutex<WorldItemEntities>>,
+    fields: &PlayerActionFields,
+    block_name: Option<String>,
+) -> io::Result<()> {
+    let loot_seed = (fields.x as u64).wrapping_mul(0x9E37_79B9)
+        ^ (fields.y as u64).wrapping_mul(0x6C62_272E)
+        ^ (fields.z as u64).wrapping_mul(0x517C_C1B7);
+    let drops = block_name
+        .as_deref()
+        .map(|name| evaluate_block_loot(name, loot_seed))
+        .unwrap_or_default();
+    for (item_name, count) in drops {
+        let Some(item_pid) = item_protocol_id(item_name) else {
+            continue;
+        };
+        let eid = lock_status_mutex(world_items).alloc_entity_id();
+        // Java: ItemEntity constructor sets initial velocity
+        // (random*0.2-0.1, 0.2, random*0.2-0.1).
+        let item = DroppedItem {
+            entity_id: eid,
+            item: item_name,
+            count,
+            x: fields.x as f64 + 0.5,
+            y: fields.y as f64 + 0.5,
+            z: fields.z as f64 + 0.5,
+            vel_x: pseudo_rand_f32(eid, 0) as f64 * 0.2 - 0.1,
+            vel_y: 0.2,
+            vel_z: pseudo_rand_f32(eid, 1) as f64 * 0.2 - 0.1,
+            pickup_delay: DEFAULT_PICKUP_DELAY,
+            age: 0,
+            target_uuid: None,
+        };
+        write_item_entity_spawn_packets(stream, compression, &item, item_pid)?;
+        lock_status_mutex(world_items).entities.push(item);
+    }
+    Ok(())
+}
+
+struct InventoryPacketContext<'a, 'b> {
+    recipe_manager: &'a RecipeManagerModel,
+    world_layout: &'b WorldLayout,
+    chunk_cache: &'a GeneratedChunkCache,
+    profile_name: &'a str,
+}
+
+fn try_handle_inventory_packet<R: Read>(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    input: &mut R,
+    packet_id: i32,
+    play_state: &mut PlaySessionState,
+    context: InventoryPacketContext<'_, '_>,
+) -> io::Result<bool> {
+    match packet_id {
+        SERVERBOUND_CONTAINER_CLICK_PACKET_ID => {
+            handle_container_click_packet(
+                stream,
+                compression,
+                input,
+                play_state,
+                context.recipe_manager,
+            )?;
+        }
+        SERVERBOUND_PICK_ITEM_FROM_BLOCK_PACKET_ID => {
+            handle_pick_item_from_block_packet(stream, compression, input, play_state, &context)?;
+        }
+        SERVERBOUND_PICK_ITEM_FROM_ENTITY_PACKET_ID => {
+            handle_pick_item_from_entity_packet(stream, compression, input, play_state)?;
+        }
+        SERVERBOUND_EDIT_BOOK_PACKET_ID => {
+            handle_edit_book_packet(stream, compression, input, play_state, context.profile_name)?;
+        }
+        SERVERBOUND_SET_CREATIVE_MODE_SLOT_PACKET_ID => {
+            handle_set_creative_mode_slot_packet(stream, compression, input, play_state)?;
+        }
+        SERVERBOUND_RECIPE_BOOK_CHANGE_SETTINGS_PACKET_ID => {
+            let packet = ServerboundRecipeBookChangeSettingsPacket::read(input)?;
+            apply_recipe_book_settings_packet(play_state, packet);
+        }
+        SERVERBOUND_RECIPE_BOOK_SEEN_RECIPE_PACKET_ID => {
+            let packet = ServerboundRecipeBookSeenRecipePacket::read(input)?;
+            apply_recipe_book_seen_recipe_packet(
+                play_state,
+                packet,
+                context.recipe_manager.recipe_map(),
+            );
+        }
+        SERVERBOUND_PLACE_RECIPE_PACKET_ID => {
+            handle_place_recipe_packet(
+                stream,
+                compression,
+                input,
+                play_state,
+                context.recipe_manager,
+            )?;
+        }
+        _ => return Ok(false),
+    }
+    Ok(true)
+}
+
+fn handle_container_click_packet<R: Read>(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    input: &mut R,
+    play_state: &mut PlaySessionState,
+    recipe_manager: &RecipeManagerModel,
+) -> io::Result<()> {
+    // Only handle player inventory (container_id 0) for now.
+    // Java: ServerGamePacketListenerImpl.handleContainerClick()
+    let Ok(click) = ServerboundContainerClickPacket::read(input) else {
+        return Ok(());
+    };
+    if click.container_id != 0 {
+        return Ok(());
+    }
+    let instructions = handle_container_click(
+        &click,
+        &mut play_state.container_state_id,
+        &mut play_state.inventory_menu,
+        &mut play_state.carried_item,
+    );
+    for instruction in instructions {
+        write_container_click_instruction(stream, compression, instruction, recipe_manager)?;
+    }
+    Ok(())
+}
+
+fn write_container_click_instruction(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    instruction: PlayInstruction,
+    recipe_manager: &RecipeManagerModel,
+) -> io::Result<()> {
+    match instruction {
+        PlayInstruction::ContainerSetSlot(packet) => write_framed_packet_with_compression(
+            stream,
+            compression,
+            CLIENTBOUND_CONTAINER_SET_SLOT_PACKET_ID,
+            |payload| packet.write(payload),
+        ),
+        PlayInstruction::SetCursorItem(packet) => write_framed_packet_with_compression(
+            stream,
+            compression,
+            CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID,
+            |payload| packet.write(payload),
+        ),
+        PlayInstruction::RecipesUnlocked(ids) => {
+            let Some(packet) = build_recipe_book_add(&ids, recipe_manager.recipe_map()) else {
+                return Ok(());
+            };
+            write_framed_packet_with_compression(
+                stream,
+                compression,
+                CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID,
+                |payload| packet.write(payload),
+            )
+        }
+        _ => Ok(()),
+    }
+}
+
+fn handle_pick_item_from_block_packet<R: Read>(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    input: &mut R,
+    play_state: &mut PlaySessionState,
+    context: &InventoryPacketContext<'_, '_>,
+) -> io::Result<()> {
+    let packet = ServerboundPickItemFromBlockPacket::read(input)?;
+    let outcome = super::player_creative_packets::apply_pick_item_from_block_packet(
+        play_state,
+        packet,
+        context.world_layout,
+        context.chunk_cache,
+    );
+    write_pick_item_outcome(stream, compression, play_state, outcome)
+}
+
+fn handle_pick_item_from_entity_packet<R: Read>(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    input: &mut R,
+    play_state: &mut PlaySessionState,
+) -> io::Result<()> {
+    let packet = ServerboundPickItemFromEntityPacket::read(input)?;
+    let outcome =
+        super::player_creative_packets::apply_pick_item_from_entity_packet(play_state, packet);
+    write_pick_item_outcome(stream, compression, play_state, outcome)
+}
+
+fn write_pick_item_outcome(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    play_state: &mut PlaySessionState,
+    outcome: super::player_creative_packets::PickItemOutcome,
+) -> io::Result<()> {
+    let super::player_creative_packets::PickItemOutcome::Picked { inventory_changed } = outcome
+    else {
+        return Ok(());
+    };
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_SET_HELD_SLOT_PACKET_ID,
+        |payload| {
+            ClientboundSetHeldSlotPacket {
+                slot: play_state.selected_slot,
+            }
+            .write(payload)
+        },
+    )?;
+    if inventory_changed {
+        play_state.container_state_id = play_state.container_state_id.wrapping_add(1);
+        write_inventory_menu_full_sync(stream, compression, play_state)?;
+    }
+    Ok(())
+}
+
+fn handle_edit_book_packet<R: Read>(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    input: &mut R,
+    play_state: &mut PlaySessionState,
+    profile_name: &str,
+) -> io::Result<()> {
+    let packet = ServerboundEditBookPacket::read(input)?;
+    if super::player_book_packets::apply_edit_book_packet(play_state, packet, profile_name) {
+        play_state.container_state_id = play_state.container_state_id.wrapping_add(1);
+        write_inventory_menu_full_sync(stream, compression, play_state)?;
+    }
+    Ok(())
+}
+
+fn handle_set_creative_mode_slot_packet<R: Read>(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    input: &mut R,
+    play_state: &mut PlaySessionState,
+) -> io::Result<()> {
+    let packet = ServerboundSetCreativeModeSlotPacket::read(input)?;
+    let Some(slot_update) =
+        super::player_creative_packets::apply_set_creative_mode_slot_packet(play_state, packet)
+    else {
+        return Ok(());
+    };
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_CONTAINER_SET_SLOT_PACKET_ID,
+        |payload| slot_update.write(payload),
+    )
+}
+
+fn handle_place_recipe_packet<R: Read>(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    input: &mut R,
+    play_state: &mut PlaySessionState,
+    recipe_manager: &RecipeManagerModel,
+) -> io::Result<()> {
+    let packet = ServerboundPlaceRecipePacket::read(input)?;
+    if packet.container_id == 0
+        && apply_place_recipe_packet(play_state, packet, recipe_manager.recipe_map())
+    {
+        write_inventory_menu_full_sync(stream, compression, play_state)?;
+    }
+    Ok(())
+}
+
+struct PlayDisconnectContext<'a, 'b> {
+    properties: &'a ServerProperties,
+    world_root: &'a Path,
+    profile_uuid: &'a str,
+    play_state: &'b mut PlaySessionState,
+    world_items: &'a Arc<Mutex<WorldItemEntities>>,
+    chunk_cache: &'a GeneratedChunkCache,
+}
+
+enum PlayPacketReadOutcome {
+    Packet(Vec<u8>),
+    Continue,
+    EndSession,
+}
+
+fn read_play_packet_or_handle_disconnect(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    rate_limiter: &mut PacketRateLimiter,
+    context: PlayDisconnectContext<'_, '_>,
+) -> io::Result<PlayPacketReadOutcome> {
+    match read_packet_with_compression(stream, compression) {
+        Ok(packet) => {
+            if let PacketRateDecision::Kick { reason } = rate_limiter.record_packet(Instant::now())
+            {
+                persist_play_disconnect_state(
+                    context.properties,
+                    context.world_root,
+                    context.profile_uuid,
+                    context.play_state,
+                    context.world_items,
+                    context.chunk_cache,
+                );
+                write_translatable_play_disconnect(stream, compression, &reason)?;
+                return Ok(PlayPacketReadOutcome::EndSession);
+            }
+            Ok(PlayPacketReadOutcome::Packet(packet))
+        }
+        Err(err)
+            if matches!(
+                err.kind(),
+                io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
+            ) =>
+        {
+            if let PacketRateDecision::Kick { reason } = rate_limiter.tick(Instant::now()) {
+                // Java: RateKickingConnection sends a common disconnect after the
+                // per-second average crosses the configured threshold.
+                persist_play_disconnect_state(
+                    context.properties,
+                    context.world_root,
+                    context.profile_uuid,
+                    context.play_state,
+                    context.world_items,
+                    context.chunk_cache,
+                );
+                write_translatable_play_disconnect(stream, compression, &reason)?;
+                return Ok(PlayPacketReadOutcome::EndSession);
+            }
+            Ok(PlayPacketReadOutcome::Continue)
+        }
+        Err(err)
+            if matches!(
+                err.kind(),
+                io::ErrorKind::UnexpectedEof | io::ErrorKind::ConnectionReset
+            ) =>
+        {
+            persist_play_disconnect_state(
+                context.properties,
+                context.world_root,
+                context.profile_uuid,
+                context.play_state,
+                context.world_items,
+                context.chunk_cache,
+            );
+            Ok(PlayPacketReadOutcome::EndSession)
+        }
+        Err(err) => Err(err),
+    }
+}
+
+fn write_translatable_play_disconnect(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    reason: &str,
+) -> io::Result<()> {
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_DISCONNECT_PACKET_ID,
+        |payload| {
+            ClientboundDisconnectPacket {
+                reason: ComponentJson(format!("{{\"translate\":\"{reason}\"}}")),
+            }
+            .write(payload)
+        },
+    )
+}
+
+struct DecodedPlayPacketContext<'a, 'b> {
+    properties: &'a ServerProperties,
+    player_access: &'a Arc<Mutex<PlayerAccess>>,
+    world_root: &'a Path,
+    world_seed: i64,
+    profile: &'a NameAndId,
+    recipe_manager: &'a RecipeManagerModel,
+    world_layout: &'b WorldLayout,
+    chunk_cache: &'a GeneratedChunkCache,
+    chunk_pipeline: &'a ChunkPipeline,
+    world_items: &'a Arc<Mutex<WorldItemEntities>>,
+    current_chunk_x: &'b mut i32,
+    current_chunk_z: &'b mut i32,
+    chunk_batch_radius: i32,
+    loaded_chunks: &'b mut BTreeSet<(i32, i32)>,
+    chunk_sender: &'b mut PlayerChunkSender,
+    live_fluid_ticks: &'b mut LiveFluidTicks,
+    play_tick_count: u64,
+}
+
+enum PlayPacketDispatchOutcome {
+    Continue,
+    EndSession,
+}
+
+struct JoinedPlayPacketStepContext<'a, 'b> {
+    properties: &'a ServerProperties,
+    player_access: &'a Arc<Mutex<PlayerAccess>>,
+    world_root: &'a Path,
+    world_seed: i64,
+    profile: &'a NameAndId,
+    recipe_manager: &'a RecipeManagerModel,
+    world_layout: &'b WorldLayout,
+    chunk_cache: &'a GeneratedChunkCache,
+    chunk_pipeline: &'a ChunkPipeline,
+    world_items: &'a Arc<Mutex<WorldItemEntities>>,
+    current_chunk_x: &'b mut i32,
+    current_chunk_z: &'b mut i32,
+    chunk_batch_radius: i32,
+    loaded_chunks: &'b mut BTreeSet<(i32, i32)>,
+    chunk_sender: &'b mut PlayerChunkSender,
+    live_fluid_ticks: &'b mut LiveFluidTicks,
+    play_tick_count: u64,
+}
+
+fn read_and_dispatch_joined_play_packet(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    rate_limiter: &mut PacketRateLimiter,
+    play_state: &mut PlaySessionState,
+    context: JoinedPlayPacketStepContext<'_, '_>,
+) -> io::Result<PlayPacketDispatchOutcome> {
+    let read_outcome = read_play_packet_or_handle_disconnect(
+        stream,
+        compression,
+        rate_limiter,
+        PlayDisconnectContext {
+            properties: context.properties,
+            world_root: context.world_root,
+            profile_uuid: &context.profile.uuid,
+            play_state,
+            world_items: context.world_items,
+            chunk_cache: context.chunk_cache,
+        },
+    )?;
+    match read_outcome {
+        PlayPacketReadOutcome::Packet(packet) => {
+            handle_decoded_play_packet(stream, compression, packet, play_state, context.decoded())
+        }
+        PlayPacketReadOutcome::Continue => Ok(PlayPacketDispatchOutcome::Continue),
+        PlayPacketReadOutcome::EndSession => Ok(PlayPacketDispatchOutcome::EndSession),
+    }
+}
+
+fn handle_decoded_play_packet(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    packet: Vec<u8>,
+    play_state: &mut PlaySessionState,
+    context: DecodedPlayPacketContext<'_, '_>,
+) -> io::Result<PlayPacketDispatchOutcome> {
+    let mut input = Cursor::new(packet);
+    let packet_id = read_var_i32(&mut input)?;
+    let session_update = update_play_session_state(packet_id, &mut input, play_state)?;
+    if session_update.health_changed {
+        write_play_state_health_packet(stream, compression, play_state)?;
+    }
+    if session_update.respawn_requested {
+        handle_respawn_session_update(stream, compression, play_state, context.respawn())?;
+        return Ok(PlayPacketDispatchOutcome::Continue);
+    }
+    if session_update.position_changed {
+        handle_position_session_update(stream, compression, play_state, context.position())?;
+        return Ok(PlayPacketDispatchOutcome::Continue);
+    }
+    if packet_id == SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID {
+        write_command_suggestions_response(stream, compression, &mut input)?;
+    } else if packet_id == SERVERBOUND_CHAT_PACKET_ID {
+        handle_chat_packet(stream, compression, &mut input, context.profile)?;
+    } else if packet_id == SERVERBOUND_CHAT_COMMAND_PACKET_ID
+        || packet_id == SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID
+    {
+        handle_chat_command_packet(
+            stream,
+            compression,
+            &mut input,
+            packet_id == SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID,
+            ChatCommandContext {
+                profile: context.profile,
+                play_state,
+                properties: context.properties,
+                player_access: context.player_access,
+                world_seed: context.world_seed,
+            },
+        )?;
+    } else if packet_id == SERVERBOUND_USE_ITEM_ON_PACKET_ID {
+        let packet = ServerboundUseItemOnPacket::read(&mut input)?;
+        handle_use_item_on(
+            stream,
+            compression,
+            play_state,
+            UseItemOnContext {
+                world_layout: context.world_layout,
+                world_seed: context.world_seed,
+                chunk_cache: context.chunk_cache,
+                live_fluid_ticks: context.live_fluid_ticks,
+                game_time: context.play_tick_count as i64,
+            },
+            &packet,
+        )?;
+    } else if packet_id == SERVERBOUND_PLAYER_ACTION_PACKET_ID {
+        handle_player_action_packet(
+            stream,
+            compression,
+            &mut input,
+            play_state,
+            context.action(),
+        )?;
+    } else if try_handle_inventory_packet(
+        stream,
+        compression,
+        &mut input,
+        packet_id,
+        play_state,
+        context.inventory(),
+    )? {
+    } else if packet_id == SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID {
+        handle_chunk_batch_received_packet(&mut input, context.chunk_sender)?;
+    } else if !play_packet_is_handled_after_state_update(packet_id) {
+        persist_play_disconnect_state(
+            context.properties,
+            context.world_root,
+            &context.profile.uuid,
+            play_state,
+            context.world_items,
+            context.chunk_cache,
+        );
+        write_unexpected_play_packet_disconnect(stream, compression, packet_id)?;
+        return Ok(PlayPacketDispatchOutcome::EndSession);
+    }
+    Ok(PlayPacketDispatchOutcome::Continue)
+}
+
+impl<'a, 'b> JoinedPlayPacketStepContext<'a, 'b> {
+    fn decoded(self) -> DecodedPlayPacketContext<'a, 'b> {
+        DecodedPlayPacketContext {
+            properties: self.properties,
+            player_access: self.player_access,
+            world_root: self.world_root,
+            world_seed: self.world_seed,
+            profile: self.profile,
+            recipe_manager: self.recipe_manager,
+            world_layout: self.world_layout,
+            chunk_cache: self.chunk_cache,
+            chunk_pipeline: self.chunk_pipeline,
+            world_items: self.world_items,
+            current_chunk_x: self.current_chunk_x,
+            current_chunk_z: self.current_chunk_z,
+            chunk_batch_radius: self.chunk_batch_radius,
+            loaded_chunks: self.loaded_chunks,
+            chunk_sender: self.chunk_sender,
+            live_fluid_ticks: self.live_fluid_ticks,
+            play_tick_count: self.play_tick_count,
+        }
+    }
+}
+
+impl<'a, 'b> DecodedPlayPacketContext<'a, 'b> {
+    fn respawn(self) -> RespawnSessionContext<'a, 'b> {
+        RespawnSessionContext {
+            properties: self.properties,
+            world_root: self.world_root,
+            world_seed: self.world_seed,
+            profile_uuid: &self.profile.uuid,
+            chunk_pipeline: self.chunk_pipeline,
+            current_chunk_x: self.current_chunk_x,
+            current_chunk_z: self.current_chunk_z,
+            chunk_batch_radius: self.chunk_batch_radius,
+            loaded_chunks: self.loaded_chunks,
+            chunk_sender: self.chunk_sender,
+        }
+    }
+
+    fn position(self) -> PositionSessionContext<'a, 'b> {
+        PositionSessionContext {
+            world_root: self.world_root,
+            world_seed: self.world_seed,
+            profile_uuid: &self.profile.uuid,
+            world_items: self.world_items,
+            chunk_pipeline: self.chunk_pipeline,
+            current_chunk_x: self.current_chunk_x,
+            current_chunk_z: self.current_chunk_z,
+            chunk_batch_radius: self.chunk_batch_radius,
+            loaded_chunks: self.loaded_chunks,
+            chunk_sender: self.chunk_sender,
+        }
+    }
+
+    fn action(self) -> PlayerActionContext<'a, 'b> {
+        PlayerActionContext {
+            world_root: self.world_root,
+            world_seed: self.world_seed,
+            world_layout: self.world_layout,
+            chunk_cache: self.chunk_cache,
+            live_fluid_ticks: self.live_fluid_ticks,
+            play_tick_count: self.play_tick_count,
+            world_items: self.world_items,
+        }
+    }
+
+    fn inventory(&self) -> InventoryPacketContext<'a, 'b> {
+        InventoryPacketContext {
+            recipe_manager: self.recipe_manager,
+            world_layout: self.world_layout,
+            chunk_cache: self.chunk_cache,
+            profile_name: &self.profile.name,
+        }
+    }
+}
+
+fn write_unexpected_play_packet_disconnect(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    packet_id: i32,
+) -> io::Result<()> {
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_DISCONNECT_PACKET_ID,
+        |payload| {
+            ClientboundDisconnectPacket {
+                reason: ComponentJson(format!(
+                    "{{\"text\":\"unexpected play packet {packet_id}\"}}"
+                )),
+            }
+            .write(payload)
+        },
+    )
+}
+
+fn handle_login_connection(
+    stream: &mut TcpStream,
+    mut context: LoginConnectionContext<'_>,
+) -> io::Result<()> {
+    let LoginHandshakeOutcome::Complete(CompletedLogin {
+        finished,
+        compression,
+    }) = complete_login_handshake(stream, &mut context)?
+    else {
+        return Ok(());
+    };
+    run_configuration_handshake(
+        stream,
+        context.shared.properties,
+        compression,
+        context.rate_limiter,
+    )?;
+    let LoginConnectionContext {
+        shared,
+        remote_address,
+        rate_limiter,
+        ..
+    } = context;
+    run_joined_play_session(
+        stream,
+        compression,
+        finished,
+        PlayConnectionContext {
+            shared,
+            remote_address,
+            rate_limiter,
+        },
+    )
+}
+
+fn run_joined_play_session(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    finished: ClientboundLoginFinishedPacket,
+    context: PlayConnectionContext<'_>,
+) -> io::Result<()> {
+    let PlayConnectionContext {
+        shared,
+        remote_address,
+        rate_limiter,
+    } = context;
+    let ConnectionSharedContext {
+        properties,
+        favicon: _,
+        chunk_cache,
+        chunk_pipeline,
+        player_access,
+        world_root,
+        world_seed,
+        clock,
+        weather,
+        recipe_manager,
+        world_items,
+        ..
+    } = shared;
+    let JoinedPlaySessionStart {
+        mut play_state,
+        mut current_chunk_x,
+        mut current_chunk_z,
+        chunk_batch_radius,
+        mut loaded_chunks,
+        mut chunk_sender,
+        mut chunk_pipeline_stats,
+        mut last_keep_alive,
+        mut keep_alive_id,
+        mut last_sent_rain_level,
+        mut last_sent_thunder_level,
+        mut last_time_sync,
+        world_layout,
+        mut last_item_tick,
+        mut last_player_tick,
+        mut play_tick_count,
+        mut live_fluid_ticks,
+    } = initialize_joined_play_session(stream, compression, &finished, shared, remote_address)?;
     // Per-session chunk sender (Java mirror: PlayerChunkSender attached to
     // ServerPlayer). Seeded with the initial view-distance window below;
     // the per-tick `drain_chunk_sender` call inside the play loop produces
@@ -974,768 +2512,68 @@ pub fn handle_login_connection(
     // `memory_connection=false` because this is a real socket-backed
     // connection — Java's memory-connection short-circuit (LAN integrated
     // servers) does not apply.
-    let mut chunk_sender = PlayerChunkSender::new(false);
-    let mut chunk_pipeline_stats = ChunkPipelineSessionStats::default();
-    seed_chunk_window(
-        &mut chunk_sender,
-        chunk_pipeline,
-        current_chunk_x,
-        current_chunk_z,
-        chunk_batch_radius,
-    );
-    stream.set_read_timeout(Some(SERVER_TICK_DURATION))?;
-    let mut last_keep_alive = Instant::now();
-    let mut keep_alive_id = 0_i64;
     // Track last sent weather levels so we can detect changes and notify the client.
     // Java: ServerLevel.advanceWeatherCycle() broadcasts RainLevelChange/ThunderLevelChange
-    let mut last_sent_rain_level = join_rain_level;
-    let mut last_sent_thunder_level = join_thunder_level;
-    let mut last_time_sync = Instant::now();
-    let world_layout = WorldLayout::new(world_root);
-
-    // On login: re-send ADD_ENTITY + SET_ENTITY_DATA bundles for every item entity that
-    // is already on the ground.  This mirrors Java's ServerEntity.addPairing() called during
-    // ChunkMap.updatePlayerMobTypeMap() when a player enters tracking range of an entity.
-    // Without this, items dropped before a disconnect are invisible after reconnecting.
-    {
-        let items = world_items.lock().unwrap();
-        for item in &items.entities {
-            if let Some(item_pid) = item_protocol_id(item.item) {
-                write_item_entity_spawn_packets(stream, compression, item, item_pid)?;
-            }
-        }
-    }
-
     // Hook A: wall-clock timer driving item entity age ticks at ~20 Hz (50 ms per tick).
     // Java: ItemEntity.tick() — called once per server tick, ~50 ms.
-    let mut last_item_tick = Instant::now();
-    let mut last_player_tick = Instant::now();
-    let mut play_tick_count = 0_u64;
-    let mut live_fluid_ticks = LiveFluidTicks::new();
-    {
-        let center =
-            chunk_cache.get_or_load(current_chunk_x, current_chunk_z, world_root, world_seed);
-        unpack_chunk_fluid_ticks(&mut live_fluid_ticks, play_tick_count as i64, &center);
-    }
-    const ITEM_TICK_INTERVAL: Duration = Duration::from_millis(50);
     loop {
-        if last_keep_alive.elapsed() >= PLAY_KEEP_ALIVE_INTERVAL {
-            keep_alive_id = keep_alive_id.wrapping_add(1);
-            write_framed_packet_with_compression(
-                stream,
-                compression,
-                CLIENTBOUND_KEEP_ALIVE_PACKET_ID,
-                |payload| payload.write_all(&keep_alive_id.to_be_bytes()),
-            )?;
-            last_keep_alive = Instant::now();
-        }
-
-        // Time heartbeat: empty clock map, just the current game_time.
-        // Java: MinecraftServer.forceGameTimeSynchronization() every 20 ticks (~1 second)
-        if last_time_sync.elapsed() >= TIME_SYNC_INTERVAL {
-            let game_time = clock.lock().unwrap().heartbeat_game_time();
-            write_framed_packet_with_compression(
-                stream,
-                compression,
-                CLIENTBOUND_SET_TIME_PACKET_ID,
-                |payload| {
-                    ClientboundSetTimePacket {
-                        game_time,
-                        clock_updates: BTreeMap::new(),
-                    }
-                    .write(payload)
-                },
-            )?;
-            last_time_sync = Instant::now();
-        }
-
-        // Hook A: Item entity age tick — ~20 Hz wall-clock.
-        // Mirrors ItemEntity.tick(): apply drag, decrement pickupDelay, increment age,
-        // expire at LIFETIME, and merge nearby same-type stacks.
-        // Java: ServerLevel.tick() → entity.tick() → mergeWithNeighbours() for every ItemEntity.
-        if last_item_tick.elapsed() >= ITEM_TICK_INTERVAL {
-            last_item_tick = Instant::now();
-            let result = {
-                let mut items = world_items.lock().unwrap();
-                item_entity::tick(&mut items.entities)
-            };
-            if !result.removed.is_empty() {
-                write_framed_packet_with_compression(
-                    stream,
-                    compression,
-                    CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID,
-                    |p| {
-                        write_var_i32(p, result.removed.len() as i32)?;
-                        for id in &result.removed {
-                            write_var_i32(p, *id)?;
-                        }
-                        Ok(())
-                    },
-                )?;
-            }
-            // Notify the client of any count changes caused by stack merges.
-            // Note: count-update SET_ENTITY_DATA is NOT bundled — bundles are only needed
-            // for the initial ADD_ENTITY + SET_ENTITY_DATA spawn pair.
-            for (entity_id, item_name, new_count) in &result.count_updates {
-                if let Some(item_pid) = item_protocol_id(item_name) {
-                    write_framed_packet_with_compression(
-                        stream,
-                        compression,
-                        CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID,
-                        |p| {
-                            write_var_i32(p, *entity_id)?;
-                            p.write_all(&[8u8])?; // index 8: ItemEntity.DATA_ITEM
-                            write_var_i32(p, 7)?; // serializer 7: ITEM_STACK
-                            write_var_i32(p, *new_count)?;
-                            write_var_i32(p, item_pid)?;
-                            write_var_i32(p, 0)?; // component add count
-                            write_var_i32(p, 0)?; // component remove count
-                            p.write_all(&[0xFFu8]) // end of metadata
-                        },
-                    )?;
-                }
-            }
-        }
-
-        // Java: ServerPlayer.doTick() calls FoodData.tick(this) every server
-        // tick, independent of inbound movement/interaction packets. Entity
-        // base ticking updates fluid contact and air supply on the same tick.
-        if last_player_tick.elapsed() >= SERVER_TICK_DURATION {
-            last_player_tick = Instant::now();
-            play_tick_count = play_tick_count.wrapping_add(1);
-            process_live_fluid_ticks(
-                stream,
-                compression,
-                &mut live_fluid_ticks,
-                play_tick_count as i64,
-                &world_layout,
+        tick_joined_play_session_loop(
+            stream,
+            compression,
+            &mut play_state,
+            JoinedPlayLoopTickContext {
+                properties,
+                world_root,
                 world_seed,
+                clock,
+                weather,
+                world_items,
                 chunk_cache,
-            )?;
-            let fluid_state =
-                detect_play_session_fluid_state(&play_state, world_root, world_seed, chunk_cache);
-            let water_update = tick_play_session_water(&mut play_state, fluid_state);
-            if water_update.air_changed {
-                write_play_state_air_supply_packet(stream, compression, &play_state)?;
-            }
-            if water_update.motion_changed {
-                write_play_state_motion_packet(stream, compression, &play_state)?;
-            }
-            if tick_play_session_food(
-                &mut play_state,
-                food_difficulty_from_properties(properties),
-                true,
-                play_tick_count,
-            ) || water_update.health_changed
-            {
-                write_play_state_health_packet(stream, compression, &play_state)?;
-            }
-
-            // Per-tick chunk send drain (Java mirror:
-            // MinecraftServer.tickChildren → chunkSender.sendNextChunks).
-            // Sits at the end of the player tick so fluid/entity ticking
-            // sees the same chunk snapshot as the chunks being flushed.
-            let drained = drain_chunk_sender(
-                stream,
-                compression,
-                &mut chunk_sender,
                 chunk_pipeline,
-                ChunkPos {
-                    x: current_chunk_x,
-                    z: current_chunk_z,
-                },
-                Some((&mut live_fluid_ticks, play_tick_count as i64)),
-            )?;
-            chunk_pipeline_stats.sent_total = chunk_pipeline_stats
-                .sent_total
-                .saturating_add(drained as u64);
-            maybe_log_chunk_pipeline_stats(
-                &mut chunk_pipeline_stats,
-                &chunk_sender,
+                current_chunk_x,
+                current_chunk_z,
+                chunk_sender: &mut chunk_sender,
+                chunk_pipeline_stats: &mut chunk_pipeline_stats,
+                live_fluid_ticks: &mut live_fluid_ticks,
+                world_layout: &world_layout,
+                last_keep_alive: &mut last_keep_alive,
+                keep_alive_id: &mut keep_alive_id,
+                last_time_sync: &mut last_time_sync,
+                last_item_tick: &mut last_item_tick,
+                last_player_tick: &mut last_player_tick,
+                play_tick_count: &mut play_tick_count,
+                last_sent_rain_level: &mut last_sent_rain_level,
+                last_sent_thunder_level: &mut last_sent_thunder_level,
+            },
+        )?;
+
+        let packet_outcome = read_and_dispatch_joined_play_packet(
+            stream,
+            compression,
+            rate_limiter,
+            &mut play_state,
+            JoinedPlayPacketStepContext {
+                properties,
+                player_access,
+                world_root,
+                world_seed,
+                profile: &finished.profile,
+                recipe_manager,
+                world_layout: &world_layout,
+                chunk_cache,
                 chunk_pipeline,
+                world_items,
+                current_chunk_x: &mut current_chunk_x,
+                current_chunk_z: &mut current_chunk_z,
+                chunk_batch_radius,
+                loaded_chunks: &mut loaded_chunks,
+                chunk_sender: &mut chunk_sender,
+                live_fluid_ticks: &mut live_fluid_ticks,
                 play_tick_count,
-            );
-        }
-
-        // Detect weather level changes and broadcast to client.
-        // Java: ServerLevel.advanceWeatherCycle() — RainLevelChange/ThunderLevelChange
-        {
-            let (cur_rain, cur_thunder) = {
-                let wc = weather.lock().unwrap();
-                (wc.rain_level, wc.thunder_level)
-            };
-            if (cur_rain - last_sent_rain_level).abs() > f32::EPSILON {
-                write_game_event(stream, compression, 7, cur_rain)?;
-                // Also send StopRaining(2) or StartRaining(1) on boundary crossings.
-                // Java: WeatherGameEvent::StopRaining/StartRaining at rain_level 0.2 threshold
-                if last_sent_rain_level > 0.2 && cur_rain <= 0.2 {
-                    write_game_event(stream, compression, 2, 0.0)?;
-                } else if last_sent_rain_level <= 0.2 && cur_rain > 0.2 {
-                    write_game_event(stream, compression, 1, 0.0)?;
-                }
-                last_sent_rain_level = cur_rain;
-            }
-            if (cur_thunder - last_sent_thunder_level).abs() > f32::EPSILON {
-                write_game_event(stream, compression, 8, cur_thunder)?;
-                last_sent_thunder_level = cur_thunder;
-            }
-        }
-
-        match read_packet_with_compression(stream, compression) {
-            Ok(packet) => {
-                if let PacketRateDecision::Kick { reason } =
-                    rate_limiter.record_packet(Instant::now())
-                {
-                    // Java: InventoryMenu.removed() clears the crafting grid and returns
-                    // items to inventory before the player state is persisted.
-                    play_state.inventory_menu.clear_crafting_to_inventory();
-                    let _ =
-                        save_play_session_state(world_root, &finished.profile.uuid, &play_state);
-                    save_world_item_entities(world_root, &world_items.lock().unwrap());
-                    // Flush any in-memory block changes (player edits,
-                    // fluid spreads) that haven't yet hit the periodic
-                    // 30 s flush window — disconnect must not lose work.
-                    chunk_cache.flush_dirty(
-                        world_root,
-                        properties.sync_chunk_writes,
-                        RegionCompression::from_property_value(&properties.region_file_compression),
-                    );
-                    write_framed_packet_with_compression(
-                        stream,
-                        compression,
-                        CLIENTBOUND_DISCONNECT_PACKET_ID,
-                        |payload| {
-                            ClientboundDisconnectPacket {
-                                reason: ComponentJson(format!("{{\"translate\":\"{reason}\"}}")),
-                            }
-                            .write(payload)
-                        },
-                    )?;
-                    return Ok(());
-                }
-                let mut input = Cursor::new(packet);
-                let packet_id = read_var_i32(&mut input)?;
-                let session_update =
-                    update_play_session_state(packet_id, &mut input, &mut play_state)?;
-                if session_update.health_changed {
-                    write_play_state_health_packet(stream, compression, &play_state)?;
-                }
-                if session_update.respawn_requested {
-                    handle_play_respawn_request(
-                        stream,
-                        compression,
-                        &mut play_state,
-                        properties,
-                        world_root,
-                        world_seed,
-                    )?;
-                    current_chunk_x = chunk_coordinate(play_state.x);
-                    current_chunk_z = chunk_coordinate(play_state.z);
-                    loaded_chunks =
-                        chunk_window(current_chunk_x, current_chunk_z, chunk_batch_radius);
-                    // Re-seed the per-session sender for the new spawn location.
-                    // Pending chunks from before the respawn no longer make
-                    // sense (different center, different visible window).
-                    chunk_sender = PlayerChunkSender::new(false);
-                    seed_chunk_window(
-                        &mut chunk_sender,
-                        chunk_pipeline,
-                        current_chunk_x,
-                        current_chunk_z,
-                        chunk_batch_radius,
-                    );
-                    let _ =
-                        save_play_session_state(world_root, &finished.profile.uuid, &play_state);
-                    continue;
-                }
-                if session_update.position_changed {
-                    let next_chunk_x = chunk_coordinate(play_state.x);
-                    let next_chunk_z = chunk_coordinate(play_state.z);
-                    if next_chunk_x != current_chunk_x || next_chunk_z != current_chunk_z {
-                        current_chunk_x = next_chunk_x;
-                        current_chunk_z = next_chunk_z;
-                        // Diff old/new visible windows: forget chunks
-                        // leaving the window (or just drop them from
-                        // pending if they had not been flushed yet), and
-                        // enqueue chunks entering it. Java mirror:
-                        // ChunkMap.applyChunkTrackingView when the player's
-                        // tracked chunk position changes. The actual chunk
-                        // payloads are flushed by the next-tick
-                        // drain_chunk_sender; this path never blocks on
-                        // worldgen.
-                        apply_chunk_movement(
-                            stream,
-                            compression,
-                            &mut chunk_sender,
-                            chunk_pipeline,
-                            &mut loaded_chunks,
-                            current_chunk_x,
-                            current_chunk_z,
-                            chunk_batch_radius,
-                            world_root,
-                            world_seed,
-                        )?;
-                    }
-                    // Hook B: Pickup check — mirrors Player.aiStep() proximity sweep.
-                    // Spectators cannot pick up items.
-                    // Java: Player.aiStep() — inflate AABB, iterate nearby entities, call playerTouch.
-                    if play_state.game_mode != GameMode::Spectator {
-                        process_item_pickups(
-                            stream,
-                            compression,
-                            &mut play_state,
-                            &finished.profile.uuid,
-                            world_items,
-                        )?;
-                    }
-                    continue;
-                }
-                if packet_id == SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID {
-                    write_command_suggestions_response(stream, compression, &mut input)?;
-                    continue;
-                }
-                if packet_id == SERVERBOUND_CHAT_PACKET_ID {
-                    handle_chat_packet(stream, compression, &mut input, &finished.profile)?;
-                    continue;
-                }
-                if packet_id == SERVERBOUND_CHAT_COMMAND_PACKET_ID
-                    || packet_id == SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID
-                {
-                    handle_chat_command_packet(
-                        stream,
-                        compression,
-                        &mut input,
-                        packet_id == SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID,
-                        &finished.profile,
-                        &mut play_state,
-                        properties,
-                        player_access,
-                        world_seed,
-                    )?;
-                    continue;
-                }
-                if packet_id == SERVERBOUND_USE_ITEM_ON_PACKET_ID {
-                    let packet = ServerboundUseItemOnPacket::read(&mut input)?;
-                    handle_use_item_on(
-                        stream,
-                        compression,
-                        &mut play_state,
-                        &world_layout,
-                        world_seed,
-                        chunk_cache,
-                        &mut live_fluid_ticks,
-                        play_tick_count as i64,
-                        &packet,
-                    )?;
-                    continue;
-                }
-                if packet_id == SERVERBOUND_PLAYER_ACTION_PACKET_ID {
-                    let action = read_var_i32(&mut input)?;
-                    let mut pos_bytes = [0u8; 8];
-                    input.read_exact(&mut pos_bytes)?;
-                    let packed_pos = i64::from_be_bytes(pos_bytes);
-                    let mut direction_byte = [0u8; 1];
-                    input.read_exact(&mut direction_byte)?;
-                    let sequence = read_var_i32(&mut input)?;
-                    let (dbx, dby, dbz) = unpack_block_position(packed_pos);
-                    crate::log::log_debug(&format!(
-                        "player_action action={action} pos=({dbx},{dby},{dbz}) mode={:?}",
-                        play_state.game_mode
-                    ));
-                    // Java ServerPlayerGameMode: START_DESTROY_BLOCK with getDestroyProgress >= 1.0
-                    // (i.e. destroy_time == 0) → "insta mine" — break immediately, same as creative.
-                    if action == 0 {
-                        let chunk_pos_dbg = ChunkPos {
-                            x: dbx.div_euclid(16),
-                            z: dbz.div_euclid(16),
-                        };
-                        let actual_block =
-                            read_block_at(&world_layout, world_seed, chunk_pos_dbg, dbx, dby, dbz);
-                        let destroy_time = actual_block
-                            .as_deref()
-                            .and_then(|name| representative_state_definition(name))
-                            .map(|def| def.physical.destroy_time);
-                        crate::log::log_debug(&format!("instabreak check: actual_block={actual_block:?} destroy_time={destroy_time:?}"));
-                    }
-                    let is_instabreak =
-                        action == 0 && play_state.game_mode != GameMode::Creative && {
-                            let chunk_pos_ib = ChunkPos {
-                                x: dbx.div_euclid(16),
-                                z: dbz.div_euclid(16),
-                            };
-                            read_block_at(&world_layout, world_seed, chunk_pos_ib, dbx, dby, dbz)
-                                .as_deref()
-                                .and_then(|name| representative_state_definition(name))
-                                .map(|def| def.physical.destroy_time == 0.0)
-                                .unwrap_or(false)
-                        };
-                    let should_break = action == 2
-                        || (action == 0 && play_state.game_mode == GameMode::Creative)
-                        || is_instabreak;
-                    if should_break {
-                        // Packet ordering rationale:
-                        //
-                        // Java defers BlockChangedAck to the start of the next server tick
-                        // (~50 ms later via ServerGamePacketListenerImpl.ackBlockChangesUpTo).
-                        // In that window the entity is already spawned, physics-ticked, and
-                        // rendering on the client.  Any block-prediction rollback triggered by
-                        // the delayed ack therefore never touches the stable entity.
-                        //
-                        // Our server is synchronous — all packets go out in one TCP write.
-                        // Testing confirms that sending BlockChangedAck AFTER the entity (Java's
-                        // final wire order) causes the client to process the ack and AddEntity in
-                        // the same packet loop, triggering prediction rollback while the entity
-                        // has just been registered but hasn't been physics-ticked yet — the
-                        // rollback culls it (always invisible).
-                        //
-                        // Sending BlockChangedAck FIRST lets the client commit its block-
-                        // prediction state before AddEntity arrives, so the entity spawns into
-                        // confirmed-AIR and renders correctly.
-                        if crate::log::global_level() >= crate::log::LogLevel::Trace {
-                            crate::log::log_trace(&format!(
-                                "block break seq={sequence} pos=({dbx},{dby},{dbz}) action={action} game_mode={:?}",
-                                play_state.game_mode
-                            ));
-                            crate::log::log_trace(&format!(
-                                "sending BLOCK_CHANGED_ACK seq={sequence}"
-                            ));
-                        }
-                        write_framed_packet_with_compression(
-                            stream,
-                            compression,
-                            CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
-                            |p| write_var_i32(p, sequence),
-                        )?;
-                        if crate::log::global_level() >= crate::log::LogLevel::Trace {
-                            crate::log::log_trace(&format!(
-                                "sending BLOCK_UPDATE pos=({dbx},{dby},{dbz}) new_state=AIR"
-                            ));
-                        }
-                        write_framed_packet_with_compression(
-                            stream,
-                            compression,
-                            CLIENTBOUND_BLOCK_UPDATE_PACKET_ID,
-                            |p| {
-                                p.write_all(&packed_pos.to_be_bytes())?;
-                                write_var_i32(p, AIR_BLOCK_STATE_ID)
-                            },
-                        )?;
-                        let (bx, by, bz) = unpack_block_position(packed_pos);
-                        // Java mirror: ServerLevel.removeBlock → LevelChunk.setBlockState
-                        // — mutates the in-memory chunk and marks it
-                        // unsaved. Persistence happens later via the
-                        // periodic flush thread; no per-break disk I/O.
-                        let block_name = chunk_cache.set_block(
-                            world_root,
-                            world_seed,
-                            crate::block_update::BlockPos {
-                                x: bx,
-                                y: by,
-                                z: bz,
-                            },
-                            "minecraft:air",
-                        );
-                        schedule_neighbor_fluids(
-                            &mut live_fluid_ticks,
-                            play_tick_count as i64,
-                            &world_layout,
-                            world_seed,
-                            crate::block_update::BlockPos {
-                                x: bx,
-                                y: by,
-                                z: bz,
-                            },
-                        );
-                        crate::log::log_debug(&format!(
-                            "block break at ({bx},{by},{bz}) block={block_name:?} game_mode={:?}",
-                            play_state.game_mode
-                        ));
-                        if play_state.game_mode != GameMode::Creative {
-                            let loot_seed = (bx as u64).wrapping_mul(0x9E37_79B9)
-                                ^ (by as u64).wrapping_mul(0x6C62_272E)
-                                ^ (bz as u64).wrapping_mul(0x517C_C1B7);
-                            let drops = block_name
-                                .as_deref()
-                                .map(|n| evaluate_block_loot(n, loot_seed))
-                                .unwrap_or_default();
-                            let drop_x = bx as f64 + 0.5;
-                            let drop_y = by as f64 + 0.5;
-                            let drop_z = bz as f64 + 0.5;
-                            for (item_name, count) in drops {
-                                let Some(item_pid) = item_protocol_id(item_name) else {
-                                    continue;
-                                };
-                                let eid = world_items.lock().unwrap().alloc_entity_id();
-                                // Java: ItemEntity constructor sets initial velocity
-                                // (random*0.2-0.1, 0.2, random*0.2-0.1) — the y=0.2 upward
-                                // component produces the characteristic item "pop" animation
-                                // and ensures the entity is visible on spawn.
-                                let vel_x = pseudo_rand_f32(eid, 0) as f64 * 0.2 - 0.1;
-                                let vel_y = 0.2_f64;
-                                let vel_z = pseudo_rand_f32(eid, 1) as f64 * 0.2 - 0.1;
-                                let item = DroppedItem {
-                                    entity_id: eid,
-                                    item: item_name,
-                                    count,
-                                    x: drop_x,
-                                    y: drop_y,
-                                    z: drop_z,
-                                    vel_x,
-                                    vel_y,
-                                    vel_z,
-                                    pickup_delay: DEFAULT_PICKUP_DELAY,
-                                    age: 0,
-                                    target_uuid: None,
-                                };
-                                write_item_entity_spawn_packets(
-                                    stream,
-                                    compression,
-                                    &item,
-                                    item_pid,
-                                )?;
-                                world_items.lock().unwrap().entities.push(item);
-                            }
-                        }
-                    }
-                    // Java: ServerboundPlayerActionPacket.Action.DROP_ALL_ITEMS = 3,
-                    //        ServerboundPlayerActionPacket.Action.DROP_ITEM = 4.
-                    if action == 3 || action == 4 {
-                        handle_drop_item(
-                            stream,
-                            compression,
-                            &mut play_state,
-                            world_items,
-                            action == 3,
-                        )?;
-                    }
-                    continue;
-                }
-                if packet_id == SERVERBOUND_CONTAINER_CLICK_PACKET_ID {
-                    // Only handle player inventory (container_id 0) for now.
-                    // Java: ServerGamePacketListenerImpl.handleContainerClick()
-                    if let Ok(click) = ServerboundContainerClickPacket::read(&mut input) {
-                        if click.container_id == 0 {
-                            let instructions = handle_container_click(
-                                &click,
-                                &mut play_state.container_state_id,
-                                &mut play_state.inventory_menu,
-                                &mut play_state.carried_item,
-                            );
-                            for instruction in instructions {
-                                match instruction {
-                                    PlayInstruction::ContainerSetSlot(pkt) => {
-                                        write_framed_packet_with_compression(
-                                            stream,
-                                            compression,
-                                            CLIENTBOUND_CONTAINER_SET_SLOT_PACKET_ID,
-                                            |p| pkt.write(p),
-                                        )?;
-                                    }
-                                    PlayInstruction::SetCursorItem(pkt) => {
-                                        write_framed_packet_with_compression(
-                                            stream,
-                                            compression,
-                                            CLIENTBOUND_SET_CURSOR_ITEM_PACKET_ID,
-                                            |p| pkt.write(p),
-                                        )?;
-                                    }
-                                    PlayInstruction::RecipesUnlocked(ids) => {
-                                        if let Some(pkt) =
-                                            build_recipe_book_add(&ids, recipe_manager.recipe_map())
-                                        {
-                                            write_framed_packet_with_compression(
-                                                stream,
-                                                compression,
-                                                CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID,
-                                                |p| pkt.write(p),
-                                            )?;
-                                        }
-                                    }
-                                    _ => {}
-                                }
-                            }
-                        }
-                    }
-                    continue;
-                }
-                if packet_id == SERVERBOUND_PICK_ITEM_FROM_BLOCK_PACKET_ID {
-                    let packet = ServerboundPickItemFromBlockPacket::read(&mut input)?;
-                    if let super::player_creative_packets::PickItemOutcome::Picked {
-                        inventory_changed,
-                    } = super::player_creative_packets::apply_pick_item_from_block_packet(
-                        &mut play_state,
-                        packet,
-                        &world_layout,
-                        chunk_cache,
-                    ) {
-                        write_framed_packet_with_compression(
-                            stream,
-                            compression,
-                            CLIENTBOUND_SET_HELD_SLOT_PACKET_ID,
-                            |payload| {
-                                ClientboundSetHeldSlotPacket {
-                                    slot: play_state.selected_slot,
-                                }
-                                .write(payload)
-                            },
-                        )?;
-                        if inventory_changed {
-                            play_state.container_state_id =
-                                play_state.container_state_id.wrapping_add(1);
-                            write_inventory_menu_full_sync(stream, compression, &play_state)?;
-                        }
-                    }
-                    continue;
-                }
-                if packet_id == SERVERBOUND_PICK_ITEM_FROM_ENTITY_PACKET_ID {
-                    let packet = ServerboundPickItemFromEntityPacket::read(&mut input)?;
-                    let _ = super::player_creative_packets::apply_pick_item_from_entity_packet(
-                        &mut play_state,
-                        packet,
-                    );
-                    continue;
-                }
-                if packet_id == SERVERBOUND_EDIT_BOOK_PACKET_ID {
-                    let packet = ServerboundEditBookPacket::read(&mut input)?;
-                    if super::player_book_packets::apply_edit_book_packet(
-                        &mut play_state,
-                        packet,
-                        &finished.profile.name,
-                    ) {
-                        play_state.container_state_id =
-                            play_state.container_state_id.wrapping_add(1);
-                        write_inventory_menu_full_sync(stream, compression, &play_state)?;
-                    }
-                    continue;
-                }
-                if packet_id == SERVERBOUND_SET_CREATIVE_MODE_SLOT_PACKET_ID {
-                    let packet = ServerboundSetCreativeModeSlotPacket::read(&mut input)?;
-                    if let Some(slot_update) =
-                        super::player_creative_packets::apply_set_creative_mode_slot_packet(
-                            &mut play_state,
-                            packet,
-                        )
-                    {
-                        write_framed_packet_with_compression(
-                            stream,
-                            compression,
-                            CLIENTBOUND_CONTAINER_SET_SLOT_PACKET_ID,
-                            |payload| slot_update.write(payload),
-                        )?;
-                    }
-                    continue;
-                }
-                if packet_id == SERVERBOUND_RECIPE_BOOK_CHANGE_SETTINGS_PACKET_ID {
-                    let packet = ServerboundRecipeBookChangeSettingsPacket::read(&mut input)?;
-                    apply_recipe_book_settings_packet(&mut play_state, packet);
-                    continue;
-                }
-                if packet_id == SERVERBOUND_RECIPE_BOOK_SEEN_RECIPE_PACKET_ID {
-                    let packet = ServerboundRecipeBookSeenRecipePacket::read(&mut input)?;
-                    apply_recipe_book_seen_recipe_packet(
-                        &mut play_state,
-                        packet,
-                        recipe_manager.recipe_map(),
-                    );
-                    continue;
-                }
-                if packet_id == SERVERBOUND_PLACE_RECIPE_PACKET_ID {
-                    let packet = ServerboundPlaceRecipePacket::read(&mut input)?;
-                    if packet.container_id == 0 {
-                        if apply_place_recipe_packet(
-                            &mut play_state,
-                            packet,
-                            recipe_manager.recipe_map(),
-                        ) {
-                            write_inventory_menu_full_sync(stream, compression, &play_state)?;
-                        }
-                    }
-                    continue;
-                }
-                if packet_id == SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID {
-                    // Java: ServerGamePacketListenerImpl.handleChunkBatchReceived
-                    // → PlayerChunkSender.onChunkBatchReceivedByClient. The
-                    // payload is a single f32: the client's measured desired
-                    // chunks-per-tick. The sender uses it both to clamp pacing
-                    // and to lift the unacked-batches gate from 1 → 10.
-                    handle_chunk_batch_received_packet(&mut input, &mut chunk_sender)?;
-                    continue;
-                }
-                if play_packet_is_handled_after_state_update(packet_id) {
-                    continue;
-                }
-                play_state.inventory_menu.clear_crafting_to_inventory();
-                let _ = save_play_session_state(world_root, &finished.profile.uuid, &play_state);
-                save_world_item_entities(world_root, &world_items.lock().unwrap());
-                chunk_cache.flush_dirty(
-                    world_root,
-                    properties.sync_chunk_writes,
-                    RegionCompression::from_property_value(&properties.region_file_compression),
-                );
-                write_framed_packet_with_compression(
-                    stream,
-                    compression,
-                    CLIENTBOUND_DISCONNECT_PACKET_ID,
-                    |payload| {
-                        ClientboundDisconnectPacket {
-                            reason: ComponentJson(format!(
-                                "{{\"text\":\"unexpected play packet {packet_id}\"}}"
-                            )),
-                        }
-                        .write(payload)
-                    },
-                )?;
-                return Ok(());
-            }
-            Err(err)
-                if matches!(
-                    err.kind(),
-                    io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
-                ) =>
-            {
-                if let PacketRateDecision::Kick { reason } = rate_limiter.tick(Instant::now()) {
-                    // Java: RateKickingConnection sends a common disconnect after the
-                    // per-second average crosses the configured threshold.
-                    play_state.inventory_menu.clear_crafting_to_inventory();
-                    let _ =
-                        save_play_session_state(world_root, &finished.profile.uuid, &play_state);
-                    save_world_item_entities(world_root, &world_items.lock().unwrap());
-                    chunk_cache.flush_dirty(
-                        world_root,
-                        properties.sync_chunk_writes,
-                        RegionCompression::from_property_value(&properties.region_file_compression),
-                    );
-                    write_framed_packet_with_compression(
-                        stream,
-                        compression,
-                        CLIENTBOUND_DISCONNECT_PACKET_ID,
-                        |payload| {
-                            ClientboundDisconnectPacket {
-                                reason: ComponentJson(format!("{{\"translate\":\"{reason}\"}}")),
-                            }
-                            .write(payload)
-                        },
-                    )?;
-                    return Ok(());
-                }
-            }
-            Err(err)
-                if matches!(
-                    err.kind(),
-                    io::ErrorKind::UnexpectedEof | io::ErrorKind::ConnectionReset
-                ) =>
-            {
-                play_state.inventory_menu.clear_crafting_to_inventory();
-                let _ = save_play_session_state(world_root, &finished.profile.uuid, &play_state);
-                save_world_item_entities(world_root, &world_items.lock().unwrap());
-                chunk_cache.flush_dirty(
-                    world_root,
-                    properties.sync_chunk_writes,
-                    RegionCompression::from_property_value(&properties.region_file_compression),
-                );
-                return Ok(());
-            }
-            Err(err) => return Err(err),
+            },
+        )?;
+        if let PlayPacketDispatchOutcome::EndSession = packet_outcome {
+            return Ok(());
         }
     }
 }
@@ -1754,4 +2592,30 @@ pub(super) fn read_expected_login_hello_packet<R: Read>(
         ));
     }
     ServerboundHelloPacket::read(&mut input)
+}
+
+#[cfg(test)]
+mod resource_usage_tests {
+    use super::*;
+
+    #[test]
+    fn process_cpu_jiffies_parser_handles_process_names_with_spaces() {
+        let stat = "123 (rust craft server) S 1 2 3 4 5 6 7 8 9 10 123 45 14 15";
+
+        assert_eq!(read_process_cpu_jiffies(stat), Some(168));
+    }
+
+    #[test]
+    fn total_cpu_jiffies_parser_sums_aggregate_cpu_line() {
+        let stat = "cpu  100 20 30 400 5 6 7 8 9 10\ncpu0 1 2 3 4";
+
+        assert_eq!(read_total_cpu_jiffies(stat), Some(595));
+    }
+
+    #[test]
+    fn resident_memory_parser_reads_vmrss_kib() {
+        let status = "Name:\trustcraft\nVmPeak:\t2048 kB\nVmRSS:\t1536 kB\n";
+
+        assert_eq!(parse_resident_memory_kib(status), Some(1536));
+    }
 }

@@ -7,11 +7,9 @@ pub fn blue_ice_can_start(
     below_state: &str,
     adjacent_without_down: &[&str],
 ) -> bool {
-    origin_y <= sea_level - 1
+    origin_y < sea_level
         && (origin_state == "minecraft:water" || below_state == "minecraft:water")
-        && adjacent_without_down
-            .iter()
-            .any(|state| *state == "minecraft:packed_ice")
+        && adjacent_without_down.contains(&"minecraft:packed_ice")
 }
 
 pub fn blue_ice_xz_diff(y_offset: i32) -> i32 {
@@ -64,9 +62,7 @@ pub fn blue_ice_spread_can_place(candidate_state: &str, adjacent_states: &[&str]
     matches!(
         candidate_state,
         "minecraft:air" | "minecraft:water" | "minecraft:packed_ice" | "minecraft:ice"
-    ) && adjacent_states
-        .iter()
-        .any(|state| *state == "minecraft:blue_ice")
+    ) && adjacent_states.contains(&"minecraft:blue_ice")
 }
 
 pub fn blue_ice_spread_can_replace(candidate_state: &str, adjacent_states: &[&str]) -> bool {

@@ -190,7 +190,7 @@ const PREVENT_DROP: &[EnchantmentEffectHook] = &[
 const EMPTY_HOOKS: &[EnchantmentEffectHook] = &[];
 const EMPTY_GROUPS: &[EnchantmentGroup] = &[];
 
-const fn ench(
+struct EnchantmentSpec {
     id: &'static str,
     supported_items: &'static str,
     weight: i32,
@@ -201,24 +201,54 @@ const fn ench(
     slots: &'static [EquipmentSlotGroup],
     groups: &'static [EnchantmentGroup],
     hooks: &'static [EnchantmentEffectHook],
-) -> EnchantmentDef {
+}
+
+macro_rules! ench {
+    (
+        $id:expr,
+        $supported_items:expr,
+        $weight:expr,
+        $max_level:expr,
+        $min_cost:expr,
+        $max_cost:expr,
+        $anvil_cost:expr,
+        $slots:expr,
+        $groups:expr,
+        $hooks:expr $(,)?
+    ) => {
+        enchantment_from_spec(EnchantmentSpec {
+            id: $id,
+            supported_items: $supported_items,
+            weight: $weight,
+            max_level: $max_level,
+            min_cost: $min_cost,
+            max_cost: $max_cost,
+            anvil_cost: $anvil_cost,
+            slots: $slots,
+            groups: $groups,
+            hooks: $hooks,
+        })
+    };
+}
+
+const fn enchantment_from_spec(spec: EnchantmentSpec) -> EnchantmentDef {
     EnchantmentDef {
-        id,
-        supported_items,
+        id: spec.id,
+        supported_items: spec.supported_items,
         primary_items: None,
-        weight,
-        max_level,
-        min_cost,
-        max_cost,
-        anvil_cost,
-        slots,
-        groups,
-        hooks,
+        weight: spec.weight,
+        max_level: spec.max_level,
+        min_cost: spec.min_cost,
+        max_cost: spec.max_cost,
+        anvil_cost: spec.anvil_cost,
+        slots: spec.slots,
+        groups: spec.groups,
+        hooks: spec.hooks,
     }
 }
 
 pub const ENCHANTMENTS: &[EnchantmentDef] = &[
-    ench(
+    ench!(
         "minecraft:protection",
         "#minecraft:armor_enchantable",
         10,
@@ -230,7 +260,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         ARMOR_GROUP,
         DAMAGE_PROTECTION,
     ),
-    ench(
+    ench!(
         "minecraft:fire_protection",
         "#minecraft:armor_enchantable",
         5,
@@ -242,7 +272,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         ARMOR_GROUP,
         DAMAGE_ATTR,
     ),
-    ench(
+    ench!(
         "minecraft:feather_falling",
         "#minecraft:foot_armor_enchantable",
         5,
@@ -254,7 +284,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         EMPTY_GROUPS,
         DAMAGE_PROTECTION,
     ),
-    ench(
+    ench!(
         "minecraft:blast_protection",
         "#minecraft:armor_enchantable",
         2,
@@ -266,7 +296,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         ARMOR_GROUP,
         DAMAGE_ATTR,
     ),
-    ench(
+    ench!(
         "minecraft:projectile_protection",
         "#minecraft:armor_enchantable",
         5,
@@ -278,7 +308,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         ARMOR_GROUP,
         DAMAGE_PROTECTION,
     ),
-    ench(
+    ench!(
         "minecraft:respiration",
         "#minecraft:head_armor_enchantable",
         2,
@@ -290,7 +320,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         EMPTY_GROUPS,
         EMPTY_HOOKS,
     ),
-    ench(
+    ench!(
         "minecraft:aqua_affinity",
         "#minecraft:head_armor_enchantable",
         2,
@@ -302,7 +332,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         EMPTY_GROUPS,
         EMPTY_HOOKS,
     ),
-    ench(
+    ench!(
         "minecraft:thorns",
         "#minecraft:armor_enchantable",
         1,
@@ -314,7 +344,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         EMPTY_GROUPS,
         DAMAGE_POST,
     ),
-    ench(
+    ench!(
         "minecraft:depth_strider",
         "#minecraft:foot_armor_enchantable",
         2,
@@ -326,7 +356,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         BOOTS_GROUP,
         MOVEMENT,
     ),
-    ench(
+    ench!(
         "minecraft:frost_walker",
         "#minecraft:foot_armor_enchantable",
         2,
@@ -338,7 +368,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         BOOTS_GROUP,
         MOVEMENT,
     ),
-    ench(
+    ench!(
         "minecraft:binding_curse",
         "#minecraft:equippable_enchantable",
         1,
@@ -350,7 +380,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         CURSE_GROUP,
         PREVENT_DROP,
     ),
-    ench(
+    ench!(
         "minecraft:soul_speed",
         "#minecraft:foot_armor_enchantable",
         1,
@@ -362,7 +392,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         EMPTY_GROUPS,
         MOVEMENT,
     ),
-    ench(
+    ench!(
         "minecraft:swift_sneak",
         "#minecraft:leg_armor_enchantable",
         1,
@@ -374,7 +404,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         EMPTY_GROUPS,
         MOVEMENT,
     ),
-    ench(
+    ench!(
         "minecraft:sharpness",
         "#minecraft:weapon_enchantable",
         10,
@@ -386,7 +416,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         WEAPON_GROUP,
         DAMAGE,
     ),
-    ench(
+    ench!(
         "minecraft:smite",
         "#minecraft:weapon_enchantable",
         5,
@@ -398,7 +428,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         WEAPON_GROUP,
         DAMAGE,
     ),
-    ench(
+    ench!(
         "minecraft:bane_of_arthropods",
         "#minecraft:weapon_enchantable",
         5,
@@ -410,7 +440,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         WEAPON_GROUP,
         DAMAGE_POST,
     ),
-    ench(
+    ench!(
         "minecraft:knockback",
         "#minecraft:weapon_enchantable",
         5,
@@ -422,7 +452,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         EMPTY_GROUPS,
         KNOCKBACK,
     ),
-    ench(
+    ench!(
         "minecraft:fire_aspect",
         "#minecraft:weapon_enchantable",
         2,
@@ -434,7 +464,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         EMPTY_GROUPS,
         DAMAGE_POST,
     ),
-    ench(
+    ench!(
         "minecraft:looting",
         "#minecraft:weapon_enchantable",
         2,
@@ -446,7 +476,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         EMPTY_GROUPS,
         LOOT,
     ),
-    ench(
+    ench!(
         "minecraft:sweeping_edge",
         "#minecraft:sword_enchantable",
         2,
@@ -458,7 +488,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         EMPTY_GROUPS,
         DAMAGE,
     ),
-    ench(
+    ench!(
         "minecraft:efficiency",
         "#minecraft:mining_enchantable",
         10,
@@ -470,7 +500,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         EMPTY_GROUPS,
         &[EnchantmentEffectHook::Attributes],
     ),
-    ench(
+    ench!(
         "minecraft:silk_touch",
         "#minecraft:mining_enchantable",
         1,
@@ -482,7 +512,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         MINING_GROUP,
         &[EnchantmentEffectHook::BlockExperience],
     ),
-    ench(
+    ench!(
         "minecraft:unbreaking",
         "#minecraft:durability_enchantable",
         5,
@@ -494,7 +524,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         EMPTY_GROUPS,
         ITEM_DAMAGE,
     ),
-    ench(
+    ench!(
         "minecraft:fortune",
         "#minecraft:mining_enchantable",
         2,
@@ -506,7 +536,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         MINING_GROUP,
         LOOT,
     ),
-    ench(
+    ench!(
         "minecraft:power",
         "#minecraft:bow_enchantable",
         10,
@@ -518,7 +548,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         EMPTY_GROUPS,
         DAMAGE,
     ),
-    ench(
+    ench!(
         "minecraft:punch",
         "#minecraft:bow_enchantable",
         2,
@@ -530,7 +560,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         EMPTY_GROUPS,
         KNOCKBACK,
     ),
-    ench(
+    ench!(
         "minecraft:flame",
         "#minecraft:bow_enchantable",
         2,
@@ -542,7 +572,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         EMPTY_GROUPS,
         DAMAGE_POST,
     ),
-    ench(
+    ench!(
         "minecraft:infinity",
         "#minecraft:bow_enchantable",
         1,
@@ -554,7 +584,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         BOW_GROUP,
         &[EnchantmentEffectHook::AmmoUse],
     ),
-    ench(
+    ench!(
         "minecraft:luck_of_the_sea",
         "#minecraft:fishing_enchantable",
         2,
@@ -566,7 +596,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         EMPTY_GROUPS,
         &[EnchantmentEffectHook::FishingLuckBonus],
     ),
-    ench(
+    ench!(
         "minecraft:lure",
         "#minecraft:fishing_enchantable",
         2,
@@ -578,7 +608,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         EMPTY_GROUPS,
         &[EnchantmentEffectHook::FishingTimeReduction],
     ),
-    ench(
+    ench!(
         "minecraft:loyalty",
         "#minecraft:trident_enchantable",
         5,
@@ -590,7 +620,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         TRIDENT_GROUP,
         TRIDENT,
     ),
-    ench(
+    ench!(
         "minecraft:impaling",
         "#minecraft:trident_enchantable",
         2,
@@ -602,7 +632,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         EMPTY_GROUPS,
         DAMAGE,
     ),
-    ench(
+    ench!(
         "minecraft:riptide",
         "#minecraft:trident_enchantable",
         2,
@@ -614,7 +644,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         TRIDENT_GROUP,
         TRIDENT,
     ),
-    ench(
+    ench!(
         "minecraft:channeling",
         "#minecraft:trident_enchantable",
         1,
@@ -626,7 +656,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         TRIDENT_GROUP,
         DAMAGE_POST,
     ),
-    ench(
+    ench!(
         "minecraft:multishot",
         "#minecraft:crossbow_enchantable",
         2,
@@ -638,7 +668,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         CROSSBOW_GROUP,
         PROJECTILE,
     ),
-    ench(
+    ench!(
         "minecraft:quick_charge",
         "#minecraft:crossbow_enchantable",
         5,
@@ -650,7 +680,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         EMPTY_GROUPS,
         CROSSBOW,
     ),
-    ench(
+    ench!(
         "minecraft:piercing",
         "#minecraft:crossbow_enchantable",
         10,
@@ -662,7 +692,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         CROSSBOW_GROUP,
         &[EnchantmentEffectHook::ProjectilePiercing],
     ),
-    ench(
+    ench!(
         "minecraft:density",
         "#minecraft:mace_enchantable",
         5,
@@ -674,7 +704,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         MACE_GROUP,
         &[EnchantmentEffectHook::SmashDamagePerFallenBlock],
     ),
-    ench(
+    ench!(
         "minecraft:breach",
         "#minecraft:mace_enchantable",
         2,
@@ -686,7 +716,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         MACE_GROUP,
         &[EnchantmentEffectHook::ArmorEffectiveness],
     ),
-    ench(
+    ench!(
         "minecraft:wind_burst",
         "#minecraft:mace_enchantable",
         2,
@@ -698,7 +728,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         MACE_GROUP,
         &[EnchantmentEffectHook::PostAttack],
     ),
-    ench(
+    ench!(
         "minecraft:lunge",
         "#minecraft:weapon_enchantable",
         2,
@@ -710,7 +740,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         EMPTY_GROUPS,
         &[EnchantmentEffectHook::Attributes],
     ),
-    ench(
+    ench!(
         "minecraft:mending",
         "#minecraft:durability_enchantable",
         2,
@@ -722,7 +752,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
         EMPTY_GROUPS,
         &[EnchantmentEffectHook::RepairWithXp],
     ),
-    ench(
+    ench!(
         "minecraft:vanishing_curse",
         "#minecraft:vanishing_enchantable",
         1,
@@ -893,16 +923,13 @@ pub fn punch_knockback_bonus_blocks(level: i32) -> f32 {
 }
 
 /// Probability that Unbreaking prevents durability damage.
-/// Armor: 60% + (40% / (level + 1)), Tools: 100% / (level + 1)
-pub fn unbreaking_durability_skip_chance(level: i32, is_armor: bool) -> f32 {
+/// Current durability handling applies the same modeled skip chance for armor
+/// and tools; callers keep passing the item category for Java parity surfaces.
+pub fn unbreaking_durability_skip_chance(level: i32, _is_armor: bool) -> f32 {
     if level <= 0 {
         return 0.0;
     }
-    if is_armor {
-        1.0 - 1.0 / (level + 1) as f32
-    } else {
-        1.0 - 1.0 / (level + 1) as f32
-    }
+    1.0 - 1.0 / (level + 1) as f32
 }
 
 /// Break speed multiplier from Efficiency.

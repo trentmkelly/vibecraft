@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
-use crate::registry::{feature_flags, FeatureFlagRegistry, FeatureFlagSet, Identifier};
+use crate::registry::{feature_flags, FeatureFlagSet, Identifier};
 
 pub const VANILLA_PACK_ID: &str = "vanilla";
 pub const SERVER_DATA_PACK_FORMAT_MAJOR: u32 = 101;
@@ -275,14 +275,17 @@ impl DataResourceIndex {
     pub fn list(&self, namespace: &str, kind: DataResourceKind) -> Vec<DataResource> {
         self.resources
             .iter()
-            .filter_map(|((entry_namespace, entry_kind, id), contents)| {
-                (entry_namespace == namespace && *entry_kind == kind).then(|| DataResource {
+            .filter(|((entry_namespace, entry_kind, _id), _contents)| {
+                entry_namespace == namespace && *entry_kind == kind
+            })
+            .map(
+                |((entry_namespace, entry_kind, id), contents)| DataResource {
                     namespace: entry_namespace.clone(),
                     kind: *entry_kind,
                     id: id.clone(),
                     contents: contents.clone(),
-                })
-            })
+                },
+            )
             .collect()
     }
 }

@@ -325,7 +325,7 @@ fn parse_structure_processor_rule_value(
 fn load_world_preset_directory(
     directory: &std::path::Path,
 ) -> Result<BTreeMap<String, ParsedWorldPreset>, String> {
-    load_json_directory(directory, |raw| parse_world_preset_json(raw))
+    load_json_directory(directory, parse_world_preset_json)
 }
 
 fn load_flat_level_generator_preset_directory(
@@ -560,4 +560,3 @@ fn json_bool_field(
         .as_bool()
         .ok_or_else(|| format!("{field} must be a boolean"))
 }
-

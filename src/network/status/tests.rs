@@ -1,70 +1,37 @@
 use super::{
-    banner_pattern_nbt, bug_report_server_links_packet, cat_sound_variant_nbt, chat_type_nbt,
-    chicken_sound_variant_nbt, chunk_batch_size, chunk_has_non_air_blocks, chunk_window,
-    cow_sound_variant_nbt, day_timeline_nbt, early_game_timeline_nbt, encode_base64,
-    escape_json_string, function_permission_level_from_properties, handle_legacy_status_connection,
-    instrument_nbt, inventory_internal_slot, jukebox_song_nbt, legacy_disconnect_packet,
-    legacy_version0_response, legacy_version1_response, load_code_of_conduct_for_language,
-    load_favicon, login_access_disconnect_reason, login_compression_threshold, login_host_ip,
-    moon_timeline_nbt, newly_visible_chunks, overworld_dimension_type_nbt, packed_chunk_pos,
-    pig_sound_variant_nbt, play_session_state_from_nbt, play_session_state_to_nbt,
-    pseudo_rand_f32, read_code_of_conducts, read_packet, status_json,
-    strip_minecraft_formatting, trim_material_nbt, trim_pattern_nbt,
-    vanilla_baseline_biome_nbt, var_int_encoded_len, villager_schedule_timeline_nbt,
-    visible_spawn_surface_feature_id, visible_spawn_surface_top_block_id,
-    visible_spawn_terrain_block_count, visible_spawn_terrain_height,
-    wait_for_configuration_packet, wolf_sound_variant_nbt, write_framed_packet,
-    write_legacy_string, write_lp_vec3, write_minimal_biome_registry_packet,
+    banner_pattern_nbt, bug_report_server_links_packet, cat_sound_variant_nbt,
+    chicken_sound_variant_nbt, cow_sound_variant_nbt, encode_base64, escape_json_string,
+    function_permission_level_from_properties, handle_legacy_status_connection, instrument_nbt,
+    legacy_disconnect_packet, legacy_version0_response, legacy_version1_response,
+    load_code_of_conduct_for_language, load_favicon, login_access_disconnect_reason,
+    login_compression_threshold, login_host_ip, pig_sound_variant_nbt, read_code_of_conducts,
+    read_packet, status_json, strip_minecraft_formatting, trim_material_nbt, trim_pattern_nbt,
+    wolf_sound_variant_nbt, write_legacy_string, write_minimal_biome_registry_packet,
     write_minimal_damage_type_registry_packet, write_minimal_dimension_type_registry_packet,
-    write_minimal_trim_material_registry_packet, write_minimal_update_tags_packet,
-    write_clientbound_login_packet, write_status_pong_packet,
+    write_minimal_trim_material_registry_packet, write_status_pong_packet,
     write_vanilla_banner_pattern_registry_packet, write_vanilla_cat_sound_variant_registry_packet,
     write_vanilla_cat_variant_registry_packet, write_vanilla_chat_type_registry_packet,
     write_vanilla_chicken_sound_variant_registry_packet,
-    write_vanilla_chicken_variant_registry_packet,
-    write_vanilla_cow_sound_variant_registry_packet, write_vanilla_cow_variant_registry_packet,
-    write_vanilla_frog_variant_registry_packet, write_vanilla_instrument_registry_packet,
-    write_vanilla_jukebox_song_registry_packet, write_vanilla_painting_variant_registry_packet,
+    write_vanilla_chicken_variant_registry_packet, write_vanilla_cow_sound_variant_registry_packet,
+    write_vanilla_cow_variant_registry_packet, write_vanilla_frog_variant_registry_packet,
+    write_vanilla_instrument_registry_packet, write_vanilla_jukebox_song_registry_packet,
+    write_vanilla_painting_variant_registry_packet,
     write_vanilla_pig_sound_variant_registry_packet, write_vanilla_pig_variant_registry_packet,
-    write_vanilla_timeline_registry_packet, write_vanilla_trim_pattern_registry_packet,
-    write_vanilla_wolf_sound_variant_registry_packet,
+    write_vanilla_trim_pattern_registry_packet, write_vanilla_wolf_sound_variant_registry_packet,
     write_vanilla_wolf_variant_registry_packet,
-    write_vanilla_zombie_nautilus_variant_registry_packet,
-    write_visible_spawn_terrain_block_state_container, write_world_clock_registry_packet,
-    CompressionState, FoodDifficulty, GameMode, PlayerGlobalPosData, PlayerNbtAbilities,
-    PlayerSpawnData, ANDESITE_BLOCK_STATE_ID, BANNER_PATTERNS, BANNER_PATTERN_TAGS,
-    BEDROCK_BLOCK_STATE_ID, BIOMES, CHAT_TYPES, CLIENTBOUND_FORGET_LEVEL_CHUNK_PACKET_ID,
-    CLIENTBOUND_PLAY_CHUNK_BATCH_START_PACKET_ID, DAMAGE_TYPES, DAMAGE_TYPE_TAGS,
-    DANDELION_BLOCK_STATE_ID, DIORITE_BLOCK_STATE_ID, DIRT_BLOCK_STATE_ID,
-    GRANITE_BLOCK_STATE_ID, GRASS_BLOCK_STATE_ID, INSTRUMENTS, JUKEBOX_SONGS, MAX_PACKET_SIZE,
-    POPPY_BLOCK_STATE_ID, SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID,
-    SERVERBOUND_CONFIGURATION_CUSTOM_PAYLOAD_PACKET_ID,
-    SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID, SHORT_GRASS_BLOCK_STATE_ID,
-    SPRINT_JUMP_EXHAUSTION, STONE_BLOCK_STATE_ID, TRIM_MATERIALS, TRIM_PATTERNS, VERSION_NAME,
+    write_vanilla_zombie_nautilus_variant_registry_packet, write_world_clock_registry_packet,
+    INSTRUMENTS, MAX_PACKET_SIZE, TRIM_MATERIALS,
 };
 use crate::command::PermissionLevel;
-use crate::item_stack::ItemStack;
-use crate::network::codec::{write_identifier, Uuid};
 use crate::network::common::{ServerLinkLabel, ServerLinkType};
 use crate::network::ping::ServerboundPingRequestPacket;
-use crate::network::play::{
-    pack_block_position, ClientboundAddEntityPacket, ClientboundLoginPacket,
-    ClientboundSetEntityDataPacket, CommonPlayerSpawnInfo, EntityDataValue, EntityMetadataValue,
-    Vec3, CLIENTBOUND_ADD_ENTITY_PACKET_ID, CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID,
-    CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID, CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID,
-};
+use crate::network::play::pack_block_position;
 use crate::network::varint::{read_var_i32, write_var_i32};
-use crate::player_inventory::{InventoryMenu, PlayerInventory};
-use crate::recipe_system::RecipeMap;
-use crate::registry::Identifier;
 use crate::server_properties::ServerProperties;
-use crate::storage::chunk::LevelChunk;
 use crate::storage::nbt::Tag;
-use crate::storage::region::ChunkPos;
 use crate::{biome, damage_type, equipment_trim, presentation_data};
-use std::collections::BTreeSet;
 use std::fs;
-use std::io::{self, Cursor, Read, Write};
+use std::io::{self, Cursor, Read};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -77,10 +44,9 @@ struct SynchronizedRegistryManifestEntry {
 
 #[test]
 pub fn bug_report_link_becomes_known_server_link_when_valid() {
-    let mut properties = ServerProperties::load_or_default(Path::new(
-        "definitely-missing-test-server.properties",
-    ))
-    .unwrap();
+    let mut properties =
+        ServerProperties::load_or_default(Path::new("definitely-missing-test-server.properties"))
+            .unwrap();
     assert!(bug_report_server_links_packet(&properties).is_none());
 
     properties.set("bug-report-link", "https://example.invalid/bugs");
@@ -126,10 +92,9 @@ pub fn code_of_conduct_loader_strips_formatting_and_applies_language_fallback() 
     let previous = std::env::current_dir().unwrap();
     std::env::set_current_dir(&root).unwrap();
 
-    let mut properties = ServerProperties::load_or_default(Path::new(
-        "definitely-missing-test-server.properties",
-    ))
-    .unwrap();
+    let mut properties =
+        ServerProperties::load_or_default(Path::new("definitely-missing-test-server.properties"))
+            .unwrap();
     assert!(load_code_of_conduct_for_language(&properties, "fr_fr")
         .unwrap()
         .is_none());
@@ -457,8 +422,7 @@ pub fn login_access_gate_matches_java_ban_whitelist_and_op_order() {
         Some("multiplayer.disconnect.banned")
     );
     assert_eq!(
-        login_access_disconnect_reason(&properties, &access, &steve, "203.0.113.7", None)
-            .unwrap(),
+        login_access_disconnect_reason(&properties, &access, &steve, "203.0.113.7", None).unwrap(),
         Some("multiplayer.disconnect.not_whitelisted")
     );
     assert_eq!(
@@ -526,7 +490,7 @@ pub fn png_header(width: u32, height: u32) -> Vec<u8> {
 }
 
 #[test]
-pub fn formats_legacy_status_responses_like_vanilla() {
+pub fn formats_legacy_status_responses_like_vanilla() -> io::Result<()> {
     let properties = test_properties();
 
     assert_eq!(
@@ -535,12 +499,13 @@ pub fn formats_legacy_status_responses_like_vanilla() {
     );
     assert_eq!(
         legacy_version1_response(&properties),
-        "§1\0127\026.1.2\0A Minecraft Server\00\020"
+        "§1\x00127\x0026.1.2\0A Minecraft Server\x000\x0020"
     );
 
-    let packet = legacy_disconnect_packet("hello");
+    let packet = legacy_disconnect_packet("hello")?;
     assert_eq!(packet[0], 255);
     assert_eq!(u16::from_be_bytes([packet[1], packet[2]]), 5);
+    Ok(())
 }
 
 #[test]
@@ -710,6 +675,13 @@ pub fn vanilla_animal_variant_registry_payloads_include_client_referenced_entrie
 
 #[test]
 pub fn synced_registry_payloads_include_expected_counts_and_fields() {
+    assert_core_synced_registry_payload_counts();
+    assert_trim_pattern_registry_payload_fields();
+    assert_banner_pattern_registry_payload_fields();
+    assert_goat_horn_instrument_registry_payload_fields();
+}
+
+fn assert_core_synced_registry_payload_counts() {
     assert_eq!(
         registry_element_count(write_minimal_damage_type_registry_packet),
         50
@@ -734,7 +706,9 @@ pub fn synced_registry_payloads_include_expected_counts_and_fields() {
         registry_element_count(write_vanilla_instrument_registry_packet),
         8
     );
+}
 
+fn assert_trim_pattern_registry_payload_fields() {
     let trim_pattern = trim_pattern_nbt("sentry");
     assert!(matches!(
         field_value(&trim_pattern, "asset_id"),
@@ -749,7 +723,9 @@ pub fn synced_registry_payloads_include_expected_counts_and_fields() {
         field_value(trim_description, "translate"),
         Some(Tag::String(value)) if value == "trim_pattern.minecraft.sentry"
     ));
+}
 
+fn assert_banner_pattern_registry_payload_fields() {
     let banner = banner_pattern_nbt("flower");
     assert!(matches!(
         field_value(&banner, "asset_id"),
@@ -759,7 +735,9 @@ pub fn synced_registry_payloads_include_expected_counts_and_fields() {
         field_value(&banner, "translation_key"),
         Some(Tag::String(value)) if value == "block.minecraft.banner.flower"
     ));
+}
 
+fn assert_goat_horn_instrument_registry_payload_fields() {
     let instrument = INSTRUMENTS
         .iter()
         .find(|instrument| instrument.id == "ponder_goat_horn")
@@ -779,15 +757,11 @@ pub fn synced_registry_payloads_include_expected_counts_and_fields() {
     ));
 }
 
-
 mod tests_a2;
-pub use tests_a2::*;
 mod tests_b;
 pub use tests_b::*;
-mod tests_c;
-pub use tests_c::*;
 mod recipe_book_packets;
+mod tests_c;
 mod tests_d;
 pub use tests_d::*;
 mod tests_e;
-pub use tests_e::*;

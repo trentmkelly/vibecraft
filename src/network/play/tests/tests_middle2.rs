@@ -88,12 +88,9 @@ fn stale_container_state_id_corrections_become_set_slot_packets() {
     );
     assert!(!rejected.accepted);
 
-    let packets = slot_corrections_to_set_slot_packets(
-        0,
-        rejected.expected_state_id,
-        &rejected.corrections,
-    )
-    .unwrap();
+    let packets =
+        slot_corrections_to_set_slot_packets(0, rejected.expected_state_id, &rejected.corrections)
+            .unwrap();
     assert_eq!(packets.len(), 2);
     assert_eq!(packets[0].container_id, 0);
     assert_eq!(packets[0].state_id, 8);
@@ -124,8 +121,8 @@ pub fn network_crafting_test_recipes() -> crate::recipe_system::RecipeMap {
 }
 
 pub fn vanilla_recipe_map() -> crate::recipe_system::RecipeMap {
-    let recipe_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("vanilla-data/data/minecraft/recipe");
+    let recipe_dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("vanilla-data/data/minecraft/recipe");
     crate::recipe_system::load_recipe_directory(&recipe_dir)
         .expect("bundled vanilla recipe directory should load")
         .recipe_map()
@@ -150,8 +147,7 @@ fn pending_container_click_updates_inventory_menu_result_and_unlocks_recipe() {
         changed_slots: BTreeMap::new(),
         carried_item: HashedStack::empty(),
     });
-    let instructions =
-        session.process_pending_container_click(&mut inventory_menu, &mut carried);
+    let instructions = session.process_pending_container_click(&mut inventory_menu, &mut carried);
 
     assert_eq!(session.container_state_id, 1);
     assert!(carried.is_empty());
@@ -189,8 +185,7 @@ fn pending_container_click_updates_inventory_menu_result_and_unlocks_recipe() {
         changed_slots: BTreeMap::new(),
         carried_item: HashedStack::empty(),
     });
-    let instructions =
-        session.process_pending_container_click(&mut inventory_menu, &mut carried);
+    let instructions = session.process_pending_container_click(&mut inventory_menu, &mut carried);
 
     assert_eq!(session.container_state_id, 2);
     assert_eq!(carried, ItemStack::new("minecraft:oak_planks", 4));
@@ -315,9 +310,9 @@ fn respawn_packet_id_and_data_to_keep_flags_match_java() {
     assert_eq!(RespawnDataToKeep::KEEP_ATTRIBUTE_MODIFIERS.bits(), 1);
     assert_eq!(RespawnDataToKeep::KEEP_ENTITY_DATA.bits(), 2);
     assert_eq!(RespawnDataToKeep::KEEP_ALL_DATA.bits(), 3);
-    assert!(RespawnDataToKeep::KEEP_ALL_DATA.should_keep(
-        RespawnDataToKeep::KEEP_ATTRIBUTE_MODIFIERS
-    ));
+    assert!(
+        RespawnDataToKeep::KEEP_ALL_DATA.should_keep(RespawnDataToKeep::KEEP_ATTRIBUTE_MODIFIERS)
+    );
     assert!(RespawnDataToKeep::KEEP_ALL_DATA.should_keep(RespawnDataToKeep::KEEP_ENTITY_DATA));
     assert!(!RespawnDataToKeep::KEEP_ATTRIBUTE_MODIFIERS
         .should_keep(RespawnDataToKeep::KEEP_ENTITY_DATA));
@@ -345,294 +340,192 @@ fn malformed_serverbound_scalar_packets_disconnect_session() {
     let mut session = PlaySession::new(1, 0);
     session.state = PlayState::Playing;
 
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_CLIENT_COMMAND_PACKET_ID, Vec::new())),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_CLIENT_COMMAND_PACKET_ID, vec![3])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_CLIENT_COMMAND_PACKET_ID, vec![1, 0])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_CLIENT_TICK_END_PACKET_ID, vec![0])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(
-            SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID,
-            vec![0x41, 0x48, 0x00]
-        )),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(
-            SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID,
-            vec![0x41, 0x48, 0x00, 0x00, 0]
-        )),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_LOCK_DIFFICULTY_PACKET_ID, Vec::new())),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_LOCK_DIFFICULTY_PACKET_ID, vec![1, 0])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_PADDLE_BOAT_PACKET_ID, vec![1])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_PADDLE_BOAT_PACKET_ID, vec![1, 0, 1])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_PLAYER_INPUT_PACKET_ID, Vec::new())),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_PLAYER_INPUT_PACKET_ID, vec![0x55, 0])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_PLAYER_LOADED_PACKET_ID, vec![0])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_ACCEPT_TELEPORTATION_PACKET_ID, Vec::new())),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(
-            SERVERBOUND_ACCEPT_TELEPORTATION_PACKET_ID,
-            vec![0xac, 0x02, 0]
-        )),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_SWING_PACKET_ID, vec![3])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_SWING_PACKET_ID, vec![1, 0])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_PLAYER_COMMAND_PACKET_ID, vec![37, 7, 0])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(
-            SERVERBOUND_PLAYER_COMMAND_PACKET_ID,
-            vec![37, 3, 0x80, 0x01, 0]
-        )),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_INTERACT_PACKET_ID, vec![128, 1, 1])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(
-            SERVERBOUND_INTERACT_PACKET_ID,
-            vec![128, 1, 1, 0, 1, 0]
-        )),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_MOVE_VEHICLE_PACKET_ID, vec![0; 32])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID, vec![0; 24])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID, vec![0; 26])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(
-            SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID,
-            vec![0; 32]
-        )),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(
-            SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID,
-            vec![0; 34]
-        )),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID, vec![0; 8])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID, vec![0; 10])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(
-            SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID,
-            Vec::new()
-        )),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(
-            SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID,
-            vec![3, 0]
-        )),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_MOVE_VEHICLE_PACKET_ID, vec![0; 34])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_PLAYER_ACTION_PACKET_ID, vec![8])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(
-            SERVERBOUND_PLAYER_ACTION_PACKET_ID,
-            vec![2, 0xff, 0xff, 0xfd, 0x00, 0x00, 0x02, 0x20, 0x40, 4, 0xac, 0x02, 0]
-        )),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_USE_ITEM_PACKET_ID, vec![2])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(
-            SERVERBOUND_USE_ITEM_PACKET_ID,
-            vec![1, 0xac, 0x02, 0x42, 0x34, 0x00, 0x00, 0xc1, 0x28, 0x00, 0x00, 0]
-        )),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_USE_ITEM_ON_PACKET_ID, vec![2])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(
-            SERVERBOUND_USE_ITEM_ON_PACKET_ID,
-            vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 6]
-        )),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(
-            SERVERBOUND_USE_ITEM_ON_PACKET_ID,
-            vec![
-                0, 0xff, 0xff, 0xfd, 0x00, 0x00, 0x02, 0x20, 0x40, 1, 0x3e, 0x80, 0x00,
-                0x00, 0x3f, 0x00, 0x00, 0x00, 0x3f, 0x40, 0x00, 0x00, 1, 0, 0xad, 0x02, 0
-            ]
-        )),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_CHANGE_DIFFICULTY_PACKET_ID, Vec::new())),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_CHANGE_DIFFICULTY_PACKET_ID, vec![1, 0])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_CHAT_ACK_PACKET_ID, Vec::new())),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_CHAT_COMMAND_PACKET_ID, vec![1])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID, vec![1])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_CHAT_PACKET_ID, Vec::new())),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_CONTAINER_CLICK_PACKET_ID, vec![1, 2])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(
-            SERVERBOUND_SET_CREATIVE_MODE_SLOT_PACKET_ID,
-            vec![0]
-        )),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(
-            SERVERBOUND_CHAT_SESSION_UPDATE_PACKET_ID,
-            vec![0; 24]
-        )),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_RESOURCE_PACK_PACKET_ID, vec![0; 16])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_SET_COMMAND_MINECART_PACKET_ID, vec![1])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_SET_COMMAND_BLOCK_PACKET_ID, vec![0; 8])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_EDIT_BOOK_PACKET_ID, vec![0, 101])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_INTERACT_PACKET_ID, vec![1, 0])),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(
-            SERVERBOUND_SET_STRUCTURE_BLOCK_PACKET_ID,
-            vec![0; 8]
-        )),
-        DispatchOutcome::Disconnect(_)
-    ));
-    assert!(matches!(
-        session.handle_decoded(decoded(
-            SERVERBOUND_SET_STRUCTURE_BLOCK_PACKET_ID,
-            vec![
-                0, 0, 0, 0, 0, 0, 0, 0, // BlockPos
-                0, 0, 0, // update type, mode, empty name
-                0, 0, 0, // offset
-                0, 0, 0, // size
-                0, 4, // mirror, invalid rotation enum ordinal
-                0, // empty data
-                0x3f, 0x80, 0, 0, // integrity
-                0, 0 // seed, flags
-            ]
-        )),
-        DispatchOutcome::Disconnect(_)
-    ));
+    assert_scalar_state_disconnects(&mut session);
+    assert_movement_shape_disconnects(&mut session);
+    assert_interaction_action_disconnects(&mut session);
+    assert_chat_inventory_and_block_entity_disconnects(&mut session);
+    assert_overlong_sign_disconnects(&mut session);
+}
 
+fn assert_malformed_disconnect(session: &mut PlaySession, id: i32, payload: Vec<u8>) {
+    assert!(matches!(
+        session.handle_decoded(decoded(id, payload)),
+        DispatchOutcome::Disconnect(_)
+    ));
+}
+
+fn assert_scalar_state_disconnects(session: &mut PlaySession) {
+    assert_malformed_disconnect(session, SERVERBOUND_CLIENT_COMMAND_PACKET_ID, Vec::new());
+    assert_malformed_disconnect(session, SERVERBOUND_CLIENT_COMMAND_PACKET_ID, vec![3]);
+    assert_malformed_disconnect(session, SERVERBOUND_CLIENT_COMMAND_PACKET_ID, vec![1, 0]);
+    assert_malformed_disconnect(session, SERVERBOUND_CLIENT_TICK_END_PACKET_ID, vec![0]);
+    assert_malformed_disconnect(
+        session,
+        SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID,
+        vec![0x41, 0x48, 0x00],
+    );
+    assert_malformed_disconnect(
+        session,
+        SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID,
+        vec![0x41, 0x48, 0x00, 0x00, 0],
+    );
+    assert_malformed_disconnect(session, SERVERBOUND_LOCK_DIFFICULTY_PACKET_ID, Vec::new());
+    assert_malformed_disconnect(session, SERVERBOUND_LOCK_DIFFICULTY_PACKET_ID, vec![1, 0]);
+    assert_malformed_disconnect(session, SERVERBOUND_PADDLE_BOAT_PACKET_ID, vec![1]);
+    assert_malformed_disconnect(session, SERVERBOUND_PADDLE_BOAT_PACKET_ID, vec![1, 0, 1]);
+    assert_malformed_disconnect(session, SERVERBOUND_PLAYER_INPUT_PACKET_ID, Vec::new());
+    assert_malformed_disconnect(session, SERVERBOUND_PLAYER_INPUT_PACKET_ID, vec![0x55, 0]);
+    assert_malformed_disconnect(session, SERVERBOUND_PLAYER_LOADED_PACKET_ID, vec![0]);
+    assert_malformed_disconnect(
+        session,
+        SERVERBOUND_ACCEPT_TELEPORTATION_PACKET_ID,
+        Vec::new(),
+    );
+    assert_malformed_disconnect(
+        session,
+        SERVERBOUND_ACCEPT_TELEPORTATION_PACKET_ID,
+        vec![0xac, 0x02, 0],
+    );
+    assert_malformed_disconnect(session, SERVERBOUND_SWING_PACKET_ID, vec![3]);
+    assert_malformed_disconnect(session, SERVERBOUND_SWING_PACKET_ID, vec![1, 0]);
+}
+
+fn assert_movement_shape_disconnects(session: &mut PlaySession) {
+    assert_malformed_disconnect(session, SERVERBOUND_MOVE_VEHICLE_PACKET_ID, vec![0; 32]);
+    assert_malformed_disconnect(session, SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID, vec![0; 24]);
+    assert_malformed_disconnect(session, SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID, vec![0; 26]);
+    assert_malformed_disconnect(
+        session,
+        SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID,
+        vec![0; 32],
+    );
+    assert_malformed_disconnect(
+        session,
+        SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID,
+        vec![0; 34],
+    );
+    assert_malformed_disconnect(session, SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID, vec![0; 8]);
+    assert_malformed_disconnect(session, SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID, vec![0; 10]);
+    assert_malformed_disconnect(
+        session,
+        SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID,
+        Vec::new(),
+    );
+    assert_malformed_disconnect(
+        session,
+        SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID,
+        vec![3, 0],
+    );
+    assert_malformed_disconnect(session, SERVERBOUND_MOVE_VEHICLE_PACKET_ID, vec![0; 34]);
+}
+
+fn assert_interaction_action_disconnects(session: &mut PlaySession) {
+    assert_malformed_disconnect(
+        session,
+        SERVERBOUND_PLAYER_COMMAND_PACKET_ID,
+        vec![37, 7, 0],
+    );
+    assert_malformed_disconnect(
+        session,
+        SERVERBOUND_PLAYER_COMMAND_PACKET_ID,
+        vec![37, 3, 0x80, 0x01, 0],
+    );
+    assert_malformed_disconnect(session, SERVERBOUND_INTERACT_PACKET_ID, vec![128, 1, 1]);
+    assert_malformed_disconnect(
+        session,
+        SERVERBOUND_INTERACT_PACKET_ID,
+        vec![128, 1, 1, 0, 1, 0],
+    );
+    assert_malformed_disconnect(session, SERVERBOUND_PLAYER_ACTION_PACKET_ID, vec![8]);
+    assert_malformed_disconnect(
+        session,
+        SERVERBOUND_PLAYER_ACTION_PACKET_ID,
+        vec![
+            2, 0xff, 0xff, 0xfd, 0x00, 0x00, 0x02, 0x20, 0x40, 4, 0xac, 0x02, 0,
+        ],
+    );
+    assert_malformed_disconnect(session, SERVERBOUND_USE_ITEM_PACKET_ID, vec![2]);
+    assert_malformed_disconnect(
+        session,
+        SERVERBOUND_USE_ITEM_PACKET_ID,
+        vec![
+            1, 0xac, 0x02, 0x42, 0x34, 0x00, 0x00, 0xc1, 0x28, 0x00, 0x00, 0,
+        ],
+    );
+    assert_malformed_disconnect(session, SERVERBOUND_USE_ITEM_ON_PACKET_ID, vec![2]);
+    assert_malformed_disconnect(
+        session,
+        SERVERBOUND_USE_ITEM_ON_PACKET_ID,
+        vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 6],
+    );
+    assert_malformed_disconnect(
+        session,
+        SERVERBOUND_USE_ITEM_ON_PACKET_ID,
+        invalid_use_item_on(),
+    );
+}
+
+fn invalid_use_item_on() -> Vec<u8> {
+    vec![
+        0, 0xff, 0xff, 0xfd, 0x00, 0x00, 0x02, 0x20, 0x40, 1, 0x3e, 0x80, 0x00, 0x00, 0x3f, 0x00,
+        0x00, 0x00, 0x3f, 0x40, 0x00, 0x00, 1, 0, 0xad, 0x02, 0,
+    ]
+}
+
+fn assert_chat_inventory_and_block_entity_disconnects(session: &mut PlaySession) {
+    assert_malformed_disconnect(session, SERVERBOUND_CHANGE_DIFFICULTY_PACKET_ID, Vec::new());
+    assert_malformed_disconnect(session, SERVERBOUND_CHANGE_DIFFICULTY_PACKET_ID, vec![1, 0]);
+    assert_malformed_disconnect(session, SERVERBOUND_CHAT_ACK_PACKET_ID, Vec::new());
+    assert_malformed_disconnect(session, SERVERBOUND_CHAT_COMMAND_PACKET_ID, vec![1]);
+    assert_malformed_disconnect(session, SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID, vec![1]);
+    assert_malformed_disconnect(session, SERVERBOUND_CHAT_PACKET_ID, Vec::new());
+    assert_malformed_disconnect(session, SERVERBOUND_CONTAINER_CLICK_PACKET_ID, vec![1, 2]);
+    assert_malformed_disconnect(
+        session,
+        SERVERBOUND_SET_CREATIVE_MODE_SLOT_PACKET_ID,
+        vec![0],
+    );
+    assert_malformed_disconnect(
+        session,
+        SERVERBOUND_CHAT_SESSION_UPDATE_PACKET_ID,
+        vec![0; 24],
+    );
+    assert_malformed_disconnect(session, SERVERBOUND_RESOURCE_PACK_PACKET_ID, vec![0; 16]);
+    assert_malformed_disconnect(session, SERVERBOUND_SET_COMMAND_MINECART_PACKET_ID, vec![1]);
+    assert_malformed_disconnect(session, SERVERBOUND_SET_COMMAND_BLOCK_PACKET_ID, vec![0; 8]);
+    assert_malformed_disconnect(session, SERVERBOUND_EDIT_BOOK_PACKET_ID, vec![0, 101]);
+    assert_malformed_disconnect(session, SERVERBOUND_INTERACT_PACKET_ID, vec![1, 0]);
+    assert_malformed_disconnect(
+        session,
+        SERVERBOUND_SET_STRUCTURE_BLOCK_PACKET_ID,
+        vec![0; 8],
+    );
+    assert_malformed_disconnect(
+        session,
+        SERVERBOUND_SET_STRUCTURE_BLOCK_PACKET_ID,
+        invalid_structure_block_rotation(),
+    );
+}
+
+fn invalid_structure_block_rotation() -> Vec<u8> {
+    vec![
+        0, 0, 0, 0, 0, 0, 0, 0, // BlockPos
+        0, 0, 0, // update type, mode, empty name
+        0, 0, 0, // offset
+        0, 0, 0, // size
+        0, 4, // mirror, invalid rotation enum ordinal
+        0, // empty data
+        0x3f, 0x80, 0, 0, // integrity
+        0, 0, // seed, flags
+    ]
+}
+
+fn assert_overlong_sign_disconnects(session: &mut PlaySession) {
     let mut overlong_sign = vec![0; 8];
     overlong_sign.push(1);
     overlong_sign.extend([0x81, 0x03]);
     overlong_sign.extend(vec![b'a'; 385]);
-    assert!(matches!(
-        session.handle_decoded(decoded(SERVERBOUND_SIGN_UPDATE_PACKET_ID, overlong_sign)),
-        DispatchOutcome::Disconnect(_)
-    ));
+    assert_malformed_disconnect(session, SERVERBOUND_SIGN_UPDATE_PACKET_ID, overlong_sign);
 }
 
 #[test]
@@ -706,7 +599,15 @@ fn movement_packets_decode_flags_position_and_rotation_by_shape() {
 
 #[test]
 fn move_player_packet_shapes_match_vanilla_field_layouts() {
-    let movement = ServerboundMovePlayerPacket {
+    let movement = movement_shape_fixture();
+    assert_move_player_pos_shape(&movement);
+    assert_move_player_pos_rot_shape(&movement);
+    assert_move_player_rot_shape(&movement);
+    assert_move_player_status_only_shape(&movement);
+}
+
+fn movement_shape_fixture() -> ServerboundMovePlayerPacket {
+    ServerboundMovePlayerPacket {
         x: 1.25,
         y: 65.0,
         z: -2.5,
@@ -716,8 +617,10 @@ fn move_player_packet_shapes_match_vanilla_field_layouts() {
         horizontal_collision: true,
         has_position: true,
         has_rotation: true,
-    };
+    }
+}
 
+fn assert_move_player_pos_shape(movement: &ServerboundMovePlayerPacket) {
     let mut pos = Vec::new();
     movement.write_pos(&mut pos).unwrap();
     assert_eq!(pos.len(), 25);
@@ -726,8 +629,7 @@ fn move_player_packet_shapes_match_vanilla_field_layouts() {
     assert_eq!(&pos[16..24], &(-2.5_f64).to_be_bytes());
     assert_eq!(pos[24], 3);
     let decoded_pos =
-        ServerboundMovePlayerPacket::read_shape(&mut cursor(pos.clone()), MoveShape::Pos)
-            .unwrap();
+        ServerboundMovePlayerPacket::read_shape(&mut cursor(pos.clone()), MoveShape::Pos).unwrap();
     assert_eq!(decoded_pos.x, 1.25);
     assert_eq!(decoded_pos.y, 65.0);
     assert_eq!(decoded_pos.z, -2.5);
@@ -745,8 +647,7 @@ fn move_player_packet_shapes_match_vanilla_field_layouts() {
     let mut trailing_pos = pos.clone();
     trailing_pos.push(0);
     assert!(
-        ServerboundMovePlayerPacket::read_shape(&mut cursor(trailing_pos), MoveShape::Pos)
-            .is_err()
+        ServerboundMovePlayerPacket::read_shape(&mut cursor(trailing_pos), MoveShape::Pos).is_err()
     );
     let mut high_flags_pos = pos.clone();
     high_flags_pos[24] = 0x83;
@@ -755,7 +656,9 @@ fn move_player_packet_shapes_match_vanilla_field_layouts() {
             .unwrap();
     assert!(decoded_high_flags.on_ground);
     assert!(decoded_high_flags.horizontal_collision);
+}
 
+fn assert_move_player_pos_rot_shape(movement: &ServerboundMovePlayerPacket) {
     let mut pos_rot = Vec::new();
     movement.write_pos_rot(&mut pos_rot).unwrap();
     assert_eq!(pos_rot.len(), 33);
@@ -777,23 +680,21 @@ fn move_player_packet_shapes_match_vanilla_field_layouts() {
     assert!(decoded_pos_rot.has_rotation);
     let mut truncated_pos_rot = pos_rot.clone();
     truncated_pos_rot.pop();
-    assert!(
-        ServerboundMovePlayerPacket::read_shape(
-            &mut cursor(truncated_pos_rot),
-            MoveShape::PosRot
-        )
-        .is_err()
-    );
+    assert!(ServerboundMovePlayerPacket::read_shape(
+        &mut cursor(truncated_pos_rot),
+        MoveShape::PosRot
+    )
+    .is_err());
     let mut trailing_pos_rot = pos_rot.clone();
     trailing_pos_rot.push(0);
-    assert!(
-        ServerboundMovePlayerPacket::read_shape(
-            &mut cursor(trailing_pos_rot),
-            MoveShape::PosRot
-        )
-        .is_err()
-    );
+    assert!(ServerboundMovePlayerPacket::read_shape(
+        &mut cursor(trailing_pos_rot),
+        MoveShape::PosRot
+    )
+    .is_err());
+}
 
+fn assert_move_player_rot_shape(movement: &ServerboundMovePlayerPacket) {
     let mut rot = Vec::new();
     movement.write_rot(&mut rot).unwrap();
     assert_eq!(rot.len(), 9);
@@ -801,8 +702,7 @@ fn move_player_packet_shapes_match_vanilla_field_layouts() {
     assert_eq!(&rot[4..8], &30.0_f32.to_be_bytes());
     assert_eq!(rot[8], 3);
     let decoded_rot =
-        ServerboundMovePlayerPacket::read_shape(&mut cursor(rot.clone()), MoveShape::Rot)
-            .unwrap();
+        ServerboundMovePlayerPacket::read_shape(&mut cursor(rot.clone()), MoveShape::Rot).unwrap();
     assert_eq!(decoded_rot.x, 0.0);
     assert_eq!(decoded_rot.y, 0.0);
     assert_eq!(decoded_rot.z, 0.0);
@@ -821,10 +721,11 @@ fn move_player_packet_shapes_match_vanilla_field_layouts() {
     let mut trailing_rot = rot.clone();
     trailing_rot.push(0);
     assert!(
-        ServerboundMovePlayerPacket::read_shape(&mut cursor(trailing_rot), MoveShape::Rot)
-            .is_err()
+        ServerboundMovePlayerPacket::read_shape(&mut cursor(trailing_rot), MoveShape::Rot).is_err()
     );
+}
 
+fn assert_move_player_status_only_shape(movement: &ServerboundMovePlayerPacket) {
     let mut status_only = Vec::new();
     movement.write_status_only(&mut status_only).unwrap();
     assert_eq!(status_only, vec![3]);
@@ -842,19 +743,18 @@ fn move_player_packet_shapes_match_vanilla_field_layouts() {
     assert!(decoded_status.horizontal_collision);
     assert!(!decoded_status.has_position);
     assert!(!decoded_status.has_rotation);
-    assert!(
-        ServerboundMovePlayerPacket::read_shape(&mut cursor(Vec::new()), MoveShape::StatusOnly)
-            .is_err()
-    );
+    assert!(ServerboundMovePlayerPacket::read_shape(
+        &mut cursor(Vec::new()),
+        MoveShape::StatusOnly
+    )
+    .is_err());
     let mut trailing_status = status_only.clone();
     trailing_status.push(0);
-    assert!(
-        ServerboundMovePlayerPacket::read_shape(
-            &mut cursor(trailing_status),
-            MoveShape::StatusOnly
-        )
-        .is_err()
-    );
+    assert!(ServerboundMovePlayerPacket::read_shape(
+        &mut cursor(trailing_status),
+        MoveShape::StatusOnly
+    )
+    .is_err());
     let decoded_high_status =
         ServerboundMovePlayerPacket::read_shape(&mut cursor(vec![0x83]), MoveShape::StatusOnly)
             .unwrap();
@@ -884,8 +784,7 @@ fn move_vehicle_packet_matches_vanilla_field_layout() {
     assert_eq!(&payload[28..32], &30.0_f32.to_be_bytes());
     assert_eq!(payload[32], 1);
 
-    let decoded_vehicle =
-        ServerboundMoveVehiclePacket::read(&mut cursor(payload.clone())).unwrap();
+    let decoded_vehicle = ServerboundMoveVehiclePacket::read(&mut cursor(payload.clone())).unwrap();
     assert_eq!(decoded_vehicle, vehicle);
 
     let mut truncated = payload.clone();

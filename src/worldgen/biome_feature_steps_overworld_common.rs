@@ -1,4 +1,3 @@
-use super::*;
 
 pub const PLAINS_FEATURE_STEPS: &[&[&str]] = &[
     &[],

@@ -211,7 +211,7 @@ mod tests {
 
         for tick in 0..4_096 {
             for plan in &plans {
-                let distance = (tick % 64) as i32;
+                let distance = tick % 64;
                 black_box(plan.can_path_through_water());
                 if targeting.can_target(distance, distance < 48, false) {
                     successful_checks += 1;

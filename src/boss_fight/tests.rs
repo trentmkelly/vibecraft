@@ -522,11 +522,28 @@ fn wither_head_target_assignment_and_skull_delay_rules_match_java() {
     assert_eq!(WITHER_BLUE_SKULL_CHANCE, 0.001);
 
     assert_eq!(
-        wither_alt_head_tick_action(1, 9, 10, true, 16, 3, None, false, 0.0, false, true),
+        wither_alt_head_tick_action(WitherAltHeadTickContext {
+            head: 1,
+            tick_count: 9,
+            next_head_update: 10,
+            difficulty_allows_idle_attack: true,
+            idle_head_updates: 16,
+            random_0_to_9: 3,
+            nearby_targets_available: true,
+            ..WitherAltHeadTickContext::default()
+        }),
         WitherHeadTickAction::Wait
     );
     assert_eq!(
-        wither_alt_head_tick_action(1, 10, 10, true, 16, 3, None, false, 0.0, false, false),
+        wither_alt_head_tick_action(WitherAltHeadTickContext {
+            head: 1,
+            tick_count: 10,
+            next_head_update: 10,
+            difficulty_allows_idle_attack: true,
+            idle_head_updates: 16,
+            random_0_to_9: 3,
+            ..WitherAltHeadTickContext::default()
+        }),
         WitherHeadTickAction::FireIdleBlueSkull {
             head: 1,
             next_update_delay: 13,
@@ -534,19 +551,18 @@ fn wither_head_target_assignment_and_skull_delay_rules_match_java() {
         }
     );
     assert_eq!(
-        wither_alt_head_tick_action(
-            2,
-            20,
-            20,
-            true,
-            0,
-            7,
-            Some(99),
-            true,
-            WITHER_HEAD_TARGET_RANGE_SQUARED,
-            true,
-            false
-        ),
+        wither_alt_head_tick_action(WitherAltHeadTickContext {
+            head: 2,
+            tick_count: 20,
+            next_head_update: 20,
+            difficulty_allows_idle_attack: true,
+            random_0_to_9: 7,
+            alternative_target_entity_id: Some(99),
+            current_target_valid: true,
+            current_target_distance_sqr: WITHER_HEAD_TARGET_RANGE_SQUARED,
+            current_target_line_of_sight: true,
+            ..WitherAltHeadTickContext::default()
+        }),
         WitherHeadTickAction::FireAtCurrentTarget {
             head: 2,
             dangerous: false,
@@ -555,23 +571,30 @@ fn wither_head_target_assignment_and_skull_delay_rules_match_java() {
         }
     );
     assert_eq!(
-        wither_alt_head_tick_action(
-            2,
-            20,
-            20,
-            true,
-            0,
-            7,
-            Some(99),
-            true,
-            WITHER_HEAD_TARGET_RANGE_SQUARED + 1.0,
-            true,
-            false
-        ),
+        wither_alt_head_tick_action(WitherAltHeadTickContext {
+            head: 2,
+            tick_count: 20,
+            next_head_update: 20,
+            difficulty_allows_idle_attack: true,
+            random_0_to_9: 7,
+            alternative_target_entity_id: Some(99),
+            current_target_valid: true,
+            current_target_distance_sqr: WITHER_HEAD_TARGET_RANGE_SQUARED + 1.0,
+            current_target_line_of_sight: true,
+            ..WitherAltHeadTickContext::default()
+        }),
         WitherHeadTickAction::ClearInvalidTarget { head: 2 }
     );
     assert_eq!(
-        wither_alt_head_tick_action(2, 20, 20, true, 0, 7, None, false, 0.0, false, true),
+        wither_alt_head_tick_action(WitherAltHeadTickContext {
+            head: 2,
+            tick_count: 20,
+            next_head_update: 20,
+            difficulty_allows_idle_attack: true,
+            random_0_to_9: 7,
+            nearby_targets_available: true,
+            ..WitherAltHeadTickContext::default()
+        }),
         WitherHeadTickAction::AcquireNearbyTarget { head: 2 }
     );
 }

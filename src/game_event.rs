@@ -14,6 +14,10 @@ pub const JUKEBOX_NOTIFICATION_RADIUS: i32 = 10;
 pub const EXPLOSION_GRID_SIZE: i32 = 16;
 pub const EXPLOSION_RAY_STEP: f64 = 0.3;
 pub const MAX_DROPS_PER_COMBINED_STACK: u8 = 16;
+pub const EXPLODE_GAME_EVENT: GameEventDefinition = GameEventDefinition {
+    id: "minecraft:explode",
+    notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GameEventDefinition {
@@ -72,255 +76,257 @@ pub struct GameEventDelivery {
     pub delivery_mode: GameEventDeliveryMode,
 }
 
+pub const BUILTIN_GAME_EVENTS: &[GameEventDefinition] = &[
+    GameEventDefinition {
+        id: "minecraft:block_activate",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:block_attach",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:block_change",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:block_close",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:block_deactivate",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:block_destroy",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:block_detach",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:block_open",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:block_place",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:container_close",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:container_open",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:drink",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:eat",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:elytra_glide",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:entity_damage",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:entity_die",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:entity_dismount",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:entity_interact",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:entity_mount",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:entity_place",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:entity_action",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:equip",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:explode",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:flap",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:fluid_pickup",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:fluid_place",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:hit_ground",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:instrument_play",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:item_interact_finish",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:item_interact_start",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:jukebox_play",
+        notification_radius: JUKEBOX_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:jukebox_stop_play",
+        notification_radius: JUKEBOX_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:lightning_strike",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:note_block_play",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:prime_fuse",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:projectile_land",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:projectile_shoot",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:sculk_sensor_tendrils_clicking",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:shear",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:shriek",
+        notification_radius: SHRIEK_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:splash",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:step",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:swim",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:teleport",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:unequip",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:resonate_1",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:resonate_2",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:resonate_3",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:resonate_4",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:resonate_5",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:resonate_6",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:resonate_7",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:resonate_8",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:resonate_9",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:resonate_10",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:resonate_11",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:resonate_12",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:resonate_13",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:resonate_14",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+    GameEventDefinition {
+        id: "minecraft:resonate_15",
+        notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
+    },
+];
+
 pub fn builtin_game_events() -> Vec<GameEventDefinition> {
-    use GameEventDefinition as Event;
-    vec![
-        Event {
-            id: "minecraft:block_activate",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:block_attach",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:block_change",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:block_close",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:block_deactivate",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:block_destroy",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:block_detach",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:block_open",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:block_place",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:container_close",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:container_open",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:drink",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:eat",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:elytra_glide",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:entity_damage",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:entity_die",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:entity_dismount",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:entity_interact",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:entity_mount",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:entity_place",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:entity_action",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:equip",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:explode",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:flap",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:fluid_pickup",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:fluid_place",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:hit_ground",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:instrument_play",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:item_interact_finish",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:item_interact_start",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:jukebox_play",
-            notification_radius: JUKEBOX_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:jukebox_stop_play",
-            notification_radius: JUKEBOX_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:lightning_strike",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:note_block_play",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:prime_fuse",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:projectile_land",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:projectile_shoot",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:sculk_sensor_tendrils_clicking",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:shear",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:shriek",
-            notification_radius: SHRIEK_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:splash",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:step",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:swim",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:teleport",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:unequip",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:resonate_1",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:resonate_2",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:resonate_3",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:resonate_4",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:resonate_5",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:resonate_6",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:resonate_7",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:resonate_8",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:resonate_9",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:resonate_10",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:resonate_11",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:resonate_12",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:resonate_13",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:resonate_14",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-        Event {
-            id: "minecraft:resonate_15",
-            notification_radius: DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS,
-        },
-    ]
+    BUILTIN_GAME_EVENTS.to_vec()
 }
 
 pub fn game_event_by_id(id: &str) -> Option<GameEventDefinition> {
-    builtin_game_events()
-        .into_iter()
+    BUILTIN_GAME_EVENTS
+        .iter()
+        .copied()
         .find(|event| event.id == id)
 }
 
@@ -502,7 +508,7 @@ pub fn plan_server_explosion(input: ServerExplosionInput) -> ServerExplosionPlan
     };
 
     ServerExplosionPlan {
-        game_event: game_event_by_id("minecraft:explode").expect("explode event exists"),
+        game_event: EXPLODE_GAME_EVENT,
         destroyed_blocks,
         entity_hits,
         fire_positions,

@@ -221,11 +221,12 @@ pub fn bucket_use(content: FluidKind, hit: HitKind, infinite_materials: bool) ->
         };
     }
 
-    let can_place = match (content, block, user_shift_down) {
-        (FluidKind::Water, BlockKind::Waterloggable, false) => true,
-        (_, BlockKind::Air, _) | (_, BlockKind::SolidReplaceable, _) => true,
-        _ => false,
-    };
+    let can_place = matches!(
+        (content, block, user_shift_down),
+        (FluidKind::Water, BlockKind::Waterloggable, false)
+            | (_, BlockKind::Air, _)
+            | (_, BlockKind::SolidReplaceable, _)
+    );
 
     if !can_place {
         return ItemUseOutcome::Fail;

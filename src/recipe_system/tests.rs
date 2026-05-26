@@ -173,7 +173,7 @@ fn recipe_display_model_covers_all_vanilla_display_and_slot_variants() {
     settings.set_open(RecipeBookType::Furnace, true);
     settings.set_filtering(RecipeBookType::Smoker, true);
 
-    let displays = vec![
+    let displays = [
         RecipeDisplay::ShapedCrafting {
             width: 2,
             height: 2,
@@ -291,8 +291,7 @@ fn shaped_and_shapeless_recipes_match_vanilla_grid_rules() {
     ));
 }
 
-#[test]
-fn transmute_and_imbue_recipes_match_java_crafting_rules() {
+fn assert_transmute_recipe_matches_java_crafting_rules() {
     let transmute = RecipeKind::Transmute {
         input: IngredientSpec::Item("minecraft:filled_map"),
         material: IngredientSpec::Item("minecraft:map"),
@@ -345,7 +344,9 @@ fn transmute_and_imbue_recipes_match_java_crafting_rules() {
     assert_eq!(copied.item, "minecraft:filled_map");
     assert_eq!(copied.count, 3);
     assert_eq!(copied.custom_name, Some("Base map"));
+}
 
+fn assert_imbue_recipe_matches_java_crafting_rules() {
     let imbue = RecipeKind::Imbue {
         source: IngredientSpec::Item("minecraft:lingering_potion"),
         material: IngredientSpec::Item("minecraft:arrow"),
@@ -407,7 +408,12 @@ fn transmute_and_imbue_recipes_match_java_crafting_rules() {
 }
 
 #[test]
-fn special_crafting_recipes_produce_vanilla_components() {
+fn transmute_and_imbue_recipes_match_java_crafting_rules() {
+    assert_transmute_recipe_matches_java_crafting_rules();
+    assert_imbue_recipe_matches_java_crafting_rules();
+}
+
+fn assert_banner_book_and_pot_special_recipes_produce_vanilla_components() {
     let mut patterned_banner = ComponentCraftingStack::one("minecraft:white_banner");
     patterned_banner.banner_color = Some("white");
     patterned_banner.banner_patterns = 2;
@@ -490,7 +496,9 @@ fn special_crafting_recipes_produce_vanilla_components() {
             front: "minecraft:arms_up_pottery_sherd",
         })
     );
+}
 
+fn assert_dye_firework_and_map_special_recipes_produce_vanilla_components() {
     let mut leather = ComponentCraftingStack::one("minecraft:leather_helmet");
     leather.dyed_color = Some(0x0000FF);
     let mut red_dye = ComponentCraftingStack::one("minecraft:red_dye");
@@ -555,7 +563,9 @@ fn special_crafting_recipes_produce_vanilla_components() {
     let extended =
         map_extending_result(&map_grid).expect("scale < 4 non-exploration map should extend");
     assert!(extended.map_post_processing_scale);
+}
 
+fn assert_repair_and_shield_special_recipes_produce_vanilla_components() {
     let mut first_pick = ComponentCraftingStack::one("minecraft:diamond_pickaxe");
     first_pick.max_damage = Some(100);
     first_pick.damage = Some(80);
@@ -585,6 +595,13 @@ fn special_crafting_recipes_produce_vanilla_components() {
     .expect("pattern banner plus clear shield should decorate shield");
     assert_eq!(decorated_shield.banner_patterns, 3);
     assert_eq!(decorated_shield.base_color, Some("red"));
+}
+
+#[test]
+fn special_crafting_recipes_produce_vanilla_components() {
+    assert_banner_book_and_pot_special_recipes_produce_vanilla_components();
+    assert_dye_firework_and_map_special_recipes_produce_vanilla_components();
+    assert_repair_and_shield_special_recipes_produce_vanilla_components();
 }
 
 #[test]
@@ -756,6 +773,5 @@ fn cooking_recipe_experience_and_fuel_interaction_follow_furnace_rules() {
         0
     );
 }
-
 
 mod recipe_kind_tests;

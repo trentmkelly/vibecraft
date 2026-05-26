@@ -2,7 +2,6 @@ use super::*;
 
 mod mid_slice;
 
-
 // Lookup tables mirroring OverworldBiomeBuilder's instance fields in Java.
 // First index = temperature tier (0=coldest, 4=hottest).
 // Second index = humidity tier (0=driest, 4=wettest).
@@ -26,6 +25,53 @@ const OCEANS: [[&str; 5]; 2] = [
         "minecraft:warm_ocean",
     ],
 ];
+
+#[derive(Debug, Clone, Copy)]
+pub(super) struct ClimateEntryParameters {
+    temperature: ClimateParameter,
+    humidity: ClimateParameter,
+    continentalness: ClimateParameter,
+    erosion: ClimateParameter,
+    weirdness: ClimateParameter,
+    offset: f32,
+}
+
+impl ClimateEntryParameters {
+    fn new(
+        temperature: ClimateParameter,
+        humidity: ClimateParameter,
+        continentalness: ClimateParameter,
+        erosion: ClimateParameter,
+        weirdness: ClimateParameter,
+        offset: f32,
+    ) -> Self {
+        Self {
+            temperature,
+            humidity,
+            continentalness,
+            erosion,
+            weirdness,
+            offset,
+        }
+    }
+
+    pub(super) fn surface(
+        temperature: ClimateParameter,
+        humidity: ClimateParameter,
+        continentalness: ClimateParameter,
+        erosion: ClimateParameter,
+        weirdness: ClimateParameter,
+    ) -> Self {
+        Self::new(
+            temperature,
+            humidity,
+            continentalness,
+            erosion,
+            weirdness,
+            0.0,
+        )
+    }
+}
 
 const MIDDLE_BIOMES: [[&str; 5]; 5] = [
     [
@@ -273,24 +319,19 @@ impl OverworldBiomeBuilder {
     fn add_surface_biome(
         &self,
         entries: &mut Vec<ClimateBiomeEntry>,
-        temp: ClimateParameter,
-        hum: ClimateParameter,
-        cont: ClimateParameter,
-        eros: ClimateParameter,
-        weird: ClimateParameter,
-        offset: f32,
+        climate: ClimateEntryParameters,
         biome: &'static str,
     ) {
         for depth_val in [0.0_f32, 1.0_f32] {
             entries.push(ClimateBiomeEntry {
                 parameters: ClimateParameterPoint {
-                    temperature: temp,
-                    humidity: hum,
-                    continentalness: cont,
-                    erosion: eros,
+                    temperature: climate.temperature,
+                    humidity: climate.humidity,
+                    continentalness: climate.continentalness,
+                    erosion: climate.erosion,
                     depth: point(depth_val),
-                    weirdness: weird,
-                    offset: quantize_coord(offset),
+                    weirdness: climate.weirdness,
+                    offset: quantize_coord(climate.offset),
                 },
                 biome,
             });
@@ -301,23 +342,18 @@ impl OverworldBiomeBuilder {
     fn add_underground_biome(
         &self,
         entries: &mut Vec<ClimateBiomeEntry>,
-        temp: ClimateParameter,
-        hum: ClimateParameter,
-        cont: ClimateParameter,
-        eros: ClimateParameter,
-        weird: ClimateParameter,
-        offset: f32,
+        climate: ClimateEntryParameters,
         biome: &'static str,
     ) {
         entries.push(ClimateBiomeEntry {
             parameters: ClimateParameterPoint {
-                temperature: temp,
-                humidity: hum,
-                continentalness: cont,
-                erosion: eros,
+                temperature: climate.temperature,
+                humidity: climate.humidity,
+                continentalness: climate.continentalness,
+                erosion: climate.erosion,
                 depth: span(0.2, 0.9),
-                weirdness: weird,
-                offset: quantize_coord(offset),
+                weirdness: climate.weirdness,
+                offset: quantize_coord(climate.offset),
             },
             biome,
         });
@@ -327,23 +363,18 @@ impl OverworldBiomeBuilder {
     fn add_bottom_biome(
         &self,
         entries: &mut Vec<ClimateBiomeEntry>,
-        temp: ClimateParameter,
-        hum: ClimateParameter,
-        cont: ClimateParameter,
-        eros: ClimateParameter,
-        weird: ClimateParameter,
-        offset: f32,
+        climate: ClimateEntryParameters,
         biome: &'static str,
     ) {
         entries.push(ClimateBiomeEntry {
             parameters: ClimateParameterPoint {
-                temperature: temp,
-                humidity: hum,
-                continentalness: cont,
-                erosion: eros,
+                temperature: climate.temperature,
+                humidity: climate.humidity,
+                continentalness: climate.continentalness,
+                erosion: climate.erosion,
                 depth: point(1.1),
-                weirdness: weird,
-                offset: quantize_coord(offset),
+                weirdness: climate.weirdness,
+                offset: quantize_coord(climate.offset),
             },
             biome,
         });
@@ -476,454 +507,417 @@ impl OverworldBiomeBuilder {
 
     fn add_peaks(&self, entries: &mut Vec<ClimateBiomeEntry>, weird: ClimateParameter) {
         for ti in 0..5_usize {
-            let temp = self.temperatures[ti];
             for hi in 0..5_usize {
-                let hum = self.humidities[hi];
-                let middle = self.pick_middle_biome(ti, hi, weird);
-                let middle_or_badlands = self.pick_middle_biome_or_badlands_if_hot(ti, hi, weird);
-                let middle_or_badlands_or_slope =
-                    self.pick_middle_biome_or_badlands_if_hot_or_slope_if_cold(ti, hi, weird);
-                let plateau = self.pick_plateau_biome(ti, hi, weird);
-                let shattered = self.pick_shattered_biome(ti, hi, weird);
-                let shattered_or_windswept =
-                    self.maybe_pick_windswept_savanna_biome(ti, hi, weird, shattered);
-                let peak = self.pick_peak_biome(ti, hi, weird);
-
-                let coast_far = Self::p_span(self.coast_cont, self.far_inland_cont);
-                let coast_near = Self::p_span(self.coast_cont, self.near_inland_cont);
-                let mid_far = Self::p_span(self.mid_inland_cont, self.far_inland_cont);
-                let eros23 = Self::p_span(self.erosions[2], self.erosions[3]);
-
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    coast_far,
-                    self.erosions[0],
-                    weird,
-                    0.0,
-                    peak,
-                );
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    coast_near,
-                    self.erosions[1],
-                    weird,
-                    0.0,
-                    middle_or_badlands_or_slope,
-                );
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    mid_far,
-                    self.erosions[1],
-                    weird,
-                    0.0,
-                    peak,
-                );
-                self.add_surface_biome(entries, temp, hum, coast_near, eros23, weird, 0.0, middle);
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    mid_far,
-                    self.erosions[2],
-                    weird,
-                    0.0,
-                    plateau,
-                );
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    self.mid_inland_cont,
-                    self.erosions[3],
-                    weird,
-                    0.0,
-                    middle_or_badlands,
-                );
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    self.far_inland_cont,
-                    self.erosions[3],
-                    weird,
-                    0.0,
-                    plateau,
-                );
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    coast_far,
-                    self.erosions[4],
-                    weird,
-                    0.0,
-                    middle,
-                );
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    coast_near,
-                    self.erosions[5],
-                    weird,
-                    0.0,
-                    shattered_or_windswept,
-                );
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    mid_far,
-                    self.erosions[5],
-                    weird,
-                    0.0,
-                    shattered,
-                );
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    coast_far,
-                    self.erosions[6],
-                    weird,
-                    0.0,
-                    middle,
-                );
+                self.add_peak_cell(entries, weird, ti, hi);
             }
         }
+    }
+
+    fn add_peak_cell(
+        &self,
+        entries: &mut Vec<ClimateBiomeEntry>,
+        weird: ClimateParameter,
+        ti: usize,
+        hi: usize,
+    ) {
+        let temp = self.temperatures[ti];
+        let hum = self.humidities[hi];
+        let middle = self.pick_middle_biome(ti, hi, weird);
+        let middle_or_badlands = self.pick_middle_biome_or_badlands_if_hot(ti, hi, weird);
+        let middle_or_badlands_or_slope =
+            self.pick_middle_biome_or_badlands_if_hot_or_slope_if_cold(ti, hi, weird);
+        let plateau = self.pick_plateau_biome(ti, hi, weird);
+        let shattered = self.pick_shattered_biome(ti, hi, weird);
+        let shattered_or_windswept =
+            self.maybe_pick_windswept_savanna_biome(ti, hi, weird, shattered);
+        let peak = self.pick_peak_biome(ti, hi, weird);
+
+        let coast_far = Self::p_span(self.coast_cont, self.far_inland_cont);
+        let coast_near = Self::p_span(self.coast_cont, self.near_inland_cont);
+        let mid_far = Self::p_span(self.mid_inland_cont, self.far_inland_cont);
+        let eros23 = Self::p_span(self.erosions[2], self.erosions[3]);
+
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(temp, hum, coast_far, self.erosions[0], weird),
+            peak,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(temp, hum, coast_near, self.erosions[1], weird),
+            middle_or_badlands_or_slope,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(temp, hum, mid_far, self.erosions[1], weird),
+            peak,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(temp, hum, coast_near, eros23, weird),
+            middle,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(temp, hum, mid_far, self.erosions[2], weird),
+            plateau,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(
+                temp,
+                hum,
+                self.mid_inland_cont,
+                self.erosions[3],
+                weird,
+            ),
+            middle_or_badlands,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(
+                temp,
+                hum,
+                self.far_inland_cont,
+                self.erosions[3],
+                weird,
+            ),
+            plateau,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(temp, hum, coast_far, self.erosions[4], weird),
+            middle,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(temp, hum, coast_near, self.erosions[5], weird),
+            shattered_or_windswept,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(temp, hum, mid_far, self.erosions[5], weird),
+            shattered,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(temp, hum, coast_far, self.erosions[6], weird),
+            middle,
+        );
     }
 
     fn add_high_slice(&self, entries: &mut Vec<ClimateBiomeEntry>, weird: ClimateParameter) {
         for ti in 0..5_usize {
-            let temp = self.temperatures[ti];
             for hi in 0..5_usize {
-                let hum = self.humidities[hi];
-                let middle = self.pick_middle_biome(ti, hi, weird);
-                let middle_or_badlands = self.pick_middle_biome_or_badlands_if_hot(ti, hi, weird);
-                let middle_or_badlands_or_slope =
-                    self.pick_middle_biome_or_badlands_if_hot_or_slope_if_cold(ti, hi, weird);
-                let plateau = self.pick_plateau_biome(ti, hi, weird);
-                let shattered = self.pick_shattered_biome(ti, hi, weird);
-                let middle_or_windswept =
-                    self.maybe_pick_windswept_savanna_biome(ti, hi, weird, middle);
-                let slope = self.pick_slope_biome(ti, hi, weird);
-                let peak = self.pick_peak_biome(ti, hi, weird);
-
-                let coast_near = Self::p_span(self.coast_cont, self.near_inland_cont);
-                let mid_far = Self::p_span(self.mid_inland_cont, self.far_inland_cont);
-                let coast_far = Self::p_span(self.coast_cont, self.far_inland_cont);
-                let eros01 = Self::p_span(self.erosions[0], self.erosions[1]);
-                let eros23 = Self::p_span(self.erosions[2], self.erosions[3]);
-
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    self.coast_cont,
-                    eros01,
-                    weird,
-                    0.0,
-                    middle,
-                );
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    self.near_inland_cont,
-                    self.erosions[0],
-                    weird,
-                    0.0,
-                    slope,
-                );
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    mid_far,
-                    self.erosions[0],
-                    weird,
-                    0.0,
-                    peak,
-                );
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    self.near_inland_cont,
-                    self.erosions[1],
-                    weird,
-                    0.0,
-                    middle_or_badlands_or_slope,
-                );
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    mid_far,
-                    self.erosions[1],
-                    weird,
-                    0.0,
-                    slope,
-                );
-                self.add_surface_biome(entries, temp, hum, coast_near, eros23, weird, 0.0, middle);
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    mid_far,
-                    self.erosions[2],
-                    weird,
-                    0.0,
-                    plateau,
-                );
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    self.mid_inland_cont,
-                    self.erosions[3],
-                    weird,
-                    0.0,
-                    middle_or_badlands,
-                );
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    self.far_inland_cont,
-                    self.erosions[3],
-                    weird,
-                    0.0,
-                    plateau,
-                );
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    coast_far,
-                    self.erosions[4],
-                    weird,
-                    0.0,
-                    middle,
-                );
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    coast_near,
-                    self.erosions[5],
-                    weird,
-                    0.0,
-                    middle_or_windswept,
-                );
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    mid_far,
-                    self.erosions[5],
-                    weird,
-                    0.0,
-                    shattered,
-                );
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    coast_far,
-                    self.erosions[6],
-                    weird,
-                    0.0,
-                    middle,
-                );
+                self.add_high_slice_cell(entries, weird, ti, hi);
             }
         }
     }
 
-    fn add_low_slice(&self, entries: &mut Vec<ClimateBiomeEntry>, weird: ClimateParameter) {
-        let near_far = Self::p_span(self.near_inland_cont, self.far_inland_cont);
+    fn add_high_slice_cell(
+        &self,
+        entries: &mut Vec<ClimateBiomeEntry>,
+        weird: ClimateParameter,
+        ti: usize,
+        hi: usize,
+    ) {
+        self.add_high_slice_early_erosions(entries, weird, ti, hi);
+        self.add_high_slice_late_erosions(entries, weird, ti, hi);
+    }
+
+    fn add_high_slice_early_erosions(
+        &self,
+        entries: &mut Vec<ClimateBiomeEntry>,
+        weird: ClimateParameter,
+        ti: usize,
+        hi: usize,
+    ) {
+        let temp = self.temperatures[ti];
+        let hum = self.humidities[hi];
+        let middle = self.pick_middle_biome(ti, hi, weird);
+        let middle_or_badlands_or_slope =
+            self.pick_middle_biome_or_badlands_if_hot_or_slope_if_cold(ti, hi, weird);
+        let plateau = self.pick_plateau_biome(ti, hi, weird);
+        let slope = self.pick_slope_biome(ti, hi, weird);
+        let peak = self.pick_peak_biome(ti, hi, weird);
+
+        let coast_near = Self::p_span(self.coast_cont, self.near_inland_cont);
         let mid_far = Self::p_span(self.mid_inland_cont, self.far_inland_cont);
-        let eros02 = Self::p_span(self.erosions[0], self.erosions[2]);
         let eros01 = Self::p_span(self.erosions[0], self.erosions[1]);
         let eros23 = Self::p_span(self.erosions[2], self.erosions[3]);
-        let eros34 = Self::p_span(self.erosions[3], self.erosions[4]);
+
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(temp, hum, self.coast_cont, eros01, weird),
+            middle,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(
+                temp,
+                hum,
+                self.near_inland_cont,
+                self.erosions[0],
+                weird,
+            ),
+            slope,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(temp, hum, mid_far, self.erosions[0], weird),
+            peak,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(
+                temp,
+                hum,
+                self.near_inland_cont,
+                self.erosions[1],
+                weird,
+            ),
+            middle_or_badlands_or_slope,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(temp, hum, mid_far, self.erosions[1], weird),
+            slope,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(temp, hum, coast_near, eros23, weird),
+            middle,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(temp, hum, mid_far, self.erosions[2], weird),
+            plateau,
+        );
+    }
+
+    fn add_high_slice_late_erosions(
+        &self,
+        entries: &mut Vec<ClimateBiomeEntry>,
+        weird: ClimateParameter,
+        ti: usize,
+        hi: usize,
+    ) {
+        let temp = self.temperatures[ti];
+        let hum = self.humidities[hi];
+        let middle = self.pick_middle_biome(ti, hi, weird);
+        let middle_or_badlands = self.pick_middle_biome_or_badlands_if_hot(ti, hi, weird);
+        let plateau = self.pick_plateau_biome(ti, hi, weird);
+        let shattered = self.pick_shattered_biome(ti, hi, weird);
+        let middle_or_windswept = self.maybe_pick_windswept_savanna_biome(ti, hi, weird, middle);
+
+        let coast_near = Self::p_span(self.coast_cont, self.near_inland_cont);
+        let mid_far = Self::p_span(self.mid_inland_cont, self.far_inland_cont);
+        let coast_far = Self::p_span(self.coast_cont, self.far_inland_cont);
+
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(
+                temp,
+                hum,
+                self.mid_inland_cont,
+                self.erosions[3],
+                weird,
+            ),
+            middle_or_badlands,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(
+                temp,
+                hum,
+                self.far_inland_cont,
+                self.erosions[3],
+                weird,
+            ),
+            plateau,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(temp, hum, coast_far, self.erosions[4], weird),
+            middle,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(temp, hum, coast_near, self.erosions[5], weird),
+            middle_or_windswept,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(temp, hum, mid_far, self.erosions[5], weird),
+            shattered,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(temp, hum, coast_far, self.erosions[6], weird),
+            middle,
+        );
+    }
+
+    fn add_low_slice(&self, entries: &mut Vec<ClimateBiomeEntry>, weird: ClimateParameter) {
+        self.add_low_slice_edges(entries, weird);
+
+        for ti in 0..5_usize {
+            for hi in 0..5_usize {
+                self.add_low_slice_cell(entries, weird, ti, hi);
+            }
+        }
+    }
+
+    fn add_low_slice_edges(&self, entries: &mut Vec<ClimateBiomeEntry>, weird: ClimateParameter) {
+        let near_far = Self::p_span(self.near_inland_cont, self.far_inland_cont);
+        let eros02 = Self::p_span(self.erosions[0], self.erosions[2]);
         let temp12 = Self::p_span(self.temperatures[1], self.temperatures[2]);
         let temp34 = Self::p_span(self.temperatures[3], self.temperatures[4]);
 
         self.add_surface_biome(
             entries,
-            self.full_range,
-            self.full_range,
-            self.coast_cont,
-            eros02,
-            weird,
-            0.0,
+            ClimateEntryParameters::surface(
+                self.full_range,
+                self.full_range,
+                self.coast_cont,
+                eros02,
+                weird,
+            ),
             "minecraft:stony_shore",
         );
         self.add_surface_biome(
             entries,
-            temp12,
-            self.full_range,
-            near_far,
-            self.erosions[6],
-            weird,
-            0.0,
+            ClimateEntryParameters::surface(
+                temp12,
+                self.full_range,
+                near_far,
+                self.erosions[6],
+                weird,
+            ),
             "minecraft:swamp",
         );
         self.add_surface_biome(
             entries,
-            temp34,
-            self.full_range,
-            near_far,
-            self.erosions[6],
-            weird,
-            0.0,
+            ClimateEntryParameters::surface(
+                temp34,
+                self.full_range,
+                near_far,
+                self.erosions[6],
+                weird,
+            ),
             "minecraft:mangrove_swamp",
         );
+    }
 
-        for ti in 0..5_usize {
-            let temp = self.temperatures[ti];
-            for hi in 0..5_usize {
-                let hum = self.humidities[hi];
-                let middle = self.pick_middle_biome(ti, hi, weird);
-                let middle_or_badlands = self.pick_middle_biome_or_badlands_if_hot(ti, hi, weird);
-                let middle_or_badlands_or_slope =
-                    self.pick_middle_biome_or_badlands_if_hot_or_slope_if_cold(ti, hi, weird);
-                let beach = self.pick_beach_biome(ti);
-                let middle_or_windswept =
-                    self.maybe_pick_windswept_savanna_biome(ti, hi, weird, middle);
-                let shattered_coast = self.pick_shattered_coast_biome(ti, hi, weird);
+    fn add_low_slice_cell(
+        &self,
+        entries: &mut Vec<ClimateBiomeEntry>,
+        weird: ClimateParameter,
+        ti: usize,
+        hi: usize,
+    ) {
+        let temp = self.temperatures[ti];
+        let hum = self.humidities[hi];
+        let middle = self.pick_middle_biome(ti, hi, weird);
+        let middle_or_badlands = self.pick_middle_biome_or_badlands_if_hot(ti, hi, weird);
+        let middle_or_badlands_or_slope =
+            self.pick_middle_biome_or_badlands_if_hot_or_slope_if_cold(ti, hi, weird);
+        let beach = self.pick_beach_biome(ti);
+        let middle_or_windswept = self.maybe_pick_windswept_savanna_biome(ti, hi, weird, middle);
+        let shattered_coast = self.pick_shattered_coast_biome(ti, hi, weird);
 
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    self.near_inland_cont,
-                    eros01,
-                    weird,
-                    0.0,
-                    middle_or_badlands,
-                );
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    mid_far,
-                    eros01,
-                    weird,
-                    0.0,
-                    middle_or_badlands_or_slope,
-                );
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    self.near_inland_cont,
-                    eros23,
-                    weird,
-                    0.0,
-                    middle,
-                );
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    mid_far,
-                    eros23,
-                    weird,
-                    0.0,
-                    middle_or_badlands,
-                );
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    self.coast_cont,
-                    eros34,
-                    weird,
-                    0.0,
-                    beach,
-                );
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    near_far,
-                    self.erosions[4],
-                    weird,
-                    0.0,
-                    middle,
-                );
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    self.coast_cont,
-                    self.erosions[5],
-                    weird,
-                    0.0,
-                    shattered_coast,
-                );
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    self.near_inland_cont,
-                    self.erosions[5],
-                    weird,
-                    0.0,
-                    middle_or_windswept,
-                );
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    mid_far,
-                    self.erosions[5],
-                    weird,
-                    0.0,
-                    middle,
-                );
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    self.coast_cont,
-                    self.erosions[6],
-                    weird,
-                    0.0,
-                    beach,
-                );
-                if ti == 0 {
-                    self.add_surface_biome(
-                        entries,
-                        temp,
-                        hum,
-                        near_far,
-                        self.erosions[6],
-                        weird,
-                        0.0,
-                        middle,
-                    );
-                }
-            }
+        let near_far = Self::p_span(self.near_inland_cont, self.far_inland_cont);
+        let mid_far = Self::p_span(self.mid_inland_cont, self.far_inland_cont);
+        let eros01 = Self::p_span(self.erosions[0], self.erosions[1]);
+        let eros23 = Self::p_span(self.erosions[2], self.erosions[3]);
+        let eros34 = Self::p_span(self.erosions[3], self.erosions[4]);
+
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(temp, hum, self.near_inland_cont, eros01, weird),
+            middle_or_badlands,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(temp, hum, mid_far, eros01, weird),
+            middle_or_badlands_or_slope,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(temp, hum, self.near_inland_cont, eros23, weird),
+            middle,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(temp, hum, mid_far, eros23, weird),
+            middle_or_badlands,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(temp, hum, self.coast_cont, eros34, weird),
+            beach,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(temp, hum, near_far, self.erosions[4], weird),
+            middle,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(temp, hum, self.coast_cont, self.erosions[5], weird),
+            shattered_coast,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(
+                temp,
+                hum,
+                self.near_inland_cont,
+                self.erosions[5],
+                weird,
+            ),
+            middle_or_windswept,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(temp, hum, mid_far, self.erosions[5], weird),
+            middle,
+        );
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(temp, hum, self.coast_cont, self.erosions[6], weird),
+            beach,
+        );
+        if ti == 0 {
+            self.add_surface_biome(
+                entries,
+                ClimateEntryParameters::surface(temp, hum, near_far, self.erosions[6], weird),
+                middle,
+            );
         }
     }
 
     fn add_valleys(&self, entries: &mut Vec<ClimateBiomeEntry>, weird: ClimateParameter) {
-        let coast_far = Self::p_span(self.coast_cont, self.far_inland_cont);
+        self.add_valley_edges(entries, weird);
+
+        for ti in 0..5_usize {
+            for hi in 0..5_usize {
+                self.add_valley_cell(entries, weird, ti, hi);
+            }
+        }
+    }
+
+    fn add_valley_edges(&self, entries: &mut Vec<ClimateBiomeEntry>, weird: ClimateParameter) {
+        self.add_valley_river_edges(entries, weird);
+        self.add_valley_swamp_edges(entries, weird);
+    }
+
+    fn add_valley_river_edges(
+        &self,
+        entries: &mut Vec<ClimateBiomeEntry>,
+        weird: ClimateParameter,
+    ) {
         let eros01 = Self::p_span(self.erosions[0], self.erosions[1]);
-        let eros25 = Self::p_span(self.erosions[2], self.erosions[5]);
-        let inland_far = Self::p_span(self.inland_cont, self.far_inland_cont);
-        let mid_far = Self::p_span(self.mid_inland_cont, self.far_inland_cont);
-        let temp12 = Self::p_span(self.temperatures[1], self.temperatures[2]);
-        let temp34 = Self::p_span(self.temperatures[3], self.temperatures[4]);
 
         let frozen_stony = if weird.max < 0 {
             "minecraft:stony_shore"
@@ -938,132 +932,158 @@ impl OverworldBiomeBuilder {
 
         self.add_surface_biome(
             entries,
-            self.frozen_range,
-            self.full_range,
-            self.coast_cont,
-            eros01,
-            weird,
-            0.0,
+            ClimateEntryParameters::surface(
+                self.frozen_range,
+                self.full_range,
+                self.coast_cont,
+                eros01,
+                weird,
+            ),
             frozen_stony,
         );
         self.add_surface_biome(
             entries,
-            self.unfrozen_range,
-            self.full_range,
-            self.coast_cont,
-            eros01,
-            weird,
-            0.0,
+            ClimateEntryParameters::surface(
+                self.unfrozen_range,
+                self.full_range,
+                self.coast_cont,
+                eros01,
+                weird,
+            ),
             unfrozen_stony,
         );
         self.add_surface_biome(
             entries,
-            self.frozen_range,
-            self.full_range,
-            self.near_inland_cont,
-            eros01,
-            weird,
-            0.0,
+            ClimateEntryParameters::surface(
+                self.frozen_range,
+                self.full_range,
+                self.near_inland_cont,
+                eros01,
+                weird,
+            ),
             "minecraft:frozen_river",
         );
         self.add_surface_biome(
             entries,
-            self.unfrozen_range,
-            self.full_range,
-            self.near_inland_cont,
-            eros01,
-            weird,
-            0.0,
+            ClimateEntryParameters::surface(
+                self.unfrozen_range,
+                self.full_range,
+                self.near_inland_cont,
+                eros01,
+                weird,
+            ),
             "minecraft:river",
         );
+    }
+
+    fn add_valley_swamp_edges(
+        &self,
+        entries: &mut Vec<ClimateBiomeEntry>,
+        weird: ClimateParameter,
+    ) {
+        let coast_far = Self::p_span(self.coast_cont, self.far_inland_cont);
+        let eros25 = Self::p_span(self.erosions[2], self.erosions[5]);
+        let inland_far = Self::p_span(self.inland_cont, self.far_inland_cont);
+        let temp12 = Self::p_span(self.temperatures[1], self.temperatures[2]);
+        let temp34 = Self::p_span(self.temperatures[3], self.temperatures[4]);
+
         self.add_surface_biome(
             entries,
-            self.frozen_range,
-            self.full_range,
-            coast_far,
-            eros25,
-            weird,
-            0.0,
+            ClimateEntryParameters::surface(
+                self.frozen_range,
+                self.full_range,
+                coast_far,
+                eros25,
+                weird,
+            ),
             "minecraft:frozen_river",
         );
         self.add_surface_biome(
             entries,
-            self.unfrozen_range,
-            self.full_range,
-            coast_far,
-            eros25,
-            weird,
-            0.0,
+            ClimateEntryParameters::surface(
+                self.unfrozen_range,
+                self.full_range,
+                coast_far,
+                eros25,
+                weird,
+            ),
             "minecraft:river",
         );
         self.add_surface_biome(
             entries,
-            self.frozen_range,
-            self.full_range,
-            self.coast_cont,
-            self.erosions[6],
-            weird,
-            0.0,
+            ClimateEntryParameters::surface(
+                self.frozen_range,
+                self.full_range,
+                self.coast_cont,
+                self.erosions[6],
+                weird,
+            ),
             "minecraft:frozen_river",
         );
         self.add_surface_biome(
             entries,
-            self.unfrozen_range,
-            self.full_range,
-            self.coast_cont,
-            self.erosions[6],
-            weird,
-            0.0,
+            ClimateEntryParameters::surface(
+                self.unfrozen_range,
+                self.full_range,
+                self.coast_cont,
+                self.erosions[6],
+                weird,
+            ),
             "minecraft:river",
         );
         self.add_surface_biome(
             entries,
-            temp12,
-            self.full_range,
-            inland_far,
-            self.erosions[6],
-            weird,
-            0.0,
+            ClimateEntryParameters::surface(
+                temp12,
+                self.full_range,
+                inland_far,
+                self.erosions[6],
+                weird,
+            ),
             "minecraft:swamp",
         );
         self.add_surface_biome(
             entries,
-            temp34,
-            self.full_range,
-            inland_far,
-            self.erosions[6],
-            weird,
-            0.0,
+            ClimateEntryParameters::surface(
+                temp34,
+                self.full_range,
+                inland_far,
+                self.erosions[6],
+                weird,
+            ),
             "minecraft:mangrove_swamp",
         );
         self.add_surface_biome(
             entries,
-            self.frozen_range,
-            self.full_range,
-            inland_far,
-            self.erosions[6],
-            weird,
-            0.0,
+            ClimateEntryParameters::surface(
+                self.frozen_range,
+                self.full_range,
+                inland_far,
+                self.erosions[6],
+                weird,
+            ),
             "minecraft:frozen_river",
         );
+    }
 
-        for ti in 0..5_usize {
-            let temp = self.temperatures[ti];
-            for hi in 0..5_usize {
-                let hum = self.humidities[hi];
-                let middle_or_badlands = self.pick_middle_biome_or_badlands_if_hot(ti, hi, weird);
-                self.add_surface_biome(
-                    entries,
-                    temp,
-                    hum,
-                    mid_far,
-                    eros01,
-                    weird,
-                    0.0,
-                    middle_or_badlands,
-                );
-            }
-        }
+    fn add_valley_cell(
+        &self,
+        entries: &mut Vec<ClimateBiomeEntry>,
+        weird: ClimateParameter,
+        ti: usize,
+        hi: usize,
+    ) {
+        let temp = self.temperatures[ti];
+        let hum = self.humidities[hi];
+        let middle_or_badlands = self.pick_middle_biome_or_badlands_if_hot(ti, hi, weird);
+        let mid_far = Self::p_span(self.mid_inland_cont, self.far_inland_cont);
+        let eros01 = Self::p_span(self.erosions[0], self.erosions[1]);
+
+        self.add_surface_biome(
+            entries,
+            ClimateEntryParameters::surface(temp, hum, mid_far, eros01, weird),
+            middle_or_badlands,
+        );
     }
 
     fn add_inland_biomes(&self, entries: &mut Vec<ClimateBiomeEntry>) {
@@ -1085,34 +1105,39 @@ impl OverworldBiomeBuilder {
     fn add_off_coast_biomes(&self, entries: &mut Vec<ClimateBiomeEntry>) {
         self.add_surface_biome(
             entries,
-            self.full_range,
-            self.full_range,
-            self.mushroom_fields_cont,
-            self.full_range,
-            self.full_range,
-            0.0,
-            "minecraft:mushroom_fields",
-        );
-        for ti in 0..5_usize {
-            let temp = self.temperatures[ti];
-            self.add_surface_biome(
-                entries,
-                temp,
+            ClimateEntryParameters::new(
                 self.full_range,
-                self.deep_ocean_cont,
+                self.full_range,
+                self.mushroom_fields_cont,
                 self.full_range,
                 self.full_range,
                 0.0,
+            ),
+            "minecraft:mushroom_fields",
+        );
+        for (ti, temp) in self.temperatures.iter().copied().enumerate() {
+            self.add_surface_biome(
+                entries,
+                ClimateEntryParameters::new(
+                    temp,
+                    self.full_range,
+                    self.deep_ocean_cont,
+                    self.full_range,
+                    self.full_range,
+                    0.0,
+                ),
                 OCEANS[0][ti],
             );
             self.add_surface_biome(
                 entries,
-                temp,
-                self.full_range,
-                self.ocean_cont,
-                self.full_range,
-                self.full_range,
-                0.0,
+                ClimateEntryParameters::new(
+                    temp,
+                    self.full_range,
+                    self.ocean_cont,
+                    self.full_range,
+                    self.full_range,
+                    0.0,
+                ),
                 OCEANS[1][ti],
             );
         }
@@ -1121,32 +1146,38 @@ impl OverworldBiomeBuilder {
     fn add_underground_biomes(&self, entries: &mut Vec<ClimateBiomeEntry>) {
         self.add_underground_biome(
             entries,
-            self.full_range,
-            self.full_range,
-            span(0.8, 1.0),
-            self.full_range,
-            self.full_range,
-            0.0,
+            ClimateEntryParameters::new(
+                self.full_range,
+                self.full_range,
+                span(0.8, 1.0),
+                self.full_range,
+                self.full_range,
+                0.0,
+            ),
             "minecraft:dripstone_caves",
         );
         self.add_underground_biome(
             entries,
-            self.full_range,
-            span(0.7, 1.0),
-            self.full_range,
-            self.full_range,
-            self.full_range,
-            0.0,
+            ClimateEntryParameters::new(
+                self.full_range,
+                span(0.7, 1.0),
+                self.full_range,
+                self.full_range,
+                self.full_range,
+                0.0,
+            ),
             "minecraft:lush_caves",
         );
         self.add_bottom_biome(
             entries,
-            self.full_range,
-            self.full_range,
-            self.full_range,
-            Self::p_span(self.erosions[0], self.erosions[1]),
-            self.full_range,
-            0.0,
+            ClimateEntryParameters::new(
+                self.full_range,
+                self.full_range,
+                self.full_range,
+                Self::p_span(self.erosions[0], self.erosions[1]),
+                self.full_range,
+                0.0,
+            ),
             "minecraft:deep_dark",
         );
     }

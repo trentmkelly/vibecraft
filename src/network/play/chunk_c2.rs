@@ -125,9 +125,11 @@ impl ClientboundLevelChunkPacketData {
         for section_y in
             OVERWORLD_MIN_SECTION_Y..OVERWORLD_MIN_SECTION_Y + OVERWORLD_SECTION_COUNT as i32
         {
-            NetworkChunkSection::from_chunk_section_y(chunk, section_y)
-                .write(&mut buffer)
-                .expect("writing chunk section to vec");
+            if let Err(err) =
+                NetworkChunkSection::from_chunk_section_y(chunk, section_y).write(&mut buffer)
+            {
+                panic!("writing chunk section to Vec failed: {err}");
+            }
         }
         assert!(
             buffer.len() <= Self::MAX_BUFFER_SIZE,
@@ -270,8 +272,12 @@ impl ClientboundLightUpdatePacketData {
         write_bitset(writer, &self.block_y_mask)?;
         write_bitset(writer, &self.empty_sky_y_mask)?;
         write_bitset(writer, &self.empty_block_y_mask)?;
-        write_collection(writer, &self.sky_updates, write_data_layer)?;
-        write_collection(writer, &self.block_updates, write_data_layer)
+        write_collection(writer, &self.sky_updates, |writer, layer| {
+            write_data_layer(writer, layer)
+        })?;
+        write_collection(writer, &self.block_updates, |writer, layer| {
+            write_data_layer(writer, layer)
+        })
     }
 
     pub(super) fn add_layer(&mut self, section_index: usize, layer: Option<&[i8]>, sky: bool) {
@@ -455,7 +461,7 @@ pub(super) fn set_bit(mask: &mut Vec<u64>, index: usize) {
     mask[word] |= 1_u64 << (index % 64);
 }
 
-pub(super) fn write_data_layer<W: Write>(writer: &mut W, layer: &Vec<i8>) -> io::Result<()> {
+pub(super) fn write_data_layer<W: Write>(writer: &mut W, layer: &[i8]) -> io::Result<()> {
     if layer.len() != ClientboundLightUpdatePacketData::DATA_LAYER_SIZE {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -562,18 +568,14 @@ pub(super) fn section_fluid_count(tag: &Tag) -> i16 {
     section_palette_entry_count(tag, storage_palette_entry_is_fluid)
 }
 
-pub(super) fn section_palette_entry_count<F>(tag: &Tag, mut is_match: F) -> i16
+pub(super) fn section_palette_entry_count<F>(tag: &Tag, is_match: F) -> i16
 where
     F: FnMut(&Tag) -> bool,
 {
     let Ok(container) = PalettedContainer::from_nbt(tag, 4096) else {
         return 0;
     };
-    let matching_entries = container
-        .palette
-        .iter()
-        .map(|entry| is_match(entry))
-        .collect::<Vec<_>>();
+    let matching_entries = container.palette.iter().map(is_match).collect::<Vec<_>>();
     if matching_entries.is_empty() {
         return 0;
     }
@@ -677,7 +679,10 @@ pub(super) fn block_state_string_property_is_true(name: &str, property_name: &st
         .any(|property| property == expected)
 }
 
-pub(super) fn compound_string_property_is_true(fields: &[(String, Tag)], property_name: &str) -> bool {
+pub(super) fn compound_string_property_is_true(
+    fields: &[(String, Tag)],
+    property_name: &str,
+) -> bool {
     fields.iter().any(|(field_name, value)| {
         field_name == "Properties"
             && matches!(

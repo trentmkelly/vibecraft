@@ -190,7 +190,7 @@ impl Xoroshiro128PlusPlus {
 }
 
 impl PositionalRandomFactory {
-    pub fn from_seed(self, seed: i64) -> RandomSourceKind {
+    pub fn at_seed(self, seed: i64) -> RandomSourceKind {
         match self {
             PositionalRandomFactory::Legacy { .. } => {
                 RandomSourceKind::Legacy(LegacyRandom::new(seed))
@@ -219,7 +219,7 @@ impl PositionalRandomFactory {
         }
     }
 
-    pub fn from_hash_of_legacy(self, name: &str) -> Option<LegacyRandom> {
+    pub fn legacy_at_hashed_name(self, name: &str) -> Option<LegacyRandom> {
         match self {
             PositionalRandomFactory::Legacy { seed } => {
                 Some(LegacyRandom::new(java_string_hash(name) as i64 ^ seed))
@@ -228,7 +228,7 @@ impl PositionalRandomFactory {
         }
     }
 
-    pub fn from_hash_of(self, name: &str) -> RandomSourceKind {
+    pub fn at_hashed_name(self, name: &str) -> RandomSourceKind {
         match self {
             PositionalRandomFactory::Legacy { seed } => {
                 RandomSourceKind::Legacy(LegacyRandom::new(java_string_hash(name) as i64 ^ seed))
@@ -348,11 +348,11 @@ pub fn random_state_seed_factories(
 ) -> RandomStateSeedFactories {
     let mut random = RandomSourceKind::new(seed, algorithm);
     let base = random.fork_positional();
-    let aquifer = base.from_hash_of("minecraft:aquifer").fork_positional();
-    let ore = base.from_hash_of("minecraft:ore").fork_positional();
+    let aquifer = base.at_hashed_name("minecraft:aquifer").fork_positional();
+    let ore = base.at_hashed_name("minecraft:ore").fork_positional();
     let terrain = match algorithm {
         RandomAlgorithm::Legacy => RandomSourceKind::Legacy(LegacyRandom::new(seed)),
-        RandomAlgorithm::Xoroshiro => base.from_hash_of("minecraft:terrain"),
+        RandomAlgorithm::Xoroshiro => base.at_hashed_name("minecraft:terrain"),
     };
     RandomStateSeedFactories {
         base,
@@ -366,7 +366,7 @@ pub fn random_state_named_factory(
     base: PositionalRandomFactory,
     name: &str,
 ) -> PositionalRandomFactory {
-    base.from_hash_of(name).fork_positional()
+    base.at_hashed_name(name).fork_positional()
 }
 
 pub fn mix_stafford_13(mut z: i64) -> i64 {
@@ -391,8 +391,13 @@ pub fn upgrade_seed_to_128bit(seed: i64) -> Seed128 {
 
 pub fn seed128_from_md5_digest(digest: [u8; 16]) -> Seed128 {
     Seed128 {
-        lo: i64::from_be_bytes(digest[0..8].try_into().expect("fixed MD5 low half")),
-        hi: i64::from_be_bytes(digest[8..16].try_into().expect("fixed MD5 high half")),
+        lo: i64::from_be_bytes([
+            digest[0], digest[1], digest[2], digest[3], digest[4], digest[5], digest[6], digest[7],
+        ]),
+        hi: i64::from_be_bytes([
+            digest[8], digest[9], digest[10], digest[11], digest[12], digest[13], digest[14],
+            digest[15],
+        ]),
     }
 }
 
@@ -818,17 +823,17 @@ mod tests {
             }
             _ => panic!("legacy positional factory should create legacy randoms"),
         }
-        match factory.from_seed(99) {
+        match factory.at_seed(99) {
             RandomSourceKind::Legacy(mut random) => {
                 assert_eq!(random.next_i32(), -1_192_035_722);
             }
             _ => panic!("legacy from_seed should create legacy randoms"),
         }
         let mut hashed = factory
-            .from_hash_of_legacy("minecraft:terrain")
+            .legacy_at_hashed_name("minecraft:terrain")
             .expect("legacy factory supports Java String.hashCode hashing");
         assert_eq!(hashed.next_i32(), 1_947_910_319);
-        match factory.from_hash_of("minecraft:terrain") {
+        match factory.at_hashed_name("minecraft:terrain") {
             RandomSourceKind::Legacy(mut random) => {
                 assert_eq!(random.next_i32(), 1_947_910_319);
             }
@@ -852,14 +857,14 @@ mod tests {
             }
             _ => panic!("xoroshiro positional factory should create xoroshiro randoms"),
         }
-        match factory.from_seed(99) {
+        match factory.at_seed(99) {
             RandomSourceKind::Xoroshiro(mut random) => {
                 assert_eq!(random.next_i64(), 3_338_114_822_160_895_021);
             }
             _ => panic!("xoroshiro from_seed should create xoroshiro randoms"),
         }
-        assert_eq!(factory.from_hash_of_legacy("minecraft:terrain"), None);
-        match factory.from_hash_of("minecraft:terrain") {
+        assert_eq!(factory.legacy_at_hashed_name("minecraft:terrain"), None);
+        match factory.at_hashed_name("minecraft:terrain") {
             RandomSourceKind::Xoroshiro(mut random) => {
                 assert_eq!(random.next_i64(), 2_703_920_793_147_051_671);
             }

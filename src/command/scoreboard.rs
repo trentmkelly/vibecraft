@@ -5,6 +5,23 @@ pub(super) fn scoreboard_command(
     parts: &[&str],
 ) -> Result<CommandResult, CommandError> {
     match parts {
+        ["scoreboard", "objectives", ..] => scoreboard_objectives_command(state, parts),
+        ["scoreboard", "players", ..] => scoreboard_players_command(state, parts),
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn scoreboard_objectives_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["scoreboard", "objectives", "modify", ..] => {
+            scoreboard_objective_modify_command(state, parts)
+        }
+        ["scoreboard", "objectives", "setdisplay", ..] => {
+            scoreboard_objective_display_command(state, parts)
+        }
         ["scoreboard", "objectives", "list"] => Ok(CommandResult {
             success_count: state.scoreboard_objectives.len() as i32,
             feedback_key: if state.scoreboard_objectives.is_empty() {
@@ -37,6 +54,15 @@ pub(super) fn scoreboard_command(
                 broadcast_to_admins: true,
             })
         }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn scoreboard_objective_modify_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
         ["scoreboard", "objectives", "modify", objective, "displayname", display] => {
             let objective = scoreboard_objective_mut(state, objective)?;
             objective.display_name = (*display).to_string();
@@ -93,6 +119,15 @@ pub(super) fn scoreboard_command(
                 true,
             ))
         }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn scoreboard_objective_display_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
         ["scoreboard", "objectives", "setdisplay", slot] => {
             if !state
                 .scoreboard_display_slots
@@ -132,6 +167,39 @@ pub(super) fn scoreboard_command(
                 true,
             ))
         }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn scoreboard_players_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
+        ["scoreboard", "players", "list", ..] | ["scoreboard", "players", "get", ..] => {
+            scoreboard_players_query_command(state, parts)
+        }
+        ["scoreboard", "players", "set" | "add" | "remove", ..] => {
+            scoreboard_players_score_command(state, parts)
+        }
+        ["scoreboard", "players", "reset" | "enable", ..] => {
+            scoreboard_players_state_command(state, parts)
+        }
+        ["scoreboard", "players", "display", ..] => {
+            scoreboard_players_display_command(state, parts)
+        }
+        ["scoreboard", "players", "operation", ..] => {
+            scoreboard_players_operation_command(state, parts)
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn scoreboard_players_query_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
         ["scoreboard", "players", "list"] => {
             let count = tracked_score_holders(state).len();
             Ok(scoreboard_result(
@@ -170,6 +238,15 @@ pub(super) fn scoreboard_command(
                 false,
             ))
         }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn scoreboard_players_score_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
         ["scoreboard", "players", "set", targets, objective, value] => {
             let value = parse_i32(value)?;
             set_scores(state, targets, objective, value)
@@ -182,6 +259,15 @@ pub(super) fn scoreboard_command(
             let value = parse_non_negative_i32(value)?;
             add_scores(state, targets, objective, -value)
         }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn scoreboard_players_state_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
         ["scoreboard", "players", "reset", targets] => {
             let names = parse_score_holders(targets);
             for name in &names {
@@ -242,6 +328,15 @@ pub(super) fn scoreboard_command(
                 true,
             ))
         }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn scoreboard_players_display_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
         ["scoreboard", "players", "display", "name", targets, objective] => {
             set_score_display_name(state, targets, objective, None)
         }
@@ -261,6 +356,15 @@ pub(super) fn scoreboard_command(
                 Some(parse_score_number_format(format)?),
             )
         }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn scoreboard_players_operation_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    match parts {
         ["scoreboard", "players", "operation", targets, target_objective, operation, sources, source_objective] => {
             scoreboard_operation(
                 state,

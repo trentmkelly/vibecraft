@@ -56,7 +56,7 @@ pub const OVERWORLD_OFFSET_BLEND_TARGET_DENSITY: DensityFunction = DensityFuncti
 pub const OVERWORLD_OFFSET_SPLINE_OFFSET_DENSITY: DensityFunction =
     DensityFunction::Constant(-0.5037500262260437);
 pub const OVERWORLD_OFFSET_SPLINE_DENSITY: DensityFunction = DensityFunction::Spline {
-    kind: TerrainSplineKind::OverworldOffset,
+    kind: TerrainSplineKind::Offset,
 };
 pub const OVERWORLD_OFFSET_SPLINE_WITH_OFFSET_DENSITY: DensityFunction = DensityFunction::Binary {
     kind: BinaryDensityFunction::Add,
@@ -84,7 +84,7 @@ pub const OVERWORLD_OFFSET_DENSITY: DensityFunction = DensityFunction::Marker {
 pub const BLENDING_FACTOR_DENSITY: DensityFunction = DensityFunction::Constant(10.0);
 pub const BLENDING_FACTOR_NEGATED_DENSITY: DensityFunction = DensityFunction::Constant(-10.0);
 pub const OVERWORLD_FACTOR_SPLINE_DENSITY: DensityFunction = DensityFunction::Spline {
-    kind: TerrainSplineKind::OverworldFactor,
+    kind: TerrainSplineKind::Factor,
 };
 pub const OVERWORLD_FACTOR_SPLINE_DELTA_DENSITY: DensityFunction = DensityFunction::Binary {
     kind: BinaryDensityFunction::Add,
@@ -112,7 +112,7 @@ pub const OVERWORLD_FACTOR_DENSITY: DensityFunction = DensityFunction::Marker {
 pub const BLENDING_JAGGEDNESS_DENSITY: DensityFunction = DensityFunction::Constant(0.0);
 pub const BLENDING_JAGGEDNESS_NEGATED_DENSITY: DensityFunction = DensityFunction::Constant(-0.0);
 pub const OVERWORLD_JAGGEDNESS_SPLINE_DENSITY: DensityFunction = DensityFunction::Spline {
-    kind: TerrainSplineKind::OverworldJaggedness,
+    kind: TerrainSplineKind::Jaggedness,
 };
 pub const OVERWORLD_JAGGEDNESS_SPLINE_DELTA_DENSITY: DensityFunction = DensityFunction::Binary {
     kind: BinaryDensityFunction::Add,
@@ -138,7 +138,7 @@ pub const OVERWORLD_JAGGEDNESS_DENSITY: DensityFunction = DensityFunction::Marke
     input: &OVERWORLD_JAGGEDNESS_CACHE_2D_DENSITY,
 };
 pub const OVERWORLD_LARGE_BIOMES_OFFSET_SPLINE_DENSITY: DensityFunction = DensityFunction::Spline {
-    kind: TerrainSplineKind::OverworldLargeBiomesOffset,
+    kind: TerrainSplineKind::LargeBiomesOffset,
 };
 pub const OVERWORLD_LARGE_BIOMES_OFFSET_SPLINE_WITH_OFFSET_DENSITY: DensityFunction =
     DensityFunction::Binary {
@@ -168,7 +168,7 @@ pub const OVERWORLD_LARGE_BIOMES_OFFSET_DENSITY: DensityFunction = DensityFuncti
     input: &OVERWORLD_LARGE_BIOMES_OFFSET_CACHE_2D_DENSITY,
 };
 pub const OVERWORLD_LARGE_BIOMES_FACTOR_SPLINE_DENSITY: DensityFunction = DensityFunction::Spline {
-    kind: TerrainSplineKind::OverworldLargeBiomesFactor,
+    kind: TerrainSplineKind::LargeBiomesFactor,
 };
 pub const OVERWORLD_LARGE_BIOMES_FACTOR_SPLINE_DELTA_DENSITY: DensityFunction =
     DensityFunction::Binary {
@@ -199,7 +199,7 @@ pub const OVERWORLD_LARGE_BIOMES_FACTOR_DENSITY: DensityFunction = DensityFuncti
 };
 pub const OVERWORLD_LARGE_BIOMES_JAGGEDNESS_SPLINE_DENSITY: DensityFunction =
     DensityFunction::Spline {
-        kind: TerrainSplineKind::OverworldLargeBiomesJaggedness,
+        kind: TerrainSplineKind::LargeBiomesJaggedness,
     };
 pub const OVERWORLD_LARGE_BIOMES_JAGGEDNESS_SPLINE_DELTA_DENSITY: DensityFunction =
     DensityFunction::Binary {
@@ -229,7 +229,7 @@ pub const OVERWORLD_LARGE_BIOMES_JAGGEDNESS_DENSITY: DensityFunction = DensityFu
     input: &OVERWORLD_LARGE_BIOMES_JAGGEDNESS_CACHE_2D_DENSITY,
 };
 pub const OVERWORLD_AMPLIFIED_OFFSET_SPLINE_DENSITY: DensityFunction = DensityFunction::Spline {
-    kind: TerrainSplineKind::OverworldAmplifiedOffset,
+    kind: TerrainSplineKind::AmplifiedOffset,
 };
 pub const OVERWORLD_AMPLIFIED_OFFSET_SPLINE_WITH_OFFSET_DENSITY: DensityFunction =
     DensityFunction::Binary {
@@ -257,7 +257,7 @@ pub const OVERWORLD_AMPLIFIED_OFFSET_DENSITY: DensityFunction = DensityFunction:
     input: &OVERWORLD_AMPLIFIED_OFFSET_CACHE_2D_DENSITY,
 };
 pub const OVERWORLD_AMPLIFIED_FACTOR_SPLINE_DENSITY: DensityFunction = DensityFunction::Spline {
-    kind: TerrainSplineKind::OverworldAmplifiedFactor,
+    kind: TerrainSplineKind::AmplifiedFactor,
 };
 pub const OVERWORLD_AMPLIFIED_FACTOR_SPLINE_DELTA_DENSITY: DensityFunction =
     DensityFunction::Binary {
@@ -286,7 +286,7 @@ pub const OVERWORLD_AMPLIFIED_FACTOR_DENSITY: DensityFunction = DensityFunction:
 };
 pub const OVERWORLD_AMPLIFIED_JAGGEDNESS_SPLINE_DENSITY: DensityFunction =
     DensityFunction::Spline {
-        kind: TerrainSplineKind::OverworldAmplifiedJaggedness,
+        kind: TerrainSplineKind::AmplifiedJaggedness,
     };
 pub const OVERWORLD_AMPLIFIED_JAGGEDNESS_SPLINE_DELTA_DENSITY: DensityFunction =
     DensityFunction::Binary {

@@ -180,9 +180,10 @@ mod tests {
 
     #[test]
     fn structure_resources_decode_all_vanilla_templates() {
-        let root = std::path::Path::new("../decompiled-server-26.1.2/data/minecraft/structure");
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../decompiled-server-26.1.2/data/minecraft/structure");
         let mut paths = Vec::new();
-        collect_nbt_paths(root, &mut paths);
+        collect_nbt_paths(&root, &mut paths);
         paths.sort();
 
         assert_eq!(paths.len(), 1202);

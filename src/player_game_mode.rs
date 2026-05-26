@@ -35,9 +35,9 @@ pub fn block_interaction_range(is_creative: bool) -> f32 {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BlockBreakAction {
-    StartDestroy,
-    StopDestroy,
-    AbortDestroy,
+    Start,
+    Stop,
+    Abort,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -143,7 +143,7 @@ pub fn handle_block_break_action(
     }
 
     match ctx.action {
-        BlockBreakAction::StartDestroy => {
+        BlockBreakAction::Start => {
             if ctx.spawn_protected {
                 return BlockBreakOutcome::Denied(BlockBreakDenyReason::SpawnProtection);
             }
@@ -183,7 +183,7 @@ pub fn handle_block_break_action(
             BlockBreakOutcome::Progress(progress_state)
         }
 
-        BlockBreakAction::StopDestroy => {
+        BlockBreakAction::Stop => {
             if ctx.pos != state.destroy_pos {
                 return BlockBreakOutcome::ProgressReset;
             }
@@ -212,7 +212,7 @@ pub fn handle_block_break_action(
             BlockBreakOutcome::ProgressReset
         }
 
-        BlockBreakAction::AbortDestroy => {
+        BlockBreakAction::Abort => {
             state.is_destroying = false;
             // If pos mismatch, both positions need their overlay cleared
             BlockBreakOutcome::Aborted
@@ -314,10 +314,7 @@ mod tests {
         let mut state = BlockBreakState::default();
         let ctx = BlockBreakInputContext {
             within_reach: false,
-            ..default_ctx(
-                BlockBreakAction::StartDestroy,
-                BlockPos { x: 0, y: 64, z: 0 },
-            )
+            ..default_ctx(BlockBreakAction::Start, BlockPos { x: 0, y: 64, z: 0 })
         };
         assert_eq!(
             handle_block_break_action(&mut state, &ctx),
@@ -331,10 +328,7 @@ mod tests {
         let ctx = BlockBreakInputContext {
             pos: BlockPos { x: 0, y: 400, z: 0 },
             max_y: 319,
-            ..default_ctx(
-                BlockBreakAction::StartDestroy,
-                BlockPos { x: 0, y: 400, z: 0 },
-            )
+            ..default_ctx(BlockBreakAction::Start, BlockPos { x: 0, y: 400, z: 0 })
         };
         assert_eq!(
             handle_block_break_action(&mut state, &ctx),
@@ -347,10 +341,7 @@ mod tests {
         let mut state = BlockBreakState::default();
         let ctx = BlockBreakInputContext {
             spawn_protected: true,
-            ..default_ctx(
-                BlockBreakAction::StartDestroy,
-                BlockPos { x: 0, y: 64, z: 0 },
-            )
+            ..default_ctx(BlockBreakAction::Start, BlockPos { x: 0, y: 64, z: 0 })
         };
         assert_eq!(
             handle_block_break_action(&mut state, &ctx),
@@ -363,10 +354,7 @@ mod tests {
         let mut state = BlockBreakState::default();
         let ctx = BlockBreakInputContext {
             game_mode: PlayerGameMode::Creative,
-            ..default_ctx(
-                BlockBreakAction::StartDestroy,
-                BlockPos { x: 1, y: 64, z: 1 },
-            )
+            ..default_ctx(BlockBreakAction::Start, BlockPos { x: 1, y: 64, z: 1 })
         };
         assert_eq!(
             handle_block_break_action(&mut state, &ctx),
@@ -380,10 +368,7 @@ mod tests {
         let ctx = BlockBreakInputContext {
             game_mode: PlayerGameMode::Adventure,
             block_action_restricted: true,
-            ..default_ctx(
-                BlockBreakAction::StartDestroy,
-                BlockPos { x: 1, y: 64, z: 1 },
-            )
+            ..default_ctx(BlockBreakAction::Start, BlockPos { x: 1, y: 64, z: 1 })
         };
         assert_eq!(
             handle_block_break_action(&mut state, &ctx),
@@ -395,7 +380,7 @@ mod tests {
     fn start_destroy_progress_updates_state_and_returns_progress() {
         let mut state = BlockBreakState::default();
         let pos = BlockPos { x: 5, y: 64, z: 5 };
-        let ctx = default_ctx(BlockBreakAction::StartDestroy, pos);
+        let ctx = default_ctx(BlockBreakAction::Start, pos);
         let outcome = handle_block_break_action(&mut state, &ctx);
         // diamond pick on stone (hardness 1.5): 8.0/1.5/30 = 0.1778 → state = 1
         assert!(matches!(outcome, BlockBreakOutcome::Progress(1)));
@@ -406,13 +391,10 @@ mod tests {
     #[test]
     fn start_destroy_instant_mine_when_progress_gte_1() {
         let mut state = BlockBreakState::default();
-        let ctx = BlockBreakInputContext {
+        let _ctx = BlockBreakInputContext {
             block_hardness: 0.0, // sand/gravel hardness = 0.5, but 0.0 would be instant
             tool_speed: 1.0,
-            ..default_ctx(
-                BlockBreakAction::StartDestroy,
-                BlockPos { x: 0, y: 64, z: 0 },
-            )
+            ..default_ctx(BlockBreakAction::Start, BlockPos { x: 0, y: 64, z: 0 })
         };
         // progress = 1.0 / 0.0 / 30 → infinite, triggers instant mine
         // Actually let's use hardness that would give progress >= 1.0:
@@ -420,10 +402,7 @@ mod tests {
         let ctx2 = BlockBreakInputContext {
             block_hardness: 0.1,
             tool_speed: 8.0,
-            ..default_ctx(
-                BlockBreakAction::StartDestroy,
-                BlockPos { x: 0, y: 64, z: 0 },
-            )
+            ..default_ctx(BlockBreakAction::Start, BlockPos { x: 0, y: 64, z: 0 })
         };
         assert_eq!(
             handle_block_break_action(&mut state, &ctx2),
@@ -440,10 +419,7 @@ mod tests {
         };
         let ctx = BlockBreakInputContext {
             pos: BlockPos { x: 3, y: 64, z: 3 },
-            ..default_ctx(
-                BlockBreakAction::AbortDestroy,
-                BlockPos { x: 3, y: 64, z: 3 },
-            )
+            ..default_ctx(BlockBreakAction::Abort, BlockPos { x: 3, y: 64, z: 3 })
         };
         let outcome = handle_block_break_action(&mut state, &ctx);
         assert_eq!(outcome, BlockBreakOutcome::Aborted);
@@ -462,10 +438,7 @@ mod tests {
         // At 100 ticks with 0.1778/tick, accumulated = 17.78 >> 0.7
         let ctx = BlockBreakInputContext {
             pos: BlockPos { x: 2, y: 64, z: 2 },
-            ..default_ctx(
-                BlockBreakAction::StopDestroy,
-                BlockPos { x: 2, y: 64, z: 2 },
-            )
+            ..default_ctx(BlockBreakAction::Stop, BlockPos { x: 2, y: 64, z: 2 })
         };
         assert_eq!(
             handle_block_break_action(&mut state, &ctx),

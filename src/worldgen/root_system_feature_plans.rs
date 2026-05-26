@@ -56,18 +56,22 @@ pub fn mangrove_potential_root_positions(
     }
 }
 
+pub struct RootSystemPlacementInput<'a> {
+    pub origin: BlockPos,
+    pub origin_is_air: bool,
+    pub config: &'a RootSystemConfigurationModel,
+    pub tree_candidates: &'a [RootSystemTreeCandidateModel],
+    pub root_rolls: &'a [RootSystemOffsetRoll],
+    pub hanging_root_rolls: &'a [RootSystemOffsetRoll],
+    pub root_replaceable_positions: &'a [BlockPos],
+    pub hanging_root_candidates: &'a [BlockPos],
+}
+
 pub fn root_system_placement_plan(
-    origin: BlockPos,
-    origin_is_air: bool,
-    config: &RootSystemConfigurationModel,
-    tree_candidates: &[RootSystemTreeCandidateModel],
-    root_rolls: &[RootSystemOffsetRoll],
-    hanging_root_rolls: &[RootSystemOffsetRoll],
-    root_replaceable_positions: &[BlockPos],
-    hanging_root_candidates: &[BlockPos],
+    input: RootSystemPlacementInput<'_>,
 ) -> Result<RootSystemPlacementPlan, String> {
-    validate_root_system_configuration(config)?;
-    if !origin_is_air {
+    validate_root_system_configuration(input.config)?;
+    if !input.origin_is_air {
         return Ok(RootSystemPlacementPlan {
             tree_origin: None,
             blocks: Vec::new(),
@@ -75,13 +79,14 @@ pub fn root_system_placement_plan(
         });
     }
 
-    for y in 0..config.root_column_max_height {
+    for y in 0..input.config.root_column_max_height {
         let working_pos = BlockPos {
-            x: origin.x,
-            y: origin.y + y + 1,
-            z: origin.z,
+            x: input.origin.x,
+            y: input.origin.y + y + 1,
+            z: input.origin.z,
         };
-        let Some(candidate) = tree_candidates
+        let Some(candidate) = input
+            .tree_candidates
             .iter()
             .find(|candidate| candidate.pos == working_pos)
         else {
@@ -90,8 +95,8 @@ pub fn root_system_placement_plan(
         if !candidate.allowed_tree_position
             || !root_system_space_for_tree(
                 &candidate.vertical_space_states,
-                config.required_vertical_space_for_tree,
-                config.allowed_vertical_water_for_tree,
+                input.config.required_vertical_space_for_tree,
+                input.config.allowed_vertical_water_for_tree,
             )
         {
             continue;
@@ -108,17 +113,17 @@ pub fn root_system_placement_plan(
         }
 
         let mut blocks = root_system_dirt_placements(
-            origin,
-            origin.y + y,
-            config,
-            root_rolls,
-            root_replaceable_positions,
+            input.origin,
+            input.origin.y + y,
+            input.config,
+            input.root_rolls,
+            input.root_replaceable_positions,
         );
         blocks.extend(root_system_hanging_root_placements(
-            origin,
-            config,
-            hanging_root_rolls,
-            hanging_root_candidates,
+            input.origin,
+            input.config,
+            input.hanging_root_rolls,
+            input.hanging_root_candidates,
         ));
         return Ok(RootSystemPlacementPlan {
             tree_origin: Some(candidate.pos),

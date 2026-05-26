@@ -771,6 +771,18 @@ pub struct ClientboundAddEntityPacket {
     pub data: i32,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct AddEntityPacketInput {
+    pub id: i32,
+    pub uuid: Uuid,
+    pub entity_type: i32,
+    pub position: Vec3,
+    pub movement: Vec3,
+    pub rotation: (f32, f32),
+    pub y_head_rot: f32,
+    pub data: i32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientboundRemoveEntitiesPacket {
     pub entity_ids: Vec<i32>,

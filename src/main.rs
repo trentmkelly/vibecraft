@@ -1,13 +1,16 @@
+#[cfg(test)]
 mod advancement_system;
 mod ai_system;
 mod attribute_system;
 mod base_entity;
 mod biome;
 mod block_behavior;
+#[cfg(test)]
 mod block_behavior_tests;
 mod block_catalog;
 mod block_entity;
 mod block_metadata;
+#[cfg(test)]
 mod block_regression;
 mod block_update;
 mod boss_fight;
@@ -24,6 +27,7 @@ mod command;
 mod command_execution;
 mod command_feedback;
 mod command_parity;
+#[cfg(test)]
 mod command_selector;
 mod command_tree;
 mod console;
@@ -31,27 +35,36 @@ mod container_block;
 mod container_menus;
 mod crash;
 mod crash_recovery_tests;
+#[cfg(test)]
 mod creative_inventory;
 mod damage_type;
+#[cfg(test)]
 mod datapack_reload_tests;
+#[cfg(test)]
 mod dialog_system;
 mod dispenser_cauldron;
 mod enchantment_system;
+#[cfg(test)]
 mod entity_behavior_tests;
 mod entity_category;
+#[cfg(test)]
 mod entity_metadata;
 mod entity_physics;
 mod entity_validation;
+#[cfg(test)]
 mod entity_variants;
 mod environment_attributes;
+#[cfg(test)]
 mod equipment_trim;
 mod eula;
 mod experience_system;
 mod fire;
 mod fluid;
+#[cfg(test)]
 mod fuzz_tests;
 mod game_event;
 mod game_rules;
+#[cfg(test)]
 mod gametest_resources;
 mod generated_reports;
 mod gravity;
@@ -60,6 +73,7 @@ mod inventory;
 mod inventory_transactions;
 mod item_catalog;
 mod item_entity;
+#[cfg(test)]
 mod item_family_behavior;
 mod item_properties;
 mod item_stack;
@@ -71,15 +85,22 @@ mod loot_system;
 mod management_security;
 mod management_server;
 mod map_state;
+#[cfg(test)]
 mod mob_family;
 mod mob_interaction;
+#[cfg(test)]
 mod movement_physics;
+#[cfg(test)]
 mod movement_validation;
 mod network;
+#[cfg(test)]
 mod non_living_entity;
+#[cfg(test)]
 mod operational_coverage;
+#[cfg(test)]
 mod parity_harness;
 mod performance_benchmarks;
+#[cfg(test)]
 mod persistence_roundtrip_tests;
 mod plant;
 mod player;
@@ -89,13 +110,17 @@ mod player_game_mode;
 mod player_inventory;
 mod player_list;
 mod player_online_auth;
+#[cfg(test)]
 mod player_presentation;
+#[cfg(test)]
 mod player_profile_key;
 mod portal;
 mod post_processing;
+#[cfg(test)]
 mod potion_fluid_container;
 mod presentation_data;
 mod project_foundation_tests;
+#[cfg(test)]
 mod projectile_entity;
 mod raid;
 mod random_source;
@@ -111,15 +136,18 @@ mod seed_validation;
 mod server_properties;
 mod spawning;
 mod special_block;
+#[cfg(test)]
 mod statistics;
 mod status_effect;
 mod storage;
 mod structure_resources;
 mod trial_system;
+#[cfg(test)]
 mod vehicle_entity;
 mod vibration;
 mod villager_system;
 mod villager_trade_resources;
+#[cfg(test)]
 mod waypoint;
 mod weather;
 mod world;
@@ -156,6 +184,13 @@ struct RuntimeSelection {
     server_id: Option<String>,
 }
 
+struct StartupFiles {
+    settings_path: PathBuf,
+    eula_path: PathBuf,
+    properties: ServerProperties,
+    eula: Eula,
+}
+
 fn main() {
     crash::install_panic_hook();
 
@@ -181,67 +216,123 @@ fn main() {
 }
 
 fn run(options: CliOptions) -> Result<(), String> {
-    // Determine the log level using the documented precedence:
-    //   1. --log-level CLI flag
-    //   2. RUSTCRAFT_LOG environment variable
-    //   3. Default: Info
-    let level = options
+    let logger = initialize_logger(&options)?;
+    logger.info("Starting RustCraft target server for Minecraft Java Edition 26.1.2")?;
+    write_pid_file(&options)?;
+
+    if generate_reports_if_requested(&options, &logger)? {
+        return Ok(());
+    }
+
+    let startup = load_startup_files()?;
+    if exit_after_startup_file_gate(&options, &logger, &startup)? {
+        return Ok(());
+    }
+
+    validate_code_of_conduct_configuration(&startup.properties)?;
+
+    let watchdog = runtime::Watchdog::from_max_tick_time_millis(startup.properties.max_tick_time);
+    let runtime = runtime_selection(&options, &startup.properties);
+    log_runtime_selection(&logger, &options, &runtime, &watchdog)?;
+    run_configured_world_upgrade(&logger, &options, &runtime)?;
+
+    let (console_input, _console_handle) = console::spawn_console_input_thread()
+        .map_err(|err| format!("Failed to start server console input thread: {err}"))?;
+    logger.info("Started server console input thread")?;
+
+    let world_options =
+        configure_initial_data_packs(&logger, &options, &startup.properties, &runtime)?;
+    start_network_listeners(
+        &logger,
+        &startup.properties,
+        &runtime,
+        world_options.seed,
+        &console_input,
+    )
+}
+
+fn initialize_logger(options: &CliOptions) -> Result<std::sync::Arc<Logger>, String> {
+    let level = selected_log_level(options);
+    Logger::open_with_level("logs", level).map(crate::log::init)
+}
+
+fn selected_log_level(options: &CliOptions) -> LogLevel {
+    // Keep Java-main-style precedence: CLI flag, environment, then default.
+    options
         .log_level
         .or_else(|| {
             std::env::var("RUSTCRAFT_LOG")
                 .ok()
                 .and_then(|val| LogLevel::from_str(&val).ok())
         })
-        .unwrap_or(LogLevel::Info);
+        .unwrap_or(LogLevel::Info)
+}
 
-    let logger = crate::log::init(Logger::open_with_level("logs", level)?);
-    logger.info("Starting RustCraft target server for Minecraft Java Edition 26.1.2")?;
-
+fn write_pid_file(options: &CliOptions) -> Result<(), String> {
     if let Some(pid_file) = &options.pid_file {
         let pid = process::id().to_string();
         std::fs::write(pid_file, pid)
             .map_err(|err| format!("Failed to write pid file '{}': {err}", pid_file.display()))?;
     }
+    Ok(())
+}
 
-    let settings_path = PathBuf::from("server.properties");
-    let eula_path = PathBuf::from("eula.txt");
-
-    if options.report {
-        generated_reports::generate_reports("generated")?;
-        logger.info("Generated reports under generated/reports")?;
-        return Ok(());
+fn generate_reports_if_requested(options: &CliOptions, logger: &Logger) -> Result<bool, String> {
+    if !options.report {
+        return Ok(false);
     }
 
+    generated_reports::generate_reports("generated")?;
+    logger.info("Generated reports under generated/reports")?;
+    Ok(true)
+}
+
+fn load_startup_files() -> Result<StartupFiles, String> {
+    let settings_path = PathBuf::from("server.properties");
+    let eula_path = PathBuf::from("eula.txt");
     let mut properties = ServerProperties::load_or_default(&settings_path)?;
     properties.save(&settings_path)?;
-    let watchdog = runtime::Watchdog::from_max_tick_time_millis(properties.max_tick_time);
-
     let eula = Eula::load_or_create(&eula_path)?;
 
+    Ok(StartupFiles {
+        settings_path,
+        eula_path,
+        properties,
+        eula,
+    })
+}
+
+fn exit_after_startup_file_gate(
+    options: &CliOptions,
+    logger: &Logger,
+    startup: &StartupFiles,
+) -> Result<bool, String> {
     if options.init_settings {
         logger.info(&format!(
             "Initialized '{}' and '{}'",
-            settings_path.display(),
-            eula_path.display()
+            startup.settings_path.display(),
+            startup.eula_path.display()
         ))?;
-        return Ok(());
+        return Ok(true);
     }
 
-    if !eula.agreed {
+    if !startup.eula.agreed {
         logger.info("You need to agree to the EULA in order to run the server. Go to eula.txt for more info.")?;
-        return Ok(());
+        return Ok(true);
     }
 
-    validate_code_of_conduct_configuration(&properties)?;
+    Ok(false)
+}
 
-    let runtime = runtime_selection(&options, &properties);
-    let world_name = runtime.world_name.clone();
-    let universe = runtime.universe.clone();
-    let port = runtime.port;
-
-    logger.info(&format!("world={world_name}"))?;
-    logger.info(&format!("universe={}", universe.display()))?;
-    logger.info(&format!("port={port}"))?;
+fn log_runtime_selection(
+    logger: &Logger,
+    options: &CliOptions,
+    runtime: &RuntimeSelection,
+    watchdog: &runtime::Watchdog,
+) -> Result<(), String> {
+    logger.info(&format!("world={}", runtime.world_name))?;
+    logger.info(&format!("universe={}", runtime.universe.display()))?;
+    logger.info(&format!("port={}", runtime.port))?;
     logger.info(&format!("nogui={}", options.nogui))?;
     logger.info(&format!("safeMode={}", options.safe_mode))?;
     logger.info(&format!("demo={}", options.demo))?;
@@ -250,39 +341,52 @@ fn run(options: CliOptions) -> Result<(), String> {
         "serverId={}",
         runtime.server_id.as_deref().unwrap_or("")
     ))?;
-    logger.info(&format!("maxTickTime={}", watchdog.max_tick_time_millis()))?;
+    logger.info(&format!("maxTickTime={}", watchdog.max_tick_time_millis()))
+}
 
-    if options.force_upgrade || options.erase_cache || options.recreate_region_files {
-        let layout = WorldLayout::new(universe.join(&world_name));
-        if layout.level_dat().is_file() || layout.level_dat_old().is_file() {
-            let tag = layout
-                .load_level_dat_with_backup()
-                .map_err(|err| format!("Failed to read level.dat for world upgrade: {err}"))?;
-            let version = LevelVersion::parse_level_dat(&tag)
-                .and_then(|version| version.data_version)
-                .ok_or_else(|| "level.dat missing DataVersion for world upgrade".to_string())?;
-            let report = run_world_upgrade(
-                &layout,
-                version,
-                WorldUpgradeOptions {
-                    force_upgrade: options.force_upgrade,
-                    erase_cache: options.erase_cache,
-                    recreate_region_files: options.recreate_region_files,
-                },
-            )?;
-            logger.info(&format!(
-                "worldUpgradeSteps={:?}, chunks={}, entityChunks={}",
-                report.plan.steps, report.chunk_count, report.entity_chunk_count
-            ))?;
-        } else {
-            logger.info("Skipping world upgrade: no level.dat exists yet")?;
-        }
+fn run_configured_world_upgrade(
+    logger: &Logger,
+    options: &CliOptions,
+    runtime: &RuntimeSelection,
+) -> Result<(), String> {
+    if !(options.force_upgrade || options.erase_cache || options.recreate_region_files) {
+        return Ok(());
     }
 
-    let (console_input, _console_handle) = console::spawn_console_input_thread();
-    logger.info("Started server console input thread")?;
+    let layout = WorldLayout::new(runtime.universe.join(&runtime.world_name));
+    if !(layout.level_dat().is_file() || layout.level_dat_old().is_file()) {
+        logger.info("Skipping world upgrade: no level.dat exists yet")?;
+        return Ok(());
+    }
 
-    let datapack_dir = universe.join(&world_name).join("datapacks");
+    let tag = layout
+        .load_level_dat_with_backup()
+        .map_err(|err| format!("Failed to read level.dat for world upgrade: {err}"))?;
+    let version = LevelVersion::parse_level_dat(&tag)
+        .and_then(|version| version.data_version)
+        .ok_or_else(|| "level.dat missing DataVersion for world upgrade".to_string())?;
+    let report = run_world_upgrade(
+        &layout,
+        version,
+        WorldUpgradeOptions {
+            force_upgrade: options.force_upgrade,
+            erase_cache: options.erase_cache,
+            recreate_region_files: options.recreate_region_files,
+        },
+    )?;
+    logger.info(&format!(
+        "worldUpgradeSteps={:?}, chunks={}, entityChunks={}",
+        report.plan.steps, report.chunk_count, report.entity_chunk_count
+    ))
+}
+
+fn configure_initial_data_packs(
+    logger: &Logger,
+    options: &CliOptions,
+    properties: &ServerProperties,
+    runtime: &RuntimeSelection,
+) -> Result<WorldOptions, String> {
+    let datapack_dir = runtime.universe.join(&runtime.world_name).join("datapacks");
     let mut pack_repository = DataPackRepository::server_repository(&datapack_dir)?;
     let initial_data_config = WorldDataConfiguration {
         data_packs: DataPackConfig::from_properties(
@@ -322,18 +426,27 @@ fn run(options: CliOptions) -> Result<(), String> {
         "generateBonusChest={}",
         world_options.generate_bonus_chest
     ))?;
+    Ok(world_options)
+}
 
+fn start_network_listeners(
+    logger: &Logger,
+    properties: &ServerProperties,
+    runtime: &RuntimeSelection,
+    world_seed: i64,
+    console_input: &std::sync::mpsc::Receiver<console::ConsoleInput>,
+) -> Result<(), String> {
     logger.info("Starting status/login listener with minimal play join support.")?;
 
-    let bind_ip = listener_bind_ip(&properties);
+    let bind_ip = listener_bind_ip(properties);
     if properties.enable_query {
         let query_info = QueryServerInfo {
             server_name: properties.motd.clone(),
-            world_name: world_name.clone(),
+            world_name: runtime.world_name.clone(),
             server_version: "26.1.2".to_string(),
             plugin_names: String::new(),
             host_ip: bind_ip.to_string(),
-            server_port: port,
+            server_port: runtime.port,
             player_count: 0,
             max_players: properties.max_players as usize,
             player_names: Vec::new(),
@@ -359,17 +472,18 @@ fn run(options: CliOptions) -> Result<(), String> {
             properties.rcon_port
         ))?;
     }
-    logger.info(&format!("Status listener binding to {bind_ip}:{port}"))?;
+    logger.info(&format!(
+        "Status listener binding to {bind_ip}:{}",
+        runtime.port
+    ))?;
     run_status_server(
         bind_ip,
-        port,
-        &properties,
-        &universe.join(&world_name),
-        world_options.seed,
-        &console_input,
-    )?;
-
-    Ok(())
+        runtime.port,
+        properties,
+        &runtime.universe.join(&runtime.world_name),
+        world_seed,
+        console_input,
+    )
 }
 
 fn runtime_selection(options: &CliOptions, properties: &ServerProperties) -> RuntimeSelection {
@@ -408,7 +522,8 @@ fn validate_code_of_conduct_configuration(properties: &ServerProperties) -> Resu
 #[cfg(test)]
 mod tests {
     use super::{
-        listener_bind_ip, run, runtime_selection, validate_code_of_conduct_configuration, CliOptions,
+        listener_bind_ip, run, runtime_selection, validate_code_of_conduct_configuration,
+        CliOptions,
     };
     use crate::server_properties::ServerProperties;
     use std::fs;
@@ -449,8 +564,10 @@ mod tests {
         let dir = temp_workdir("init-settings");
         let _guard = CurrentDirGuard::enter(&dir);
 
-        let mut options = CliOptions::default();
-        options.init_settings = true;
+        let options = CliOptions {
+            init_settings: true,
+            ..CliOptions::default()
+        };
 
         run(options).expect("init settings run");
 
@@ -484,8 +601,10 @@ mod tests {
         let dir = temp_workdir("pid-file");
         let _guard = CurrentDirGuard::enter(&dir);
 
-        let mut options = CliOptions::default();
-        options.pid_file = Some(PathBuf::from("server.pid"));
+        let options = CliOptions {
+            pid_file: Some(PathBuf::from("server.pid")),
+            ..CliOptions::default()
+        };
 
         run(options).expect("pid-file run");
 
@@ -507,8 +626,7 @@ mod tests {
             "level-name=from_properties\nserver-port=25570\n",
         )
         .expect("write server.properties");
-        let properties =
-            ServerProperties::load_or_default(Path::new("server.properties")).unwrap();
+        let properties = ServerProperties::load_or_default(Path::new("server.properties")).unwrap();
 
         let defaulted = runtime_selection(&CliOptions::default(), &properties);
         assert_eq!(defaulted.world_name, "from_properties");
@@ -516,11 +634,13 @@ mod tests {
         assert_eq!(defaulted.port, 25570);
         assert_eq!(defaulted.server_id, None);
 
-        let mut options = CliOptions::default();
-        options.world = Some("from_cli".to_string());
-        options.universe = PathBuf::from("worlds");
-        options.port = 25566;
-        options.server_id = Some("server-123".to_string());
+        let options = CliOptions {
+            world: Some("from_cli".to_string()),
+            universe: PathBuf::from("worlds"),
+            port: 25566,
+            server_id: Some("server-123".to_string()),
+            ..CliOptions::default()
+        };
 
         let selected = runtime_selection(&options, &properties);
         assert_eq!(selected.world_name, "from_cli");
@@ -568,8 +688,10 @@ mod tests {
         let dir = temp_workdir("report");
         let _guard = CurrentDirGuard::enter(&dir);
 
-        let mut options = CliOptions::default();
-        options.report = true;
+        let options = CliOptions {
+            report: true,
+            ..CliOptions::default()
+        };
 
         run(options).expect("report run");
 

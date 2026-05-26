@@ -775,9 +775,9 @@ pub struct AttributeModifierState {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AttributeOperation {
-    AddValue,
-    AddMultipliedBase,
-    AddMultipliedTotal,
+    Value,
+    MultipliedBase,
+    MultipliedTotal,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

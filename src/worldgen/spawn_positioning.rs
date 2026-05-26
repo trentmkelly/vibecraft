@@ -1,33 +1,35 @@
 use super::*;
 
-pub fn initial_spawn_position(
-    debug_only_half_world: bool,
-    debug_world_recreate: bool,
-    is_debug: bool,
-    spawn_chunk_x: i32,
-    spawn_chunk_z: i32,
-    generator_spawn_height: i32,
-    min_y: i32,
-    world_surface_height_at_chunk_center: i32,
-) -> InitialSpawnKind {
-    if debug_only_half_world && debug_world_recreate {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InitialSpawnPositionInput {
+    pub debug_only_half_world: bool,
+    pub debug_world_recreate: bool,
+    pub is_debug: bool,
+    pub spawn_chunk: ChunkPos,
+    pub generator_spawn_height: i32,
+    pub min_y: i32,
+    pub world_surface_height_at_chunk_center: i32,
+}
+
+pub fn initial_spawn_position(input: InitialSpawnPositionInput) -> InitialSpawnKind {
+    if input.debug_only_half_world && input.debug_world_recreate {
         InitialSpawnKind::DebugHalfWorld {
             x: 0,
             y: 64,
             z: -100,
         }
-    } else if is_debug {
+    } else if input.is_debug {
         InitialSpawnKind::DebugWorld { x: 0, y: 80, z: 0 }
     } else {
-        let y = if generator_spawn_height < min_y {
-            world_surface_height_at_chunk_center
+        let y = if input.generator_spawn_height < input.min_y {
+            input.world_surface_height_at_chunk_center
         } else {
-            generator_spawn_height
+            input.generator_spawn_height
         };
         InitialSpawnKind::Normal {
-            x: spawn_chunk_x * 16 + 8,
+            x: input.spawn_chunk.x * 16 + 8,
             y,
-            z: spawn_chunk_z * 16 + 8,
+            z: input.spawn_chunk.z * 16 + 8,
         }
     }
 }
@@ -261,10 +263,9 @@ pub fn overworld_respawn_y(
         y -= 1;
     }
     if cave_world && blocks_from_top_plus_one_down.is_empty() {
-        None
-    } else {
-        None
+        return None;
     }
+    None
 }
 
 pub fn fixup_spawn_height(

@@ -1,13 +1,16 @@
 use std::fs::{self, File};
 use std::path::{Component, Path};
 
-use crate::storage::nbt::{read_gzip_named_tag, read_named_tag, write_gzip_named_tag, write_named_tag, Tag};
+use crate::storage::nbt::{read_gzip_named_tag, read_named_tag, Tag};
 
 use crate::storage::datafix::{
     require_current_tag_data_version, require_current_world_data_version, TARGET_DATA_VERSION,
 };
 
-pub(super) fn lock_file_exclusive_nonblocking(file: &File, lock_path: &Path) -> std::io::Result<()> {
+pub(super) fn lock_file_exclusive_nonblocking(
+    file: &File,
+    lock_path: &Path,
+) -> std::io::Result<()> {
     try_lock_file_exclusive_nonblocking(file).map_err(|err| {
         if is_would_block_lock_error(&err) {
             std::io::Error::new(
@@ -50,7 +53,10 @@ pub(super) fn level_dat_data_compound(tag: &Tag) -> Option<&[(String, Tag)]> {
         .or(Some(values.as_slice()))
 }
 
-pub(super) fn compound_tag<'a>(values: &'a [(String, Tag)], key: &str) -> Option<&'a [(String, Tag)]> {
+pub(super) fn compound_tag<'a>(
+    values: &'a [(String, Tag)],
+    key: &str,
+) -> Option<&'a [(String, Tag)]> {
     values
         .iter()
         .find_map(|(name, value)| match (name.as_str(), value) {

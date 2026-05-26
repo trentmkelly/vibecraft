@@ -1,6 +1,6 @@
 use super::{
-    parse_snbt, read_gzip_named_tag, read_named_tag, read_named_tag_limited,
-    write_gzip_named_tag, write_named_tag, NbtFieldSelector, Tag,
+    parse_snbt, read_gzip_named_tag, read_named_tag, read_named_tag_limited, write_gzip_named_tag,
+    write_named_tag, NbtFieldSelector, Tag,
 };
 use std::io::Cursor;
 

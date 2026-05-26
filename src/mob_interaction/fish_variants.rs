@@ -1,5 +1,3 @@
-use super::*;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PufferfishState {
     pub puff_state: u8,
@@ -284,16 +282,16 @@ pub fn tropical_fish_common_variants() -> Vec<TropicalFishVariantModel> {
         ("flopper", YELLOW, YELLOW),
     ]
     .into_iter()
-    .map(
-        |(name, base_color_id, pattern_color_id)| TropicalFishVariantModel {
-            pattern: *TROPICAL_FISH_PATTERNS
-                .iter()
-                .find(|pattern| pattern.name == name)
-                .expect("common tropical fish pattern must exist"),
-            base_color_id,
-            pattern_color_id,
-        },
-    )
+    .filter_map(|(name, base_color_id, pattern_color_id)| {
+        TROPICAL_FISH_PATTERNS
+            .iter()
+            .copied()
+            .find(|pattern| pattern.name == name)
+            .map(|pattern| TropicalFishVariantModel {
+                pattern,
+                base_color_id,
+                pattern_color_id,
+            })
+    })
     .collect()
 }
-

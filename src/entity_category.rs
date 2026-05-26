@@ -1,3 +1,4 @@
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EntityPackageCoverage {
     pub package: &'static str,
@@ -5,6 +6,7 @@ pub struct EntityPackageCoverage {
     pub category: EntitySourceCategory,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EntitySourceCategory {
     Core,
@@ -24,9 +26,12 @@ pub enum EntitySourceCategory {
     Vehicle,
 }
 
+#[cfg(test)]
 pub const ROOT_ENTITY_JAVA_FILES: usize = 68;
+#[cfg(test)]
 pub const REGISTERED_ENTITY_TYPES_26_1_2: usize = 157;
 
+#[cfg(test)]
 pub const ENTITY_PACKAGE_COVERAGE: &[EntityPackageCoverage] = &[
     EntityPackageCoverage {
         package: "net/minecraft/world/entity",
@@ -182,6 +187,7 @@ pub const MOB_CATEGORIES: &[MobCategoryDef] = &[
     },
 ];
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EntityCategoryExample {
     pub entity_type: &'static str,
@@ -190,6 +196,7 @@ pub struct EntityCategoryExample {
     pub package: &'static str,
 }
 
+#[cfg(test)]
 pub const ENTITY_CATEGORY_EXAMPLES: &[EntityCategoryExample] = &[
     EntityCategoryExample {
         entity_type: "minecraft:bat",
@@ -259,6 +266,7 @@ pub const ENTITY_CATEGORY_EXAMPLES: &[EntityCategoryExample] = &[
     },
 ];
 
+#[cfg(test)]
 pub fn package_coverage(category: EntitySourceCategory) -> Option<&'static EntityPackageCoverage> {
     ENTITY_PACKAGE_COVERAGE
         .iter()

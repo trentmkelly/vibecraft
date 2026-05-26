@@ -158,7 +158,7 @@ pub(super) fn append_player_slots(out: &mut Vec<ItemStack>, player: &PlayerInven
 /// One "move-plan" entry produced by `plan_move_item_stack_to`.
 /// `set(idx, new_stack)` callers apply these in order.
 #[derive(Debug, Clone)]
-struct MoveWrite {
+pub(super) struct MoveWrite {
     slot: usize,
     new_stack: ItemStack,
 }
@@ -292,12 +292,18 @@ mod menus_table;
 mod menus_misc;
 mod menus_entity;
 
-pub use menus_crafting_and_furnace::*;
-pub use menus_storage::*;
-pub use menus_workstation::*;
-pub use menus_table::*;
-pub use menus_misc::*;
-pub use menus_entity::*;
+#[cfg(test)]
+use menus_crafting_and_furnace::*;
+#[cfg(test)]
+use menus_storage::*;
+#[cfg(test)]
+use menus_workstation::*;
+#[cfg(test)]
+use menus_table::*;
+#[cfg(test)]
+use menus_misc::*;
+#[cfg(test)]
+use menus_entity::*;
 
 #[cfg(test)]
 mod tests;

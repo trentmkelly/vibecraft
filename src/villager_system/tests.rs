@@ -28,11 +28,23 @@ fn professions_expose_workstations_and_generate_level_offers() {
 
 #[test]
 fn villager_profession_assignment_and_job_site_loss_match_java() {
+    assert_villager_level_constants_match_java();
+    assert_villager_profession_workstations_match_java();
+    assert_villager_profession_acquisition_plans_match_java();
+    assert_villager_job_site_loss_and_spawn_profession_match_java();
+}
+
+fn assert_villager_level_constants_match_java() {
     assert_eq!(VILLAGER_MIN_LEVEL, 1);
     assert_eq!(VILLAGER_MAX_LEVEL, 5);
     assert_eq!(VILLAGER_LEVEL_XP_THRESHOLDS, [0, 10, 70, 150, 250]);
-    assert!(VILLAGER_ASSIGN_PROFESSION_CLEAR_TICK);
-    assert_eq!(VILLAGER_UNHAPPY_COUNTER_TICKS, 40);
+    assert_eq!(
+        (
+            VILLAGER_ASSIGN_PROFESSION_CLEAR_TICK,
+            VILLAGER_UNHAPPY_COUNTER_TICKS
+        ),
+        (true, 40)
+    );
     assert_eq!(VILLAGER_LEVEL_UP_DELAY_TICKS, 40);
     assert_eq!(VILLAGER_LEVEL_UP_REGENERATION_TICKS, 200);
     assert_eq!(VillagerLevel::from_xp(9), VillagerLevel::Novice);
@@ -42,7 +54,9 @@ fn villager_profession_assignment_and_job_site_loss_match_java() {
     assert_eq!(villager_max_xp_per_level(5), 0);
     assert!(villager_can_level_up(4));
     assert!(!villager_can_level_up(5));
+}
 
+fn assert_villager_profession_workstations_match_java() {
     assert_eq!(
         VillagerProfession::from_workstation("minecraft:lectern"),
         Some(VillagerProfession::Librarian)
@@ -55,7 +69,9 @@ fn villager_profession_assignment_and_job_site_loss_match_java() {
         VillagerProfession::Toolsmith.work_sound(),
         Some("minecraft:entity.villager.work_toolsmith")
     );
+}
 
+fn assert_villager_profession_acquisition_plans_match_java() {
     let none = VillagerDataModel::default_plains();
     assert_eq!(none.level, 1);
     assert_eq!(
@@ -91,7 +107,10 @@ fn villager_profession_assignment_and_job_site_loss_match_java() {
             release_job_site: false,
         }
     );
+}
 
+fn assert_villager_job_site_loss_and_spawn_profession_match_java() {
+    let none = VillagerDataModel::default_plains();
     let librarian = none.with_profession(VillagerProfession::Librarian);
     assert_eq!(
         villager_set_profession_plan(librarian, VillagerProfession::Farmer, false),
@@ -113,11 +132,7 @@ fn villager_profession_assignment_and_job_site_loss_match_java() {
         }
     );
     assert_eq!(
-        villager_lose_profession_after_job_site_removed(
-            librarian,
-            Some("minecraft:lectern"),
-            true
-        ),
+        villager_lose_profession_after_job_site_removed(librarian, Some("minecraft:lectern"), true),
         VillagerProfessionPlan::Keep {
             data: librarian,
             clear_offers: false,
@@ -147,12 +162,23 @@ fn villager_profession_assignment_and_job_site_loss_match_java() {
 
 #[test]
 fn villager_breeding_food_pickup_and_offspring_type_match_java() {
+    assert_villager_breeding_constants_match_java();
+    assert_villager_food_points_match_java();
+    assert_villager_breeding_gates_match_java();
+    assert_villager_food_digest_plan_matches_java();
+    assert_villager_food_pickup_rules_match_java();
+    assert_villager_offspring_type_rolls_match_java();
+}
+
+fn assert_villager_breeding_constants_match_java() {
     assert_eq!(VILLAGER_BREED_FOOD_THRESHOLD, 12);
     assert_eq!(VILLAGER_EXCESS_FOOD_THRESHOLD, 24);
     assert_eq!(VILLAGER_BREED_DIGEST_FOOD_POINTS, 12);
     assert_eq!(VILLAGER_OFFSPRING_BIOME_TYPE_CHANCE, 0.5);
     assert_eq!(VILLAGER_OFFSPRING_FIRST_PARENT_TYPE_CHANCE, 0.25);
+}
 
+fn assert_villager_food_points_match_java() {
     assert_eq!(villager_food_points("minecraft:bread"), Some(4));
     assert_eq!(villager_food_points("minecraft:potato"), Some(1));
     assert_eq!(villager_food_points("minecraft:carrot"), Some(1));
@@ -166,7 +192,9 @@ fn villager_breeding_food_pickup_and_offspring_type_match_java() {
         ]),
         11
     );
+}
 
+fn assert_villager_breeding_gates_match_java() {
     assert!(villager_can_breed(4, 8, false, 0));
     assert!(!villager_can_breed(4, 7, false, 0));
     assert!(!villager_can_breed(12, 0, true, 0));
@@ -177,7 +205,9 @@ fn villager_breeding_food_pickup_and_offspring_type_match_java() {
     assert!(!villager_has_excess_food(23));
     assert!(villager_wants_more_food(11));
     assert!(!villager_wants_more_food(12));
+}
 
+fn assert_villager_food_digest_plan_matches_java() {
     assert_eq!(
         villager_eat_and_digest_plan(
             5,
@@ -201,7 +231,9 @@ fn villager_breeding_food_pickup_and_offspring_type_match_java() {
             food_level_after_digest: 0,
         }
     );
+}
 
+fn assert_villager_food_pickup_rules_match_java() {
     assert!(villager_wants_to_pick_up(
         "minecraft:bread",
         VillagerProfession::None,
@@ -222,7 +254,9 @@ fn villager_breeding_food_pickup_and_offspring_type_match_java() {
         VillagerProfession::None,
         false
     ));
+}
 
+fn assert_villager_offspring_type_rolls_match_java() {
     assert_eq!(
         villager_offspring_type(
             "minecraft:savanna",
@@ -286,10 +320,7 @@ fn villager_restock_timing_new_day_and_catchup_match_java() {
             reset_for_new_day: false,
         }
     );
-    assert_eq!(
-        villager_should_restock_plan(first, 2501, 0, false).should_restock,
-        false
-    );
+    assert!(!villager_should_restock_plan(first, 2501, 0, false).should_restock);
     assert_eq!(
         villager_should_restock_plan(second, 14_502, 0, true),
         VillagerShouldRestockPlan {
@@ -372,7 +403,7 @@ fn trading_adds_xp_gossip_demand_and_restock_caps_twice_per_day() {
     assert!(!villager.offers[0].is_out_of_stock());
     assert_eq!(villager.offers[0].demand, 1);
     assert_eq!(villager.offers[manual_offer_index].demand, 2);
-    assert_eq!(villager.restock(1_100), false);
+    assert!(!villager.restock(1_100));
 
     villager.trade(0, "player-a");
     assert!(villager.restock(1_200));
@@ -522,7 +553,7 @@ fn wandering_trader_spawn_data_updates_chance_and_sample_trade_groups() {
         spawn_delay: 1,
         spawn_chance: 50,
     };
-    let spawned = wandering_trader_tick(data.clone(), true, true, 10);
+    let spawned = wandering_trader_tick(data, true, true, 10);
     assert!(spawned.should_spawn);
     assert_eq!(spawned.next_data.spawn_chance, 25);
 
@@ -533,6 +564,14 @@ fn wandering_trader_spawn_data_updates_chance_and_sample_trade_groups() {
 
 #[test]
 fn wandering_trader_spawner_timing_attempts_llamas_and_despawn_match_java() {
+    assert_wandering_trader_spawner_constants_match_java();
+    assert_wandering_trader_idle_and_waiting_ticks_match_java();
+    assert_wandering_trader_spawn_success_tick_matches_java();
+    assert_wandering_trader_failed_spawn_ticks_match_java();
+    assert_wandering_trader_position_and_despawn_helpers_match_java();
+}
+
+fn assert_wandering_trader_spawner_constants_match_java() {
     assert_eq!(WANDERING_TRADER_SPAWNER_TICK_DELAY, 1200);
     assert_eq!(WANDERING_TRADER_MIN_SPAWN_CHANCE, 25);
     assert_eq!(WANDERING_TRADER_MAX_SPAWN_CHANCE, 75);
@@ -545,7 +584,9 @@ fn wandering_trader_spawner_timing_attempts_llamas_and_despawn_match_java() {
     assert_eq!(WANDERING_TRADER_LLAMA_SPAWN_RADIUS, 4);
     assert_eq!(WANDERING_TRADER_DESPAWN_DELAY, 48_000);
     assert_eq!(WANDERING_TRADER_HOME_RADIUS, 16);
+}
 
+fn assert_wandering_trader_idle_and_waiting_ticks_match_java() {
     let idle = wandering_trader_spawner_tick(
         WanderingTraderSpawnerState::default(),
         WanderingTraderSpawnContext {
@@ -581,7 +622,9 @@ fn wandering_trader_spawner_timing_attempts_llamas_and_despawn_match_java() {
     );
     assert_eq!(waiting.state.tick_delay, 1);
     assert_eq!(waiting.state.data.spawn_delay, 24_000);
+}
 
+fn assert_wandering_trader_spawn_success_tick_matches_java() {
     let spawned = wandering_trader_spawner_tick(
         WanderingTraderSpawnerState {
             tick_delay: 1,
@@ -608,7 +651,9 @@ fn wandering_trader_spawner_timing_attempts_llamas_and_despawn_match_java() {
     assert_eq!(spawned.state.tick_delay, 1200);
     assert_eq!(spawned.state.data.spawn_delay, 24_000);
     assert_eq!(spawned.state.data.spawn_chance, 25);
+}
 
+fn assert_wandering_trader_failed_spawn_ticks_match_java() {
     let missed_outer_roll = wandering_trader_spawner_tick(
         WanderingTraderSpawnerState {
             tick_delay: 1,
@@ -651,7 +696,9 @@ fn wandering_trader_spawner_timing_attempts_llamas_and_despawn_match_java() {
     assert!(no_player.returns_spawn_success);
     assert!(!no_player.spawn_trader);
     assert_eq!(no_player.state.data.spawn_chance, 25);
+}
 
+fn assert_wandering_trader_position_and_despawn_helpers_match_java() {
     assert_eq!(wandering_trader_candidate_offset(0, 48), -48);
     assert_eq!(wandering_trader_candidate_offset(95, 48), 47);
     assert!(wandering_trader_has_enough_space(&[true; 12]));
@@ -667,8 +714,7 @@ fn wandering_trader_spawner_timing_attempts_llamas_and_despawn_match_java() {
 
 #[test]
 fn villager_trade_resources_decode_all_vanilla_entries() {
-    let root =
-        std::path::Path::new("../decompiled-server-26.1.2/data/minecraft/villager_trade");
+    let root = std::path::Path::new("../decompiled-server-26.1.2/data/minecraft/villager_trade");
     let mut paths = Vec::new();
     collect_json_paths(root, &mut paths);
     paths.sort();

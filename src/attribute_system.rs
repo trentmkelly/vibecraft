@@ -127,25 +127,25 @@ pub fn attribute(id: &str) -> Option<&'static AttributeDef> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ModifierOperation {
-    AddValue,
-    AddMultipliedBase,
-    AddMultipliedTotal,
+    Value,
+    MultipliedBase,
+    MultipliedTotal,
 }
 
 impl ModifierOperation {
     pub fn id(self) -> i32 {
         match self {
-            Self::AddValue => 0,
-            Self::AddMultipliedBase => 1,
-            Self::AddMultipliedTotal => 2,
+            Self::Value => 0,
+            Self::MultipliedBase => 1,
+            Self::MultipliedTotal => 2,
         }
     }
 
     pub fn serialized_name(self) -> &'static str {
         match self {
-            Self::AddValue => "add_value",
-            Self::AddMultipliedBase => "add_multiplied_base",
-            Self::AddMultipliedTotal => "add_multiplied_total",
+            Self::Value => "add_value",
+            Self::MultipliedBase => "add_multiplied_base",
+            Self::MultipliedTotal => "add_multiplied_total",
         }
     }
 }
@@ -290,15 +290,15 @@ impl AttributeInstance {
 
     fn calculate_value(&self) -> f64 {
         let mut base = self.base_value;
-        for modifier in self.modifiers_for(ModifierOperation::AddValue) {
+        for modifier in self.modifiers_for(ModifierOperation::Value) {
             base += modifier.amount;
         }
 
         let mut result = base;
-        for modifier in self.modifiers_for(ModifierOperation::AddMultipliedBase) {
+        for modifier in self.modifiers_for(ModifierOperation::MultipliedBase) {
             result += base * modifier.amount;
         }
-        for modifier in self.modifiers_for(ModifierOperation::AddMultipliedTotal) {
+        for modifier in self.modifiers_for(ModifierOperation::MultipliedTotal) {
             result *= 1.0 + modifier.amount;
         }
 
@@ -368,29 +368,29 @@ mod tests {
             .add_modifier(AttributeModifier::new(
                 "flat",
                 2.0,
-                ModifierOperation::AddValue,
+                ModifierOperation::Value,
             ))
             .unwrap();
         instance
             .add_modifier(AttributeModifier::new(
                 "base",
                 0.5,
-                ModifierOperation::AddMultipliedBase,
+                ModifierOperation::MultipliedBase,
             ))
             .unwrap();
         instance
             .add_modifier(AttributeModifier::new(
                 "total",
                 0.25,
-                ModifierOperation::AddMultipliedTotal,
+                ModifierOperation::MultipliedTotal,
             ))
             .unwrap();
 
         assert_eq!(instance.value(), 22.5);
         assert!(!instance.is_dirty());
-        assert_eq!(ModifierOperation::AddMultipliedTotal.id(), 2);
+        assert_eq!(ModifierOperation::MultipliedTotal.id(), 2);
         assert_eq!(
-            ModifierOperation::AddMultipliedBase.serialized_name(),
+            ModifierOperation::MultipliedBase.serialized_name(),
             "add_multiplied_base"
         );
     }
@@ -402,14 +402,14 @@ mod tests {
             .add_modifier(AttributeModifier::new(
                 "same",
                 0.1,
-                ModifierOperation::AddMultipliedTotal
+                ModifierOperation::MultipliedTotal
             ))
             .is_ok());
         assert_eq!(
             instance.add_modifier(AttributeModifier::new(
                 "same",
                 0.2,
-                ModifierOperation::AddMultipliedTotal
+                ModifierOperation::MultipliedTotal
             )),
             Err("modifier already applied")
         );
@@ -417,13 +417,13 @@ mod tests {
         instance.add_or_update_transient(AttributeModifier::new(
             "same",
             0.2,
-            ModifierOperation::AddMultipliedTotal,
+            ModifierOperation::MultipliedTotal,
         ));
         assert!(instance.value() > 0.7);
         instance.add_or_replace_permanent(AttributeModifier::new(
             "boots",
             1.0,
-            ModifierOperation::AddValue,
+            ModifierOperation::Value,
         ));
         let packed = instance.pack();
         assert_eq!(packed.modifiers.len(), 1);
@@ -442,7 +442,7 @@ mod tests {
             .add_modifier(AttributeModifier::new(
                 "bonus",
                 4.0,
-                ModifierOperation::AddValue,
+                ModifierOperation::Value,
             ))
             .unwrap();
         let packet = synced.sync_packet(7).unwrap();

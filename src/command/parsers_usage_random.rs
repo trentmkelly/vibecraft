@@ -275,8 +275,7 @@ pub fn command_usage(command: &str, permissions: LevelBasedPermissionSet) -> Opt
         })
 }
 
-pub(super) fn known_command_usages() -> &'static [(&'static str, &'static str)] {
-    &[
+const KNOWN_COMMAND_USAGES: &[(&str, &str)] = &[
         (
             "advancement",
             "/advancement <grant|revoke> <targets> <everything|only|from|until|through>",
@@ -424,7 +423,10 @@ pub(super) fn known_command_usages() -> &'static [(&'static str, &'static str)] 
         ("whitelist", "/whitelist <on|off|list|add|remove|reload>"),
         ("worldborder", "/worldborder <add|set|center|damage|get|warning> ..."),
         ("deop", "/deop <targets>"),
-    ]
+];
+
+pub(super) fn known_command_usages() -> &'static [(&'static str, &'static str)] {
+    KNOWN_COMMAND_USAGES
 }
 
 pub(super) fn parse_bool(input: &str) -> Result<bool, CommandError> {

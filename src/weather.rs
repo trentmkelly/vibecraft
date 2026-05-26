@@ -1,24 +1,12 @@
 #![allow(dead_code)]
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct WeatherData {
     pub clear_weather_time: i32,
     pub rain_time: i32,
     pub thunder_time: i32,
     pub raining: bool,
     pub thundering: bool,
-}
-
-impl Default for WeatherData {
-    fn default() -> Self {
-        Self {
-            clear_weather_time: 0,
-            rain_time: 0,
-            thunder_time: 0,
-            raining: false,
-            thundering: false,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

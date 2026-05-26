@@ -139,25 +139,34 @@ pub fn tree_max_free_height(
     tree_height
 }
 
-pub fn tree_can_place(
-    origin: BlockPos,
-    trunk_origin: BlockPos,
-    tree_height: i32,
-    min_size: FeatureSizeModel,
-    min_clipped_height: Option<i32>,
-    build_min_y: i32,
-    build_max_y: i32,
-    rows: &[&[&str]],
-    ignore_vines: bool,
-) -> bool {
-    let min_y = origin.y.min(trunk_origin.y);
-    let max_y = origin.y.max(trunk_origin.y) + tree_height + 1;
-    if min_y < build_min_y + 1 || max_y > build_max_y + 1 {
+pub struct TreeCanPlaceInput<'a> {
+    pub origin: BlockPos,
+    pub trunk_origin: BlockPos,
+    pub tree_height: i32,
+    pub min_size: FeatureSizeModel,
+    pub min_clipped_height: Option<i32>,
+    pub build_min_y: i32,
+    pub build_max_y: i32,
+    pub rows: &'a [&'a [&'a str]],
+    pub ignore_vines: bool,
+}
+
+pub fn tree_can_place(input: TreeCanPlaceInput<'_>) -> bool {
+    let min_y = input.origin.y.min(input.trunk_origin.y);
+    let max_y = input.origin.y.max(input.trunk_origin.y) + input.tree_height + 1;
+    if min_y < input.build_min_y + 1 || max_y > input.build_max_y + 1 {
         return false;
     }
-    let clipped_tree_height = tree_max_free_height(tree_height, min_size, rows, ignore_vines);
-    clipped_tree_height >= tree_height
-        || min_clipped_height.is_some_and(|min| clipped_tree_height >= min)
+    let clipped_tree_height = tree_max_free_height(
+        input.tree_height,
+        input.min_size,
+        input.rows,
+        input.ignore_vines,
+    );
+    clipped_tree_height >= input.tree_height
+        || input
+            .min_clipped_height
+            .is_some_and(|min| clipped_tree_height >= min)
 }
 
 fn feature_size_min_clipped_height(size: FeatureSizeModel) -> Option<i32> {
@@ -201,32 +210,39 @@ pub fn configured_tree_placement_plan(
 ) -> Result<Option<TreePlacementPlan>, String> {
     validate_tree_configuration(config)?;
     let tree_height = trunk_placer_height(config.trunk_placer, rand_a, rand_b);
-    if !tree_can_place(
+    if !tree_can_place(TreeCanPlaceInput {
         origin,
-        origin,
+        trunk_origin: origin,
         tree_height,
-        config.minimum_size,
-        feature_size_min_clipped_height(config.minimum_size),
+        min_size: config.minimum_size,
+        min_clipped_height: feature_size_min_clipped_height(config.minimum_size),
         build_min_y,
         build_max_y,
-        replaceable_rows,
-        config.ignore_vines,
-    ) {
+        rows: replaceable_rows,
+        ignore_vines: config.ignore_vines,
+    }) {
         return Ok(None);
     }
 
-    Ok(Some(simple_tree_placement_plan(
-        origin,
-        config.trunk_placer,
-        config.foliage_placer,
-        block_state_provider_sample(&config.trunk_provider, rand_a)
-            .expect("tree configuration was validated"),
-        block_state_provider_sample(&config.foliage_provider, rand_b)
-            .expect("tree configuration was validated"),
+    let trunk_provider = block_state_provider_sample(&config.trunk_provider, rand_a)
+        .ok_or_else(|| "validated tree trunk provider produced no block state".to_string())?;
+    let foliage_provider = block_state_provider_sample(&config.foliage_provider, rand_b)
+        .ok_or_else(|| "validated tree foliage provider produced no block state".to_string())?;
+    let dirt_provider =
         block_state_provider_sample(&config.dirt_provider, rand_a.wrapping_add(rand_b))
-            .expect("tree configuration was validated"),
-        rand_a,
-        rand_b,
+            .ok_or_else(|| "validated tree dirt provider produced no block state".to_string())?;
+
+    Ok(Some(simple_tree_placement_plan(
+        SimpleTreePlacementInput {
+            origin,
+            trunk: config.trunk_placer,
+            foliage: config.foliage_placer,
+            trunk_state: trunk_provider,
+            foliage_state: foliage_provider,
+            below_trunk_state: dirt_provider,
+            rand_a,
+            rand_b,
+        },
     )?))
 }
 

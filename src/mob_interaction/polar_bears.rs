@@ -119,9 +119,8 @@ pub fn polar_bear_melee_signal(
         if distance_to_target_squared < warning_distance {
             if ticks_until_next_attack <= POLAR_BEAR_WARNING_ATTACK_TICKS {
                 PolarBearMeleeSignal::StandAndWarn
-            } else if time_to_attack {
-                PolarBearMeleeSignal::StopStanding
             } else {
+                let _ = time_to_attack;
                 PolarBearMeleeSignal::StopStanding
             }
         } else {
@@ -129,4 +128,3 @@ pub fn polar_bear_melee_signal(
         }
     }
 }
-

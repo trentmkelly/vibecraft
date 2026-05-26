@@ -115,7 +115,7 @@ impl ArrowState {
     pub fn hit_entity(&mut self, target_id: i32, speed: f64, target_hurt: bool) -> ArrowHitOutcome {
         let damage = (speed * self.base_damage).ceil().max(0.0) as i32;
         if self.pierce_level > 0 {
-            if self.pierced_entity_ids.len() >= usize::from(self.pierce_level) + 1 {
+            if self.pierced_entity_ids.len() > usize::from(self.pierce_level) {
                 self.projectile.base.remove(RemovalReason::Discarded);
                 return ArrowHitOutcome::DiscardedBeforeDamage;
             }
@@ -399,7 +399,7 @@ impl HurtingProjectileState {
         self.dangerous = fields
             .iter()
             .find_map(|(name, value)| {
-                (name == "dangerous").then(|| match value {
+                (name == "dangerous").then_some(match value {
                     Tag::Byte(value) => *value != 0,
                     _ => false,
                 })

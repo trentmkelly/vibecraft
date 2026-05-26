@@ -190,34 +190,41 @@ pub struct ParrotShoulderPlan {
     pub can_mount_now: bool,
 }
 
-pub fn parrot_shoulder_plan(
-    has_server_player_owner: bool,
-    ordered_to_sit: bool,
-    owner_spectator: bool,
-    owner_flying: bool,
-    owner_in_water: bool,
-    owner_in_powder_snow: bool,
-    ride_cooldown_counter: i32,
-    in_sitting_pose: bool,
-    leashed: bool,
-    bounding_boxes_intersect: bool,
-    owner_is_passenger: bool,
-    owner_on_ground: bool,
-) -> ParrotShoulderPlan {
-    let owner_can_be_sat_on =
-        !owner_spectator && !owner_flying && !owner_in_water && !owner_in_powder_snow;
-    let can_use_goal = has_server_player_owner
-        && !ordered_to_sit
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ParrotShoulderInput {
+    pub has_server_player_owner: bool,
+    pub ordered_to_sit: bool,
+    pub owner_spectator: bool,
+    pub owner_flying: bool,
+    pub owner_in_water: bool,
+    pub owner_in_powder_snow: bool,
+    pub ride_cooldown_counter: i32,
+    pub in_sitting_pose: bool,
+    pub leashed: bool,
+    pub bounding_boxes_intersect: bool,
+    pub owner_is_passenger: bool,
+    pub owner_on_ground: bool,
+}
+
+pub fn parrot_shoulder_plan(input: ParrotShoulderInput) -> ParrotShoulderPlan {
+    let owner_can_be_sat_on = !input.owner_spectator
+        && !input.owner_flying
+        && !input.owner_in_water
+        && !input.owner_in_powder_snow;
+    let can_use_goal = input.has_server_player_owner
+        && !input.ordered_to_sit
         && owner_can_be_sat_on
-        && ride_cooldown_counter > SHOULDER_RIDING_COOLDOWN_TICKS;
-    let player_accepts_shoulder_entity =
-        !owner_is_passenger && owner_on_ground && !owner_in_water && !owner_in_powder_snow;
+        && input.ride_cooldown_counter > SHOULDER_RIDING_COOLDOWN_TICKS;
+    let player_accepts_shoulder_entity = !input.owner_is_passenger
+        && input.owner_on_ground
+        && !input.owner_in_water
+        && !input.owner_in_powder_snow;
     ParrotShoulderPlan {
         can_use_goal,
         can_mount_now: can_use_goal
-            && !in_sitting_pose
-            && !leashed
-            && bounding_boxes_intersect
+            && !input.in_sitting_pose
+            && !input.leashed
+            && input.bounding_boxes_intersect
             && player_accepts_shoulder_entity,
     }
 }
@@ -393,9 +400,7 @@ pub fn happy_ghast_can_be_collided_with(
     if baby || !alive {
         return false;
     }
-    if client_side && other_is_player_above {
-        true
-    } else if is_vehicle && other_is_happy_ghast {
+    if (client_side && other_is_player_above) || (is_vehicle && other_is_happy_ghast) {
         true
     } else {
         still_timeout
@@ -418,4 +423,3 @@ pub fn happy_ghast_notify_leash_holder_time(holder_supports_quad_leash: bool) ->
         0
     }
 }
-

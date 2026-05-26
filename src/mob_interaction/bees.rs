@@ -1,5 +1,3 @@
-use super::*;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BeeState {
     pub flags: u8,
@@ -241,31 +239,38 @@ pub fn bee_hive_should_anger_nearby_bees(
     hive_emptied && !sedated && contains_bees
 }
 
-pub fn bee_hive_release_occupant(
-    bees_stay_in_hive_environment: bool,
-    emergency: bool,
-    front_blocked: bool,
-    honey_delivered: bool,
-    honey_level: i32,
-    honey_level_bonus_roll_hits: bool,
-    bee_has_saved_flower: bool,
-    hive_has_saved_flower: bool,
-    copy_flower_roll_hits: bool,
-) -> BeeHiveReleaseResult {
-    if bees_stay_in_hive_environment && !emergency {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BeeHiveReleaseInput {
+    pub bees_stay_in_hive_environment: bool,
+    pub emergency: bool,
+    pub front_blocked: bool,
+    pub honey_delivered: bool,
+    pub honey_level: i32,
+    pub honey_level_bonus_roll_hits: bool,
+    pub bee_has_saved_flower: bool,
+    pub hive_has_saved_flower: bool,
+    pub copy_flower_roll_hits: bool,
+}
+
+pub fn bee_hive_release_occupant(input: BeeHiveReleaseInput) -> BeeHiveReleaseResult {
+    if input.bees_stay_in_hive_environment && !input.emergency {
         return BeeHiveReleaseResult::StayInHive;
     }
-    if front_blocked && !emergency {
+    if input.front_blocked && !input.emergency {
         return BeeHiveReleaseResult::FrontBlocked;
     }
 
-    let mut next_honey_level = honey_level;
-    let mut bee_has_nectar = honey_delivered;
+    let mut next_honey_level = input.honey_level;
+    let mut bee_has_nectar = input.honey_delivered;
     let bee_crops_grown = 0;
-    if honey_delivered {
+    if input.honey_delivered {
         bee_has_nectar = false;
         if next_honey_level < BEE_HONEY_LEVEL_MAX {
-            let mut increase = if honey_level_bonus_roll_hits { 2 } else { 1 };
+            let mut increase = if input.honey_level_bonus_roll_hits {
+                2
+            } else {
+                1
+            };
             if next_honey_level + increase > BEE_HONEY_LEVEL_MAX {
                 increase -= 1;
             }
@@ -277,7 +282,8 @@ pub fn bee_hive_release_occupant(
         honey_level: next_honey_level,
         bee_has_nectar,
         bee_crops_grown,
-        copied_flower_pos: hive_has_saved_flower && !bee_has_saved_flower && copy_flower_roll_hits,
+        copied_flower_pos: input.hive_has_saved_flower
+            && !input.bee_has_saved_flower
+            && input.copy_flower_roll_hits,
     }
 }
-

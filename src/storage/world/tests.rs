@@ -733,12 +733,12 @@ fn primary_level_data_round_trips_vanilla_level_dat_fields() {
             enabled: vec!["vanilla".to_string(), "file/example".to_string()],
             disabled: vec!["file/disabled".to_string()],
         },
-        scheduled_events: crate::storage::nbt::Tag::List(vec![
-            crate::storage::nbt::Tag::Compound(vec![(
+        scheduled_events: crate::storage::nbt::Tag::List(vec![crate::storage::nbt::Tag::Compound(
+            vec![(
                 "Name".to_string(),
                 crate::storage::nbt::Tag::String("minecraft:raid".to_string()),
-            )]),
-        ]),
+            )],
+        )]),
         server_brands: vec!["vanilla".to_string(), "rustcraft".to_string()],
         custom_boss_events: crate::storage::nbt::Tag::Compound(vec![(
             "minecraft:boss".to_string(),
@@ -895,9 +895,7 @@ fn parses_level_version_like_vanilla_summary_data() {
                     ),
                     (
                         "Id".to_string(),
-                        crate::storage::nbt::Tag::Int(
-                            crate::storage::datafix::TARGET_DATA_VERSION,
-                        ),
+                        crate::storage::nbt::Tag::Int(crate::storage::datafix::TARGET_DATA_VERSION),
                     ),
                     (
                         "Series".to_string(),

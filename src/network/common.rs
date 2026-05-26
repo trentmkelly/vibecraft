@@ -957,7 +957,10 @@ impl CustomPayload {
 }
 
 fn brand_channel() -> Identifier {
-    Identifier::parse("minecraft:brand").expect("hard-coded identifier is valid")
+    match Identifier::new("minecraft", "brand") {
+        Ok(identifier) => identifier,
+        Err(err) => panic!("hard-coded minecraft:brand identifier is invalid: {err}"),
+    }
 }
 
 fn read_i64_be<R: Read>(reader: &mut R) -> io::Result<i64> {

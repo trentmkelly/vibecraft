@@ -64,7 +64,10 @@ fn creates_header_and_round_trips_location_and_timestamp() {
 #[test]
 fn sync_write_policy_propagates_to_region_storage_and_worker() {
     let mut dir = std::env::temp_dir();
-    dir.push(format!("rustcraft-region-sync-writes-{}", std::process::id()));
+    dir.push(format!(
+        "rustcraft-region-sync-writes-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&dir);
 
     let default_region = RegionFile::open(&dir, RegionPos { x: 0, z: 0 }).unwrap();
@@ -864,8 +867,8 @@ fn configured_region_compression_propagates_to_storage_and_worker_writes() {
             .unwrap();
     assert_eq!(region.compression(), RegionCompression::None);
 
-    let storage = RegionFileStorage::open_with_compression(dir.clone(), RegionCompression::Lz4)
-        .unwrap();
+    let storage =
+        RegionFileStorage::open_with_compression(dir.clone(), RegionCompression::Lz4).unwrap();
     assert_eq!(storage.compression(), RegionCompression::Lz4);
     assert_eq!(
         storage

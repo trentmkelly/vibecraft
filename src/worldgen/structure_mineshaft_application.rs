@@ -99,18 +99,20 @@ fn mineshaft_generate_world_box(
     max: BlockPos,
 ) -> Vec<StructurePiecePlacementBlock> {
     structure_piece_generate_box(
-        StructureBoundingBoxModel {
-            min_x: 0,
-            min_y: 0,
-            min_z: 0,
-            max_x: 0,
-            max_y: 0,
-            max_z: 0,
+        StructurePieceBoxInput {
+            bounding_box: StructureBoundingBoxModel {
+                min_x: 0,
+                min_y: 0,
+                min_z: 0,
+                max_x: 0,
+                max_y: 0,
+                max_z: 0,
+            },
+            orientation: None,
+            chunk_bb,
+            min,
+            max,
         },
-        None,
-        chunk_bb,
-        min,
-        max,
         "minecraft:cave_air",
         "minecraft:cave_air",
         false,
@@ -135,281 +137,356 @@ fn mineshaft_apply_piece_to_chunk(
             bounding_box,
             child_entrance_boxes,
             ..
-        } => {
-            let mut placed = 0;
-            placed += mineshaft_place_cave_air_blocks(
-                chunk,
-                mineshaft_generate_world_box(
-                    chunk_bb,
-                    BlockPos {
-                        x: bounding_box.min_x,
-                        y: bounding_box.min_y + 1,
-                        z: bounding_box.min_z,
-                    },
-                    BlockPos {
-                        x: bounding_box.max_x,
-                        y: (bounding_box.min_y + 3).min(bounding_box.max_y),
-                        z: bounding_box.max_z,
-                    },
-                ),
-            );
-            for entrance in child_entrance_boxes {
-                placed += mineshaft_place_cave_air_blocks(
-                    chunk,
-                    mineshaft_generate_world_box(
-                        chunk_bb,
-                        BlockPos {
-                            x: entrance.min_x,
-                            y: entrance.max_y - 2,
-                            z: entrance.min_z,
-                        },
-                        BlockPos {
-                            x: entrance.max_x,
-                            y: entrance.max_y,
-                            z: entrance.max_z,
-                        },
-                    ),
-                );
-            }
-            placed += mineshaft_place_cave_air_blocks(
-                chunk,
-                structure_piece_generate_upper_half_sphere(
-                    *bounding_box,
-                    None,
-                    chunk_bb,
-                    BlockPos {
-                        x: bounding_box.min_x,
-                        y: bounding_box.min_y + 4,
-                        z: bounding_box.min_z,
-                    },
-                    BlockPos {
-                        x: bounding_box.max_x,
-                        y: bounding_box.max_y,
-                        z: bounding_box.max_z,
-                    },
-                    "minecraft:cave_air",
-                    false,
-                    |_| false,
-                ),
-            );
-            placed
-        }
+        } => mineshaft_apply_room_to_chunk(chunk, *bounding_box, child_entrance_boxes, chunk_bb),
         MineshaftGeneratedPieceModel::Corridor { model, .. } => {
-            let length = model.num_sections * 5 - 1;
-            let mut placed = mineshaft_place_cave_air_blocks(
-                chunk,
-                structure_piece_generate_box(
-                    model.bounding_box,
-                    Some(model.orientation),
-                    chunk_bb,
-                    BlockPos { x: 0, y: 0, z: 0 },
-                    BlockPos {
-                        x: 2,
-                        y: 1,
-                        z: length,
-                    },
-                    "minecraft:cave_air",
-                    "minecraft:cave_air",
-                    false,
-                    |_| false,
-                ),
-            );
-            let ceiling_rolls = (0..=length)
-                .flat_map(|_| {
-                    [
-                        feature_random_next_f32(random),
-                        feature_random_next_f32(random),
-                        feature_random_next_f32(random),
-                    ]
-                })
-                .collect::<Vec<_>>();
-            placed += mineshaft_place_cave_air_blocks(
-                chunk,
-                structure_piece_generate_maybe_box(
-                    model.bounding_box,
-                    Some(model.orientation),
-                    chunk_bb,
-                    &ceiling_rolls,
-                    0.8,
-                    BlockPos { x: 0, y: 2, z: 0 },
-                    BlockPos {
-                        x: 2,
-                        y: 2,
-                        z: length,
-                    },
-                    "minecraft:cave_air",
-                    "minecraft:cave_air",
-                    false,
-                    false,
-                    |_| false,
-                    |_| false,
-                ),
-            );
-            placed +=
-                mineshaft_postprocess_corridor_details(chunk, model, chunk_bb, random, length);
-            placed
+            mineshaft_apply_corridor_to_chunk(chunk, model, chunk_bb, random)
         }
         MineshaftGeneratedPieceModel::Crossing {
             bounding_box,
             is_two_floored,
             ..
-        } => {
-            let mut placed = 0;
-            if *is_two_floored {
-                for (min, max) in [
-                    (
-                        BlockPos {
-                            x: bounding_box.min_x + 1,
-                            y: bounding_box.min_y,
-                            z: bounding_box.min_z,
-                        },
-                        BlockPos {
-                            x: bounding_box.max_x - 1,
-                            y: bounding_box.min_y + 2,
-                            z: bounding_box.max_z,
-                        },
-                    ),
-                    (
-                        BlockPos {
-                            x: bounding_box.min_x,
-                            y: bounding_box.min_y,
-                            z: bounding_box.min_z + 1,
-                        },
-                        BlockPos {
-                            x: bounding_box.max_x,
-                            y: bounding_box.min_y + 2,
-                            z: bounding_box.max_z - 1,
-                        },
-                    ),
-                    (
-                        BlockPos {
-                            x: bounding_box.min_x + 1,
-                            y: bounding_box.max_y - 2,
-                            z: bounding_box.min_z,
-                        },
-                        BlockPos {
-                            x: bounding_box.max_x - 1,
-                            y: bounding_box.max_y,
-                            z: bounding_box.max_z,
-                        },
-                    ),
-                    (
-                        BlockPos {
-                            x: bounding_box.min_x,
-                            y: bounding_box.max_y - 2,
-                            z: bounding_box.min_z + 1,
-                        },
-                        BlockPos {
-                            x: bounding_box.max_x,
-                            y: bounding_box.max_y,
-                            z: bounding_box.max_z - 1,
-                        },
-                    ),
-                    (
-                        BlockPos {
-                            x: bounding_box.min_x + 1,
-                            y: bounding_box.min_y + 3,
-                            z: bounding_box.min_z + 1,
-                        },
-                        BlockPos {
-                            x: bounding_box.max_x - 1,
-                            y: bounding_box.min_y + 3,
-                            z: bounding_box.max_z - 1,
-                        },
-                    ),
-                ] {
-                    placed += mineshaft_place_cave_air_blocks(
-                        chunk,
-                        mineshaft_generate_world_box(chunk_bb, min, max),
-                    );
-                }
-            } else {
-                for (min, max) in [
-                    (
-                        BlockPos {
-                            x: bounding_box.min_x + 1,
-                            y: bounding_box.min_y,
-                            z: bounding_box.min_z,
-                        },
-                        BlockPos {
-                            x: bounding_box.max_x - 1,
-                            y: bounding_box.max_y,
-                            z: bounding_box.max_z,
-                        },
-                    ),
-                    (
-                        BlockPos {
-                            x: bounding_box.min_x,
-                            y: bounding_box.min_y,
-                            z: bounding_box.min_z + 1,
-                        },
-                        BlockPos {
-                            x: bounding_box.max_x,
-                            y: bounding_box.max_y,
-                            z: bounding_box.max_z - 1,
-                        },
-                    ),
-                ] {
-                    placed += mineshaft_place_cave_air_blocks(
-                        chunk,
-                        mineshaft_generate_world_box(chunk_bb, min, max),
-                    );
-                }
-            }
-            placed
-        }
+        } => mineshaft_apply_crossing_to_chunk(chunk, *bounding_box, *is_two_floored, chunk_bb),
         MineshaftGeneratedPieceModel::Stairs {
             bounding_box,
             direction,
             ..
-        } => {
-            let mut placed = 0;
-            for (min, max) in [
-                (BlockPos { x: 0, y: 5, z: 0 }, BlockPos { x: 2, y: 7, z: 1 }),
-                (BlockPos { x: 0, y: 0, z: 7 }, BlockPos { x: 2, y: 2, z: 8 }),
-            ] {
-                placed += mineshaft_place_cave_air_blocks(
-                    chunk,
-                    structure_piece_generate_box(
-                        *bounding_box,
-                        Some(*direction),
-                        chunk_bb,
-                        min,
-                        max,
-                        "minecraft:cave_air",
-                        "minecraft:cave_air",
-                        false,
-                        |_| false,
-                    ),
-                );
-            }
-            for i in 0..5 {
-                placed += mineshaft_place_cave_air_blocks(
-                    chunk,
-                    structure_piece_generate_box(
-                        *bounding_box,
-                        Some(*direction),
-                        chunk_bb,
-                        BlockPos {
-                            x: 0,
-                            y: 5 - i - if i < 4 { 1 } else { 0 },
-                            z: 2 + i,
-                        },
-                        BlockPos {
-                            x: 2,
-                            y: 7 - i,
-                            z: 2 + i,
-                        },
-                        "minecraft:cave_air",
-                        "minecraft:cave_air",
-                        false,
-                        |_| false,
-                    ),
-                );
-            }
-            placed
-        }
+        } => mineshaft_apply_stairs_to_chunk(chunk, *bounding_box, *direction, chunk_bb),
     }
+}
+
+fn mineshaft_apply_room_to_chunk(
+    chunk: &mut LevelChunk,
+    bounding_box: StructureBoundingBoxModel,
+    child_entrance_boxes: &[StructureBoundingBoxModel],
+    chunk_bb: StructureBoundingBoxModel,
+) -> usize {
+    let mut placed = mineshaft_place_cave_air_blocks(
+        chunk,
+        mineshaft_generate_world_box(
+            chunk_bb,
+            BlockPos {
+                x: bounding_box.min_x,
+                y: bounding_box.min_y + 1,
+                z: bounding_box.min_z,
+            },
+            BlockPos {
+                x: bounding_box.max_x,
+                y: (bounding_box.min_y + 3).min(bounding_box.max_y),
+                z: bounding_box.max_z,
+            },
+        ),
+    );
+    for entrance in child_entrance_boxes {
+        placed += mineshaft_place_room_entrance(chunk, chunk_bb, *entrance);
+    }
+    placed + mineshaft_place_room_dome(chunk, chunk_bb, bounding_box)
+}
+
+fn mineshaft_place_room_entrance(
+    chunk: &mut LevelChunk,
+    chunk_bb: StructureBoundingBoxModel,
+    entrance: StructureBoundingBoxModel,
+) -> usize {
+    mineshaft_place_cave_air_blocks(
+        chunk,
+        mineshaft_generate_world_box(
+            chunk_bb,
+            BlockPos {
+                x: entrance.min_x,
+                y: entrance.max_y - 2,
+                z: entrance.min_z,
+            },
+            BlockPos {
+                x: entrance.max_x,
+                y: entrance.max_y,
+                z: entrance.max_z,
+            },
+        ),
+    )
+}
+
+fn mineshaft_place_room_dome(
+    chunk: &mut LevelChunk,
+    chunk_bb: StructureBoundingBoxModel,
+    bounding_box: StructureBoundingBoxModel,
+) -> usize {
+    mineshaft_place_cave_air_blocks(
+        chunk,
+        structure_piece_generate_upper_half_sphere(
+            StructurePieceSphereInput {
+                box_input: StructurePieceBoxInput {
+                    bounding_box,
+                    orientation: None,
+                    chunk_bb,
+                    min: BlockPos {
+                        x: bounding_box.min_x,
+                        y: bounding_box.min_y + 4,
+                        z: bounding_box.min_z,
+                    },
+                    max: BlockPos {
+                        x: bounding_box.max_x,
+                        y: bounding_box.max_y,
+                        z: bounding_box.max_z,
+                    },
+                },
+                fill_block: "minecraft:cave_air",
+                skip_air: false,
+            },
+            |_| false,
+        ),
+    )
+}
+
+fn mineshaft_apply_corridor_to_chunk(
+    chunk: &mut LevelChunk,
+    model: &MineshaftCorridorModel,
+    chunk_bb: StructureBoundingBoxModel,
+    random: &mut RandomSourceKind,
+) -> usize {
+    let length = model.num_sections * 5 - 1;
+    let mut placed = mineshaft_place_cave_air_blocks(
+        chunk,
+        mineshaft_generate_local_box(model, chunk_bb, BlockPos { x: 0, y: 0, z: 0 }, 2, 1, length),
+    );
+    placed += mineshaft_place_corridor_ceiling(chunk, model, chunk_bb, random, length);
+    placed += mineshaft_postprocess_corridor_details(chunk, model, chunk_bb, random, length);
+    placed
+}
+
+fn mineshaft_place_corridor_ceiling(
+    chunk: &mut LevelChunk,
+    model: &MineshaftCorridorModel,
+    chunk_bb: StructureBoundingBoxModel,
+    random: &mut RandomSourceKind,
+    length: i32,
+) -> usize {
+    let ceiling_rolls = (0..=length)
+        .flat_map(|_| {
+            [
+                feature_random_next_f32(random),
+                feature_random_next_f32(random),
+                feature_random_next_f32(random),
+            ]
+        })
+        .collect::<Vec<_>>();
+    mineshaft_place_cave_air_blocks(
+        chunk,
+        structure_piece_generate_maybe_box(
+            StructurePieceMaybeBoxInput {
+                box_input: StructurePieceBoxInput {
+                    bounding_box: model.bounding_box,
+                    orientation: Some(model.orientation),
+                    chunk_bb,
+                    min: BlockPos { x: 0, y: 2, z: 0 },
+                    max: BlockPos {
+                        x: 2,
+                        y: 2,
+                        z: length,
+                    },
+                },
+                random_values: &ceiling_rolls,
+                probability: 0.8,
+                edge_block: "minecraft:cave_air",
+                fill_block: "minecraft:cave_air",
+                skip_air: false,
+                has_to_be_inside: false,
+            },
+            |_| false,
+            |_| false,
+        ),
+    )
+}
+
+fn mineshaft_apply_crossing_to_chunk(
+    chunk: &mut LevelChunk,
+    bounding_box: StructureBoundingBoxModel,
+    is_two_floored: bool,
+    chunk_bb: StructureBoundingBoxModel,
+) -> usize {
+    mineshaft_crossing_boxes(bounding_box, is_two_floored)
+        .into_iter()
+        .map(|(min, max)| {
+            mineshaft_place_cave_air_blocks(chunk, mineshaft_generate_world_box(chunk_bb, min, max))
+        })
+        .sum()
+}
+
+fn mineshaft_crossing_boxes(
+    bounding_box: StructureBoundingBoxModel,
+    is_two_floored: bool,
+) -> Vec<(BlockPos, BlockPos)> {
+    if is_two_floored {
+        return vec![
+            mineshaft_world_box(
+                bounding_box.min_x + 1,
+                bounding_box.min_y,
+                bounding_box.min_z,
+                bounding_box.max_x - 1,
+                bounding_box.min_y + 2,
+                bounding_box.max_z,
+            ),
+            mineshaft_world_box(
+                bounding_box.min_x,
+                bounding_box.min_y,
+                bounding_box.min_z + 1,
+                bounding_box.max_x,
+                bounding_box.min_y + 2,
+                bounding_box.max_z - 1,
+            ),
+            mineshaft_world_box(
+                bounding_box.min_x + 1,
+                bounding_box.max_y - 2,
+                bounding_box.min_z,
+                bounding_box.max_x - 1,
+                bounding_box.max_y,
+                bounding_box.max_z,
+            ),
+            mineshaft_world_box(
+                bounding_box.min_x,
+                bounding_box.max_y - 2,
+                bounding_box.min_z + 1,
+                bounding_box.max_x,
+                bounding_box.max_y,
+                bounding_box.max_z - 1,
+            ),
+            mineshaft_world_box(
+                bounding_box.min_x + 1,
+                bounding_box.min_y + 3,
+                bounding_box.min_z + 1,
+                bounding_box.max_x - 1,
+                bounding_box.min_y + 3,
+                bounding_box.max_z - 1,
+            ),
+        ];
+    }
+    vec![
+        mineshaft_world_box(
+            bounding_box.min_x + 1,
+            bounding_box.min_y,
+            bounding_box.min_z,
+            bounding_box.max_x - 1,
+            bounding_box.max_y,
+            bounding_box.max_z,
+        ),
+        mineshaft_world_box(
+            bounding_box.min_x,
+            bounding_box.min_y,
+            bounding_box.min_z + 1,
+            bounding_box.max_x,
+            bounding_box.max_y,
+            bounding_box.max_z - 1,
+        ),
+    ]
+}
+
+fn mineshaft_apply_stairs_to_chunk(
+    chunk: &mut LevelChunk,
+    bounding_box: StructureBoundingBoxModel,
+    direction: HorizontalDirection,
+    chunk_bb: StructureBoundingBoxModel,
+) -> usize {
+    let mut placed = 0;
+    for (min, max) in [
+        (BlockPos { x: 0, y: 5, z: 0 }, BlockPos { x: 2, y: 7, z: 1 }),
+        (BlockPos { x: 0, y: 0, z: 7 }, BlockPos { x: 2, y: 2, z: 8 }),
+    ] {
+        placed +=
+            mineshaft_place_local_cave_air(chunk, bounding_box, direction, chunk_bb, min, max);
+    }
+    for i in 0..5 {
+        placed += mineshaft_place_local_cave_air(
+            chunk,
+            bounding_box,
+            direction,
+            chunk_bb,
+            BlockPos {
+                x: 0,
+                y: 5 - i - if i < 4 { 1 } else { 0 },
+                z: 2 + i,
+            },
+            BlockPos {
+                x: 2,
+                y: 7 - i,
+                z: 2 + i,
+            },
+        );
+    }
+    placed
+}
+
+fn mineshaft_place_local_cave_air(
+    chunk: &mut LevelChunk,
+    bounding_box: StructureBoundingBoxModel,
+    direction: HorizontalDirection,
+    chunk_bb: StructureBoundingBoxModel,
+    min: BlockPos,
+    max: BlockPos,
+) -> usize {
+    mineshaft_place_cave_air_blocks(
+        chunk,
+        structure_piece_generate_box(
+            StructurePieceBoxInput {
+                bounding_box,
+                orientation: Some(direction),
+                chunk_bb,
+                min,
+                max,
+            },
+            "minecraft:cave_air",
+            "minecraft:cave_air",
+            false,
+            |_| false,
+        ),
+    )
+}
+
+fn mineshaft_generate_local_box(
+    model: &MineshaftCorridorModel,
+    chunk_bb: StructureBoundingBoxModel,
+    min: BlockPos,
+    max_x: i32,
+    max_y: i32,
+    max_z: i32,
+) -> Vec<StructurePiecePlacementBlock> {
+    structure_piece_generate_box(
+        StructurePieceBoxInput {
+            bounding_box: model.bounding_box,
+            orientation: Some(model.orientation),
+            chunk_bb,
+            min,
+            max: BlockPos {
+                x: max_x,
+                y: max_y,
+                z: max_z,
+            },
+        },
+        "minecraft:cave_air",
+        "minecraft:cave_air",
+        false,
+        |_| false,
+    )
+}
+
+const fn mineshaft_world_box(
+    min_x: i32,
+    min_y: i32,
+    min_z: i32,
+    max_x: i32,
+    max_y: i32,
+    max_z: i32,
+) -> (BlockPos, BlockPos) {
+    (
+        BlockPos {
+            x: min_x,
+            y: min_y,
+            z: min_z,
+        },
+        BlockPos {
+            x: max_x,
+            y: max_y,
+            z: max_z,
+        },
+    )
 }
 
 fn mineshaft_postprocess_corridor_details(
@@ -420,176 +497,261 @@ fn mineshaft_postprocess_corridor_details(
     length: i32,
 ) -> usize {
     let materials = mineshaft_materials(model.mineshaft_type);
-    let mut placed = 0;
-
-    if model.spider_corridor {
-        let spider_rolls = (0..6 * (length + 1))
-            .map(|_| feature_random_next_f32(random))
-            .collect::<Vec<_>>();
-        placed += mineshaft_place_blocks(
-            chunk,
-            structure_piece_generate_maybe_box(
-                model.bounding_box,
-                Some(model.orientation),
-                chunk_bb,
-                &spider_rolls,
-                0.6,
-                BlockPos { x: 0, y: 0, z: 0 },
-                BlockPos {
-                    x: 2,
-                    y: 1,
-                    z: length,
-                },
-                "minecraft:cobweb",
-                "minecraft:cave_air",
-                false,
-                true,
-                |_| false,
-                |pos| {
-                    mineshaft_world_pos_is_interior(
-                        chunk,
-                        chunk_bb,
-                        BlockPos {
-                            x: pos.x,
-                            y: pos.y + 1,
-                            z: pos.z,
-                        },
-                    )
-                },
-            ),
-            None,
-        );
-    }
-
+    let mut placed = mineshaft_place_corridor_spider_webs(chunk, model, chunk_bb, random, length);
     let mut has_placed_spider = model.has_placed_spider;
     for section in 0..model.num_sections {
-        let z = 2 + section * 5;
-        placed += mineshaft_place_corridor_support(chunk, model, chunk_bb, random, z, materials);
+        placed += mineshaft_postprocess_corridor_section(
+            chunk,
+            model,
+            chunk_bb,
+            random,
+            materials,
+            2 + section * 5,
+            &mut has_placed_spider,
+        );
+    }
+    placed += mineshaft_place_corridor_floor_planks(chunk, model, chunk_bb, materials, length);
+    placed += mineshaft_place_corridor_rails(chunk, model, chunk_bb, random, length);
+    placed
+}
 
-        for (probability, x, y, web_z) in [
-            (0.1, 0, 2, z - 1),
-            (0.1, 2, 2, z - 1),
-            (0.1, 0, 2, z + 1),
-            (0.1, 2, 2, z + 1),
-            (0.05, 0, 2, z - 2),
-            (0.05, 2, 2, z - 2),
-            (0.05, 0, 2, z + 2),
-            (0.05, 2, 2, z + 2),
-        ] {
-            if mineshaft_corridor_is_interior(chunk, model, chunk_bb, x, y, web_z) {
-                let roll = feature_random_next_f32(random);
-                if roll < probability
-                    && mineshaft_corridor_has_sturdy_neighbors(
-                        chunk, model, chunk_bb, x, y, web_z, 2,
-                    )
-                {
-                    placed += mineshaft_place_corridor_block(
-                        chunk,
-                        model,
-                        chunk_bb,
-                        x,
-                        y,
-                        web_z,
-                        "minecraft:cobweb",
-                    );
-                }
-            }
-        }
+fn mineshaft_place_corridor_spider_webs(
+    chunk: &mut LevelChunk,
+    model: &MineshaftCorridorModel,
+    chunk_bb: StructureBoundingBoxModel,
+    random: &mut RandomSourceKind,
+    length: i32,
+) -> usize {
+    if !model.spider_corridor {
+        return 0;
+    }
+    let spider_rolls = (0..6 * (length + 1))
+        .map(|_| feature_random_next_f32(random))
+        .collect::<Vec<_>>();
+    mineshaft_place_blocks(
+        chunk,
+        structure_piece_generate_maybe_box(
+            StructurePieceMaybeBoxInput {
+                box_input: StructurePieceBoxInput {
+                    bounding_box: model.bounding_box,
+                    orientation: Some(model.orientation),
+                    chunk_bb,
+                    min: BlockPos { x: 0, y: 0, z: 0 },
+                    max: BlockPos {
+                        x: 2,
+                        y: 1,
+                        z: length,
+                    },
+                },
+                random_values: &spider_rolls,
+                probability: 0.6,
+                edge_block: "minecraft:cobweb",
+                fill_block: "minecraft:cave_air",
+                skip_air: false,
+                has_to_be_inside: true,
+            },
+            |_| false,
+            |pos| {
+                mineshaft_world_pos_is_interior(
+                    chunk,
+                    chunk_bb,
+                    BlockPos {
+                        x: pos.x,
+                        y: pos.y + 1,
+                        z: pos.z,
+                    },
+                )
+            },
+        ),
+        None,
+    )
+}
 
-        if feature_random_next_i32_bound(random, 100) == 0 {
-            placed += mineshaft_place_corridor_block(
-                chunk,
-                model,
-                chunk_bb,
-                2,
-                0,
-                z - 1,
-                "minecraft:chest",
-            );
-        }
-        if feature_random_next_i32_bound(random, 100) == 0 {
-            placed += mineshaft_place_corridor_block(
-                chunk,
-                model,
-                chunk_bb,
-                0,
-                0,
-                z + 1,
-                "minecraft:chest",
-            );
-        }
+fn mineshaft_postprocess_corridor_section(
+    chunk: &mut LevelChunk,
+    model: &MineshaftCorridorModel,
+    chunk_bb: StructureBoundingBoxModel,
+    random: &mut RandomSourceKind,
+    materials: MineshaftMaterialModel,
+    z: i32,
+    has_placed_spider: &mut bool,
+) -> usize {
+    let mut placed = mineshaft_place_corridor_support(chunk, model, chunk_bb, random, z, materials);
+    placed += mineshaft_place_corridor_section_webs(chunk, model, chunk_bb, random, z);
+    placed += mineshaft_place_corridor_chests(chunk, model, chunk_bb, random, z);
+    placed +=
+        mineshaft_place_corridor_spawner(chunk, model, chunk_bb, random, z, has_placed_spider);
+    placed
+}
 
-        if model.spider_corridor && !has_placed_spider {
-            let new_z = z - 1 + feature_random_next_i32_bound(random, 3);
-            let pos =
-                structure_piece_world_pos(model.bounding_box, Some(model.orientation), 1, 0, new_z);
-            if chunk_bb.is_inside(pos)
-                && mineshaft_corridor_is_interior(chunk, model, chunk_bb, 1, 0, new_z)
+fn mineshaft_place_corridor_section_webs(
+    chunk: &mut LevelChunk,
+    model: &MineshaftCorridorModel,
+    chunk_bb: StructureBoundingBoxModel,
+    random: &mut RandomSourceKind,
+    z: i32,
+) -> usize {
+    let mut placed = 0;
+    for (probability, x, y, web_z) in [
+        (0.1, 0, 2, z - 1),
+        (0.1, 2, 2, z - 1),
+        (0.1, 0, 2, z + 1),
+        (0.1, 2, 2, z + 1),
+        (0.05, 0, 2, z - 2),
+        (0.05, 2, 2, z - 2),
+        (0.05, 0, 2, z + 2),
+        (0.05, 2, 2, z + 2),
+    ] {
+        if mineshaft_corridor_is_interior(chunk, model, chunk_bb, x, y, web_z) {
+            let roll = feature_random_next_f32(random);
+            if roll < probability
+                && mineshaft_corridor_has_sturdy_neighbors(chunk, model, chunk_bb, x, y, web_z, 2)
             {
-                has_placed_spider = true;
                 placed += mineshaft_place_corridor_block(
                     chunk,
                     model,
                     chunk_bb,
-                    1,
-                    0,
-                    new_z,
-                    "minecraft:spawner",
+                    x,
+                    y,
+                    web_z,
+                    "minecraft:cobweb",
                 );
             }
         }
     }
+    placed
+}
 
+fn mineshaft_place_corridor_chests(
+    chunk: &mut LevelChunk,
+    model: &MineshaftCorridorModel,
+    chunk_bb: StructureBoundingBoxModel,
+    random: &mut RandomSourceKind,
+    z: i32,
+) -> usize {
+    let mut placed = 0;
+    if feature_random_next_i32_bound(random, 100) == 0 {
+        placed +=
+            mineshaft_place_corridor_block(chunk, model, chunk_bb, 2, 0, z - 1, "minecraft:chest");
+    }
+    if feature_random_next_i32_bound(random, 100) == 0 {
+        placed +=
+            mineshaft_place_corridor_block(chunk, model, chunk_bb, 0, 0, z + 1, "minecraft:chest");
+    }
+    placed
+}
+
+fn mineshaft_place_corridor_spawner(
+    chunk: &mut LevelChunk,
+    model: &MineshaftCorridorModel,
+    chunk_bb: StructureBoundingBoxModel,
+    random: &mut RandomSourceKind,
+    z: i32,
+    has_placed_spider: &mut bool,
+) -> usize {
+    if !model.spider_corridor || *has_placed_spider {
+        return 0;
+    }
+    let new_z = z - 1 + feature_random_next_i32_bound(random, 3);
+    let pos = structure_piece_world_pos(model.bounding_box, Some(model.orientation), 1, 0, new_z);
+    if chunk_bb.is_inside(pos)
+        && mineshaft_corridor_is_interior(chunk, model, chunk_bb, 1, 0, new_z)
+    {
+        *has_placed_spider = true;
+        return mineshaft_place_corridor_block(
+            chunk,
+            model,
+            chunk_bb,
+            1,
+            0,
+            new_z,
+            "minecraft:spawner",
+        );
+    }
+    0
+}
+
+fn mineshaft_place_corridor_floor_planks(
+    chunk: &mut LevelChunk,
+    model: &MineshaftCorridorModel,
+    chunk_bb: StructureBoundingBoxModel,
+    materials: MineshaftMaterialModel,
+    length: i32,
+) -> usize {
+    let mut placed = 0;
     for x in 0..=2 {
         for z in 0..=length {
-            let pos =
-                structure_piece_world_pos(model.bounding_box, Some(model.orientation), x, -1, z);
-            let interior_pos = BlockPos {
-                x: pos.x,
-                y: pos.y + 1,
-                z: pos.z,
-            };
-            if chunk_bb.is_inside(pos)
-                && mineshaft_world_pos_is_interior(chunk, chunk_bb, interior_pos)
-                && !chunk
-                    .get_block_state(pos.x, pos.y, pos.z)
-                    .is_some_and(|block| block_blocks_motion(&block))
-            {
-                chunk.set_block_state(pos.x, pos.y, pos.z, materials.planks_state);
-                placed += 1;
-            }
-        }
-    }
-
-    if model.has_rails {
-        for z in 0..=length {
-            let pos =
-                structure_piece_world_pos(model.bounding_box, Some(model.orientation), 1, -1, z);
-            let floor = chunk
-                .get_block_state(pos.x, pos.y, pos.z)
-                .unwrap_or_else(|| "minecraft:air".to_string());
-            if floor != "minecraft:air" && floor != "minecraft:cave_air" {
-                let probability = if mineshaft_corridor_is_interior(chunk, model, chunk_bb, 1, 0, z)
-                {
-                    0.7
-                } else {
-                    0.9
-                };
-                if feature_random_next_f32(random) < probability {
-                    placed += mineshaft_place_corridor_block(
-                        chunk,
-                        model,
-                        chunk_bb,
-                        1,
-                        0,
-                        z,
-                        "minecraft:rail",
-                    );
-                }
-            }
+            placed += mineshaft_place_corridor_floor_plank(chunk, model, chunk_bb, materials, x, z);
         }
     }
     placed
+}
+
+fn mineshaft_place_corridor_floor_plank(
+    chunk: &mut LevelChunk,
+    model: &MineshaftCorridorModel,
+    chunk_bb: StructureBoundingBoxModel,
+    materials: MineshaftMaterialModel,
+    x: i32,
+    z: i32,
+) -> usize {
+    let pos = structure_piece_world_pos(model.bounding_box, Some(model.orientation), x, -1, z);
+    let interior_pos = BlockPos {
+        x: pos.x,
+        y: pos.y + 1,
+        z: pos.z,
+    };
+    if chunk_bb.is_inside(pos)
+        && mineshaft_world_pos_is_interior(chunk, chunk_bb, interior_pos)
+        && !chunk
+            .get_block_state(pos.x, pos.y, pos.z)
+            .is_some_and(|block| block_blocks_motion(&block))
+    {
+        chunk.set_block_state(pos.x, pos.y, pos.z, materials.planks_state);
+        return 1;
+    }
+    0
+}
+
+fn mineshaft_place_corridor_rails(
+    chunk: &mut LevelChunk,
+    model: &MineshaftCorridorModel,
+    chunk_bb: StructureBoundingBoxModel,
+    random: &mut RandomSourceKind,
+    length: i32,
+) -> usize {
+    if !model.has_rails {
+        return 0;
+    }
+    let mut placed = 0;
+    for z in 0..=length {
+        let pos = structure_piece_world_pos(model.bounding_box, Some(model.orientation), 1, -1, z);
+        let floor = chunk
+            .get_block_state(pos.x, pos.y, pos.z)
+            .unwrap_or_else(|| "minecraft:air".to_string());
+        if floor != "minecraft:air" && floor != "minecraft:cave_air" {
+            placed += mineshaft_maybe_place_corridor_rail(chunk, model, chunk_bb, random, z);
+        }
+    }
+    placed
+}
+
+fn mineshaft_maybe_place_corridor_rail(
+    chunk: &mut LevelChunk,
+    model: &MineshaftCorridorModel,
+    chunk_bb: StructureBoundingBoxModel,
+    random: &mut RandomSourceKind,
+    z: i32,
+) -> usize {
+    let probability = if mineshaft_corridor_is_interior(chunk, model, chunk_bb, 1, 0, z) {
+        0.7
+    } else {
+        0.9
+    };
+    if feature_random_next_f32(random) < probability {
+        return mineshaft_place_corridor_block(chunk, model, chunk_bb, 1, 0, z, "minecraft:rail");
+    }
+    0
 }
 
 fn mineshaft_place_corridor_support(
@@ -809,4 +971,3 @@ pub fn apply_mineshaft_underground_structures_to_chunk(chunk: &mut LevelChunk, s
     }
     placed
 }
-

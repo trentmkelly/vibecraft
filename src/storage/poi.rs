@@ -183,12 +183,11 @@ impl PoiSection {
 
     pub fn add(&mut self, record: PoiRecord) -> bool {
         let key = section_relative_pos(record.pos);
-        if self.records.contains_key(&key) {
-            false
-        } else {
-            self.records.insert(key, record);
-            true
+        if let std::collections::btree_map::Entry::Vacant(entry) = self.records.entry(key) {
+            entry.insert(record);
+            return true;
         }
+        false
     }
 
     pub fn remove(&mut self, pos: BlockPos) -> Option<PoiRecord> {

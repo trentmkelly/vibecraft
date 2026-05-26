@@ -1,5 +1,3 @@
-use super::*;
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ZombieVillagerBabyDimensions {
     pub width: f32,
@@ -122,11 +120,8 @@ pub fn zombie_villager_conversion_progress(
     if scan_random_float >= ZOMBIE_VILLAGER_SPECIAL_BLOCK_SCAN_CHANCE {
         return 1;
     }
-    1 + successful_progress_rolls.min(
-        special_blocks_found
-            .max(0)
-            .min(ZOMBIE_VILLAGER_MAX_SPECIAL_BLOCKS_COUNT),
-    )
+    1 + successful_progress_rolls
+        .min(special_blocks_found.clamp(0, ZOMBIE_VILLAGER_MAX_SPECIAL_BLOCKS_COUNT))
 }
 
 pub fn zombie_villager_conversion_tick(
@@ -178,4 +173,3 @@ pub fn zombie_villager_set_villager_data_clears_offers(
 ) -> bool {
     profession_changed && had_trade_offers
 }
-

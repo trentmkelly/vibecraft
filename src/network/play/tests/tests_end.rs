@@ -1,6 +1,4 @@
-use super::super::*;
 use super::*;
-
 
 // ── 2×2 crafting parity tests ──────────────────────────────────────────────────────────────
 
@@ -16,24 +14,43 @@ fn crafting_grid_log_to_planks_full_round_trip() {
         crate::player_inventory::PlayerInventory::new(),
         recipes.clone(),
     );
-    let mut carried = ItemStack::empty();
     let mut state_id: i32 = 0;
+    let mut carried = ItemStack::new("minecraft:oak_log", 1);
 
-    // Step 1: place oak log into crafting grid slot 1.
-    let place_log = ServerboundContainerClickPacket {
+    let instructions = place_log_in_crafting_grid(&mut inventory_menu, &mut state_id, &mut carried);
+    assert_log_placed_in_crafting_grid(&inventory_menu, &instructions, state_id, &carried);
+
+    let instructions = take_crafting_result(&mut inventory_menu, &mut state_id, &mut carried);
+    assert_log_to_planks_result_taken(&inventory_menu, &instructions, state_id, &carried);
+}
+
+fn container_pickup_click(state_id: i32, slot_num: i16) -> ServerboundContainerClickPacket {
+    ServerboundContainerClickPacket {
         container_id: 0,
-        state_id: 0,
-        slot_num: 1,
+        state_id,
+        slot_num,
         button_num: 0,
         container_input: ContainerInput::Pickup,
         changed_slots: BTreeMap::new(),
         carried_item: HashedStack::empty(),
-    };
-    carried = ItemStack::new("minecraft:oak_log", 1);
-    let instructions =
-        handle_container_click(&place_log, &mut state_id, &mut inventory_menu, &mut carried);
+    }
+}
 
-    // Slot 1 now holds the log; slot 0 shows the result (4 planks).
+fn place_log_in_crafting_grid(
+    inventory_menu: &mut InventoryMenu,
+    state_id: &mut i32,
+    carried: &mut ItemStack,
+) -> Vec<PlayInstruction> {
+    let place_log = container_pickup_click(0, 1);
+    handle_container_click(&place_log, state_id, inventory_menu, carried)
+}
+
+fn assert_log_placed_in_crafting_grid(
+    inventory_menu: &InventoryMenu,
+    instructions: &[PlayInstruction],
+    state_id: i32,
+    carried: &ItemStack,
+) {
     assert_eq!(state_id, 1);
     assert!(
         carried.is_empty(),
@@ -47,44 +64,38 @@ fn crafting_grid_log_to_planks_full_round_trip() {
         inventory_menu.get_slot(0),
         Some(ItemStack::new("minecraft:oak_planks", 4))
     );
-    // Server must send ContainerSetSlot for slot 0 (result) and slot 1 (log placed).
-    assert!(
-        instructions.iter().any(|i| matches!(
-            i,
-            PlayInstruction::ContainerSetSlot(p)
-                if p.slot == 0 && p.item_stack.count == 4
-        )),
-        "expected ContainerSetSlot slot=0 count=4 planks"
+    assert_has_container_set_slot(
+        instructions,
+        0,
+        4,
+        "expected ContainerSetSlot slot=0 count=4 planks",
     );
-    assert!(
-        instructions.iter().any(|i| matches!(
-            i,
-            PlayInstruction::ContainerSetSlot(p)
-                if p.slot == 1 && p.item_stack.count == 1
-        )),
-        "expected ContainerSetSlot slot=1 count=1 log"
+    assert_has_container_set_slot(
+        instructions,
+        1,
+        1,
+        "expected ContainerSetSlot slot=1 count=1 log",
     );
+}
 
-    // Step 2: take result from slot 0.
-    let take_result = ServerboundContainerClickPacket {
-        container_id: 0,
-        state_id: 1,
-        slot_num: 0,
-        button_num: 0,
-        container_input: ContainerInput::Pickup,
-        changed_slots: BTreeMap::new(),
-        carried_item: HashedStack::empty(),
-    };
-    let instructions = handle_container_click(
-        &take_result,
-        &mut state_id,
-        &mut inventory_menu,
-        &mut carried,
-    );
+fn take_crafting_result(
+    inventory_menu: &mut InventoryMenu,
+    state_id: &mut i32,
+    carried: &mut ItemStack,
+) -> Vec<PlayInstruction> {
+    let take_result = container_pickup_click(1, 0);
+    handle_container_click(&take_result, state_id, inventory_menu, carried)
+}
 
+fn assert_log_to_planks_result_taken(
+    inventory_menu: &InventoryMenu,
+    instructions: &[PlayInstruction],
+    state_id: i32,
+    carried: &ItemStack,
+) {
     assert_eq!(state_id, 2);
     assert_eq!(
-        carried,
+        *carried,
         ItemStack::new("minecraft:oak_planks", 4),
         "cursor should hold 4 planks"
     );
@@ -98,21 +109,17 @@ fn crafting_grid_log_to_planks_full_round_trip() {
         Some(ItemStack::empty()),
         "result slot should be empty"
     );
-    assert!(
-        instructions.iter().any(|i| matches!(
-            i,
-            PlayInstruction::ContainerSetSlot(p)
-                if p.slot == 0 && p.item_stack.count == 0
-        )),
-        "expected ContainerSetSlot slot=0 count=0 (empty result)"
+    assert_has_container_set_slot(
+        instructions,
+        0,
+        0,
+        "expected ContainerSetSlot slot=0 count=0 (empty result)",
     );
-    assert!(
-        instructions.iter().any(|i| matches!(
-            i,
-            PlayInstruction::ContainerSetSlot(p)
-                if p.slot == 1 && p.item_stack.count == 0
-        )),
-        "expected ContainerSetSlot slot=1 count=0 (log consumed)"
+    assert_has_container_set_slot(
+        instructions,
+        1,
+        0,
+        "expected ContainerSetSlot slot=1 count=0 (log consumed)",
     );
     assert!(
         instructions.iter().any(|i| matches!(
@@ -129,6 +136,22 @@ fn crafting_grid_log_to_planks_full_round_trip() {
             PlayInstruction::RecipesUnlocked(ids) if ids.contains(&"minecraft:oak_planks")
         )),
         "expected RecipesUnlocked with oak_planks on first craft"
+    );
+}
+
+fn assert_has_container_set_slot(
+    instructions: &[PlayInstruction],
+    slot: i16,
+    count: i32,
+    message: &str,
+) {
+    assert!(
+        instructions.iter().any(|i| matches!(
+            i,
+            PlayInstruction::ContainerSetSlot(p)
+                if p.slot == slot && p.item_stack.count == count
+        )),
+        "{message}"
     );
 }
 
@@ -226,42 +249,36 @@ fn crafting_grid_result_updates_per_slot_change_stale_id_corrected_no_double_unl
     let mut carried = ItemStack::new("minecraft:oak_log", 1);
     let mut state_id: i32 = 0;
 
-    // Place one log into crafting slot 1 — result updates to 4 planks.
-    let place1 = ServerboundContainerClickPacket {
-        container_id: 0,
-        state_id: 0,
-        slot_num: 1,
-        button_num: 0,
-        container_input: ContainerInput::Pickup,
-        changed_slots: BTreeMap::new(),
-        carried_item: HashedStack::empty(),
-    };
-    handle_container_click(&place1, &mut state_id, &mut inventory_menu, &mut carried);
-    assert_eq!(state_id, 1);
+    place_first_log_and_assert_result(&mut inventory_menu, &mut state_id, &mut carried);
+    apply_stale_grid_click_and_assert_resync(&mut inventory_menu, &mut state_id, &mut carried);
+    take_first_result_and_assert_unlock(&mut inventory_menu, &mut state_id, &mut carried);
+    craft_second_log_and_assert_no_unlock(&mut inventory_menu, &mut state_id);
+}
+
+fn place_first_log_and_assert_result(
+    inventory_menu: &mut InventoryMenu,
+    state_id: &mut i32,
+    carried: &mut ItemStack,
+) {
+    let place1 = container_pickup_click(0, 1);
+    handle_container_click(&place1, state_id, inventory_menu, carried);
+    assert_eq!(*state_id, 1);
     assert_eq!(
         inventory_menu.get_slot(0),
         Some(ItemStack::new("minecraft:oak_planks", 4)),
         "result must update immediately after placing log in grid"
     );
+}
 
-    // Java still applies stale state-ID clicks, then sends a full slot resync.
-    let stale_click = ServerboundContainerClickPacket {
-        container_id: 0,
-        state_id: 0, // outdated — correct value is 1
-        slot_num: 2,
-        button_num: 0,
-        container_input: ContainerInput::Pickup,
-        changed_slots: BTreeMap::new(),
-        carried_item: HashedStack::empty(),
-    };
-    let corrections = handle_container_click(
-        &stale_click,
-        &mut state_id,
-        &mut inventory_menu,
-        &mut carried,
-    );
+fn apply_stale_grid_click_and_assert_resync(
+    inventory_menu: &mut InventoryMenu,
+    state_id: &mut i32,
+    carried: &mut ItemStack,
+) {
+    let stale_click = container_pickup_click(0, 2);
+    let corrections = handle_container_click(&stale_click, state_id, inventory_menu, carried);
     assert_eq!(
-        state_id, 2,
+        *state_id, 2,
         "stale click still advances state ID after applying"
     );
     let set_slot_count = corrections
@@ -273,21 +290,17 @@ fn crafting_grid_result_updates_per_slot_change_stale_id_corrected_no_double_unl
         InventoryMenu::SLOT_COUNT,
         "stale click must send a full resync for all 46 slots"
     );
+}
 
-    // Take result — log consumed (1→0), result cleared, recipe unlocked.
-    let take1 = ServerboundContainerClickPacket {
-        container_id: 0,
-        state_id: 2,
-        slot_num: 0,
-        button_num: 0,
-        container_input: ContainerInput::Pickup,
-        changed_slots: BTreeMap::new(),
-        carried_item: HashedStack::empty(),
-    };
-    let take1_instrs =
-        handle_container_click(&take1, &mut state_id, &mut inventory_menu, &mut carried);
-    assert_eq!(state_id, 3);
-    assert_eq!(carried, ItemStack::new("minecraft:oak_planks", 4));
+fn take_first_result_and_assert_unlock(
+    inventory_menu: &mut InventoryMenu,
+    state_id: &mut i32,
+    carried: &mut ItemStack,
+) {
+    let take1 = container_pickup_click(2, 0);
+    let take1_instrs = handle_container_click(&take1, state_id, inventory_menu, carried);
+    assert_eq!(*state_id, 3);
+    assert_eq!(*carried, ItemStack::new("minecraft:oak_planks", 4));
     assert_eq!(
         inventory_menu.get_slot(1),
         Some(ItemStack::empty()),
@@ -305,30 +318,14 @@ fn crafting_grid_result_updates_per_slot_change_stale_id_corrected_no_double_unl
         )),
         "first craft must emit RecipesUnlocked"
     );
+}
 
-    // Place a second log and craft again — no unlock event this time.
+fn craft_second_log_and_assert_no_unlock(inventory_menu: &mut InventoryMenu, state_id: &mut i32) {
     let mut carried2 = ItemStack::new("minecraft:oak_log", 1);
-    let place2 = ServerboundContainerClickPacket {
-        container_id: 0,
-        state_id: 3,
-        slot_num: 1,
-        button_num: 0,
-        container_input: ContainerInput::Pickup,
-        changed_slots: BTreeMap::new(),
-        carried_item: HashedStack::empty(),
-    };
-    handle_container_click(&place2, &mut state_id, &mut inventory_menu, &mut carried2);
-    let take2 = ServerboundContainerClickPacket {
-        container_id: 0,
-        state_id: 4,
-        slot_num: 0,
-        button_num: 0,
-        container_input: ContainerInput::Pickup,
-        changed_slots: BTreeMap::new(),
-        carried_item: HashedStack::empty(),
-    };
-    let take2_instrs =
-        handle_container_click(&take2, &mut state_id, &mut inventory_menu, &mut carried2);
+    let place2 = container_pickup_click(3, 1);
+    handle_container_click(&place2, state_id, inventory_menu, &mut carried2);
+    let take2 = container_pickup_click(4, 0);
+    let take2_instrs = handle_container_click(&take2, state_id, inventory_menu, &mut carried2);
     assert!(
         !take2_instrs
             .iter()
@@ -447,6 +444,12 @@ fn crafting_after_pickup_state_id_advanced_externally() {
 
 #[test]
 fn serverbound_scalar_packet_payload_validation_rejects_malformed_inputs() {
+    assert_scalar_state_payloads_reject_malformed_inputs();
+    assert_action_payloads_reject_malformed_inputs();
+    assert_use_item_payloads_reject_malformed_inputs();
+}
+
+fn assert_scalar_state_payloads_reject_malformed_inputs() {
     assert!(ServerboundAcceptTeleportationPacket::read(&mut cursor(Vec::<u8>::new())).is_err());
     assert!(ServerboundAcceptTeleportationPacket::read(&mut cursor(vec![0x80])).is_err());
     assert!(ServerboundAcceptTeleportationPacket::read(&mut cursor(vec![0xac, 0x02, 0])).is_err());
@@ -469,6 +472,9 @@ fn serverbound_scalar_packet_payload_validation_rejects_malformed_inputs() {
     assert!(ServerboundSwingPacket::read(&mut cursor(Vec::<u8>::new())).is_err());
     assert!(ServerboundSwingPacket::read(&mut cursor(vec![2])).is_err());
     assert!(ServerboundSwingPacket::read(&mut cursor(vec![1, 0])).is_err());
+}
+
+fn assert_action_payloads_reject_malformed_inputs() {
     assert!(ServerboundPlayerCommandPacket::read(&mut cursor(Vec::<u8>::new())).is_err());
     assert!(ServerboundPlayerCommandPacket::read(&mut cursor(vec![37, 7])).is_err());
     assert!(ServerboundPlayerCommandPacket::read(&mut cursor(vec![37, 3])).is_err());
@@ -481,22 +487,28 @@ fn serverbound_scalar_packet_payload_validation_rejects_malformed_inputs() {
     assert!(ServerboundPlayerActionPacket::read(&mut cursor(vec![2])).is_err());
     assert!(ServerboundPlayerActionPacket::read(&mut cursor(vec![
         2, 0xff, 0xff, 0xfd, 0x00, 0x00, 0x02, 0x20, 0x40, 4, 0xac, 0x02, 0
-    ])).is_err());
+    ]))
+    .is_err());
+}
+
+fn assert_use_item_payloads_reject_malformed_inputs() {
     assert!(ServerboundUseItemPacket::read(&mut cursor(Vec::<u8>::new())).is_err());
     assert!(ServerboundUseItemPacket::read(&mut cursor(vec![2])).is_err());
     assert!(ServerboundUseItemPacket::read(&mut cursor(vec![0])).is_err());
     assert!(ServerboundUseItemPacket::read(&mut cursor(vec![
         1, 0xac, 0x02, 0x42, 0x34, 0x00, 0x00, 0xc1, 0x28, 0x00, 0x00, 0
-    ])).is_err());
+    ]))
+    .is_err());
     assert!(ServerboundUseItemOnPacket::read(&mut cursor(Vec::<u8>::new())).is_err());
     assert!(ServerboundUseItemOnPacket::read(&mut cursor(vec![2])).is_err());
+    assert!(
+        ServerboundUseItemOnPacket::read(&mut cursor(vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 6])).is_err()
+    );
     assert!(ServerboundUseItemOnPacket::read(&mut cursor(vec![
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 6
-    ])).is_err());
-    assert!(ServerboundUseItemOnPacket::read(&mut cursor(vec![
-        0, 0xff, 0xff, 0xfd, 0x00, 0x00, 0x02, 0x20, 0x40, 1, 0x3e, 0x80, 0x00, 0x00,
-        0x3f, 0x00, 0x00, 0x00, 0x3f, 0x40, 0x00, 0x00, 1, 0, 0xad, 0x02, 0
-    ])).is_err());
+        0, 0xff, 0xff, 0xfd, 0x00, 0x00, 0x02, 0x20, 0x40, 1, 0x3e, 0x80, 0x00, 0x00, 0x3f, 0x00,
+        0x00, 0x00, 0x3f, 0x40, 0x00, 0x00, 1, 0, 0xad, 0x02, 0
+    ]))
+    .is_err());
 }
 
 #[test]
@@ -626,13 +638,25 @@ fn serverbound_swing_packet_uses_vanilla_interaction_hand_ordinals() {
 #[test]
 fn serverbound_player_action_packet_uses_vanilla_field_order_and_direction_wrapping() {
     let cases = [
-        (ServerboundPlayerAction::StartDestroyBlock, 0, "start destroy"),
-        (ServerboundPlayerAction::AbortDestroyBlock, 1, "abort destroy"),
+        (
+            ServerboundPlayerAction::StartDestroyBlock,
+            0,
+            "start destroy",
+        ),
+        (
+            ServerboundPlayerAction::AbortDestroyBlock,
+            1,
+            "abort destroy",
+        ),
         (ServerboundPlayerAction::StopDestroyBlock, 2, "stop destroy"),
         (ServerboundPlayerAction::DropAllItems, 3, "drop all"),
         (ServerboundPlayerAction::DropItem, 4, "drop one"),
         (ServerboundPlayerAction::ReleaseUseItem, 5, "release use"),
-        (ServerboundPlayerAction::SwapItemWithOffhand, 6, "swap offhand"),
+        (
+            ServerboundPlayerAction::SwapItemWithOffhand,
+            6,
+            "swap offhand",
+        ),
         (ServerboundPlayerAction::Stab, 7, "stab"),
     ];
 
@@ -686,13 +710,41 @@ fn serverbound_player_action_packet_uses_vanilla_field_order_and_direction_wrapp
 #[test]
 fn serverbound_player_command_packet_uses_vanilla_field_order() {
     let cases = [
-        (ServerboundPlayerCommandAction::StopSleeping, 0, "stop sleeping"),
-        (ServerboundPlayerCommandAction::StartSprinting, 1, "start sprinting"),
-        (ServerboundPlayerCommandAction::StopSprinting, 2, "stop sprinting"),
-        (ServerboundPlayerCommandAction::StartRidingJump, 3, "start riding jump"),
-        (ServerboundPlayerCommandAction::StopRidingJump, 4, "stop riding jump"),
-        (ServerboundPlayerCommandAction::OpenInventory, 5, "open inventory"),
-        (ServerboundPlayerCommandAction::StartFallFlying, 6, "start fall flying"),
+        (
+            ServerboundPlayerCommandAction::StopSleeping,
+            0,
+            "stop sleeping",
+        ),
+        (
+            ServerboundPlayerCommandAction::StartSprinting,
+            1,
+            "start sprinting",
+        ),
+        (
+            ServerboundPlayerCommandAction::StopSprinting,
+            2,
+            "stop sprinting",
+        ),
+        (
+            ServerboundPlayerCommandAction::StartRidingJump,
+            3,
+            "start riding jump",
+        ),
+        (
+            ServerboundPlayerCommandAction::StopRidingJump,
+            4,
+            "stop riding jump",
+        ),
+        (
+            ServerboundPlayerCommandAction::OpenInventory,
+            5,
+            "open inventory",
+        ),
+        (
+            ServerboundPlayerCommandAction::StartFallFlying,
+            6,
+            "start fall flying",
+        ),
     ];
 
     for (action, ordinal, label) in cases {
@@ -749,7 +801,14 @@ fn serverbound_interact_packet_uses_vanilla_flat_stream_codec_order() {
 
     let invalid_hand = ServerboundInteractPacket::read(&mut cursor(vec![1, 7, 0, 0])).unwrap();
     assert_eq!(invalid_hand.hand, ServerboundInteractionHand::MainHand);
-    assert_eq!(invalid_hand.location, Vec3 { x: 0.0, y: 0.0, z: 0.0 });
+    assert_eq!(
+        invalid_hand.location,
+        Vec3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0
+        }
+    );
     assert!(!invalid_hand.using_secondary_action);
 }
 
@@ -797,8 +856,8 @@ fn serverbound_use_item_on_packet_uses_vanilla_block_hit_result_order() {
     assert_eq!(
         payload,
         vec![
-            0, 0xff, 0xff, 0xfd, 0x00, 0x00, 0x02, 0x20, 0x40, 1, 0x3e, 0x80, 0x00,
-            0x00, 0x3f, 0x00, 0x00, 0x00, 0x3f, 0x40, 0x00, 0x00, 1, 0, 0xad, 0x02
+            0, 0xff, 0xff, 0xfd, 0x00, 0x00, 0x02, 0x20, 0x40, 1, 0x3e, 0x80, 0x00, 0x00, 0x3f,
+            0x00, 0x00, 0x00, 0x3f, 0x40, 0x00, 0x00, 1, 0, 0xad, 0x02
         ]
     );
     assert_eq!(

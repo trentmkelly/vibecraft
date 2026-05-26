@@ -31,8 +31,8 @@ impl PermissionLevel {
     }
 }
 
-impl Default for ServerCommandState {
-    fn default() -> Self {
+macro_rules! default_server_command_state {
+    () => {
         Self {
             player_idle_timeout_minutes: 0,
             autosave_enabled: true,
@@ -177,6 +177,12 @@ impl Default for ServerCommandState {
             world_seed: 0,
             version: VersionInfo::CURRENT_26_1_2,
         }
+    };
+}
+
+impl Default for ServerCommandState {
+    fn default() -> Self {
+        default_server_command_state!()
     }
 }
 

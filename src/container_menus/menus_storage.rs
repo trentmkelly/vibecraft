@@ -15,7 +15,7 @@ impl ChestMenu {
     pub const MAX_ROWS: usize = 6;
 
     pub fn new(rows: usize) -> Self {
-        assert!(rows >= 1 && rows <= Self::MAX_ROWS);
+        assert!((1..=Self::MAX_ROWS).contains(&rows));
         Self {
             rows,
             slots: vec![ItemStack::empty(); rows * 9],
@@ -513,4 +513,3 @@ impl Default for ShulkerBoxMenu {
         Self::new()
     }
 }
-

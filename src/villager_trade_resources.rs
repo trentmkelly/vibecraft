@@ -11,6 +11,8 @@ use crate::villager_system::{VillagerLevel, VillagerProfession};
 
 const DEFAULT_DATA_ROOT: &str = "../decompiled-server-26.1.2/data/minecraft";
 
+pub type WanderingTraderOfferGroups = (Vec<MerchantOffer>, Vec<MerchantOffer>, Vec<MerchantOffer>);
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct VillagerTradeResource {
     pub wants: TradeCostResource,
@@ -84,7 +86,7 @@ pub fn profession_offers_from_resources(
 
 pub fn wandering_trader_offers_from_resources(
     resources: &DataResourceIndex,
-) -> Result<(Vec<MerchantOffer>, Vec<MerchantOffer>, Vec<MerchantOffer>), String> {
+) -> Result<WanderingTraderOfferGroups, String> {
     Ok((
         offers_from_trade_set(resources, "wandering_trader/buying")?,
         offers_from_trade_set(resources, "wandering_trader/uncommon")?,

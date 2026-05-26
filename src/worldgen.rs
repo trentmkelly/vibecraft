@@ -33,8 +33,7 @@ mod noise_models;
 pub use self::noise_models::*;
 
 mod biome_sampling;
-#[cfg(test)]
-use self::biome_sampling::biome_manager_fiddle;
+#[cfg(test)] use self::biome_sampling::biome_manager_fiddle;
 use self::biome_sampling::{
     biome_manager_get_biome, biome_manager_get_biome_cached, biome_manager_obfuscate_seed,
     ChunkNoiseBiomeCache,
@@ -56,9 +55,9 @@ pub use self::flat_generation::*;
 mod feature_sorting;
 use self::feature_sorting::possible_biome_feature_steps_for_source;
 pub use self::feature_sorting::{
-    biome_decoration_feature_plan, biome_decoration_structure_calls, build_features_per_step,
-    build_features_per_step_with_source_ids,
+    biome_decoration_feature_plan, build_features_per_step,
 };
+#[cfg(test)] use self::feature_sorting::{biome_decoration_structure_calls, build_features_per_step_with_source_ids};
 
 mod tree_decoration_context;
 use self::tree_decoration_context::*;
@@ -70,47 +69,48 @@ use self::block_state_support::*;
 
 mod noise_generator_settings;
 pub use self::noise_generator_settings::{
-    builtin_density_function, builtin_noise_router, cave_generation_family, density_function_type,
+    builtin_density_function, builtin_noise_router, density_function_type,
     noise_router_id_for_settings, BUILTIN_NOISE_GENERATOR_SETTINGS, END_ISLANDS_DENSITY,
-    END_LEVEL_STEM, EXTRACTED_NOISE_SETTINGS_REGISTRY_EXPECTATIONS, NETHER_LEVEL_STEM,
-    OVERWORLD_SPAWN_TARGET, TEST_CACHE_ALL_IN_CELL_DENSITY, TEST_NEGATIVE_DENSITY,
-    TEST_POSITIVE_DENSITY, TEST_RANGE_CHOICE_DENSITY, WORLD_PRESETS,
+    WORLD_PRESETS,
+};
+#[cfg(test)] use self::noise_generator_settings::{
+    cave_generation_family, EXTRACTED_NOISE_SETTINGS_REGISTRY_EXPECTATIONS, OVERWORLD_SPAWN_TARGET,
+    TEST_CACHE_ALL_IN_CELL_DENSITY, TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY,
+    TEST_RANGE_CHOICE_DENSITY,
 };
 
 mod underground_ore_decoration;
-pub use self::underground_ore_decoration::{
-    ore_vein_decision, ore_vein_decision_at, ore_vein_richness, ore_vein_type_for_toggle,
-};
 use self::underground_ore_decoration::{
     apply_underground_ore_decoration_from_source_into_region,
     apply_underground_ore_decoration_to_chunk, apply_underground_ore_decoration_to_chunk_with_context,
-    clamped_map, ore_vein_decision_after_toggle, NoiseMaterialRuleList,
+    clamped_map, MaterialRuleCalculationInput, NoiseMaterialRuleList,
+};
+#[cfg(test)] use self::underground_ore_decoration::{
+    ore_vein_decision, ore_vein_decision_after_toggle, ore_vein_decision_at, ore_vein_richness,
 };
 
 mod noise_preview_chunk;
-use self::noise_preview_chunk::{
-    live_tree_count, live_tree_decoration_blocks, noise_preview_block_at,
-    noise_preview_ground_cover_blocks, noise_preview_terrain_height, noise_preview_tree_blocks,
-    NoisePreviewTreeCountKind,
+use self::noise_preview_chunk::{live_tree_decoration_blocks, LiveTreeDecorationInput};
+#[cfg(test)] use self::noise_preview_chunk::{
+    live_tree_count, noise_preview_ground_cover_blocks, noise_preview_terrain_height,
+    noise_preview_tree_blocks, NoisePreviewTreeCountKind,
 };
-pub use self::noise_preview_chunk::{
-    materialize_noise_preview_chunk, noise_preview_base_column, noise_preview_base_height,
-};
+pub use self::noise_preview_chunk::materialize_noise_preview_chunk;
 
 mod simple_vegetation;
 use self::simple_vegetation::{
-    apply_initial_simple_vegetation_decoration_to_chunk, block_predicate_test_in_chunk,
-    block_predicate_test_in_region, configured_simple_vegetation_block,
-    place_configured_simple_vegetation_in_target_chunk,
-    place_simple_vegetation_feature_positions_depth_first, placed_simple_vegetation_feature,
-    region_static_block_name, sample_triangle_int, seedless_noise_salt, simple_vegetation_phase,
-    simple_vegetation_source_height, vegetation_flower_noise, PlacedSimpleVegetationFeature,
+    apply_initial_simple_vegetation_decoration_to_chunk, block_predicate_test_in_region,
+    configured_simple_vegetation_block, placed_simple_vegetation_feature, region_static_block_name,
+    sample_triangle_int, seedless_noise_salt, simple_vegetation_phase, simple_vegetation_source_height,
+    vegetation_flower_noise, PlacedSimpleVegetationFeature, SimpleVegetationDecorationInput,
     SimpleVegetationPhase,
+};
+#[cfg(test)] use self::simple_vegetation::{
+    block_predicate_test_in_chunk, place_configured_simple_vegetation_in_target_chunk,
 };
 
 mod live_tree_selection;
-#[cfg(test)]
-use self::live_tree_selection::{
+#[cfg(test)] use self::live_tree_selection::{
     live_birch_tree_config, live_oak_bees_005_tree_config, live_oak_leaf_litter_tree_config,
 };
 use self::live_tree_selection::{
@@ -122,9 +122,11 @@ use self::live_tree_selection::{
 };
 
 mod live_tree_placement;
-#[cfg(test)]
-use self::live_tree_placement::tree_decorator_solid_render;
-use self::live_tree_placement::{append_live_tree_decorators, live_tree_placement_plan};
+#[cfg(test)] use self::live_tree_placement::tree_decorator_solid_render;
+use self::live_tree_placement::{
+    append_live_tree_decorators, live_tree_placement_plan, LiveTreeDecoratorInput,
+    LiveTreePlacementInput,
+};
 
 mod density_registry;
 pub use self::density_registry::*;
@@ -177,7 +179,7 @@ pub use self::structure_piece_models::*;
 mod structure_piece_generation;
 pub use self::structure_piece_generation::*;
 mod jigsaw_model_impls;
-pub use self::jigsaw_model_impls::*;
+#[cfg(test)] use self::jigsaw_model_impls::*;
 mod random_noise_helpers;
 pub use self::random_noise_helpers::*;
 mod height_providers;
@@ -201,7 +203,7 @@ pub use self::overworld_chunk_generation::*;
 mod worldgen_registry_parsing;
 pub use self::worldgen_registry_parsing::*;
 mod terrain_splines;
-pub use self::terrain_splines::*;
+use self::terrain_splines::*;
 mod density_function_evaluation;
 pub use self::density_function_evaluation::*;
 mod noise_aquifer;
@@ -209,7 +211,7 @@ pub use self::noise_aquifer::*;
 mod noise_sampling;
 pub use self::noise_sampling::*;
 mod generated_sections;
-pub use self::generated_sections::*;
+use self::generated_sections::*;
 mod surface_rule_runtime;
 pub use self::surface_rule_runtime::*;
 mod surface_generation;
@@ -219,7 +221,7 @@ pub use self::carver_generation::*;
 mod carver_application;
 pub use self::carver_application::*;
 mod tree_decoration_generation;
-pub use self::tree_decoration_generation::*;
+use self::tree_decoration_generation::*;
 mod underground_decoration_cache;
 use self::underground_decoration_cache::*;
 mod underground_decoration_placement;
@@ -231,69 +233,69 @@ pub use self::block_state_provider_sampling::*;
 mod ore_placement_plans;
 pub use self::ore_placement_plans::*;
 mod aquatic_feature_plans;
-pub use self::aquatic_feature_plans::*;
+#[cfg(test)] use self::aquatic_feature_plans::*;
 mod vegetation_patch_plans;
-pub use self::vegetation_patch_plans::*;
+#[cfg(test)] use self::vegetation_patch_plans::*;
 mod lake_feature_plans;
-pub use self::lake_feature_plans::*;
+#[cfg(test)] use self::lake_feature_plans::*;
 mod fossil_feature_plans;
 pub use self::fossil_feature_plans::*;
 mod geode_feature_plans;
-pub use self::geode_feature_plans::*;
+#[cfg(test)] use self::geode_feature_plans::*;
 mod iceberg_feature_plans;
-pub use self::iceberg_feature_plans::*;
+#[cfg(test)] use self::iceberg_feature_plans::*;
 mod blue_ice_feature_plans;
-pub use self::blue_ice_feature_plans::*;
+#[cfg(test)] use self::blue_ice_feature_plans::*;
 mod feature_selector_plans;
-pub use self::feature_selector_plans::*;
+#[cfg(test)] use self::feature_selector_plans::*;
 mod fill_layer_feature_plans;
-pub use self::fill_layer_feature_plans::*;
+#[cfg(test)] use self::fill_layer_feature_plans::*;
 mod end_island_feature_plans;
-pub use self::end_island_feature_plans::*;
+#[cfg(test)] use self::end_island_feature_plans::*;
 mod replace_sphere_feature_plans;
-pub use self::replace_sphere_feature_plans::*;
+#[cfg(test)] use self::replace_sphere_feature_plans::*;
 mod basalt_pillar_feature_plans;
-pub use self::basalt_pillar_feature_plans::*;
+#[cfg(test)] use self::basalt_pillar_feature_plans::*;
 mod basalt_column_feature_plans;
-pub use self::basalt_column_feature_plans::*;
+#[cfg(test)] use self::basalt_column_feature_plans::*;
 mod delta_feature_plans;
-pub use self::delta_feature_plans::*;
+#[cfg(test)] use self::delta_feature_plans::*;
 mod glowstone_feature_plans;
-pub use self::glowstone_feature_plans::*;
+#[cfg(test)] use self::glowstone_feature_plans::*;
 mod nether_forest_vegetation_plans;
-pub use self::nether_forest_vegetation_plans::*;
+#[cfg(test)] use self::nether_forest_vegetation_plans::*;
 mod nether_vine_feature_plans;
-pub use self::nether_vine_feature_plans::*;
+#[cfg(test)] use self::nether_vine_feature_plans::*;
 mod end_platform_feature_plans;
-pub use self::end_platform_feature_plans::*;
+#[cfg(test)] use self::end_platform_feature_plans::*;
 mod end_gateway_feature_plans;
-pub use self::end_gateway_feature_plans::*;
+#[cfg(test)] use self::end_gateway_feature_plans::*;
 mod chorus_plant_feature_plans;
-pub use self::chorus_plant_feature_plans::*;
+#[cfg(test)] use self::chorus_plant_feature_plans::*;
 mod end_podium_feature_plans;
-pub use self::end_podium_feature_plans::*;
+#[cfg(test)] use self::end_podium_feature_plans::*;
 mod end_spike_feature_plans;
-pub use self::end_spike_feature_plans::*;
+#[cfg(test)] use self::end_spike_feature_plans::*;
 mod huge_fungus_feature_plans;
-pub use self::huge_fungus_feature_plans::*;
+#[cfg(test)] use self::huge_fungus_feature_plans::*;
 mod block_pile_feature_plans;
-pub use self::block_pile_feature_plans::*;
+#[cfg(test)] use self::block_pile_feature_plans::*;
 mod disk_feature_plans;
-pub use self::disk_feature_plans::*;
+#[cfg(test)] use self::disk_feature_plans::*;
 mod snow_and_freeze_feature_plans;
-pub use self::snow_and_freeze_feature_plans::*;
+#[cfg(test)] use self::snow_and_freeze_feature_plans::*;
 mod underwater_magma_feature_plans;
-pub use self::underwater_magma_feature_plans::*;
+#[cfg(test)] use self::underwater_magma_feature_plans::*;
 mod dripstone_cluster_feature_plans;
-pub use self::dripstone_cluster_feature_plans::*;
+#[cfg(test)] use self::dripstone_cluster_feature_plans::*;
 mod pointed_dripstone_feature_plans;
 pub use self::pointed_dripstone_feature_plans::*;
 mod large_dripstone_feature_plans;
-pub use self::large_dripstone_feature_plans::*;
+#[cfg(test)] use self::large_dripstone_feature_plans::*;
 mod tree_configuration_plans;
 pub use self::tree_configuration_plans::*;
 mod root_system_feature_plans;
-pub use self::root_system_feature_plans::*;
+#[cfg(test)] use self::root_system_feature_plans::*;
 mod tree_foliage_feature_plans;
 use self::tree_foliage_feature_plans::*;
 mod tree_decorator_feature_plans;
@@ -317,19 +319,18 @@ pub use self::trunk_feature_plans::*;
 mod fallen_tree_feature_plans;
 pub use self::fallen_tree_feature_plans::*;
 mod jigsaw_pool_models;
-pub use self::jigsaw_pool_models::*;
 mod jigsaw_placement;
-pub use self::jigsaw_placement::*;
+#[cfg(test)] use self::jigsaw_placement::*;
 mod structure_template_support;
-pub use self::structure_template_support::*;
+#[cfg(test)] use self::structure_template_support::*;
 mod structure_access_support;
-pub use self::structure_access_support::*;
+#[cfg(test)] use self::structure_access_support::*;
 mod structure_scattered_features;
-pub use self::structure_scattered_features::*;
+#[cfg(test)] pub use self::structure_scattered_features::*;
 mod structure_template_features;
 pub use self::structure_template_features::*;
 mod structure_ocean_ruins;
-pub use self::structure_ocean_ruins::*;
+#[cfg(test)] use self::structure_ocean_ruins::*;
 mod structure_mineshaft_generation;
 pub use self::structure_mineshaft_generation::*;
 mod structure_mineshaft_application;
@@ -337,13 +338,13 @@ pub use self::structure_mineshaft_application::*;
 mod structure_strongholds;
 pub use self::structure_strongholds::*;
 mod structure_nether_fortress;
-pub use self::structure_nether_fortress::*;
+#[cfg(test)] use self::structure_nether_fortress::*;
 mod structure_ocean_monuments;
-pub use self::structure_ocean_monuments::*;
+#[cfg(test)] use self::structure_ocean_monuments::*;
 mod structure_end_city;
-pub use self::structure_end_city::*;
+#[cfg(test)] use self::structure_end_city::*;
 mod structure_woodland_mansion;
-pub use self::structure_woodland_mansion::*;
+#[cfg(test)] use self::structure_woodland_mansion::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BlendingConstants {
@@ -1026,19 +1027,17 @@ mod tests {
         builtin_density_function, builtin_noise_generator_settings, builtin_noise_router,
         density_function_type, random_state_normal_noise_snapshot, AquiferNoiseSettings,
         BinaryDensityFunction, BiomeGenerationSettingsModel, BlendingDataPacked, BlendingOutput,
-        BlockPos, BlockPredicate, BlockPredicateContext, BlockStateProviderModel, CarverShape,
+        BlockPos, BlockPredicate, BlockPredicateContext, CarverShape,
         CaveDensityOutput, CaveSurface, ConfiguredFeatureSource, DensityFunction, DensityMarker,
-        FeatureConfigurationKind, FeatureFamily, FeatureSizeModel, FlatLayerInfo, FloatProvider,
+        FeatureConfigurationKind, FeatureFamily, FlatLayerInfo, FloatProvider,
         FluidStatus, FoliagePlacerKind, FoliagePlacerModel, GenerationDecorationStep,
-        HeightProvider, HeightRange, HorizontalDirection, MangroveRootPlacementModel,
+        HeightProvider, HeightRange,
         MappedDensityFunction, MobSpawnerDataModel, NoiseRouterPreset, NoiseSettings,
         OreVeinDecisionInput, OreVeinifierConstants, PlacedFeatureSource, PlacementContextModel,
-        PlacementModifier, RandomSpreadType, RandomStateNoiseCache, RootPlacerModel,
-        RuleBasedBlockStateProviderRule, SpawnBlockKind, SpawnColumnHeights, StructureFamily,
+        PlacementModifier, RandomSpreadType, RandomStateNoiseCache, SpawnBlockKind, SpawnColumnHeights, StructureFamily,
         StructurePlacementKind, SurfaceConditionSource, SurfaceMaterialContext, SurfaceRuleKind,
-        SurfaceRulePreset, SurfaceRuleSource, TreeDecoratorModel, TreeFoliageAttachmentModel,
-        TreePlacementBlockKind, TrunkPlacerKind, TrunkPlacerModel, VerticalAnchor,
-        WeightedBlockState, WeightedHeightProvider, WorldCarverType, WorldGenerationHeightContext,
+        SurfaceRulePreset, SurfaceRuleSource,
+        TreePlacementBlockKind, TrunkPlacerKind, TrunkPlacerModel, VerticalAnchor, WeightedHeightProvider, WorldCarverType, WorldGenerationHeightContext,
         AQUIFER_NOISE_SETTINGS, AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS,
         BLENDING_CELL_COLUMN_COUNT, BLENDING_CONSTANTS, BLENDING_NO_VALUE, BLOCK_PREDICATE_TYPES,
         BUILTIN_DENSITY_FUNCTIONS, BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS,
@@ -1054,7 +1053,7 @@ mod tests {
         STRUCTURE_PIECE_TYPES, STRUCTURE_POOL_ELEMENT_TYPES, STRUCTURE_POS_RULE_TEST_TYPES,
         STRUCTURE_PROCESSOR_LISTS, STRUCTURE_PROCESSOR_TYPES, STRUCTURE_RULE_TEST_TYPES,
         STRUCTURE_TYPES, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES, SYNTH_NOISE_SOURCES,
-        TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL, WORLDGEN_TYPE_REGISTRIES,
+        TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL,
         WORLD_CARVER_TYPES, WORLD_PRESETS, Y_DENSITY,
     };
     use crate::biome::{quantize_coord, BiomeSourceModel};
@@ -1121,7 +1120,11 @@ mod tests {
 
     mod feature_placement_support_provider_tests;
 
+    mod feature_placement_support_environment_tests;
+
     mod feature_placement_support_geode_end_tests;
+
+    mod feature_placement_support_end_structures_tests;
 
     mod feature_placement_support_dripstone_tests;
 

@@ -203,26 +203,30 @@ pub fn nether_fossil_make_piece(
     })
 }
 
+pub struct NetherFossilGenerationInput {
+    pub chunk_pos: ChunkPos,
+    pub block_x_roll: i32,
+    pub block_z_roll: i32,
+    pub sampled_y: i32,
+    pub sea_level: i32,
+    pub template_index: usize,
+    pub rotation: StructureRotation,
+}
+
 pub fn nether_fossil_find_generation_point(
-    chunk_pos: ChunkPos,
-    block_x_roll: i32,
-    block_z_roll: i32,
-    sampled_y: i32,
-    sea_level: i32,
-    template_index: usize,
-    rotation: StructureRotation,
+    input: NetherFossilGenerationInput,
     mut block_at: impl FnMut(i32) -> &'static str,
     mut is_sturdy_support: impl FnMut(i32) -> bool,
 ) -> Result<Option<NetherFossilGenerationPointModel>, String> {
-    if !(0..16).contains(&block_x_roll) || !(0..16).contains(&block_z_roll) {
+    if !(0..16).contains(&input.block_x_roll) || !(0..16).contains(&input.block_z_roll) {
         return Err(
             "Nether fossil horizontal rolls must match RandomSource#nextInt(16)".to_string(),
         );
     }
-    let block_x = chunk_pos.x * 16 + block_x_roll;
-    let block_z = chunk_pos.z * 16 + block_z_roll;
-    let mut y = sampled_y;
-    while y > sea_level {
+    let block_x = input.chunk_pos.x * 16 + input.block_x_roll;
+    let block_z = input.chunk_pos.z * 16 + input.block_z_roll;
+    let mut y = input.sampled_y;
+    while y > input.sea_level {
         let current = block_at(y);
         y -= 1;
         let below = block_at(y);
@@ -230,7 +234,7 @@ pub fn nether_fossil_find_generation_point(
             break;
         }
     }
-    if y <= sea_level {
+    if y <= input.sea_level {
         return Ok(None);
     }
     let position = BlockPos {
@@ -240,7 +244,7 @@ pub fn nether_fossil_find_generation_point(
     };
     Ok(Some(NetherFossilGenerationPointModel {
         position,
-        piece: nether_fossil_make_piece(position, template_index, rotation)?,
+        piece: nether_fossil_make_piece(position, input.template_index, input.rotation)?,
     }))
 }
 
@@ -637,4 +641,3 @@ pub fn shipwreck_loot_table_for_marker(marker_id: &str) -> Option<&'static str> 
         _ => None,
     }
 }
-

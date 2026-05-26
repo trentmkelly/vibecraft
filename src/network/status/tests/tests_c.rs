@@ -985,6 +985,16 @@ pub fn play_session_state_from_nbt_clamps_vanilla_playerdata_bounds() {
 
 #[test]
 pub fn play_session_state_nbt_round_trip_preserves_full_playerdata_surface() {
+    let state = full_playerdata_surface_state();
+    let tag = play_session_state_to_nbt(&state);
+
+    assert_playerdata_surface_fields_present(&tag);
+    let restored =
+        play_session_state_from_nbt(&tag, GameMode::Survival, &RecipeMap::default()).unwrap();
+    assert_playerdata_surface_round_trip(&state, &restored);
+}
+
+fn full_playerdata_surface_state() -> PlaySessionState {
     let mut state = session_state_with_inventory(&[("minecraft:stone", 5, 3)]);
     state.fall_distance = 6.25;
     state.food_exhaustion = 3.5;
@@ -1039,8 +1049,10 @@ pub fn play_session_state_nbt_round_trip_preserves_full_playerdata_surface() {
         fly_speed: 0.08,
         walk_speed: 0.12,
     };
+    state
+}
 
-    let tag = play_session_state_to_nbt(&state);
+fn assert_playerdata_surface_fields_present(tag: &Tag) {
     for field in [
         "Pos",
         "Rotation",
@@ -1076,13 +1088,13 @@ pub fn play_session_state_nbt_round_trip_preserves_full_playerdata_surface() {
         "active_effects",
     ] {
         assert!(
-            field_value(&tag, field).is_some(),
+            field_value(tag, field).is_some(),
             "{field} missing from player NBT"
         );
     }
+}
 
-    let restored =
-        play_session_state_from_nbt(&tag, GameMode::Survival, &RecipeMap::default()).unwrap();
+fn assert_playerdata_surface_round_trip(state: &PlaySessionState, restored: &PlaySessionState) {
     assert_eq!(restored.fall_distance, 6.25);
     assert_eq!(restored.food_exhaustion, 3.5);
     assert_eq!(restored.food_tick_timer, 72);

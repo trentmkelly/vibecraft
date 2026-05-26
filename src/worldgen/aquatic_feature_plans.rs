@@ -139,40 +139,45 @@ pub fn coral_block_can_place(current_block: &'static str, above_block: &'static 
         && above_block == "minecraft:water"
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CoralBlockPlacementInput<'a> {
+    pub pos: BlockPos,
+    pub current_block: &'static str,
+    pub above_block: &'static str,
+    pub coral_state: &'static str,
+    pub coral_roll: f32,
+    pub sea_pickle_roll: f32,
+    pub pickle_count_roll: i32,
+    pub wall_fan_rolls: &'a [(HorizontalDirection, f32, bool)],
+}
+
 pub fn coral_block_placement_plan(
-    pos: BlockPos,
-    current_block: &'static str,
-    above_block: &'static str,
-    coral_state: &'static str,
-    coral_roll: f32,
-    sea_pickle_roll: f32,
-    pickle_count_roll: i32,
-    wall_fan_rolls: &[(HorizontalDirection, f32, bool)],
+    input: CoralBlockPlacementInput<'_>,
 ) -> Vec<AquaticPlacementBlock> {
-    if !coral_block_can_place(current_block, above_block) {
+    if !coral_block_can_place(input.current_block, input.above_block) {
         return Vec::new();
     }
     let mut blocks = vec![AquaticPlacementBlock {
-        pos,
-        state: coral_state,
+        pos: input.pos,
+        state: input.coral_state,
     }];
-    if coral_roll < 0.25 {
+    if input.coral_roll < 0.25 {
         blocks.push(AquaticPlacementBlock {
             pos: BlockPos {
-                x: pos.x,
-                y: pos.y + 1,
-                z: pos.z,
+                x: input.pos.x,
+                y: input.pos.y + 1,
+                z: input.pos.z,
             },
             state: "minecraft:tube_coral",
         });
-    } else if sea_pickle_roll < 0.05 {
+    } else if input.sea_pickle_roll < 0.05 {
         blocks.push(AquaticPlacementBlock {
             pos: BlockPos {
-                x: pos.x,
-                y: pos.y + 1,
-                z: pos.z,
+                x: input.pos.x,
+                y: input.pos.y + 1,
+                z: input.pos.z,
             },
-            state: match pickle_count_roll.rem_euclid(4) + 1 {
+            state: match input.pickle_count_roll.rem_euclid(4) + 1 {
                 1 => "minecraft:sea_pickle[pickles=1]",
                 2 => "minecraft:sea_pickle[pickles=2]",
                 3 => "minecraft:sea_pickle[pickles=3]",
@@ -180,10 +185,10 @@ pub fn coral_block_placement_plan(
             },
         });
     }
-    for (direction, roll, side_is_water) in wall_fan_rolls {
+    for (direction, roll, side_is_water) in input.wall_fan_rolls {
         if *roll < 0.2 && *side_is_water {
             blocks.push(AquaticPlacementBlock {
-                pos: offset_horizontal(pos, *direction, 1),
+                pos: offset_horizontal(input.pos, *direction, 1),
                 state: coral_wall_fan_state(*direction),
             });
         }

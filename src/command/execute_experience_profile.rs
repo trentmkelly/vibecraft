@@ -10,6 +10,17 @@ pub(super) fn execute_command(
     }
 
     let original = capture_command_source(state);
+    let result = execute_command_inner(state, permissions, parts, &original);
+    restore_command_source(state, original);
+    result
+}
+
+fn execute_command_inner(
+    state: &mut ServerCommandState,
+    permissions: LevelBasedPermissionSet,
+    parts: &[&str],
+    original: &CommandSourceSnapshot,
+) -> Result<CommandResult, CommandError> {
     let mut sources = vec![ExecuteSourceSnapshot {
         entity: state.command_source_entity.clone(),
         position: state.command_source_position,
@@ -19,115 +30,189 @@ pub(super) fn execute_command(
     let mut index = 1;
 
     while index < parts.len() {
-        match parts[index] {
-            "run" => {
-                let command = parts
-                    .get(index + 1..)
-                    .filter(|tail| !tail.is_empty())
-                    .ok_or(CommandError::InvalidSyntax)?
-                    .join(" ");
-                let result =
-                    execute_for_sources(state, permissions, &original, &sources, &command)?;
-                state.execute_events.push(ExecuteCommandEvent {
-                    sources,
-                    command,
-                    result: result.success_count,
-                    success: result.success_count > 0,
-                });
-                restore_command_source(state, original);
-                return Ok(result);
-            }
-            "as" => {
-                let targets = parts.get(index + 1).ok_or(CommandError::InvalidSyntax)?;
-                let entities = parse_entity_list(targets);
-                if entities.is_empty() {
-                    restore_command_source(state, original);
-                    return Err(CommandError::ExecuteConditionFailed);
-                }
-                sources = sources
-                    .iter()
-                    .flat_map(|source| {
-                        entities.iter().map(move |entity| {
-                            let mut forked = source.clone();
-                            forked.entity = Some(entity.clone());
-                            forked
-                        })
-                    })
-                    .collect();
-                index += 2;
-            }
-            "at" => {
-                let targets = parts.get(index + 1).ok_or(CommandError::InvalidSyntax)?;
-                let entities = parse_entity_list(targets);
-                if entities.is_empty() {
-                    restore_command_source(state, original);
-                    return Err(CommandError::ExecuteConditionFailed);
-                }
-                let mut forked_sources = Vec::new();
-                for source in &sources {
-                    for entity in &entities {
-                        let mut forked = source.clone();
-                        forked.entity = Some(entity.clone());
-                        if let Some(position) = entity_position(state, entity) {
-                            forked.position = position.position;
-                            forked.dimension = position.dimension.clone();
-                        } else if let Some(entity_state) = entity_state(state, entity) {
-                            forked.dimension = entity_state.dimension.clone();
-                        }
-                        forked_sources.push(forked);
-                    }
-                }
-                sources = forked_sources;
-                index += 2;
-            }
-            "positioned" => {
-                let Some([x, y, z]) = parts.get(index + 1..index + 4) else {
-                    return Err(CommandError::InvalidSyntax);
-                };
-                let position = parse_vec3(x, y, z)?;
-                for source in &mut sources {
-                    source.position = position;
-                }
-                index += 4;
-            }
-            "in" => {
-                let dimension = parts
-                    .get(index + 1)
-                    .ok_or(CommandError::InvalidSyntax)
-                    .and_then(|dimension| parse_resource_identifier(dimension))?;
-                for source in &mut sources {
-                    source.dimension = dimension.clone();
-                }
-                index += 2;
-            }
-            "anchored" => {
-                let anchor = parts
-                    .get(index + 1)
-                    .ok_or(CommandError::InvalidSyntax)
-                    .and_then(|anchor| parse_entity_anchor(anchor))?;
-                for source in &mut sources {
-                    source.anchor = anchor;
-                }
-                index += 2;
-            }
-            "if" | "unless" => {
-                let invert = parts[index] == "unless";
-                let (matched, consumed) = execute_condition(state, &sources, &parts[index + 1..])?;
-                if matched == invert {
-                    restore_command_source(state, original);
-                    return Err(CommandError::ExecuteConditionFailed);
-                }
-                index += 1 + consumed;
-            }
-            _ => {
-                restore_command_source(state, original);
-                return Err(CommandError::InvalidSyntax);
-            }
+        if parts[index] == "run" {
+            return execute_run_subcommand(
+                state,
+                permissions,
+                original,
+                sources,
+                &parts[index + 1..],
+            );
         }
+        index += apply_execute_modifier(state, &mut sources, parts, index)?;
     }
 
-    restore_command_source(state, original);
     Err(CommandError::InvalidSyntax)
+}
+
+fn execute_run_subcommand(
+    state: &mut ServerCommandState,
+    permissions: LevelBasedPermissionSet,
+    original: &CommandSourceSnapshot,
+    sources: Vec<ExecuteSourceSnapshot>,
+    command_parts: &[&str],
+) -> Result<CommandResult, CommandError> {
+    if command_parts.is_empty() {
+        return Err(CommandError::InvalidSyntax);
+    }
+    let command = command_parts.join(" ");
+    let result = execute_for_sources(state, permissions, original, &sources, &command)?;
+    state.execute_events.push(ExecuteCommandEvent {
+        sources,
+        command,
+        result: result.success_count,
+        success: result.success_count > 0,
+    });
+    Ok(result)
+}
+
+fn apply_execute_modifier(
+    state: &ServerCommandState,
+    sources: &mut Vec<ExecuteSourceSnapshot>,
+    parts: &[&str],
+    index: usize,
+) -> Result<usize, CommandError> {
+    match parts[index] {
+        "as" => execute_as_modifier(
+            sources,
+            parts
+                .get(index + 1)
+                .copied()
+                .ok_or(CommandError::InvalidSyntax)?,
+        ),
+        "at" => execute_at_modifier(
+            state,
+            sources,
+            parts
+                .get(index + 1)
+                .copied()
+                .ok_or(CommandError::InvalidSyntax)?,
+        ),
+        "positioned" => execute_positioned_modifier(sources, parts.get(index + 1..index + 4)),
+        "in" => execute_in_modifier(
+            sources,
+            parts
+                .get(index + 1)
+                .copied()
+                .ok_or(CommandError::InvalidSyntax)?,
+        ),
+        "anchored" => execute_anchored_modifier(
+            sources,
+            parts
+                .get(index + 1)
+                .copied()
+                .ok_or(CommandError::InvalidSyntax)?,
+        ),
+        "if" | "unless" => execute_condition_modifier(state, sources, parts, index),
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn execute_as_modifier(
+    sources: &mut Vec<ExecuteSourceSnapshot>,
+    targets: &str,
+) -> Result<usize, CommandError> {
+    let entities = parse_entity_list(targets);
+    if entities.is_empty() {
+        return Err(CommandError::ExecuteConditionFailed);
+    }
+    *sources = sources
+        .iter()
+        .flat_map(|source| {
+            entities.iter().map(move |entity| {
+                let mut forked = source.clone();
+                forked.entity = Some(entity.clone());
+                forked
+            })
+        })
+        .collect();
+    Ok(2)
+}
+
+fn execute_at_modifier(
+    state: &ServerCommandState,
+    sources: &mut Vec<ExecuteSourceSnapshot>,
+    targets: &str,
+) -> Result<usize, CommandError> {
+    let entities = parse_entity_list(targets);
+    if entities.is_empty() {
+        return Err(CommandError::ExecuteConditionFailed);
+    }
+    let mut forked_sources = Vec::new();
+    for source in sources.iter() {
+        for entity in &entities {
+            let mut forked = source.clone();
+            forked.entity = Some(entity.clone());
+            apply_entity_location_to_source(state, &mut forked, entity);
+            forked_sources.push(forked);
+        }
+    }
+    *sources = forked_sources;
+    Ok(2)
+}
+
+fn apply_entity_location_to_source(
+    state: &ServerCommandState,
+    source: &mut ExecuteSourceSnapshot,
+    entity: &EntityRef,
+) {
+    if let Some(position) = entity_position(state, entity) {
+        source.position = position.position;
+        source.dimension = position.dimension.clone();
+    } else if let Some(entity_state) = entity_state(state, entity) {
+        source.dimension = entity_state.dimension.clone();
+    }
+}
+
+fn execute_positioned_modifier(
+    sources: &mut [ExecuteSourceSnapshot],
+    coords: Option<&[&str]>,
+) -> Result<usize, CommandError> {
+    let Some([x, y, z]) = coords else {
+        return Err(CommandError::InvalidSyntax);
+    };
+    let position = parse_vec3(x, y, z)?;
+    for source in sources {
+        source.position = position;
+    }
+    Ok(4)
+}
+
+fn execute_in_modifier(
+    sources: &mut [ExecuteSourceSnapshot],
+    dimension: &str,
+) -> Result<usize, CommandError> {
+    let dimension = parse_resource_identifier(dimension)?;
+    for source in sources {
+        source.dimension = dimension.clone();
+    }
+    Ok(2)
+}
+
+fn execute_anchored_modifier(
+    sources: &mut [ExecuteSourceSnapshot],
+    anchor: &str,
+) -> Result<usize, CommandError> {
+    let anchor = parse_entity_anchor(anchor)?;
+    for source in sources {
+        source.anchor = anchor;
+    }
+    Ok(2)
+}
+
+fn execute_condition_modifier(
+    state: &ServerCommandState,
+    sources: &[ExecuteSourceSnapshot],
+    parts: &[&str],
+    index: usize,
+) -> Result<usize, CommandError> {
+    let invert = parts[index] == "unless";
+    let (matched, consumed) = execute_condition(state, sources, &parts[index + 1..])?;
+    if matched == invert {
+        Err(CommandError::ExecuteConditionFailed)
+    } else {
+        Ok(1 + consumed)
+    }
 }
 
 pub(super) fn execute_for_sources(
@@ -413,7 +498,8 @@ pub(super) fn player_experience_mut<'a>(
             progress: 0.0,
             total: 0,
         });
-        state.player_experience.last_mut().unwrap()
+        let index = state.player_experience.len() - 1;
+        &mut state.player_experience[index]
     }
 }
 

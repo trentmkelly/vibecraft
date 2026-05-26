@@ -236,83 +236,87 @@ pub fn nether_fortress_bridge_straight_box(
     .then_some(bounding_box)
 }
 
+pub struct NetherFortressChildAnchorInput {
+    pub start_box: StructureBoundingBoxModel,
+    pub piece_box: StructureBoundingBoxModel,
+    pub piece_orientation: HorizontalDirection,
+    pub piece_depth: i32,
+    pub child_direction: NetherFortressChildDirectionModel,
+    pub x_or_y_off: i32,
+    pub y_or_z_off: i32,
+    pub is_castle: bool,
+}
+
 pub fn nether_fortress_child_anchor(
-    start_box: StructureBoundingBoxModel,
-    piece_box: StructureBoundingBoxModel,
-    piece_orientation: HorizontalDirection,
-    piece_depth: i32,
-    child_direction: NetherFortressChildDirectionModel,
-    x_or_y_off: i32,
-    y_or_z_off: i32,
-    is_castle: bool,
+    input: NetherFortressChildAnchorInput,
 ) -> NetherFortressChildAnchorModel {
-    let (foot, direction) = match child_direction {
-        NetherFortressChildDirectionModel::Forward => match piece_orientation {
+    let (foot, direction) = match input.child_direction {
+        NetherFortressChildDirectionModel::Forward => match input.piece_orientation {
             HorizontalDirection::North => (
                 BlockPos {
-                    x: piece_box.min_x + x_or_y_off,
-                    y: piece_box.min_y + y_or_z_off,
-                    z: piece_box.min_z - 1,
+                    x: input.piece_box.min_x + input.x_or_y_off,
+                    y: input.piece_box.min_y + input.y_or_z_off,
+                    z: input.piece_box.min_z - 1,
                 },
-                piece_orientation,
+                input.piece_orientation,
             ),
             HorizontalDirection::South => (
                 BlockPos {
-                    x: piece_box.min_x + x_or_y_off,
-                    y: piece_box.min_y + y_or_z_off,
-                    z: piece_box.max_z + 1,
+                    x: input.piece_box.min_x + input.x_or_y_off,
+                    y: input.piece_box.min_y + input.y_or_z_off,
+                    z: input.piece_box.max_z + 1,
                 },
-                piece_orientation,
+                input.piece_orientation,
             ),
             HorizontalDirection::West => (
                 BlockPos {
-                    x: piece_box.min_x - 1,
-                    y: piece_box.min_y + y_or_z_off,
-                    z: piece_box.min_z + x_or_y_off,
+                    x: input.piece_box.min_x - 1,
+                    y: input.piece_box.min_y + input.y_or_z_off,
+                    z: input.piece_box.min_z + input.x_or_y_off,
                 },
-                piece_orientation,
+                input.piece_orientation,
             ),
             HorizontalDirection::East => (
                 BlockPos {
-                    x: piece_box.max_x + 1,
-                    y: piece_box.min_y + y_or_z_off,
-                    z: piece_box.min_z + x_or_y_off,
+                    x: input.piece_box.max_x + 1,
+                    y: input.piece_box.min_y + input.y_or_z_off,
+                    z: input.piece_box.min_z + input.x_or_y_off,
                 },
-                piece_orientation,
+                input.piece_orientation,
             ),
         },
-        NetherFortressChildDirectionModel::Left => match piece_orientation {
+        NetherFortressChildDirectionModel::Left => match input.piece_orientation {
             HorizontalDirection::North | HorizontalDirection::South => (
                 BlockPos {
-                    x: piece_box.min_x - 1,
-                    y: piece_box.min_y + x_or_y_off,
-                    z: piece_box.min_z + y_or_z_off,
+                    x: input.piece_box.min_x - 1,
+                    y: input.piece_box.min_y + input.x_or_y_off,
+                    z: input.piece_box.min_z + input.y_or_z_off,
                 },
                 HorizontalDirection::West,
             ),
             HorizontalDirection::West | HorizontalDirection::East => (
                 BlockPos {
-                    x: piece_box.min_x + y_or_z_off,
-                    y: piece_box.min_y + x_or_y_off,
-                    z: piece_box.min_z - 1,
+                    x: input.piece_box.min_x + input.y_or_z_off,
+                    y: input.piece_box.min_y + input.x_or_y_off,
+                    z: input.piece_box.min_z - 1,
                 },
                 HorizontalDirection::North,
             ),
         },
-        NetherFortressChildDirectionModel::Right => match piece_orientation {
+        NetherFortressChildDirectionModel::Right => match input.piece_orientation {
             HorizontalDirection::North | HorizontalDirection::South => (
                 BlockPos {
-                    x: piece_box.max_x + 1,
-                    y: piece_box.min_y + x_or_y_off,
-                    z: piece_box.min_z + y_or_z_off,
+                    x: input.piece_box.max_x + 1,
+                    y: input.piece_box.min_y + input.x_or_y_off,
+                    z: input.piece_box.min_z + input.y_or_z_off,
                 },
                 HorizontalDirection::East,
             ),
             HorizontalDirection::West | HorizontalDirection::East => (
                 BlockPos {
-                    x: piece_box.min_x + y_or_z_off,
-                    y: piece_box.min_y + x_or_y_off,
-                    z: piece_box.max_z + 1,
+                    x: input.piece_box.min_x + input.y_or_z_off,
+                    y: input.piece_box.min_y + input.x_or_y_off,
+                    z: input.piece_box.max_z + 1,
                 },
                 HorizontalDirection::South,
             ),
@@ -321,10 +325,9 @@ pub fn nether_fortress_child_anchor(
     NetherFortressChildAnchorModel {
         foot,
         direction,
-        next_depth: piece_depth + 1,
-        is_castle,
-        within_start_range: (foot.x - start_box.min_x).abs() <= 112
-            && (foot.z - start_box.min_z).abs() <= 112,
+        next_depth: input.piece_depth + 1,
+        is_castle: input.is_castle,
+        within_start_range: (foot.x - input.start_box.min_x).abs() <= 112
+            && (foot.z - input.start_box.min_z).abs() <= 112,
     }
 }
-

@@ -46,9 +46,7 @@ fn clientbound_merchant_offers_packet_matches_java_codec() {
     assert_eq!(
         payload,
         [
-            vec![
-                0x80, 0x01, 1, 5, 3, 0, 1, 6, 0, 0, 1, 7, 2, 0, 1
-            ],
+            vec![0x80, 0x01, 1, 5, 3, 0, 1, 6, 0, 0, 1, 7, 2, 0, 1],
             1_i32.to_be_bytes().to_vec(),
             12_i32.to_be_bytes().to_vec(),
             4_i32.to_be_bytes().to_vec(),

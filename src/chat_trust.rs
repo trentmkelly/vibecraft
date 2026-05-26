@@ -311,32 +311,32 @@ fn parse_player_safety_text_filter_config(config: &str) -> TextFilterConfig {
         Ok(parsed) => parsed,
         Err(err) => return TextFilterConfig::Invalid(err.to_string()),
     };
-    let required = [
-        "apiServer",
-        "apiPath",
-        "scope",
-        "applicationId",
-        "tenantId",
-        "certificatePath",
-    ];
-    for key in required {
-        if json_string(&parsed, key).is_none() {
-            return TextFilterConfig::Invalid(format!("missing {key}"));
-        }
+    match player_safety_config_from_json(&parsed) {
+        Ok(config) => TextFilterConfig::PlayerSafety(config),
+        Err(err) => TextFilterConfig::Invalid(err),
     }
-    TextFilterConfig::PlayerSafety(PlayerSafetyTextFilterConfig {
-        api_server: json_string(&parsed, "apiServer").unwrap(),
-        api_path: json_string(&parsed, "apiPath").unwrap(),
-        scope: json_string(&parsed, "scope").unwrap(),
-        server_id: json_string(&parsed, "serverId").unwrap_or_default(),
-        application_id: json_string(&parsed, "applicationId").unwrap(),
-        tenant_id: json_string(&parsed, "tenantId").unwrap(),
-        room_id: json_string(&parsed, "roomId").unwrap_or_else(|| "Java:Chat".to_string()),
-        certificate_path: json_string(&parsed, "certificatePath").unwrap(),
-        hashes_to_drop: json_i32(&parsed, "hashesToDrop", -1),
-        max_concurrent_requests: json_u32(&parsed, "maxConcurrentRequests", 7),
-        connection_read_timeout_ms: json_u32(&parsed, "connectionReadTimeoutMs", 2000),
+}
+
+fn player_safety_config_from_json(
+    parsed: &serde_json::Value,
+) -> Result<PlayerSafetyTextFilterConfig, String> {
+    Ok(PlayerSafetyTextFilterConfig {
+        api_server: required_json_string(parsed, "apiServer")?,
+        api_path: required_json_string(parsed, "apiPath")?,
+        scope: required_json_string(parsed, "scope")?,
+        server_id: json_string(parsed, "serverId").unwrap_or_default(),
+        application_id: required_json_string(parsed, "applicationId")?,
+        tenant_id: required_json_string(parsed, "tenantId")?,
+        room_id: json_string(parsed, "roomId").unwrap_or_else(|| "Java:Chat".to_string()),
+        certificate_path: required_json_string(parsed, "certificatePath")?,
+        hashes_to_drop: json_i32(parsed, "hashesToDrop", -1),
+        max_concurrent_requests: json_u32(parsed, "maxConcurrentRequests", 7),
+        connection_read_timeout_ms: json_u32(parsed, "connectionReadTimeoutMs", 2000),
     })
+}
+
+fn required_json_string(value: &serde_json::Value, key: &str) -> Result<String, String> {
+    json_string(value, key).ok_or_else(|| format!("missing {key}"))
 }
 
 fn json_string(value: &serde_json::Value, key: &str) -> Option<String> {

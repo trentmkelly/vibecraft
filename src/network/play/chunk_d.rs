@@ -356,7 +356,7 @@ impl ServerboundClientTickEndPacket {
         Ok(Self)
     }
 
-    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    pub fn write<W: Write>(&self, _writer: &mut W) -> io::Result<()> {
         Ok(())
     }
 }
@@ -436,7 +436,7 @@ impl ServerboundPlayerLoadedPacket {
         Ok(Self)
     }
 
-    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    pub fn write<W: Write>(&self, _writer: &mut W) -> io::Result<()> {
         Ok(())
     }
 }
@@ -707,7 +707,7 @@ impl ServerboundConfigurationAcknowledgedPacket {
         Ok(Self)
     }
 
-    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    pub fn write<W: Write>(&self, _writer: &mut W) -> io::Result<()> {
         Ok(())
     }
 }

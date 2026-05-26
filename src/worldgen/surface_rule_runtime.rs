@@ -180,6 +180,109 @@ pub fn parse_vertical_anchor_from_json(v: &serde_json::Value) -> Result<Vertical
     Err(format!("unrecognised vertical anchor: {v}"))
 }
 
+fn parse_biome_surface_condition(v: &serde_json::Value) -> Result<DynSurfaceCondition, String> {
+    let arr = v["biome_is"]
+        .as_array()
+        .ok_or("biome condition missing biome_is")?;
+    let biomes = arr
+        .iter()
+        .map(|b| {
+            b.as_str()
+                .ok_or("biome_is entry not a string")
+                .map(|s| s.to_string())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(DynSurfaceCondition::Biome(biomes))
+}
+
+fn parse_noise_threshold_surface_condition(
+    v: &serde_json::Value,
+) -> Result<DynSurfaceCondition, String> {
+    let noise = v["noise"]
+        .as_str()
+        .ok_or("noise_threshold missing noise")?
+        .to_string();
+    let min = v["min_threshold"]
+        .as_f64()
+        .ok_or("noise_threshold missing min_threshold")?;
+    let max = v["max_threshold"]
+        .as_f64()
+        .ok_or("noise_threshold missing max_threshold")?;
+    Ok(DynSurfaceCondition::NoiseThreshold { noise, min, max })
+}
+
+fn parse_vertical_gradient_surface_condition(
+    v: &serde_json::Value,
+) -> Result<DynSurfaceCondition, String> {
+    let random_name = v["random_name"]
+        .as_str()
+        .ok_or("vertical_gradient missing random_name")?
+        .to_string();
+    let true_at = parse_vertical_anchor_from_json(&v["true_at_and_below"])?;
+    let false_at = parse_vertical_anchor_from_json(&v["false_at_and_above"])?;
+    Ok(DynSurfaceCondition::VerticalGradient {
+        random_name,
+        true_at_and_below: true_at,
+        false_at_and_above: false_at,
+    })
+}
+
+fn parse_y_above_surface_condition(v: &serde_json::Value) -> Result<DynSurfaceCondition, String> {
+    let anchor = parse_vertical_anchor_from_json(&v["anchor"])?;
+    let multiplier = v["surface_depth_multiplier"]
+        .as_i64()
+        .ok_or("y_above missing surface_depth_multiplier")? as i32;
+    let add_stone = v["add_stone_depth"]
+        .as_bool()
+        .ok_or("y_above missing add_stone_depth")?;
+    Ok(DynSurfaceCondition::YAbove {
+        anchor,
+        surface_depth_multiplier: multiplier,
+        add_stone_depth: add_stone,
+    })
+}
+
+fn parse_water_surface_condition(v: &serde_json::Value) -> Result<DynSurfaceCondition, String> {
+    let offset = v["offset"].as_i64().ok_or("water missing offset")? as i32;
+    let multiplier = v["surface_depth_multiplier"]
+        .as_i64()
+        .ok_or("water missing surface_depth_multiplier")? as i32;
+    let add_stone = v["add_stone_depth"]
+        .as_bool()
+        .ok_or("water missing add_stone_depth")?;
+    Ok(DynSurfaceCondition::Water {
+        offset,
+        surface_depth_multiplier: multiplier,
+        add_stone_depth: add_stone,
+    })
+}
+
+fn parse_stone_depth_surface_condition(
+    v: &serde_json::Value,
+) -> Result<DynSurfaceCondition, String> {
+    let offset = v["offset"].as_i64().ok_or("stone_depth missing offset")? as i32;
+    let add_depth = v["add_surface_depth"]
+        .as_bool()
+        .ok_or("stone_depth missing add_surface_depth")?;
+    let secondary = v["secondary_depth_range"]
+        .as_i64()
+        .ok_or("stone_depth missing secondary_depth_range")? as i32;
+    let surface = match v["surface_type"]
+        .as_str()
+        .ok_or("stone_depth missing surface_type")?
+    {
+        "floor" => CaveSurface::Floor,
+        "ceiling" => CaveSurface::Ceiling,
+        s => return Err(format!("unknown stone_depth surface_type: {s}")),
+    };
+    Ok(DynSurfaceCondition::StoneDepth {
+        offset,
+        add_surface_depth: add_depth,
+        secondary_depth_range: secondary,
+        surface,
+    })
+}
+
 /// Parse a `DynSurfaceCondition` from a JSON object.
 ///
 /// Mirrors Java's `SurfaceRules.ConditionSource` codec dispatch on `"type"`.
@@ -187,100 +290,12 @@ pub fn parse_dyn_surface_condition(v: &serde_json::Value) -> Result<DynSurfaceCo
     let ty = v["type"].as_str().ok_or("surface condition missing type")?;
     let name = ty.strip_prefix("minecraft:").unwrap_or(ty);
     match name {
-        "biome" => {
-            let arr = v["biome_is"]
-                .as_array()
-                .ok_or("biome condition missing biome_is")?;
-            let biomes = arr
-                .iter()
-                .map(|b| {
-                    b.as_str()
-                        .ok_or("biome_is entry not a string")
-                        .map(|s| s.to_string())
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            Ok(DynSurfaceCondition::Biome(biomes))
-        }
-        "noise_threshold" => {
-            let noise = v["noise"]
-                .as_str()
-                .ok_or("noise_threshold missing noise")?
-                .to_string();
-            let min = v["min_threshold"]
-                .as_f64()
-                .ok_or("noise_threshold missing min_threshold")?;
-            let max = v["max_threshold"]
-                .as_f64()
-                .ok_or("noise_threshold missing max_threshold")?;
-            Ok(DynSurfaceCondition::NoiseThreshold { noise, min, max })
-        }
-        "vertical_gradient" => {
-            let random_name = v["random_name"]
-                .as_str()
-                .ok_or("vertical_gradient missing random_name")?
-                .to_string();
-            let true_at = parse_vertical_anchor_from_json(&v["true_at_and_below"])?;
-            let false_at = parse_vertical_anchor_from_json(&v["false_at_and_above"])?;
-            Ok(DynSurfaceCondition::VerticalGradient {
-                random_name,
-                true_at_and_below: true_at,
-                false_at_and_above: false_at,
-            })
-        }
-        "y_above" => {
-            let anchor = parse_vertical_anchor_from_json(&v["anchor"])?;
-            let multiplier = v["surface_depth_multiplier"]
-                .as_i64()
-                .ok_or("y_above missing surface_depth_multiplier")?
-                as i32;
-            let add_stone = v["add_stone_depth"]
-                .as_bool()
-                .ok_or("y_above missing add_stone_depth")?;
-            Ok(DynSurfaceCondition::YAbove {
-                anchor,
-                surface_depth_multiplier: multiplier,
-                add_stone_depth: add_stone,
-            })
-        }
-        "water" => {
-            let offset = v["offset"].as_i64().ok_or("water missing offset")? as i32;
-            let multiplier = v["surface_depth_multiplier"]
-                .as_i64()
-                .ok_or("water missing surface_depth_multiplier")?
-                as i32;
-            let add_stone = v["add_stone_depth"]
-                .as_bool()
-                .ok_or("water missing add_stone_depth")?;
-            Ok(DynSurfaceCondition::Water {
-                offset,
-                surface_depth_multiplier: multiplier,
-                add_stone_depth: add_stone,
-            })
-        }
-        "stone_depth" => {
-            let offset = v["offset"].as_i64().ok_or("stone_depth missing offset")? as i32;
-            let add_depth = v["add_surface_depth"]
-                .as_bool()
-                .ok_or("stone_depth missing add_surface_depth")?;
-            let secondary = v["secondary_depth_range"]
-                .as_i64()
-                .ok_or("stone_depth missing secondary_depth_range")?
-                as i32;
-            let surface = match v["surface_type"]
-                .as_str()
-                .ok_or("stone_depth missing surface_type")?
-            {
-                "floor" => CaveSurface::Floor,
-                "ceiling" => CaveSurface::Ceiling,
-                s => return Err(format!("unknown stone_depth surface_type: {s}")),
-            };
-            Ok(DynSurfaceCondition::StoneDepth {
-                offset,
-                add_surface_depth: add_depth,
-                secondary_depth_range: secondary,
-                surface,
-            })
-        }
+        "biome" => parse_biome_surface_condition(v),
+        "noise_threshold" => parse_noise_threshold_surface_condition(v),
+        "vertical_gradient" => parse_vertical_gradient_surface_condition(v),
+        "y_above" => parse_y_above_surface_condition(v),
+        "water" => parse_water_surface_condition(v),
+        "stone_depth" => parse_stone_depth_surface_condition(v),
         "not" => {
             let inner = parse_dyn_surface_condition(&v["invert"])?;
             Ok(DynSurfaceCondition::Not(Box::new(inner)))
@@ -639,7 +654,7 @@ fn dyn_surface_condition_compute(
     settings: NoiseGeneratorSettings,
 ) -> bool {
     match cond {
-        DynSurfaceCondition::Biome(biomes) => biomes.iter().any(|b| b == &state.biome),
+        DynSurfaceCondition::Biome(biomes) => biomes.iter().any(|b| b == state.biome),
         DynSurfaceCondition::NoiseThreshold { noise, min, max } => {
             // Sample the named noise at (blockX, 0, blockZ).
             // Uses the thread-local noise cache when active.
@@ -747,7 +762,7 @@ fn dyn_surface_condition_compute_live(
     match cond {
         DynSurfaceCondition::Biome(biomes) => {
             state.resolve_biome(biome_resolver);
-            biomes.iter().any(|b| b == &state.biome)
+            biomes.iter().any(|b| b == state.biome)
         }
         DynSurfaceCondition::Temperature => {
             state.resolve_biome(biome_resolver);

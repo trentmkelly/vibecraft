@@ -1,3 +1,4 @@
+#[cfg(test)]
 pub mod bundle;
 pub mod codec;
 pub mod common;
@@ -7,6 +8,7 @@ pub mod cookie;
 pub mod dispatch;
 pub mod encryption;
 pub mod handshake;
+#[cfg(test)]
 pub mod local;
 pub mod login;
 pub mod ping;
@@ -17,5 +19,6 @@ pub mod query;
 pub mod rate_limit;
 pub mod rcon;
 pub mod status;
+#[cfg(test)]
 pub mod transfer;
 pub mod varint;

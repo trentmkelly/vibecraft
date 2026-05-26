@@ -28,5 +28,8 @@ fn clientbound_reset_score_packet_matches_java_codec() {
     }
     .write(&mut without_objective)
     .unwrap();
-    assert_eq!(without_objective, [vec![5], b"Steve".to_vec(), vec![0]].concat());
+    assert_eq!(
+        without_objective,
+        [vec![5], b"Steve".to_vec(), vec![0]].concat()
+    );
 }

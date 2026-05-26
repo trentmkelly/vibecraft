@@ -77,19 +77,27 @@ pub fn pointed_dripstone_tip_direction(
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PointedDripstoneFeatureInput<'a> {
+    pub origin: BlockPos,
+    pub config: PointedDripstoneConfigurationModel,
+    pub can_place_above: bool,
+    pub can_place_below: bool,
+    pub choose_down_when_both: bool,
+    pub taller_roll: f32,
+    pub next_position_empty_or_water: bool,
+    pub spread_rolls: &'a [PointedDripstoneSpreadRoll],
+}
+
 pub fn pointed_dripstone_feature_plan(
-    origin: BlockPos,
-    config: PointedDripstoneConfigurationModel,
-    can_place_above: bool,
-    can_place_below: bool,
-    choose_down_when_both: bool,
-    taller_roll: f32,
-    next_position_empty_or_water: bool,
-    spread_rolls: &[PointedDripstoneSpreadRoll],
+    input: PointedDripstoneFeatureInput<'_>,
 ) -> Result<PointedDripstoneFeaturePlan, String> {
-    validate_pointed_dripstone_configuration(config)?;
-    let Some(tip_direction) =
-        pointed_dripstone_tip_direction(can_place_above, can_place_below, choose_down_when_both)
+    validate_pointed_dripstone_configuration(input.config)?;
+    let Some(tip_direction) = pointed_dripstone_tip_direction(
+        input.can_place_above,
+        input.can_place_below,
+        input.choose_down_when_both,
+    )
     else {
         return Ok(PointedDripstoneFeaturePlan {
             tip_direction: None,
@@ -99,17 +107,18 @@ pub fn pointed_dripstone_feature_plan(
     };
     let root_pos = match tip_direction {
         PointedDripstoneDirection::Down => BlockPos {
-            x: origin.x,
-            y: origin.y + 1,
-            z: origin.z,
+            x: input.origin.x,
+            y: input.origin.y + 1,
+            z: input.origin.z,
         },
         PointedDripstoneDirection::Up => BlockPos {
-            x: origin.x,
-            y: origin.y - 1,
-            z: origin.z,
+            x: input.origin.x,
+            y: input.origin.y - 1,
+            z: input.origin.z,
         },
     };
-    let height = if taller_roll < config.chance_of_taller_dripstone && next_position_empty_or_water
+    let height = if input.taller_roll < input.config.chance_of_taller_dripstone
+        && input.next_position_empty_or_water
     {
         2
     } else {
@@ -118,8 +127,12 @@ pub fn pointed_dripstone_feature_plan(
 
     Ok(PointedDripstoneFeaturePlan {
         tip_direction: Some(tip_direction),
-        dripstone_blocks: pointed_dripstone_patch_positions(root_pos, config, spread_rolls),
-        pointed_blocks: pointed_dripstone_column(origin, tip_direction, height, false),
+        dripstone_blocks: pointed_dripstone_patch_positions(
+            root_pos,
+            input.config,
+            input.spread_rolls,
+        ),
+        pointed_blocks: pointed_dripstone_column(input.origin, tip_direction, height, false),
     })
 }
 

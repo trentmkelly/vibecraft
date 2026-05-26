@@ -85,7 +85,7 @@ impl DaylightDetectorBlockEntity {
         effective_sky_brightness: i32,
         sun_angle_degrees: f32,
     ) -> bool {
-        if game_time % Self::TICK_INTERVAL != 0 {
+        if !game_time.is_multiple_of(Self::TICK_INTERVAL) {
             return false;
         }
         self.update_signal(effective_sky_brightness, sun_angle_degrees)
@@ -763,4 +763,3 @@ impl ShelfBlockEntity {
         self.filled_slot_count() as u8
     }
 }
-

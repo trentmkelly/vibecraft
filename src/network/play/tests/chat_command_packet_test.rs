@@ -39,7 +39,7 @@ fn serverbound_chat_command_packet_rejects_java_overlong_command() {
 
     let mut payload = Vec::new();
     write_var_i32(&mut payload, 32768).unwrap();
-    payload.extend(std::iter::repeat(b'x').take(32768));
+    payload.extend(std::iter::repeat_n(b'x', 32768));
     assert!(ServerboundChatCommandPacket::read(&mut cursor(payload.clone())).is_err());
 
     let mut session = PlaySession::new(1, 0);

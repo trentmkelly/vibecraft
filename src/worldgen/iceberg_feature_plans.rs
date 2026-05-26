@@ -1,37 +1,40 @@
 use super::*;
 
-pub fn iceberg_shape_model(
-    snow_roll: f64,
-    angle_roll: f64,
-    ellipse_a_roll: i32,
-    ellipse_c_roll: i32,
-    ellipse_roll: f64,
-    height_roll: i32,
-    tall_roll: f64,
-    tall_extra_roll: i32,
-    underwater_roll: i32,
-    width_plus_roll: i32,
-    width_minus_roll: i32,
-) -> IcebergShapeModel {
-    let is_ellipse = ellipse_roll > 0.7;
+pub struct IcebergShapeRolls {
+    pub snow_roll: f64,
+    pub angle_roll: f64,
+    pub ellipse_a_roll: i32,
+    pub ellipse_c_roll: i32,
+    pub ellipse_roll: f64,
+    pub height_roll: i32,
+    pub tall_roll: f64,
+    pub tall_extra_roll: i32,
+    pub underwater_roll: i32,
+    pub width_plus_roll: i32,
+    pub width_minus_roll: i32,
+}
+
+pub fn iceberg_shape_model(rolls: IcebergShapeRolls) -> IcebergShapeModel {
+    let is_ellipse = rolls.ellipse_roll > 0.7;
     let mut over_water_height = if is_ellipse {
-        height_roll.rem_euclid(6) + 6
+        rolls.height_roll.rem_euclid(6) + 6
     } else {
-        height_roll.rem_euclid(15) + 3
+        rolls.height_roll.rem_euclid(15) + 3
     };
-    if !is_ellipse && tall_roll > 0.9 {
-        over_water_height += tall_extra_roll.rem_euclid(19) + 7;
+    if !is_ellipse && rolls.tall_roll > 0.9 {
+        over_water_height += rolls.tall_extra_roll.rem_euclid(19) + 7;
     }
     IcebergShapeModel {
-        snow_on_top: snow_roll > 0.7,
-        shape_angle: angle_roll * 2.0 * std::f64::consts::PI,
-        shape_ellipse_a: 11 - ellipse_a_roll.rem_euclid(5),
-        shape_ellipse_c: 3 + ellipse_c_roll.rem_euclid(3),
+        snow_on_top: rolls.snow_roll > 0.7,
+        shape_angle: rolls.angle_roll * 2.0 * std::f64::consts::PI,
+        shape_ellipse_a: 11 - rolls.ellipse_a_roll.rem_euclid(5),
+        shape_ellipse_c: 3 + rolls.ellipse_c_roll.rem_euclid(3),
         is_ellipse,
         over_water_height,
-        under_water_height: (over_water_height + underwater_roll.rem_euclid(11)).min(18),
-        width: (over_water_height + width_plus_roll.rem_euclid(7) - width_minus_roll.rem_euclid(5))
-            .min(11),
+        under_water_height: (over_water_height + rolls.underwater_roll.rem_euclid(11)).min(18),
+        width: (over_water_height + rolls.width_plus_roll.rem_euclid(7)
+            - rolls.width_minus_roll.rem_euclid(5))
+        .min(11),
     }
 }
 
@@ -161,16 +164,19 @@ pub fn iceberg_smooth_action(
     below_is_air: bool,
     horizontal_non_iceberg_neighbors: i32,
 ) -> IcebergBlockAction {
-    if matches!(
-        current_state,
-        "minecraft:packed_ice" | "minecraft:snow_block" | "minecraft:blue_ice" | "minecraft:snow"
-    ) && below_is_air
-    {
-        IcebergBlockAction::Air
-    } else if matches!(
-        current_state,
-        "minecraft:packed_ice" | "minecraft:snow_block" | "minecraft:blue_ice"
-    ) && horizontal_non_iceberg_neighbors >= 3
+    if (below_is_air
+        && matches!(
+            current_state,
+            "minecraft:packed_ice"
+                | "minecraft:snow_block"
+                | "minecraft:blue_ice"
+                | "minecraft:snow"
+        ))
+        || (horizontal_non_iceberg_neighbors >= 3
+            && matches!(
+                current_state,
+                "minecraft:packed_ice" | "minecraft:snow_block" | "minecraft:blue_ice"
+            ))
     {
         IcebergBlockAction::Air
     } else {

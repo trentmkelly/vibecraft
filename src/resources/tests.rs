@@ -458,9 +458,7 @@ fn parses_pack_metadata_and_detects_compatibility() {
     .unwrap();
     assert_eq!(old.compatibility, PackCompatibility::TooOld);
 
-    assert!(
-        parse_pack_metadata(r#"{"pack":{"description":"bad","pack_format":101}}"#).is_err()
-    );
+    assert!(parse_pack_metadata(r#"{"pack":{"description":"bad","pack_format":101}}"#).is_err());
 }
 
 #[test]

@@ -33,24 +33,27 @@ pub fn delta_cannot_replace(state: &str) -> bool {
     )
 }
 
-pub fn delta_is_clear(
-    state: &str,
-    contents: &str,
-    up_air: bool,
-    down_air: bool,
-    north_air: bool,
-    south_air: bool,
-    west_air: bool,
-    east_air: bool,
-) -> bool {
-    state != contents
-        && !delta_cannot_replace(state)
-        && !up_air
-        && !down_air
-        && !north_air
-        && !south_air
-        && !west_air
-        && !east_air
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DeltaClearInput<'a> {
+    pub state: &'a str,
+    pub contents: &'a str,
+    pub up_air: bool,
+    pub down_air: bool,
+    pub north_air: bool,
+    pub south_air: bool,
+    pub west_air: bool,
+    pub east_air: bool,
+}
+
+pub fn delta_is_clear(input: DeltaClearInput<'_>) -> bool {
+    input.state != input.contents
+        && !delta_cannot_replace(input.state)
+        && !input.up_air
+        && !input.down_air
+        && !input.north_air
+        && !input.south_air
+        && !input.west_air
+        && !input.east_air
 }
 
 pub fn delta_has_rim(spawn_roll: f64, rim_x: i32, rim_z: i32) -> bool {

@@ -1,20 +1,23 @@
 use super::*;
 
-pub fn spring_feature_can_place(
-    valid_above: bool,
-    requires_block_below: bool,
-    valid_below: bool,
-    current_is_air_or_valid: bool,
-    adjacent_rock_count: i32,
-    adjacent_hole_count: i32,
-    required_rock_count: i32,
-    required_hole_count: i32,
-) -> bool {
-    valid_above
-        && (!requires_block_below || valid_below)
-        && current_is_air_or_valid
-        && adjacent_rock_count == required_rock_count
-        && adjacent_hole_count == required_hole_count
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpringCanPlaceInput {
+    pub valid_above: bool,
+    pub requires_block_below: bool,
+    pub valid_below: bool,
+    pub current_is_air_or_valid: bool,
+    pub adjacent_rock_count: i32,
+    pub adjacent_hole_count: i32,
+    pub required_rock_count: i32,
+    pub required_hole_count: i32,
+}
+
+pub fn spring_feature_can_place(input: SpringCanPlaceInput) -> bool {
+    input.valid_above
+        && (!input.requires_block_below || input.valid_below)
+        && input.current_is_air_or_valid
+        && input.adjacent_rock_count == input.required_rock_count
+        && input.adjacent_hole_count == input.required_hole_count
 }
 
 pub fn spring_placement_plan(
@@ -40,16 +43,16 @@ pub fn spring_placement_plan(
         .iter()
         .filter(|block| **block == "minecraft:air")
         .count() as i32;
-    spring_feature_can_place(
+    spring_feature_can_place(SpringCanPlaceInput {
         valid_above,
-        config.requires_block_below,
+        requires_block_below: config.requires_block_below,
         valid_below,
         current_is_air_or_valid,
         adjacent_rock_count,
         adjacent_hole_count,
-        config.rock_count,
-        config.hole_count,
-    )
+        required_rock_count: config.rock_count,
+        required_hole_count: config.hole_count,
+    })
     .then_some(SpringPlacementPlan {
         pos: context.origin,
         state: config.state,
@@ -58,7 +61,7 @@ pub fn spring_placement_plan(
 }
 
 pub fn monster_room_opening_count_is_valid(openings: i32) -> bool {
-    openings >= MONSTER_ROOM_BOUNDS.min_openings && openings <= MONSTER_ROOM_BOUNDS.max_openings
+    (MONSTER_ROOM_BOUNDS.min_openings..=MONSTER_ROOM_BOUNDS.max_openings).contains(&openings)
 }
 
 pub fn monster_room_radii(x_roll: i32, z_roll: i32) -> MonsterRoomRadii {
@@ -101,30 +104,33 @@ pub fn monster_room_can_place(radii: MonsterRoomRadii, probes: &[MonsterRoomProb
     monster_room_opening_count(radii, probes).is_some_and(monster_room_opening_count_is_valid)
 }
 
-pub fn monster_room_shell_state(
-    dx: i32,
-    dy: i32,
-    dz: i32,
-    radii: MonsterRoomRadii,
-    y: i32,
-    below_solid: bool,
-    current_solid: bool,
-    current_is_chest: bool,
-    mossy_roll: i32,
-) -> Option<&'static str> {
-    let (min_x, max_x) = monster_room_bounds_for_radius(radii.x_radius);
-    let (min_z, max_z) = monster_room_bounds_for_radius(radii.z_radius);
-    let boundary = dx == min_x
-        || dy == MONSTER_ROOM_BOUNDS.min_y
-        || dz == min_z
-        || dx == max_x
-        || dy == MONSTER_ROOM_BOUNDS.max_y
-        || dz == max_z;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MonsterRoomShellInput {
+    pub relative_pos: BlockPos,
+    pub radii: MonsterRoomRadii,
+    pub world_y: i32,
+    pub below_solid: bool,
+    pub current_solid: bool,
+    pub current_is_chest: bool,
+    pub mossy_roll: i32,
+}
+
+pub fn monster_room_shell_state(input: MonsterRoomShellInput) -> Option<&'static str> {
+    let (min_x, max_x) = monster_room_bounds_for_radius(input.radii.x_radius);
+    let (min_z, max_z) = monster_room_bounds_for_radius(input.radii.z_radius);
+    let boundary = input.relative_pos.x == min_x
+        || input.relative_pos.y == MONSTER_ROOM_BOUNDS.min_y
+        || input.relative_pos.z == min_z
+        || input.relative_pos.x == max_x
+        || input.relative_pos.y == MONSTER_ROOM_BOUNDS.max_y
+        || input.relative_pos.z == max_z;
     if boundary {
-        if y >= 0 && !below_solid {
+        if input.world_y >= 0 && !input.below_solid {
             Some("minecraft:cave_air")
-        } else if current_solid && !current_is_chest {
-            if dy == MONSTER_ROOM_BOUNDS.min_y && mossy_roll.rem_euclid(4) != 0 {
+        } else if input.current_solid && !input.current_is_chest {
+            if input.relative_pos.y == MONSTER_ROOM_BOUNDS.min_y
+                && input.mossy_roll.rem_euclid(4) != 0
+            {
                 Some("minecraft:mossy_cobblestone")
             } else {
                 Some("minecraft:cobblestone")
@@ -132,7 +138,7 @@ pub fn monster_room_shell_state(
         } else {
             None
         }
-    } else if !current_is_chest {
+    } else if !input.current_is_chest {
         Some("minecraft:cave_air")
     } else {
         None

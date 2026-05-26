@@ -445,7 +445,10 @@ pub fn bad_respawn_point_source(source_position: [f64; 3]) -> DamageSource {
 }
 
 fn required_builtin(id: &str) -> &'static DamageTypeDef {
-    builtin_damage_type(id).expect("built-in damage type is registered")
+    match builtin_damage_type(id) {
+        Some(damage_type) => damage_type,
+        None => panic!("built-in damage type is not registered: {id}"),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

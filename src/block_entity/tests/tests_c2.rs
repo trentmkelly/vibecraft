@@ -1,11 +1,14 @@
-use super::super::*;
 use super::*;
 
 #[test]
 fn sculk_sensor_block_entity_tracks_vibration_phase_frequency_and_power() {
     assert_eq!(SculkSensorBlockEntity::LISTENER_RADIUS, 8);
     assert_eq!(SculkSensorBlockEntity::DEFAULT_LAST_VIBRATION_FREQUENCY, 0);
+    assert_sculk_sensor_immediate_activation_and_cooldown();
+    assert_sculk_sensor_delayed_vibration_and_persistence();
+}
 
+fn assert_sculk_sensor_immediate_activation_and_cooldown() {
     let mut sensor = SculkSensorBlockEntity::new();
     assert!(sensor.can_receive_vibration("minecraft:step", true));
     assert!(!sensor.can_receive_vibration("minecraft:unknown", true));
@@ -33,9 +36,13 @@ fn sculk_sensor_block_entity_tracks_vibration_phase_frequency_and_power() {
     assert_eq!(sensor.tick(0), SculkSensorTickResult::Deactivate);
     assert_eq!(sensor.phase, SculkSensorPhase::Listening);
     assert_eq!(sensor.power, 0);
+}
 
+fn assert_sculk_sensor_delayed_vibration_and_persistence() {
     let mut delayed = SculkSensorBlockEntity::new();
-    let event = crate::game_event::game_event_by_id("minecraft:entity_damage").unwrap();
+    let Some(event) = crate::game_event::game_event_by_id("minecraft:entity_damage") else {
+        panic!("minecraft:entity_damage should be registered for sculk sensor coverage");
+    };
     assert!(delayed.queue_vibration(
         VibrationInfo {
             event,
@@ -174,6 +181,13 @@ fn beehive_block_entity_persists_occupants_releases_and_increments_honey_like_ja
     assert_eq!(BeehiveBlockEntity::MAX_HONEY_LEVEL, 5);
     assert_eq!(BeehiveBlockEntity::WORK_SOUND_CHANCE, 0.005);
 
+    let mut hive = populated_beehive();
+    assert_beehive_save_load_and_blocked_ticks(&mut hive);
+    assert_beehive_normal_release_increments_honey(&mut hive);
+    assert_beehive_honey_cap_emergency_and_sedated_release(&mut hive);
+}
+
+fn populated_beehive() -> BeehiveBlockEntity {
     let mut hive = BeehiveBlockEntity::new();
     assert!(hive.is_empty());
     assert!(hive.add_occupant(
@@ -186,10 +200,13 @@ fn beehive_block_entity_persists_occupants_releases_and_increments_honey_like_ja
     assert!(hive.is_full());
     assert_eq!(hive.occupant_count(), 3);
     assert_eq!(hive.saved_flower_pos, Some(BlockPos { x: 2, y: 70, z: -3 }));
+    hive
+}
 
+fn assert_beehive_save_load_and_blocked_ticks(hive: &mut BeehiveBlockEntity) {
     let saved = hive.save_additional();
     let loaded = BeehiveBlockEntity::load_additional(&saved);
-    assert_eq!(loaded, hive);
+    assert_eq!(loaded, *hive);
 
     let blocked = hive.tick(true, false, false);
     assert!(blocked.is_empty());
@@ -201,7 +218,9 @@ fn beehive_block_entity_persists_occupants_releases_and_increments_honey_like_ja
     let released = hive.tick(false, true, false);
     assert!(released.is_empty());
     assert_eq!(hive.occupant_count(), 3);
+}
 
+fn assert_beehive_normal_release_increments_honey(hive: &mut BeehiveBlockEntity) {
     let released = hive.tick(false, false, false);
     assert_eq!(
         released,
@@ -227,7 +246,9 @@ fn beehive_block_entity_persists_occupants_releases_and_increments_honey_like_ja
         ]
     );
     assert!(hive.is_empty());
+}
 
+fn assert_beehive_honey_cap_emergency_and_sedated_release(hive: &mut BeehiveBlockEntity) {
     hive.honey_level = 4;
     assert!(hive.add_occupant(BeehiveOccupant::bee(2401, true), None));
     let released = hive.tick(false, false, true);
@@ -250,6 +271,15 @@ fn beehive_block_entity_persists_occupants_releases_and_increments_honey_like_ja
 
 #[test]
 fn creaking_heart_block_entity_tracks_state_protector_and_output_like_java() {
+    assert_creaking_heart_constants();
+    let mut heart = awake_creaking_heart_with_protector();
+    assert_creaking_heart_output_persistence_and_hurt_pulse(&mut heart);
+    assert_creaking_heart_removes_distant_protector(&mut heart);
+    assert_creaking_heart_uproots_without_required_logs(&mut heart);
+    assert_creaking_heart_unresolved_protector_expires_after_grace_period();
+}
+
+fn assert_creaking_heart_constants() {
     assert_eq!(CreakingHeartBlockEntity::PLAYER_DETECTION_RANGE, 32);
     assert_eq!(CreakingHeartBlockEntity::CREAKING_ROAMING_RADIUS, 32);
     assert_eq!(CreakingHeartBlockEntity::DISTANCE_CREAKING_TOO_FAR, 34.0);
@@ -264,10 +294,19 @@ fn creaking_heart_block_entity_tracks_state_protector_and_output_like_java() {
     assert_eq!(CreakingHeartBlockEntity::MAX_RESIN_DEPTH, 2);
     assert_eq!(CreakingHeartBlockEntity::MAX_RESIN_COUNT, 64);
     assert_eq!(CreakingHeartBlockEntity::TICKS_GRACE_PERIOD, 30);
+}
 
+fn awake_creaking_heart_with_protector() -> CreakingHeartBlockEntity {
     let mut heart = CreakingHeartBlockEntity::new();
     heart.ticker = -1;
-    let actions = heart.server_tick(true, true, true, true, false, None, false, false, 4);
+    let actions = heart.server_tick(CreakingHeartTickContext {
+        has_required_logs: true,
+        creaking_active: true,
+        spawning_monsters: true,
+        player_nearby: true,
+        next_ticker_offset: 4,
+        ..CreakingHeartTickContext::default()
+    });
     assert_eq!(
         actions,
         vec![
@@ -283,6 +322,10 @@ fn creaking_heart_block_entity_tracks_state_protector_and_output_like_java() {
     assert_eq!(heart.state, CreakingHeartStateModel::Awake);
 
     heart.on_protector_spawned("00000000-0000-0000-0000-000000000001".to_string());
+    heart
+}
+
+fn assert_creaking_heart_output_persistence_and_hurt_pulse(heart: &mut CreakingHeartBlockEntity) {
     assert_eq!(heart.compute_analog_output_signal(Some(0.0)), 15);
     assert_eq!(heart.compute_analog_output_signal(Some(16.0)), 8);
     assert_eq!(heart.compute_analog_output_signal(Some(32.0)), 0);
@@ -305,27 +348,53 @@ fn creaking_heart_block_entity_tracks_state_protector_and_output_like_java() {
     );
     assert_eq!(heart.emitter_ticks, 100);
     assert_eq!(heart.creaking_hurt(true, 2), CreakingHeartAction::None);
-    heart.server_tick(true, true, true, true, true, Some(4.0), false, false, 0);
+    heart.server_tick(CreakingHeartTickContext {
+        has_required_logs: true,
+        creaking_active: true,
+        spawning_monsters: true,
+        player_nearby: true,
+        protector_resolved: true,
+        protector_distance: Some(4.0),
+        ..CreakingHeartTickContext::default()
+    });
     assert_eq!(heart.emitter_ticks, 99);
+}
 
+fn assert_creaking_heart_removes_distant_protector(heart: &mut CreakingHeartBlockEntity) {
     heart.ticker = -1;
-    let actions = heart.server_tick(true, false, true, true, true, Some(35.0), false, false, 0);
+    let actions = heart.server_tick(CreakingHeartTickContext {
+        has_required_logs: true,
+        spawning_monsters: true,
+        player_nearby: true,
+        protector_resolved: true,
+        protector_distance: Some(35.0),
+        ..CreakingHeartTickContext::default()
+    });
     assert!(actions.contains(&CreakingHeartAction::StateChanged(
         CreakingHeartStateModel::Dormant
     )));
     assert!(actions.contains(&CreakingHeartAction::RemoveProtector));
     assert!(heart.creaking_uuid.is_none());
+}
 
+fn assert_creaking_heart_uproots_without_required_logs(heart: &mut CreakingHeartBlockEntity) {
     heart.state = CreakingHeartStateModel::Dormant;
     heart.ticker = -1;
-    let actions = heart.server_tick(false, true, true, true, false, None, false, false, 0);
+    let actions = heart.server_tick(CreakingHeartTickContext {
+        creaking_active: true,
+        spawning_monsters: true,
+        player_nearby: true,
+        ..CreakingHeartTickContext::default()
+    });
     assert_eq!(
         actions,
         vec![CreakingHeartAction::StateChanged(
             CreakingHeartStateModel::Uprooted
         )]
     );
+}
 
+fn assert_creaking_heart_unresolved_protector_expires_after_grace_period() {
     let mut unresolved = CreakingHeartBlockEntity::load_additional(&Tag::Compound(vec![(
         "creaking".to_string(),
         Tag::String("00000000-0000-0000-0000-000000000002".to_string()),
@@ -333,13 +402,26 @@ fn creaking_heart_block_entity_tracks_state_protector_and_output_like_java() {
     unresolved.ticks_existed = 29;
     unresolved.ticker = -1;
     assert!(unresolved
-        .server_tick(true, true, true, true, false, None, false, false, 0)
+        .server_tick(CreakingHeartTickContext {
+            has_required_logs: true,
+            creaking_active: true,
+            spawning_monsters: true,
+            player_nearby: true,
+            ..CreakingHeartTickContext::default()
+        })
         .contains(&CreakingHeartAction::RemoveProtector));
     assert!(unresolved.creaking_uuid.is_none());
 }
 
 #[test]
 fn sculk_shrieker_block_entity_tracks_warning_shriek_and_warden_response() {
+    assert_sculk_shrieker_constants();
+    let mut shrieker = assert_sculk_shrieker_gates_invalid_shrieks();
+    assert_sculk_shrieker_reply_sound_and_tick(&mut shrieker);
+    assert_sculk_shrieker_summon_persistence_and_disabled_mode(&mut shrieker);
+}
+
+fn assert_sculk_shrieker_constants() {
     assert_eq!(SculkShriekerBlockEntity::LISTENER_RADIUS, 8);
     assert_eq!(SculkShriekerBlockEntity::WARNING_SOUND_RADIUS, 10);
     assert_eq!(SculkShriekerBlockEntity::SHRIEKING_TICKS, 90);
@@ -348,7 +430,9 @@ fn sculk_shrieker_block_entity_tracks_warning_shriek_and_warden_response() {
     assert_eq!(SculkShriekerBlockEntity::WARDEN_SPAWN_ATTEMPTS, 20);
     assert_eq!(SculkShriekerBlockEntity::WARDEN_SPAWN_RANGE_XZ, 5);
     assert_eq!(SculkShriekerBlockEntity::WARDEN_SPAWN_RANGE_Y, 6);
+}
 
+fn assert_sculk_shrieker_gates_invalid_shrieks() -> SculkShriekerBlockEntity {
     let mut shrieker = SculkShriekerBlockEntity::new(true);
     assert!(shrieker.can_receive_vibration(false, true));
     assert!(!shrieker.can_receive_vibration(false, false));
@@ -361,7 +445,10 @@ fn sculk_shrieker_block_entity_tracks_warning_shriek_and_warden_response() {
         shrieker.try_shriek(true, true, None, false),
         SculkShriekResult::Ignored
     );
+    shrieker
+}
 
+fn assert_sculk_shrieker_reply_sound_and_tick(shrieker: &mut SculkShriekerBlockEntity) {
     assert_eq!(
         shrieker.try_shriek(true, true, Some(3), false),
         SculkShriekResult::ReplySound {
@@ -377,7 +464,11 @@ fn sculk_shrieker_block_entity_tracks_warning_shriek_and_warden_response() {
     );
     assert_eq!(shrieker.tick(), SculkShriekResult::Ignored);
     assert_eq!(shrieker.shrieking_ticks, 89);
+}
 
+fn assert_sculk_shrieker_summon_persistence_and_disabled_mode(
+    shrieker: &mut SculkShriekerBlockEntity,
+) {
     shrieker.shrieking_ticks = 0;
     assert_eq!(
         shrieker.try_shriek(true, true, Some(4), true),
@@ -406,6 +497,13 @@ fn sculk_shrieker_block_entity_tracks_warning_shriek_and_warden_response() {
 
 #[test]
 fn bell_block_entity_tracks_ring_resonation_and_raider_glow_like_java() {
+    assert_bell_constants();
+    let mut bell = assert_bell_ring_and_event_state();
+    assert_bell_resonation_and_glow_timing(&mut bell);
+    assert_bell_entity_cache_refreshes_after_search_delay(&bell);
+}
+
+fn assert_bell_constants() {
     assert_eq!(BellBlockEntity::DURATION, 50);
     assert_eq!(BellBlockEntity::GLOW_DURATION, 60);
     assert_eq!(BellBlockEntity::MIN_TICKS_BETWEEN_SEARCHES, 60);
@@ -414,7 +512,9 @@ fn bell_block_entity_tracks_ring_resonation_and_raider_glow_like_java() {
     assert_eq!(BellBlockEntity::SEARCH_RADIUS, 48.0);
     assert_eq!(BellBlockEntity::HEAR_BELL_RADIUS, 32.0);
     assert_eq!(BellBlockEntity::HIGHLIGHT_RAIDERS_RADIUS, 48.0);
+}
 
+fn assert_bell_ring_and_event_state() -> BellBlockEntity {
     let mut bell = BellBlockEntity::new();
     let block_event = bell.on_hit(Direction::North);
     assert_eq!(
@@ -441,7 +541,10 @@ fn bell_block_entity_tracks_ring_resonation_and_raider_glow_like_java() {
     assert_eq!(bell.ticks, 0);
     assert!(bell.shaking);
     assert!(!bell.trigger_event(99, 0, 100, 0, 0, 0));
+    bell
+}
 
+fn assert_bell_resonation_and_glow_timing(bell: &mut BellBlockEntity) {
     for _ in 0..4 {
         assert_eq!(
             bell.tick(),
@@ -483,7 +586,9 @@ fn bell_block_entity_tracks_ring_resonation_and_raider_glow_like_java() {
     assert_eq!(bell.ticks, 0);
     assert_eq!(bell.save_additional(), Tag::Compound(vec![]));
     assert_eq!(bell.get_update_tag(), Tag::Compound(vec![]));
+}
 
+fn assert_bell_entity_cache_refreshes_after_search_delay(bell: &BellBlockEntity) {
     let mut cached = bell.clone();
     cached.update_entities(120, 7, 3, 5);
     assert_eq!(cached.heard_bell_entities, 4);
@@ -521,4 +626,3 @@ fn save_modes_match_metadata_and_custom_data_boundaries() {
         matches!(entity.save_with_full_metadata(), Tag::Compound(values) if values.iter().any(|(k, v)| k == "x" && *v == Tag::Int(18)))
     );
 }
-

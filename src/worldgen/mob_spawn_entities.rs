@@ -73,13 +73,36 @@ fn append_chunk_generation_mob_specific_save_fields(
     entity_type: &str,
     fields: &mut Vec<(String, Tag)>,
 ) {
+    if append_chunk_generation_passive_mob_save_fields(entity_type, fields) {
+        return;
+    }
+    if append_chunk_generation_aquatic_mob_save_fields(entity_type, fields) {
+        return;
+    }
+    append_chunk_generation_hostile_mob_save_fields(entity_type, fields);
+}
+
+fn append_chunk_generation_passive_mob_save_fields(
+    entity_type: &str,
+    fields: &mut Vec<(String, Tag)>,
+) -> bool {
+    append_chunk_generation_basic_passive_mob_save_fields(entity_type, fields)
+        || append_chunk_generation_extra_passive_mob_save_fields(entity_type, fields)
+}
+
+fn append_chunk_generation_basic_passive_mob_save_fields(
+    entity_type: &str,
+    fields: &mut Vec<(String, Tag)>,
+) -> bool {
     match entity_type {
         "minecraft:armadillo" => {
             fields.push(("state".to_string(), Tag::String("idle".to_string())));
+            true
         }
         "minecraft:axolotl" => {
             fields.push(("Variant".to_string(), Tag::Int(0)));
             fields.push(("FromBucket".to_string(), Tag::Byte(0)));
+            true
         }
         "minecraft:bee" => {
             fields.push(("HasNectar".to_string(), Tag::Byte(0)));
@@ -87,15 +110,15 @@ fn append_chunk_generation_mob_specific_save_fields(
             fields.push(("TicksSincePollination".to_string(), Tag::Int(0)));
             fields.push(("CannotEnterHiveTicks".to_string(), Tag::Int(0)));
             fields.push(("CropsGrownSincePollination".to_string(), Tag::Int(0)));
+            true
         }
         "minecraft:bat" => {
             fields.push(("BatFlags".to_string(), Tag::Byte(0)));
-        }
-        "minecraft:bogged" => {
-            fields.push(("sheared".to_string(), Tag::Byte(0)));
+            true
         }
         "minecraft:camel" => {
             fields.push(("LastPoseTick".to_string(), Tag::Long(0)));
+            true
         }
         "minecraft:cat" | "minecraft:wolf" => {
             let variant = if entity_type == "minecraft:cat" {
@@ -109,28 +132,160 @@ fn append_chunk_generation_mob_specific_save_fields(
                 Tag::String("minecraft:classic".to_string()),
             ));
             fields.push(("CollarColor".to_string(), Tag::Byte(14)));
+            true
         }
         "minecraft:chicken" => {
             fields.push(("IsChickenJockey".to_string(), Tag::Byte(0)));
             fields.push(("EggLayTime".to_string(), Tag::Int(6000)));
-            fields.push((
-                "variant".to_string(),
-                Tag::String("minecraft:temperate".to_string()),
-            ));
-            fields.push((
-                "sound_variant".to_string(),
-                Tag::String("minecraft:classic".to_string()),
-            ));
+            append_chunk_generation_temperate_variant_fields(fields);
+            true
         }
         "minecraft:cow" => {
+            append_chunk_generation_temperate_variant_fields(fields);
+            true
+        }
+        "minecraft:goat" => {
+            fields.push(("IsScreamingGoat".to_string(), Tag::Byte(0)));
+            fields.push(("HasLeftHorn".to_string(), Tag::Byte(1)));
+            fields.push(("HasRightHorn".to_string(), Tag::Byte(1)));
+            true
+        }
+        "minecraft:horse" => {
+            fields.push(("Variant".to_string(), Tag::Int(0)));
+            true
+        }
+        "minecraft:hoglin" => {
+            fields.push(("IsImmuneToZombification".to_string(), Tag::Byte(0)));
+            fields.push(("TimeInOverworld".to_string(), Tag::Int(0)));
+            fields.push(("CannotBeHunted".to_string(), Tag::Byte(0)));
+            true
+        }
+        _ => false,
+    }
+}
+
+fn append_chunk_generation_extra_passive_mob_save_fields(
+    entity_type: &str,
+    fields: &mut Vec<(String, Tag)>,
+) -> bool {
+    match entity_type {
+        "minecraft:llama" => {
+            fields.push(("ChestedHorse".to_string(), Tag::Byte(0)));
+            fields.push(("Variant".to_string(), Tag::Int(0)));
+            fields.push(("Strength".to_string(), Tag::Int(0)));
+            true
+        }
+        "minecraft:rabbit" => {
+            fields.push(("RabbitType".to_string(), Tag::Int(0)));
+            fields.push(("MoreCarrotTicks".to_string(), Tag::Int(0)));
+            true
+        }
+        "minecraft:donkey" | "minecraft:mule" => {
+            fields.push(("ChestedHorse".to_string(), Tag::Byte(0)));
+            true
+        }
+        "minecraft:fox" => {
+            fields.push(("Sleeping".to_string(), Tag::Byte(0)));
+            fields.push(("Sitting".to_string(), Tag::Byte(0)));
+            fields.push(("Crouching".to_string(), Tag::Byte(0)));
+            true
+        }
+        "minecraft:frog" => {
             fields.push((
                 "variant".to_string(),
                 Tag::String("minecraft:temperate".to_string()),
             ));
+            true
+        }
+        "minecraft:ocelot" => {
+            fields.push(("Trusting".to_string(), Tag::Byte(0)));
+            true
+        }
+        "minecraft:mooshroom" => {
+            fields.push(("Type".to_string(), Tag::String("red".to_string())));
+            true
+        }
+        "minecraft:panda" => {
+            fields.push(("MainGene".to_string(), Tag::String("normal".to_string())));
+            fields.push(("HiddenGene".to_string(), Tag::String("normal".to_string())));
+            true
+        }
+        "minecraft:parrot" => {
+            fields.push(("Variant".to_string(), Tag::Int(0)));
+            true
+        }
+        "minecraft:pig" => {
+            append_chunk_generation_temperate_variant_fields(fields);
+            true
+        }
+        "minecraft:sheep" => {
+            fields.push(("Sheared".to_string(), Tag::Byte(0)));
+            fields.push(("Color".to_string(), Tag::Byte(0)));
+            true
+        }
+        "minecraft:trader_llama" => {
+            fields.push(("ChestedHorse".to_string(), Tag::Byte(0)));
+            fields.push(("Variant".to_string(), Tag::Int(0)));
+            fields.push(("Strength".to_string(), Tag::Int(0)));
+            fields.push(("DespawnDelay".to_string(), Tag::Int(47999)));
+            true
+        }
+        "minecraft:turtle" => {
             fields.push((
-                "sound_variant".to_string(),
-                Tag::String("minecraft:classic".to_string()),
+                "home_pos".to_string(),
+                Tag::List(vec![Tag::Int(0), Tag::Int(0), Tag::Int(0)]),
             ));
+            fields.push(("has_egg".to_string(), Tag::Byte(0)));
+            true
+        }
+        _ => false,
+    }
+}
+
+fn append_chunk_generation_aquatic_mob_save_fields(
+    entity_type: &str,
+    fields: &mut Vec<(String, Tag)>,
+) -> bool {
+    match entity_type {
+        "minecraft:cod" => {
+            fields.push(("FromBucket".to_string(), Tag::Byte(0)));
+            true
+        }
+        "minecraft:dolphin" => {
+            fields.push(("GotFish".to_string(), Tag::Byte(0)));
+            fields.push(("Moistness".to_string(), Tag::Int(2400)));
+            true
+        }
+        "minecraft:glow_squid" => {
+            fields.push(("DarkTicksRemaining".to_string(), Tag::Int(0)));
+            true
+        }
+        "minecraft:pufferfish" => {
+            fields.push(("FromBucket".to_string(), Tag::Byte(0)));
+            fields.push(("PuffState".to_string(), Tag::Int(0)));
+            true
+        }
+        "minecraft:salmon" => {
+            fields.push(("FromBucket".to_string(), Tag::Byte(0)));
+            fields.push(("type".to_string(), Tag::String("medium".to_string())));
+            true
+        }
+        "minecraft:tropical_fish" => {
+            fields.push(("FromBucket".to_string(), Tag::Byte(0)));
+            fields.push(("Variant".to_string(), Tag::Int(0)));
+            true
+        }
+        _ => false,
+    }
+}
+
+fn append_chunk_generation_hostile_mob_save_fields(
+    entity_type: &str,
+    fields: &mut Vec<(String, Tag)>,
+) {
+    match entity_type {
+        "minecraft:bogged" => {
+            fields.push(("sheared".to_string(), Tag::Byte(0)));
         }
         "minecraft:creeper" => {
             fields.push(("powered".to_string(), Tag::Byte(0)));
@@ -144,103 +299,13 @@ fn append_chunk_generation_mob_specific_save_fields(
         "minecraft:ghast" => {
             fields.push(("ExplosionPower".to_string(), Tag::Byte(1)));
         }
-        "minecraft:goat" => {
-            fields.push(("IsScreamingGoat".to_string(), Tag::Byte(0)));
-            fields.push(("HasLeftHorn".to_string(), Tag::Byte(1)));
-            fields.push(("HasRightHorn".to_string(), Tag::Byte(1)));
-        }
-        "minecraft:horse" => {
-            fields.push(("Variant".to_string(), Tag::Int(0)));
-        }
-        "minecraft:hoglin" => {
-            fields.push(("IsImmuneToZombification".to_string(), Tag::Byte(0)));
-            fields.push(("TimeInOverworld".to_string(), Tag::Int(0)));
-            fields.push(("CannotBeHunted".to_string(), Tag::Byte(0)));
-        }
         "minecraft:iron_golem" => {
             fields.push(("PlayerCreated".to_string(), Tag::Byte(0)));
-        }
-        "minecraft:llama" => {
-            fields.push(("ChestedHorse".to_string(), Tag::Byte(0)));
-            fields.push(("Variant".to_string(), Tag::Int(0)));
-            fields.push(("Strength".to_string(), Tag::Int(0)));
-        }
-        "minecraft:rabbit" => {
-            fields.push(("RabbitType".to_string(), Tag::Int(0)));
-            fields.push(("MoreCarrotTicks".to_string(), Tag::Int(0)));
         }
         "minecraft:ravager" => {
             fields.push(("AttackTick".to_string(), Tag::Int(0)));
             fields.push(("StunTick".to_string(), Tag::Int(0)));
             fields.push(("RoarTick".to_string(), Tag::Int(0)));
-        }
-        "minecraft:donkey" | "minecraft:mule" => {
-            fields.push(("ChestedHorse".to_string(), Tag::Byte(0)));
-        }
-        "minecraft:cod" => {
-            fields.push(("FromBucket".to_string(), Tag::Byte(0)));
-        }
-        "minecraft:dolphin" => {
-            fields.push(("GotFish".to_string(), Tag::Byte(0)));
-            fields.push(("Moistness".to_string(), Tag::Int(2400)));
-        }
-        "minecraft:fox" => {
-            fields.push(("Sleeping".to_string(), Tag::Byte(0)));
-            fields.push(("Sitting".to_string(), Tag::Byte(0)));
-            fields.push(("Crouching".to_string(), Tag::Byte(0)));
-        }
-        "minecraft:frog" => {
-            fields.push((
-                "variant".to_string(),
-                Tag::String("minecraft:temperate".to_string()),
-            ));
-        }
-        "minecraft:glow_squid" => {
-            fields.push(("DarkTicksRemaining".to_string(), Tag::Int(0)));
-        }
-        "minecraft:ocelot" => {
-            fields.push(("Trusting".to_string(), Tag::Byte(0)));
-        }
-        "minecraft:mooshroom" => {
-            fields.push(("Type".to_string(), Tag::String("red".to_string())));
-        }
-        "minecraft:panda" => {
-            fields.push(("MainGene".to_string(), Tag::String("normal".to_string())));
-            fields.push(("HiddenGene".to_string(), Tag::String("normal".to_string())));
-        }
-        "minecraft:parrot" => {
-            fields.push(("Variant".to_string(), Tag::Int(0)));
-        }
-        "minecraft:pufferfish" => {
-            fields.push(("FromBucket".to_string(), Tag::Byte(0)));
-            fields.push(("PuffState".to_string(), Tag::Int(0)));
-        }
-        "minecraft:phantom" => {
-            fields.push(("size".to_string(), Tag::Int(0)));
-        }
-        "minecraft:pig" => {
-            fields.push((
-                "variant".to_string(),
-                Tag::String("minecraft:temperate".to_string()),
-            ));
-            fields.push((
-                "sound_variant".to_string(),
-                Tag::String("minecraft:classic".to_string()),
-            ));
-        }
-        "minecraft:piglin_brute" => {
-            fields.push(("IsImmuneToZombification".to_string(), Tag::Byte(0)));
-            fields.push(("TimeInOverworld".to_string(), Tag::Int(0)));
-        }
-        "minecraft:piglin" => {
-            fields.push(("IsImmuneToZombification".to_string(), Tag::Byte(0)));
-            fields.push(("TimeInOverworld".to_string(), Tag::Int(0)));
-            fields.push(("IsBaby".to_string(), Tag::Byte(0)));
-            fields.push(("CannotHunt".to_string(), Tag::Byte(0)));
-        }
-        "minecraft:sheep" => {
-            fields.push(("Sheared".to_string(), Tag::Byte(0)));
-            fields.push(("Color".to_string(), Tag::Byte(0)));
         }
         "minecraft:shulker" => {
             fields.push(("AttachFace".to_string(), Tag::Byte(0)));
@@ -261,26 +326,18 @@ fn append_chunk_generation_mob_specific_save_fields(
         "minecraft:snow_golem" => {
             fields.push(("Pumpkin".to_string(), Tag::Byte(1)));
         }
-        "minecraft:trader_llama" => {
-            fields.push(("ChestedHorse".to_string(), Tag::Byte(0)));
-            fields.push(("Variant".to_string(), Tag::Int(0)));
-            fields.push(("Strength".to_string(), Tag::Int(0)));
-            fields.push(("DespawnDelay".to_string(), Tag::Int(47999)));
+        "minecraft:phantom" => {
+            fields.push(("size".to_string(), Tag::Int(0)));
         }
-        "minecraft:salmon" => {
-            fields.push(("FromBucket".to_string(), Tag::Byte(0)));
-            fields.push(("type".to_string(), Tag::String("medium".to_string())));
+        "minecraft:piglin_brute" => {
+            fields.push(("IsImmuneToZombification".to_string(), Tag::Byte(0)));
+            fields.push(("TimeInOverworld".to_string(), Tag::Int(0)));
         }
-        "minecraft:tropical_fish" => {
-            fields.push(("FromBucket".to_string(), Tag::Byte(0)));
-            fields.push(("Variant".to_string(), Tag::Int(0)));
-        }
-        "minecraft:turtle" => {
-            fields.push((
-                "home_pos".to_string(),
-                Tag::List(vec![Tag::Int(0), Tag::Int(0), Tag::Int(0)]),
-            ));
-            fields.push(("has_egg".to_string(), Tag::Byte(0)));
+        "minecraft:piglin" => {
+            fields.push(("IsImmuneToZombification".to_string(), Tag::Byte(0)));
+            fields.push(("TimeInOverworld".to_string(), Tag::Int(0)));
+            fields.push(("IsBaby".to_string(), Tag::Byte(0)));
+            fields.push(("CannotHunt".to_string(), Tag::Byte(0)));
         }
         "minecraft:zoglin" => {
             fields.push(("IsBaby".to_string(), Tag::Byte(0)));
@@ -302,6 +359,17 @@ fn append_chunk_generation_mob_specific_save_fields(
         }
         _ => {}
     }
+}
+
+fn append_chunk_generation_temperate_variant_fields(fields: &mut Vec<(String, Tag)>) {
+    fields.push((
+        "variant".to_string(),
+        Tag::String("minecraft:temperate".to_string()),
+    ));
+    fields.push((
+        "sound_variant".to_string(),
+        Tag::String("minecraft:classic".to_string()),
+    ));
 }
 
 fn append_chunk_generation_skeleton_save_fields(fields: &mut Vec<(String, Tag)>) {

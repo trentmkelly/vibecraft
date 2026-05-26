@@ -192,12 +192,12 @@ impl LevelChunk {
         block_light: Option<Vec<i8>>,
         sky_light: Option<Vec<i8>>,
     ) -> bool {
-        if !block_light
+        if block_light
             .as_ref()
-            .is_none_or(|light| light.len() == LIGHT_DATA_LAYER_LENGTH)
-            || !sky_light
+            .is_some_and(|light| light.len() != LIGHT_DATA_LAYER_LENGTH)
+            || sky_light
                 .as_ref()
-                .is_none_or(|light| light.len() == LIGHT_DATA_LAYER_LENGTH)
+                .is_some_and(|light| light.len() != LIGHT_DATA_LAYER_LENGTH)
         {
             return false;
         }
@@ -445,7 +445,7 @@ impl LevelChunk {
                     ) else {
                         continue;
                     };
-                    if block != "minecraft:air" && heightmap_block_matches(heightmap, &block) {
+                    if block != "minecraft:air" && heightmap_block_matches(heightmap, block) {
                         values[index] = y + 1;
                         break;
                     }
@@ -582,4 +582,3 @@ impl LevelChunk {
         })
     }
 }
-

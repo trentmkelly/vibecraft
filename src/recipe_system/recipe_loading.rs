@@ -53,95 +53,46 @@ pub fn load_recipe_json(
     let object = value
         .as_object()
         .ok_or_else(|| format!("recipe {id} must be a JSON object"))?;
-    let recipe_type = json_str(object, "type")?
+    let raw_recipe_type = json_str(object, "type")?;
+    let recipe_type = raw_recipe_type
         .strip_prefix("minecraft:")
-        .unwrap_or(json_str(object, "type")?);
+        .unwrap_or(raw_recipe_type);
+    let recipe = parse_recipe_kind(id, recipe_type, object, tags)?;
+
+    Ok(RecipeHolder { id, recipe })
+}
+
+fn parse_recipe_kind(
+    id: &str,
+    recipe_type: &str,
+    object: &serde_json::Map<String, serde_json::Value>,
+    tags: &ItemTagMap,
+) -> Result<RecipeKind, String> {
     let recipe = match recipe_type {
-        "crafting_shaped" => {
-            let key = object
-                .get("key")
-                .and_then(serde_json::Value::as_object)
-                .ok_or_else(|| format!("shaped recipe {id} is missing key object"))?;
-            let pattern_rows = object
-                .get("pattern")
-                .and_then(serde_json::Value::as_array)
-                .ok_or_else(|| format!("shaped recipe {id} is missing pattern array"))?;
-            let height = pattern_rows.len();
-            let width = pattern_rows
-                .first()
-                .and_then(serde_json::Value::as_str)
-                .map(str::len)
-                .ok_or_else(|| format!("shaped recipe {id} has empty pattern"))?;
-            let mut pattern = Vec::with_capacity(width * height);
-            for row in pattern_rows {
-                let row = row
-                    .as_str()
-                    .ok_or_else(|| format!("shaped recipe {id} has non-string pattern row"))?;
-                if row.len() != width {
-                    return Err(format!("shaped recipe {id} has ragged pattern rows"));
-                }
-                for key_char in row.chars() {
-                    if key_char == ' ' {
-                        pattern.push(None);
-                    } else {
-                        let key_name = key_char.to_string();
-                        let ingredient = key
-                            .get(&key_name)
-                            .ok_or_else(|| {
-                                format!("shaped recipe {id} has unmapped key '{key_char}'")
-                            })
-                            .and_then(|v| parse_ingredient(v, tags))?;
-                        pattern.push(Some(ingredient));
-                    }
-                }
-            }
-            RecipeKind::Shaped {
-                width,
-                height,
-                pattern,
-                result: parse_result(object, id)?,
-            }
-        }
-        "crafting_shapeless" => RecipeKind::Shapeless {
+        "crafting_shaped" => parse_shaped_recipe(id, object, tags),
+        "crafting_shapeless" => Ok(RecipeKind::Shapeless {
             ingredients: parse_ingredient_array(object, "ingredients", id, tags)?,
             result: parse_result(object, id)?,
-        },
-        "smelting" | "blasting" | "smoking" | "campfire_cooking" => RecipeKind::Cooking {
-            kind: match recipe_type {
-                "smelting" => CookingKind::Smelting,
-                "blasting" => CookingKind::Blasting,
-                "smoking" => CookingKind::Smoking,
-                "campfire_cooking" => CookingKind::CampfireCooking,
-                _ => unreachable!(),
-            },
+        }),
+        "smelting" | "blasting" | "smoking" | "campfire_cooking" => {
+            parse_cooking_recipe(recipe_type, id, object, tags)
+        }
+        "stonecutting" => Ok(RecipeKind::Stonecutting {
             ingredient: parse_field_ingredient(object, "ingredient", id, tags)?,
             result: parse_result(object, id)?,
-            experience_millis: object
-                .get("experience")
-                .and_then(serde_json::Value::as_f64)
-                .map(|value| (value * 1000.0).round() as i32)
-                .unwrap_or(0),
-            cooking_time: object
-                .get("cookingtime")
-                .and_then(serde_json::Value::as_i64)
-                .map(|value| value as i32),
-        },
-        "stonecutting" => RecipeKind::Stonecutting {
-            ingredient: parse_field_ingredient(object, "ingredient", id, tags)?,
-            result: parse_result(object, id)?,
-        },
-        "smithing_transform" => RecipeKind::SmithingTransform {
+        }),
+        "smithing_transform" => Ok(RecipeKind::SmithingTransform {
             template: parse_optional_field_ingredient(object, "template", tags)?,
             base: parse_field_ingredient(object, "base", id, tags)?,
             addition: parse_optional_field_ingredient(object, "addition", tags)?,
             result: parse_result(object, id)?,
-        },
-        "smithing_trim" => RecipeKind::SmithingTrim {
+        }),
+        "smithing_trim" => Ok(RecipeKind::SmithingTrim {
             template: parse_field_ingredient(object, "template", id, tags)?,
             base: parse_field_ingredient(object, "base", id, tags)?,
             addition: parse_field_ingredient(object, "addition", id, tags)?,
-        },
-        "crafting_transmute" => RecipeKind::Transmute {
+        }),
+        "crafting_transmute" => Ok(RecipeKind::Transmute {
             input: parse_field_ingredient(object, "input", id, tags)?,
             material: parse_field_ingredient(object, "material", id, tags)?,
             min_material_count: parse_material_count_bound(object, "min").unwrap_or(1),
@@ -151,30 +102,150 @@ pub fn load_recipe_json(
                 .get("add_material_count_to_result")
                 .and_then(serde_json::Value::as_bool)
                 .unwrap_or(false),
-        },
-        "crafting_imbue" => RecipeKind::Imbue {
+        }),
+        "crafting_imbue" => Ok(RecipeKind::Imbue {
             source: parse_field_ingredient(object, "source", id, tags)?,
             material: parse_field_ingredient(object, "material", id, tags)?,
             result: parse_result(object, id)?,
-        },
-        "crafting_dye" => {
-            parse_field_ingredient(object, "target", id, tags)?;
-            parse_field_ingredient(object, "dye", id, tags)?;
-            RecipeKind::Special {
-                kind: SpecialRecipeKind::DyedItem,
-                result_hint: Some(parse_result(object, id)?),
-            }
+        }),
+        "crafting_dye" => parse_dyed_item_recipe(id, object, tags),
+        "crafting_decorated_pot" => parse_decorated_pot_recipe(id, object, tags),
+        recipe_type if recipe_type.starts_with("crafting_special_") => {
+            parse_crafting_special_recipe(recipe_type, id, object, tags)
         }
-        "crafting_decorated_pot" => {
-            parse_field_ingredient(object, "back", id, tags)?;
-            parse_field_ingredient(object, "left", id, tags)?;
-            parse_field_ingredient(object, "right", id, tags)?;
-            parse_field_ingredient(object, "front", id, tags)?;
-            RecipeKind::Special {
-                kind: SpecialRecipeKind::DecoratedPot,
-                result_hint: Some(parse_result(object, id)?),
-            }
+        other => {
+            return Err(format!(
+                "recipe {id} has unsupported type minecraft:{other}"
+            ))
         }
+    }?;
+    Ok(recipe)
+}
+
+fn parse_shaped_recipe(
+    id: &str,
+    object: &serde_json::Map<String, serde_json::Value>,
+    tags: &ItemTagMap,
+) -> Result<RecipeKind, String> {
+    let key = object
+        .get("key")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| format!("shaped recipe {id} is missing key object"))?;
+    let pattern_rows = object
+        .get("pattern")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| format!("shaped recipe {id} is missing pattern array"))?;
+    let height = pattern_rows.len();
+    let width = pattern_rows
+        .first()
+        .and_then(serde_json::Value::as_str)
+        .map(str::len)
+        .ok_or_else(|| format!("shaped recipe {id} has empty pattern"))?;
+    let mut pattern = Vec::with_capacity(width * height);
+    for row in pattern_rows {
+        parse_shaped_recipe_row(id, row, width, key, tags, &mut pattern)?;
+    }
+    Ok(RecipeKind::Shaped {
+        width,
+        height,
+        pattern,
+        result: parse_result(object, id)?,
+    })
+}
+
+fn parse_shaped_recipe_row(
+    id: &str,
+    row: &serde_json::Value,
+    width: usize,
+    key: &serde_json::Map<String, serde_json::Value>,
+    tags: &ItemTagMap,
+    pattern: &mut Vec<Option<IngredientSpec>>,
+) -> Result<(), String> {
+    let row = row
+        .as_str()
+        .ok_or_else(|| format!("shaped recipe {id} has non-string pattern row"))?;
+    if row.len() != width {
+        return Err(format!("shaped recipe {id} has ragged pattern rows"));
+    }
+    for key_char in row.chars() {
+        if key_char == ' ' {
+            pattern.push(None);
+        } else {
+            let key_name = key_char.to_string();
+            let ingredient = key
+                .get(&key_name)
+                .ok_or_else(|| format!("shaped recipe {id} has unmapped key '{key_char}'"))
+                .and_then(|v| parse_ingredient(v, tags))?;
+            pattern.push(Some(ingredient));
+        }
+    }
+    Ok(())
+}
+
+fn parse_cooking_recipe(
+    recipe_type: &str,
+    id: &str,
+    object: &serde_json::Map<String, serde_json::Value>,
+    tags: &ItemTagMap,
+) -> Result<RecipeKind, String> {
+    let kind = match recipe_type {
+        "smelting" => CookingKind::Smelting,
+        "blasting" => CookingKind::Blasting,
+        "smoking" => CookingKind::Smoking,
+        "campfire_cooking" => CookingKind::CampfireCooking,
+        other => return Err(format!("recipe {id} has unsupported cooking type {other}")),
+    };
+    Ok(RecipeKind::Cooking {
+        kind,
+        ingredient: parse_field_ingredient(object, "ingredient", id, tags)?,
+        result: parse_result(object, id)?,
+        experience_millis: object
+            .get("experience")
+            .and_then(serde_json::Value::as_f64)
+            .map(|value| (value * 1000.0).round() as i32)
+            .unwrap_or(0),
+        cooking_time: object
+            .get("cookingtime")
+            .and_then(serde_json::Value::as_i64)
+            .map(|value| value as i32),
+    })
+}
+
+fn parse_dyed_item_recipe(
+    id: &str,
+    object: &serde_json::Map<String, serde_json::Value>,
+    tags: &ItemTagMap,
+) -> Result<RecipeKind, String> {
+    parse_field_ingredient(object, "target", id, tags)?;
+    parse_field_ingredient(object, "dye", id, tags)?;
+    Ok(RecipeKind::Special {
+        kind: SpecialRecipeKind::DyedItem,
+        result_hint: Some(parse_result(object, id)?),
+    })
+}
+
+fn parse_decorated_pot_recipe(
+    id: &str,
+    object: &serde_json::Map<String, serde_json::Value>,
+    tags: &ItemTagMap,
+) -> Result<RecipeKind, String> {
+    parse_field_ingredient(object, "back", id, tags)?;
+    parse_field_ingredient(object, "left", id, tags)?;
+    parse_field_ingredient(object, "right", id, tags)?;
+    parse_field_ingredient(object, "front", id, tags)?;
+    Ok(RecipeKind::Special {
+        kind: SpecialRecipeKind::DecoratedPot,
+        result_hint: Some(parse_result(object, id)?),
+    })
+}
+
+fn parse_crafting_special_recipe(
+    recipe_type: &str,
+    id: &str,
+    object: &serde_json::Map<String, serde_json::Value>,
+    tags: &ItemTagMap,
+) -> Result<RecipeKind, String> {
+    let recipe = match recipe_type {
         "crafting_special_bannerduplicate" => {
             parse_field_ingredient(object, "banner", id, tags)?;
             parse_result(object, id)?;
@@ -223,14 +294,9 @@ pub fn load_recipe_json(
             parse_result(object, id)?;
             special_recipe(SpecialRecipeKind::ShieldDecoration)
         }
-        other => {
-            return Err(format!(
-                "recipe {id} has unsupported type minecraft:{other}"
-            ))
-        }
+        other => return Err(format!("recipe {id} has unsupported type minecraft:{other}")),
     };
-
-    Ok(RecipeHolder { id, recipe })
+    Ok(recipe)
 }
 
 pub fn load_recipe_directory(recipe_dir: &std::path::Path) -> Result<RecipeManagerModel, String> {
@@ -475,6 +541,7 @@ fn parse_shape_ingredients(
     Ok(parsed)
 }
 
+#[cfg(test)]
 pub(super) fn collect_recipe_property_sets(recipes: &[RecipeHolder]) -> Vec<RecipePropertySet> {
     let mut furnace = Vec::new();
     let mut blast_furnace = Vec::new();
@@ -548,6 +615,7 @@ pub(super) fn collect_recipe_property_sets(recipes: &[RecipeHolder]) -> Vec<Reci
     ]
 }
 
+#[cfg(test)]
 fn push_ingredient_items(target: &mut Vec<&'static str>, ingredient: &IngredientSpec) {
     match ingredient {
         IngredientSpec::Empty => {}

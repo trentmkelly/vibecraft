@@ -256,7 +256,7 @@ fn json_value_to_nbt(value: &serde_json::Value) -> Option<Tag> {
                 i32::try_from(value)
                     .map(Tag::Int)
                     .ok()
-                    .or_else(|| Some(Tag::Long(value)))
+                    .or(Some(Tag::Long(value)))
             } else {
                 value.as_f64().map(Tag::Double)
             }

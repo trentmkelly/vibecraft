@@ -3,59 +3,64 @@ use super::*;
 
 #[test]
 fn trial_spawner_state_machine_configs_rewards_and_nbt_like_java() {
+    let mut spawner = configured_trial_spawner();
+    assert_trial_spawner_waiting_and_activation(&mut spawner);
+    assert_trial_spawner_spawn_and_reward_ejection(&mut spawner);
+    assert_trial_spawner_cooldown_and_ominous_transition(&mut spawner);
+    assert_trial_spawner_override_update_tag_and_save_load(&mut spawner);
+}
+
+fn configured_trial_spawner() -> TrialSpawnerBlockEntity {
     let mut spawner = TrialSpawnerBlockEntity::default();
-    spawner.config.normal_config.spawn_potentials =
-        vec![SpawnDataModel::new("minecraft:zombie")];
-    spawner.config.ominous_config.spawn_potentials =
-        vec![SpawnDataModel::new("minecraft:breeze")];
+    spawner.config.normal_config.spawn_potentials = vec![SpawnDataModel::new("minecraft:zombie")];
+    spawner.config.ominous_config.spawn_potentials = vec![SpawnDataModel::new("minecraft:breeze")];
     spawner.config.normal_config.total_mobs = 2.0;
     spawner.config.normal_config.simultaneous_mobs = 1.0;
     spawner.config.normal_config.ticks_between_spawn = 5;
     spawner.config.target_cooldown_length = 100;
+    spawner
+}
 
+fn trial_spawner_context(
+    game_time: i64,
+    detected_player_count: usize,
+    spawn_success: bool,
+    apply_ominous: bool,
+    roll: usize,
+) -> TrialSpawnerTickContext {
+    TrialSpawnerTickContext {
+        game_time,
+        can_spawn_in_level: true,
+        detected_player_count,
+        current_mobs_alive: 0,
+        spawn_success,
+        apply_ominous,
+        roll,
+    }
+}
+
+fn assert_trial_spawner_waiting_and_activation(spawner: &mut TrialSpawnerBlockEntity) {
     assert_eq!(spawner.state, TrialSpawnerStateModel::Inactive);
     assert_eq!(spawner.config.required_player_range, 14);
     assert_eq!(TrialSpawnerStateModel::Active.light_level(), 8);
     assert_eq!(
-        spawner.tick_server(TrialSpawnerTickContext {
-            game_time: 0,
-            can_spawn_in_level: true,
-            detected_player_count: 0,
-            current_mobs_alive: 0,
-            spawn_success: false,
-            apply_ominous: false,
-            roll: 0,
-        }),
+        spawner.tick_server(trial_spawner_context(0, 0, false, false, 0)),
         TrialSpawnerTickResult::StateChanged(TrialSpawnerStateModel::WaitingForPlayers)
     );
 
     assert_eq!(
-        spawner.tick_server(TrialSpawnerTickContext {
-            game_time: 1,
-            can_spawn_in_level: true,
-            detected_player_count: 2,
-            current_mobs_alive: 0,
-            spawn_success: false,
-            apply_ominous: false,
-            roll: 0,
-        }),
+        spawner.tick_server(trial_spawner_context(1, 2, false, false, 0)),
         TrialSpawnerTickResult::DetectedPlayers(2)
     );
     assert_eq!(spawner.state, TrialSpawnerStateModel::Active);
     assert_eq!(spawner.next_mob_spawns_at, 41);
     assert_eq!(spawner.active_config().target_total_mobs(1), 4);
     assert_eq!(spawner.active_config().target_simultaneous_mobs(1), 2);
+}
 
+fn assert_trial_spawner_spawn_and_reward_ejection(spawner: &mut TrialSpawnerBlockEntity) {
     assert_eq!(
-        spawner.tick_server(TrialSpawnerTickContext {
-            game_time: 41,
-            can_spawn_in_level: true,
-            detected_player_count: 2,
-            current_mobs_alive: 0,
-            spawn_success: true,
-            apply_ominous: false,
-            roll: 0,
-        }),
+        spawner.tick_server(trial_spawner_context(41, 2, true, false, 0)),
         TrialSpawnerTickResult::SpawnMob {
             entity_id: "minecraft:zombie".to_string(),
         }
@@ -67,15 +72,7 @@ fn trial_spawner_state_machine_configs_rewards_and_nbt_like_java() {
     spawner.total_mobs_spawned = spawner.active_config().target_total_mobs(1);
     spawner.current_mobs.clear();
     assert_eq!(
-        spawner.tick_server(TrialSpawnerTickContext {
-            game_time: 47,
-            can_spawn_in_level: true,
-            detected_player_count: 2,
-            current_mobs_alive: 0,
-            spawn_success: false,
-            apply_ominous: false,
-            roll: 0,
-        }),
+        spawner.tick_server(trial_spawner_context(47, 2, false, false, 0)),
         TrialSpawnerTickResult::ReadyForRewards
     );
     assert_eq!(
@@ -85,89 +82,46 @@ fn trial_spawner_state_machine_configs_rewards_and_nbt_like_java() {
     assert_eq!(spawner.cooldown_ends_at, 147);
 
     assert_eq!(
-        spawner.tick_server(TrialSpawnerTickContext {
-            game_time: 87,
-            can_spawn_in_level: true,
-            detected_player_count: 2,
-            current_mobs_alive: 0,
-            spawn_success: false,
-            apply_ominous: false,
-            roll: 0,
-        }),
+        spawner.tick_server(trial_spawner_context(87, 2, false, false, 0)),
         TrialSpawnerTickResult::StateChanged(TrialSpawnerStateModel::EjectingReward)
     );
     assert_eq!(
-        spawner.tick_server(TrialSpawnerTickContext {
-            game_time: 107,
-            can_spawn_in_level: true,
-            detected_player_count: 2,
-            current_mobs_alive: 0,
-            spawn_success: false,
-            apply_ominous: false,
-            roll: 1,
-        }),
+        spawner.tick_server(trial_spawner_context(107, 2, false, false, 1)),
         TrialSpawnerTickResult::EjectedReward {
             loot_table: "minecraft:spawners/trial_chamber/key".to_string(),
             remaining_players: 1,
         }
     );
     assert_eq!(
-        spawner.tick_server(TrialSpawnerTickContext {
-            game_time: 137,
-            can_spawn_in_level: true,
-            detected_player_count: 2,
-            current_mobs_alive: 0,
-            spawn_success: false,
-            apply_ominous: false,
-            roll: 0,
-        }),
+        spawner.tick_server(trial_spawner_context(137, 2, false, false, 0)),
         TrialSpawnerTickResult::EjectedReward {
             loot_table: "minecraft:spawners/trial_chamber/key".to_string(),
             remaining_players: 0,
         }
     );
+}
+
+fn assert_trial_spawner_cooldown_and_ominous_transition(spawner: &mut TrialSpawnerBlockEntity) {
     assert_eq!(
-        spawner.tick_server(TrialSpawnerTickContext {
-            game_time: 167,
-            can_spawn_in_level: true,
-            detected_player_count: 0,
-            current_mobs_alive: 0,
-            spawn_success: false,
-            apply_ominous: false,
-            roll: 0,
-        }),
+        spawner.tick_server(trial_spawner_context(167, 0, false, false, 0)),
         TrialSpawnerTickResult::StateChanged(TrialSpawnerStateModel::Cooldown)
     );
     assert_eq!(
-        spawner.tick_server(TrialSpawnerTickContext {
-            game_time: 180,
-            can_spawn_in_level: true,
-            detected_player_count: 0,
-            current_mobs_alive: 0,
-            spawn_success: false,
-            apply_ominous: false,
-            roll: 0,
-        }),
+        spawner.tick_server(trial_spawner_context(180, 0, false, false, 0)),
         TrialSpawnerTickResult::CooldownFinished
     );
     assert_eq!(spawner.state, TrialSpawnerStateModel::WaitingForPlayers);
 
     assert_eq!(
-        spawner.tick_server(TrialSpawnerTickContext {
-            game_time: 200,
-            can_spawn_in_level: true,
-            detected_player_count: 1,
-            current_mobs_alive: 0,
-            spawn_success: false,
-            apply_ominous: true,
-            roll: 0,
-        }),
+        spawner.tick_server(trial_spawner_context(200, 1, false, true, 0)),
         TrialSpawnerTickResult::BecameOminous
     );
     assert!(spawner.is_ominous);
     assert_eq!(spawner.next_mob_spawns_at, 240);
     assert_eq!(spawner.cooldown_ends_at, 360);
+}
 
+fn assert_trial_spawner_override_update_tag_and_save_load(spawner: &mut TrialSpawnerBlockEntity) {
     spawner.override_entity_to_spawn("minecraft:husk");
     assert_eq!(spawner.state, TrialSpawnerStateModel::Inactive);
     assert_eq!(
@@ -193,12 +147,20 @@ fn trial_spawner_state_machine_configs_rewards_and_nbt_like_java() {
         .any(|(name, _)| name == "spawn_data"));
 
     let saved = spawner.save_additional();
-    assert_eq!(TrialSpawnerBlockEntity::load_additional(&saved), spawner);
+    assert_eq!(TrialSpawnerBlockEntity::load_additional(&saved), *spawner);
 }
 
 #[test]
 fn vault_block_entity_tracks_key_unlock_ejection_shared_update_and_nbt_like_java() {
     let mut vault = VaultBlockEntity::default();
+    assert_vault_defaults_and_inactive_key_insert(&mut vault);
+    assert_vault_activation_wrong_key_and_unlock(&mut vault);
+    assert_vault_ejects_rewards_and_resets(&mut vault);
+    assert_vault_rewarded_player_cap(&mut vault);
+    assert_vault_display_update_tag_and_persistence(&mut vault);
+}
+
+fn assert_vault_defaults_and_inactive_key_insert(vault: &mut VaultBlockEntity) {
     assert_eq!(vault.state, VaultStateModel::Inactive);
     assert_eq!(vault.state.light_level(), 6);
     assert_eq!(vault.config.activation_range, 4.0);
@@ -208,19 +170,15 @@ fn vault_block_entity_tracks_key_unlock_ejection_shared_update_and_nbt_like_java
     assert_eq!(
         vault.try_insert_key(
             "player-a",
-            &PotItemStack {
-                item_id: "minecraft:trial_key".to_string(),
-                count: 1,
-            },
-            vec![PotItemStack {
-                item_id: "minecraft:diamond".to_string(),
-                count: 1,
-            }],
+            &stack("minecraft:trial_key", 1),
+            vec![stack("minecraft:diamond", 1)],
             0,
         ),
         VaultInsertResult::IgnoredInactive
     );
+}
 
+fn assert_vault_activation_wrong_key_and_unlock(vault: &mut VaultBlockEntity) {
     assert_eq!(
         vault.tick_server(20, &["player-a".to_string()], None),
         VaultTickResult::StateChanged(VaultStateModel::Active)
@@ -234,14 +192,8 @@ fn vault_block_entity_tracks_key_unlock_ejection_shared_update_and_nbt_like_java
     assert_eq!(
         vault.try_insert_key(
             "player-a",
-            &PotItemStack {
-                item_id: "minecraft:stick".to_string(),
-                count: 1,
-            },
-            vec![PotItemStack {
-                item_id: "minecraft:diamond".to_string(),
-                count: 1,
-            }],
+            &stack("minecraft:stick", 1),
+            vec![stack("minecraft:diamond", 1)],
             21,
         ),
         VaultInsertResult::WrongKey {
@@ -253,51 +205,29 @@ fn vault_block_entity_tracks_key_unlock_ejection_shared_update_and_nbt_like_java
     assert_eq!(
         vault.try_insert_key(
             "player-a",
-            &PotItemStack {
-                item_id: "minecraft:trial_key".to_string(),
-                count: 1,
-            },
-            vec![
-                PotItemStack {
-                    item_id: "minecraft:emerald".to_string(),
-                    count: 2,
-                },
-                PotItemStack {
-                    item_id: "minecraft:diamond".to_string(),
-                    count: 1,
-                },
-            ],
+            &stack("minecraft:trial_key", 1),
+            vec![stack("minecraft:emerald", 2), stack("minecraft:diamond", 1)],
             22,
         ),
         VaultInsertResult::Unlocking { items_to_eject: 2 }
     );
     assert_eq!(vault.state, VaultStateModel::Unlocking);
     assert_eq!(vault.state_updating_resumes_at, 36);
-    assert_eq!(
-        vault.display_item,
-        Some(PotItemStack {
-            item_id: "minecraft:diamond".to_string(),
-            count: 1,
-        })
-    );
+    assert_eq!(vault.display_item, Some(stack("minecraft:diamond", 1)));
     assert!(vault.rewarded_players.contains("player-a"));
 
     assert_eq!(
         vault.try_insert_key(
             "player-a",
-            &PotItemStack {
-                item_id: "minecraft:trial_key".to_string(),
-                count: 1,
-            },
-            vec![PotItemStack {
-                item_id: "minecraft:gold_ingot".to_string(),
-                count: 1,
-            }],
+            &stack("minecraft:trial_key", 1),
+            vec![stack("minecraft:gold_ingot", 1)],
             37,
         ),
         VaultInsertResult::AlreadyRewarded
     );
+}
 
+fn assert_vault_ejects_rewards_and_resets(vault: &mut VaultBlockEntity) {
     assert_eq!(
         vault.tick_server(35, &["player-a".to_string()], None),
         VaultTickResult::Waiting
@@ -308,31 +238,21 @@ fn vault_block_entity_tracks_key_unlock_ejection_shared_update_and_nbt_like_java
     );
     assert_eq!(
         vault.tick_server(56, &["player-a".to_string()], None),
-        VaultTickResult::EjectedItem(PotItemStack {
-            item_id: "minecraft:diamond".to_string(),
-            count: 1,
-        })
+        VaultTickResult::EjectedItem(stack("minecraft:diamond", 1))
     );
-    assert_eq!(
-        vault.display_item,
-        Some(PotItemStack {
-            item_id: "minecraft:emerald".to_string(),
-            count: 2,
-        })
-    );
+    assert_eq!(vault.display_item, Some(stack("minecraft:emerald", 2)));
     assert_eq!(
         vault.tick_server(76, &["player-a".to_string()], None),
-        VaultTickResult::EjectedItem(PotItemStack {
-            item_id: "minecraft:emerald".to_string(),
-            count: 2,
-        })
+        VaultTickResult::EjectedItem(stack("minecraft:emerald", 2))
     );
     assert_eq!(
         vault.tick_server(96, &["player-a".to_string()], None),
         VaultTickResult::EjectionFinished
     );
     assert_eq!(vault.state, VaultStateModel::Inactive);
+}
 
+fn assert_vault_rewarded_player_cap(vault: &mut VaultBlockEntity) {
     for index in 0..130 {
         vault.add_rewarded_player(format!("player-{index:03}"));
     }
@@ -342,21 +262,17 @@ fn vault_block_entity_tracks_key_unlock_ejection_shared_update_and_nbt_like_java
     );
     assert!(!vault.rewarded_players.contains("player-000"));
     assert!(vault.rewarded_players.contains("player-129"));
+}
 
+fn assert_vault_display_update_tag_and_persistence(vault: &mut VaultBlockEntity) {
     vault.state = VaultStateModel::Active;
     assert_eq!(
         vault.tick_server(
             120,
             &["player-new".to_string()],
-            Some(PotItemStack {
-                item_id: "minecraft:apple".to_string(),
-                count: 1,
-            }),
+            Some(stack("minecraft:apple", 1)),
         ),
-        VaultTickResult::DisplayItemCycled(Some(PotItemStack {
-            item_id: "minecraft:apple".to_string(),
-            count: 1,
-        }))
+        VaultTickResult::DisplayItemCycled(Some(stack("minecraft:apple", 1)))
     );
     vault.tick_client();
     assert_eq!(vault.previous_spin, 0.0);
@@ -395,52 +311,77 @@ fn vault_block_entity_tracks_key_unlock_ejection_shared_update_and_nbt_like_java
 #[test]
 fn furnace_family_ticks_fuel_recipes_xp_sided_slots_and_speed_like_java() {
     let fuels = FuelValues::vanilla();
-    let smelting = FurnaceCookingRecipe::new(
-        "minecraft:iron_ingot_from_smelting_raw_iron",
-        "smelting",
-        "minecraft:raw_iron",
-        "minecraft:iron_ingot",
-        200,
-        700,
-    );
-    let blasting = FurnaceCookingRecipe::new(
-        "minecraft:iron_ingot_from_blasting_raw_iron",
-        "blasting",
-        "minecraft:raw_iron",
-        "minecraft:iron_ingot",
-        100,
-        700,
-    );
-    let smoking = FurnaceCookingRecipe::new(
-        "minecraft:cooked_beef_from_smoking",
-        "smoking",
-        "minecraft:beef",
-        "minecraft:cooked_beef",
-        100,
-        350,
-    );
+    let (smelting, blasting, smoking) = furnace_test_recipes();
+    assert_smelting_furnace_ticks_fuel_xp_and_persists(&fuels, &smelting);
+    assert_invalid_fuel_does_not_start(&fuels, &smelting);
+    assert_blast_furnace_uses_java_speed(&fuels, &blasting);
+    let smoker = assert_smoker_uses_java_speed(&fuels, &smoking);
+    assert_furnace_sided_slots_and_container_helpers(&fuels, &smoker);
+}
 
+fn furnace_test_recipes() -> (
+    FurnaceCookingRecipe,
+    FurnaceCookingRecipe,
+    FurnaceCookingRecipe,
+) {
+    (
+        FurnaceCookingRecipe::new(
+            "minecraft:iron_ingot_from_smelting_raw_iron",
+            "smelting",
+            "minecraft:raw_iron",
+            "minecraft:iron_ingot",
+            200,
+            700,
+        ),
+        FurnaceCookingRecipe::new(
+            "minecraft:iron_ingot_from_blasting_raw_iron",
+            "blasting",
+            "minecraft:raw_iron",
+            "minecraft:iron_ingot",
+            100,
+            700,
+        ),
+        FurnaceCookingRecipe::new(
+            "minecraft:cooked_beef_from_smoking",
+            "smoking",
+            "minecraft:beef",
+            "minecraft:cooked_beef",
+            100,
+            350,
+        ),
+    )
+}
+
+fn set_furnace_stack(
+    furnace: &mut AbstractFurnaceBlockEntity,
+    slot: usize,
+    item_id: &str,
+    recipe: &FurnaceCookingRecipe,
+) {
+    furnace.set_item(slot, Some(stack(item_id, 1)), Some(recipe));
+}
+
+fn assert_smelting_furnace_ticks_fuel_xp_and_persists(
+    fuels: &FuelValues,
+    smelting: &FurnaceCookingRecipe,
+) {
     let mut furnace = AbstractFurnaceBlockEntity::furnace();
     assert_eq!(furnace.kind.recipe_type(), "smelting");
     assert_eq!(furnace.kind.default_cooking_time(), 200);
-    furnace.set_item(
+    set_furnace_stack(
+        &mut furnace,
         AbstractFurnaceBlockEntity::INGREDIENT_SLOT,
-        Some(PotItemStack {
-            item_id: "minecraft:raw_iron".to_string(),
-            count: 1,
-        }),
-        Some(&smelting),
+        "minecraft:raw_iron",
+        smelting,
     );
-    furnace.set_item(
+    set_furnace_stack(
+        &mut furnace,
         AbstractFurnaceBlockEntity::FUEL_SLOT,
-        Some(PotItemStack {
-            item_id: "minecraft:coal".to_string(),
-            count: 1,
-        }),
-        Some(&smelting),
+        "minecraft:coal",
+        smelting,
     );
     assert_eq!(
-        furnace.server_tick(&fuels, Some(&smelting)),
+        furnace.server_tick(fuels, Some(smelting)),
         FurnaceTickResult::LitChanged { lit: true }
     );
     assert_eq!(furnace.lit_time_remaining, 1600);
@@ -449,19 +390,16 @@ fn furnace_family_ticks_fuel_recipes_xp_sided_slots_and_speed_like_java() {
     assert!(furnace.items[AbstractFurnaceBlockEntity::FUEL_SLOT].is_none());
 
     for _ in 1..199 {
-        furnace.server_tick(&fuels, Some(&smelting));
+        furnace.server_tick(fuels, Some(smelting));
     }
     assert_eq!(
-        furnace.server_tick(&fuels, Some(&smelting)),
+        furnace.server_tick(fuels, Some(smelting)),
         FurnaceTickResult::Burned { output_count: 1 }
     );
     assert!(furnace.items[AbstractFurnaceBlockEntity::INGREDIENT_SLOT].is_none());
     assert_eq!(
         furnace.items[AbstractFurnaceBlockEntity::RESULT_SLOT],
-        Some(PotItemStack {
-            item_id: "minecraft:iron_ingot".to_string(),
-            count: 1,
-        })
+        Some(stack("minecraft:iron_ingot", 1))
     );
     assert_eq!(
         furnace
@@ -476,86 +414,89 @@ fn furnace_family_ticks_fuel_recipes_xp_sided_slots_and_speed_like_java() {
     let loaded =
         AbstractFurnaceBlockEntity::load_additional(FurnaceBlockEntityKind::Furnace, &saved);
     assert_eq!(loaded, furnace);
+}
 
+fn assert_invalid_fuel_does_not_start(fuels: &FuelValues, smelting: &FurnaceCookingRecipe) {
     let mut invalid_fuel = AbstractFurnaceBlockEntity::furnace();
-    invalid_fuel.set_item(
+    set_furnace_stack(
+        &mut invalid_fuel,
         AbstractFurnaceBlockEntity::INGREDIENT_SLOT,
-        Some(PotItemStack {
-            item_id: "minecraft:raw_iron".to_string(),
-            count: 1,
-        }),
-        Some(&smelting),
+        "minecraft:raw_iron",
+        smelting,
     );
-    invalid_fuel.set_item(
+    set_furnace_stack(
+        &mut invalid_fuel,
         AbstractFurnaceBlockEntity::FUEL_SLOT,
-        Some(PotItemStack {
-            item_id: "minecraft:stone".to_string(),
-            count: 1,
-        }),
-        Some(&smelting),
+        "minecraft:stone",
+        smelting,
     );
     assert_eq!(
-        invalid_fuel.server_tick(&fuels, Some(&smelting)),
+        invalid_fuel.server_tick(fuels, Some(smelting)),
         FurnaceTickResult::Idle
     );
     assert_eq!(invalid_fuel.cooking_time_spent, 0);
+}
 
+fn assert_blast_furnace_uses_java_speed(fuels: &FuelValues, blasting: &FurnaceCookingRecipe) {
     let mut blast = AbstractFurnaceBlockEntity::blast_furnace();
     assert_eq!(blast.kind.recipe_type(), "blasting");
     assert_eq!(blast.kind.default_cooking_time(), 100);
-    blast.set_item(
+    set_furnace_stack(
+        &mut blast,
         AbstractFurnaceBlockEntity::INGREDIENT_SLOT,
-        Some(PotItemStack {
-            item_id: "minecraft:raw_iron".to_string(),
-            count: 1,
-        }),
-        Some(&blasting),
+        "minecraft:raw_iron",
+        blasting,
     );
-    blast.set_item(
+    set_furnace_stack(
+        &mut blast,
         AbstractFurnaceBlockEntity::FUEL_SLOT,
-        Some(PotItemStack {
-            item_id: "minecraft:coal".to_string(),
-            count: 1,
-        }),
-        Some(&blasting),
+        "minecraft:coal",
+        blasting,
     );
     assert_eq!(
-        blast.server_tick(&fuels, Some(&blasting)),
+        blast.server_tick(fuels, Some(blasting)),
         FurnaceTickResult::LitChanged { lit: true }
     );
     assert_eq!(blast.lit_total_time, 800);
     for _ in 1..99 {
-        blast.server_tick(&fuels, Some(&blasting));
+        blast.server_tick(fuels, Some(blasting));
     }
     assert_eq!(
-        blast.server_tick(&fuels, Some(&blasting)),
+        blast.server_tick(fuels, Some(blasting)),
         FurnaceTickResult::Burned { output_count: 1 }
     );
+}
 
+fn assert_smoker_uses_java_speed(
+    fuels: &FuelValues,
+    smoking: &FurnaceCookingRecipe,
+) -> AbstractFurnaceBlockEntity {
     let mut smoker = AbstractFurnaceBlockEntity::smoker();
-    smoker.set_item(
+    set_furnace_stack(
+        &mut smoker,
         AbstractFurnaceBlockEntity::INGREDIENT_SLOT,
-        Some(PotItemStack {
-            item_id: "minecraft:beef".to_string(),
-            count: 1,
-        }),
-        Some(&smoking),
+        "minecraft:beef",
+        smoking,
     );
-    smoker.set_item(
+    set_furnace_stack(
+        &mut smoker,
         AbstractFurnaceBlockEntity::FUEL_SLOT,
-        Some(PotItemStack {
-            item_id: "minecraft:coal".to_string(),
-            count: 1,
-        }),
-        Some(&smoking),
+        "minecraft:coal",
+        smoking,
     );
     assert_eq!(
-        smoker.server_tick(&fuels, Some(&smoking)),
+        smoker.server_tick(fuels, Some(smoking)),
         FurnaceTickResult::LitChanged { lit: true }
     );
     assert_eq!(smoker.kind.recipe_type(), "smoking");
     assert_eq!(smoker.lit_total_time, 800);
+    smoker
+}
 
+fn assert_furnace_sided_slots_and_container_helpers(
+    fuels: &FuelValues,
+    smoker: &AbstractFurnaceBlockEntity,
+) {
     assert_eq!(
         AbstractFurnaceBlockEntity::get_slots_for_face(Direction::Up),
         &[AbstractFurnaceBlockEntity::INGREDIENT_SLOT]
@@ -579,19 +520,13 @@ fn furnace_family_ticks_fuel_recipes_xp_sided_slots_and_speed_like_java() {
     ));
     assert!(!smoker.can_place_item(
         AbstractFurnaceBlockEntity::RESULT_SLOT,
-        &PotItemStack {
-            item_id: "minecraft:iron_ingot".to_string(),
-            count: 1,
-        },
-        &fuels,
+        &stack("minecraft:iron_ingot", 1),
+        fuels,
     ));
     assert_eq!(
         smoker.max_stack_size(
             AbstractFurnaceBlockEntity::FUEL_SLOT,
-            &PotItemStack {
-                item_id: "minecraft:bucket".to_string(),
-                count: 16,
-            },
+            &stack("minecraft:bucket", 16),
         ),
         1
     );
@@ -600,6 +535,15 @@ fn furnace_family_ticks_fuel_recipes_xp_sided_slots_and_speed_like_java() {
 
 #[test]
 fn container_block_entities_track_loot_openers_lids_redstone_and_hopper_like_java() {
+    assert_chest_loot_lock_lid_and_persistence();
+    assert_trapped_chest_signal_tracks_openers();
+    assert_barrel_open_state_tracks_viewers();
+    assert_shulker_box_animation_and_sided_insertion();
+    assert_dispenser_and_dropper_activation_slots();
+    assert_hopper_slots_cooldown_push_pull_and_persistence();
+}
+
+fn assert_chest_loot_lock_lid_and_persistence() {
     let mut chest = ContainerBlockEntityModel::new(ContainerBlockEntityKind::Chest);
     chest.custom_name = Some("Supply Cache".to_string());
     chest.lock_key = Some("brass_key".to_string());
@@ -618,13 +562,7 @@ fn container_block_entities_track_loot_openers_lids_redstone_and_hopper_like_jav
     assert!(chest.loot_table.is_none());
     assert_eq!(chest.loot_table_seed, 0);
 
-    assert!(chest.set_item(
-        0,
-        Some(PotItemStack {
-            item_id: "minecraft:apple".to_string(),
-            count: 32,
-        }),
-    ));
+    assert!(chest.set_item(0, Some(stack("minecraft:apple", 32))));
     assert!(chest.comparator_output() > 0);
     assert_eq!(chest.merged_chest_access_size(false), 27);
     assert_eq!(chest.merged_chest_access_size(true), 54);
@@ -646,14 +584,10 @@ fn container_block_entities_track_loot_openers_lids_redstone_and_hopper_like_jav
     );
     assert_eq!(loaded_chest.custom_name.as_deref(), Some("Supply Cache"));
     assert_eq!(loaded_chest.lock_key.as_deref(), Some("brass_key"));
-    assert_eq!(
-        loaded_chest.items[0],
-        Some(PotItemStack {
-            item_id: "minecraft:apple".to_string(),
-            count: 32,
-        })
-    );
+    assert_eq!(loaded_chest.items[0], Some(stack("minecraft:apple", 32)));
+}
 
+fn assert_trapped_chest_signal_tracks_openers() {
     let mut trapped = ContainerBlockEntityModel::new(ContainerBlockEntityKind::TrappedChest);
     for _ in 0..20 {
         trapped.start_open();
@@ -663,7 +597,9 @@ fn container_block_entities_track_loot_openers_lids_redstone_and_hopper_like_jav
         trapped.stop_open();
     }
     assert_eq!(trapped.trapped_chest_signal(), 14);
+}
 
+fn assert_barrel_open_state_tracks_viewers() {
     let mut barrel = ContainerBlockEntityModel::new(ContainerBlockEntityKind::Barrel);
     barrel.start_open();
     barrel.tick_lid();
@@ -671,7 +607,9 @@ fn container_block_entities_track_loot_openers_lids_redstone_and_hopper_like_jav
     assert_eq!(barrel.lid_progress, 0.0);
     barrel.stop_open();
     assert!(!barrel.barrel_is_open());
+}
 
+fn assert_shulker_box_animation_and_sided_insertion() {
     let mut shulker = ContainerBlockEntityModel::new(ContainerBlockEntityKind::ShulkerBox);
     shulker.shulker_color = Some(DyeColor::Purple);
     assert_eq!(shulker.kind.size(), 27);
@@ -689,66 +627,39 @@ fn container_block_entities_track_loot_openers_lids_redstone_and_hopper_like_jav
         shulker.tick_lid();
     }
     assert!(shulker.shulker_is_closed());
+}
 
+fn assert_dispenser_and_dropper_activation_slots() {
     let mut dispenser = ContainerBlockEntityModel::new(ContainerBlockEntityKind::Dispenser);
     assert_eq!(dispenser.kind.size(), 9);
-    dispenser.set_item(
-        1,
-        Some(PotItemStack {
-            item_id: "minecraft:arrow".to_string(),
-            count: 1,
-        }),
-    );
-    dispenser.set_item(
-        5,
-        Some(PotItemStack {
-            item_id: "minecraft:egg".to_string(),
-            count: 1,
-        }),
-    );
+    dispenser.set_item(1, Some(stack("minecraft:arrow", 1)));
+    dispenser.set_item(5, Some(stack("minecraft:egg", 1)));
     assert_eq!(
         dispenser.activate_once(&[0, 1]),
         ContainerActivation::Dispense { slot: 1 }
     );
 
     let mut dropper = ContainerBlockEntityModel::new(ContainerBlockEntityKind::Dropper);
-    dropper.set_item(
-        2,
-        Some(PotItemStack {
-            item_id: "minecraft:cobblestone".to_string(),
-            count: 1,
-        }),
-    );
+    dropper.set_item(2, Some(stack("minecraft:cobblestone", 1)));
     assert_eq!(
         dropper.activate_once(&[0]),
         ContainerActivation::Drop { slot: 2 }
     );
+}
 
+fn assert_hopper_slots_cooldown_push_pull_and_persistence() {
     let mut hopper = ContainerBlockEntityModel::new(ContainerBlockEntityKind::Hopper);
     assert_eq!(hopper.kind.size(), 5);
     assert_eq!(
         hopper.transfer_cooldown,
         ContainerBlockEntityModel::HOPPER_NO_COOLDOWN
     );
-    hopper.set_item(
-        0,
-        Some(PotItemStack {
-            item_id: "minecraft:iron_ingot".to_string(),
-            count: 1,
-        }),
-    );
+    hopper.set_item(0, Some(stack("minecraft:iron_ingot", 1)));
     assert_eq!(
         hopper.hopper_slots_for_face(Direction::Down),
         vec![0, 1, 2, 3, 4]
     );
-    assert!(hopper.hopper_can_place_item(
-        1,
-        &PotItemStack {
-            item_id: "minecraft:gold_ingot".to_string(),
-            count: 1,
-        },
-        Direction::Up,
-    ));
+    assert!(hopper.hopper_can_place_item(1, &stack("minecraft:gold_ingot", 1), Direction::Up,));
     assert!(hopper.hopper_can_take_item(0, Direction::Down));
     assert_eq!(
         hopper.hopper_tick(true, true, true),
@@ -968,4 +879,3 @@ fn banner_block_entity_tracks_color_patterns_and_update_tag_shape() {
         matches!(entity.get_update_tag(), Tag::Compound(fields) if fields.iter().any(|(key, _)| key == "patterns") && fields.iter().all(|(key, _)| key != "id"))
     );
 }
-

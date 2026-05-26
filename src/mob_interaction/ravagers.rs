@@ -30,38 +30,41 @@ pub fn ravager_control_flags_enabled(
     )
 }
 
-pub fn ravager_ai_step(
-    base_movement_speed: f32,
-    has_target: bool,
-    immobile: bool,
-    attack_tick: i32,
-    stunned_tick: i32,
-    roar_tick: i32,
-    horizontal_collision: bool,
-    mob_griefing: bool,
-    destroyed_leaves: bool,
-    on_ground: bool,
-) -> RavagerAiStep {
-    let movement_speed = if immobile {
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RavagerAiStepInput {
+    pub base_movement_speed: f32,
+    pub has_target: bool,
+    pub immobile: bool,
+    pub attack_tick: i32,
+    pub stunned_tick: i32,
+    pub roar_tick: i32,
+    pub horizontal_collision: bool,
+    pub mob_griefing: bool,
+    pub destroyed_leaves: bool,
+    pub on_ground: bool,
+}
+
+pub fn ravager_ai_step(input: RavagerAiStepInput) -> RavagerAiStep {
+    let movement_speed = if input.immobile {
         0.0
     } else {
-        let target_speed = if has_target {
+        let target_speed = if input.has_target {
             RAVAGER_ATTACK_MOVEMENT_SPEED
         } else {
             RAVAGER_BASE_MOVEMENT_SPEED
         };
-        base_movement_speed + (target_speed - base_movement_speed) * 0.1
+        input.base_movement_speed + (target_speed - input.base_movement_speed) * 0.1
     };
 
-    let mut next_roar = roar_tick;
+    let mut next_roar = input.roar_tick;
     let mut roar_now = false;
     if next_roar > 0 {
         next_roar -= 1;
         roar_now = next_roar == RAVAGER_ROAR_DAMAGE_TICK;
     }
 
-    let next_attack = (attack_tick - 1).max(0);
-    let mut next_stun = stunned_tick;
+    let next_attack = (input.attack_tick - 1).max(0);
+    let mut next_stun = input.stunned_tick;
     let mut start_roar_sound = false;
     if next_stun > 0 {
         next_stun -= 1;
@@ -78,10 +81,10 @@ pub fn ravager_ai_step(
         roar_tick: next_roar,
         roar_now,
         start_roar_sound,
-        should_jump_after_leaf_collision: horizontal_collision
-            && mob_griefing
-            && !destroyed_leaves
-            && on_ground,
+        should_jump_after_leaf_collision: input.horizontal_collision
+            && input.mob_griefing
+            && !input.destroyed_leaves
+            && input.on_ground,
     }
 }
 
@@ -159,4 +162,3 @@ pub fn ravager_can_spawn_without_obstruction(contains_liquid_in_bounding_box: bo
 pub fn ravager_can_be_raid_leader() -> bool {
     false
 }
-

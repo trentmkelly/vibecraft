@@ -11,7 +11,7 @@ mod tests {
     use crate::living_entity::{ItemStackRef, LivingAnimation, LivingEntityState};
     use crate::network::codec::Uuid;
     use crate::network::play::{
-        ClientboundAddEntityPacket, ClientboundSetEntityDataPacket,
+        AddEntityPacketInput, ClientboundAddEntityPacket, ClientboundSetEntityDataPacket,
         ClientboundSetEntityMotionPacket, EntityDataValue, EntitySpawnBundle, PlayInstruction,
         Vec3 as PacketVec3,
     };
@@ -218,24 +218,24 @@ mod tests {
         assert_eq!(base.sync_plan().removed, Some(RemovalReason::Killed));
 
         let bundle = EntitySpawnBundle {
-            spawn: ClientboundAddEntityPacket::new(
-                42,
-                Uuid([42; 16]),
-                1,
-                PacketVec3 {
+            spawn: ClientboundAddEntityPacket::new(AddEntityPacketInput {
+                id: 42,
+                uuid: Uuid([42; 16]),
+                entity_type: 1,
+                position: PacketVec3 {
                     x: 1.0,
                     y: 65.0,
                     z: -2.0,
                 },
-                PacketVec3 {
+                movement: PacketVec3 {
                     x: 0.1,
                     y: 0.2,
                     z: 0.3,
                 },
-                (90.0, 0.0),
-                90.0,
-                0,
-            ),
+                rotation: (90.0, 0.0),
+                y_head_rot: 90.0,
+                data: 0,
+            }),
             metadata: Some(ClientboundSetEntityDataPacket {
                 id: 42,
                 packed_items: vec![EntityDataValue {

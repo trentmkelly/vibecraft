@@ -444,15 +444,19 @@ impl TemplateSourceModel {
             available: available
                 .iter()
                 .map(|(id, template)| {
-                    (
-                        Identifier::parse(id).expect("valid template id fixture"),
-                        *template,
-                    )
+                    let identifier = match Identifier::parse(id) {
+                        Ok(identifier) => identifier,
+                        Err(error) => panic!("invalid template id fixture {id}: {error}"),
+                    };
+                    (identifier, *template)
                 })
                 .collect(),
             fail_on_load: fail_on_load
                 .iter()
-                .map(|id| Identifier::parse(id).expect("valid template id fixture"))
+                .map(|id| match Identifier::parse(id) {
+                    Ok(identifier) => identifier,
+                    Err(error) => panic!("invalid template id fixture {id}: {error}"),
+                })
                 .collect(),
         }
     }
@@ -512,4 +516,3 @@ pub fn structure_axis_aligned_distance(
         _ => 0,
     }
 }
-

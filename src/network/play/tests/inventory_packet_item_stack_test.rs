@@ -1,4 +1,3 @@
-use super::super::*;
 use super::*;
 
 fn component_stack() -> RawItemStack {
@@ -74,19 +73,14 @@ fn clientbound_inventory_item_stacks_use_java_optional_stream_codec() {
     }
     .write(&mut equipment)
     .unwrap();
-    assert_eq!(
-        equipment,
-        [vec![0xac, 0x02, 0], trusted.clone()].concat()
-    );
+    assert_eq!(equipment, [vec![0xac, 0x02, 0], trusted.clone()].concat());
 
     let mut entity_data = Vec::new();
     ClientboundSetEntityDataPacket {
         id: 1,
-        packed_items: vec![EntityDataValue::typed(
-            7,
-            EntityMetadataValue::ItemStack(stack),
-        )
-        .unwrap()],
+        packed_items: vec![
+            EntityDataValue::typed(7, EntityMetadataValue::ItemStack(stack)).unwrap(),
+        ],
     }
     .write(&mut entity_data)
     .unwrap();

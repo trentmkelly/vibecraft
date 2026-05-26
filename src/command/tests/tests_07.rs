@@ -91,7 +91,40 @@ fn item_command_rejects_invalid_counts_slots_and_missing_sources() {
 
 #[test]
 fn locate_command_finds_nearest_structure_biome_and_poi() {
-    let mut state = ServerCommandState {
+    let mut state = locate_test_state();
+    assert_locate_permission_gate(&mut state);
+
+    let structure = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "locate structure #minecraft:village",
+    )
+    .unwrap();
+    assert_eq!(structure.success_count, 200);
+    assert_eq!(structure.feedback_key, "commands.locate.structure.success");
+
+    let biome = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "locate biome desert",
+    )
+    .unwrap();
+    assert_eq!(biome.success_count, 143);
+    assert_eq!(biome.feedback_key, "commands.locate.biome.success");
+
+    let poi = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "locate poi armorer",
+    )
+    .unwrap();
+    assert_eq!(poi.success_count, 50);
+    assert_eq!(poi.feedback_key, "commands.locate.poi.success");
+    assert_eq!(state.locate_results, expected_locate_results());
+}
+
+fn locate_test_state() -> ServerCommandState {
+    ServerCommandState {
         command_source_position: Vec3 {
             x: 0.0,
             y: 64.0,
@@ -140,87 +173,63 @@ fn locate_command_finds_nearest_structure_biome_and_poi() {
             },
         ],
         ..ServerCommandState::default()
-    };
+    }
+}
+
+fn assert_locate_permission_gate(state: &mut ServerCommandState) {
     assert_eq!(
         command_required_permission("locate"),
         PermissionLevel::Gamemasters
     );
     assert_eq!(
         execute_builtin_command(
-            &mut state,
+            state,
             LevelBasedPermissionSet::MODERATOR,
             "locate structure #minecraft:village"
         ),
         Err(CommandError::PermissionDenied)
     );
+}
 
-    let structure = execute_builtin_command(
-        &mut state,
-        LevelBasedPermissionSet::GAMEMASTER,
-        "locate structure #minecraft:village",
-    )
-    .unwrap();
-    assert_eq!(structure.success_count, 200);
-    assert_eq!(structure.feedback_key, "commands.locate.structure.success");
-
-    let biome = execute_builtin_command(
-        &mut state,
-        LevelBasedPermissionSet::GAMEMASTER,
-        "locate biome desert",
-    )
-    .unwrap();
-    assert_eq!(biome.success_count, 143);
-    assert_eq!(biome.feedback_key, "commands.locate.biome.success");
-
-    let poi = execute_builtin_command(
-        &mut state,
-        LevelBasedPermissionSet::GAMEMASTER,
-        "locate poi armorer",
-    )
-    .unwrap();
-    assert_eq!(poi.success_count, 50);
-    assert_eq!(poi.feedback_key, "commands.locate.poi.success");
-    assert_eq!(
-        state.locate_results,
-        vec![
-            CommandLocateResult {
-                kind: LocateKind::Structure,
-                query: "#minecraft:village".to_string(),
-                found_id: "minecraft:village_taiga".to_string(),
-                position: BlockPos {
-                    x: 120,
-                    y: 80,
-                    z: 160,
-                },
-                distance: 200,
-                include_y: false,
+fn expected_locate_results() -> Vec<CommandLocateResult> {
+    vec![
+        CommandLocateResult {
+            kind: LocateKind::Structure,
+            query: "#minecraft:village".to_string(),
+            found_id: "minecraft:village_taiga".to_string(),
+            position: BlockPos {
+                x: 120,
+                y: 80,
+                z: 160,
             },
-            CommandLocateResult {
-                kind: LocateKind::Biome,
-                query: "minecraft:desert".to_string(),
-                found_id: "minecraft:desert".to_string(),
-                position: BlockPos {
-                    x: 0,
-                    y: 128,
-                    z: 128,
-                },
-                distance: 143,
-                include_y: true,
+            distance: 200,
+            include_y: false,
+        },
+        CommandLocateResult {
+            kind: LocateKind::Biome,
+            query: "minecraft:desert".to_string(),
+            found_id: "minecraft:desert".to_string(),
+            position: BlockPos {
+                x: 0,
+                y: 128,
+                z: 128,
             },
-            CommandLocateResult {
-                kind: LocateKind::Poi,
-                query: "minecraft:armorer".to_string(),
-                found_id: "minecraft:armorer".to_string(),
-                position: BlockPos {
-                    x: 30,
-                    y: 64,
-                    z: 40,
-                },
-                distance: 50,
-                include_y: false,
+            distance: 143,
+            include_y: true,
+        },
+        CommandLocateResult {
+            kind: LocateKind::Poi,
+            query: "minecraft:armorer".to_string(),
+            found_id: "minecraft:armorer".to_string(),
+            position: BlockPos {
+                x: 30,
+                y: 64,
+                z: 40,
             },
-        ]
-    );
+            distance: 50,
+            include_y: false,
+        },
+    ]
 }
 
 #[test]

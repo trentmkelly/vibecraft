@@ -546,30 +546,34 @@ pub fn cocoa_decorator_placement(
     placements
 }
 
+pub struct BeehiveDecoratorInput<'a> {
+    pub logs: &'a [BlockPos],
+    pub leaves: &'a [BlockPos],
+    pub probability: f32,
+    pub global_roll: f32,
+    pub leafless_height_roll: i32,
+    pub shuffled_candidate_indices: &'a [usize],
+    pub candidate_air: &'a [(BlockPos, bool, bool)],
+    pub bee_count_roll: i32,
+    pub bee_ticks_rolls: &'a [i32],
+}
+
 pub fn beehive_decorator_placement(
-    logs: &[BlockPos],
-    leaves: &[BlockPos],
-    probability: f32,
-    global_roll: f32,
-    leafless_height_roll: i32,
-    shuffled_candidate_indices: &[usize],
-    candidate_air: &[(BlockPos, bool, bool)],
-    bee_count_roll: i32,
-    bee_ticks_rolls: &[i32],
+    input: BeehiveDecoratorInput<'_>,
 ) -> Option<BeehiveDecoratorPlacement> {
-    if logs.is_empty() || global_roll >= probability {
+    if input.logs.is_empty() || input.global_roll >= input.probability {
         return None;
     }
-    let mut sorted_logs = logs.to_vec();
+    let mut sorted_logs = input.logs.to_vec();
     sorted_logs.sort_by_key(|pos| pos.y);
-    let mut sorted_leaves = leaves.to_vec();
+    let mut sorted_leaves = input.leaves.to_vec();
     sorted_leaves.sort_by_key(|pos| pos.y);
     let first_log_y = sorted_logs.first()?.y;
     let last_log_y = sorted_logs.last()?.y;
     let hive_y = if let Some(first_leaf) = sorted_leaves.first() {
         (first_leaf.y - 1).max(first_log_y + 1)
     } else {
-        (first_log_y + 1 + leafless_height_roll.rem_euclid(3)).min(last_log_y)
+        (first_log_y + 1 + input.leafless_height_roll.rem_euclid(3)).min(last_log_y)
     };
     let mut candidates = Vec::new();
     for log in sorted_logs.iter().filter(|pos| pos.y == hive_y) {
@@ -594,7 +598,8 @@ pub fn beehive_decorator_placement(
     if candidates.is_empty() {
         return None;
     }
-    let mut candidate_order = shuffled_candidate_indices
+    let mut candidate_order = input
+        .shuffled_candidate_indices
         .iter()
         .copied()
         .filter_map(|index| candidates.get(index).copied())
@@ -607,15 +612,17 @@ pub fn beehive_decorator_placement(
         }
     }
     let hive_pos = candidate_order.into_iter().find(|candidate| {
-        candidate_air
+        input
+            .candidate_air
             .iter()
             .find(|(pos, _, _)| pos == candidate)
             .is_some_and(|(_, self_air, front_air)| *self_air && *front_air)
     })?;
-    let bee_count = 2 + bee_count_roll.rem_euclid(2);
+    let bee_count = 2 + input.bee_count_roll.rem_euclid(2);
     let bee_ticks_in_hive = (0..bee_count as usize)
         .map(|index| {
-            bee_ticks_rolls
+            input
+                .bee_ticks_rolls
                 .get(index)
                 .copied()
                 .unwrap_or(0)
@@ -882,44 +889,45 @@ fn add_pale_moss_hanger_placements(
     });
 }
 
+pub struct PaleMossDecoratorInput<'a> {
+    pub logs: &'a [PaleMossAttachmentContext],
+    pub leaves: &'a [PaleMossAttachmentContext],
+    pub leaves_probability: f32,
+    pub trunk_probability: f32,
+    pub ground_probability: f32,
+    pub ground_roll: f32,
+    pub trunk_rolls: &'a [f32],
+    pub leaf_rolls: &'a [f32],
+    pub hanger_rolls: &'a [f32],
+}
+
 pub fn pale_moss_decorator_placement(
-    logs: &[PaleMossAttachmentContext],
-    leaves: &[PaleMossAttachmentContext],
-    leaves_probability: f32,
-    trunk_probability: f32,
-    ground_probability: f32,
-    ground_roll: f32,
-    trunk_rolls: &[f32],
-    leaf_rolls: &[f32],
-    hanger_rolls: &[f32],
+    input: PaleMossDecoratorInput<'_>,
 ) -> Vec<TreeDecoratorPlacement> {
-    if logs.is_empty() {
+    if input.logs.is_empty() {
         return Vec::new();
     }
-    let mut sorted_logs = logs.to_vec();
+    let mut sorted_logs = input.logs.to_vec();
     sorted_logs.sort_by_key(|log| log.pos.y);
-    let mut sorted_leaves = leaves.to_vec();
+    let mut sorted_leaves = input.leaves.to_vec();
     sorted_leaves.sort_by_key(|leaf| leaf.pos.y);
     let mut placements = Vec::new();
-    if ground_roll < ground_probability {
-        let origin = sorted_logs
-            .iter()
-            .map(|log| log.pos)
-            .min_by_key(|pos| pos.y)
-            .expect("logs is non-empty");
-        placements.push(TreeDecoratorPlacement {
-            pos: BlockPos {
-                x: origin.x,
-                y: origin.y + 1,
-                z: origin.z,
-            },
-            state: "minecraft:configured_feature/pale_moss_patch",
-        });
+    if input.ground_roll < input.ground_probability {
+        if let Some(origin) = sorted_logs.first().map(|log| log.pos) {
+            placements.push(TreeDecoratorPlacement {
+                pos: BlockPos {
+                    x: origin.x,
+                    y: origin.y + 1,
+                    z: origin.z,
+                },
+                state: "minecraft:configured_feature/pale_moss_patch",
+            });
+        }
     }
     let mut hanger_roll_index = 0;
     for (index, log) in sorted_logs.iter().enumerate() {
-        let roll = trunk_rolls.get(index).copied().unwrap_or(1.0);
-        if roll < trunk_probability && log.down_air {
+        let roll = input.trunk_rolls.get(index).copied().unwrap_or(1.0);
+        if roll < input.trunk_probability && log.down_air {
             add_pale_moss_hanger_placements(
                 &mut placements,
                 BlockPos {
@@ -928,14 +936,14 @@ pub fn pale_moss_decorator_placement(
                     z: log.pos.z,
                 },
                 &log.below_air,
-                hanger_rolls,
+                input.hanger_rolls,
                 &mut hanger_roll_index,
             );
         }
     }
     for (index, leaf) in sorted_leaves.iter().enumerate() {
-        let roll = leaf_rolls.get(index).copied().unwrap_or(1.0);
-        if roll < leaves_probability && leaf.down_air {
+        let roll = input.leaf_rolls.get(index).copied().unwrap_or(1.0);
+        if roll < input.leaves_probability && leaf.down_air {
             add_pale_moss_hanger_placements(
                 &mut placements,
                 BlockPos {
@@ -944,7 +952,7 @@ pub fn pale_moss_decorator_placement(
                     z: leaf.pos.z,
                 },
                 &leaf.below_air,
-                hanger_rolls,
+                input.hanger_rolls,
                 &mut hanger_roll_index,
             );
         }
@@ -1077,27 +1085,32 @@ fn contains_required_empty_blocks(
     })
 }
 
+pub struct AttachedToLeavesDecoratorInput<'a> {
+    pub leaves: &'a [BlockPos],
+    pub probability: f32,
+    pub exclusion_radius_xz: i32,
+    pub exclusion_radius_y: i32,
+    pub required_empty_blocks: i32,
+    pub block_state: &'static str,
+    pub shuffled_leaf_indices: &'a [usize],
+    pub direction_choices: &'a [&'a str],
+    pub probability_rolls: &'a [f32],
+    pub air_checks: &'a [(BlockPos, bool)],
+}
+
 pub fn attached_to_leaves_decorator_placement(
-    leaves: &[BlockPos],
-    probability: f32,
-    exclusion_radius_xz: i32,
-    exclusion_radius_y: i32,
-    required_empty_blocks: i32,
-    block_state: &'static str,
-    shuffled_leaf_indices: &[usize],
-    direction_choices: &[&str],
-    probability_rolls: &[f32],
-    air_checks: &[(BlockPos, bool)],
+    input: AttachedToLeavesDecoratorInput<'_>,
 ) -> Result<Vec<TreeDecoratorPlacement>, String> {
     validate_attached_to_leaves_decorator_fields(
-        exclusion_radius_xz,
-        exclusion_radius_y,
-        required_empty_blocks,
-        direction_choices.len(),
+        input.exclusion_radius_xz,
+        input.exclusion_radius_y,
+        input.required_empty_blocks,
+        input.direction_choices.len(),
     )?;
-    let mut sorted_leaves = leaves.to_vec();
+    let mut sorted_leaves = input.leaves.to_vec();
     sorted_leaves.sort_by_key(|pos| pos.y);
-    let mut leaf_order = shuffled_leaf_indices
+    let mut leaf_order = input
+        .shuffled_leaf_indices
         .iter()
         .copied()
         .filter_map(|index| sorted_leaves.get(index).copied())
@@ -1112,21 +1125,34 @@ pub fn attached_to_leaves_decorator_placement(
     let mut blacklist = Vec::new();
     let mut placements = Vec::new();
     for (index, leaf_pos) in leaf_order.into_iter().enumerate() {
-        let direction = direction_choices.get(index).copied().unwrap_or("down");
+        let direction = input
+            .direction_choices
+            .get(index)
+            .copied()
+            .unwrap_or("down");
         let placement_pos = relative_direction(leaf_pos, direction);
-        let roll = probability_rolls.get(index).copied().unwrap_or(1.0);
+        let roll = input.probability_rolls.get(index).copied().unwrap_or(1.0);
         if blacklist.contains(&(placement_pos.x, placement_pos.y, placement_pos.z))
-            || roll >= probability
+            || roll >= input.probability
         {
             continue;
         }
-        if !contains_required_empty_blocks(leaf_pos, direction, required_empty_blocks, air_checks) {
+        if !contains_required_empty_blocks(
+            leaf_pos,
+            direction,
+            input.required_empty_blocks,
+            input.air_checks,
+        ) {
             continue;
         }
-        for x in placement_pos.x - exclusion_radius_xz..=placement_pos.x + exclusion_radius_xz {
-            for y in placement_pos.y - exclusion_radius_y..=placement_pos.y + exclusion_radius_y {
-                for z in
-                    placement_pos.z - exclusion_radius_xz..=placement_pos.z + exclusion_radius_xz
+        for x in placement_pos.x - input.exclusion_radius_xz
+            ..=placement_pos.x + input.exclusion_radius_xz
+        {
+            for y in placement_pos.y - input.exclusion_radius_y
+                ..=placement_pos.y + input.exclusion_radius_y
+            {
+                for z in placement_pos.z - input.exclusion_radius_xz
+                    ..=placement_pos.z + input.exclusion_radius_xz
                 {
                     blacklist.push((x, y, z));
                 }
@@ -1134,7 +1160,7 @@ pub fn attached_to_leaves_decorator_placement(
         }
         placements.push(TreeDecoratorPlacement {
             pos: placement_pos,
-            state: block_state,
+            state: input.block_state,
         });
     }
     Ok(placements)

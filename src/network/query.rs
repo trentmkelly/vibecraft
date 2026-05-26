@@ -171,10 +171,10 @@ pub fn spawn_query_server(
     socket
         .set_read_timeout(Some(Duration::from_millis(500)))
         .map_err(|err| format!("Failed to configure query listener timeout: {err}"))?;
-    Ok(thread::Builder::new()
+    thread::Builder::new()
         .name("Query Listener".to_string())
         .spawn(move || run_query_loop(socket, info))
-        .map_err(|err| format!("Failed to start query listener thread: {err}"))?)
+        .map_err(|err| format!("Failed to start query listener thread: {err}"))
 }
 
 fn run_query_loop(socket: UdpSocket, info: QueryServerInfo) {
@@ -380,7 +380,7 @@ mod tests {
         for field in [
             b"splitnum\0".as_slice(),
             b"game_id\0MINECRAFT\0",
-            b"version\026.1.2\0",
+            b"version\x0026.1.2\0",
             b"player_\0\0Alex\0Steve\0\0",
         ] {
             assert!(bytes.windows(field.len()).any(|window| window == field));

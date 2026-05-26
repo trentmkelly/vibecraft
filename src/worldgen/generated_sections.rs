@@ -114,8 +114,10 @@ impl GeneratedSectionBlocks {
         if let Some(id) = self.palette_lookup.get(block).copied() {
             return id;
         }
-        let id = u16::try_from(self.palette_names.len())
-            .expect("generated chunk block palette exceeded u16 ids");
+        let id = match u16::try_from(self.palette_names.len()) {
+            Ok(id) => id,
+            Err(_) => panic!("generated chunk block palette exceeded u16 ids"),
+        };
         self.palette_names.push(block.to_string());
         self.palette_lookup.insert(block.to_string(), id);
         id
@@ -212,13 +214,13 @@ impl GeneratedSectionBlocks {
     }
 }
 
-pub(super) fn get_generated_block<'a>(
-    sections: &'a [PalettedContainer],
+pub(super) fn get_generated_block(
+    sections: &[PalettedContainer],
     min_section: i32,
     world_x: i32,
     world_y: i32,
     world_z: i32,
-) -> &'a str {
+) -> &str {
     let Some(section_index) = section_index_for_y(min_section, sections.len(), world_y) else {
         return "minecraft:air";
     };

@@ -30,12 +30,14 @@ impl Vec3 {
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Aabb {
     pub min: Vec3,
     pub max: Vec3,
 }
 
+#[cfg(test)]
 impl Aabb {
     pub const fn new(min: Vec3, max: Vec3) -> Self {
         Self { min, max }
@@ -50,6 +52,7 @@ impl Aabb {
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct EntityContact {
     pub first_center: Vec3,
@@ -59,12 +62,14 @@ pub struct EntityContact {
     pub team_collision_allows: bool,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PushImpulse {
     pub first_delta: Vec3,
     pub second_delta: Vec3,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CollisionCallback {
     StepOn,
@@ -74,6 +79,7 @@ pub enum CollisionCallback {
     HorizontalCollision,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DirectionAxis {
     X,
@@ -81,6 +87,7 @@ pub enum DirectionAxis {
     Z,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PistonAxisState {
     pub axis: DirectionAxis,
@@ -105,12 +112,30 @@ pub enum ExplosionBlockInteraction {
     TriggerBlock,
 }
 
+impl ExplosionBlockInteraction {
+    const ALL: [Self; 4] = [
+        Self::Keep,
+        Self::Destroy,
+        Self::DestroyWithDecay,
+        Self::TriggerBlock,
+    ];
+
+    fn normalized(self) -> Self {
+        Self::ALL
+            .into_iter()
+            .find(|interaction| *interaction == self)
+            .unwrap_or(self)
+    }
+}
+
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RayHit {
     pub distance: f64,
     pub point: Vec3,
 }
 
+#[cfg(test)]
 pub fn entity_push(contact: EntityContact) -> Option<PushImpulse> {
     if !contact.first_pushable || !contact.second_pushable || !contact.team_collision_allows {
         return None;
@@ -131,6 +156,7 @@ pub fn entity_push(contact: EntityContact) -> Option<PushImpulse> {
     })
 }
 
+#[cfg(test)]
 pub fn cramming_damage(
     entity_count: usize,
     max_entity_cramming: usize,
@@ -143,6 +169,7 @@ pub fn cramming_damage(
     }
 }
 
+#[cfg(test)]
 pub fn collision_callbacks(
     on_ground: bool,
     falling_distance: f32,
@@ -166,6 +193,7 @@ pub fn collision_callbacks(
     callbacks
 }
 
+#[cfg(test)]
 pub fn fluid_push(flow: Vec3, affected_by_fluids: bool, can_stand_on_fluid: bool) -> Vec3 {
     if !affected_by_fluids || can_stand_on_fluid {
         Vec3::ZERO
@@ -174,6 +202,7 @@ pub fn fluid_push(flow: Vec3, affected_by_fluids: bool, can_stand_on_fluid: bool
     }
 }
 
+#[cfg(test)]
 pub fn piston_move_delta(state: PistonAxisState, requested: f64) -> (f64, f64) {
     let accumulated = if state.game_time_matches {
         state.accumulated_delta
@@ -192,6 +221,7 @@ pub fn explosion_plan(
     interaction: ExplosionBlockInteraction,
     causes_fire: bool,
 ) -> ExplosionPlan {
+    let interaction = interaction.normalized();
     let radius = (power * 2.0).ceil() as i32;
     let distance_fraction = (sub(entity_eye, center).length() / f64::from(power * 2.0)).min(1.0);
     let impact = ((1.0 - distance_fraction) as f32 * exposure).max(0.0);
@@ -210,6 +240,7 @@ pub fn explosion_plan(
     }
 }
 
+#[cfg(test)]
 pub fn ray_intersects_aabb(from: Vec3, to: Vec3, aabb: Aabb) -> Option<RayHit> {
     let direction = sub(to, from);
     let mut t_min: f64 = 0.0;

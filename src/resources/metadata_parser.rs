@@ -74,8 +74,8 @@ fn parse_feature_flags(features_object: &str) -> Result<FeatureFlagSet, String> 
         .into_iter()
         .map(|name| Identifier::parse(&name))
         .collect::<Result<Vec<_>, _>>()?;
-    FeatureFlagRegistry::main_26_1_2()
-        .from_names(&names)
+    FeatureFlagRegistry::main_26_1_2()?
+        .resolve_names(&names)
         .map_err(|unknown| format!("unknown feature flags: {unknown:?}"))
 }
 
@@ -267,4 +267,3 @@ fn parse_u32_prefix(contents: &str) -> Option<u32> {
         .collect::<String>();
     (!digits.is_empty()).then(|| digits.parse().ok()).flatten()
 }
-

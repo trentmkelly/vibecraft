@@ -67,10 +67,9 @@ impl ChunkTaskPriorityQueue {
     }
 
     pub fn submit(&mut self, task: ChunkTaskId, chunk: ChunkPos, level: usize) {
-        let queue = self
-            .queues_per_priority
-            .get_mut(level)
-            .expect("chunk task priority level in range");
+        let Some(queue) = self.queues_per_priority.get_mut(level) else {
+            return;
+        };
         let is_new_chunk_at_level = !queue.contains_key(&chunk);
         queue.entry(chunk).or_default().push_back(task);
         if is_new_chunk_at_level {
@@ -85,7 +84,7 @@ impl ChunkTaskPriorityQueue {
         chunk: ChunkPos,
         new_priority: usize,
     ) {
-        if old_priority >= PRIORITY_LEVEL_COUNT {
+        if old_priority >= PRIORITY_LEVEL_COUNT || new_priority >= PRIORITY_LEVEL_COUNT {
             return;
         }
         let Some(tasks) = self.queues_per_priority[old_priority].remove(&chunk) else {
@@ -93,10 +92,10 @@ impl ChunkTaskPriorityQueue {
             return;
         };
         if !tasks.is_empty() {
-            let target_queue = self
-                .queues_per_priority
-                .get_mut(new_priority)
-                .expect("new chunk task priority level in range");
+            let Some(target_queue) = self.queues_per_priority.get_mut(new_priority) else {
+                self.recompute_top_priority();
+                return;
+            };
             let target_was_empty = !target_queue.contains_key(&chunk);
             target_queue.entry(chunk).or_default().extend(tasks);
             if target_was_empty {

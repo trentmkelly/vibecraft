@@ -1,10 +1,15 @@
 #![allow(dead_code)]
 
 use crate::command::{
-    execute_builtin_command, ChatCommandKind, CommandError, CommandResult, LevelBasedPermissionSet,
+    execute_builtin_command, CommandError, CommandResult, LevelBasedPermissionSet,
     ServerCommandState,
 };
-use crate::command_tree::{ArgumentParser, CommandNodeKind, CommandTree, ParseError};
+#[cfg(test)]
+use crate::command::ChatCommandKind;
+use crate::command_tree::{ArgumentParser, CommandNodeKind, CommandTree};
+#[cfg(test)]
+use crate::command_tree::ParseError;
+#[cfg(test)]
 use crate::player_access::NameAndId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -70,9 +75,11 @@ mod tests {
 
     #[test]
     fn command_parity_cases_cover_success_counts_and_feedback_keys() {
-        let mut state = ServerCommandState::default();
-        state.online_players = vec![player("Steve"), player("Alex")];
-        state.world_seed = 12_345;
+        let mut state = ServerCommandState {
+            online_players: vec![player("Steve"), player("Alex")],
+            world_seed: 12_345,
+            ..ServerCommandState::default()
+        };
         let cases = vec![
             CommandParityExpectation {
                 input: "/list",

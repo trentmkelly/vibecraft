@@ -78,26 +78,17 @@ impl Vec3 {
 }
 
 impl ClientboundAddEntityPacket {
-    pub fn new(
-        id: i32,
-        uuid: Uuid,
-        entity_type: i32,
-        position: Vec3,
-        movement: Vec3,
-        rotation: (f32, f32),
-        y_head_rot: f32,
-        data: i32,
-    ) -> Self {
+    pub fn new(input: AddEntityPacketInput) -> Self {
         Self {
-            id,
-            uuid,
-            entity_type,
-            position,
-            movement,
-            x_rot: pack_degrees(rotation.0),
-            y_rot: pack_degrees(rotation.1),
-            y_head_rot: pack_degrees(y_head_rot),
-            data,
+            id: input.id,
+            uuid: input.uuid,
+            entity_type: input.entity_type,
+            position: input.position,
+            movement: input.movement,
+            x_rot: pack_degrees(input.rotation.0),
+            y_rot: pack_degrees(input.rotation.1),
+            y_head_rot: pack_degrees(input.y_head_rot),
+            data: input.data,
         }
     }
 
@@ -411,11 +402,17 @@ impl HumanoidArmData {
     }
 }
 
-pub(super) fn write_metadata_block_pos<W: Write>(writer: &mut W, pos: BlockPosition) -> io::Result<()> {
+pub(super) fn write_metadata_block_pos<W: Write>(
+    writer: &mut W,
+    pos: BlockPosition,
+) -> io::Result<()> {
     write_block_position(writer, pos.x, pos.y, pos.z)
 }
 
-pub(super) fn write_optional_raw_payload<W: Write>(writer: &mut W, payload: Option<&[u8]>) -> io::Result<()> {
+pub(super) fn write_optional_raw_payload<W: Write>(
+    writer: &mut W,
+    payload: Option<&[u8]>,
+) -> io::Result<()> {
     match payload {
         Some(payload) => {
             write_bool(writer, true)?;

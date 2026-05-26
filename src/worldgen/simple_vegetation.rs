@@ -8,12 +8,31 @@ pub(super) struct PlacedSimpleVegetationFeature {
 
 pub(super) fn placed_simple_vegetation_feature(id: &str) -> Option<PlacedSimpleVegetationFeature> {
     let name = id.strip_prefix("minecraft:").unwrap_or(id);
-    let air_filter = PlacementModifier::BlockPredicateFilter {
+    placed_grass_patch_feature(name)
+        .or_else(|| placed_tall_grass_or_bush_feature(name))
+        .or_else(|| placed_flower_patch_feature(name))
+}
+
+fn simple_vegetation_feature(
+    configured_feature: &'static str,
+    placement: Vec<PlacementModifier>,
+) -> PlacedSimpleVegetationFeature {
+    PlacedSimpleVegetationFeature {
+        configured_feature,
+        placement,
+    }
+}
+
+fn simple_air_filter() -> PlacementModifier {
+    PlacementModifier::BlockPredicateFilter {
         predicate: BlockPredicate::MatchingBlockTag {
             tag: "minecraft:air",
         },
-    };
-    let leaf_litter_filter = PlacementModifier::BlockPredicateFilter {
+    }
+}
+
+fn leaf_litter_filter() -> PlacementModifier {
+    PlacementModifier::BlockPredicateFilter {
         predicate: BlockPredicate::AllOf {
             predicates: &[
                 BlockPredicate::MatchingBlockTag {
@@ -25,173 +44,192 @@ pub(super) fn placed_simple_vegetation_feature(id: &str) -> Option<PlacedSimpleV
                 },
             ],
         },
-    };
-    let in_square = PlacementModifier::InSquare;
-    let biome = PlacementModifier::BiomeFilter;
-    let heightmap = PlacementModifier::Heightmap {
-        heightmap: HeightmapKind::MotionBlocking,
-    };
-    let world_surface_wg = PlacementModifier::Heightmap {
-        heightmap: HeightmapKind::WorldSurfaceWg,
-    };
-    let random_offset = |xz_spread, y_spread| PlacementModifier::RandomOffset {
+    }
+}
+
+fn heightmap_modifier(heightmap: HeightmapKind) -> PlacementModifier {
+    PlacementModifier::Heightmap { heightmap }
+}
+
+fn random_offset_modifier(xz_spread: i32, y_spread: i32) -> PlacementModifier {
+    PlacementModifier::RandomOffset {
         xz_spread,
         y_spread,
-    };
-    let count = |count| PlacementModifier::Count { count };
-    let rarity = |chance| PlacementModifier::RarityFilter { chance };
-    let noise_threshold =
-        |noise_level, below_noise, above_noise| PlacementModifier::NoiseThresholdCount {
-            noise_level,
-            below_noise,
-            above_noise,
-            sampled_noise: 0.0,
-        };
+    }
+}
+
+fn count_modifier(count: i32) -> PlacementModifier {
+    PlacementModifier::Count { count }
+}
+
+fn rarity_modifier(chance: i32) -> PlacementModifier {
+    PlacementModifier::RarityFilter { chance }
+}
+
+fn noise_threshold_modifier(
+    noise_level: f64,
+    below_noise: i32,
+    above_noise: i32,
+) -> PlacementModifier {
+    PlacementModifier::NoiseThresholdCount {
+        noise_level,
+        below_noise,
+        above_noise,
+        sampled_noise: 0.0,
+    }
+}
+
+fn placed_grass_patch_feature(name: &str) -> Option<PlacedSimpleVegetationFeature> {
+    let world_surface_wg = heightmap_modifier(HeightmapKind::WorldSurfaceWg);
     let feature = match name {
-        "patch_grass_plain" => PlacedSimpleVegetationFeature {
-            configured_feature: "minecraft:grass",
-            placement: vec![
-                noise_threshold(-0.8, 5, 10),
-                in_square,
+        "patch_grass_plain" => simple_vegetation_feature(
+            "minecraft:grass",
+            vec![
+                noise_threshold_modifier(-0.8, 5, 10),
+                PlacementModifier::InSquare,
                 world_surface_wg,
-                biome,
-                count(32),
-                random_offset(7, 3),
-                air_filter,
+                PlacementModifier::BiomeFilter,
+                count_modifier(32),
+                random_offset_modifier(7, 3),
+                simple_air_filter(),
             ],
-        },
-        "patch_grass_meadow" => PlacedSimpleVegetationFeature {
-            configured_feature: "minecraft:grass",
-            placement: vec![
-                noise_threshold(-0.8, 5, 10),
-                in_square,
+        ),
+        "patch_grass_meadow" => simple_vegetation_feature(
+            "minecraft:grass",
+            vec![
+                noise_threshold_modifier(-0.8, 5, 10),
+                PlacementModifier::InSquare,
                 world_surface_wg,
-                biome,
-                count(16),
-                random_offset(7, 3),
-                air_filter,
+                PlacementModifier::BiomeFilter,
+                count_modifier(16),
+                random_offset_modifier(7, 3),
+                simple_air_filter(),
             ],
-        },
-        "patch_grass_forest" => PlacedSimpleVegetationFeature {
-            configured_feature: "minecraft:grass",
-            placement: vec![
-                count(2),
-                in_square,
+        ),
+        "patch_grass_forest" => grass_patch_with_initial_count(2, 32),
+        "patch_grass_savanna" => grass_patch_with_initial_count(20, 32),
+        "patch_grass_normal" => grass_patch_with_initial_count(5, 32),
+        "patch_grass_badlands" => simple_vegetation_feature(
+            "minecraft:grass",
+            vec![
+                PlacementModifier::InSquare,
                 world_surface_wg,
-                biome,
-                count(32),
-                random_offset(7, 3),
-                air_filter,
+                PlacementModifier::BiomeFilter,
+                count_modifier(32),
+                random_offset_modifier(7, 3),
+                simple_air_filter(),
             ],
-        },
-        "patch_leaf_litter" => PlacedSimpleVegetationFeature {
-            configured_feature: "minecraft:leaf_litter",
-            placement: vec![
-                count(2),
-                in_square,
-                PlacementModifier::Heightmap {
-                    heightmap: HeightmapKind::WorldSurface,
-                },
-                biome,
-                count(32),
-                random_offset(7, 3),
-                leaf_litter_filter,
+        ),
+        "patch_leaf_litter" => simple_vegetation_feature(
+            "minecraft:leaf_litter",
+            vec![
+                count_modifier(2),
+                PlacementModifier::InSquare,
+                heightmap_modifier(HeightmapKind::WorldSurface),
+                PlacementModifier::BiomeFilter,
+                count_modifier(32),
+                random_offset_modifier(7, 3),
+                leaf_litter_filter(),
             ],
-        },
-        "patch_grass_badlands" => PlacedSimpleVegetationFeature {
-            configured_feature: "minecraft:grass",
-            placement: vec![
-                in_square,
-                world_surface_wg,
-                biome,
-                count(32),
-                random_offset(7, 3),
-                air_filter,
-            ],
-        },
-        "patch_grass_savanna" => PlacedSimpleVegetationFeature {
-            configured_feature: "minecraft:grass",
-            placement: vec![
-                count(20),
-                in_square,
-                world_surface_wg,
-                biome,
-                count(32),
-                random_offset(7, 3),
-                air_filter,
-            ],
-        },
-        "patch_grass_normal" => PlacedSimpleVegetationFeature {
-            configured_feature: "minecraft:grass",
-            placement: vec![
-                count(5),
-                in_square,
-                world_surface_wg,
-                biome,
-                count(32),
-                random_offset(7, 3),
-                air_filter,
-            ],
-        },
-        "patch_tall_grass_2" => PlacedSimpleVegetationFeature {
-            configured_feature: "minecraft:tall_grass",
-            placement: vec![
-                noise_threshold(-0.8, 0, 7),
-                rarity(32),
-                in_square,
+        ),
+        _ => return None,
+    };
+    Some(feature)
+}
+
+fn grass_patch_with_initial_count(
+    initial_count: i32,
+    placement_count: i32,
+) -> PlacedSimpleVegetationFeature {
+    simple_vegetation_feature(
+        "minecraft:grass",
+        vec![
+            count_modifier(initial_count),
+            PlacementModifier::InSquare,
+            heightmap_modifier(HeightmapKind::WorldSurfaceWg),
+            PlacementModifier::BiomeFilter,
+            count_modifier(placement_count),
+            random_offset_modifier(7, 3),
+            simple_air_filter(),
+        ],
+    )
+}
+
+fn placed_tall_grass_or_bush_feature(name: &str) -> Option<PlacedSimpleVegetationFeature> {
+    let heightmap = heightmap_modifier(HeightmapKind::MotionBlocking);
+    let feature = match name {
+        "patch_tall_grass_2" => simple_vegetation_feature(
+            "minecraft:tall_grass",
+            vec![
+                noise_threshold_modifier(-0.8, 0, 7),
+                rarity_modifier(32),
+                PlacementModifier::InSquare,
                 heightmap,
-                biome,
-                count(96),
-                random_offset(7, 3),
-                air_filter,
+                PlacementModifier::BiomeFilter,
+                count_modifier(96),
+                random_offset_modifier(7, 3),
+                simple_air_filter(),
             ],
-        },
-        "patch_tall_grass" => PlacedSimpleVegetationFeature {
-            configured_feature: "minecraft:tall_grass",
-            placement: vec![
-                rarity(5),
-                in_square,
+        ),
+        "patch_tall_grass" => simple_vegetation_feature(
+            "minecraft:tall_grass",
+            vec![
+                rarity_modifier(5),
+                PlacementModifier::InSquare,
                 heightmap,
-                biome,
-                count(96),
-                random_offset(7, 3),
-                air_filter,
+                PlacementModifier::BiomeFilter,
+                count_modifier(96),
+                random_offset_modifier(7, 3),
+                simple_air_filter(),
             ],
-        },
-        "patch_bush" => PlacedSimpleVegetationFeature {
-            configured_feature: "minecraft:bush",
-            placement: vec![
-                rarity(4),
-                in_square,
+        ),
+        "patch_bush" => simple_vegetation_feature(
+            "minecraft:bush",
+            vec![
+                rarity_modifier(4),
+                PlacementModifier::InSquare,
                 heightmap,
-                biome,
-                count(24),
-                random_offset(5, 3),
-                air_filter,
+                PlacementModifier::BiomeFilter,
+                count_modifier(24),
+                random_offset_modifier(5, 3),
+                simple_air_filter(),
             ],
-        },
-        "flower_plains" => PlacedSimpleVegetationFeature {
-            configured_feature: "minecraft:flower_plain",
-            placement: vec![
-                noise_threshold(-0.8, 15, 4),
-                rarity(32),
-                in_square,
+        ),
+        _ => return None,
+    };
+    Some(feature)
+}
+
+fn placed_flower_patch_feature(name: &str) -> Option<PlacedSimpleVegetationFeature> {
+    let heightmap = heightmap_modifier(HeightmapKind::MotionBlocking);
+    let feature = match name {
+        "flower_plains" => simple_vegetation_feature(
+            "minecraft:flower_plain",
+            vec![
+                noise_threshold_modifier(-0.8, 15, 4),
+                rarity_modifier(32),
+                PlacementModifier::InSquare,
                 heightmap,
-                biome,
-                count(64),
-                random_offset(6, 2),
-                air_filter,
+                PlacementModifier::BiomeFilter,
+                count_modifier(64),
+                random_offset_modifier(6, 2),
+                simple_air_filter(),
             ],
-        },
-        "flower_default" => PlacedSimpleVegetationFeature {
-            configured_feature: "minecraft:flower_default",
-            placement: vec![rarity(32), in_square, heightmap, biome],
-        },
-        "forest_flowers" => PlacedSimpleVegetationFeature {
-            configured_feature: "minecraft:forest_flowers",
-            placement: vec![
-                rarity(7),
-                in_square,
+        ),
+        "flower_default" => simple_vegetation_feature(
+            "minecraft:flower_default",
+            vec![
+                rarity_modifier(32),
+                PlacementModifier::InSquare,
+                heightmap,
+                PlacementModifier::BiomeFilter,
+            ],
+        ),
+        "forest_flowers" => simple_vegetation_feature(
+            "minecraft:forest_flowers",
+            vec![
+                rarity_modifier(7),
+                PlacementModifier::InSquare,
                 heightmap,
                 PlacementModifier::CountProvider {
                     provider: IntProviderModel::Uniform {
@@ -200,21 +238,21 @@ pub(super) fn placed_simple_vegetation_feature(id: &str) -> Option<PlacedSimpleV
                     },
                     sampled_count: 0,
                 },
-                biome,
+                PlacementModifier::BiomeFilter,
             ],
-        },
-        "patch_sunflower" => PlacedSimpleVegetationFeature {
-            configured_feature: "minecraft:sunflower",
-            placement: vec![
-                rarity(3),
-                in_square,
+        ),
+        "patch_sunflower" => simple_vegetation_feature(
+            "minecraft:sunflower",
+            vec![
+                rarity_modifier(3),
+                PlacementModifier::InSquare,
                 heightmap,
-                biome,
-                count(96),
-                random_offset(7, 3),
-                air_filter,
+                PlacementModifier::BiomeFilter,
+                count_modifier(96),
+                random_offset_modifier(7, 3),
+                simple_air_filter(),
             ],
-        },
+        ),
         _ => return None,
     };
     Some(feature)
@@ -336,34 +374,62 @@ pub(super) fn simple_vegetation_phase(feature: &str) -> SimpleVegetationPhase {
     }
 }
 
+pub(super) struct SimpleVegetationDecorationInput<'a> {
+    pub chunk: &'a mut LevelChunk,
+    pub biome_source_model: &'a BiomeSourceModel,
+    pub settings: &'a NoiseGeneratorSettings,
+    pub seed: i64,
+    pub decoration_region_biome_steps: &'a [&'static [&'static [&'static str]]],
+    pub source_region_biome_steps: &'a DecorationBiomeStepsByChunk,
+    pub target_terrain_heights: &'a TreeDecorationHeights,
+    pub context_cache: &'a TreeDecorationContextCache,
+    pub phase: SimpleVegetationPhase,
+}
+
+#[derive(Default)]
+struct SimpleVegetationDecorationStats {
+    plan_ms: u128,
+    placement_ms: u128,
+    calls: usize,
+}
+
+impl SimpleVegetationDecorationStats {
+    fn print_debug_report(&self, total_started: Instant, feature_sort_ms: u128, placed: usize) {
+        if std::env::var_os("RUSTCRAFT_WORLDGEN_TREE_DEBUG").is_none() {
+            return;
+        }
+        eprintln!(
+            "[simple-vegetation-debug] total={}ms feature_sort={}ms plan={}ms placement={}ms calls={} placed={}",
+            total_started.elapsed().as_millis(),
+            feature_sort_ms,
+            self.plan_ms,
+            self.placement_ms,
+            self.calls,
+            placed
+        );
+    }
+}
+
 pub(super) fn apply_initial_simple_vegetation_decoration_to_chunk(
-    chunk: &mut LevelChunk,
-    biome_source_model: &BiomeSourceModel,
-    settings: &NoiseGeneratorSettings,
-    seed: i64,
-    decoration_region_biome_steps: &[&'static [&'static [&'static str]]],
-    source_region_biome_steps: &DecorationBiomeStepsByChunk,
-    target_terrain_heights: &TreeDecorationHeights,
-    context_cache: &TreeDecorationContextCache,
-    phase: SimpleVegetationPhase,
+    mut input: SimpleVegetationDecorationInput<'_>,
 ) -> usize {
     let total_started = Instant::now();
-    if settings.id != "minecraft:overworld" && settings.id != "minecraft:large_biomes" {
+    if input.settings.id != "minecraft:overworld" && input.settings.id != "minecraft:large_biomes" {
         return 0;
     }
-    if decoration_region_biome_steps.is_empty() {
+    if input.decoration_region_biome_steps.is_empty() {
         return 0;
     }
 
-    let Some(router) =
-        builtin_noise_router(noise_router_id_for_settings(*settings)).map(|entry| entry.router)
+    let Some(router) = builtin_noise_router(noise_router_id_for_settings(*input.settings))
+        .map(|entry| entry.router)
     else {
         return 0;
     };
-    let climate_sampler = ClimateSampler::from_noise_router(&router, seed, *settings);
-    let global_biome_steps = possible_biome_feature_steps_for_source(biome_source_model);
+    let climate_sampler = ClimateSampler::from_noise_router(&router, input.seed, *input.settings);
+    let global_biome_steps = possible_biome_feature_steps_for_source(input.biome_source_model);
     let feature_source_steps = if global_biome_steps.is_empty() {
-        decoration_region_biome_steps
+        input.decoration_region_biome_steps
     } else {
         &global_biome_steps
     };
@@ -374,11 +440,25 @@ pub(super) fn apply_initial_simple_vegetation_decoration_to_chunk(
     };
     let feature_sort_ms = feature_sort_started.elapsed().as_millis();
 
-    let target_pos = chunk.pos;
+    let mut stats = SimpleVegetationDecorationStats::default();
+    let placed = place_initial_simple_vegetation_sources(
+        &mut input,
+        &climate_sampler,
+        &features_per_step,
+        &mut stats,
+    );
+    stats.print_debug_report(total_started, feature_sort_ms, placed);
+    placed
+}
+
+fn place_initial_simple_vegetation_sources(
+    input: &mut SimpleVegetationDecorationInput<'_>,
+    climate_sampler: &ClimateSampler,
+    features_per_step: &[StepFeatureDataModel],
+    stats: &mut SimpleVegetationDecorationStats,
+) -> usize {
+    let target_pos = input.chunk.pos;
     let mut placed = 0;
-    let mut plan_ms = 0_u128;
-    let mut placement_ms = 0_u128;
-    let mut calls = 0_usize;
     for source_z in target_pos.z - 1..=target_pos.z + 1 {
         for source_x in target_pos.x - 1..=target_pos.x + 1 {
             let source_pos = ChunkPos {
@@ -386,304 +466,302 @@ pub(super) fn apply_initial_simple_vegetation_decoration_to_chunk(
                 z: source_z,
             };
             let Some(source_terrain_heights) = (if source_pos == target_pos {
-                Some(SourceTerrainHeights::Full(target_terrain_heights))
+                Some(SourceTerrainHeights::Full(input.target_terrain_heights))
             } else {
-                context_cache
+                input
+                    .context_cache
                     .cached_region_chunks
                     .get(&source_pos)
                     .map(SourceTerrainHeights::Lazy)
             }) else {
                 continue;
             };
-            let possible_steps = source_region_biome_steps
+            let possible_steps = input
+                .source_region_biome_steps
                 .get(&source_pos)
                 .cloned()
-                .unwrap_or_else(|| decoration_region_biome_steps.to_vec());
+                .unwrap_or_else(|| input.decoration_region_biome_steps.to_vec());
             if possible_steps.is_empty() {
                 continue;
             }
             let plan_started = Instant::now();
             let plan = biome_decoration_feature_plan(
-                seed,
+                input.seed,
                 source_pos.x,
                 source_pos.z,
-                settings.noise.min_y.div_euclid(16),
-                &features_per_step,
+                input.settings.noise.min_y.div_euclid(16),
+                features_per_step,
                 &possible_steps,
             );
-            plan_ms += plan_started.elapsed().as_millis();
+            stats.plan_ms += plan_started.elapsed().as_millis();
             for call in plan.feature_calls.iter().filter(|call| {
                 call.step_index == GenerationDecorationStep::VegetalDecoration as usize
                     && placed_simple_vegetation_feature(call.feature).is_some()
-                    && simple_vegetation_phase(call.feature) == phase
+                    && simple_vegetation_phase(call.feature) == input.phase
             }) {
                 let Some(feature) = placed_simple_vegetation_feature(call.feature) else {
                     continue;
                 };
-                calls += 1;
+                stats.calls += 1;
                 let mut random = RandomSourceKind::new(call.seed, RandomAlgorithm::Xoroshiro);
                 let placement_started = Instant::now();
                 placed += place_simple_vegetation_feature_positions_depth_first(
-                    chunk,
-                    source_pos,
-                    biome_source_model,
-                    settings,
-                    &climate_sampler,
-                    call.feature,
-                    &feature,
-                    &feature.placement,
-                    BlockPos {
-                        x: source_pos.x * 16,
-                        y: settings.noise.min_y,
-                        z: source_pos.z * 16,
+                    SimpleVegetationPlacementInput {
+                        target_chunk: input.chunk,
+                        source_pos,
+                        biome_source_model: input.biome_source_model,
+                        settings: input.settings,
+                        climate_sampler,
+                        placed_feature_id: call.feature,
+                        feature: &feature,
+                        modifiers: &feature.placement,
+                        position: BlockPos {
+                            x: source_pos.x * 16,
+                            y: input.settings.noise.min_y,
+                            z: source_pos.z * 16,
+                        },
+                        source_terrain_heights,
+                        random: &mut random,
                     },
-                    source_terrain_heights,
-                    &mut random,
                 );
-                placement_ms += placement_started.elapsed().as_millis();
+                stats.placement_ms += placement_started.elapsed().as_millis();
             }
         }
-    }
-    if std::env::var_os("RUSTCRAFT_WORLDGEN_TREE_DEBUG").is_some() {
-        eprintln!(
-            "[simple-vegetation-debug] total={}ms feature_sort={}ms plan={}ms placement={}ms calls={} placed={}",
-            total_started.elapsed().as_millis(),
-            feature_sort_ms,
-            plan_ms,
-            placement_ms,
-            calls,
-            placed
-        );
     }
     placed
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn place_simple_vegetation_feature_positions_depth_first(
-    target_chunk: &mut LevelChunk,
-    source_pos: ChunkPos,
-    biome_source_model: &BiomeSourceModel,
-    settings: &NoiseGeneratorSettings,
-    climate_sampler: &ClimateSampler,
-    placed_feature_id: &str,
-    feature: &PlacedSimpleVegetationFeature,
-    modifiers: &[PlacementModifier],
-    position: BlockPos,
-    source_terrain_heights: SourceTerrainHeights<'_>,
-    random: &mut RandomSourceKind,
-) -> usize {
-    let Some((modifier, remaining_modifiers)) = modifiers.split_first() else {
-        return place_configured_simple_vegetation_in_target_chunk(
-            target_chunk,
-            settings,
-            feature.configured_feature,
-            position,
-            random,
-        );
-    };
+pub(super) struct SimpleVegetationPlacementInput<'a> {
+    pub target_chunk: &'a mut LevelChunk,
+    pub source_pos: ChunkPos,
+    pub biome_source_model: &'a BiomeSourceModel,
+    pub settings: &'a NoiseGeneratorSettings,
+    pub climate_sampler: &'a ClimateSampler,
+    pub placed_feature_id: &'a str,
+    pub feature: &'a PlacedSimpleVegetationFeature,
+    pub modifiers: &'a [PlacementModifier],
+    pub position: BlockPos,
+    pub source_terrain_heights: SourceTerrainHeights<'a>,
+    pub random: &'a mut RandomSourceKind,
+}
 
-    match *modifier {
-        PlacementModifier::Count { count } => {
-            let mut placed = 0;
-            for _ in 0..count.max(0) {
-                placed += place_simple_vegetation_feature_positions_depth_first(
-                    target_chunk,
-                    source_pos,
-                    biome_source_model,
-                    settings,
-                    climate_sampler,
-                    placed_feature_id,
-                    feature,
-                    remaining_modifiers,
-                    position,
-                    source_terrain_heights,
-                    random,
-                );
-            }
-            placed
-        }
-        PlacementModifier::CountProvider { provider, .. } => {
-            let mut placed = 0;
-            for _ in 0..sample_int_provider(provider, random).clamp(0, i32::MAX) {
-                placed += place_simple_vegetation_feature_positions_depth_first(
-                    target_chunk,
-                    source_pos,
-                    biome_source_model,
-                    settings,
-                    climate_sampler,
-                    placed_feature_id,
-                    feature,
-                    remaining_modifiers,
-                    position,
-                    source_terrain_heights,
-                    random,
-                );
-            }
-            placed
-        }
-        PlacementModifier::NoiseThresholdCount {
-            noise_level,
-            below_noise,
-            above_noise,
-            ..
-        } => {
-            let noise = vegetation_flower_noise(
-                position.x,
-                position.z,
-                seedless_noise_salt(placed_feature_id),
-                0.005,
-            );
-            let count = if noise < noise_level {
-                below_noise
-            } else {
-                above_noise
-            };
-            let mut placed = 0;
-            for _ in 0..count.max(0) {
-                placed += place_simple_vegetation_feature_positions_depth_first(
-                    target_chunk,
-                    source_pos,
-                    biome_source_model,
-                    settings,
-                    climate_sampler,
-                    placed_feature_id,
-                    feature,
-                    remaining_modifiers,
-                    position,
-                    source_terrain_heights,
-                    random,
-                );
-            }
-            placed
-        }
-        PlacementModifier::RarityFilter { chance } => {
-            if chance > 0 && feature_random_next_i32_bound(random, chance) == 0 {
-                place_simple_vegetation_feature_positions_depth_first(
-                    target_chunk,
-                    source_pos,
-                    biome_source_model,
-                    settings,
-                    climate_sampler,
-                    placed_feature_id,
-                    feature,
-                    remaining_modifiers,
-                    position,
-                    source_terrain_heights,
-                    random,
-                )
-            } else {
-                0
-            }
-        }
-        PlacementModifier::InSquare => place_simple_vegetation_feature_positions_depth_first(
-            target_chunk,
-            source_pos,
-            biome_source_model,
-            settings,
-            climate_sampler,
-            placed_feature_id,
-            feature,
-            remaining_modifiers,
-            BlockPos {
-                x: position.x + feature_random_next_i32_bound(random, 16),
-                y: position.y,
-                z: position.z + feature_random_next_i32_bound(random, 16),
-            },
-            source_terrain_heights,
-            random,
-        ),
-        PlacementModifier::Heightmap { heightmap } => {
-            let y = simple_vegetation_source_height(
-                source_pos,
-                source_terrain_heights,
-                heightmap,
-                position.x,
-                position.z,
-                settings,
-            );
-            if y <= settings.noise.min_y {
-                0
-            } else {
-                place_simple_vegetation_feature_positions_depth_first(
-                    target_chunk,
-                    source_pos,
-                    biome_source_model,
-                    settings,
-                    climate_sampler,
-                    placed_feature_id,
-                    feature,
-                    remaining_modifiers,
-                    BlockPos { y, ..position },
-                    source_terrain_heights,
-                    random,
-                )
-            }
-        }
-        PlacementModifier::RandomOffset {
-            xz_spread,
-            y_spread,
-        } => place_simple_vegetation_feature_positions_depth_first(
-            target_chunk,
-            source_pos,
-            biome_source_model,
-            settings,
-            climate_sampler,
-            placed_feature_id,
-            feature,
-            remaining_modifiers,
-            BlockPos {
-                x: position.x + sample_triangle_int(random, xz_spread),
-                y: position.y + sample_triangle_int(random, y_spread),
-                z: position.z + sample_triangle_int(random, xz_spread),
-            },
-            source_terrain_heights,
-            random,
-        ),
-        PlacementModifier::BlockPredicateFilter { predicate } => {
-            if block_predicate_test_in_chunk(target_chunk, settings, predicate, position) {
-                place_simple_vegetation_feature_positions_depth_first(
-                    target_chunk,
-                    source_pos,
-                    biome_source_model,
-                    settings,
-                    climate_sampler,
-                    placed_feature_id,
-                    feature,
-                    remaining_modifiers,
-                    position,
-                    source_terrain_heights,
-                    random,
-                )
-            } else {
-                0
-            }
-        }
-        PlacementModifier::BiomeFilter => {
-            if biome_allows_feature_at(
-                biome_source_model,
-                settings,
-                climate_sampler,
+pub(super) fn place_simple_vegetation_feature_positions_depth_first(
+    input: SimpleVegetationPlacementInput<'_>,
+) -> usize {
+    let mut walker = SimpleVegetationPlacementWalker {
+        target_chunk: input.target_chunk,
+        source_pos: input.source_pos,
+        biome_source_model: input.biome_source_model,
+        settings: input.settings,
+        climate_sampler: input.climate_sampler,
+        placed_feature_id: input.placed_feature_id,
+        feature: input.feature,
+        source_terrain_heights: input.source_terrain_heights,
+        random: input.random,
+    };
+    walker.place(input.modifiers, input.position)
+}
+
+struct SimpleVegetationPlacementWalker<'a> {
+    target_chunk: &'a mut LevelChunk,
+    source_pos: ChunkPos,
+    biome_source_model: &'a BiomeSourceModel,
+    settings: &'a NoiseGeneratorSettings,
+    climate_sampler: &'a ClimateSampler,
+    placed_feature_id: &'a str,
+    feature: &'a PlacedSimpleVegetationFeature,
+    source_terrain_heights: SourceTerrainHeights<'a>,
+    random: &'a mut RandomSourceKind,
+}
+
+impl SimpleVegetationPlacementWalker<'_> {
+    fn place(&mut self, modifiers: &[PlacementModifier], position: BlockPos) -> usize {
+        let Some((modifier, remaining_modifiers)) = modifiers.split_first() else {
+            return place_configured_simple_vegetation_in_target_chunk(
+                self.target_chunk,
+                self.settings,
+                self.feature.configured_feature,
                 position,
-                placed_feature_id,
-            ) {
-                place_simple_vegetation_feature_positions_depth_first(
-                    target_chunk,
-                    source_pos,
-                    biome_source_model,
-                    settings,
-                    climate_sampler,
-                    placed_feature_id,
-                    feature,
-                    remaining_modifiers,
-                    position,
-                    source_terrain_heights,
-                    random,
-                )
-            } else {
-                0
+                self.random,
+            );
+        };
+
+        match *modifier {
+            PlacementModifier::Count { count } => {
+                self.place_repeated(count.max(0), remaining_modifiers, position)
             }
+            PlacementModifier::CountProvider { provider, .. } => {
+                let count = sample_int_provider(provider, self.random).clamp(0, i32::MAX);
+                self.place_repeated(count, remaining_modifiers, position)
+            }
+            PlacementModifier::NoiseThresholdCount {
+                noise_level,
+                below_noise,
+                above_noise,
+                ..
+            } => self.place_noise_threshold_count(
+                noise_level,
+                below_noise,
+                above_noise,
+                remaining_modifiers,
+                position,
+            ),
+            PlacementModifier::RarityFilter { chance } => {
+                self.place_rarity_filter(chance, remaining_modifiers, position)
+            }
+            PlacementModifier::InSquare => self.place_in_square(remaining_modifiers, position),
+            PlacementModifier::Heightmap { heightmap } => {
+                self.place_heightmap(heightmap, remaining_modifiers, position)
+            }
+            PlacementModifier::RandomOffset {
+                xz_spread,
+                y_spread,
+            } => self.place_random_offset(xz_spread, y_spread, remaining_modifiers, position),
+            PlacementModifier::BlockPredicateFilter { predicate } => {
+                self.place_block_predicate(predicate, remaining_modifiers, position)
+            }
+            PlacementModifier::BiomeFilter => {
+                self.place_biome_filter(remaining_modifiers, position)
+            }
+            _ => 0,
         }
-        _ => 0,
+    }
+
+    fn place_repeated(
+        &mut self,
+        count: i32,
+        remaining_modifiers: &[PlacementModifier],
+        position: BlockPos,
+    ) -> usize {
+        let mut placed = 0;
+        for _ in 0..count {
+            placed += self.place(remaining_modifiers, position);
+        }
+        placed
+    }
+
+    fn place_noise_threshold_count(
+        &mut self,
+        noise_level: f64,
+        below_noise: i32,
+        above_noise: i32,
+        remaining_modifiers: &[PlacementModifier],
+        position: BlockPos,
+    ) -> usize {
+        let noise = vegetation_flower_noise(
+            position.x,
+            position.z,
+            seedless_noise_salt(self.placed_feature_id),
+            0.005,
+        );
+        let count = if noise < noise_level {
+            below_noise
+        } else {
+            above_noise
+        };
+        self.place_repeated(count.max(0), remaining_modifiers, position)
+    }
+
+    fn place_rarity_filter(
+        &mut self,
+        chance: i32,
+        remaining_modifiers: &[PlacementModifier],
+        position: BlockPos,
+    ) -> usize {
+        if chance > 0 && feature_random_next_i32_bound(self.random, chance) == 0 {
+            self.place(remaining_modifiers, position)
+        } else {
+            0
+        }
+    }
+
+    fn place_in_square(
+        &mut self,
+        remaining_modifiers: &[PlacementModifier],
+        position: BlockPos,
+    ) -> usize {
+        let x_offset = feature_random_next_i32_bound(self.random, 16);
+        let z_offset = feature_random_next_i32_bound(self.random, 16);
+        self.place(
+            remaining_modifiers,
+            BlockPos {
+                x: position.x + x_offset,
+                y: position.y,
+                z: position.z + z_offset,
+            },
+        )
+    }
+
+    fn place_heightmap(
+        &mut self,
+        heightmap: HeightmapKind,
+        remaining_modifiers: &[PlacementModifier],
+        position: BlockPos,
+    ) -> usize {
+        let y = simple_vegetation_source_height(
+            self.source_pos,
+            self.source_terrain_heights,
+            heightmap,
+            position.x,
+            position.z,
+            self.settings,
+        );
+        if y <= self.settings.noise.min_y {
+            0
+        } else {
+            self.place(remaining_modifiers, BlockPos { y, ..position })
+        }
+    }
+
+    fn place_random_offset(
+        &mut self,
+        xz_spread: i32,
+        y_spread: i32,
+        remaining_modifiers: &[PlacementModifier],
+        position: BlockPos,
+    ) -> usize {
+        let x_offset = sample_triangle_int(self.random, xz_spread);
+        let y_offset = sample_triangle_int(self.random, y_spread);
+        let z_offset = sample_triangle_int(self.random, xz_spread);
+        self.place(
+            remaining_modifiers,
+            BlockPos {
+                x: position.x + x_offset,
+                y: position.y + y_offset,
+                z: position.z + z_offset,
+            },
+        )
+    }
+
+    fn place_block_predicate(
+        &mut self,
+        predicate: BlockPredicate,
+        remaining_modifiers: &[PlacementModifier],
+        position: BlockPos,
+    ) -> usize {
+        if block_predicate_test_in_chunk(self.target_chunk, self.settings, predicate, position) {
+            self.place(remaining_modifiers, position)
+        } else {
+            0
+        }
+    }
+
+    fn place_biome_filter(
+        &mut self,
+        remaining_modifiers: &[PlacementModifier],
+        position: BlockPos,
+    ) -> usize {
+        if biome_allows_feature_at(
+            self.biome_source_model,
+            self.settings,
+            self.climate_sampler,
+            position,
+            self.placed_feature_id,
+        ) {
+            self.place(remaining_modifiers, position)
+        } else {
+            0
+        }
     }
 }
 

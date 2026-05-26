@@ -157,7 +157,7 @@ pub fn plan_movement(ctx: MovementContext) -> MovementPlan {
     };
 
     let jump_velocity = if ctx.input.jumping {
-        jump_velocity(ctx.medium, ctx.contact, climbing, ctx.on_ground)
+        jump_velocity(ctx.medium, climbing, ctx.on_ground)
     } else {
         None
     };
@@ -249,20 +249,14 @@ fn is_climbable(contact: ContactBlock) -> bool {
     )
 }
 
-fn jump_velocity(
-    medium: Medium,
-    contact: ContactBlock,
-    climbing: bool,
-    on_ground: bool,
-) -> Option<f64> {
-    if matches!(medium, Medium::Water | Medium::BubbleColumn { .. }) {
-        Some(0.04)
-    } else if medium == Medium::Lava {
+fn jump_velocity(medium: Medium, climbing: bool, on_ground: bool) -> Option<f64> {
+    if matches!(
+        medium,
+        Medium::Water | Medium::BubbleColumn { .. } | Medium::Lava
+    ) {
         Some(0.04)
     } else if climbing {
         Some(0.2)
-    } else if contact == ContactBlock::Slime && on_ground {
-        Some(0.42)
     } else if on_ground {
         Some(0.42)
     } else {

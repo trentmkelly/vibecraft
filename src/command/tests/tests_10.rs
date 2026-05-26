@@ -829,7 +829,7 @@ fn attribute_command_gets_sets_resets_and_computes_modifier_values() {
             modifiers: vec![AttributeModifierState {
                 id: "minecraft:bonus".to_string(),
                 value: 2.0,
-                operation: AttributeOperation::AddValue,
+                operation: AttributeOperation::Value,
             }],
         }],
         ..ServerCommandState::default()
@@ -889,7 +889,7 @@ fn attribute_command_adds_removes_and_reports_modifier_failures() {
         .unwrap();
     assert_eq!(
         state.entity_attributes[0].modifiers[0].operation,
-        AttributeOperation::AddMultipliedTotal
+        AttributeOperation::MultipliedTotal
     );
     assert_eq!(
         execute_builtin_command(

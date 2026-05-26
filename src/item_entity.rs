@@ -5,7 +5,6 @@
 /// A `DroppedItem` is created whenever a block drop is spawned (via `Block.popResource`)
 /// or a player Q-drops an item.  All live item entities are stored in the world-level
 /// `WorldItemEntities` store so they persist across player sessions.
-
 /// Ticks before an item entity despawns.  Java: `ItemEntity.LIFETIME = 6000`.
 pub const ITEM_LIFETIME: i32 = 6000;
 
@@ -57,7 +56,7 @@ impl DroppedItem {
     ///
     /// Java: `ItemEntity.playerTouch` — `pickupDelay == 0 && (target == null || target.equals(player.getUUID()))`
     pub fn can_be_picked_up_by(&self, player_uuid: &str) -> bool {
-        self.pickup_delay == 0 && self.target_uuid.as_ref().map_or(true, |t| t == player_uuid)
+        self.pickup_delay == 0 && self.target_uuid.as_ref().is_none_or(|t| t == player_uuid)
     }
 }
 

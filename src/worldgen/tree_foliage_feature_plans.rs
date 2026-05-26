@@ -2,18 +2,18 @@ use super::*;
 
 pub(super) fn place_simple_leaves_row(
     blocks: &mut Vec<TreePlacementBlock>,
-    origin: BlockPos,
-    radius: i32,
-    y_offset: i32,
-    state: &'static str,
-    blob_shape: bool,
-    rand_a: i32,
-    rand_b: i32,
+    input: SimpleLeavesRowInput,
 ) {
-    for dx in -radius..=radius {
-        for dz in -radius..=radius {
+    for dx in -input.radius..=input.radius {
+        for dz in -input.radius..=input.radius {
             if simple_leaves_row_should_skip_corner(
-                dx, y_offset, dz, radius, blob_shape, rand_a, rand_b,
+                dx,
+                input.y_offset,
+                dz,
+                input.radius,
+                input.blob_shape,
+                input.rand_a,
+                input.rand_b,
             ) {
                 continue;
             }
@@ -21,16 +21,26 @@ pub(super) fn place_simple_leaves_row(
                 blocks,
                 TreePlacementBlock {
                     pos: BlockPos {
-                        x: origin.x + dx,
-                        y: origin.y + y_offset,
-                        z: origin.z + dz,
+                        x: input.origin.x + dx,
+                        y: input.origin.y + input.y_offset,
+                        z: input.origin.z + dz,
                     },
-                    state,
+                    state: input.state,
                     kind: TreePlacementBlockKind::Leaves,
                 },
             );
         }
     }
+}
+
+pub(super) struct SimpleLeavesRowInput {
+    pub(super) origin: BlockPos,
+    pub(super) radius: i32,
+    pub(super) y_offset: i32,
+    pub(super) state: &'static str,
+    pub(super) blob_shape: bool,
+    pub(super) rand_a: i32,
+    pub(super) rand_b: i32,
 }
 
 pub(super) fn place_live_blob_leaves_row(
@@ -188,29 +198,24 @@ pub(super) fn place_fancy_leaves_row(
 
 pub(super) fn place_cherry_leaves_row(
     blocks: &mut Vec<TreePlacementBlock>,
-    origin: BlockPos,
-    radius: i32,
-    y_offset: i32,
-    state: &'static str,
-    wide_bottom_layer_hole_chance: f32,
-    corner_hole_chance: f32,
-    rand_a: i32,
-    rand_b: i32,
+    input: CherryLeavesRowInput,
 ) {
-    if radius < 0 {
+    if input.radius < 0 {
         return;
     }
-    for dx in -radius..=radius {
-        for dz in -radius..=radius {
+    for dx in -input.radius..=input.radius {
+        for dz in -input.radius..=input.radius {
             if cherry_leaves_row_should_skip(
-                dx.abs(),
-                y_offset,
-                dz.abs(),
-                radius,
-                wide_bottom_layer_hole_chance,
-                corner_hole_chance,
-                rand_a,
-                rand_b,
+                CherryLeavesSkipInput {
+                    dx: dx.abs(),
+                    y_offset: input.y_offset,
+                    dz: dz.abs(),
+                    radius: input.radius,
+                    wide_bottom_layer_hole_chance: input.wide_bottom_layer_hole_chance,
+                    corner_hole_chance: input.corner_hole_chance,
+                    rand_a: input.rand_a,
+                    rand_b: input.rand_b,
+                },
             ) {
                 continue;
             }
@@ -218,16 +223,27 @@ pub(super) fn place_cherry_leaves_row(
                 blocks,
                 TreePlacementBlock {
                     pos: BlockPos {
-                        x: origin.x + dx,
-                        y: origin.y + y_offset,
-                        z: origin.z + dz,
+                        x: input.origin.x + dx,
+                        y: input.origin.y + input.y_offset,
+                        z: input.origin.z + dz,
                     },
-                    state,
+                    state: input.state,
                     kind: TreePlacementBlockKind::Leaves,
                 },
             );
         }
     }
+}
+
+pub(super) struct CherryLeavesRowInput {
+    pub(super) origin: BlockPos,
+    pub(super) radius: i32,
+    pub(super) y_offset: i32,
+    pub(super) state: &'static str,
+    pub(super) wide_bottom_layer_hole_chance: f32,
+    pub(super) corner_hole_chance: f32,
+    pub(super) rand_a: i32,
+    pub(super) rand_b: i32,
 }
 
 pub(super) fn place_mega_pine_leaves_row(
@@ -486,32 +502,52 @@ pub(super) fn fancy_leaves_row_should_skip(dx: i32, dz: i32, radius: i32) -> boo
     dx * dx + dz * dz > (radius * radius) as f32
 }
 
-pub(super) fn cherry_leaves_row_should_skip(
-    dx: i32,
-    y_offset: i32,
-    dz: i32,
-    radius: i32,
-    wide_bottom_layer_hole_chance: f32,
-    corner_hole_chance: f32,
-    rand_a: i32,
-    rand_b: i32,
-) -> bool {
-    if y_offset == -1
-        && (dx == radius || dz == radius)
-        && deterministic_chance_roll(dx, y_offset, dz, rand_a, rand_b)
-            < wide_bottom_layer_hole_chance
+pub(super) struct CherryLeavesSkipInput {
+    pub(super) dx: i32,
+    pub(super) y_offset: i32,
+    pub(super) dz: i32,
+    pub(super) radius: i32,
+    pub(super) wide_bottom_layer_hole_chance: f32,
+    pub(super) corner_hole_chance: f32,
+    pub(super) rand_a: i32,
+    pub(super) rand_b: i32,
+}
+
+pub(super) fn cherry_leaves_row_should_skip(input: CherryLeavesSkipInput) -> bool {
+    if input.y_offset == -1
+        && (input.dx == input.radius || input.dz == input.radius)
+        && deterministic_chance_roll(
+            input.dx,
+            input.y_offset,
+            input.dz,
+            input.rand_a,
+            input.rand_b,
+        ) < input.wide_bottom_layer_hole_chance
     {
         return true;
     }
 
-    let corner = dx == radius && dz == radius;
-    let wide_layer = radius > 2;
+    let corner = input.dx == input.radius && input.dz == input.radius;
+    let wide_layer = input.radius > 2;
     if wide_layer {
         corner
-            || (dx + dz > radius * 2 - 2
-                && deterministic_chance_roll(dx, y_offset, dz, rand_b, rand_a) < corner_hole_chance)
+            || (input.dx + input.dz > input.radius * 2 - 2
+                && deterministic_chance_roll(
+                    input.dx,
+                    input.y_offset,
+                    input.dz,
+                    input.rand_b,
+                    input.rand_a,
+                ) < input.corner_hole_chance)
     } else {
-        corner && deterministic_chance_roll(dx, y_offset, dz, rand_b, rand_a) < corner_hole_chance
+        corner
+            && deterministic_chance_roll(
+                input.dx,
+                input.y_offset,
+                input.dz,
+                input.rand_b,
+                input.rand_a,
+            ) < input.corner_hole_chance
     }
 }
 

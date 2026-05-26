@@ -747,6 +747,13 @@ mod tests {
         let other = "00000000-0000-0000-0000-000000000002";
         let mut wolf = WolfRuntimeState::new();
 
+        assert_wolf_taming_matches_java(&mut wolf, owner);
+        assert_wolf_collar_dyeing_matches_java(&mut wolf, owner, other);
+        assert_wolf_armor_handling_matches_java(&mut wolf, owner, other);
+        assert_wolf_owner_targets_match_java(&mut wolf, owner, other);
+    }
+
+    fn assert_wolf_taming_matches_java(wolf: &mut WolfRuntimeState, owner: &'static str) {
         assert_eq!(wolf.collar_color, DyeColor::Red);
         assert_eq!(
             wolf.try_tame_with_bone(owner, WolfTameRoll::Failure),
@@ -761,7 +768,13 @@ mod tests {
         assert_eq!(wolf.max_health, 40);
         assert_eq!(wolf.health, 40);
         assert!(wolf.ordered_to_sit);
+    }
 
+    fn assert_wolf_collar_dyeing_matches_java(
+        wolf: &mut WolfRuntimeState,
+        owner: &'static str,
+        other: &'static str,
+    ) {
         assert_eq!(
             wolf.dye_collar(other, DyeColor::Blue),
             WolfInteractionOutcome::NoAction
@@ -775,7 +788,13 @@ mod tests {
             wolf.dye_collar(owner, DyeColor::Blue),
             WolfInteractionOutcome::NoAction
         );
+    }
 
+    fn assert_wolf_armor_handling_matches_java(
+        wolf: &mut WolfRuntimeState,
+        owner: &'static str,
+        other: &'static str,
+    ) {
         assert_eq!(
             wolf.equip_body_armor(other, "minecraft:wolf_armor", 64),
             WolfInteractionOutcome::NoAction
@@ -799,7 +818,13 @@ mod tests {
             WolfInteractionOutcome::RepairedArmor
         );
         assert_eq!(wolf.body_armor.as_ref().unwrap().damage, 8);
+    }
 
+    fn assert_wolf_owner_targets_match_java(
+        wolf: &mut WolfRuntimeState,
+        owner: &'static str,
+        other: &'static str,
+    ) {
         assert_eq!(
             wolf.toggle_sitting(owner),
             WolfInteractionOutcome::ToggledSitting

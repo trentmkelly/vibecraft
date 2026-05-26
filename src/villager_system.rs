@@ -4,8 +4,8 @@ use crate::ai_system::{GossipContainer, GossipType, PoiTicket};
 use crate::item_stack::ItemStack;
 use crate::player_inventory::{ItemCost, MerchantOffer};
 use crate::spawning::WanderingTraderData;
-
-pub use crate::villager_trade_resources::{
+#[cfg(test)]
+use crate::villager_trade_resources::{
     load_trade_set_resource, load_villager_trade_resource, parse_trade_set_resource,
     parse_villager_trade_resource, HolderSetResource, NumberProviderResource,
 };

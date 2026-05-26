@@ -1,3 +1,4 @@
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlayerGameMode {
     Survival,
@@ -6,6 +7,7 @@ pub enum PlayerGameMode {
     Spectator,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PlayerAbilitiesState {
     pub invulnerable: bool,
@@ -17,6 +19,7 @@ pub struct PlayerAbilitiesState {
     pub walking_speed: f32,
 }
 
+#[cfg(test)]
 impl PlayerAbilitiesState {
     pub fn for_game_mode(mode: PlayerGameMode) -> Self {
         match mode {
@@ -62,8 +65,6 @@ impl PlayerAbilitiesState {
 
 /// Exhaustion cost per metre sprinted on ground (ServerPlayer.checkMovementStatistics).
 pub const SPRINT_EXHAUSTION_PER_METER: f32 = 0.1;
-/// Exhaustion cost per metre walked/crouched on ground (0.0F in vanilla — explicit no-op).
-pub const WALK_EXHAUSTION_PER_METER: f32 = 0.0;
 /// Exhaustion cost per metre swum, walked under/on water (ServerPlayer.checkMovementStatistics).
 pub const SWIM_EXHAUSTION_PER_METER: f32 = 0.01;
 /// Exhaustion cost for a non-sprint jump (ServerPlayer.jumpFromGround).
@@ -165,6 +166,7 @@ impl FoodState {
         self.exhaustion = (self.exhaustion + amount.max(0.0)).min(40.0);
     }
 
+    #[cfg(test)]
     pub fn eat(&mut self, nutrition: i32, saturation_modifier: f32) {
         self.food_level = (self.food_level + nutrition).min(20);
         self.saturation = (self.saturation + nutrition as f32 * saturation_modifier * 2.0)
@@ -233,6 +235,7 @@ impl FoodState {
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ExperienceState {
     pub level: i32,
@@ -240,6 +243,7 @@ pub struct ExperienceState {
     pub total: i32,
 }
 
+#[cfg(test)]
 impl Default for ExperienceState {
     fn default() -> Self {
         Self {
@@ -252,6 +256,7 @@ impl Default for ExperienceState {
 
 /// XP required to advance from `level` to `level + 1`.
 /// Matches Java `Player.getXpNeededForNextLevel()`.
+#[cfg(test)]
 pub fn xp_needed_for_next_level(level: i32) -> i32 {
     if level >= 30 {
         112 + (level - 30) * 9
@@ -264,6 +269,7 @@ pub fn xp_needed_for_next_level(level: i32) -> i32 {
 
 /// XP dropped as orbs when a player dies.
 /// Matches Java `Player.getBaseExperienceReward()`: 0 if keepInventory or spectator.
+#[cfg(test)]
 pub fn player_xp_reward_on_death(level: i32, keep_inventory: bool, is_spectator: bool) -> i32 {
     if !keep_inventory && !is_spectator {
         (level * 7).min(100)
@@ -272,6 +278,7 @@ pub fn player_xp_reward_on_death(level: i32, keep_inventory: bool, is_spectator:
     }
 }
 
+#[cfg(test)]
 impl ExperienceState {
     pub fn set_level(&mut self, level: i32) {
         self.level = level.max(0);
@@ -312,6 +319,7 @@ impl ExperienceState {
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RespawnConfig {
     pub dimension: &'static str,
@@ -321,6 +329,7 @@ pub struct RespawnConfig {
     pub forced: bool,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlayerEntityState {
     pub name: String,
@@ -341,6 +350,7 @@ pub struct PlayerEntityState {
     pub interaction_mode: PlayerInteractionMode,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlayerInteractionMode {
     Normal,
@@ -348,6 +358,7 @@ pub enum PlayerInteractionMode {
     Spectator,
 }
 
+#[cfg(test)]
 impl PlayerEntityState {
     pub fn new(name: impl Into<String>, mode: PlayerGameMode, permission_level: u8) -> Self {
         Self {
@@ -503,6 +514,7 @@ impl PlayerEntityState {
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlayerSyncPlan {
     pub abilities: PlayerAbilitiesState,
@@ -519,6 +531,7 @@ pub struct PlayerSyncPlan {
     pub permission_level: u8,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq)]
 pub struct SavedPlayerEntity {
     pub game_mode: PlayerGameMode,
@@ -531,6 +544,7 @@ pub struct SavedPlayerEntity {
     pub respawn: Option<RespawnConfig>,
 }
 
+#[cfg(test)]
 fn interaction_mode_for(mode: PlayerGameMode) -> PlayerInteractionMode {
     match mode {
         PlayerGameMode::Survival | PlayerGameMode::Creative => PlayerInteractionMode::Normal,

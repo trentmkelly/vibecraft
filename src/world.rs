@@ -701,64 +701,73 @@ mod tests {
 
     #[test]
     fn overworld_dimension_type_matches_26_1_2_data() {
-        assert!(OVERWORLD.validate().is_ok());
-        assert!(OVERWORLD.has_skylight);
-        assert!(!OVERWORLD.has_ceiling);
-        assert_eq!(OVERWORLD.min_y, -64);
-        assert_eq!(OVERWORLD.height, 384);
-        assert_eq!(OVERWORLD.logical_height, 384);
+        let Some(overworld) = builtin_dimension_type("overworld") else {
+            panic!("overworld dimension type must be registered");
+        };
+        assert!(overworld.validate().is_ok());
+        assert!(overworld.has_skylight);
+        assert!(!overworld.has_ceiling);
+        assert_eq!(overworld.min_y, -64);
+        assert_eq!(overworld.height, 384);
+        assert_eq!(overworld.logical_height, 384);
         assert_eq!(OVERWORLD_GENERATION_HEIGHT, 384);
         assert_eq!(OVERWORLD_CLOUD_HEIGHT, 192.33);
         assert_eq!(
-            OVERWORLD.monster_spawn_light_level,
+            overworld.monster_spawn_light_level,
             MonsterSpawnLightLevel::Uniform {
                 min_inclusive: 0,
                 max_inclusive: 7
             }
         );
-        assert_eq!(OVERWORLD.bed_rule.can_set_spawn, BedSpawnRule::Always);
-        assert_eq!(OVERWORLD.bed_rule.can_sleep, SleepRule::WhenDark);
-        assert!(!OVERWORLD.respawn_anchor_works);
-        assert!(OVERWORLD.can_start_raid);
+        assert_eq!(overworld.bed_rule.can_set_spawn, BedSpawnRule::Always);
+        assert_eq!(overworld.bed_rule.can_sleep, SleepRule::WhenDark);
+        assert!(!overworld.respawn_anchor_works);
+        assert!(overworld.can_start_raid);
     }
 
     #[test]
     fn nether_dimension_type_matches_26_1_2_data() {
-        assert!(NETHER.validate().is_ok());
-        assert!(NETHER.has_fixed_time);
-        assert!(!NETHER.has_skylight);
-        assert!(NETHER.has_ceiling);
-        assert_eq!(NETHER.coordinate_scale, 8.0);
-        assert_eq!(NETHER.logical_height, 128);
+        let Some(nether) = builtin_dimension_type("the_nether") else {
+            panic!("nether dimension type must be registered");
+        };
+        assert!(nether.validate().is_ok());
+        assert!(nether.has_fixed_time);
+        assert!(!nether.has_skylight);
+        assert!(nether.has_ceiling);
+        assert_eq!(nether.coordinate_scale, 8.0);
+        assert_eq!(nether.logical_height, 128);
         assert_eq!(NETHER_GENERATION_HEIGHT, 128);
         assert_eq!(
-            NETHER.monster_spawn_light_level,
+            nether.monster_spawn_light_level,
             MonsterSpawnLightLevel::Constant(7)
         );
-        assert_eq!(NETHER.monster_spawn_block_light_limit, 15);
-        assert_eq!(NETHER.skybox, Skybox::None);
-        assert_eq!(NETHER.cardinal_light, CardinalLight::Nether);
-        assert!(NETHER.bed_rule.explodes);
-        assert!(NETHER.respawn_anchor_works);
-        assert!(!NETHER.can_start_raid);
+        assert_eq!(nether.monster_spawn_block_light_limit, 15);
+        assert_eq!(nether.skybox, Skybox::None);
+        assert_eq!(nether.cardinal_light, CardinalLight::Nether);
+        assert!(nether.bed_rule.explodes);
+        assert!(nether.respawn_anchor_works);
+        assert!(!nether.can_start_raid);
     }
 
     #[test]
     fn end_dimension_type_matches_26_1_2_data() {
-        assert!(END.validate().is_ok());
-        assert!(END.has_fixed_time);
-        assert!(END.has_skylight);
-        assert!(END.has_ender_dragon_fight);
-        assert_eq!(END.logical_height, 256);
+        let Some(end) = builtin_dimension_type("the_end") else {
+            panic!("end dimension type must be registered");
+        };
+        assert!(end.validate().is_ok());
+        assert!(end.has_fixed_time);
+        assert!(end.has_skylight);
+        assert!(end.has_ender_dragon_fight);
+        assert_eq!(end.logical_height, 256);
         assert_eq!(END_GENERATION_HEIGHT, 128);
         assert_eq!(END_ISLAND_BASE_Y, 63);
         assert_eq!(
-            END.monster_spawn_light_level,
+            end.monster_spawn_light_level,
             MonsterSpawnLightLevel::Constant(15)
         );
-        assert_eq!(END.skybox, Skybox::End);
-        assert!(END.bed_rule.explodes);
-        assert!(!END.respawn_anchor_works);
+        assert_eq!(end.skybox, Skybox::End);
+        assert!(end.bed_rule.explodes);
+        assert!(!end.respawn_anchor_works);
     }
 
     #[test]
@@ -781,8 +790,11 @@ mod tests {
             builtin_dimension_type("overworld_caves"),
             Some(OVERWORLD_CAVES)
         );
-        assert!(OVERWORLD_CAVES.has_ceiling);
-        assert_eq!(OVERWORLD_CAVES.min_y, OVERWORLD.min_y);
+        let Some(overworld_caves) = builtin_dimension_type("overworld_caves") else {
+            panic!("overworld_caves dimension type must be registered");
+        };
+        assert!(overworld_caves.has_ceiling);
+        assert_eq!(overworld_caves.min_y, OVERWORLD.min_y);
     }
 
     #[test]

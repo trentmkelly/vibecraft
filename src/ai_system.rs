@@ -1,5 +1,8 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
+#[cfg(test)]
+use std::collections::BTreeSet;
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AiPackageDef {
     pub id: &'static str,
@@ -7,6 +10,7 @@ pub struct AiPackageDef {
     pub java_files: usize,
 }
 
+#[cfg(test)]
 pub const AI_PACKAGES: &[AiPackageDef] = &[
     AiPackageDef {
         id: "attributes",
@@ -75,6 +79,7 @@ pub const AI_PACKAGES: &[AiPackageDef] = &[
     },
 ];
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Activity {
     Core,
@@ -89,8 +94,11 @@ pub enum Activity {
     Hide,
 }
 
+#[cfg(test)]
 pub const VILLAGER_SCHEDULE_PERIOD_TICKS: i32 = 24000;
+#[cfg(test)]
 pub const VILLAGER_SCHEDULE_UPDATE_INTERVAL_TICKS: i64 = 20;
+#[cfg(test)]
 pub const ADULT_VILLAGER_SCHEDULE_ENTRIES: &[(i32, Activity)] = &[
     (10, Activity::Idle),
     (2000, Activity::Work),
@@ -98,6 +106,7 @@ pub const ADULT_VILLAGER_SCHEDULE_ENTRIES: &[(i32, Activity)] = &[
     (11000, Activity::Idle),
     (12000, Activity::Rest),
 ];
+#[cfg(test)]
 pub const BABY_VILLAGER_SCHEDULE_ENTRIES: &[(i32, Activity)] = &[
     (10, Activity::Idle),
     (3000, Activity::Play),
@@ -106,6 +115,7 @@ pub const BABY_VILLAGER_SCHEDULE_ENTRIES: &[(i32, Activity)] = &[
     (12000, Activity::Rest),
 ];
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MemoryStatus {
     Registered,
@@ -113,12 +123,14 @@ pub enum MemoryStatus {
     ValueAbsent,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MemoryValue {
     pub value: String,
     pub ttl: Option<i64>,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BrainState {
     memories: BTreeMap<&'static str, MemoryValue>,
@@ -127,6 +139,7 @@ pub struct BrainState {
     active_activity: Activity,
 }
 
+#[cfg(test)]
 impl BrainState {
     pub fn new(default_activity: Activity) -> Self {
         let mut activities = BTreeSet::new();
@@ -196,11 +209,13 @@ impl BrainState {
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Schedule {
     entries: Vec<(i32, Activity)>,
 }
 
+#[cfg(test)]
 impl Schedule {
     pub fn new(mut entries: Vec<(i32, Activity)>) -> Self {
         entries.sort_by_key(|(time, _)| *time);
@@ -218,14 +233,17 @@ impl Schedule {
     }
 }
 
+#[cfg(test)]
 pub fn adult_villager_schedule() -> Schedule {
     Schedule::new(ADULT_VILLAGER_SCHEDULE_ENTRIES.to_vec())
 }
 
+#[cfg(test)]
 pub fn baby_villager_schedule() -> Schedule {
     Schedule::new(BABY_VILLAGER_SCHEDULE_ENTRIES.to_vec())
 }
 
+#[cfg(test)]
 pub fn villager_schedule_for_age(is_baby: bool) -> Schedule {
     if is_baby {
         baby_villager_schedule()
@@ -234,10 +252,12 @@ pub fn villager_schedule_for_age(is_baby: bool) -> Schedule {
     }
 }
 
+#[cfg(test)]
 pub fn villager_schedule_update_due(game_time: i64, last_schedule_update: i64) -> bool {
     game_time - last_schedule_update > VILLAGER_SCHEDULE_UPDATE_INTERVAL_TICKS
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum GoalControl {
     Move,
@@ -246,6 +266,7 @@ pub enum GoalControl {
     Target,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GoalDef {
     pub name: &'static str,
@@ -254,11 +275,13 @@ pub struct GoalDef {
     pub can_use: bool,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GoalSelector {
     goals: Vec<GoalDef>,
 }
 
+#[cfg(test)]
 impl GoalSelector {
     pub fn new(goals: Vec<GoalDef>) -> Self {
         Self { goals }
@@ -279,6 +302,7 @@ impl GoalSelector {
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SensorDef {
     pub id: &'static str,
@@ -286,12 +310,14 @@ pub struct SensorDef {
     pub memories_written: &'static [&'static str],
 }
 
+#[cfg(test)]
 impl SensorDef {
     pub fn should_scan(&self, tick: i32) -> bool {
         self.scan_rate <= 1 || tick % self.scan_rate == 0
     }
 }
 
+#[cfg(test)]
 pub const SENSOR_TYPES: &[SensorDef] = &[
     SensorDef {
         id: "nearest_living_entities",
@@ -320,6 +346,7 @@ pub const SENSOR_TYPES: &[SensorDef] = &[
     },
 ];
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NavigationKind {
     Ground,
@@ -329,6 +356,7 @@ pub enum NavigationKind {
     WallClimber,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq)]
 pub struct PathPlan {
     pub navigation: NavigationKind,
@@ -338,6 +366,7 @@ pub struct PathPlan {
     pub reached: bool,
 }
 
+#[cfg(test)]
 impl PathPlan {
     pub fn can_path_through_water(&self) -> bool {
         matches!(
@@ -347,6 +376,7 @@ impl PathPlan {
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetingConditions {
     pub range: i32,
@@ -354,6 +384,7 @@ pub struct TargetingConditions {
     pub test_invisible: bool,
 }
 
+#[cfg(test)]
 impl TargetingConditions {
     pub fn can_target(&self, distance: i32, visible: bool, invisible: bool) -> bool {
         distance <= self.range
@@ -372,11 +403,23 @@ pub enum GossipType {
 }
 
 pub const GOSSIP_DISCARD_THRESHOLD: i32 = 2;
+#[cfg(test)]
 pub const VILLAGER_GOSSIP_INTERVAL_TICKS: i64 = 1200;
+#[cfg(test)]
 pub const VILLAGER_GOSSIP_TRANSFER_MAX_COUNT: usize = 10;
+#[cfg(test)]
 pub const VILLAGER_GOSSIP_DECAY_INTERVAL_TICKS: i64 = 24000;
 
 impl GossipType {
+    const ALL: [Self; 5] = [
+        Self::MajorPositive,
+        Self::MinorPositive,
+        Self::Trading,
+        Self::MinorNegative,
+        Self::MajorNegative,
+    ];
+
+    #[cfg(test)]
     pub fn serialized_name(self) -> &'static str {
         match self {
             Self::MajorNegative => "major_negative",
@@ -407,6 +450,7 @@ impl GossipType {
         }
     }
 
+    #[cfg(test)]
     pub fn decay_per_day(self) -> i32 {
         match self {
             Self::MajorPositive => 0,
@@ -417,6 +461,7 @@ impl GossipType {
         }
     }
 
+    #[cfg(test)]
     pub fn decay_per_transfer(self) -> i32 {
         match self {
             Self::MajorPositive => 20,
@@ -456,6 +501,7 @@ impl GossipContainer {
         }
     }
 
+    #[cfg(test)]
     pub fn decay(&mut self) {
         let mut remove = Vec::new();
         for (key, value) in self.entries.iter_mut() {
@@ -472,11 +518,12 @@ impl GossipContainer {
     pub fn reputation(&self, target: &str) -> i32 {
         self.entries
             .iter()
-            .filter(|((uuid, _), _)| uuid == target)
+            .filter(|((uuid, kind), _)| uuid == target && GossipType::ALL.contains(kind))
             .map(|((_, kind), value)| value * kind.weight())
             .sum()
     }
 
+    #[cfg(test)]
     pub fn value(&self, target: &str, kind: GossipType) -> i32 {
         self.entries
             .get(&(target.to_string(), kind))
@@ -484,6 +531,7 @@ impl GossipContainer {
             .unwrap_or(0)
     }
 
+    #[cfg(test)]
     pub fn transfer_selected_from(
         &mut self,
         source: &GossipContainer,
@@ -505,6 +553,7 @@ impl GossipContainer {
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReputationEventModel {
     ZombieVillagerCured,
@@ -513,6 +562,7 @@ pub enum ReputationEventModel {
     VillagerKilled,
 }
 
+#[cfg(test)]
 pub fn reputation_event_gossips(event: ReputationEventModel) -> &'static [(GossipType, i32)] {
     match event {
         ReputationEventModel::ZombieVillagerCured => &[
@@ -525,6 +575,7 @@ pub fn reputation_event_gossips(event: ReputationEventModel) -> &'static [(Gossi
     }
 }
 
+#[cfg(test)]
 pub fn villager_gossip_meeting_allowed(
     timestamp: i64,
     first_last_gossip_time: i64,
@@ -536,6 +587,7 @@ pub fn villager_gossip_meeting_allowed(
             || timestamp >= second_last_gossip_time + VILLAGER_GOSSIP_INTERVAL_TICKS)
 }
 
+#[cfg(test)]
 pub fn villager_gossip_decay_due(timestamp: i64, last_decay_time: i64) -> (i64, bool) {
     if last_decay_time == 0 {
         (timestamp, false)
@@ -568,6 +620,7 @@ impl PoiTicket {
     }
 }
 
+#[cfg(test)]
 pub const AI_CHECKLIST_SURFACE: &[&str] = &[
     "attributes",
     "behavior",
@@ -587,6 +640,7 @@ pub const AI_CHECKLIST_SURFACE: &[&str] = &[
     "pathfinding",
 ];
 
+#[cfg(test)]
 pub fn ai_package(id: &str) -> Option<&'static AiPackageDef> {
     AI_PACKAGES.iter().find(|package| package.id == id)
 }
@@ -804,6 +858,14 @@ mod tests {
 
     #[test]
     fn gossip_caps_transfer_events_and_timing_match_java() {
+        assert_gossip_constants_match_java();
+        assert_gossip_caps_match_java();
+        assert_gossip_transfer_prunes_low_values();
+        assert_reputation_event_gossips_match_java();
+        assert_villager_gossip_timing_match_java();
+    }
+
+    fn assert_gossip_constants_match_java() {
         assert_eq!(GOSSIP_DISCARD_THRESHOLD, 2);
         assert_eq!(VILLAGER_GOSSIP_INTERVAL_TICKS, 1200);
         assert_eq!(VILLAGER_GOSSIP_TRANSFER_MAX_COUNT, 10);
@@ -820,13 +882,17 @@ mod tests {
         assert_eq!(GossipType::MinorPositive.max(), 25);
         assert_eq!(GossipType::MajorPositive.max(), 20);
         assert_eq!(GossipType::Trading.max(), 25);
+    }
 
+    fn assert_gossip_caps_match_java() {
         let mut capped = GossipContainer::new();
         capped.add("player-a", GossipType::MajorPositive, 30);
         assert_eq!(capped.value("player-a", GossipType::MajorPositive), 20);
         capped.add("player-a", GossipType::MinorPositive, -19);
         assert_eq!(capped.value("player-a", GossipType::MinorPositive), 0);
+    }
 
+    fn assert_gossip_transfer_prunes_low_values() {
         let mut source = GossipContainer::new();
         source.add("player-a", GossipType::MinorNegative, 25);
         source.add("player-b", GossipType::MajorPositive, 20);
@@ -844,7 +910,9 @@ mod tests {
         assert_eq!(target.value("player-a", GossipType::MinorNegative), 5);
         assert_eq!(target.value("player-b", GossipType::MajorPositive), 0);
         assert_eq!(target.value("player-c", GossipType::Trading), 0);
+    }
 
+    fn assert_reputation_event_gossips_match_java() {
         assert_eq!(
             reputation_event_gossips(ReputationEventModel::ZombieVillagerCured),
             &[
@@ -864,6 +932,9 @@ mod tests {
             reputation_event_gossips(ReputationEventModel::VillagerKilled),
             &[(GossipType::MajorNegative, 25)]
         );
+    }
+
+    fn assert_villager_gossip_timing_match_java() {
         assert!(villager_gossip_meeting_allowed(1200, 0, 0));
         assert!(!villager_gossip_meeting_allowed(1199, 0, 0));
         assert!(villager_gossip_meeting_allowed(100, 200, 200));

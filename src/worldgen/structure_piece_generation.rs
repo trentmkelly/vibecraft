@@ -154,11 +154,13 @@ pub fn structure_piece_generate_air_box(
     max: BlockPos,
 ) -> Vec<StructurePiecePlacementBlock> {
     structure_piece_generate_box(
-        bounding_box,
-        orientation,
-        chunk_bb,
-        min,
-        max,
+        StructurePieceBoxInput {
+            bounding_box,
+            orientation,
+            chunk_bb,
+            min,
+            max,
+        },
         "minecraft:air",
         "minecraft:air",
         false,
@@ -166,36 +168,42 @@ pub fn structure_piece_generate_air_box(
     )
 }
 
+#[derive(Clone, Copy)]
+pub struct StructurePieceBoxInput {
+    pub bounding_box: StructureBoundingBoxModel,
+    pub orientation: Option<HorizontalDirection>,
+    pub chunk_bb: StructureBoundingBoxModel,
+    pub min: BlockPos,
+    pub max: BlockPos,
+}
+
 pub fn structure_piece_generate_box(
-    bounding_box: StructureBoundingBoxModel,
-    orientation: Option<HorizontalDirection>,
-    chunk_bb: StructureBoundingBoxModel,
-    min: BlockPos,
-    max: BlockPos,
+    input: StructurePieceBoxInput,
     edge_block: &'static str,
     fill_block: &'static str,
     skip_air: bool,
     mut is_existing_air: impl FnMut(BlockPos) -> bool,
 ) -> Vec<StructurePiecePlacementBlock> {
     let mut blocks = Vec::new();
-    for y in min.y..=max.y {
-        for x in min.x..=max.x {
-            for z in min.z..=max.z {
+    for y in input.min.y..=input.max.y {
+        for x in input.min.x..=input.max.x {
+            for z in input.min.z..=input.max.z {
                 let local_pos = BlockPos { x, y, z };
-                let world_pos = structure_piece_world_pos(bounding_box, orientation, x, y, z);
+                let world_pos =
+                    structure_piece_world_pos(input.bounding_box, input.orientation, x, y, z);
                 if skip_air && is_existing_air(world_pos) {
                     continue;
                 }
-                let edge = y == min.y
-                    || y == max.y
-                    || x == min.x
-                    || x == max.x
-                    || z == min.z
-                    || z == max.z;
+                let edge = y == input.min.y
+                    || y == input.max.y
+                    || x == input.min.x
+                    || x == input.max.x
+                    || z == input.min.z
+                    || z == input.max.z;
                 if let Some(block) = structure_piece_place_block(
-                    bounding_box,
-                    orientation,
-                    chunk_bb,
+                    input.bounding_box,
+                    input.orientation,
+                    input.chunk_bb,
                     local_pos,
                     if edge { edge_block } else { fill_block },
                     edge,
@@ -208,51 +216,65 @@ pub fn structure_piece_generate_box(
     blocks
 }
 
+pub struct StructurePieceMaybeBoxInput<'a> {
+    pub box_input: StructurePieceBoxInput,
+    pub random_values: &'a [f32],
+    pub probability: f32,
+    pub edge_block: &'static str,
+    pub fill_block: &'static str,
+    pub skip_air: bool,
+    pub has_to_be_inside: bool,
+}
+
 pub fn structure_piece_generate_maybe_box(
-    bounding_box: StructureBoundingBoxModel,
-    orientation: Option<HorizontalDirection>,
-    chunk_bb: StructureBoundingBoxModel,
-    random_values: &[f32],
-    probability: f32,
-    min: BlockPos,
-    max: BlockPos,
-    edge_block: &'static str,
-    fill_block: &'static str,
-    skip_air: bool,
-    has_to_be_inside: bool,
+    input: StructurePieceMaybeBoxInput<'_>,
     mut is_existing_air: impl FnMut(BlockPos) -> bool,
     mut is_interior: impl FnMut(BlockPos) -> bool,
 ) -> Vec<StructurePiecePlacementBlock> {
     let mut blocks = Vec::new();
     let mut random_index = 0usize;
-    for y in min.y..=max.y {
-        for x in min.x..=max.x {
-            for z in min.z..=max.z {
-                let random_value = random_values.get(random_index).copied().unwrap_or(1.0);
+    for y in input.box_input.min.y..=input.box_input.max.y {
+        for x in input.box_input.min.x..=input.box_input.max.x {
+            for z in input.box_input.min.z..=input.box_input.max.z {
+                let random_value = input
+                    .random_values
+                    .get(random_index)
+                    .copied()
+                    .unwrap_or(1.0);
                 random_index += 1;
-                if random_value > probability {
+                if random_value > input.probability {
                     continue;
                 }
                 let local_pos = BlockPos { x, y, z };
-                let world_pos = structure_piece_world_pos(bounding_box, orientation, x, y, z);
-                if skip_air && is_existing_air(world_pos) {
+                let world_pos = structure_piece_world_pos(
+                    input.box_input.bounding_box,
+                    input.box_input.orientation,
+                    x,
+                    y,
+                    z,
+                );
+                if input.skip_air && is_existing_air(world_pos) {
                     continue;
                 }
-                if has_to_be_inside && !is_interior(world_pos) {
+                if input.has_to_be_inside && !is_interior(world_pos) {
                     continue;
                 }
-                let edge = y == min.y
-                    || y == max.y
-                    || x == min.x
-                    || x == max.x
-                    || z == min.z
-                    || z == max.z;
+                let edge = y == input.box_input.min.y
+                    || y == input.box_input.max.y
+                    || x == input.box_input.min.x
+                    || x == input.box_input.max.x
+                    || z == input.box_input.min.z
+                    || z == input.box_input.max.z;
                 if let Some(block) = structure_piece_place_block(
-                    bounding_box,
-                    orientation,
-                    chunk_bb,
+                    input.box_input.bounding_box,
+                    input.box_input.orientation,
+                    input.box_input.chunk_bb,
                     local_pos,
-                    if edge { edge_block } else { fill_block },
+                    if edge {
+                        input.edge_block
+                    } else {
+                        input.fill_block
+                    },
                     edge,
                 ) {
                     blocks.push(block);
@@ -279,16 +301,18 @@ pub fn structure_piece_maybe_generate_block(
         .flatten()
 }
 
+pub struct StructurePieceSphereInput {
+    pub box_input: StructurePieceBoxInput,
+    pub fill_block: &'static str,
+    pub skip_air: bool,
+}
+
 pub fn structure_piece_generate_upper_half_sphere(
-    bounding_box: StructureBoundingBoxModel,
-    orientation: Option<HorizontalDirection>,
-    chunk_bb: StructureBoundingBoxModel,
-    min: BlockPos,
-    max: BlockPos,
-    fill_block: &'static str,
-    skip_air: bool,
+    input: StructurePieceSphereInput,
     mut is_existing_air: impl FnMut(BlockPos) -> bool,
 ) -> Vec<StructurePiecePlacementBlock> {
+    let min = input.box_input.min;
+    let max = input.box_input.max;
     let diag_x = (max.x - min.x + 1) as f32;
     let diag_y = (max.y - min.y + 1) as f32;
     let diag_z = (max.z - min.z + 1) as f32;
@@ -303,8 +327,14 @@ pub fn structure_piece_generate_upper_half_sphere(
             for z in min.z..=max.z {
                 let normalized_z = (z as f32 - center_z) / (diag_z * 0.5);
                 let local_pos = BlockPos { x, y, z };
-                let world_pos = structure_piece_world_pos(bounding_box, orientation, x, y, z);
-                if skip_air && is_existing_air(world_pos) {
+                let world_pos = structure_piece_world_pos(
+                    input.box_input.bounding_box,
+                    input.box_input.orientation,
+                    x,
+                    y,
+                    z,
+                );
+                if input.skip_air && is_existing_air(world_pos) {
                     continue;
                 }
                 let dist = normalized_x * normalized_x
@@ -312,11 +342,11 @@ pub fn structure_piece_generate_upper_half_sphere(
                     + normalized_z * normalized_z;
                 if dist <= 1.05 {
                     if let Some(block) = structure_piece_place_block(
-                        bounding_box,
-                        orientation,
-                        chunk_bb,
+                        input.box_input.bounding_box,
+                        input.box_input.orientation,
+                        input.box_input.chunk_bb,
                         local_pos,
-                        fill_block,
+                        input.fill_block,
                         false,
                     ) {
                         blocks.push(block);
@@ -344,34 +374,44 @@ pub fn structure_piece_is_replaceable_by_structures(state: &'static str) -> bool
     )
 }
 
+pub struct StructurePieceFillColumnInput {
+    pub bounding_box: StructureBoundingBoxModel,
+    pub orientation: Option<HorizontalDirection>,
+    pub chunk_bb: StructureBoundingBoxModel,
+    pub x: i32,
+    pub start_y: i32,
+    pub z: i32,
+    pub min_y: i32,
+    pub block_state: &'static str,
+}
+
 pub fn structure_piece_fill_column_down(
-    bounding_box: StructureBoundingBoxModel,
-    orientation: Option<HorizontalDirection>,
-    chunk_bb: StructureBoundingBoxModel,
-    x: i32,
-    start_y: i32,
-    z: i32,
-    min_y: i32,
-    block_state: &'static str,
+    input: StructurePieceFillColumnInput,
     mut block_at: impl FnMut(BlockPos) -> &'static str,
 ) -> Vec<StructurePiecePlacementBlock> {
-    let mut world_pos = structure_piece_world_pos(bounding_box, orientation, x, start_y, z);
-    if !chunk_bb.is_inside(world_pos) {
+    let mut world_pos = structure_piece_world_pos(
+        input.bounding_box,
+        input.orientation,
+        input.x,
+        input.start_y,
+        input.z,
+    );
+    if !input.chunk_bb.is_inside(world_pos) {
         return Vec::new();
     }
 
     let mut blocks = Vec::new();
     while structure_piece_is_replaceable_by_structures(block_at(world_pos))
-        && world_pos.y > min_y + 1
+        && world_pos.y > input.min_y + 1
     {
         blocks.push(StructurePiecePlacementBlock {
             local_pos: BlockPos {
-                x,
-                y: world_pos.y - bounding_box.min_y,
-                z,
+                x: input.x,
+                y: world_pos.y - input.bounding_box.min_y,
+                z: input.z,
             },
             world_pos,
-            state: block_state,
+            state: input.block_state,
             edge: false,
         });
         world_pos.y -= 1;
@@ -491,4 +531,3 @@ pub fn structure_piece_orientation_state(
         rotation,
     }
 }
-

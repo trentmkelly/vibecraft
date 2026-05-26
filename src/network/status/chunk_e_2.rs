@@ -469,6 +469,7 @@ pub fn handle_legacy_status_tcp_connection(
     stream.write_all(&response)
 }
 
+#[cfg(test)]
 pub fn handle_legacy_status_connection<W: Read + Write>(
     stream: &mut W,
     properties: &ServerProperties,
@@ -479,7 +480,10 @@ pub fn handle_legacy_status_connection<W: Read + Write>(
     stream.write_all(&response)
 }
 
-pub fn legacy_status_response(request: &[u8], properties: &ServerProperties) -> io::Result<Vec<u8>> {
+pub fn legacy_status_response(
+    request: &[u8],
+    properties: &ServerProperties,
+) -> io::Result<Vec<u8>> {
     if request.first() != Some(&0xFE) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
@@ -501,7 +505,7 @@ pub fn legacy_status_response(request: &[u8], properties: &ServerProperties) -> 
         }
     };
 
-    Ok(legacy_disconnect_packet(&body))
+    legacy_disconnect_packet(&body)
 }
 
 pub fn read_legacy_ping_host_payload(input: &[u8]) -> Option<()> {
@@ -547,11 +551,11 @@ pub fn legacy_version1_response(properties: &ServerProperties) -> String {
     )
 }
 
-pub fn legacy_disconnect_packet(reason: &str) -> Vec<u8> {
+pub fn legacy_disconnect_packet(reason: &str) -> io::Result<Vec<u8>> {
     let mut out = Vec::with_capacity(3 + reason.len() * 2);
     out.push(255);
-    write_legacy_string(&mut out, reason).expect("legacy string write to vec cannot fail");
-    out
+    write_legacy_string(&mut out, reason)?;
+    Ok(out)
 }
 
 pub fn read_legacy_string<R: Read>(reader: &mut R) -> io::Result<String> {
@@ -670,17 +674,10 @@ pub fn png_dimensions(bytes: &[u8]) -> io::Result<(u32, u32)> {
 }
 
 pub fn status_json(properties: &ServerProperties, favicon: Option<&str>) -> String {
-    let players = if properties.hide_online_players {
-        format!(
-            "\"players\":{{\"max\":{},\"online\":0,\"sample\":[]}}",
-            properties.max_players
-        )
-    } else {
-        format!(
-            "\"players\":{{\"max\":{},\"online\":0,\"sample\":[]}}",
-            properties.max_players
-        )
-    };
+    let players = format!(
+        "\"players\":{{\"max\":{},\"online\":0,\"sample\":[]}}",
+        properties.max_players
+    );
 
     let favicon = favicon
         .map(|value| format!(",\"favicon\":\"{}\"", escape_json_string(value)))

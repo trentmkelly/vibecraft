@@ -355,7 +355,10 @@ pub(super) fn chunk_pyramid_accumulated_radius_of(
     chunk_dependencies_radius_of(&dependencies, dependency)
 }
 
-pub(super) fn chunk_dependencies_radius_of(dependencies: &[&'static str], dependency: &str) -> Option<i32> {
+pub(super) fn chunk_dependencies_radius_of(
+    dependencies: &[&'static str],
+    dependency: &str,
+) -> Option<i32> {
     let dependency = chunk_status(dependency)?;
     if dependencies.is_empty() {
         return None;
@@ -369,8 +372,8 @@ pub(super) fn chunk_dependencies_radius_of(dependencies: &[&'static str], depend
     let mut radius_by_dependency = vec![0_i32; first.index + 1];
     for (radius, status_id) in dependencies.iter().enumerate() {
         let status = chunk_status(status_id)?;
-        for status_index in 0..=status.index {
-            radius_by_dependency[status_index] = radius as i32;
+        for dependency_radius in radius_by_dependency.iter_mut().take(status.index + 1) {
+            *dependency_radius = radius as i32;
         }
     }
 

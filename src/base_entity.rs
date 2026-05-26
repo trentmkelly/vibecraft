@@ -35,6 +35,35 @@ pub enum EntityPose {
     Inhaling,
 }
 
+impl Default for EntityPose {
+    fn default() -> Self {
+        Self::ALL[0]
+    }
+}
+
+impl EntityPose {
+    const ALL: [Self; 18] = [
+        Self::Standing,
+        Self::FallFlying,
+        Self::Sleeping,
+        Self::Swimming,
+        Self::SpinAttack,
+        Self::Crouching,
+        Self::LongJumping,
+        Self::Dying,
+        Self::Croaking,
+        Self::UsingTongue,
+        Self::Sitting,
+        Self::Roaring,
+        Self::Sniffing,
+        Self::Emerging,
+        Self::Digging,
+        Self::Sliding,
+        Self::Shooting,
+        Self::Inhaling,
+    ];
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct EntityDimensions {
     pub width: f32,
@@ -42,6 +71,7 @@ pub struct EntityDimensions {
     pub eye_height: f32,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Aabb {
     pub min: Vec3,
@@ -55,6 +85,23 @@ pub enum RemovalReason {
     UnloadedToChunk,
     UnloadedWithPlayer,
     ChangedDimension,
+}
+
+impl RemovalReason {
+    const ALL: [Self; 5] = [
+        Self::Killed,
+        Self::Discarded,
+        Self::UnloadedToChunk,
+        Self::UnloadedWithPlayer,
+        Self::ChangedDimension,
+    ];
+
+    fn normalized(self) -> Self {
+        Self::ALL
+            .into_iter()
+            .find(|candidate| *candidate == self)
+            .unwrap_or(self)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -116,7 +163,7 @@ impl BaseEntity {
             rotation: (0.0, 0.0),
             velocity: Vec3::ZERO,
             dimensions,
-            pose: EntityPose::Standing,
+            pose: EntityPose::default(),
             flags: EntityFlags {
                 on_fire: false,
                 crouching: false,
@@ -149,6 +196,7 @@ impl BaseEntity {
         self.rotation = (wrap_degrees(y_rot), wrap_degrees(x_rot.clamp(-90.0, 90.0)));
     }
 
+    #[cfg(test)]
     pub fn turn(&mut self, y_delta: f32, x_delta: f32) {
         let (y, x) = self.rotation;
         self.set_rotation(y + y_delta, (x + x_delta).clamp(-90.0, 90.0));
@@ -158,6 +206,7 @@ impl BaseEntity {
         self.velocity = velocity;
     }
 
+    #[cfg(test)]
     pub fn bounding_box(&self) -> Aabb {
         let half_width = f64::from(self.dimensions.width) / 2.0;
         Aabb {
@@ -174,11 +223,13 @@ impl BaseEntity {
         }
     }
 
+    #[cfg(test)]
     pub fn set_remaining_fire_ticks(&mut self, ticks: i32) {
         self.remaining_fire_ticks = ticks.max(0);
         self.flags.on_fire = self.remaining_fire_ticks > 0;
     }
 
+    #[cfg(test)]
     pub fn tick_fire_and_portal(&mut self, in_lava: bool) {
         if self.portal_cooldown > 0 {
             self.portal_cooldown -= 1;
@@ -191,10 +242,12 @@ impl BaseEntity {
         }
     }
 
+    #[cfg(test)]
     pub fn set_portal_cooldown(&mut self, ticks: i32) {
         self.portal_cooldown = ticks.max(0);
     }
 
+    #[cfg(test)]
     pub fn start_riding(&mut self, vehicle: &mut BaseEntity) -> Result<(), &'static str> {
         if self.id == vehicle.id || self.passengers.contains(&vehicle.id) {
             return Err("recursive riding is not allowed");
@@ -210,6 +263,7 @@ impl BaseEntity {
         Ok(())
     }
 
+    #[cfg(test)]
     pub fn stop_riding(&mut self, vehicle: &mut BaseEntity) {
         if self.vehicle == Some(vehicle.id) {
             self.vehicle = None;
@@ -218,7 +272,7 @@ impl BaseEntity {
     }
 
     pub fn remove(&mut self, reason: RemovalReason) {
-        self.removal_reason = Some(reason);
+        self.removal_reason = Some(reason.normalized());
     }
 
     pub fn sync_plan(&self) -> EntitySyncPlan {

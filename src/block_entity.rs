@@ -207,7 +207,7 @@ pub struct TestInstanceErrorMarker {
     pub text: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TestInstanceBlockEntityState {
     pub data: TestInstanceBlockEntityData,
     pub errors: Vec<TestInstanceErrorMarker>,
@@ -461,7 +461,7 @@ pub enum HangingSignAttachment {
     CeilingMiddle,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SignLine {
     pub raw: String,
     pub filtered: String,
@@ -475,7 +475,7 @@ pub struct SignText {
     pub has_glowing_text: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SignBlockEntityModel {
     pub front_text: SignText,
     pub back_text: SignText,
@@ -818,7 +818,7 @@ pub struct BannerBlockEntity {
     pub custom_name: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PotDecorations {
     pub back: Option<String>,
     pub left: Option<String>,
@@ -838,7 +838,7 @@ pub enum DecoratedPotWobbleStyle {
     Negative,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DecoratedPotBlockEntity {
     pub decorations: PotDecorations,
     pub item: Option<PotItemStack>,
@@ -1037,6 +1037,19 @@ pub struct CreakingHeartBlockEntity {
     pub state: CreakingHeartStateModel,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct CreakingHeartTickContext {
+    pub has_required_logs: bool,
+    pub creaking_active: bool,
+    pub spawning_monsters: bool,
+    pub player_nearby: bool,
+    pub protector_resolved: bool,
+    pub protector_distance: Option<f64>,
+    pub protector_persistent: bool,
+    pub player_stuck_in_protector: bool,
+    pub next_ticker_offset: i32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SculkCatalystEventResult {
     Ignored,
@@ -1128,28 +1141,22 @@ pub enum BlockEntityError {
 }
 
 mod test_blocks;
-pub use test_blocks::*;
 
 mod structures;
-pub use structures::*;
 
 mod functional_blocks;
-pub use functional_blocks::*;
+#[cfg(test)]
+use functional_blocks::*;
 
 mod beacon_signs_brewing;
-pub use beacon_signs_brewing::*;
 
 mod spawners;
-pub use spawners::*;
 
 mod vault_banner_furnace;
-pub use vault_banner_furnace::*;
 
 mod container_decorative;
-pub use container_decorative::*;
 
 mod sculk_conduit_campfire;
-pub use sculk_conduit_campfire::*;
 
 mod beehive_creaking_bell;
 pub use beehive_creaking_bell::*;

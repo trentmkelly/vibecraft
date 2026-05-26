@@ -189,9 +189,7 @@ pub fn coral_tick(state: &BlockStateModel, has_water: bool) -> PlantAction {
     if plant_family(state) != Some(PlantFamily::Coral) {
         return PlantAction::Noop;
     }
-    if has_water {
-        PlantAction::Noop
-    } else if state.registry_id.starts_with("minecraft:dead_") {
+    if has_water || state.registry_id.starts_with("minecraft:dead_") {
         PlantAction::Noop
     } else {
         PlantAction::Transform(BlockStateModel::new(format!(

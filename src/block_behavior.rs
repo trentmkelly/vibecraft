@@ -265,11 +265,8 @@ pub fn plan_destroy_block(
         new_block: "minecraft:air",
         flags,
     };
-    let actions = plan_chunk_block_updates(
-        &[change],
-        |id| state_has_block_entity(id),
-        |id| state_has_block_entity(id),
-    );
+    let actions =
+        plan_chunk_block_updates(&[change], state_has_block_entity, state_has_block_entity);
     let drops = if drop_resources && !old_state.is_air() {
         vec![old_state.registry_id.clone()]
     } else {

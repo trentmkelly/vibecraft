@@ -304,15 +304,15 @@ pub enum BinaryDensityFunction {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TerrainSplineKind {
-    OverworldOffset,
-    OverworldFactor,
-    OverworldJaggedness,
-    OverworldLargeBiomesOffset,
-    OverworldLargeBiomesFactor,
-    OverworldLargeBiomesJaggedness,
-    OverworldAmplifiedOffset,
-    OverworldAmplifiedFactor,
-    OverworldAmplifiedJaggedness,
+    Offset,
+    Factor,
+    Jaggedness,
+    LargeBiomesOffset,
+    LargeBiomesFactor,
+    LargeBiomesJaggedness,
+    AmplifiedOffset,
+    AmplifiedFactor,
+    AmplifiedJaggedness,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

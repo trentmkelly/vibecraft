@@ -1,6 +1,5 @@
 use super::*;
 
-
 pub fn cache_login_profile(
     player_access: &Arc<Mutex<PlayerAccess>>,
     profile: &NameAndId,
@@ -17,121 +16,6 @@ pub struct PlaySessionUpdate {
     pub position_changed: bool,
     pub health_changed: bool,
     pub respawn_requested: bool,
-}
-
-pub fn update_play_session_state<R: Read>(
-    packet_id: i32,
-    input: &mut R,
-    state: &mut PlaySessionState,
-) -> io::Result<PlaySessionUpdate> {
-    match packet_id {
-        SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID => {
-            let old_x = state.x;
-            let old_y = state.y;
-            let old_z = state.z;
-            state.x = read_f64(input)?;
-            state.y = read_f64(input)?;
-            state.z = read_f64(input)?;
-            state.on_ground = read_bool(input)?;
-            Ok(apply_player_movement(
-                state,
-                state.x - old_x,
-                state.y - old_y,
-                state.z - old_z,
-                true,
-            ))
-        }
-        SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID => {
-            let old_x = state.x;
-            let old_y = state.y;
-            let old_z = state.z;
-            state.x = read_f64(input)?;
-            state.y = read_f64(input)?;
-            state.z = read_f64(input)?;
-            state.yaw = read_f32(input)?;
-            state.pitch = read_f32(input)?;
-            state.on_ground = read_bool(input)?;
-            Ok(apply_player_movement(
-                state,
-                state.x - old_x,
-                state.y - old_y,
-                state.z - old_z,
-                true,
-            ))
-        }
-        SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID => {
-            state.yaw = read_f32(input)?;
-            state.pitch = read_f32(input)?;
-            state.on_ground = read_bool(input)?;
-            Ok(apply_player_fall_movement(state, 0.0, false))
-        }
-        SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID => {
-            state.on_ground = read_bool(input)?;
-            Ok(apply_player_fall_movement(state, 0.0, false))
-        }
-        SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID => {
-            let slot = i32::from(read_i16(input)?);
-            if (0..9).contains(&slot) {
-                state.selected_slot = slot;
-            }
-            Ok(PlaySessionUpdate {
-                position_changed: false,
-                health_changed: false,
-                respawn_requested: false,
-            })
-        }
-        SERVERBOUND_CLIENT_COMMAND_PACKET_ID => {
-            let action = read_var_i32(input)?;
-            // Java ServerboundClientCommandPacket.Action ordinal 0 = PERFORM_RESPAWN.
-            // ServerGamePacketListenerImpl ignores it while the player is alive.
-            Ok(PlaySessionUpdate {
-                position_changed: false,
-                health_changed: false,
-                respawn_requested: action == 0 && state.health <= 0.0,
-            })
-        }
-        SERVERBOUND_PLAYER_INPUT_PACKET_ID => {
-            let flags = read_u8(input)?;
-            let forward = flags & 1 != 0;
-            let backward = flags & 2 != 0;
-            let left = flags & 4 != 0;
-            let right = flags & 8 != 0;
-            let jumping = flags & 16 != 0;
-            let shift = flags & 32 != 0;
-            let sprinting = flags & 64 != 0;
-            if jumping && !state.input_jumping && state.on_ground {
-                add_player_food_exhaustion(
-                    state,
-                    if sprinting {
-                        SPRINT_JUMP_EXHAUSTION
-                    } else {
-                        JUMP_EXHAUSTION
-                    },
-                );
-            }
-            state.input_forward = forward;
-            state.input_backward = backward;
-            state.input_left = left;
-            state.input_right = right;
-            state.input_shift = shift;
-            state.input_jumping = jumping;
-            state.input_sprinting = sprinting;
-            Ok(PlaySessionUpdate::default())
-        }
-        SERVERBOUND_PLAYER_ABILITIES_PACKET_ID => {
-            let packet = ServerboundPlayerAbilitiesPacket::read(input)?;
-            super::player_creative_packets::apply_serverbound_player_abilities_packet(
-                state, packet,
-            );
-            Ok(PlaySessionUpdate::default())
-        }
-        SERVERBOUND_CONTAINER_CLOSE_PACKET_ID => {
-            let _packet = ServerboundContainerClosePacket::read(input)?;
-            state.inventory_menu.removed(&mut state.carried_item);
-            Ok(PlaySessionUpdate::default())
-        }
-        _ => Ok(PlaySessionUpdate::default()),
-    }
 }
 
 pub fn apply_player_fall_movement(
@@ -400,7 +284,7 @@ pub fn tick_play_session_water(
         let should_apply_vertical_fluid_drag =
             !state.on_ground || state.water_velocity_y.abs() > f64::EPSILON || state.eye_in_water;
         if should_apply_vertical_fluid_drag {
-            state.water_velocity_y = state.water_velocity_y * WATER_VERTICAL_SLOWDOWN;
+            state.water_velocity_y *= WATER_VERTICAL_SLOWDOWN;
             if !state.input_sprinting {
                 state.water_velocity_y -= WATER_FALLING_GRAVITY;
             }
@@ -487,7 +371,7 @@ pub fn tick_play_session_food(
     // Java: ServerPlayer.tickRegeneration() runs from LivingEntity.tick()
     // before ServerPlayer.doTick() calls FoodData.tick(this).
     if difficulty == FoodDifficulty::Peaceful && natural_regen {
-        if tick_count % 20 == 0 {
+        if tick_count.is_multiple_of(20) {
             if state.health < 20.0 {
                 state.health = (state.health + 1.0).min(20.0);
             }
@@ -495,7 +379,7 @@ pub fn tick_play_session_food(
                 state.food_saturation += 1.0;
             }
         }
-        if tick_count % 10 == 0 && state.food_level < 20 {
+        if tick_count.is_multiple_of(10) && state.food_level < 20 {
             state.food_level += 1;
         }
     }
@@ -595,50 +479,208 @@ pub fn write_play_state_motion_packet<W: Write>(
     )
 }
 
+pub struct UseItemOnContext<'a, 'b> {
+    pub world_layout: &'a WorldLayout,
+    pub world_seed: i64,
+    pub chunk_cache: &'a GeneratedChunkCache,
+    pub live_fluid_ticks: &'b mut LiveFluidTicks,
+    pub game_time: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct BlockItemPlacementTarget {
+    pos: crate::block_update::BlockPos,
+    existing_state: crate::block_behavior::BlockStateModel,
+}
+
+fn write_block_change_ack<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    sequence: i32,
+) -> io::Result<()> {
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
+        |payload| write_var_i32(payload, sequence),
+    )
+}
+
+fn held_item_slot_for_use_item_on(
+    state: &PlaySessionState,
+    packet: &ServerboundUseItemOnPacket,
+) -> usize {
+    match packet.hand {
+        ServerboundSwingHand::MainHand => state.selected_slot as usize,
+        ServerboundSwingHand::OffHand => SLOT_OFFHAND,
+    }
+}
+
+fn resolve_block_item_placement_target(
+    world_layout: &WorldLayout,
+    world_seed: i64,
+    packet: &ServerboundUseItemOnPacket,
+) -> BlockItemPlacementTarget {
+    let clicked_pos = crate::block_update::BlockPos {
+        x: packet.block_hit.x,
+        y: packet.block_hit.y,
+        z: packet.block_hit.z,
+    };
+    let clicked_state = read_block_model_at(world_layout, world_seed, clicked_pos);
+    if block_item_can_replace(&clicked_state) {
+        return BlockItemPlacementTarget {
+            pos: clicked_pos,
+            existing_state: clicked_state,
+        };
+    }
+
+    let (dx, dy, dz) = direction_offset(packet.block_hit.direction);
+    let pos = crate::block_update::BlockPos {
+        x: packet.block_hit.x + dx,
+        y: packet.block_hit.y + dy,
+        z: packet.block_hit.z + dz,
+    };
+    BlockItemPlacementTarget {
+        pos,
+        existing_state: read_block_model_at(world_layout, world_seed, pos),
+    }
+}
+
+fn place_block_item_in_world(
+    context: &mut UseItemOnContext<'_, '_>,
+    target: crate::block_update::BlockPos,
+    item_name: &str,
+) {
+    // Java mirror: Level.setBlock(pos, state, flags) -> LevelChunk.setBlockState:
+    // mutate in-memory and mark unsaved; the periodic chunk-flush thread persists.
+    context.chunk_cache.set_block(
+        context.world_layout.root(),
+        context.world_seed,
+        target,
+        item_name,
+    );
+    schedule_neighbor_fluids(
+        context.live_fluid_ticks,
+        context.game_time,
+        context.world_layout,
+        context.world_seed,
+        target,
+    );
+    if item_name == "minecraft:water" || item_name == "minecraft:lava" {
+        let kind = if item_name == "minecraft:water" {
+            FluidKind::Water
+        } else {
+            FluidKind::Lava
+        };
+        context
+            .live_fluid_ticks
+            .schedule(context.game_time, target, kind);
+        schedule_neighbor_fluids(
+            context.live_fluid_ticks,
+            context.game_time,
+            context.world_layout,
+            context.world_seed,
+            target,
+        );
+    }
+}
+
+fn raw_stack_for_player_inventory(stack: &ItemStack) -> RawItemStack {
+    if stack.is_empty() {
+        return RawItemStack::empty();
+    }
+    item_protocol_id(stack.item_id()).map_or_else(RawItemStack::empty, |pid| RawItemStack {
+        count: stack.count(),
+        item_id: Some(pid),
+        components: RawDataComponentPatch::empty(),
+    })
+}
+
+fn write_player_inventory_slot_update<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    slot: usize,
+    contents: RawItemStack,
+) -> io::Result<()> {
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        CLIENTBOUND_SET_PLAYER_INVENTORY_PACKET_ID,
+        |payload| {
+            ClientboundSetPlayerInventoryPacket {
+                slot: slot as i32,
+                contents,
+            }
+            .write(payload)
+        },
+    )
+}
+
+fn consume_placed_block_item<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    state: &mut PlaySessionState,
+    held_slot: usize,
+) -> io::Result<()> {
+    if state.game_mode == GameMode::Creative {
+        return Ok(());
+    }
+    state
+        .inventory_menu
+        .player_inventory_mut()
+        .remove(held_slot, 1);
+    let stack = state.inventory_menu.player_inventory().get(held_slot);
+    write_player_inventory_slot_update(
+        writer,
+        compression,
+        held_slot,
+        raw_stack_for_player_inventory(stack),
+    )
+}
+
+fn write_block_item_placement_packets<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    sequence: i32,
+    target: crate::block_update::BlockPos,
+    block_state_id: i32,
+) -> io::Result<()> {
+    write_block_change_ack(writer, compression, sequence)?;
+    let packed_pos = block_pos_as_long(target.x, target.y, target.z);
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        CLIENTBOUND_BLOCK_UPDATE_PACKET_ID,
+        |payload| {
+            payload.write_all(&packed_pos.to_be_bytes())?;
+            write_var_i32(payload, block_state_id)
+        },
+    )
+}
+
 /// Handles a block-placement request from the client.
 ///
-/// Java: ServerPlayerGameMode.useItemOn() → BlockItem.place() → Level.setBlock()
+/// Java: ServerPlayerGameMode.useItemOn() -> BlockItem.place() -> Level.setBlock()
 pub fn handle_use_item_on(
     stream: &mut TcpStream,
     compression: CompressionState,
     state: &mut PlaySessionState,
-    world_layout: &WorldLayout,
-    world_seed: i64,
-    chunk_cache: &GeneratedChunkCache,
-    live_fluid_ticks: &mut LiveFluidTicks,
-    game_time: i64,
+    mut context: UseItemOnContext<'_, '_>,
     packet: &ServerboundUseItemOnPacket,
 ) -> io::Result<()> {
-    // Spectators cannot place blocks.
-    // Java: ServerPlayerGameMode.useItemOn() — spectators are blocked before reaching here.
-    let send_ack = |p: &mut Vec<u8>| write_var_i32(p, packet.sequence);
     if state.game_mode == GameMode::Spectator {
-        return write_framed_packet_with_compression(
-            stream,
-            compression,
-            CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
-            send_ack,
-        );
+        return write_block_change_ack(stream, compression, packet.sequence);
     }
 
-    // Resolve the held item from the correct hand.
     // Java: ServerPlayerGameMode.useItemOn() calls player.getItemInHand(hand).
-    let held_slot = match packet.hand {
-        ServerboundSwingHand::MainHand => state.selected_slot as usize,
-        ServerboundSwingHand::OffHand => SLOT_OFFHAND,
-    };
+    let held_slot = held_item_slot_for_use_item_on(state, packet);
     let held_item = state
         .inventory_menu
         .player_inventory()
         .get(held_slot)
         .clone();
     if held_item.is_empty() {
-        return write_framed_packet_with_compression(
-            stream,
-            compression,
-            CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
-            send_ack,
-        );
+        return write_block_change_ack(stream, compression, packet.sequence);
     }
 
     let item_name = held_item.item_id();
@@ -647,183 +689,33 @@ pub fn handle_use_item_on(
             stream,
             compression,
             state,
-            world_layout,
-            world_seed,
-            chunk_cache,
-            live_fluid_ticks,
-            game_time,
+            context,
             packet,
             held_slot,
             kind,
         );
     }
 
-    // Only proceed if the item has a known placeable block state.
-    // Java: BlockItem.place() — only items backed by a Block can place.
+    // Java: BlockItem.place() only proceeds for items backed by a Block.
     let Some(block_state_id) = block_state_name_network_id(item_name) else {
-        return write_framed_packet_with_compression(
-            stream,
-            compression,
-            CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
-            send_ack,
-        );
+        return write_block_change_ack(stream, compression, packet.sequence);
     };
 
-    // Compute the placement target. Java's BlockPlaceContext uses the clicked block
-    // itself when it can be replaced; otherwise it offsets into the clicked face.
-    // This matters for fluids: LiquidBlock states are replaceable by normal block
-    // items, so dirt/sand/etc. can be placed into water/lava instead of being
-    // treated like an attempted overwrite of a solid block.
-    let (dx, dy, dz) = direction_offset(packet.block_hit.direction);
-    let clicked_pos = crate::block_update::BlockPos {
-        x: packet.block_hit.x,
-        y: packet.block_hit.y,
-        z: packet.block_hit.z,
-    };
-    let clicked_chunk = ChunkPos {
-        x: clicked_pos.x.div_euclid(16),
-        z: clicked_pos.z.div_euclid(16),
-    };
-    let clicked_state = read_block_model_at(world_layout, world_seed, clicked_pos);
-    let clicked_replaceable = block_item_can_replace(&clicked_state);
-    let (target_x, target_y, target_z) = if clicked_replaceable {
-        (clicked_pos.x, clicked_pos.y, clicked_pos.z)
-    } else {
-        (
-            packet.block_hit.x + dx,
-            packet.block_hit.y + dy,
-            packet.block_hit.z + dz,
-        )
-    };
-    let target_chunk = ChunkPos {
-        x: target_x.div_euclid(16),
-        z: target_z.div_euclid(16),
-    };
-
-    let target_state = if clicked_replaceable && target_chunk == clicked_chunk {
-        clicked_state
-    } else {
-        read_block_model_at(
-            world_layout,
-            world_seed,
-            crate::block_update::BlockPos {
-                x: target_x,
-                y: target_y,
-                z: target_z,
-            },
-        )
-    };
-    let is_replaceable = block_item_can_replace(&target_state);
-    if !is_replaceable {
-        return write_framed_packet_with_compression(
-            stream,
-            compression,
-            CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
-            send_ack,
-        );
+    let target =
+        resolve_block_item_placement_target(context.world_layout, context.world_seed, packet);
+    if !block_item_can_replace(&target.existing_state) {
+        return write_block_change_ack(stream, compression, packet.sequence);
     }
 
-    // Java mirror: Level.setBlock(pos, state, flags) → LevelChunk.setBlockState
-    // — mutate in-memory + mark unsaved. The periodic chunk-flush thread
-    // does the actual disk write.
-    chunk_cache.set_block(
-        world_layout.root(),
-        world_seed,
-        crate::block_update::BlockPos {
-            x: target_x,
-            y: target_y,
-            z: target_z,
-        },
-        item_name,
-    );
-    let _ = target_chunk;
-    schedule_neighbor_fluids(
-        live_fluid_ticks,
-        game_time,
-        world_layout,
-        world_seed,
-        crate::block_update::BlockPos {
-            x: target_x,
-            y: target_y,
-            z: target_z,
-        },
-    );
-    if item_name == "minecraft:water" || item_name == "minecraft:lava" {
-        let kind = if item_name == "minecraft:water" {
-            FluidKind::Water
-        } else {
-            FluidKind::Lava
-        };
-        live_fluid_ticks.schedule(
-            game_time,
-            crate::block_update::BlockPos {
-                x: target_x,
-                y: target_y,
-                z: target_z,
-            },
-            kind,
-        );
-        schedule_neighbor_fluids(live_fluid_ticks, game_time, world_layout, world_seed, crate::block_update::BlockPos {
-            x: target_x,
-            y: target_y,
-            z: target_z,
-        });
-    }
-
-    // Acknowledge the client's predictive block change.
-    write_framed_packet_with_compression(
+    place_block_item_in_world(&mut context, target.pos, item_name);
+    write_block_item_placement_packets(
         stream,
         compression,
-        CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
-        send_ack,
+        packet.sequence,
+        target.pos,
+        block_state_id,
     )?;
-
-    // Push the authoritative block state to the client.
-    let packed_pos = block_pos_as_long(target_x, target_y, target_z);
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_BLOCK_UPDATE_PACKET_ID,
-        |p| {
-            p.write_all(&packed_pos.to_be_bytes())?;
-            write_var_i32(p, block_state_id)
-        },
-    )?;
-
-    // Survival and adventure modes consume one item from the player's hand.
-    // Java: ItemStack.consume(1, player) called by BlockItem after a successful place.
-    if state.game_mode != GameMode::Creative {
-        state
-            .inventory_menu
-            .player_inventory_mut()
-            .remove(held_slot, 1);
-        let stack = state.inventory_menu.player_inventory().get(held_slot);
-        let raw = if stack.is_empty() {
-            RawItemStack::empty()
-        } else if let Some(pid) = item_protocol_id(stack.item_id()) {
-            RawItemStack {
-                count: stack.count(),
-                item_id: Some(pid),
-                components: RawDataComponentPatch::empty(),
-            }
-        } else {
-            RawItemStack::empty()
-        };
-        write_framed_packet_with_compression(
-            stream,
-            compression,
-            CLIENTBOUND_SET_PLAYER_INVENTORY_PACKET_ID,
-            |p| {
-                ClientboundSetPlayerInventoryPacket {
-                    slot: held_slot as i32,
-                    contents: raw,
-                }
-                .write(p)
-            },
-        )?;
-    }
-
-    Ok(())
+    consume_placed_block_item(stream, compression, state, held_slot)
 }
 
 pub fn bucket_fluid_kind(item_name: &str) -> Option<FluidKind> {
@@ -838,16 +730,11 @@ pub fn handle_bucket_place_fluid(
     stream: &mut TcpStream,
     compression: CompressionState,
     state: &mut PlaySessionState,
-    world_layout: &WorldLayout,
-    world_seed: i64,
-    chunk_cache: &GeneratedChunkCache,
-    live_fluid_ticks: &mut LiveFluidTicks,
-    game_time: i64,
+    context: UseItemOnContext<'_, '_>,
     packet: &ServerboundUseItemOnPacket,
     held_slot: usize,
     kind: FluidKind,
 ) -> io::Result<()> {
-    let send_ack = |p: &mut Vec<u8>| write_var_i32(p, packet.sequence);
     let (dx, dy, dz) = direction_offset(packet.block_hit.direction);
     let clicked = crate::block_update::BlockPos {
         x: packet.block_hit.x,
@@ -859,7 +746,7 @@ pub fn handle_bucket_place_fluid(
         y: clicked.y + dy,
         z: clicked.z + dz,
     };
-    let clicked_state = read_block_model_at(world_layout, world_seed, clicked);
+    let clicked_state = read_block_model_at(context.world_layout, context.world_seed, clicked);
     let target = if kind == FluidKind::Water && clicked_state.property("waterlogged").is_some() {
         clicked
     } else {
@@ -868,37 +755,35 @@ pub fn handle_bucket_place_fluid(
     let existing = if target == clicked {
         clicked_state
     } else {
-        read_block_model_at(world_layout, world_seed, target)
+        read_block_model_at(context.world_layout, context.world_seed, target)
     };
     let placed = match place_liquid(&existing, kind) {
         LiquidPlaceResult::Rejected(_) => None,
         LiquidPlaceResult::Replaced(state) | LiquidPlaceResult::Waterlogged(state) => Some(state),
     };
     let Some(fluid_state) = placed else {
-        return write_framed_packet_with_compression(
-            stream,
-            compression,
-            CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
-            send_ack,
-        );
+        return write_block_change_ack(stream, compression, packet.sequence);
     };
     // Java mirror: BucketItem.emptyContents → Level.setBlock. In-memory
     // mutation only; the periodic flush thread persists.
-    chunk_cache.set_block(
-        world_layout.root(),
-        world_seed,
+    context.chunk_cache.set_block(
+        context.world_layout.root(),
+        context.world_seed,
         target,
         &block_state_model_name(&fluid_state),
     );
-    live_fluid_ticks.schedule(game_time, target, kind);
-    schedule_neighbor_fluids(live_fluid_ticks, game_time, world_layout, world_seed, target);
+    context
+        .live_fluid_ticks
+        .schedule(context.game_time, target, kind);
+    schedule_neighbor_fluids(
+        context.live_fluid_ticks,
+        context.game_time,
+        context.world_layout,
+        context.world_seed,
+        target,
+    );
 
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
-        send_ack,
-    )?;
+    write_block_change_ack(stream, compression, packet.sequence)?;
     write_single_block_update(stream, compression, target, &fluid_state)?;
 
     if state.game_mode != GameMode::Creative {
@@ -906,25 +791,14 @@ pub fn handle_bucket_place_fluid(
             .inventory_menu
             .player_inventory_mut()
             .set(held_slot, ItemStack::new("minecraft:bucket", 1));
-        let raw = item_protocol_id("minecraft:bucket")
-            .map(|pid| RawItemStack {
+        let raw = item_protocol_id("minecraft:bucket").map_or_else(RawItemStack::empty, |pid| {
+            RawItemStack {
                 count: 1,
                 item_id: Some(pid),
                 components: RawDataComponentPatch::empty(),
-            })
-            .unwrap_or_else(RawItemStack::empty);
-        write_framed_packet_with_compression(
-            stream,
-            compression,
-            CLIENTBOUND_SET_PLAYER_INVENTORY_PACKET_ID,
-            |p| {
-                ClientboundSetPlayerInventoryPacket {
-                    slot: held_slot as i32,
-                    contents: raw,
-                }
-                .write(p)
-            },
-        )?;
+            }
+        });
+        write_player_inventory_slot_update(stream, compression, held_slot, raw)?;
     }
 
     Ok(())
@@ -939,9 +813,11 @@ pub fn schedule_neighbor_fluids(
 ) {
     for direction in crate::fluid::fluid_neighbor_order() {
         let neighbor = pos.relative(direction);
-        if let Some(fluid) =
-            crate::fluid::fluid_state_for_block(&read_block_model_at(world_layout, world_seed, neighbor))
-        {
+        if let Some(fluid) = crate::fluid::fluid_state_for_block(&read_block_model_at(
+            world_layout,
+            world_seed,
+            neighbor,
+        )) {
             live_fluid_ticks.schedule(game_time, neighbor, fluid.kind);
         }
     }
@@ -1140,9 +1016,8 @@ pub fn process_live_fluid_ticks(
             for direction in crate::fluid::fluid_neighbor_order() {
                 let neighbor = pos.relative(direction);
                 let neighbor_started = Instant::now();
-                let neighbor_state =
-                    try_read_block_model_at(chunk_cache, world_layout, neighbor)
-                        .unwrap_or_else(crate::block_behavior::BlockStateModel::air);
+                let neighbor_state = try_read_block_model_at(chunk_cache, world_layout, neighbor)
+                    .unwrap_or_else(crate::block_behavior::BlockStateModel::air);
                 neighbor_read_us += neighbor_started.elapsed().as_micros();
                 if let Some(fluid) = crate::fluid::fluid_state_for_block(&neighbor_state) {
                     live_fluid_ticks.schedule(game_time, neighbor, fluid.kind);

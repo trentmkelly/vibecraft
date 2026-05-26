@@ -5,8 +5,8 @@ use crate::random_source::{
     slime_chunk_seed, LegacyRandom, RandomAlgorithm, Seed128,
 };
 use crate::worldgen::{
-    initial_spawn_position, spawn_search_candidate, InitialSpawnKind, RandomSpreadType,
-    StructurePlacementKind, BUILTIN_STRUCTURE_SETS,
+    initial_spawn_position, spawn_search_candidate, InitialSpawnKind, InitialSpawnPositionInput,
+    RandomSpreadType, StructurePlacementKind, BUILTIN_STRUCTURE_SETS,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,10 +51,23 @@ pub fn build_seed_parity_matrix() -> Vec<SeedParitySample> {
 }
 
 pub fn build_seed_parity_sample(seed: i64, chunk_x: i32, chunk_z: i32) -> SeedParitySample {
-    let initial_spawn = initial_spawn_position(false, false, false, chunk_x, chunk_z, 64, -64, 70);
-    let spawn_search_candidate =
+    let initial_spawn = initial_spawn_position(InitialSpawnPositionInput {
+        debug_only_half_world: false,
+        debug_world_recreate: false,
+        is_debug: false,
+        spawn_chunk: crate::storage::region::ChunkPos {
+            x: chunk_x,
+            z: chunk_z,
+        },
+        generator_spawn_height: 64,
+        min_y: -64,
+        world_surface_height_at_chunk_center: 70,
+    });
+    let Some(spawn_search_candidate) =
         spawn_search_candidate(chunk_x * 16 + 8, chunk_z * 16 + 8, 10, 0, 17)
-            .expect("candidate below vanilla cap");
+    else {
+        panic!("seed parity spawn candidate index must stay below the vanilla cap");
+    };
     let structure_chunks = BUILTIN_STRUCTURE_SETS
         .iter()
         .filter_map(|set| match set.placement {

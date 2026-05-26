@@ -19,7 +19,7 @@ fn delete_chat_packet_writes_java_packed_message_signature() {
 
     let mut full = Vec::new();
     ClientboundDeleteChatPacket {
-        message_signature: PackedMessageSignature::Full(MessageSignature([9; 256])),
+        message_signature: PackedMessageSignature::Full(Box::new(MessageSignature([9; 256]))),
     }
     .write(&mut full)
     .unwrap();

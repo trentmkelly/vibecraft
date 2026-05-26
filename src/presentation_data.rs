@@ -126,9 +126,7 @@ fn parse_registered_sound_id(line: &str) -> Option<&str> {
         return Some(&remainder[..end]);
     }
 
-    let Some(start) = line.find(REGISTER) else {
-        return None;
-    };
+    let start = line.find(REGISTER)?;
     let remainder = &line[start + REGISTER.len()..];
     let end = remainder.find('\"')?;
     Some(&remainder[..end])
@@ -1001,7 +999,6 @@ const fn jukebox_song(
         length_seconds,
     }
 }
-
 
 #[cfg(test)]
 mod tests;

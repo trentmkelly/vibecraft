@@ -2,7 +2,12 @@ use super::*;
 
 fn chat_prefix(message: &str, timestamp_epoch_millis: i64, salt: i64) -> Vec<u8> {
     let mut payload = Vec::new();
-    write_string(&mut payload, message, ServerboundChatPacket::MAX_MESSAGE_CHARS).unwrap();
+    write_string(
+        &mut payload,
+        message,
+        ServerboundChatPacket::MAX_MESSAGE_CHARS,
+    )
+    .unwrap();
     payload.extend_from_slice(&timestamp_epoch_millis.to_be_bytes());
     payload.extend_from_slice(&salt.to_be_bytes());
     payload
@@ -88,7 +93,7 @@ fn serverbound_chat_packet_encodes_absent_signature_and_enforces_java_limits() {
 
     let mut overlong_message = Vec::new();
     write_var_i32(&mut overlong_message, 257).unwrap();
-    overlong_message.extend(std::iter::repeat(b'x').take(257));
+    overlong_message.extend(std::iter::repeat_n(b'x', 257));
     assert!(ServerboundChatPacket::read(&mut cursor(overlong_message)).is_err());
 
     let mut short_signature = chat_prefix("hi", 100, -7);

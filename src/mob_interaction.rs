@@ -223,157 +223,201 @@ fn lerp(part: f32, start: f32, end: f32) -> f32 {
 }
 
 mod golems;
-pub use golems::*;
+#[cfg(test)]
+use golems::*;
 
 mod frogs_foxes;
-pub use frogs_foxes::*;
+#[cfg(test)]
+use frogs_foxes::*;
 
 mod pandas;
-pub use pandas::*;
+#[cfg(test)]
+use pandas::*;
 
 mod parrots_happy_ghasts;
-pub use parrots_happy_ghasts::*;
+#[cfg(test)]
+use parrots_happy_ghasts::*;
 
 mod dried_ghasts_sniffers;
-pub use dried_ghasts_sniffers::*;
+#[cfg(test)]
+use dried_ghasts_sniffers::*;
 
 mod turtles;
-pub use turtles::*;
+#[cfg(test)]
+use turtles::*;
 
 mod armadillos;
-pub use armadillos::*;
+#[cfg(test)]
+use armadillos::*;
 
 mod allays;
-pub use allays::*;
+#[cfg(test)]
+use allays::*;
 
 mod felines;
-pub use felines::*;
+#[cfg(test)]
+use felines::*;
 
 mod creepers;
-pub use creepers::*;
+#[cfg(test)]
+use creepers::*;
 
 mod slimes;
-pub use slimes::*;
+#[cfg(test)]
+use slimes::*;
 
 mod phantoms;
-pub use phantoms::*;
+#[cfg(test)]
+use phantoms::*;
 
 mod vexes;
-pub use vexes::*;
+#[cfg(test)]
+use vexes::*;
 
 mod silverfish;
-pub use silverfish::*;
+#[cfg(test)]
+use silverfish::*;
 
 mod piglin_hoglin_types;
 pub use piglin_hoglin_types::*;
 
 mod hoglins_piglins;
-pub use hoglins_piglins::*;
+#[cfg(test)]
+use hoglins_piglins::*;
 
 mod ghasts;
-pub use ghasts::*;
+#[cfg(test)]
+use ghasts::*;
 
 mod striders;
-pub use striders::*;
+#[cfg(test)]
+use striders::*;
 
 mod witches;
-pub use witches::*;
+#[cfg(test)]
+use witches::*;
 
 mod guardians;
 pub use guardians::*;
 
 mod ravagers;
-pub use ravagers::*;
+#[cfg(test)]
+use ravagers::*;
 
 mod shulkers;
-pub use shulkers::*;
+#[cfg(test)]
+use shulkers::*;
 
 mod giants;
-pub use giants::*;
+#[cfg(test)]
+use giants::*;
 
 mod zombies;
 pub use zombies::*;
 
 mod zombie_villagers;
+#[cfg(test)]
 pub use zombie_villagers::*;
 
 mod blazes;
-pub use blazes::*;
+#[cfg(test)]
+use blazes::*;
 
 mod zombified_piglins;
 pub use zombified_piglins::*;
 
 mod drowned;
-pub use drowned::*;
+#[cfg(test)]
+use drowned::*;
 
 mod husks;
-pub use husks::*;
+#[cfg(test)]
+use husks::*;
 
 mod endermites;
-pub use endermites::*;
+#[cfg(test)]
+use endermites::*;
 
 mod endermen;
-pub use endermen::*;
+#[cfg(test)]
+use endermen::*;
 
 mod skeletons;
-pub use skeletons::*;
+#[cfg(test)]
+use skeletons::*;
 
 mod spiders;
-pub use spiders::*;
+#[cfg(test)]
+use spiders::*;
 
 mod common;
 pub use common::*;
 
 mod axolotls;
-pub use axolotls::*;
+#[cfg(test)]
+use axolotls::*;
 
 mod chickens_cows;
-pub use chickens_cows::*;
+#[cfg(test)]
+use chickens_cows::*;
 
 mod dolphins;
-pub use dolphins::*;
+#[cfg(test)]
+use dolphins::*;
 
 mod bees;
-pub use bees::*;
+#[cfg(test)]
+use bees::*;
 
 mod camels;
-pub use camels::*;
+#[cfg(test)]
+use camels::*;
 
 mod goats;
-pub use goats::*;
+#[cfg(test)]
+use goats::*;
 
 mod pigs;
-pub use pigs::*;
+#[cfg(test)]
+use pigs::*;
 
 mod polar_bears;
-pub use polar_bears::*;
+#[cfg(test)]
+use polar_bears::*;
 
 mod rabbits;
-pub use rabbits::*;
+#[cfg(test)]
+use rabbits::*;
 
 mod sheep;
-pub use sheep::*;
+#[cfg(test)]
+use sheep::*;
 
 mod squids;
-pub use squids::*;
+#[cfg(test)]
+use squids::*;
 
 mod fish_variants;
-pub use fish_variants::*;
+#[cfg(test)]
+use fish_variants::*;
 
 mod fish_common;
-pub use fish_common::*;
+#[cfg(test)]
+use fish_common::*;
 
 mod bucketables_mooshrooms;
 pub use bucketables_mooshrooms::*;
 
 mod horses_llamas;
-pub use horses_llamas::*;
+#[cfg(test)]
+use horses_llamas::*;
 
 mod villagers_anger_conversion;
 pub use villagers_anger_conversion::*;
 
 mod coverage;
-pub use coverage::*;
+#[cfg(test)]
+use coverage::*;
 
 #[cfg(test)]
 mod tests;

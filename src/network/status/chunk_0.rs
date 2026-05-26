@@ -188,10 +188,23 @@ pub struct GeneratedChunkCache {
     pub dirty: Arc<Mutex<HashSet<ChunkPos>>>,
 }
 
+fn lock_mutex<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    match mutex.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    }
+}
+
 impl GeneratedChunkCache {
-    pub fn get_or_load(&self, x: i32, z: i32, world_root: &Path, world_seed: i64) -> Arc<LevelChunk> {
+    pub fn get_or_load(
+        &self,
+        x: i32,
+        z: i32,
+        world_root: &Path,
+        world_seed: i64,
+    ) -> Arc<LevelChunk> {
         let pos = ChunkPos { x, z };
-        if let Some(chunk) = self.chunks.lock().unwrap().get(&pos).cloned() {
+        if let Some(chunk) = lock_mutex(&self.chunks).get(&pos).cloned() {
             return chunk;
         }
 
@@ -209,7 +222,7 @@ impl GeneratedChunkCache {
                     true,
                 ) {
                     Ok(region_chunks) => {
-                        let mut cache = self.chunks.lock().unwrap();
+                        let mut cache = lock_mutex(&self.chunks);
                         for (region_pos, chunk) in region_chunks {
                             if !region_generated_chunk_is_cacheable(pos, region_pos) {
                                 continue;
@@ -233,9 +246,7 @@ impl GeneratedChunkCache {
         let chunk = Arc::new(load_or_generate_spawn_chunk_uncached(
             x, z, world_root, world_seed,
         ));
-        self.chunks
-            .lock()
-            .unwrap()
+        lock_mutex(&self.chunks)
             .entry(pos)
             .or_insert_with(|| Arc::clone(&chunk))
             .clone()
@@ -246,11 +257,12 @@ impl GeneratedChunkCache {
     /// we dropped it before `flush_dirty` ran. Java's chunk map has the
     /// same invariant — `LevelChunk.unsaved` blocks unload until the
     /// chunk has been persisted.
+    #[cfg(test)]
     pub fn invalidate(&self, pos: ChunkPos) {
-        if self.dirty.lock().unwrap().contains(&pos) {
+        if lock_mutex(&self.dirty).contains(&pos) {
             return;
         }
-        self.chunks.lock().unwrap().remove(&pos);
+        lock_mutex(&self.chunks).remove(&pos);
     }
 
     /// Nonblocking readiness probe.
@@ -261,7 +273,7 @@ impl GeneratedChunkCache {
     /// to decide which pending chunks can be flushed *right now*, and skips
     /// the rest for a later tick once generation completes.
     pub fn try_get_ready(&self, pos: ChunkPos) -> Option<Arc<LevelChunk>> {
-        self.chunks.lock().unwrap().get(&pos).cloned()
+        lock_mutex(&self.chunks).get(&pos).cloned()
     }
 
     /// Java mirror: `LevelChunk.setBlockState(pos, state, flags)`. Mutates
@@ -297,10 +309,8 @@ impl GeneratedChunkCache {
         // region-read + worldgen fallback.
         let _ = self.get_or_load(chunk_pos.x, chunk_pos.z, world_root, world_seed);
         let prev = {
-            let mut map = self.chunks.lock().unwrap();
-            let Some(arc) = map.get_mut(&chunk_pos) else {
-                return None;
-            };
+            let mut map = lock_mutex(&self.chunks);
+            let arc = map.get_mut(&chunk_pos)?;
             let chunk = Arc::make_mut(arc);
             let prev = chunk
                 .get_block_state(pos.x, pos.y, pos.z)
@@ -308,7 +318,7 @@ impl GeneratedChunkCache {
             chunk.set_block_state(pos.x, pos.y, pos.z, block_name);
             prev
         };
-        self.dirty.lock().unwrap().insert(chunk_pos);
+        lock_mutex(&self.dirty).insert(chunk_pos);
         prev
     }
 
@@ -328,14 +338,14 @@ impl GeneratedChunkCache {
         region_file_compression: RegionCompression,
     ) -> usize {
         let dirty: Vec<ChunkPos> = {
-            let mut d = self.dirty.lock().unwrap();
+            let mut d = lock_mutex(&self.dirty);
             d.drain().collect()
         };
         if dirty.is_empty() {
             return 0;
         }
         let snapshots: Vec<(ChunkPos, Arc<LevelChunk>)> = {
-            let map = self.chunks.lock().unwrap();
+            let map = lock_mutex(&self.chunks);
             dirty
                 .iter()
                 .filter_map(|pos| map.get(pos).cloned().map(|c| (*pos, c)))
@@ -349,8 +359,7 @@ impl GeneratedChunkCache {
                 pos.region(),
                 sync_chunk_writes,
                 region_file_compression,
-            )
-            else {
+            ) else {
                 continue;
             };
             let nbt = chunk.to_nbt(crate::storage::datafix::TARGET_DATA_VERSION);
@@ -377,7 +386,7 @@ pub fn spawn_chunk_flush_thread(
     sync_chunk_writes: bool,
     region_file_compression: RegionCompression,
 ) {
-    thread::Builder::new()
+    if let Err(err) = thread::Builder::new()
         .name("chunk-flush".to_string())
         .spawn(move || loop {
             thread::sleep(interval);
@@ -392,7 +401,9 @@ pub fn spawn_chunk_flush_thread(
                 );
             }
         })
-        .expect("failed to spawn chunk-flush thread");
+    {
+        eprintln!("[chunk-flush] failed to spawn background chunk flush thread: {err}");
+    }
 }
 
 /// Shared async chunk generation coordinator.
@@ -464,10 +475,12 @@ impl ChunkPipeline {
         for worker_id in 0..worker_count {
             let inner = Arc::clone(&inner);
             let cache = cache.clone();
-            thread::Builder::new()
+            if let Err(err) = thread::Builder::new()
                 .name(format!("chunk-pipeline-{worker_id}"))
                 .spawn(move || chunk_pipeline_worker(inner, cache))
-                .expect("failed to spawn chunk pipeline worker");
+            {
+                eprintln!("[chunk-pipeline] failed to spawn worker {worker_id}: {err}");
+            }
         }
         Self { cache, inner }
     }
@@ -480,7 +493,7 @@ impl ChunkPipeline {
         if self.cache.try_get_ready(pos).is_some() {
             return;
         }
-        let mut state = self.inner.state.lock().unwrap();
+        let mut state = lock_mutex(&self.inner.state);
         if state.pending.contains_key(&pos) {
             return;
         }
@@ -502,7 +515,7 @@ impl ChunkPipeline {
     /// runs to completion (the chunk lands in the cache and is available if
     /// the player re-enters its tracking range later).
     pub fn cancel_request(&self, pos: ChunkPos) {
-        let mut state = self.inner.state.lock().unwrap();
+        let mut state = lock_mutex(&self.inner.state);
         if state.pending.contains_key(&pos) {
             let before = state.queue.len();
             state.queue.retain(|p| *p != pos);
@@ -517,7 +530,7 @@ impl ChunkPipeline {
     }
 
     pub fn diagnostics(&self) -> ChunkPipelineDiagnostics {
-        let state = self.inner.state.lock().unwrap();
+        let state = lock_mutex(&self.inner.state);
         let now = Instant::now();
         let oldest = state
             .pending
@@ -542,7 +555,7 @@ impl ChunkPipeline {
 pub fn chunk_pipeline_worker(inner: Arc<ChunkPipelineInner>, cache: GeneratedChunkCache) {
     loop {
         let pos = {
-            let mut state = inner.state.lock().unwrap();
+            let mut state = lock_mutex(&inner.state);
             loop {
                 if inner.shutdown.load(Ordering::Acquire) {
                     return;
@@ -550,7 +563,10 @@ pub fn chunk_pipeline_worker(inner: Arc<ChunkPipelineInner>, cache: GeneratedChu
                 if let Some(pos) = state.queue.pop_front() {
                     break pos;
                 }
-                state = inner.cvar.wait(state).unwrap();
+                state = match inner.cvar.wait(state) {
+                    Ok(guard) => guard,
+                    Err(poisoned) => poisoned.into_inner(),
+                };
             }
         };
 
@@ -563,13 +579,10 @@ pub fn chunk_pipeline_worker(inner: Arc<ChunkPipelineInner>, cache: GeneratedChu
         }
         impl<'a> Drop for PendingGuard<'a> {
             fn drop(&mut self) {
-                self.inner.state.lock().unwrap().pending.remove(&self.pos);
+                lock_mutex(&self.inner.state).pending.remove(&self.pos);
             }
         }
-        let _guard = PendingGuard {
-            inner: &inner,
-            pos,
-        };
+        let _guard = PendingGuard { inner: &inner, pos };
 
         let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
             cache.get_or_load(pos.x, pos.z, &inner.world_root, inner.world_seed)
@@ -611,7 +624,12 @@ impl LiveFluidTicks {
         }
     }
 
-    pub fn schedule(&mut self, game_time: i64, pos: crate::block_update::BlockPos, kind: FluidKind) {
+    pub fn schedule(
+        &mut self,
+        game_time: i64,
+        pos: crate::block_update::BlockPos,
+        kind: FluidKind,
+    ) {
         let chunk = ChunkPos {
             x: pos.x.div_euclid(16),
             z: pos.z.div_euclid(16),
@@ -646,9 +664,9 @@ impl LiveFluidTicks {
             z: pos.z.div_euclid(16),
         };
         self.queues.add_container(chunk);
-        let tick =
-            self.queues
-                .create_tick(current_tick, pos, kind.registry_id(), delay, priority);
+        let tick = self
+            .queues
+            .create_tick(current_tick, pos, kind.registry_id(), delay, priority);
         let _ = self.queues.schedule(tick);
     }
 
@@ -698,9 +716,10 @@ impl ActiveLoginRegistry {
     ) -> io::Result<(ActiveLoginGuard, Option<TcpStream>)> {
         let token = self.next_token.fetch_add(1, Ordering::Relaxed);
         let stream = stream.try_clone()?;
-        let mut sessions = self.sessions.lock().map_err(|_| {
-            io::Error::new(io::ErrorKind::Other, "active login registry mutex poisoned")
-        })?;
+        let mut sessions = self
+            .sessions
+            .lock()
+            .map_err(|_| io::Error::other("active login registry mutex poisoned"))?;
         let old = sessions
             .insert(uuid.to_string(), ActiveLoginSession { token, stream })
             .map(|session| session.stream);

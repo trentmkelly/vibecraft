@@ -25,7 +25,14 @@ fn clientbound_set_score_packet_matches_java_codec() {
     .unwrap();
     assert_eq!(
         empty_optionals,
-        [vec![5], b"Steve".to_vec(), vec![6], b"deaths".to_vec(), vec![0, 0, 0]].concat()
+        [
+            vec![5],
+            b"Steve".to_vec(),
+            vec![6],
+            b"deaths".to_vec(),
+            vec![0, 0, 0]
+        ]
+        .concat()
     );
 
     let mut populated = Vec::new();

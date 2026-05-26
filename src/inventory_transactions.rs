@@ -330,10 +330,18 @@ mod tests {
     #[test]
     fn scripted_throw_clone_quickcraft_and_pickup_all_modes_are_mapped() {
         let mut menu = Menu::new(4);
+        assert_scripted_throw_mode(&mut menu);
+
+        let cloned_stack = assert_scripted_clone_mode(&mut menu);
+        assert_scripted_quickcraft_mode(&mut menu, cloned_stack);
+        assert_scripted_pickup_all_mode(&mut menu);
+    }
+
+    fn assert_scripted_throw_mode(menu: &mut Menu) {
         menu.slots[0] = Slot::with_stack(ItemStack::new("minecraft:stick", 3));
 
-        let throw = apply_scripted_packet(
-            &mut menu,
+        let result = apply_scripted_packet(
+            menu,
             0,
             &packet(
                 0,
@@ -345,18 +353,20 @@ mod tests {
             ),
         );
         assert_eq!(
-            throw.action,
+            result.action,
             InventoryAction::Dropped {
                 slot: Some(0),
                 count: 3
             }
         );
-        assert!(throw.accepted);
+        assert!(result.accepted);
+    }
 
+    fn assert_scripted_clone_mode(menu: &mut Menu) -> ItemStack {
         menu.creative = true;
         menu.slots[1] = Slot::with_stack(ItemStack::new("minecraft:ender_pearl", 2));
-        let clone = apply_scripted_packet(
-            &mut menu,
+        let result = apply_scripted_packet(
+            menu,
             1,
             &packet(
                 1,
@@ -367,11 +377,14 @@ mod tests {
                 ItemStack::new("minecraft:ender_pearl", 16),
             ),
         );
-        assert_eq!(clone.action, InventoryAction::Cloned { slot: 1 });
-        assert!(clone.accepted);
+        assert_eq!(result.action, InventoryAction::Cloned { slot: 1 });
+        assert!(result.accepted);
+        result.carried
+    }
 
+    fn assert_scripted_quickcraft_mode(menu: &mut Menu, cloned_stack: ItemStack) {
         let quickcraft_start = apply_scripted_packet(
-            &mut menu,
+            menu,
             2,
             &packet(
                 2,
@@ -379,14 +392,14 @@ mod tests {
                 0,
                 ContainerInput::QuickCraft,
                 vec![],
-                clone.carried,
+                cloned_stack,
             ),
         );
         assert_eq!(quickcraft_start.action, InventoryAction::Noop);
         assert!(quickcraft_start.accepted);
 
         let quickcraft_slot_2 = apply_scripted_packet(
-            &mut menu,
+            menu,
             3,
             &packet(
                 3,
@@ -401,7 +414,7 @@ mod tests {
         assert!(quickcraft_slot_2.accepted);
 
         let quickcraft_slot_3 = apply_scripted_packet(
-            &mut menu,
+            menu,
             4,
             &packet(
                 4,
@@ -416,7 +429,7 @@ mod tests {
         assert!(quickcraft_slot_3.accepted);
 
         let quickcraft_end = apply_scripted_packet(
-            &mut menu,
+            menu,
             5,
             &packet(
                 5,
@@ -435,12 +448,14 @@ mod tests {
             InventoryAction::QuickCrafted { slots: 2, each: 8 }
         );
         assert!(quickcraft_end.accepted);
+    }
 
+    fn assert_scripted_pickup_all_mode(menu: &mut Menu) {
         menu.carried = ItemStack::new("minecraft:stick", 1);
         menu.slots[0] = Slot::with_stack(ItemStack::new("minecraft:stick", 2));
         menu.slots[2] = Slot::with_stack(ItemStack::new("minecraft:stick", 1));
         let pickup_all = apply_scripted_packet(
-            &mut menu,
+            menu,
             6,
             &packet(
                 6,

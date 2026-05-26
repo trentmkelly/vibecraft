@@ -1,8 +1,10 @@
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RegistryEntry {
     pub id: &'static str,
 }
 
+#[cfg(test)]
 // Source: decompiled-server-26.1.2/net/minecraft/world/item/crafting/RecipeType.java
 pub const RECIPE_TYPES: &[RegistryEntry] = &[
     RegistryEntry { id: "crafting" },
@@ -16,6 +18,7 @@ pub const RECIPE_TYPES: &[RegistryEntry] = &[
     RegistryEntry { id: "smithing" },
 ];
 
+#[cfg(test)]
 // Source: decompiled-server-26.1.2/net/minecraft/world/item/crafting/RecipeSerializers.java
 pub const RECIPE_SERIALIZERS: &[RegistryEntry] = &[
     RegistryEntry {
@@ -73,6 +76,7 @@ pub const RECIPE_SERIALIZERS: &[RegistryEntry] = &[
     },
 ];
 
+#[cfg(test)]
 pub const RECIPE_DISPLAY_TYPES: &[RegistryEntry] = &[
     RegistryEntry {
         id: "crafting_shapeless",
@@ -85,6 +89,7 @@ pub const RECIPE_DISPLAY_TYPES: &[RegistryEntry] = &[
     RegistryEntry { id: "smithing" },
 ];
 
+#[cfg(test)]
 pub const SLOT_DISPLAY_TYPES: &[RegistryEntry] = &[
     RegistryEntry { id: "empty" },
     RegistryEntry { id: "any_fuel" },
@@ -107,6 +112,7 @@ pub const SLOT_DISPLAY_TYPES: &[RegistryEntry] = &[
     RegistryEntry { id: "composite" },
 ];
 
+#[cfg(test)]
 pub const RECIPE_BOOK_CATEGORIES: &[RegistryEntry] = &[
     RegistryEntry {
         id: "crafting_building_blocks",
@@ -140,17 +146,22 @@ pub const RECIPE_BOOK_CATEGORIES: &[RegistryEntry] = &[
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RecipeBookType {
     Crafting,
+    #[cfg(test)]
     Furnace,
+    #[cfg(test)]
     BlastFurnace,
+    #[cfg(test)]
     Smoker,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct RecipeBookTypeSettings {
     pub open: bool,
     pub filtering: bool,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct RecipeBookSettings {
     pub crafting: RecipeBookTypeSettings,
@@ -159,6 +170,7 @@ pub struct RecipeBookSettings {
     pub smoker: RecipeBookTypeSettings,
 }
 
+#[cfg(test)]
 impl RecipeBookSettings {
     pub fn get(self, book_type: RecipeBookType) -> RecipeBookTypeSettings {
         match book_type {
@@ -201,6 +213,7 @@ impl RecipeBookSettings {
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RecipeDisplay {
     ShapelessCrafting {
@@ -237,6 +250,7 @@ pub enum RecipeDisplay {
     },
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SlotDisplay {
     Empty,
@@ -265,9 +279,11 @@ pub enum SlotDisplay {
     Composite(Vec<SlotDisplay>),
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecipeDisplayId(pub i32);
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecipeDisplayEntry {
     pub id: RecipeDisplayId,
@@ -277,6 +293,7 @@ pub struct RecipeDisplayEntry {
     pub crafting_requirements: Option<Vec<SlotDisplay>>,
 }
 
+#[cfg(test)]
 impl RecipeDisplayEntry {
     pub fn can_craft(&self, provided: &[&'static str]) -> bool {
         let Some(requirements) = &self.crafting_requirements else {
@@ -296,9 +313,11 @@ impl RecipeDisplayEntry {
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RecipeBookEntryFlags(u8);
 
+#[cfg(test)]
 impl RecipeBookEntryFlags {
     pub const NOTIFICATION: u8 = 1;
     pub const HIGHLIGHT: u8 = 2;
@@ -320,40 +339,47 @@ impl RecipeBookEntryFlags {
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecipeBookAddEntry {
     pub contents: RecipeDisplayEntry,
     pub flags: RecipeBookEntryFlags,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientboundRecipeBookAddPacket {
     pub entries: Vec<RecipeBookAddEntry>,
     pub replace: bool,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientboundRecipeBookRemovePacket {
     pub recipes: Vec<RecipeDisplayId>,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientboundRecipeBookSettingsPacket {
     pub settings: RecipeBookSettings,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientboundUpdateRecipesPacket {
     pub item_sets: Vec<RecipePropertySet>,
     pub stonecutter_recipes: Vec<SelectableSingleInputRecipe>,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecipePropertySet {
     pub key: &'static str,
     pub accepted_items: Vec<&'static str>,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectableSingleInputRecipe {
     pub input: &'static str,
@@ -367,18 +393,22 @@ pub struct RecipeHolder {
 }
 
 impl RecipeHolder {
+    #[cfg(test)]
     pub fn get_id(&self) -> &'static str {
         self.id
     }
 
+    #[cfg(test)]
     pub fn get_serializer(&self) -> &'static str {
         self.recipe.serializer()
     }
 
+    #[cfg(test)]
     pub fn get_type(&self) -> &'static str {
         self.recipe.recipe_type()
     }
 
+    #[cfg(test)]
     pub fn get_result_item(&self) -> Option<ItemAmount> {
         self.recipe.assemble()
     }
@@ -398,6 +428,7 @@ impl RecipeMap {
         self.recipes.iter().find(|holder| holder.id == id)
     }
 
+    #[cfg(test)]
     pub fn by_type(&self, recipe_type: &str) -> Vec<&RecipeHolder> {
         self.recipes
             .iter()
@@ -430,7 +461,9 @@ impl RecipeMap {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RecipeManagerModel {
     recipes: RecipeMap,
+    #[cfg(test)]
     property_sets: Vec<RecipePropertySet>,
+    #[cfg(test)]
     stonecutter_recipes: Vec<StonecutterSelection>,
 }
 
@@ -443,6 +476,8 @@ impl RecipeManagerModel {
 
     pub fn reload(&mut self, recipes: Vec<RecipeHolder>) {
         self.recipes = RecipeMap::create(recipes);
+        #[cfg(test)]
+        {
         self.property_sets = collect_recipe_property_sets(self.recipes.values());
         self.stonecutter_recipes = self
             .recipes
@@ -457,12 +492,14 @@ impl RecipeManagerModel {
                 _ => None,
             })
             .collect();
+        }
     }
 
     pub fn recipe_map(&self) -> &RecipeMap {
         &self.recipes
     }
 
+    #[cfg(test)]
     pub fn property_set(&self, key: &str) -> RecipePropertySet {
         self.property_sets
             .iter()
@@ -474,6 +511,7 @@ impl RecipeManagerModel {
             })
     }
 
+    #[cfg(test)]
     pub fn stonecutter_recipes(&self) -> &[StonecutterSelection] {
         &self.stonecutter_recipes
     }
@@ -616,6 +654,7 @@ pub struct ItemAmount {
 }
 
 impl ItemAmount {
+    #[cfg(test)]
     pub const fn one(item: &'static str) -> Self {
         Self { item, count: 1 }
     }
@@ -633,6 +672,7 @@ impl CraftingStack {
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComponentCraftingStack {
     pub item: &'static str,
@@ -656,6 +696,7 @@ pub struct ComponentCraftingStack {
     pub base_color: Option<&'static str>,
 }
 
+#[cfg(test)]
 impl ComponentCraftingStack {
     pub fn one(item: &'static str) -> Self {
         Self {
@@ -682,6 +723,7 @@ impl ComponentCraftingStack {
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PotDecorationsModel {
     pub back: &'static str,
@@ -690,6 +732,7 @@ pub struct PotDecorationsModel {
     pub front: &'static str,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FireworkExplosionModel {
     pub shape: &'static str,
@@ -699,6 +742,7 @@ pub struct FireworkExplosionModel {
     pub twinkle: bool,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FireworksModel {
     pub flight_duration: u8,
@@ -730,6 +774,7 @@ fn crafting_remainder(item: &str) -> Option<&'static str> {
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CraftingBookCategoryModel {
     Building,
@@ -738,6 +783,7 @@ pub enum CraftingBookCategoryModel {
     Misc,
 }
 
+#[cfg(test)]
 impl CraftingBookCategoryModel {
     pub fn recipe_book_category(self) -> &'static str {
         match self {
@@ -749,6 +795,7 @@ impl CraftingBookCategoryModel {
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NormalCraftingRecipeModel {
     pub category: CraftingBookCategoryModel,
@@ -757,6 +804,7 @@ pub struct NormalCraftingRecipeModel {
     pub placement_info: PlacementInfo,
 }
 
+#[cfg(test)]
 impl NormalCraftingRecipeModel {
     pub fn recipe_book_category(&self) -> &'static str {
         self.category.recipe_book_category()
@@ -767,18 +815,21 @@ impl NormalCraftingRecipeModel {
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnchantmentComponent {
     pub id: &'static str,
     pub level: u32,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArmorTrimComponent {
     pub material: &'static str,
     pub pattern: &'static str,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SmithingComponentStack {
     pub item: &'static str,
@@ -788,6 +839,7 @@ pub struct SmithingComponentStack {
     pub trim: Option<ArmorTrimComponent>,
 }
 
+#[cfg(test)]
 impl SmithingComponentStack {
     pub fn one(item: &'static str) -> Self {
         Self {
@@ -800,6 +852,7 @@ impl SmithingComponentStack {
     }
 }
 
+#[cfg(test)]
 pub fn smithing_transform_result(
     result_item: &'static str,
     base: &SmithingComponentStack,
@@ -810,6 +863,7 @@ pub fn smithing_transform_result(
     result
 }
 
+#[cfg(test)]
 pub fn smithing_trim_result(
     base: &SmithingComponentStack,
     material_from_addition: Option<&'static str>,
@@ -843,17 +897,20 @@ impl IngredientSpec {
         }
     }
 
+    #[cfg(test)]
     pub fn is_empty(&self) -> bool {
         matches!(self, IngredientSpec::Empty)
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlacementInfo {
     pub ingredients: Vec<IngredientSpec>,
     pub slots_to_ingredient_index: Vec<i32>,
 }
 
+#[cfg(test)]
 impl PlacementInfo {
     pub const EMPTY_SLOT: i32 = -1;
 
@@ -913,12 +970,14 @@ impl PlacementInfo {
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimpleSmithingRecipeModel {
     pub show_notification: bool,
     pub placement_info: PlacementInfo,
 }
 
+#[cfg(test)]
 impl SimpleSmithingRecipeModel {
     pub fn new(show_notification: bool, placement_info: PlacementInfo) -> Self {
         Self {
@@ -945,6 +1004,7 @@ pub enum CookingKind {
 }
 
 impl CookingKind {
+    #[cfg(test)]
     pub fn default_cooking_time(self) -> i32 {
         match self {
             CookingKind::Smelting => 200,
@@ -953,6 +1013,7 @@ impl CookingKind {
         }
     }
 
+    #[cfg(test)]
     pub fn serializer(self) -> &'static str {
         match self {
             CookingKind::Smelting => "smelting",
@@ -969,10 +1030,12 @@ pub struct FuelValues {
 }
 
 impl FuelValues {
+    #[cfg(test)]
     pub fn vanilla() -> Self {
         Self::vanilla_with_base_unit(200)
     }
 
+    #[cfg(test)]
     pub fn vanilla_with_base_unit(base_unit: i32) -> Self {
         let mut entries = Vec::new();
         let mut add = |item, ticks| push_fuel(&mut entries, item, ticks);
@@ -1058,12 +1121,9 @@ impl FuelValues {
     pub fn is_fuel(&self, item: &str) -> bool {
         self.burn_duration(Some(item)) > 0
     }
-
-    pub fn fuel_items(&self) -> Vec<&'static str> {
-        self.entries.iter().map(|(item, _)| *item).collect()
-    }
 }
 
+#[cfg(test)]
 fn push_fuel(entries: &mut Vec<(&'static str, i32)>, item: &'static str, ticks: i32) {
     if let Some((_, existing)) = entries.iter_mut().find(|(candidate, _)| *candidate == item) {
         *existing = ticks;
@@ -1072,6 +1132,7 @@ fn push_fuel(entries: &mut Vec<(&'static str, i32)>, item: &'static str, ticks: 
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FurnaceRecipeUsage {
     pub recipe_id: &'static str,
@@ -1079,6 +1140,7 @@ pub struct FurnaceRecipeUsage {
     pub experience_millis: i32,
 }
 
+#[cfg(test)]
 pub fn furnace_experience_to_award(usage: &FurnaceRecipeUsage, fraction_roll: f32) -> i32 {
     if usage.times_used <= 0 || usage.experience_millis <= 0 {
         return 0;
