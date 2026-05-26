@@ -1053,6 +1053,12 @@ fn login_and_respawn_packets_write_common_spawn_info_in_vanilla_order() {
     login.write(&mut login_payload).unwrap();
     assert_eq!(&login_payload[..5], &[0, 0, 0, 42, 1]);
     let mut input = cursor(login_payload);
+    assert_login_payload_header(&mut input);
+    assert_common_spawn_info_payload(&mut input);
+    assert_respawn_keeps_all_data(spawn_info);
+}
+
+fn assert_login_payload_header(mut input: &mut impl std::io::Read) {
     assert_eq!(read_i32(&mut input).unwrap(), 42);
     assert!(read_bool(&mut input).unwrap());
     assert_eq!(read_var_i32(&mut input).unwrap(), 2);
@@ -1070,6 +1076,9 @@ fn login_and_respawn_packets_write_common_spawn_info_in_vanilla_order() {
     assert!(!read_bool(&mut input).unwrap());
     assert!(read_bool(&mut input).unwrap());
     assert!(!read_bool(&mut input).unwrap());
+}
+
+fn assert_common_spawn_info_payload(mut input: &mut impl std::io::Read) {
     assert_eq!(read_var_i32(&mut input).unwrap(), 3);
     assert_eq!(
         read_identifier(&mut input).unwrap(),
@@ -1089,7 +1098,9 @@ fn login_and_respawn_packets_write_common_spawn_info_in_vanilla_order() {
     assert_eq!(read_var_i32(&mut input).unwrap(), 20);
     assert_eq!(read_var_i32(&mut input).unwrap(), 32);
     assert!(read_bool(&mut input).unwrap());
+}
 
+fn assert_respawn_keeps_all_data(spawn_info: CommonPlayerSpawnInfo) {
     let mut respawn_payload = Vec::new();
     ClientboundRespawnPacket {
         spawn_info,
