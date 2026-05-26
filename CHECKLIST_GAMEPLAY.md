@@ -55,7 +55,7 @@
 - [ ] Implement all vanilla mob effects with correct tick behavior: status-effect registry, attributes, ticking actions, movement/break-speed/damage-prevention helpers, visual/death hooks, ambient flags, hidden-effect stacking, and active-effect NBT serialization are covered by the `status_effect` test group.
   - [x] Speed/Slowness: movement speed modifier per amplifier level — `STATUS_EFFECTS` Speed applies +0.2 AddMultipliedTotal and Slowness -0.15 AddMultipliedTotal to `movement_speed` attribute; verified against Java `MobEffects.MOVEMENT_SPEED`/`MOVEMENT_SLOWDOWN` 26.1.2 attribute modifiers.
   - [x] Haste/Mining Fatigue: break speed modifier — `status_effect::break_speed_multiplier` covers haste scaling and mining-fatigue tier multipliers; verified haste formula `1 + 0.2 * (amplifier+1)` matches Java `Player.getDestroySpeed()` line 593, mining fatigue switch values `0.3/0.09/0.0027/8.1E-4` match Java line 597-602.
-  - [ ] Strength/Weakness: attack damage modifier
+  - [x] Strength/Weakness: attack damage modifier — Strength +3.0 ADD_VALUE and Weakness -4.0 ADD_VALUE on `attack_damage`; verified against Java `MobEffects` attribute modifiers.
   - [ ] Instant Health/Instant Damage: immediate damage/heal on apply
   - [x] Jump Boost/Levitation/Slow Falling: movement effects — `status_effect::movement_effect` exposes jump boost `0.1*(amp+1)` matching Java `LivingEntity.getJumpBoostPower` line 2340, levitation `0.05*(amp+1)` matching line 2430, and slow-falling flag.
   - [x] Resistance: damage reduction — `status_effect::resistance_damage_multiplier` applies 20% reduction per amplifier level, clamped at full reduction; verified formula `(25 - (amp+1)*5) / 25` matches Java `LivingEntity` line 1885-1889.
@@ -70,7 +70,7 @@
   - [x] Poison: deals 1 damage every `25 / (amplifier+1)` ticks, cannot kill — `tick_action` uses interval 25, checks `health > 1.0`, returns `Damage { source: "minecraft:magic", amount: 1.0 }`; verified against Java `PoisonMobEffect.java`.
   - [x] Wither: deals 1 damage every `40 / (amplifier+1)` ticks, can kill, bypasses armor — `tick_action` uses interval 40, no health guard, returns `Damage { source: "minecraft:wither", amount: 1.0 }`; verified against Java `WitherMobEffect.java`.
   - [x] Absorption: adds 4 × (amplifier+1) max health as absorption hearts — STATUS_EFFECTS Absorption has 4.0 ADD_VALUE modifier on `max_absorption`; matches Java `MobEffects.ABSORPTION` attribute modifier.
-  - [ ] Health Boost: +4 × (amplifier+1) max health
+  - [x] Health Boost: +4 × (amplifier+1) max health — 4.0 ADD_VALUE on `max_health`; verified against Java `MobEffects.HEALTH_BOOST` attribute modifier.
   - [ ] Hero of the Village: discount effect for villager prices
   - [ ] Bad Omen / Raid Omen / Trial Omen: triggers raid or trial state
   - [ ] Conduit Power: underwater haste + vision + attack — `status_effect::conduit_power_effect` covers underwater break speed, drowning prevention, night vision, and hostile attack damage.
