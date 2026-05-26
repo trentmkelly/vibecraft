@@ -497,6 +497,13 @@ fn assert_sculk_shrieker_summon_persistence_and_disabled_mode(
 
 #[test]
 fn bell_block_entity_tracks_ring_resonation_and_raider_glow_like_java() {
+    assert_bell_constants();
+    let mut bell = assert_bell_ring_and_event_state();
+    assert_bell_resonation_and_glow_timing(&mut bell);
+    assert_bell_entity_cache_refreshes_after_search_delay(&bell);
+}
+
+fn assert_bell_constants() {
     assert_eq!(BellBlockEntity::DURATION, 50);
     assert_eq!(BellBlockEntity::GLOW_DURATION, 60);
     assert_eq!(BellBlockEntity::MIN_TICKS_BETWEEN_SEARCHES, 60);
@@ -505,7 +512,9 @@ fn bell_block_entity_tracks_ring_resonation_and_raider_glow_like_java() {
     assert_eq!(BellBlockEntity::SEARCH_RADIUS, 48.0);
     assert_eq!(BellBlockEntity::HEAR_BELL_RADIUS, 32.0);
     assert_eq!(BellBlockEntity::HIGHLIGHT_RAIDERS_RADIUS, 48.0);
+}
 
+fn assert_bell_ring_and_event_state() -> BellBlockEntity {
     let mut bell = BellBlockEntity::new();
     let block_event = bell.on_hit(Direction::North);
     assert_eq!(
@@ -532,7 +541,10 @@ fn bell_block_entity_tracks_ring_resonation_and_raider_glow_like_java() {
     assert_eq!(bell.ticks, 0);
     assert!(bell.shaking);
     assert!(!bell.trigger_event(99, 0, 100, 0, 0, 0));
+    bell
+}
 
+fn assert_bell_resonation_and_glow_timing(bell: &mut BellBlockEntity) {
     for _ in 0..4 {
         assert_eq!(
             bell.tick(),
@@ -574,7 +586,9 @@ fn bell_block_entity_tracks_ring_resonation_and_raider_glow_like_java() {
     assert_eq!(bell.ticks, 0);
     assert_eq!(bell.save_additional(), Tag::Compound(vec![]));
     assert_eq!(bell.get_update_tag(), Tag::Compound(vec![]));
+}
 
+fn assert_bell_entity_cache_refreshes_after_search_delay(bell: &BellBlockEntity) {
     let mut cached = bell.clone();
     cached.update_entities(120, 7, 3, 5);
     assert_eq!(cached.heard_bell_entities, 4);
