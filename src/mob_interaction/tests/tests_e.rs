@@ -2,6 +2,13 @@ use crate::mob_interaction::*;
 
 #[test]
 fn ghast_fireball_spawn_and_movement_gates_match_java_rules() {
+    assert_ghast_attributes_spawn_and_targeting();
+    assert_ghast_reflected_fireball_damage_rules();
+    assert_ghast_shoot_fireball_goal_timing();
+    assert_ghast_random_float_and_large_fireball_rules();
+}
+
+fn assert_ghast_attributes_spawn_and_targeting() {
     assert_eq!(
         ghast_attributes(),
         GhastAttributes {
@@ -35,7 +42,9 @@ fn ghast_fireball_spawn_and_movement_gates_match_java_rules() {
     assert_eq!(GHAST_DEFAULT_EXPLOSION_POWER, 1);
     assert_eq!(GHAST_LEASH_ELASTIC_DISTANCE, 10.0);
     assert_eq!(GHAST_LEASH_SNAP_DISTANCE, 16.0);
+}
 
+fn assert_ghast_reflected_fireball_damage_rules() {
     assert!(ghast_is_reflected_fireball(
         "minecraft:fireball",
         "minecraft:player"
@@ -48,7 +57,9 @@ fn ghast_fireball_spawn_and_movement_gates_match_java_rules() {
     assert_eq!(ghast_hurt_damage(false, true, 6.0), None);
     assert_eq!(ghast_hurt_damage(false, false, 6.0), Some(6.0));
     assert_eq!(GHAST_FIREBALL_ENTITY_DAMAGE, 6.0);
+}
 
+fn assert_ghast_shoot_fireball_goal_timing() {
     assert_eq!(
         ghast_shoot_fireball_tick(9, true, 4095.9, true, false, 1),
         GhastShootTick {
@@ -96,7 +107,9 @@ fn ghast_fireball_spawn_and_movement_gates_match_java_rules() {
             fireball: None,
         }
     );
+}
 
+fn assert_ghast_random_float_and_large_fireball_rules() {
     assert!(ghast_random_float_can_use(false, 100.0));
     assert!(ghast_random_float_can_use(true, 0.99));
     assert!(ghast_random_float_can_use(true, 3600.01));
@@ -115,6 +128,13 @@ fn ghast_fireball_spawn_and_movement_gates_match_java_rules() {
 
 #[test]
 fn strider_lava_saddle_suffocation_and_jockey_rules_match_java() {
+    assert_strider_attributes_spawn_and_pathing();
+    assert_strider_saddle_riding_and_suffocation();
+    assert_strider_lava_float_navigation_and_sounds();
+    assert_strider_finalize_spawn_jockey_rules();
+}
+
+fn assert_strider_attributes_spawn_and_pathing() {
     assert_eq!(
         strider_attributes(),
         StriderAttributes {
@@ -140,7 +160,9 @@ fn strider_lava_saddle_suffocation_and_jockey_rules_match_java() {
     assert!(strider_can_use_saddle_slot(true, false));
     assert!(!strider_can_use_saddle_slot(true, true));
     assert!(!strider_can_use_saddle_slot(false, false));
+}
 
+fn assert_strider_saddle_riding_and_suffocation() {
     assert!(strider_controlling_passenger(true, true, true));
     assert!(!strider_controlling_passenger(true, true, false));
     assert_eq!(strider_ridden_speed(0.175, false, 1.0), 0.09625);
@@ -180,6 +202,9 @@ fn strider_lava_saddle_suffocation_and_jockey_rules_match_java() {
     assert!(!strider_can_add_passenger(false, true));
     assert!(strider_interaction_starts_riding(false, true, false, false));
     assert!(!strider_interaction_starts_riding(true, true, false, false));
+}
+
+fn assert_strider_lava_float_navigation_and_sounds() {
     assert_eq!(STRIDER_HAPPY_SOUND_RANDOM_BOUND, 140);
     assert_eq!(STRIDER_RETREAT_SOUND_RANDOM_BOUND, 60);
     assert_eq!(STRIDER_STEP_DISTANCE_INCREMENT, 0.6);
@@ -216,7 +241,9 @@ fn strider_lava_saddle_suffocation_and_jockey_rules_match_java() {
     ));
     assert!(!strider_navigation_valid_path_type("water", false));
     assert!(strider_navigation_valid_path_type("water", true));
+}
 
+fn assert_strider_finalize_spawn_jockey_rules() {
     assert_eq!(
         strider_finalize_spawn(false, 0, 9),
         StriderFinalizeSpawn::ZombifiedPiglinJockey {
@@ -243,6 +270,13 @@ fn strider_lava_saddle_suffocation_and_jockey_rules_match_java() {
 
 #[test]
 fn witch_drinking_throwing_and_raid_gates_match_java_rules() {
+    assert_witch_attributes_and_goal_gates();
+    assert_witch_drink_potion_selection_and_finish();
+    assert_witch_ranged_attack_potion_selection();
+    assert_witch_damage_particles_and_raid_flags();
+}
+
+fn assert_witch_attributes_and_goal_gates() {
     assert_eq!(
         witch_attributes(),
         WitchAttributes {
@@ -263,7 +297,9 @@ fn witch_drinking_throwing_and_raid_gates_match_java_rules() {
     ));
     assert!(witch_attack_players_enabled(0));
     assert!(!witch_attack_players_enabled(1));
+}
 
+fn assert_witch_drink_potion_selection_and_finish() {
     let no_drink = WitchDrinkPotionInput {
         water_roll: 1.0,
         fire_roll: 1.0,
@@ -348,6 +384,9 @@ fn witch_drinking_throwing_and_raid_gates_match_java_rules() {
         }
     );
     assert!(!witch_finish_drinking(true, false).apply_potion_effects);
+}
+
+fn assert_witch_ranged_attack_potion_selection() {
     let ranged_attack = WitchRangedAttackInput {
         drinking_potion: false,
         target_is_raider: false,
@@ -448,6 +487,9 @@ fn witch_drinking_throwing_and_raid_gates_match_java_rules() {
         .map(|attack| attack.velocity),
         Some(0.45)
     );
+}
+
+fn assert_witch_damage_particles_and_raid_flags() {
     assert_eq!(witch_projectile_y_adjustment(8.0), 1.6);
     assert_eq!(witch_damage_after_magic_absorb(true, true, 10.0), 0.0);
     assert_eq!(witch_damage_after_magic_absorb(false, true, 10.0), 1.5);
@@ -467,6 +509,13 @@ fn witch_drinking_throwing_and_raid_gates_match_java_rules() {
 
 #[test]
 fn guardian_beam_thorns_and_elder_curse_rules_match_java() {
+    assert_guardian_attributes_and_dimensions();
+    assert_guardian_spawn_targeting_and_attack_selectors();
+    assert_guardian_attack_tick_timing();
+    assert_guardian_thorns_movement_and_elder_pulse_rules();
+}
+
+fn assert_guardian_attributes_and_dimensions() {
     assert_eq!(
         guardian_attributes(),
         GuardianAttributes {
@@ -513,6 +562,9 @@ fn guardian_beam_thorns_and_elder_curse_rules_match_java() {
     assert_eq!(GUARDIAN_ATTACK_START_TICKS, -10);
     assert_eq!(GUARDIAN_ATTACK_DURATION_TICKS, 80);
     assert_eq!(ELDER_GUARDIAN_ATTACK_DURATION_TICKS, 60);
+}
+
+fn assert_guardian_spawn_targeting_and_attack_selectors() {
     assert!(guardian_spawn_allowed(0, true, false, false, true, true));
     assert!(guardian_spawn_allowed(1, false, false, false, true, true));
     assert!(guardian_spawn_allowed(0, true, false, true, false, true));
@@ -530,7 +582,9 @@ fn guardian_beam_thorns_and_elder_curse_rules_match_java() {
     assert!(guardian_attack_can_continue(false, true, 9.1, true));
     assert!(!guardian_attack_can_continue(false, true, 9.0, true));
     assert!(guardian_attack_can_continue(true, false, 0.0, true));
+}
 
+fn assert_guardian_attack_tick_timing() {
     assert_eq!(
         guardian_attack_tick(-1, 42, true, false, false, false),
         GuardianAttackTick {
@@ -558,7 +612,9 @@ fn guardian_beam_thorns_and_elder_curse_rules_match_java() {
         Some(5.0)
     );
     assert!(guardian_attack_tick(5, 42, false, false, false, false).clear_target);
+}
 
+fn assert_guardian_thorns_movement_and_elder_pulse_rules() {
     assert_eq!(guardian_thorns_damage(false, false, false, true), Some(2.0));
     assert_eq!(guardian_thorns_damage(true, false, false, true), None);
     assert_eq!(guardian_thorns_damage(false, true, false, true), None);
@@ -595,6 +651,12 @@ fn guardian_beam_thorns_and_elder_curse_rules_match_java() {
 
 #[test]
 fn ravager_attack_stun_roar_and_leaf_griefing_match_java() {
+    assert_ravager_attributes_targeting_and_controls();
+    assert_ravager_ai_step_leaf_collision_and_immobility();
+    assert_ravager_blocking_roar_and_spawn_rules();
+}
+
+fn assert_ravager_attributes_targeting_and_controls() {
     assert_eq!(
         ravager_attributes(),
         RavagerAttributes {
@@ -651,7 +713,9 @@ fn ravager_attack_stun_roar_and_leaf_griefing_match_java() {
         ravager_control_flags_enabled(true, false, true),
         (false, false, false, false)
     );
+}
 
+fn assert_ravager_ai_step_leaf_collision_and_immobility() {
     let ravager_step = RavagerAiStepInput {
         base_movement_speed: 0.3,
         has_target: false,
@@ -739,7 +803,9 @@ fn ravager_attack_stun_roar_and_leaf_griefing_match_java() {
     assert!(!ravager_has_line_of_sight_allowed(1, 0, true));
     assert!(!ravager_has_line_of_sight_allowed(0, 1, true));
     assert!(ravager_has_line_of_sight_allowed(0, 0, true));
+}
 
+fn assert_ravager_blocking_roar_and_spawn_rules() {
     assert_eq!(
         ravager_blocked_by_item(0, true),
         RavagerBlockedByItem {
@@ -796,6 +862,13 @@ fn ravager_attack_stun_roar_and_leaf_griefing_match_java() {
 
 #[test]
 fn shulker_attach_peek_teleport_and_bullet_rules_match_java() {
+    assert_shulker_surfaces_and_constants();
+    assert_shulker_peek_color_and_scale_rules();
+    assert_shulker_hurt_teleport_and_spawn_split_rules();
+    assert_shulker_attack_and_bullet_rules();
+}
+
+fn assert_shulker_surfaces_and_constants() {
     assert_eq!(
         shulker_attributes(),
         ShulkerAttributes {
@@ -838,7 +911,9 @@ fn shulker_attach_peek_teleport_and_bullet_rules_match_java() {
     assert_eq!(SHULKER_MAX_HEAD_X_ROT, 180);
     assert_eq!(SHULKER_MAX_HEAD_Y_ROT, 180);
     assert_eq!(SHULKER_RENDER_DISTANCE_SQR, 16384.0);
+}
 
+fn assert_shulker_peek_color_and_scale_rules() {
     assert_eq!(shulker_update_peek_amount(0.0, 30), 0.05);
     assert!((shulker_update_peek_amount(0.35, 30) - 0.3).abs() < f32::EPSILON);
     assert_eq!(shulker_update_peek_amount(1.0, 100), 1.0);
@@ -850,7 +925,9 @@ fn shulker_attach_peek_teleport_and_bullet_rules_match_java() {
     assert_eq!(shulker_color_from_data(99), None);
     assert_eq!(shulker_sanitized_scale(2.5), 2.5);
     assert_eq!(shulker_sanitized_scale(4.0), 3.0);
+}
 
+fn assert_shulker_hurt_teleport_and_spawn_split_rules() {
     assert!(!shulker_hurt_allowed(0, "minecraft:arrow"));
     assert!(shulker_hurt_allowed(1, "minecraft:arrow"));
     assert!(shulker_hurt_allowed(0, "minecraft:trident"));
@@ -874,7 +951,9 @@ fn shulker_attach_peek_teleport_and_bullet_rules_match_java() {
     );
     assert!(!shulker_hit_by_bullet(0, true, 1, 0.0).should_spawn_baby);
     assert!(!shulker_hit_by_bullet(1, false, 1, 0.0).should_spawn_baby);
+}
 
+fn assert_shulker_attack_and_bullet_rules() {
     assert!(shulker_attack_can_use(true, false));
     assert!(!shulker_attack_can_use(true, true));
     assert!(!shulker_attack_can_use(false, false));
@@ -946,6 +1025,12 @@ fn giant_attributes_dimensions_and_spawn_surface_match_java_rules() {
 
 #[test]
 fn zombie_conversion_baby_reinforcement_and_spawn_gates_match_java_rules() {
+    assert_zombie_attributes_baby_and_water_conversion();
+    assert_zombie_reinforcement_item_and_villager_conversion_rules();
+    assert_zombie_finalize_spawn_rules();
+}
+
+fn assert_zombie_attributes_baby_and_water_conversion() {
     assert_eq!(
         zombie_attributes(),
         ZombieAttributes {
@@ -998,7 +1083,9 @@ fn zombie_conversion_baby_reinforcement_and_spawn_gates_match_java_rules() {
         zombie_fire_on_hit_seconds(true, false, true, 0.0, 3.0),
         None
     );
+}
 
+fn assert_zombie_reinforcement_item_and_villager_conversion_rules() {
     assert_eq!(
         zombie_reinforcement_attempt(true, true, true, 0.04, 0.05, true, true),
         ZombieReinforcementOutcome {
@@ -1050,7 +1137,9 @@ fn zombie_conversion_baby_reinforcement_and_spawn_gates_match_java_rules() {
             level_event: Some(1026),
         }
     );
+}
 
+fn assert_zombie_finalize_spawn_rules() {
     let spawn_input = ZombieFinalizeSpawnInput {
         spawn_reason_conversion: false,
         spawn_reason_load_or_dimension_travel: false,
