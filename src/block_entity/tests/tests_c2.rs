@@ -415,6 +415,13 @@ fn assert_creaking_heart_unresolved_protector_expires_after_grace_period() {
 
 #[test]
 fn sculk_shrieker_block_entity_tracks_warning_shriek_and_warden_response() {
+    assert_sculk_shrieker_constants();
+    let mut shrieker = assert_sculk_shrieker_gates_invalid_shrieks();
+    assert_sculk_shrieker_reply_sound_and_tick(&mut shrieker);
+    assert_sculk_shrieker_summon_persistence_and_disabled_mode(&mut shrieker);
+}
+
+fn assert_sculk_shrieker_constants() {
     assert_eq!(SculkShriekerBlockEntity::LISTENER_RADIUS, 8);
     assert_eq!(SculkShriekerBlockEntity::WARNING_SOUND_RADIUS, 10);
     assert_eq!(SculkShriekerBlockEntity::SHRIEKING_TICKS, 90);
@@ -423,7 +430,9 @@ fn sculk_shrieker_block_entity_tracks_warning_shriek_and_warden_response() {
     assert_eq!(SculkShriekerBlockEntity::WARDEN_SPAWN_ATTEMPTS, 20);
     assert_eq!(SculkShriekerBlockEntity::WARDEN_SPAWN_RANGE_XZ, 5);
     assert_eq!(SculkShriekerBlockEntity::WARDEN_SPAWN_RANGE_Y, 6);
+}
 
+fn assert_sculk_shrieker_gates_invalid_shrieks() -> SculkShriekerBlockEntity {
     let mut shrieker = SculkShriekerBlockEntity::new(true);
     assert!(shrieker.can_receive_vibration(false, true));
     assert!(!shrieker.can_receive_vibration(false, false));
@@ -436,7 +445,10 @@ fn sculk_shrieker_block_entity_tracks_warning_shriek_and_warden_response() {
         shrieker.try_shriek(true, true, None, false),
         SculkShriekResult::Ignored
     );
+    shrieker
+}
 
+fn assert_sculk_shrieker_reply_sound_and_tick(shrieker: &mut SculkShriekerBlockEntity) {
     assert_eq!(
         shrieker.try_shriek(true, true, Some(3), false),
         SculkShriekResult::ReplySound {
@@ -452,7 +464,11 @@ fn sculk_shrieker_block_entity_tracks_warning_shriek_and_warden_response() {
     );
     assert_eq!(shrieker.tick(), SculkShriekResult::Ignored);
     assert_eq!(shrieker.shrieking_ticks, 89);
+}
 
+fn assert_sculk_shrieker_summon_persistence_and_disabled_mode(
+    shrieker: &mut SculkShriekerBlockEntity,
+) {
     shrieker.shrieking_ticks = 0;
     assert_eq!(
         shrieker.try_shriek(true, true, Some(4), true),
