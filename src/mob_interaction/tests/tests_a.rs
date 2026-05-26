@@ -99,6 +99,13 @@ fn snow_golem_pumpkin_shearing_melting_trail_and_snowball_match_java() {
 
 #[test]
 fn iron_golem_flags_cracks_repair_flower_and_attack_match_java() {
+    assert_iron_golem_constants_and_crackiness();
+    assert_iron_golem_player_created_flags();
+    assert_iron_golem_flower_events_and_repair();
+    assert_iron_golem_attack_rules();
+}
+
+fn assert_iron_golem_constants_and_crackiness() {
     assert_eq!(IRON_GOLEM_MAX_HEALTH, 100.0);
     assert_eq!(IRON_GOLEM_MOVEMENT_SPEED, 0.25);
     assert_eq!(IRON_GOLEM_KNOCKBACK_RESISTANCE, 1.0);
@@ -118,7 +125,9 @@ fn iron_golem_flags_cracks_repair_flower_and_attack_match_java() {
         iron_golem_crackiness(24.9, 100.0),
         IronGolemCrackiness::High
     );
+}
 
+fn assert_iron_golem_player_created_flags() {
     let mut golem = IronGolemState::new();
     assert!(!golem.is_player_created());
     golem.set_player_created(true);
@@ -134,7 +143,10 @@ fn iron_golem_flags_cracks_repair_flower_and_attack_match_java() {
     assert!(!iron_golem_block_summon_sets_player_created(
         "minecraft:pumpkin"
     ));
+}
 
+fn assert_iron_golem_flower_events_and_repair() {
+    let mut golem = IronGolemState::new();
     assert_eq!(golem.offer_flower(true), 11);
     assert_eq!(golem.offer_flower_tick, 400);
     golem.ai_step();
@@ -163,7 +175,9 @@ fn iron_golem_flags_cracks_repair_flower_and_attack_match_java() {
         golem.repair_with_iron_ingot("minecraft:gold_ingot"),
         IronGolemRepairResult::Pass
     );
+}
 
+fn assert_iron_golem_attack_rules() {
     let attack = iron_golem_attack_plan(15.0, 14, 0.25);
     assert_eq!(
         attack,
@@ -257,6 +271,15 @@ fn frog_variant_tongue_and_lay_spawn_match_java() {
 
 #[test]
 fn fox_flags_variants_trust_items_berries_and_stalking_match_java() {
+    assert_fox_flags_and_variants();
+    assert_fox_state_flags_and_trusted_players();
+    assert_fox_food_and_held_item_rules();
+    assert_fox_breeding_rules();
+    assert_fox_berry_harvest_rules();
+    assert_fox_stalking_rules();
+}
+
+fn assert_fox_flags_and_variants() {
     assert_eq!(FOX_FLAG_SITTING, 1);
     assert_eq!(FOX_FLAG_CROUCHING, 4);
     assert_eq!(FOX_FLAG_INTERESTED, 8);
@@ -275,7 +298,9 @@ fn fox_flags_variants_trust_items_berries_and_stalking_match_java() {
         fox_variant_for_spawn_biome("minecraft:taiga"),
         FoxVariantModel::Red
     );
+}
 
+fn assert_fox_state_flags_and_trusted_players() {
     let mut fox = FoxState::new();
     fox.set_flag(FOX_FLAG_SITTING, true);
     fox.set_flag(FOX_FLAG_SLEEPING, true);
@@ -292,7 +317,9 @@ fn fox_flags_variants_trust_items_berries_and_stalking_match_java() {
     assert_eq!(fox.trusted, [Some("player_a"), Some("player_c")]);
     assert!(fox.trusts("player_c"));
     assert!(!fox.trusts("player_b"));
+}
 
+fn assert_fox_food_and_held_item_rules() {
     assert!(fox_food_item("minecraft:sweet_berries"));
     assert!(fox_food_item("minecraft:glow_berries"));
     assert!(!fox_food_item("minecraft:apple"));
@@ -320,7 +347,9 @@ fn fox_flags_variants_trust_items_berries_and_stalking_match_java() {
         fox_can_hold_item(Some("minecraft:feather"), "minecraft:leather", 1),
         FoxHeldItemDecision::Reject
     );
+}
 
+fn assert_fox_breeding_rules() {
     assert_eq!(
         fox_breed_plan(
             FoxVariantModel::Red,
@@ -350,7 +379,9 @@ fn fox_flags_variants_trust_items_berries_and_stalking_match_java() {
         .trusted,
         [Some("player_a"), None]
     );
+}
 
+fn assert_fox_berry_harvest_rules() {
     assert_eq!(
         fox_berry_harvest_plan("minecraft:sweet_berry_bush", 3, None, 1, true, false, 40),
         FoxBerryHarvestPlan::PickSweetBerries {
@@ -395,7 +426,9 @@ fn fox_flags_variants_trust_items_berries_and_stalking_match_java() {
         fox_berry_harvest_plan("minecraft:cave_vines", 1, None, 0, true, false, 40),
         FoxBerryHarvestPlan::PickGlowBerry
     );
+}
 
+fn assert_fox_stalking_rules() {
     assert_eq!(
         fox_stalk_prey_plan("minecraft:chicken", 49.0, false, false, false, false, true),
         Some(FoxStalkPlan {
@@ -428,6 +461,14 @@ fn fox_flags_variants_trust_items_berries_and_stalking_match_java() {
 
 #[test]
 fn panda_genes_flags_interactions_roll_and_sneeze_match_java() {
+    assert_panda_constants_and_genes();
+    assert_panda_state_flags_attributes_and_food();
+    assert_panda_interactions();
+    assert_panda_roll_step_rules();
+    assert_panda_sneeze_rules();
+}
+
+fn assert_panda_constants_and_genes() {
     assert_eq!(PANDA_FLAG_SNEEZE, 2);
     assert_eq!(PANDA_FLAG_ROLL, 4);
     assert_eq!(PANDA_FLAG_SIT, 8);
@@ -461,7 +502,9 @@ fn panda_genes_flags_interactions_roll_and_sneeze_match_java() {
         panda_variant_from_genes(PandaGene::Lazy, PandaGene::Brown),
         PandaGene::Lazy
     );
+}
 
+fn assert_panda_state_flags_attributes_and_food() {
     let mut panda = PandaState::new();
     panda.main_gene = PandaGene::Weak;
     panda.hidden_gene = PandaGene::Weak;
@@ -492,7 +535,9 @@ fn panda_genes_flags_interactions_roll_and_sneeze_match_java() {
     assert!(!panda_food_item("minecraft:cake"));
     assert!(panda_eats_from_ground_item("minecraft:bamboo"));
     assert!(panda_eats_from_ground_item("minecraft:cake"));
+}
 
+fn assert_panda_interactions() {
     assert_eq!(
         panda_interact_plan(PandaInteractInput {
             item: "minecraft:bamboo",
@@ -566,7 +611,9 @@ fn panda_genes_flags_interactions_roll_and_sneeze_match_java() {
         }),
         PandaInteractResult::Pass
     );
+}
 
+fn assert_panda_roll_step_rules() {
     let first_roll = panda_roll_step(0, false, 0.0, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), true);
     assert_eq!(
         first_roll,
@@ -585,10 +632,11 @@ fn panda_genes_flags_interactions_roll_and_sneeze_match_java() {
         }
     );
     assert!(
-        !panda_roll_step(32, false, 0.0, (0.1, 0.2, 0.3), (0.0, 0.0, 0.0), true)
-            .rolling_after_step
+        !panda_roll_step(32, false, 0.0, (0.1, 0.2, 0.3), (0.0, 0.0, 0.0), true).rolling_after_step
     );
+}
 
+fn assert_panda_sneeze_rules() {
     let mut sneezing = PandaState::new();
     sneezing.set_sneezing(true);
     assert_eq!(
@@ -614,6 +662,13 @@ fn panda_genes_flags_interactions_roll_and_sneeze_match_java() {
 
 #[test]
 fn parrot_variants_taming_poison_party_shoulder_and_mimic_match_java() {
+    assert_parrot_constants_variants_and_food();
+    assert_parrot_interactions();
+    assert_parrot_party_and_mimic_rules();
+    assert_parrot_shoulder_mounting_rules();
+}
+
+fn assert_parrot_constants_variants_and_food() {
     assert_eq!(PARROT_MAX_HEALTH, 6.0);
     assert_eq!(PARROT_FLYING_SPEED, 0.4);
     assert_eq!(PARROT_MOVEMENT_SPEED, 0.2);
@@ -643,7 +698,9 @@ fn parrot_variants_taming_poison_party_shoulder_and_mimic_match_java() {
     assert!(parrot_food_item("minecraft:pitcher_pod"));
     assert!(!parrot_food_item("minecraft:cookie"));
     assert!(parrot_poisonous_item("minecraft:cookie"));
+}
 
+fn assert_parrot_interactions() {
     assert_eq!(
         parrot_interact_plan("minecraft:wheat_seeds", false, false, false, true, false),
         ParrotInteractResult::TameFood {
@@ -688,7 +745,9 @@ fn parrot_variants_taming_poison_party_shoulder_and_mimic_match_java() {
             lethal_damage: false,
         }
     );
+}
 
+fn assert_parrot_party_and_mimic_rules() {
     assert!(parrot_party_state_after_ai_step(true, true, 3.45, true));
     assert!(!parrot_party_state_after_ai_step(true, true, 3.46, true));
     assert!(!parrot_party_state_after_ai_step(true, false, 1.0, true));
@@ -718,7 +777,9 @@ fn parrot_variants_taming_poison_party_shoulder_and_mimic_match_java() {
         parrot_mimic_nearby_plan(true, false, false, Some("minecraft:zombie"), false),
         None
     );
+}
 
+fn assert_parrot_shoulder_mounting_rules() {
     assert_eq!(
         parrot_shoulder_plan(ParrotShoulderInput {
             has_server_player_owner: true,
@@ -817,6 +878,13 @@ fn parrot_variants_taming_poison_party_shoulder_and_mimic_match_java() {
 
 #[test]
 fn happy_ghast_harness_riding_leash_healing_and_dried_block_match_java() {
+    assert_happy_ghast_constants_attributes_and_items();
+    assert_happy_ghast_interactions_riding_and_healing();
+    assert_happy_ghast_still_timeout_collision_and_leash();
+    assert_dried_ghast_hydration_ticks();
+}
+
+fn assert_happy_ghast_constants_attributes_and_items() {
     assert_eq!(HAPPY_GHAST_BABY_SCALE, 0.2375);
     assert_eq!(HAPPY_GHAST_WANDER_GROUND_DISTANCE, 16);
     assert_eq!(HAPPY_GHAST_SMALL_RESTRICTION_RADIUS, 32);
@@ -863,7 +931,9 @@ fn happy_ghast_harness_riding_leash_healing_and_dried_block_match_java() {
     assert!(happy_ghast_can_use_body_slot(true, false));
     assert!(!happy_ghast_can_use_body_slot(true, true));
     assert!(!happy_ghast_can_use_body_slot(false, false));
+}
 
+fn assert_happy_ghast_interactions_riding_and_healing() {
     assert_eq!(
         happy_ghast_interact_plan(false, "minecraft:blue_harness", false, false, true),
         HappyGhastInteractPlan::EquipHarness
@@ -891,7 +961,9 @@ fn happy_ghast_harness_riding_leash_healing_and_dried_block_match_java() {
     assert_eq!(happy_ghast_restriction_radius(true, false), 32);
     assert_eq!(happy_ghast_heal_interval_ticks(true), 20);
     assert_eq!(happy_ghast_heal_interval_ticks(false), 600);
+}
 
+fn assert_happy_ghast_still_timeout_collision_and_leash() {
     assert_eq!(
         happy_ghast_still_timeout_tick(10, 60, false),
         HappyGhastStillTimeoutStep {
@@ -943,7 +1015,9 @@ fn happy_ghast_harness_riding_leash_healing_and_dried_block_match_java() {
     assert_eq!(happy_ghast_notify_leash_holder_time(false), 0);
     assert_eq!(HAPPY_GHAST_LEASH_ELASTIC_DISTANCE, 10.0);
     assert_eq!(HAPPY_GHAST_LEASH_SNAP_DISTANCE, 16.0);
+}
 
+fn assert_dried_ghast_hydration_ticks() {
     assert_eq!(
         dried_ghast_tick_plan(true, 2),
         DriedGhastTickPlan::Hydrate {
@@ -971,6 +1045,15 @@ fn happy_ghast_harness_riding_leash_healing_and_dried_block_match_java() {
 
 #[test]
 fn sniffer_states_digging_seed_drop_and_egg_hatching_match_java() {
+    assert_sniffer_constants_attributes_and_state_ids();
+    assert_sniffer_food_blocks_and_sniff_gates();
+    assert_sniffer_dig_body_state_rules();
+    assert_sniffer_transition_and_ambient_rules();
+    assert_sniffer_digging_tick_rules();
+    assert_sniffer_memory_mating_and_egg_rules();
+}
+
+fn assert_sniffer_constants_attributes_and_state_ids() {
     assert_eq!(SNIFFER_DIGGING_PARTICLES_DELAY_TICKS, 1700);
     assert_eq!(SNIFFER_DIGGING_PARTICLES_DURATION_TICKS, 6000);
     assert_eq!(SNIFFER_DIGGING_PARTICLES_AMOUNT, 30);
@@ -998,6 +1081,9 @@ fn sniffer_states_digging_seed_drop_and_egg_hatching_match_java() {
     assert_eq!(SnifferStateModel::Idling.id(), 0);
     assert_eq!(SnifferStateModel::Rising.id(), 6);
     assert_eq!(sniffer_state_by_id(99), SnifferStateModel::Idling);
+}
+
+fn assert_sniffer_food_blocks_and_sniff_gates() {
     assert!(sniffer_food_item("minecraft:torchflower_seeds"));
     assert!(!sniffer_food_item("minecraft:wheat_seeds"));
     assert!(sniffer_diggable_block("minecraft:grass_block"));
@@ -1015,6 +1101,9 @@ fn sniffer_states_digging_seed_drop_and_egg_hatching_match_java() {
     assert!(!sniffer_can_sniff(
         false, false, true, false, true, false, false
     ));
+}
+
+fn assert_sniffer_dig_body_state_rules() {
     let can_dig = SnifferDigBodyStateInput {
         panicking: false,
         tempted: false,
@@ -1039,7 +1128,9 @@ fn sniffer_states_digging_seed_drop_and_egg_hatching_match_java() {
         path_can_reach: false,
         ..can_dig
     }));
+}
 
+fn assert_sniffer_transition_and_ambient_rules() {
     assert_eq!(
         sniffer_transition_plan(SnifferStateModel::Digging, 1000, false),
         SnifferTransitionPlan {
@@ -1063,7 +1154,9 @@ fn sniffer_states_digging_seed_drop_and_egg_hatching_match_java() {
         sniffer_ambient_sound(SnifferStateModel::Idling),
         Some("minecraft:entity.sniffer.idle")
     );
+}
 
+fn assert_sniffer_digging_tick_rules() {
     assert_eq!(
         sniffer_digging_tick_plan(SnifferStateModel::Digging, 1120, 1120, 1800, true),
         SnifferDiggingTickPlan {
@@ -1082,7 +1175,9 @@ fn sniffer_states_digging_seed_drop_and_egg_hatching_match_java() {
     assert!(
         !sniffer_digging_tick_plan(SnifferStateModel::Searching, 1120, 1120, 1800, true).drop_seed
     );
+}
 
+fn assert_sniffer_memory_mating_and_egg_rules() {
     let explored = sniffer_store_explored_position(&(0..25).collect::<Vec<i32>>(), 99);
     assert_eq!(explored[0], 99);
     assert_eq!(explored.len(), 21);
