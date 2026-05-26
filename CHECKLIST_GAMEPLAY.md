@@ -104,13 +104,13 @@
 - [ ] Implement `WorldBorder` with `WorldBorderPhase`: STATIONARY and LERPING phases, `getLerpSize(fraction)` interpolation, `damagesOutside()` logic — `world_border.rs` models static/moving extents, lerp progress/target/speed/status, partial-tick bounds, vanilla edge bounds, and outside-buffer damage
 - [ ] Implement world border damage: `ServerPlayer` teleport check, damage application outside border+buffer each tick — `WorldBorder::out_of_border_damage`, `clamp_vec3_to_bound`, and `adjusted_respawn` cover damage, movement clamping, and out-of-border respawn adjustment
 - [ ] Implement world border warning: visual warning when within warning-blocks of border or when time to reach border < warning-time — `should_show_warning` covers strict warning-block distance and shrinking-border time-to-impact behavior
-- [ ] Implement border sync packets: send `ClientboundInitializeBorderPacket` on join, send individual update packets on command change — `WorldBorder::to_init_packet`, size/center/warning packet data, network packet serializers, and `/worldborder` state mutation paths are implemented and covered by packet/command tests
+- [x] Implement border sync packets: send `ClientboundInitializeBorderPacket` on join, send individual update packets on command change — `WorldBorder::to_init_packet`, size/center/warning packet data, network packet serializers, and `/worldborder` state mutation paths are implemented and covered by packet/command tests
 - [ ] Add parity test: world border damage applied at correct rate (0.2 × max(0, distance outside buffer))
 
 ## Enchantment-Driven Gameplay
 
 - [ ] Add Mineflayer enchantment smoke test: join offline mode, receive an enchanted item (sword, pick, boots) via `/give`, verify bot/client does not hit missing registry, missing tag, tooltip, or component decode failures
-- [ ] Implement enchantment effect hooks for gameplay: `enchantment_system` exposes registry hook metadata plus damage, protection, knockback, durability, loot, movement, trident, crossbow, curse, and mace formulas; covered by the focused enchantment-system tests.
+- [x] Implement enchantment effect hooks for gameplay: `enchantment_system` exposes registry hook metadata plus damage, protection, knockback, durability, loot, movement, trident, crossbow, curse, and mace formulas; covered by the focused enchantment-system tests.
   - [x] `ProtectionEnchantment`: damage reduction per level — `enchantment_system::protection_damage_reduction` caps protection at 80% and `protection_damage_reduction_caps_at_80_percent` verifies the formula.
   - [x] `SharpnessEnchantment` / `BaneOfArthropods` / `SmiteEnchantment`: extra damage to target types — `sharpness_bonus`, `smite_bonus`, `bane_of_arthropods_bonus`, and `damage_bonus` cover target-family damage with focused tests.
   - [x] `KnockbackEnchantment` / `PunchEnchantment`: extra knockback — `knockback_bonus_blocks` and `punch_knockback_bonus_blocks` expose level-scaled knockback and are covered by the sharpness/smite/bane/knockback test.
@@ -152,7 +152,7 @@
 
 ## Migrated From Main Checklist: Weather, Time, Events, And World State
 
-- [ ] Implement day time, game time, moon phase, sleeping, insomnia, spawn cycles, and scheduled time changes. — `world_time::ServerClockManager`, moon-phase helpers, sleep skip logic, insomnia ticking, built-in timelines, and `ScheduledTimeChanges` are covered by the `world_time` tests.
+- [x] Implement day time, game time, moon phase, sleeping, insomnia, spawn cycles, and scheduled time changes. — `world_time::ServerClockManager`, moon-phase helpers, sleep skip logic, insomnia ticking, built-in timelines, and `ScheduledTimeChanges` are covered by the `world_time` tests.
 - [ ] Add Mineflayer time/sleep tests for day-night sync, bed enter/leave, sleep skipping, spawnpoint setting, insomnia counters, and reconnect-visible time.
 - [ ] Add a Mineflayer offline-mode spawnpoint-persistence test that sets bed and anchor spawn points, reconnects, dies, respawns, and verifies saved spawn state and missing-spawn fallback match vanilla. — covered by `harness/mineflayer/spawnpoint_persistence.mjs` and `node --test spawnpoint_persistence.test.mjs`.
 - [ ] Add player-entity spawnpoint fallback coverage for bed-style and respawn-anchor-style metadata, save/load round-trip, sync-plan exposure, clearing missing respawn state, and death counter reset behavior while full Mineflayer reconnect parity remains pending.
