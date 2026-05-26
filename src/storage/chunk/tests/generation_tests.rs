@@ -428,6 +428,13 @@ fn section_positions_and_palettes_match_vanilla_shapes() {
 
 #[test]
 fn chunk_status_pipeline_matches_vanilla_order_and_dependencies() {
+    assert_chunk_status_pipeline_order_matches_vanilla();
+    assert_chunk_status_comparisons_match_pipeline_order();
+    assert_chunk_status_heightmap_sets_match_vanilla();
+    assert_chunk_status_task_and_dependency_metadata_matches_vanilla();
+}
+
+fn assert_chunk_status_pipeline_order_matches_vanilla() {
     assert_eq!(CHUNK_STATUS_PIPELINE.len(), 12);
     assert_eq!(CHUNK_STATUS_PIPELINE[0].id, "minecraft:empty");
     assert_eq!(CHUNK_STATUS_PIPELINE[0].parent, "minecraft:empty");
@@ -439,23 +446,6 @@ fn chunk_status_pipeline_matches_vanilla_order_and_dependencies() {
         chunk_status("minecraft:carvers").unwrap().parent,
         "minecraft:surface"
     );
-    assert_eq!(chunk_status_is_or_after("features", "carvers"), Some(true));
-    assert_eq!(chunk_status_is_or_after("noise", "features"), Some(false));
-    assert_eq!(chunk_status_is_after("features", "carvers"), Some(true));
-    assert_eq!(chunk_status_is_after("carvers", "carvers"), Some(false));
-    assert_eq!(chunk_status_is_before("noise", "features"), Some(true));
-    assert_eq!(chunk_status_is_before("features", "features"), Some(false));
-    assert_eq!(
-        chunk_status_is_or_before("features", "features"),
-        Some(true)
-    );
-    assert_eq!(chunk_status_is_or_before("full", "spawn"), Some(false));
-    assert_eq!(
-        chunk_status_max("noise", "features"),
-        Some("minecraft:features")
-    );
-    assert_eq!(chunk_status_max("full", "spawn"), Some("minecraft:full"));
-    assert_eq!(chunk_status_max("bad", "spawn"), None);
     assert_eq!(
         chunk_status_list(),
         vec![
@@ -473,7 +463,29 @@ fn chunk_status_pipeline_matches_vanilla_order_and_dependencies() {
             "minecraft:full",
         ]
     );
+}
 
+fn assert_chunk_status_comparisons_match_pipeline_order() {
+    assert_eq!(chunk_status_is_or_after("features", "carvers"), Some(true));
+    assert_eq!(chunk_status_is_or_after("noise", "features"), Some(false));
+    assert_eq!(chunk_status_is_after("features", "carvers"), Some(true));
+    assert_eq!(chunk_status_is_after("carvers", "carvers"), Some(false));
+    assert_eq!(chunk_status_is_before("noise", "features"), Some(true));
+    assert_eq!(chunk_status_is_before("features", "features"), Some(false));
+    assert_eq!(
+        chunk_status_is_or_before("features", "features"),
+        Some(true)
+    );
+    assert_eq!(chunk_status_is_or_before("full", "spawn"), Some(false));
+    assert_eq!(
+        chunk_status_max("noise", "features"),
+        Some("minecraft:features")
+    );
+    assert_eq!(chunk_status_max("full", "spawn"), Some("minecraft:full"));
+    assert_eq!(chunk_status_max("bad", "spawn"), None);
+}
+
+fn assert_chunk_status_heightmap_sets_match_vanilla() {
     assert_eq!(
         WORLDGEN_HEIGHTMAPS
             .iter()
@@ -497,6 +509,17 @@ fn chunk_status_pipeline_matches_vanilla_order_and_dependencies() {
         chunk_status("features").unwrap().heightmaps_after,
         FINAL_HEIGHTMAPS
     );
+    assert_eq!(
+        chunk_status("biomes").unwrap().heightmaps_after,
+        WORLDGEN_HEIGHTMAPS
+    );
+    assert_eq!(
+        HeightmapKind::MotionBlockingNoLeaves.storage_name(),
+        "MOTION_BLOCKING_NO_LEAVES"
+    );
+}
+
+fn assert_chunk_status_task_and_dependency_metadata_matches_vanilla() {
     assert_eq!(
         chunk_status("structure_starts").unwrap().task,
         ChunkStatusTaskKind::GenerateStructureStarts
@@ -554,14 +577,6 @@ fn chunk_status_pipeline_matches_vanilla_order_and_dependencies() {
         ChunkStatusTaskKind::Full
     );
     assert_eq!(chunk_status("full").unwrap().region_dependencies, 0);
-    assert_eq!(
-        chunk_status("biomes").unwrap().heightmaps_after,
-        WORLDGEN_HEIGHTMAPS
-    );
-    assert_eq!(
-        HeightmapKind::MotionBlockingNoLeaves.storage_name(),
-        "MOTION_BLOCKING_NO_LEAVES"
-    );
 }
 
 #[test]
@@ -581,7 +596,10 @@ fn chunk_pyramid_dependencies_match_generation_and_loading_radii() {
         ])
     );
     assert_eq!(
-        super::super::chunk_pyramid_accumulated_dependencies(ChunkPyramidKind::Generation, "features"),
+        super::super::chunk_pyramid_accumulated_dependencies(
+            ChunkPyramidKind::Generation,
+            "features"
+        ),
         Some(vec![
             "minecraft:carvers",
             "minecraft:carvers",
@@ -709,13 +727,18 @@ fn chunk_generation_task_can_load_without_generation_matches_java_gate() {
         Some(true)
     );
     assert_eq!(
-        super::super::chunk_generation_task_can_load_without_generation("features", 0, 0, |x, z| {
-            if x == 0 && z == 0 {
-                Some("minecraft:carvers")
-            } else {
-                Some("minecraft:features")
+        super::super::chunk_generation_task_can_load_without_generation(
+            "features",
+            0,
+            0,
+            |x, z| {
+                if x == 0 && z == 0 {
+                    Some("minecraft:carvers")
+                } else {
+                    Some("minecraft:features")
+                }
             }
-        }),
+        ),
         Some(false)
     );
     assert_eq!(
@@ -811,11 +834,19 @@ fn chunk_generation_task_chunk_step_matches_java_schedule_chunk_in_layer_gate() 
         })
     );
     assert_eq!(
-        super::super::chunk_generation_task_chunk_step("minecraft:features", Some("carvers"), false),
+        super::super::chunk_generation_task_chunk_step(
+            "minecraft:features",
+            Some("carvers"),
+            false
+        ),
         Some(super::super::ChunkGenerationChunkStepPlan::UnexpectedGeneration)
     );
     assert_eq!(
-        super::super::chunk_generation_task_chunk_step("minecraft:features", Some("features"), false),
+        super::super::chunk_generation_task_chunk_step(
+            "minecraft:features",
+            Some("features"),
+            false
+        ),
         Some(super::super::ChunkGenerationChunkStepPlan::Apply {
             pyramid: ChunkPyramidKind::Loading,
             generate: false,
