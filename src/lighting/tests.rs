@@ -398,6 +398,62 @@ fn f10_sky_light_cardinal_bleed_under_overhang() {
     assert_eq!(get_sky_light_at(&engine, 5, 79, 5), 13);
 }
 
+// ---- Diagnostic: cardinal bleed from a vertical shaft into a horizontal cavern ----
+#[test]
+fn diagnostic_sky_light_bleeds_horizontally_from_shaft_into_cavern() {
+    // Build a stone ceiling at y=80 across the full chunk, with a single
+    // 1x1 vertical shaft at (x=8, z=8) that lets sky reach down to y=64,
+    // where the cavern opens up horizontally (a flat air corridor at y=64,
+    // capped by stone at y=63 below and stone at y=65 above except the
+    // shaft column). Sky-light has to travel down the shaft, then bleed
+    // sideways at y=64 through the cavern, dropping by 1 per block.
+    let chunks = single_chunk_with(|chunk| {
+        let stone = LightBlockProperties {
+            opacity: 15,
+            emission: 0,
+            uses_shape_for_light_occlusion: false,
+            occlusion_shape_occludes_full_face: true,
+        };
+        for x in 0..16_i32 {
+            for z in 0..16_i32 {
+                if x == 8 && z == 8 {
+                    continue;
+                }
+                chunk.insert((x, 80, z), stone);
+                // Cap the cavern's ceiling everywhere except the shaft.
+                chunk.insert((x, 65, z), stone);
+            }
+        }
+        // Floor below the cavern.
+        for x in 0..16_i32 {
+            for z in 0..16_i32 {
+                chunk.insert((x, 63, z), stone);
+            }
+        }
+    });
+    let getter = SimpleChunkGetter::new(level_height_overworld_test(), chunks);
+    let mut engine = LevelLightEngine::new(level_height_overworld_test(), false, true);
+    for sy in level_height_overworld_test().min_section_y()
+        ..=level_height_overworld_test().max_section_y()
+    {
+        engine.update_section_status(0, sy, 0, false);
+    }
+    engine.set_light_enabled(&getter, 0, 0, true);
+    engine.propagate_light_sources(&getter, 0, 0);
+    engine.run_light_updates(&getter);
+
+    // Inside the shaft column the cells are sources (no occluder above them
+    // in their own column).
+    assert_eq!(get_sky_light_at(&engine, 8, 79, 8), 15);
+    assert_eq!(get_sky_light_at(&engine, 8, 64, 8), 15);
+    // One block sideways at the cavern level the bleed has cost 1.
+    assert_eq!(get_sky_light_at(&engine, 9, 64, 8), 14);
+    assert_eq!(get_sky_light_at(&engine, 10, 64, 8), 13);
+    // Deep into the cavern the gradient continues until it bottoms out at 0.
+    assert_eq!(get_sky_light_at(&engine, 14, 64, 8), 9);
+    assert_eq!(get_sky_light_at(&engine, 15, 64, 8), 8);
+}
+
 // ---- F11. Sky-light occlusion-shape fallback ----
 #[test]
 fn f11_sky_light_partial_shape_fallback_documented() {

@@ -550,9 +550,12 @@ fn light_update_data_uses_vanilla_masks_and_2048_byte_layers() {
     ];
 
     let data = ClientboundLightUpdatePacketData::from_chunk_sections(&sections);
-    assert_eq!(data.sky_y_mask, vec![1]);
-    assert_eq!(data.empty_block_y_mask, vec![1]);
-    assert_eq!(data.block_y_mask, vec![2]);
+    // Java's `LightEngine` pads sections by 1 above and below, so section
+    // index 0 is the row *below* the first stored section. The two sections
+    // supplied here therefore land in bits 1 and 2 (mirroring `from_chunk`).
+    assert_eq!(data.sky_y_mask, vec![0b10]);
+    assert_eq!(data.empty_block_y_mask, vec![0b10]);
+    assert_eq!(data.block_y_mask, vec![0b100]);
     assert_eq!(data.sky_updates.len(), 1);
     assert_eq!(data.block_updates.len(), 1);
 
@@ -863,8 +866,11 @@ fn level_chunk_with_light_packet_carries_chunk_buffer_then_light_payload_data() 
         light_data
             .sky_y_mask
             .first()
-            .is_some_and(|mask| mask & (1 << 4) != 0),
-        "storage section Y=0 light must be mapped to overworld network section index 4"
+            .is_some_and(|mask| mask & (1 << 5) != 0),
+        "storage section Y=0 must be mapped to overworld light section index 5 \
+         (= Y - minLightSection where minLightSection = -5 thanks to \
+         LIGHT_SECTION_PADDING = 1; off-by-one here makes the vanilla client \
+         interpret all sky updates as belonging to the section directly below)"
     );
 }
 
@@ -895,10 +901,12 @@ fn sparse_chunk_sections_are_padded_to_vanilla_overworld_height() {
     );
 
     let light = ClientboundLightUpdatePacketData::from_chunk(&chunk);
+    // Storage section Y=4 maps to light bit 4 - (-5) = 9 thanks to
+    // `LIGHT_SECTION_PADDING = 1`.
     assert!(light
         .sky_y_mask
         .first()
-        .is_some_and(|mask| mask & (1 << 8) != 0));
+        .is_some_and(|mask| mask & (1 << 9) != 0));
 }
 
 #[test]

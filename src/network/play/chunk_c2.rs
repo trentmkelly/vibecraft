@@ -226,10 +226,18 @@ impl ClientboundLightUpdatePacketData {
             block_updates: Vec::new(),
         };
 
-        for (section_index, section_y) in (OVERWORLD_MIN_SECTION_Y
-            ..OVERWORLD_MIN_SECTION_Y + OVERWORLD_SECTION_COUNT as i32)
-            .enumerate()
-        {
+        // Java: `for (int i = 0; i < lightEngine.getLightSectionCount(); i++)`.
+        // `lightSectionCount = sectionsCount + 2` because the engine pads the
+        // chunk with one section above and one below (LIGHT_SECTION_PADDING).
+        // `sectionIndex = 0` therefore maps to `minLightSection = minSectionY
+        // - 1 = -5` on the overworld, not the lowest world section -4. Without
+        // this padding, every bit position is off by one and the vanilla
+        // client interprets all our sky/block updates as belonging to the
+        // section directly below the one we meant.
+        let min_light_section = OVERWORLD_MIN_SECTION_Y - 1;
+        let light_section_count = OVERWORLD_SECTION_COUNT + 2;
+        for section_index in 0..light_section_count {
+            let section_y = min_light_section + section_index as i32;
             let section = chunk
                 .sections
                 .iter()
@@ -259,7 +267,12 @@ impl ClientboundLightUpdatePacketData {
             block_updates: Vec::new(),
         };
 
-        for (section_index, section) in sections.iter().enumerate() {
+        // Section index 0 corresponds to the padding section *below* the
+        // first stored section; the first real section therefore goes into
+        // bit 1. This mirrors `from_chunk` so tests that hand-craft a
+        // section list see the same bit layout.
+        for (logical_index, section) in sections.iter().enumerate() {
+            let section_index = logical_index + 1;
             data.add_layer(section_index, section.sky_light.as_deref(), true);
             data.add_layer(section_index, section.block_light.as_deref(), false);
         }
