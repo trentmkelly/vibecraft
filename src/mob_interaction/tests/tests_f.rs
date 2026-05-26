@@ -2,6 +2,12 @@ use crate::mob_interaction::*;
 
 #[test]
 fn zombified_piglin_anger_alert_spawn_and_portal_gates_match_java_rules() {
+    assert_zombified_piglin_attributes_and_anger_setup();
+    assert_zombified_piglin_ai_alert_and_spawn_rules();
+    assert_zombified_piglin_portal_and_pickup_rules();
+}
+
+fn assert_zombified_piglin_attributes_and_anger_setup() {
     assert_eq!(
         zombified_piglin_attributes(),
         ZombifiedPiglinAttributes {
@@ -30,7 +36,9 @@ fn zombified_piglin_anger_alert_spawn_and_portal_gates_match_java_rules() {
         Some((7, 99))
     );
     assert_eq!(zombified_piglin_set_target_delays(true, true, 7, 99), None);
+}
 
+fn assert_zombified_piglin_ai_alert_and_spawn_rules() {
     let piglin_step = ZombifiedPiglinAiStepInput {
         angry: true,
         baby: false,
@@ -90,7 +98,9 @@ fn zombified_piglin_anger_alert_spawn_and_portal_gates_match_java_rules() {
         zombified_piglin_default_main_hand_item(1),
         "minecraft:golden_sword"
     );
+}
 
+fn assert_zombified_piglin_portal_and_pickup_rules() {
     assert_eq!(
         zombified_piglin_portal_spawn(true, true, 1, 2, true, true, true),
         ZombifiedPiglinPortalSpawn {
@@ -110,6 +120,12 @@ fn zombified_piglin_anger_alert_spawn_and_portal_gates_match_java_rules() {
 
 #[test]
 fn blaze_attack_hover_fire_and_loot_gates_match_java_rules() {
+    assert_blaze_attributes_hover_and_fire_state();
+    assert_blaze_attack_goal_start_and_fireball_burst();
+    assert_blaze_attack_goal_finish_close_range_and_loot();
+}
+
+fn assert_blaze_attributes_hover_and_fire_state() {
     assert_eq!(
         blaze_attributes(),
         BlazeAttributes {
@@ -148,7 +164,9 @@ fn blaze_attack_hover_fire_and_loot_gates_match_java_rules() {
             next_height_offset_change_tick: 100,
         }
     );
+}
 
+fn assert_blaze_attack_goal_start_and_fireball_burst() {
     let state = blaze_attack_goal_start();
     assert_eq!(state.attack_step, 0);
     let (state, action) =
@@ -180,7 +198,15 @@ fn blaze_attack_hover_fire_and_loot_gates_match_java_rules() {
             ..next_state
         };
     }
+}
 
+fn assert_blaze_attack_goal_finish_close_range_and_loot() {
+    let state = BlazeAttackState {
+        attack_step: 4,
+        attack_time: 0,
+        last_seen: 0,
+        charged: true,
+    };
     let (state, action) = blaze_attack_goal_tick(state, true, true, 16.0, BLAZE_FOLLOW_RANGE, true);
     assert_eq!(state.attack_step, 0);
     assert!(!state.charged);
@@ -227,6 +253,12 @@ fn blaze_attack_hover_fire_and_loot_gates_match_java_rules() {
 
 #[test]
 fn drowned_spawn_equipment_swim_and_trident_gates_match_java_rules() {
+    assert_drowned_attributes_dimensions_and_spawn_rules();
+    assert_drowned_equipment_finalize_and_pickup_rules();
+    assert_drowned_target_swim_trident_and_water_goals();
+}
+
+fn assert_drowned_attributes_dimensions_and_spawn_rules() {
     assert_eq!(
         drowned_attributes(),
         DrownedAttributes {
@@ -324,6 +356,9 @@ fn drowned_spawn_equipment_swim_and_trident_gates_match_java_rules() {
         drowned_default_main_hand_item(0.91, 10),
         Some("minecraft:fishing_rod")
     );
+}
+
+fn assert_drowned_equipment_finalize_and_pickup_rules() {
     let drowned_finalize = DrownedFinalizeSpawnInput {
         offhand_empty: true,
         nautilus_random_float: 0.029,
@@ -381,7 +416,9 @@ fn drowned_spawn_equipment_swim_and_trident_gates_match_java_rules() {
     assert!(!drowned_wants_to_pick_up("minecraft:trident"));
     assert!(!drowned_wants_to_pick_up("minecraft:iron_spear"));
     assert!(drowned_wants_to_pick_up("minecraft:rotten_flesh"));
+}
 
+fn assert_drowned_target_swim_trident_and_water_goals() {
     assert!(drowned_ok_target(true, false, false));
     assert!(drowned_ok_target(true, true, true));
     assert!(!drowned_ok_target(true, true, false));
@@ -423,6 +460,11 @@ fn drowned_spawn_equipment_swim_and_trident_gates_match_java_rules() {
 
 #[test]
 fn husk_daylight_hunger_conversion_and_camel_spawn_match_java_rules() {
+    assert_husk_dimensions_hunger_and_conversion();
+    assert_husk_loot_and_camel_spawn_rules();
+}
+
+fn assert_husk_dimensions_hunger_and_conversion() {
     assert_eq!(
         husk_entity_type_surface(),
         HuskEntityTypeSurface {
@@ -459,7 +501,9 @@ fn husk_daylight_hunger_conversion_and_camel_spawn_match_java_rules() {
     );
     assert_eq!(husk_underwater_conversion_event(false), Some(1041));
     assert_eq!(husk_underwater_conversion_event(true), None);
+}
 
+fn assert_husk_loot_and_camel_spawn_rules() {
     assert_eq!(husk_should_pick_up_loot(true, 0.0, 1.0), None);
     assert_eq!(husk_should_pick_up_loot(false, 0.54, 1.0), Some(true));
     assert_eq!(husk_should_pick_up_loot(false, 0.55, 1.0), Some(false));
@@ -540,6 +584,12 @@ fn endermite_lifetime_spawn_and_pearl_gates_match_java_rules() {
 
 #[test]
 fn enderman_carry_stare_anger_and_teleport_gates_match_java() {
+    assert_enderman_attributes_constants_and_target_state();
+    assert_enderman_hurt_stare_and_look_goal_rules();
+    assert_enderman_carried_block_and_persistence_rules();
+}
+
+fn assert_enderman_attributes_constants_and_target_state() {
     assert_eq!(
         enderman_attributes(),
         EndermanAttributes {
@@ -596,6 +646,9 @@ fn enderman_carry_stare_anger_and_teleport_gates_match_java() {
     );
     assert!(enderman_stare_sound_allowed(400, 0));
     assert!(!enderman_stare_sound_allowed(399, 0));
+}
+
+fn assert_enderman_hurt_stare_and_look_goal_rules() {
     assert!(enderman_should_daylight_deaggro_and_teleport(
         true, 700, 100, 0.6, true, 0.0
     ));
@@ -648,7 +701,9 @@ fn enderman_carry_stare_anger_and_teleport_gates_match_java() {
         enderman_look_goal_tick(None, true, false, 257.0, 29, false),
         (None, false, 30, false)
     );
+}
 
+fn assert_enderman_carried_block_and_persistence_rules() {
     assert!(enderman_take_block_can_use(false, true, 0));
     assert!(!enderman_take_block_can_use(true, true, 0));
     assert!(!enderman_take_block_can_use(false, false, 0));
@@ -674,6 +729,12 @@ fn enderman_carry_stare_anger_and_teleport_gates_match_java() {
 
 #[test]
 fn skeleton_family_ranged_conversion_and_variant_gates_match_java() {
+    assert_skeleton_shared_constants_and_entity_surfaces();
+    assert_skeleton_weapon_loot_and_freeze_conversion_rules();
+    assert_skeleton_variant_effect_and_shearing_rules();
+}
+
+fn assert_skeleton_shared_constants_and_entity_surfaces() {
     assert_eq!(ABSTRACT_SKELETON_MOVEMENT_SPEED, 0.25);
     assert_eq!(ABSTRACT_SKELETON_BOW_SPEED, 1.0);
     assert_eq!(ABSTRACT_SKELETON_BOW_RANGE, 15.0);
@@ -736,6 +797,9 @@ fn skeleton_family_ranged_conversion_and_variant_gates_match_java() {
         1.99
     );
     assert!(!skeleton_entity_type_surface("minecraft:parched").fire_immune);
+}
+
+fn assert_skeleton_weapon_loot_and_freeze_conversion_rules() {
     assert_eq!(
         abstract_skeleton_weapon_goal(true, true, false),
         SkeletonWeaponGoal::Bow {
@@ -836,7 +900,9 @@ fn skeleton_family_ranged_conversion_and_variant_gates_match_java() {
     assert_eq!(skeleton_save_stray_conversion_time(true, 42), 42);
     assert_eq!(skeleton_save_stray_conversion_time(false, 42), -1);
     assert_eq!(SKELETON_STRAY_CONVERSION_EVENT, 1048);
+}
 
+fn assert_skeleton_variant_effect_and_shearing_rules() {
     assert!(stray_spawn_allowed(true, true, false));
     assert!(stray_spawn_allowed(true, false, true));
     assert!(!stray_spawn_allowed(false, true, true));
@@ -876,6 +942,12 @@ fn skeleton_family_ranged_conversion_and_variant_gates_match_java() {
 
 #[test]
 fn cave_spider_dimensions_poison_and_inherited_spider_gates_match_java_rules() {
+    assert_cave_spider_dimensions_poison_and_vehicle_rules();
+    assert_spider_climb_target_and_jockey_rules();
+    assert_spider_constants_and_special_effect_rules();
+}
+
+fn assert_cave_spider_dimensions_poison_and_vehicle_rules() {
     assert_eq!(
         cave_spider_attributes(),
         CaveSpiderAttributes {
@@ -910,7 +982,9 @@ fn cave_spider_dimensions_poison_and_inherited_spider_gates_match_java_rules() {
         Some(0.21875)
     );
     assert_eq!(cave_spider_vehicle_attachment_y(0.8, 0.7, 1.0), None);
+}
 
+fn assert_spider_climb_target_and_jockey_rules() {
     let flags = spider_set_climbing_flags(0, true);
     assert!(spider_is_climbing(flags));
     assert!(!spider_is_climbing(spider_set_climbing_flags(flags, false)));
@@ -925,7 +999,10 @@ fn cave_spider_dimensions_poison_and_inherited_spider_gates_match_java_rules() {
     assert!(spider_avoids_armadillo(false));
     assert!(!spider_avoids_armadillo(true));
     assert_eq!(
-        (SPIDER_POISON_IMMUNE, spider_can_be_affected("minecraft:poison")),
+        (
+            SPIDER_POISON_IMMUNE,
+            spider_can_be_affected("minecraft:poison")
+        ),
         (true, false)
     );
     assert!(!spider_can_be_affected("minecraft:poison"));
@@ -935,6 +1012,9 @@ fn cave_spider_dimensions_poison_and_inherited_spider_gates_match_java_rules() {
     assert!(spider_should_drop_target_in_light(0.5, 0));
     assert!(!spider_should_drop_target_in_light(0.49, 0));
     assert!(!spider_should_drop_target_in_light(0.5, 1));
+}
+
+fn assert_spider_constants_and_special_effect_rules() {
     assert_eq!(SPIDER_SPECIAL_EFFECT_CHANCE, 0.1);
     assert_eq!(SPIDER_VEHICLE_ATTACHMENT_Y, 0.3125);
     assert_eq!(SPIDER_AVOID_ARMADILLO_DISTANCE, 6.0);
@@ -1087,6 +1167,12 @@ fn tropical_fish_packed_variants_match_java_pattern_and_color_layout() {
 
 #[test]
 fn abstract_fish_bucket_and_schooling_gates_match_java_rules() {
+    assert_abstract_fish_attributes_and_lifecycle_rules();
+    assert_schooling_fish_rules();
+    assert_fish_bucket_models();
+}
+
+fn assert_abstract_fish_attributes_and_lifecycle_rules() {
     assert_eq!(
         abstract_fish_attributes(),
         AbstractFishAttributes {
@@ -1129,7 +1215,9 @@ fn abstract_fish_bucket_and_schooling_gates_match_java_rules() {
     assert!(!fish_flop_step(true, true, true).jump);
     assert_eq!(fish_travel_y_delta(false, 0.0), -0.005);
     assert_eq!(fish_travel_y_delta(true, 0.1), 0.1);
+}
 
+fn assert_schooling_fish_rules() {
     assert!(schooling_fish_is_follower(true, true));
     assert!(!schooling_fish_is_follower(true, false));
     assert!(schooling_fish_can_be_followed(SchoolingFishState {
@@ -1146,7 +1234,9 @@ fn abstract_fish_bucket_and_schooling_gates_match_java_rules() {
     assert!(schooling_fish_should_reset_size(1, 1));
     assert!(!schooling_fish_should_reset_size(2, 1));
     assert!(!schooling_fish_should_reset_size(1, 2));
+}
 
+fn assert_fish_bucket_models() {
     assert_eq!(
         fish_bucket_model("minecraft:cod", true),
         Some(FishBucketModel {
