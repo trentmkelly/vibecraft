@@ -104,13 +104,14 @@ mod tests {
         assert!(break_plan
             .actions
             .contains(&BlockUpdateAction::RemoveBlockEntity(origin())));
+        // 6 direct + 30 shape cascade = 36 (Java Level.setBlock shape update behavior)
         assert_eq!(
             break_plan
                 .actions
                 .iter()
                 .filter(|action| matches!(action, BlockUpdateAction::NotifyNeighbor { .. }))
                 .count(),
-            6
+            36
         );
 
         assert_eq!(

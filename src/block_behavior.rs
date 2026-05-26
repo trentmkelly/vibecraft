@@ -648,12 +648,14 @@ mod tests {
             action,
             BlockUpdateAction::AffectNeighborsAfterRemoval { pos: affected, .. } if *affected == pos
         )));
+        // 6 direct neighbors + 30 from shape update cascade (6 neighbors × 5 directions each)
+        // mirrors Java Level.setBlock() calling updateNeighborsAt + updateNeighbourShapes
         assert_eq!(
             plan.actions
                 .iter()
                 .filter(|action| matches!(action, BlockUpdateAction::NotifyNeighbor { .. }))
                 .count(),
-            6
+            36
         );
     }
 
