@@ -36,7 +36,7 @@
 - [ ] Implement food level effects: fast healing above 18 food (0.5 HP/4 ticks in Java), normal healing above 0, speed reduction below 6 (5 for walking)
 - [ ] Implement exhaustion-to-saturation-to-food-level drain: exhaustion ≥ 4.0 drains 1 saturation; 0 saturation drains 1 food
 - [ ] Implement XP orb pickup and merge: orbs within 1.5 blocks merge toward player, `addExperience()` with level-up threshold table
-- [ ] Implement XP level→point threshold: `getXpNeededForNextLevel()` = (level ≥ 30) ? 112 + (level-30)*9 : (level ≥ 15) ? 37 + (level-15)*5 : 7 + level*2
+- [x] Implement XP level→point threshold: `getXpNeededForNextLevel()` = (level ≥ 30) ? 112 + (level-30)*9 : (level ≥ 15) ? 37 + (level-15)*5 : 7 + level*2 — `experience_system::xp_needed_for_next_level` matches Java `Player.getXpNeededForNextLevel()` exactly; verified against decompiled 26.1.2 line 1554.
 - [ ] Implement player death drops: drop all inventory on death in non-keepInventory mode; keep bound items if `CurseOfBinding`; XP orb generation proportional to XP level
 - [ ] Implement player respawn: consume `respawnPosition` if set and block still valid, else find default world spawn; apply respawn invulnerability ticks
 - [ ] Implement `Abilities` flags: invulnerable, flying, can-fly, instant-build (creative), flying-speed (0.05 walk / 0.1 fly), walking-speed (0.1); sync on game mode change
