@@ -26,6 +26,35 @@ pub struct WeatherRandomDurations {
     pub thunder_duration: i32,
 }
 
+impl WeatherRandomDurations {
+    /// Sample fresh random durations matching Java `ServerLevel` ranges:
+    /// - `RAIN_DELAY`: UniformInt.of(12000, 180000)
+    /// - `RAIN_DURATION`: UniformInt.of(12000, 24000)
+    /// - `THUNDER_DELAY`: UniformInt.of(12000, 180000)
+    /// - `THUNDER_DURATION`: UniformInt.of(3600, 15600)
+    pub fn sample_vanilla() -> Self {
+        Self {
+            rain_delay: uniform_int_sample(12_000, 180_000),
+            rain_duration: uniform_int_sample(12_000, 24_000),
+            thunder_delay: uniform_int_sample(12_000, 180_000),
+            thunder_duration: uniform_int_sample(3_600, 15_600),
+        }
+    }
+}
+
+fn uniform_int_sample(min: i32, max: i32) -> i32 {
+    use std::collections::hash_map::RandomState;
+    use std::hash::{BuildHasher, Hasher};
+    let state = RandomState::new();
+    let mut h = state.build_hasher();
+    h.write_u64(std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos() as u64)
+        .unwrap_or(0));
+    let range = (max - min + 1) as u64;
+    min + (h.finish() % range) as i32
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum WeatherGameEvent {
     StartRaining,

@@ -165,12 +165,9 @@ pub(super) const SERVER_TICK_DURATION: Duration = Duration::from_millis(50);
 /// Java: MinecraftServer.forceGameTimeSynchronization() every 20 ticks (~1 second).
 pub(super) const TIME_SYNC_INTERVAL: Duration = Duration::from_secs(1);
 /// Vanilla overworld weather durations (ticks). Java: ServerLevel weather scheduling.
-pub(super) const DEFAULT_WEATHER_DURATIONS: WeatherRandomDurations = WeatherRandomDurations {
-    rain_delay: 12_000,
-    rain_duration: 6_000,
-    thunder_delay: 18_000,
-    thunder_duration: 3_000,
-};
+pub(super) fn sample_weather_durations() -> WeatherRandomDurations {
+    WeatherRandomDurations::sample_vanilla()
+}
 /// How often to persist clock/weather state (every 5 minutes at 20 TPS).
 pub(super) const PERSISTENCE_INTERVAL_TICKS: u64 = 6_000;
 pub(super) const MIN_CHUNK_BATCH_RADIUS: i32 = 2;

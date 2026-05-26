@@ -388,7 +388,7 @@ impl StatusServerRuntime {
                 lock_status_mutex(&clock_t).tick(true, &mut scheduled);
 
                 // Advance weather. can_have_weather=true for overworld.
-                lock_status_mutex(&weather_t).advance(true, true, DEFAULT_WEATHER_DURATIONS);
+                lock_status_mutex(&weather_t).advance(true, true, sample_weather_durations());
 
                 if tick_count.is_multiple_of(RESOURCE_USAGE_LOG_INTERVAL_TICKS) {
                     resource_usage.log_current_usage(tick_count);
