@@ -233,14 +233,16 @@ pub fn configured_tree_placement_plan(
             .ok_or_else(|| "validated tree dirt provider produced no block state".to_string())?;
 
     Ok(Some(simple_tree_placement_plan(
-        origin,
-        config.trunk_placer,
-        config.foliage_placer,
-        trunk_provider,
-        foliage_provider,
-        dirt_provider,
-        rand_a,
-        rand_b,
+        SimpleTreePlacementInput {
+            origin,
+            trunk: config.trunk_placer,
+            foliage: config.foliage_placer,
+            trunk_state: trunk_provider,
+            foliage_state: foliage_provider,
+            below_trunk_state: dirt_provider,
+            rand_a,
+            rand_b,
+        },
     )?))
 }
 

@@ -188,19 +188,19 @@ pub(super) fn noise_preview_tree_blocks(
         let tree_seed = tree_seed ^ (index as i64).wrapping_mul(10_000) as u64;
         let (trunk_state, leaves_state, base_height) =
             noise_preview_tree_materials(generation, tree_seed);
-        let Ok(plan) = simple_tree_placement_plan(
-            BlockPos {
+        let Ok(plan) = simple_tree_placement_plan(SimpleTreePlacementInput {
+            origin: BlockPos {
                 x: local_x as i32,
                 y: surface_height,
                 z: local_z as i32,
             },
-            TrunkPlacerModel {
+            trunk: TrunkPlacerModel {
                 base_height,
                 height_rand_a: 2,
                 height_rand_b: 0,
                 kind: TrunkPlacerKind::Straight,
             },
-            FoliagePlacerModel {
+            foliage: FoliagePlacerModel {
                 radius_min: 2,
                 radius_max: 2,
                 offset_min: 0,
@@ -208,11 +208,11 @@ pub(super) fn noise_preview_tree_blocks(
                 kind: FoliagePlacerKind::Blob { height: 3 },
             },
             trunk_state,
-            leaves_state,
-            "minecraft:dirt",
-            (tree_seed & 0xffff) as i32,
-            ((tree_seed >> 16) & 0xffff) as i32,
-        ) else {
+            foliage_state: leaves_state,
+            below_trunk_state: "minecraft:dirt",
+            rand_a: (tree_seed & 0xffff) as i32,
+            rand_b: ((tree_seed >> 16) & 0xffff) as i32,
+        }) else {
             continue;
         };
         blocks.extend(plan.blocks);
