@@ -157,8 +157,8 @@
 - [ ] Implement random sequences save data.
 - [ ] Implement POI storage.
 - [ ] Implement entity region/storage behavior.
-- [ ] Implement durable write, temp-file, backup, and corruption handling semantics.
-- [ ] Implement symlink validation and path allow-list behavior.
+- [x] Implement durable write, temp-file, backup, and corruption handling semantics. — `durable_write_with_backup` writes to `.tmp`, renames old to backup, renames tmp to target with retry/rollback matching Java `Util.safeReplaceFile`; `corruption_backup_stamp` generates `yyyy-MM-dd_HH-mm-ss` timestamps matching Java `FileNameDateFormatter`; load paths fall back to `.dat_old` backups.
+- [x] Implement symlink validation and path allow-list behavior. — `reject_symlinks_recursive` walks directory trees and rejects symlinks; `WorldLayout::reject_symlink` checks individual paths; `LevelStorageAccess` validates symlinks on open matching Java `DirectoryValidator`.
 
 ## Migrated From Main Checklist: Source-Derived Granularity Appendix - Storage, NBT, And Datafix Coverage
 
