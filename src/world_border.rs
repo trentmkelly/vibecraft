@@ -26,7 +26,7 @@ impl Default for WorldBorderSettings {
             damage_per_block: 0.2,
             safe_zone: 5.0,
             warning_blocks: 5,
-            warning_time: 300,
+            warning_time: 15,
             size: WORLD_BORDER_MAX_SIZE,
             lerp_time: 0,
             lerp_target: 0.0,
@@ -469,7 +469,8 @@ mod tests {
         assert_eq!(settings.damage_per_block, 0.2);
         assert_eq!(settings.safe_zone, 5.0);
         assert_eq!(settings.warning_blocks, 5);
-        assert_eq!(settings.warning_time, 300);
+        // Java WorldBorder: warningTime = 15 (seconds)
+        assert_eq!(settings.warning_time, 15);
         assert_eq!(settings.size, WORLD_BORDER_MAX_SIZE);
         assert_eq!(settings.lerp_time, 0);
         assert_eq!(settings.lerp_target, 0.0);
