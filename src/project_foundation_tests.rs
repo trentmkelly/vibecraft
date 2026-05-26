@@ -24,6 +24,15 @@ mod tests {
         })
     }
 
+    fn assert_contains_all(contents: &str, expected_fragments: &[&str]) {
+        for fragment in expected_fragments {
+            assert!(
+                contents.contains(fragment),
+                "expected file to contain {fragment:?}"
+            );
+        }
+    }
+
     #[test]
     fn mineflayer_runner_targets_rustcraft_and_official_server() {
         let runner = harness_file("runner.mjs");
@@ -90,41 +99,60 @@ mod tests {
         let spawn_diagnostics = harness_file("spawn_timeout_diagnostics.mjs");
         let quarantine = harness_file("quarantine_report.mjs");
 
-        assert!(runner.contains("collectArtifacts"));
-        assert!(runner.contains("serverProperties"));
-        assert!(runner.contains("eula"));
-        assert!(runner.contains("events: [...events]"));
-        assert!(runner.contains("logs: logs.map"));
-
-        assert!(login_session.contains("packetTrace"));
-        assert!(login_session.contains("serverLogs"));
-        assert!(login_session.contains("endpoint"));
-        assert!(login_session.contains("server"));
-        assert!(login_session.contains("bot"));
-
-        assert!(debug_bundle.contains("profile.json"));
-        assert!(debug_bundle.contains("timeline.json"));
-        assert!(debug_bundle.contains("packet-trace.json"));
-        assert!(debug_bundle.contains("server.log"));
-        assert!(debug_bundle.contains("normalized-artifacts.json"));
-        assert!(debug_bundle.contains("parity-diff.json"));
-        assert!(debug_bundle.contains("server.properties"));
-        assert!(debug_bundle.contains("eula.txt"));
-
-        assert!(normalizer.contains("normalizeLoginArtifacts"));
-        assert!(normalizer.contains("<run-dir>"));
-        assert!(normalizer.contains("<port>"));
-        assert!(normalizer.contains("<username>"));
-
-        assert!(spawn_diagnostics.contains("lastReceivedChunk"));
-        assert!(spawn_diagnostics.contains("entityId"));
-        assert!(spawn_diagnostics.contains("dimension"));
-        assert!(spawn_diagnostics.contains("position"));
-        assert!(spawn_diagnostics.contains("playPacketIds"));
-
-        assert!(quarantine.contains("rawDisconnectPackets"));
-        assert!(quarantine.contains("classification"));
-        assert!(quarantine.contains("prismarineDependencySnapshot"));
+        assert_contains_all(
+            &runner,
+            &[
+                "collectArtifacts",
+                "serverProperties",
+                "eula",
+                "events: [...events]",
+                "logs: logs.map",
+            ],
+        );
+        assert_contains_all(
+            &login_session,
+            &["packetTrace", "serverLogs", "endpoint", "server", "bot"],
+        );
+        assert_contains_all(
+            &debug_bundle,
+            &[
+                "profile.json",
+                "timeline.json",
+                "packet-trace.json",
+                "server.log",
+                "normalized-artifacts.json",
+                "parity-diff.json",
+                "server.properties",
+                "eula.txt",
+            ],
+        );
+        assert_contains_all(
+            &normalizer,
+            &[
+                "normalizeLoginArtifacts",
+                "<run-dir>",
+                "<port>",
+                "<username>",
+            ],
+        );
+        assert_contains_all(
+            &spawn_diagnostics,
+            &[
+                "lastReceivedChunk",
+                "entityId",
+                "dimension",
+                "position",
+                "playPacketIds",
+            ],
+        );
+        assert_contains_all(
+            &quarantine,
+            &[
+                "rawDisconnectPackets",
+                "classification",
+                "prismarineDependencySnapshot",
+            ],
+        );
     }
 
     #[test]
