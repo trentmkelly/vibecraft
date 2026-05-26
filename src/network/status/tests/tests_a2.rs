@@ -3,6 +3,13 @@ use super::*;
 
 #[test]
 pub fn duplicated_registry_manifest_ids_remain_in_sync_across_tables() {
+    assert_trim_registry_ids_match_presentation_and_models();
+    assert_instrument_registry_ids_match_presentation();
+    assert_damage_and_biome_registry_ids_match_models();
+    assert_painting_jukebox_and_banner_ids_match_presentation();
+}
+
+fn assert_trim_registry_ids_match_presentation_and_models() {
     let status_trim_materials: Vec<String> = TRIM_MATERIALS
         .iter()
         .map(|entry| format!("minecraft:{}", entry.id))
@@ -34,7 +41,9 @@ pub fn duplicated_registry_manifest_ids_remain_in_sync_across_tables() {
 
     assert_eq!(status_trim_patterns, presentation_trim_patterns);
     assert_eq!(status_trim_patterns, model_trim_patterns);
+}
 
+fn assert_instrument_registry_ids_match_presentation() {
     let status_instruments: BTreeSet<String> = INSTRUMENTS
         .iter()
         .map(|instrument| format!("minecraft:{}", instrument.id))
@@ -45,7 +54,9 @@ pub fn duplicated_registry_manifest_ids_remain_in_sync_across_tables() {
         .collect();
 
     assert_eq!(status_instruments, presentation_instruments);
+}
 
+fn assert_damage_and_biome_registry_ids_match_models() {
     let status_damage_types: BTreeSet<String> = DAMAGE_TYPES
         .iter()
         .map(|id| format!("minecraft:{id}"))
@@ -71,7 +82,9 @@ pub fn duplicated_registry_manifest_ids_remain_in_sync_across_tables() {
         .map(|biome| biome.id.to_string())
         .collect();
     assert_eq!(status_biomes, model_biomes);
+}
 
+fn assert_painting_jukebox_and_banner_ids_match_presentation() {
     let status_paintings =
         status_registry_entry_ids_ordered(write_vanilla_painting_variant_registry_packet);
     let presentation_paintings: Vec<String> = presentation_data::PAINTING_VARIANTS
@@ -137,6 +150,14 @@ pub fn synchronized_registry_closure_notes_match_writer_payloads() {
 
 #[test]
 pub fn synced_registry_entry_orders_match_official_transcript_fixtures() {
+    assert_animal_sound_registry_order();
+    assert_painting_registry_order();
+    assert_damage_type_registry_order();
+    assert_banner_and_jukebox_registry_order();
+    assert_instrument_chat_trim_and_animal_registry_order();
+}
+
+fn assert_animal_sound_registry_order() {
     assert_registry_order(
         write_vanilla_cat_variant_registry_packet,
         &[
@@ -173,6 +194,9 @@ pub fn synced_registry_entry_orders_match_official_transcript_fixtures() {
         write_vanilla_wolf_sound_variant_registry_packet,
         &["angry", "big", "classic", "cute", "grumpy", "puglin", "sad"],
     );
+}
+
+fn assert_painting_registry_order() {
     assert_registry_order(
         write_vanilla_painting_variant_registry_packet,
         &[
@@ -229,6 +253,9 @@ pub fn synced_registry_entry_orders_match_official_transcript_fixtures() {
             "wither",
         ],
     );
+}
+
+fn assert_damage_type_registry_order() {
     assert_registry_order(
         write_minimal_damage_type_registry_packet,
         &[
@@ -284,6 +311,9 @@ pub fn synced_registry_entry_orders_match_official_transcript_fixtures() {
             "wither_skull",
         ],
     );
+}
+
+fn assert_banner_and_jukebox_registry_order() {
     assert_registry_order(
         write_vanilla_banner_pattern_registry_packet,
         &[
@@ -358,6 +388,9 @@ pub fn synced_registry_entry_orders_match_official_transcript_fixtures() {
             "ward",
         ],
     );
+}
+
+fn assert_instrument_chat_trim_and_animal_registry_order() {
     assert_registry_order(
         write_vanilla_instrument_registry_packet,
         &[
@@ -425,8 +458,7 @@ pub fn synced_registry_entry_orders_match_official_transcript_fixtures() {
     assert_registry_order(
         write_vanilla_wolf_variant_registry_packet,
         &[
-            "ashen", "black", "chestnut", "pale", "rusty", "snowy", "spotted", "striped",
-            "woods",
+            "ashen", "black", "chestnut", "pale", "rusty", "snowy", "spotted", "striped", "woods",
         ],
     );
     assert_registry_order(
@@ -532,6 +564,26 @@ pub fn biome_network_codec_fixture_covers_required_fields_for_every_emitted_biom
 
 #[test]
 pub fn visible_spawn_terrain_uses_deterministic_rolling_grass_layers() {
+    let words = visible_spawn_palette_words();
+    let columns = visible_spawn_test_columns();
+
+    assert!(
+        columns.max_height > 95,
+        "spawn terrain should be visibly non-flat"
+    );
+    assert!(visible_spawn_terrain_block_count(0, 0, 8) > 4000);
+    assert!(visible_spawn_terrain_block_count(0, 0, 9) > 512);
+    assert!(visible_spawn_terrain_block_count(0, 0, 10) > 0);
+    assert_ne!(words.iter().filter(|word| **word != 0).count(), 0);
+    assert_high_visible_spawn_column(&words, columns.high_column);
+    assert_outcrop_visible_spawn_column(&words, columns.outcrop_column);
+    assert_featured_visible_spawn_column(&words, columns.featured_column);
+    assert!(
+        visible_spawn_terrain_height(0, 0, columns.ridge_column.0, columns.ridge_column.1) >= 96
+    );
+}
+
+fn visible_spawn_palette_words() -> Vec<u64> {
     let mut payload = Vec::new();
     write_visible_spawn_terrain_block_state_container(&mut payload, 0, 0, 9).unwrap();
     let mut input = Cursor::new(payload);
@@ -566,7 +618,18 @@ pub fn visible_spawn_terrain_uses_deterministic_rolling_grass_layers() {
             ])
         })
         .collect::<Vec<_>>();
+    words
+}
 
+struct VisibleSpawnTestColumns {
+    high_column: (usize, usize),
+    featured_column: (usize, usize, i32),
+    outcrop_column: (usize, usize),
+    ridge_column: (usize, usize),
+    max_height: i32,
+}
+
+fn visible_spawn_test_columns() -> VisibleSpawnTestColumns {
     let high_column = (0..16)
         .flat_map(|z| (0..16).map(move |x| (x, z)))
         .find(|(x, z)| {
@@ -598,21 +661,29 @@ pub fn visible_spawn_terrain_uses_deterministic_rolling_grass_layers() {
         .flat_map(|z| (0..16).map(move |x| (x, z)))
         .find(|(x, z)| visible_spawn_terrain_height(0, 0, *x, *z) == max_height)
         .expect("spawn chunk should contain a visible ridge");
-    assert!(max_height > 95, "spawn terrain should be visibly non-flat");
-    assert!(visible_spawn_terrain_block_count(0, 0, 8) > 4000);
-    assert!(visible_spawn_terrain_block_count(0, 0, 9) > 512);
-    assert!(visible_spawn_terrain_block_count(0, 0, 10) > 0);
-    assert_ne!(words.iter().filter(|word| **word != 0).count(), 0);
+    VisibleSpawnTestColumns {
+        high_column,
+        featured_column,
+        outcrop_column,
+        ridge_column,
+        max_height,
+    }
+}
+
+fn assert_high_visible_spawn_column(words: &[u64], high_column: (usize, usize)) {
     let high_local_y =
         (visible_spawn_terrain_height(0, 0, high_column.0, high_column.1) - 80) as usize;
     assert_eq!(
-        palette_index_at(&words, high_column.0, high_local_y - 1, high_column.1),
+        palette_index_at(words, high_column.0, high_local_y - 1, high_column.1),
         6
     );
     assert_eq!(
-        palette_index_at(&words, high_column.0, high_local_y, high_column.1),
+        palette_index_at(words, high_column.0, high_local_y, high_column.1),
         7
     );
+}
+
+fn assert_outcrop_visible_spawn_column(words: &[u64], outcrop_column: (usize, usize)) {
     let expected_outcrop_palette =
         match visible_spawn_surface_top_block_id(0, 0, outcrop_column.0, outcrop_column.1) {
             STONE_BLOCK_STATE_ID => 1,
@@ -624,17 +695,17 @@ pub fn visible_spawn_terrain_uses_deterministic_rolling_grass_layers() {
         };
     assert_eq!(
         palette_index_at(
-            &words,
+            words,
             outcrop_column.0,
-            (visible_spawn_terrain_height(0, 0, outcrop_column.0, outcrop_column.1) - 80)
-                as usize,
+            (visible_spawn_terrain_height(0, 0, outcrop_column.0, outcrop_column.1) - 80) as usize,
             outcrop_column.1
         ),
         expected_outcrop_palette
     );
-    assert!(visible_spawn_terrain_height(0, 0, ridge_column.0, ridge_column.1) >= 96);
-    let feature_y = (visible_spawn_terrain_height(0, 0, featured_column.0, featured_column.1)
-        + 1
+}
+
+fn assert_featured_visible_spawn_column(words: &[u64], featured_column: (usize, usize, i32)) {
+    let feature_y = (visible_spawn_terrain_height(0, 0, featured_column.0, featured_column.1) + 1
         - 80) as usize;
     let expected_feature_palette = match featured_column.2 {
         SHORT_GRASS_BLOCK_STATE_ID => 8,
@@ -643,7 +714,7 @@ pub fn visible_spawn_terrain_uses_deterministic_rolling_grass_layers() {
         _ => unreachable!("feature id must be in the emitted palette"),
     };
     assert_eq!(
-        palette_index_at(&words, featured_column.0, feature_y, featured_column.1),
+        palette_index_at(words, featured_column.0, feature_y, featured_column.1),
         expected_feature_palette
     );
 }
@@ -658,4 +729,3 @@ pub fn all_air_persisted_chunks_are_not_reused_for_spawn_terrain() {
             .expect("normal preset should generate visible terrain");
     assert!(chunk_has_non_air_blocks(&generated));
 }
-

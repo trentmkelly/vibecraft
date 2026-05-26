@@ -1,27 +1,26 @@
 use super::{
     banner_pattern_nbt, bug_report_server_links_packet, cat_sound_variant_nbt,
-    chicken_sound_variant_nbt,
-    cow_sound_variant_nbt, encode_base64,
-    escape_json_string, function_permission_level_from_properties, handle_legacy_status_connection,
-    instrument_nbt, legacy_disconnect_packet,
-    legacy_version0_response, legacy_version1_response, load_code_of_conduct_for_language,
-    load_favicon, login_access_disconnect_reason, login_compression_threshold, login_host_ip,
-    pig_sound_variant_nbt, read_code_of_conducts, read_packet, status_json,
-    strip_minecraft_formatting, trim_material_nbt, trim_pattern_nbt, wolf_sound_variant_nbt,
-    write_legacy_string, write_minimal_biome_registry_packet,
+    chicken_sound_variant_nbt, cow_sound_variant_nbt, encode_base64, escape_json_string,
+    function_permission_level_from_properties, handle_legacy_status_connection, instrument_nbt,
+    legacy_disconnect_packet, legacy_version0_response, legacy_version1_response,
+    load_code_of_conduct_for_language, load_favicon, login_access_disconnect_reason,
+    login_compression_threshold, login_host_ip, pig_sound_variant_nbt, read_code_of_conducts,
+    read_packet, status_json, strip_minecraft_formatting, trim_material_nbt, trim_pattern_nbt,
+    wolf_sound_variant_nbt, write_legacy_string, write_minimal_biome_registry_packet,
     write_minimal_damage_type_registry_packet, write_minimal_dimension_type_registry_packet,
     write_minimal_trim_material_registry_packet, write_status_pong_packet,
     write_vanilla_banner_pattern_registry_packet, write_vanilla_cat_sound_variant_registry_packet,
     write_vanilla_cat_variant_registry_packet, write_vanilla_chat_type_registry_packet,
     write_vanilla_chicken_sound_variant_registry_packet,
-    write_vanilla_chicken_variant_registry_packet,
-    write_vanilla_cow_sound_variant_registry_packet, write_vanilla_cow_variant_registry_packet,
-    write_vanilla_frog_variant_registry_packet, write_vanilla_instrument_registry_packet,
-    write_vanilla_jukebox_song_registry_packet, write_vanilla_painting_variant_registry_packet,
-    write_vanilla_pig_sound_variant_registry_packet, write_vanilla_pig_variant_registry_packet, write_vanilla_trim_pattern_registry_packet,
-    write_vanilla_wolf_sound_variant_registry_packet,
+    write_vanilla_chicken_variant_registry_packet, write_vanilla_cow_sound_variant_registry_packet,
+    write_vanilla_cow_variant_registry_packet, write_vanilla_frog_variant_registry_packet,
+    write_vanilla_instrument_registry_packet, write_vanilla_jukebox_song_registry_packet,
+    write_vanilla_painting_variant_registry_packet,
+    write_vanilla_pig_sound_variant_registry_packet, write_vanilla_pig_variant_registry_packet,
+    write_vanilla_trim_pattern_registry_packet, write_vanilla_wolf_sound_variant_registry_packet,
     write_vanilla_wolf_variant_registry_packet,
-    write_vanilla_zombie_nautilus_variant_registry_packet, write_world_clock_registry_packet, INSTRUMENTS, MAX_PACKET_SIZE, TRIM_MATERIALS,
+    write_vanilla_zombie_nautilus_variant_registry_packet, write_world_clock_registry_packet,
+    INSTRUMENTS, MAX_PACKET_SIZE, TRIM_MATERIALS,
 };
 use crate::command::PermissionLevel;
 use crate::network::common::{ServerLinkLabel, ServerLinkType};
@@ -45,10 +44,9 @@ struct SynchronizedRegistryManifestEntry {
 
 #[test]
 pub fn bug_report_link_becomes_known_server_link_when_valid() {
-    let mut properties = ServerProperties::load_or_default(Path::new(
-        "definitely-missing-test-server.properties",
-    ))
-    .unwrap();
+    let mut properties =
+        ServerProperties::load_or_default(Path::new("definitely-missing-test-server.properties"))
+            .unwrap();
     assert!(bug_report_server_links_packet(&properties).is_none());
 
     properties.set("bug-report-link", "https://example.invalid/bugs");
@@ -94,10 +92,9 @@ pub fn code_of_conduct_loader_strips_formatting_and_applies_language_fallback() 
     let previous = std::env::current_dir().unwrap();
     std::env::set_current_dir(&root).unwrap();
 
-    let mut properties = ServerProperties::load_or_default(Path::new(
-        "definitely-missing-test-server.properties",
-    ))
-    .unwrap();
+    let mut properties =
+        ServerProperties::load_or_default(Path::new("definitely-missing-test-server.properties"))
+            .unwrap();
     assert!(load_code_of_conduct_for_language(&properties, "fr_fr")
         .unwrap()
         .is_none());
@@ -425,8 +422,7 @@ pub fn login_access_gate_matches_java_ban_whitelist_and_op_order() {
         Some("multiplayer.disconnect.banned")
     );
     assert_eq!(
-        login_access_disconnect_reason(&properties, &access, &steve, "203.0.113.7", None)
-            .unwrap(),
+        login_access_disconnect_reason(&properties, &access, &steve, "203.0.113.7", None).unwrap(),
         Some("multiplayer.disconnect.not_whitelisted")
     );
     assert_eq!(
@@ -679,6 +675,13 @@ pub fn vanilla_animal_variant_registry_payloads_include_client_referenced_entrie
 
 #[test]
 pub fn synced_registry_payloads_include_expected_counts_and_fields() {
+    assert_core_synced_registry_payload_counts();
+    assert_trim_pattern_registry_payload_fields();
+    assert_banner_pattern_registry_payload_fields();
+    assert_goat_horn_instrument_registry_payload_fields();
+}
+
+fn assert_core_synced_registry_payload_counts() {
     assert_eq!(
         registry_element_count(write_minimal_damage_type_registry_packet),
         50
@@ -703,7 +706,9 @@ pub fn synced_registry_payloads_include_expected_counts_and_fields() {
         registry_element_count(write_vanilla_instrument_registry_packet),
         8
     );
+}
 
+fn assert_trim_pattern_registry_payload_fields() {
     let trim_pattern = trim_pattern_nbt("sentry");
     assert!(matches!(
         field_value(&trim_pattern, "asset_id"),
@@ -718,7 +723,9 @@ pub fn synced_registry_payloads_include_expected_counts_and_fields() {
         field_value(trim_description, "translate"),
         Some(Tag::String(value)) if value == "trim_pattern.minecraft.sentry"
     ));
+}
 
+fn assert_banner_pattern_registry_payload_fields() {
     let banner = banner_pattern_nbt("flower");
     assert!(matches!(
         field_value(&banner, "asset_id"),
@@ -728,7 +735,9 @@ pub fn synced_registry_payloads_include_expected_counts_and_fields() {
         field_value(&banner, "translation_key"),
         Some(Tag::String(value)) if value == "block.minecraft.banner.flower"
     ));
+}
 
+fn assert_goat_horn_instrument_registry_payload_fields() {
     let instrument = INSTRUMENTS
         .iter()
         .find(|instrument| instrument.id == "ponder_goat_horn")
@@ -748,12 +757,11 @@ pub fn synced_registry_payloads_include_expected_counts_and_fields() {
     ));
 }
 
-
 mod tests_a2;
 mod tests_b;
 pub use tests_b::*;
-mod tests_c;
 mod recipe_book_packets;
+mod tests_c;
 mod tests_d;
 pub use tests_d::*;
 mod tests_e;
