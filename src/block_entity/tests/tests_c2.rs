@@ -271,6 +271,15 @@ fn assert_beehive_honey_cap_emergency_and_sedated_release(hive: &mut BeehiveBloc
 
 #[test]
 fn creaking_heart_block_entity_tracks_state_protector_and_output_like_java() {
+    assert_creaking_heart_constants();
+    let mut heart = awake_creaking_heart_with_protector();
+    assert_creaking_heart_output_persistence_and_hurt_pulse(&mut heart);
+    assert_creaking_heart_removes_distant_protector(&mut heart);
+    assert_creaking_heart_uproots_without_required_logs(&mut heart);
+    assert_creaking_heart_unresolved_protector_expires_after_grace_period();
+}
+
+fn assert_creaking_heart_constants() {
     assert_eq!(CreakingHeartBlockEntity::PLAYER_DETECTION_RANGE, 32);
     assert_eq!(CreakingHeartBlockEntity::CREAKING_ROAMING_RADIUS, 32);
     assert_eq!(CreakingHeartBlockEntity::DISTANCE_CREAKING_TOO_FAR, 34.0);
@@ -285,7 +294,9 @@ fn creaking_heart_block_entity_tracks_state_protector_and_output_like_java() {
     assert_eq!(CreakingHeartBlockEntity::MAX_RESIN_DEPTH, 2);
     assert_eq!(CreakingHeartBlockEntity::MAX_RESIN_COUNT, 64);
     assert_eq!(CreakingHeartBlockEntity::TICKS_GRACE_PERIOD, 30);
+}
 
+fn awake_creaking_heart_with_protector() -> CreakingHeartBlockEntity {
     let mut heart = CreakingHeartBlockEntity::new();
     heart.ticker = -1;
     let actions = heart.server_tick(CreakingHeartTickContext {
@@ -311,6 +322,10 @@ fn creaking_heart_block_entity_tracks_state_protector_and_output_like_java() {
     assert_eq!(heart.state, CreakingHeartStateModel::Awake);
 
     heart.on_protector_spawned("00000000-0000-0000-0000-000000000001".to_string());
+    heart
+}
+
+fn assert_creaking_heart_output_persistence_and_hurt_pulse(heart: &mut CreakingHeartBlockEntity) {
     assert_eq!(heart.compute_analog_output_signal(Some(0.0)), 15);
     assert_eq!(heart.compute_analog_output_signal(Some(16.0)), 8);
     assert_eq!(heart.compute_analog_output_signal(Some(32.0)), 0);
@@ -343,7 +358,9 @@ fn creaking_heart_block_entity_tracks_state_protector_and_output_like_java() {
         ..CreakingHeartTickContext::default()
     });
     assert_eq!(heart.emitter_ticks, 99);
+}
 
+fn assert_creaking_heart_removes_distant_protector(heart: &mut CreakingHeartBlockEntity) {
     heart.ticker = -1;
     let actions = heart.server_tick(CreakingHeartTickContext {
         has_required_logs: true,
@@ -358,7 +375,9 @@ fn creaking_heart_block_entity_tracks_state_protector_and_output_like_java() {
     )));
     assert!(actions.contains(&CreakingHeartAction::RemoveProtector));
     assert!(heart.creaking_uuid.is_none());
+}
 
+fn assert_creaking_heart_uproots_without_required_logs(heart: &mut CreakingHeartBlockEntity) {
     heart.state = CreakingHeartStateModel::Dormant;
     heart.ticker = -1;
     let actions = heart.server_tick(CreakingHeartTickContext {
@@ -373,7 +392,9 @@ fn creaking_heart_block_entity_tracks_state_protector_and_output_like_java() {
             CreakingHeartStateModel::Uprooted
         )]
     );
+}
 
+fn assert_creaking_heart_unresolved_protector_expires_after_grace_period() {
     let mut unresolved = CreakingHeartBlockEntity::load_additional(&Tag::Compound(vec![(
         "creaking".to_string(),
         Tag::String("00000000-0000-0000-0000-000000000002".to_string()),
