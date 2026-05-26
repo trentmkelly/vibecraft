@@ -3,6 +3,29 @@ use super::*;
 
 #[test]
 fn small_play_packets_round_trip_vanilla_codecs() {
+    assert_slot_difficulty_and_control_packets();
+    assert_player_input_packet();
+
+    let mut session = PlaySession::new(1, 0);
+    assert_player_command_and_action_packets(&mut session);
+    assert_hand_use_packets(&mut session);
+    assert_ping_reconfigure_and_jigsaw_packets(&mut session);
+    assert_sign_and_beacon_packets(&mut session);
+    assert_trade_and_rename_packets(&mut session);
+    assert_container_close_button_and_creative_packets(&mut session);
+    assert_container_click_packets(&mut session);
+    assert_book_interact_and_chat_ack_packets(&mut session);
+    assert_chat_message_and_command_packets(&mut session);
+    assert_signed_chat_command_packets(&mut session);
+    assert_session_resource_and_command_block_packets(&mut session);
+    assert_structure_and_command_minecart_packets(&mut session);
+    assert_suggestion_and_pick_packets(&mut session);
+    assert_recipe_book_packets(&mut session);
+    assert_clientbound_player_world_packets();
+    assert_clientbound_time_and_tick_packets();
+}
+
+fn assert_slot_difficulty_and_control_packets() {
     let mut bytes = Vec::new();
     ClientboundSetHeldSlotPacket { slot: 4 }
         .write(&mut bytes)
@@ -80,7 +103,9 @@ fn small_play_packets_round_trip_vanilla_codecs() {
             right: false,
         }
     );
+}
 
+fn assert_player_input_packet() {
     let mut player_input = Vec::new();
     ServerboundPlayerInputPacket {
         input: ServerboundPlayerInput {
@@ -109,7 +134,9 @@ fn small_play_packets_round_trip_vanilla_codecs() {
             },
         }
     );
+}
 
+fn assert_player_command_and_action_packets(session: &mut PlaySession) {
     let mut player_command = Vec::new();
     ServerboundPlayerCommandPacket {
         entity_id: 37,
@@ -127,7 +154,6 @@ fn small_play_packets_round_trip_vanilla_codecs() {
             data: 128,
         }
     );
-    let mut session = PlaySession::new(1, 0);
     assert_eq!(
         session.handle_decoded(decoded(
             SERVERBOUND_PLAYER_COMMAND_PACKET_ID,
@@ -176,7 +202,9 @@ fn small_play_packets_round_trip_vanilla_codecs() {
         DispatchOutcome::Handled
     );
     assert_eq!(session.last_player_action, Some(parsed_action));
+}
 
+fn assert_hand_use_packets(session: &mut PlaySession) {
     let mut player_loaded = Vec::new();
     ServerboundPlayerLoadedPacket
         .write(&mut player_loaded)
@@ -255,7 +283,9 @@ fn small_play_packets_round_trip_vanilla_codecs() {
         DispatchOutcome::Handled
     );
     assert_eq!(session.last_use_item_on, Some(use_item_on));
+}
 
+fn assert_ping_reconfigure_and_jigsaw_packets(session: &mut PlaySession) {
     let mut pong = Vec::new();
     ServerboundPongPacket { id: 0x01020304 }
         .write(&mut pong)
@@ -290,10 +320,8 @@ fn small_play_packets_round_trip_vanilla_codecs() {
         .unwrap();
     assert!(configuration_ack.is_empty());
     assert_eq!(
-        ServerboundConfigurationAcknowledgedPacket::read(&mut cursor(
-            configuration_ack.clone()
-        ))
-        .unwrap(),
+        ServerboundConfigurationAcknowledgedPacket::read(&mut cursor(configuration_ack.clone()))
+            .unwrap(),
         ServerboundConfigurationAcknowledgedPacket
     );
     assert_eq!(
@@ -328,7 +356,9 @@ fn small_play_packets_round_trip_vanilla_codecs() {
         DispatchOutcome::Handled
     );
     assert_eq!(session.last_jigsaw_generate, Some(jigsaw_packet));
+}
 
+fn assert_sign_and_beacon_packets(session: &mut PlaySession) {
     let sign_update = ServerboundSignUpdatePacket {
         x: -12,
         y: 64,
@@ -389,7 +419,9 @@ fn small_play_packets_round_trip_vanilla_codecs() {
     }
     .write(&mut Vec::new())
     .is_err());
+}
 
+fn assert_trade_and_rename_packets(session: &mut PlaySession) {
     let mut select_trade_payload = Vec::new();
     let select_trade = ServerboundSelectTradePacket { item: 128 };
     select_trade.write(&mut select_trade_payload).unwrap();
@@ -431,7 +463,9 @@ fn small_play_packets_round_trip_vanilla_codecs() {
     write_var_i32(&mut oversized_rename_payload, 32768).unwrap();
     oversized_rename_payload.extend(vec![b'a'; 32768]);
     assert!(ServerboundRenameItemPacket::read(&mut cursor(oversized_rename_payload)).is_err());
+}
 
+fn assert_container_close_button_and_creative_packets(session: &mut PlaySession) {
     let container_close = ServerboundContainerClosePacket { container_id: 128 };
     let mut container_close_payload = Vec::new();
     container_close.write(&mut container_close_payload).unwrap();
@@ -506,7 +540,9 @@ fn small_play_packets_round_trip_vanilla_codecs() {
         DispatchOutcome::Handled
     );
     assert_eq!(session.last_set_creative_mode_slot, Some(creative_slot));
+}
 
+fn assert_container_click_packets(session: &mut PlaySession) {
     let mut changed_slots = BTreeMap::new();
     changed_slots.insert(
         5,
@@ -549,9 +585,7 @@ fn small_play_packets_round_trip_vanilla_codecs() {
     assert_eq!(session.last_container_click, Some(container_click));
     let mut too_many_changed_slots = vec![1, 2, 0, 0, 0, 0];
     write_var_i32(&mut too_many_changed_slots, 129).unwrap();
-    assert!(
-        ServerboundContainerClickPacket::read(&mut cursor(too_many_changed_slots)).is_err()
-    );
+    assert!(ServerboundContainerClickPacket::read(&mut cursor(too_many_changed_slots)).is_err());
     assert!(ServerboundContainerClickPacket {
         container_id: 0,
         state_id: 0,
@@ -563,7 +597,9 @@ fn small_play_packets_round_trip_vanilla_codecs() {
     }
     .write(&mut Vec::new())
     .is_err());
+}
 
+fn assert_book_interact_and_chat_ack_packets(session: &mut PlaySession) {
     let edit_book = ServerboundEditBookPacket {
         slot: 1,
         pages: vec!["page one".to_string(), "page two".to_string()],
@@ -645,7 +681,9 @@ fn small_play_packets_round_trip_vanilla_codecs() {
         DispatchOutcome::Handled
     );
     assert_eq!(session.last_chat_ack, Some(chat_ack));
+}
 
+fn assert_chat_message_and_command_packets(session: &mut PlaySession) {
     let last_seen = LastSeenMessagesUpdate {
         offset: 2,
         acknowledged: vec![0b1010_0001, 0, 0b0000_1000],
@@ -694,7 +732,14 @@ fn small_play_packets_round_trip_vanilla_codecs() {
         DispatchOutcome::Handled
     );
     assert_eq!(session.last_chat_command, Some(chat_command));
+}
 
+fn assert_signed_chat_command_packets(session: &mut PlaySession) {
+    let last_seen = LastSeenMessagesUpdate {
+        offset: 2,
+        acknowledged: vec![0b1010_0001, 0, 0b0000_1000],
+        checksum: 5,
+    };
     let signed_command = ServerboundChatCommandSignedPacket {
         command: "msg Notch hello".to_string(),
         timestamp_epoch_millis: 101,
@@ -758,7 +803,9 @@ fn small_play_packets_round_trip_vanilla_codecs() {
     }
     .write(&mut Vec::new())
     .is_err());
+}
 
+fn assert_session_resource_and_command_block_packets(session: &mut PlaySession) {
     let chat_session_update = ServerboundChatSessionUpdatePacket {
         session_id: Uuid([4; 16]),
         expires_at_epoch_millis: 1_234_567_890,
@@ -807,8 +854,7 @@ fn small_play_packets_round_trip_vanilla_codecs() {
     expected_resource_pack.push(3);
     assert_eq!(resource_pack_payload, expected_resource_pack);
     assert_eq!(
-        ServerboundResourcePackPacket::read(&mut cursor(resource_pack_payload.clone()))
-            .unwrap(),
+        ServerboundResourcePackPacket::read(&mut cursor(resource_pack_payload.clone())).unwrap(),
         resource_pack_response
     );
     assert_eq!(
@@ -841,8 +887,7 @@ fn small_play_packets_round_trip_vanilla_codecs() {
         &[6, b's', b'a', b'y', b' ', b'h', b'i', 2, 5]
     );
     assert_eq!(
-        ServerboundSetCommandBlockPacket::read(&mut cursor(command_block_payload.clone()))
-            .unwrap(),
+        ServerboundSetCommandBlockPacket::read(&mut cursor(command_block_payload.clone())).unwrap(),
         command_block
     );
     assert_eq!(
@@ -857,7 +902,9 @@ fn small_play_packets_round_trip_vanilla_codecs() {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0
     ]))
     .is_err());
+}
 
+fn assert_structure_and_command_minecart_packets(session: &mut PlaySession) {
     let structure_block = ServerboundSetStructureBlockPacket {
         x: -12,
         y: 64,
@@ -882,9 +929,9 @@ fn small_play_packets_round_trip_vanilla_codecs() {
     assert_eq!(
         &structure_block_payload[8..],
         &[
-            2, 1, 10, b'd', b'e', b'm', b'o', b':', b'h', b'o', b'u', b's', b'e', 0xfe, 3, 4,
-            5, 6, 7, 2, 3, 8, b'm', b'e', b't', b'a', b'd', b'a', b't', b'a', 0x3f, 0x40, 0, 0,
-            0x80, 0x01, 13
+            2, 1, 10, b'd', b'e', b'm', b'o', b':', b'h', b'o', b'u', b's', b'e', 0xfe, 3, 4, 5, 6,
+            7, 2, 3, 8, b'm', b'e', b't', b'a', b'd', b'a', b't', b'a', 0x3f, 0x40, 0, 0, 0x80,
+            0x01, 13
         ]
     );
     assert_eq!(
@@ -937,10 +984,8 @@ fn small_play_packets_round_trip_vanilla_codecs() {
         vec![0x80, 0x01, 6, b's', b'a', b'y', b' ', b'h', b'i', 1]
     );
     assert_eq!(
-        ServerboundSetCommandMinecartPacket::read(&mut cursor(
-            command_minecart_payload.clone()
-        ))
-        .unwrap(),
+        ServerboundSetCommandMinecartPacket::read(&mut cursor(command_minecart_payload.clone()))
+            .unwrap(),
         command_minecart
     );
     assert_eq!(
@@ -951,7 +996,9 @@ fn small_play_packets_round_trip_vanilla_codecs() {
         DispatchOutcome::Handled
     );
     assert_eq!(session.last_set_command_minecart, Some(command_minecart));
+}
 
+fn assert_suggestion_and_pick_packets(session: &mut PlaySession) {
     let command_suggestion = ServerboundCommandSuggestionPacket {
         id: 128,
         command: "/time set day".to_string(),
@@ -963,15 +1010,13 @@ fn small_play_packets_round_trip_vanilla_codecs() {
     assert_eq!(
         command_suggestion_payload,
         vec![
-            0x80, 0x01, 13, b'/', b't', b'i', b'm', b'e', b' ', b's', b'e', b't', b' ', b'd',
-            b'a', b'y'
+            0x80, 0x01, 13, b'/', b't', b'i', b'm', b'e', b' ', b's', b'e', b't', b' ', b'd', b'a',
+            b'y'
         ]
     );
     assert_eq!(
-        ServerboundCommandSuggestionPacket::read(&mut cursor(
-            command_suggestion_payload.clone()
-        ))
-        .unwrap(),
+        ServerboundCommandSuggestionPacket::read(&mut cursor(command_suggestion_payload.clone()))
+            .unwrap(),
         command_suggestion
     );
     assert_eq!(
@@ -994,8 +1039,7 @@ fn small_play_packets_round_trip_vanilla_codecs() {
     assert_eq!(pick_block_payload.len(), 9);
     assert_eq!(pick_block_payload[8], 1);
     assert_eq!(
-        ServerboundPickItemFromBlockPacket::read(&mut cursor(pick_block_payload.clone()))
-            .unwrap(),
+        ServerboundPickItemFromBlockPacket::read(&mut cursor(pick_block_payload.clone())).unwrap(),
         pick_item_from_block
     );
     assert_eq!(
@@ -1035,7 +1079,9 @@ fn small_play_packets_round_trip_vanilla_codecs() {
         session.last_pick_item_from_entity,
         Some(pick_item_from_entity)
     );
+}
 
+fn assert_recipe_book_packets(session: &mut PlaySession) {
     let recipe_book_settings = ServerboundRecipeBookChangeSettingsPacket {
         book_type: RecipeBookType::BlastFurnace,
         is_open: true,
@@ -1064,9 +1110,7 @@ fn small_play_packets_round_trip_vanilla_codecs() {
         session.last_recipe_book_change_settings,
         Some(recipe_book_settings)
     );
-    assert!(
-        ServerboundRecipeBookChangeSettingsPacket::read(&mut cursor(vec![4, 0, 0])).is_err()
-    );
+    assert!(ServerboundRecipeBookChangeSettingsPacket::read(&mut cursor(vec![4, 0, 0])).is_err());
 
     let seen_recipe = ServerboundRecipeBookSeenRecipePacket { recipe_index: 128 };
     let mut seen_recipe_payload = Vec::new();
@@ -1085,7 +1129,9 @@ fn small_play_packets_round_trip_vanilla_codecs() {
         DispatchOutcome::Handled
     );
     assert_eq!(session.last_recipe_book_seen_recipe, Some(seen_recipe));
+}
 
+fn assert_clientbound_player_world_packets() {
     let mut change_difficulty = Vec::new();
     ClientboundChangeDifficultyPacket {
         difficulty: GameDifficulty::Hard,
@@ -1179,7 +1225,9 @@ fn small_play_packets_round_trip_vanilla_codecs() {
             saturation: 2.3,
         }
     );
+}
 
+fn assert_clientbound_time_and_tick_packets() {
     let mut set_time = Vec::new();
     ClientboundSetTimePacket {
         game_time: 900_000,
