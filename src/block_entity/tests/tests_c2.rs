@@ -181,6 +181,13 @@ fn beehive_block_entity_persists_occupants_releases_and_increments_honey_like_ja
     assert_eq!(BeehiveBlockEntity::MAX_HONEY_LEVEL, 5);
     assert_eq!(BeehiveBlockEntity::WORK_SOUND_CHANCE, 0.005);
 
+    let mut hive = populated_beehive();
+    assert_beehive_save_load_and_blocked_ticks(&mut hive);
+    assert_beehive_normal_release_increments_honey(&mut hive);
+    assert_beehive_honey_cap_emergency_and_sedated_release(&mut hive);
+}
+
+fn populated_beehive() -> BeehiveBlockEntity {
     let mut hive = BeehiveBlockEntity::new();
     assert!(hive.is_empty());
     assert!(hive.add_occupant(
@@ -193,10 +200,13 @@ fn beehive_block_entity_persists_occupants_releases_and_increments_honey_like_ja
     assert!(hive.is_full());
     assert_eq!(hive.occupant_count(), 3);
     assert_eq!(hive.saved_flower_pos, Some(BlockPos { x: 2, y: 70, z: -3 }));
+    hive
+}
 
+fn assert_beehive_save_load_and_blocked_ticks(hive: &mut BeehiveBlockEntity) {
     let saved = hive.save_additional();
     let loaded = BeehiveBlockEntity::load_additional(&saved);
-    assert_eq!(loaded, hive);
+    assert_eq!(loaded, *hive);
 
     let blocked = hive.tick(true, false, false);
     assert!(blocked.is_empty());
@@ -208,7 +218,9 @@ fn beehive_block_entity_persists_occupants_releases_and_increments_honey_like_ja
     let released = hive.tick(false, true, false);
     assert!(released.is_empty());
     assert_eq!(hive.occupant_count(), 3);
+}
 
+fn assert_beehive_normal_release_increments_honey(hive: &mut BeehiveBlockEntity) {
     let released = hive.tick(false, false, false);
     assert_eq!(
         released,
@@ -234,7 +246,9 @@ fn beehive_block_entity_persists_occupants_releases_and_increments_honey_like_ja
         ]
     );
     assert!(hive.is_empty());
+}
 
+fn assert_beehive_honey_cap_emergency_and_sedated_release(hive: &mut BeehiveBlockEntity) {
     hive.honey_level = 4;
     assert!(hive.add_occupant(BeehiveOccupant::bee(2401, true), None));
     let released = hive.tick(false, false, true);
