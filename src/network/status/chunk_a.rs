@@ -184,6 +184,7 @@ struct StatusServerRuntime {
     weather: Arc<Mutex<WeatherCycle>>,
     recipe_manager: Arc<RecipeManagerModel>,
     world_items: Arc<Mutex<WorldItemEntities>>,
+    max_tick_time: Duration,
 }
 
 #[derive(Clone, Copy)]
@@ -350,6 +351,7 @@ impl StatusServerRuntime {
             recipe_manager.recipe_map().values().len()
         ));
         let recipe_manager: Arc<RecipeManagerModel> = Arc::new(recipe_manager);
+        let max_tick_time = Duration::from_millis(properties.max_tick_time);
         Ok(Self {
             address,
             listener,
@@ -363,6 +365,7 @@ impl StatusServerRuntime {
             weather,
             recipe_manager,
             world_items,
+            max_tick_time,
         })
     }
 
@@ -371,6 +374,7 @@ impl StatusServerRuntime {
         let weather_t = Arc::clone(&self.weather);
         let world_root_t = Arc::clone(&self.world_root);
         let world_items_t = Arc::clone(&self.world_items);
+        let max_tick_time = self.max_tick_time;
         thread::spawn(move || {
             let mut scheduled = ScheduledTimeChanges::default();
             let mut next_tick = Instant::now() + SERVER_TICK_DURATION;
@@ -383,6 +387,7 @@ impl StatusServerRuntime {
                 }
                 next_tick += SERVER_TICK_DURATION;
                 tick_count += 1;
+                let tick_start = Instant::now();
 
                 // advance_time=true: no per-world gamerule access yet; always advance.
                 lock_status_mutex(&clock_t).tick(true, &mut scheduled);
@@ -400,6 +405,20 @@ impl StatusServerRuntime {
                     save_server_clock_state(&world_root_t, &lock_status_mutex(&clock_t));
                     save_server_weather_state(&world_root_t, &lock_status_mutex(&weather_t));
                     save_world_item_entities(&world_root_t, &lock_status_mutex(&world_items_t));
+                }
+
+                // Watchdog: warn if tick exceeded max-tick-time.
+                // Java ServerWatchdog crashes the server; we log a warning
+                // (crash behavior requires a dedicated watchdog thread).
+                if !max_tick_time.is_zero() {
+                    let tick_elapsed = tick_start.elapsed();
+                    if tick_elapsed > max_tick_time {
+                        log_info(&format!(
+                            "Server tick #{tick_count} took {}ms (max-tick-time={}ms)",
+                            tick_elapsed.as_millis(),
+                            max_tick_time.as_millis()
+                        ));
+                    }
                 }
             }
         });
