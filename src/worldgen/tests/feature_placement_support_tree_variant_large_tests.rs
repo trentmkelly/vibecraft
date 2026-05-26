@@ -1,4 +1,16 @@
 fn assert_tree_variant_large_tree_support() {
+    assert_mega_pine_foliage_support();
+    assert_forking_trunk_support();
+    assert_bending_trunk_support();
+    assert_giant_trunk_support();
+    assert_mega_jungle_trunk_support();
+    assert_dark_oak_trunk_support();
+    assert_upwards_branching_trunk_support();
+    assert_cherry_trunk_support();
+    assert_fancy_trunk_support();
+}
+
+fn assert_mega_pine_foliage_support() {
     let mega_pine_plan = simple_tree_plan!(
         BlockPos {
             x: 120,
@@ -52,6 +64,9 @@ fn assert_tree_variant_large_tree_support() {
     }));
     assert!(!super::super::mega_pine_leaves_row_should_skip(4, 0, 4));
     assert!(super::super::mega_pine_leaves_row_should_skip(4, 4, 5));
+}
+
+fn assert_forking_trunk_support() {
     let forking_plan =
         super::super::forking_trunk_placement_plan(super::super::ForkingTrunkPlacementInput {
             origin: BlockPos {
@@ -131,6 +146,9 @@ fn assert_tree_variant_large_tree_support() {
         .len(),
         1
     );
+}
+
+fn assert_bending_trunk_support() {
     let bending_plan =
         super::super::bending_trunk_placement_plan(super::super::BendingTrunkPlacementInput {
             origin: BlockPos {
@@ -188,6 +206,9 @@ fn assert_tree_variant_large_tree_support() {
             double_trunk: false,
         })
     );
+}
+
+fn assert_giant_trunk_support() {
     let giant_plan = super::super::giant_trunk_placement_plan(
         BlockPos {
             x: 240,
@@ -253,6 +274,9 @@ fn assert_tree_variant_large_tree_support() {
             double_trunk: true,
         }]
     );
+}
+
+fn assert_mega_jungle_trunk_support() {
     let mega_jungle_trunk_plan = super::super::mega_jungle_trunk_placement_plan(
         BlockPos {
             x: 250,
@@ -299,6 +323,9 @@ fn assert_tree_variant_large_tree_support() {
             },
         ]
     );
+}
+
+fn assert_dark_oak_trunk_support() {
     let dark_oak_plan =
         super::super::dark_oak_trunk_placement_plan(super::super::DarkOakTrunkPlacementInput {
             origin: BlockPos {
@@ -372,6 +399,9 @@ fn assert_tree_variant_large_tree_support() {
             },
         ]
     );
+}
+
+fn assert_upwards_branching_trunk_support() {
     let upwards_branching_plan = super::super::upwards_branching_trunk_placement_plan(
         BlockPos {
             x: 280,
@@ -463,6 +493,9 @@ fn assert_tree_variant_large_tree_support() {
             },
         ]
     );
+}
+
+fn assert_cherry_trunk_support() {
     let cherry_trunk_plan = super::super::cherry_trunk_placement_plan(
         BlockPos {
             x: 300,
@@ -544,6 +577,9 @@ fn assert_tree_variant_large_tree_support() {
             },
         ]
     );
+}
+
+fn assert_fancy_trunk_support() {
     let fancy_trunk_plan = super::super::fancy_trunk_placement_plan(
         BlockPos {
             x: 320,

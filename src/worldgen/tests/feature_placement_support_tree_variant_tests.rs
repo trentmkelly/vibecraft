@@ -25,6 +25,19 @@ macro_rules! simple_tree_plan {
 }
 
 pub(super) fn assert_tree_variant_and_trunk_support() {
+    assert_bush_foliage_support();
+    assert_acacia_foliage_support();
+    assert_dark_oak_foliage_support();
+    assert_fancy_foliage_support();
+    assert_mega_jungle_foliage_support();
+    assert_random_spread_foliage_support();
+    assert_cherry_foliage_support();
+    assert_pine_foliage_support();
+    assert_spruce_foliage_support();
+    assert_tree_variant_large_tree_support();
+}
+
+fn assert_bush_foliage_support() {
     let bush_plan = simple_tree_plan!(
         BlockPos {
             x: 20,
@@ -96,6 +109,9 @@ pub(super) fn assert_tree_variant_and_trunk_support() {
                     z: 20,
                 }
     }));
+}
+
+fn assert_acacia_foliage_support() {
     let acacia_plan = simple_tree_plan!(
         BlockPos {
             x: 40,
@@ -158,6 +174,9 @@ pub(super) fn assert_tree_variant_and_trunk_support() {
                     z: 40,
                 }
     }));
+}
+
+fn assert_dark_oak_foliage_support() {
     let dark_oak_plan = simple_tree_plan!(
         BlockPos {
             x: 60,
@@ -211,6 +230,9 @@ pub(super) fn assert_tree_variant_and_trunk_support() {
                     z: 63,
                 }
     }));
+}
+
+fn assert_fancy_foliage_support() {
     let fancy_plan = simple_tree_plan!(
         BlockPos {
             x: 70,
@@ -279,6 +301,9 @@ pub(super) fn assert_tree_variant_and_trunk_support() {
     }));
     assert!(super::super::fancy_leaves_row_should_skip(-2, 0, 2));
     assert!(super::super::fancy_leaves_row_should_skip(2, 0, 2));
+}
+
+fn assert_mega_jungle_foliage_support() {
     let mega_jungle_plan = simple_tree_plan!(
         BlockPos {
             x: 140,
@@ -327,6 +352,9 @@ pub(super) fn assert_tree_variant_and_trunk_support() {
                     z: 145,
                 }
     }));
+}
+
+fn assert_random_spread_foliage_support() {
     let random_spread_plan = simple_tree_plan!(
         BlockPos {
             x: 160,
@@ -386,6 +414,9 @@ pub(super) fn assert_tree_variant_and_trunk_support() {
             .count(),
         4
     );
+}
+
+fn assert_cherry_foliage_support() {
     let cherry_plan = simple_tree_plan!(
         BlockPos {
             x: 180,
@@ -464,6 +495,9 @@ pub(super) fn assert_tree_variant_and_trunk_support() {
             rand_b: 0,
         }
     ));
+}
+
+fn assert_pine_foliage_support() {
     let pine_plan = simple_tree_plan!(
         BlockPos {
             x: 80,
@@ -524,6 +558,9 @@ pub(super) fn assert_tree_variant_and_trunk_support() {
                     z: 80,
                 }
     }));
+}
+
+fn assert_spruce_foliage_support() {
     let spruce_plan = simple_tree_plan!(
         BlockPos {
             x: 100,
@@ -584,7 +621,6 @@ pub(super) fn assert_tree_variant_and_trunk_support() {
                     z: 100,
                 }
     }));
-    assert_tree_variant_large_tree_support();
 }
 
 include!("feature_placement_support_tree_variant_large_tests.rs");
