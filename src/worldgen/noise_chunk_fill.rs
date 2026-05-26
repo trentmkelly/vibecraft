@@ -211,12 +211,14 @@ fn create_noise_aquifer(
     settings.aquifers_enabled.then(|| {
         NoiseBasedAquifer::new(
             noise_chunk,
-            dimensions.chunk_min_x,
-            dimensions.chunk_min_x + 15,
-            dimensions.chunk_min_z,
-            dimensions.chunk_min_z + 15,
-            dimensions.min_y,
-            dimensions.height,
+            NoiseBasedAquiferBounds {
+                chunk_min_x: dimensions.chunk_min_x,
+                chunk_max_x: dimensions.chunk_min_x + 15,
+                chunk_min_z: dimensions.chunk_min_z,
+                chunk_max_z: dimensions.chunk_min_z + 15,
+                min_block_y: dimensions.min_y,
+                y_block_size: dimensions.height,
+            },
             seed,
             *settings,
             noise_router,

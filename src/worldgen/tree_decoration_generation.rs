@@ -1253,12 +1253,14 @@ fn noise_tree_context_heights_inner(
     let mut aquifer = settings.aquifers_enabled.then(|| {
         NoiseBasedAquifer::new(
             &mut noise_chunk,
-            geometry.chunk_min_x,
-            geometry.chunk_min_x + 15,
-            geometry.chunk_min_z,
-            geometry.chunk_min_z + 15,
-            geometry.min_y,
-            geometry.height,
+            NoiseBasedAquiferBounds {
+                chunk_min_x: geometry.chunk_min_x,
+                chunk_max_x: geometry.chunk_min_x + 15,
+                chunk_min_z: geometry.chunk_min_z,
+                chunk_max_z: geometry.chunk_min_z + 15,
+                min_block_y: geometry.min_y,
+                y_block_size: geometry.height,
+            },
             seed,
             *settings,
             noise_router,

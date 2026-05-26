@@ -135,50 +135,53 @@ fn aq_prelim_surface(
 
 /// Whether (x, y, z) is in the Deep Dark climate region.
 /// Mirrors Java `OverworldBiomeBuilder.isDeepDarkRegion`.
-fn aq_is_deep_dark(
-    x: i32,
-    y: i32,
-    z: i32,
+fn aq_is_deep_dark(pos: BlockPos, context: AquiferNoiseContext<'_>) -> bool {
+    // Java uses float literals (-0.225F, 0.9F), widened to double for comparison.
+    let erosion = if let Some(chunk) = context.noise_chunk {
+        eval_density_fn_with_interp(context.noise_router.erosion, chunk, pos.x, pos.y, pos.z)
+    } else {
+        context.noise_router.erosion.compute_with_noise(
+            context.seed,
+            context.settings,
+            pos.x,
+            pos.y,
+            pos.z,
+        )
+    };
+    let depth = if let Some(chunk) = context.noise_chunk {
+        eval_density_fn_with_interp(context.noise_router.depth, chunk, pos.x, pos.y, pos.z)
+    } else {
+        context.noise_router.depth.compute_with_noise(
+            context.seed,
+            context.settings,
+            pos.x,
+            pos.y,
+            pos.z,
+        )
+    };
+    erosion < (-0.225_f32) as f64 && depth > (0.9_f32) as f64
+}
+
+#[derive(Clone, Copy)]
+struct AquiferNoiseContext<'a> {
     seed: i64,
     settings: NoiseGeneratorSettings,
     noise_router: NoiseRouter,
-    noise_chunk: Option<&NoiseChunk>,
-) -> bool {
-    // Java uses float literals (-0.225F, 0.9F), widened to double for comparison.
-    let erosion = if let Some(chunk) = noise_chunk {
-        eval_density_fn_with_interp(noise_router.erosion, chunk, x, y, z)
-    } else {
-        noise_router
-            .erosion
-            .compute_with_noise(seed, settings, x, y, z)
-    };
-    let depth = if let Some(chunk) = noise_chunk {
-        eval_density_fn_with_interp(noise_router.depth, chunk, x, y, z)
-    } else {
-        noise_router
-            .depth
-            .compute_with_noise(seed, settings, x, y, z)
-    };
-    erosion < (-0.225_f32) as f64 && depth > (0.9_f32) as f64
+    noise_chunk: Option<&'a NoiseChunk>,
 }
 
 /// Calculate the barrier pressure between two adjacent aquifer cells.
 ///
 /// Mirrors Java `NoiseBasedAquifer.calculatePressure`.
 fn aq_calculate_pressure(
-    pos_x: i32,
-    pos_y: i32,
-    pos_z: i32,
-    seed: i64,
-    settings: NoiseGeneratorSettings,
-    noise_router: NoiseRouter,
-    noise_chunk: Option<&NoiseChunk>,
+    pos: BlockPos,
+    context: AquiferNoiseContext<'_>,
     barrier_cache: &mut Option<f64>,
     s1: &FluidStatus,
     s2: &FluidStatus,
 ) -> f64 {
-    let t1 = s1.at(pos_y);
-    let t2 = s2.at(pos_y);
+    let t1 = s1.at(pos.y);
+    let t2 = s2.at(pos.y);
 
     // Water/lava interface → maximum pressure (always solid barrier).
     if (t1 == "minecraft:lava" && t2 == "minecraft:water")
@@ -193,7 +196,7 @@ fn aq_calculate_pressure(
     }
 
     let avg_y = 0.5 * (s1.fluid_level + s2.fluid_level) as f64;
-    let above = pos_y as f64 + 0.5 - avg_y;
+    let above = pos.y as f64 + 0.5 - avg_y;
     let base = diff as f64 / 2.0;
     let dist_from_edge = base - above.abs();
 
@@ -215,12 +218,22 @@ fn aq_calculate_pressure(
     // Only sample barrier noise when gradient is in the influential range.
     let noise_val = if (-2.0..=2.0).contains(&gradient) {
         *barrier_cache.get_or_insert_with(|| {
-            if let Some(chunk) = noise_chunk {
-                eval_density_fn_with_interp(noise_router.barrier, chunk, pos_x, pos_y, pos_z)
+            if let Some(chunk) = context.noise_chunk {
+                eval_density_fn_with_interp(
+                    context.noise_router.barrier,
+                    chunk,
+                    pos.x,
+                    pos.y,
+                    pos.z,
+                )
             } else {
-                noise_router
-                    .barrier
-                    .compute_with_noise(seed, settings, pos_x, pos_y, pos_z)
+                context.noise_router.barrier.compute_with_noise(
+                    context.seed,
+                    context.settings,
+                    pos.x,
+                    pos.y,
+                    pos.z,
+                )
             }
         })
     } else {
@@ -234,27 +247,26 @@ fn aq_calculate_pressure(
 ///
 /// Mirrors Java `NoiseBasedAquifer.computeRandomizedFluidSurfaceLevel`.
 fn aq_randomized_fluid_level(
-    x: i32,
-    y: i32,
-    z: i32,
+    pos: BlockPos,
     lowest_prelim: i32,
-    seed: i64,
-    settings: NoiseGeneratorSettings,
-    noise_router: NoiseRouter,
-    noise_chunk: Option<&NoiseChunk>,
+    context: AquiferNoiseContext<'_>,
 ) -> i32 {
     const CW: i32 = 16; // fluidCellWidth
     const CH: i32 = 40; // fluidCellHeight
-    let cx = x.div_euclid(CW);
-    let cy = y.div_euclid(CH);
-    let cz = z.div_euclid(CW);
+    let cx = pos.x.div_euclid(CW);
+    let cy = pos.y.div_euclid(CH);
+    let cz = pos.z.div_euclid(CW);
     let mid_y = cy * CH + 20;
-    let spread = if let Some(chunk) = noise_chunk {
-        eval_density_fn_with_interp(noise_router.fluid_level_spread, chunk, cx, cy, cz)
+    let spread = if let Some(chunk) = context.noise_chunk {
+        eval_density_fn_with_interp(context.noise_router.fluid_level_spread, chunk, cx, cy, cz)
     } else {
-        noise_router
-            .fluid_level_spread
-            .compute_with_noise(seed, settings, cx, cy, cz)
+        context.noise_router.fluid_level_spread.compute_with_noise(
+            context.seed,
+            context.settings,
+            cx,
+            cy,
+            cz,
+        )
     } * 10.0;
     // Mth.quantize(v, 3) = floor(v / 3) * 3
     let quantized = (spread / 3.0).floor() as i32 * 3;
@@ -265,15 +277,10 @@ fn aq_randomized_fluid_level(
 ///
 /// Mirrors Java `NoiseBasedAquifer.computeFluidType`.
 fn aq_fluid_type(
-    x: i32,
-    y: i32,
-    z: i32,
+    pos: BlockPos,
     global_fluid: &FluidStatus,
     fluid_level: i32,
-    seed: i64,
-    settings: NoiseGeneratorSettings,
-    noise_router: NoiseRouter,
-    noise_chunk: Option<&NoiseChunk>,
+    context: AquiferNoiseContext<'_>,
 ) -> &'static str {
     // Lava pockets only appear well below sea level and when lava noise is strong.
     if fluid_level <= -10
@@ -282,15 +289,16 @@ fn aq_fluid_type(
     {
         const LCW: i32 = 64; // lava cell width
         const LCH: i32 = 40; // lava cell height
-        let cx = x.div_euclid(LCW);
-        let cy = y.div_euclid(LCH);
-        let cz = z.div_euclid(LCW);
-        let val = if let Some(chunk) = noise_chunk {
-            eval_density_fn_with_interp(noise_router.lava, chunk, cx, cy, cz)
+        let cx = pos.x.div_euclid(LCW);
+        let cy = pos.y.div_euclid(LCH);
+        let cz = pos.z.div_euclid(LCW);
+        let val = if let Some(chunk) = context.noise_chunk {
+            eval_density_fn_with_interp(context.noise_router.lava, chunk, cx, cy, cz)
         } else {
-            noise_router
+            context
+                .noise_router
                 .lava
-                .compute_with_noise(seed, settings, cx, cy, cz)
+                .compute_with_noise(context.seed, context.settings, cx, cy, cz)
         };
         if val.abs() > 0.3 {
             return "minecraft:lava";
@@ -303,57 +311,49 @@ fn aq_fluid_type(
 ///
 /// Mirrors Java `NoiseBasedAquifer.computeSurfaceLevel`.
 fn aq_surface_level(
-    x: i32,
-    y: i32,
-    z: i32,
+    pos: BlockPos,
     global_fluid: &FluidStatus,
     lowest_prelim: i32,
     surface_at_center_under_fluid: bool,
-    seed: i64,
-    settings: NoiseGeneratorSettings,
-    noise_router: NoiseRouter,
-    noise_chunk: Option<&NoiseChunk>,
+    context: AquiferNoiseContext<'_>,
 ) -> i32 {
-    let (partially_flooded, fully_flooded) =
-        if aq_is_deep_dark(x, y, z, seed, settings, noise_router, noise_chunk) {
-            // Deep dark: no aquifer pockets.
-            (-1.0_f64, -1.0_f64)
+    let (partially_flooded, fully_flooded) = if aq_is_deep_dark(pos, context) {
+        // Deep dark: no aquifer pockets.
+        (-1.0_f64, -1.0_f64)
+    } else {
+        let dist_below = (lowest_prelim + 8) - pos.y;
+        // Mth.clampedMap(dist_below, 0, 64, 1, 0) = clamp(1 - dist_below/64, 0, 1)
+        let flooded_factor = if surface_at_center_under_fluid {
+            (1.0 - dist_below as f64 / 64.0).clamp(0.0, 1.0)
         } else {
-            let dist_below = (lowest_prelim + 8) - y;
-            // Mth.clampedMap(dist_below, 0, 64, 1, 0) = clamp(1 - dist_below/64, 0, 1)
-            let flooded_factor = if surface_at_center_under_fluid {
-                (1.0 - dist_below as f64 / 64.0).clamp(0.0, 1.0)
-            } else {
-                0.0
-            };
-            let noise = if let Some(chunk) = noise_chunk {
-                eval_density_fn_with_interp(noise_router.fluid_level_floodedness, chunk, x, y, z)
-            } else {
-                noise_router
-                    .fluid_level_floodedness
-                    .compute_with_noise(seed, settings, x, y, z)
-            }
-            .clamp(-1.0, 1.0);
-            // Mth.map(flooded_factor, 1.0, 0.0, -0.3, 0.8) = -0.3 + (1-f)*1.1
-            let fully_threshold = -0.3 + (1.0 - flooded_factor) * 1.1;
-            // Mth.map(flooded_factor, 1.0, 0.0, -0.8, 0.4) = -0.8 + (1-f)*1.2
-            let partial_threshold = -0.8 + (1.0 - flooded_factor) * 1.2;
-            (noise - partial_threshold, noise - fully_threshold)
+            0.0
         };
+        let noise = if let Some(chunk) = context.noise_chunk {
+            eval_density_fn_with_interp(
+                context.noise_router.fluid_level_floodedness,
+                chunk,
+                pos.x,
+                pos.y,
+                pos.z,
+            )
+        } else {
+            context
+                .noise_router
+                .fluid_level_floodedness
+                .compute_with_noise(context.seed, context.settings, pos.x, pos.y, pos.z)
+        }
+        .clamp(-1.0, 1.0);
+        // Mth.map(flooded_factor, 1.0, 0.0, -0.3, 0.8) = -0.3 + (1-f)*1.1
+        let fully_threshold = -0.3 + (1.0 - flooded_factor) * 1.1;
+        // Mth.map(flooded_factor, 1.0, 0.0, -0.8, 0.4) = -0.8 + (1-f)*1.2
+        let partial_threshold = -0.8 + (1.0 - flooded_factor) * 1.2;
+        (noise - partial_threshold, noise - fully_threshold)
+    };
 
     if fully_flooded > 0.0 {
         global_fluid.fluid_level
     } else if partially_flooded > 0.0 {
-        aq_randomized_fluid_level(
-            x,
-            y,
-            z,
-            lowest_prelim,
-            seed,
-            settings,
-            noise_router,
-            noise_chunk,
-        )
+        aq_randomized_fluid_level(pos, lowest_prelim, context)
     } else {
         AQUIFER_WAY_BELOW_MIN_Y
     }
@@ -362,18 +362,14 @@ fn aq_surface_level(
 /// Compute the complete `FluidStatus` for an aquifer cell at (x, y, z).
 ///
 /// Mirrors Java `NoiseBasedAquifer.computeFluid`.
-fn aq_compute_fluid(
-    x: i32,
-    y: i32,
-    z: i32,
-    seed: i64,
-    settings: NoiseGeneratorSettings,
-    noise_router: NoiseRouter,
-    noise_chunk: Option<&NoiseChunk>,
-) -> FluidStatus {
-    let global = global_fluid_status(y, settings.sea_level, settings.default_fluid);
-    let top = y + 12;
-    let bottom = y - 12;
+fn aq_compute_fluid(pos: BlockPos, context: AquiferNoiseContext<'_>) -> FluidStatus {
+    let global = global_fluid_status(
+        pos.y,
+        context.settings.sea_level,
+        context.settings.default_fluid,
+    );
+    let top = pos.y + 12;
+    let bottom = pos.y - 12;
     let mut lowest_prelim = i32::MAX;
     let mut center_under_fluid = false;
 
@@ -396,10 +392,10 @@ fn aq_compute_fluid(
     ];
 
     for (ox, oz) in OFFSETS {
-        let sx = x + ox * 16;
-        let sz = z + oz * 16;
-        let prelim = noise_chunk.map_or_else(
-            || aq_prelim_surface(sx, sz, seed, settings, noise_router),
+        let sx = pos.x + ox * 16;
+        let sz = pos.z + oz * 16;
+        let prelim = context.noise_chunk.map_or_else(
+            || aq_prelim_surface(sx, sz, context.seed, context.settings, context.noise_router),
             |chunk| chunk.preliminary_surface_level(sx, sz),
         );
         // adjustSurfaceLevel adds 8 to widen the "near surface" check.
@@ -414,8 +410,11 @@ fn aq_compute_fluid(
         let pokes_above = top > adjusted;
         if pokes_above || is_center {
             // Check if the surface at this offset is under global fluid (e.g., ocean floor).
-            let surf_fluid =
-                global_fluid_status(adjusted, settings.sea_level, settings.default_fluid);
+            let surf_fluid = global_fluid_status(
+                adjusted,
+                context.settings.sea_level,
+                context.settings.default_fluid,
+            );
             if surf_fluid.at(adjusted) != "minecraft:air" {
                 if is_center {
                     center_under_fluid = true;
@@ -429,29 +428,8 @@ fn aq_compute_fluid(
         lowest_prelim = lowest_prelim.min(prelim);
     }
 
-    let fluid_level = aq_surface_level(
-        x,
-        y,
-        z,
-        &global,
-        lowest_prelim,
-        center_under_fluid,
-        seed,
-        settings,
-        noise_router,
-        noise_chunk,
-    );
-    let fluid_type = aq_fluid_type(
-        x,
-        y,
-        z,
-        &global,
-        fluid_level,
-        seed,
-        settings,
-        noise_router,
-        noise_chunk,
-    );
+    let fluid_level = aq_surface_level(pos, &global, lowest_prelim, center_under_fluid, context);
+    let fluid_type = aq_fluid_type(pos, &global, fluid_level, context);
     FluidStatus {
         fluid_level,
         fluid_type,
@@ -479,15 +457,58 @@ pub(super) struct NoiseBasedAquifer {
     pub should_schedule_fluid_update: bool,
 }
 
+#[derive(Clone, Copy)]
+pub(super) struct NoiseBasedAquiferBounds {
+    pub chunk_min_x: i32,
+    pub chunk_max_x: i32,
+    pub chunk_min_z: i32,
+    pub chunk_max_z: i32,
+    pub min_block_y: i32,
+    pub y_block_size: i32,
+}
+
+#[derive(Clone, Copy)]
+struct NearestAquiferCells {
+    distances: [i32; 4],
+    indices: [usize; 4],
+}
+
+impl NearestAquiferCells {
+    fn new() -> Self {
+        Self {
+            distances: [i32::MAX; 4],
+            indices: [0; 4],
+        }
+    }
+
+    fn insert(&mut self, index: usize, distance: i32) {
+        for slot in 0..4 {
+            if distance > self.distances[slot] {
+                continue;
+            }
+            for move_slot in ((slot + 1)..4).rev() {
+                self.distances[move_slot] = self.distances[move_slot - 1];
+                self.indices[move_slot] = self.indices[move_slot - 1];
+            }
+            self.distances[slot] = distance;
+            self.indices[slot] = index;
+            break;
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct AquiferPressureEvaluation {
+    s2: FluidStatus,
+    s3: FluidStatus,
+    sim13: f64,
+    sim23: f64,
+}
+
 impl NoiseBasedAquifer {
     pub(super) fn new(
         noise_chunk: &mut NoiseChunk,
-        chunk_min_x: i32,
-        chunk_max_x: i32,
-        chunk_min_z: i32,
-        chunk_max_z: i32,
-        min_block_y: i32,
-        y_block_size: i32,
+        bounds: NoiseBasedAquiferBounds,
         seed: i64,
         settings: NoiseGeneratorSettings,
         noise_router: NoiseRouter,
@@ -496,16 +517,16 @@ impl NoiseBasedAquifer {
         // Java: SAMPLE_OFFSET_X = SAMPLE_OFFSET_Z = -5
         const OFF: i32 = -5;
 
-        let min_grid_x = aq_grid_x(chunk_min_x + OFF);
-        let max_grid_x = aq_grid_x(chunk_max_x + OFF) + 1;
+        let min_grid_x = aq_grid_x(bounds.chunk_min_x + OFF);
+        let max_grid_x = aq_grid_x(bounds.chunk_max_x + OFF) + 1;
         let grid_size_x = max_grid_x - min_grid_x + 1;
 
-        let min_grid_y = aq_grid_y(min_block_y + 1) - 1;
-        let max_grid_y = aq_grid_y(min_block_y + y_block_size + 1) + 1;
+        let min_grid_y = aq_grid_y(bounds.min_block_y + 1) - 1;
+        let max_grid_y = aq_grid_y(bounds.min_block_y + bounds.y_block_size + 1) + 1;
         let grid_size_y = max_grid_y - min_grid_y + 1;
 
-        let min_grid_z = aq_grid_z(chunk_min_z + OFF);
-        let max_grid_z = aq_grid_z(chunk_max_z + OFF) + 1;
+        let min_grid_z = aq_grid_z(bounds.chunk_min_z + OFF);
+        let max_grid_z = aq_grid_z(bounds.chunk_max_z + OFF) + 1;
         let grid_size_z = max_grid_z - min_grid_z + 1;
 
         let total = (grid_size_x * grid_size_y * grid_size_z) as usize;
@@ -568,6 +589,12 @@ impl NoiseBasedAquifer {
         pos_z: i32,
         density: f64,
     ) -> Option<&'static str> {
+        let pos = BlockPos {
+            x: pos_x,
+            y: pos_y,
+            z: pos_z,
+        };
+
         if density > 0.0 {
             self.should_schedule_fluid_update = false;
             return None; // solid
@@ -588,16 +615,33 @@ impl NoiseBasedAquifer {
             return Some("minecraft:lava");
         }
 
-        // Find the 4 nearest aquifer cell centres within the 2×3×2 neighbourhood.
-        let x_anc = aq_grid_x(pos_x - 5);
-        let y_anc = aq_grid_y(pos_y + 1);
-        let z_anc = aq_grid_z(pos_z - 5);
+        let nearest = self.nearest_aquifer_cells(pos);
+        let s1 = self.get_aquifer_status(nearest.indices[0], noise_chunk);
+        let sim12 = aq_similarity(nearest.distances[0], nearest.distances[1]);
+        let fluid1 = s1.at(pos_y);
 
-        let mut d1 = i32::MAX;
-        let mut d2 = i32::MAX;
-        let mut d3 = i32::MAX;
-        let mut d4 = i32::MAX;
-        let (mut i1, mut i2, mut i3, mut i4) = (0usize, 0usize, 0usize, 0usize);
+        if sim12 <= 0.0 {
+            self.update_flow_schedule_for_source_pair(sim12, s1, nearest.indices[1], noise_chunk);
+            return Some(fluid1);
+        }
+
+        // Water touching lava at the block below → schedule update.
+        if self.water_touches_lava_below(fluid1, pos_y) {
+            self.should_schedule_fluid_update = true;
+            return Some(fluid1);
+        }
+
+        let pressure =
+            self.evaluate_barrier_pressures(noise_chunk, pos, density, nearest, s1, sim12)?;
+        self.update_flow_schedule_after_pressure(noise_chunk, nearest, s1, pressure);
+        Some(fluid1)
+    }
+
+    fn nearest_aquifer_cells(&mut self, pos: BlockPos) -> NearestAquiferCells {
+        let x_anc = aq_grid_x(pos.x - 5);
+        let y_anc = aq_grid_y(pos.y + 1);
+        let z_anc = aq_grid_z(pos.z - 5);
+        let mut nearest = NearestAquiferCells::new();
 
         for dx in 0..=1_i32 {
             for dy in -1..=1_i32 {
@@ -621,151 +665,114 @@ impl NoiseBasedAquifer {
                         l
                     };
 
-                    let cx = aq_unpack_x(loc) - pos_x;
-                    let cy = aq_unpack_y(loc) - pos_y;
-                    let cz = aq_unpack_z(loc) - pos_z;
+                    let cx = aq_unpack_x(loc) - pos.x;
+                    let cy = aq_unpack_y(loc) - pos.y;
+                    let cz = aq_unpack_z(loc) - pos.z;
                     let dist = cx * cx + cy * cy + cz * cz;
-
-                    if dist <= d1 {
-                        i4 = i3;
-                        d4 = d3;
-                        i3 = i2;
-                        d3 = d2;
-                        i2 = i1;
-                        d2 = d1;
-                        i1 = idx;
-                        d1 = dist;
-                    } else if dist <= d2 {
-                        i4 = i3;
-                        d4 = d3;
-                        i3 = i2;
-                        d3 = d2;
-                        i2 = idx;
-                        d2 = dist;
-                    } else if dist <= d3 {
-                        i4 = i3;
-                        d4 = d3;
-                        i3 = idx;
-                        d3 = dist;
-                    } else if dist <= d4 {
-                        i4 = idx;
-                        d4 = dist;
-                    }
+                    nearest.insert(idx, dist);
                 }
             }
         }
+        nearest
+    }
 
-        let s1 = self.get_aquifer_status(i1, noise_chunk);
-        let sim12 = aq_similarity(d1, d2);
-        let fluid1 = s1.at(pos_y);
-
-        if sim12 <= 0.0 {
-            if sim12 >= AQUIFER_FLOWING_UPDATE_SIMILARITY {
-                let s2 = self.get_aquifer_status(i2, noise_chunk);
-                self.should_schedule_fluid_update = s1 != s2;
-            } else {
-                self.should_schedule_fluid_update = false;
-            }
-            return Some(fluid1);
+    fn update_flow_schedule_for_source_pair(
+        &mut self,
+        similarity: f64,
+        source: FluidStatus,
+        second_index: usize,
+        noise_chunk: &NoiseChunk,
+    ) {
+        if similarity >= AQUIFER_FLOWING_UPDATE_SIMILARITY {
+            let s2 = self.get_aquifer_status(second_index, noise_chunk);
+            self.should_schedule_fluid_update = source != s2;
+        } else {
+            self.should_schedule_fluid_update = false;
         }
+    }
 
-        // Water touching lava at the block below → schedule update.
-        if fluid1 == "minecraft:water" {
+    fn water_touches_lava_below(&self, fluid: &str, pos_y: i32) -> bool {
+        if fluid == "minecraft:water" {
             let below = global_fluid_status(
                 pos_y - 1,
                 self.settings.sea_level,
                 self.settings.default_fluid,
             );
-            if below.at(pos_y - 1) == "minecraft:lava" {
-                self.should_schedule_fluid_update = true;
-                return Some(fluid1);
-            }
+            return below.at(pos_y - 1) == "minecraft:lava";
         }
+        false
+    }
 
-        let seed = self.seed;
-        let settings = self.settings;
-        let noise_router = self.noise_router;
+    fn evaluate_barrier_pressures(
+        &mut self,
+        noise_chunk: &NoiseChunk,
+        pos: BlockPos,
+        density: f64,
+        nearest: NearestAquiferCells,
+        s1: FluidStatus,
+        sim12: f64,
+    ) -> Option<AquiferPressureEvaluation> {
+        let context = AquiferNoiseContext {
+            seed: self.seed,
+            settings: self.settings,
+            noise_router: self.noise_router,
+            noise_chunk: Some(noise_chunk),
+        };
         let mut barrier: Option<f64> = None;
-
-        let s2 = self.get_aquifer_status(i2, noise_chunk);
-        let p12 = sim12
-            * aq_calculate_pressure(
-                pos_x,
-                pos_y,
-                pos_z,
-                seed,
-                settings,
-                noise_router,
-                Some(noise_chunk),
-                &mut barrier,
-                &s1,
-                &s2,
-            );
+        let s2 = self.get_aquifer_status(nearest.indices[1], noise_chunk);
+        let p12 = sim12 * aq_calculate_pressure(pos, context, &mut barrier, &s1, &s2);
         if density + p12 > 0.0 {
             self.should_schedule_fluid_update = false;
-            return None; // barrier makes this block solid
+            return None;
         }
 
-        let s3 = self.get_aquifer_status(i3, noise_chunk);
-        let sim13 = aq_similarity(d1, d3);
+        let s3 = self.get_aquifer_status(nearest.indices[2], noise_chunk);
+        let sim13 = aq_similarity(nearest.distances[0], nearest.distances[2]);
         if sim13 > 0.0 {
-            let p13 = sim12
-                * sim13
-                * aq_calculate_pressure(
-                    pos_x,
-                    pos_y,
-                    pos_z,
-                    seed,
-                    settings,
-                    noise_router,
-                    Some(noise_chunk),
-                    &mut barrier,
-                    &s1,
-                    &s3,
-                );
+            let p13 = sim12 * sim13 * aq_calculate_pressure(pos, context, &mut barrier, &s1, &s3);
             if density + p13 > 0.0 {
                 self.should_schedule_fluid_update = false;
                 return None;
             }
         }
 
-        let sim23 = aq_similarity(d2, d3);
+        let sim23 = aq_similarity(nearest.distances[1], nearest.distances[2]);
         if sim23 > 0.0 {
-            let p23 = sim12
-                * sim23
-                * aq_calculate_pressure(
-                    pos_x,
-                    pos_y,
-                    pos_z,
-                    seed,
-                    settings,
-                    noise_router,
-                    Some(noise_chunk),
-                    &mut barrier,
-                    &s2,
-                    &s3,
-                );
+            let p23 = sim12 * sim23 * aq_calculate_pressure(pos, context, &mut barrier, &s2, &s3);
             if density + p23 > 0.0 {
                 self.should_schedule_fluid_update = false;
                 return None;
             }
         }
 
-        let flow12 = s1 != s2;
-        let flow23 = sim23 >= AQUIFER_FLOWING_UPDATE_SIMILARITY && s2 != s3;
-        let flow13 = sim13 >= AQUIFER_FLOWING_UPDATE_SIMILARITY && s1 != s3;
+        Some(AquiferPressureEvaluation {
+            s2,
+            s3,
+            sim13,
+            sim23,
+        })
+    }
 
+    fn update_flow_schedule_after_pressure(
+        &mut self,
+        noise_chunk: &NoiseChunk,
+        nearest: NearestAquiferCells,
+        s1: FluidStatus,
+        pressure: AquiferPressureEvaluation,
+    ) {
+        let flow12 = s1 != pressure.s2;
+        let flow23 =
+            pressure.sim23 >= AQUIFER_FLOWING_UPDATE_SIMILARITY && pressure.s2 != pressure.s3;
+        let flow13 = pressure.sim13 >= AQUIFER_FLOWING_UPDATE_SIMILARITY && s1 != pressure.s3;
         if !flow12 && !flow23 && !flow13 {
-            let sim14 = aq_similarity(d1, d4);
-            let s4 = self.get_aquifer_status(i4, noise_chunk);
-            self.should_schedule_fluid_update = sim13 >= AQUIFER_FLOWING_UPDATE_SIMILARITY
+            let sim14 = aq_similarity(nearest.distances[0], nearest.distances[3]);
+            let s4 = self.get_aquifer_status(nearest.indices[3], noise_chunk);
+            self.should_schedule_fluid_update = pressure.sim13 >= AQUIFER_FLOWING_UPDATE_SIMILARITY
                 && sim14 >= AQUIFER_FLOWING_UPDATE_SIMILARITY
                 && s1 != s4;
         } else {
             self.should_schedule_fluid_update = true;
         }
-
-        Some(fluid1)
     }
 
     fn get_aquifer_status(&mut self, index: usize, noise_chunk: &NoiseChunk) -> FluidStatus {
@@ -777,13 +784,13 @@ impl NoiseBasedAquifer {
         let y = aq_unpack_y(loc);
         let z = aq_unpack_z(loc);
         let status = aq_compute_fluid(
-            x,
-            y,
-            z,
-            self.seed,
-            self.settings,
-            self.noise_router,
-            Some(noise_chunk),
+            BlockPos { x, y, z },
+            AquiferNoiseContext {
+                seed: self.seed,
+                settings: self.settings,
+                noise_router: self.noise_router,
+                noise_chunk: Some(noise_chunk),
+            },
         );
         self.aquifer_cache[index] = Some(status);
         status

@@ -898,12 +898,14 @@ pub fn apply_configured_carvers_to_chunk(
     let mut aquifer = settings.aquifers_enabled.then(|| {
         NoiseBasedAquifer::new(
             &mut noise_chunk,
-            chunk_min_x,
-            chunk_min_x + 15,
-            chunk_min_z,
-            chunk_min_z + 15,
-            settings.noise.min_y,
-            settings.noise.height,
+            NoiseBasedAquiferBounds {
+                chunk_min_x,
+                chunk_max_x: chunk_min_x + 15,
+                chunk_min_z,
+                chunk_max_z: chunk_min_z + 15,
+                min_block_y: settings.noise.min_y,
+                y_block_size: settings.noise.height,
+            },
             seed,
             *settings,
             noise_router,
@@ -989,12 +991,14 @@ fn create_live_noise_generation_context(
     let aquifer = settings.aquifers_enabled.then(|| {
         NoiseBasedAquifer::new(
             &mut noise_chunk,
-            chunk_min_x,
-            chunk_min_x + 15,
-            chunk_min_z,
-            chunk_min_z + 15,
-            settings.noise.min_y,
-            settings.noise.height,
+            NoiseBasedAquiferBounds {
+                chunk_min_x,
+                chunk_max_x: chunk_min_x + 15,
+                chunk_min_z,
+                chunk_max_z: chunk_min_z + 15,
+                min_block_y: settings.noise.min_y,
+                y_block_size: settings.noise.height,
+            },
             seed,
             *settings,
             noise_router,
