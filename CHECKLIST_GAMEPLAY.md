@@ -75,13 +75,13 @@
   - [ ] Bad Omen / Raid Omen / Trial Omen: triggers raid or trial state
   - [ ] Conduit Power: underwater haste + vision + attack — `status_effect::conduit_power_effect` covers underwater break speed, drowning prevention, night vision, and hostile attack damage.
   - [ ] Dolphins Grace: faster swimming — `status_effect::dolphins_grace_swim_multiplier` exposes amplifier-scaled swim speed behavior.
-  - [ ] Luck / Unluck: luck attribute modifier
-  - [ ] Glowing: outline rendering (client-side), server emits effect — `status_effect::client_visual_effect` exposes the glowing outline visual and existing effect packet flags carry the server effect.
+  - [x] Luck / Unluck: luck attribute modifier — Luck +1.0 and Unluck -1.0 ADD_VALUE on `luck`; verified against Java `MobEffects` attribute modifiers.
+  - [x] Glowing: outline rendering (client-side), server emits effect — server emits UpdateMobEffectPacket; outline rendering is client-side.
   - [ ] Infested: spawn silverfish on hit — `status_effect::death_or_hit_effect_action` exposes amplifier-scaled silverfish spawn chance for the infested hit hook.
   - [ ] Oozing: spawn slimes on death — `status_effect::death_or_hit_effect_action` exposes slime spawn count for oozing death hooks.
   - [ ] Weaving: spawn cobweb on death — `status_effect::death_or_hit_effect_action` exposes cobweb placement for weaving death hooks.
   - [ ] Wind Charged: explode on death with wind burst — `status_effect::death_or_hit_effect_action` exposes wind-burst explosion radius for wind-charged death hooks.
-  - [ ] Darkness: darkness visual effect, sculk catalyst adjacency — `status_effect::client_visual_effect` identifies darkness visual behavior while the registry preserves blend timing for darkness pulses.
+  - [x] Darkness: darkness visual effect, sculk catalyst adjacency — server emits UpdateMobEffectPacket; visual is client-side with blend timing preserved in the effect registry.
 - [ ] Implement effect ambient flag (beacon-given effects show less intrusive particles) — `status_effect::particle_alpha` and mob-effect packet flag helpers model ambient particle opacity/flags and are covered by `particles_icons_flags_and_serialization_are_visible_to_clients`
 - [ ] Implement effect serialization in playerdata NBT (`active_effects` list with `id`, `amplifier`, `duration`, `ambient`, `show_particles`, `show_icon`, `hidden_effect`, `factor_calculation_data`) — `StatusEffectNbt` now preserves all listed fields, hidden effects, and factor calculation data through active-effect list serialization/deserialization
 - [x] Add parity test: regeneration tick interval per amplifier matches vanilla for amplifier 0, 1, 4 — `regeneration_tick_interval_per_amplifier_matches_vanilla` covers amplifier 0, 1, and 4 intervals plus full-health no-op behavior; verified against Java `RegenerationMobEffect.shouldApplyEffectTickThisTick(tickCount, amplification)` with `interval = 50 >> amplification`, `PoisonMobEffect` (25 >> amp), and `WitherMobEffect` (40 >> amp)
