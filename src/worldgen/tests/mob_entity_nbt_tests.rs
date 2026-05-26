@@ -1,5 +1,46 @@
 use super::*;
 
+    fn default_mob_snap(
+        entity_type: &'static str,
+        width: f32,
+    ) -> super::super::ChunkGenerationMobEntitySnapPlan {
+        mob_snap_at(entity_type, width, 70.0)
+    }
+
+    fn mob_snap_at(
+        entity_type: &'static str,
+        width: f32,
+        y: f64,
+    ) -> super::super::ChunkGenerationMobEntitySnapPlan {
+        super::super::ChunkGenerationMobEntitySnapPlan {
+            entity_type,
+            width,
+            x: 32.5,
+            y,
+            z: -33.5,
+            yaw: 0.0,
+            pitch: 0.0,
+        }
+    }
+
+    fn generated_default_mob_fields(
+        entity_type: &'static str,
+        width: f32,
+        uuid: &str,
+    ) -> Vec<(String, Tag)> {
+        generated_mob_fields(default_mob_snap(entity_type, width), uuid)
+    }
+
+    fn generated_mob_fields(
+        snap: super::super::ChunkGenerationMobEntitySnapPlan,
+        uuid: &str,
+    ) -> Vec<(String, Tag)> {
+        let Tag::Compound(fields) = super::super::chunk_generation_mob_entity_nbt(snap, uuid) else {
+            panic!("generated mob entity nbt must be a compound");
+        };
+        fields
+    }
+
     #[test]
     fn queue_chunk_generation_mob_entity_appends_proto_entity_nbt() {
         let mut chunk = LevelChunk::empty(ChunkPos { x: 2, z: -3 });
@@ -23,48 +64,41 @@ use super::*;
         let Tag::Compound(fields) = &chunk.entities[0] else {
             panic!("queued entity must be a compound");
         };
-        assert!(fields.contains(&("id".to_string(), Tag::String("minecraft:pig".to_string()))));
-        assert!(fields.contains(&(
-            "UUID".to_string(),
-            Tag::String("00000000-0000-0000-0000-000000000123".to_string())
-        )));
-        assert!(fields.contains(&(
-            "Pos".to_string(),
-            Tag::List(vec![
-                Tag::Double(32.9),
-                Tag::Double(70.0),
-                Tag::Double(-33.0)
-            ])
-        )));
-        assert!(fields.contains(&(
-            "Rotation".to_string(),
-            Tag::List(vec![Tag::Float(90.0), Tag::Float(0.0)])
-        )));
-        assert!(fields.contains(&(
-            "Motion".to_string(),
-            Tag::List(vec![Tag::Double(0.0), Tag::Double(0.0), Tag::Double(0.0)])
-        )));
-        assert!(fields.contains(&("fall_distance".to_string(), Tag::Double(0.0))));
-        assert!(fields.contains(&("Fire".to_string(), Tag::Short(0))));
-        assert!(fields.contains(&("Air".to_string(), Tag::Short(300))));
-        assert!(fields.contains(&("OnGround".to_string(), Tag::Byte(0))));
-        assert!(fields.contains(&("Invulnerable".to_string(), Tag::Byte(0))));
-        assert!(fields.contains(&("PortalCooldown".to_string(), Tag::Int(0))));
-        assert!(fields.contains(&("Age".to_string(), Tag::Int(0))));
-        assert!(fields.contains(&("ForcedAge".to_string(), Tag::Int(0))));
-        assert!(fields.contains(&("AgeLocked".to_string(), Tag::Byte(0))));
-        assert!(fields.contains(&("Health".to_string(), Tag::Float(10.0))));
-        assert!(fields.contains(&("HurtTime".to_string(), Tag::Short(0))));
-        assert!(fields.contains(&("HurtByTimestamp".to_string(), Tag::Int(0))));
-        assert!(fields.contains(&("DeathTime".to_string(), Tag::Short(0))));
-        assert!(fields.contains(&("AbsorptionAmount".to_string(), Tag::Float(0.0))));
-        assert!(fields.contains(&(
-            "current_impulse_context_reset_grace_time".to_string(),
-            Tag::Int(0)
-        )));
-        assert!(fields.contains(&("CanPickUpLoot".to_string(), Tag::Byte(0))));
-        assert!(fields.contains(&("PersistenceRequired".to_string(), Tag::Byte(0))));
-        assert!(fields.contains(&("LeftHanded".to_string(), Tag::Byte(0))));
+        let expected_fields = [
+            ("id", Tag::String("minecraft:pig".to_string())),
+            ("UUID", Tag::String("00000000-0000-0000-0000-000000000123".to_string())),
+            (
+                "Pos",
+                Tag::List(vec![
+                    Tag::Double(32.9),
+                    Tag::Double(70.0),
+                    Tag::Double(-33.0),
+                ]),
+            ),
+            ("Rotation", Tag::List(vec![Tag::Float(90.0), Tag::Float(0.0)])),
+            ("Motion", Tag::List(vec![Tag::Double(0.0), Tag::Double(0.0), Tag::Double(0.0)])),
+            ("fall_distance", Tag::Double(0.0)),
+            ("Fire", Tag::Short(0)),
+            ("Air", Tag::Short(300)),
+            ("OnGround", Tag::Byte(0)),
+            ("Invulnerable", Tag::Byte(0)),
+            ("PortalCooldown", Tag::Int(0)),
+            ("Age", Tag::Int(0)),
+            ("ForcedAge", Tag::Int(0)),
+            ("AgeLocked", Tag::Byte(0)),
+            ("Health", Tag::Float(10.0)),
+            ("HurtTime", Tag::Short(0)),
+            ("HurtByTimestamp", Tag::Int(0)),
+            ("DeathTime", Tag::Short(0)),
+            ("AbsorptionAmount", Tag::Float(0.0)),
+            ("current_impulse_context_reset_grace_time", Tag::Int(0)),
+            ("CanPickUpLoot", Tag::Byte(0)),
+            ("PersistenceRequired", Tag::Byte(0)),
+            ("LeftHanded", Tag::Byte(0)),
+        ];
+        for (name, value) in expected_fields {
+            assert!(fields.contains(&(name.to_string(), value)));
+        }
     }
 
     #[test]
@@ -506,109 +540,17 @@ use super::*;
 
     #[test]
     fn chunk_generation_mob_entity_nbt_adds_stable_special_animal_save_fields() {
-        let bee = super::super::ChunkGenerationMobEntitySnapPlan {
-            entity_type: "minecraft:bee",
-            width: 0.7,
-            x: 32.5,
-            y: 70.0,
-            z: -33.5,
-            yaw: 0.0,
-            pitch: 0.0,
-        };
-        let llama = super::super::ChunkGenerationMobEntitySnapPlan {
-            entity_type: "minecraft:llama",
-            width: 0.9,
-            x: 32.5,
-            y: 70.0,
-            z: -33.5,
-            yaw: 0.0,
-            pitch: 0.0,
-        };
-        let trader_llama = super::super::ChunkGenerationMobEntitySnapPlan {
-            entity_type: "minecraft:trader_llama",
-            width: 0.9,
-            x: 32.5,
-            y: 70.0,
-            z: -33.5,
-            yaw: 0.0,
-            pitch: 0.0,
-        };
-        let armadillo = super::super::ChunkGenerationMobEntitySnapPlan {
-            entity_type: "minecraft:armadillo",
-            width: 0.7,
-            x: 32.5,
-            y: 70.0,
-            z: -33.5,
-            yaw: 0.0,
-            pitch: 0.0,
-        };
-        let horse = super::super::ChunkGenerationMobEntitySnapPlan {
-            entity_type: "minecraft:horse",
-            width: 1.3965,
-            x: 32.5,
-            y: 70.0,
-            z: -33.5,
-            yaw: 0.0,
-            pitch: 0.0,
-        };
-        let iron_golem = super::super::ChunkGenerationMobEntitySnapPlan {
-            entity_type: "minecraft:iron_golem",
-            width: 1.4,
-            x: 32.5,
-            y: 70.0,
-            z: -33.5,
-            yaw: 0.0,
-            pitch: 0.0,
-        };
-        let snow_golem = super::super::ChunkGenerationMobEntitySnapPlan {
-            entity_type: "minecraft:snow_golem",
-            width: 0.7,
-            x: 32.5,
-            y: 70.0,
-            z: -33.5,
-            yaw: 0.0,
-            pitch: 0.0,
-        };
-
-        let Tag::Compound(bee_fields) =
-            super::super::chunk_generation_mob_entity_nbt(bee, "00000000-0000-0000-0000-000000000139")
-        else {
-            panic!("bee entity nbt must be a compound");
-        };
-        let Tag::Compound(llama_fields) =
-            super::super::chunk_generation_mob_entity_nbt(llama, "00000000-0000-0000-0000-000000000140")
-        else {
-            panic!("llama entity nbt must be a compound");
-        };
-        let Tag::Compound(trader_llama_fields) = super::super::chunk_generation_mob_entity_nbt(
-            trader_llama,
-            "00000000-0000-0000-0000-000000000141",
-        ) else {
-            panic!("trader llama entity nbt must be a compound");
-        };
-        let Tag::Compound(armadillo_fields) = super::super::chunk_generation_mob_entity_nbt(
-            armadillo,
-            "00000000-0000-0000-0000-000000000142",
-        ) else {
-            panic!("armadillo entity nbt must be a compound");
-        };
-        let Tag::Compound(horse_fields) =
-            super::super::chunk_generation_mob_entity_nbt(horse, "00000000-0000-0000-0000-000000000144")
-        else {
-            panic!("horse entity nbt must be a compound");
-        };
-        let Tag::Compound(iron_golem_fields) = super::super::chunk_generation_mob_entity_nbt(
-            iron_golem,
-            "00000000-0000-0000-0000-000000000145",
-        ) else {
-            panic!("iron golem entity nbt must be a compound");
-        };
-        let Tag::Compound(snow_golem_fields) = super::super::chunk_generation_mob_entity_nbt(
-            snow_golem,
-            "00000000-0000-0000-0000-000000000143",
-        ) else {
-            panic!("snow golem entity nbt must be a compound");
-        };
+        let bee_fields = generated_default_mob_fields("minecraft:bee", 0.7, "00000000-0000-0000-0000-000000000139");
+        let llama_fields = generated_default_mob_fields("minecraft:llama", 0.9, "00000000-0000-0000-0000-000000000140");
+        let trader_llama_fields =
+            generated_default_mob_fields("minecraft:trader_llama", 0.9, "00000000-0000-0000-0000-000000000141");
+        let armadillo_fields =
+            generated_default_mob_fields("minecraft:armadillo", 0.7, "00000000-0000-0000-0000-000000000142");
+        let horse_fields = generated_default_mob_fields("minecraft:horse", 1.3965, "00000000-0000-0000-0000-000000000144");
+        let iron_golem_fields =
+            generated_default_mob_fields("minecraft:iron_golem", 1.4, "00000000-0000-0000-0000-000000000145");
+        let snow_golem_fields =
+            generated_default_mob_fields("minecraft:snow_golem", 0.7, "00000000-0000-0000-0000-000000000143");
 
         assert!(bee_fields.contains(&("HasNectar".to_string(), Tag::Byte(0))));
         assert!(bee_fields.contains(&("HasStung".to_string(), Tag::Byte(0))));
@@ -627,92 +569,15 @@ use super::*;
 
     #[test]
     fn chunk_generation_mob_entity_nbt_adds_stable_monster_save_fields() {
-        let creeper = super::super::ChunkGenerationMobEntitySnapPlan {
-            entity_type: "minecraft:creeper",
-            width: 0.6,
-            x: 32.5,
-            y: 70.0,
-            z: -33.5,
-            yaw: 0.0,
-            pitch: 0.0,
-        };
-        let slime = super::super::ChunkGenerationMobEntitySnapPlan {
-            entity_type: "minecraft:slime",
-            width: 0.52,
-            x: 32.5,
-            y: 70.0,
-            z: -33.5,
-            yaw: 0.0,
-            pitch: 0.0,
-        };
-        let ravager = super::super::ChunkGenerationMobEntitySnapPlan {
-            entity_type: "minecraft:ravager",
-            width: 1.95,
-            x: 32.5,
-            y: 70.0,
-            z: -33.5,
-            yaw: 0.0,
-            pitch: 0.0,
-        };
-        let ghast = super::super::ChunkGenerationMobEntitySnapPlan {
-            entity_type: "minecraft:ghast",
-            width: 4.0,
-            x: 32.5,
-            y: 70.0,
-            z: -33.5,
-            yaw: 0.0,
-            pitch: 0.0,
-        };
-        let endermite = super::super::ChunkGenerationMobEntitySnapPlan {
-            entity_type: "minecraft:endermite",
-            width: 0.4,
-            x: 32.5,
-            y: 70.0,
-            z: -33.5,
-            yaw: 0.0,
-            pitch: 0.0,
-        };
-        let zoglin = super::super::ChunkGenerationMobEntitySnapPlan {
-            entity_type: "minecraft:zoglin",
-            width: 1.3965,
-            x: 32.5,
-            y: 70.0,
-            z: -33.5,
-            yaw: 0.0,
-            pitch: 0.0,
-        };
-
-        let Tag::Compound(creeper_fields) =
-            super::super::chunk_generation_mob_entity_nbt(creeper, "00000000-0000-0000-0000-000000000146")
-        else {
-            panic!("creeper entity nbt must be a compound");
-        };
-        let Tag::Compound(slime_fields) =
-            super::super::chunk_generation_mob_entity_nbt(slime, "00000000-0000-0000-0000-000000000147")
-        else {
-            panic!("slime entity nbt must be a compound");
-        };
-        let Tag::Compound(ravager_fields) =
-            super::super::chunk_generation_mob_entity_nbt(ravager, "00000000-0000-0000-0000-000000000148")
-        else {
-            panic!("ravager entity nbt must be a compound");
-        };
-        let Tag::Compound(ghast_fields) =
-            super::super::chunk_generation_mob_entity_nbt(ghast, "00000000-0000-0000-0000-000000000149")
-        else {
-            panic!("ghast entity nbt must be a compound");
-        };
-        let Tag::Compound(endermite_fields) = super::super::chunk_generation_mob_entity_nbt(
-            endermite,
-            "00000000-0000-0000-0000-000000000150",
-        ) else {
-            panic!("endermite entity nbt must be a compound");
-        };
-        let Tag::Compound(zoglin_fields) =
-            super::super::chunk_generation_mob_entity_nbt(zoglin, "00000000-0000-0000-0000-000000000151")
-        else {
-            panic!("zoglin entity nbt must be a compound");
-        };
+        let creeper_fields = generated_default_mob_fields("minecraft:creeper", 0.6, "00000000-0000-0000-0000-000000000146");
+        let slime_fields = generated_default_mob_fields("minecraft:slime", 0.52, "00000000-0000-0000-0000-000000000147");
+        let ravager_fields =
+            generated_default_mob_fields("minecraft:ravager", 1.95, "00000000-0000-0000-0000-000000000148");
+        let ghast_fields = generated_default_mob_fields("minecraft:ghast", 4.0, "00000000-0000-0000-0000-000000000149");
+        let endermite_fields =
+            generated_default_mob_fields("minecraft:endermite", 0.4, "00000000-0000-0000-0000-000000000150");
+        let zoglin_fields =
+            generated_default_mob_fields("minecraft:zoglin", 1.3965, "00000000-0000-0000-0000-000000000151");
 
         assert!(creeper_fields.contains(&("powered".to_string(), Tag::Byte(0))));
         assert!(creeper_fields.contains(&("Fuse".to_string(), Tag::Short(30))));
@@ -730,93 +595,15 @@ use super::*;
 
     #[test]
     fn chunk_generation_mob_entity_nbt_adds_zombie_piglin_and_skeleton_save_fields() {
-        let zombie = super::super::ChunkGenerationMobEntitySnapPlan {
-            entity_type: "minecraft:zombie",
-            width: 0.6,
-            x: 32.5,
-            y: 70.0,
-            z: -33.5,
-            yaw: 0.0,
-            pitch: 0.0,
-        };
-        let zombie_villager = super::super::ChunkGenerationMobEntitySnapPlan {
-            entity_type: "minecraft:zombie_villager",
-            width: 0.6,
-            x: 32.5,
-            y: 70.0,
-            z: -33.5,
-            yaw: 0.0,
-            pitch: 0.0,
-        };
-        let skeleton = super::super::ChunkGenerationMobEntitySnapPlan {
-            entity_type: "minecraft:skeleton",
-            width: 0.6,
-            x: 32.5,
-            y: 70.0,
-            z: -33.5,
-            yaw: 0.0,
-            pitch: 0.0,
-        };
-        let bogged = super::super::ChunkGenerationMobEntitySnapPlan {
-            entity_type: "minecraft:bogged",
-            width: 0.6,
-            x: 32.5,
-            y: 70.0,
-            z: -33.5,
-            yaw: 0.0,
-            pitch: 0.0,
-        };
-        let piglin = super::super::ChunkGenerationMobEntitySnapPlan {
-            entity_type: "minecraft:piglin",
-            width: 0.6,
-            x: 32.5,
-            y: 70.0,
-            z: -33.5,
-            yaw: 0.0,
-            pitch: 0.0,
-        };
-        let hoglin = super::super::ChunkGenerationMobEntitySnapPlan {
-            entity_type: "minecraft:hoglin",
-            width: 1.3965,
-            x: 32.5,
-            y: 70.0,
-            z: -33.5,
-            yaw: 0.0,
-            pitch: 0.0,
-        };
-
-        let Tag::Compound(zombie_fields) =
-            super::super::chunk_generation_mob_entity_nbt(zombie, "00000000-0000-0000-0000-000000000152")
-        else {
-            panic!("zombie entity nbt must be a compound");
-        };
-        let Tag::Compound(zombie_villager_fields) = super::super::chunk_generation_mob_entity_nbt(
-            zombie_villager,
-            "00000000-0000-0000-0000-000000000153",
-        ) else {
-            panic!("zombie villager entity nbt must be a compound");
-        };
-        let Tag::Compound(skeleton_fields) = super::super::chunk_generation_mob_entity_nbt(
-            skeleton,
-            "00000000-0000-0000-0000-000000000154",
-        ) else {
-            panic!("skeleton entity nbt must be a compound");
-        };
-        let Tag::Compound(bogged_fields) =
-            super::super::chunk_generation_mob_entity_nbt(bogged, "00000000-0000-0000-0000-000000000155")
-        else {
-            panic!("bogged entity nbt must be a compound");
-        };
-        let Tag::Compound(piglin_fields) =
-            super::super::chunk_generation_mob_entity_nbt(piglin, "00000000-0000-0000-0000-000000000156")
-        else {
-            panic!("piglin entity nbt must be a compound");
-        };
-        let Tag::Compound(hoglin_fields) =
-            super::super::chunk_generation_mob_entity_nbt(hoglin, "00000000-0000-0000-0000-000000000157")
-        else {
-            panic!("hoglin entity nbt must be a compound");
-        };
+        let zombie_fields = generated_default_mob_fields("minecraft:zombie", 0.6, "00000000-0000-0000-0000-000000000152");
+        let zombie_villager_fields =
+            generated_default_mob_fields("minecraft:zombie_villager", 0.6, "00000000-0000-0000-0000-000000000153");
+        let skeleton_fields =
+            generated_default_mob_fields("minecraft:skeleton", 0.6, "00000000-0000-0000-0000-000000000154");
+        let bogged_fields = generated_default_mob_fields("minecraft:bogged", 0.6, "00000000-0000-0000-0000-000000000155");
+        let piglin_fields = generated_default_mob_fields("minecraft:piglin", 0.6, "00000000-0000-0000-0000-000000000156");
+        let hoglin_fields =
+            generated_default_mob_fields("minecraft:hoglin", 1.3965, "00000000-0000-0000-0000-000000000157");
 
         assert!(zombie_fields.contains(&("IsBaby".to_string(), Tag::Byte(0))));
         assert!(zombie_fields.contains(&("CanBreakDoors".to_string(), Tag::Byte(0))));
@@ -934,135 +721,21 @@ use super::*;
 
     #[test]
     fn chunk_generation_mob_entity_nbt_adds_variant_save_fields() {
-        let cow = super::super::ChunkGenerationMobEntitySnapPlan {
-            entity_type: "minecraft:cow",
-            width: 0.9,
-            x: 32.5,
-            y: 70.0,
-            z: -33.5,
-            yaw: 0.0,
-            pitch: 0.0,
-        };
-        let pig = super::super::ChunkGenerationMobEntitySnapPlan {
-            entity_type: "minecraft:pig",
-            width: 0.9,
-            x: 32.5,
-            y: 70.0,
-            z: -33.5,
-            yaw: 0.0,
-            pitch: 0.0,
-        };
-        let chicken = super::super::ChunkGenerationMobEntitySnapPlan {
-            entity_type: "minecraft:chicken",
-            width: 0.4,
-            x: 32.5,
-            y: 70.0,
-            z: -33.5,
-            yaw: 0.0,
-            pitch: 0.0,
-        };
-        let frog = super::super::ChunkGenerationMobEntitySnapPlan {
-            entity_type: "minecraft:frog",
-            width: 0.5,
-            x: 32.5,
-            y: 70.0,
-            z: -33.5,
-            yaw: 0.0,
-            pitch: 0.0,
-        };
-        let axolotl = super::super::ChunkGenerationMobEntitySnapPlan {
-            entity_type: "minecraft:axolotl",
-            width: 0.75,
-            x: 32.5,
-            y: 70.0,
-            z: -33.5,
-            yaw: 0.0,
-            pitch: 0.0,
-        };
-        let salmon = super::super::ChunkGenerationMobEntitySnapPlan {
-            entity_type: "minecraft:salmon",
-            width: 0.7,
-            x: 32.5,
-            y: 70.0,
-            z: -33.5,
-            yaw: 0.0,
-            pitch: 0.0,
-        };
-        let tropical_fish = super::super::ChunkGenerationMobEntitySnapPlan {
-            entity_type: "minecraft:tropical_fish",
-            width: 0.5,
-            x: 32.5,
-            y: 70.0,
-            z: -33.5,
-            yaw: 0.0,
-            pitch: 0.0,
-        };
-        let wolf = super::super::ChunkGenerationMobEntitySnapPlan {
-            entity_type: "minecraft:wolf",
-            width: 0.6,
-            x: 32.5,
-            y: 70.0,
-            z: -33.5,
-            yaw: 0.0,
-            pitch: 0.0,
-        };
-        let zombie_nautilus = super::super::ChunkGenerationMobEntitySnapPlan {
-            entity_type: "minecraft:zombie_nautilus",
-            width: 1.2,
-            x: 32.5,
-            y: 62.0,
-            z: -33.5,
-            yaw: 0.0,
-            pitch: 0.0,
-        };
-
-        let Tag::Compound(cow_fields) =
-            super::super::chunk_generation_mob_entity_nbt(cow, "00000000-0000-0000-0000-000000000158")
-        else {
-            panic!("cow entity nbt must be a compound");
-        };
-        let Tag::Compound(pig_fields) =
-            super::super::chunk_generation_mob_entity_nbt(pig, "00000000-0000-0000-0000-000000000159")
-        else {
-            panic!("pig entity nbt must be a compound");
-        };
-        let Tag::Compound(chicken_fields) =
-            super::super::chunk_generation_mob_entity_nbt(chicken, "00000000-0000-0000-0000-000000000160")
-        else {
-            panic!("chicken entity nbt must be a compound");
-        };
-        let Tag::Compound(frog_fields) =
-            super::super::chunk_generation_mob_entity_nbt(frog, "00000000-0000-0000-0000-000000000161")
-        else {
-            panic!("frog entity nbt must be a compound");
-        };
-        let Tag::Compound(axolotl_fields) =
-            super::super::chunk_generation_mob_entity_nbt(axolotl, "00000000-0000-0000-0000-000000000162")
-        else {
-            panic!("axolotl entity nbt must be a compound");
-        };
-        let Tag::Compound(salmon_fields) =
-            super::super::chunk_generation_mob_entity_nbt(salmon, "00000000-0000-0000-0000-000000000163")
-        else {
-            panic!("salmon entity nbt must be a compound");
-        };
-        let Tag::Compound(tropical_fish_fields) = super::super::chunk_generation_mob_entity_nbt(
-            tropical_fish,
-            "00000000-0000-0000-0000-000000000164",
-        ) else {
-            panic!("tropical fish entity nbt must be a compound");
-        };
-        let Tag::Compound(wolf_fields) =
-            super::super::chunk_generation_mob_entity_nbt(wolf, "00000000-0000-0000-0000-000000000165")
-        else {
-            panic!("wolf entity nbt must be a compound");
-        };
-        let Tag::Compound(zombie_nautilus_fields) = super::super::chunk_generation_mob_entity_nbt(
-            zombie_nautilus,
+        let cow_fields = generated_default_mob_fields("minecraft:cow", 0.9, "00000000-0000-0000-0000-000000000158");
+        let pig_fields = generated_default_mob_fields("minecraft:pig", 0.9, "00000000-0000-0000-0000-000000000159");
+        let chicken_fields =
+            generated_default_mob_fields("minecraft:chicken", 0.4, "00000000-0000-0000-0000-000000000160");
+        let frog_fields = generated_default_mob_fields("minecraft:frog", 0.5, "00000000-0000-0000-0000-000000000161");
+        let axolotl_fields =
+            generated_default_mob_fields("minecraft:axolotl", 0.75, "00000000-0000-0000-0000-000000000162");
+        let salmon_fields = generated_default_mob_fields("minecraft:salmon", 0.7, "00000000-0000-0000-0000-000000000163");
+        let tropical_fish_fields =
+            generated_default_mob_fields("minecraft:tropical_fish", 0.5, "00000000-0000-0000-0000-000000000164");
+        let wolf_fields = generated_default_mob_fields("minecraft:wolf", 0.6, "00000000-0000-0000-0000-000000000165");
+        let zombie_nautilus_fields = generated_mob_fields(
+            mob_snap_at("minecraft:zombie_nautilus", 1.2, 62.0),
             "00000000-0000-0000-0000-000000000166",
-        ) else {
-            panic!("zombie nautilus entity nbt must be a compound");
-        };
+        );
 
         for fields in [&cow_fields, &pig_fields, &chicken_fields, &frog_fields] {
             assert!(fields.contains(&(
@@ -1095,4 +768,3 @@ use super::*;
             Tag::String("minecraft:temperate".to_string())
         )));
     }
-
