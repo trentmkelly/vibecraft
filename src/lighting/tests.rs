@@ -398,6 +398,44 @@ fn f10_sky_light_cardinal_bleed_under_overhang() {
     assert_eq!(get_sky_light_at(&engine, 5, 79, 5), 13);
 }
 
+// ---- Diagnostic: modern decoration blocks must report opacity 0 ----
+#[test]
+fn diagnostic_modern_decoration_blocks_are_transparent() {
+    use crate::lighting::block_light_properties::light_properties_for;
+    // Java vanilla `BlockBehaviour.getLightDampening` returns 0 for any
+    // block whose state propagates sky-light down — which is the default
+    // for every `noCollision()` decoration block. The previous lookup
+    // fallback treated everything not in the representative-state table as
+    // fully opaque (opacity 15) and that's exactly what made forest grass
+    // render as dark patches under leaf litter, pink petals, moss carpet,
+    // and friends.
+    for name in [
+        "minecraft:leaf_litter",
+        "minecraft:moss_carpet",
+        "minecraft:pink_petals",
+        "minecraft:wildflowers",
+        "minecraft:firefly_bush",
+        "minecraft:bush",
+        "minecraft:oak_sapling",
+        "minecraft:cherry_sapling",
+        "minecraft:vine",
+        "minecraft:spore_blossom",
+        "minecraft:big_dripleaf",
+        "minecraft:small_dripleaf",
+        "minecraft:hanging_moss",
+        "minecraft:crimson_roots",
+        "minecraft:warped_roots",
+        "minecraft:bamboo",
+    ] {
+        let props = light_properties_for(name);
+        assert_eq!(props.opacity, 0, "{name} should be opacity 0");
+        assert!(
+            !props.occlusion_shape_occludes_full_face,
+            "{name} should not seal its face below"
+        );
+    }
+}
+
 // ---- Diagnostic: cardinal bleed from a vertical shaft into a horizontal cavern ----
 #[test]
 fn diagnostic_sky_light_bleeds_horizontally_from_shaft_into_cavern() {

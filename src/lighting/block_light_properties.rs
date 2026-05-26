@@ -1,24 +1,41 @@
 //! Maps block names to [`LightBlockProperties`].
 //!
-//! Vanilla blocks override two relevant per-block knobs in their constructor:
-//! `lightEmission` (passed to `Blocks.register` via
-//! `BlockBehaviour.Properties::lightLevel`) and `lightDampening` (via
-//! `Properties::lightBlock(int)`).
+//! Vanilla's `BlockBehaviour.getLightDampening` (see
+//! `decompiled-server-26.1.2/net/minecraft/world/level/block/state/BlockBehaviour.java`)
+//! computes opacity at runtime as:
 //!
-//! RustCraft's `block_metadata` table already carries the emission value and a
-//! coarse `occludes` flag. The dampening value is more nuanced (water/leaves/
-//! ice/cobweb/slime/honey all use partial dampening even though they are not
-//! "occluding") and is sourced here from the Java source as the authoritative
-//! reference. The mapping is exhaustive for the block list the worldgen
-//! currently produces; any block not explicitly listed falls back to the
-//! generic rule:
+//! ```text
+//! if (state.isSolidRender()) 15
+//! else if (state.propagatesSkylightDown()) 0
+//! else 1
+//! ```
 //!
-//!   - if the block occludes -> opacity 15 (fully blocks light)
-//!   - else                  -> opacity 0 (fully transparent)
+//! plus per-block overrides for specific opacities (ice = 2, leaves = 1,
+//! water = 1, cobweb = 1, slime/honey = 1). RustCraft does not yet track
+//! `isSolidRender` / `propagatesSkylightDown` for every block in the
+//! 1144-entry registry, so we curate explicit overrides for:
 //!
-//! This matches Java's default `Properties::lightBlock` of "0 unless the block
-//! state is solid render", which solid blocks override implicitly via their
-//! occludes flag in our representation.
+//! - air-likes
+//! - water/lava and fluid-aware overrides
+//! - leaves (every variant)
+//! - light-emitting blocks (every emission level vanilla actually uses)
+//! - all modern decoration blocks that vanilla worldgen places on top of
+//!   the surface (`leaf_litter`, `pink_petals`, `moss_carpet`,
+//!   `wildflowers`, saplings, vines, hanging moss, glow lichen, …)
+//! - cave decoration (dripleaves, spore_blossom, amethyst clusters/buds,
+//!   pointed dripstone, cave vines, …)
+//! - functional/decorative blocks that are obviously transparent
+//!   (buttons, pressure plates, signs, rails, levers, redstone dust, …)
+//!
+//! For every other block name we fall back to the
+//! `representative_state_definition` table in `block_metadata`. Anything
+//! still unmapped after that is treated as a Bedrock-default opaque block,
+//! matching `LightEngine.getState` returning the bedrock fallback when
+//! `LightChunkGetter.getChunkForLighting` yields null. The conservative
+//! "opaque by default" policy avoids accidentally leaking sky-light through
+//! unrecognised solid blocks; the explicit transparent lists below are what
+//! prevent decoration blocks from rendering as pitch-black holes on the
+//! ground.
 
 use crate::block_metadata::representative_state_definition;
 use crate::lighting::light_chunk::LightBlockProperties;
@@ -26,9 +43,6 @@ use crate::lighting::light_chunk::LightBlockProperties;
 /// Java equivalent: applying `BlockBehaviour.Properties::lightBlock` / `lightLevel`
 /// overrides at world-state construction.
 pub fn light_properties_for(block_name: &str) -> LightBlockProperties {
-    // Explicit per-block overrides for the partial-dampening exceptions noted
-    // in `BlockBehaviour.Properties::lightBlock` overrides in the vanilla
-    // `Blocks` class.
     if let Some(overridden) = explicit_override(block_name) {
         return overridden;
     }
@@ -40,8 +54,6 @@ pub fn light_properties_for(block_name: &str) -> LightBlockProperties {
             occlusion_shape_occludes_full_face: definition.physical.occludes,
         };
     }
-    // Unknown names: assume opaque (matches Java's Bedrock fallback when a
-    // chunk pointer is null) so unmapped blocks don't accidentally leak light.
     LightBlockProperties {
         opacity: 15,
         emission: 0,
@@ -51,80 +63,386 @@ pub fn light_properties_for(block_name: &str) -> LightBlockProperties {
 }
 
 fn explicit_override(block_name: &str) -> Option<LightBlockProperties> {
-    Some(match block_name {
-        // Empty / air-like — fully transparent, non-emissive.
-        "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air" => LightBlockProperties::AIR,
-        // Java `Blocks.WATER` / `BUBBLE_COLUMN` / `KELP` use `lightBlock(1)`.
-        "minecraft:water" | "minecraft:bubble_column" | "minecraft:kelp"
-        | "minecraft:kelp_plant" => with_opacity_and_emission(1, 0),
-        // Java `Blocks.LAVA` uses `lightLevel(15)`, no dampening (light passes
-        // through but the block is itself a full-strength block-light source).
-        "minecraft:lava" => with_opacity_and_emission(0, 15),
-        // Java `Blocks.ICE` / `Blocks.FROSTED_ICE` use `lightBlock(2)`.
-        "minecraft:ice" | "minecraft:frosted_ice" => with_opacity_and_emission(2, 0),
-        // Java `Blocks.OAK_LEAVES` and friends use `lightBlock(1)`.
+    // ---- Air-likes (opacity 0, no emission) ----
+    if matches!(
+        block_name,
+        "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
+    ) {
+        return Some(LightBlockProperties::AIR);
+    }
+
+    // ---- Fluids and fluid-related blocks ----
+    if matches!(
+        block_name,
+        "minecraft:water"
+            | "minecraft:bubble_column"
+            | "minecraft:kelp"
+            | "minecraft:kelp_plant"
+    ) {
+        return Some(transparent_dampening(1));
+    }
+    if block_name == "minecraft:lava" {
+        // Java `LavaBlock` extends LiquidBlock; emission 15, no dampening.
+        return Some(transparent_emission(15));
+    }
+
+    // ---- Ice variants (lightBlock(2)) ----
+    if matches!(
+        block_name,
+        "minecraft:ice"
+            | "minecraft:frosted_ice"
+            | "minecraft:packed_ice"
+            | "minecraft:blue_ice"
+    ) {
+        // Packed/blue ice are actually solid render with dampening 15 in
+        // vanilla, but ice (clear) is 2. Match per-variant.
+        return Some(match block_name {
+            "minecraft:packed_ice" | "minecraft:blue_ice" => occluding_emission(0),
+            _ => transparent_dampening(2),
+        });
+    }
+
+    // ---- Leaves (lightBlock(1), non-solid-render) ----
+    if is_leaves(block_name) {
+        return Some(transparent_dampening(1));
+    }
+
+    // ---- Cobweb, slime, honey (lightBlock(1) per vanilla) ----
+    if matches!(
+        block_name,
+        "minecraft:cobweb" | "minecraft:slime_block" | "minecraft:honey_block"
+    ) {
+        return Some(transparent_dampening(1));
+    }
+
+    // ---- Glass family ----
+    if is_clear_glass(block_name) {
+        return Some(transparent_dampening(0));
+    }
+    if block_name == "minecraft:tinted_glass" {
+        // Java `TintedGlassBlock.propagatesSkylightDown` returns false, so
+        // dampening falls to 1; vanilla also overrides with `lightBlock(15)`
+        // via `noOcclusion()`... actually tinted glass is `lightBlock(15)`
+        // by virtue of its specific override. Match the documented behavior.
+        return Some(transparent_dampening(15));
+    }
+
+    // ---- Light sources ----
+    if let Some(emissive) = light_source(block_name) {
+        return Some(emissive);
+    }
+
+    // ---- Decorative transparent blocks placed by worldgen ----
+    if is_transparent_decoration(block_name) {
+        return Some(LightBlockProperties::AIR);
+    }
+
+    None
+}
+
+fn is_leaves(name: &str) -> bool {
+    matches!(
+        name,
         "minecraft:oak_leaves"
-        | "minecraft:spruce_leaves"
-        | "minecraft:birch_leaves"
-        | "minecraft:jungle_leaves"
-        | "minecraft:acacia_leaves"
-        | "minecraft:dark_oak_leaves"
-        | "minecraft:mangrove_leaves"
-        | "minecraft:cherry_leaves"
-        | "minecraft:pale_oak_leaves"
-        | "minecraft:azalea_leaves"
-        | "minecraft:flowering_azalea_leaves" => with_opacity_and_emission(1, 0),
-        // Java `Blocks.COBWEB` uses `lightBlock(1)`.
-        "minecraft:cobweb" => with_opacity_and_emission(1, 0),
-        // Java `Blocks.SLIME_BLOCK` / `HONEY_BLOCK`.
-        "minecraft:slime_block" | "minecraft:honey_block" => with_opacity_and_emission(1, 0),
-        // Vanilla glass is fully transparent (lightBlock default 0).
+            | "minecraft:spruce_leaves"
+            | "minecraft:birch_leaves"
+            | "minecraft:jungle_leaves"
+            | "minecraft:acacia_leaves"
+            | "minecraft:dark_oak_leaves"
+            | "minecraft:mangrove_leaves"
+            | "minecraft:cherry_leaves"
+            | "minecraft:pale_oak_leaves"
+            | "minecraft:azalea_leaves"
+            | "minecraft:flowering_azalea_leaves"
+    )
+}
+
+fn is_clear_glass(name: &str) -> bool {
+    matches!(
+        name,
         "minecraft:glass"
-        | "minecraft:tinted_glass"
-        | "minecraft:white_stained_glass"
-        | "minecraft:orange_stained_glass"
-        | "minecraft:magenta_stained_glass"
-        | "minecraft:light_blue_stained_glass"
-        | "minecraft:yellow_stained_glass"
-        | "minecraft:lime_stained_glass"
-        | "minecraft:pink_stained_glass"
-        | "minecraft:gray_stained_glass"
-        | "minecraft:light_gray_stained_glass"
-        | "minecraft:cyan_stained_glass"
-        | "minecraft:purple_stained_glass"
-        | "minecraft:blue_stained_glass"
-        | "minecraft:brown_stained_glass"
-        | "minecraft:green_stained_glass"
-        | "minecraft:red_stained_glass"
-        | "minecraft:black_stained_glass" => with_opacity_and_emission(0, 0),
-        // Tinted glass dampens by 15 in vanilla; correct it here.
-        // (The catch-all above set it to 0; this branch overrides.)
-        // NB: matches Java `Blocks.TINTED_GLASS` which uses `lightBlock(15)`.
-        // We intentionally don't add a second arm — the explicit override
-        // already returned above. (Left as a documentation marker.)
-        // Java emissive blocks (full-strength sources unless otherwise noted).
-        "minecraft:torch" | "minecraft:wall_torch" => with_opacity_and_emission(0, 14),
-        "minecraft:soul_torch" | "minecraft:soul_wall_torch" => with_opacity_and_emission(0, 10),
-        "minecraft:redstone_torch" | "minecraft:redstone_wall_torch" => {
-            with_opacity_and_emission(0, 7)
-        }
-        "minecraft:glowstone" | "minecraft:jack_o_lantern" | "minecraft:sea_lantern"
-        | "minecraft:shroomlight" | "minecraft:end_rod" | "minecraft:end_gateway"
+            | "minecraft:white_stained_glass"
+            | "minecraft:orange_stained_glass"
+            | "minecraft:magenta_stained_glass"
+            | "minecraft:light_blue_stained_glass"
+            | "minecraft:yellow_stained_glass"
+            | "minecraft:lime_stained_glass"
+            | "minecraft:pink_stained_glass"
+            | "minecraft:gray_stained_glass"
+            | "minecraft:light_gray_stained_glass"
+            | "minecraft:cyan_stained_glass"
+            | "minecraft:purple_stained_glass"
+            | "minecraft:blue_stained_glass"
+            | "minecraft:brown_stained_glass"
+            | "minecraft:green_stained_glass"
+            | "minecraft:red_stained_glass"
+            | "minecraft:black_stained_glass"
+    )
+}
+
+fn light_source(name: &str) -> Option<LightBlockProperties> {
+    Some(match name {
+        "minecraft:torch" | "minecraft:wall_torch" => transparent_emission(14),
+        "minecraft:soul_torch" | "minecraft:soul_wall_torch" => transparent_emission(10),
+        "minecraft:redstone_torch" | "minecraft:redstone_wall_torch" => transparent_emission(7),
+        "minecraft:glowstone"
+        | "minecraft:jack_o_lantern"
+        | "minecraft:sea_lantern"
+        | "minecraft:shroomlight"
         | "minecraft:beacon" => occluding_emission(15),
-        "minecraft:lantern" => with_opacity_and_emission(0, 15),
-        "minecraft:soul_lantern" | "minecraft:soul_fire" => with_opacity_and_emission(0, 10),
-        "minecraft:campfire" => with_opacity_and_emission(0, 15),
-        "minecraft:soul_campfire" => with_opacity_and_emission(0, 10),
-        "minecraft:fire" => with_opacity_and_emission(0, 15),
-        // Magma block: occludes and emits 3.
+        "minecraft:end_rod" | "minecraft:end_gateway" => transparent_emission(15),
+        "minecraft:lantern" => transparent_emission(15),
+        "minecraft:soul_lantern" => transparent_emission(10),
+        "minecraft:campfire" => transparent_emission(15),
+        "minecraft:soul_campfire" => transparent_emission(10),
+        "minecraft:fire" | "minecraft:soul_fire" => transparent_emission(15),
         "minecraft:magma_block" => occluding_emission(3),
+        "minecraft:redstone_lamp" => occluding_emission(0),
+        "minecraft:crying_obsidian" => occluding_emission(10),
+        "minecraft:respawn_anchor" => occluding_emission(0),
+        "minecraft:sculk_catalyst" => occluding_emission(6),
+        "minecraft:sculk_sensor"
+        | "minecraft:calibrated_sculk_sensor"
+        | "minecraft:sculk_shrieker" => transparent_emission(1),
+        "minecraft:glow_lichen" => transparent_emission(7),
+        "minecraft:amethyst_cluster" => transparent_emission(5),
+        "minecraft:large_amethyst_bud" => transparent_emission(4),
+        "minecraft:medium_amethyst_bud" => transparent_emission(2),
+        "minecraft:small_amethyst_bud" => transparent_emission(1),
+        "minecraft:cave_vines" | "minecraft:cave_vines_plant" => {
+            // Emission only when bearing berries; we ship the non-berry
+            // value here. The berry-bearing variant would emit 14, but our
+            // worldgen does not yet distinguish the property states.
+            transparent_emission(0)
+        }
+        "minecraft:enchanting_table"
+        | "minecraft:end_portal"
+        | "minecraft:end_portal_frame"
+        | "minecraft:dragon_egg" => occluding_emission(0),
+        "minecraft:nether_portal" => transparent_emission(11),
+        "minecraft:brewing_stand" => transparent_emission(1),
+        "minecraft:conduit" => transparent_emission(15),
+        "minecraft:lava_cauldron" => occluding_emission(15),
+        "minecraft:budding_amethyst" => occluding_emission(0),
+        "minecraft:froglight"
+        | "minecraft:ochre_froglight"
+        | "minecraft:verdant_froglight"
+        | "minecraft:pearlescent_froglight" => occluding_emission(15),
+        "minecraft:copper_bulb" | "minecraft:exposed_copper_bulb"
+        | "minecraft:weathered_copper_bulb" | "minecraft:oxidized_copper_bulb" => {
+            occluding_emission(15)
+        }
         _ => return None,
     })
 }
 
-fn with_opacity_and_emission(opacity: u8, emission: u8) -> LightBlockProperties {
+fn is_transparent_decoration(name: &str) -> bool {
+    // Modern (1.20+) ground/cave decoration blocks placed by worldgen, all
+    // of which vanilla treats as `lightBlock(0)` via the
+    // `propagatesSkylightDown` default. Split into category-sized matches
+    // so the table stays trivially extensible without hitting clippy's
+    // `too_many_lines` budget.
+    is_forest_floor_decoration(name)
+        || is_sapling(name)
+        || is_vine_or_hanging(name)
+        || is_cave_decoration(name)
+        || is_nether_vegetation(name)
+        || is_bamboo_decoration(name)
+        || is_aquatic_decoration(name)
+        || is_end_decoration(name)
+        || is_thin_functional(name)
+}
+
+fn is_forest_floor_decoration(name: &str) -> bool {
+    matches!(
+        name,
+        "minecraft:leaf_litter"
+            | "minecraft:moss_carpet"
+            | "minecraft:pale_moss_carpet"
+            | "minecraft:pink_petals"
+            | "minecraft:wildflowers"
+            | "minecraft:firefly_bush"
+            | "minecraft:bush"
+            | "minecraft:short_grass"
+            | "minecraft:fern"
+            | "minecraft:short_dry_grass"
+            | "minecraft:tall_dry_grass"
+            | "minecraft:tall_grass"
+            | "minecraft:large_fern"
+            | "minecraft:dead_bush"
+            | "minecraft:dandelion"
+            | "minecraft:golden_dandelion"
+            | "minecraft:torchflower"
+            | "minecraft:poppy"
+            | "minecraft:blue_orchid"
+            | "minecraft:allium"
+            | "minecraft:azure_bluet"
+            | "minecraft:red_tulip"
+            | "minecraft:orange_tulip"
+            | "minecraft:white_tulip"
+            | "minecraft:pink_tulip"
+            | "minecraft:oxeye_daisy"
+            | "minecraft:cornflower"
+            | "minecraft:wither_rose"
+            | "minecraft:lily_of_the_valley"
+            | "minecraft:brown_mushroom"
+            | "minecraft:red_mushroom"
+            | "minecraft:rose_bush"
+            | "minecraft:peony"
+            | "minecraft:lilac"
+            | "minecraft:sunflower"
+            | "minecraft:sugar_cane"
+            | "minecraft:sweet_berry_bush"
+            | "minecraft:lily_pad"
+    )
+}
+
+fn is_sapling(name: &str) -> bool {
+    matches!(
+        name,
+        "minecraft:oak_sapling"
+            | "minecraft:spruce_sapling"
+            | "minecraft:birch_sapling"
+            | "minecraft:jungle_sapling"
+            | "minecraft:acacia_sapling"
+            | "minecraft:dark_oak_sapling"
+            | "minecraft:cherry_sapling"
+            | "minecraft:pale_oak_sapling"
+            | "minecraft:mangrove_propagule"
+    )
+}
+
+fn is_vine_or_hanging(name: &str) -> bool {
+    matches!(
+        name,
+        "minecraft:vine"
+            | "minecraft:weeping_vines"
+            | "minecraft:weeping_vines_plant"
+            | "minecraft:twisting_vines"
+            | "minecraft:twisting_vines_plant"
+            | "minecraft:cave_vines"
+            | "minecraft:cave_vines_plant"
+            | "minecraft:hanging_roots"
+            | "minecraft:hanging_moss"
+            | "minecraft:pale_hanging_moss"
+    )
+}
+
+fn is_cave_decoration(name: &str) -> bool {
+    matches!(
+        name,
+        "minecraft:spore_blossom"
+            | "minecraft:big_dripleaf"
+            | "minecraft:big_dripleaf_stem"
+            | "minecraft:small_dripleaf"
+            | "minecraft:pointed_dripstone"
+    )
+}
+
+fn is_nether_vegetation(name: &str) -> bool {
+    matches!(
+        name,
+        "minecraft:crimson_roots"
+            | "minecraft:warped_roots"
+            | "minecraft:crimson_fungus"
+            | "minecraft:warped_fungus"
+            | "minecraft:nether_sprouts"
+            | "minecraft:nether_wart"
+    )
+}
+
+fn is_bamboo_decoration(name: &str) -> bool {
+    matches!(name, "minecraft:bamboo" | "minecraft:bamboo_sapling")
+}
+
+fn is_aquatic_decoration(name: &str) -> bool {
+    if matches!(
+        name,
+        "minecraft:seagrass" | "minecraft:tall_seagrass" | "minecraft:sea_pickle"
+    ) {
+        return true;
+    }
+    is_living_coral(name) || is_dead_coral(name)
+}
+
+fn is_living_coral(name: &str) -> bool {
+    matches!(
+        name,
+        "minecraft:tube_coral"
+            | "minecraft:brain_coral"
+            | "minecraft:bubble_coral"
+            | "minecraft:fire_coral"
+            | "minecraft:horn_coral"
+            | "minecraft:tube_coral_fan"
+            | "minecraft:brain_coral_fan"
+            | "minecraft:bubble_coral_fan"
+            | "minecraft:fire_coral_fan"
+            | "minecraft:horn_coral_fan"
+            | "minecraft:tube_coral_wall_fan"
+            | "minecraft:brain_coral_wall_fan"
+            | "minecraft:bubble_coral_wall_fan"
+            | "minecraft:fire_coral_wall_fan"
+            | "minecraft:horn_coral_wall_fan"
+    )
+}
+
+fn is_dead_coral(name: &str) -> bool {
+    matches!(
+        name,
+        "minecraft:dead_tube_coral"
+            | "minecraft:dead_brain_coral"
+            | "minecraft:dead_bubble_coral"
+            | "minecraft:dead_fire_coral"
+            | "minecraft:dead_horn_coral"
+            | "minecraft:dead_tube_coral_fan"
+            | "minecraft:dead_brain_coral_fan"
+            | "minecraft:dead_bubble_coral_fan"
+            | "minecraft:dead_fire_coral_fan"
+            | "minecraft:dead_horn_coral_fan"
+            | "minecraft:dead_tube_coral_wall_fan"
+            | "minecraft:dead_brain_coral_wall_fan"
+            | "minecraft:dead_bubble_coral_wall_fan"
+            | "minecraft:dead_fire_coral_wall_fan"
+            | "minecraft:dead_horn_coral_wall_fan"
+    )
+}
+
+fn is_end_decoration(name: &str) -> bool {
+    matches!(name, "minecraft:chorus_plant" | "minecraft:chorus_flower")
+}
+
+fn is_thin_functional(name: &str) -> bool {
+    // Functional thin blocks (rails, levers, redstone wire, tripwire, …)
+    // — all `noCollision` and therefore `lightBlock(0)`.
+    matches!(
+        name,
+        "minecraft:rail"
+            | "minecraft:powered_rail"
+            | "minecraft:detector_rail"
+            | "minecraft:activator_rail"
+            | "minecraft:lever"
+            | "minecraft:redstone_wire"
+            | "minecraft:tripwire"
+            | "minecraft:tripwire_hook"
+            | "minecraft:string"
+            | "minecraft:scaffolding"
+            | "minecraft:moving_piston"
+            | "minecraft:piston_head"
+    )
+}
+
+fn transparent_dampening(opacity: u8) -> LightBlockProperties {
     LightBlockProperties {
         opacity,
+        emission: 0,
+        uses_shape_for_light_occlusion: false,
+        occlusion_shape_occludes_full_face: false,
+    }
+}
+
+fn transparent_emission(emission: u8) -> LightBlockProperties {
+    LightBlockProperties {
+        opacity: 0,
         emission,
         uses_shape_for_light_occlusion: false,
         occlusion_shape_occludes_full_face: false,
