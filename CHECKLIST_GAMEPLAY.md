@@ -53,8 +53,8 @@
 
 - [ ] Add Mineflayer status-effect tests: apply effect (verify `ClientboundUpdateMobEffectPacket`), tick effect (duration countdown), stack amplifier (higher amplifier replaces lower), expire (remove packet sent), clear via milk bucket (`LivingEntity.removeAllEffects()`), save to playerdata and verify restore on reconnect, verify client-visible particles/icons/amplifiers/durations match vanilla
 - [ ] Implement all vanilla mob effects with correct tick behavior: status-effect registry, attributes, ticking actions, movement/break-speed/damage-prevention helpers, visual/death hooks, ambient flags, hidden-effect stacking, and active-effect NBT serialization are covered by the `status_effect` test group.
-  - [ ] Speed/Slowness: movement speed modifier per amplifier level
-  - [ ] Haste/Mining Fatigue: break speed modifier — `status_effect::break_speed_multiplier` covers haste scaling and mining-fatigue tier multipliers with `non_damage_status_effect_behavior_helpers_cover_vanilla_tick_surfaces`.
+  - [x] Speed/Slowness: movement speed modifier per amplifier level — `STATUS_EFFECTS` Speed applies +0.2 AddMultipliedTotal and Slowness -0.15 AddMultipliedTotal to `movement_speed` attribute; verified against Java `MobEffects.MOVEMENT_SPEED`/`MOVEMENT_SLOWDOWN` 26.1.2 attribute modifiers.
+  - [x] Haste/Mining Fatigue: break speed modifier — `status_effect::break_speed_multiplier` covers haste scaling and mining-fatigue tier multipliers; verified haste formula `1 + 0.2 * (amplifier+1)` matches Java `Player.getDestroySpeed()` line 593, mining fatigue switch values `0.3/0.09/0.0027/8.1E-4` match Java line 597-602.
   - [ ] Strength/Weakness: attack damage modifier
   - [ ] Instant Health/Instant Damage: immediate damage/heal on apply
   - [ ] Jump Boost/Levitation/Slow Falling: movement effects — `status_effect::movement_effect` exposes jump boost, levitation velocity, and slow-falling flags with focused behavior coverage.
