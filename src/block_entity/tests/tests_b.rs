@@ -504,6 +504,14 @@ fn lectern_block_entity_tracks_book_pages_and_comparator_signal() {
 #[test]
 fn sign_block_entities_track_front_back_text_filtering_wax_and_hanging_shape() {
     let mut sign = SignBlockEntityModel::default();
+    assert_sign_defaults_and_blank_edit_rejection(&mut sign);
+    assert_sign_front_text_edit_click_and_wax(&mut sign);
+    assert_sign_back_text_filtering_and_editor_timeout(&mut sign);
+    let loaded = assert_sign_save_load_preserves_text(&sign);
+    assert_hanging_sign_shape_and_load(loaded);
+}
+
+fn assert_sign_defaults_and_blank_edit_rejection(sign: &mut SignBlockEntityModel) {
     assert_eq!(SignBlockEntityModel::MAX_TEXT_LINE_WIDTH, 90);
     assert_eq!(SignBlockEntityModel::TEXT_LINE_HEIGHT, 10);
     assert_eq!(sign.front_text.color, DyeColor::Black);
@@ -514,7 +522,9 @@ fn sign_block_entities_track_front_back_text_filtering_wax_and_hanging_shape() {
         std::array::from_fn(|_| SignLine::default()),
         false,
     ));
+}
 
+fn assert_sign_front_text_edit_click_and_wax(sign: &mut SignBlockEntityModel) {
     sign.set_allowed_player_editor(Some("player-a".to_string()));
     assert!(!sign.player_is_too_far_away_to_edit("player-a", 4.0));
     let front_lines = [
@@ -536,7 +546,9 @@ fn sign_block_entities_track_front_back_text_filtering_wax_and_hanging_shape() {
         sign.executable_click_commands(true, false),
         vec!["/say front".to_string()]
     );
+}
 
+fn assert_sign_back_text_filtering_and_editor_timeout(sign: &mut SignBlockEntityModel) {
     sign.set_allowed_player_editor(Some("player-b".to_string()));
     let filtered_back_lines = [
         SignLine::new("unsafe", "safe"),
@@ -554,7 +566,9 @@ fn sign_block_entities_track_front_back_text_filtering_wax_and_hanging_shape() {
     sign.set_allowed_player_editor(Some("player-c".to_string()));
     assert!(sign.tick_editing_player("player-c", 4.01));
     assert!(sign.player_who_may_edit.is_none());
+}
 
+fn assert_sign_save_load_preserves_text(sign: &SignBlockEntityModel) -> SignBlockEntityModel {
     let saved = sign.save_additional();
     let loaded = SignBlockEntityModel::load_additional(&saved);
     assert_eq!(loaded.front_text.color, DyeColor::Blue);
@@ -567,7 +581,10 @@ fn sign_block_entities_track_front_back_text_filtering_wax_and_hanging_shape() {
     );
     assert_eq!(loaded.back_text.lines[3].raw, "filtered last");
     assert!(!loaded.is_waxed);
+    loaded
+}
 
+fn assert_hanging_sign_shape_and_load(loaded: SignBlockEntityModel) {
     let mut hanging = HangingSignBlockEntityModel::new(HangingSignAttachment::CeilingMiddle);
     hanging.sign = loaded;
     assert_eq!(HangingSignBlockEntityModel::MAX_TEXT_LINE_WIDTH, 60);
@@ -584,7 +601,16 @@ fn sign_block_entities_track_front_back_text_filtering_wax_and_hanging_shape() {
 
 #[test]
 fn brewing_stand_ticks_fuel_recipes_sided_slots_and_save_load_like_java() {
-    let recipes = [
+    let recipes = brewing_test_recipes();
+    let mut stand = BrewingStandBlockEntity::new();
+    assert_brewing_stand_layout_and_sided_slots(&stand);
+    assert_brewing_stand_slot_restrictions(&stand, &recipes);
+    assert_brewing_stand_fuel_tick_brew_and_save_load(&mut stand, &recipes);
+    assert_brewing_stand_cancelled_when_ingredient_changes(&recipes);
+}
+
+fn brewing_test_recipes() -> [BrewingRecipe; 3] {
+    [
         BrewingRecipe::new(
             "minecraft:potion",
             "water",
@@ -606,8 +632,10 @@ fn brewing_stand_ticks_fuel_recipes_sided_slots_and_save_load_like_java() {
             "minecraft:splash_potion",
             "awkward",
         ),
-    ];
-    let mut stand = BrewingStandBlockEntity::new();
+    ]
+}
+
+fn assert_brewing_stand_layout_and_sided_slots(stand: &BrewingStandBlockEntity) {
     assert_eq!(stand.items.len(), BrewingStandBlockEntity::CONTAINER_SIZE);
     assert_eq!(stand.potion_bits(), [false, false, false]);
     assert_eq!(
@@ -622,7 +650,12 @@ fn brewing_stand_ticks_fuel_recipes_sided_slots_and_save_load_like_java() {
         BrewingStandBlockEntity::slots_for_face(Direction::North),
         &[0, 1, 2, BrewingStandBlockEntity::FUEL_SLOT]
     );
+}
 
+fn assert_brewing_stand_slot_restrictions(
+    stand: &BrewingStandBlockEntity,
+    recipes: &[BrewingRecipe],
+) {
     let water = PotItemStack {
         item_id: brewing_stack_id("minecraft:potion", "water"),
         count: 1,
@@ -635,13 +668,13 @@ fn brewing_stand_ticks_fuel_recipes_sided_slots_and_save_load_like_java() {
         item_id: "minecraft:blaze_powder".to_string(),
         count: 2,
     };
-    assert!(stand.can_place_item(0, &water, &recipes));
+    assert!(stand.can_place_item(0, &water, recipes));
     assert!(stand.can_place_item(
         BrewingStandBlockEntity::INGREDIENT_SLOT,
         &nether_wart,
-        &recipes
+        recipes
     ));
-    assert!(stand.can_place_item(BrewingStandBlockEntity::FUEL_SLOT, &blaze_powder, &recipes));
+    assert!(stand.can_place_item(BrewingStandBlockEntity::FUEL_SLOT, &blaze_powder, recipes));
     assert!(!BrewingStandBlockEntity::can_take_item_through_face(
         BrewingStandBlockEntity::INGREDIENT_SLOT,
         &nether_wart,
@@ -655,14 +688,25 @@ fn brewing_stand_ticks_fuel_recipes_sided_slots_and_save_load_like_java() {
         },
         Direction::Down
     ));
+}
 
+fn assert_brewing_stand_fuel_tick_brew_and_save_load(
+    stand: &mut BrewingStandBlockEntity,
+    recipes: &[BrewingRecipe],
+) {
+    let water = PotItemStack {
+        item_id: brewing_stack_id("minecraft:potion", "water"),
+        count: 1,
+    };
+    let nether_wart = stack("minecraft:nether_wart", 1);
+    let blaze_powder = stack("minecraft:blaze_powder", 2);
     stand.set_item(0, Some(water.clone()));
     stand.set_item(1, Some(water));
     stand.set_item(BrewingStandBlockEntity::INGREDIENT_SLOT, Some(nether_wart));
     stand.set_item(BrewingStandBlockEntity::FUEL_SLOT, Some(blaze_powder));
     assert_eq!(stand.potion_bits(), [true, true, false]);
     assert_eq!(
-        stand.server_tick(&recipes),
+        stand.server_tick(recipes),
         BrewingStandTickResult::FuelLoaded
     );
     assert_eq!(stand.fuel, BrewingStandBlockEntity::FUEL_USES);
@@ -672,14 +716,14 @@ fn brewing_stand_ticks_fuel_recipes_sided_slots_and_save_load_like_java() {
             .map(|stack| stack.count),
         Some(1)
     );
-    assert_eq!(stand.server_tick(&recipes), BrewingStandTickResult::Started);
+    assert_eq!(stand.server_tick(recipes), BrewingStandTickResult::Started);
     assert_eq!(stand.fuel, BrewingStandBlockEntity::FUEL_USES - 1);
     assert_eq!(stand.brew_time, BrewingStandBlockEntity::BREW_TIME);
     assert_eq!(stand.ingredient.as_deref(), Some("minecraft:nether_wart"));
     for _ in 1..BrewingStandBlockEntity::BREW_TIME {
-        assert_eq!(stand.server_tick(&recipes), BrewingStandTickResult::Brewing);
+        assert_eq!(stand.server_tick(recipes), BrewingStandTickResult::Brewing);
     }
-    assert_eq!(stand.server_tick(&recipes), BrewingStandTickResult::Brewed);
+    assert_eq!(stand.server_tick(recipes), BrewingStandTickResult::Brewed);
     assert_eq!(stand.items[BrewingStandBlockEntity::INGREDIENT_SLOT], None);
     assert_eq!(
         stand.items[0].as_ref().map(|stack| stack.item_id.as_str()),
@@ -691,8 +735,10 @@ fn brewing_stand_ticks_fuel_recipes_sided_slots_and_save_load_like_java() {
     );
 
     let saved = stand.save_additional();
-    assert_eq!(BrewingStandBlockEntity::load_additional(&saved), stand);
+    assert_eq!(BrewingStandBlockEntity::load_additional(&saved), *stand);
+}
 
+fn assert_brewing_stand_cancelled_when_ingredient_changes(recipes: &[BrewingRecipe]) {
     let mut cancelled = BrewingStandBlockEntity::new();
     cancelled.set_item(
         0,
@@ -710,7 +756,7 @@ fn brewing_stand_ticks_fuel_recipes_sided_slots_and_save_load_like_java() {
     );
     cancelled.fuel = 1;
     assert_eq!(
-        cancelled.server_tick(&recipes),
+        cancelled.server_tick(recipes),
         BrewingStandTickResult::Started
     );
     cancelled.set_item(
@@ -721,7 +767,7 @@ fn brewing_stand_ticks_fuel_recipes_sided_slots_and_save_load_like_java() {
         }),
     );
     assert_eq!(
-        cancelled.server_tick(&recipes),
+        cancelled.server_tick(recipes),
         BrewingStandTickResult::Cancelled
     );
     assert_eq!(cancelled.brew_time, 0);
@@ -730,6 +776,14 @@ fn brewing_stand_ticks_fuel_recipes_sided_slots_and_save_load_like_java() {
 #[test]
 fn crafter_block_entity_tracks_disabled_slots_triggered_pulse_and_output_like_java() {
     let mut crafter = CrafterBlockEntity::new();
+    assert_crafter_layout_disabled_slots_and_input_rules(&mut crafter);
+    let recipe = crafter_test_recipe();
+    assert_crafter_pulse_result_and_tick_lifecycle(&mut crafter, &recipe);
+    assert_crafter_save_load_round_trip(&crafter);
+    assert_crafter_no_recipe_pulse_result(recipe);
+}
+
+fn assert_crafter_layout_disabled_slots_and_input_rules(crafter: &mut CrafterBlockEntity) {
     assert_eq!(CrafterBlockEntity::CONTAINER_WIDTH, 3);
     assert_eq!(CrafterBlockEntity::CONTAINER_HEIGHT, 3);
     assert_eq!(CrafterBlockEntity::NUM_DATA, 10);
@@ -775,8 +829,10 @@ fn crafter_block_entity_tracks_disabled_slots_triggered_pulse_and_output_like_ja
         },
     ));
     assert_eq!(crafter.redstone_signal(), 2);
+}
 
-    let recipe = CrafterRecipe {
+fn crafter_test_recipe() -> CrafterRecipe {
+    CrafterRecipe {
         pattern: [
             Some("minecraft:oak_planks"),
             Some("minecraft:oak_planks"),
@@ -796,14 +852,20 @@ fn crafter_block_entity_tracks_disabled_slots_triggered_pulse_and_output_like_ja
             item_id: "minecraft:bowl".to_string(),
             count: 1,
         }],
-    };
+    }
+}
+
+fn assert_crafter_pulse_result_and_tick_lifecycle(
+    crafter: &mut CrafterBlockEntity,
+    recipe: &CrafterRecipe,
+) {
     assert_eq!(
-        crafter.pulse_craft(std::slice::from_ref(&recipe)),
+        crafter.pulse_craft(std::slice::from_ref(recipe)),
         CrafterPulseResult::NotTriggered
     );
     crafter.set_triggered(true);
     assert_eq!(
-        crafter.pulse_craft(std::slice::from_ref(&recipe)),
+        crafter.pulse_craft(std::slice::from_ref(recipe)),
         CrafterPulseResult::Crafted {
             result: PotItemStack {
                 item_id: "minecraft:stick".to_string(),
@@ -832,11 +894,15 @@ fn crafter_block_entity_tracks_disabled_slots_triggered_pulse_and_output_like_ja
     }
     assert!(crafter.server_tick());
     assert_eq!(crafter.crafting_ticks_remaining, 0);
+}
 
+fn assert_crafter_save_load_round_trip(crafter: &CrafterBlockEntity) {
     let saved = crafter.save_additional();
     let loaded = CrafterBlockEntity::load_additional(&saved);
-    assert_eq!(loaded, crafter);
+    assert_eq!(loaded, *crafter);
+}
 
+fn assert_crafter_no_recipe_pulse_result(recipe: CrafterRecipe) {
     let mut no_recipe = CrafterBlockEntity::new();
     no_recipe.set_triggered(true);
     assert_eq!(
@@ -848,6 +914,13 @@ fn crafter_block_entity_tracks_disabled_slots_triggered_pulse_and_output_like_ja
 #[test]
 fn spawner_block_entity_tracks_spawn_data_rules_delay_and_nbt_like_java() {
     let mut spawner = SpawnerBlockEntity::default();
+    assert_spawner_defaults_and_idle_tick(&mut spawner);
+    assert_spawner_entity_id_and_delay_paths(&mut spawner);
+    assert_spawner_spawn_rule_nearby_cap_and_success_paths(&mut spawner);
+    assert_spawner_save_update_tag_and_events(&mut spawner);
+}
+
+fn assert_spawner_defaults_and_idle_tick(spawner: &mut SpawnerBlockEntity) {
     assert_eq!(spawner.spawn_delay, 20);
     assert_eq!(spawner.min_spawn_delay, 200);
     assert_eq!(spawner.max_spawn_delay, 800);
@@ -859,7 +932,9 @@ fn spawner_block_entity_tracks_spawn_data_rules_delay_and_nbt_like_java() {
         spawner.server_tick(false, true, 0, 0),
         SpawnerTickResult::Idle
     );
+}
 
+fn assert_spawner_entity_id_and_delay_paths(spawner: &mut SpawnerBlockEntity) {
     spawner.set_entity_id("minecraft:zombie");
     assert_eq!(
         spawner
@@ -869,7 +944,24 @@ fn spawner_block_entity_tracks_spawn_data_rules_delay_and_nbt_like_java() {
         Some("minecraft:zombie")
     );
 
-    spawner.spawn_potentials = vec![
+    spawner.spawn_potentials = spawner_test_potentials();
+    spawner.spawn_delay = -1;
+    assert_eq!(
+        spawner.server_tick(true, true, 0, 12),
+        SpawnerTickResult::Delay
+    );
+    assert_eq!(spawner.spawn_delay, 212);
+
+    spawner.spawn_delay = 2;
+    assert_eq!(
+        spawner.server_tick(true, true, 0, 0),
+        SpawnerTickResult::CountDown
+    );
+    assert_eq!(spawner.spawn_delay, 1);
+}
+
+fn spawner_test_potentials() -> Vec<SpawnDataModel> {
+    vec![
         SpawnDataModel {
             weight: 1,
             ..SpawnDataModel::new("minecraft:zombie")
@@ -887,21 +979,10 @@ fn spawner_block_entity_tracks_spawn_data_rules_delay_and_nbt_like_java() {
             )])),
             ..SpawnDataModel::new("minecraft:skeleton")
         },
-    ];
-    spawner.spawn_delay = -1;
-    assert_eq!(
-        spawner.server_tick(true, true, 0, 12),
-        SpawnerTickResult::Delay
-    );
-    assert_eq!(spawner.spawn_delay, 212);
+    ]
+}
 
-    spawner.spawn_delay = 2;
-    assert_eq!(
-        spawner.server_tick(true, true, 0, 0),
-        SpawnerTickResult::CountDown
-    );
-    assert_eq!(spawner.spawn_delay, 1);
-
+fn assert_spawner_spawn_rule_nearby_cap_and_success_paths(spawner: &mut SpawnerBlockEntity) {
     spawner.spawn_delay = 0;
     spawner.next_spawn_data = Some(spawner.spawn_potentials[1].clone());
     assert_eq!(
@@ -969,7 +1050,9 @@ fn spawner_block_entity_tracks_spawn_data_rules_delay_and_nbt_like_java() {
             .and_then(SpawnDataModel::entity_id),
         Some("minecraft:skeleton")
     );
+}
 
+fn assert_spawner_save_update_tag_and_events(spawner: &mut SpawnerBlockEntity) {
     let saved = spawner.save_additional();
     let update_tag = spawner.update_tag();
     assert!(compound_entries(&saved)
@@ -980,7 +1063,7 @@ fn spawner_block_entity_tracks_spawn_data_rules_delay_and_nbt_like_java() {
         .unwrap()
         .iter()
         .any(|(name, _)| name == "SpawnPotentials"));
-    assert_eq!(SpawnerBlockEntity::load_additional(&saved), spawner);
+    assert_eq!(SpawnerBlockEntity::load_additional(&saved), *spawner);
 
     assert!(spawner.on_event_triggered(true, SpawnerBlockEntity::EVENT_SPAWN));
     assert_eq!(spawner.spawn_delay, spawner.min_spawn_delay);
