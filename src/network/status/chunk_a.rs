@@ -1,5 +1,7 @@
 use super::*;
 
+const RESOURCE_USAGE_LOG_INTERVAL_TICKS: u64 = 100;
+
 /// Loads clock state from `{world_root}/server_clocks.json`.
 /// Returns `None` on missing or malformed file; caller falls back to `ServerClockManager::default()`.
 /// Java: ServerClockManager.TYPE SavedData — key "world_clocks"
@@ -373,6 +375,7 @@ impl StatusServerRuntime {
             let mut scheduled = ScheduledTimeChanges::default();
             let mut next_tick = Instant::now() + SERVER_TICK_DURATION;
             let mut tick_count: u64 = 0;
+            let mut resource_usage = ResourceUsageSampler::new();
             loop {
                 let now = Instant::now();
                 if now < next_tick {
@@ -386,6 +389,10 @@ impl StatusServerRuntime {
 
                 // Advance weather. can_have_weather=true for overworld.
                 lock_status_mutex(&weather_t).advance(true, true, DEFAULT_WEATHER_DURATIONS);
+
+                if tick_count.is_multiple_of(RESOURCE_USAGE_LOG_INTERVAL_TICKS) {
+                    resource_usage.log_current_usage(tick_count);
+                }
 
                 // Persist every ~5 minutes.
                 // Java: MinecraftServer.saveEverything() — entities flushed via EntityStorage.
@@ -403,6 +410,91 @@ impl StatusServerRuntime {
         save_server_weather_state(&self.world_root, &lock_status_mutex(&self.weather));
         save_world_item_entities(&self.world_root, &lock_status_mutex(&self.world_items));
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CpuUsageSample {
+    process_jiffies: u64,
+    total_jiffies: u64,
+}
+
+#[derive(Debug)]
+struct ResourceUsageSampler {
+    previous_cpu_sample: Option<CpuUsageSample>,
+    logical_cpus: u64,
+}
+
+impl ResourceUsageSampler {
+    fn new() -> Self {
+        Self {
+            previous_cpu_sample: read_cpu_usage_sample(),
+            logical_cpus: std::thread::available_parallelism()
+                .map(|count| count.get() as u64)
+                .unwrap_or(1),
+        }
+    }
+
+    fn log_current_usage(&mut self, tick_count: u64) {
+        let memory = current_resident_memory_kib()
+            .map(|kib| format!("{} MiB", kib / 1024))
+            .unwrap_or_else(|| "unavailable".to_string());
+        let cpu = self
+            .current_cpu_percent()
+            .map(|percent| format!("{percent:.1}%"))
+            .unwrap_or_else(|| "unavailable".to_string());
+        log_info(&format!(
+            "resource usage at tick {tick_count}: memory={memory}, cpu={cpu}"
+        ));
+    }
+
+    fn current_cpu_percent(&mut self) -> Option<f64> {
+        let current = read_cpu_usage_sample()?;
+        let previous = self.previous_cpu_sample.replace(current)?;
+        let process_delta = current
+            .process_jiffies
+            .checked_sub(previous.process_jiffies)?;
+        let total_delta = current.total_jiffies.checked_sub(previous.total_jiffies)?;
+        if total_delta == 0 {
+            return None;
+        }
+        let cpu_fraction = process_delta as f64 / total_delta as f64;
+        Some(cpu_fraction * self.logical_cpus as f64 * 100.0)
+    }
+}
+
+fn read_cpu_usage_sample() -> Option<CpuUsageSample> {
+    Some(CpuUsageSample {
+        process_jiffies: read_process_cpu_jiffies(&fs::read_to_string("/proc/self/stat").ok()?)?,
+        total_jiffies: read_total_cpu_jiffies(&fs::read_to_string("/proc/stat").ok()?)?,
+    })
+}
+
+fn read_process_cpu_jiffies(stat: &str) -> Option<u64> {
+    let end_of_comm = stat.rfind(") ")?;
+    let fields_after_comm = stat.get(end_of_comm + 2..)?.split_whitespace();
+    let fields = fields_after_comm.collect::<Vec<_>>();
+    let user_time = fields.get(11)?.parse::<u64>().ok()?;
+    let system_time = fields.get(12)?.parse::<u64>().ok()?;
+    user_time.checked_add(system_time)
+}
+
+fn read_total_cpu_jiffies(stat: &str) -> Option<u64> {
+    let cpu_line = stat.lines().find(|line| line.starts_with("cpu "))?;
+    cpu_line
+        .split_whitespace()
+        .skip(1)
+        .map(str::parse::<u64>)
+        .try_fold(0_u64, |total, value| total.checked_add(value.ok()?))
+}
+
+fn current_resident_memory_kib() -> Option<u64> {
+    let status = fs::read_to_string("/proc/self/status").ok()?;
+    parse_resident_memory_kib(&status)
+}
+
+fn parse_resident_memory_kib(status: &str) -> Option<u64> {
+    let line = status.lines().find(|line| line.starts_with("VmRSS:"))?;
+    line.split_whitespace().nth(1)?.parse::<u64>().ok()
 }
 
 fn run_status_accept_loop(
@@ -2500,4 +2592,30 @@ pub(super) fn read_expected_login_hello_packet<R: Read>(
         ));
     }
     ServerboundHelloPacket::read(&mut input)
+}
+
+#[cfg(test)]
+mod resource_usage_tests {
+    use super::*;
+
+    #[test]
+    fn process_cpu_jiffies_parser_handles_process_names_with_spaces() {
+        let stat = "123 (rust craft server) S 1 2 3 4 5 6 7 8 9 10 123 45 14 15";
+
+        assert_eq!(read_process_cpu_jiffies(stat), Some(168));
+    }
+
+    #[test]
+    fn total_cpu_jiffies_parser_sums_aggregate_cpu_line() {
+        let stat = "cpu  100 20 30 400 5 6 7 8 9 10\ncpu0 1 2 3 4";
+
+        assert_eq!(read_total_cpu_jiffies(stat), Some(595));
+    }
+
+    #[test]
+    fn resident_memory_parser_reads_vmrss_kib() {
+        let status = "Name:\trustcraft\nVmPeak:\t2048 kB\nVmRSS:\t1536 kB\n";
+
+        assert_eq!(parse_resident_memory_kib(status), Some(1536));
+    }
 }
