@@ -3,6 +3,30 @@ use super::*;
 
 #[test]
 fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
+    assert_entity_movement_and_spawn_packets();
+    assert_vehicle_mount_link_and_animation_packets();
+    assert_border_and_title_packets();
+    assert_container_cooldown_ability_packets();
+    assert_block_and_level_event_packets();
+    assert_player_info_inventory_and_merchant_packets();
+    assert_player_info_and_chat_packets();
+    assert_recipe_packets();
+    assert_advancement_packet();
+    assert_command_suggestion_and_debug_packets();
+    assert_effect_stat_and_attribute_packets();
+    assert_section_and_block_entity_packets();
+    assert_title_chat_and_tab_packets();
+    assert_score_objective_packets();
+    assert_team_open_screen_and_boss_packets();
+    assert_map_and_resource_pack_packets();
+    assert_position_look_packets();
+    assert_sound_packets();
+    assert_particle_packet();
+    assert_explosion_packet();
+    assert_delete_chat_packets();
+}
+
+fn assert_entity_movement_and_spawn_packets() {
     assert_eq!(
         ClientboundMoveEntityPacket::pos(7, [1, -2, 3], true),
         ClientboundMoveEntityPacket {
@@ -83,7 +107,9 @@ fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
     assert_eq!(&add_entity_payload[27..35], &64.0_f64.to_be_bytes());
     assert_eq!(&add_entity_payload[35..43], &(-2.5_f64).to_be_bytes());
     assert_eq!(&add_entity_payload[43..], &[0, 64, 32, 128, 123]);
+}
 
+fn assert_vehicle_mount_link_and_animation_packets() {
     let move_vehicle = ClientboundMoveVehiclePacket {
         position: Vec3 {
             x: 1.0,
@@ -166,7 +192,9 @@ fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
     .write(&mut remove_payload)
     .unwrap();
     assert_eq!(remove_payload, vec![2, 7, 8]);
+}
 
+fn assert_border_and_title_packets() {
     let border = ClientboundInitializeBorderPacket {
         new_center_x: 1.0,
         new_center_z: 2.0,
@@ -248,7 +276,9 @@ fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
         ]
         .concat()
     );
+}
 
+fn assert_container_cooldown_ability_packets() {
     let mut clientbound_close = Vec::new();
     ClientboundContainerClosePacket { container_id: 128 }
         .write(&mut clientbound_close)
@@ -303,7 +333,9 @@ fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
     assert_eq!(abilities_payload[0], 0b1101);
     assert_eq!(&abilities_payload[1..5], &0.05_f32.to_be_bytes());
     assert_eq!(&abilities_payload[5..9], &0.1_f32.to_be_bytes());
+}
 
+fn assert_block_and_level_event_packets() {
     let mut block_destruction = Vec::new();
     ClientboundBlockDestructionPacket {
         id: 99,
@@ -359,7 +391,9 @@ fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
     assert_eq!(&level_event[..4], &2001_i32.to_be_bytes());
     assert_eq!(&level_event[12..16], &300_i32.to_be_bytes());
     assert_eq!(level_event[16], 1);
+}
 
+fn assert_player_info_inventory_and_merchant_packets() {
     let mut player_info_remove = Vec::new();
     ClientboundPlayerInfoRemovePacket {
         profile_ids: vec![Uuid([1; 16]), Uuid([2; 16])],
@@ -452,7 +486,9 @@ fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
     assert_eq!(&merchant_offers[30..34], &0.05_f32.to_be_bytes());
     assert_eq!(&merchant_offers[34..38], &9_i32.to_be_bytes());
     assert_eq!(&merchant_offers[38..], &[3, 120, 1, 0]);
+}
 
+fn assert_player_info_and_chat_packets() {
     let mut player_info = Vec::new();
     ClientboundPlayerInfoUpdatePacket::player_initializing(vec![PlayerInfoUpdateEntry {
         profile_id: Uuid([7; 16]),
@@ -531,7 +567,9 @@ fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
         &player_chat[553..],
         &[0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 5, 1, 0, 0]
     );
+}
 
+fn assert_recipe_packets() {
     let mut recipe_add = Vec::new();
     ClientboundRecipeBookAddPacket {
         entries: vec![RecipeBookAddEntry::new(
@@ -593,7 +631,9 @@ fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
     .write(&mut recipe_settings)
     .unwrap();
     assert_eq!(recipe_settings, vec![1, 0, 0, 1, 0, 0, 1, 1]);
+}
 
+fn assert_advancement_packet() {
     let root_id = Identifier::parse("minecraft:story/root").unwrap();
     let hidden_id = Identifier::parse("minecraft:story/hidden").unwrap();
     let mut advancements = Vec::new();
@@ -656,7 +696,9 @@ fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
         ]
         .concat()
     );
+}
 
+fn assert_command_suggestion_and_debug_packets() {
     let mut commands = Vec::new();
     ClientboundCommandsPacket {
         root_index: 0,
@@ -751,7 +793,9 @@ fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
         .write(&mut start_configuration)
         .unwrap();
     assert!(start_configuration.is_empty());
+}
 
+fn assert_effect_stat_and_attribute_packets() {
     let mut remove_effect = Vec::new();
     ClientboundRemoveMobEffectPacket {
         entity_id: 129,
@@ -811,7 +855,9 @@ fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
     );
     assert_eq!(&update_attributes[46..54], &0.5_f64.to_be_bytes());
     assert_eq!(update_attributes[54], 2);
+}
 
+fn assert_section_and_block_entity_packets() {
     let mut section_blocks = Vec::new();
     ClientboundSectionBlocksUpdatePacket {
         section_pos: SectionPos { x: 1, y: -2, z: 3 },
@@ -866,7 +912,9 @@ fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
         &[8, 0, 2],
         "network NBT uses writeAnyTag and must not include a root name"
     );
+}
 
+fn assert_title_chat_and_tab_packets() {
     let title_tag = Tag::Compound(vec![("text".to_string(), Tag::String("Title".to_string()))]);
     let mut title = Vec::new();
     ClientboundSetTitleTextPacket {
@@ -933,7 +981,9 @@ fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
     .unwrap();
     assert!(tab_list.starts_with(&title));
     assert_eq!(tab_list.iter().filter(|byte| **byte == 10).count(), 2);
+}
 
+fn assert_score_objective_packets() {
     let mut reset_score = Vec::new();
     ClientboundResetScorePacket {
         owner: "Alex".to_string(),
@@ -1005,7 +1055,9 @@ fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
     );
     assert!(set_score.windows(3).any(|window| window == [0x02, 1, 10]));
     assert_eq!(&set_score[set_score.len() - 3..], &[0, 1, 0]);
+}
 
+fn assert_team_open_screen_and_boss_packets() {
     let team_params = TeamPacketParameters {
         display_name: Tag::Compound(vec![("text".to_string(), Tag::String("Red".to_string()))]),
         options: 0b11,
@@ -1111,7 +1163,9 @@ fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
     .write(&mut boss_style)
     .unwrap();
     assert_eq!(&boss_style[16..], &[4, 2, 4]);
+}
 
+fn assert_map_and_resource_pack_packets() {
     let mut map_item = Vec::new();
     ClientboundMapItemDataPacket {
         map_id: 300,
@@ -1161,7 +1215,9 @@ fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
     .unwrap();
     assert_eq!(pack_pop[0], 1);
     assert_eq!(&pack_pop[1..], &[3; 16]);
+}
 
+fn assert_position_look_packets() {
     let teleport = ClientboundTeleportEntityPacket {
         id: 7,
         position: Vec3 {
@@ -1234,7 +1290,9 @@ fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
     assert_eq!(&look_at[9..17], &64.5_f64.to_be_bytes());
     assert_eq!(&look_at[17..25], &(-7.25_f64).to_be_bytes());
     assert_eq!(&look_at[25..], &[1, 33, 0]);
+}
 
+fn assert_sound_packets() {
     let mut sound_position = Vec::new();
     ClientboundSoundPacket {
         sound: SoundEventHolder::Registered { id: 5 },
@@ -1293,7 +1351,9 @@ fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
         stop_sound,
         [vec![3, 4, 31], b"minecraft:block.note_block.harp".to_vec()].concat()
     );
+}
 
+fn assert_particle_packet() {
     let mut particle = Vec::new();
     ClientboundParticlePacket {
         particle_id: 300,
@@ -1325,7 +1385,9 @@ fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
     assert_eq!(&particle[38..42], &1.25_f32.to_be_bytes());
     assert_eq!(&particle[42..46], &4_i32.to_be_bytes());
     assert_eq!(&particle[46..], &[0xac, 0x02, 0xaa, 0xbb]);
+}
 
+fn assert_explosion_packet() {
     let mut explode = Vec::new();
     ClientboundExplodePacket {
         center: Vec3 {
@@ -1372,7 +1434,9 @@ fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {
     assert_eq!(&explode[63..67], &2.0_f32.to_be_bytes());
     assert_eq!(&explode[67..71], &3.0_f32.to_be_bytes());
     assert_eq!(explode[71], 7);
+}
 
+fn assert_delete_chat_packets() {
     let mut cached_delete_chat = Vec::new();
     ClientboundDeleteChatPacket {
         message_signature: PackedMessageSignature::CacheId(7),
