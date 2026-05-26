@@ -204,7 +204,7 @@ fn decorated_pot_wobble_and_destruction_drops_preserve_sherds_and_item() {
 }
 
 #[test]
-fn brushable_block_entity_brushes_resets_loot_and_update_tag_like_java() {
+fn brushable_block_entity_constants_loot_and_first_brush_match_java() {
     assert_eq!(BrushableBlockEntity::BRUSH_COOLDOWN_TICKS, 10);
     assert_eq!(BrushableBlockEntity::BRUSH_RESET_TICKS, 40);
     assert_eq!(BrushableBlockEntity::REQUIRED_BRUSHES_TO_BREAK, 10);
@@ -251,6 +251,19 @@ fn brushable_block_entity_brushes_resets_loot_and_update_tag_like_java() {
         BrushResult::CoolingDown
     );
     assert_eq!(brushable.hit_direction, Some(Direction::North));
+}
+
+#[test]
+fn brushable_block_entity_cooldown_and_reset_match_java() {
+    let generated_item = PotItemStack {
+        item_id: "minecraft:diamond".to_string(),
+        count: 1,
+    };
+    let mut brushable = BrushableBlockEntity::new();
+    assert_eq!(
+        brushable.brush(100, Direction::North, Some(generated_item)),
+        BrushResult::InProgress { dusted: 1 }
+    );
 
     assert_eq!(
         brushable.brush(110, Direction::South, None),
@@ -284,7 +297,15 @@ fn brushable_block_entity_brushes_resets_loot_and_update_tag_like_java() {
     assert_eq!(brushable.brush_count, 0);
     assert_eq!(brushable.hit_direction, None);
     assert_eq!(brushable.cooldown_ends_at_tick, 0);
+}
 
+#[test]
+fn brushable_block_entity_saves_drops_and_completes_like_java() {
+    let generated_item = PotItemStack {
+        item_id: "minecraft:diamond".to_string(),
+        count: 1,
+    };
+    let mut brushable = BrushableBlockEntity::new();
     brushable.hit_direction = Some(Direction::East);
     brushable.item = Some(generated_item.clone());
     let saved_item = brushable.save_additional();
@@ -461,7 +482,7 @@ fn skull_block_entity_saves_profile_components_and_animation_like_java() {
 }
 
 #[test]
-fn conduit_block_entity_scans_frame_applies_effects_and_tracks_target() {
+fn conduit_block_entity_constants_frame_and_effect_range_match_java() {
     assert_eq!(ConduitBlockEntity::BLOCK_REFRESH_RATE, 40);
     assert_eq!(ConduitBlockEntity::MIN_ACTIVE_SIZE, 16);
     assert_eq!(ConduitBlockEntity::MIN_KILL_SIZE, 42);
@@ -511,6 +532,28 @@ fn conduit_block_entity_scans_frame_applies_effects_and_tracks_target() {
         ConduitBlockEntity::effect_range(minimum.effect_blocks.len()),
         32
     );
+}
+
+#[test]
+fn conduit_block_entity_hunting_target_selection_matches_java() {
+    let origin = BlockPos {
+        x: 10,
+        y: 64,
+        z: 10,
+    };
+    let mut frame_probe = ConduitBlockEntity::new();
+    assert!(frame_probe.update_shape(origin, |_| true, |_| "minecraft:prismarine"));
+    let active_frame: Vec<BlockPos> = frame_probe.effect_blocks.iter().copied().take(16).collect();
+
+    let mut minimum = ConduitBlockEntity::new();
+    let active_frame_lookup = |pos: BlockPos| {
+        if active_frame.contains(&pos) {
+            "minecraft:dark_prismarine"
+        } else {
+            "minecraft:air"
+        }
+    };
+    assert!(minimum.update_shape(origin, |_| true, active_frame_lookup));
     minimum.is_hunting = minimum.effect_blocks.len() >= ConduitBlockEntity::MIN_KILL_SIZE;
     assert!(!minimum.update_destroy_target(
         origin,
@@ -553,8 +596,7 @@ fn conduit_block_entity_scans_frame_applies_effects_and_tracks_target() {
         },
     ];
     let mut hunting = ConduitBlockEntity::new();
-    let attacked =
-        hunting.server_tick(40, origin, |_| true, |_| "minecraft:sea_lantern", &targets);
+    let attacked = hunting.server_tick(40, origin, |_| true, |_| "minecraft:sea_lantern", &targets);
     assert_eq!(attacked.as_deref(), Some("guardian"));
     assert!(hunting.is_active);
     assert!(hunting.is_hunting);
@@ -587,7 +629,11 @@ fn conduit_block_entity_scans_frame_applies_effects_and_tracks_target() {
         None
     );
     assert_eq!(hunting.destroy_target, None);
+}
 
+#[test]
+fn conduit_block_entity_saves_target_to_update_tag() {
+    let mut hunting = ConduitBlockEntity::new();
     hunting.destroy_target = Some("guardian".to_string());
     let saved = hunting.save_additional();
     assert_eq!(
@@ -710,4 +756,3 @@ fn campfire_block_entity_cooks_cools_saves_and_updates_items_like_java() {
     assert_eq!(campfire.cooldown_tick(), vec![CampfireTickResult::Changed]);
     assert_eq!(campfire.cooking_progress[0], 3);
 }
-
