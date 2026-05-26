@@ -411,20 +411,20 @@ fn place_underground_ore_call(
     skip_biome_filter: bool,
 ) -> UndergroundOreCallResult {
     if let Some((feature, config)) = run.model_cache.ore_feature(call.feature) {
-        let report = place_ore_feature_in_chunk(
-            run.context.chunk,
-            run.block_cache,
+        let report = place_ore_feature_in_chunk(OreFeaturePlacementInput {
+            chunk: run.context.chunk,
+            block_cache: run.block_cache,
             source_pos,
-            run.context.biome_source_model,
-            run.context.settings,
-            run.context.seed,
-            run.context.climate_sampler,
-            call.feature,
+            biome_source_model: run.context.biome_source_model,
+            settings: run.context.settings,
+            seed: run.context.seed,
+            climate_sampler: run.context.climate_sampler,
+            placed_feature_id: call.feature,
             feature,
             config,
-            call.seed,
+            feature_seed_value: call.seed,
             skip_biome_filter,
-        );
+        });
         return UndergroundOreCallResult {
             placed: report.placed,
             ore_report: Some(report),
@@ -435,18 +435,18 @@ fn place_underground_ore_call(
         .model_cache
         .disk_feature(call.feature)
         .map(|(feature, config)| {
-            place_disk_feature_in_chunk(
-                run.block_cache,
+            place_disk_feature_in_chunk(DiskFeaturePlacementInput {
+                block_cache: run.block_cache,
                 source_pos,
-                run.context.biome_source_model,
-                run.context.settings,
-                run.context.climate_sampler,
-                call.feature,
+                biome_source_model: run.context.biome_source_model,
+                settings: run.context.settings,
+                climate_sampler: run.context.climate_sampler,
+                placed_feature_id: call.feature,
                 feature,
                 config,
-                call.seed,
+                feature_seed_value: call.seed,
                 skip_biome_filter,
-            )
+            })
         })
         .unwrap_or_default();
     UndergroundOreCallResult {
