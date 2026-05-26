@@ -677,9 +677,10 @@ fn randomizable_container_loot_realizes_table_once_and_preserves_seed() {
 
 #[test]
 fn loot_table_resources_decode_all_vanilla_tables() {
-    let root = std::path::Path::new("../decompiled-server-26.1.2/data/minecraft/loot_table");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../decompiled-server-26.1.2/data/minecraft/loot_table");
     let mut paths = Vec::new();
-    collect_json_paths(root, &mut paths);
+    collect_json_paths(&root, &mut paths);
     paths.sort();
 
     assert_eq!(paths.len(), 1326);
