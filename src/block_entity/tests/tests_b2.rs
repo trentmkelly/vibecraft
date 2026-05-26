@@ -3,59 +3,64 @@ use super::*;
 
 #[test]
 fn trial_spawner_state_machine_configs_rewards_and_nbt_like_java() {
+    let mut spawner = configured_trial_spawner();
+    assert_trial_spawner_waiting_and_activation(&mut spawner);
+    assert_trial_spawner_spawn_and_reward_ejection(&mut spawner);
+    assert_trial_spawner_cooldown_and_ominous_transition(&mut spawner);
+    assert_trial_spawner_override_update_tag_and_save_load(&mut spawner);
+}
+
+fn configured_trial_spawner() -> TrialSpawnerBlockEntity {
     let mut spawner = TrialSpawnerBlockEntity::default();
-    spawner.config.normal_config.spawn_potentials =
-        vec![SpawnDataModel::new("minecraft:zombie")];
-    spawner.config.ominous_config.spawn_potentials =
-        vec![SpawnDataModel::new("minecraft:breeze")];
+    spawner.config.normal_config.spawn_potentials = vec![SpawnDataModel::new("minecraft:zombie")];
+    spawner.config.ominous_config.spawn_potentials = vec![SpawnDataModel::new("minecraft:breeze")];
     spawner.config.normal_config.total_mobs = 2.0;
     spawner.config.normal_config.simultaneous_mobs = 1.0;
     spawner.config.normal_config.ticks_between_spawn = 5;
     spawner.config.target_cooldown_length = 100;
+    spawner
+}
 
+fn trial_spawner_context(
+    game_time: i64,
+    detected_player_count: usize,
+    spawn_success: bool,
+    apply_ominous: bool,
+    roll: usize,
+) -> TrialSpawnerTickContext {
+    TrialSpawnerTickContext {
+        game_time,
+        can_spawn_in_level: true,
+        detected_player_count,
+        current_mobs_alive: 0,
+        spawn_success,
+        apply_ominous,
+        roll,
+    }
+}
+
+fn assert_trial_spawner_waiting_and_activation(spawner: &mut TrialSpawnerBlockEntity) {
     assert_eq!(spawner.state, TrialSpawnerStateModel::Inactive);
     assert_eq!(spawner.config.required_player_range, 14);
     assert_eq!(TrialSpawnerStateModel::Active.light_level(), 8);
     assert_eq!(
-        spawner.tick_server(TrialSpawnerTickContext {
-            game_time: 0,
-            can_spawn_in_level: true,
-            detected_player_count: 0,
-            current_mobs_alive: 0,
-            spawn_success: false,
-            apply_ominous: false,
-            roll: 0,
-        }),
+        spawner.tick_server(trial_spawner_context(0, 0, false, false, 0)),
         TrialSpawnerTickResult::StateChanged(TrialSpawnerStateModel::WaitingForPlayers)
     );
 
     assert_eq!(
-        spawner.tick_server(TrialSpawnerTickContext {
-            game_time: 1,
-            can_spawn_in_level: true,
-            detected_player_count: 2,
-            current_mobs_alive: 0,
-            spawn_success: false,
-            apply_ominous: false,
-            roll: 0,
-        }),
+        spawner.tick_server(trial_spawner_context(1, 2, false, false, 0)),
         TrialSpawnerTickResult::DetectedPlayers(2)
     );
     assert_eq!(spawner.state, TrialSpawnerStateModel::Active);
     assert_eq!(spawner.next_mob_spawns_at, 41);
     assert_eq!(spawner.active_config().target_total_mobs(1), 4);
     assert_eq!(spawner.active_config().target_simultaneous_mobs(1), 2);
+}
 
+fn assert_trial_spawner_spawn_and_reward_ejection(spawner: &mut TrialSpawnerBlockEntity) {
     assert_eq!(
-        spawner.tick_server(TrialSpawnerTickContext {
-            game_time: 41,
-            can_spawn_in_level: true,
-            detected_player_count: 2,
-            current_mobs_alive: 0,
-            spawn_success: true,
-            apply_ominous: false,
-            roll: 0,
-        }),
+        spawner.tick_server(trial_spawner_context(41, 2, true, false, 0)),
         TrialSpawnerTickResult::SpawnMob {
             entity_id: "minecraft:zombie".to_string(),
         }
@@ -67,15 +72,7 @@ fn trial_spawner_state_machine_configs_rewards_and_nbt_like_java() {
     spawner.total_mobs_spawned = spawner.active_config().target_total_mobs(1);
     spawner.current_mobs.clear();
     assert_eq!(
-        spawner.tick_server(TrialSpawnerTickContext {
-            game_time: 47,
-            can_spawn_in_level: true,
-            detected_player_count: 2,
-            current_mobs_alive: 0,
-            spawn_success: false,
-            apply_ominous: false,
-            roll: 0,
-        }),
+        spawner.tick_server(trial_spawner_context(47, 2, false, false, 0)),
         TrialSpawnerTickResult::ReadyForRewards
     );
     assert_eq!(
@@ -85,89 +82,46 @@ fn trial_spawner_state_machine_configs_rewards_and_nbt_like_java() {
     assert_eq!(spawner.cooldown_ends_at, 147);
 
     assert_eq!(
-        spawner.tick_server(TrialSpawnerTickContext {
-            game_time: 87,
-            can_spawn_in_level: true,
-            detected_player_count: 2,
-            current_mobs_alive: 0,
-            spawn_success: false,
-            apply_ominous: false,
-            roll: 0,
-        }),
+        spawner.tick_server(trial_spawner_context(87, 2, false, false, 0)),
         TrialSpawnerTickResult::StateChanged(TrialSpawnerStateModel::EjectingReward)
     );
     assert_eq!(
-        spawner.tick_server(TrialSpawnerTickContext {
-            game_time: 107,
-            can_spawn_in_level: true,
-            detected_player_count: 2,
-            current_mobs_alive: 0,
-            spawn_success: false,
-            apply_ominous: false,
-            roll: 1,
-        }),
+        spawner.tick_server(trial_spawner_context(107, 2, false, false, 1)),
         TrialSpawnerTickResult::EjectedReward {
             loot_table: "minecraft:spawners/trial_chamber/key".to_string(),
             remaining_players: 1,
         }
     );
     assert_eq!(
-        spawner.tick_server(TrialSpawnerTickContext {
-            game_time: 137,
-            can_spawn_in_level: true,
-            detected_player_count: 2,
-            current_mobs_alive: 0,
-            spawn_success: false,
-            apply_ominous: false,
-            roll: 0,
-        }),
+        spawner.tick_server(trial_spawner_context(137, 2, false, false, 0)),
         TrialSpawnerTickResult::EjectedReward {
             loot_table: "minecraft:spawners/trial_chamber/key".to_string(),
             remaining_players: 0,
         }
     );
+}
+
+fn assert_trial_spawner_cooldown_and_ominous_transition(spawner: &mut TrialSpawnerBlockEntity) {
     assert_eq!(
-        spawner.tick_server(TrialSpawnerTickContext {
-            game_time: 167,
-            can_spawn_in_level: true,
-            detected_player_count: 0,
-            current_mobs_alive: 0,
-            spawn_success: false,
-            apply_ominous: false,
-            roll: 0,
-        }),
+        spawner.tick_server(trial_spawner_context(167, 0, false, false, 0)),
         TrialSpawnerTickResult::StateChanged(TrialSpawnerStateModel::Cooldown)
     );
     assert_eq!(
-        spawner.tick_server(TrialSpawnerTickContext {
-            game_time: 180,
-            can_spawn_in_level: true,
-            detected_player_count: 0,
-            current_mobs_alive: 0,
-            spawn_success: false,
-            apply_ominous: false,
-            roll: 0,
-        }),
+        spawner.tick_server(trial_spawner_context(180, 0, false, false, 0)),
         TrialSpawnerTickResult::CooldownFinished
     );
     assert_eq!(spawner.state, TrialSpawnerStateModel::WaitingForPlayers);
 
     assert_eq!(
-        spawner.tick_server(TrialSpawnerTickContext {
-            game_time: 200,
-            can_spawn_in_level: true,
-            detected_player_count: 1,
-            current_mobs_alive: 0,
-            spawn_success: false,
-            apply_ominous: true,
-            roll: 0,
-        }),
+        spawner.tick_server(trial_spawner_context(200, 1, false, true, 0)),
         TrialSpawnerTickResult::BecameOminous
     );
     assert!(spawner.is_ominous);
     assert_eq!(spawner.next_mob_spawns_at, 240);
     assert_eq!(spawner.cooldown_ends_at, 360);
+}
 
+fn assert_trial_spawner_override_update_tag_and_save_load(spawner: &mut TrialSpawnerBlockEntity) {
     spawner.override_entity_to_spawn("minecraft:husk");
     assert_eq!(spawner.state, TrialSpawnerStateModel::Inactive);
     assert_eq!(
@@ -193,7 +147,7 @@ fn trial_spawner_state_machine_configs_rewards_and_nbt_like_java() {
         .any(|(name, _)| name == "spawn_data"));
 
     let saved = spawner.save_additional();
-    assert_eq!(TrialSpawnerBlockEntity::load_additional(&saved), spawner);
+    assert_eq!(TrialSpawnerBlockEntity::load_additional(&saved), *spawner);
 }
 
 #[test]
@@ -968,4 +922,3 @@ fn banner_block_entity_tracks_color_patterns_and_update_tag_shape() {
         matches!(entity.get_update_tag(), Tag::Compound(fields) if fields.iter().any(|(key, _)| key == "patterns") && fields.iter().all(|(key, _)| key != "id"))
     );
 }
-
