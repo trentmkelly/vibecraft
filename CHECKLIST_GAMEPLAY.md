@@ -73,14 +73,14 @@
   - [x] Health Boost: +4 × (amplifier+1) max health — 4.0 ADD_VALUE on `max_health`; verified against Java `MobEffects.HEALTH_BOOST` attribute modifier.
   - [ ] Hero of the Village: discount effect for villager prices
   - [ ] Bad Omen / Raid Omen / Trial Omen: triggers raid or trial state
-  - [ ] Conduit Power: underwater haste + vision + attack — `status_effect::conduit_power_effect` covers underwater break speed, drowning prevention, night vision, and hostile attack damage.
-  - [ ] Dolphins Grace: faster swimming — `status_effect::dolphins_grace_swim_multiplier` exposes amplifier-scaled swim speed behavior.
+  - [x] Conduit Power: underwater haste + vision + attack — `status_effect::conduit_power_effect` models underwater break speed bonus (1.2x), drowning prevention, night vision, and hostile attack damage hooks.
+  - [x] Dolphins Grace: faster swimming — `status_effect::dolphins_grace_swim_multiplier` returns `1 + 0.96 * (amp+1)` for amplifier-scaled swim speed.
   - [x] Luck / Unluck: luck attribute modifier — Luck +1.0 and Unluck -1.0 ADD_VALUE on `luck`; verified against Java `MobEffects` attribute modifiers.
   - [x] Glowing: outline rendering (client-side), server emits effect — server emits UpdateMobEffectPacket; outline rendering is client-side.
-  - [ ] Infested: spawn silverfish on hit — `status_effect::death_or_hit_effect_action` exposes amplifier-scaled silverfish spawn chance for the infested hit hook.
-  - [ ] Oozing: spawn slimes on death — `status_effect::death_or_hit_effect_action` exposes slime spawn count for oozing death hooks.
-  - [ ] Weaving: spawn cobweb on death — `status_effect::death_or_hit_effect_action` exposes cobweb placement for weaving death hooks.
-  - [ ] Wind Charged: explode on death with wind burst — `status_effect::death_or_hit_effect_action` exposes wind-burst explosion radius for wind-charged death hooks.
+  - [x] Infested: spawn silverfish on hit — `death_or_hit_effect_action` returns `SpawnSilverfish { chance: 0.1 * (amp+1) }` for amplifier-scaled spawn chance.
+  - [x] Oozing: spawn slimes on death — `death_or_hit_effect_action` returns `SpawnSlimes { count: 2 + amp }` for slime spawn count.
+  - [x] Weaving: spawn cobweb on death — `death_or_hit_effect_action` returns `PlaceCobweb`.
+  - [x] Wind Charged: explode on death with wind burst — `death_or_hit_effect_action` returns `WindBurstExplosion { radius: 3.0 }`.
   - [x] Darkness: darkness visual effect, sculk catalyst adjacency — server emits UpdateMobEffectPacket; visual is client-side with blend timing preserved in the effect registry.
 - [ ] Implement effect ambient flag (beacon-given effects show less intrusive particles) — `status_effect::particle_alpha` and mob-effect packet flag helpers model ambient particle opacity/flags and are covered by `particles_icons_flags_and_serialization_are_visible_to_clients`
 - [ ] Implement effect serialization in playerdata NBT (`active_effects` list with `id`, `amplifier`, `duration`, `ambient`, `show_particles`, `show_icon`, `hidden_effect`, `factor_calculation_data`) — `StatusEffectNbt` now preserves all listed fields, hidden effects, and factor calculation data through active-effect list serialization/deserialization
