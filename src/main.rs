@@ -349,7 +349,9 @@ fn run_configured_world_upgrade(
     options: &CliOptions,
     runtime: &RuntimeSelection,
 ) -> Result<(), String> {
-    if !(options.force_upgrade || options.erase_cache || options.recreate_region_files) {
+    // Java Main: only --forceUpgrade or --recreateRegionFiles trigger the upgrade.
+    // --eraseCache is a modifier passed into the upgrade, not a standalone trigger.
+    if !(options.force_upgrade || options.recreate_region_files) {
         return Ok(());
     }
 

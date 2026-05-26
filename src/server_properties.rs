@@ -342,7 +342,31 @@ fn vanilla_defaults() -> BTreeMap<String, String> {
     ] {
         defaults.insert(key.to_string(), value.to_string());
     }
+    // Java generates a random 40-char alphanumeric key via SecurityConfig.generateSecretKey()
+    defaults.insert(
+        "management-server-secret".to_string(),
+        generate_management_secret_key(),
+    );
     defaults
+}
+
+/// Matches Java `SecurityConfig.generateSecretKey()`: 40 random chars from [A-Za-z0-9].
+fn generate_management_secret_key() -> String {
+    use std::collections::hash_map::RandomState;
+    use std::hash::{BuildHasher, Hasher};
+
+    const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let mut key = String::with_capacity(40);
+    let state = RandomState::new();
+    let mut h = state.build_hasher();
+    for i in 0..40 {
+        h.write_usize(i);
+        let idx = (h.finish() as usize) % CHARS.len();
+        key.push(CHARS[idx] as char);
+        h = state.build_hasher();
+        h.write_u64(h.finish().wrapping_add(i as u64));
+    }
+    key
 }
 
 #[cfg(test)]
