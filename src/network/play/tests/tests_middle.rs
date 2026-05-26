@@ -538,7 +538,7 @@ fn light_update_data_uses_vanilla_masks_and_2048_byte_layers() {
             block_states: PalettedContainer::single(Tag::Int(0), 4096).to_nbt(),
             biomes: PalettedContainer::single(Tag::Int(0), 64).to_nbt(),
             block_light: Some(vec![0; 2048]),
-            sky_light: Some(vec![-1; 2048]),
+            sky_light: Some(crate::lighting::data_layer::fullbright_sky_layer_bytes()),
         },
         ChunkSection {
             y: 1,
@@ -785,7 +785,7 @@ fn level_chunk_with_light_packet_carries_chunk_buffer_then_light_payload_data() 
             block_states: PalettedContainer::single(Tag::Int(5), 4096).to_nbt(),
             biomes: PalettedContainer::single(Tag::Int(7), 64).to_nbt(),
             block_light: Some(vec![0; 2048]),
-            sky_light: Some(vec![-1; 2048]),
+            sky_light: Some(crate::lighting::data_layer::fullbright_sky_layer_bytes()),
         }],
         heightmaps,
         block_entities: vec![Tag::Compound(vec![
@@ -877,7 +877,7 @@ fn sparse_chunk_sections_are_padded_to_vanilla_overworld_height() {
         block_states: PalettedContainer::single(Tag::Int(1), 4096).to_nbt(),
         biomes: PalettedContainer::single(Tag::String("minecraft:plains".to_string()), 64).to_nbt(),
         block_light: None,
-        sky_light: Some(vec![-1; 2048]),
+        sky_light: Some(crate::lighting::data_layer::fullbright_sky_layer_bytes()),
     }];
 
     let data = ClientboundLevelChunkPacketData::from_chunk(&chunk);

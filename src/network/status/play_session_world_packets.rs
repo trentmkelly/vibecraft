@@ -600,7 +600,7 @@ pub fn write_generated_spawn_chunk_payload<W: Write>(
     let write_started = Instant::now();
     let result = write_level_chunk_with_light_payload(writer, &packet);
     eprintln!(
-        "[worldgen] chunk=({}, {}) packet light={}ms build={}ms write={}ms bytes={} block_entities={} heightmaps={}",
+        "[worldgen] chunk=({}, {}) packet light={}ms build={}ms write={}ms bytes={} block_entities={} heightmaps={} light_correct={}",
         chunk.pos.x,
         chunk.pos.z,
         light_ms,
@@ -620,7 +620,8 @@ pub fn write_generated_spawn_chunk_payload<W: Write>(
             .chunk_data
             .as_ref()
             .map(|data| data.heightmaps.len())
-            .unwrap_or(0)
+            .unwrap_or(0),
+        chunk.light_correct,
     );
     result
 }
@@ -638,7 +639,7 @@ pub fn load_or_generate_spawn_chunk_uncached(
     let region_started = Instant::now();
     let loaded = try_load_chunk_from_region(&region_dir, pos);
     let region_ms = region_started.elapsed().as_millis();
-    let chunk = loaded.unwrap_or_else(|| {
+    let mut chunk = loaded.unwrap_or_else(|| {
         source = match live_chunk_generation_mode() {
             LiveChunkGenerationMode::Preview => "generated-preview",
             LiveChunkGenerationMode::RealSurface => "generated-real-surface",
@@ -667,14 +668,39 @@ pub fn load_or_generate_spawn_chunk_uncached(
             }
         }
     });
+    // Mirror Java's `ThreadedLevelLightEngine.initializeLight`/`lightChunk`:
+    // if the chunk's per-section light arrays were not stamped at save time,
+    // run the full propagator now so the outgoing packet ships real values
+    // instead of the previous "fullbright everywhere" stub.
+    let light_started = Instant::now();
+    let light_result = if !chunk.light_correct {
+        let level_height = crate::lighting::level_height::LevelHeightAccessor::new(
+            crate::network::play::OVERWORLD_MIN_SECTION_Y * 16,
+            crate::network::play::OVERWORLD_SECTION_COUNT as i32 * 16,
+        );
+        Some(crate::lighting::compute_chunk_lighting(
+            &mut chunk,
+            level_height,
+            true,
+        ))
+    } else {
+        None
+    };
+    let light_compute_ms = light_started.elapsed().as_millis();
+    let (block_nodes, sky_nodes) = light_result
+        .map(|r| (r.block_nodes_propagated, r.sky_nodes_propagated))
+        .unwrap_or((0, 0));
     eprintln!(
-        "[worldgen] chunk=({}, {}) source={} status={} sections={} elapsed={}ms",
+        "[worldgen] chunk=({}, {}) source={} status={} sections={} elapsed={}ms light_compute={}ms light_block_nodes={} light_sky_nodes={}",
         x,
         z,
         source,
         chunk.status,
         chunk.sections.len(),
-        started.elapsed().as_millis()
+        started.elapsed().as_millis(),
+        light_compute_ms,
+        block_nodes,
+        sky_nodes,
     );
     chunk
 }

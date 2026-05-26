@@ -133,8 +133,10 @@ pub fn materialize_flat_chunk(pos: ChunkPos, settings: &FlatGeneratorSettingsMod
                     BIOME_SECTION_VOLUME,
                 )
                 .to_nbt(),
+                // Light arrays are populated by the engine handoff after
+                // generation completes (`crate::lighting::compute_chunk_lighting`).
                 block_light: None,
-                sky_light: Some(vec![-1; 2048]),
+                sky_light: None,
             }
         })
         .collect();

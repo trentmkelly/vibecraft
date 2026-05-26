@@ -77,7 +77,7 @@ mod item_entity;
 mod item_family_behavior;
 mod item_properties;
 mod item_stack;
-mod light;
+mod lighting;
 mod living_entity;
 mod localization_keys;
 mod log;

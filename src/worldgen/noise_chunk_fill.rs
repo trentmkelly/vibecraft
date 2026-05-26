@@ -192,8 +192,13 @@ fn initialize_noise_sections(
                 )
                 .to_nbt(),
                 biomes: PalettedContainer::single(biome, BIOME_SECTION_VOLUME).to_nbt(),
+                // Light arrays are deliberately left absent; the chunk
+                // pipeline runs `crate::lighting::compute_chunk_lighting`
+                // before serialization, which populates both layers from
+                // real block states (Java 1:1 parity with
+                // `ThreadedLevelLightEngine.lightChunk`).
                 block_light: None,
-                sky_light: Some(vec![-1i8; 2048]),
+                sky_light: None,
             }
         })
         .collect();

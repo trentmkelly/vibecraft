@@ -1004,9 +1004,16 @@ impl LevelChunk {
                 y: section_y,
                 block_states: default_block_states_container(),
                 biomes: default_biomes_container(),
+                // Light arrays are populated by the lighting engine the next
+                // time the chunk is reserialized; placing a fullbright stub
+                // here would leak through `ClientboundLightUpdatePacketData`.
                 block_light: None,
-                sky_light: Some(vec![-1i8; LIGHT_DATA_LAYER_LENGTH]),
+                sky_light: None,
             });
+            // Reset the chunk-level light_correct flag so the next packet
+            // build triggers a propagator pass.
+            self.light_correct = false;
+            let _ = LIGHT_DATA_LAYER_LENGTH;
             self.sections.sort_by_key(|section| section.y);
         }
 

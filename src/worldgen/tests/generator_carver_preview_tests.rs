@@ -213,7 +213,7 @@ fn cave_tunnel_carver_mutates_chunk_blocks_and_mask() {
             )
             .to_nbt(),
             block_light: None,
-            sky_light: Some(vec![-1; 2048]),
+            sky_light: Some(crate::lighting::data_layer::fullbright_sky_layer_bytes()),
         })
         .collect();
 
@@ -286,7 +286,7 @@ fn canyon_tunnel_carver_mutates_chunk_blocks_and_mask() {
             )
             .to_nbt(),
             block_light: None,
-            sky_light: Some(vec![-1; 2048]),
+            sky_light: Some(crate::lighting::data_layer::fullbright_sky_layer_bytes()),
         })
         .collect();
 
