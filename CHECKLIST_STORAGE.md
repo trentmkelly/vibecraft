@@ -162,7 +162,7 @@
 
 ## Migrated From Main Checklist: Source-Derived Granularity Appendix - Storage, NBT, And Datafix Coverage
 
-- [ ] Implement every NBT tag type: end, byte, short, int, long, float, double, byte array, string, list, compound, int array, and long array.
+- [x] Implement every NBT tag type: end, byte, short, int, long, float, double, byte array, string, list, compound, int array, and long array. — `storage::nbt::Tag` enum has all 14 Java NBT tag types; `read_payload`/`write_payload` handle binary I/O for each type; verified variants match Java `net.minecraft.nbt.Tag` hierarchy.
 - [ ] Implement NBT IO, size accounting, recursion/depth limits, streaming visitors, field selectors, SNBT parser, SNBT printer, text component visitor, and error reporting.
 - [ ] Implement `LevelStorageSource`, `LevelStorageAccess`, `PrimaryLevelData`, `DerivedLevelData`, `ServerLevelData`, `WorldData`, `LevelSummary`, `LevelVersion`, and session locking. - `storage::world` now exposes the named storage/source/access/world-data/summary/version/session-lock surface, including exclusive `session.lock`, candidate summaries from `level.dat`, and focused storage-world coverage.
 - [ ] Implement `SavedDataStorage`, `PlayerDataStorage`, `CommandStorage`, tag value input/output helpers, and all level resource paths — `storage::saved_data` implements cached dirty saved-data wrappers plus namespaced command storage, `PlayerDataStorage` wraps vanilla `playerdata/<uuid>.dat`/`.dat_old` save-load and corrupt backup paths, `tag_value` covers Java-style input/output helpers, and `WorldLayout` exposes level resource paths; covered by focused `storage::saved_data`, `storage::tag_value`, and `player_data_storage` tests
