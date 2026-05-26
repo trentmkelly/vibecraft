@@ -182,7 +182,8 @@ fn is_clear_glass(name: &str) -> bool {
 
 fn light_source(name: &str) -> Option<LightBlockProperties> {
     Some(match name {
-        "minecraft:torch" | "minecraft:wall_torch" => transparent_emission(14),
+        "minecraft:torch" | "minecraft:wall_torch" | "minecraft:copper_torch"
+        | "minecraft:copper_wall_torch" => transparent_emission(14),
         "minecraft:soul_torch" | "minecraft:soul_wall_torch" => transparent_emission(10),
         "minecraft:redstone_torch" | "minecraft:redstone_wall_torch" => transparent_emission(7),
         "minecraft:glowstone"
