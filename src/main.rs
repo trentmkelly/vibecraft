@@ -235,6 +235,7 @@ fn run(options: CliOptions) -> Result<(), String> {
     let runtime = runtime_selection(&options, &startup.properties);
     log_runtime_selection(&logger, &options, &runtime, &watchdog)?;
     run_configured_world_upgrade(&logger, &options, &runtime)?;
+    check_world_version_compatibility(&logger, &runtime)?;
 
     let (console_input, _console_handle) = console::spawn_console_input_thread()
         .map_err(|err| format!("Failed to start server console input thread: {err}"))?;
@@ -380,6 +381,46 @@ fn run_configured_world_upgrade(
         "worldUpgradeSteps={:?}, chunks={}, entityChunks={}",
         report.plan.steps, report.chunk_count, report.entity_chunk_count
     ))
+}
+
+/// Refuse to start if the world's DataVersion is incompatible.
+/// Matches Java `Main.java` line 144: `if (!summary.isCompatible())`.
+///
+/// Java checks `DataVersion.series` equality; for non-experimental worlds
+/// this is always "main". We additionally check numeric version: a world
+/// from a newer server (higher DataVersion) must not be loaded by an
+/// older server.
+fn check_world_version_compatibility(
+    logger: &Logger,
+    runtime: &RuntimeSelection,
+) -> Result<(), String> {
+    let layout = WorldLayout::new(runtime.universe.join(&runtime.world_name));
+    if !layout.level_dat().is_file() && !layout.level_dat_old().is_file() {
+        return Ok(());
+    }
+
+    let tag = match layout.load_level_dat_with_backup() {
+        Ok(tag) => tag,
+        Err(_) => return Ok(()),
+    };
+
+    let Some(version) = LevelVersion::parse_level_dat(&tag) else {
+        return Ok(());
+    };
+
+    if version.minecraft_version.series != "main" {
+        let _ = logger.info("This world was created by an incompatible version.");
+        return Err(format!(
+            "World series '{}' is incompatible (expected 'main')",
+            version.minecraft_version.series
+        ));
+    }
+
+    if let Some(data_version) = version.data_version {
+        storage::datafix::require_current_world_data_version(data_version)?;
+    }
+
+    Ok(())
 }
 
 fn configure_initial_data_packs(
@@ -705,5 +746,61 @@ mod tests {
         assert!(Path::new("generated/reports/worldgen_chunks.json").is_file());
         assert!(Path::new("generated/data/minecraft/tags/block/mineable.json").is_file());
         assert!(!Path::new("eula.txt").exists());
+    }
+
+    #[test]
+    fn incompatible_world_series_refuses_startup() {
+        use crate::log::{LogLevel, Logger};
+        use crate::storage::nbt::Tag;
+        use crate::storage::world::WorldLayout;
+
+        let dir = temp_workdir("incompatible_series");
+        let world = dir.join("world");
+        let layout = WorldLayout::new(&world);
+        fs::create_dir_all(layout.root()).expect("mkdir");
+        let log_dir = dir.join("logs");
+        fs::create_dir_all(&log_dir).expect("logs dir");
+        let logger = Logger::open_with_level(&log_dir, LogLevel::Info).expect("logger");
+
+        let data_version = crate::storage::datafix::TARGET_DATA_VERSION;
+        let mut level_dat = Vec::new();
+        crate::storage::nbt::write_named_tag(
+            &mut level_dat,
+            "",
+            &Tag::Compound(vec![(
+                "Data".to_string(),
+                Tag::Compound(vec![
+                    ("DataVersion".to_string(), Tag::Int(data_version)),
+                    (
+                        "Version".to_string(),
+                        Tag::Compound(vec![
+                            ("Id".to_string(), Tag::Int(data_version)),
+                            ("Name".to_string(), Tag::String("26.1.2".to_string())),
+                            (
+                                "Series".to_string(),
+                                Tag::String("experimental_snapshot".to_string()),
+                            ),
+                            ("Snapshot".to_string(), Tag::Byte(0)),
+                        ]),
+                    ),
+                ]),
+            )]),
+        )
+        .expect("write nbt");
+        fs::write(layout.level_dat(), &level_dat).expect("write level.dat");
+
+        let runtime = super::RuntimeSelection {
+            world_name: "world".to_string(),
+            universe: dir.clone(),
+            port: 25565,
+            server_id: None,
+        };
+        let result = super::check_world_version_compatibility(&logger, &runtime);
+        assert!(result.is_err(), "should refuse incompatible series");
+        assert!(
+            result.unwrap_err().contains("experimental_snapshot"),
+            "error should name the incompatible series"
+        );
+        let _ = fs::remove_dir_all(&dir);
     }
 }

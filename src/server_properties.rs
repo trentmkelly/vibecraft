@@ -1,4 +1,3 @@
-#[cfg(test)]
 use crate::game_rules::{GameRuleError, GameRuleSync, GameRules};
 
 use std::collections::{BTreeMap, HashMap};
@@ -208,7 +207,11 @@ impl ServerProperties {
             .map_err(|err| format!("Failed to write '{}': {err}", path.display()))
     }
 
-    #[cfg(test)]
+    /// Migrates the legacy `announce-player-achievements` property to the
+    /// `show_advancement_messages` gamerule, matching Java `DedicatedServer`
+    /// line 286-288: if the property exists, set the gamerule.
+    /// Called after world loading when a GameRules instance is available.
+    #[allow(dead_code)]
     pub fn migrate_legacy_announce_player_achievements(
         &self,
         game_rules: &mut GameRules,
