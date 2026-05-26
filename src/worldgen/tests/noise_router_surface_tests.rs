@@ -484,6 +484,60 @@ use super::*;
         );
     }
 
+    fn is_land_surface_block(block: &str) -> bool {
+        !matches!(
+            block,
+            "minecraft:air"
+                | "minecraft:cave_air"
+                | "minecraft:void_air"
+                | "minecraft:water"
+                | "minecraft:lava"
+        )
+    }
+
+    fn chunk_has_land_column(
+        chunk: &crate::storage::chunk::LevelChunk,
+        min_y: i32,
+        max_y: i32,
+        sea_level: i32,
+    ) -> bool {
+        (0..16_i32).any(|local_z| {
+            (0..16_i32).any(|local_x| {
+                let block_x = chunk.pos.x * 16 + local_x;
+                let block_z = chunk.pos.z * 16 + local_z;
+                (min_y..=max_y).rev().any(|y| {
+                    chunk
+                        .get_block_state(block_x, y, block_z)
+                        .as_deref()
+                        .is_some_and(|block| is_land_surface_block(block) && y > sea_level)
+                })
+            })
+        })
+    }
+
+    fn first_land_column_top(
+        chunk: &crate::storage::chunk::LevelChunk,
+        min_y: i32,
+        max_y: i32,
+        sea_level: i32,
+    ) -> Option<(i32, i32, i32, String)> {
+        (0..16_i32)
+            .flat_map(|local_z| (0..16_i32).map(move |local_x| (local_x, local_z)))
+            .find_map(|(local_x, local_z)| {
+                let block_x = chunk.pos.x * 16 + local_x;
+                let block_z = chunk.pos.z * 16 + local_z;
+                (min_y..=max_y).rev().find_map(|y| {
+                    chunk.get_block_state(block_x, y, block_z).and_then(|block| {
+                        if is_land_surface_block(&block) && y > sea_level {
+                            Some((block_x, y, block_z, block))
+                        } else {
+                            None
+                        }
+                    })
+                })
+            })
+    }
+
     /// Parity test: after applying the overworld surface rule, any land column (top solid
     /// block above sea level) should have grass on top, dirt directly below, and stone
     /// several blocks further down.  Because chunk (0,0) at seed 0 may be partially or
@@ -526,28 +580,7 @@ use super::*;
                         noise_router,
                         &rule,
                     );
-                    // Check if any column in this chunk has its solid surface above sea level.
-                    let has_land = (0..16_i32).any(|lz| {
-                        (0..16_i32).any(|lx| {
-                            let bx = cx * 16 + lx;
-                            let bz = cz * 16 + lz;
-                            (min_y..=max_y).rev().any(|y| {
-                                match c.get_block_state(bx, y, bz).as_deref() {
-                                    Some(b)
-                                        if b != "minecraft:air"
-                                            && b != "minecraft:cave_air"
-                                            && b != "minecraft:void_air"
-                                            && b != "minecraft:water"
-                                            && b != "minecraft:lava" =>
-                                    {
-                                        y > sea_level
-                                    }
-                                    _ => false,
-                                }
-                            })
-                        })
-                    });
-                    if has_land {
+                    if chunk_has_land_column(&c, min_y, max_y, sea_level) {
                         break 'found c;
                     }
                 }
@@ -555,32 +588,7 @@ use super::*;
             panic!("no land column found in any of the 16 chunks near the origin — terrain generation may be broken");
         };
 
-        // Find the first land column in the chunk (top solid block above sea level).
-        let land_column = (0..16_i32)
-            .flat_map(|lz| (0..16_i32).map(move |lx| (lx, lz)))
-            .find_map(|(lx, lz)| {
-                let bx = chunk.pos.x * 16 + lx;
-                let bz = chunk.pos.z * 16 + lz;
-                let top = (min_y..=max_y).rev().find_map(|y| {
-                    match chunk.get_block_state(bx, y, bz).as_deref() {
-                        Some(b)
-                            if b != "minecraft:air"
-                                && b != "minecraft:cave_air"
-                                && b != "minecraft:void_air"
-                                && b != "minecraft:water"
-                                && b != "minecraft:lava" =>
-                        {
-                            if y > sea_level {
-                                Some((bx, y, bz, b.to_string()))
-                            } else {
-                                None
-                            }
-                        }
-                        _ => None,
-                    }
-                });
-                top
-            })
+        let land_column = first_land_column_top(&chunk, min_y, max_y, sea_level)
             .expect("a land column must exist in the chunk we selected");
 
         let (bx, top_y, bz, top_block_name) = land_column;
@@ -888,4 +896,3 @@ use super::*;
             Some("minecraft:red_sand")
         );
     }
-
