@@ -39,6 +39,13 @@ fn scripted_container_click(
 #[test]
 fn play_packet_registry_matches_game_protocol_order_and_counts() {
     let registry = PlayProtocolRegistry::new();
+    assert_play_registry_counts_and_serverbound_names(&registry);
+    assert_play_registry_clientbound_core_names(&registry);
+    assert_play_registry_clientbound_system_names(&registry);
+    assert_play_registry_tail_names(&registry);
+}
+
+fn assert_play_registry_counts_and_serverbound_names(registry: &PlayProtocolRegistry) {
     assert_eq!(
         registry.serverbound().len(),
         SERVERBOUND_PLAY_PACKET_COUNT_26_1_2
@@ -79,6 +86,9 @@ fn play_packet_registry_matches_game_protocol_order_and_counts() {
         registry.serverbound_name(SERVERBOUND_CHAT_SESSION_UPDATE_PACKET_ID),
         Some("chat_session_update")
     );
+}
+
+fn assert_play_registry_clientbound_core_names(registry: &PlayProtocolRegistry) {
     assert_eq!(
         registry.clientbound_name(CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID),
         Some("bundle")
@@ -115,6 +125,9 @@ fn play_packet_registry_matches_game_protocol_order_and_counts() {
         registry.clientbound_name(CLIENTBOUND_GAME_RULE_VALUES_PACKET_ID),
         Some("game_rule_values")
     );
+}
+
+fn assert_play_registry_clientbound_system_names(registry: &PlayProtocolRegistry) {
     assert_eq!(
         registry.clientbound_name(CLIENTBOUND_ADD_ENTITY_PACKET_ID),
         Some("add_entity")
@@ -183,166 +196,210 @@ fn play_packet_registry_matches_game_protocol_order_and_counts() {
         registry.clientbound_name(CLIENTBOUND_START_CONFIGURATION_PACKET_ID),
         Some("start_configuration")
     );
+}
+
+fn assert_play_registry_tail_names(registry: &PlayProtocolRegistry) {
     assert_eq!(registry.serverbound().last(), Some(&"custom_click_action"));
     assert_eq!(registry.clientbound().last(), Some(&"show_dialog"));
 }
 
 #[test]
 fn recipe_book_add_packet_matches_vanilla_display_and_slot_stream_order() {
+    let payload = recipe_book_add_payload();
+    assert_eq!(payload, expected_recipe_book_add_payload());
+}
+
+fn recipe_book_add_payload() -> Vec<u8> {
     let mut payload = Vec::new();
     ClientboundRecipeBookAddPacket {
         entries: vec![
-            RecipeBookAddEntry::new(
-                RecipeDisplayEntryData {
-                    id: 0,
-                    display: RecipeDisplayData::CraftingShapeless {
-                        ingredients: vec![
-                            SlotDisplayData::Item { item_id: 1 },
-                            SlotDisplayData::Tag {
-                                tag: Identifier::parse("minecraft:planks").unwrap(),
-                            },
-                        ],
-                        result: SlotDisplayData::ItemStack { stack: stack(1, 2) },
-                        crafting_station: SlotDisplayData::Item { item_id: 3 },
-                    },
-                    group: None,
-                    category_id: 0,
-                    crafting_requirements: None,
-                },
-                false,
-                false,
-            ),
-            RecipeBookAddEntry::new(
-                RecipeDisplayEntryData {
-                    id: 1,
-                    display: RecipeDisplayData::CraftingShaped {
-                        width: 2,
-                        height: 2,
-                        ingredients: vec![
-                            SlotDisplayData::Empty,
-                            SlotDisplayData::Item { item_id: 4 },
-                            SlotDisplayData::WithRemainder {
-                                input: Box::new(SlotDisplayData::Item { item_id: 5 }),
-                                remainder: Box::new(SlotDisplayData::ItemStack {
-                                    stack: stack(1, 6),
-                                }),
-                            },
-                            SlotDisplayData::Composite(vec![
-                                SlotDisplayData::Item { item_id: 7 },
-                                SlotDisplayData::Tag {
-                                    tag: Identifier::parse("minecraft:logs").unwrap(),
-                                },
-                            ]),
-                        ],
-                        result: SlotDisplayData::Item { item_id: 8 },
-                        crafting_station: SlotDisplayData::Item { item_id: 9 },
-                    },
-                    group: Some(0),
-                    category_id: 1,
-                    crafting_requirements: Some(vec![
-                        RecipeIngredientData::DirectItems(vec![4]),
-                        RecipeIngredientData::Tag(Identifier::parse("minecraft:wool").unwrap()),
-                    ]),
-                },
-                true,
-                true,
-            ),
-            RecipeBookAddEntry::new(
-                RecipeDisplayEntryData {
-                    id: 2,
-                    display: RecipeDisplayData::Furnace {
-                        ingredient: SlotDisplayData::WithAnyPotion(Box::new(
-                            SlotDisplayData::Item { item_id: 10 },
-                        )),
-                        fuel: SlotDisplayData::AnyFuel,
-                        result: SlotDisplayData::ItemStack {
-                            stack: stack(2, 11),
-                        },
-                        crafting_station: SlotDisplayData::Item { item_id: 12 },
-                        duration: 200,
-                        experience_bits: 1.0f32.to_bits(),
-                    },
-                    group: None,
-                    category_id: 2,
-                    crafting_requirements: None,
-                },
-                false,
-                false,
-            ),
-            RecipeBookAddEntry::new(
-                RecipeDisplayEntryData {
-                    id: 3,
-                    display: RecipeDisplayData::Stonecutter {
-                        ingredient: SlotDisplayData::OnlyWithComponent {
-                            contents: Box::new(SlotDisplayData::Item { item_id: 13 }),
-                            component_type_id: 14,
-                        },
-                        result: SlotDisplayData::Dyed {
-                            dye: Box::new(SlotDisplayData::Item { item_id: 15 }),
-                            target: Box::new(SlotDisplayData::Item { item_id: 16 }),
-                        },
-                        crafting_station: SlotDisplayData::Item { item_id: 17 },
-                    },
-                    group: None,
-                    category_id: 3,
-                    crafting_requirements: None,
-                },
-                false,
-                false,
-            ),
-            RecipeBookAddEntry::new(
-                RecipeDisplayEntryData {
-                    id: 4,
-                    display: RecipeDisplayData::Smithing {
-                        template: SlotDisplayData::Item { item_id: 18 },
-                        base: SlotDisplayData::SmithingTrim {
-                            base: Box::new(SlotDisplayData::Item { item_id: 19 }),
-                            material: Box::new(SlotDisplayData::Item { item_id: 20 }),
-                            pattern_id: 21,
-                        },
-                        addition: SlotDisplayData::Item { item_id: 22 },
-                        result: SlotDisplayData::Item { item_id: 24 },
-                        crafting_station: SlotDisplayData::Item { item_id: 23 },
-                    },
-                    group: None,
-                    category_id: 4,
-                    crafting_requirements: None,
-                },
-                false,
-                false,
-            ),
+            shapeless_recipe_book_entry(),
+            shaped_recipe_book_entry(),
+            furnace_recipe_book_entry(),
+            stonecutter_recipe_book_entry(),
+            smithing_recipe_book_entry(),
         ],
         replace: true,
     }
     .write(&mut payload)
     .unwrap();
+    payload
+}
 
-    assert_eq!(
-        payload,
-        [
-            vec![5],
-            vec![0, 0, 2, 4, 1, 6, 16],
-            b"minecraft:planks".to_vec(),
-            vec![5, 2, 1, 0, 0, 4, 3, 0, 0, 0, 0],
-            vec![1, 1, 2, 2, 4, 0, 4, 4, 9, 4, 5, 5, 6, 1, 0, 0, 10, 2, 4, 7, 6, 14],
-            b"minecraft:logs".to_vec(),
-            vec![4, 8, 4, 9, 1, 1, 1, 2, 2, 4, 0, 14],
-            b"minecraft:wool".to_vec(),
-            vec![3],
-            vec![
-                2, 2, 2, 4, 10, 1, 5, 11, 2, 0, 0, 4, 12, 0xc8, 0x01, 0x3f, 0x80, 0, 0, 0, 2, 0, 0
-            ],
-            vec![3, 3, 3, 4, 13, 14, 7, 4, 15, 4, 16, 4, 17, 0, 3, 0, 0],
-            vec![4, 4, 4, 18, 8, 4, 19, 4, 20, 21, 4, 22, 4, 24, 4, 23, 0, 4, 0, 0],
-            vec![1],
-        ]
-        .concat()
-    );
+fn shapeless_recipe_book_entry() -> RecipeBookAddEntry {
+    RecipeBookAddEntry::new(
+        RecipeDisplayEntryData {
+            id: 0,
+            display: RecipeDisplayData::CraftingShapeless {
+                ingredients: vec![
+                    SlotDisplayData::Item { item_id: 1 },
+                    SlotDisplayData::Tag {
+                        tag: Identifier::parse("minecraft:planks").unwrap(),
+                    },
+                ],
+                result: SlotDisplayData::ItemStack { stack: stack(1, 2) },
+                crafting_station: SlotDisplayData::Item { item_id: 3 },
+            },
+            group: None,
+            category_id: 0,
+            crafting_requirements: None,
+        },
+        false,
+        false,
+    )
+}
+
+fn shaped_recipe_book_entry() -> RecipeBookAddEntry {
+    RecipeBookAddEntry::new(
+        RecipeDisplayEntryData {
+            id: 1,
+            display: RecipeDisplayData::CraftingShaped {
+                width: 2,
+                height: 2,
+                ingredients: vec![
+                    SlotDisplayData::Empty,
+                    SlotDisplayData::Item { item_id: 4 },
+                    SlotDisplayData::WithRemainder {
+                        input: Box::new(SlotDisplayData::Item { item_id: 5 }),
+                        remainder: Box::new(SlotDisplayData::ItemStack { stack: stack(1, 6) }),
+                    },
+                    SlotDisplayData::Composite(vec![
+                        SlotDisplayData::Item { item_id: 7 },
+                        SlotDisplayData::Tag {
+                            tag: Identifier::parse("minecraft:logs").unwrap(),
+                        },
+                    ]),
+                ],
+                result: SlotDisplayData::Item { item_id: 8 },
+                crafting_station: SlotDisplayData::Item { item_id: 9 },
+            },
+            group: Some(0),
+            category_id: 1,
+            crafting_requirements: Some(vec![
+                RecipeIngredientData::DirectItems(vec![4]),
+                RecipeIngredientData::Tag(Identifier::parse("minecraft:wool").unwrap()),
+            ]),
+        },
+        true,
+        true,
+    )
+}
+
+fn furnace_recipe_book_entry() -> RecipeBookAddEntry {
+    RecipeBookAddEntry::new(
+        RecipeDisplayEntryData {
+            id: 2,
+            display: RecipeDisplayData::Furnace {
+                ingredient: SlotDisplayData::WithAnyPotion(Box::new(SlotDisplayData::Item {
+                    item_id: 10,
+                })),
+                fuel: SlotDisplayData::AnyFuel,
+                result: SlotDisplayData::ItemStack {
+                    stack: stack(2, 11),
+                },
+                crafting_station: SlotDisplayData::Item { item_id: 12 },
+                duration: 200,
+                experience_bits: 1.0f32.to_bits(),
+            },
+            group: None,
+            category_id: 2,
+            crafting_requirements: None,
+        },
+        false,
+        false,
+    )
+}
+
+fn stonecutter_recipe_book_entry() -> RecipeBookAddEntry {
+    RecipeBookAddEntry::new(
+        RecipeDisplayEntryData {
+            id: 3,
+            display: RecipeDisplayData::Stonecutter {
+                ingredient: SlotDisplayData::OnlyWithComponent {
+                    contents: Box::new(SlotDisplayData::Item { item_id: 13 }),
+                    component_type_id: 14,
+                },
+                result: SlotDisplayData::Dyed {
+                    dye: Box::new(SlotDisplayData::Item { item_id: 15 }),
+                    target: Box::new(SlotDisplayData::Item { item_id: 16 }),
+                },
+                crafting_station: SlotDisplayData::Item { item_id: 17 },
+            },
+            group: None,
+            category_id: 3,
+            crafting_requirements: None,
+        },
+        false,
+        false,
+    )
+}
+
+fn smithing_recipe_book_entry() -> RecipeBookAddEntry {
+    RecipeBookAddEntry::new(
+        RecipeDisplayEntryData {
+            id: 4,
+            display: RecipeDisplayData::Smithing {
+                template: SlotDisplayData::Item { item_id: 18 },
+                base: SlotDisplayData::SmithingTrim {
+                    base: Box::new(SlotDisplayData::Item { item_id: 19 }),
+                    material: Box::new(SlotDisplayData::Item { item_id: 20 }),
+                    pattern_id: 21,
+                },
+                addition: SlotDisplayData::Item { item_id: 22 },
+                result: SlotDisplayData::Item { item_id: 24 },
+                crafting_station: SlotDisplayData::Item { item_id: 23 },
+            },
+            group: None,
+            category_id: 4,
+            crafting_requirements: None,
+        },
+        false,
+        false,
+    )
+}
+
+fn expected_recipe_book_add_payload() -> Vec<u8> {
+    [
+        vec![5],
+        vec![0, 0, 2, 4, 1, 6, 16],
+        b"minecraft:planks".to_vec(),
+        vec![5, 2, 1, 0, 0, 4, 3, 0, 0, 0, 0],
+        vec![
+            1, 1, 2, 2, 4, 0, 4, 4, 9, 4, 5, 5, 6, 1, 0, 0, 10, 2, 4, 7, 6, 14,
+        ],
+        b"minecraft:logs".to_vec(),
+        vec![4, 8, 4, 9, 1, 1, 1, 2, 2, 4, 0, 14],
+        b"minecraft:wool".to_vec(),
+        vec![3],
+        vec![
+            2, 2, 2, 4, 10, 1, 5, 11, 2, 0, 0, 4, 12, 0xc8, 0x01, 0x3f, 0x80, 0, 0, 0, 2, 0, 0,
+        ],
+        vec![3, 3, 3, 4, 13, 14, 7, 4, 15, 4, 16, 4, 17, 0, 3, 0, 0],
+        vec![
+            4, 4, 4, 18, 8, 4, 19, 4, 20, 21, 4, 22, 4, 24, 4, 23, 0, 4, 0, 0,
+        ],
+        vec![1],
+    ]
+    .concat()
 }
 
 #[test]
 fn broad_play_packet_families_are_represented_as_distinct_instructions() {
-    let instructions = vec![
+    let instructions = representative_play_instructions();
+    assert_representative_play_instruction_kinds(&instructions);
+}
+
+fn representative_play_instructions() -> Vec<PlayInstruction> {
+    [
+        representative_inventory_and_progress_instructions(),
+        representative_feedback_instructions(),
+        representative_world_and_debug_instructions(),
+    ]
+    .concat()
+}
+
+fn representative_inventory_and_progress_instructions() -> Vec<PlayInstruction> {
+    vec![
         PlayInstruction::Container(ClientboundContainerPacket {
             container_id: 1,
             state_id: 2,
@@ -384,6 +441,11 @@ fn broad_play_packet_families_are_represented_as_distinct_instructions() {
                 "true".to_string(),
             )]),
         }),
+    ]
+}
+
+fn representative_feedback_instructions() -> Vec<PlayInstruction> {
+    vec![
         PlayInstruction::Scoreboard(ClientboundScoreboardPacket {
             objective: "sidebar".to_string(),
             owner: Some("Steve".to_string()),
@@ -431,6 +493,11 @@ fn broad_play_packet_families_are_represented_as_distinct_instructions() {
             explosion_sound: SoundEventHolder::Registered { id: 1 },
             block_particles: Vec::new(),
         }),
+    ]
+}
+
+fn representative_world_and_debug_instructions() -> Vec<PlayInstruction> {
+    vec![
         PlayInstruction::MapItemData(ClientboundMapItemDataPacket {
             map_id: 1,
             scale: 2,
@@ -473,8 +540,10 @@ fn broad_play_packet_families_are_represented_as_distinct_instructions() {
             kind: DebugPacketKind::Sample,
             payload_size: 8,
         }),
-    ];
+    ]
+}
 
+fn assert_representative_play_instruction_kinds(instructions: &[PlayInstruction]) {
     assert_eq!(instructions.len(), 16);
     assert!(matches!(instructions[0], PlayInstruction::Container(_)));
     assert!(matches!(
@@ -520,7 +589,15 @@ fn game_rule_values_packet_writes_registry_key_string_map() {
 
 #[test]
 fn entity_spawn_bundle_preserves_vanilla_spawn_then_state_update_order() {
-    let spawn = ClientboundAddEntityPacket::new(AddEntityPacketInput {
+    let spawn = test_add_entity_packet();
+    assert_entity_spawn_rotation_and_velocity(&spawn);
+    let instructions = test_entity_spawn_bundle_instructions(spawn);
+    assert_entity_spawn_bundle_instruction_order(&instructions);
+    assert_entity_spawn_bundle_payloads(instructions);
+}
+
+fn test_add_entity_packet() -> ClientboundAddEntityPacket {
+    ClientboundAddEntityPacket::new(AddEntityPacketInput {
         id: 7,
         uuid: Uuid([1; 16]),
         entity_type: 42,
@@ -537,7 +614,10 @@ fn entity_spawn_bundle_preserves_vanilla_spawn_then_state_update_order() {
         rotation: (45.0, 90.0),
         y_head_rot: 180.0,
         data: 3,
-    });
+    })
+}
+
+fn assert_entity_spawn_rotation_and_velocity(spawn: &ClientboundAddEntityPacket) {
     assert_eq!(spawn.x_rot, 32);
     assert_eq!(spawn.y_rot, 64);
     assert_eq!(spawn.y_head_rot, 128);
@@ -551,8 +631,13 @@ fn entity_spawn_bundle_preserves_vanilla_spawn_then_state_update_order() {
             z: 0.25,
         }
     );
+}
 
-    let instructions = EntitySpawnBundle {
+fn test_entity_spawn_bundle_instructions(
+    spawn: ClientboundAddEntityPacket,
+) -> Vec<PlayInstruction> {
+    let velocity = ClientboundSetEntityMotionPacket::new(7, spawn.movement);
+    EntitySpawnBundle {
         spawn: spawn.clone(),
         metadata: Some(ClientboundSetEntityDataPacket {
             id: 7,
@@ -600,15 +685,12 @@ fn entity_spawn_bundle_preserves_vanilla_spawn_then_state_update_order() {
             flags: MobEffectFlags::from_parts(false, true, true, true),
         }],
     }
-    .instructions();
+    .instructions()
+}
 
+fn assert_entity_spawn_bundle_instruction_order(instructions: &[PlayInstruction]) {
     assert!(matches!(instructions[0], PlayInstruction::AddEntity(_)));
-    let PlayInstruction::SetEntityData(metadata) = &instructions[1] else {
-        panic!("expected set entity data instruction");
-    };
-    let mut metadata_payload = Vec::new();
-    metadata.write(&mut metadata_payload).unwrap();
-    assert_eq!(metadata_payload, vec![7, 0, 0, 0x20, 0xff]);
+    assert!(matches!(instructions[1], PlayInstruction::SetEntityData(_)));
     assert!(matches!(
         instructions[2],
         PlayInstruction::SetEntityMotion(_)
@@ -622,6 +704,15 @@ fn entity_spawn_bundle_preserves_vanilla_spawn_then_state_update_order() {
         instructions[5],
         PlayInstruction::UpdateMobEffect(_)
     ));
+}
+
+fn assert_entity_spawn_bundle_payloads(instructions: Vec<PlayInstruction>) {
+    let PlayInstruction::SetEntityData(metadata) = &instructions[1] else {
+        panic!("expected set entity data instruction");
+    };
+    let mut metadata_payload = Vec::new();
+    metadata.write(&mut metadata_payload).unwrap();
+    assert_eq!(metadata_payload, vec![7, 0, 0, 0x20, 0xff]);
     let PlayInstruction::SetEquipment(equipment) = &instructions[3] else {
         panic!("expected equipment packet");
     };
@@ -641,13 +732,47 @@ fn entity_spawn_bundle_preserves_vanilla_spawn_then_state_update_order() {
 
 #[test]
 fn entity_metadata_values_use_vanilla_26_1_2_serializer_ids_and_payloads() {
+    let values = metadata_serializer_test_values();
+
+    assert_eq!(
+        values
+            .iter()
+            .map(|value| value.serializer_id)
+            .collect::<Vec<_>>(),
+        (0..=42).collect::<Vec<_>>()
+    );
+
+    let mut payload = Vec::new();
+    ClientboundSetEntityDataPacket {
+        id: 99,
+        packed_items: values,
+    }
+    .write(&mut payload)
+    .unwrap();
+    assert_eq!(&payload[..3], &[99, 0, 0]);
+    assert_eq!(payload.last(), Some(&0xff));
+    assert!(payload.windows(3).any(|window| window == [33, 33, 1]));
+    assert!(payload.windows(3).any(|window| window == [40, 40, 0x3f]));
+    assert!(payload.windows(3).any(|window| window == [42, 42, 1]));
+}
+
+fn metadata_serializer_test_values() -> Vec<EntityDataValue> {
     let component = vec![0x08, b'{', b'}'];
     let stack = RawItemStack {
         count: 2,
         item_id: Some(5),
         components: RawDataComponentPatch::empty(),
     };
-    let values = vec![
+    [
+        metadata_scalar_values(component, stack),
+        metadata_variant_values(),
+        metadata_geometry_and_profile_values(),
+    ]
+    .concat()
+}
+
+fn metadata_scalar_values(component: Vec<u8>, stack: RawItemStack) -> Vec<EntityDataValue> {
+    vec![
         EntityDataValue::typed(0, EntityMetadataValue::Byte(-1)).unwrap(),
         EntityDataValue::typed(1, EntityMetadataValue::VarInt(300)).unwrap(),
         EntityDataValue::typed(2, EntityMetadataValue::VarLong(300)).unwrap(),
@@ -696,6 +821,11 @@ fn entity_metadata_values_use_vanilla_26_1_2_serializer_ids_and_payloads() {
             }]),
         )
         .unwrap(),
+    ]
+}
+
+fn metadata_variant_values() -> Vec<EntityDataValue> {
+    vec![
         EntityDataValue::typed(
             18,
             EntityMetadataValue::VillagerData(VillagerData {
@@ -748,6 +878,11 @@ fn entity_metadata_values_use_vanilla_26_1_2_serializer_ids_and_payloads() {
             EntityMetadataValue::WeatheringCopperState(WeatheringCopperStateData::Oxidized),
         )
         .unwrap(),
+    ]
+}
+
+fn metadata_geometry_and_profile_values() -> Vec<EntityDataValue> {
+    vec![
         EntityDataValue::typed(
             39,
             EntityMetadataValue::Vector3f(Vector3fData {
@@ -770,28 +905,7 @@ fn entity_metadata_values_use_vanilla_26_1_2_serializer_ids_and_payloads() {
         EntityDataValue::typed(41, EntityMetadataValue::ResolvableProfile(vec![0])).unwrap(),
         EntityDataValue::typed(42, EntityMetadataValue::HumanoidArm(HumanoidArmData::Right))
             .unwrap(),
-    ];
-
-    assert_eq!(
-        values
-            .iter()
-            .map(|value| value.serializer_id)
-            .collect::<Vec<_>>(),
-        (0..=42).collect::<Vec<_>>()
-    );
-
-    let mut payload = Vec::new();
-    ClientboundSetEntityDataPacket {
-        id: 99,
-        packed_items: values,
-    }
-    .write(&mut payload)
-    .unwrap();
-    assert_eq!(&payload[..3], &[99, 0, 0]);
-    assert_eq!(payload.last(), Some(&0xff));
-    assert!(payload.windows(3).any(|window| window == [33, 33, 1]));
-    assert!(payload.windows(3).any(|window| window == [40, 40, 0x3f]));
-    assert!(payload.windows(3).any(|window| window == [42, 42, 1]));
+    ]
 }
 
 mod add_entity_packet_test;
