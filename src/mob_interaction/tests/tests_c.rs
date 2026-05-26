@@ -79,7 +79,14 @@ fn axolotl_variants_match_java_ids_default_and_rare_flag() {
 
 #[test]
 fn axolotl_play_dead_and_air_rules_match_java_gates() {
-    let mut axolotl = AxolotlState::new();
+    let mut axolotl = assert_axolotl_attributes_bucket_and_persistence_rules();
+    assert_axolotl_play_dead_and_rehydrate_rules(&mut axolotl);
+    assert_axolotl_hurt_memory_rules();
+    assert_axolotl_target_and_reward_rules();
+}
+
+fn assert_axolotl_attributes_bucket_and_persistence_rules() -> AxolotlState {
+    let axolotl = AxolotlState::new();
     assert_eq!(AXOLOTL_MAX_HEALTH, 14.0);
     assert_eq!(AXOLOTL_MOVEMENT_SPEED, 1.0);
     assert_eq!(AXOLOTL_ATTACK_DAMAGE, 2.0);
@@ -110,7 +117,10 @@ fn axolotl_play_dead_and_air_rules_match_java_gates() {
         axolotl_bucket_saved_keys(true),
         vec!["Variant", "Age", "AgeLocked", "HuntingCooldown"]
     );
+    axolotl
+}
 
+fn assert_axolotl_play_dead_and_rehydrate_rules(axolotl: &mut AxolotlState) {
     axolotl.update_playing_dead_from_memory(Some(AXOLOTL_PLAY_DEAD_TICKS), false);
     assert!(axolotl.playing_dead);
     assert!(!axolotl.should_play_ambient_sound());
@@ -127,7 +137,9 @@ fn axolotl_play_dead_and_air_rules_match_java_gates() {
     axolotl.air_supply = 1000;
     axolotl.rehydrate();
     assert_eq!(axolotl.air_supply, 2800);
+}
 
+fn assert_axolotl_hurt_memory_rules() {
     let triggering = AxolotlHurtContext {
         no_ai: false,
         random_one_in_three: true,
@@ -174,6 +186,9 @@ fn axolotl_play_dead_and_air_rules_match_java_gates() {
         }),
         None
     );
+}
+
+fn assert_axolotl_target_and_reward_rules() {
     assert_eq!(AXOLOTL_DRY_OUT_DAMAGE, 2.0);
     assert!(axolotl_can_attack_target(
         "minecraft:drowned",
@@ -296,6 +311,11 @@ fn chicken_egg_flap_jockey_and_dimensions_match_java_rules() {
 
 #[test]
 fn cow_milking_dimensions_breeding_and_mooshroom_mutation_match_java_rules() {
+    assert_cow_food_interaction_dimensions_and_breeding();
+    assert_mooshroom_variant_mutation_rules();
+}
+
+fn assert_cow_food_interaction_dimensions_and_breeding() {
     assert!(cow_is_food("minecraft:wheat"));
     assert!(!cow_is_food("minecraft:hay_block"));
     assert_eq!(
@@ -321,7 +341,9 @@ fn cow_milking_dimensions_breeding_and_mooshroom_mutation_match_java_rules() {
         cow_breed_variant("minecraft:warm", "minecraft:cold", false),
         "minecraft:cold"
     );
+}
 
+fn assert_mooshroom_variant_mutation_rules() {
     assert_eq!(
         mooshroom_thunder_variant(MooshroomVariant::Red, None, "bolt-a"),
         MooshroomVariant::Brown
@@ -347,6 +369,11 @@ fn cow_milking_dimensions_breeding_and_mooshroom_mutation_match_java_rules() {
 
 #[test]
 fn dolphin_moistness_feeding_treasure_and_grace_match_java_rules() {
+    let mut dolphin = assert_dolphin_initial_state_and_moistness_rules();
+    assert_dolphin_feeding_treasure_and_grace_rules(&mut dolphin);
+}
+
+fn assert_dolphin_initial_state_and_moistness_rules() -> DolphinState {
     let mut dolphin = DolphinState::new();
     assert_eq!(dolphin.air_supply, DOLPHIN_TOTAL_AIR_SUPPLY);
     assert_eq!(dolphin.moistness, DOLPHIN_TOTAL_MOISTNESS_LEVEL);
@@ -381,7 +408,10 @@ fn dolphin_moistness_feeding_treasure_and_grace_match_java_rules() {
     let no_ai_outcome = dolphin.tick_moistness(true, false, true);
     assert_eq!(dolphin.air_supply, DOLPHIN_TOTAL_AIR_SUPPLY);
     assert_eq!(no_ai_outcome.dry_out_damage, None);
+    dolphin
+}
 
+fn assert_dolphin_feeding_treasure_and_grace_rules(dolphin: &mut DolphinState) {
     assert_eq!(
         dolphin_feed_result(false, false, 24_000),
         DolphinFeedResult::NotFish
@@ -413,15 +443,28 @@ fn dolphin_moistness_feeding_treasure_and_grace_match_java_rules() {
 
 #[test]
 fn bee_flags_sting_hive_and_pollination_counters_match_java_rules() {
-    let mut bee = BeeState::new();
-    assert_eq!(bee.flags, 0);
-    assert!(!bee.has_nectar());
-    assert!(!bee.has_stung());
-    assert!(!bee.is_rolling());
+    assert_bee_entity_and_flag_constants();
+    assert_bee_hive_and_pollination_constants();
+    let mut bee = assert_bee_flags_and_nectar_rules();
+    assert_bee_crop_hive_entry_roll_and_drown_rules(&mut bee);
+    assert_bee_sting_poison_and_hive_use_rules(&mut bee);
+    assert_bee_hive_release_rules();
+}
+
+fn assert_bee_entity_and_flag_constants() {
     assert_eq!(BEE_FLAG_ROLL, 2);
     assert_eq!(BEE_FLAG_HAS_STUNG, 4);
     assert_eq!(BEE_FLAG_HAS_NECTAR, 8);
     assert_eq!(BEE_STING_DEATH_COUNTDOWN, 1200);
+    assert_eq!(BEE_PERSISTENT_ANGER_MIN_TICKS, 400);
+    assert_eq!(BEE_PERSISTENT_ANGER_MAX_TICKS, 780);
+    assert_eq!(BEE_MAX_HEALTH, 10.0);
+    assert_eq!(BEE_FLYING_SPEED, 0.6);
+    assert_eq!(BEE_MOVEMENT_SPEED, 0.3);
+    assert_eq!(BEE_ATTACK_DAMAGE, 2.0);
+}
+
+fn assert_bee_hive_and_pollination_constants() {
     assert_eq!(BEE_TICKS_BEFORE_GOING_TO_KNOWN_FLOWER, 600);
     assert_eq!(BEE_TICKS_WITHOUT_NECTAR_BEFORE_GOING_HOME, 3600);
     assert_eq!(BEE_MAX_CROPS_GROWABLE, 10);
@@ -437,12 +480,14 @@ fn bee_flags_sting_hive_and_pollination_counters_match_java_rules() {
     assert_eq!(BEE_COOLDOWN_BEFORE_LOCATING_NEW_HIVE, 200);
     assert_eq!(BEE_MIN_FIND_FLOWER_RETRY_COOLDOWN, 20);
     assert_eq!(BEE_MAX_FIND_FLOWER_RETRY_COOLDOWN, 60);
-    assert_eq!(BEE_PERSISTENT_ANGER_MIN_TICKS, 400);
-    assert_eq!(BEE_PERSISTENT_ANGER_MAX_TICKS, 780);
-    assert_eq!(BEE_MAX_HEALTH, 10.0);
-    assert_eq!(BEE_FLYING_SPEED, 0.6);
-    assert_eq!(BEE_MOVEMENT_SPEED, 0.3);
-    assert_eq!(BEE_ATTACK_DAMAGE, 2.0);
+}
+
+fn assert_bee_flags_and_nectar_rules() -> BeeState {
+    let mut bee = BeeState::new();
+    assert_eq!(bee.flags, 0);
+    assert!(!bee.has_nectar());
+    assert!(!bee.has_stung());
+    assert!(!bee.is_rolling());
 
     bee.ticks_without_nectar_since_exiting_hive = 12;
     bee.set_has_nectar(true);
@@ -450,7 +495,10 @@ fn bee_flags_sting_hive_and_pollination_counters_match_java_rules() {
     assert_eq!(bee.ticks_without_nectar_since_exiting_hive, 0);
     bee.set_has_nectar(false);
     assert!(!bee.has_nectar());
+    bee
+}
 
+fn assert_bee_crop_hive_entry_roll_and_drown_rules(bee: &mut BeeState) {
     bee.set_has_nectar(true);
     assert!(bee.can_grow_crop(0.3, true));
     assert!(!bee.can_grow_crop(0.29, true));
@@ -491,7 +539,9 @@ fn bee_flags_sting_hive_and_pollination_counters_match_java_rules() {
         Some(BEE_DROWN_DAMAGE)
     );
     assert_eq!(bee.tick_server_ai(false, false).drown_damage, None);
+}
 
+fn assert_bee_sting_poison_and_hive_use_rules(bee: &mut BeeState) {
     bee.set_has_stung(true);
     bee.time_since_sting = 4;
     let sting_outcome = bee.tick_server_ai(false, true);
@@ -516,6 +566,9 @@ fn bee_flags_sting_hive_and_pollination_counters_match_java_rules() {
     assert!(bee_hive_should_anger_nearby_bees(true, false, true));
     assert!(!bee_hive_should_anger_nearby_bees(true, true, true));
     assert!(!bee_hive_should_anger_nearby_bees(true, false, false));
+}
+
+fn assert_bee_hive_release_rules() {
     let hive_release = BeeHiveReleaseInput {
         bees_stay_in_hive_environment: false,
         emergency: false,
@@ -577,6 +630,13 @@ fn bee_flags_sting_hive_and_pollination_counters_match_java_rules() {
 
 #[test]
 fn camel_dash_pose_and_passenger_offsets_match_java_rules() {
+    assert_camel_constants();
+    let mut camel = assert_camel_dash_rules();
+    assert_camel_pose_transition_and_impulse_rules(&mut camel);
+    assert_camel_passenger_attachment_rules();
+}
+
+fn assert_camel_constants() {
     assert_eq!(CAMEL_BABY_SCALE, 0.6);
     assert_eq!(CAMEL_DASH_COOLDOWN_TICKS, 55);
     assert_eq!(CAMEL_MAX_HEAD_Y_ROT, 30);
@@ -589,7 +649,9 @@ fn camel_dash_pose_and_passenger_offsets_match_java_rules() {
     assert_eq!(CAMEL_IDLE_MINIMAL_DURATION_TICKS, 80);
     assert_eq!(CAMEL_SITTING_HEIGHT_DIFFERENCE, 1.43);
     assert_eq!(CAMEL_SITTING_EYE_HEIGHT, 0.845);
+}
 
+fn assert_camel_dash_rules() -> CamelState {
     let mut camel = CamelState::new_standing(100);
     assert_eq!(camel.last_pose_change_tick, 47);
     assert!(!camel.is_in_pose_transition(100));
@@ -621,7 +683,10 @@ fn camel_dash_pose_and_passenger_offsets_match_java_rules() {
     assert!(camel.tick(false, false, false).dash_ready_sound);
     assert_eq!(camel.dash_cooldown, 0);
     assert_eq!(camel.ridden_speed(0.09, true), 0.19);
+    camel
+}
 
+fn assert_camel_pose_transition_and_impulse_rules(camel: &mut CamelState) {
     assert!(camel.sit_down(200));
     assert!(camel.is_sitting());
     assert_eq!(camel.last_pose_change_tick, -200);
@@ -640,7 +705,9 @@ fn camel_dash_pose_and_passenger_offsets_match_java_rules() {
     let (horizontal, vertical) = camel_dash_impulse(1.0, 0.09, 1.0, 0.42);
     assert!((horizontal - 1.999998).abs() < 0.00001);
     assert!((vertical - 0.59997).abs() < 0.00001);
+}
 
+fn assert_camel_passenger_attachment_rules() {
     let passenger_attachment = CamelPassengerAttachmentInput {
         passenger_index: 0,
         passenger_count: 2,
@@ -667,6 +734,12 @@ fn camel_dash_pose_and_passenger_offsets_match_java_rules() {
 
 #[test]
 fn goat_milking_horns_ram_and_head_lowering_match_java_rules() {
+    assert_goat_constants();
+    assert_goat_interactions_and_spawn_rules();
+    assert_goat_horn_drop_and_head_lowering_rules();
+}
+
+fn assert_goat_constants() {
     assert_eq!(GOAT_SCREAMING_CHANCE_DENOMINATOR, 50);
     assert_eq!(GOAT_INITIAL_MISSING_HORN_CHANCE_DENOMINATOR, 10);
     assert_eq!(GOAT_RAM_PREPARE_TIME, 20);
@@ -687,7 +760,9 @@ fn goat_milking_horns_ram_and_head_lowering_match_java_rules() {
     assert_eq!(GOAT_BABY_RAM_KNOCKBACK_FORCE, 1.0);
     assert!((GOAT_LONG_JUMPING_WIDTH - 0.63).abs() < 0.00001);
     assert!((GOAT_LONG_JUMPING_HEIGHT - 0.91).abs() < 0.00001);
+}
 
+fn assert_goat_interactions_and_spawn_rules() {
     assert_eq!(
         goat_interaction("minecraft:bucket", false),
         GoatInteraction::Milk
@@ -708,7 +783,9 @@ fn goat_milking_horns_ram_and_head_lowering_match_java_rules() {
     assert!(normal.has_left_horn);
     assert!(normal.has_right_horn);
     assert_eq!(normal.ram_cooldown_range(), (600, 6000));
+}
 
+fn assert_goat_horn_drop_and_head_lowering_rules() {
     let mut screaming_missing_left = GoatState::finalize_spawn(true, true, true, true);
     assert!(screaming_missing_left.is_screaming);
     assert!(!screaming_missing_left.has_left_horn);
@@ -752,6 +829,13 @@ fn goat_milking_horns_ram_and_head_lowering_match_java_rules() {
 
 #[test]
 fn pig_saddle_boost_food_on_a_stick_and_lightning_match_java_rules() {
+    assert_pig_constants();
+    let mut pig = assert_pig_saddle_and_interaction_rules();
+    assert_pig_boost_and_food_on_a_stick_rules(&mut pig);
+    assert_pig_lightning_and_offspring_rules();
+}
+
+fn assert_pig_constants() {
     assert_eq!(PIG_MAX_HEALTH, 10.0);
     assert_eq!(PIG_MOVEMENT_SPEED, 0.25);
     assert_eq!(PIG_RIDDEN_SPEED_FACTOR, 0.225);
@@ -766,7 +850,9 @@ fn pig_saddle_boost_food_on_a_stick_and_lightning_match_java_rules() {
     assert_eq!(PIG_FOLLOW_PARENT_SPEED, 1.1);
     assert_eq!(PIG_LEASH_EYE_HEIGHT_FACTOR, 0.6);
     assert_eq!(PIG_LEASH_WIDTH_FACTOR, 0.4);
+}
 
+fn assert_pig_saddle_and_interaction_rules() -> PigState {
     let mut pig = PigState::new();
     assert!(!pig.controlling_passenger(true, true));
     pig.saddled = true;
@@ -793,7 +879,10 @@ fn pig_saddle_boost_food_on_a_stick_and_lightning_match_java_rules() {
         pig_interaction(false, false, false, false, false, false),
         PigInteraction::Pass
     );
+    pig
+}
 
+fn assert_pig_boost_and_food_on_a_stick_rules(pig: &mut PigState) {
     assert!(pig.boost(0));
     assert_eq!(pig.boost_time_total, PIG_BOOST_MIN_TIME);
     assert_eq!(pig.boost_time, 0);
@@ -834,7 +923,9 @@ fn pig_saddle_boost_food_on_a_stick_and_lightning_match_java_rules() {
         pig_food_on_a_stick_use(false, true, true, true, 0),
         PigBoostUseResult::Pass
     );
+}
 
+fn assert_pig_lightning_and_offspring_rules() {
     assert!(!pig_thunder_converts_to_zombified_piglin("peaceful"));
     assert!(pig_thunder_converts_to_zombified_piglin("easy"));
     assert_eq!(
@@ -849,6 +940,13 @@ fn pig_saddle_boost_food_on_a_stick_and_lightning_match_java_rules() {
 
 #[test]
 fn polar_bear_cub_targeting_standing_warning_and_swim_match_java_rules() {
+    assert_polar_bear_constants();
+    assert_polar_bear_targeting_rules();
+    assert_polar_bear_warning_and_standing_animation_rules();
+    assert_polar_bear_melee_signals();
+}
+
+fn assert_polar_bear_constants() {
     assert_eq!(POLAR_BEAR_MAX_HEALTH, 30.0);
     assert_eq!(POLAR_BEAR_FOLLOW_RANGE, 20.0);
     assert_eq!(POLAR_BEAR_PLAYER_ATTACK_FOLLOW_DISTANCE_FACTOR, 0.5);
@@ -871,7 +969,9 @@ fn polar_bear_cub_targeting_standing_warning_and_swim_match_java_rules() {
     assert_eq!(POLAR_BEAR_PERSISTENT_ANGER_MIN_TICKS, 400);
     assert_eq!(POLAR_BEAR_PERSISTENT_ANGER_MAX_TICKS, 780);
     assert_eq!(POLAR_BEAR_WATER_SLOWDOWN, 0.98);
+}
 
+fn assert_polar_bear_targeting_rules() {
     assert!(polar_bear_should_attack_player(false, true, true));
     assert!(!polar_bear_should_attack_player(true, true, true));
     assert!(!polar_bear_should_attack_player(false, false, true));
@@ -881,7 +981,9 @@ fn polar_bear_cub_targeting_standing_warning_and_swim_match_java_rules() {
     assert!(polar_bear_should_alert_other_on_hurt(true, false));
     assert!(!polar_bear_should_alert_other_on_hurt(true, true));
     assert!(!polar_bear_should_alert_other_on_hurt(false, false));
+}
 
+fn assert_polar_bear_warning_and_standing_animation_rules() {
     let mut bear = PolarBearState::new();
     assert!(bear.play_warning_sound());
     assert_eq!(bear.warning_sound_ticks, 40);
@@ -904,7 +1006,9 @@ fn polar_bear_cub_targeting_standing_warning_and_swim_match_java_rules() {
     bear.tick(true);
     assert_eq!(bear.client_stand_animation, 5.0);
     assert!((bear.standing_animation_scale(0.5) - (5.5 / 6.0)).abs() < 0.00001);
+}
 
+fn assert_polar_bear_melee_signals() {
     assert_eq!(
         polar_bear_melee_signal(true, 100.0, 0.6, 20, false),
         PolarBearMeleeSignal::AttackAndStopStanding
@@ -925,6 +1029,14 @@ fn polar_bear_cub_targeting_standing_warning_and_swim_match_java_rules() {
 
 #[test]
 fn rabbit_variants_garden_raid_and_jump_timing_match_java_rules() {
+    assert_rabbit_constants();
+    assert_rabbit_variant_ids();
+    assert_rabbit_random_and_offspring_variant_rules();
+    let mut rabbit = assert_rabbit_food_and_garden_rules();
+    assert_rabbit_jump_timing_rules(&mut rabbit);
+}
+
+fn assert_rabbit_constants() {
     assert_eq!(RABBIT_MAX_HEALTH, 3.0);
     assert_eq!(RABBIT_MOVEMENT_SPEED, 0.3);
     assert_eq!(RABBIT_ATTACK_DAMAGE, 3.0);
@@ -945,7 +1057,9 @@ fn rabbit_variants_garden_raid_and_jump_timing_match_java_rules() {
     assert_eq!(RABBIT_BABY_WIDTH, 0.24);
     assert_eq!(RABBIT_BABY_HEIGHT, 0.4);
     assert_eq!(RABBIT_BABY_EYE_HEIGHT, 0.39);
+}
 
+fn assert_rabbit_variant_ids() {
     let variants = [
         (RabbitVariant::Brown, 0, "brown"),
         (RabbitVariant::White, 1, "white"),
@@ -963,7 +1077,9 @@ fn rabbit_variants_garden_raid_and_jump_timing_match_java_rules() {
     assert_eq!(RabbitVariant::by_id(12345), RabbitVariant::Brown);
     assert!(RabbitVariant::Evil.is_evil());
     assert!(!RabbitVariant::Brown.is_evil());
+}
 
+fn assert_rabbit_random_and_offspring_variant_rules() {
     assert_eq!(rabbit_random_variant(true, false, 79), RabbitVariant::White);
     assert_eq!(
         rabbit_random_variant(true, false, 80),
@@ -1010,7 +1126,9 @@ fn rabbit_variants_garden_raid_and_jump_timing_match_java_rules() {
         ),
         RabbitVariant::Brown
     );
+}
 
+fn assert_rabbit_food_and_garden_rules() -> RabbitState {
     let mut rabbit = RabbitState::new();
     assert!(rabbit.wants_more_food());
     rabbit.more_carrot_ticks = 40;
@@ -1035,7 +1153,10 @@ fn rabbit_variants_garden_raid_and_jump_timing_match_java_rules() {
     );
     assert!(rabbit_should_avoid_entity(RabbitVariant::Brown, true));
     assert!(!rabbit_should_avoid_entity(RabbitVariant::Evil, true));
+    rabbit
+}
 
+fn assert_rabbit_jump_timing_rules(rabbit: &mut RabbitState) {
     rabbit.start_jumping();
     assert_eq!(rabbit.jump_duration, 15);
     assert_eq!(rabbit.jump_ticks, 0);
