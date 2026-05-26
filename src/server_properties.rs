@@ -384,9 +384,17 @@ mod tests {
             "rustcraft-typed-server-properties-{}.properties",
             std::process::id()
         ));
-        fs::write(
-            &path,
-            "\
+        fs::write(&path, TYPED_SERVER_PROPERTIES_FIXTURE).unwrap();
+
+        let properties = ServerProperties::load_or_default(&path).unwrap();
+        let _ = fs::remove_file(&path);
+
+        assert_core_typed_properties(&properties);
+        assert_runtime_typed_properties(&properties);
+        assert_resource_pack_typed_properties(&properties);
+    }
+
+    const TYPED_SERVER_PROPERTIES_FIXTURE: &str = "\
 allow-flight=true
 server-ip=127.0.0.1
 server-port=25566
@@ -418,13 +426,9 @@ resource-pack=https://example.invalid/pack.zip
 resource-pack-sha1=0123456789abcdef0123456789abcdef01234567
 require-resource-pack=true
 resource-pack-prompt={\"text\":\"Use pack?\"}
-",
-        )
-        .unwrap();
+";
 
-        let properties = ServerProperties::load_or_default(&path).unwrap();
-        let _ = fs::remove_file(&path);
-
+    fn assert_core_typed_properties(properties: &ServerProperties) {
         assert!(properties.allow_flight);
         assert_eq!(properties.server_ip, "127.0.0.1");
         assert_eq!(properties.server_port, 25566);
@@ -438,6 +442,9 @@ resource-pack-prompt={\"text\":\"Use pack?\"}
         assert_eq!(properties.query_port, 24456);
         assert_eq!(properties.level_seed, "8675309");
         assert!(!properties.generate_structures);
+    }
+
+    fn assert_runtime_typed_properties(properties: &ServerProperties) {
         assert_eq!(
             properties.generator_settings,
             "{\"layers\":[{\"block\":\"minecraft:grass_block\",\"height\":1}]}"
@@ -457,6 +464,9 @@ resource-pack-prompt={\"text\":\"Use pack?\"}
         assert_eq!(properties.text_filtering_version, 2);
         assert_eq!(properties.function_permission_level, 3);
         assert!(!properties.use_native_transport);
+    }
+
+    fn assert_resource_pack_typed_properties(properties: &ServerProperties) {
         assert_eq!(
             properties.resource_pack_id,
             "00000000-0000-0000-0000-000000000001"
