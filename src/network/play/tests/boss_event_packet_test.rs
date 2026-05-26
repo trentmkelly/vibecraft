@@ -32,8 +32,8 @@ fn clientbound_boss_event_packet_matches_java_operation_codecs() {
     );
 
     let event_id = Uuid([
-        0x10, 0x32, 0x54, 0x76, 0x98, 0xba, 0xdc, 0xfe, 0x0f, 0xed, 0xcb, 0xa9, 0x87, 0x65,
-        0x43, 0x21,
+        0x10, 0x32, 0x54, 0x76, 0x98, 0xba, 0xdc, 0xfe, 0x0f, 0xed, 0xcb, 0xa9, 0x87, 0x65, 0x43,
+        0x21,
     ]);
 
     let mut add = Vec::new();
@@ -82,11 +82,7 @@ fn clientbound_boss_event_packet_matches_java_operation_codecs() {
     .unwrap();
     assert_eq!(
         progress,
-        [
-            boss_prefix(event_id, 2),
-            0.25_f32.to_be_bytes().to_vec()
-        ]
-        .concat()
+        [boss_prefix(event_id, 2), 0.25_f32.to_be_bytes().to_vec()].concat()
     );
 
     let mut name = Vec::new();

@@ -31,8 +31,6 @@ fn clientbound_container_set_content_packet_matches_java_codec() {
     .unwrap();
     assert_eq!(
         payload,
-        vec![
-            0x80, 0x01, 0x82, 0x01, 2, 2, 5, 0, 0, 0, 3, 42, 0, 0
-        ]
+        vec![0x80, 0x01, 0x82, 0x01, 2, 2, 5, 0, 0, 0, 3, 42, 0, 0]
     );
 }

@@ -86,8 +86,9 @@ fn serverbound_chat_session_update_packet_enforces_java_public_key_and_signature
         (ServerboundChatSessionUpdatePacket::MAX_SIGNATURE_BYTES + 1) as i32,
     )
     .unwrap();
-    assert!(ServerboundChatSessionUpdatePacket::read(&mut cursor(overlong_signature.clone()))
-        .is_err());
+    assert!(
+        ServerboundChatSessionUpdatePacket::read(&mut cursor(overlong_signature.clone())).is_err()
+    );
 
     let mut session = PlaySession::new(1, 0);
     session.state = PlayState::Playing;

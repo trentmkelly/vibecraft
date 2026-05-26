@@ -2,7 +2,12 @@ use super::*;
 
 fn chat_prefix(message: &str, timestamp_epoch_millis: i64, salt: i64) -> Vec<u8> {
     let mut payload = Vec::new();
-    write_string(&mut payload, message, ServerboundChatPacket::MAX_MESSAGE_CHARS).unwrap();
+    write_string(
+        &mut payload,
+        message,
+        ServerboundChatPacket::MAX_MESSAGE_CHARS,
+    )
+    .unwrap();
     payload.extend_from_slice(&timestamp_epoch_millis.to_be_bytes());
     payload.extend_from_slice(&salt.to_be_bytes());
     payload

@@ -34,8 +34,8 @@ fn clientbound_command_suggestions_packet_matches_java_entry_codec() {
     assert_eq!(
         payload,
         vec![
-            4, 1, 2, 2, 4, b'h', b'e', b'l', b'p', 0, 5, b'h', b'e', b'l', b'l', b'o', 1, 10,
-            8, 0, 4, b't', b'e', b'x', b't', 0, 7, b't', b'o', b'o', b'l', b't', b'i', b'p', 0,
+            4, 1, 2, 2, 4, b'h', b'e', b'l', b'p', 0, 5, b'h', b'e', b'l', b'l', b'o', 1, 10, 8, 0,
+            4, b't', b'e', b'x', b't', 0, 7, b't', b'o', b'o', b'l', b't', b'i', b'p', 0,
         ]
     );
 }

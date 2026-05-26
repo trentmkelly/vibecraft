@@ -11,10 +11,7 @@ fn clientbound_system_chat_packet_matches_java_codec() {
 
     let mut payload = Vec::new();
     ClientboundSystemChatPacket {
-        content: Tag::Compound(vec![(
-            "text".to_string(),
-            Tag::String("Hello".to_string()),
-        )]),
+        content: Tag::Compound(vec![("text".to_string(), Tag::String("Hello".to_string()))]),
         overlay: true,
     }
     .write(&mut payload)

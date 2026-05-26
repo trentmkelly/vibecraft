@@ -21,8 +21,8 @@ fn clientbound_open_screen_packet_matches_java_codec() {
     assert_eq!(
         payload,
         vec![
-            0xac, 0x02, 2, 10, 8, 0, 4, b't', b'e', b'x', b't', 0, 5, b'C', b'h', b'e',
-            b's', b't', 0
+            0xac, 0x02, 2, 10, 8, 0, 4, b't', b'e', b'x', b't', 0, 5, b'C', b'h', b'e', b's', b't',
+            0
         ]
     );
 }

@@ -34,7 +34,12 @@ fn serverbound_chat_command_signed_packet_matches_java_codec() {
 
     let mut expected = signed_command_prefix("msg Notch hello");
     write_var_i32(&mut expected, 1).unwrap();
-    write_string(&mut expected, "message", ArgumentSignature::MAX_ARGUMENT_NAME_CHARS).unwrap();
+    write_string(
+        &mut expected,
+        "message",
+        ArgumentSignature::MAX_ARGUMENT_NAME_CHARS,
+    )
+    .unwrap();
     expected.extend_from_slice(&[8; MessageSignature::BYTES]);
     write_var_i32(&mut expected, 2).unwrap();
     expected.extend_from_slice(&[0b1010_0001, 0, 0b0000_1000, 5]);
