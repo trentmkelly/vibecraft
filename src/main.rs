@@ -237,6 +237,12 @@ fn run(options: CliOptions) -> Result<(), String> {
     run_configured_world_upgrade(&logger, &options, &runtime)?;
     check_world_version_compatibility(&logger, &runtime)?;
 
+    // Acquire exclusive session lock to prevent concurrent world access.
+    // Matches Java LevelStorageSource.LevelStorageAccess constructor.
+    let world_dir = runtime.universe.join(&runtime.world_name);
+    let _session_lock = storage::world::SessionLock::acquire(&world_dir)
+        .map_err(|err| format!("Failed to acquire session lock on '{}': {err}", world_dir.display()))?;
+
     let (console_input, _console_handle) = console::spawn_console_input_thread()
         .map_err(|err| format!("Failed to start server console input thread: {err}"))?;
     logger.info("Started server console input thread")?;
