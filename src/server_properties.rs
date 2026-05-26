@@ -193,7 +193,11 @@ impl ServerProperties {
             self.raw.entry(key).or_insert(value);
         }
 
-        let mut output = String::from("# Minecraft server properties\n");
+        // Java Properties.store() writes "#<comment>\n#<date>\n<key=value>..."
+        let mut output = String::from("#Minecraft server properties\n");
+        output.push('#');
+        output.push_str(&java_style_date_string());
+        output.push('\n');
         for (key, value) in &self.raw {
             output.push_str(key);
             output.push('=');
@@ -266,6 +270,20 @@ fn i32_key(raw: &BTreeMap<String, String>, key: &str, default: i32) -> i32 {
     raw.get(key)
         .and_then(|value| value.parse::<i32>().ok())
         .unwrap_or(default)
+}
+
+/// Matches Java `new Date().toString()` format: `EEE MMM dd HH:mm:ss zzz yyyy`
+/// Java always uses English locale regardless of system locale.
+fn java_style_date_string() -> String {
+    std::process::Command::new("date")
+        .arg("+%a %b %d %H:%M:%S %Z %Y")
+        .env("LC_ALL", "C")
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "unknown".to_string())
 }
 
 fn vanilla_defaults() -> BTreeMap<String, String> {
