@@ -72,8 +72,8 @@
 
 - [ ] Implement all operator-facing files: `eula.txt`, `server.properties`, `ops.json`, `whitelist.json`, `banned-players.json`, `banned-ips.json`, `usercache.json` with vanilla-compatible JSON schemas and field names
 - [x] Implement `session.lock`: written on world open, exclusive lock enforced, released on clean shutdown; startup refuses if lock held by another process — `SessionLock::acquire` writes the lock marker and acquires an exclusive file lock matching Java `DirectoryLock`; `main::run()` acquires the lock before loading world data; covered by `session_lock` test and verified against Java `LevelStorageAccess` constructor.
-- [ ] Implement `level.dat` + `level.dat_old` rotation: write new `level.dat` atomically (temp file + rename), keep previous as `level.dat_old`
-- [ ] Implement region file compression: supports both `zlib` (type 2) and `lz4` (type 4, if `region-file-compression=lz4`) in chunk headers
+- [x] Implement `level.dat` + `level.dat_old` rotation: write new `level.dat` atomically (temp file + rename), keep previous as `level.dat_old` — `WorldLayout::save_level_dat` uses `durable_write_with_backup` which writes to `.tmp`, renames old to `level.dat_old`, deletes old, renames tmp to target, matching Java `Util.safeReplaceFile`; verified against decompiled `Util.java` with retry logic and rollback on failure.
+- [x] Implement region file compression: supports both `zlib` (type 2) and `lz4` (type 4, if `region-file-compression=lz4`) in chunk headers — `RegionCompression` enum maps IDs 1=gzip, 2=deflate, 3=none, 4=lz4, 127=custom matching Java `RegionFileVersion`; `RegionFile` reads/writes with the configured compression; `from_property_value` parses `region-file-compression` server property; verified against decompiled source.
 - [ ] Implement entity region files: `<dim>/entities/*.mca` separate from block region files
 - [ ] Implement POI region files: `<dim>/poi/*.mca` with POI type and occupation counts
 - [ ] Implement playerdata: `playerdata/<uuid>.dat` and `playerdata/<uuid>.dat_old`
