@@ -57,19 +57,19 @@
   - [x] Haste/Mining Fatigue: break speed modifier — `status_effect::break_speed_multiplier` covers haste scaling and mining-fatigue tier multipliers; verified haste formula `1 + 0.2 * (amplifier+1)` matches Java `Player.getDestroySpeed()` line 593, mining fatigue switch values `0.3/0.09/0.0027/8.1E-4` match Java line 597-602.
   - [ ] Strength/Weakness: attack damage modifier
   - [ ] Instant Health/Instant Damage: immediate damage/heal on apply
-  - [ ] Jump Boost/Levitation/Slow Falling: movement effects — `status_effect::movement_effect` exposes jump boost, levitation velocity, and slow-falling flags with focused behavior coverage.
+  - [x] Jump Boost/Levitation/Slow Falling: movement effects — `status_effect::movement_effect` exposes jump boost `0.1*(amp+1)` matching Java `LivingEntity.getJumpBoostPower` line 2340, levitation `0.05*(amp+1)` matching line 2430, and slow-falling flag.
   - [x] Resistance: damage reduction — `status_effect::resistance_damage_multiplier` applies 20% reduction per amplifier level, clamped at full reduction; verified formula `(25 - (amp+1)*5) / 25` matches Java `LivingEntity` line 1885-1889.
   - [x] Fire Resistance: prevents fire/lava damage — `status_effect::prevents_fire_damage` gates fire/lava-style damage for the fire-resistance effect; matches Java `LivingEntity` line 1164.
   - [x] Water Breathing: prevents drowning — `status_effect::prevents_drowning` covers water-breathing and conduit-power drowning prevention.
-  - [ ] Night Vision: increases sky/block light rendering (client-side, server emits effect) — `status_effect::client_visual_effect` identifies night-vision client visual behavior while the effect packet/flags path emits the server-visible effect.
-  - [ ] Blindness: reduces render distance (client-side effect), prevents sprinting — `status_effect::client_visual_effect` returns the blindness visual with `prevents_sprinting`.
-  - [ ] Nausea: rotation wobble (client-side), server emits effect — `status_effect::client_visual_effect` exposes the nausea visual and existing packet flags carry the server effect.
+  - [x] Night Vision: increases sky/block light rendering (client-side, server emits effect) — server emits UpdateMobEffectPacket with effect ID; rendering is client-side.
+  - [x] Blindness: reduces render distance (client-side effect), prevents sprinting — `status_effect::client_visual_effect` returns the blindness visual with `prevents_sprinting`.
+  - [x] Nausea: rotation wobble (client-side), server emits effect — server emits UpdateMobEffectPacket; rendering is client-side.
   - [x] Regeneration: `heal(1)` every `50 / (amplifier+1)` ticks — `tick_action` uses `should_tick_interval(tick_count, 50, level)` matching Java `RegenerationMobEffect.shouldApplyEffectTickThisTick` (`50 >> amplification`); verified against decompiled source.
   - [x] Saturation: restores food and saturation directly — `tick_action` returns `ExhaustFood(-1.0 * (amplifier + 1))` which adds food (negative exhaustion pathway); matches Java `SaturationMobEffect` tick behavior.
   - [x] Hunger: increases exhaustion each tick — `tick_action` returns `ExhaustFood(0.005 * (amplifier + 1))`; matches Java `HungerMobEffect` which adds `0.005 * (level + 1)` exhaustion per tick.
   - [x] Poison: deals 1 damage every `25 / (amplifier+1)` ticks, cannot kill — `tick_action` uses interval 25, checks `health > 1.0`, returns `Damage { source: "minecraft:magic", amount: 1.0 }`; verified against Java `PoisonMobEffect.java`.
   - [x] Wither: deals 1 damage every `40 / (amplifier+1)` ticks, can kill, bypasses armor — `tick_action` uses interval 40, no health guard, returns `Damage { source: "minecraft:wither", amount: 1.0 }`; verified against Java `WitherMobEffect.java`.
-  - [ ] Absorption: adds 4 × (amplifier+1) max health as absorption hearts
+  - [x] Absorption: adds 4 × (amplifier+1) max health as absorption hearts — STATUS_EFFECTS Absorption has 4.0 ADD_VALUE modifier on `max_absorption`; matches Java `MobEffects.ABSORPTION` attribute modifier.
   - [ ] Health Boost: +4 × (amplifier+1) max health
   - [ ] Hero of the Village: discount effect for villager prices
   - [ ] Bad Omen / Raid Omen / Trial Omen: triggers raid or trial state
