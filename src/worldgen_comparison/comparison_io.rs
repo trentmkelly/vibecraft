@@ -2,7 +2,6 @@
 
 use super::*;
 
-
 pub fn build_worldgen_chunk_comparisons(
     seeds: &[i64],
     chunks: &[ChunkCoord],
@@ -26,214 +25,298 @@ pub fn build_worldgen_source_family_goldens(
     seed: i64,
     chunk: ChunkCoord,
 ) -> Vec<WorldgenSourceFamilyGolden> {
-    let sample = build_seed_parity_sample(seed, chunk.x, chunk.z);
-    let context = WorldGenerationHeightContext {
-        min_y: -64,
-        height: 384,
-    };
-    let block_context = BlockPredicateContext {
-        min_y: -64,
-        height: 384,
-        block: "minecraft:grass_block",
-        fluid: "minecraft:empty",
-        solid: true,
-        replaceable: false,
-        unobstructed: true,
-    };
-    let placement_origin = BlockPos {
-        x: chunk.x * 16,
-        y: 72,
-        z: chunk.z * 16,
-    };
-    let material_context = SurfaceMaterialContext {
-        seed,
-        random_algorithm: crate::worldgen::RandomAlgorithm::Xoroshiro,
-        x: chunk.x * 16,
-        y: 64,
-        z: chunk.z * 16,
-        biome: "minecraft:plains",
-        stone_depth_above: 0,
-        stone_depth_below: 4,
-        surface_depth: 3,
-        preliminary_surface_y: 68,
-        water_height: 63,
-        temperature: 0.8,
-        noise: 0.25,
-        steep: false,
-        hole: false,
-    };
-
+    let context = SourceFamilyGoldenContext::new(seed, chunk);
     vec![
-        source_family_golden(
-            "blending",
-            seed,
-            chunk,
-            1,
-            1,
-            format!(
-                "{:?}",
-                blending_output_for_old_height(Some(72.0), Some(2.0))
-            ),
-        ),
-        source_family_golden(
-            "block_predicate",
-            seed,
-            chunk,
-            BLOCK_PREDICATE_TYPES.len(),
-            BLOCK_PREDICATE_TYPES.len(),
-            format!(
-                "{:?}:{:?}",
-                BLOCK_PREDICATE_TYPES,
-                block_predicate_test(BlockPredicate::Solid, block_context, 64)
-            ),
-        ),
-        source_family_golden(
-            "carver",
-            seed,
-            chunk,
-            CONFIGURED_CARVERS.len(),
-            3,
-            format!(
-                "{:?}:{:?}",
-                CONFIGURED_CARVERS,
-                configured_carver("cave")
-                    .is_some_and(|carver| carver_is_start_chunk(carver, 0.15))
-            ),
-        ),
-        source_family_golden(
-            "feature",
-            seed,
-            chunk,
-            CONFIGURED_FEATURES.len(),
-            PLACED_FEATURE_BOOTSTRAP_SOURCES.len(),
-            format!("{:?}", CONFIGURED_FEATURES),
-        ),
-        source_family_golden(
-            "flat_generator",
-            seed,
-            chunk,
-            FLAT_GENERATOR_PRESETS.len(),
-            FLAT_GENERATOR_PRESETS.len(),
-            format!("{:?}", FLAT_GENERATOR_PRESETS),
-        ),
-        source_family_golden(
-            "height_provider",
-            seed,
-            chunk,
-            HEIGHT_PROVIDER_TYPES.len(),
-            HEIGHT_PROVIDER_TYPES.len(),
-            format!(
-                "{:?}:{:?}",
-                HEIGHT_PROVIDER_TYPES,
-                height_provider_sample_with_rolls(
-                    HeightProvider::Trapezoid {
-                        min_inclusive: VerticalAnchor::Absolute(40),
-                        max_inclusive: VerticalAnchor::Absolute(80),
-                        plateau: 8,
-                    },
-                    context,
-                    4,
-                    9,
-                    0,
-                )
-            ),
-        ),
-        source_family_golden(
-            "material_rule",
-            seed,
-            chunk,
-            SURFACE_RULE_TYPES.len(),
-            SURFACE_CONDITION_TYPES.len(),
-            format!(
-                "{:?}:{:?}",
-                surface_condition_test(
-                    &SurfaceConditionSource::StoneDepth {
-                        offset: 1,
-                        add_surface_depth: true,
-                        secondary_depth_range: 0,
-                        surface: CaveSurface::Floor,
-                    },
-                    &material_context,
-                    &context,
-                ),
-                surface_rule_apply(
-                    &SurfaceRuleSource::Block("minecraft:grass_block"),
-                    &material_context,
-                    &context,
-                )
-            ),
-        ),
-        source_family_golden(
-            "placement_modifier",
-            seed,
-            chunk,
-            PLACED_FEATURE_BOOTSTRAP_SOURCES.len(),
-            9,
-            format!(
-                "{:?}",
-                (
-                    placement_modifier_positions(
-                        PlacementModifier::Count { count: 2 },
-                        placement_origin,
-                        2,
-                        0,
-                        0,
-                    ),
-                    placement_modifier_positions(
-                        PlacementModifier::InSquare,
-                        placement_origin,
-                        3,
-                        5,
-                        0,
-                    ),
-                    placement_modifier_positions(
-                        PlacementModifier::RandomOffset {
-                            xz_spread: 2,
-                            y_spread: 1,
-                        },
-                        placement_origin,
-                        3,
-                        5,
-                        7,
-                    ),
-                )
-            ),
-        ),
-        source_family_golden(
-            "preset",
-            seed,
-            chunk,
-            WORLD_PRESETS.len()
-                + BUILTIN_NOISE_GENERATOR_SETTINGS.len()
-                + BUILTIN_NOISE_ROUTERS.len(),
-            3,
-            format!(
-                "{:?}:{:?}:{:?}",
-                WORLD_PRESETS, BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS
-            ),
-        ),
-        source_family_golden(
-            "structure",
-            seed,
-            chunk,
-            STRUCTURE_FAMILIES.len() + STRUCTURE_PIECE_TYPES.len(),
-            STRUCTURE_PIECE_TYPES.len(),
-            format!("{:?}:{:?}", STRUCTURE_FAMILIES, sample.structure_chunks),
-        ),
-        source_family_golden(
-            "synth_noise",
-            seed,
-            chunk,
-            NORMAL_NOISE_PARAMETERS.len(),
-            SYNTH_NOISE_SOURCES.len() + DENSITY_FUNCTION_TYPES.len(),
-            format!(
-                "{:?}:{:?}:{:?}",
-                SYNTH_NOISE_SOURCES,
-                normal_noise_value_factor(NORMAL_NOISE_PARAMETERS[11]),
-                density_function_type("old_blended_noise")
-            ),
-        ),
+        blending_source_family_golden(&context),
+        block_predicate_source_family_golden(&context),
+        carver_source_family_golden(&context),
+        feature_source_family_golden(&context),
+        flat_generator_source_family_golden(&context),
+        height_provider_source_family_golden(&context),
+        material_rule_source_family_golden(&context),
+        placement_modifier_source_family_golden(&context),
+        preset_source_family_golden(&context),
+        structure_source_family_golden(&context),
+        synth_noise_source_family_golden(&context),
     ]
+}
+
+struct SourceFamilyGoldenContext {
+    seed: i64,
+    chunk: ChunkCoord,
+    sample: SeedParitySample,
+    height_context: WorldGenerationHeightContext,
+    block_context: BlockPredicateContext,
+    placement_origin: BlockPos,
+    material_context: SurfaceMaterialContext,
+}
+
+impl SourceFamilyGoldenContext {
+    fn new(seed: i64, chunk: ChunkCoord) -> Self {
+        let sample = build_seed_parity_sample(seed, chunk.x, chunk.z);
+        let height_context = WorldGenerationHeightContext {
+            min_y: -64,
+            height: 384,
+        };
+        let block_context = BlockPredicateContext {
+            min_y: -64,
+            height: 384,
+            block: "minecraft:grass_block",
+            fluid: "minecraft:empty",
+            solid: true,
+            replaceable: false,
+            unobstructed: true,
+        };
+        let placement_origin = BlockPos {
+            x: chunk.x * 16,
+            y: 72,
+            z: chunk.z * 16,
+        };
+        let material_context = SurfaceMaterialContext {
+            seed,
+            random_algorithm: crate::worldgen::RandomAlgorithm::Xoroshiro,
+            x: chunk.x * 16,
+            y: 64,
+            z: chunk.z * 16,
+            biome: "minecraft:plains",
+            stone_depth_above: 0,
+            stone_depth_below: 4,
+            surface_depth: 3,
+            preliminary_surface_y: 68,
+            water_height: 63,
+            temperature: 0.8,
+            noise: 0.25,
+            steep: false,
+            hole: false,
+        };
+        Self {
+            seed,
+            chunk,
+            sample,
+            height_context,
+            block_context,
+            placement_origin,
+            material_context,
+        }
+    }
+}
+
+fn blending_source_family_golden(
+    context: &SourceFamilyGoldenContext,
+) -> WorldgenSourceFamilyGolden {
+    source_family_golden(
+        "blending",
+        context.seed,
+        context.chunk,
+        1,
+        1,
+        format!(
+            "{:?}",
+            blending_output_for_old_height(Some(72.0), Some(2.0))
+        ),
+    )
+}
+
+fn block_predicate_source_family_golden(
+    context: &SourceFamilyGoldenContext,
+) -> WorldgenSourceFamilyGolden {
+    source_family_golden(
+        "block_predicate",
+        context.seed,
+        context.chunk,
+        BLOCK_PREDICATE_TYPES.len(),
+        BLOCK_PREDICATE_TYPES.len(),
+        format!(
+            "{:?}:{:?}",
+            BLOCK_PREDICATE_TYPES,
+            block_predicate_test(BlockPredicate::Solid, context.block_context, 64)
+        ),
+    )
+}
+
+fn carver_source_family_golden(context: &SourceFamilyGoldenContext) -> WorldgenSourceFamilyGolden {
+    source_family_golden(
+        "carver",
+        context.seed,
+        context.chunk,
+        CONFIGURED_CARVERS.len(),
+        3,
+        format!(
+            "{:?}:{:?}",
+            CONFIGURED_CARVERS,
+            configured_carver("cave").is_some_and(|carver| carver_is_start_chunk(carver, 0.15))
+        ),
+    )
+}
+
+fn feature_source_family_golden(context: &SourceFamilyGoldenContext) -> WorldgenSourceFamilyGolden {
+    source_family_golden(
+        "feature",
+        context.seed,
+        context.chunk,
+        CONFIGURED_FEATURES.len(),
+        PLACED_FEATURE_BOOTSTRAP_SOURCES.len(),
+        format!("{:?}", CONFIGURED_FEATURES),
+    )
+}
+
+fn flat_generator_source_family_golden(
+    context: &SourceFamilyGoldenContext,
+) -> WorldgenSourceFamilyGolden {
+    source_family_golden(
+        "flat_generator",
+        context.seed,
+        context.chunk,
+        FLAT_GENERATOR_PRESETS.len(),
+        FLAT_GENERATOR_PRESETS.len(),
+        format!("{:?}", FLAT_GENERATOR_PRESETS),
+    )
+}
+
+fn height_provider_source_family_golden(
+    context: &SourceFamilyGoldenContext,
+) -> WorldgenSourceFamilyGolden {
+    source_family_golden(
+        "height_provider",
+        context.seed,
+        context.chunk,
+        HEIGHT_PROVIDER_TYPES.len(),
+        HEIGHT_PROVIDER_TYPES.len(),
+        format!(
+            "{:?}:{:?}",
+            HEIGHT_PROVIDER_TYPES,
+            height_provider_sample_with_rolls(
+                HeightProvider::Trapezoid {
+                    min_inclusive: VerticalAnchor::Absolute(40),
+                    max_inclusive: VerticalAnchor::Absolute(80),
+                    plateau: 8,
+                },
+                context.height_context,
+                4,
+                9,
+                0,
+            )
+        ),
+    )
+}
+
+fn material_rule_source_family_golden(
+    context: &SourceFamilyGoldenContext,
+) -> WorldgenSourceFamilyGolden {
+    source_family_golden(
+        "material_rule",
+        context.seed,
+        context.chunk,
+        SURFACE_RULE_TYPES.len(),
+        SURFACE_CONDITION_TYPES.len(),
+        format!(
+            "{:?}:{:?}",
+            surface_condition_test(
+                &SurfaceConditionSource::StoneDepth {
+                    offset: 1,
+                    add_surface_depth: true,
+                    secondary_depth_range: 0,
+                    surface: CaveSurface::Floor,
+                },
+                &context.material_context,
+                &context.height_context,
+            ),
+            surface_rule_apply(
+                &SurfaceRuleSource::Block("minecraft:grass_block"),
+                &context.material_context,
+                &context.height_context,
+            )
+        ),
+    )
+}
+
+fn placement_modifier_source_family_golden(
+    context: &SourceFamilyGoldenContext,
+) -> WorldgenSourceFamilyGolden {
+    source_family_golden(
+        "placement_modifier",
+        context.seed,
+        context.chunk,
+        PLACED_FEATURE_BOOTSTRAP_SOURCES.len(),
+        9,
+        format!(
+            "{:?}",
+            (
+                placement_modifier_positions(
+                    PlacementModifier::Count { count: 2 },
+                    context.placement_origin,
+                    2,
+                    0,
+                    0,
+                ),
+                placement_modifier_positions(
+                    PlacementModifier::InSquare,
+                    context.placement_origin,
+                    3,
+                    5,
+                    0,
+                ),
+                placement_modifier_positions(
+                    PlacementModifier::RandomOffset {
+                        xz_spread: 2,
+                        y_spread: 1,
+                    },
+                    context.placement_origin,
+                    3,
+                    5,
+                    7,
+                ),
+            )
+        ),
+    )
+}
+
+fn preset_source_family_golden(context: &SourceFamilyGoldenContext) -> WorldgenSourceFamilyGolden {
+    source_family_golden(
+        "preset",
+        context.seed,
+        context.chunk,
+        WORLD_PRESETS.len() + BUILTIN_NOISE_GENERATOR_SETTINGS.len() + BUILTIN_NOISE_ROUTERS.len(),
+        3,
+        format!(
+            "{:?}:{:?}:{:?}",
+            WORLD_PRESETS, BUILTIN_NOISE_GENERATOR_SETTINGS, BUILTIN_NOISE_ROUTERS
+        ),
+    )
+}
+
+fn structure_source_family_golden(
+    context: &SourceFamilyGoldenContext,
+) -> WorldgenSourceFamilyGolden {
+    source_family_golden(
+        "structure",
+        context.seed,
+        context.chunk,
+        STRUCTURE_FAMILIES.len() + STRUCTURE_PIECE_TYPES.len(),
+        STRUCTURE_PIECE_TYPES.len(),
+        format!(
+            "{:?}:{:?}",
+            STRUCTURE_FAMILIES, context.sample.structure_chunks
+        ),
+    )
+}
+
+fn synth_noise_source_family_golden(
+    context: &SourceFamilyGoldenContext,
+) -> WorldgenSourceFamilyGolden {
+    source_family_golden(
+        "synth_noise",
+        context.seed,
+        context.chunk,
+        NORMAL_NOISE_PARAMETERS.len(),
+        SYNTH_NOISE_SOURCES.len() + DENSITY_FUNCTION_TYPES.len(),
+        format!(
+            "{:?}:{:?}:{:?}",
+            SYNTH_NOISE_SOURCES,
+            normal_noise_value_factor(NORMAL_NOISE_PARAMETERS[11]),
+            density_function_type("old_blended_noise")
+        ),
+    )
 }
 
 fn source_family_golden(
