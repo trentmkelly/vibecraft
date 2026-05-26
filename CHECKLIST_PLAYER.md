@@ -39,7 +39,7 @@
 - [x] Implement XP level→point threshold: `getXpNeededForNextLevel()` = (level ≥ 30) ? 112 + (level-30)*9 : (level ≥ 15) ? 37 + (level-15)*5 : 7 + level*2 — `experience_system::xp_needed_for_next_level` matches Java `Player.getXpNeededForNextLevel()` exactly; verified against decompiled 26.1.2 line 1554.
 - [ ] Implement player death drops: drop all inventory on death in non-keepInventory mode; keep bound items if `CurseOfBinding`; XP orb generation proportional to XP level
 - [ ] Implement player respawn: consume `respawnPosition` if set and block still valid, else find default world spawn; apply respawn invulnerability ticks
-- [ ] Implement `Abilities` flags: invulnerable, flying, can-fly, instant-build (creative), flying-speed (0.05 walk / 0.1 fly), walking-speed (0.1); sync on game mode change
+- [x] Implement `Abilities` flags: invulnerable, flying, can-fly, instant-build (creative), flying-speed (0.05 walk / 0.1 fly), walking-speed (0.1); sync on game mode change — `PlayerNbtAbilities` defaults match Java `Abilities.java` (flyingSpeed=0.05, walkingSpeed=0.1); `apply_game_mode` matches Java `GameType.updatePlayerAbilities` including `mayBuild = !isBlockPlacingRestricted()` for Adventure/Spectator; NBT serialization uses vanilla field names; verified against decompiled 26.1.2.
 - [ ] Implement `ServerPlayerGameMode`: survival break-speed calculation per tool/block, creative instant-break, spectator no-interaction, adventure restriction (no break unless CanDestroy tag)
 - [ ] Implement spawn protection check: blocks within `spawn-protection` radius from world spawn cannot be broken by non-ops
 - [ ] Implement player abilities packet sync on: game mode change, op status change, allow-flight property change
