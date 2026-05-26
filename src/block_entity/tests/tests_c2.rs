@@ -4,7 +4,11 @@ use super::*;
 fn sculk_sensor_block_entity_tracks_vibration_phase_frequency_and_power() {
     assert_eq!(SculkSensorBlockEntity::LISTENER_RADIUS, 8);
     assert_eq!(SculkSensorBlockEntity::DEFAULT_LAST_VIBRATION_FREQUENCY, 0);
+    assert_sculk_sensor_immediate_activation_and_cooldown();
+    assert_sculk_sensor_delayed_vibration_and_persistence();
+}
 
+fn assert_sculk_sensor_immediate_activation_and_cooldown() {
     let mut sensor = SculkSensorBlockEntity::new();
     assert!(sensor.can_receive_vibration("minecraft:step", true));
     assert!(!sensor.can_receive_vibration("minecraft:unknown", true));
@@ -32,9 +36,13 @@ fn sculk_sensor_block_entity_tracks_vibration_phase_frequency_and_power() {
     assert_eq!(sensor.tick(0), SculkSensorTickResult::Deactivate);
     assert_eq!(sensor.phase, SculkSensorPhase::Listening);
     assert_eq!(sensor.power, 0);
+}
 
+fn assert_sculk_sensor_delayed_vibration_and_persistence() {
     let mut delayed = SculkSensorBlockEntity::new();
-    let event = crate::game_event::game_event_by_id("minecraft:entity_damage").unwrap();
+    let Some(event) = crate::game_event::game_event_by_id("minecraft:entity_damage") else {
+        panic!("minecraft:entity_damage should be registered for sculk sensor coverage");
+    };
     assert!(delayed.queue_vibration(
         VibrationInfo {
             event,
