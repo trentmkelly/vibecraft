@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn configured_carvers_match_vanilla_bootstrap_entries() {
+fn world_carver_types_match_vanilla_bootstrap_entries() {
     assert_eq!(
         WORLD_CARVER_TYPES
             .iter()
@@ -21,7 +21,10 @@ fn configured_carvers_match_vanilla_bootstrap_entries() {
         super::super::world_carver_type("minecraft:nether_cave"),
         Some(WorldCarverType::NetherCave)
     );
+}
 
+#[test]
+fn configured_carver_ids_match_vanilla_bootstrap_entries() {
     assert_eq!(
         CONFIGURED_CARVERS
             .iter()
@@ -34,7 +37,10 @@ fn configured_carvers_match_vanilla_bootstrap_entries() {
             "minecraft:nether_cave",
         ]
     );
+}
 
+#[test]
+fn configured_cave_carver_matches_vanilla_bootstrap_entry() {
     let cave = super::super::configured_carver("cave").unwrap();
     assert_eq!(cave.carver_type, WorldCarverType::Cave);
     assert_eq!(cave.probability, 0.15);
@@ -54,7 +60,10 @@ fn configured_carvers_match_vanilla_bootstrap_entries() {
         cave.replaceable_tag,
         "#minecraft:overworld_carver_replaceables"
     );
+}
 
+#[test]
+fn configured_extra_cave_and_canyon_match_vanilla_bootstrap_entries() {
     let extra = super::super::configured_carver("cave_extra_underground").unwrap();
     assert_eq!(extra.probability, 0.07);
     assert_eq!(extra.y.max, VerticalAnchor::Absolute(47));
@@ -75,7 +84,10 @@ fn configured_carvers_match_vanilla_bootstrap_entries() {
             ..
         }
     ));
+}
 
+#[test]
+fn configured_nether_cave_matches_vanilla_bootstrap_entry() {
     let nether = super::super::configured_carver("nether_cave").unwrap();
     assert_eq!(nether.carver_type, WorldCarverType::NetherCave);
     assert_eq!(nether.probability, 0.2);
@@ -128,7 +140,7 @@ fn configured_carver_json_codec_matches_vanilla_registry_files() {
 }
 
 #[test]
-fn world_carver_can_reach_matches_vanilla_distance_gate() {
+fn world_carver_can_reach_and_mask_indices_match_vanilla() {
     assert!(super::super::carver_can_reach(
         8.0, 8.0, 8.0, 8.0, 0, 10, 1.0
     ));
@@ -150,7 +162,10 @@ fn world_carver_can_reach_matches_vanilla_distance_gate() {
             z: 31,
         }
     );
+}
 
+#[test]
+fn carver_block_replacement_and_lava_level_match_vanilla() {
     let cave = super::super::configured_carver("cave").unwrap();
     let nether = super::super::configured_carver("nether_cave").unwrap();
     let height_context = WorldGenerationHeightContext {
@@ -177,6 +192,16 @@ fn world_carver_can_reach_matches_vanilla_distance_gate() {
         super::super::carver_effective_lava_y(nether, nether_height_context),
         31
     );
+}
+
+#[test]
+fn overworld_carver_block_outcomes_match_vanilla() {
+    let cave = super::super::configured_carver("cave").unwrap();
+    let height_context = WorldGenerationHeightContext {
+        min_y: -64,
+        height: 384,
+    };
+
     assert_eq!(
         super::super::carver_carve_block(
             cave,
@@ -245,6 +270,16 @@ fn world_carver_can_reach_matches_vanilla_distance_gate() {
         .state,
         "minecraft:crimson_button"
     );
+}
+
+#[test]
+fn nether_carver_block_outcomes_match_vanilla() {
+    let nether = super::super::configured_carver("nether_cave").unwrap();
+    let nether_height_context = WorldGenerationHeightContext {
+        min_y: 0,
+        height: 128,
+    };
+
     assert_eq!(
         super::super::carver_carve_block(
             nether,
@@ -283,6 +318,14 @@ fn world_carver_can_reach_matches_vanilla_distance_gate() {
         .state,
         "minecraft:cave_air"
     );
+}
+
+#[test]
+fn carver_ellipsoid_candidate_positions_match_vanilla() {
+    let height_context = WorldGenerationHeightContext {
+        min_y: -64,
+        height: 384,
+    };
     let ellipsoid =
         super::super::carver_ellipsoid_candidate_positions(super::super::CarverEllipsoidInput {
             chunk_min_x: 0,
@@ -352,6 +395,10 @@ fn world_carver_can_reach_matches_vanilla_distance_gate() {
         },
     )
     .is_empty());
+}
+
+#[test]
+fn cave_carver_counts_and_thickness_match_vanilla_sampling() {
     assert_eq!(super::super::cave_carver_cave_count(15, 14, 7, 3), 3);
     assert_eq!(super::super::cave_carver_cave_count(15, 0, 9, 9), 0);
     let mut cave_random = super::super::LegacyRandom::new(12345);
@@ -373,6 +420,10 @@ fn world_carver_can_reach_matches_vanilla_distance_gate() {
     assert!((super::super::cave_carver_thickness(0.5, 0.25, 1, 1.0, 1.0) - 1.25).abs() < 0.0001);
     assert!((super::super::cave_carver_thickness(0.5, 0.25, 0, 0.5, 0.5) - 2.1875).abs() < 0.0001);
     assert_eq!(super::super::cave_room_radii(2.5, 0.5), (4.0, 2.0));
+}
+
+#[test]
+fn cave_tunnel_steps_match_vanilla_radius_and_reach_rules() {
     let tunnel_steps = super::super::cave_tunnel_steps(super::super::CaveTunnelInput {
         chunk_middle_x: 8.0,
         chunk_middle_z: 8.0,
@@ -393,6 +444,10 @@ fn world_carver_can_reach_matches_vanilla_distance_gate() {
     assert!(tunnel_steps.iter().all(|step| step.carve && step.can_reach));
     assert!((tunnel_steps[0].x - 9.0).abs() < 0.0001);
     assert!((tunnel_steps[2].horizontal_radius - 3.5).abs() < 0.0001);
+}
+
+#[test]
+fn cave_tunnel_split_branch_matches_vanilla_rolls() {
     let branch = super::super::cave_tunnel_split_branch(super::super::CaveTunnelSplitInput {
         x: 8.0,
         y: 64.0,
@@ -431,6 +486,10 @@ fn world_carver_can_reach_matches_vanilla_distance_gate() {
         },)
         .is_none()
     );
+}
+
+#[test]
+fn canyon_tunnel_steps_and_width_factors_match_vanilla() {
     let canyon_steps = super::super::canyon_tunnel_steps(super::super::CanyonTunnelInput {
         chunk_middle_x: 8.0,
         chunk_middle_z: 8.0,
