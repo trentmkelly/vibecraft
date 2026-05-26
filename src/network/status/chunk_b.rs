@@ -407,6 +407,10 @@ pub fn tick_play_session_food(
 }
 
 pub fn food_difficulty_from_properties(properties: &ServerProperties) -> FoodDifficulty {
+    // Java DedicatedServer.initServer(): hardcore forces Hard difficulty.
+    if properties.hardcore {
+        return FoodDifficulty::Hard;
+    }
     match properties.difficulty.as_str() {
         "0" | "peaceful" => FoodDifficulty::Peaceful,
         "2" | "normal" => FoodDifficulty::Normal,
