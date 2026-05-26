@@ -76,6 +76,14 @@ fn ore_triangle(min_inclusive: VerticalAnchor, max_inclusive: VerticalAnchor) ->
 
 pub fn placed_ore_feature(id: &str) -> Option<PlacedOreFeatureModel> {
     let name = id.strip_prefix("minecraft:").unwrap_or(id);
+    placed_nether_ore_feature(name)
+        .or_else(|| placed_nether_debris_feature(name))
+        .or_else(|| placed_overworld_base_ore_feature(name))
+        .or_else(|| placed_overworld_common_ore_feature(name))
+        .or_else(|| placed_overworld_deep_ore_feature(name))
+}
+
+fn placed_nether_ore_feature(name: &str) -> Option<PlacedOreFeatureModel> {
     let model = match name {
         "ore_magma" => PlacedOreFeatureModel {
             configured_feature: "minecraft:ore_magma",
@@ -161,6 +169,36 @@ pub fn placed_ore_feature(id: &str) -> Option<PlacedOreFeatureModel> {
                 PlacementModifier::BiomeFilter,
             ],
         },
+        _ => return None,
+    };
+    Some(model)
+}
+
+fn placed_nether_debris_feature(name: &str) -> Option<PlacedOreFeatureModel> {
+    let model = match name {
+        "ore_ancient_debris_large" => PlacedOreFeatureModel {
+            configured_feature: "minecraft:ore_ancient_debris_large",
+            placement: vec![
+                PlacementModifier::InSquare,
+                ore_triangle(VerticalAnchor::Absolute(8), VerticalAnchor::Absolute(24)),
+                PlacementModifier::BiomeFilter,
+            ],
+        },
+        "ore_debris_small" => PlacedOreFeatureModel {
+            configured_feature: "minecraft:ore_ancient_debris_small",
+            placement: vec![
+                PlacementModifier::InSquare,
+                ore_uniform(VerticalAnchor::AboveBottom(8), VerticalAnchor::BelowTop(8)),
+                PlacementModifier::BiomeFilter,
+            ],
+        },
+        _ => return None,
+    };
+    Some(model)
+}
+
+fn placed_overworld_base_ore_feature(name: &str) -> Option<PlacedOreFeatureModel> {
+    let model = match name {
         "ore_dirt" => PlacedOreFeatureModel {
             configured_feature: "minecraft:ore_dirt",
             placement: vec![
@@ -220,6 +258,13 @@ pub fn placed_ore_feature(id: &str) -> Option<PlacedOreFeatureModel> {
                 PlacementModifier::BiomeFilter,
             ],
         },
+        _ => return None,
+    };
+    Some(model)
+}
+
+fn placed_overworld_common_ore_feature(name: &str) -> Option<PlacedOreFeatureModel> {
+    let model = match name {
         "ore_coal_upper" => PlacedOreFeatureModel {
             configured_feature: "minecraft:ore_coal",
             placement: vec![
@@ -313,6 +358,13 @@ pub fn placed_ore_feature(id: &str) -> Option<PlacedOreFeatureModel> {
                 PlacementModifier::BiomeFilter,
             ],
         },
+        _ => return None,
+    };
+    Some(model)
+}
+
+fn placed_overworld_deep_ore_feature(name: &str) -> Option<PlacedOreFeatureModel> {
+    let model = match name {
         "ore_diamond" | "ore_diamond_large" | "ore_diamond_buried" => {
             let (configured_feature, frequency) = match name {
                 "ore_diamond" => ("minecraft:ore_diamond_small", ore_count(7)),
@@ -374,22 +426,6 @@ pub fn placed_ore_feature(id: &str) -> Option<PlacedOreFeatureModel> {
                 ore_count(100),
                 PlacementModifier::InSquare,
                 ore_triangle(VerticalAnchor::Absolute(-16), VerticalAnchor::Absolute(480)),
-                PlacementModifier::BiomeFilter,
-            ],
-        },
-        "ore_ancient_debris_large" => PlacedOreFeatureModel {
-            configured_feature: "minecraft:ore_ancient_debris_large",
-            placement: vec![
-                PlacementModifier::InSquare,
-                ore_triangle(VerticalAnchor::Absolute(8), VerticalAnchor::Absolute(24)),
-                PlacementModifier::BiomeFilter,
-            ],
-        },
-        "ore_debris_small" => PlacedOreFeatureModel {
-            configured_feature: "minecraft:ore_ancient_debris_small",
-            placement: vec![
-                PlacementModifier::InSquare,
-                ore_uniform(VerticalAnchor::AboveBottom(8), VerticalAnchor::BelowTop(8)),
                 PlacementModifier::BiomeFilter,
             ],
         },
