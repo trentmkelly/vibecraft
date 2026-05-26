@@ -694,7 +694,11 @@ pub fn sprint_movement_accumulates_food_exhaustion() {
         &mut state,
     )
     .unwrap();
-    assert_eq!(state.food_exhaustion, 0.05);
+    assert!(
+        (state.food_exhaustion - 0.05).abs() < f32::EPSILON,
+        "sprint exhaustion should be ~0.05, got {}",
+        state.food_exhaustion
+    );
 }
 
 #[test]

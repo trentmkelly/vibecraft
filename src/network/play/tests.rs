@@ -622,12 +622,13 @@ fn assert_entity_spawn_rotation_and_velocity(spawn: &ClientboundAddEntityPacket)
     assert_eq!(spawn.y_rot, 64);
     assert_eq!(spawn.y_head_rot, 128);
 
+    // 26.1.2 uses LpVec3 (ABS_MAX ~1.7e10), not the legacy ±3.9 clamp.
     let velocity = ClientboundSetEntityMotionPacket::new(7, spawn.movement);
     assert_eq!(
         velocity.movement,
         Vec3 {
-            x: 3.9,
-            y: -3.9,
+            x: 4.5,
+            y: -4.5,
             z: 0.25,
         }
     );
