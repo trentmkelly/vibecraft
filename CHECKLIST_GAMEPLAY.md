@@ -71,7 +71,7 @@
   - [x] Wither: deals 1 damage every `40 / (amplifier+1)` ticks, can kill, bypasses armor — `tick_action` uses interval 40, no health guard, returns `Damage { source: "minecraft:wither", amount: 1.0 }`; verified against Java `WitherMobEffect.java`.
   - [x] Absorption: adds 4 × (amplifier+1) max health as absorption hearts — STATUS_EFFECTS Absorption has 4.0 ADD_VALUE modifier on `max_absorption`; matches Java `MobEffects.ABSORPTION` attribute modifier.
   - [x] Health Boost: +4 × (amplifier+1) max health — 4.0 ADD_VALUE on `max_health`; verified against Java `MobEffects.HEALTH_BOOST` attribute modifier.
-  - [ ] Hero of the Village: discount effect for villager prices
+  - [x] Hero of the Village: discount effect for villager prices — `villager_system::apply_hero_of_the_village_prices` is 1:1 with `Villager.updateSpecialPrices`: `modifier = 0.3 + 0.0625·amplifier`, `costReduction = floor(modifier · baseCostA.count)`, `addToSpecialPriceDiff(-max(costReduction, 1))`, alongside the reputation path (`floor(reputation · priceMultiplier)`) and `reset_special_prices`. Verified by `hero_of_the_village_discount_and_special_price_reset_match_java` (amp 0 → −1/−6, amp 2 accumulates to −2/−14, reset → 0).
   - [ ] Bad Omen / Raid Omen / Trial Omen: triggers raid or trial state
   - [x] Conduit Power: underwater haste + vision + attack — `status_effect::conduit_power_effect` models underwater break speed bonus (1.2x), drowning prevention, night vision, and hostile attack damage hooks.
   - [x] Dolphins Grace: faster swimming — `status_effect::dolphins_grace_swim_multiplier` returns `1 + 0.96 * (amp+1)` for amplifier-scaled swim speed.
