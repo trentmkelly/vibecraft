@@ -65,12 +65,71 @@ export function expectedMorningTimeAfterSleep(currentTime) {
   return currentTime + (fullDay - cycleTime)
 }
 
-// Insomnia threshold: 72000 ticks without sleep triggers phantom spawning
+// Insomnia threshold (PhantomSpawner, 26.1.2): a phantom can spawn only when
+//   random.nextInt(clamp(timeSinceRest, 1, MAX)) >= 72000
+// nextInt(n) maxes at n-1, so timeSinceRest must be STRICTLY greater than 72000
+// (>= 72001) for the comparison to ever hold; at exactly 72000 it never spawns.
 export const INSOMNIA_PHANTOM_THRESHOLD_TICKS = 72000
 
-// Vanilla daytime range for sleep eligibility: 12541–23458
+// Sleep eligibility (BedRule.CAN_SLEEP_WHEN_DARK -> Rule.WHEN_DARK ->
+// Level.isDarkOutside()). 26.1.2 no longer uses a hardcoded daytime window; it is
+// derived from skyDarken:
+//   Level.skyDarken = (int)(15.0F - SKY_LIGHT_LEVEL)
+//   Level.isBrightOutside() = skyDarken < 4 ; isDarkOutside() = !bright
+// SKY_LIGHT_LEVEL = 15 (default) * MULTIPLY-track value, where the track
+// (Timelines.java:81-83, LINEAR easing) is keyframed
+//   (133,1.0)(11867,1.0)(13670,0.26666668)(22330,0.26666668).
+// Computed in float (Math.fround) to match the vanilla f32 arithmetic exactly.
+const DAY_LENGTH_TICKS = 24000
+const SKY_LIGHT_LEVEL_DEFAULT = 15.0
+const SKY_LIGHT_MULTIPLY_KEYFRAMES = [
+  [133, 1.0],
+  [11867, 1.0],
+  [13670, 0.26666668],
+  [22330, 0.26666668]
+]
+
+// Cyclic piecewise-linear sampler matching environment_attributes::sample_piecewise_linear.
+function samplePiecewiseLinear(dayCycleTicks, keyframes) {
+  const t = ((dayCycleTicks % DAY_LENGTH_TICKS) + DAY_LENGTH_TICKS) % DAY_LENGTH_TICKS
+  const n = keyframes.length
+  let prevTick, prevVal, nextTick, nextVal
+  if (t < keyframes[0][0]) {
+    prevTick = keyframes[n - 1][0] - DAY_LENGTH_TICKS
+    prevVal = keyframes[n - 1][1]
+    nextTick = keyframes[0][0]
+    nextVal = keyframes[0][1]
+  } else if (t >= keyframes[n - 1][0]) {
+    prevTick = keyframes[n - 1][0]
+    prevVal = keyframes[n - 1][1]
+    nextTick = keyframes[0][0] + DAY_LENGTH_TICKS
+    nextVal = keyframes[0][1]
+  } else {
+    let idx = 0
+    while (idx + 1 < n && keyframes[idx + 1][0] <= t) idx++
+    prevTick = keyframes[idx][0]
+    prevVal = keyframes[idx][1]
+    nextTick = keyframes[idx + 1][0]
+    nextVal = keyframes[idx + 1][1]
+  }
+  const span = nextTick - prevTick
+  if (span <= 0) return Math.fround(nextVal)
+  const frac = Math.fround((t - prevTick) / span)
+  return Math.fround(prevVal + Math.fround(frac * Math.fround(nextVal - prevVal)))
+}
+
+export function computeSkyLightLevel(dayTime) {
+  return Math.fround(SKY_LIGHT_LEVEL_DEFAULT * samplePiecewiseLinear(dayTime, SKY_LIGHT_MULTIPLY_KEYFRAMES))
+}
+
+// Level.skyDarken = (int)(15 - SKY_LIGHT_LEVEL); (int) truncates toward zero.
+export function computeSkyDarken(dayTime) {
+  return Math.trunc(Math.fround(SKY_LIGHT_LEVEL_DEFAULT - computeSkyLightLevel(dayTime)))
+}
+
+// Level.isDarkOutside() == skyDarken >= 4 (yielding the sleep window 12523..23477).
 export function isNightTimeForSleep(dayTime) {
-  return dayTime >= 12541 && dayTime <= 23458
+  return computeSkyDarken(dayTime) >= 4
 }
 
 export function planBedEnter(username, bedPos) {
@@ -85,7 +144,9 @@ export function planInsomniaCounter(ticksWithoutSleep) {
   return {
     action: 'time.insomnia.counter',
     ticksWithoutSleep,
-    expectPhantomSpawn: ticksWithoutSleep >= INSOMNIA_PHANTOM_THRESHOLD_TICKS
+    // random.nextInt(value) >= 72000 requires value > 72000 (nextInt(72000) maxes
+    // at 71999), so phantoms become eligible strictly above the threshold.
+    expectPhantomSpawn: ticksWithoutSleep > INSOMNIA_PHANTOM_THRESHOLD_TICKS
   }
 }
 
