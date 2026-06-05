@@ -211,6 +211,37 @@ pub(super) fn loom_selectable_patterns(pattern_item: &ItemStack) -> Vec<&'static
 }
 
 // ---------------------------------------------------------------------------
+// Anvil helpers (`AnvilMenu.createResult` prerequisites)
+// ---------------------------------------------------------------------------
+
+/// `EnchantmentHelper.canStoreEnchantments`: an item can hold enchantments if it would
+/// carry a default `ENCHANTMENTS` component. RustCraft only attaches that component when
+/// enchanted, so this is modelled as: an enchantable item (carrying the `Enchantable`
+/// component) or an enchanted book (`STORED_ENCHANTMENTS`), or one already carrying
+/// enchantments.
+pub(super) fn can_store_enchantments(stack: &ItemStack) -> bool {
+    stack.item_id() == "minecraft:enchanted_book"
+        || stack.component("minecraft:enchantable").is_some()
+        || stack.component("minecraft:enchantments").is_some()
+        || stack.component("minecraft:stored_enchantments").is_some()
+}
+
+/// `ItemStack.isValidRepairItem`: `addition` is a member of the item's `Repairable`
+/// material tag (e.g. `#minecraft:diamond_tool_materials`), or the literal repair item.
+pub(super) fn anvil_is_valid_repair_item(item: &ItemStack, addition: &ItemStack) -> bool {
+    match item.component("minecraft:repairable") {
+        Some(ItemComponent::Repairable(material)) => {
+            if material.starts_with('#') {
+                crate::item_tags::item_in_tag(addition.item_id(), material)
+            } else {
+                *material == addition.item_id()
+            }
+        }
+        _ => false,
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Grindstone (disenchant + repair + experience) — `GrindstoneMenu`
 // ---------------------------------------------------------------------------
 

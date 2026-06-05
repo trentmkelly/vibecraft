@@ -110,6 +110,39 @@ const SKULLS: &[&str] = &[
     "minecraft:dragon_head",
     "minecraft:piglin_head",
 ];
+const PLANKS: &[&str] = &[
+    "minecraft:oak_planks",
+    "minecraft:spruce_planks",
+    "minecraft:birch_planks",
+    "minecraft:jungle_planks",
+    "minecraft:acacia_planks",
+    "minecraft:dark_oak_planks",
+    "minecraft:pale_oak_planks",
+    "minecraft:crimson_planks",
+    "minecraft:warped_planks",
+    "minecraft:mangrove_planks",
+    "minecraft:bamboo_planks",
+    "minecraft:cherry_planks",
+];
+
+// --- Repair-material tags (`ItemStack.isValidRepairItem` via the `Repairable`
+// component; `data/minecraft/tags/item/*_tool_materials.json` + `repairs_*_armor.json`)
+const DIAMOND_TOOL_MATERIALS: &[&str] = &["minecraft:diamond"];
+const IRON_TOOL_MATERIALS: &[&str] = &["minecraft:iron_ingot"];
+const GOLD_TOOL_MATERIALS: &[&str] = &["minecraft:gold_ingot"];
+const NETHERITE_TOOL_MATERIALS: &[&str] = &["minecraft:netherite_ingot"];
+const WOODEN_TOOL_MATERIALS: &[&str] = &["#minecraft:planks"];
+const STONE_TOOL_MATERIALS: &[&str] = &[
+    "minecraft:cobblestone",
+    "minecraft:blackstone",
+    "minecraft:cobbled_deepslate",
+];
+const REPAIRS_LEATHER_ARMOR: &[&str] = &["minecraft:leather"];
+const REPAIRS_IRON_ARMOR: &[&str] = &["minecraft:iron_ingot"];
+const REPAIRS_GOLD_ARMOR: &[&str] = &["minecraft:gold_ingot"];
+const REPAIRS_DIAMOND_ARMOR: &[&str] = &["minecraft:diamond"];
+const REPAIRS_NETHERITE_ARMOR: &[&str] = &["minecraft:netherite_ingot"];
+const REPAIRS_TURTLE_HELMET: &[&str] = &["minecraft:turtle_scute"];
 
 // --- Enchantable tags (`data/minecraft/tags/item/enchantable/*.json`) -------------
 // Values are stored verbatim (tag refs keep their leading `#`) so resolution mirrors
@@ -206,6 +239,20 @@ fn tag_values(tag: &str) -> Option<&'static [&'static str]> {
         "chest_armor" => CHEST_ARMOR,
         "head_armor" => HEAD_ARMOR,
         "skulls" => SKULLS,
+        "planks" => PLANKS,
+        // Repair-material tags.
+        "diamond_tool_materials" => DIAMOND_TOOL_MATERIALS,
+        "iron_tool_materials" => IRON_TOOL_MATERIALS,
+        "gold_tool_materials" => GOLD_TOOL_MATERIALS,
+        "netherite_tool_materials" => NETHERITE_TOOL_MATERIALS,
+        "wooden_tool_materials" => WOODEN_TOOL_MATERIALS,
+        "stone_tool_materials" => STONE_TOOL_MATERIALS,
+        "repairs_leather_armor" => REPAIRS_LEATHER_ARMOR,
+        "repairs_iron_armor" => REPAIRS_IRON_ARMOR,
+        "repairs_gold_armor" => REPAIRS_GOLD_ARMOR,
+        "repairs_diamond_armor" => REPAIRS_DIAMOND_ARMOR,
+        "repairs_netherite_armor" => REPAIRS_NETHERITE_ARMOR,
+        "repairs_turtle_helmet" => REPAIRS_TURTLE_HELMET,
         // Enchantable tags.
         "enchantable/armor" => E_ARMOR,
         "enchantable/foot_armor" => E_FOOT_ARMOR,

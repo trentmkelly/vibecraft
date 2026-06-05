@@ -102,3 +102,41 @@ fn grindstone_no_result_for_invalid_inputs() {
     menu.set_slot(0, book, &mut player);
     assert!(menu.get_slot(2, &player).unwrap().is_empty());
 }
+
+#[test]
+fn anvil_repair_material_and_store_enchantment_helpers_match_java() {
+    use super::{anvil_is_valid_repair_item, can_store_enchantments};
+    use crate::item_properties::ItemComponent;
+
+    // isValidRepairItem: a diamond tool (Repairable = #diamond_tool_materials) is
+    // repaired by a diamond, not by an iron ingot.
+    let mut pick = ItemStack::new("minecraft:diamond_pickaxe", 1);
+    pick.set_component(ItemComponent::Repairable("#minecraft:diamond_tool_materials"));
+    assert!(anvil_is_valid_repair_item(&pick, &ItemStack::new("minecraft:diamond", 1)));
+    assert!(!anvil_is_valid_repair_item(&pick, &ItemStack::new("minecraft:iron_ingot", 1)));
+
+    // Wooden tools (Repairable = #wooden_tool_materials -> #planks) accept any plank.
+    let mut wpick = ItemStack::new("minecraft:wooden_pickaxe", 1);
+    wpick.set_component(ItemComponent::Repairable("#minecraft:wooden_tool_materials"));
+    assert!(anvil_is_valid_repair_item(&wpick, &ItemStack::new("minecraft:birch_planks", 1)));
+    assert!(!anvil_is_valid_repair_item(&wpick, &ItemStack::new("minecraft:stick", 1)));
+
+    // A literal (non-tag) repair item is matched directly.
+    let mut mace = ItemStack::new("minecraft:mace", 1);
+    mace.set_component(ItemComponent::Repairable("minecraft:breeze_rod"));
+    assert!(anvil_is_valid_repair_item(&mace, &ItemStack::new("minecraft:breeze_rod", 1)));
+
+    // An item with no Repairable component cannot be repaired by material.
+    assert!(!anvil_is_valid_repair_item(
+        &ItemStack::new("minecraft:apple", 1),
+        &ItemStack::new("minecraft:diamond", 1)
+    ));
+
+    // canStoreEnchantments: enchantable items, enchanted books, and already-enchanted
+    // items can store; plain items cannot.
+    let mut sword = ItemStack::new("minecraft:diamond_sword", 1);
+    sword.set_component(ItemComponent::Enchantable(10));
+    assert!(can_store_enchantments(&sword));
+    assert!(can_store_enchantments(&ItemStack::new("minecraft:enchanted_book", 1)));
+    assert!(!can_store_enchantments(&ItemStack::new("minecraft:apple", 1)));
+}
