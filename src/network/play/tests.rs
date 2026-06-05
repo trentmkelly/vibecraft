@@ -924,6 +924,7 @@ mod container_close_packet_test;
 mod container_set_content_packet_test;
 mod container_set_data_packet_test;
 mod container_set_slot_packet_test;
+mod container_slot_state_changed_packet_test;
 mod cooldown_packet_test;
 mod custom_payload_packet_test;
 mod delete_chat_packet_test;

@@ -895,6 +895,25 @@ impl CrafterBlockEntity {
         true
     }
 
+    /// `ServerGamePacketListenerImpl.handleContainerSlotStateChanged` (crafter branch):
+    /// a `ServerboundContainerSlotStateChangedPacket` toggles a crafter grid slot iff
+    /// the sender is not a spectator and the packet's container id matches the player's
+    /// currently open menu. The fields are passed raw to keep block entities decoupled
+    /// from the network packet type. Returns whether the toggle was applied.
+    pub fn handle_slot_state_changed(
+        &mut self,
+        sender_is_spectator: bool,
+        open_container_id: i32,
+        packet_container_id: i32,
+        slot_id: i32,
+        new_state: bool,
+    ) -> bool {
+        if sender_is_spectator || packet_container_id != open_container_id || slot_id < 0 {
+            return false;
+        }
+        self.set_slot_state(slot_id as usize, new_state)
+    }
+
     pub fn is_slot_disabled(&self, slot: usize) -> bool {
         self.disabled_slots.get(slot).copied().unwrap_or(false)
     }

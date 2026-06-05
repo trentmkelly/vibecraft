@@ -244,6 +244,24 @@ impl ServerboundContainerButtonClickPacket {
     }
 }
 
+impl ServerboundContainerSlotStateChangedPacket {
+    /// Java: `(input.readVarInt(), input.readContainerId(), input.readBoolean())`
+    /// where `readContainerId` is a `VarInt`.
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            slot_id: read_var_i32(reader)?,
+            container_id: read_var_i32(reader)?,
+            new_state: read_bool(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.slot_id)?;
+        write_var_i32(writer, self.container_id)?;
+        write_bool(writer, self.new_state)
+    }
+}
+
 impl ClientboundMerchantOffersPacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.container_id)?;

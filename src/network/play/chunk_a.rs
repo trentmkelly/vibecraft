@@ -35,6 +35,7 @@ impl PlaySession {
             last_container_close: None,
             last_container_button_click: None,
             last_container_click: None,
+            last_container_slot_state_changed: None,
             last_set_creative_mode_slot: None,
             last_player_abilities: None,
             last_pick_item_from_block: None,
@@ -327,6 +328,12 @@ impl PlaySession {
                 "container close packet",
                 |input| ServerboundContainerClosePacket::read(input),
                 |session, close| session.last_container_close = Some(close),
+            ),
+            SERVERBOUND_CONTAINER_SLOT_STATE_CHANGED_PACKET_ID => self.decode_and_store(
+                payload,
+                "container slot state changed packet",
+                |input| ServerboundContainerSlotStateChangedPacket::read(input),
+                |session, pkt| session.last_container_slot_state_changed = Some(pkt),
             ),
             SERVERBOUND_EDIT_BOOK_PACKET_ID => self.decode_and_store(
                 payload,

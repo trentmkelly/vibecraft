@@ -1069,3 +1069,32 @@ fn assert_spawner_save_update_tag_and_events(spawner: &mut SpawnerBlockEntity) {
     assert_eq!(spawner.spawn_delay, spawner.min_spawn_delay);
     assert!(!spawner.on_event_triggered(true, 99));
 }
+
+#[test]
+fn crafter_handle_slot_state_changed_gates_match_java() {
+    // Java `ServerGamePacketListenerImpl.handleContainerSlotStateChanged` (crafter
+    // branch): apply the toggle only when the sender is not a spectator and the
+    // packet's container id matches the player's open menu container id.
+    let mut crafter = CrafterBlockEntity::new();
+    let open = 5;
+
+    // Happy path: not spectator, matching container id, empty slot -> disabled.
+    assert!(crafter.handle_slot_state_changed(false, open, open, 3, false));
+    assert!(crafter.is_slot_disabled(3));
+
+    // Re-enable through the handler.
+    assert!(crafter.handle_slot_state_changed(false, open, open, 3, true));
+    assert!(!crafter.is_slot_disabled(3));
+
+    // Spectator is rejected.
+    assert!(!crafter.handle_slot_state_changed(true, open, open, 4, false));
+    assert!(!crafter.is_slot_disabled(4));
+
+    // Container-id mismatch is rejected.
+    assert!(!crafter.handle_slot_state_changed(false, open, open + 1, 4, false));
+    assert!(!crafter.is_slot_disabled(4));
+
+    // Out-of-range / negative slot is rejected (matches slotCanBeDisabled bounds).
+    assert!(!crafter.handle_slot_state_changed(false, open, open, -1, false));
+    assert!(!crafter.handle_slot_state_changed(false, open, open, 9, false));
+}

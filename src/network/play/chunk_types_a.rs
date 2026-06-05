@@ -369,6 +369,16 @@ pub struct ServerboundContainerButtonClickPacket {
     pub button_id: i32,
 }
 
+/// `ServerboundContainerSlotStateChangedPacket` — toggles a crafter grid slot
+/// enabled/disabled (`slot_id`, `container_id`, `new_state`). 1:1 with the Java
+/// record `(slotId: VarInt, containerId: ContainerId(VarInt), newState: bool)`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundContainerSlotStateChangedPacket {
+    pub slot_id: i32,
+    pub container_id: i32,
+    pub new_state: bool,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClientboundMerchantOffersPacket {
     pub container_id: i32,
