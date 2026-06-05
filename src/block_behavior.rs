@@ -405,8 +405,12 @@ pub struct PlacementValidationContext {
     pub entity_collision: bool,
     /// Whether spawn protection covers the target position
     pub spawn_protected: bool,
-    /// Maximum reach distance (survival = 5.0, creative = same server-side)
-    pub reach_distance: f64,
+    /// The player's `block_interaction_range` attribute (4.5 survival, 5.0
+    /// creative). `isWithinBlockInteractionRange` adds a 1.0 buffer on top.
+    pub block_interaction_range: f64,
+    /// Inclusive build-height limits (`level.getMaxY()` / `getMinY()`).
+    pub max_y: i32,
+    pub min_y: i32,
     /// Existing block at target position (must be replaceable)
     pub existing_block_id: &'static str,
     /// Block being placed
@@ -424,6 +428,8 @@ pub enum PlacementGameMode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlacementDenyReason {
     TooFar,
+    TooHigh,
+    TooLow,
     SpawnProtected,
     CannotSurvive,
     EntityCollision,
@@ -431,43 +437,57 @@ pub enum PlacementDenyReason {
     SpectatorMode,
 }
 
-/// Validate a block placement attempt server-side.
-///
-/// Mirrors the checks in ServerPlayerGameMode.useItemOn() and BlockItem.place():
-/// 1. Spectators cannot place
-/// 2. Reach distance (Euclidean to block center)
-/// 3. Spawn protection
-/// 4. canSurvive check
-/// 5. Entity collision check
-/// 6. Replaceability of existing block
+/// Squared distance from `point` to the closest point of the 1×1×1 block AABB
+/// at `pos` — `new AABB(pos).distanceToSqr(point)` in vanilla.
+fn block_aabb_distance_sq(pos: crate::block_update::BlockPos, point: (f64, f64, f64)) -> f64 {
+    let dx = ((pos.x as f64) - point.0).max(point.0 - (pos.x as f64 + 1.0)).max(0.0);
+    let dy = ((pos.y as f64) - point.1).max(point.1 - (pos.y as f64 + 1.0)).max(0.0);
+    let dz = ((pos.z as f64) - point.2).max(point.2 - (pos.z as f64 + 1.0)).max(0.0);
+    dx * dx + dy * dy + dz * dz
+}
+
+/// Validate a block placement attempt server-side, consolidating the checks
+/// vanilla spreads across `ServerGamePacketListenerImpl.handleUseItemOn`,
+/// `ServerPlayerGameMode.useItemOn`, and `BlockItem.place`:
+/// 1. Spectators do not place blocks.
+/// 2. `isWithinBlockInteractionRange(pos, 1.0)`: squared eye→block-AABB distance
+///    against `(block_interaction_range + 1.0)²`.
+/// 3. Build-height limits (`pos.y > maxY` / `pos.y < minY`).
+/// 4. Spawn protection.
+/// 5. `place()` order — replaceable (`canPlace`), then `canSurvive`, then entity
+///    collision (`isUnobstructed`).
 pub fn validate_placement(ctx: &PlacementValidationContext) -> Result<(), PlacementDenyReason> {
     if ctx.game_mode == PlacementGameMode::Spectator {
         return Err(PlacementDenyReason::SpectatorMode);
     }
 
-    let dx = ctx.player_eye_pos.0 - (ctx.target_pos.x as f64 + 0.5);
-    let dy = ctx.player_eye_pos.1 - (ctx.target_pos.y as f64 + 0.5);
-    let dz = ctx.player_eye_pos.2 - (ctx.target_pos.z as f64 + 0.5);
-    let dist = (dx * dx + dy * dy + dz * dz).sqrt();
-    if dist > ctx.reach_distance {
+    let max_range = ctx.block_interaction_range + 1.0;
+    if block_aabb_distance_sq(ctx.target_pos, ctx.player_eye_pos) >= max_range * max_range {
         return Err(PlacementDenyReason::TooFar);
+    }
+
+    if ctx.target_pos.y > ctx.max_y {
+        return Err(PlacementDenyReason::TooHigh);
+    }
+    if ctx.target_pos.y < ctx.min_y {
+        return Err(PlacementDenyReason::TooLow);
     }
 
     if ctx.spawn_protected {
         return Err(PlacementDenyReason::SpawnProtected);
     }
 
-    if !ctx.can_survive {
-        return Err(PlacementDenyReason::CannotSurvive);
-    }
-
-    if ctx.entity_collision {
-        return Err(PlacementDenyReason::EntityCollision);
-    }
-
+    // BlockItem.place: canPlace (replaceable) first, then getPlacementState /
+    // canPlace(context, state) which is canSurvive && isUnobstructed.
     let state = BlockStateModel::new(ctx.existing_block_id);
     if !can_replace(&state, ctx.placed_block_id) {
         return Err(PlacementDenyReason::NotReplaceable);
+    }
+    if !ctx.can_survive {
+        return Err(PlacementDenyReason::CannotSurvive);
+    }
+    if ctx.entity_collision {
+        return Err(PlacementDenyReason::EntityCollision);
     }
 
     Ok(())
@@ -741,7 +761,9 @@ mod tests {
             can_survive: true,
             entity_collision: false,
             spawn_protected: false,
-            reach_distance: 5.0,
+            block_interaction_range: 4.5,
+            max_y: 319,
+            min_y: -64,
             existing_block_id: "minecraft:air",
             placed_block_id: "minecraft:stone",
         };
@@ -754,12 +776,45 @@ mod tests {
             }),
             Err(PlacementDenyReason::SpectatorMode)
         );
+        // Survival reach is range 4.5 + 1.0 buffer = 5.5 to the block AABB. A
+        // block one above (AABB face at y=65, eye at 64.62) is 0.38 away → in range.
+        assert!(validate_placement(&PlacementValidationContext {
+            target_pos: BlockPos { x: 0, y: 65, z: 0 },
+            ..ok_ctx.clone()
+        })
+        .is_ok());
+        // 6 blocks east: closest AABB face at x=6, eye at x=0.5 → 5.5 away,
+        // which is NOT < 5.5 → too far.
+        assert_eq!(
+            validate_placement(&PlacementValidationContext {
+                target_pos: BlockPos { x: 6, y: 64, z: 0 },
+                ..ok_ctx.clone()
+            }),
+            Err(PlacementDenyReason::TooFar)
+        );
         assert_eq!(
             validate_placement(&PlacementValidationContext {
                 player_eye_pos: (100.0, 100.0, 100.0),
                 ..ok_ctx.clone()
             }),
             Err(PlacementDenyReason::TooFar)
+        );
+        // Above/below the build limits.
+        assert_eq!(
+            validate_placement(&PlacementValidationContext {
+                target_pos: BlockPos { x: 0, y: 320, z: 0 },
+                player_eye_pos: (0.5, 320.5, 0.5),
+                ..ok_ctx.clone()
+            }),
+            Err(PlacementDenyReason::TooHigh)
+        );
+        assert_eq!(
+            validate_placement(&PlacementValidationContext {
+                target_pos: BlockPos { x: 0, y: -65, z: 0 },
+                player_eye_pos: (0.5, -64.5, 0.5),
+                ..ok_ctx.clone()
+            }),
+            Err(PlacementDenyReason::TooLow)
         );
         assert_eq!(
             validate_placement(&PlacementValidationContext {
