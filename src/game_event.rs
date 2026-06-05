@@ -497,6 +497,13 @@ pub fn plan_server_explosion(input: ServerExplosionInput) -> ServerExplosionPlan
             .collect()
     };
 
+    // TODO(26.1.2 parity): ServerExplosion.explode places fire per destroyed
+    // position with `random.nextInt(3) == 0 && getBlockState(pos).isAir() &&
+    // getBlockState(pos.below()).isSolidRender()`. This deterministic `index % 3`
+    // approximation lacks the per-position RNG and the air/solid-below block
+    // checks, which require RNG + neighbour block-state access this plan does not
+    // carry. (Likewise hurtEntities uses the TNT position, not the eye, as the
+    // knockback origin.)
     let fire_positions = if input.fire {
         destroyed_blocks
             .iter()
