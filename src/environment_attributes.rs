@@ -225,6 +225,54 @@ pub fn creaking_active(day_cycle_ticks: i64) -> bool {
 }
 
 // ---------------------------------------------------------------------------
+// Weather effect on SKY_LIGHT_LEVEL
+// ---------------------------------------------------------------------------
+
+/// `Mth.lerp(alpha, p0, p1)`.
+fn lerp(alpha: f32, p0: f32, p1: f32) -> f32 {
+    p0 + alpha * (p1 - p0)
+}
+
+// WeatherAttributes ALPHA_BLEND arguments for SKY_LIGHT_LEVEL (target 4.0).
+// Java: net/minecraft/world/attribute/WeatherAttributes.java
+//   RAIN    -> FloatWithAlpha(4.0F, 0.3125F)
+//   THUNDER -> FloatWithAlpha(4.0F, 0.52734375F)
+const SKY_LIGHT_WEATHER_TARGET: f32 = 4.0;
+const SKY_LIGHT_RAIN_ALPHA: f32 = 0.3125;
+const SKY_LIGHT_THUNDER_ALPHA: f32 = 0.527_343_75;
+
+/// Apply the `WeatherAttributes` modifiers to a base `SKY_LIGHT_LEVEL`, 1:1 with
+/// the `EnvironmentAttributes` evaluation: the rain entry blends the value toward
+/// 4.0 (`FloatModifier.ALPHA_BLEND`, alpha 0.3125) scaled by the rain-minus-
+/// thunder level via the float state-change lerp, then the thunder entry blends
+/// toward 4.0 (alpha 0.52734375) scaled by the thunder level. `ALPHA_BLEND(s, v,
+/// a) = lerp(a, s, v)` and the state-change lerp is `Mth.lerp`.
+///
+/// `rain_level`/`thunder_level` are the `0.0..=1.0` weather levels (thunder is a
+/// subset of rain, so a full thunderstorm has both at 1.0).
+pub fn weather_sky_light_level(base: f32, rain_level: f32, thunder_level: f32) -> f32 {
+    let mut result = base;
+    let rain_only = rain_level - thunder_level;
+    if rain_only > 0.0 {
+        let rain_value = lerp(SKY_LIGHT_RAIN_ALPHA, result, SKY_LIGHT_WEATHER_TARGET);
+        result = lerp(rain_only, result, rain_value);
+    }
+    if thunder_level > 0.0 {
+        let thunder_value = lerp(SKY_LIGHT_THUNDER_ALPHA, result, SKY_LIGHT_WEATHER_TARGET);
+        result = lerp(thunder_level, result, thunder_value);
+    }
+    result
+}
+
+/// `skyDarken = (int)(15 - SKY_LIGHT_LEVEL)` from `Level.tickTime`, evaluated at
+/// full daylight (base `SKY_LIGHT_LEVEL` 15) for the given weather levels. The
+/// `(int)` cast truncates toward zero (these values are non-negative). At full
+/// daylight: clear → 0 (light 15), rain → 3 (light 12), thunder → 5 (light 10).
+pub fn weather_sky_darken(rain_level: f32, thunder_level: f32) -> i32 {
+    (15.0 - weather_sky_light_level(15.0, rain_level, thunder_level)) as i32
+}
+
+// ---------------------------------------------------------------------------
 // Convenience helpers
 // ---------------------------------------------------------------------------
 
@@ -285,6 +333,26 @@ mod tests {
         assert!((sky_light_level(6_000) - 1.0).abs() < 1e-4);
         // Tick 18000 (midnight) is well within the [13670, 22330] min-light region.
         assert!((sky_light_level(18_000) - 0.266_666_68).abs() < 1e-4);
+    }
+
+    #[test]
+    fn weather_sky_light_level_blends_toward_four_per_weather_attributes() {
+        // Clear: unchanged base.
+        assert!((weather_sky_light_level(15.0, 0.0, 0.0) - 15.0).abs() < 1e-4);
+        // Full rain: lerp(1.0, 15, lerp(0.3125, 15, 4.0)) = 11.5625.
+        assert!((weather_sky_light_level(15.0, 1.0, 0.0) - 11.5625).abs() < 1e-4);
+        // Full thunder (rain and thunder both 1.0; rain_only = 0):
+        // lerp(1.0, 15, lerp(0.52734375, 15, 4.0)) = 9.19921875.
+        assert!((weather_sky_light_level(15.0, 1.0, 1.0) - 9.199_219).abs() < 1e-4);
+
+        // skyDarken = (int)(15 - SKY_LIGHT_LEVEL): clear 0, rain 3, thunder 5.
+        assert_eq!(weather_sky_darken(0.0, 0.0), 0);
+        assert_eq!(weather_sky_darken(1.0, 0.0), 3);
+        assert_eq!(weather_sky_darken(1.0, 1.0), 5);
+
+        // Partial rain (level 0.5) blends proportionally and still floors.
+        let partial = weather_sky_light_level(15.0, 0.5, 0.0);
+        assert!(partial > 11.5625 && partial < 15.0, "{partial}");
     }
 
     #[test]

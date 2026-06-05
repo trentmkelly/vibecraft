@@ -396,26 +396,20 @@ fn lerp(delta: f32, from: f32, to: f32) -> f32 {
     from + delta * (to - from)
 }
 
-/// Return the sky light reduction for the current weather state.
-///
-/// This is the pre-EnvironmentAttributes approximation (CLEAR=0, RAIN/THUNDER=5).
-///
-/// TODO(26.1.2 parity): vanilla no longer uses a flat −5. `Level.tickTime`
-/// computes `skyDarken = (int)(15 - EnvironmentAttributes.SKY_LIGHT_LEVEL)`,
-/// where `WeatherAttributes` modifies `SKY_LIGHT_LEVEL` by alpha-blending it
-/// toward 4.0 (rain alpha 0.3125, thunder alpha 0.52734375) scaled by the
-/// current rain/thunder levels. A faithful port needs the EnvironmentAttributes
-/// / FloatModifier (ALPHA_BLEND) system; until then this returns the legacy
-/// approximation and `effective_sky_light` is not 1:1 with 26.1.2.
+/// Return the sky-light reduction for the current weather state at full
+/// daylight, 1:1 with `Level.tickTime`: `skyDarken = (int)(15 -
+/// EnvironmentAttributes.SKY_LIGHT_LEVEL)`, where `WeatherAttributes` blends
+/// `SKY_LIGHT_LEVEL` toward 4.0 (rain alpha 0.3125, thunder alpha 0.52734375).
+/// A full thunderstorm has both rain and thunder active. Yields clear → 0
+/// (light 15), rain → 3 (light 12), thunder → 5 (light 10). See
+/// [`crate::environment_attributes::weather_sky_darken`] for the level-based form.
 pub fn sky_darken_amount(raining: bool, thundering: bool) -> i32 {
-    if raining || thundering {
-        5
-    } else {
-        0
-    }
+    let rain_level = f32::from(raining || thundering);
+    let thunder_level = f32::from(thundering);
+    crate::environment_attributes::weather_sky_darken(rain_level, thunder_level)
 }
 
-/// Full sky light level accounting for weather.
+/// Full sky light level accounting for weather (`15 - skyDarken`).
 pub fn effective_sky_light(raining: bool, thundering: bool) -> i32 {
     15 - sky_darken_amount(raining, thundering)
 }
@@ -786,12 +780,15 @@ mod tests {
 
     #[test]
     fn sky_darken_amount_matches_vanilla_clear_rain_thunder() {
+        // 26.1.2 EnvironmentAttributes: skyDarken = (int)(15 - SKY_LIGHT_LEVEL)
+        // where rain blends toward 4.0 (alpha 0.3125) → 11.5625 → darken 3, and
+        // thunder blends toward 4.0 (alpha 0.52734375) → 9.199 → darken 5.
         assert_eq!(sky_darken_amount(false, false), 0);
-        assert_eq!(sky_darken_amount(true, false), 5);
+        assert_eq!(sky_darken_amount(true, false), 3);
         assert_eq!(sky_darken_amount(false, true), 5);
         assert_eq!(sky_darken_amount(true, true), 5);
         assert_eq!(effective_sky_light(false, false), 15);
-        assert_eq!(effective_sky_light(true, false), 10);
+        assert_eq!(effective_sky_light(true, false), 12);
         assert_eq!(effective_sky_light(false, true), 10);
     }
 
