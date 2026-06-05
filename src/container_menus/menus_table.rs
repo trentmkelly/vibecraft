@@ -198,6 +198,9 @@ pub struct LoomMenu {
     pattern: ItemStack,
     result: ItemStack,
     pub selected_pattern_index: i32,
+    /// `LoomMenu.selectablePatterns` — the currently-selectable pattern ids (in loom
+    /// button order), recomputed by `refresh` (= `slotsChanged`).
+    selectable_patterns: Vec<&'static str>,
 }
 
 impl LoomMenu {
@@ -210,14 +213,9 @@ impl LoomMenu {
     pub const HOTBAR_END: usize = 40;
     pub const SLOT_COUNT: usize = 40;
 
-    // TODO(loom-pattern-filtering, CONTAINERS #103): the slot layout/restrictions are
-    // done, but `getSelectablePatterns` + `slotsChanged` pattern selection + result
-    // assembly are not. They require banner-pattern data not yet modelled: the
-    // `BannerPatternTags.NO_ITEM_REQUIRED` tag (patterns selectable with an empty
-    // pattern slot) and the `PROVIDES_BANNER_PATTERNS` data component on each
-    // `*_banner_pattern` item (`BannerPatternDef` currently carries only id +
-    // translation key), plus `DataComponents.BANNER_PATTERNS` assembly on the result
-    // banner. Blocked on the banner-pattern registry/data-component subsystem.
+    /// Maximum banner pattern layers (`BannerPatternLayers.MAX_PATTERNS`).
+    pub const MAX_PATTERNS: usize = 6;
+
     pub fn new() -> Self {
         Self {
             banner: ItemStack::empty(),
@@ -225,7 +223,110 @@ impl LoomMenu {
             pattern: ItemStack::empty(),
             result: ItemStack::empty(),
             selected_pattern_index: -1,
+            selectable_patterns: Vec::new(),
         }
+    }
+
+    /// `LoomMenu.getSelectablePatterns()` accessor.
+    pub fn selectable_patterns(&self) -> &[&'static str] {
+        &self.selectable_patterns
+    }
+
+    /// Existing banner pattern layers on the input banner (`getOrDefault(BANNER_PATTERNS,
+    /// EMPTY)`).
+    fn banner_layers(&self) -> Vec<BannerPatternLayer> {
+        match self.banner.component("minecraft:banner_patterns") {
+            Some(ItemComponent::BannerPatterns(layers)) => layers.clone(),
+            _ => Vec::new(),
+        }
+    }
+
+    /// `LoomMenu.slotsChanged`: recompute selectable patterns and the result slot when
+    /// the banner/dye/pattern inputs change. Preserves the selected pattern by value
+    /// across input changes, and clears everything when banner or dye is missing.
+    fn refresh(&mut self) {
+        if self.banner.is_empty() || self.dye.is_empty() {
+            self.result = ItemStack::empty();
+            self.selectable_patterns = Vec::new();
+            self.selected_pattern_index = -1;
+            return;
+        }
+
+        let selected = self.selected_pattern_index;
+        let valid_index = selected >= 0 && (selected as usize) < self.selectable_patterns.len();
+        let previous = std::mem::take(&mut self.selectable_patterns);
+        self.selectable_patterns = loom_selectable_patterns(&self.pattern);
+
+        let pattern_to_display: Option<&'static str> = if self.selectable_patterns.len() == 1 {
+            self.selected_pattern_index = 0;
+            Some(self.selectable_patterns[0])
+        } else if !valid_index {
+            self.selected_pattern_index = -1;
+            None
+        } else {
+            let selected_value = previous[selected as usize];
+            match self
+                .selectable_patterns
+                .iter()
+                .position(|p| *p == selected_value)
+            {
+                Some(new_index) => {
+                    self.selected_pattern_index = new_index as i32;
+                    Some(selected_value)
+                }
+                None => {
+                    self.selected_pattern_index = -1;
+                    None
+                }
+            }
+        };
+
+        match pattern_to_display {
+            Some(pattern) if self.banner_layers().len() < Self::MAX_PATTERNS => {
+                self.setup_result(pattern);
+            }
+            Some(_) => {
+                // Banner already at the 6-layer maximum.
+                self.selected_pattern_index = -1;
+                self.result = ItemStack::empty();
+            }
+            None => self.result = ItemStack::empty(),
+        }
+    }
+
+    /// `LoomMenu.clickMenuButton`: select pattern `button_id` (if in range) and rebuild
+    /// the result slot.
+    pub fn select_pattern(&mut self, button_id: i32) -> bool {
+        if button_id >= 0 && (button_id as usize) < self.selectable_patterns.len() {
+            self.selected_pattern_index = button_id;
+            self.setup_result(self.selectable_patterns[button_id as usize]);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// `LoomMenu.setupResultSlot`: result = banner (count 1) with the existing layers
+    /// plus a new `(pattern, dyeColor)` layer; empty if banner/dye missing or the dye
+    /// has no colour.
+    fn setup_result(&mut self, pattern: &'static str) {
+        if self.banner.is_empty() || self.dye.is_empty() {
+            self.result = ItemStack::empty();
+            return;
+        }
+        let Some(color) = dye_color_for_item(self.dye.item_id()) else {
+            self.result = ItemStack::empty();
+            return;
+        };
+        let mut result = self.banner.clone();
+        result.limit_size(1);
+        let mut layers = self.banner_layers();
+        layers.push(BannerPatternLayer {
+            pattern: pattern.to_string(),
+            color,
+        });
+        result.set_component(ItemComponent::BannerPatterns(layers));
+        self.result = result;
     }
 
     /// `LoomMenu.removed`: `clearContainer(inputContainer)` — banner, dye, and pattern
@@ -278,8 +379,13 @@ impl LoomMenu {
             1 => self.dye = stack,
             2 => self.pattern = stack,
             3 => return false,
-            _ => write_player_slot(slot, Self::INV_START, player, stack),
+            _ => {
+                write_player_slot(slot, Self::INV_START, player, stack);
+                return true;
+            }
         }
+        // An input slot changed: recompute selectable patterns + result (slotsChanged).
+        self.refresh();
         true
     }
 

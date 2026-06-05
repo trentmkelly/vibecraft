@@ -67,6 +67,9 @@ pub enum ItemComponent {
     UseRemainder(&'static str),
     ItemModel(&'static str),
     ItemName(&'static str),
+    /// `minecraft:banner_patterns` — ordered banner pattern layers (pattern + dye
+    /// colour), e.g. the result of a loom application or an existing patterned banner.
+    BannerPatterns(Vec<crate::block_entity::BannerPatternLayer>),
     WritableBookContent(Vec<String>),
     WrittenBookContent {
         title: String,
@@ -247,6 +250,7 @@ impl ItemDefinition {
                 | ItemComponent::UseRemainder(_)
                 | ItemComponent::ItemModel(_)
                 | ItemComponent::ItemName(_)
+                | ItemComponent::BannerPatterns(_)
                 | ItemComponent::WritableBookContent(_)
                 | ItemComponent::WrittenBookContent { .. }
                 | ItemComponent::Custom(_) => {}
@@ -280,6 +284,7 @@ impl ItemComponent {
             Self::UseRemainder(_) => "minecraft:use_remainder",
             Self::ItemModel(_) => "minecraft:item_model",
             Self::ItemName(_) => "minecraft:item_name",
+            Self::BannerPatterns(_) => "minecraft:banner_patterns",
             Self::WritableBookContent(_) => "minecraft:writable_book_content",
             Self::WrittenBookContent { .. } => "minecraft:written_book_content",
             Self::Custom(name) => name,

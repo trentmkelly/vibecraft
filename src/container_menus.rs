@@ -22,8 +22,11 @@
 
 #![allow(dead_code)]
 
+use crate::block_entity::BannerPatternLayer;
 use crate::inventory::same_item_same_components;
+use crate::item_properties::ItemComponent;
 use crate::item_stack::ItemStack;
+use crate::map_state::DyeColor;
 use crate::player_inventory::{
     ItemCost, MerchantOffer, PlayerInventory, HOTBAR_SIZE, INVENTORY_SIZE,
 };
@@ -134,6 +137,101 @@ pub(super) fn is_pattern_item(item_id: &str) -> bool {
 /// Banner item ID test.
 pub(super) fn is_banner_item(item_id: &str) -> bool {
     item_id.ends_with("_banner")
+}
+
+/// `BannerPatternTags.NO_ITEM_REQUIRED` — the patterns selectable in the loom with an
+/// empty pattern slot, in the tag's declared order (drives loom button indices).
+/// Source: `data/minecraft/tags/banner_pattern/no_item_required.json`.
+pub(super) const NO_ITEM_REQUIRED_PATTERNS: &[&str] = &[
+    "minecraft:square_bottom_left",
+    "minecraft:square_bottom_right",
+    "minecraft:square_top_left",
+    "minecraft:square_top_right",
+    "minecraft:stripe_bottom",
+    "minecraft:stripe_top",
+    "minecraft:stripe_left",
+    "minecraft:stripe_right",
+    "minecraft:stripe_center",
+    "minecraft:stripe_middle",
+    "minecraft:stripe_downright",
+    "minecraft:stripe_downleft",
+    "minecraft:small_stripes",
+    "minecraft:cross",
+    "minecraft:straight_cross",
+    "minecraft:triangle_bottom",
+    "minecraft:triangle_top",
+    "minecraft:triangles_bottom",
+    "minecraft:triangles_top",
+    "minecraft:diagonal_left",
+    "minecraft:diagonal_up_right",
+    "minecraft:diagonal_up_left",
+    "minecraft:diagonal_right",
+    "minecraft:circle",
+    "minecraft:rhombus",
+    "minecraft:half_vertical",
+    "minecraft:half_horizontal",
+    "minecraft:half_vertical_right",
+    "minecraft:half_horizontal_bottom",
+    "minecraft:border",
+    "minecraft:gradient",
+    "minecraft:gradient_up",
+];
+
+/// The banner pattern provided by a `*_banner_pattern` item via its
+/// `PROVIDES_BANNER_PATTERNS` data component (modelled as a static map since each
+/// loom pattern item provides exactly one pattern). Source:
+/// `data/minecraft/tags/banner_pattern/pattern_item/*.json`.
+pub(super) fn pattern_for_pattern_item(item_id: &str) -> Option<&'static str> {
+    Some(match item_id {
+        "minecraft:creeper_banner_pattern" => "minecraft:creeper",
+        "minecraft:skull_banner_pattern" => "minecraft:skull",
+        "minecraft:flower_banner_pattern" => "minecraft:flower",
+        "minecraft:mojang_banner_pattern" => "minecraft:mojang",
+        "minecraft:globe_banner_pattern" => "minecraft:globe",
+        "minecraft:piglin_banner_pattern" => "minecraft:piglin",
+        "minecraft:flow_banner_pattern" => "minecraft:flow",
+        "minecraft:guster_banner_pattern" => "minecraft:guster",
+        "minecraft:field_masoned_banner_pattern" => "minecraft:bricks",
+        "minecraft:bordure_indented_banner_pattern" => "minecraft:curly_border",
+        _ => return None,
+    })
+}
+
+/// `LoomMenu.getSelectablePatterns(patternStack)`: with an empty pattern slot the
+/// `NO_ITEM_REQUIRED` patterns are selectable; with a held loom-pattern item only the
+/// pattern that item provides; otherwise none.
+pub(super) fn loom_selectable_patterns(pattern_item: &ItemStack) -> Vec<&'static str> {
+    if pattern_item.is_empty() {
+        NO_ITEM_REQUIRED_PATTERNS.to_vec()
+    } else {
+        pattern_for_pattern_item(pattern_item.item_id())
+            .into_iter()
+            .collect()
+    }
+}
+
+/// `DyeItem.getDyeColor()` — maps a dye item to its `DyeColor`, covering the 16
+/// `*_dye` items plus the special-cased dyes accepted by `is_dye_item`.
+pub(super) fn dye_color_for_item(item_id: &str) -> Option<DyeColor> {
+    Some(match item_id {
+        "minecraft:white_dye" | "minecraft:bone_meal" => DyeColor::White,
+        "minecraft:orange_dye" => DyeColor::Orange,
+        "minecraft:magenta_dye" => DyeColor::Magenta,
+        "minecraft:light_blue_dye" => DyeColor::LightBlue,
+        "minecraft:yellow_dye" => DyeColor::Yellow,
+        "minecraft:lime_dye" => DyeColor::Lime,
+        "minecraft:pink_dye" => DyeColor::Pink,
+        "minecraft:gray_dye" => DyeColor::Gray,
+        "minecraft:light_gray_dye" => DyeColor::LightGray,
+        "minecraft:cyan_dye" => DyeColor::Cyan,
+        "minecraft:purple_dye" => DyeColor::Purple,
+        "minecraft:blue_dye" | "minecraft:lapis_lazuli" => DyeColor::Blue,
+        "minecraft:brown_dye" | "minecraft:cocoa_beans" => DyeColor::Brown,
+        "minecraft:green_dye" => DyeColor::Green,
+        "minecraft:red_dye" => DyeColor::Red,
+        "minecraft:black_dye" | "minecraft:ink_sac" => DyeColor::Black,
+        _ => return None,
+    })
 }
 
 /// `CartographyTableMenu`'s additional-slot test.

@@ -573,6 +573,97 @@ fn loom_menu_slot_restrictions() {
     assert!(!menu.may_place(3, &ItemStack::new("minecraft:white_banner", 1)));
 }
 
+#[test]
+fn loom_menu_pattern_filtering_and_result_match_java() {
+    use crate::item_properties::ItemComponent;
+    let mut menu = LoomMenu::new();
+    let mut player = PlayerInventory::new();
+
+    // Empty pattern slot -> all NO_ITEM_REQUIRED patterns selectable once banner+dye in.
+    menu.set_slot(0, ItemStack::new("minecraft:white_banner", 1), &mut player);
+    menu.set_slot(1, ItemStack::new("minecraft:red_dye", 1), &mut player);
+    assert_eq!(menu.selectable_patterns().len(), 32);
+    assert_eq!(menu.selectable_patterns()[0], "minecraft:square_bottom_left");
+    // No pattern selected yet (>1 selectable and none chosen) -> no result.
+    assert!(menu.get_slot(3, &player).unwrap().is_empty());
+
+    // Select a pattern -> result is the banner (count 1) with a new (pattern, color) layer.
+    assert!(menu.select_pattern(13)); // index 13 = "minecraft:cross"
+    let result = menu.get_slot(3, &player).unwrap();
+    assert_eq!(result.item_id(), "minecraft:white_banner");
+    assert_eq!(result.count(), 1);
+    match result.component("minecraft:banner_patterns") {
+        Some(ItemComponent::BannerPatterns(layers)) => {
+            assert_eq!(layers.len(), 1);
+            assert_eq!(layers[0].pattern, "minecraft:cross");
+            assert_eq!(layers[0].color, DyeColor::Red);
+        }
+        other => panic!("expected banner_patterns component, got {other:?}"),
+    }
+    assert!(!menu.select_pattern(-1)); // negative index rejected
+    assert!(!menu.select_pattern(32)); // out of range
+
+    // A held loom-pattern item restricts the selectable set to exactly its pattern.
+    menu.set_slot(2, ItemStack::new("minecraft:creeper_banner_pattern", 1), &mut player);
+    assert_eq!(menu.selectable_patterns(), &["minecraft:creeper"]);
+    // Size == 1 auto-selects index 0 and sets up the result.
+    let result = menu.get_slot(3, &player).unwrap();
+    match result.component("minecraft:banner_patterns") {
+        Some(ItemComponent::BannerPatterns(layers)) => {
+            assert_eq!(layers[0].pattern, "minecraft:creeper");
+        }
+        other => panic!("expected creeper layer, got {other:?}"),
+    }
+
+    // Removing the dye clears the result + selectable patterns.
+    menu.set_slot(1, ItemStack::empty(), &mut player);
+    assert!(menu.get_slot(3, &player).unwrap().is_empty());
+    assert!(menu.selectable_patterns().is_empty());
+    assert_eq!(menu.selected_pattern_index, -1);
+}
+
+#[test]
+fn loom_menu_appends_to_existing_layers_and_caps_at_six() {
+    use crate::block_entity::BannerPatternLayer;
+    use crate::item_properties::ItemComponent;
+    let mut player = PlayerInventory::new();
+
+    // A banner that already has 5 layers -> a 6th can be added.
+    let five = (0..5)
+        .map(|_| BannerPatternLayer {
+            pattern: "minecraft:border".to_string(),
+            color: DyeColor::Black,
+        })
+        .collect::<Vec<_>>();
+    let mut banner = ItemStack::new("minecraft:white_banner", 1);
+    banner.set_component(ItemComponent::BannerPatterns(five));
+    let mut menu = LoomMenu::new();
+    menu.set_slot(0, banner.clone(), &mut player);
+    menu.set_slot(1, ItemStack::new("minecraft:blue_dye", 1), &mut player);
+    assert!(menu.select_pattern(13)); // adds "cross"
+    match menu.get_slot(3, &player).unwrap().component("minecraft:banner_patterns") {
+        Some(ItemComponent::BannerPatterns(layers)) => assert_eq!(layers.len(), 6),
+        other => panic!("expected 6 layers, got {other:?}"),
+    }
+
+    // A banner already at the 6-layer maximum -> no result (slotsChanged path).
+    let six = (0..6)
+        .map(|_| BannerPatternLayer {
+            pattern: "minecraft:border".to_string(),
+            color: DyeColor::Black,
+        })
+        .collect::<Vec<_>>();
+    let mut full = ItemStack::new("minecraft:white_banner", 1);
+    full.set_component(ItemComponent::BannerPatterns(six));
+    let mut menu = LoomMenu::new();
+    menu.set_slot(1, ItemStack::new("minecraft:blue_dye", 1), &mut player);
+    menu.set_slot(0, full, &mut player); // single selectable? no -> 32, none selected
+    // Force selection; setup_result still runs but slotsChanged caps at MAX on input change.
+    menu.set_slot(2, ItemStack::new("minecraft:creeper_banner_pattern", 1), &mut player);
+    assert!(menu.get_slot(3, &player).unwrap().is_empty());
+    assert_eq!(menu.selected_pattern_index, -1);
+}
+
 // -------- LecternMenu --------
 
 #[test]
