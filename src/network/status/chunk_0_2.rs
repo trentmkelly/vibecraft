@@ -580,13 +580,13 @@ pub const TRIM_MATERIALS: &[TrimMaterialEntry] = &[
     TrimMaterialEntry {
         id: "quartz",
         asset_name: "quartz",
-        color: "#e3d4bd",
+        color: "#E3D4C4",
         overrides: &[],
     },
     TrimMaterialEntry {
         id: "iron",
         asset_name: "iron",
-        color: "#ececec",
+        color: "#ECECEC",
         overrides: &[("minecraft:iron", "iron_darker")],
     },
     TrimMaterialEntry {
@@ -604,43 +604,43 @@ pub const TRIM_MATERIALS: &[TrimMaterialEntry] = &[
     TrimMaterialEntry {
         id: "copper",
         asset_name: "copper",
-        color: "#b4684d",
+        color: "#B4684D",
         overrides: &[("minecraft:copper", "copper_darker")],
     },
     TrimMaterialEntry {
         id: "gold",
         asset_name: "gold",
-        color: "#decf2a",
+        color: "#DEB12D",
         overrides: &[("minecraft:gold", "gold_darker")],
     },
     TrimMaterialEntry {
         id: "emerald",
         asset_name: "emerald",
-        color: "#11a036",
+        color: "#11A036",
         overrides: &[],
     },
     TrimMaterialEntry {
         id: "diamond",
         asset_name: "diamond",
-        color: "#6eead6",
+        color: "#6EECD2",
         overrides: &[("minecraft:diamond", "diamond_darker")],
     },
     TrimMaterialEntry {
         id: "lapis",
         asset_name: "lapis",
-        color: "#416e97",
+        color: "#416E97",
         overrides: &[],
     },
     TrimMaterialEntry {
         id: "amethyst",
         asset_name: "amethyst",
-        color: "#9a5cc6",
+        color: "#9A5CC6",
         overrides: &[],
     },
     TrimMaterialEntry {
         id: "resin",
         asset_name: "resin",
-        color: "#fc7812",
+        color: "#FC7812",
         overrides: &[],
     },
 ];

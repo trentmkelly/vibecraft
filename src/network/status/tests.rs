@@ -618,6 +618,71 @@ pub fn trim_material_registry_payload_includes_redstone_component_data() {
 }
 
 #[test]
+pub fn trim_material_registry_payloads_match_vanilla_colors_and_overrides() {
+    // (id, description color as serialized by TextColor #%06X, override_armor_assets)
+    // Values from data/minecraft/trim_material/*.json and MaterialAssetGroup.
+    let expected: &[(&str, &str, &[(&str, &str)])] = &[
+        ("quartz", "#E3D4C4", &[]),
+        ("iron", "#ECECEC", &[("minecraft:iron", "iron_darker")]),
+        (
+            "netherite",
+            "#625859",
+            &[("minecraft:netherite", "netherite_darker")],
+        ),
+        ("redstone", "#971607", &[]),
+        ("copper", "#B4684D", &[("minecraft:copper", "copper_darker")]),
+        ("gold", "#DEB12D", &[("minecraft:gold", "gold_darker")]),
+        ("emerald", "#11A036", &[]),
+        (
+            "diamond",
+            "#6EECD2",
+            &[("minecraft:diamond", "diamond_darker")],
+        ),
+        ("lapis", "#416E97", &[]),
+        ("amethyst", "#9A5CC6", &[]),
+        ("resin", "#FC7812", &[]),
+    ];
+    assert_eq!(TRIM_MATERIALS.len(), expected.len());
+
+    for (id, color, overrides) in expected {
+        let material = TRIM_MATERIALS
+            .iter()
+            .find(|material| material.id == *id)
+            .unwrap_or_else(|| panic!("trim material {id} should be sent"));
+        let tag = trim_material_nbt(material);
+
+        assert!(
+            matches!(field_value(&tag, "asset_name"), Some(Tag::String(value)) if value == id),
+            "{id} asset_name"
+        );
+        let description = compound_field(&tag, "description");
+        assert!(
+            matches!(field_value(description, "translate"), Some(Tag::String(value)) if value == &format!("trim_material.minecraft.{id}")),
+            "{id} translate"
+        );
+        assert!(
+            matches!(field_value(description, "color"), Some(Tag::String(value)) if value == color),
+            "{id} color should be {color}"
+        );
+
+        if overrides.is_empty() {
+            assert!(
+                field_value(&tag, "override_armor_assets").is_none(),
+                "{id} should have no override_armor_assets"
+            );
+        } else {
+            let group = compound_field(&tag, "override_armor_assets");
+            for (asset, suffix) in *overrides {
+                assert!(
+                    matches!(field_value(group, asset), Some(Tag::String(value)) if value == suffix),
+                    "{id} override {asset} should be {suffix}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 pub fn vanilla_animal_variant_registry_payloads_include_client_referenced_entries() {
     assert_eq!(
         registry_element_count(write_vanilla_cat_variant_registry_packet),
