@@ -323,18 +323,27 @@ impl MapState {
                 height: self.max_dirty_y + 1 - self.min_dirty_y,
             }
         });
-        let decorations = if self.dirty_decorations && self.update_tick.is_multiple_of(5) {
-            self.dirty_decorations = false;
-            Some(
-                self.decorations
-                    .iter()
-                    .map(|(key, value)| (key.clone(), value.clone()))
-                    .collect::<Vec<_>>(),
-            )
+        // Java: `if (this.dirtyDecorations && this.tick++ % 5 == 0)`. The `tick++`
+        // sits inside the `&&` short-circuit, so the tick counter only advances on
+        // calls where decorations are dirty — it must NOT increment unconditionally,
+        // or the every-5th-tick send cadence desyncs.
+        let decorations = if self.dirty_decorations {
+            let at_interval = self.update_tick.is_multiple_of(5);
+            self.update_tick += 1;
+            if at_interval {
+                self.dirty_decorations = false;
+                Some(
+                    self.decorations
+                        .iter()
+                        .map(|(key, value)| (key.clone(), value.clone()))
+                        .collect::<Vec<_>>(),
+                )
+            } else {
+                None
+            }
         } else {
             None
         };
-        self.update_tick += 1;
 
         if patch.is_none() && decorations.is_none() {
             None
@@ -614,9 +623,22 @@ mod tests {
             BlockPos { x: 3, y: 0, z: 4 },
             MapDecorationKind::Target
         ));
-        assert!(map.next_update_packet().is_none());
-        assert!(map.next_update_packet().is_none());
-        let decoration_update = map.next_update_packet().unwrap();
+        // Java flushes decorations only on the call where the per-view tick counter
+        // is a multiple of 5, and that counter advances ONLY while decorations are
+        // dirty (`dirtyDecorations && tick++ % 5 == 0`). So once dirty it takes up to
+        // five calls to flush; the intermediate calls return no packet here (the
+        // colour patch was already sent and cleared above).
+        let mut flush_calls = 0;
+        let decoration_update = loop {
+            flush_calls += 1;
+            assert!(flush_calls <= 5, "decorations must flush within 5 ticks");
+            if let Some(packet) = map.next_update_packet() {
+                if packet.decorations.is_some() {
+                    break packet;
+                }
+            }
+        };
+        assert_eq!(flush_calls, 5);
         assert!(decoration_update
             .decorations
             .unwrap()
