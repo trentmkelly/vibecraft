@@ -215,12 +215,24 @@ pub fn sweeping_damage_ratio(level: u8) -> f32 {
     }
 }
 
-pub fn projectile_damage(speed: f64, base_damage: f64, critical: bool) -> i32 {
-    let mut damage = (speed * base_damage).ceil() as i32;
-    if critical {
-        damage += (damage + 1) / 2;
-    }
-    damage.max(0)
+/// Base arrow damage before any crit bonus, 1:1 with `AbstractArrow.onHitEntity`:
+/// `Mth.ceil(Mth.clamp(speed * base_damage, 0, i32::MAX))` where `speed` is the
+/// arrow's delta-movement length.
+pub fn projectile_damage(speed: f64, base_damage: f64) -> i32 {
+    (speed * base_damage).clamp(0.0, f64::from(i32::MAX)).ceil() as i32
+}
+
+/// The exclusive upper bound for the crit-arrow roll: vanilla rolls
+/// `random.nextInt(damage / 2 + 2)`, so the roll is uniform in
+/// `0..projectile_crit_roll_bound(damage)`.
+pub fn projectile_crit_roll_bound(damage: i32) -> i32 {
+    damage / 2 + 2
+}
+
+/// Applies the critical-arrow bonus: `min(damage + roll, i32::MAX)` where `roll`
+/// is `random.nextInt(damage / 2 + 2)`.
+pub fn projectile_crit_damage(damage: i32, crit_random_roll: i32) -> i32 {
+    damage.saturating_add(crit_random_roll)
 }
 
 /// 1:1 with `ExplosionDamageCalculator.getEntityDamageAmount`:
@@ -657,8 +669,13 @@ mod tests {
 
     #[test]
     fn projectile_explosion_fall_and_command_damage_use_vanilla_shapes() {
-        assert_eq!(projectile_damage(3.1, 2.0, false), 7);
-        assert_eq!(projectile_damage(3.1, 2.0, true), 11);
+        // Base arrow damage: ceil(3.1 * 2.0) = 7.
+        assert_eq!(projectile_damage(3.1, 2.0), 7);
+        // Crit rolls random.nextInt(7/2 + 2) = nextInt(5) → bonus in 0..=4,
+        // so crit damage ranges over [7, 11].
+        assert_eq!(projectile_crit_roll_bound(7), 5);
+        assert_eq!(projectile_crit_damage(7, 0), 7);
+        assert_eq!(projectile_crit_damage(7, 4), 11);
         assert_eq!(explosion_damage(0.0, 1.0, 4.0), 57.0);
         // Vanilla returns the raw float, not a floored int: pow=0.3, doubleRadius=8
         // → (0.09 + 0.3)/2 * 7 * 8 + 1 = 11.92 (not 11).
