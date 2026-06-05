@@ -126,8 +126,20 @@ pub struct AttackContext {
     pub target_on_ground: bool,
     pub attacker_on_ground: bool,
     pub attacker_falling: bool,
+    /// `onClimbable()` — a player on a ladder/vine cannot crit.
+    pub attacker_on_climbable: bool,
     pub attacker_in_water: bool,
+    /// `isMobilityRestricted()` — i.e. the attacker has Blindness.
     pub attacker_blind: bool,
+    /// `isPassenger()` — a riding attacker cannot crit.
+    pub attacker_is_passenger: bool,
+    /// Whether the target is a `LivingEntity` (crits only apply to those).
+    pub target_is_living: bool,
+    /// `getKnownMovement().horizontalDistanceSqr()` for the sweep speed gate.
+    pub attacker_horizontal_speed_sq: f64,
+    /// `getSpeed()` (movement-speed attribute) for the sweep speed gate.
+    pub attacker_movement_speed: f64,
+    /// Whether the main-hand item is a sword (`ItemTags.SWORDS`).
     pub using_sweep_weapon: bool,
     pub sweeping_edge_level: u8,
 }
@@ -145,16 +157,26 @@ pub struct AttackPlan {
 
 pub fn plan_player_attack(context: AttackContext, thorns_level: u8) -> AttackPlan {
     let full_strength = context.attack_strength_scale > 0.9;
+    // knockbackAttack = isSprinting() && fullStrengthAttack.
     let knockback_attack = full_strength && context.sprinting;
+    // criticalAttack = fullStrengthAttack && canCriticalAttack(target).
     let critical = full_strength
         && context.attacker_falling
         && !context.attacker_on_ground
+        && !context.attacker_on_climbable
         && !context.attacker_in_water
-        && !context.attacker_blind;
+        && !context.attacker_blind
+        && !context.attacker_is_passenger
+        && context.target_is_living
+        && !context.sprinting;
+    // isSweepAttack: full strength, not a crit/knockback, on ground, moving
+    // slower than speed*2.5, holding a sword.
     let sweeping = full_strength
         && !critical
         && !knockback_attack
         && context.attacker_on_ground
+        && context.attacker_horizontal_speed_sq
+            < (context.attacker_movement_speed * 2.5).powi(2)
         && context.using_sweep_weapon;
     let base = context.base_damage
         * (0.2 + context.attack_strength_scale * context.attack_strength_scale * 0.8);
@@ -532,21 +554,38 @@ mod tests {
         );
     }
 
+    fn attack_context() -> AttackContext {
+        AttackContext {
+            base_damage: 6.0,
+            enchantment_bonus: 0.0,
+            attack_strength_scale: 1.0,
+            sprinting: false,
+            target_on_ground: true,
+            attacker_on_ground: true,
+            attacker_falling: false,
+            attacker_on_climbable: false,
+            attacker_in_water: false,
+            attacker_blind: false,
+            attacker_is_passenger: false,
+            target_is_living: true,
+            attacker_horizontal_speed_sq: 0.0,
+            attacker_movement_speed: 0.1,
+            using_sweep_weapon: true,
+            sweeping_edge_level: 2,
+        }
+    }
+
     #[test]
     fn attack_plan_covers_knockback_critical_sweeping_and_thorns() {
+        // Airborne, not on ground, full strength, living target → critical.
         let critical = plan_player_attack(
             AttackContext {
                 base_damage: 8.0,
                 enchantment_bonus: 2.0,
-                attack_strength_scale: 1.0,
-                sprinting: false,
-                target_on_ground: true,
                 attacker_on_ground: false,
                 attacker_falling: true,
-                attacker_in_water: false,
-                attacker_blind: false,
-                using_sweep_weapon: true,
                 sweeping_edge_level: 3,
+                ..attack_context()
             },
             1,
         );
@@ -554,57 +593,66 @@ mod tests {
         assert!(!critical.sweeping);
         assert!(critical.thorns_reflection);
         assert_eq!(critical.total_damage, 15.0);
-        assert_eq!(critical.sweeping_damage, 0.0);
         assert_eq!(critical.particle, Some("minecraft:crit"));
 
-        let sweep = plan_player_attack(
+        // canCriticalAttack also requires !sprinting / !onClimbable / !passenger /
+        // a living target — each of these suppresses the crit.
+        for blocker in [
             AttackContext {
-                attacker_on_ground: true,
-                attacker_falling: false,
-                sprinting: false,
-                ..AttackContext {
-                    base_damage: 6.0,
-                    enchantment_bonus: 0.0,
-                    attack_strength_scale: 1.0,
-                    sprinting: false,
-                    target_on_ground: true,
-                    attacker_on_ground: true,
-                    attacker_falling: false,
-                    attacker_in_water: false,
-                    attacker_blind: false,
-                    using_sweep_weapon: true,
-                    sweeping_edge_level: 2,
-                }
+                sprinting: true,
+                ..critical_base()
             },
-            0,
-        );
+            AttackContext {
+                attacker_on_climbable: true,
+                ..critical_base()
+            },
+            AttackContext {
+                attacker_is_passenger: true,
+                ..critical_base()
+            },
+            AttackContext {
+                target_is_living: false,
+                ..critical_base()
+            },
+        ] {
+            assert!(!plan_player_attack(blocker, 0).critical);
+        }
+
+        // On ground, slow, sword → sweep attack.
+        let sweep = plan_player_attack(attack_context(), 0);
         assert!(sweep.sweeping);
         assert_eq!(sweep.sweeping_damage, 5.0);
         assert!((sweeping_damage_ratio(2) - 2.0 / 3.0).abs() < f32::EPSILON);
         assert_eq!(sweep.particle, Some("minecraft:sweep_attack"));
 
+        // Moving faster than speed*2.5 → no sweep (the movement gate).
+        let running = plan_player_attack(
+            AttackContext {
+                attacker_horizontal_speed_sq: 1.0,
+                ..attack_context()
+            },
+            0,
+        );
+        assert!(!running.sweeping);
+
+        // Sprinting at full strength → knockback attack (and no sweep).
         let knockback = plan_player_attack(
             AttackContext {
                 sprinting: true,
-                using_sweep_weapon: true,
-                ..AttackContext {
-                    base_damage: 6.0,
-                    enchantment_bonus: 0.0,
-                    attack_strength_scale: 1.0,
-                    sprinting: true,
-                    target_on_ground: true,
-                    attacker_on_ground: true,
-                    attacker_falling: false,
-                    attacker_in_water: false,
-                    attacker_blind: false,
-                    using_sweep_weapon: true,
-                    sweeping_edge_level: 2,
-                }
+                ..attack_context()
             },
             0,
         );
         assert_eq!(knockback.knockback, 0.5);
         assert!(!knockback.sweeping);
+    }
+
+    fn critical_base() -> AttackContext {
+        AttackContext {
+            attacker_on_ground: false,
+            attacker_falling: true,
+            ..attack_context()
+        }
     }
 
     #[test]
