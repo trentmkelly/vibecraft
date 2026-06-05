@@ -105,7 +105,7 @@
 - [ ] Implement world border damage: `ServerPlayer` teleport check, damage application outside border+buffer each tick — `WorldBorder::out_of_border_damage`, `clamp_vec3_to_bound`, and `adjusted_respawn` cover damage, movement clamping, and out-of-border respawn adjustment
 - [ ] Implement world border warning: visual warning when within warning-blocks of border or when time to reach border < warning-time — `should_show_warning` covers strict warning-block distance and shrinking-border time-to-impact behavior
 - [x] Implement border sync packets: send `ClientboundInitializeBorderPacket` on join, send individual update packets on command change — `WorldBorder::to_init_packet`, size/center/warning packet data, network packet serializers, and `/worldborder` state mutation paths are implemented and covered by packet/command tests
-- [ ] Add parity test: world border damage applied at correct rate (0.2 × max(0, distance outside buffer))
+- [x] Add parity test: world border damage applied at correct rate (0.2 × max(0, distance outside buffer)) — `world_border::out_of_border_damage` is 1:1 with `LivingEntity` 26.1.2 (`dist = getDistanceToBorder + getSafeZone`; when `dist < 0` and `damagePerBlock > 0`, damage = `max(1, floor(-dist * damagePerBlock))`). Verified against `LivingEntity.java:408-413`; parity tests assert the 0.2/block rate with the default 5.0 safe zone (`Some(1)`/`Some(3)`/`Some(5)` at increasing distances) and the no-damage cases inside the buffer.
 
 ## Enchantment-Driven Gameplay
 
