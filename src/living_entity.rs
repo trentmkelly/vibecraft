@@ -272,6 +272,19 @@ impl LivingEntityState {
         }
     }
 
+    /// 1:1 with `LivingEntity.removeAllEffects()` — the curative behaviour used
+    /// by drinking a milk bucket (`MilkBucketItem.finishUsingItem`): clears every
+    /// active effect and returns whether any were present (so the caller knows
+    /// to recompute attributes / send removal packets).
+    #[cfg(test)]
+    pub fn remove_all_effects(&mut self) -> bool {
+        if self.effects.is_empty() {
+            return false;
+        }
+        self.effects.clear();
+        true
+    }
+
     #[cfg(test)]
     pub fn tick_effects(&mut self) -> Vec<EffectChange> {
         let mut changes = Vec::new();
@@ -542,6 +555,29 @@ mod tests {
         assert_eq!(dirty.len(), 1);
         assert_eq!(dirty[0].id, "minecraft:max_health");
         assert!(entity.dirty_attributes().is_empty());
+    }
+
+    #[test]
+    fn remove_all_effects_clears_active_effects_like_milk_bucket() {
+        let mut entity = LivingEntityState::new(20.0);
+        // Nothing to remove → false.
+        assert!(!entity.remove_all_effects());
+
+        for id in ["minecraft:poison", "minecraft:speed", "minecraft:wither"] {
+            entity.add_effect(MobEffectState {
+                id,
+                amplifier: 0,
+                duration: 200,
+                ambient: false,
+                visible: true,
+                show_icon: true,
+            });
+        }
+        // Drinking milk clears every effect and reports that some were present.
+        assert!(entity.remove_all_effects());
+        assert!(entity.effects.is_empty());
+        // A second milk bucket has nothing to clear.
+        assert!(!entity.remove_all_effects());
     }
 
     #[test]
