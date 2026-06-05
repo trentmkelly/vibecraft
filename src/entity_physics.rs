@@ -225,7 +225,9 @@ pub fn explosion_plan(
     let radius = (power * 2.0).ceil() as i32;
     let distance_fraction = (sub(entity_eye, center).length() / f64::from(power * 2.0)).min(1.0);
     let impact = ((1.0 - distance_fraction) as f32 * exposure).max(0.0);
-    let damage = ((impact * impact + impact) / 2.0 * 7.0 * power * 2.0 + 1.0).floor();
+    // ExplosionDamageCalculator.getEntityDamageAmount returns the raw float
+    // (no floor): (impact² + impact)/2 * 7 * doubleRadius + 1.
+    let damage = (impact * impact + impact) / 2.0 * 7.0 * power * 2.0 + 1.0;
     ExplosionPlan {
         block_radius: radius,
         damage,
@@ -421,7 +423,9 @@ mod tests {
             true,
         );
         assert_eq!(plan.block_radius, 8);
-        assert_eq!(plan.damage, 37.0);
+        // impact = (1 - 0.25)·1 = 0.75 → (0.5625 + 0.75)/2 · 7 · 8 + 1 = 37.75
+        // (raw float, not floored).
+        assert_eq!(plan.damage, 37.75);
         assert_eq!(
             plan.knockback,
             Vec3 {
