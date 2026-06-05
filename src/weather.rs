@@ -702,6 +702,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::cognitive_complexity)]
     fn lightning_entity_fire_and_channeling_effects_match_vanilla_cases() {
         // Pig/villager convert only when not peaceful; on peaceful they take
         // the default fire+damage.

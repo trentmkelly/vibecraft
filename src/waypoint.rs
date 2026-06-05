@@ -37,6 +37,18 @@ pub struct WaypointEntity {
     pub icon: WaypointIcon,
     pub team_color: Option<i32>,
     pub passengers: BTreeSet<String>,
+    /// As a receiver, this entity's chunk-tracking view distance
+    /// (`getChunkTrackingView().isInViewDistance`) used to decide chunk visibility.
+    pub view_distance: i32,
+}
+
+/// `WaypointTransmitter.isChunkVisible(chunkPos, receiver)`: the chunk at
+/// `(chunk_x, chunk_z)` is within the receiver's chunk-tracking view distance.
+fn chunk_visible_at(chunk_x: i32, chunk_z: i32, receiver: &WaypointEntity) -> bool {
+    (chunk_x - receiver.chunk_x)
+        .abs()
+        .max((chunk_z - receiver.chunk_z).abs())
+        <= receiver.view_distance
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -234,7 +246,8 @@ impl WaypointManager {
             self.connections.remove(&key);
             return Vec::new();
         }
-        let Some(kind) = make_connection_kind(receiver, source, true) else {
+        let source_chunk_visible = chunk_visible_at(source.chunk_x, source.chunk_z, receiver);
+        let Some(kind) = make_connection_kind(receiver, source, source_chunk_visible) else {
             if self.connections.remove(&key).is_some() {
                 return vec![WaypointPacket::Untrack {
                     receiver: receiver.id.clone(),
@@ -329,19 +342,29 @@ fn connection_is_broken(
         return true;
     }
     match connection.kind {
+        // EntityBlockConnection: source moved more than 1 block (Manhattan).
         WaypointConnectionKind::Block => {
             manhattan(
                 (connection.last_x, connection.last_y, connection.last_z),
                 (source.x, source.y, source.z),
             ) > 1.0
         }
+        // EntityChunkConnection: source moved > 1 chunk, OR it is now
+        // chunk-visible at the connection's last chunk (switch back to a block
+        // connection).
         WaypointConnectionKind::Chunk => {
             chessboard(
                 (connection.last_chunk_x, connection.last_chunk_z),
                 (source.chunk_x, source.chunk_z),
             ) > 1
+                || chunk_visible_at(connection.last_chunk_x, connection.last_chunk_z, receiver)
         }
-        WaypointConnectionKind::Azimuth => false,
+        // EntityAzimuthConnection: source became chunk-visible or is no longer
+        // really far (switch to a chunk/block connection).
+        WaypointConnectionKind::Azimuth => {
+            chunk_visible_at(source.chunk_x, source.chunk_z, receiver)
+                || !is_really_far(source, receiver)
+        }
     }
 }
 
@@ -404,6 +427,7 @@ mod tests {
             icon: WaypointIcon::default(),
             team_color: None,
             passengers: BTreeSet::new(),
+            view_distance: 8,
         }
     }
 
@@ -427,6 +451,47 @@ mod tests {
         );
         source.transmit_range = 10.0;
         assert_eq!(make_connection_kind(&receiver, &source, true), None);
+    }
+
+    #[test]
+    fn connection_breaks_when_source_becomes_chunk_visible_or_no_longer_far() {
+        // Receiver at origin with view distance 4 (chunks).
+        let mut receiver = entity("receiver", 0.0, 0.0);
+        receiver.view_distance = 4;
+
+        // A chunk connection established far out (chunk 20) breaks once the
+        // source has moved back into the receiver's view (chunk 2).
+        let far_chunk_source = entity("s", 20.0 * 16.0, 0.0);
+        let chunk_conn = active_connection(&receiver, &far_chunk_source, WaypointConnectionKind::Chunk);
+        let near_source = entity("s", 2.0 * 16.0, 0.0); // chunk 2, within view 4
+        // Rebuild the connection's stored chunk to the near position so the
+        // "moved" distance is 0 but it is now chunk-visible.
+        let mut visible_conn = chunk_conn.clone();
+        visible_conn.last_chunk_x = near_source.chunk_x;
+        visible_conn.last_chunk_z = near_source.chunk_z;
+        assert!(connection_is_broken(
+            &visible_conn,
+            &receiver,
+            &near_source,
+            true
+        ));
+
+        // An azimuth connection breaks once the source is no longer really far.
+        let far_source = entity("s", 400.0, 0.0);
+        let azimuth_conn = active_connection(&receiver, &far_source, WaypointConnectionKind::Azimuth);
+        assert!(!connection_is_broken(
+            &azimuth_conn,
+            &receiver,
+            &far_source,
+            true
+        ));
+        let close_source = entity("s", 100.0, 0.0); // within 332 → not really far
+        assert!(connection_is_broken(
+            &azimuth_conn,
+            &receiver,
+            &close_source,
+            true
+        ));
     }
 
     #[test]
