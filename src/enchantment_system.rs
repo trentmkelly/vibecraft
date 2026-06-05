@@ -795,6 +795,61 @@ pub fn can_enchant(item_id: &str, enchantment_id: &str) -> bool {
         .is_some_and(|def| crate::item_tags::item_in_tag(item_id, def.supported_items))
 }
 
+/// The `primary_items` tag for an enchantment when it differs from `supported_items`
+/// (the enchanting table offers an enchantment only on its primary items, while the
+/// anvil accepts any supported item). 26.1.2 declares these for five enchantments;
+/// the rest default to their `supported_items`.
+fn primary_items_override(enchantment_id: &str) -> Option<&'static str> {
+    match enchantment_id {
+        "minecraft:sharpness"
+        | "minecraft:smite"
+        | "minecraft:bane_of_arthropods"
+        | "minecraft:fire_aspect" => Some("#minecraft:enchantable/melee_weapon"),
+        "minecraft:thorns" => Some("#minecraft:enchantable/chest_armor"),
+        _ => None,
+    }
+}
+
+/// `Enchantment.isPrimaryItem`: `isSupportedItem(item) && (primaryItems.isEmpty() ||
+/// item in primaryItems)`. Used by the enchanting table's offer selection. Unknown
+/// ids → false.
+pub fn is_primary_item(item_id: &str, enchantment_id: &str) -> bool {
+    let Some(def) = enchantment(enchantment_id) else {
+        return false;
+    };
+    if !crate::item_tags::item_in_tag(item_id, def.supported_items) {
+        return false;
+    }
+    match def.primary_items.or_else(|| primary_items_override(enchantment_id)) {
+        Some(primary) => crate::item_tags::item_in_tag(item_id, primary),
+        None => true,
+    }
+}
+
+/// `EnchantmentHelper.getEnchantmentCost`: the enchanting-table level for `slot` (0..3)
+/// given the item's `enchantability` (the `ENCHANTABLE` component value) and the number
+/// of nearby `bookcases` (capped at 15). `random` must be a freshly seeded Java RNG
+/// (`LegacyRandom`) — the two `nextInt` draws here are part of the per-table sequence.
+pub fn get_enchantment_cost(
+    random: &mut crate::random_source::LegacyRandom,
+    slot: i32,
+    mut bookcases: i32,
+    enchantability: i32,
+) -> i32 {
+    if enchantability <= 0 {
+        return 0;
+    }
+    if bookcases > 15 {
+        bookcases = 15;
+    }
+    let selected = random.next_i32_bound(8) + 1 + (bookcases >> 1) + random.next_i32_bound(bookcases + 1);
+    match slot {
+        0 => (selected / 3).max(1),
+        1 => selected * 2 / 3 + 1,
+        _ => selected.max(bookcases * 2),
+    }
+}
+
 pub fn are_compatible(left: &EnchantmentDef, right: &EnchantmentDef) -> bool {
     left.id != right.id
         && !left

@@ -262,3 +262,46 @@ fn can_enchant_matches_26_1_2_supported_items() {
     // Unknown enchantment id -> false.
     assert!(!can_enchant("minecraft:diamond_sword", "minecraft:nonexistent"));
 }
+
+#[test]
+fn is_primary_item_respects_primary_vs_supported() {
+    use super::is_primary_item;
+    // Sharpness: primary = melee_weapon (swords/spears), even though it is SUPPORTED on
+    // axes (anvil) — the enchanting table only offers it on the primary items.
+    assert!(is_primary_item("minecraft:diamond_sword", "minecraft:sharpness"));
+    assert!(is_primary_item("minecraft:netherite_spear", "minecraft:sharpness"));
+    assert!(!is_primary_item("minecraft:iron_axe", "minecraft:sharpness"));
+    // Thorns: primary = chest_armor (not other armour slots).
+    assert!(is_primary_item("minecraft:diamond_chestplate", "minecraft:thorns"));
+    assert!(!is_primary_item("minecraft:diamond_helmet", "minecraft:thorns"));
+    // Protection: no primary override -> primary == supported (any armour).
+    assert!(is_primary_item("minecraft:diamond_helmet", "minecraft:protection"));
+    assert!(!is_primary_item("minecraft:diamond_sword", "minecraft:protection"));
+}
+
+#[test]
+fn get_enchantment_cost_matches_java_formula() {
+    use super::get_enchantment_cost;
+    use crate::random_source::LegacyRandom;
+
+    // Zero enchantability -> no cost.
+    let mut r = LegacyRandom::new(1);
+    assert_eq!(get_enchantment_cost(&mut r, 0, 15, 0), 0);
+
+    // Known property: with 15 bookcases the top slot is always 30 or 31
+    // (selected = nextInt(8)+1 + 7 + nextInt(16) in [9,31]; slot 2 = max(selected, 30)),
+    // and the first slot is always >= 1. Verify across many seeds.
+    for seed in 0..200i64 {
+        let mut rng = LegacyRandom::new(seed);
+        let c0 = get_enchantment_cost(&mut rng, 0, 15, 15);
+        let mut rng = LegacyRandom::new(seed);
+        let c2 = get_enchantment_cost(&mut rng, 2, 15, 15);
+        assert!(c0 >= 1, "slot0 >= 1");
+        assert!((30..=31).contains(&c2), "slot2 in 30..=31, got {c2}");
+    }
+
+    // Bookcases are capped at 15 (no panic / same range for higher values).
+    let mut rng = LegacyRandom::new(7);
+    let c = get_enchantment_cost(&mut rng, 2, 100, 15);
+    assert!((30..=31).contains(&c));
+}
