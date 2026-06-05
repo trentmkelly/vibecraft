@@ -132,11 +132,17 @@ impl AnvilMenu {
 
     /// Re-implement the renaming-only path of `AnvilMenu.createResult`.
     /// When only `input_left` is present (no addition) and a new item-name is
-    /// set, this produces a renamed copy with `cost = RENAME = 1`. For the
-    /// merging/repair paths see vanilla — they require enchantment data we
-    /// don't yet model here, so we leave the result empty and `cost = 0` in
-    /// those cases (matching Java fall-through to clear result when no
-    /// enchantment-storage is possible).
+    /// set, this produces a renamed copy with `cost = RENAME = 1`.
+    ///
+    /// TODO(anvil-combine, CONTAINERS #95): the repair (material + durability) and
+    /// enchantment-combine paths of `createResult` are not yet implemented. The
+    /// enchantment DATA is now available (`ItemComponent::Enchantments`/
+    /// `StoredEnchantments`/`RepairCost`, `min_cost_for`, `anvil_cost` on
+    /// `EnchantmentDef`), but the enchant-combine compatibility gate
+    /// `Enchantment.canEnchant(input)` requires resolving the item-enchantable-tag
+    /// hierarchy (e.g. `#minecraft:enchantable/sword` → base item tags → items),
+    /// which is not yet modelled. Blocked on the item-tag membership subsystem;
+    /// until then the merge/repair branches fall through to an empty result.
     pub fn set_result_from_inputs(&mut self) {
         self.cost = 1;
         self.only_renaming = false;
