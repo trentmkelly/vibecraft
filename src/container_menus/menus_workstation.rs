@@ -130,61 +130,29 @@ impl AnvilMenu {
         self.item_name.as_deref()
     }
 
-    /// Re-implement the renaming-only path of `AnvilMenu.createResult`.
-    /// When only `input_left` is present (no addition) and a new item-name is
-    /// set, this produces a renamed copy with `cost = RENAME = 1`.
-    ///
-    /// TODO(anvil-combine, CONTAINERS #95): the repair (material + durability) and
-    /// enchantment-combine paths of `createResult` are not yet implemented. Most
-    /// prerequisites are now in place: `ItemComponent::Enchantments`/
-    /// `StoredEnchantments`/`RepairCost`, `anvil_cost` on `EnchantmentDef`,
-    /// `calculate_increased_repair_cost`, `enchantment_system::can_enchant`
-    /// (= `Enchantment.canEnchant`) + `are_compatible`. Two small foundations remain
-    /// before the 130-line algorithm can be ported 1:1: (1) `canStoreEnchantments`
-    /// (vanilla treats any item with a default ENCHANTMENTS component as storable;
-    /// RustCraft only attaches the component when enchanted, so this needs an
-    /// "is-enchantable item" predicate — `Enchantable` component or `enchanted_book`);
-    /// (2) `ItemStack.isValidRepairItem`, whose `Repairable` value is a tag (e.g.
-    /// `#minecraft:diamond_tool_materials`), so the repair-material tags must be added
-    /// to `item_tags`. Until then the merge/repair branches fall through to an empty
-    /// result.
+    /// `AnvilMenu.createResult` (survival, `hasInfiniteMaterials = false`). Full
+    /// repair + enchantment-combine + rename pipeline; see `anvil_create_result`.
+    /// One documented model caveat: the rename-cost comparison uses the item id
+    /// instead of the (untranslated) `getHoverName()`, since RustCraft has no
+    /// display-name layer — consistent with the previous rename path.
     pub fn set_result_from_inputs(&mut self) {
-        self.cost = 1;
-        self.only_renaming = false;
-        self.repair_item_count_cost = 0;
+        self.set_result_from_inputs_with_mode(false);
+    }
 
-        if self.input_left.is_empty() {
-            self.result = ItemStack::empty();
-            self.cost = 0;
-            return;
-        }
-
-        let mut total_cost = 0;
-        let mut naming_cost = 0;
-        let mut result = self.input_left.clone();
-
-        if let Some(name) = self.item_name.as_deref() {
-            if !name.trim().is_empty() && name != self.input_left.item_id() {
-                naming_cost = anvil_cost::RENAME;
-                total_cost += naming_cost;
-            }
-        }
-
-        if total_cost <= 0 {
-            result = ItemStack::empty();
-        }
-        if naming_cost == total_cost && naming_cost > 0 {
-            if self.cost >= ANVIL_MAX_COST {
-                self.cost = ANVIL_MAX_COST - 1;
-            }
-            self.only_renaming = true;
-        }
-        self.cost = total_cost;
-        if self.cost >= ANVIL_MAX_COST {
-            // Survival cap; result is suppressed.
-            result = ItemStack::empty();
-        }
-        self.result = result;
+    /// `AnvilMenu.createResult`, with `creative` = `hasInfiniteMaterials` (which forces
+    /// enchantment compatibility and removes the survival cost cap). Delegates to the
+    /// full `anvil_create_result` port.
+    pub fn set_result_from_inputs_with_mode(&mut self, creative: bool) {
+        let outcome = anvil_create_result(
+            &self.input_left,
+            &self.input_right,
+            self.item_name.as_deref(),
+            creative,
+        );
+        self.result = outcome.result;
+        self.cost = outcome.cost;
+        self.repair_item_count_cost = outcome.repair_item_count_cost;
+        self.only_renaming = outcome.only_renaming;
     }
 
     pub fn quick_move(&mut self, slot: usize, player: &mut PlayerInventory) -> ItemStack {

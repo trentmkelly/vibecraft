@@ -214,16 +214,13 @@ pub(super) fn loom_selectable_patterns(pattern_item: &ItemStack) -> Vec<&'static
 // Anvil helpers (`AnvilMenu.createResult` prerequisites)
 // ---------------------------------------------------------------------------
 
-/// `EnchantmentHelper.canStoreEnchantments`: an item can hold enchantments if it would
-/// carry a default `ENCHANTMENTS` component. RustCraft only attaches that component when
-/// enchanted, so this is modelled as: an enchantable item (carrying the `Enchantable`
-/// component) or an enchanted book (`STORED_ENCHANTMENTS`), or one already carrying
-/// enchantments.
+/// `EnchantmentHelper.canStoreEnchantments`: whether the item carries its enchantment
+/// component (`ENCHANTMENTS`, or `STORED_ENCHANTMENTS` for an enchanted book). In
+/// 26.1.2 `DataComponents.COMMON_ITEM_COMPONENTS` sets an empty `ENCHANTMENTS` on
+/// EVERY item, so this is true for any non-empty item (which is why anything can be
+/// renamed in an anvil). Enchantability for the table is a separate concern.
 pub(super) fn can_store_enchantments(stack: &ItemStack) -> bool {
-    stack.item_id() == "minecraft:enchanted_book"
-        || stack.component("minecraft:enchantable").is_some()
-        || stack.component("minecraft:enchantments").is_some()
-        || stack.component("minecraft:stored_enchantments").is_some()
+    !stack.is_empty()
 }
 
 /// `ItemStack.isValidRepairItem`: `addition` is a member of the item's `Repairable`
@@ -238,6 +235,184 @@ pub(super) fn anvil_is_valid_repair_item(item: &ItemStack, addition: &ItemStack)
             }
         }
         _ => false,
+    }
+}
+
+fn anvil_repair_cost_of(item: &ItemStack) -> i32 {
+    match item.component("minecraft:repair_cost") {
+        Some(ItemComponent::RepairCost(cost)) => *cost,
+        _ => 0,
+    }
+}
+
+fn anvil_enchants_compatible(a: &str, b: &str) -> bool {
+    use crate::enchantment_system::{are_compatible, enchantment};
+    match (enchantment(a), enchantment(b)) {
+        (Some(left), Some(right)) => are_compatible(left, right),
+        _ => a != b,
+    }
+}
+
+/// The outputs of `AnvilMenu.createResult`.
+pub(super) struct AnvilCombineResult {
+    pub result: ItemStack,
+    pub cost: i32,
+    pub repair_item_count_cost: i32,
+    pub only_renaming: bool,
+}
+
+/// 1:1 port of `AnvilMenu.createResult` (the full repair + enchantment-combine + rename
+/// pipeline). `item_name` is the requested rename (vanilla compares it to
+/// `getHoverName()`; RustCraft has no display-name/translation layer so it compares to
+/// the item id, matching the existing rename path). `creative` is `hasInfiniteMaterials`.
+#[allow(clippy::cognitive_complexity, clippy::too_many_lines)]
+pub(super) fn anvil_create_result(
+    input: &ItemStack,
+    addition: &ItemStack,
+    item_name: Option<&str>,
+    creative: bool,
+) -> AnvilCombineResult {
+    let empty = || AnvilCombineResult {
+        result: ItemStack::empty(),
+        cost: 0,
+        repair_item_count_cost: 0,
+        only_renaming: false,
+    };
+    if input.is_empty() || !can_store_enchantments(input) {
+        return empty();
+    }
+
+    let mut price: i64 = 0;
+    let mut naming_cost: i64 = 0;
+    let mut repair_item_count_cost = 0;
+    let mut only_renaming = false;
+    let mut result = input.clone();
+    let mut enchantments = enchantments_for_crafting(&result);
+    let tax = i64::from(anvil_repair_cost_of(input)) + i64::from(anvil_repair_cost_of(addition));
+
+    if !addition.is_empty() {
+        let using_book = addition.component("minecraft:stored_enchantments").is_some();
+        if result.is_damageable_item() && anvil_is_valid_repair_item(input, addition) {
+            // Repair with a material item (one durability quarter per item consumed).
+            let mut repair_amount = result.damage_value().min(result.max_damage() / 4) as i32;
+            if repair_amount <= 0 {
+                return empty();
+            }
+            let mut count = 0;
+            while repair_amount > 0 && count < addition.count() {
+                let new_damage = result.damage_value() as i32 - repair_amount;
+                result.set_damage_value(new_damage.max(0) as u32);
+                price += 1;
+                repair_amount = result.damage_value().min(result.max_damage() / 4) as i32;
+                count += 1;
+            }
+            repair_item_count_cost = count;
+        } else {
+            if !using_book && (result.item_id() != addition.item_id() || !result.is_damageable_item())
+            {
+                return empty();
+            }
+            if result.is_damageable_item() && !using_book {
+                // Repair by combining two of the same item (+12% durability bonus).
+                let remaining1 = input.max_damage() as i32 - input.damage_value() as i32;
+                let remaining2 = addition.max_damage() as i32 - addition.damage_value() as i32;
+                let bonus = remaining2 + result.max_damage() as i32 * 12 / 100;
+                let remaining = remaining1 + bonus;
+                let result_damage = (result.max_damage() as i32 - remaining).max(0);
+                if result_damage < result.damage_value() as i32 {
+                    result.set_damage_value(result_damage as u32);
+                    price += 2;
+                }
+            }
+
+            let mut any_compatible = false;
+            let mut any_not_compatible = false;
+            for (id, add_level) in enchantments_for_crafting(addition) {
+                let current = enchantments.get(&id).copied().unwrap_or(0);
+                let mut level = if current == add_level {
+                    add_level + 1
+                } else {
+                    add_level.max(current)
+                };
+                let mut compatible = crate::enchantment_system::can_enchant(input.item_id(), &id);
+                if creative || input.item_id() == "minecraft:enchanted_book" {
+                    compatible = true;
+                }
+                for other in enchantments.keys() {
+                    if *other != id && !anvil_enchants_compatible(&id, other) {
+                        compatible = false;
+                        price += 1;
+                    }
+                }
+                if !compatible {
+                    any_not_compatible = true;
+                } else {
+                    any_compatible = true;
+                    let max_level = crate::enchantment_system::enchantment(&id)
+                        .map_or(level, |def| def.max_level);
+                    if level > max_level {
+                        level = max_level;
+                    }
+                    let mut fee = crate::enchantment_system::enchantment(&id)
+                        .map_or(0, |def| def.anvil_cost);
+                    if using_book {
+                        fee = (fee / 2).max(1);
+                    }
+                    enchantments.insert(id, level);
+                    price += i64::from(fee) * i64::from(level);
+                    if input.count() > 1 {
+                        price = 40;
+                    }
+                }
+            }
+            if any_not_compatible && !any_compatible {
+                return empty();
+            }
+        }
+    }
+
+    // Rename cost (vanilla compares the requested name to getHoverName(); see doc note).
+    if let Some(name) = item_name.filter(|n| !n.trim().is_empty()) {
+        if name != input.item_id() {
+            naming_cost = 1;
+            price += 1;
+        }
+    }
+    // (The "input has a custom name -> remove it" branch is not modelled, since
+    // RustCraft does not attach a CUSTOM_NAME component to inputs.)
+
+    let final_price = if price <= 0 {
+        0
+    } else {
+        (tax + price).clamp(0, i64::from(i32::MAX)) as i32
+    };
+    let mut cost = final_price;
+    if price <= 0 {
+        result = ItemStack::empty();
+    }
+    if naming_cost == price && naming_cost > 0 {
+        if cost >= 40 {
+            cost = 39;
+        }
+        only_renaming = true;
+    }
+    if cost >= 40 && !creative {
+        result = ItemStack::empty();
+    }
+    if !result.is_empty() {
+        let mut base_cost = anvil_repair_cost_of(&result).max(anvil_repair_cost_of(addition));
+        if naming_cost != price || naming_cost == 0 {
+            base_cost = calculate_increased_repair_cost(base_cost);
+        }
+        result.set_component(ItemComponent::RepairCost(base_cost));
+        set_enchantments_for_crafting(&mut result, enchantments);
+    }
+
+    AnvilCombineResult {
+        result,
+        cost,
+        repair_item_count_cost,
+        only_renaming,
     }
 }
 

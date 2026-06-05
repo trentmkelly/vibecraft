@@ -132,11 +132,109 @@ fn anvil_repair_material_and_store_enchantment_helpers_match_java() {
         &ItemStack::new("minecraft:diamond", 1)
     ));
 
-    // canStoreEnchantments: enchantable items, enchanted books, and already-enchanted
-    // items can store; plain items cannot.
-    let mut sword = ItemStack::new("minecraft:diamond_sword", 1);
-    sword.set_component(ItemComponent::Enchantable(10));
-    assert!(can_store_enchantments(&sword));
+    // canStoreEnchantments: every non-empty item has the default (empty) ENCHANTMENTS
+    // component (COMMON_ITEM_COMPONENTS), so all can store — even an apple (you can
+    // rename anything in an anvil) — while an empty stack cannot.
+    assert!(can_store_enchantments(&ItemStack::new("minecraft:diamond_sword", 1)));
     assert!(can_store_enchantments(&ItemStack::new("minecraft:enchanted_book", 1)));
-    assert!(!can_store_enchantments(&ItemStack::new("minecraft:apple", 1)));
+    assert!(can_store_enchantments(&ItemStack::new("minecraft:apple", 1)));
+    assert!(!can_store_enchantments(&ItemStack::empty()));
+}
+
+#[test]
+fn anvil_create_result_full_pipeline_matches_java() {
+    use crate::item_properties::ItemComponent;
+
+    fn damaged_sword(max: u32, dmg: u32, repair_cost: i32) -> ItemStack {
+        let mut s = ItemStack::new("minecraft:diamond_sword", 1);
+        s.set_component(ItemComponent::MaxDamage(max));
+        s.set_damage_value(dmg);
+        if repair_cost != 0 {
+            s.set_component(ItemComponent::RepairCost(repair_cost));
+        }
+        s
+    }
+
+    // --- Repair by combining two of the same damaged item (+12% bonus). ---
+    let mut menu = AnvilMenu::new();
+    let mut player = PlayerInventory::new();
+    menu.set_slot(0, damaged_sword(1561, 1000, 0), &mut player);
+    menu.set_slot(1, damaged_sword(1561, 800, 0), &mut player);
+    menu.set_result_from_inputs();
+    let r = menu.get_slot(2, &player).unwrap();
+    // remaining1=561, remaining2=761, bonus=561+187=948, remaining=1509, resultDmg=52.
+    assert_eq!(r.item_id(), "minecraft:diamond_sword");
+    assert_eq!(r.damage_value(), 52);
+    assert_eq!(menu.cost, 2); // price += 2 for a durability combine
+    assert_eq!(r.component("minecraft:repair_cost"), Some(&ItemComponent::RepairCost(1)));
+
+    // --- Repair with a material item (a diamond). ---
+    let mut menu = AnvilMenu::new();
+    let mut pick = ItemStack::new("minecraft:diamond_pickaxe", 1);
+    pick.set_component(ItemComponent::MaxDamage(1561));
+    pick.set_damage_value(1000);
+    pick.set_component(ItemComponent::Repairable("#minecraft:diamond_tool_materials"));
+    menu.set_slot(0, pick, &mut player);
+    menu.set_slot(1, ItemStack::new("minecraft:diamond", 2), &mut player);
+    menu.set_result_from_inputs();
+    let r = menu.get_slot(2, &player).unwrap();
+    // Each diamond repairs maxDamage/4 = 390; two diamonds -> 1000-390-390 = 220.
+    assert_eq!(r.damage_value(), 220);
+    assert_eq!(menu.repair_item_count_cost, 2);
+    assert_eq!(menu.cost, 2);
+
+    // --- Enchant-combine: sword + an enchanted book (sharpness II). ---
+    let mut menu = AnvilMenu::new();
+    let book = {
+        let mut b = ItemStack::new("minecraft:enchanted_book", 1);
+        b.set_component(ItemComponent::StoredEnchantments(enchants(&[(
+            "minecraft:sharpness",
+            2,
+        )])));
+        b
+    };
+    menu.set_slot(0, ItemStack::new("minecraft:diamond_sword", 1), &mut player);
+    menu.set_slot(1, book, &mut player);
+    menu.set_result_from_inputs();
+    let r = menu.get_slot(2, &player).unwrap();
+    match r.component("minecraft:enchantments") {
+        Some(ItemComponent::Enchantments(m)) => assert_eq!(m.get("minecraft:sharpness"), Some(&2)),
+        other => panic!("expected sharpness on result, got {other:?}"),
+    }
+    assert_eq!(menu.cost, 2); // book fee max(1, anvil_cost/2)=1, * level 2 = 2
+
+    // A book whose enchantment can't apply to the item (sharpness on a pickaxe) ->
+    // incompatible-only -> empty result.
+    let mut menu = AnvilMenu::new();
+    let book = {
+        let mut b = ItemStack::new("minecraft:enchanted_book", 1);
+        b.set_component(ItemComponent::StoredEnchantments(enchants(&[(
+            "minecraft:sharpness",
+            1,
+        )])));
+        b
+    };
+    menu.set_slot(0, ItemStack::new("minecraft:diamond_pickaxe", 1), &mut player);
+    menu.set_slot(1, book, &mut player);
+    menu.set_result_from_inputs();
+    assert!(menu.get_slot(2, &player).unwrap().is_empty());
+
+    // --- "Too expensive" (cost >= 40) is suppressed in survival but allowed in creative. ---
+    let mut menu = AnvilMenu::new();
+    menu.set_slot(0, damaged_sword(1561, 1000, 31), &mut player);
+    menu.set_slot(1, damaged_sword(1561, 1000, 31), &mut player);
+    menu.set_result_from_inputs(); // survival
+    assert!(menu.get_slot(2, &player).unwrap().is_empty());
+    assert_eq!(menu.cost, 64); // tax 62 + price 2
+    menu.set_result_from_inputs_with_mode(true); // creative
+    assert!(!menu.get_slot(2, &player).unwrap().is_empty());
+
+    // --- Rename only -> cost 1, only_renaming. ---
+    let mut menu = AnvilMenu::new();
+    menu.set_slot(0, ItemStack::new("minecraft:diamond_sword", 1), &mut player);
+    menu.set_item_name(Some("Excalibur".to_string()));
+    menu.set_result_from_inputs();
+    assert_eq!(menu.cost, 1);
+    assert!(menu.only_renaming);
+    assert!(!menu.get_slot(2, &player).unwrap().is_empty());
 }
