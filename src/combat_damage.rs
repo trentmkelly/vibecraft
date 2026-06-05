@@ -201,9 +201,13 @@ pub fn projectile_damage(speed: f64, base_damage: f64, critical: bool) -> i32 {
     damage.max(0)
 }
 
+/// 1:1 with `ExplosionDamageCalculator.getEntityDamageAmount`:
+/// `(impact² + impact) / 2 * 7 * doubleRadius + 1`, where `doubleRadius = radius
+/// * 2` and `impact = (1 - distance_fraction) * exposure`. Vanilla returns this
+/// as a raw float (no floor/round) — the value is passed straight to `hurt`.
 pub fn explosion_damage(distance_fraction: f32, exposure: f32, power: f32) -> f32 {
     let impact = (1.0 - distance_fraction.clamp(0.0, 1.0)) * exposure.clamp(0.0, 1.0);
-    ((impact * impact + impact) / 2.0 * 7.0 * power * 2.0 + 1.0).floor()
+    (impact * impact + impact) / 2.0 * 7.0 * power * 2.0 + 1.0
 }
 
 /// 1:1 with `LivingEntity.calculateFallDamage` at default attributes:
@@ -608,6 +612,10 @@ mod tests {
         assert_eq!(projectile_damage(3.1, 2.0, false), 7);
         assert_eq!(projectile_damage(3.1, 2.0, true), 11);
         assert_eq!(explosion_damage(0.0, 1.0, 4.0), 57.0);
+        // Vanilla returns the raw float, not a floored int: pow=0.3, doubleRadius=8
+        // → (0.09 + 0.3)/2 * 7 * 8 + 1 = 11.92 (not 11).
+        let partial = explosion_damage(0.7, 1.0, 4.0);
+        assert!((partial - 11.92).abs() < 1e-4, "{partial}");
         // floor((7.2 + 1e-6 - 3.0) * 1.0) = floor(4.2) = 4 (vanilla floors, not ceils).
         assert_eq!(fall_damage(7.2, 3.0, 1.0), 4.0);
         // A 5-block fall: floor(5 + 1e-6 - 3) = 2 damage.
