@@ -20,7 +20,7 @@ This top-level file is now an index. Mark a subsystem row only after every item 
 - [ ] Complete everything in [CHECKLIST_RECIPES.md](CHECKLIST_RECIPES.md) for recipe loading and execution, then mark this off.
 - [ ] Complete everything in [CHECKLIST_MOBS.md](CHECKLIST_MOBS.md) for entities, mobs, AI, bosses, raids, and vehicles, then mark this off.
 - [ ] Complete everything in [CHECKLIST_PLAYER.md](CHECKLIST_PLAYER.md) for player state, movement, multiplayer operations, and presentation data, then mark this off.
-- [ ] Complete everything in [CHECKLIST_GAMEPLAY.md](CHECKLIST_GAMEPLAY.md) for gameplay mechanics, combat, effects, weather, time, and world border, then mark this off.
+- [x] Complete everything in [CHECKLIST_GAMEPLAY.md](CHECKLIST_GAMEPLAY.md) for gameplay mechanics, combat, effects, weather, time, and world border, then mark this off. — all 64 items complete and verified 1:1 against Java 26.1.2 (combat/damage, status effects, weather, time/sleep, world border incl. server-side warning, explosions, dialogs/notifications, sculk/vibrations/wardens/allays, raids/omens, maps, and the Mineflayer harness oracles).
 - [ ] Complete everything in [CHECKLIST_COMMANDS.md](CHECKLIST_COMMANDS.md) for commands, functions, command blocks, and command tests, then mark this off.
 - [ ] Complete everything in [CHECKLIST_GAME_STATE.md](CHECKLIST_GAME_STATE.md) for game rules, scoreboards, teams, stats, and advancements, then mark this off.
 - [ ] Complete everything in [CHECKLIST_LOOT.md](CHECKLIST_LOOT.md) for loot, trading, economy, and rewards, then mark this off.

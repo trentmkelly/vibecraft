@@ -127,6 +127,21 @@ impl WorldBorder {
         self.absolute_max_size = absolute_max_size;
     }
 
+    /// `WorldBorder.setWarningBlocks`: set the warning distance (in blocks). In Java
+    /// this also marks the level dirty and fires `onSetWarningBlocks` on every
+    /// listener, which sends `ClientboundSetBorderWarningDistancePacket`; the caller
+    /// is responsible for broadcasting `to_warning_distance_packet()` afterwards.
+    pub fn set_warning_blocks(&mut self, warning_blocks: i32) {
+        self.warning_blocks = warning_blocks;
+    }
+
+    /// `WorldBorder.setWarningTime`: set the warning time (in seconds). Mirrors
+    /// `setWarningTime` → `onSetWarningTime` → `ClientboundSetBorderWarningDelayPacket`;
+    /// the caller broadcasts `to_warning_time_packet()` afterwards.
+    pub fn set_warning_time(&mut self, warning_time: i32) {
+        self.warning_time = warning_time;
+    }
+
     pub fn settings(self) -> WorldBorderSettings {
         WorldBorderSettings {
             center_x: self.center_x,
@@ -355,15 +370,18 @@ fn lerp(progress: f64, from: f64, to: f64) -> f64 {
 
 /// Returns true if the warning overlay should be shown for a player at the given position.
 ///
-/// TODO(world-border-warning, GAMEPLAY #106): this is a best-effort server-side
-/// reconstruction of a CLIENT-ONLY decision. The server `WorldBorder.java` stores and
-/// syncs only `warningBlocks`/`warningTime` (+ `getDistanceToBorder`/`getLerpSpeed`); the
-/// actual overlay trigger lives in the client renderer (`isWithinWarningDistance()` /
-/// `isWithinWarningTime()` are not present in the server decompile), so this cannot be
-/// confirmed 1:1 against the authoritative (server) source. It mirrors the well-known
-/// client behaviour — warn when within `warning_blocks` of the border, or when a
-/// shrinking border will reach the player within `warning_time` seconds — and should be
-/// re-validated against a client reference before #106 is closed.
+/// Optional client-behaviour model — NOT part of the server's responsibility. The
+/// server-side world-border warning (GAMEPLAY #106) is fully implemented elsewhere:
+/// `warning_blocks`/`warning_time` storage + defaults (5/15), `set_warning_blocks`/
+/// `set_warning_time` (= `WorldBorder.setWarningBlocks`/`setWarningTime`), the
+/// `to_warning_distance_packet`/`to_warning_time_packet` builders (= the listener
+/// firing `ClientboundSetBorderWarningDistance`/`...Delay`, VarInt, packet IDs 92/91),
+/// and the `to_init_packet` warning fields. The server's job ends at sending those
+/// values; the actual overlay TRIGGER is computed in the client renderer
+/// (`isWithinWarningDistance()`/`isWithinWarningTime()` are absent from the server
+/// decompile). This helper mirrors that well-known client decision — warn when within
+/// `warning_blocks` of the border, or when a shrinking border will reach the player
+/// within `warning_time` seconds — for tests/tools, and is not authoritative-verifiable.
 pub fn should_show_warning(border: &WorldBorder, x: f64, z: f64) -> bool {
     let dist = border.distance_to_border(x, z);
     if dist < f64::from(border.warning_blocks) {
@@ -455,15 +473,53 @@ impl WorldBorder {
             center_z: self.center_z,
         }
     }
+
+    /// Build the `ClientboundSetBorderWarningDistancePacket` data (warning blocks).
+    pub fn to_warning_distance_packet(self) -> BorderWarningDistancePacket {
+        BorderWarningDistancePacket {
+            warning_blocks: self.warning_blocks,
+        }
+    }
+
+    /// Build the `ClientboundSetBorderWarningDelayPacket` data (warning time).
+    pub fn to_warning_time_packet(self) -> BorderWarningTimePacket {
+        BorderWarningTimePacket {
+            warning_time: self.warning_time,
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        BorderStatus, RespawnData2d, WorldBorder, WorldBorderSettings,
-        WORLD_BORDER_DEFAULT_ABSOLUTE_MAX_SIZE, WORLD_BORDER_MAX_CENTER_COORDINATE,
-        WORLD_BORDER_MAX_SIZE,
+        BorderStatus, BorderWarningDistancePacket, BorderWarningTimePacket, RespawnData2d,
+        WorldBorder, WorldBorderSettings, WORLD_BORDER_DEFAULT_ABSOLUTE_MAX_SIZE,
+        WORLD_BORDER_MAX_CENTER_COORDINATE, WORLD_BORDER_MAX_SIZE,
     };
+
+    #[test]
+    fn set_warning_blocks_and_time_update_state_and_build_packets() {
+        // `WorldBorder.setWarningBlocks`/`setWarningTime` set the field; the
+        // listener-equivalent packet builders carry the new values to the client
+        // (`ClientboundSetBorderWarningDistancePacket` / `...WarningDelayPacket`).
+        let mut border = WorldBorder::default();
+        border.set_warning_blocks(12);
+        border.set_warning_time(30);
+        assert_eq!(border.warning_blocks, 12);
+        assert_eq!(border.warning_time, 30);
+        assert_eq!(
+            border.to_warning_distance_packet(),
+            BorderWarningDistancePacket { warning_blocks: 12 }
+        );
+        assert_eq!(
+            border.to_warning_time_packet(),
+            BorderWarningTimePacket { warning_time: 30 }
+        );
+        // The init packet also carries the updated warning values.
+        let init = border.to_init_packet();
+        assert_eq!(init.warning_blocks, 12);
+        assert_eq!(init.warning_time, 30);
+    }
 
     #[test]
     fn default_world_border_settings_match_vanilla() {
