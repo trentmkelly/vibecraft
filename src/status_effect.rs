@@ -619,6 +619,46 @@ pub fn tick_action(
     }
 }
 
+/// 1:1 port of `HealOrHarmMobEffect.applyInstantenousEffect` for the
+/// `instant_health`/`instant_damage` effects — the path taken when a potion is
+/// consumed/splashed (as opposed to [`tick_action`], which mirrors
+/// `applyEffectTick`). `scale` is the potion application scale (e.g. splash
+/// distance falloff), and `has_source` switches harm from `magic` to
+/// `indirect_magic` when a causing entity is present. Heal amounts use
+/// `4 << amplifier` and harm amounts `6 << amplifier`, each scaled and rounded
+/// as `(int)(scale * base + 0.5)`. Roles swap for undead (`inverted_heal_harm`).
+pub fn apply_instantaneous_effect(
+    id: &str,
+    amplifier: u8,
+    scale: f64,
+    inverted_heal_harm: bool,
+    has_source: bool,
+) -> Option<EffectAction> {
+    let level = i32::from(amplifier);
+    let heal = || EffectAction::Heal(scaled_instant_amount(scale, 4_i32 << level));
+    let harm = || EffectAction::Damage {
+        source: if has_source {
+            "minecraft:indirect_magic"
+        } else {
+            "minecraft:magic"
+        },
+        amount: scaled_instant_amount(scale, 6_i32 << level),
+    };
+    match id {
+        // isHarm == false: heal a normal mob, harm an undead one.
+        "minecraft:instant_health" => Some(if inverted_heal_harm { harm() } else { heal() }),
+        // isHarm == true: harm a normal mob, heal an undead one.
+        "minecraft:instant_damage" => Some(if inverted_heal_harm { heal() } else { harm() }),
+        _ => None,
+    }
+}
+
+/// `(int)(scale * base + 0.5)` from `applyInstantenousEffect`, as health points.
+/// Java's `(int)` cast truncates toward zero, matching Rust's `as i32`.
+fn scaled_instant_amount(scale: f64, base: i32) -> f32 {
+    (scale * f64::from(base) + 0.5) as i32 as f32
+}
+
 fn should_tick_interval(tick_count: i32, base_interval: i32, amplifier: i32) -> bool {
     let interval = base_interval >> amplifier;
     interval <= 0 || tick_count % interval == 0
@@ -791,6 +831,63 @@ mod tests {
         assert_eq!(
             tick_action("minecraft:instant_damage", 1, 1, 20.0, 20.0, true),
             Some(EffectAction::Heal(8.0))
+        );
+    }
+
+    #[test]
+    fn instant_health_and_damage_applied_effect_scale_and_inversion_match_vanilla() {
+        // Drinking an Instant Health potion (scale 1.0, amplifier 0) heals 4.
+        assert_eq!(
+            apply_instantaneous_effect("minecraft:instant_health", 0, 1.0, false, false),
+            Some(EffectAction::Heal(4.0))
+        );
+        // Amplifier 1 doubles the base: 4 << 1 = 8.
+        assert_eq!(
+            apply_instantaneous_effect("minecraft:instant_health", 1, 1.0, false, false),
+            Some(EffectAction::Heal(8.0))
+        );
+        // Splash falloff scale rounds as (int)(scale * base + 0.5):
+        // 0.5 * 4 + 0.5 = 2.5 -> 2.
+        assert_eq!(
+            apply_instantaneous_effect("minecraft:instant_health", 0, 0.5, false, false),
+            Some(EffectAction::Heal(2.0))
+        );
+
+        // Instant Damage on a normal mob with no source → magic, 6 << amp.
+        assert_eq!(
+            apply_instantaneous_effect("minecraft:instant_damage", 0, 1.0, false, false),
+            Some(EffectAction::Damage {
+                source: "minecraft:magic",
+                amount: 6.0
+            })
+        );
+        // With a causing entity present → indirect_magic.
+        assert_eq!(
+            apply_instantaneous_effect("minecraft:instant_damage", 1, 1.0, false, true),
+            Some(EffectAction::Damage {
+                source: "minecraft:indirect_magic",
+                amount: 12.0
+            })
+        );
+
+        // Undead invert the roles: Instant Health harms them, Instant Damage
+        // heals them.
+        assert_eq!(
+            apply_instantaneous_effect("minecraft:instant_health", 0, 1.0, true, false),
+            Some(EffectAction::Damage {
+                source: "minecraft:magic",
+                amount: 6.0
+            })
+        );
+        assert_eq!(
+            apply_instantaneous_effect("minecraft:instant_damage", 0, 1.0, true, false),
+            Some(EffectAction::Heal(4.0))
+        );
+
+        // Non-instant effects are not handled by this path.
+        assert_eq!(
+            apply_instantaneous_effect("minecraft:regeneration", 0, 1.0, false, false),
+            None
         );
     }
 
