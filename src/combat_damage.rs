@@ -235,85 +235,227 @@ pub fn command_damage(amount: f32) -> Option<f32> {
 }
 
 // ---------------------------------------------------------------------------
-// Shield blocking
+// Shield blocking (DataComponents.BLOCKS_ATTACKS)
+//
+// 1:1 port of net.minecraft.world.item.component.BlocksAttacks and the blocking
+// resolution in LivingEntity.applyItemBlocking. As of 26.1.2 shield blocking is
+// fully data-driven: a held item carries a BlocksAttacks component describing a
+// set of angle-gated damage reductions, an item-damage function, a block delay,
+// a disable cooldown, and a set of bypassing damage types. The vanilla shield is
+// just one configuration of this component.
+//
+// TODO: wire apply_item_blocking into the live LivingEntity hurt pipeline once
+// item data-component decoding and active-use-item tracking (getItemBlockingWith)
+// are available; today the hurt path is a test-only model.
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ShieldBlockState {
-    pub blocking: bool,
-    pub block_cooldown: i32, // 5-tick cooldown after strong hit (100 HP)
-    pub look_yaw: f32,       // player's horizontal look angle for arc check
+/// `BlocksAttacks.DamageReduction`: a single angle-gated reduction.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DamageReduction {
+    /// Half-width of the blocking arc in degrees (`horizontal_blocking_angle`).
+    pub horizontal_blocking_angle: f32,
+    /// Damage type ids this reduction applies to. `None` matches every type.
+    pub damage_types: Option<Vec<&'static str>>,
+    pub base: f32,
+    pub factor: f32,
 }
 
-impl Default for ShieldBlockState {
-    fn default() -> Self {
-        Self {
-            blocking: false,
-            block_cooldown: 0,
-            look_yaw: 0.0,
-        }
-    }
-}
-
-impl ShieldBlockState {
-    pub fn is_blocking_effectively(&self) -> bool {
-        self.blocking && self.block_cooldown <= 0
-    }
-
-    pub fn tick_cooldown(&mut self) {
-        if self.block_cooldown > 0 {
-            self.block_cooldown -= 1;
-        }
-    }
-}
-
-/// Compute the fraction of damage blocked by a shield.
-/// `attack_yaw` is the direction the attack comes from (degrees).
-/// The shield blocks within a 180-degree arc in front of the player.
-/// For projectiles: 100% blocked if in arc.
-/// For melee: 100% blocked if damage < strong_hit_threshold AND in arc.
-/// After blocking a strong hit (>= strong_hit_threshold), apply 5-tick cooldown.
-pub fn shield_block_result(
-    state: &mut ShieldBlockState,
-    incoming_damage: f32,
-    is_projectile: bool,
-    attack_yaw: f32,
-    strong_hit_threshold: f32,
-) -> f32 {
-    if !state.is_blocking_effectively() {
-        return incoming_damage;
-    }
-
-    // Check arc: attack must be within 180 degrees of shield face (opposite of look)
-    let angle_diff = normalize_angle(attack_yaw - state.look_yaw);
-    if angle_diff.abs() > 90.0 {
-        // Attack from behind — shield does not block
-        return incoming_damage;
-    }
-
-    if is_projectile {
-        // Projectiles blocked completely
-        0.0
-    } else {
-        // Melee: blocked if damage < strong_hit_threshold
-        if incoming_damage >= strong_hit_threshold {
-            // Strong hit disables shield temporarily
-            state.block_cooldown = 5;
-            incoming_damage
-        } else {
+impl DamageReduction {
+    /// `BlocksAttacks.DamageReduction.resolve`.
+    pub fn resolve(&self, source_type: &str, dealt_damage: f32, angle: f64) -> f32 {
+        let outside_arc =
+            angle > (std::f64::consts::PI / 180.0) * self.horizontal_blocking_angle as f64;
+        let wrong_type = self
+            .damage_types
+            .as_ref()
+            .is_some_and(|types| !types.contains(&source_type));
+        if outside_arc || wrong_type {
             0.0
+        } else {
+            (self.base + self.factor * dealt_damage).clamp(0.0, dealt_damage)
         }
     }
 }
 
-fn normalize_angle(mut angle: f32) -> f32 {
-    while angle > 180.0 {
-        angle -= 360.0;
+/// `BlocksAttacks.ItemDamageFunction`: how much durability the blocking item
+/// loses for a blocked hit.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ItemDamageFunction {
+    pub threshold: f32,
+    pub base: f32,
+    pub factor: f32,
+}
+
+impl ItemDamageFunction {
+    /// `BlocksAttacks.ItemDamageFunction.DEFAULT`.
+    pub const DEFAULT: Self = Self {
+        threshold: 1.0,
+        base: 0.0,
+        factor: 1.0,
+    };
+
+    /// `BlocksAttacks.ItemDamageFunction.apply`.
+    pub fn apply(&self, dealt_damage: f32) -> i32 {
+        if dealt_damage < self.threshold {
+            0
+        } else {
+            (self.base + self.factor * dealt_damage).floor() as i32
+        }
     }
-    while angle < -180.0 {
-        angle += 360.0;
+}
+
+/// `net.minecraft.world.item.component.BlocksAttacks`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BlocksAttacks {
+    pub block_delay_seconds: f32,
+    pub disable_cooldown_scale: f32,
+    pub damage_reductions: Vec<DamageReduction>,
+    pub item_damage: ItemDamageFunction,
+    /// Damage type ids that bypass this block entirely (`bypassed_by`). `None`
+    /// means nothing bypasses.
+    pub bypassed_by: Option<Vec<&'static str>>,
+}
+
+impl BlocksAttacks {
+    /// `BlocksAttacks.blockDelayTicks`.
+    pub fn block_delay_ticks(&self) -> i32 {
+        (self.block_delay_seconds * 20.0).round() as i32
     }
-    angle
+
+    /// `BlocksAttacks.disableBlockingForTicks`.
+    pub fn disable_blocking_for_ticks(&self, base_seconds: f32) -> i32 {
+        let seconds = base_seconds * self.disable_cooldown_scale;
+        if seconds > 0.0 {
+            (seconds * 20.0).round() as i32
+        } else {
+            0
+        }
+    }
+
+    /// `BlocksAttacks.resolveBlockedDamage`.
+    pub fn resolve_blocked_damage(&self, source_type: &str, dealt_damage: f32, angle: f64) -> f32 {
+        let blocked: f32 = self
+            .damage_reductions
+            .iter()
+            .map(|reduction| reduction.resolve(source_type, dealt_damage, angle))
+            .sum();
+        blocked.clamp(0.0, dealt_damage)
+    }
+
+    /// Whether `source_type` is in the component's `bypassed_by` set.
+    pub fn is_bypassed_by(&self, source_type: &str) -> bool {
+        self.bypassed_by
+            .as_ref()
+            .is_some_and(|types| types.contains(&source_type))
+    }
+
+    /// The vanilla shield (`Items.SHIELD`) component: 0.25s block delay, full
+    /// disable scaling, one 90°/base 0/factor 1 reduction (blocks 100% in the
+    /// front arc), item damage `(threshold 3, base 1, factor 1)`, and bypassed
+    /// by the `minecraft:bypasses_shield` damage type tag.
+    pub fn vanilla_shield() -> Self {
+        Self {
+            block_delay_seconds: 0.25,
+            disable_cooldown_scale: 1.0,
+            damage_reductions: vec![DamageReduction {
+                horizontal_blocking_angle: 90.0,
+                damage_types: None,
+                base: 0.0,
+                factor: 1.0,
+            }],
+            item_damage: ItemDamageFunction {
+                threshold: 3.0,
+                base: 1.0,
+                factor: 1.0,
+            },
+            bypassed_by: Some(BYPASSES_SHIELD.to_vec()),
+        }
+    }
+}
+
+/// Membership of the `minecraft:bypasses_shield` damage type tag (which nests
+/// `minecraft:bypasses_armor`).
+pub const BYPASSES_SHIELD: &[&str] = &[
+    // #minecraft:bypasses_armor
+    "minecraft:on_fire",
+    "minecraft:in_wall",
+    "minecraft:cramming",
+    "minecraft:drown",
+    "minecraft:fly_into_wall",
+    "minecraft:generic",
+    "minecraft:wither",
+    "minecraft:dragon_breath",
+    "minecraft:starve",
+    "minecraft:fall",
+    "minecraft:ender_pearl",
+    "minecraft:freeze",
+    "minecraft:stalagmite",
+    "minecraft:magic",
+    "minecraft:indirect_magic",
+    "minecraft:out_of_world",
+    "minecraft:generic_kill",
+    "minecraft:sonic_boom",
+    "minecraft:outside_border",
+    // bypasses_shield-specific entries
+    "minecraft:cactus",
+    "minecraft:campfire",
+    "minecraft:dry_out",
+    "minecraft:falling_anvil",
+    "minecraft:falling_stalactite",
+    "minecraft:hot_floor",
+    "minecraft:in_fire",
+    "minecraft:lava",
+    "minecraft:lightning_bolt",
+    "minecraft:sweet_berry_bush",
+];
+
+/// 1:1 port of `LivingEntity.applyItemBlocking`: the damage blocked by an item
+/// carrying `component`. `angle` is the blocking angle from [`blocking_angle`],
+/// and `piercing_arrow` is true when the direct entity is a piercing arrow.
+pub fn apply_item_blocking(
+    component: &BlocksAttacks,
+    source_type: &str,
+    damage: f32,
+    angle: f64,
+    piercing_arrow: bool,
+) -> f32 {
+    if damage <= 0.0 {
+        return 0.0;
+    }
+    if component.is_bypassed_by(source_type) {
+        return 0.0;
+    }
+    if piercing_arrow {
+        return 0.0;
+    }
+    component.resolve_blocked_damage(source_type, damage, angle)
+}
+
+/// The blocking angle used by `applyItemBlocking`: `acos` of the dot product of
+/// the head's horizontal view vector and the normalized horizontal vector to the
+/// damage source. Returns `PI` when the source has no position (an unblockable
+/// "everywhere" hit). `head_yaw_deg` is `getYHeadRot`.
+pub fn blocking_angle(
+    head_yaw_deg: f32,
+    source_pos: Option<[f64; 3]>,
+    entity_pos: [f64; 3],
+) -> f64 {
+    let Some(source_pos) = source_pos else {
+        return std::f64::consts::PI;
+    };
+    // Entity.calculateViewVector(0, yHeadRot) with pitch 0: (-sin yaw, 0, cos yaw).
+    let yaw = (head_yaw_deg as f64).to_radians();
+    let view = [-yaw.sin(), 0.0, yaw.cos()];
+    let dx = source_pos[0] - entity_pos[0];
+    let dz = source_pos[2] - entity_pos[2];
+    let len = (dx * dx + dz * dz).sqrt();
+    if len == 0.0 {
+        // normalize() of a zero vector yields NaN in vanilla too; treat the
+        // degenerate "source on top of the entity" case as a head-on hit.
+        return 0.0;
+    }
+    let dot = (dx / len) * view[0] + (dz / len) * view[2];
+    dot.clamp(-1.0, 1.0).acos()
 }
 
 #[cfg(test)]
@@ -485,35 +627,106 @@ mod tests {
     }
 
     #[test]
-    fn shield_blocks_projectile_in_arc_and_strong_hit_disables_shield() {
-        let mut shield = ShieldBlockState {
-            blocking: true,
-            block_cooldown: 0,
-            look_yaw: 0.0,
+    fn vanilla_shield_blocks_attacks_component_matches_java() {
+        let shield = BlocksAttacks::vanilla_shield();
+
+        // 0.25s delay → 5 ticks; disable scale 1.0 → cooldown seconds×20.
+        assert_eq!(shield.block_delay_ticks(), 5);
+        assert_eq!(shield.disable_blocking_for_ticks(5.0), 100);
+        assert_eq!(shield.disable_blocking_for_ticks(0.0), 0);
+
+        // Item durability function: floor(1 + 1·damage) once damage ≥ 3.
+        assert_eq!(shield.item_damage.apply(2.9), 0);
+        assert_eq!(shield.item_damage.apply(3.0), 4);
+        assert_eq!(shield.item_damage.apply(7.5), 8);
+
+        // Head-on hit (angle 0) within the 90° arc → 100% blocked (factor 1).
+        assert_eq!(
+            apply_item_blocking(&shield, "minecraft:player_attack", 8.0, 0.0, false),
+            8.0
+        );
+        // Exactly on the 90° arc edge is still blocked; just past it is not.
+        let edge = std::f64::consts::FRAC_PI_2;
+        assert_eq!(
+            apply_item_blocking(&shield, "minecraft:player_attack", 8.0, edge, false),
+            8.0
+        );
+        assert_eq!(
+            apply_item_blocking(&shield, "minecraft:player_attack", 8.0, edge + 0.01, false),
+            0.0
+        );
+
+        // Projectiles are blocked too, but a piercing arrow ignores the shield.
+        assert_eq!(
+            apply_item_blocking(&shield, "minecraft:arrow", 6.0, 0.0, false),
+            6.0
+        );
+        assert_eq!(
+            apply_item_blocking(&shield, "minecraft:arrow", 6.0, 0.0, true),
+            0.0
+        );
+
+        // Bypassing damage types (lava, in_fire, lightning, magic, …) are never
+        // blocked, even head-on.
+        for bypass in ["minecraft:lava", "minecraft:in_fire", "minecraft:magic"] {
+            assert_eq!(
+                apply_item_blocking(&shield, bypass, 8.0, 0.0, false),
+                0.0,
+                "{bypass}"
+            );
+            assert!(shield.is_bypassed_by(bypass));
+        }
+        assert!(!shield.is_bypassed_by("minecraft:player_attack"));
+
+        // Zero/negative damage blocks nothing.
+        assert_eq!(
+            apply_item_blocking(&shield, "minecraft:player_attack", 0.0, 0.0, false),
+            0.0
+        );
+    }
+
+    #[test]
+    fn blocking_angle_matches_view_vector_geometry() {
+        // Facing +Z (yaw 0); a source straight ahead in +Z → angle 0.
+        let angle = blocking_angle(0.0, Some([0.0, 0.0, 5.0]), [0.0, 0.0, 0.0]);
+        assert!(angle.abs() < 1e-6, "{angle}");
+        // Source directly behind (−Z) → angle π.
+        let behind = blocking_angle(0.0, Some([0.0, 0.0, -5.0]), [0.0, 0.0, 0.0]);
+        assert!((behind - std::f64::consts::PI).abs() < 1e-6, "{behind}");
+        // Source to the side (+X) → angle π/2.
+        let side = blocking_angle(0.0, Some([5.0, 0.0, 0.0]), [0.0, 0.0, 0.0]);
+        assert!((side - std::f64::consts::FRAC_PI_2).abs() < 1e-6, "{side}");
+        // No source position → π (an "everywhere" hit that cannot be blocked).
+        assert_eq!(
+            blocking_angle(0.0, None, [0.0, 0.0, 0.0]),
+            std::f64::consts::PI
+        );
+    }
+
+    #[test]
+    fn damage_reduction_partial_factor_and_type_filter() {
+        // A reduction that only blocks half of arrow damage within a 60° arc.
+        let reduction = DamageReduction {
+            horizontal_blocking_angle: 60.0,
+            damage_types: Some(vec!["minecraft:arrow"]),
+            base: 0.0,
+            factor: 0.5,
         };
-
-        // Projectile from front (angle 0) → fully blocked
-        let remaining = shield_block_result(&mut shield, 5.0, true, 0.0, 8.0);
-        assert_eq!(remaining, 0.0);
-
-        // Projectile from behind (angle 180) → not blocked
-        let remaining = shield_block_result(&mut shield, 5.0, true, 180.0, 8.0);
-        assert_eq!(remaining, 5.0);
-
-        // Melee weak hit from front → blocked
-        let remaining = shield_block_result(&mut shield, 3.0, false, 0.0, 8.0);
-        assert_eq!(remaining, 0.0);
-        assert_eq!(shield.block_cooldown, 0);
-
-        // Melee strong hit → not blocked, sets cooldown
-        let remaining = shield_block_result(&mut shield, 10.0, false, 0.0, 8.0);
-        assert_eq!(remaining, 10.0);
-        assert_eq!(shield.block_cooldown, 5);
-
-        // During cooldown: shield disabled
-        assert!(!shield.is_blocking_effectively());
-        shield.tick_cooldown();
-        assert_eq!(shield.block_cooldown, 4);
+        // In-arc arrow → half blocked.
+        assert_eq!(reduction.resolve("minecraft:arrow", 10.0, 0.0), 5.0);
+        // Wrong damage type → nothing blocked even in-arc.
+        assert_eq!(reduction.resolve("minecraft:player_attack", 10.0, 0.0), 0.0);
+        // Out of arc (70° > 60°) → nothing blocked.
+        let wide = 70.0f64.to_radians();
+        assert_eq!(reduction.resolve("minecraft:arrow", 10.0, wide), 0.0);
+        // base + factor is clamped to the dealt damage.
+        let capped = DamageReduction {
+            horizontal_blocking_angle: 90.0,
+            damage_types: None,
+            base: 100.0,
+            factor: 0.0,
+        };
+        assert_eq!(capped.resolve("minecraft:generic", 4.0, 0.0), 4.0);
     }
 
     #[test]
