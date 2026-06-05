@@ -1,5 +1,5 @@
 // Weather parity tests: rain/thunder transitions via /weather command,
-// lightning ClientboundLevelEventPacket observed by bot,
+// lightning LightningBolt entity spawn observed by bot,
 // weather command feedback, client state after reconnect.
 
 export function createWeatherScenariosPlan(options = {}) {
@@ -18,7 +18,7 @@ export function createWeatherScenariosPlan(options = {}) {
       'clear-to-rain-transition',
       'rain-to-thunder-transition',
       'thunder-to-clear-transition',
-      'lightning-level-event-packet',
+      'lightning-bolt-entity-spawned',
       'weather-command-feedback',
       'reconnect-weather-state-preserved'
     ]
@@ -43,7 +43,7 @@ function stepToAction(step) {
     'clear-to-rain-transition': 'weather.transition.clear_rain',
     'rain-to-thunder-transition': 'weather.transition.rain_thunder',
     'thunder-to-clear-transition': 'weather.transition.thunder_clear',
-    'lightning-level-event-packet': 'weather.lightning.level_event',
+    'lightning-bolt-entity-spawned': 'weather.lightning.entity_spawn',
     'weather-command-feedback': 'weather.command.feedback',
     'reconnect-weather-state-preserved': 'weather.reconnect.preserved'
   }
@@ -55,24 +55,35 @@ export function recordWeatherEvent(session, action, details = {}) {
   return { action, ...details }
 }
 
-// Skylight reduction: CLEAR=0 (15 effective), RAIN/THUNDER=5 (10 effective)
+// Effective sky light during weather = 15 - skyDarken, where skyDarken is the
+// weather contribution at full intensity (environment_attributes::weather_sky_darken,
+// WeatherAttributes ALPHA_BLEND toward SKY_LIGHT_LEVEL 4.0):
+//   clear  -> skyDarken 0 -> light 15
+//   rain   -> skyDarken 3 -> light 12
+//   thunder-> skyDarken 5 -> light 10  (thunder implies rain)
+// Rain and thunder are NOT both 10; rain only dims to 12.
 export function effectiveSkyLight(raining, thundering) {
-  return (raining || thundering) ? 10 : 15
+  if (thundering) return 10
+  if (raining) return 12
+  return 15
 }
 
-// Vanilla lightning event ID used in ClientboundLevelEventPacket
-export const LIGHTNING_LEVEL_EVENT_ID = 2005
+// Lightning is observed as a spawned LightningBolt ENTITY (EntityType "lightning_bolt",
+// ServerLevel.tickThunder -> addFreshEntity), surfaced to the client via
+// ClientboundAddEntityPacket — NOT a ClientboundLevelEventPacket. (Level event 2005 is
+// bonemeal particles, unrelated.) The bot observes it as an entitySpawn of this type.
+export const LIGHTNING_BOLT_ENTITY_ID = 'minecraft:lightning_bolt'
 
 export function planWeatherTransition(from, to, command) {
   const actionKey = `weather.transition.${from}_${to}`
   return { action: actionKey, from, to, command }
 }
 
-export function planLightningPacket(pos, expectedEventId) {
+export function planLightningSpawn(pos, expectedEntityType) {
   return {
-    action: 'weather.lightning.level_event',
+    action: 'weather.lightning.entity_spawn',
     pos,
-    expectedEventId: expectedEventId ?? LIGHTNING_LEVEL_EVENT_ID
+    expectedEntityType: expectedEntityType ?? LIGHTNING_BOLT_ENTITY_ID
   }
 }
 

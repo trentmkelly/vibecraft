@@ -4,10 +4,10 @@ import {
   createWeatherScenariosPlan,
   summarizeWeatherScenarios,
   effectiveSkyLight,
-  LIGHTNING_LEVEL_EVENT_ID,
+  LIGHTNING_BOLT_ENTITY_ID,
   VANILLA_WEATHER_FEEDBACK,
   planWeatherTransition,
-  planLightningPacket,
+  planLightningSpawn,
   planWeatherCommandFeedback
 } from './weather_scenarios.mjs'
 
@@ -16,7 +16,7 @@ test('createWeatherScenariosPlan covers all 6 weather steps', () => {
   assert.equal(plan.name, 'mineflayer-weather-scenarios')
   assert.equal(plan.steps.length, 6)
   assert.ok(plan.steps.includes('clear-to-rain-transition'))
-  assert.ok(plan.steps.includes('lightning-level-event-packet'))
+  assert.ok(plan.steps.includes('lightning-bolt-entity-spawned'))
   assert.ok(plan.steps.includes('reconnect-weather-state-preserved'))
 })
 
@@ -26,7 +26,7 @@ test('summarizeWeatherScenarios returns ok when all steps evidenced', () => {
     'clear-to-rain-transition': 'weather.transition.clear_rain',
     'rain-to-thunder-transition': 'weather.transition.rain_thunder',
     'thunder-to-clear-transition': 'weather.transition.thunder_clear',
-    'lightning-level-event-packet': 'weather.lightning.level_event',
+    'lightning-bolt-entity-spawned': 'weather.lightning.entity_spawn',
     'weather-command-feedback': 'weather.command.feedback',
     'reconnect-weather-state-preserved': 'weather.reconnect.preserved'
   }
@@ -41,15 +41,15 @@ test('summarizeWeatherScenarios fails with empty timeline', () => {
   assert.equal(summarizeWeatherScenarios({ timeline: [] }, plan).ok, false)
 })
 
-test('effectiveSkyLight returns 15 for clear and 10 for rain or thunder', () => {
-  assert.equal(effectiveSkyLight(false, false), 15)  // clear
-  assert.equal(effectiveSkyLight(true, false), 10)   // rain
-  assert.equal(effectiveSkyLight(true, true), 10)    // thunderstorm
-  assert.equal(effectiveSkyLight(false, true), 10)   // thunder (raining flag may be separate)
+test('effectiveSkyLight: clear 15, rain 12, thunder 10 (rain != thunder)', () => {
+  assert.equal(effectiveSkyLight(false, false), 15)  // clear: skyDarken 0
+  assert.equal(effectiveSkyLight(true, false), 12)   // rain: skyDarken 3
+  assert.equal(effectiveSkyLight(true, true), 10)    // thunderstorm: skyDarken 5
+  assert.equal(effectiveSkyLight(false, true), 10)   // thunder implies the dimmer level
 })
 
-test('LIGHTNING_LEVEL_EVENT_ID is 2005', () => {
-  assert.equal(LIGHTNING_LEVEL_EVENT_ID, 2005)
+test('LIGHTNING_BOLT_ENTITY_ID is the lightning_bolt entity type', () => {
+  assert.equal(LIGHTNING_BOLT_ENTITY_ID, 'minecraft:lightning_bolt')
 })
 
 test('VANILLA_WEATHER_FEEDBACK covers clear, rain, thunder', () => {
@@ -66,9 +66,10 @@ test('planWeatherTransition records from/to states', () => {
   assert.equal(p.command, '/weather rain')
 })
 
-test('planLightningPacket uses default event ID when omitted', () => {
-  const p = planLightningPacket({ x: 0, y: 64, z: 0 })
-  assert.equal(p.expectedEventId, LIGHTNING_LEVEL_EVENT_ID)
+test('planLightningSpawn uses the lightning_bolt entity type when omitted', () => {
+  const p = planLightningSpawn({ x: 0, y: 64, z: 0 })
+  assert.equal(p.action, 'weather.lightning.entity_spawn')
+  assert.equal(p.expectedEntityType, LIGHTNING_BOLT_ENTITY_ID)
 })
 
 test('planWeatherCommandFeedback records type and key', () => {
