@@ -339,17 +339,10 @@ pub fn lightning_starts_fire(
 }
 
 /// Whether a Channeling trident's `post_attack` effect summons a lightning bolt
-/// on the entity it hit. This approximates the data-driven `channeling`
-/// enchantment's `post_attack` requirements: `weather_check{thundering:true}`,
-/// the projectile is a trident, and `location_check{can_see_sky:true}` at the
-/// victim.
-///
-/// TODO(26.1.2 parity): in 26.1.2 Channeling is fully data-driven via
-/// enchantment effect components (`minecraft:summon_entity` under `hit_block`
-/// and `post_attack` triggers with loot-condition requirements). This boolean
-/// only models the `post_attack` (hit-an-entity) path; the `hit_block`
-/// (lightning-rod) trigger and the general effect-component dispatch need the
-/// data-driven enchantment-effect system.
+/// on the entity it hit, 1:1 with the `channeling` enchantment's `post_attack`
+/// requirements: `weather_check{thundering:true}`, the projectile is a trident
+/// (`entity_properties{this: trident}`), and `location_check{can_see_sky:true}`
+/// at the victim.
 pub fn channeling_trident_summons_lightning(
     has_channeling: bool,
     thundering: bool,
@@ -357,6 +350,20 @@ pub fn channeling_trident_summons_lightning(
     hit_living_entity: bool,
 ) -> bool {
     has_channeling && thundering && target_can_see_sky && hit_living_entity
+}
+
+/// Whether a Channeling trident's `hit_block` effect summons a lightning bolt on
+/// the block it struck, 1:1 with the `channeling` enchantment's `hit_block`
+/// requirements: `weather_check{thundering:true}`, the projectile is a trident,
+/// and `location_check{block: #minecraft:lightning_rods, can_see_sky:true}` (the
+/// struck block is a lightning rod with open sky above).
+pub fn channeling_trident_strikes_lightning_rod(
+    has_channeling: bool,
+    thundering: bool,
+    block_is_lightning_rod: bool,
+    can_see_sky: bool,
+) -> bool {
+    has_channeling && thundering && block_is_lightning_rod && can_see_sky
 }
 
 pub fn skeleton_horse_trap_roll(
@@ -789,6 +796,23 @@ mod tests {
             true, true, false, true
         ));
         assert!(!channeling_trident_summons_lightning(
+            true, true, true, false
+        ));
+
+        // hit_block path: trident strikes a lightning rod under open thunder sky.
+        assert!(channeling_trident_strikes_lightning_rod(true, true, true, true));
+        // Each requirement is necessary: no channeling / not thundering / not a
+        // lightning rod / no sky view all suppress the strike.
+        assert!(!channeling_trident_strikes_lightning_rod(
+            false, true, true, true
+        ));
+        assert!(!channeling_trident_strikes_lightning_rod(
+            true, false, true, true
+        ));
+        assert!(!channeling_trident_strikes_lightning_rod(
+            true, true, false, true
+        ));
+        assert!(!channeling_trident_strikes_lightning_rod(
             true, true, true, false
         ));
     }
