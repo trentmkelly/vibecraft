@@ -6,6 +6,10 @@ use crate::game_event::{game_event_by_id, GameEventContext, GameEventDefinition}
 pub const NO_VIBRATION_FREQUENCY: u8 = 0;
 pub const WARDEN_VIBRATION_COOLDOWN_TICKS: i32 = 40;
 pub const WARDEN_RECENT_PROJECTILE_TICKS: i32 = 100;
+/// `Warden.increaseAngerAt(entity)` default offset (`DEFAULT_ANGER`).
+pub const WARDEN_DEFAULT_ANGER: i32 = 35;
+/// Anger applied to the shooter on the FIRST projectile hit (no `RECENT_PROJECTILE`
+/// memory yet): `increaseAngerAt(owner, 10, true)`.
 pub const WARDEN_PROJECTILE_ANGER_BONUS: i32 = 10;
 pub const WARDEN_PROJECTILE_OWNER_RANGE: f32 = 30.0;
 
@@ -295,7 +299,10 @@ pub fn calibrated_sculk_sensor_receive(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AllayVibrationAction {
-    ListenForJukebox { radius: i32 },
+    /// `Allay.VibrationUser.onReceiveVibration` for `NOTE_BLOCK_PLAY`:
+    /// `AllayAi.hearNoteblock` remembers the note-block position (the allay returns
+    /// to it). The VibrationUser listens within `VIBRATION_EVENT_LISTENER_RANGE` (16).
+    HearNoteblock { radius: i32 },
     Dance,
     StopDancing,
     Ignore,
@@ -303,9 +310,12 @@ pub enum AllayVibrationAction {
 
 pub fn allay_receive_event(event_id: &str, within_jukebox_radius: bool) -> AllayVibrationAction {
     match (event_id, within_jukebox_radius) {
+        // JukeboxListener (radius = JUKEBOX_PLAY notification radius 10):
+        // JUKEBOX_PLAY -> setJukeboxPlaying(true) -> dance; JUKEBOX_STOP_PLAY -> stop.
         ("minecraft:jukebox_play", true) => AllayVibrationAction::Dance,
         ("minecraft:jukebox_stop_play", _) => AllayVibrationAction::StopDancing,
-        ("minecraft:note_block_play", _) => AllayVibrationAction::ListenForJukebox { radius: 10 },
+        // VibrationUser (radius 16) -> AllayAi.hearNoteblock.
+        ("minecraft:note_block_play", _) => AllayVibrationAction::HearNoteblock { radius: 16 },
         _ => AllayVibrationAction::Ignore,
     }
 }
@@ -319,7 +329,11 @@ pub enum WardenVibrationAction {
     IncreaseAnger {
         target: String,
         amount: i32,
-        recent_projectile_ticks: Option<i32>,
+    },
+    /// Refresh the `RECENT_PROJECTILE` memory; emitted whenever the source is a
+    /// projectile owner, regardless of range (`Warden.onReceiveVibration`).
+    SetRecentProjectile {
+        ticks: i32,
     },
     Investigate {
         disturbance: (i32, i32, i32),
@@ -342,22 +356,33 @@ pub fn warden_receive_vibration(
         if projectile_owner_within_range {
             actions.push(WardenVibrationAction::IncreaseAnger {
                 target: owner.to_string(),
+                // First projectile (no RECENT_PROJECTILE memory): +10 bonus. Once a
+                // recent projectile is on record: the default 35 anger. (Java has the
+                // `has-recent -> default(35)` / `no-recent -> 10` ordering.)
                 amount: if has_recent_projectile {
-                    WARDEN_PROJECTILE_ANGER_BONUS
+                    WARDEN_DEFAULT_ANGER
                 } else {
-                    1
+                    WARDEN_PROJECTILE_ANGER_BONUS
                 },
-                recent_projectile_ticks: Some(WARDEN_RECENT_PROJECTILE_TICKS),
             });
         }
+        // RECENT_PROJECTILE is set to 100 ticks whenever the source is a projectile
+        // owner, even if it is out of anger range.
+        actions.push(WardenVibrationAction::SetRecentProjectile {
+            ticks: WARDEN_RECENT_PROJECTILE_TICKS,
+        });
     } else if let Some(source) = source_entity {
         actions.push(WardenVibrationAction::IncreaseAnger {
             target: source.to_string(),
-            amount: 1,
-            recent_projectile_ticks: None,
+            amount: WARDEN_DEFAULT_ANGER,
         });
     }
 
+    // TODO(warden): non-projectile disturbance is gated in Java by
+    // `activeEntity.isEmpty() || activeEntity == sourceEntity`, and the projectile
+    // disturbance point is refined to the shooter's position when targetable. Both
+    // need the warden's anger-manager active-entity state threaded in; the projectile
+    // path (projectileOwner != null) always investigates, which this matches.
     if !angry {
         actions.push(WardenVibrationAction::Investigate {
             disturbance: source_pos,
@@ -373,9 +398,9 @@ mod tests {
         resonance_event_by_frequency, sculk_sensor_receive, tick_vibration, validate_vibration,
         vibration_frequency, warden_receive_vibration, AllayVibrationAction, SculkSensorAction,
         VibrationData, VibrationInfo, VibrationSelector, VibrationSourceState, VibrationTickAction,
-        VibrationValidation, WardenVibrationAction, WARDEN_PROJECTILE_ANGER_BONUS,
-        WARDEN_PROJECTILE_OWNER_RANGE, WARDEN_RECENT_PROJECTILE_TICKS,
-        WARDEN_VIBRATION_COOLDOWN_TICKS,
+        VibrationValidation, WardenVibrationAction, WARDEN_DEFAULT_ANGER,
+        WARDEN_PROJECTILE_ANGER_BONUS, WARDEN_PROJECTILE_OWNER_RANGE,
+        WARDEN_RECENT_PROJECTILE_TICKS, WARDEN_VIBRATION_COOLDOWN_TICKS,
     };
     use crate::entity_physics::Vec3;
     use crate::game_event::{game_event_by_id, GameEventContext};
@@ -562,12 +587,14 @@ mod tests {
     fn allay_and_warden_receive_events_match_listener_side_effects() {
         assert_eq!(
             allay_receive_event("minecraft:note_block_play", false),
-            AllayVibrationAction::ListenForJukebox { radius: 10 }
+            AllayVibrationAction::HearNoteblock { radius: 16 }
         );
         assert_eq!(
             allay_receive_event("minecraft:jukebox_play", true),
             AllayVibrationAction::Dance
         );
+        // Projectile shooter in range WITH a recent projectile on record -> default
+        // 35 anger, and RECENT_PROJECTILE is refreshed.
         assert_eq!(
             warden_receive_vibration(Some("arrow"), Some("player"), (1, 64, 1), true, true, false,),
             vec![
@@ -576,12 +603,46 @@ mod tests {
                 },
                 WardenVibrationAction::IncreaseAnger {
                     target: "player".to_string(),
-                    amount: WARDEN_PROJECTILE_ANGER_BONUS,
-                    recent_projectile_ticks: Some(WARDEN_RECENT_PROJECTILE_TICKS)
+                    amount: WARDEN_DEFAULT_ANGER,
+                },
+                WardenVibrationAction::SetRecentProjectile {
+                    ticks: WARDEN_RECENT_PROJECTILE_TICKS
                 },
                 WardenVibrationAction::Investigate {
                     disturbance: (1, 64, 1)
                 }
+            ]
+        );
+        // FIRST projectile (no recent projectile) -> +10 bonus anger.
+        assert_eq!(
+            warden_receive_vibration(Some("arrow"), Some("player"), (1, 64, 1), true, false, false,),
+            vec![
+                WardenVibrationAction::TendrilClick {
+                    cooldown_ticks: WARDEN_VIBRATION_COOLDOWN_TICKS
+                },
+                WardenVibrationAction::IncreaseAnger {
+                    target: "player".to_string(),
+                    amount: WARDEN_PROJECTILE_ANGER_BONUS,
+                },
+                WardenVibrationAction::SetRecentProjectile {
+                    ticks: WARDEN_RECENT_PROJECTILE_TICKS
+                },
+                WardenVibrationAction::Investigate {
+                    disturbance: (1, 64, 1)
+                }
+            ]
+        );
+        // Non-projectile source -> default 35 anger (increaseAngerAt(source)).
+        assert_eq!(
+            warden_receive_vibration(Some("zombie"), None, (2, 64, 2), false, false, true,),
+            vec![
+                WardenVibrationAction::TendrilClick {
+                    cooldown_ticks: WARDEN_VIBRATION_COOLDOWN_TICKS
+                },
+                WardenVibrationAction::IncreaseAnger {
+                    target: "zombie".to_string(),
+                    amount: WARDEN_DEFAULT_ANGER,
+                },
             ]
         );
         assert_eq!(WARDEN_PROJECTILE_OWNER_RANGE, 30.0);
