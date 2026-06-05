@@ -396,6 +396,31 @@ impl MerchantMenu {
         }
     }
 
+    /// `MerchantMenu.removed`: route the carried cursor item, then return BOTH trade
+    /// payment slots (0 and 1) to the player — placed back on a normal close, dropped
+    /// in-world on disconnect/death. (The Java `setTradingPlayer(null)` is handled by
+    /// the trader entity, which this menu does not own.) The result slot is virtual.
+    pub fn removed(
+        &mut self,
+        player: &mut PlayerInventory,
+        carried: &mut ItemStack,
+        disconnected: bool,
+    ) {
+        drop_or_place_in_inventory(
+            player,
+            std::mem::replace(carried, ItemStack::empty()),
+            disconnected,
+        );
+        for slot in [&mut self.payment_a, &mut self.payment_b] {
+            drop_or_place_in_inventory(
+                player,
+                std::mem::replace(slot, ItemStack::empty()),
+                disconnected,
+            );
+        }
+        self.result = ItemStack::empty();
+    }
+
     pub fn payment(&self, index: usize) -> Option<&ItemStack> {
         match index {
             0 => Some(&self.payment_a),

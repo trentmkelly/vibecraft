@@ -52,6 +52,25 @@ const BEACON_PAYMENT_ITEMS: &[&str] = &[
 /// Brewing fuel items, matching `ItemTags.BREWING_FUEL` in 26.1.2.
 const BREWING_FUEL_ITEMS: &[&str] = &["minecraft:blaze_powder"];
 
+/// `AbstractContainerMenu.dropOrPlaceInInventory`: on a normal close the stack is
+/// placed back into the player inventory (overflow dropped in-world via
+/// `place_item_back_in_inventory`); on disconnect/removal it is dropped in-world.
+/// Empty stacks are ignored.
+pub(crate) fn drop_or_place_in_inventory(
+    player: &mut PlayerInventory,
+    stack: ItemStack,
+    disconnected: bool,
+) {
+    if stack.is_empty() {
+        return;
+    }
+    if disconnected {
+        player.drop_item(stack);
+    } else {
+        player.place_item_back_in_inventory(stack);
+    }
+}
+
 /// `BrewingStandMenu.PotionSlot.mayPlaceItem`.
 pub(super) fn is_potion_or_bottle(item_id: &str) -> bool {
     matches!(
@@ -285,6 +304,7 @@ pub(super) fn write_player_slot(
     }
 }
 
+mod menus_brewing;
 mod menus_crafting_and_furnace;
 mod menus_storage;
 mod menus_workstation;
@@ -292,6 +312,8 @@ mod menus_table;
 mod menus_misc;
 mod menus_entity;
 
+#[cfg(test)]
+use menus_brewing::*;
 #[cfg(test)]
 use menus_crafting_and_furnace::*;
 #[cfg(test)]
@@ -307,3 +329,5 @@ use menus_entity::*;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_close;

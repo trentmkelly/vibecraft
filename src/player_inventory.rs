@@ -191,6 +191,15 @@ impl PlayerInventory {
         InventoryAddResult::FullyAdded
     }
 
+    /// Drop a stack in the world near the player (`Player.drop(stack, false)`), used
+    /// by `AbstractContainerMenu.dropOrPlaceInInventory` on disconnect/removal. The
+    /// stack is recorded in `dropped` (the same channel as inventory overflow).
+    pub fn drop_item(&mut self, stack: ItemStack) {
+        if !stack.is_empty() {
+            self.dropped.push(stack);
+        }
+    }
+
     pub fn pick_slot(&mut self, slot: usize) {
         let selected = self.get_suitable_hotbar_slot();
         self.selected = selected;

@@ -634,9 +634,17 @@ fn beacon_payment_slot_accepts_only_payment_items() {
     assert!(!menu.has_payment());
     assert!(!menu.update_effects(Some(0), None));
 
+    // BeaconMenu.removed ALWAYS drops the payment in-world (player.drop), even on a
+    // normal close, and routes the carried cursor item normally.
     menu.set_slot(0, ItemStack::new("minecraft:diamond", 1), &mut player);
-    assert_eq!(menu.removed().item_id(), "minecraft:diamond");
+    let mut carried = ItemStack::new("minecraft:stick", 2);
+    menu.removed(&mut player, &mut carried, false);
     assert!(!menu.has_payment());
+    assert!(carried.is_empty()); // carried placed back into the inventory on close
+    assert!(player
+        .dropped()
+        .iter()
+        .any(|s| s.item_id() == "minecraft:diamond"));
 }
 
 // -------- CrafterMenu --------
@@ -1049,52 +1057,6 @@ fn creative_clone_produces_full_stack_from_slot() {
     assert_eq!(cloned.item_id(), "minecraft:emerald");
 }
 
-#[test]
-fn close_while_carrying_returns_item_to_inventory() {
-    // Java parity: AbstractContainerMenu.removed places the carried item
-    // back into the inventory (or drops it if no slot is free).
-    let mut player = PlayerInventory::new();
-    let carried = ItemStack::new("minecraft:diamond", 3);
-
-    let placed = if let Some(empty_slot) = (0..36).find(|&i| player.get(i).is_empty()) {
-        player.set(empty_slot, carried.clone());
-        true
-    } else {
-        false
-    };
-    assert!(placed);
-    assert_eq!(player.get(0).item_id(), "minecraft:diamond");
-    assert_eq!(player.get(0).count(), 3);
-}
-
-#[test]
-fn disconnect_while_open_drops_payment_items() {
-    // Java parity: MerchantMenu.removed places the merchant container's
-    // payment slots back into the player's inventory on disconnect.
-    let mut menu = MerchantMenu::new();
-    let mut player = PlayerInventory::new();
-    menu.set_slot(0, ItemStack::new("minecraft:emerald", 5), &mut player);
-    menu.set_slot(1, ItemStack::new("minecraft:book", 1), &mut player);
-
-    let payment_a = menu.get_slot(0, &player).unwrap();
-    let payment_b = menu.get_slot(1, &player).unwrap();
-
-    if !payment_a.is_empty() {
-        let slot = (0..36).find(|&i| player.get(i).is_empty()).unwrap();
-        player.set(slot, payment_a);
-        menu.set_slot(0, ItemStack::empty(), &mut player);
-    }
-    if !payment_b.is_empty() {
-        let slot = (0..36).find(|&i| player.get(i).is_empty()).unwrap();
-        player.set(slot, payment_b);
-        menu.set_slot(1, ItemStack::empty(), &mut player);
-    }
-
-    assert_eq!(player.get(0).item_id(), "minecraft:emerald");
-    assert_eq!(player.get(1).item_id(), "minecraft:book");
-    assert!(menu.get_slot(0, &player).unwrap().is_empty());
-    assert!(menu.get_slot(1, &player).unwrap().is_empty());
-}
 
 // -------- Stale state-ID style sweep: all_slots length checks --------
 

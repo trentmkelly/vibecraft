@@ -28,6 +28,29 @@ impl CartographyTableMenu {
         }
     }
 
+    /// `CartographyTableMenu.removed`: discard the (virtual) result slot, then
+    /// `clearContainer(container)` — the map and paper/additional return to the player.
+    pub fn removed(
+        &mut self,
+        player: &mut PlayerInventory,
+        carried: &mut ItemStack,
+        disconnected: bool,
+    ) {
+        drop_or_place_in_inventory(
+            player,
+            std::mem::replace(carried, ItemStack::empty()),
+            disconnected,
+        );
+        self.result = ItemStack::empty();
+        for slot in [&mut self.map, &mut self.additional] {
+            drop_or_place_in_inventory(
+                player,
+                std::mem::replace(slot, ItemStack::empty()),
+                disconnected,
+            );
+        }
+    }
+
     pub fn get_slot(&self, slot: usize, player: &PlayerInventory) -> Option<ItemStack> {
         if slot >= Self::SLOT_COUNT {
             return None;
@@ -195,6 +218,29 @@ impl LoomMenu {
             result: ItemStack::empty(),
             selected_pattern_index: -1,
         }
+    }
+
+    /// `LoomMenu.removed`: `clearContainer(inputContainer)` — banner, dye, and pattern
+    /// return to the player. The result is computed virtually and not returned.
+    pub fn removed(
+        &mut self,
+        player: &mut PlayerInventory,
+        carried: &mut ItemStack,
+        disconnected: bool,
+    ) {
+        drop_or_place_in_inventory(
+            player,
+            std::mem::replace(carried, ItemStack::empty()),
+            disconnected,
+        );
+        for slot in [&mut self.banner, &mut self.dye, &mut self.pattern] {
+            drop_or_place_in_inventory(
+                player,
+                std::mem::replace(slot, ItemStack::empty()),
+                disconnected,
+            );
+        }
+        self.result = ItemStack::empty();
     }
 
     pub fn get_slot(&self, slot: usize, player: &PlayerInventory) -> Option<ItemStack> {

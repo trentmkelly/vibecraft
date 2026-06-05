@@ -178,6 +178,24 @@ impl BeaconMenu {
         }
     }
 
+    /// `BeaconMenu.removed`: route the carried cursor item via the base, then ALWAYS
+    /// drop the payment in-world (`player.drop(itemStack, false)`) — unlike the other
+    /// work-area menus, the beacon payment is never placed back into the inventory,
+    /// even on a normal close.
+    pub fn removed(
+        &mut self,
+        player: &mut PlayerInventory,
+        carried: &mut ItemStack,
+        disconnected: bool,
+    ) {
+        drop_or_place_in_inventory(
+            player,
+            std::mem::replace(carried, ItemStack::empty()),
+            disconnected,
+        );
+        player.drop_item(std::mem::replace(&mut self.payment, ItemStack::empty()));
+    }
+
     pub fn data(&self, index: usize) -> Option<i32> {
         self.data.get(index).copied()
     }
@@ -243,29 +261,6 @@ impl BeaconMenu {
         self.payment.shrink(1);
         true
     }
-
-    pub fn removed(&mut self) -> ItemStack {
-        std::mem::replace(&mut self.payment, ItemStack::empty())
-    }
-    // TODO(container-removed, CONTAINERS #143/#144): close/disconnect handling is
-    // incomplete and inconsistent across menus. Java's `AbstractContainerMenu.removed`
-    // first routes the CARRIED cursor item via `dropOrPlaceInInventory` (place back on
-    // a normal close, drop in-world on disconnect/death), then each work-area menu
-    // additionally clears its work slots via `clearContainer`:
-    //   - CraftingMenu -> craftSlots (9)
-    //   - ItemCombinerMenu (Anvil left/right; Smithing template/base/addition) -> inputSlots
-    //   - EnchantmentMenu -> enchantSlots (item, lapis)
-    //   - GrindstoneMenu -> repairSlots (left, right)
-    //   - LoomMenu -> inputContainer (banner, dye, pattern)
-    //   - CartographyTableMenu -> container (map, paper); result slot 2 discarded
-    //   - StonecutterMenu -> container (input); result slot 1 discarded
-    //   - BeaconMenu -> payment is ALWAYS dropped in-world (player.drop, not dropOrPlace)
-    //   - MerchantMenu -> BOTH trade slots (0,1) + setTradingPlayer(null)
-    // This `removed()` only returns the single payment slot and ignores the carried item
-    // and slot 1; the work-area menus have no `removed()` at all. Implement a shared
-    // `drop_or_place_in_inventory(player, stack, disconnected)` helper (mirroring
-    // `dropOrPlaceInInventory`, place_item_back_in_inventory already matches the
-    // place path) plus per-menu `removed()` before closing #143/#144.
 
     pub fn get_slot(&self, slot: usize, player: &PlayerInventory) -> Option<ItemStack> {
         if slot >= Self::SLOT_COUNT {

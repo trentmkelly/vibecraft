@@ -40,6 +40,30 @@ impl CraftingMenu {
         }
     }
 
+    /// `CraftingMenu.removed`: route the carried cursor item, then
+    /// `clearContainer(craftSlots)` — the 3x3 grid returns to the player on a normal
+    /// close and drops in-world on disconnect. The (virtual) result is not returned.
+    pub fn removed(
+        &mut self,
+        player: &mut PlayerInventory,
+        carried: &mut ItemStack,
+        disconnected: bool,
+    ) {
+        drop_or_place_in_inventory(
+            player,
+            std::mem::replace(carried, ItemStack::empty()),
+            disconnected,
+        );
+        for slot in &mut self.grid {
+            drop_or_place_in_inventory(
+                player,
+                std::mem::replace(slot, ItemStack::empty()),
+                disconnected,
+            );
+        }
+        self.result = ItemStack::empty();
+    }
+
     pub fn result(&self) -> &ItemStack {
         &self.result
     }
