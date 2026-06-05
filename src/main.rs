@@ -23,6 +23,7 @@ mod chunk_watchdog;
 mod cli;
 mod collision_shape;
 mod combat_damage;
+mod combat_tracker;
 mod command;
 mod command_execution;
 mod command_feedback;
