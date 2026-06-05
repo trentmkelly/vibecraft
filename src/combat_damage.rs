@@ -206,8 +206,21 @@ pub fn explosion_damage(distance_fraction: f32, exposure: f32, power: f32) -> f3
     ((impact * impact + impact) / 2.0 * 7.0 * power * 2.0 + 1.0).floor()
 }
 
-pub fn fall_damage(fall_distance: f32, safe_distance: f32, multiplier: f32) -> f32 {
-    ((fall_distance - safe_distance).ceil() * multiplier).max(0.0)
+/// 1:1 with `LivingEntity.calculateFallDamage` at default attributes:
+/// `floor((fallDistance + 1e-6 - safe_fall_distance) * damage_multiplier)`.
+/// `safe_fall_distance` is the `SAFE_FALL_DISTANCE` attribute (default 3.0) and
+/// the multiplier folds in `FALL_DAMAGE_MULTIPLIER` (default 1.0). The result is
+/// the damage dealt, clamped at 0 (vanilla applies it only when `> 0`).
+pub fn fall_damage(fall_distance: f32, safe_fall_distance: f32, damage_multiplier: f32) -> f32 {
+    let power = f64::from(fall_distance) + 1.0e-6 - f64::from(safe_fall_distance);
+    ((power * f64::from(damage_multiplier)).floor() as f32).max(0.0)
+}
+
+/// Damage from landing on a pointed-dripstone tip (a stalagmite):
+/// `PointedDripstoneBlock.fallOn` calls `causeFallDamage(fallDistance + 2.5, 2.0)`,
+/// i.e. fall damage with a +2.5 distance bonus and a ×2.0 multiplier.
+pub fn dripstone_fall_damage(fall_distance: f32) -> f32 {
+    fall_damage(fall_distance + 2.5, 3.0, 2.0)
 }
 
 pub fn environmental_damage(kind: CombatDamageKind) -> Option<f32> {
@@ -221,7 +234,9 @@ pub fn environmental_damage(kind: CombatDamageKind) -> Option<f32> {
         CombatDamageKind::Suffocation => 1.0,
         CombatDamageKind::Magic => 1.0,
         CombatDamageKind::Starvation => 1.0,
-        CombatDamageKind::Dripstone => 6.0,
+        // Dripstone (stalagmite) damage is fall-based, not a fixed per-tick
+        // value; see `dripstone_fall_damage`.
+        CombatDamageKind::Dripstone => return None,
         CombatDamageKind::Command => return None,
         CombatDamageKind::Melee
         | CombatDamageKind::Projectile
@@ -593,7 +608,17 @@ mod tests {
         assert_eq!(projectile_damage(3.1, 2.0, false), 7);
         assert_eq!(projectile_damage(3.1, 2.0, true), 11);
         assert_eq!(explosion_damage(0.0, 1.0, 4.0), 57.0);
-        assert_eq!(fall_damage(7.2, 3.0, 1.0), 5.0);
+        // floor((7.2 + 1e-6 - 3.0) * 1.0) = floor(4.2) = 4 (vanilla floors, not ceils).
+        assert_eq!(fall_damage(7.2, 3.0, 1.0), 4.0);
+        // A 5-block fall: floor(5 + 1e-6 - 3) = 2 damage.
+        assert_eq!(fall_damage(5.0, 3.0, 1.0), 2.0);
+        // Within the safe distance → no damage.
+        assert_eq!(fall_damage(2.0, 3.0, 1.0), 0.0);
+        // Dripstone: causeFallDamage(fallDistance + 2.5, 2.0). Landing after a
+        // 5-block fall → floor((5 + 2.5 + 1e-6 - 3) * 2) = floor(9.0) = 9.
+        assert_eq!(dripstone_fall_damage(5.0), 9.0);
+        // Walking onto a stalagmite without falling → floor((2.5 - 3) * 2) = 0.
+        assert_eq!(dripstone_fall_damage(0.0), 0.0);
         assert_eq!(command_damage(0.0), Some(0.0));
         assert_eq!(command_damage(-1.0), None);
     }
@@ -624,6 +649,8 @@ mod tests {
         assert_eq!(environmental_damage(CombatDamageKind::Void), Some(4.0));
         assert_eq!(environmental_damage(CombatDamageKind::WorldBorder), None);
         assert_eq!(environmental_damage(CombatDamageKind::Command), None);
+        // Dripstone is fall-based, not a fixed per-tick value.
+        assert_eq!(environmental_damage(CombatDamageKind::Dripstone), None);
     }
 
     #[test]
