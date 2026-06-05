@@ -10,6 +10,24 @@ pub enum Rarity {
     Epic,
 }
 
+/// `net.minecraft.world.item.component.MapPostProcessing` — marks a cartography-table
+/// result map for post-processing when the player takes it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MapPostProcessing {
+    Lock,
+    Scale,
+}
+
+impl MapPostProcessing {
+    /// Network id (`LOCK(0)`, `SCALE(1)`).
+    pub fn id(self) -> i32 {
+        match self {
+            Self::Lock => 0,
+            Self::Scale => 1,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ItemUseAnimation {
     None,
@@ -70,6 +88,8 @@ pub enum ItemComponent {
     /// `minecraft:banner_patterns` — ordered banner pattern layers (pattern + dye
     /// colour), e.g. the result of a loom application or an existing patterned banner.
     BannerPatterns(Vec<crate::block_entity::BannerPatternLayer>),
+    /// `minecraft:map_post_processing` — cartography-table result marker (scale/lock).
+    MapPostProcessing(MapPostProcessing),
     WritableBookContent(Vec<String>),
     WrittenBookContent {
         title: String,
@@ -251,6 +271,7 @@ impl ItemDefinition {
                 | ItemComponent::ItemModel(_)
                 | ItemComponent::ItemName(_)
                 | ItemComponent::BannerPatterns(_)
+                | ItemComponent::MapPostProcessing(_)
                 | ItemComponent::WritableBookContent(_)
                 | ItemComponent::WrittenBookContent { .. }
                 | ItemComponent::Custom(_) => {}
@@ -285,6 +306,7 @@ impl ItemComponent {
             Self::ItemModel(_) => "minecraft:item_model",
             Self::ItemName(_) => "minecraft:item_name",
             Self::BannerPatterns(_) => "minecraft:banner_patterns",
+            Self::MapPostProcessing(_) => "minecraft:map_post_processing",
             Self::WritableBookContent(_) => "minecraft:writable_book_content",
             Self::WrittenBookContent { .. } => "minecraft:written_book_content",
             Self::Custom(name) => name,

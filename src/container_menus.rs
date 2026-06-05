@@ -24,7 +24,7 @@
 
 use crate::block_entity::BannerPatternLayer;
 use crate::inventory::same_item_same_components;
-use crate::item_properties::ItemComponent;
+use crate::item_properties::{ItemComponent, MapPostProcessing};
 use crate::item_stack::ItemStack;
 use crate::map_state::DyeColor;
 use crate::player_inventory::{
@@ -429,3 +429,5 @@ use menus_entity::*;
 mod tests;
 #[cfg(test)]
 mod tests_close;
+#[cfg(test)]
+mod tests_table;

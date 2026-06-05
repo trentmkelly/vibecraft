@@ -51,6 +51,33 @@ impl CartographyTableMenu {
         }
     }
 
+    /// `CartographyTableMenu.slotsChanged` + `setupResultSlot`: recompute the result
+    /// from the input combination — paper → zoom out (`MapPostProcessing::Scale`,
+    /// only when `scale < 4` and unlocked), glass pane → lock (unlocked only), empty
+    /// map → clone (`copyWithCount(2)`), else no result. The input map's `scale`/
+    /// `locked` come from `MapItem.getSavedData`, which the menu has no level access
+    /// to, so the caller supplies them (the same way it supplies `PlayerInventory`).
+    pub fn update_result(&mut self, map_scale: i32, map_locked: bool) {
+        if self.map.is_empty() || self.additional.is_empty() {
+            self.result = ItemStack::empty();
+            return;
+        }
+        self.result = match self.additional.item_id() {
+            "minecraft:paper" if !map_locked && map_scale < 4 => {
+                let mut r = self.map.copy_with_count(1);
+                r.set_component(ItemComponent::MapPostProcessing(MapPostProcessing::Scale));
+                r
+            }
+            "minecraft:glass_pane" if !map_locked => {
+                let mut r = self.map.copy_with_count(1);
+                r.set_component(ItemComponent::MapPostProcessing(MapPostProcessing::Lock));
+                r
+            }
+            "minecraft:map" => self.map.copy_with_count(2),
+            _ => ItemStack::empty(),
+        };
+    }
+
     pub fn get_slot(&self, slot: usize, player: &PlayerInventory) -> Option<ItemStack> {
         if slot >= Self::SLOT_COUNT {
             return None;
