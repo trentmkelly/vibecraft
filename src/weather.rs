@@ -434,6 +434,13 @@ pub enum RainMobBehavior {
     PillagerPatrolAllowed,
 }
 
+// TODO(26.1.2 parity): this models speculative rain-gated behaviors that do not
+// correspond to vanilla mechanics. The real drowned weather behavior is
+// `Drowned.DrownedGoToWaterGoal.canUse`, which returns to water only when
+// `level.isBrightOutside()` (suppressed at night AND during rain) — not a
+// "ranged attack enabled" toggle. PatrollingMonster patrols are not rain-gated
+// at all. A faithful port needs the `isBrightOutside`/go-to-water goal modelled
+// against the AI/goal subsystem; this helper should be reworked accordingly.
 pub fn rain_mob_behavior(entity_type: &str, raining: bool, can_see_sky: bool) -> RainMobBehavior {
     if !raining || !can_see_sky {
         return RainMobBehavior::None;
@@ -445,14 +452,16 @@ pub fn rain_mob_behavior(entity_type: &str, raining: bool, can_see_sky: bool) ->
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MobSunburnContext {
     pub kind: SunburnableMobKind,
+    /// A head-slot item absorbs the burn (the `aiStep` helmet gate).
     pub wearing_helmet: bool,
     pub in_water: bool,
     pub in_powder_snow: bool,
-    /// The block sky light level at the mob's position (0-15)
-    pub sky_light_at_pos: i32,
+    pub was_in_powder_snow: bool,
+    /// `getLightLevelDependentMagicValue()` at the mob's eye position (0.0..=1.0).
+    pub brightness: f32,
     pub raining: bool,
     pub day_cycle_time: i64, // 0-23999 ticks within the day
     pub can_see_sky: bool,
@@ -463,27 +472,33 @@ pub struct MobSunburnContext {
 /// Uses `environment_attributes::monsters_burn` for exact vanilla day/night boundaries
 /// (tick 12542 onset, tick 23460 end) instead of the former approximation.
 /// Java: Monster.isSunBurnTick() + EnvironmentAttributes.MONSTERS_BURN Timeline track
-pub fn mob_should_burn_in_sunlight(ctx: MobSunburnContext) -> bool {
+/// 1:1 with `Mob.isSunBurnTick` plus the `aiStep` helmet gate. `random_value` is
+/// `random.nextFloat()` for the tick. Vanilla:
+/// `MONSTERS_BURN(pos) && br > 0.5 && rand*30 < (br-0.4)*2 && !isInWaterOrRain &&
+/// !isInPowderSnow && !wasInPowderSnow && canSeeSky`, and a head-slot item then
+/// absorbs the burn (damaging the helmet) instead of igniting.
+pub fn mob_should_burn_in_sunlight(ctx: MobSunburnContext, random_value: f32) -> bool {
     if !is_sun_sensitive(ctx.kind) {
         return false;
     }
-    if ctx.raining {
-        return false;
-    }
+    // isSunBurnTick: the MONSTERS_BURN environment attribute at the position.
     if !crate::environment_attributes::monsters_burn(ctx.day_cycle_time) {
         return false;
     }
-    if ctx.wearing_helmet {
+    // Probabilistic brightness gate.
+    let brightness = ctx.brightness;
+    if !(brightness > 0.5 && random_value * 30.0 < (brightness - 0.4) * 2.0) {
         return false;
     }
-    if ctx.in_water || ctx.in_powder_snow {
+    // isInWaterOrRain() || isInPowderSnow || wasInPowderSnow.
+    if ctx.in_water || ctx.raining || ctx.in_powder_snow || ctx.was_in_powder_snow {
         return false;
     }
     if !ctx.can_see_sky {
         return false;
     }
-    // Sky light < 15 means in shade (under blocks, trees, etc.)
-    if ctx.sky_light_at_pos < 15 {
+    // aiStep: a head-slot item absorbs the ignition.
+    if ctx.wearing_helmet {
         return false;
     }
     true
@@ -799,55 +814,90 @@ mod tests {
             wearing_helmet: false,
             in_water: false,
             in_powder_snow: false,
-            sky_light_at_pos: 15,
+            was_in_powder_snow: false,
+            brightness: 1.0,
             raining: false,
             day_cycle_time: 6_000,
             can_see_sky: true,
         };
 
-        // Skeleton in daylight, exposed → burns
-        assert!(mob_should_burn_in_sunlight(clear_day_exposed));
+        // Bright daylight, exposed, low random roll (br=1.0 → rand*30 < 1.2) → burns.
+        assert!(mob_should_burn_in_sunlight(clear_day_exposed, 0.0));
 
-        // Wearing helmet → no burn
-        assert!(!mob_should_burn_in_sunlight(MobSunburnContext {
-            wearing_helmet: true,
-            ..clear_day_exposed
-        }));
+        // The probabilistic gate: a high random roll skips the burn even in full sun.
+        assert!(!mob_should_burn_in_sunlight(clear_day_exposed, 0.5));
 
-        // In water → no burn
-        assert!(!mob_should_burn_in_sunlight(MobSunburnContext {
-            in_water: true,
-            ..clear_day_exposed
-        }));
+        // A head-slot item absorbs the burn → no ignition.
+        assert!(!mob_should_burn_in_sunlight(
+            MobSunburnContext {
+                wearing_helmet: true,
+                ..clear_day_exposed
+            },
+            0.0
+        ));
 
-        // Raining → no burn
-        assert!(!mob_should_burn_in_sunlight(MobSunburnContext {
-            raining: true,
-            ..clear_day_exposed
-        }));
+        // In water → no burn (isInWaterOrRain).
+        assert!(!mob_should_burn_in_sunlight(
+            MobSunburnContext {
+                in_water: true,
+                ..clear_day_exposed
+            },
+            0.0
+        ));
 
-        // Nighttime (14000) → no burn
-        assert!(!mob_should_burn_in_sunlight(MobSunburnContext {
-            day_cycle_time: 14_000,
-            ..clear_day_exposed
-        }));
+        // Raining → no burn (isInWaterOrRain).
+        assert!(!mob_should_burn_in_sunlight(
+            MobSunburnContext {
+                raining: true,
+                ..clear_day_exposed
+            },
+            0.0
+        ));
 
-        // Under shade (sky light < 15) → no burn
-        assert!(!mob_should_burn_in_sunlight(MobSunburnContext {
-            sky_light_at_pos: 14,
-            ..clear_day_exposed
-        }));
+        // Powder snow → no burn.
+        assert!(!mob_should_burn_in_sunlight(
+            MobSunburnContext {
+                was_in_powder_snow: true,
+                ..clear_day_exposed
+            },
+            0.0
+        ));
 
-        // Cannot see sky → no burn
-        assert!(!mob_should_burn_in_sunlight(MobSunburnContext {
-            can_see_sky: false,
-            ..clear_day_exposed
-        }));
+        // Nighttime (14000) → no burn (MONSTERS_BURN is false).
+        assert!(!mob_should_burn_in_sunlight(
+            MobSunburnContext {
+                day_cycle_time: 14_000,
+                ..clear_day_exposed
+            },
+            0.0
+        ));
 
-        assert!(!mob_should_burn_in_sunlight(MobSunburnContext {
-            kind: SunburnableMobKind::ZombifiedPiglin,
-            ..clear_day_exposed
-        }));
+        // Shade (brightness ≤ 0.5) → no burn.
+        assert!(!mob_should_burn_in_sunlight(
+            MobSunburnContext {
+                brightness: 0.4,
+                ..clear_day_exposed
+            },
+            0.0
+        ));
+
+        // Cannot see sky → no burn.
+        assert!(!mob_should_burn_in_sunlight(
+            MobSunburnContext {
+                can_see_sky: false,
+                ..clear_day_exposed
+            },
+            0.0
+        ));
+
+        // Non-sun-sensitive mob (zombified piglin) → no burn.
+        assert!(!mob_should_burn_in_sunlight(
+            MobSunburnContext {
+                kind: SunburnableMobKind::ZombifiedPiglin,
+                ..clear_day_exposed
+            },
+            0.0
+        ));
 
         // Daytime check boundaries — exact vanilla values from EnvironmentAttributes.MONSTERS_BURN.
         // Java: Timelines.java:157 BooleanModifier.OR: addKeyframe(12542, false).addKeyframe(23460, true)
