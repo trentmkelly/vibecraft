@@ -813,9 +813,25 @@ impl GrindstoneMenu {
             0 => self.input_left = stack,
             1 => self.input_right = stack,
             2 => return false,
-            _ => write_player_slot(slot, Self::INV_START, player, stack),
+            _ => {
+                write_player_slot(slot, Self::INV_START, player, stack);
+                return true;
+            }
         }
+        // An input slot changed: recompute the disenchant/repair result (createResult).
+        self.update_result();
         true
+    }
+
+    /// `GrindstoneMenu.createResult`: recompute the result slot from the two inputs.
+    pub fn update_result(&mut self) {
+        self.result = grindstone_compute_result(&self.input_left, &self.input_right);
+    }
+
+    /// `GrindstoneMenu.ResultSlot.onTake` experience: the XP dropped when the result is
+    /// taken. `random_in_half` is the caller's `random.nextInt(ceil(total/2))` draw.
+    pub fn experience_on_take(&self, random_in_half: i32) -> i32 {
+        grindstone_experience_on_take(&self.input_left, &self.input_right, random_in_half)
     }
 
     pub fn all_slots(&self, player: &PlayerInventory) -> Vec<ItemStack> {

@@ -775,6 +775,18 @@ pub fn enchantment(id: &str) -> Option<&'static EnchantmentDef> {
     ENCHANTMENTS.iter().find(|enchantment| enchantment.id == id)
 }
 
+/// Whether an enchantment is in `EnchantmentTags.CURSE` (binding/vanishing curse),
+/// modelled by the `Curse` exclusivity group.
+pub fn is_curse(id: &str) -> bool {
+    enchantment(id).is_some_and(|def| def.groups.contains(&EnchantmentGroup::Curse))
+}
+
+/// `Enchantment.getMinCost(level)` — the minimum enchanting cost at a level, used by
+/// the grindstone XP calculation and enchanting-table seeding. Unknown ids cost 0.
+pub fn min_cost_for(id: &str, level: i32) -> i32 {
+    enchantment(id).map_or(0, |def| def.min_cost.calculate(level))
+}
+
 pub fn are_compatible(left: &EnchantmentDef, right: &EnchantmentDef) -> bool {
     left.id != right.id
         && !left

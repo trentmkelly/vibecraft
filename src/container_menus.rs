@@ -210,6 +210,155 @@ pub(super) fn loom_selectable_patterns(pattern_item: &ItemStack) -> Vec<&'static
     }
 }
 
+// ---------------------------------------------------------------------------
+// Grindstone (disenchant + repair + experience) — `GrindstoneMenu`
+// ---------------------------------------------------------------------------
+
+/// `AnvilMenu.calculateIncreasedRepairCost`: the prior-work penalty doubles + 1 per
+/// stored enchantment, saturating at `i32::MAX`.
+pub(super) fn calculate_increased_repair_cost(base: i32) -> i32 {
+    (i64::from(base) * 2 + 1).min(i64::from(i32::MAX)) as i32
+}
+
+/// `EnchantmentHelper.getEnchantmentsForCrafting`: an enchanted book stores its
+/// enchantments in `STORED_ENCHANTMENTS`; every other item uses `ENCHANTMENTS`.
+pub(super) fn enchantments_for_crafting(stack: &ItemStack) -> BTreeMap<String, i32> {
+    let key = if stack.item_id() == "minecraft:enchanted_book" {
+        "minecraft:stored_enchantments"
+    } else {
+        "minecraft:enchantments"
+    };
+    match stack.component(key) {
+        Some(ItemComponent::Enchantments(m) | ItemComponent::StoredEnchantments(m)) => m.clone(),
+        _ => BTreeMap::new(),
+    }
+}
+
+fn set_enchantments_for_crafting(stack: &mut ItemStack, enchantments: BTreeMap<String, i32>) {
+    let is_book = stack.item_id() == "minecraft:enchanted_book";
+    let key = if is_book {
+        "minecraft:stored_enchantments"
+    } else {
+        "minecraft:enchantments"
+    };
+    if enchantments.is_empty() {
+        stack.remove_component(key);
+    } else if is_book {
+        stack.set_component(ItemComponent::StoredEnchantments(enchantments));
+    } else {
+        stack.set_component(ItemComponent::Enchantments(enchantments));
+    }
+}
+
+/// `EnchantmentHelper.hasAnyEnchantments`.
+pub(super) fn has_any_enchantments(stack: &ItemStack) -> bool {
+    !enchantments_for_crafting(stack).is_empty()
+}
+
+/// `GrindstoneMenu.getExperienceFromItem`: sum of `getMinCost(level)` over the item's
+/// non-curse enchantments.
+pub(super) fn grindstone_experience_from_item(stack: &ItemStack) -> i32 {
+    enchantments_for_crafting(stack)
+        .iter()
+        .filter(|(id, _)| !crate::enchantment_system::is_curse(id))
+        .map(|(id, level)| crate::enchantment_system::min_cost_for(id, *level))
+        .sum()
+}
+
+/// `GrindstoneMenu.getExperienceAmount`: `ceil(total/2) + random.nextInt(ceil(total/2))`
+/// over both inputs' non-curse enchantment cost. The random draw is supplied by the
+/// caller (`random_in_half` must lie in `0..ceil(total/2)`); 0 when there is no cost.
+pub(super) fn grindstone_experience_on_take(
+    input: &ItemStack,
+    additional: &ItemStack,
+    random_in_half: i32,
+) -> i32 {
+    let amount = grindstone_experience_from_item(input) + grindstone_experience_from_item(additional);
+    if amount > 0 {
+        (amount + 1) / 2 + random_in_half
+    } else {
+        0
+    }
+}
+
+/// `GrindstoneMenu.removeNonCursesFrom`: keep only curse enchantments, transmute an
+/// emptied enchanted book to a plain book, and recompute the prior-work repair cost.
+pub(super) fn grindstone_remove_non_curses(mut item: ItemStack) -> ItemStack {
+    let mut enchantments = enchantments_for_crafting(&item);
+    enchantments.retain(|id, _| crate::enchantment_system::is_curse(id));
+    let remaining = enchantments.len() as i32;
+    set_enchantments_for_crafting(&mut item, enchantments);
+    if item.item_id() == "minecraft:enchanted_book" && remaining == 0 {
+        item = item.transmute_copy("minecraft:book", item.count());
+    }
+    let mut repair_cost = 0;
+    for _ in 0..remaining {
+        repair_cost = calculate_increased_repair_cost(repair_cost);
+    }
+    item.set_component(ItemComponent::RepairCost(repair_cost));
+    item
+}
+
+/// `GrindstoneMenu.mergeEnchantsFrom`: copy the source item's enchantments onto the
+/// target, upgrading to the higher level, but never adding a duplicate curse.
+fn grindstone_merge_enchants(target: &mut ItemStack, source: &ItemStack) {
+    let mut enchantments = enchantments_for_crafting(target);
+    for (id, level) in enchantments_for_crafting(source) {
+        let existing = enchantments.get(&id).copied().unwrap_or(0);
+        if !crate::enchantment_system::is_curse(&id) || existing == 0 {
+            enchantments.insert(id, level.max(existing));
+        }
+    }
+    set_enchantments_for_crafting(target, enchantments);
+}
+
+/// `GrindstoneMenu.mergeItems`: repair two matching items into one (combined
+/// durability + 5% bonus), merge their enchantments, then strip non-curses.
+fn grindstone_merge_items(input: &ItemStack, additional: &ItemStack) -> ItemStack {
+    if input.item_id() != additional.item_id() {
+        return ItemStack::empty();
+    }
+    let durability = input.max_damage().max(additional.max_damage()) as i32;
+    let remaining1 = input.max_damage() as i32 - input.damage_value() as i32;
+    let remaining2 = additional.max_damage() as i32 - additional.damage_value() as i32;
+    let remaining = remaining1 + remaining2 + durability * 5 / 100;
+    let mut count = 1;
+    if !input.is_damageable_item() {
+        if (input.max_stack_size() as i32) < 2 || !same_item_same_components(input, additional) {
+            return ItemStack::empty();
+        }
+        count = 2;
+    }
+    let mut new_item = input.copy_with_count(count);
+    if new_item.is_damageable_item() {
+        new_item.set_component(ItemComponent::MaxDamage(durability as u32));
+        new_item.set_damage_value((durability - remaining).max(0) as u32);
+    }
+    grindstone_merge_enchants(&mut new_item, additional);
+    grindstone_remove_non_curses(new_item)
+}
+
+/// `GrindstoneMenu.computeResult`: one enchanted item → disenchant it; two matching
+/// single items → repair + disenchant; otherwise no result.
+pub(super) fn grindstone_compute_result(input: &ItemStack, additional: &ItemStack) -> ItemStack {
+    if input.is_empty() && additional.is_empty() {
+        return ItemStack::empty();
+    }
+    if input.count() > 1 || additional.count() > 1 {
+        return ItemStack::empty();
+    }
+    if input.is_empty() || additional.is_empty() {
+        let item = if !input.is_empty() { input } else { additional };
+        if has_any_enchantments(item) {
+            grindstone_remove_non_curses(item.clone())
+        } else {
+            ItemStack::empty()
+        }
+    } else {
+        grindstone_merge_items(input, additional)
+    }
+}
+
 /// `DyeItem.getDyeColor()` — maps a dye item to its `DyeColor`, covering the 16
 /// `*_dye` items plus the special-cased dyes accepted by `is_dye_item`.
 pub(super) fn dye_color_for_item(item_id: &str) -> Option<DyeColor> {
@@ -431,3 +580,5 @@ mod tests;
 mod tests_close;
 #[cfg(test)]
 mod tests_table;
+#[cfg(test)]
+mod tests_workstation;

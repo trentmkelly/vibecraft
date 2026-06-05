@@ -90,6 +90,13 @@ pub enum ItemComponent {
     BannerPatterns(Vec<crate::block_entity::BannerPatternLayer>),
     /// `minecraft:map_post_processing` — cartography-table result marker (scale/lock).
     MapPostProcessing(MapPostProcessing),
+    /// `minecraft:enchantments` — enchantments applied to a tool/armour (id → level).
+    Enchantments(BTreeMap<String, i32>),
+    /// `minecraft:stored_enchantments` — enchantments carried by an enchanted book
+    /// (id → level); applied to an item only via the anvil.
+    StoredEnchantments(BTreeMap<String, i32>),
+    /// `minecraft:repair_cost` — accumulated anvil prior-work penalty.
+    RepairCost(i32),
     WritableBookContent(Vec<String>),
     WrittenBookContent {
         title: String,
@@ -272,6 +279,9 @@ impl ItemDefinition {
                 | ItemComponent::ItemName(_)
                 | ItemComponent::BannerPatterns(_)
                 | ItemComponent::MapPostProcessing(_)
+                | ItemComponent::Enchantments(_)
+                | ItemComponent::StoredEnchantments(_)
+                | ItemComponent::RepairCost(_)
                 | ItemComponent::WritableBookContent(_)
                 | ItemComponent::WrittenBookContent { .. }
                 | ItemComponent::Custom(_) => {}
@@ -307,6 +317,9 @@ impl ItemComponent {
             Self::ItemName(_) => "minecraft:item_name",
             Self::BannerPatterns(_) => "minecraft:banner_patterns",
             Self::MapPostProcessing(_) => "minecraft:map_post_processing",
+            Self::Enchantments(_) => "minecraft:enchantments",
+            Self::StoredEnchantments(_) => "minecraft:stored_enchantments",
+            Self::RepairCost(_) => "minecraft:repair_cost",
             Self::WritableBookContent(_) => "minecraft:writable_book_content",
             Self::WrittenBookContent { .. } => "minecraft:written_book_content",
             Self::Custom(name) => name,
