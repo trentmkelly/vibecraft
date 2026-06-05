@@ -179,13 +179,12 @@ pub fn blast_resistance(state: &BlockStateModel) -> f32 {
         })
 }
 
-// TODO(26.1.2 parity): the faithful `ServerExplosion.calculateExplodedPositions`
-// ray-march (per-ray RNG intensity + cumulative resistance) now lives in
-// `game_event::calculate_exploded_positions`. This per-block helper is the
-// legacy candidate approximation (uses `initial_power` directly, only subtracts
-// the current block's resistance); `plan_server_explosion` should be rewired to
-// take the destroyed-position set from `calculate_exploded_positions` instead of
-// re-deriving destruction here.
+/// Legacy single-block explosion check. The production explosion path now uses
+/// the faithful `game_event::calculate_exploded_positions` ray-march (per-ray
+/// RNG intensity + cumulative resistance); `plan_server_explosion` consumes its
+/// destroyed-position set. This helper (no random intensity, only the current
+/// block's resistance) is retained for the unit tests that exercise
+/// `blast_resistance`.
 pub fn explosion_affects_block(input: ExplosionInput, initial_power: f32) -> ExplosionBlockResult {
     let resistance = blast_resistance(&input.block);
     let remaining_power =

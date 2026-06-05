@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::block_behavior::BlockStateModel;
 use crate::block_update::BlockPos;
 use crate::entity_physics::{explosion_plan, ExplosionBlockInteraction, Vec3};
-use crate::fire::{explosion_affects_block, ExplosionBlockResult, ExplosionInput};
+use crate::fire::ExplosionBlockResult;
 
 pub const DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS: i32 = 16;
 pub const SHRIEK_NOTIFICATION_RADIUS: i32 = 32;
@@ -370,11 +370,11 @@ pub fn dispatch_game_event(
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExplosionBlockCandidate {
+    /// A position destroyed by the blast (the caller determines the destroyed
+    /// set via [`calculate_exploded_positions`]).
     pub pos: BlockPos,
+    /// The block that was at `pos` (its `registry_id` becomes the drop).
     pub block: BlockStateModel,
-    pub distance: f32,
-    pub exposure: f32,
-    pub initial_power: f32,
     /// `random.nextInt(3)` rolled for this position when placing post-explosion
     /// fire; vanilla places fire only when this is `0`.
     pub fire_random_roll: i32,
@@ -450,27 +450,23 @@ pub fn plan_server_explosion(input: ServerExplosionInput) -> ServerExplosionPlan
     let mut fire_positions = Vec::new();
 
     if interacts_with_blocks {
+        // Each candidate is a position the caller's `calculate_exploded_positions`
+        // ray-march already determined to be destroyed; here we drop its block
+        // and, when fire is enabled, place fire per the vanilla per-position
+        // roll/solid-floor checks.
         for block in input.blocks {
             if !seen_blocks.insert((block.pos.x, block.pos.y, block.pos.z)) {
                 continue;
             }
-            let fire_eligible =
-                input.fire && block.fire_random_roll == 0 && block.below_is_solid_render;
-            let result = explosion_affects_block(
-                ExplosionInput {
-                    pos: block.pos,
-                    block: block.block,
-                    distance: block.distance,
-                    exposure: block.exposure,
-                },
-                block.initial_power,
-            );
-            if result.destroyed {
-                if fire_eligible {
-                    fire_positions.push(result.pos);
-                }
-                destroyed_blocks.push(result);
+            if input.fire && block.fire_random_roll == 0 && block.below_is_solid_render {
+                fire_positions.push(block.pos);
             }
+            destroyed_blocks.push(ExplosionBlockResult {
+                pos: block.pos,
+                destroyed: true,
+                remaining_power: 0.0,
+                drops: vec![block.block.registry_id],
+            });
         }
     }
 
@@ -840,18 +836,12 @@ mod tests {
                 ExplosionBlockCandidate {
                     pos: pos(1, 64, 0),
                     block: BlockStateModel::new("minecraft:stone"),
-                    distance: 0.0,
-                    exposure: 1.0,
-                    initial_power: 4.0,
                     fire_random_roll: 0,
                     below_is_solid_render: true,
                 },
                 ExplosionBlockCandidate {
                     pos: pos(1, 64, 0),
                     block: BlockStateModel::new("minecraft:stone"),
-                    distance: 0.0,
-                    exposure: 1.0,
-                    initial_power: 4.0,
                     fire_random_roll: 0,
                     below_is_solid_render: true,
                 },
@@ -887,9 +877,6 @@ mod tests {
         let candidate = |fire_random_roll: i32, below_is_solid_render: bool| ExplosionBlockCandidate {
             pos: pos(2, 64, 2),
             block: BlockStateModel::new("minecraft:stone"),
-            distance: 0.0,
-            exposure: 1.0,
-            initial_power: 4.0,
             fire_random_roll,
             below_is_solid_render,
         };
@@ -945,9 +932,6 @@ mod tests {
             blocks: vec![ExplosionBlockCandidate {
                 pos: pos(0, 64, 0),
                 block: BlockStateModel::new("minecraft:dirt"),
-                distance: 0.0,
-                exposure: 1.0,
-                initial_power: 4.0,
                 fire_random_roll: 0,
                 below_is_solid_render: true,
             }],
