@@ -224,6 +224,15 @@ pub fn creaking_active(day_cycle_ticks: i64) -> bool {
     (12_600..23_401).contains(&t)
 }
 
+/// Whether firefly-bush ambient sounds play (night hours, same range as creaking).
+///
+/// Java: Timelines.java:56 `FIREFLY_BUSH_SOUNDS` BooleanModifier.OR:
+/// addKeyframe(12600, true).addKeyframe(23401, false)
+pub fn firefly_bush_sounds_active(day_cycle_ticks: i64) -> bool {
+    let t = day_cycle_ticks.rem_euclid(DAY_LENGTH_TICKS);
+    (12_600..23_401).contains(&t)
+}
+
 // ---------------------------------------------------------------------------
 // Weather effect on SKY_LIGHT_LEVEL
 // ---------------------------------------------------------------------------
@@ -323,6 +332,22 @@ mod tests {
                 bees_stay_in_hive(tick),
                 !monsters_burn(tick),
                 "bees/monsters burn should be complementary at tick {tick}"
+            );
+        }
+    }
+
+    #[test]
+    fn night_boolean_tracks_share_the_12600_to_23401_window() {
+        // eyeblossom, creaking, and firefly-bush sounds all use the same
+        // Timelines keyframe window (12600 true → 23401 false).
+        for tick in [0, 12_599, 12_600, 18_000, 23_400, 23_401] {
+            let expected = (12_600..23_401).contains(&tick);
+            assert_eq!(eyeblossom_open(tick), expected, "eyeblossom {tick}");
+            assert_eq!(creaking_active(tick), expected, "creaking {tick}");
+            assert_eq!(
+                firefly_bush_sounds_active(tick),
+                expected,
+                "firefly {tick}"
             );
         }
     }
