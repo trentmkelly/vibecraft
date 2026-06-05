@@ -589,7 +589,10 @@ pub fn chunk_pipeline_coalesces_duplicate_requests_into_one_pending_entry() {
     pipeline.request_chunk(pos);
 
     let diag = pipeline.diagnostics();
-    assert_eq!(diag.queue_depth, 1, "one queued entry, regardless of caller count");
+    assert_eq!(
+        diag.queue_depth, 1,
+        "one queued entry, regardless of caller count"
+    );
     assert_eq!(diag.in_flight, 0, "no workers, nothing in flight");
 }
 
@@ -621,11 +624,10 @@ pub fn chunk_pipeline_skips_scheduling_when_chunk_already_cached() {
     let cache = super::super::GeneratedChunkCache::default();
     let pos = crate::storage::region::ChunkPos { x: 5, z: 5 };
     // Pre-seed the cache so the pipeline sees this chunk as ready.
-    cache
-        .chunks
-        .lock()
-        .unwrap()
-        .insert(pos, std::sync::Arc::new(crate::storage::chunk::LevelChunk::empty(pos)));
+    cache.chunks.lock().unwrap().insert(
+        pos,
+        std::sync::Arc::new(crate::storage::chunk::LevelChunk::empty(pos)),
+    );
     let pipeline = super::super::ChunkPipeline::new(
         cache,
         std::path::PathBuf::from("/tmp/rustcraft-test-not-used"),
@@ -726,7 +728,11 @@ pub fn cache_invalidate_refuses_to_drop_dirty_chunks() {
     cache.set_block(
         std::path::Path::new("/tmp/rustcraft-test-not-used"),
         42,
-        crate::block_update::BlockPos { x: 16, y: 64, z: 16 },
+        crate::block_update::BlockPos {
+            x: 16,
+            y: 64,
+            z: 16,
+        },
         "minecraft:gold_block",
     );
     cache.invalidate(pos);
@@ -759,14 +765,15 @@ pub fn cache_flush_dirty_uses_configured_region_compression() {
     );
 
     assert_eq!(
-        cache.flush_dirty(&world_root, false, crate::storage::region::RegionCompression::Lz4),
+        cache.flush_dirty(
+            &world_root,
+            false,
+            crate::storage::region::RegionCompression::Lz4
+        ),
         1
     );
-    let region = crate::storage::region::RegionFile::open(
-        &world_root.join("region"),
-        pos.region(),
-    )
-    .unwrap();
+    let region =
+        crate::storage::region::RegionFile::open(&world_root.join("region"), pos.region()).unwrap();
     let location = region.read_location(pos).unwrap().unwrap();
     let bytes = std::fs::read(region.path()).unwrap();
     let offset = location.sector_offset as usize * crate::storage::region::SECTOR_BYTES as usize;
@@ -817,10 +824,8 @@ pub fn unpack_chunk_fluid_ticks_does_not_touch_blocks_on_empty_saved_ticks() {
     // generated chunks during the per-tick send drain. It must NOT
     // attempt to scan the chunk or read neighbour chunks — those
     // were the cascading worldgen calls that timed out the client.
-    let chunk = crate::storage::chunk::LevelChunk::empty(crate::storage::region::ChunkPos {
-        x: 0,
-        z: 0,
-    });
+    let chunk =
+        crate::storage::chunk::LevelChunk::empty(crate::storage::region::ChunkPos { x: 0, z: 0 });
     let mut live = super::super::LiveFluidTicks::new();
     let started = std::time::Instant::now();
     super::super::unpack_chunk_fluid_ticks(&mut live, 0, &chunk);
@@ -855,15 +860,18 @@ pub fn login_seeding_does_not_synchronously_generate_view_distance_window() {
     let diag = pipeline.diagnostics();
     assert_eq!(diag.queue_depth, 21 * 21, "all 441 chunks enqueued for gen");
     assert_eq!(diag.generated_total, 0, "seeding must not run worldgen");
-    assert_eq!(sender.pending_count(), 21 * 21, "sender tracks all positions");
+    assert_eq!(
+        sender.pending_count(),
+        21 * 21,
+        "sender tracks all positions"
+    );
     assert_eq!(sender.unacknowledged_batches(), 0, "no batch sent yet");
 
     // The first per-tick drain returns nothing because no chunks are
     // ready — sender does not block.
-    let batch = sender.send_next_chunks(
-        crate::storage::region::ChunkPos { x: 0, z: 0 },
-        |pos| pipeline.try_get_ready(pos),
-    );
+    let batch = sender.send_next_chunks(crate::storage::region::ChunkPos { x: 0, z: 0 }, |pos| {
+        pipeline.try_get_ready(pos)
+    });
     assert!(batch.is_none(), "no ready chunks → no batch, never blocks");
     assert_eq!(
         sender.pending_count(),
@@ -943,9 +951,8 @@ pub fn apply_chunk_movement_keeps_pending_aligned_with_new_view_window() {
     // Player walks one chunk east → centre (1, 0). The new window
     // covers x=0..=2, z=-1..=1; the old covered x=-1..=1, z=-1..=1.
     // So (-1,-1), (-1,0), (-1,1) leave; (2,-1), (2,0), (2,1) enter.
-    let mut loaded: std::collections::BTreeSet<(i32, i32)> = super::super::chunk_window(0, 0, 1)
-        .into_iter()
-        .collect();
+    let mut loaded: std::collections::BTreeSet<(i32, i32)> =
+        super::super::chunk_window(0, 0, 1).into_iter().collect();
     // Note: we don't run the real apply_chunk_movement here (it needs a
     // TcpStream). Replicate just the per-pos sender + pipeline calls so
     // the unit test stays decoupled from the wire.

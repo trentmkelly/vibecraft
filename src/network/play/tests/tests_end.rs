@@ -25,11 +25,19 @@ fn crafting_grid_log_to_planks_full_round_trip() {
 }
 
 fn container_pickup_click(state_id: i32, slot_num: i16) -> ServerboundContainerClickPacket {
+    container_pickup_click_with_button(state_id, slot_num, 0)
+}
+
+fn container_pickup_click_with_button(
+    state_id: i32,
+    slot_num: i16,
+    button_num: i8,
+) -> ServerboundContainerClickPacket {
     ServerboundContainerClickPacket {
         container_id: 0,
         state_id,
         slot_num,
-        button_num: 0,
+        button_num,
         container_input: ContainerInput::Pickup,
         changed_slots: BTreeMap::new(),
         carried_item: HashedStack::empty(),
@@ -234,6 +242,68 @@ fn vanilla_oak_log_pickup_to_inventory_grid_populates_planks_result() {
                     && p.item_stack.item_id == item_protocol_id("minecraft:oak_planks")
         )),
         "server must send the client a result-slot update for oak planks"
+    );
+}
+
+#[test]
+fn vanilla_two_by_two_planks_send_crafting_table_result_slot() {
+    let recipes = vanilla_recipe_map();
+    let mut inventory_menu =
+        InventoryMenu::new(crate::player_inventory::PlayerInventory::new(), recipes);
+    let mut carried = ItemStack::new("minecraft:oak_planks", 4);
+    let mut state_id: i32 = 0;
+    let mut last_instructions = Vec::new();
+
+    for slot_num in 1..=4 {
+        let place_one_plank = container_pickup_click_with_button(state_id, slot_num, 1);
+        last_instructions = handle_container_click(
+            &place_one_plank,
+            &mut state_id,
+            &mut inventory_menu,
+            &mut carried,
+        );
+    }
+
+    assert_eq!(state_id, 4);
+    assert!(carried.is_empty());
+    assert_eq!(
+        inventory_menu.get_slot(0),
+        Some(ItemStack::new("minecraft:crafting_table", 1)),
+        "vanilla crafting_table recipe must populate the 2x2 result slot"
+    );
+    assert!(
+        last_instructions.iter().any(|i| matches!(
+            i,
+            PlayInstruction::ContainerSetSlot(p)
+                if p.slot == 0
+                    && p.item_stack.count == 1
+                    && p.item_stack.item_id == item_protocol_id("minecraft:crafting_table")
+        )),
+        "server must send the client a result-slot update for the crafting table"
+    );
+
+    let take_result = container_pickup_click(state_id, 0);
+    let take_instructions = handle_container_click(
+        &take_result,
+        &mut state_id,
+        &mut inventory_menu,
+        &mut carried,
+    );
+
+    assert_eq!(state_id, 5);
+    assert_eq!(carried, ItemStack::new("minecraft:crafting_table", 1));
+    assert_eq!(inventory_menu.get_slot(0), Some(ItemStack::empty()));
+    for slot_num in 1..=4 {
+        assert_eq!(inventory_menu.get_slot(slot_num), Some(ItemStack::empty()));
+    }
+    assert!(
+        take_instructions.iter().any(|i| matches!(
+            i,
+            PlayInstruction::SetCursorItem(p)
+                if p.item_stack.count == 1
+                    && p.item_stack.item_id == item_protocol_id("minecraft:crafting_table")
+        )),
+        "taking the result must move the crafting table onto the cursor"
     );
 }
 
