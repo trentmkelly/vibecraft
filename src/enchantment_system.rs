@@ -250,7 +250,7 @@ const fn enchantment_from_spec(spec: EnchantmentSpec) -> EnchantmentDef {
 pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ench!(
         "minecraft:protection",
-        "#minecraft:armor_enchantable",
+        "#minecraft:enchantable/armor",
         10,
         4,
         Cost::dynamic(1, 11),
@@ -262,7 +262,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:fire_protection",
-        "#minecraft:armor_enchantable",
+        "#minecraft:enchantable/armor",
         5,
         4,
         Cost::dynamic(10, 8),
@@ -274,7 +274,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:feather_falling",
-        "#minecraft:foot_armor_enchantable",
+        "#minecraft:enchantable/foot_armor",
         5,
         4,
         Cost::dynamic(5, 6),
@@ -286,7 +286,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:blast_protection",
-        "#minecraft:armor_enchantable",
+        "#minecraft:enchantable/armor",
         2,
         4,
         Cost::dynamic(5, 8),
@@ -298,7 +298,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:projectile_protection",
-        "#minecraft:armor_enchantable",
+        "#minecraft:enchantable/armor",
         5,
         4,
         Cost::dynamic(3, 6),
@@ -310,7 +310,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:respiration",
-        "#minecraft:head_armor_enchantable",
+        "#minecraft:enchantable/head_armor",
         2,
         3,
         Cost::dynamic(10, 10),
@@ -322,7 +322,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:aqua_affinity",
-        "#minecraft:head_armor_enchantable",
+        "#minecraft:enchantable/head_armor",
         2,
         1,
         Cost::constant(1),
@@ -334,7 +334,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:thorns",
-        "#minecraft:armor_enchantable",
+        "#minecraft:enchantable/armor",
         1,
         3,
         Cost::dynamic(10, 20),
@@ -346,7 +346,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:depth_strider",
-        "#minecraft:foot_armor_enchantable",
+        "#minecraft:enchantable/foot_armor",
         2,
         3,
         Cost::dynamic(10, 10),
@@ -358,7 +358,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:frost_walker",
-        "#minecraft:foot_armor_enchantable",
+        "#minecraft:enchantable/foot_armor",
         2,
         2,
         Cost::dynamic(10, 10),
@@ -370,7 +370,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:binding_curse",
-        "#minecraft:equippable_enchantable",
+        "#minecraft:enchantable/equippable",
         1,
         1,
         Cost::constant(25),
@@ -382,7 +382,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:soul_speed",
-        "#minecraft:foot_armor_enchantable",
+        "#minecraft:enchantable/foot_armor",
         1,
         3,
         Cost::dynamic(10, 10),
@@ -394,7 +394,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:swift_sneak",
-        "#minecraft:leg_armor_enchantable",
+        "#minecraft:enchantable/leg_armor",
         1,
         3,
         Cost::dynamic(25, 25),
@@ -406,7 +406,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:sharpness",
-        "#minecraft:weapon_enchantable",
+        "#minecraft:enchantable/sharp_weapon",
         10,
         5,
         Cost::dynamic(1, 11),
@@ -418,7 +418,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:smite",
-        "#minecraft:weapon_enchantable",
+        "#minecraft:enchantable/weapon",
         5,
         5,
         Cost::dynamic(5, 8),
@@ -430,7 +430,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:bane_of_arthropods",
-        "#minecraft:weapon_enchantable",
+        "#minecraft:enchantable/weapon",
         5,
         5,
         Cost::dynamic(5, 8),
@@ -442,7 +442,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:knockback",
-        "#minecraft:weapon_enchantable",
+        "#minecraft:enchantable/melee_weapon",
         5,
         2,
         Cost::dynamic(5, 20),
@@ -454,7 +454,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:fire_aspect",
-        "#minecraft:weapon_enchantable",
+        "#minecraft:enchantable/fire_aspect",
         2,
         2,
         Cost::dynamic(10, 20),
@@ -466,7 +466,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:looting",
-        "#minecraft:weapon_enchantable",
+        "#minecraft:enchantable/melee_weapon",
         2,
         3,
         Cost::dynamic(15, 9),
@@ -478,7 +478,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:sweeping_edge",
-        "#minecraft:sword_enchantable",
+        "#minecraft:enchantable/sweeping",
         2,
         3,
         Cost::dynamic(5, 9),
@@ -490,7 +490,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:efficiency",
-        "#minecraft:mining_enchantable",
+        "#minecraft:enchantable/mining",
         10,
         5,
         Cost::dynamic(1, 10),
@@ -502,7 +502,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:silk_touch",
-        "#minecraft:mining_enchantable",
+        "#minecraft:enchantable/mining_loot",
         1,
         1,
         Cost::constant(15),
@@ -514,7 +514,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:unbreaking",
-        "#minecraft:durability_enchantable",
+        "#minecraft:enchantable/durability",
         5,
         3,
         Cost::dynamic(5, 8),
@@ -526,7 +526,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:fortune",
-        "#minecraft:mining_enchantable",
+        "#minecraft:enchantable/mining_loot",
         2,
         3,
         Cost::dynamic(15, 9),
@@ -538,7 +538,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:power",
-        "#minecraft:bow_enchantable",
+        "#minecraft:enchantable/bow",
         10,
         5,
         Cost::dynamic(1, 10),
@@ -550,7 +550,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:punch",
-        "#minecraft:bow_enchantable",
+        "#minecraft:enchantable/bow",
         2,
         2,
         Cost::dynamic(12, 20),
@@ -562,7 +562,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:flame",
-        "#minecraft:bow_enchantable",
+        "#minecraft:enchantable/bow",
         2,
         1,
         Cost::constant(20),
@@ -574,7 +574,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:infinity",
-        "#minecraft:bow_enchantable",
+        "#minecraft:enchantable/bow",
         1,
         1,
         Cost::constant(20),
@@ -586,7 +586,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:luck_of_the_sea",
-        "#minecraft:fishing_enchantable",
+        "#minecraft:enchantable/fishing",
         2,
         3,
         Cost::dynamic(15, 9),
@@ -598,7 +598,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:lure",
-        "#minecraft:fishing_enchantable",
+        "#minecraft:enchantable/fishing",
         2,
         3,
         Cost::dynamic(15, 9),
@@ -610,7 +610,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:loyalty",
-        "#minecraft:trident_enchantable",
+        "#minecraft:enchantable/trident",
         5,
         3,
         Cost::dynamic(5, 7),
@@ -622,7 +622,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:impaling",
-        "#minecraft:trident_enchantable",
+        "#minecraft:enchantable/trident",
         2,
         5,
         Cost::dynamic(1, 8),
@@ -634,7 +634,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:riptide",
-        "#minecraft:trident_enchantable",
+        "#minecraft:enchantable/trident",
         2,
         3,
         Cost::dynamic(10, 7),
@@ -646,7 +646,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:channeling",
-        "#minecraft:trident_enchantable",
+        "#minecraft:enchantable/trident",
         1,
         1,
         Cost::constant(25),
@@ -658,7 +658,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:multishot",
-        "#minecraft:crossbow_enchantable",
+        "#minecraft:enchantable/crossbow",
         2,
         1,
         Cost::constant(20),
@@ -670,7 +670,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:quick_charge",
-        "#minecraft:crossbow_enchantable",
+        "#minecraft:enchantable/crossbow",
         5,
         3,
         Cost::dynamic(12, 20),
@@ -682,7 +682,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:piercing",
-        "#minecraft:crossbow_enchantable",
+        "#minecraft:enchantable/crossbow",
         10,
         4,
         Cost::dynamic(1, 10),
@@ -694,7 +694,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:density",
-        "#minecraft:mace_enchantable",
+        "#minecraft:enchantable/mace",
         5,
         5,
         Cost::dynamic(5, 8),
@@ -706,7 +706,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:breach",
-        "#minecraft:mace_enchantable",
+        "#minecraft:enchantable/mace",
         2,
         4,
         Cost::dynamic(15, 9),
@@ -718,7 +718,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:wind_burst",
-        "#minecraft:mace_enchantable",
+        "#minecraft:enchantable/mace",
         2,
         3,
         Cost::dynamic(15, 9),
@@ -730,7 +730,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:lunge",
-        "#minecraft:weapon_enchantable",
+        "#minecraft:enchantable/lunge",
         2,
         3,
         Cost::dynamic(15, 9),
@@ -742,7 +742,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:mending",
-        "#minecraft:durability_enchantable",
+        "#minecraft:enchantable/durability",
         2,
         1,
         Cost::constant(25),
@@ -754,7 +754,7 @@ pub const ENCHANTMENTS: &[EnchantmentDef] = &[
     ),
     ench!(
         "minecraft:vanishing_curse",
-        "#minecraft:vanishing_enchantable",
+        "#minecraft:enchantable/vanishing",
         1,
         1,
         Cost::constant(25),
@@ -785,6 +785,14 @@ pub fn is_curse(id: &str) -> bool {
 /// the grindstone XP calculation and enchanting-table seeding. Unknown ids cost 0.
 pub fn min_cost_for(id: &str, level: i32) -> i32 {
     enchantment(id).map_or(0, |def| def.min_cost.calculate(level))
+}
+
+/// `Enchantment.canEnchant(item)`: whether the enchantment may be applied to the item,
+/// i.e. the item is a member of the enchantment's `supported_items` tag (resolved by
+/// `item_tags`). Used by the anvil combine and the enchanting table. Unknown ids → false.
+pub fn can_enchant(item_id: &str, enchantment_id: &str) -> bool {
+    enchantment(enchantment_id)
+        .is_some_and(|def| crate::item_tags::item_in_tag(item_id, def.supported_items))
 }
 
 pub fn are_compatible(left: &EnchantmentDef, right: &EnchantmentDef) -> bool {

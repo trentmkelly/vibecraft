@@ -225,3 +225,40 @@ fn providers_cover_spawn_raid_and_loot_selection_paths() {
         Some("minecraft:silk_touch")
     );
 }
+
+#[test]
+fn can_enchant_matches_26_1_2_supported_items() {
+    use super::can_enchant;
+    // Sharpness (enchantable/sharp_weapon = swords + spears + axes) — NOT pickaxes/mace.
+    assert!(can_enchant("minecraft:diamond_sword", "minecraft:sharpness"));
+    assert!(can_enchant("minecraft:iron_axe", "minecraft:sharpness"));
+    assert!(can_enchant("minecraft:netherite_spear", "minecraft:sharpness"));
+    assert!(!can_enchant("minecraft:diamond_pickaxe", "minecraft:sharpness"));
+    assert!(!can_enchant("minecraft:mace", "minecraft:sharpness"));
+
+    // Knockback (enchantable/melee_weapon = swords + spears) — NOT axes.
+    assert!(can_enchant("minecraft:diamond_sword", "minecraft:knockback"));
+    assert!(!can_enchant("minecraft:diamond_axe", "minecraft:knockback"));
+
+    // Smite (enchantable/weapon = sharp_weapon + mace) — includes mace + axes.
+    assert!(can_enchant("minecraft:mace", "minecraft:smite"));
+    assert!(can_enchant("minecraft:diamond_axe", "minecraft:smite"));
+
+    // Fortune (enchantable/mining_loot = axes/pickaxes/shovels/hoes) — NOT shears.
+    assert!(can_enchant("minecraft:diamond_pickaxe", "minecraft:fortune"));
+    assert!(!can_enchant("minecraft:shears", "minecraft:fortune"));
+    // Efficiency (enchantable/mining) DOES include shears.
+    assert!(can_enchant("minecraft:shears", "minecraft:efficiency"));
+
+    // Protection (enchantable/armor) — any armour piece, not weapons.
+    assert!(can_enchant("minecraft:diamond_chestplate", "minecraft:protection"));
+    assert!(can_enchant("minecraft:turtle_helmet", "minecraft:protection"));
+    assert!(!can_enchant("minecraft:diamond_sword", "minecraft:protection"));
+
+    // Unbreaking (enchantable/durability) — broad: tools, armour, elytra, etc.
+    assert!(can_enchant("minecraft:elytra", "minecraft:unbreaking"));
+    assert!(can_enchant("minecraft:fishing_rod", "minecraft:unbreaking"));
+
+    // Unknown enchantment id -> false.
+    assert!(!can_enchant("minecraft:diamond_sword", "minecraft:nonexistent"));
+}

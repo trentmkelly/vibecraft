@@ -90,41 +90,16 @@ pub(super) fn held_item<'a>(state: &'a ServerCommandState, player: &NameAndId) -
         .map(|item| item.item.as_str())
 }
 
+/// Whether `item` is a member of the enchantment's `supported_items` tag. Delegates to
+/// the exact tag-hierarchy resolution in `item_tags` (the previous `ends_with`
+/// heuristics were approximate and keyed on the pre-1.21 tag names); a literal item id
+/// (non-`#`) is matched directly, mirroring vanilla `HolderSet` direct entries.
 pub(super) fn item_supports_enchantment(item: &str, supported_items: &str) -> bool {
-    match supported_items {
-        "#minecraft:weapon_enchantable" => {
-            item.ends_with("_sword") || item.ends_with("_axe") || item == "minecraft:mace"
-        }
-        "#minecraft:mining_enchantable" => {
-            item.ends_with("_pickaxe")
-                || item.ends_with("_shovel")
-                || item.ends_with("_axe")
-                || item.ends_with("_hoe")
-                || item == "minecraft:shears"
-        }
-        "#minecraft:bow_enchantable" => item == "minecraft:bow",
-        "#minecraft:crossbow_enchantable" => item == "minecraft:crossbow",
-        "#minecraft:trident_enchantable" => item == "minecraft:trident",
-        "#minecraft:armor_enchantable" => is_armor_item(item),
-        "#minecraft:foot_armor_enchantable" => item.ends_with("_boots"),
-        "#minecraft:head_armor_enchantable" => {
-            item.ends_with("_helmet") || item == "minecraft:turtle_helmet"
-        }
-        "#minecraft:chest_armor_enchantable" => {
-            item.ends_with("_chestplate") || item == "minecraft:elytra"
-        }
-        "#minecraft:leg_armor_enchantable" => item.ends_with("_leggings"),
-        "#minecraft:equippable_enchantable" => is_armor_item(item) || item == "minecraft:elytra",
-        explicit => explicit == item,
+    if supported_items.starts_with('#') {
+        crate::item_tags::item_in_tag(item, supported_items)
+    } else {
+        supported_items == item
     }
-}
-
-pub(super) fn is_armor_item(item: &str) -> bool {
-    item.ends_with("_helmet")
-        || item.ends_with("_chestplate")
-        || item.ends_with("_leggings")
-        || item.ends_with("_boots")
-        || item == "minecraft:turtle_helmet"
 }
 
 pub(super) fn existing_enchantments_compatible(
