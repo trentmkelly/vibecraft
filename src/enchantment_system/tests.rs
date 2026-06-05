@@ -305,3 +305,50 @@ fn get_enchantment_cost_matches_java_formula() {
     let c = get_enchantment_cost(&mut rng, 2, 100, 15);
     assert!((30..=31).contains(&c));
 }
+
+#[test]
+fn select_enchantment_produces_valid_compatible_offers() {
+    use super::{
+        are_compatible, available_enchantment_results, enchantment, is_primary_item,
+        select_enchantment, IN_ENCHANTING_TABLE,
+    };
+    use crate::random_source::LegacyRandom;
+
+    // available_enchantment_results: only in-table + primary-item enchantments, each at
+    // a level whose [minCost, maxCost] contains the value.
+    let cands = available_enchantment_results(15, "minecraft:diamond_sword");
+    assert!(!cands.is_empty());
+    for (id, level, _) in &cands {
+        assert!(IN_ENCHANTING_TABLE.contains(id));
+        assert!(is_primary_item("minecraft:diamond_sword", id));
+        let def = enchantment(id).unwrap();
+        assert!(*level >= 1 && *level <= def.max_level);
+        assert!(15 >= def.min_cost.calculate(*level) && 15 <= def.max_cost.calculate(*level));
+    }
+    // A sword never offers an armour-only enchantment.
+    assert!(!cands.iter().any(|(id, _, _)| *id == "minecraft:protection"));
+
+    // Zero enchantability -> no offers.
+    let mut r = LegacyRandom::new(1);
+    assert!(select_enchantment(&mut r, "minecraft:diamond_sword", 15, 0).is_empty());
+
+    // Seeded selection invariants across many seeds: every offer is a valid primary,
+    // in-table enchantment, and the offers are pairwise compatible (filterCompatible).
+    for seed in 0..150i64 {
+        let mut r = LegacyRandom::new(seed);
+        let offers = select_enchantment(&mut r, "minecraft:diamond_sword", 20, 15);
+        for (id, level) in &offers {
+            assert!(is_primary_item("minecraft:diamond_sword", id), "{id} not primary");
+            assert!(IN_ENCHANTING_TABLE.contains(id));
+            let def = enchantment(id).unwrap();
+            assert!(*level >= 1 && *level <= def.max_level);
+        }
+        for i in 0..offers.len() {
+            for j in (i + 1)..offers.len() {
+                let a = enchantment(offers[i].0).unwrap();
+                let b = enchantment(offers[j].0).unwrap();
+                assert!(are_compatible(a, b), "{} incompatible with {}", offers[i].0, offers[j].0);
+            }
+        }
+    }
+}
