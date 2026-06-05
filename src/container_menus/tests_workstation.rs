@@ -238,3 +238,61 @@ fn anvil_create_result_full_pipeline_matches_java() {
     assert!(menu.only_renaming);
     assert!(!menu.get_slot(2, &player).unwrap().is_empty());
 }
+
+#[test]
+fn enchantment_menu_slots_changed_and_enchant_action_match_java() {
+    use crate::enchantment_system::is_primary_item;
+    use crate::item_properties::ItemComponent;
+
+    fn enchantable_sword() -> ItemStack {
+        let mut s = ItemStack::new("minecraft:diamond_sword", 1);
+        s.set_component(ItemComponent::Enchantable(10));
+        s
+    }
+
+    // slotsChanged: with 15 bookshelves the top slot is 30/31, slot 0 >= 1, and any
+    // previewed clue is a valid primary enchantment for the sword.
+    let mut player = PlayerInventory::new();
+    let mut menu = EnchantmentMenu::new();
+    menu.enchantment_seed = 12345;
+    menu.set_slot(0, enchantable_sword(), &mut player);
+    menu.set_slot(1, ItemStack::new("minecraft:lapis_lazuli", 3), &mut player);
+    menu.slots_changed(15);
+    assert!((30..=31).contains(&menu.costs[2]));
+    assert!(menu.costs[0] >= 1);
+    for slot in 0..3 {
+        if let Some(id) = menu.enchant_clue[slot] {
+            assert!(is_primary_item("minecraft:diamond_sword", id));
+            assert!(menu.level_clue[slot] >= 1);
+        }
+    }
+    // A non-enchantable item clears the offers.
+    let mut menu2 = EnchantmentMenu::new();
+    menu2.set_slot(0, ItemStack::new("minecraft:apple", 1), &mut player);
+    menu2.slots_changed(15);
+    assert_eq!(menu2.costs, [0, 0, 0]);
+
+    // clickMenuButton: enchant slot 0. Lapis 1 needed, xp >= cost.
+    let outcome = menu.click_button(0, 30, false);
+    assert_eq!(outcome, EnchantOutcome::Enchanted { xp_levels: 1 });
+    // The item now carries enchantments, and one lapis was consumed (3 -> 2).
+    assert!(menu.item().component("minecraft:enchantments").is_some());
+    assert_eq!(menu.get_slot(1, &player).unwrap().count(), 2);
+
+    // Rejected when there is no lapis (survival).
+    let mut menu = EnchantmentMenu::new();
+    menu.enchantment_seed = 12345;
+    menu.set_slot(0, enchantable_sword(), &mut player);
+    menu.slots_changed(15);
+    assert_eq!(menu.click_button(0, 30, false), EnchantOutcome::Rejected);
+
+    // Rejected when the player's level is below the cost (survival), but creative
+    // bypasses both the lapis and level requirements.
+    let mut menu = EnchantmentMenu::new();
+    menu.enchantment_seed = 12345;
+    menu.set_slot(0, enchantable_sword(), &mut player);
+    menu.set_slot(1, ItemStack::new("minecraft:lapis_lazuli", 3), &mut player);
+    menu.slots_changed(15);
+    assert_eq!(menu.click_button(2, 0, false), EnchantOutcome::Rejected);
+    assert_eq!(menu.click_button(2, 0, true), EnchantOutcome::Enchanted { xp_levels: 3 });
+}

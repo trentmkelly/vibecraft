@@ -440,7 +440,7 @@ pub(super) fn enchantments_for_crafting(stack: &ItemStack) -> BTreeMap<String, i
     }
 }
 
-fn set_enchantments_for_crafting(stack: &mut ItemStack, enchantments: BTreeMap<String, i32>) {
+pub(super) fn set_enchantments_for_crafting(stack: &mut ItemStack, enchantments: BTreeMap<String, i32>) {
     let is_book = stack.item_id() == "minecraft:enchanted_book";
     let key = if is_book {
         "minecraft:stored_enchantments"
@@ -761,6 +761,7 @@ mod menus_brewing;
 mod menus_crafting_and_furnace;
 mod menus_storage;
 mod menus_workstation;
+mod menus_enchantment;
 mod menus_table;
 mod menus_misc;
 mod menus_entity;
@@ -773,6 +774,8 @@ use menus_crafting_and_furnace::*;
 use menus_storage::*;
 #[cfg(test)]
 use menus_workstation::*;
+#[cfg(test)]
+use menus_enchantment::*;
 #[cfg(test)]
 use menus_table::*;
 #[cfg(test)]
