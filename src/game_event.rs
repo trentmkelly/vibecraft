@@ -375,6 +375,12 @@ pub struct ExplosionBlockCandidate {
     pub distance: f32,
     pub exposure: f32,
     pub initial_power: f32,
+    /// `random.nextInt(3)` rolled for this position when placing post-explosion
+    /// fire; vanilla places fire only when this is `0`.
+    pub fire_random_roll: i32,
+    /// Whether the block below this position is `isSolidRender()` (fire needs a
+    /// solid floor). The destroyed position itself is air after the blast.
+    pub below_is_solid_render: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -436,12 +442,20 @@ pub fn plan_server_explosion(input: ServerExplosionInput) -> ServerExplosionPlan
     let interacts_with_blocks = input.block_interaction != ExplosionBlockInteraction::Keep;
     let mut seen_blocks = BTreeSet::new();
     let mut destroyed_blocks = Vec::new();
+    // 1:1 with ServerExplosion: when `fire` is set, each destroyed position
+    // places fire if `random.nextInt(3) == 0 && getBlockState(pos).isAir() &&
+    // getBlockState(pos.below()).isSolidRender()`. The destroyed position is air
+    // after the blast, so only the per-position roll and the below-solid check
+    // (supplied per candidate) remain.
+    let mut fire_positions = Vec::new();
 
     if interacts_with_blocks {
         for block in input.blocks {
             if !seen_blocks.insert((block.pos.x, block.pos.y, block.pos.z)) {
                 continue;
             }
+            let fire_eligible =
+                input.fire && block.fire_random_roll == 0 && block.below_is_solid_render;
             let result = explosion_affects_block(
                 ExplosionInput {
                     pos: block.pos,
@@ -452,6 +466,9 @@ pub fn plan_server_explosion(input: ServerExplosionInput) -> ServerExplosionPlan
                 block.initial_power,
             );
             if result.destroyed {
+                if fire_eligible {
+                    fire_positions.push(result.pos);
+                }
                 destroyed_blocks.push(result);
             }
         }
@@ -495,23 +512,6 @@ pub fn plan_server_explosion(input: ServerExplosionInput) -> ServerExplosionPlan
                 })
             })
             .collect()
-    };
-
-    // TODO(26.1.2 parity): ServerExplosion.explode places fire per destroyed
-    // position with `random.nextInt(3) == 0 && getBlockState(pos).isAir() &&
-    // getBlockState(pos.below()).isSolidRender()`. This deterministic `index % 3`
-    // approximation lacks the per-position RNG and the air/solid-below block
-    // checks, which require RNG + neighbour block-state access this plan does not
-    // carry. (Likewise hurtEntities uses the TNT position, not the eye, as the
-    // knockback origin.)
-    let fire_positions = if input.fire {
-        destroyed_blocks
-            .iter()
-            .enumerate()
-            .filter_map(|(index, block)| (index % 3 == 0).then_some(block.pos))
-            .collect()
-    } else {
-        Vec::new()
     };
 
     ServerExplosionPlan {
@@ -722,6 +722,8 @@ mod tests {
                     distance: 0.0,
                     exposure: 1.0,
                     initial_power: 4.0,
+                    fire_random_roll: 0,
+                    below_is_solid_render: true,
                 },
                 ExplosionBlockCandidate {
                     pos: pos(1, 64, 0),
@@ -729,6 +731,8 @@ mod tests {
                     distance: 0.0,
                     exposure: 1.0,
                     initial_power: 4.0,
+                    fire_random_roll: 0,
+                    below_is_solid_render: true,
                 },
             ],
             entities: vec![ExplosionEntityCandidate {
@@ -758,6 +762,52 @@ mod tests {
     }
 
     #[test]
+    fn explosion_fire_requires_roll_zero_solid_below_and_fire_flag() {
+        let candidate = |fire_random_roll: i32, below_is_solid_render: bool| ExplosionBlockCandidate {
+            pos: pos(2, 64, 2),
+            block: BlockStateModel::new("minecraft:stone"),
+            distance: 0.0,
+            exposure: 1.0,
+            initial_power: 4.0,
+            fire_random_roll,
+            below_is_solid_render,
+        };
+        let input = |fire: bool, roll: i32, solid: bool| ServerExplosionInput {
+            center: Vec3 {
+                x: 2.0,
+                y: 64.0,
+                z: 2.0,
+            },
+            radius: 4.0,
+            fire,
+            block_interaction: ExplosionBlockInteraction::Destroy,
+            source_entity: Some("tnt".to_string()),
+            mob_griefing: true,
+            source_is_wind_charge: false,
+            blocks: vec![candidate(roll, solid)],
+            entities: Vec::new(),
+        };
+
+        // nextInt(3)==0, solid floor, fire on → fire placed.
+        assert_eq!(
+            plan_server_explosion(input(true, 0, true)).fire_positions,
+            vec![pos(2, 64, 2)]
+        );
+        // nextInt(3)!=0 → no fire.
+        assert!(plan_server_explosion(input(true, 1, true))
+            .fire_positions
+            .is_empty());
+        // No solid block below → no fire.
+        assert!(plan_server_explosion(input(true, 0, false))
+            .fire_positions
+            .is_empty());
+        // Explosion doesn't cause fire → no fire even with a zero roll.
+        assert!(plan_server_explosion(input(false, 0, true))
+            .fire_positions
+            .is_empty());
+    }
+
+    #[test]
     fn explosion_block_interaction_gates_blocks_triggers_and_wind_charge_effects() {
         let base = ServerExplosionInput {
             center: Vec3 {
@@ -777,6 +827,8 @@ mod tests {
                 distance: 0.0,
                 exposure: 1.0,
                 initial_power: 4.0,
+                fire_random_roll: 0,
+                below_is_solid_render: true,
             }],
             entities: Vec::new(),
         };
