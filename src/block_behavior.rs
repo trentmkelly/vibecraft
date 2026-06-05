@@ -300,38 +300,40 @@ fn state_has_block_entity(registry_id: &str) -> bool {
     BlockStateModel::new(registry_id).has_block_entity()
 }
 
+/// 1:1 with the 26.1.2 `InteractionResult` sealed interface. The three `Success`
+/// records differ only by swing source: `Success` swings on the client,
+/// `SuccessServer` is server-authoritative, and `Consume` does not swing. All
+/// three "consume the action"; `Fail`, `Pass`, and `TryWithEmptyHand` do not.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InteractionResult {
-    /// Interaction was successful; item is consumed (plays animation)
+    /// `InteractionResult.SUCCESS` — Success with swing source CLIENT.
     Success,
-    /// Interaction succeeded but item is not considered "used" for stats
+    /// `InteractionResult.SUCCESS_SERVER` — Success with swing source SERVER.
     SuccessServer,
-    /// Item was consumed (food, potion)
+    /// `InteractionResult.CONSUME` — Success with swing source NONE.
     Consume,
-    /// Item was partially consumed
-    ConsumePartial,
-    /// Neither block nor item handled this; try the other
+    /// `InteractionResult.PASS` — neither block nor item handled this; try the other.
     Pass,
-    /// The interaction explicitly failed (e.g. locked chest)
+    /// `InteractionResult.FAIL` — the interaction explicitly failed (e.g. locked chest).
     Fail,
-    /// Re-attempt with empty hand
+    /// `InteractionResult.TRY_WITH_EMPTY_HAND` — retry as an empty-hand block use.
     TryWithEmptyHand,
 }
 
 impl InteractionResult {
+    /// Whether this is a `Success` record (`SUCCESS`/`SUCCESS_SERVER`/`CONSUME`).
     pub fn is_success(self) -> bool {
-        matches!(
-            self,
-            Self::Success | Self::SuccessServer | Self::Consume | Self::ConsumePartial
-        )
+        matches!(self, Self::Success | Self::SuccessServer | Self::Consume)
     }
 
+    /// `Success.swingSource()` is CLIENT or SERVER (not the NONE of `CONSUME`).
     pub fn should_swing_hand(self) -> bool {
         matches!(self, Self::Success | Self::SuccessServer)
     }
 
+    /// `InteractionResult.consumesAction()` — true only for the `Success` records.
     pub fn consumes_action(self) -> bool {
-        matches!(self, Self::Consume | Self::ConsumePartial)
+        matches!(self, Self::Success | Self::SuccessServer | Self::Consume)
     }
 }
 
@@ -340,9 +342,16 @@ pub struct BlockUseContext {
     pub pos: crate::block_update::BlockPos,
     pub face: crate::block_update::Direction,
     pub hand: BlockUseHand,
+    /// `player.isSecondaryUseActive()` (sneaking).
     pub sneaking: bool,
     pub block_id: &'static str,
+    /// The item in the acting hand (`None` = empty hand).
     pub held_item_id: Option<&'static str>,
+    /// `!mainHand.isEmpty() || !offHand.isEmpty()` — whether either hand holds
+    /// an item, used to compute `suppressUsingBlock`.
+    pub has_item_in_hands: bool,
+    /// `player.getCooldowns().isOnCooldown(itemStack)`.
+    pub item_on_cooldown: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -351,35 +360,42 @@ pub enum BlockUseHand {
     OffHand,
 }
 
-/// Dispatch a right-click use action.
+/// Dispatch a right-click use action, 1:1 with `ServerPlayerGameMode.useItemOn`:
+/// 1. `suppressUsingBlock = isSecondaryUseActive() && haveSomethingInOurHands`.
+/// 2. If not suppressed: `block.useItemOn(item)` — if it `consumesAction`, return
+///    it; otherwise if it is `TryWithEmptyHand` and this is the main hand, try
+///    `block.useWithoutItem()` and return that if it `consumesAction`.
+/// 3. If the held item is non-empty and not on cooldown: `item.useOn(context)`.
+/// 4. Otherwise `PASS`.
 ///
-/// Mirrors ServerPlayerGameMode.useItemOn():
-/// 1. If not sneaking: route to block.useItemOn() first (returns block InteractionResult)
-/// 2. If block returns PASS (or player is sneaking): try item use
-/// 3. Empty hand → PASS
-///
-/// `block_use_fn` models `blockState.useItemOn(stack, level, pos, player, hand, hitResult)`.
-/// `item_use_fn` models `stack.useOn(context)`.
+/// `block_use_fn` models `blockState.useItemOn(...)`, `use_without_item_fn`
+/// models `blockState.useWithoutItem(...)`, and `item_use_fn` models
+/// `stack.useOn(context)`.
 pub fn dispatch_block_use(
     ctx: &BlockUseContext,
     block_use_fn: impl FnOnce(&BlockUseContext) -> InteractionResult,
+    use_without_item_fn: impl FnOnce(&BlockUseContext) -> InteractionResult,
     item_use_fn: impl FnOnce(&BlockUseContext) -> InteractionResult,
 ) -> InteractionResult {
-    // 1. Try block use (unless sneaking with item — vanilla skips block use only when the item
-    //    overrides it, but we model the sneak-bypass here)
-    if !ctx.sneaking || ctx.held_item_id.is_none() {
-        let result = block_use_fn(ctx);
-        if result != InteractionResult::Pass {
-            return result;
+    let suppress_using_block = ctx.sneaking && ctx.has_item_in_hands;
+    if !suppress_using_block {
+        let item_use = block_use_fn(ctx);
+        if item_use.consumes_action() {
+            return item_use;
+        }
+        if item_use == InteractionResult::TryWithEmptyHand && ctx.hand == BlockUseHand::MainHand {
+            let without_item = use_without_item_fn(ctx);
+            if without_item.consumes_action() {
+                return without_item;
+            }
         }
     }
 
-    // 2. Try item use
-    if let Some(_item) = ctx.held_item_id {
-        item_use_fn(ctx)
-    } else {
-        InteractionResult::Pass
+    if ctx.held_item_id.is_some() && !ctx.item_on_cooldown {
+        return item_use_fn(ctx);
     }
+
+    InteractionResult::Pass
 }
 
 /// Dispatch a left-click attack action on a block.
@@ -681,14 +697,28 @@ mod tests {
 
     #[test]
     fn interaction_result_predicates_match_vanilla_groupings() {
-        assert!(InteractionResult::Success.is_success());
-        assert!(InteractionResult::Consume.is_success());
-        assert!(!InteractionResult::Pass.is_success());
-        assert!(!InteractionResult::Fail.is_success());
+        // The three Success records are all "successes" and all consume the action.
+        for success in [
+            InteractionResult::Success,
+            InteractionResult::SuccessServer,
+            InteractionResult::Consume,
+        ] {
+            assert!(success.is_success(), "{success:?}");
+            assert!(success.consumes_action(), "{success:?}");
+        }
+        // Fail, Pass, and TryWithEmptyHand are not successes and do not consume.
+        for other in [
+            InteractionResult::Pass,
+            InteractionResult::Fail,
+            InteractionResult::TryWithEmptyHand,
+        ] {
+            assert!(!other.is_success(), "{other:?}");
+            assert!(!other.consumes_action(), "{other:?}");
+        }
+        // Swing happens for CLIENT/SERVER swing sources, not CONSUME (NONE).
         assert!(InteractionResult::Success.should_swing_hand());
+        assert!(InteractionResult::SuccessServer.should_swing_hand());
         assert!(!InteractionResult::Consume.should_swing_hand());
-        assert!(InteractionResult::Consume.consumes_action());
-        assert!(!InteractionResult::Success.consumes_action());
     }
 
     #[test]
@@ -705,44 +735,112 @@ mod tests {
             sneaking: false,
             block_id: "minecraft:crafting_table",
             held_item_id: Some("minecraft:stick"),
+            has_item_in_hands: true,
+            item_on_cooldown: false,
         };
+        let no_without_item = |_: &BlockUseContext| InteractionResult::Pass;
 
-        // Block returns SUCCESS → item handler not called
+        // Block consumes the action → item handler not called.
         let result = dispatch_block_use(
             &ctx,
             |_| InteractionResult::Success,
+            no_without_item,
             |_| panic!("item handler should not be called"),
         );
         assert_eq!(result, InteractionResult::Success);
 
-        // Block returns PASS → item handler called
+        // Block returns PASS → item handler called.
         let result = dispatch_block_use(
             &ctx,
+            |_| InteractionResult::Pass,
+            no_without_item,
+            |_| InteractionResult::Consume,
+        );
+        assert_eq!(result, InteractionResult::Consume);
+
+        // Block returns FAIL (does NOT consume the action) → vanilla still falls
+        // through to the item use, unlike the old "return on any non-Pass" model.
+        let result = dispatch_block_use(
+            &ctx,
+            |_| InteractionResult::Fail,
+            no_without_item,
+            |_| InteractionResult::Success,
+        );
+        assert_eq!(result, InteractionResult::Success);
+
+        // Block returns TryWithEmptyHand on the main hand → useWithoutItem runs;
+        // if it consumes, that result is returned and the item is not used.
+        let result = dispatch_block_use(
+            &ctx,
+            |_| InteractionResult::TryWithEmptyHand,
+            |_| InteractionResult::SuccessServer,
+            |_| panic!("item handler should not be called when useWithoutItem consumes"),
+        );
+        assert_eq!(result, InteractionResult::SuccessServer);
+
+        // TryWithEmptyHand but useWithoutItem passes → fall through to item use.
+        let result = dispatch_block_use(
+            &ctx,
+            |_| InteractionResult::TryWithEmptyHand,
             |_| InteractionResult::Pass,
             |_| InteractionResult::Consume,
         );
         assert_eq!(result, InteractionResult::Consume);
 
-        // Sneaking with item → skip block handler, go to item
+        // Sneaking with an item → suppressUsingBlock, block handler skipped.
         let sneak_ctx = BlockUseContext {
             sneaking: true,
             ..ctx.clone()
         };
         let result = dispatch_block_use(
             &sneak_ctx,
-            |_| panic!("block handler should not be called"),
+            |_| panic!("block handler should not be called when suppressed"),
+            no_without_item,
             |_| InteractionResult::Success,
         );
         assert_eq!(result, InteractionResult::Success);
 
-        // No held item → PASS
+        // Sneaking with empty hands → NOT suppressed, block handler still runs.
+        let sneak_empty = BlockUseContext {
+            sneaking: true,
+            held_item_id: None,
+            has_item_in_hands: false,
+            ..ctx.clone()
+        };
+        let result = dispatch_block_use(
+            &sneak_empty,
+            |_| InteractionResult::Success,
+            no_without_item,
+            |_| panic!("no item to use"),
+        );
+        assert_eq!(result, InteractionResult::Success);
+
+        // Held item on cooldown → item use skipped after a block PASS → PASS.
+        let cooldown_ctx = BlockUseContext {
+            item_on_cooldown: true,
+            ..ctx.clone()
+        };
+        let result = dispatch_block_use(
+            &cooldown_ctx,
+            |_| InteractionResult::Pass,
+            no_without_item,
+            |_| panic!("item on cooldown must not be used"),
+        );
+        assert_eq!(result, InteractionResult::Pass);
+
+        // No held item, block passes → PASS.
         let empty_ctx = BlockUseContext {
             held_item_id: None,
+            has_item_in_hands: false,
             sneaking: false,
             ..ctx.clone()
         };
-        let result =
-            dispatch_block_use(&empty_ctx, |_| InteractionResult::Pass, |_| unreachable!());
+        let result = dispatch_block_use(
+            &empty_ctx,
+            |_| InteractionResult::Pass,
+            no_without_item,
+            |_| unreachable!(),
+        );
         assert_eq!(result, InteractionResult::Pass);
     }
 
