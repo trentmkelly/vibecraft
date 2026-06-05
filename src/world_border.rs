@@ -355,11 +355,15 @@ fn lerp(progress: f64, from: f64, to: f64) -> f64 {
 
 /// Returns true if the warning overlay should be shown for a player at the given position.
 ///
-/// Source: `WorldBorder.isWithinWarningDistance()` and `WorldBorder.isWithinWarningTime()`.
-/// The warning triggers if:
-/// - The player is closer to the border than `warning_blocks` (distance-based), OR
-/// - The lerp speed is non-zero and time-to-reach-border < `warning_time` seconds
-///   (time-based, for shrinking borders)
+/// TODO(world-border-warning, GAMEPLAY #106): this is a best-effort server-side
+/// reconstruction of a CLIENT-ONLY decision. The server `WorldBorder.java` stores and
+/// syncs only `warningBlocks`/`warningTime` (+ `getDistanceToBorder`/`getLerpSpeed`); the
+/// actual overlay trigger lives in the client renderer (`isWithinWarningDistance()` /
+/// `isWithinWarningTime()` are not present in the server decompile), so this cannot be
+/// confirmed 1:1 against the authoritative (server) source. It mirrors the well-known
+/// client behaviour — warn when within `warning_blocks` of the border, or when a
+/// shrinking border will reach the player within `warning_time` seconds — and should be
+/// re-validated against a client reference before #106 is closed.
 pub fn should_show_warning(border: &WorldBorder, x: f64, z: f64) -> bool {
     let dist = border.distance_to_border(x, z);
     if dist < f64::from(border.warning_blocks) {
