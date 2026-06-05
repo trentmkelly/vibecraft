@@ -221,6 +221,12 @@ const E_VANISHING: &[&str] = &[
     "minecraft:carved_pumpkin",
     "#minecraft:skulls",
 ];
+const TRIMMABLE_ARMOR: &[&str] = &[
+    "#minecraft:foot_armor",
+    "#minecraft:leg_armor",
+    "#minecraft:chest_armor",
+    "#minecraft:head_armor",
+];
 
 /// Resolve a tag id (without the leading `#`) to its declared values, or `None` if the
 /// tag is not modelled here.
@@ -275,6 +281,7 @@ fn tag_values(tag: &str) -> Option<&'static [&'static str]> {
         "enchantable/durability" => E_DURABILITY,
         "enchantable/equippable" => E_EQUIPPABLE,
         "enchantable/vanishing" => E_VANISHING,
+        "trimmable_armor" => TRIMMABLE_ARMOR,
         _ => return None,
     })
 }

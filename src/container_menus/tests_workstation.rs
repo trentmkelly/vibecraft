@@ -296,3 +296,53 @@ fn enchantment_menu_slots_changed_and_enchant_action_match_java() {
     assert_eq!(menu.click_button(2, 0, false), EnchantOutcome::Rejected);
     assert_eq!(menu.click_button(2, 0, true), EnchantOutcome::Enchanted { xp_levels: 3 });
 }
+
+#[test]
+fn smithing_menu_transform_and_trim_match_java() {
+    use crate::item_properties::ItemComponent;
+    let mut player = PlayerInventory::new();
+
+    // --- Netherite-upgrade transform (keeps the base's components). ---
+    let mut menu = SmithingMenu::new();
+    menu.set_slot(0, ItemStack::new("minecraft:netherite_upgrade_smithing_template", 1), &mut player);
+    menu.set_slot(1, ItemStack::new("minecraft:diamond_chestplate", 1), &mut player);
+    menu.set_slot(2, ItemStack::new("minecraft:netherite_ingot", 1), &mut player);
+    let r = menu.get_slot(3, &player).unwrap();
+    assert_eq!(r.item_id(), "minecraft:netherite_chestplate");
+    assert_eq!(r.count(), 1);
+
+    // Wrong addition (not a netherite ingot) -> no transform.
+    let mut menu = SmithingMenu::new();
+    menu.set_slot(0, ItemStack::new("minecraft:netherite_upgrade_smithing_template", 1), &mut player);
+    menu.set_slot(1, ItemStack::new("minecraft:diamond_chestplate", 1), &mut player);
+    menu.set_slot(2, ItemStack::new("minecraft:iron_ingot", 1), &mut player);
+    assert!(menu.get_slot(3, &player).unwrap().is_empty());
+
+    // --- Armour trim: sentry template + trimmable armour + copper ingot -> TRIM. ---
+    let mut menu = SmithingMenu::new();
+    menu.set_slot(0, ItemStack::new("minecraft:sentry_armor_trim_smithing_template", 1), &mut player);
+    menu.set_slot(1, ItemStack::new("minecraft:diamond_chestplate", 1), &mut player);
+    menu.set_slot(2, ItemStack::new("minecraft:copper_ingot", 1), &mut player);
+    let r = menu.get_slot(3, &player).unwrap();
+    assert_eq!(r.item_id(), "minecraft:diamond_chestplate");
+    assert_eq!(
+        r.component("minecraft:trim"),
+        Some(&ItemComponent::ArmorTrim { material: "minecraft:copper", pattern: "minecraft:sentry" })
+    );
+
+    // A base that already carries that exact trim -> empty result.
+    let mut already = ItemStack::new("minecraft:diamond_chestplate", 1);
+    already.set_component(ItemComponent::ArmorTrim { material: "minecraft:copper", pattern: "minecraft:sentry" });
+    let mut menu = SmithingMenu::new();
+    menu.set_slot(0, ItemStack::new("minecraft:sentry_armor_trim_smithing_template", 1), &mut player);
+    menu.set_slot(1, already, &mut player);
+    menu.set_slot(2, ItemStack::new("minecraft:copper_ingot", 1), &mut player);
+    assert!(menu.get_slot(3, &player).unwrap().is_empty());
+
+    // A non-armour base for a trim template -> empty.
+    let mut menu = SmithingMenu::new();
+    menu.set_slot(0, ItemStack::new("minecraft:sentry_armor_trim_smithing_template", 1), &mut player);
+    menu.set_slot(1, ItemStack::new("minecraft:diamond_sword", 1), &mut player);
+    menu.set_slot(2, ItemStack::new("minecraft:copper_ingot", 1), &mut player);
+    assert!(menu.get_slot(3, &player).unwrap().is_empty());
+}

@@ -308,9 +308,24 @@ impl SmithingMenu {
             1 => self.base = stack,
             2 => self.addition = stack,
             3 => return false,
-            _ => write_player_slot(slot, Self::INV_START, player, stack),
+            _ => {
+                write_player_slot(slot, Self::INV_START, player, stack);
+                return true;
+            }
         }
+        // An input slot changed: recompute the smithing result (createResult).
+        self.update_result();
         true
+    }
+
+    /// `SmithingMenu.createResult`: recompute the result from the template/base/addition
+    /// inputs (netherite transform or armour trim). See `smithing_create_result`.
+    pub fn update_result(&mut self) {
+        self.result = smithing_create_result(&self.template, &self.base, &self.addition);
+        self.has_recipe_error = !self.base.is_empty()
+            && !self.addition.is_empty()
+            && !self.template.is_empty()
+            && self.result.is_empty();
     }
 
     pub fn may_place(&self, slot: usize, _stack: &ItemStack) -> bool {

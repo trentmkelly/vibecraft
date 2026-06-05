@@ -97,6 +97,11 @@ pub enum ItemComponent {
     StoredEnchantments(BTreeMap<String, i32>),
     /// `minecraft:repair_cost` — accumulated anvil prior-work penalty.
     RepairCost(i32),
+    /// `minecraft:trim` — an armour trim (`ArmorTrim`): the trim material + pattern ids.
+    ArmorTrim {
+        material: &'static str,
+        pattern: &'static str,
+    },
     WritableBookContent(Vec<String>),
     WrittenBookContent {
         title: String,
@@ -282,6 +287,7 @@ impl ItemDefinition {
                 | ItemComponent::Enchantments(_)
                 | ItemComponent::StoredEnchantments(_)
                 | ItemComponent::RepairCost(_)
+                | ItemComponent::ArmorTrim { .. }
                 | ItemComponent::WritableBookContent(_)
                 | ItemComponent::WrittenBookContent { .. }
                 | ItemComponent::Custom(_) => {}
@@ -320,6 +326,7 @@ impl ItemComponent {
             Self::Enchantments(_) => "minecraft:enchantments",
             Self::StoredEnchantments(_) => "minecraft:stored_enchantments",
             Self::RepairCost(_) => "minecraft:repair_cost",
+            Self::ArmorTrim { .. } => "minecraft:trim",
             Self::WritableBookContent(_) => "minecraft:writable_book_content",
             Self::WrittenBookContent { .. } => "minecraft:written_book_content",
             Self::Custom(name) => name,
