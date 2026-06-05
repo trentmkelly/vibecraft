@@ -210,6 +210,14 @@ impl LoomMenu {
     pub const HOTBAR_END: usize = 40;
     pub const SLOT_COUNT: usize = 40;
 
+    // TODO(loom-pattern-filtering, CONTAINERS #103): the slot layout/restrictions are
+    // done, but `getSelectablePatterns` + `slotsChanged` pattern selection + result
+    // assembly are not. They require banner-pattern data not yet modelled: the
+    // `BannerPatternTags.NO_ITEM_REQUIRED` tag (patterns selectable with an empty
+    // pattern slot) and the `PROVIDES_BANNER_PATTERNS` data component on each
+    // `*_banner_pattern` item (`BannerPatternDef` currently carries only id +
+    // translation key), plus `DataComponents.BANNER_PATTERNS` assembly on the result
+    // banner. Blocked on the banner-pattern registry/data-component subsystem.
     pub fn new() -> Self {
         Self {
             banner: ItemStack::empty(),
