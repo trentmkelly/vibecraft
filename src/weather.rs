@@ -353,8 +353,15 @@ fn lerp(delta: f32, from: f32, to: f32) -> f32 {
 
 /// Return the sky light reduction for the current weather state.
 ///
-/// Source: `ServerLevel.getSkyDarken()` — CLEAR=0, RAIN=5, THUNDER=5
-/// Effective sky light = 15 - sky_darken_amount.
+/// This is the pre-EnvironmentAttributes approximation (CLEAR=0, RAIN/THUNDER=5).
+///
+/// TODO(26.1.2 parity): vanilla no longer uses a flat −5. `Level.tickTime`
+/// computes `skyDarken = (int)(15 - EnvironmentAttributes.SKY_LIGHT_LEVEL)`,
+/// where `WeatherAttributes` modifies `SKY_LIGHT_LEVEL` by alpha-blending it
+/// toward 4.0 (rain alpha 0.3125, thunder alpha 0.52734375) scaled by the
+/// current rain/thunder levels. A faithful port needs the EnvironmentAttributes
+/// / FloatModifier (ALPHA_BLEND) system; until then this returns the legacy
+/// approximation and `effective_sky_light` is not 1:1 with 26.1.2.
 pub fn sky_darken_amount(raining: bool, thundering: bool) -> i32 {
     if raining || thundering {
         5
