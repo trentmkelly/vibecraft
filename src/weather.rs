@@ -279,32 +279,77 @@ pub fn lightning_tick_roll(raining: bool, thundering: bool, random_next_100000: 
     raining && thundering && random_next_100000 == 0
 }
 
+/// What a lightning strike does to an entity it hits, per the entity's
+/// `thunderHit` override. The default (`Entity.thunderHit`) ignites the entity
+/// for 8 seconds and deals 5 lightning damage; specific entities override this.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LightningEntityEffect {
-    None,
+    /// `Entity.thunderHit`: ignite for 8s and take 5 lightning damage.
+    FireAndDamage,
+    /// `Pig.thunderHit`: convert to a zombified piglin (only when not peaceful).
     ConvertToZombifiedPiglin,
+    /// `Villager.thunderHit`: convert to a witch (only when not peaceful).
     ConvertToWitch,
+    /// `Creeper.thunderHit`: take fire+damage and become a charged creeper.
     ChargeCreeper,
+    /// `MushroomCow.thunderHit`: toggle RED/BROWN variant; no fire or damage.
+    ToggleMooshroomVariant,
+    /// `Turtle.thunderHit`: instantly killed by lightning damage; no ignite.
+    Killed,
+    /// `CopperGolem.thunderHit`: take fire+damage and de-oxidize one stage.
+    DeoxidizeCopperGolem,
+    /// `ArmorStand`/`BlockAttachedEntity.thunderHit`: a no-op — immune.
+    Immune,
 }
 
-pub fn lightning_entity_effect(entity_type: &str) -> LightningEntityEffect {
+/// 1:1 dispatch of `Entity.thunderHit` per entity type. `peaceful` is
+/// `level.getDifficulty() == PEACEFUL`, which gates the pig/villager
+/// conversions (they fall back to fire+damage on peaceful).
+pub fn lightning_entity_effect(entity_type: &str, peaceful: bool) -> LightningEntityEffect {
     match entity_type {
-        "minecraft:pig" => LightningEntityEffect::ConvertToZombifiedPiglin,
-        "minecraft:villager" => LightningEntityEffect::ConvertToWitch,
+        "minecraft:pig" if !peaceful => LightningEntityEffect::ConvertToZombifiedPiglin,
+        "minecraft:villager" if !peaceful => LightningEntityEffect::ConvertToWitch,
         "minecraft:creeper" => LightningEntityEffect::ChargeCreeper,
-        _ => LightningEntityEffect::None,
+        "minecraft:mooshroom" => LightningEntityEffect::ToggleMooshroomVariant,
+        "minecraft:turtle" => LightningEntityEffect::Killed,
+        "minecraft:copper_golem" => LightningEntityEffect::DeoxidizeCopperGolem,
+        // ArmorStand + BlockAttachedEntity subclasses (paintings, item frames,
+        // glow item frames, leash knots) override thunderHit to do nothing.
+        "minecraft:armor_stand"
+        | "minecraft:painting"
+        | "minecraft:item_frame"
+        | "minecraft:glow_item_frame"
+        | "minecraft:leash_knot" => LightningEntityEffect::Immune,
+        _ => LightningEntityEffect::FireAndDamage,
     }
 }
 
+/// Whether a (non-visual) lightning strike places a fire block at its strike
+/// position. Mirrors `LightningBolt.tick` + `spawnFire`: vanilla only calls
+/// `spawnFire(4)` when the difficulty is NORMAL or HARD, `spawnFire` requires
+/// `canSpreadFireAround` (the `doFireTick` game rule), and a fire block is only
+/// placed when the target position is air and the fire state can survive there.
 pub fn lightning_starts_fire(
     do_fire_tick: bool,
-    is_peaceful: bool,
+    difficulty_is_normal_or_hard: bool,
     target_block_is_air: bool,
-    random_next_3: i32,
+    fire_can_survive: bool,
 ) -> bool {
-    do_fire_tick && !is_peaceful && target_block_is_air && random_next_3 == 0
+    do_fire_tick && difficulty_is_normal_or_hard && target_block_is_air && fire_can_survive
 }
 
+/// Whether a Channeling trident's `post_attack` effect summons a lightning bolt
+/// on the entity it hit. This approximates the data-driven `channeling`
+/// enchantment's `post_attack` requirements: `weather_check{thundering:true}`,
+/// the projectile is a trident, and `location_check{can_see_sky:true}` at the
+/// victim.
+///
+/// TODO(26.1.2 parity): in 26.1.2 Channeling is fully data-driven via
+/// enchantment effect components (`minecraft:summon_entity` under `hit_block`
+/// and `post_attack` triggers with loot-condition requirements). This boolean
+/// only models the `post_attack` (hit-an-entity) path; the `hit_block`
+/// (lightning-rod) trigger and the general effect-component dispatch need the
+/// data-driven enchantment-effect system.
 pub fn channeling_trident_summons_lightning(
     has_channeling: bool,
     thundering: bool,
@@ -652,28 +697,77 @@ mod tests {
 
     #[test]
     fn lightning_entity_fire_and_channeling_effects_match_vanilla_cases() {
+        // Pig/villager convert only when not peaceful; on peaceful they take
+        // the default fire+damage.
         assert_eq!(
-            lightning_entity_effect("minecraft:pig"),
+            lightning_entity_effect("minecraft:pig", false),
             LightningEntityEffect::ConvertToZombifiedPiglin
         );
         assert_eq!(
-            lightning_entity_effect("minecraft:villager"),
+            lightning_entity_effect("minecraft:pig", true),
+            LightningEntityEffect::FireAndDamage
+        );
+        assert_eq!(
+            lightning_entity_effect("minecraft:villager", false),
             LightningEntityEffect::ConvertToWitch
         );
         assert_eq!(
-            lightning_entity_effect("minecraft:creeper"),
+            lightning_entity_effect("minecraft:villager", true),
+            LightningEntityEffect::FireAndDamage
+        );
+        // Creeper, mooshroom, turtle, and copper golem each have their own
+        // override; difficulty does not matter for them.
+        assert_eq!(
+            lightning_entity_effect("minecraft:creeper", false),
             LightningEntityEffect::ChargeCreeper
         );
         assert_eq!(
-            lightning_entity_effect("minecraft:cow"),
-            LightningEntityEffect::None
+            lightning_entity_effect("minecraft:mooshroom", false),
+            LightningEntityEffect::ToggleMooshroomVariant
+        );
+        assert_eq!(
+            lightning_entity_effect("minecraft:turtle", false),
+            LightningEntityEffect::Killed
+        );
+        assert_eq!(
+            lightning_entity_effect("minecraft:copper_golem", false),
+            LightningEntityEffect::DeoxidizeCopperGolem
+        );
+        // Armor stands, paintings, item frames, and leash knots are immune.
+        for immune in [
+            "minecraft:armor_stand",
+            "minecraft:painting",
+            "minecraft:item_frame",
+            "minecraft:glow_item_frame",
+            "minecraft:leash_knot",
+        ] {
+            assert_eq!(
+                lightning_entity_effect(immune, false),
+                LightningEntityEffect::Immune,
+                "{immune}"
+            );
+        }
+        // Any other entity takes the default fire (8s) + 5 lightning damage.
+        assert_eq!(
+            lightning_entity_effect("minecraft:cow", false),
+            LightningEntityEffect::FireAndDamage
+        );
+        assert_eq!(
+            lightning_entity_effect("minecraft:zombie", true),
+            LightningEntityEffect::FireAndDamage
         );
 
-        assert!(lightning_starts_fire(true, false, true, 0));
-        assert!(!lightning_starts_fire(false, false, true, 0));
-        assert!(!lightning_starts_fire(true, true, true, 0));
-        assert!(!lightning_starts_fire(true, false, false, 0));
-        assert!(!lightning_starts_fire(true, false, true, 1));
+        // Fire on a normal/hard difficulty with doFireTick, into air the fire
+        // can survive in.
+        assert!(lightning_starts_fire(true, true, true, true));
+        // No doFireTick game rule → no fire.
+        assert!(!lightning_starts_fire(false, true, true, true));
+        // Peaceful/easy difficulty → vanilla never calls spawnFire.
+        assert!(!lightning_starts_fire(true, false, true, true));
+        // Target is not air → nothing placed.
+        assert!(!lightning_starts_fire(true, true, false, true));
+        // Fire state cannot survive at the position → nothing placed.
+        assert!(!lightning_starts_fire(true, true, true, false));
 
         assert!(channeling_trident_summons_lightning(true, true, true, true));
         assert!(!channeling_trident_summons_lightning(
