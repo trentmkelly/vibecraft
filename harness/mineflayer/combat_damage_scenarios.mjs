@@ -63,9 +63,13 @@ export function recordCombatEvent(session, action, details = {}) {
   return { action, ...details }
 }
 
-// Fall damage formula: max(0, ceil(fallDistance - 3)) * 1.0 HP (no multiplier in 1.21)
-export function computeExpectedFallDamage(fallDistance) {
-  return Math.max(0, Math.ceil(fallDistance - 3))
+// Fall damage formula (LivingEntity.calculateFallDamage / calculateFallPower, 26.1.2):
+//   floor((fallDistance + 1e-6 - SAFE_FALL_DISTANCE) * damageModifier * FALL_DAMAGE_MULTIPLIER)
+// SAFE_FALL_DISTANCE defaults to 3.0 and FALL_DAMAGE_MULTIPLIER to 1.0; the result is
+// only applied when > 0. Vanilla floors (not ceils), and adds a 1e-6 epsilon.
+export function computeExpectedFallDamage(fallDistance, safeFallDistance = 3.0, damageMultiplier = 1.0) {
+  const power = fallDistance + 1e-6 - safeFallDistance
+  return Math.max(0, Math.floor(power * damageMultiplier))
 }
 
 // Armor mitigation formula: max(0, ceil(armor * 0.04 * rawDamage)) as percentage

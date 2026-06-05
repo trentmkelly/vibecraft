@@ -41,12 +41,14 @@ test('summarizeWorldBorderScenarios fails with empty timeline', () => {
   assert.equal(summarizeWorldBorderScenarios({ timeline: [] }, plan).ok, false)
 })
 
-test('computeBorderDamage is 0.2 per block outside buffer', () => {
-  // Parity test: rate is 0.2 * distance outside buffer
-  assert.equal(computeBorderDamage(0), 0)      // at buffer edge
-  assert.equal(computeBorderDamage(1), 0.2)    // 1 block outside
-  assert.equal(computeBorderDamage(5), 1.0)    // 5 blocks outside
-  assert.equal(computeBorderDamage(-1), 0)     // inside buffer → 0
+test('computeBorderDamage is max(1, floor(distance * damagePerBlock))', () => {
+  // Parity: vanilla floors the product and enforces a 1 HP minimum per tick.
+  assert.equal(computeBorderDamage(0), 0)      // at buffer edge -> no damage
+  assert.equal(computeBorderDamage(1), 1)      // 1 block outside -> max(1, floor(0.2))=1
+  assert.equal(computeBorderDamage(5), 1)      // floor(1.0)=1
+  assert.equal(computeBorderDamage(10), 2)     // floor(2.0)=2
+  assert.equal(computeBorderDamage(-1), 0)     // inside buffer -> 0
+  assert.equal(computeBorderDamage(10, 0), 0)  // damagePerBlock 0 -> no damage
 })
 
 test('planBorderInit records size and center', () => {

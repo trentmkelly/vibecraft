@@ -44,12 +44,13 @@ test('summarizeCombatDamageScenarios fails with empty timeline', () => {
   assert.equal(summarizeCombatDamageScenarios({ timeline: [] }, plan).ok, false)
 })
 
-test('computeExpectedFallDamage matches vanilla formula max(0, ceil(dist-3))', () => {
-  assert.equal(computeExpectedFallDamage(3), 0)   // safe distance
-  assert.equal(computeExpectedFallDamage(3.1), 1) // just past safe
-  assert.equal(computeExpectedFallDamage(4), 1)
-  assert.equal(computeExpectedFallDamage(7), 4)
-  assert.equal(computeExpectedFallDamage(0), 0)
+test('computeExpectedFallDamage matches vanilla floor((dist+1e-6-3)*mult)', () => {
+  assert.equal(computeExpectedFallDamage(3), 0)   // safe distance -> floor(1e-6)=0
+  assert.equal(computeExpectedFallDamage(3.5), 0) // fractional below 4 -> floor(0.5)=0
+  assert.equal(computeExpectedFallDamage(4), 1)   // floor(1.000001)=1
+  assert.equal(computeExpectedFallDamage(4.9), 1) // floor(1.900001)=1 (floors, not ceils)
+  assert.equal(computeExpectedFallDamage(7), 4)   // floor(4.000001)=4
+  assert.equal(computeExpectedFallDamage(0), 0)   // clamped to >=0
 })
 
 test('computeArmorMitigation reduces damage per armor formula', () => {

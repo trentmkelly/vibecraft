@@ -83,6 +83,32 @@ test('assertSpawnProtection models protected radius and operator bypass', () => 
     opLevel: 4,
     denied: false
   }).ok, true)
+  // Any op (op-list membership, level >= 1) bypasses spawn protection in vanilla.
+  assert.equal(assertSpawnProtection(session, {
+    position: { x: 4, z: 4 },
+    spawn: { x: 0, z: 0 },
+    protectedRadius: 16,
+    opLevel: 1,
+    denied: false
+  }).ok, true)
+  // Chebyshev metric: the corner (16,16) is dist max(16,16)=16 <= radius and so is
+  // protected, even though its Euclidean distance (~22.6) exceeds the radius. A
+  // Euclidean impl would wrongly allow building there.
+  assert.equal(assertSpawnProtection(session, {
+    position: { x: 16, z: 16 },
+    spawn: { x: 0, z: 0 },
+    protectedRadius: 16,
+    opLevel: 0,
+    denied: true
+  }).ok, true)
+  // Just past the radius on an axis (17,0) is unprotected.
+  assert.equal(assertSpawnProtection(session, {
+    position: { x: 17, z: 0 },
+    spawn: { x: 0, z: 0 },
+    protectedRadius: 16,
+    opLevel: 0,
+    denied: false
+  }).ok, true)
 })
 
 test('waitForBlockUpdate verifies client-visible block update events', async () => {

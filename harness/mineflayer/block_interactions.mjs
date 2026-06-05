@@ -55,10 +55,14 @@ export async function expectDeniedInteraction(session, action, options = {}) {
 }
 
 export function assertSpawnProtection(session, attempted = {}) {
-  const distance = horizontalDistance(attempted.position ?? { x: 0, z: 0 }, attempted.spawn ?? { x: 0, z: 0 })
+  // DedicatedServer.isUnderSpawnProtection (26.1.2): Chebyshev distance
+  // max(|dx|, |dz|) from the respawn pos compared against the radius, NOT a
+  // Euclidean distance. Any op (op-list membership, i.e. opLevel >= 1) bypasses,
+  // and a radius <= 0 disables protection entirely.
+  const distance = chebyshevDistance(attempted.position ?? { x: 0, z: 0 }, attempted.spawn ?? { x: 0, z: 0 })
   const protectedRadius = attempted.protectedRadius ?? 16
   const opLevel = attempted.opLevel ?? 0
-  const expectedDenied = distance <= protectedRadius && opLevel < 4
+  const expectedDenied = protectedRadius > 0 && distance <= protectedRadius && opLevel < 1
   return recordBlockEvent(session, 'block.spawn_protection', {
     ok: expectedDenied === Boolean(attempted.denied),
     expectedDenied,
@@ -148,10 +152,10 @@ function samePos(left, right) {
   return left?.x === right?.x && left?.y === right?.y && left?.z === right?.z
 }
 
-function horizontalDistance(left, right) {
-  const dx = (left.x ?? 0) - (right.x ?? 0)
-  const dz = (left.z ?? 0) - (right.z ?? 0)
-  return Math.sqrt(dx * dx + dz * dz)
+function chebyshevDistance(left, right) {
+  const dx = Math.abs((left.x ?? 0) - (right.x ?? 0))
+  const dz = Math.abs((left.z ?? 0) - (right.z ?? 0))
+  return Math.max(dx, dz)
 }
 
 function normalizeError(error) {

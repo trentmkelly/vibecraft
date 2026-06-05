@@ -57,9 +57,14 @@ export function recordBorderEvent(session, action, details = {}) {
   return { action, ...details }
 }
 
-// Border damage formula: 0.2 * max(0, distance_outside_buffer)
-export function computeBorderDamage(distanceOutsideBuffer) {
-  return 0.2 * Math.max(0, distanceOutsideBuffer)
+// Border damage (LivingEntity.tick / WorldBorder, 26.1.2): when the entity is
+// outside the safe zone (dist + safeZone < 0, here distanceOutsideBuffer = -dist),
+// the applied damage is max(1, floor(distanceOutside * damagePerBlock)) and 0 when
+// inside. Vanilla floors the product and enforces a minimum of 1 HP per tick; it is
+// NOT a raw 0.2*distance float. damagePerBlock defaults to 0.2.
+export function computeBorderDamage(distanceOutsideBuffer, damagePerBlock = 0.2) {
+  if (distanceOutsideBuffer <= 0 || damagePerBlock <= 0) return 0
+  return Math.max(1, Math.floor(distanceOutsideBuffer * damagePerBlock))
 }
 
 export function planBorderInit(expectedSize, expectedCenterX, expectedCenterZ) {
@@ -94,7 +99,7 @@ export function planBorderDamage(bufferBlocks, damagePerBlock, testDistanceOutsi
     bufferBlocks,
     damagePerBlock,
     testDistanceOutside,
-    expectedDamage: computeBorderDamage(testDistanceOutside)
+    expectedDamage: computeBorderDamage(testDistanceOutside, damagePerBlock)
   }
 }
 
