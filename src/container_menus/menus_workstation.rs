@@ -135,14 +135,19 @@ impl AnvilMenu {
     /// set, this produces a renamed copy with `cost = RENAME = 1`.
     ///
     /// TODO(anvil-combine, CONTAINERS #95): the repair (material + durability) and
-    /// enchantment-combine paths of `createResult` are not yet implemented. The
-    /// enchantment DATA is now available (`ItemComponent::Enchantments`/
-    /// `StoredEnchantments`/`RepairCost`, `min_cost_for`, `anvil_cost` on
-    /// `EnchantmentDef`), but the enchant-combine compatibility gate
-    /// `Enchantment.canEnchant(input)` requires resolving the item-enchantable-tag
-    /// hierarchy (e.g. `#minecraft:enchantable/sword` → base item tags → items),
-    /// which is not yet modelled. Blocked on the item-tag membership subsystem;
-    /// until then the merge/repair branches fall through to an empty result.
+    /// enchantment-combine paths of `createResult` are not yet implemented. Most
+    /// prerequisites are now in place: `ItemComponent::Enchantments`/
+    /// `StoredEnchantments`/`RepairCost`, `anvil_cost` on `EnchantmentDef`,
+    /// `calculate_increased_repair_cost`, `enchantment_system::can_enchant`
+    /// (= `Enchantment.canEnchant`) + `are_compatible`. Two small foundations remain
+    /// before the 130-line algorithm can be ported 1:1: (1) `canStoreEnchantments`
+    /// (vanilla treats any item with a default ENCHANTMENTS component as storable;
+    /// RustCraft only attaches the component when enchanted, so this needs an
+    /// "is-enchantable item" predicate — `Enchantable` component or `enchanted_book`);
+    /// (2) `ItemStack.isValidRepairItem`, whose `Repairable` value is a tag (e.g.
+    /// `#minecraft:diamond_tool_materials`), so the repair-material tags must be added
+    /// to `item_tags`. Until then the merge/repair branches fall through to an empty
+    /// result.
     pub fn set_result_from_inputs(&mut self) {
         self.cost = 1;
         self.only_renaming = false;
