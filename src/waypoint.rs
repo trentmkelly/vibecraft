@@ -199,11 +199,10 @@ impl WaypointManager {
             let key = (receiver.id.clone(), source.id.clone());
             if let Some(connection) = self.connections.get(&key).cloned() {
                 if connection_is_broken(&connection, receiver, source, locator_bar_enabled) {
-                    self.connections.remove(&key);
-                    packets.push(WaypointPacket::Untrack {
-                        receiver: receiver.id.clone(),
-                        source: source.id.clone(),
-                    });
+                    // updateConnection: re-make the connection. createConnection
+                    // sends the new ADD when a connection forms (replacing the
+                    // old in-place) or a single remove when none does — vanilla
+                    // does NOT send a separate untrack before the new ADD.
                     packets.extend(self.create_connection(receiver, source, locator_bar_enabled));
                 } else if connection_changed(&connection, receiver, source) {
                     let next = active_connection(receiver, source, connection.kind);
@@ -539,11 +538,32 @@ mod tests {
             }]
         ));
 
+        // Moving > 1 block breaks the block connection; vanilla re-makes it
+        // (createConnection → the new connection's ADD) without a separate
+        // untrack, so a single Track is emitted (still a Block connection here).
         source.x = 19.0;
         entities.insert(source.id.clone(), source.clone());
         let packets = manager.update_waypoint(&source, &entities, true);
-        assert!(matches!(packets[0], WaypointPacket::Untrack { .. }));
-        assert!(matches!(packets[1], WaypointPacket::Track { .. }));
+        assert!(matches!(
+            packets.as_slice(),
+            [WaypointPacket::Track {
+                kind: WaypointConnectionKind::Block,
+                ..
+            }]
+        ));
+
+        // Moving really far (> 332) breaks the block connection and re-makes it
+        // as an azimuth connection — still a single Track.
+        source.x = 500.0;
+        entities.insert(source.id.clone(), source.clone());
+        let far = manager.update_waypoint(&source, &entities, true);
+        assert!(matches!(
+            far.as_slice(),
+            [WaypointPacket::Track {
+                kind: WaypointConnectionKind::Azimuth,
+                ..
+            }]
+        ));
 
         assert_eq!(manager.break_all_connections().len(), 1);
         assert!(manager.break_all_connections().is_empty());
