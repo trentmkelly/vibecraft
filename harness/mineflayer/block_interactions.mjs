@@ -158,6 +158,31 @@ function chebyshevDistance(left, right) {
   return Math.max(dx, dz)
 }
 
+// Block reach enforcement (Player.canInteractWithBlock, 26.1.2):
+//   maxRange = blockInteractionRange() + buffer ; reachable iff
+//   new AABB(pos).distanceToSqr(eyePos) < maxRange*maxRange
+// DEFAULT_BLOCK_INTERACTION_RANGE = 4.5 (BLOCK_INTERACTION_RANGE attribute base),
+// and the server packet handler validates with a 1.0 padding -> effective 5.5.
+// Creative does NOT extend block reach (only entity-attack reach differs); both
+// modes use the same 4.5 attribute server-side. The item's "5.0" is outdated.
+export const DEFAULT_BLOCK_INTERACTION_RANGE = 4.5
+export const SERVER_REACH_BUFFER = 1.0
+
+// AABB.distanceToSqr for a unit block [pos, pos+1]: per-axis clamp of the eye
+// point outside the box, summed squares (mirrors block_aabb_distance_sq).
+export function blockAabbDistanceSq(blockPos, eyePos) {
+  const axis = (p, e) => Math.max(p - e, e - (p + 1), 0)
+  const dx = axis(blockPos.x ?? 0, eyePos.x ?? 0)
+  const dy = axis(blockPos.y ?? 0, eyePos.y ?? 0)
+  const dz = axis(blockPos.z ?? 0, eyePos.z ?? 0)
+  return dx * dx + dy * dy + dz * dz
+}
+
+export function isWithinBlockReach(eyePos, blockPos, interactionRange = DEFAULT_BLOCK_INTERACTION_RANGE) {
+  const maxRange = interactionRange + SERVER_REACH_BUFFER
+  return blockAabbDistanceSq(blockPos, eyePos) < maxRange * maxRange
+}
+
 function normalizeError(error) {
   if (!error) return null
   return error.code ?? error.message ?? String(error)

@@ -3,13 +3,29 @@ import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
 import {
   assertSpawnProtection,
+  blockAabbDistanceSq,
   createBlockInteractionScenarioPlan,
+  DEFAULT_BLOCK_INTERACTION_RANGE,
   digBlock,
   expectDeniedInteraction,
+  isWithinBlockReach,
   placeBlock,
   useBlock,
   waitForBlockUpdate
 } from './block_interactions.mjs'
+
+test('block reach mirrors Player.canInteractWithBlock (4.5 range + 1.0 buffer)', () => {
+  assert.equal(DEFAULT_BLOCK_INTERACTION_RANGE, 4.5)
+  const eye = { x: 0.5, y: 0.5, z: 0.5 }
+  // AABB distanceToSqr for a unit block, clamped per-axis.
+  assert.equal(blockAabbDistanceSq({ x: 5, y: 0, z: 0 }, eye), 20.25) // dx=4.5
+  assert.equal(blockAabbDistanceSq({ x: 0, y: 0, z: 0 }, eye), 0)     // eye inside block
+  // Effective max range 5.5 -> reachable iff distSq < 30.25.
+  assert.equal(isWithinBlockReach(eye, { x: 5, y: 0, z: 0 }), true)   // distSq 20.25
+  assert.equal(isWithinBlockReach(eye, { x: 6, y: 0, z: 0 }), false)  // distSq 30.25, not < 30.25
+  // Creative uses the same server-side block range (no extension).
+  assert.equal(isWithinBlockReach(eye, { x: 6, y: 0, z: 0 }, DEFAULT_BLOCK_INTERACTION_RANGE), false)
+})
 
 test('digBlock uses Mineflayer dig and records the target block', async () => {
   const session = fakeSession()
