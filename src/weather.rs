@@ -434,29 +434,19 @@ pub enum SunburnableMobKind {
     Bogged,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RainMobBehavior {
-    None,
-    DrownedRangedAttackEnabled,
-    PillagerPatrolAllowed,
-}
-
-// TODO(26.1.2 parity): this models speculative rain-gated behaviors that do not
-// correspond to vanilla mechanics. The real drowned weather behavior is
-// `Drowned.DrownedGoToWaterGoal.canUse`, which returns to water only when
-// `level.isBrightOutside()` (suppressed at night AND during rain) — not a
-// "ranged attack enabled" toggle. PatrollingMonster patrols are not rain-gated
-// at all. A faithful port needs the `isBrightOutside`/go-to-water goal modelled
-// against the AI/goal subsystem; this helper should be reworked accordingly.
-pub fn rain_mob_behavior(entity_type: &str, raining: bool, can_see_sky: bool) -> RainMobBehavior {
-    if !raining || !can_see_sky {
-        return RainMobBehavior::None;
-    }
-    match entity_type {
-        "minecraft:drowned" => RainMobBehavior::DrownedRangedAttackEnabled,
-        "minecraft:pillager" => RainMobBehavior::PillagerPatrolAllowed,
-        _ => RainMobBehavior::None,
-    }
+/// 1:1 with `Drowned.DrownedGoToWaterGoal.canUse`: a drowned heads back toward
+/// water only when it is bright outside, it is not already in water, and a water
+/// position is reachable. `is_bright_outside` is `Level.isBrightOutside`
+/// (`!dimensionType().hasFixedTime() && skyDarken < 4`), which goes false during
+/// rain/thunder (the sky darkens) and at night — so a drowned stops fleeing to
+/// water and roams on land in the rain. Pillagers and other `PatrollingMonster`s
+/// have no rain-gated behaviour in vanilla.
+pub fn drowned_goes_to_water(
+    is_bright_outside: bool,
+    is_in_water: bool,
+    water_pos_available: bool,
+) -> bool {
+    is_bright_outside && !is_in_water && water_pos_available
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -945,22 +935,14 @@ mod tests {
     }
 
     #[test]
-    fn rain_mob_behavior_covers_drowned_and_pillager_weather_cases() {
-        assert_eq!(
-            rain_mob_behavior("minecraft:drowned", true, true),
-            RainMobBehavior::DrownedRangedAttackEnabled
-        );
-        assert_eq!(
-            rain_mob_behavior("minecraft:pillager", true, true),
-            RainMobBehavior::PillagerPatrolAllowed
-        );
-        assert_eq!(
-            rain_mob_behavior("minecraft:drowned", false, true),
-            RainMobBehavior::None
-        );
-        assert_eq!(
-            rain_mob_behavior("minecraft:pillager", true, false),
-            RainMobBehavior::None
-        );
+    fn drowned_go_to_water_goal_matches_is_bright_outside_gate() {
+        // Bright outside, on land, water reachable → seek water.
+        assert!(drowned_goes_to_water(true, false, true));
+        // Rain/thunder/night make isBrightOutside false → drowned roam on land.
+        assert!(!drowned_goes_to_water(false, false, true));
+        // Already in the water → the goal doesn't run.
+        assert!(!drowned_goes_to_water(true, true, true));
+        // No reachable water position → nothing to do.
+        assert!(!drowned_goes_to_water(true, false, false));
     }
 }
