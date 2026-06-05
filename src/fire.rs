@@ -179,14 +179,13 @@ pub fn blast_resistance(state: &BlockStateModel) -> f32 {
         })
 }
 
-// TODO(26.1.2 parity): ServerExplosion.calculateExplodedPositions ray-marches
-// from the center in 0.3 steps with a per-ray random intensity
-// `power * (0.7 + random.nextFloat() * 0.6)`, decrementing by 0.225 per step AND
-// by `(resistance + 0.3) * 0.3` for EACH block the ray passes through
-// (cumulative). This per-block helper uses `initial_power` directly (no random
-// intensity) and only subtracts the current block's resistance, so it is an
-// approximation; a faithful port needs the full ray-march with cumulative
-// resistance and the RNG-seeded intensity.
+// TODO(26.1.2 parity): the faithful `ServerExplosion.calculateExplodedPositions`
+// ray-march (per-ray RNG intensity + cumulative resistance) now lives in
+// `game_event::calculate_exploded_positions`. This per-block helper is the
+// legacy candidate approximation (uses `initial_power` directly, only subtracts
+// the current block's resistance); `plan_server_explosion` should be rewired to
+// take the destroyed-position set from `calculate_exploded_positions` instead of
+// re-deriving destruction here.
 pub fn explosion_affects_block(input: ExplosionInput, initial_power: f32) -> ExplosionBlockResult {
     let resistance = blast_resistance(&input.block);
     let remaining_power =

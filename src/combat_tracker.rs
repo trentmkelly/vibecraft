@@ -459,6 +459,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn death_message_keys_match_vanilla_localization_for_all_sources() {
         let victim = TestNames::victim("Bob");
 

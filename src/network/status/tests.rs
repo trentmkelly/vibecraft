@@ -621,7 +621,8 @@ pub fn trim_material_registry_payload_includes_redstone_component_data() {
 pub fn trim_material_registry_payloads_match_vanilla_colors_and_overrides() {
     // (id, description color as serialized by TextColor #%06X, override_armor_assets)
     // Values from data/minecraft/trim_material/*.json and MaterialAssetGroup.
-    let expected: &[(&str, &str, &[(&str, &str)])] = &[
+    type TrimExpectation = (&'static str, &'static str, &'static [(&'static str, &'static str)]);
+    let expected: &[TrimExpectation] = &[
         ("quartz", "#E3D4C4", &[]),
         ("iron", "#ECECEC", &[("minecraft:iron", "iron_darker")]),
         (

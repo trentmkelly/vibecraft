@@ -560,6 +560,79 @@ pub fn explosion_ray_directions() -> Vec<(f64, f64, f64)> {
     directions
 }
 
+/// 1:1 port of `ServerExplosion.calculateExplodedPositions`: ray-marches from
+/// `center` for every boundary cell of the 16³ grid (the rays are NOT
+/// deduplicated — each boundary cell gets its own random intensity). The world
+/// is queried through the closures:
+/// - `ray_random`: `random.nextFloat()` for ray `i` (cells in `xx`-outer,
+///   `yy`, `zz`-inner order, only those on the grid boundary);
+/// - `in_world_bounds`: `Level.isInWorldBounds(pos)`;
+/// - `resistance_at`: `getBlockExplosionResistance` — `None` for an air block
+///   with no fluid, else `max(block, fluid)` explosion resistance;
+/// - `should_explode`: `DamageCalculator.shouldBlockExplode(pos, intensity)`.
+///
+/// Each ray starts at `radius * (0.7 + random * 0.6)` intensity and steps 0.3
+/// blocks, subtracting `(resistance + 0.3) * 0.3` for each resisting block it
+/// crosses and `0.22500001` per step, adding positions while the intensity stays
+/// positive. Returns the destroyed positions.
+pub fn calculate_exploded_positions(
+    center: Vec3,
+    radius: f32,
+    mut ray_random: impl FnMut(usize) -> f32,
+    in_world_bounds: impl Fn(BlockPos) -> bool,
+    resistance_at: impl Fn(BlockPos) -> Option<f32>,
+    should_explode: impl Fn(BlockPos, f32) -> bool,
+) -> BTreeSet<(i32, i32, i32)> {
+    let mut to_blow = BTreeSet::new();
+    let mut ray_index = 0usize;
+    let last = EXPLOSION_GRID_SIZE - 1;
+    for xx in 0..EXPLOSION_GRID_SIZE {
+        for yy in 0..EXPLOSION_GRID_SIZE {
+            for zz in 0..EXPLOSION_GRID_SIZE {
+                let on_boundary =
+                    xx == 0 || xx == last || yy == 0 || yy == last || zz == 0 || zz == last;
+                if !on_boundary {
+                    continue;
+                }
+                let mut xd = f64::from(xx) / 15.0 * 2.0 - 1.0;
+                let mut yd = f64::from(yy) / 15.0 * 2.0 - 1.0;
+                let mut zd = f64::from(zz) / 15.0 * 2.0 - 1.0;
+                let len = (xd * xd + yd * yd + zd * zd).sqrt();
+                xd /= len;
+                yd /= len;
+                zd /= len;
+                let random = ray_random(ray_index);
+                ray_index += 1;
+                let mut remaining_power = radius * (0.7 + random * 0.6);
+                let mut xp = center.x;
+                let mut yp = center.y;
+                let mut zp = center.z;
+                while remaining_power > 0.0 {
+                    let pos = BlockPos {
+                        x: xp.floor() as i32,
+                        y: yp.floor() as i32,
+                        z: zp.floor() as i32,
+                    };
+                    if !in_world_bounds(pos) {
+                        break;
+                    }
+                    if let Some(resistance) = resistance_at(pos) {
+                        remaining_power -= (resistance + 0.3) * 0.3;
+                    }
+                    if remaining_power > 0.0 && should_explode(pos, remaining_power) {
+                        to_blow.insert((pos.x, pos.y, pos.z));
+                    }
+                    xp += xd * 0.3;
+                    yp += yd * 0.3;
+                    zp += zd * 0.3;
+                    remaining_power -= 0.225_000_01;
+                }
+            }
+        }
+    }
+    to_blow
+}
+
 fn distance_sqr(left: Vec3, right: Vec3) -> f64 {
     let dx = left.x - right.x;
     let dy = left.y - right.y;
@@ -586,7 +659,8 @@ fn scale_vec(vec: Vec3, scalar: f64) -> Vec3 {
 #[cfg(test)]
 mod tests {
     use super::{
-        builtin_game_events, dispatch_game_event, explosion_ray_directions, game_event_by_id,
+        builtin_game_events, calculate_exploded_positions, dispatch_game_event,
+        explosion_ray_directions, game_event_by_id,
         plan_server_explosion, ExplosionBlockCandidate, ExplosionEntityCandidate, GameEventContext,
         GameEventDeliveryMode, GameEventListener, ServerExplosionInput,
         DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS, EXPLOSION_GRID_SIZE, EXPLOSION_RAY_STEP,
@@ -699,6 +773,53 @@ mod tests {
             explosion_ray_directions().len(),
             total_boundary_cells as usize
         );
+    }
+
+    #[test]
+    fn calculate_exploded_positions_ray_marches_like_server_explosion() {
+        let center = Vec3 {
+            x: 0.5,
+            y: 0.5,
+            z: 0.5,
+        };
+
+        // All-air world, randoms 0 → each ray starts at radius*0.7 = 2.8 intensity.
+        let air = calculate_exploded_positions(
+            center,
+            4.0,
+            |_| 0.0,
+            |_| true,
+            |_| None,
+            |_, _| true,
+        );
+        // The origin block is always destroyed, and destruction is bounded by the
+        // intensity (≈ 2.8 / 0.225 ≈ 12 steps ≈ 3.7 blocks) — far blocks survive.
+        assert!(air.contains(&(0, 0, 0)));
+        assert!(!air.contains(&(10, 0, 0)));
+        assert!(!air.is_empty());
+
+        // A wall of very high resistance everywhere stops every ray at the first
+        // block (intensity drops below 0 before any position is added).
+        let walled = calculate_exploded_positions(
+            center,
+            4.0,
+            |_| 0.0,
+            |_| true,
+            |_| Some(100.0),
+            |_, _| true,
+        );
+        assert!(walled.is_empty());
+
+        // Leaving the world bounds immediately also destroys nothing.
+        let out_of_bounds = calculate_exploded_positions(
+            center,
+            4.0,
+            |_| 0.0,
+            |_| false,
+            |_| None,
+            |_, _| true,
+        );
+        assert!(out_of_bounds.is_empty());
     }
 
     #[test]
