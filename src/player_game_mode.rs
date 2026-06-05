@@ -159,22 +159,24 @@ pub fn handle_block_break_action(
 
             state.destroy_progress_start = state.game_ticks;
 
-            if ctx.block_is_air {
-                // Air has no progress; instant
+            // Java seeds progress at 1.0 and only recomputes it for non-air
+            // blocks (after firing the onHitBlock/attack hooks, which the caller
+            // applies as side effects here).
+            let progress = if ctx.block_is_air {
+                1.0
+            } else {
+                compute_destroy_progress(ctx.block_hardness, ctx.tool_speed, ctx.has_correct_tool)
+            };
+
+            // Insta-mine only applies to a non-air block at full progress; an
+            // air block instead "starts destroying" (reporting state 10 without
+            // being insta-broken), matching `handleBlockBreakAction`.
+            if !ctx.block_is_air && progress >= 1.0 {
                 return BlockBreakOutcome::InstantBreak;
             }
 
-            let progress =
-                compute_destroy_progress(ctx.block_hardness, ctx.tool_speed, ctx.has_correct_tool);
-
-            if progress >= 1.0 {
-                return BlockBreakOutcome::InstantBreak;
-            }
-
-            if state.is_destroying {
-                // Abort previous break silently
-            }
-
+            // If a previous break was in progress the caller resyncs that block;
+            // server-side we just retarget to the new position.
             state.is_destroying = true;
             state.destroy_pos = ctx.pos;
 
@@ -237,21 +239,28 @@ pub fn compute_destroy_progress(
     tool_speed / block_hardness / modifier
 }
 
-/// Compute the player's effective mining speed for a block.
+/// Compute the player's effective mining speed for a block, 1:1 with
+/// `Player.getDestroySpeed` in 26.1.2.
 ///
 /// # Parameters
-/// - `base_tool_speed`: raw speed from the item tier (1.0 = hand/wrong tool, 8.0 = diamond pick on stone)
+/// - `base_tool_speed`: raw speed from the selected item (1.0 = hand/wrong tool, 8.0 = diamond pick on stone)
 /// - `mining_efficiency`: value of the `minecraft:mining_efficiency` attribute (adds to speed when > 1.0)
-/// - `haste_amplifier`: amplifier of the Haste effect if active (None = no haste)
+/// - `haste_amplifier`: effective Haste/Conduit Power dig-speed amplifier if active (None = none)
 /// - `mining_fatigue_amplifier`: amplifier of the Mining Fatigue effect if active
-/// - `eye_in_water_no_aqua_affinity`: player's eye is submerged without Aqua Affinity
+/// - `block_break_speed`: value of the `minecraft:block_break_speed` attribute (default 1.0)
+/// - `eye_in_water`: player's eye is submerged in water
+/// - `submerged_mining_speed`: value of the `minecraft:submerged_mining_speed` attribute
+///   (default 0.2; Aqua Affinity raises it to 1.0)
 /// - `on_ground`: player is standing on solid ground
+#[allow(clippy::too_many_arguments)]
 pub fn player_tool_speed(
     base_tool_speed: f32,
     mining_efficiency: f32,
     haste_amplifier: Option<u8>,
     mining_fatigue_amplifier: Option<u8>,
-    eye_in_water_no_aqua_affinity: bool,
+    block_break_speed: f32,
+    eye_in_water: bool,
+    submerged_mining_speed: f32,
     on_ground: bool,
 ) -> f32 {
     let mut speed = base_tool_speed;
@@ -269,8 +278,9 @@ pub fn player_tool_speed(
             _ => 8.1e-4,
         };
     }
-    if eye_in_water_no_aqua_affinity {
-        speed /= 5.0;
+    speed *= block_break_speed;
+    if eye_in_water {
+        speed *= submerged_mining_speed;
     }
     if !on_ground {
         speed /= 5.0;
@@ -470,31 +480,47 @@ mod tests {
 
     #[test]
     fn player_tool_speed_haste_fatigue_water_ground_modifiers() {
-        // Base tool speed 8.0, no effects, on ground, not in water
-        assert_eq!(player_tool_speed(8.0, 0.0, None, None, false, true), 8.0);
+        // Default attribute values: block_break_speed = 1.0, submerged_mining_speed = 0.2.
+        const BREAK: f32 = 1.0;
+        const SUBMERGED: f32 = 0.2;
+
+        // Base tool speed 8.0, no effects, on ground, not in water.
+        assert_eq!(
+            player_tool_speed(8.0, 0.0, None, None, BREAK, false, SUBMERGED, true),
+            8.0
+        );
 
         // Haste II (amplifier=1): speed *= 1.0 + (1+1)*0.2 = 1.4
-        let haste2 = player_tool_speed(8.0, 0.0, Some(1), None, false, true);
+        let haste2 = player_tool_speed(8.0, 0.0, Some(1), None, BREAK, false, SUBMERGED, true);
         assert!((haste2 - 11.2).abs() < 0.001);
 
         // Mining Fatigue I (amplifier=0): speed *= 0.3
-        let fatigue = player_tool_speed(8.0, 0.0, None, Some(0), false, true);
+        let fatigue = player_tool_speed(8.0, 0.0, None, Some(0), BREAK, false, SUBMERGED, true);
         assert!((fatigue - 2.4).abs() < 0.001);
 
         // Not on ground: speed / 5
-        let airborne = player_tool_speed(8.0, 0.0, None, None, false, false);
+        let airborne = player_tool_speed(8.0, 0.0, None, None, BREAK, false, SUBMERGED, false);
         assert_eq!(airborne, 1.6);
 
-        // Eye in water without aqua affinity: speed / 5
-        let underwater = player_tool_speed(8.0, 0.0, None, None, true, true);
-        assert_eq!(underwater, 1.6);
+        // Eye in water, default submerged_mining_speed 0.2: speed *= 0.2 (the
+        // old "/5 without aqua affinity").
+        let underwater = player_tool_speed(8.0, 0.0, None, None, BREAK, true, SUBMERGED, true);
+        assert!((underwater - 1.6).abs() < 0.001);
+
+        // Aqua Affinity raises submerged_mining_speed to 1.0 → no water penalty.
+        let aqua = player_tool_speed(8.0, 0.0, None, None, BREAK, true, 1.0, true);
+        assert_eq!(aqua, 8.0);
+
+        // The block_break_speed attribute multiplies the final speed.
+        let buffed = player_tool_speed(8.0, 0.0, None, None, 1.5, false, SUBMERGED, true);
+        assert_eq!(buffed, 12.0);
 
         // Mining efficiency adds only when speed > 1.0
-        let with_efficiency = player_tool_speed(8.0, 2.0, None, None, false, true);
+        let with_efficiency = player_tool_speed(8.0, 2.0, None, None, BREAK, false, SUBMERGED, true);
         assert_eq!(with_efficiency, 10.0);
 
         // Below 1.0 base speed: efficiency not added
-        let hand_speed = player_tool_speed(1.0, 2.0, None, None, false, true);
+        let hand_speed = player_tool_speed(1.0, 2.0, None, None, BREAK, false, SUBMERGED, true);
         assert_eq!(hand_speed, 1.0);
     }
 
