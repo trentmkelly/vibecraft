@@ -688,6 +688,25 @@ pub fn handle_use_item_on(
         return write_block_change_ack(stream, compression, packet.sequence);
     }
 
+    // Java ServerGamePacketListenerImpl.handleUseItemOn (line 1345) gates the
+    // interaction on isWithinBlockInteractionRange(pos, 1.0); an out-of-reach
+    // use is ignored (the sequence is still acked). Same server-authoritative
+    // reach check the block-break path uses.
+    let clicked_pos = crate::block_update::BlockPos {
+        x: packet.block_hit.x,
+        y: packet.block_hit.y,
+        z: packet.block_hit.z,
+    };
+    if !super::player_creative_packets::is_within_block_interaction_range(state, clicked_pos) {
+        return write_block_change_ack(stream, compression, packet.sequence);
+    }
+    // TODO(use-item-on-build-height-and-spawn-protection): Java handleUseItemOn
+    // also rejects pos.y outside [minY, maxY] (sendBuildLimitMessage) and applies
+    // spawn protection (isUnderSpawnProtection -> sendSpawnProtectionMessage)
+    // before placement. Build-height needs both bounds (block-break only checks
+    // the ceiling); spawn protection needs PlayerAccess threaded into
+    // UseItemOnContext (not currently available here).
+
     // Java: ServerPlayerGameMode.useItemOn() calls player.getItemInHand(hand).
     let held_slot = held_item_slot_for_use_item_on(state, packet);
     let held_item = state
