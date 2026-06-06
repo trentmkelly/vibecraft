@@ -25,15 +25,15 @@
 
 ## Recipe Manager
 
-- [ ] Implement `RecipeManager` loading from datapack `data/*/recipe/*.json` files with `RecipeSerializer` dispatch
-- [ ] Implement `RecipeMap` per-type recipe indexing: `getRecipeFor(type, input, level)` and `getAllRecipesFor(type)`
+- [x] Implement `RecipeManager` loading from datapack `data/*/recipe/*.json` files with `RecipeSerializer` dispatch — `recipe_loading::load_recipe_directory` parses every vanilla recipe JSON (serializer dispatch by `type` in `load_recipe_json`), verified by `recipe_manager_loads_all_vanilla_recipe_json_files` (1515 recipes load: 1094 crafting, 73 smelting, 275 stonecutting).
+- [x] Implement `RecipeMap` per-type recipe indexing: `getRecipeFor(type, input, level)` and `getAllRecipesFor(type)` — `RecipeMap::get_recipe_for` (first match by type, like Java) + `by_type`; covered by `recipe_manager_indexes_by_type_key_and_matching_input`.
 - [ ] Implement `RecipePropertySet` per `RecipeType` for client-side ingredient caching
-- [ ] Implement `SelectableRecipe` (stonecutter): list of outputs per input item, recipe selection index
+- [x] Implement `SelectableRecipe` (stonecutter): list of outputs per input item, recipe selection index — `StonecutterSelection` + `stonecutter_recipes_for_input`; verified live by `StonecutterMenu` (CONTAINERS) and `stonecutter_selectable_recipes_filter_all_outputs_for_input`.
 - [ ] Implement recipe `PlacementInfo` for client-side ingredient placement hints
-- [ ] Implement reload invalidation: clear recipe cache and re-index on `ServerReloadableResources` reload
-- [ ] Implement `RecipeAccess` interface for looking up recipe holders by ID
-- [ ] Add unit test: recipe manager loads all vanilla JSON files without error, count matches expected recipe count
-- [ ] Add unit test: `getRecipeFor` returns correct result for a representative set of shaped, shapeless, smelting, and stonecutting inputs
+- [x] Implement reload invalidation: clear recipe cache and re-index on `ServerReloadableResources` reload — `RecipeManagerModel::reload`/`RecipeMap` re-index; covered by `recipe_manager_reload_replaces_indexes_and_recipe_access_sets`.
+- [x] Implement `RecipeAccess` interface for looking up recipe holders by ID — `RecipeMap::by_key`; covered by the reload/access test above.
+- [x] Add unit test: recipe manager loads all vanilla JSON files without error, count matches expected recipe count — `recipe_manager_loads_all_vanilla_recipe_json_files` (1515 total, per-type counts).
+- [x] Add unit test: `getRecipeFor` returns correct result for a representative set of shaped, shapeless, smelting, and stonecutting inputs — `recipe_manager_indexes_by_type_key_and_matching_input` + `recipe_manager_loads_vanilla_recipes_with_tag_ingredients`.
 
 ## Core Recipe Interfaces
 
@@ -104,7 +104,7 @@
 
 - [ ] Implement recipe manager loading, recipe map indexing, property sets, selectable recipes, placement info, display metadata, and reload invalidation.
 - [ ] Implement core recipe interfaces: `Recipe`, `CraftingRecipe`, `NormalCraftingRecipe`, `CustomRecipe`, `SingleItemRecipe`, `AbstractCookingRecipe`, `SmithingRecipe`, and `SelectableRecipe`.
-- [ ] Implement grid crafting: `ShapedRecipe`, `ShapedRecipePattern`, `ShapelessRecipe`, `TransmuteRecipe`, and `ImbueRecipe`.
+- [x] Implement grid crafting: `ShapedRecipe`, `ShapedRecipePattern`, `ShapelessRecipe`, `TransmuteRecipe`, and `ImbueRecipe`. — all done 1:1 (shaped with 26.1.2 mirroring, shapeless backtracking, transmute/imbue component preservation); see the Grid Crafting section above.
 - [ ] Implement special crafting recipes: `BannerDuplicateRecipe`, `BookCloningRecipe`, `DecoratedPotRecipe`, `DyeRecipe`, `FireworkRocketRecipe`, `FireworkStarRecipe`, `FireworkStarFadeRecipe`, `MapExtendingRecipe`, `RepairItemRecipe`, and `ShieldDecorationRecipe`.
 - [ ] Implement cooking recipes: `SmeltingRecipe`, `BlastingRecipe`, `SmokingRecipe`, and `CampfireCookingRecipe`, including cook time, experience, fuel interaction, and recipe book categories.
 - [ ] Implement smithing and station recipes: `SimpleSmithingRecipe`, `SmithingTransformRecipe`, `SmithingTrimRecipe`, and `StonecutterRecipe`.
