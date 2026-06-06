@@ -34,7 +34,7 @@
 - [ ] Implement player reach distance: survival = 5.0 blocks (server-authoritative), creative = 5.0 (place) / 5.0 (interact), attack = 3.0; verify server-side reach check matches vanilla
 - [ ] Implement hunger/saturation/exhaustion tick: sprint (+0.1/tick), jump (+0.05), attack (+0.3 per hit), damage-absorption calculation; starvation damage at 0 food on hard mode
 - [ ] Implement food level effects: fast healing above 18 food (0.5 HP/4 ticks in Java), normal healing above 0, speed reduction below 6 (5 for walking)
-- [ ] Implement exhaustion-to-saturation-to-food-level drain: exhaustion ≥ 4.0 drains 1 saturation; 0 saturation drains 1 food
+- [x] Implement exhaustion-to-saturation-to-food-level drain: exhaustion ≥ 4.0 drains 1 saturation; 0 saturation drains 1 food — `tick_play_session_food` (network/status/chunk_b.rs:357) accumulates exhaustion and drains saturation at the ≥4.0 threshold then food at 0 saturation; covered by `sprint_movement_accumulates_food_exhaustion`, `player_input_tracks_sprint_jump_exhaustion`, `hunger_saturation_exhaustion_experience_and_tick_stats_follow_server_paths` (pass).
 - [ ] Implement XP orb pickup and merge: orbs within 1.5 blocks merge toward player, `addExperience()` with level-up threshold table
 - [x] Implement XP level→point threshold: `getXpNeededForNextLevel()` = (level ≥ 30) ? 112 + (level-30)*9 : (level ≥ 15) ? 37 + (level-15)*5 : 7 + level*2 — `experience_system::xp_needed_for_next_level` matches Java `Player.getXpNeededForNextLevel()` exactly; verified against decompiled 26.1.2 line 1554.
 - [ ] Implement player death drops: drop all inventory on death in non-keepInventory mode; keep bound items if `CurseOfBinding`; XP orb generation proportional to XP level
