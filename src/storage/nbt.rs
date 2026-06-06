@@ -216,12 +216,12 @@ impl Tag {
             Tag::Int(_) | Tag::Float(_) => 4,
             Tag::Long(_) | Tag::Double(_) => 8,
             Tag::ByteArray(values) => 4 + values.len(),
-            Tag::String(value) => 2 + value.len(),
+            Tag::String(value) => 2 + modified_utf8_len(value),
             Tag::List(values) => 5 + values.iter().map(Tag::payload_size).sum::<usize>(),
             Tag::Compound(values) => {
                 1 + values
                     .iter()
-                    .map(|(name, value)| 1 + 2 + name.len() + value.payload_size())
+                    .map(|(name, value)| 1 + 2 + modified_utf8_len(name) + value.payload_size())
                     .sum::<usize>()
             }
             Tag::IntArray(values) => 4 + values.len() * 4,
@@ -261,18 +261,25 @@ impl Tag {
 
     pub fn to_snbt(&self) -> String {
         match self {
+            // Suffix casing matches Java StringTagVisitor: scalar byte 'b'/short
+            // 's'/long 'L'/float 'f'/double 'd', and array elements use uppercase
+            // 'B'/'L' (byte/long arrays).
+            // TODO(snbt-float-formatting-parity): Float/Double rendering is not yet
+            // 1:1 — Java uses Float.toString/Double.toString (always keeps a
+            // decimal point, e.g. "1.0f"), while Rust's `{}` prints "1f". Matching
+            // requires a Java-style shortest float/double formatter.
             Tag::End => "END".to_string(),
             Tag::Byte(value) => format!("{value}b"),
             Tag::Short(value) => format!("{value}s"),
             Tag::Int(value) => value.to_string(),
-            Tag::Long(value) => format!("{value}l"),
+            Tag::Long(value) => format!("{value}L"),
             Tag::Float(value) => format!("{value}f"),
             Tag::Double(value) => format!("{value}d"),
             Tag::ByteArray(values) => format!(
                 "[B;{}]",
                 values
                     .iter()
-                    .map(|value| format!("{value}b"))
+                    .map(|value| format!("{value}B"))
                     .collect::<Vec<_>>()
                     .join(",")
             ),
@@ -305,7 +312,7 @@ impl Tag {
                 "[L;{}]",
                 values
                     .iter()
-                    .map(|value| format!("{value}l"))
+                    .map(|value| format!("{value}L"))
                     .collect::<Vec<_>>()
                     .join(",")
             ),
@@ -1015,23 +1022,105 @@ fn read_len_i32<R: Read>(reader: &mut R) -> io::Result<usize> {
 }
 
 fn read_string<R: Read>(reader: &mut R) -> io::Result<String> {
-    let len = read_i16(reader)?;
-    if len < 0 {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "negative NBT string length",
-        ));
-    }
-    let mut bytes = vec![0u8; len as usize];
+    // NBT strings are Java "modified UTF-8" (DataInput.readUTF): an UNSIGNED u16
+    // byte-length prefix followed by modified-UTF-8 bytes.
+    let len = read_u16(reader)?;
+    let mut bytes = vec![0u8; usize::from(len)];
     reader.read_exact(&mut bytes)?;
-    String::from_utf8(bytes).map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))
+    decode_modified_utf8(&bytes)
 }
 
 fn write_string<W: Write>(writer: &mut W, value: &str) -> io::Result<()> {
-    let len = i16::try_from(value.len())
+    let bytes = encode_modified_utf8(value);
+    let len = u16::try_from(bytes.len())
         .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "NBT string too long"))?;
     writer.write_all(&len.to_be_bytes())?;
-    writer.write_all(value.as_bytes())
+    writer.write_all(&bytes)
+}
+
+fn read_u16<R: Read>(reader: &mut R) -> io::Result<u16> {
+    let mut bytes = [0u8; 2];
+    reader.read_exact(&mut bytes)?;
+    Ok(u16::from_be_bytes(bytes))
+}
+
+fn modified_utf8_err() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        "invalid modified UTF-8 in NBT string",
+    )
+}
+
+/// Encode a string as Java "modified UTF-8" (1:1 with `DataOutput.writeUTF`),
+/// iterating over UTF-16 code units: U+0001..=U+007F → 1 byte; U+0000 and
+/// U+0080..=U+07FF → 2 bytes; U+0800..=U+FFFF (including surrogates) → 3 bytes —
+/// so a supplementary char becomes a 6-byte surrogate pair.
+fn encode_modified_utf8(value: &str) -> Vec<u8> {
+    let mut out = Vec::new();
+    for unit in value.encode_utf16() {
+        if (0x0001..=0x007F).contains(&unit) {
+            out.push(unit as u8);
+        } else if unit == 0 || (0x0080..=0x07FF).contains(&unit) {
+            out.push(0xC0 | (unit >> 6) as u8);
+            out.push(0x80 | (unit as u8 & 0x3F));
+        } else {
+            out.push(0xE0 | (unit >> 12) as u8);
+            out.push(0x80 | ((unit >> 6) as u8 & 0x3F));
+            out.push(0x80 | (unit as u8 & 0x3F));
+        }
+    }
+    out
+}
+
+/// Byte length of the modified-UTF-8 encoding without allocating.
+#[cfg(test)]
+fn modified_utf8_len(value: &str) -> usize {
+    value
+        .encode_utf16()
+        .map(|unit| {
+            if (0x0001..=0x007F).contains(&unit) {
+                1
+            } else if unit == 0 || (0x0080..=0x07FF).contains(&unit) {
+                2
+            } else {
+                3
+            }
+        })
+        .sum()
+}
+
+/// Decode Java "modified UTF-8" (1:1 with `DataInput.readUTF`) into a String,
+/// reconstructing supplementary chars from UTF-16 surrogate pairs.
+fn decode_modified_utf8(bytes: &[u8]) -> io::Result<String> {
+    let mut units = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        let a = bytes[i];
+        if a & 0x80 == 0 {
+            units.push(u16::from(a));
+            i += 1;
+        } else if a & 0xE0 == 0xC0 {
+            let b = *bytes.get(i + 1).ok_or_else(modified_utf8_err)?;
+            if b & 0xC0 != 0x80 {
+                return Err(modified_utf8_err());
+            }
+            units.push((u16::from(a & 0x1F) << 6) | u16::from(b & 0x3F));
+            i += 2;
+        } else if a & 0xF0 == 0xE0 {
+            let b = *bytes.get(i + 1).ok_or_else(modified_utf8_err)?;
+            let c = *bytes.get(i + 2).ok_or_else(modified_utf8_err)?;
+            if b & 0xC0 != 0x80 || c & 0xC0 != 0x80 {
+                return Err(modified_utf8_err());
+            }
+            units.push(
+                (u16::from(a & 0x0F) << 12) | (u16::from(b & 0x3F) << 6) | u16::from(c & 0x3F),
+            );
+            i += 3;
+        } else {
+            return Err(modified_utf8_err());
+        }
+    }
+    String::from_utf16(&units).map_err(|_| modified_utf8_err())
 }
 
 fn write_len_i32<W: Write>(writer: &mut W, len: usize) -> io::Result<()> {

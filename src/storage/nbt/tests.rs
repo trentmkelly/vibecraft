@@ -5,6 +5,43 @@ use super::{
 use std::io::Cursor;
 
 #[test]
+fn nbt_strings_use_java_modified_utf8_not_standard_utf8() {
+    // Null char: Java modified UTF-8 encodes U+0000 as two bytes C0 80 (NOT the
+    // single 0x00 standard UTF-8 uses), with an unsigned u16 length prefix.
+    let mut buf = Vec::new();
+    Tag::String("\u{0000}".to_string())
+        .write_payload(&mut buf)
+        .unwrap();
+    assert_eq!(buf, vec![0x00, 0x02, 0xC0, 0x80]);
+
+    // Supplementary char (emoji U+1F600): modified UTF-8 emits the UTF-16
+    // surrogate pair D83D/DE00 as two 3-byte sequences = 6 bytes total (vs 4 in
+    // standard UTF-8).
+    let mut emoji = Vec::new();
+    Tag::String("\u{1F600}".to_string())
+        .write_payload(&mut emoji)
+        .unwrap();
+    assert_eq!(emoji, vec![0x00, 0x06, 0xED, 0xA0, 0xBD, 0xED, 0xB8, 0x80]);
+
+    // BMP 3-byte char (snowman U+2603) matches standard UTF-8 (E2 98 83).
+    let mut snowman = Vec::new();
+    Tag::String("\u{2603}".to_string())
+        .write_payload(&mut snowman)
+        .unwrap();
+    assert_eq!(snowman, vec![0x00, 0x03, 0xE2, 0x98, 0x83]);
+
+    // Round-trip every case (including a mixed string) through read_payload.
+    for s in ["", "abc", "\u{0000}", "\u{1F600}", "\u{2603}", "a\u{0000}b😀c"] {
+        let mut bytes = Vec::new();
+        Tag::String(s.to_string())
+            .write_payload(&mut bytes)
+            .unwrap();
+        let decoded = Tag::read_payload(8, &mut bytes.as_slice()).unwrap();
+        assert_eq!(decoded, Tag::String(s.to_string()));
+    }
+}
+
+#[test]
 fn exposes_all_vanilla_tag_ids() {
     assert_eq!(Tag::End.id(), 0);
     assert_eq!(Tag::Byte(0).id(), 1);
@@ -77,9 +114,10 @@ fn snbt_printer_size_accounting_and_traversal_cover_nested_tags() {
         ),
     ]);
 
+    // Byte-array elements use uppercase 'B', matching Java StringTagVisitor.
     assert_eq!(
         tag.to_snbt(),
-        "{name:\"A \\\"quoted\\\" name\",bytes:[B;1b,2b],nested:[1,2]}"
+        "{name:\"A \\\"quoted\\\" name\",bytes:[B;1B,2B],nested:[1,2]}"
     );
     assert_eq!(tag.payload_size(), 61);
 
