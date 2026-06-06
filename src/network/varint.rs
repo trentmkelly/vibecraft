@@ -26,6 +26,34 @@ pub fn read_var_i32<R: Read>(reader: &mut R) -> io::Result<i32> {
     }
 }
 
+/// Read a packet frame-length prefix, 1:1 with Java `Varint21FrameDecoder`: the
+/// length VarInt is at most 3 bytes — a value needing a 4th byte throws
+/// `CorruptedFrameException("length wider than 21-bit")` — and a zero length is
+/// rejected (`"Frame length cannot be zero"`). The result is therefore in
+/// `1..=2^21-1` (2,097,151), matching the protocol's frame cap.
+pub fn read_frame_length<R: Read>(reader: &mut R) -> io::Result<i32> {
+    let mut value = 0i32;
+    for shift in 0..3 {
+        let mut byte = [0u8; 1];
+        reader.read_exact(&mut byte)?;
+        let current = byte[0];
+        value |= ((current & 0x7F) as i32) << (shift * 7);
+        if current & 0x80 == 0 {
+            if value == 0 {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "Frame length cannot be zero",
+                ));
+            }
+            return Ok(value);
+        }
+    }
+    Err(io::Error::new(
+        io::ErrorKind::InvalidData,
+        "length wider than 21-bit",
+    ))
+}
+
 pub fn write_var_i32<W: Write>(writer: &mut W, mut value: i32) -> io::Result<()> {
     loop {
         if (value & !0x7F) == 0 {
@@ -112,7 +140,8 @@ pub fn var_i64_len(value: i64) -> usize {
 #[cfg(test)]
 mod tests {
     use super::{
-        encode_var_i32, encode_var_i64, read_var_i32, read_var_i64, var_i32_len, var_i64_len,
+        encode_var_i32, encode_var_i64, read_frame_length, read_var_i32, read_var_i64, var_i32_len,
+        var_i64_len, write_var_i32,
     };
     use std::io::Cursor;
 
@@ -172,6 +201,29 @@ mod tests {
             read_var_i32(&mut truncated).unwrap_err().kind(),
             std::io::ErrorKind::UnexpectedEof
         );
+    }
+
+    #[test]
+    fn frame_length_matches_varint21_frame_decoder() {
+        // Valid 1-byte and the 3-byte 21-bit maximum (2^21 - 1).
+        assert_eq!(read_frame_length(&mut Cursor::new([0x05])).unwrap(), 5);
+        let mut max = Vec::new();
+        write_var_i32(&mut max, (1 << 21) - 1).unwrap();
+        assert_eq!(max.len(), 3);
+        assert_eq!(read_frame_length(&mut Cursor::new(max)).unwrap(), (1 << 21) - 1);
+
+        // Zero length is rejected (Java "Frame length cannot be zero").
+        let zero_err = read_frame_length(&mut Cursor::new([0x00])).unwrap_err();
+        assert_eq!(zero_err.kind(), std::io::ErrorKind::InvalidData);
+        assert!(zero_err.to_string().contains("zero"));
+
+        // A length needing a 4th byte (2^21) is rejected ("length wider than 21-bit").
+        let mut wide = Vec::new();
+        write_var_i32(&mut wide, 1 << 21).unwrap();
+        assert_eq!(wide.len(), 4);
+        let wide_err = read_frame_length(&mut Cursor::new(wide)).unwrap_err();
+        assert_eq!(wide_err.kind(), std::io::ErrorKind::InvalidData);
+        assert!(wide_err.to_string().contains("21-bit"));
     }
 
     #[test]

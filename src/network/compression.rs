@@ -6,7 +6,7 @@ use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
 
-use crate::network::varint::{read_var_i32, write_var_i32};
+use crate::network::varint::{read_frame_length, read_var_i32, write_var_i32};
 
 pub const DEFAULT_COMPRESSION_THRESHOLD: i32 = 256;
 pub const MAX_UNCOMPRESSED_PACKET_SIZE: usize = 8 * 1024 * 1024;
@@ -78,13 +78,9 @@ fn encode_compression_frame(data_length: i32, payload: &[u8]) -> io::Result<Vec<
 }
 
 fn read_packet_frame<R: Read>(reader: &mut R) -> io::Result<Vec<u8>> {
-    let length = read_var_i32(reader)?;
-    if length < 0 || length as usize > MAX_UNCOMPRESSED_PACKET_SIZE {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "invalid packet frame length",
-        ));
-    }
+    // The outer (post-compression) frame length is the same 21-bit-max,
+    // non-zero VarInt as Java Varint21FrameDecoder.
+    let length = read_frame_length(reader)?;
     let mut payload = vec![0u8; length as usize];
     reader.read_exact(&mut payload)?;
     Ok(payload)

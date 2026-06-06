@@ -1,4 +1,5 @@
 use super::*;
+use crate::network::varint::read_frame_length;
 
 pub fn chat_type_nbt(chat_type: &ChatTypeEntry) -> Tag {
     Tag::Compound(vec![
@@ -585,14 +586,11 @@ pub fn write_legacy_string<W: Write>(writer: &mut W, value: &str) -> io::Result<
 }
 
 pub fn read_packet<R: Read>(reader: &mut R) -> io::Result<Vec<u8>> {
-    let length = read_var_i32(reader)?;
-    if length < 0 || length as usize > MAX_PACKET_SIZE {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "invalid packet length",
-        ));
-    }
-
+    // Java Varint21FrameDecoder: the frame length is a 3-byte-max VarInt, must be
+    // non-zero, and is thus bounded by 2^21-1 (< MAX_PACKET_SIZE). A malformed
+    // length (wider than 21-bit, or zero) yields an error that closes the
+    // connection (vanilla CorruptedFrameException → disconnect).
+    let length = read_frame_length(reader)?;
     let mut payload = vec![0u8; length as usize];
     reader.read_exact(&mut payload)?;
     Ok(payload)
