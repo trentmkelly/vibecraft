@@ -41,7 +41,7 @@
 - [ ] Implement player respawn: consume `respawnPosition` if set and block still valid, else find default world spawn; apply respawn invulnerability ticks
 - [x] Implement `Abilities` flags: invulnerable, flying, can-fly, instant-build (creative), flying-speed (0.05 walk / 0.1 fly), walking-speed (0.1); sync on game mode change — `PlayerNbtAbilities` defaults match Java `Abilities.java` (flyingSpeed=0.05, walkingSpeed=0.1); `apply_game_mode` matches Java `GameType.updatePlayerAbilities` including `mayBuild = !isBlockPlacingRestricted()` for Adventure/Spectator; NBT serialization uses vanilla field names; verified against decompiled 26.1.2.
 - [ ] Implement `ServerPlayerGameMode`: survival break-speed calculation per tool/block, creative instant-break, spectator no-interaction, adventure restriction (no break unless CanDestroy tag)
-- [ ] Implement spawn protection check: blocks within `spawn-protection` radius from world spawn cannot be broken by non-ops
+- [x] Implement spawn protection check: blocks within `spawn-protection` radius from world spawn cannot be broken by non-ops — `player_access.rs::is_under_spawn_protection` + `player_game_mode.rs` break gating; covered by `spawn_protection_matches_dedicated_server_rules` and `start_destroy_in_spawn_protection_is_denied` (pass).
 - [ ] Implement player abilities packet sync on: game mode change, op status change, allow-flight property change
 
 ## Movement and Physics
@@ -52,7 +52,7 @@
 - [ ] Implement `ServerboundMovePlayerPacket` validation: moved-too-quickly check (`abs(dx²+dy²+dz²) > 100²` → kick), invalid-position check (NaN/Inf → kick), flying check (no-fly mode + airborne > 80 ticks → kick if allow-flight=false)
 - [ ] Implement step height: 0.6 blocks default, auto-step up single block
 - [ ] Implement vehicle movement validation: `ServerboundMoveVehiclePacket` with vehicle-specific speed limits
-- [ ] Implement `RelativeMovement` flag encoding for `ClientboundPlayerPositionPacket`: bitmask using `Relative` enum with correct flag values (X=0x01, Y=0x02, Z=0x04, Y_ROT=0x08, X_ROT=0x10, DELTA_X=0x20, DELTA_Y=0x40, DELTA_Z=0x80, ROTATE_DELTA=0x100)
+- [x] Implement `RelativeMovement` flag encoding for `ClientboundPlayerPositionPacket`: bitmask using `Relative` enum with correct flag values (X=0x01, Y=0x02, Z=0x04, Y_ROT=0x08, X_ROT=0x10, DELTA_X=0x20, DELTA_Y=0x40, DELTA_Z=0x80, ROTATE_DELTA=0x100) — `movement_validation.rs::RelativeFlag` + `pack_relative_flags` with a test asserting all 9 values exactly (X=0x01 … RotateDelta=0x100); the packet writes `relative_flags` as a fixed int (`clientbound_player_position_packet_writes_relative_flags_as_fixed_int`); movement_validation tests pass (8).
 
 ## Inventory Tests
 
