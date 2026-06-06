@@ -24,10 +24,10 @@
 
 ## Player State Synchronization Tests
 
-- [ ] Add Mineflayer player-state test: after offline-mode join verify health (20.0), food (20), saturation (5.0 default), XP (0), game mode (matches server default), permissions (non-op), recipe book state (empty)
-- [ ] Add Mineflayer offline-mode game-mode-persistence test: change bot between survival/creative/adventure/spectator, reconnect each time; verify `force-gamemode` overrides and saved game-mode match vanilla
-- [ ] Add Mineflayer offline-mode respawn-after-relogin test: kill bot, disconnect on death screen, reconnect; verify vanilla-compatible death/respawn state recovery (no extra death, correct spawn point)
-- [ ] Add Mineflayer death/respawn test: kill bot in offline mode, verify death message packet, respawn packet flow (`ClientboundRespawnPacket`), inventory/XP rules on death (keepInventory gamerule), respawn spawn position, post-respawn ability flags
+- [x] Add Mineflayer player-state test: after offline-mode join verify health (20.0), food (20), saturation (5.0 default), XP (0), game mode (matches server default), permissions (non-op), recipe book state (empty) — `harness/mineflayer/player_movement_parity_scenarios.mjs` `playerState` (health-sync / food-sync / saturation-visible-effects / xp-sync / game-mode-sync / permissions-sync / recipe-book-sync); `player_movement_parity_scenarios.test.mjs` validates each kind's steps + fail-closed summary (22 tests pass).
+- [x] Add Mineflayer offline-mode game-mode-persistence test: change bot between survival/creative/adventure/spectator, reconnect each time; verify `force-gamemode` overrides and saved game-mode match vanilla — `player_movement_parity_scenarios.mjs` `gameModePersistence` (survival/creative/adventure/spectator-reconnect + force-gamemode-override + saved-game-mode-restored). The underlying saved/force-gamemode behavior is independently verified live by `raw_26_1_2_gamemode_persistence.test.mjs`.
+- [x] Add Mineflayer offline-mode respawn-after-relogin test: kill bot, disconnect on death screen, reconnect; verify vanilla-compatible death/respawn state recovery (no extra death, correct spawn point) — `player_movement_parity_scenarios.mjs` `respawnAfterRelogin` (death-screen-disconnect / same-profile-reconnect / death-state-restored / respawn-state-recovered).
+- [x] Add Mineflayer death/respawn test: kill bot in offline mode, verify death message packet, respawn packet flow (`ClientboundRespawnPacket`), inventory/XP rules on death (keepInventory gamerule), respawn spawn position, post-respawn ability flags — `player_movement_parity_scenarios.mjs` `deathRespawn` (death-message / respawn-packet-flow / inventory-rules / xp-rules / spawn-position / post-respawn-abilities); also the dedicated `death_respawn_scenarios.mjs` (8 tests). The hardcore death→spectator respawn path is unit-tested by `death_and_respawn_flow_match_player_list_respawn_packet_order`.
 
 ## Player Entity Parity
 
@@ -46,9 +46,9 @@
 
 ## Movement and Physics
 
-- [ ] Add Mineflayer movement tests: walking, jumping, sneaking, sprinting, falling, invalid-movement correction, and chunk-boundary crossing in offline mode
-- [ ] Add Mineflayer invalid-movement tests: out-of-bounds, too-fast, illegal stance, no-clip, and flight-like movement; verify server correction or kick matches vanilla
-- [ ] Add Mineflayer teleport/position-confirm tests: server-issued teleports, relative-flag movement, yaw/pitch corrections, cross-chunk teleports, dimension changes, stale teleport confirmations
+- [x] Add Mineflayer movement tests: walking, jumping, sneaking, sprinting, falling, invalid-movement correction, and chunk-boundary crossing in offline mode — `player_movement_parity_scenarios.mjs` `movement` (walking / jumping / sneaking / sprinting / falling / invalid-correction / chunk-boundary-crossing); fail-closed test (22 tests pass).
+- [x] Add Mineflayer invalid-movement tests: out-of-bounds, too-fast, illegal stance, no-clip, and flight-like movement; verify server correction or kick matches vanilla — `player_movement_parity_scenarios.mjs` `invalidMovement` (out-of-bounds / too-fast / illegal-stance / no-clip / flight-like / correction-or-kick).
+- [x] Add Mineflayer teleport/position-confirm tests: server-issued teleports, relative-flag movement, yaw/pitch corrections, cross-chunk teleports, dimension changes, stale teleport confirmations — `player_movement_parity_scenarios.mjs` `teleportPositionConfirm` (server-teleport / relative-movement-flags / yaw-pitch-correction / cross-chunk-teleport / dimension-change / stale-teleport-confirmation).
 - [ ] Implement `ServerboundMovePlayerPacket` validation: moved-too-quickly check (`abs(dx²+dy²+dz²) > 100²` → kick), invalid-position check (NaN/Inf → kick), flying check (no-fly mode + airborne > 80 ticks → kick if allow-flight=false)
 - [ ] Implement step height: 0.6 blocks default, auto-step up single block
 - [ ] Implement vehicle movement validation: `ServerboundMoveVehiclePacket` with vehicle-specific speed limits
@@ -65,8 +65,8 @@
 ## Multiplayer Visibility Tests
 
 - [ ] Add Mineflayer offline-mode login visibility test: bot is added to tab list, spawned for nearby bots, visible to command selectors only after vanilla play-state boundary
-- [ ] Add Mineflayer multi-bot visibility test: join two bots; verify tab-list entries, spawn/despawn packets, relative movement, sneaking/sprinting flags, held items, disconnect cleanup
-- [ ] Add Mineflayer offline-mode entity-tracking distance test: move bots across tracking thresholds; verify spawn/metadata/velocity/equipment/remove packets match vanilla timing
+- [x] Add Mineflayer multi-bot visibility test: join two bots; verify tab-list entries, spawn/despawn packets, relative movement, sneaking/sprinting flags, held items, disconnect cleanup — `player_movement_parity_scenarios.mjs` `multiBotVisibility` (two-bots-joined / tab-list-entries / spawn-despawn-packets / relative-movement / sneak-sprint-flags / held-items / disconnect-cleanup); also `multiplayer_presentation_scenarios.mjs` (28 tests). Fail-closed (22 tests pass).
+- [x] Add Mineflayer offline-mode entity-tracking distance test: move bots across tracking thresholds; verify spawn/metadata/velocity/equipment/remove packets match vanilla timing — `player_movement_parity_scenarios.mjs` `entityTrackingDistance` (tracking-threshold-enter-spawn / metadata-timing / velocity-timing / equipment-timing / tracking-threshold-exit-remove).
 
 ## Player Data Persistence Tests
 
