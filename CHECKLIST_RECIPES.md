@@ -76,9 +76,9 @@
 - [ ] Implement `BlastingRecipe`: recipe type `minecraft:blasting`, base cooking time 100 ticks
 - [ ] Implement `SmokingRecipe`: recipe type `minecraft:smoking`, base cooking time 100 ticks
 - [ ] Implement `CampfireCookingRecipe`: recipe type `minecraft:campfire_cooking`, base cooking time 100 ticks in 26.1.2, no fuel required
-- [ ] Implement `experience` field: XP stored in furnace, released on item extraction
+- [x] Implement `experience` field: XP stored in furnace, released on item extraction — `AbstractFurnaceBlockEntity.recipes_used` accumulates `(times_used, experience_millis)` per completed smelt (the recipe's XP, fed in via `FurnaceCookingRecipe`), and `xp_to_award_and_clear` converts the stored millis to XP orbs and clears the map — 1:1 with Java's `recipesUsed` + `getRecipesToAwardAndPopExperience`. Verified by `assert_smelting_furnace_ticks_fuel_xp_and_persists` ((1, 700) stored → 1 XP awarded → cleared, survives save/load).
 - [x] Implement `FuelValues` registry: fuel item → burn time mapping matching vanilla defaults — `FuelValues::vanilla_from_tags` (recipe_system/fuel_values.rs) builds the item→burn-time map 1:1 with `FuelValues.vanillaBurnTimes`: every direct item + every member of the ~19 fuel tags (LOGS/PLANKS/WOODEN_*/BOATS/WOOL/BANNERS/SIGNS/SAPLINGS/…) resolved via the loaded `ItemTagMap`, then `#minecraft:non_flammable_wood` removed. Verified against the real vanilla tags (all wood types = 300t, all banner/wool colours + boat types, crimson/warped = 0t, coal 1600 / lava 20000 / blaze_rod 2400).
-- [ ] Add unit test: cooking recipe cook time, XP per result, and fuel interaction for representative items
+- [x] Add unit test: cooking recipe cook time, XP per result, and fuel interaction for representative items — `furnace_family_ticks_fuel_recipes_xp_sided_slots_and_speed_like_java` (`tests_b2.rs`) ticks a smelting furnace end-to-end: coal burns 1600t, raw_iron→iron_ingot completes at 200t (blast furnace at half-speed), XP `(1, 700)` is stored + awarded, invalid fuel (stone) does not start; plus `furnace_cooking_recipe_lookup_derives_from_loaded_cooking_recipes` (cook times 200/100 from loaded recipes) and the `FuelValues` 1:1 test.
 
 ## Smithing and Station Recipes
 
