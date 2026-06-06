@@ -1904,11 +1904,22 @@ fn log_player_action_debug(
     ));
 }
 
+/// Java `Player.blockActionRestricted` (Player.java:188-194): `SPECTATOR` is
+/// unconditionally restricted from block actions, so spectators can never break a
+/// block. (Adventure mode's break eligibility additionally depends on the held
+/// item's `CanDestroy` component, which is not yet modelled here.)
+fn spectator_cannot_break(game_mode: GameMode) -> bool {
+    game_mode == GameMode::Spectator
+}
+
 fn should_break_for_player_action(
     fields: &PlayerActionFields,
     game_mode: GameMode,
     context: &PlayerActionContext<'_, '_>,
 ) -> bool {
+    if spectator_cannot_break(game_mode) {
+        return false;
+    }
     let is_instabreak = fields.action == 0 && game_mode != GameMode::Creative && {
         let chunk_pos = ChunkPos {
             x: fields.x.div_euclid(16),
@@ -1936,17 +1947,18 @@ fn handle_player_block_break(
     fields: &PlayerActionFields,
     context: &mut PlayerActionContext<'_, '_>,
 ) -> io::Result<()> {
-    // Reach and spawn protection ARE now enforced before this handler runs (see
-    // handle_player_action_packet: is_within_block_interaction_range +
-    // block_break_is_spawn_protected, 1:1 with Java
-    // ServerPlayerGameMode.handleBlockBreakAction reach/mayInteract checks).
+    // Reach, spawn protection, and spectator-no-break ARE now enforced before
+    // this handler runs (handle_player_action_packet: is_within_block_interaction_range
+    // + block_break_is_spawn_protected; should_break_for_player_action:
+    // spectator_cannot_break — all 1:1 with Java
+    // ServerPlayerGameMode.handleBlockBreakAction / Player.blockActionRestricted).
     //
     // TODO(live-block-break-uses-game-mode-logic): this handler still bypasses
     // the rest of the comprehensive, Java-1:1, fully-tested ServerPlayerGameMode
     // logic in player_game_mode.rs (handle_block_break_action). It breaks any
-    // block on StopDestroy/creative/instamine WITHOUT enforcing adventure
-    // CanDestroy restriction, spectator/may_interact gating, or per-tool
-    // break-speed timing (which needs per-player server-side destroy-progress
+    // block on StopDestroy/creative/instamine WITHOUT enforcing the adventure-mode
+    // CanDestroy restriction (needs held-item CanDestroy component support) or
+    // per-tool break-speed timing (needs per-player server-side destroy-progress
     // tracking across ticks). Those paths exist + pass unit tests but are dead
     // code here. Wiring them in is what completes PLAYER #43 (ServerPlayerGameMode).
     // PLAYER #34 (reach) additionally needs entity attack-range (3.0), blocked on
@@ -2869,6 +2881,16 @@ mod spawn_protection_wiring_tests {
     use crate::block_update::BlockPos;
     use crate::player_access::{NameAndId, OpEntry, PlayerAccess};
     use crate::storage::nbt::Tag;
+
+    /// Java `Player.blockActionRestricted`: spectators can never break blocks;
+    /// survival/creative/adventure are not categorically restricted here.
+    #[test]
+    fn spectators_cannot_break_blocks() {
+        assert!(spectator_cannot_break(GameMode::Spectator));
+        assert!(!spectator_cannot_break(GameMode::Survival));
+        assert!(!spectator_cannot_break(GameMode::Creative));
+        assert!(!spectator_cannot_break(GameMode::Adventure));
+    }
 
     /// The spawn-protection overlay component must match Java
     /// `Component.translatable("build.spawn_protection", pos.toShortString())`
