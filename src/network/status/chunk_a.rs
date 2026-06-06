@@ -1762,10 +1762,17 @@ fn block_break_is_spawn_protected(
     )
 }
 
-/// On spawn-protection denial: ack the action sequence and re-send the real
-/// block state so the client reverts its predicted break (Java
-/// `ServerPlayerGameMode` sends `ClientboundBlockUpdatePacket(level, pos)`). The
-/// block is NOT modified server-side and no drops spawn.
+/// On spawn-protection denial: ack the action sequence (so the client reverts
+/// its predicted break — Java relies on the per-tick BlockChangedAck for this)
+/// and re-send the real block state for robustness. The block is NOT modified
+/// server-side and no drops spawn, matching Java
+/// `ServerPlayerGameMode.handleBlockBreakAction`'s spawn-protection branch.
+///
+/// TODO(spawn-protection-overlay-message): Java also calls
+/// `ServerPlayer.sendSpawnProtectionMessage` → a RED `build.spawn_protection`
+/// action-bar (overlay) message. Emitting that requires building the translatable
+/// component with the block pos arg; deferred (cosmetic, not part of checklist #44
+/// which covers the break-prevention enforcement).
 fn write_block_break_denied(
     stream: &mut TcpStream,
     compression: CompressionState,
