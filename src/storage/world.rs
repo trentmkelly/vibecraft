@@ -467,6 +467,14 @@ impl LevelStorageAccess {
         self.save_level_data(&tag)
     }
 
+    // TODO(world-backup-zip-format): NOT 1:1 with Java
+    // LevelStorageSource.makeWorldBackup (lines 673-686), which writes a single
+    // ZIP archive `backups/<FileNameDateFormatter>_<levelId>.zip` (via
+    // ZipOutputStream + findAvailableName for collisions, excluding session.lock).
+    // This currently copies the world into a backups/ subdirectory instead of
+    // zipping it — the world is preserved but the on-disk artifact differs.
+    // Completing CHECKLIST_STORAGE #28 requires producing the vanilla .zip
+    // (needs a zip writer) with FileNameDateFormatter naming.
     pub fn make_world_backup(&self) -> std::io::Result<PathBuf> {
         fs::create_dir_all(&self.backup_dir)?;
         let backup_path = self.backup_dir.join(format!(
