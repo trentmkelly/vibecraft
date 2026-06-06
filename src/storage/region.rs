@@ -976,6 +976,17 @@ fn encode_region_payload(
             Ok(bytes)
         }
         RegionCompression::Lz4 => {
+            // TODO(lz4-region-block-format-parity): NOT 1:1 with vanilla. Java
+            // RegionFileVersion.VERSION_LZ4 uses lz4-java's LZ4BlockInputStream/
+            // LZ4BlockOutputStream — the "LZ4Block" block-stream framing (8-byte
+            // magic + per-block token, compressed/decompressed lengths, and an
+            // XXHash32 checksum). The `lz4` crate's EncoderBuilder/Decoder used
+            // here emit the standard LZ4 *frame* format (magic 0x184D2204), which
+            // is incompatible: a vanilla LZ4-compressed region will not decode
+            // here and ours will not decode in vanilla. GZIP(1)/DEFLATE(2)/
+            // NONE(3) ARE 1:1 (and DEFLATE is the default, so typical worlds are
+            // fine). Completing CHECKLIST_STORAGE #116 requires reimplementing the
+            // lz4-java LZ4Block framing here and in decode_region_payload.
             let mut compressed = Vec::new();
             let mut encoder = Lz4EncoderBuilder::new().build(&mut compressed)?;
             write_named_tag(&mut encoder, name, tag)?;
