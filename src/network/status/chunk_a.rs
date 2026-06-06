@@ -671,6 +671,7 @@ fn handle_status_connection(
         return Ok(());
     }
 
+    let mut status_requested = false;
     loop {
         let packet = read_packet_with_rate_limit(
             &mut stream,
@@ -680,6 +681,14 @@ fn handle_status_connection(
         let mut input = Cursor::new(packet);
         match read_var_i32(&mut input)? {
             0 => {
+                // Java ServerStatusPacketListenerImpl.handleStatusRequest: a second
+                // status request disconnects (multiplayer.status.request_handled).
+                // The status state has no clientbound disconnect packet, so the
+                // connection is simply closed.
+                if status_requested {
+                    return Ok(());
+                }
+                status_requested = true;
                 let json = status_json(properties, favicon);
                 write_status_response_packet(&mut stream, &json)?;
             }
