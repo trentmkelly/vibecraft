@@ -1497,6 +1497,15 @@ fn persist_play_disconnect_state(
     // items to inventory before the player state is persisted.
     play_state.inventory_menu.clear_crafting_to_inventory();
     let _ = save_play_session_state(world_root, profile_uuid, play_state);
+    // TODO(live-stats-advancements-persistence): Java ServerPlayer.disconnect ->
+    // PlayerList.save() also flushes the player's stats (stats/<uuid>.json via
+    // ServerStatsCounter.save) and advancements (advancements/<uuid>.json via
+    // PlayerAdvancements.save). The file format is implemented + tested
+    // (statistics.rs to_vanilla_json/from_vanilla_json, WorldLayout::save_stats/
+    // save_advancements) but is NOT wired here, and stats are never incremented
+    // during live play (no .increment() calls in the play loop). Wiring requires
+    // live gameplay stat tracking (movement/mining/etc.) + advancement criteria
+    // triggers. Blocks CHECKLIST_STORAGE #80 (advancements) and #81 (stats).
     save_world_item_entities(world_root, &lock_status_mutex(world_items));
     // Flush any in-memory block changes (player edits, fluid spreads) that
     // have not reached the periodic flush window; disconnect must not lose work.
