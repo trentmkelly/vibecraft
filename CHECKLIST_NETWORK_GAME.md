@@ -275,7 +275,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] Add a Mineflayer malformed-client-behavior test that uses Mineflayer packet hooks to send unexpected status, login, configuration, and play packets in offline mode and verifies vanilla-compatible disconnect reasons.
 - [ ] Add a Mineflayer compression-threshold test that logs in offline mode with disabled, low, and default thresholds, then verifies packet flow still reaches play state and large packets are decoded correctly.
 - [ ] Implement packet listener dispatch and main-thread handoff rules.
-- [ ] Implement disconnect messages and close ordering matching vanilla closely enough for clients.
+- [x] Implement disconnect messages and close ordering matching vanilla closely enough for clients. — disconnect reasons use the correct per-state packet form: login state sends `ClientboundLoginDisconnectPacket` with a JSON-string component (`read_component`, matching Java's login-disconnect JSON serializer, which predates network-NBT components), while configuration/play send `ClientboundDisconnectPacket` with a network-NBT component (`read_trusted_component` = Java `ComponentSerialization.TRUSTED_STREAM_CODEC`). All live disconnect paths (protocol mismatch, rate-limit, idle/timeout, unexpected-packet, replacement, kick) build a valid reason component and close ordering is `write_all` (synchronous → packet lands in the kernel send buffer) followed by `shutdown(Shutdown::Both)` (FIN after the buffered disconnect), so clients receive the reason before the socket closes — satisfying the item's "closely enough for clients" criterion.
 
 ## Migrated From Main Checklist: Protocol State Parity
 
