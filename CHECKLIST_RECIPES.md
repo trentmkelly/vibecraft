@@ -47,14 +47,14 @@
 
 ## Grid Crafting
 
-- [ ] Implement `ShapedRecipe`: row/column pattern with `ShapedRecipePattern`, ingredient-to-key mapping, result ItemStack, `canCraftInDimensions(w, h)`, mirroring and rotation support NOT applied (vanilla does not rotate shaped recipes)
-- [ ] Implement `ShapedRecipePattern`: key → `Ingredient` map, raw pattern strings, width/height derivation, `matches(CraftingInput)` with offset scan
-- [ ] Implement `ShapelessRecipe`: unordered `List<Ingredient>` matching, `matches()` via subset check with item-count consumption
-- [ ] Implement `TransmuteRecipe`: shaped/shapeless recipe that transforms an item to a new type while preserving certain components (e.g., `minecraft:transmute`)
-- [ ] Implement `ImbueRecipe`: imbue enchantment or effect onto an item via crafting
-- [ ] Add unit test: shaped recipe matches correct grid position, rejects wrong orientation
-- [ ] Add unit test: shapeless recipe accepts any ingredient ordering, respects count requirements
-- [ ] Add unit test: transmute recipe preserves expected components on result
+- [x] Implement `ShapedRecipe`: row/column pattern with `ShapedRecipePattern`, ingredient-to-key mapping, result ItemStack, `canCraftInDimensions(w, h)` — `RecipeKind::Shaped` + `shaped_matches`. **Correction:** 26.1.2 `ShapedRecipePattern.matches` DOES apply horizontal mirroring for a non-symmetrical pattern (rotation is not applied); `shaped_matches` now tries both the pattern and its mirror at every offset (`mirror_pattern`), verified 1:1.
+- [x] Implement `ShapedRecipePattern`: key → `Ingredient` map, raw pattern strings, width/height derivation, `matches(CraftingInput)` with offset scan — `shaped_matches`/`shaped_matches_at` scan every valid offset (emulating `CraftingInput`'s bounding-box crop) over both pattern orientations, requiring empty cells outside the pattern; width/height + pattern length validated by `has_valid_dimensions`.
+- [x] Implement `ShapelessRecipe`: unordered `List<Ingredient>` matching, `matches()` via subset check with item-count consumption — `shapeless_matches` now does a full `StackedContents.canCraft`-equivalent backtracking ingredient→item assignment (was a greedy first-match that mis-rejected overlapping ingredients).
+- [x] Implement `TransmuteRecipe`: shaped/shapeless recipe that transforms an item to a new type while preserving certain components (e.g., `minecraft:transmute`) — `RecipeKind::Transmute` matching (`transmute_matches`, 1:1 incl. the `materialCount` range + count/result checks) + `component_aware_result` = `createWithOriginalComponents` (result = matched input's components retyped to the result item at `result.count + materialCount`). Recolouring a shulker box/bundle keeps its contents; a cloned map keeps its id.
+- [x] Implement `ImbueRecipe`: imbue enchantment or effect onto an item via crafting — `RecipeKind::Imbue` (`imbue_matches`: 3×3 full grid, centre = source, ring = material; 1:1) + `component_aware_result` copies the centre source's `potion_contents` onto a fresh result (tipped arrows = `ImbueRecipe.assemble`).
+- [x] Add unit test: shaped recipe matches correct grid position, rejects wrong orientation — `shaped_and_shapeless_recipes_match_vanilla_grid_rules` (offset match, mirror match, wrong-item rejection).
+- [x] Add unit test: shapeless recipe accepts any ingredient ordering, respects count requirements — same test, incl. the overlapping-ingredient backtracking regression (any-plank + oak-only vs oak+birch) and count mismatch rejection.
+- [x] Add unit test: transmute recipe preserves expected components on result — `container_menus::tests_special_crafting::crafting_menu_transmute_preserves_input_components` (shulker recolour keeps `RepairCost`) + `crafting_menu_imbue_copies_potion_contents_to_result`.
 
 ## Special Crafting Recipes
 
