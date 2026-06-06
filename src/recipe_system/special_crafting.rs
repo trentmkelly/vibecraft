@@ -43,12 +43,299 @@ pub fn special_crafting_result(
         SpecialRecipeKind::BannerDuplicate => banner_duplicate(result_hint?, grid),
         SpecialRecipeKind::BookCloning => book_cloning(result_hint?, grid),
         SpecialRecipeKind::DecoratedPot => decorated_pot(result_hint?, grid),
-        // TODO(recipes-special): port the remaining `CustomRecipe` assemblers to
-        // real `ItemStack`s — dye, the three firework recipes, and map
-        // cloning/extending. Until each is implemented here it does not function
-        // in-game.
+        SpecialRecipeKind::DyedItem => dyed_item(result_hint?, grid),
+        SpecialRecipeKind::FireworkRocket => firework_rocket(result_hint?, grid),
+        SpecialRecipeKind::FireworkStar => firework_star(result_hint?, grid),
+        SpecialRecipeKind::FireworkStarFade => firework_star_fade(result_hint?, grid),
+        // `MapCloning` is a `crafting_transmute` recipe in 26.1.2 (handled by the
+        // ordinary transmute path), so the vestigial `SpecialRecipeKind::MapCloning`
+        // is never produced from data.
+        // TODO(recipes-special): MapExtending needs map-saved-data (scale/MapId),
+        // which the map subsystem does not yet expose on a crafting input.
         _ => None,
     }
+}
+
+// ----------------------------------------------------------------------------
+// Dye colours (DyeColor)
+// ----------------------------------------------------------------------------
+
+/// The `texture_diffuse` and `firework` RGB of a `<colour>_dye` `DyeItem`, matching
+/// the `DyeColor` table. `texture_diffuse` drives `DyedItemColor.applyDyes`;
+/// `firework` drives `DyeColor.getFireworkColor()`. `None` for non-dye items.
+fn dye_colors(item_id: &str) -> Option<(u32, u32)> {
+    let name = item_id.strip_prefix("minecraft:")?.strip_suffix("_dye")?;
+    Some(match name {
+        "white" => (16383998, 15790320),
+        "orange" => (16351261, 15435844),
+        "magenta" => (13061821, 12801229),
+        "light_blue" => (3847130, 6719955),
+        "yellow" => (16701501, 14602026),
+        "lime" => (8439583, 4312372),
+        "pink" => (15961002, 14188952),
+        "gray" => (4673362, 4408131),
+        "light_gray" => (10329495, 11250603),
+        "cyan" => (1481884, 2651799),
+        "purple" => (8991416, 8073150),
+        "blue" => (3949738, 2437522),
+        "brown" => (8606770, 5320730),
+        "green" => (6192150, 3887386),
+        "red" => (11546150, 11743532),
+        "black" => (1908001, 1973019),
+        _ => return None,
+    })
+}
+
+/// `DyedItemColor.applyDyes` — the leather-armour colour blend: the intensity-scaled
+/// average of the current colour (if any) and the applied dyes' texture colours.
+fn apply_dyes(current: Option<u32>, dye_textures: &[u32]) -> u32 {
+    let (mut red_total, mut green_total, mut blue_total, mut intensity_total, mut count) =
+        (0u32, 0u32, 0u32, 0u32, 0u32);
+    let mut accumulate = |rgb: u32| {
+        let (red, green, blue) = ((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
+        intensity_total += red.max(green).max(blue);
+        red_total += red;
+        green_total += green;
+        blue_total += blue;
+        count += 1;
+    };
+    if let Some(rgb) = current {
+        accumulate(rgb);
+    }
+    for rgb in dye_textures {
+        accumulate(*rgb);
+    }
+    if count == 0 {
+        return 0;
+    }
+    let (mut red, mut green, mut blue) =
+        (red_total / count, green_total / count, blue_total / count);
+    let average_intensity = intensity_total as f32 / count as f32;
+    let result_intensity = red.max(green).max(blue) as f32;
+    if result_intensity > 0.0 {
+        red = (red as f32 * average_intensity / result_intensity) as u32;
+        green = (green as f32 * average_intensity / result_intensity) as u32;
+        blue = (blue as f32 * average_intensity / result_intensity) as u32;
+    }
+    (red << 16) | (green << 8) | blue
+}
+
+// ----------------------------------------------------------------------------
+// DyeRecipe
+// ----------------------------------------------------------------------------
+
+/// `DyeRecipe` — a dyeable item (leather/wolf armour) plus one or more dyes blends
+/// the dyes (and any existing colour) into the item's `dyed_color` component.
+fn dyed_item(result_hint: &ItemAmount, grid: &[ItemStack]) -> Option<SpecialCraftOutcome> {
+    let present = present_indexed(grid);
+    if present.len() < 2 {
+        return None;
+    }
+    let mut target = None;
+    let mut dye_textures = Vec::new();
+    for (_, stack) in &present {
+        if let Some((texture, _)) = dye_colors(stack.item_id()) {
+            dye_textures.push(texture);
+        } else if stack.item_id() == result_hint.item {
+            // The dyeable target must be the recipe's configured item, and unique.
+            if target.replace(*stack).is_some() {
+                return None;
+            }
+        } else {
+            return None;
+        }
+    }
+    let target = target?;
+    if dye_textures.is_empty() {
+        return None;
+    }
+
+    let current = match target.component("minecraft:dyed_color") {
+        Some(ItemComponent::DyedColor(rgb)) => Some(*rgb),
+        _ => None,
+    };
+    let mut result = target.transmute_copy(result_hint.item, 1);
+    result.set_component(ItemComponent::DyedColor(apply_dyes(current, &dye_textures)));
+    Some(SpecialCraftOutcome {
+        result,
+        grid_after: vec![ItemStack::empty(); grid.len()],
+    })
+}
+
+// ----------------------------------------------------------------------------
+// Firework recipes
+// ----------------------------------------------------------------------------
+
+/// The `firework_explosion` component carried by a firework star, if any.
+fn firework_explosion(stack: &ItemStack) -> Option<crate::item_properties::FireworkExplosion> {
+    match stack.component("minecraft:firework_explosion") {
+        Some(ItemComponent::FireworkExplosion(explosion)) => Some(explosion.clone()),
+        _ => None,
+    }
+}
+
+/// `FireworkStarRecipe.findShape` — the burst shape contributed by a shape item.
+fn firework_shape(item_id: &str) -> Option<&'static str> {
+    match item_id {
+        "minecraft:feather" => Some("burst"),
+        "minecraft:fire_charge" => Some("large_ball"),
+        "minecraft:gold_nugget" => Some("star"),
+        // `#minecraft:skulls`.
+        id if id.ends_with("_skull") || id.ends_with("_head") => Some("creeper"),
+        _ => None,
+    }
+}
+
+/// `FireworkRocketRecipe` — paper + 1–3 gunpowder + optional firework stars yields a
+/// rocket whose flight duration is the gunpowder count and which carries the stars'
+/// explosions.
+fn firework_rocket(result_hint: &ItemAmount, grid: &[ItemStack]) -> Option<SpecialCraftOutcome> {
+    let present = present_indexed(grid);
+    if present.len() < 2 {
+        return None;
+    }
+    let mut shell = false;
+    let mut fuel_count: u8 = 0;
+    let mut explosions = Vec::new();
+    for (_, stack) in &present {
+        match stack.item_id() {
+            "minecraft:paper" => {
+                if shell {
+                    return None;
+                }
+                shell = true;
+            }
+            "minecraft:gunpowder" => {
+                fuel_count += 1;
+                if fuel_count > 3 {
+                    return None;
+                }
+            }
+            "minecraft:firework_star" => {
+                if let Some(explosion) = firework_explosion(stack) {
+                    explosions.push(explosion);
+                }
+            }
+            _ => return None,
+        }
+    }
+    if !shell || fuel_count == 0 {
+        return None;
+    }
+    let mut result = ItemStack::new(result_hint.item, result_hint.count as i32);
+    result.set_component(ItemComponent::Fireworks {
+        flight_duration: fuel_count,
+        explosions,
+    });
+    Some(SpecialCraftOutcome {
+        result,
+        grid_after: vec![ItemStack::empty(); grid.len()],
+    })
+}
+
+/// `FireworkStarRecipe` — gunpowder + ≥1 dye + optional shape/trail/twinkle modifiers
+/// yields a firework star carrying the assembled `firework_explosion`.
+fn firework_star(result_hint: &ItemAmount, grid: &[ItemStack]) -> Option<SpecialCraftOutcome> {
+    let present = present_indexed(grid);
+    if present.len() < 2 {
+        return None;
+    }
+    let mut fuel = false;
+    let mut shape = "small_ball";
+    let mut has_shape = false;
+    let mut trail = false;
+    let mut twinkle = false;
+    let mut colors = Vec::new();
+    for (_, stack) in &present {
+        let id = stack.item_id();
+        if id == "minecraft:glowstone_dust" {
+            if twinkle {
+                return None;
+            }
+            twinkle = true;
+        } else if id == "minecraft:diamond" {
+            if trail {
+                return None;
+            }
+            trail = true;
+        } else if id == "minecraft:gunpowder" {
+            if fuel {
+                return None;
+            }
+            fuel = true;
+        } else if let Some((_, firework)) = dye_colors(id) {
+            colors.push(firework);
+        } else if let Some(found_shape) = firework_shape(id) {
+            if has_shape {
+                return None;
+            }
+            has_shape = true;
+            shape = found_shape;
+        } else {
+            return None;
+        }
+    }
+    if !fuel || colors.is_empty() {
+        return None;
+    }
+    let mut result = ItemStack::new(result_hint.item, result_hint.count as i32);
+    result.set_component(ItemComponent::FireworkExplosion(
+        crate::item_properties::FireworkExplosion {
+            shape,
+            colors,
+            fade_colors: Vec::new(),
+            trail,
+            twinkle,
+        },
+    ));
+    Some(SpecialCraftOutcome {
+        result,
+        grid_after: vec![ItemStack::empty(); grid.len()],
+    })
+}
+
+/// `FireworkStarFadeRecipe` — a firework star + ≥1 dye stamps the dyes' colours as the
+/// star's fade colours.
+fn firework_star_fade(
+    result_hint: &ItemAmount,
+    grid: &[ItemStack],
+) -> Option<SpecialCraftOutcome> {
+    let present = present_indexed(grid);
+    if present.len() < 2 {
+        return None;
+    }
+    let mut target = None;
+    let mut fade_colors = Vec::new();
+    for (_, stack) in &present {
+        if let Some((_, firework)) = dye_colors(stack.item_id()) {
+            fade_colors.push(firework);
+        } else if stack.item_id() == "minecraft:firework_star" {
+            if target.replace(*stack).is_some() {
+                return None;
+            }
+        } else {
+            return None;
+        }
+    }
+    let target = target?;
+    if fade_colors.is_empty() {
+        return None;
+    }
+    // createWithOriginalComponents(result, target).update(FIREWORK_EXPLOSION, …).
+    let mut result = target.transmute_copy(result_hint.item, 1);
+    let mut explosion = firework_explosion(&result).unwrap_or(crate::item_properties::FireworkExplosion {
+        shape: "small_ball",
+        colors: Vec::new(),
+        fade_colors: Vec::new(),
+        trail: false,
+        twinkle: false,
+    });
+    explosion.fade_colors = fade_colors;
+    result.set_component(ItemComponent::FireworkExplosion(explosion));
+    Some(SpecialCraftOutcome {
+        result,
+        grid_after: vec![ItemStack::empty(); grid.len()],
+    })
 }
 
 /// The non-empty grid stacks paired with their slot index.
@@ -613,6 +900,106 @@ mod tests {
         assert!(
             special_crafting_result(SpecialRecipeKind::DecoratedPot, Some(&hint), &grid).is_none()
         );
+    }
+
+    #[test]
+    fn dyed_item_blends_dye_into_dyed_color() {
+        // A single red dye on an uncoloured leather helmet yields exactly the dye's
+        // texture-diffuse colour (DyeColor.RED = 11546150).
+        let hint = ItemAmount::one("minecraft:leather_helmet");
+        let grid = grid_with(&[
+            (0, ItemStack::new("minecraft:leather_helmet", 1)),
+            (1, ItemStack::new("minecraft:red_dye", 1)),
+        ]);
+        let outcome = special_crafting_result(SpecialRecipeKind::DyedItem, Some(&hint), &grid)
+            .expect("leather + dye should dye");
+        assert_eq!(
+            outcome.result.component("minecraft:dyed_color"),
+            Some(&ItemComponent::DyedColor(11546150))
+        );
+    }
+
+    #[test]
+    fn firework_rocket_flight_duration_is_gunpowder_count() {
+        let hint = ItemAmount {
+            item: "minecraft:firework_rocket",
+            count: 3,
+        };
+        let grid = grid_with(&[
+            (0, ItemStack::new("minecraft:paper", 1)),
+            (1, ItemStack::new("minecraft:gunpowder", 1)),
+            (2, ItemStack::new("minecraft:gunpowder", 1)),
+        ]);
+        let outcome = special_crafting_result(SpecialRecipeKind::FireworkRocket, Some(&hint), &grid)
+            .expect("paper + gunpowder should craft a rocket");
+        assert_eq!(outcome.result.count(), 3);
+        assert_eq!(
+            outcome.result.component("minecraft:fireworks"),
+            Some(&ItemComponent::Fireworks {
+                flight_duration: 2,
+                explosions: Vec::new(),
+            })
+        );
+        // Four gunpowder exceeds the flight-duration cap.
+        let grid = grid_with(&[
+            (0, ItemStack::new("minecraft:paper", 1)),
+            (1, ItemStack::new("minecraft:gunpowder", 1)),
+            (2, ItemStack::new("minecraft:gunpowder", 1)),
+            (3, ItemStack::new("minecraft:gunpowder", 1)),
+            (4, ItemStack::new("minecraft:gunpowder", 1)),
+        ]);
+        assert!(
+            special_crafting_result(SpecialRecipeKind::FireworkRocket, Some(&hint), &grid).is_none()
+        );
+    }
+
+    #[test]
+    fn firework_star_assembles_shape_color_and_modifiers() {
+        use crate::item_properties::FireworkExplosion;
+        let hint = ItemAmount::one("minecraft:firework_star");
+        let grid = grid_with(&[
+            (0, ItemStack::new("minecraft:gunpowder", 1)),
+            (1, ItemStack::new("minecraft:red_dye", 1)),
+            (2, ItemStack::new("minecraft:fire_charge", 1)), // large_ball
+            (3, ItemStack::new("minecraft:glowstone_dust", 1)), // twinkle
+        ]);
+        let outcome = special_crafting_result(SpecialRecipeKind::FireworkStar, Some(&hint), &grid)
+            .expect("gunpowder + dye should craft a star");
+        assert_eq!(
+            outcome.result.component("minecraft:firework_explosion"),
+            Some(&ItemComponent::FireworkExplosion(FireworkExplosion {
+                shape: "large_ball",
+                colors: vec![11743532], // DyeColor.RED firework colour
+                fade_colors: Vec::new(),
+                trail: false,
+                twinkle: true,
+            }))
+        );
+    }
+
+    #[test]
+    fn firework_star_fade_adds_fade_colors() {
+        use crate::item_properties::FireworkExplosion;
+        let hint = ItemAmount::one("minecraft:firework_star");
+        let mut star = ItemStack::new("minecraft:firework_star", 1);
+        star.set_component(ItemComponent::FireworkExplosion(FireworkExplosion {
+            shape: "small_ball",
+            colors: vec![11546150],
+            fade_colors: Vec::new(),
+            trail: false,
+            twinkle: false,
+        }));
+        let grid = grid_with(&[(0, star), (1, ItemStack::new("minecraft:blue_dye", 1))]);
+        let outcome =
+            special_crafting_result(SpecialRecipeKind::FireworkStarFade, Some(&hint), &grid)
+                .expect("star + dye should add fade colours");
+        match outcome.result.component("minecraft:firework_explosion") {
+            Some(ItemComponent::FireworkExplosion(explosion)) => {
+                assert_eq!(explosion.fade_colors, vec![2437522]); // DyeColor.BLUE firework
+                assert_eq!(explosion.colors, vec![11546150], "original colours kept");
+            }
+            other => panic!("expected explosion, got {other:?}"),
+        }
     }
 
     #[test]
