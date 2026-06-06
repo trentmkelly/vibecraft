@@ -77,7 +77,7 @@
 - [ ] Implement `SmokingRecipe`: recipe type `minecraft:smoking`, base cooking time 100 ticks
 - [ ] Implement `CampfireCookingRecipe`: recipe type `minecraft:campfire_cooking`, base cooking time 100 ticks in 26.1.2, no fuel required
 - [ ] Implement `experience` field: XP stored in furnace, released on item extraction
-- [ ] Implement `FuelValues` registry: fuel item → burn time mapping matching vanilla defaults
+- [x] Implement `FuelValues` registry: fuel item → burn time mapping matching vanilla defaults — `FuelValues::vanilla_from_tags` (recipe_system/fuel_values.rs) builds the item→burn-time map 1:1 with `FuelValues.vanillaBurnTimes`: every direct item + every member of the ~19 fuel tags (LOGS/PLANKS/WOODEN_*/BOATS/WOOL/BANNERS/SIGNS/SAPLINGS/…) resolved via the loaded `ItemTagMap`, then `#minecraft:non_flammable_wood` removed. Verified against the real vanilla tags (all wood types = 300t, all banner/wool colours + boat types, crimson/warped = 0t, coal 1600 / lava 20000 / blaze_rod 2400).
 - [ ] Add unit test: cooking recipe cook time, XP per result, and fuel interaction for representative items
 
 ## Smithing and Station Recipes
