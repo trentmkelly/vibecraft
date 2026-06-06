@@ -151,3 +151,70 @@ fn crafting_menu_imbue_copies_potion_contents_to_result() {
         Some(&ItemComponent::PotionContents("minecraft:strength"))
     );
 }
+
+#[test]
+fn crafting_menu_map_extending_zooms_a_scalable_non_exploration_map() {
+    use crate::item_properties::{ItemComponent, MapPostProcessing};
+    use crate::recipe_system::{MapCraftingData, MapDataStore, SpecialRecipeKind};
+
+    let recipes = RecipeMap::create(vec![RecipeHolder {
+        id: "minecraft:map_extending",
+        recipe: RecipeKind::Special {
+            kind: SpecialRecipeKind::MapExtending,
+            result_hint: Some(ItemAmount {
+                item: "minecraft:filled_map",
+                count: 1,
+            }),
+        },
+    }]);
+
+    // Centre map (id 7) is scale 2 and not an exploration map -> extendable.
+    let mut store = MapDataStore::default();
+    store.insert(7, MapCraftingData { scale: 2, exploration_map: false });
+
+    let fill_grid = |menu: &mut CraftingMenu, player: &mut PlayerInventory, map: ItemStack| {
+        for paper_slot in [1, 2, 3, 4, 6, 7, 8, 9] {
+            menu.set_slot(paper_slot, ItemStack::new("minecraft:paper", 1), player);
+        }
+        menu.set_slot(5, map, player); // grid index 4 = centre
+    };
+
+    let mut player = PlayerInventory::new();
+    let mut menu = CraftingMenu::new(recipes.clone());
+    menu.set_map_data(store.clone());
+    let mut map = ItemStack::new("minecraft:filled_map", 1);
+    map.set_component(ItemComponent::MapId(7));
+    fill_grid(&mut menu, &mut player, map);
+
+    let result = menu.get_slot(0, &player).unwrap();
+    assert_eq!(result.item_id(), "minecraft:filled_map");
+    assert_eq!(
+        result.component("minecraft:map_id"),
+        Some(&ItemComponent::MapId(7)),
+        "createWithOriginalComponents keeps the source map id"
+    );
+    assert_eq!(
+        result.component("minecraft:map_post_processing"),
+        Some(&ItemComponent::MapPostProcessing(MapPostProcessing::Scale))
+    );
+
+    // A map already at the max scale (4) cannot be extended.
+    let mut maxed = MapDataStore::default();
+    maxed.insert(7, MapCraftingData { scale: 4, exploration_map: false });
+    let mut menu = CraftingMenu::new(recipes.clone());
+    menu.set_map_data(maxed);
+    let mut map = ItemStack::new("minecraft:filled_map", 1);
+    map.set_component(ItemComponent::MapId(7));
+    fill_grid(&mut menu, &mut player, map);
+    assert!(menu.get_slot(0, &player).unwrap().is_empty());
+
+    // An exploration map cannot be extended.
+    let mut exploration = MapDataStore::default();
+    exploration.insert(7, MapCraftingData { scale: 1, exploration_map: true });
+    let mut menu = CraftingMenu::new(recipes);
+    menu.set_map_data(exploration);
+    let mut map = ItemStack::new("minecraft:filled_map", 1);
+    map.set_component(ItemComponent::MapId(7));
+    fill_grid(&mut menu, &mut player, map);
+    assert!(menu.get_slot(0, &player).unwrap().is_empty());
+}

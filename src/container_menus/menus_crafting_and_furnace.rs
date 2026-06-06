@@ -15,6 +15,9 @@ pub struct CraftingMenu {
     /// the result is taken (see [`SpecialCraftOutcome::grid_after`]). `None` for an
     /// ordinary recipe, whose inputs are consumed via `get_remaining_items`.
     special_grid_after: Option<Vec<ItemStack>>,
+    /// The level's map saved-data (scale/exploration) the `MapExtendingRecipe` needs.
+    /// Empty by default; the server populates it when constructing the menu.
+    map_data: crate::recipe_system::MapDataStore,
     recipes: RecipeMap,
     unlocked_recipes: BTreeSet<&'static str>,
     highlighted_recipes: BTreeSet<&'static str>,
@@ -38,11 +41,19 @@ impl CraftingMenu {
             result: ItemStack::empty(),
             recipe_id: None,
             special_grid_after: None,
+            map_data: crate::recipe_system::MapDataStore::default(),
             recipes,
             unlocked_recipes: BTreeSet::new(),
             highlighted_recipes: BTreeSet::new(),
             recipe_unlock_events: Vec::new(),
         }
+    }
+
+    /// Supply the level's map saved-data so the `MapExtendingRecipe` can read the
+    /// centre map's scale/exploration (the server calls this when opening the menu).
+    pub fn set_map_data(&mut self, map_data: crate::recipe_system::MapDataStore) {
+        self.map_data = map_data;
+        self.slots_changed();
     }
 
     /// `CraftingMenu.removed`: route the carried cursor item, then
@@ -121,6 +132,14 @@ impl CraftingMenu {
         } else if let Some((id, outcome)) = self.recipes.special_crafting_result(&self.grid) {
             // A `CustomRecipe` (repair, banner duplicate, fireworks, …) whose result
             // depends on input components — evaluated with full stacks.
+            self.recipe_id = Some(id);
+            self.result = outcome.result;
+            self.special_grid_after = Some(outcome.grid_after);
+        } else if let Some((id, outcome)) = self
+            .recipes
+            .map_extending_result(&self.grid, &self.map_data)
+        {
+            // `MapExtendingRecipe` needs the centre map's saved data (scale/exploration).
             self.recipe_id = Some(id);
             self.result = outcome.result;
             self.special_grid_after = Some(outcome.grid_after);
