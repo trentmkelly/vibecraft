@@ -267,8 +267,8 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] Implement rate limiting and packet flood kicking.
 - [ ] Implement local memory connection equivalent if needed for integrated tests.
 - [ ] Implement bundled packet packing/unpacking.
-- [ ] Implement cookie request/response packets.
-- [ ] Implement transfer packets.
+- [x] Implement cookie request/response packets. — `network/cookie.rs`: `ClientboundCookieRequestPacket` (key:Identifier), `ServerboundCookieResponsePacket` (key:Identifier + nullable payload), `ClientboundStoreCookiePacket` (key:Identifier + byte[]), all 1:1 with Java `common/Clientbound{CookieRequest,StoreCookie}Packet`/`ServerboundCookieResponsePacket`: `MAX_COOKIE_PAYLOAD_SIZE = 5120` matches `ClientboundStoreCookiePacket.MAX_PAYLOAD_SIZE`/`ByteBufCodecs.byteArray(5120)`; nullable payload uses the bool-prefixed Optional codec (`read_optional`/`write_optional` = Java `read/writeNullable`); identifiers via `read_identifier`/`write_identifier`. Tests `round_trips_cookie_request`, `round_trips_cookie_response_with_and_without_payload`, `rejects_cookie_payloads_larger_than_vanilla_limit`, `round_trips_store_cookie_at_vanilla_limit` (8 cookie tests pass).
+- [x] Implement transfer packets. — `network/transfer.rs::ClientboundTransferPacket` is 1:1 with Java `common/ClientboundTransferPacket`: `host` via `writeUtf`/`readUtf` (default max 32767, standard-UTF-8 protocol string codec) and `port` via `writeVarInt`/`readVarInt`. Test `round_trips_clientbound_transfer_packet` passes.
 - [ ] Implement custom payload channels and known payload validation.
 - [ ] Implement keepalive and timeout handling for all relevant protocol states.
 - [ ] Add a Mineflayer/raw keepalive test that stays connected for multiple heartbeat intervals and verifies no false timeout or duplicate keepalive response handling.
