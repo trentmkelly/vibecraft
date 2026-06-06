@@ -1063,7 +1063,7 @@ impl CookingKind {
         }
     }
 
-    #[cfg(test)]
+    #[allow(dead_code)]
     pub fn serializer(self) -> &'static str {
         match self {
             CookingKind::Smelting => "smelting",

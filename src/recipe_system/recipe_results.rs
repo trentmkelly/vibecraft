@@ -107,7 +107,7 @@ impl RecipeKind {
         }
     }
 
-    #[cfg(test)]
+    /// `Recipe.getSerializer` — the recipe serializer id (= the JSON `type`).
     pub fn serializer(&self) -> &'static str {
         match self {
             RecipeKind::Shaped { .. } => "crafting_shaped",
@@ -119,7 +119,6 @@ impl RecipeKind {
             RecipeKind::SmithingTransform { .. } => "smithing_transform",
             RecipeKind::SmithingTrim { .. } => "smithing_trim",
             RecipeKind::Special { kind, .. } => match kind {
-                SpecialRecipeKind::Transmute => "crafting_transmute",
                 SpecialRecipeKind::MapCloning => "crafting_special_mapcloning",
                 SpecialRecipeKind::MapExtending => "crafting_special_mapextending",
                 SpecialRecipeKind::BannerDuplicate => "crafting_special_bannerduplicate",
@@ -127,11 +126,17 @@ impl RecipeKind {
                 SpecialRecipeKind::FireworkRocket => "crafting_special_firework_rocket",
                 SpecialRecipeKind::FireworkStar => "crafting_special_firework_star",
                 SpecialRecipeKind::FireworkStarFade => "crafting_special_firework_star_fade",
-                SpecialRecipeKind::SuspiciousStew => "crafting_special_suspiciousstew",
                 SpecialRecipeKind::BookCloning => "crafting_special_bookcloning",
                 SpecialRecipeKind::RepairItem => "crafting_special_repairitem",
                 SpecialRecipeKind::DyedItem => "crafting_dye",
                 SpecialRecipeKind::DecoratedPot => "crafting_decorated_pot",
+                // Vestigial test-only variants (the live recipes use the
+                // `RecipeKind::Transmute`/`Imbue` paths instead).
+                #[cfg(test)]
+                SpecialRecipeKind::Transmute => "crafting_transmute",
+                #[cfg(test)]
+                SpecialRecipeKind::SuspiciousStew => "crafting_special_suspiciousstew",
+                #[cfg(test)]
                 SpecialRecipeKind::Imbue => "crafting_imbue",
             },
         }
@@ -165,7 +170,6 @@ impl RecipeKind {
         }
     }
 
-    #[cfg(test)]
     pub fn recipe_book_category(&self) -> &'static str {
         match self {
             RecipeKind::Shaped { .. }
@@ -206,12 +210,10 @@ impl RecipeKind {
         }
     }
 
-    #[cfg(test)]
     pub fn show_notification(&self) -> bool {
         !self.is_special()
     }
 
-    #[cfg(test)]
     pub fn single_item_input(&self) -> Option<&IngredientSpec> {
         match self {
             RecipeKind::Cooking { ingredient, .. }
@@ -220,7 +222,6 @@ impl RecipeKind {
         }
     }
 
-    #[cfg(test)]
     pub fn single_item_result(&self) -> Option<&ItemAmount> {
         match self {
             RecipeKind::Cooking { result, .. } | RecipeKind::Stonecutting { result, .. } => {
