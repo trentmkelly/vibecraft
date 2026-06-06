@@ -106,7 +106,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
   - [ ] `vein_toggle`: was bare `Noise`, fixed to `Interpolated(rangeChoice(y, -60, 51, noise(ore_veininess, 1.5, 1.5), constant(0)))` matching Java `yLimitedInterpolatable`
   - [ ] `vein_ridged`: was unregistered Reference, replaced with inline `add(constant(-0.08F), max(abs(veinA), abs(veinB)))` tree matching Java `overworld()` inline computation; `veinA`/`veinB` are both `yLimitedInterpolatable`-wrapped noise
   - [ ] `preliminary_surface_level`: was unregistered Reference, replaced with full `FindTopSurface` tree (cache2d offset/factor → remap upper bound → clamp → slideOverworld density) for all three variants (overworld, large_biomes, amplified); amplified uses different slide parameters (topGradient 304→320, bottomTarget 0.4)
-- [ ] Add parity test: `overworld_noise_router_all_fields_finite_at_canonical_position` — all 15 router fields evaluate to finite values at seed=12345, (0,64,0), catching any unregistered Reference that would silently return 0.0
+- [x] Add parity test: `overworld_noise_router_all_fields_finite_at_canonical_position` — all 15 router fields evaluate to finite values at seed=12345, (0,64,0), catching any unregistered Reference that would silently return 0.0 — named test exists and passes.
 - [ ] Implement `NoiseSettings` (min Y, height, sampling noise scale, noise size XZ/Y) — `NoiseSettings` struct with `validate`, `clamp_to_height`, `cell_width`, `cell_height`; five builtin constants matching vanilla
 - [ ] Implement `RandomState` noise fork caching: `getOrCreateNoise(ResourceKey<NormalNoise.NoiseParameters>)` — `RandomStateNoiseCache` struct with `get_or_create_noise` mirrors Java `RandomState.noiseInstances` cache
 - [ ] Add test: noise settings for overworld match vanilla min Y = -64, height = 384 — `noise_settings_presets_match_26_1_2_constants`
@@ -132,7 +132,7 @@ The live RustCraft spawn terrain is **synthetic scaffolding** (deterministic noi
   - [ ] `HolderHolder` / reference lookup — `DensityFunction::Reference` resolves via `builtin_density_function()`, returns 0.0 on miss
 - [ ] Implement `overworld/final_density`: `min(postProcess(slideOverworld(caves)), noodle)` — full inline constant tree matching Java `NoiseRouterData.overworld()`, registered in `BUILTIN_DENSITY_FUNCTIONS`; `slideOverworld`, `underground`, `postProcess` all ported as const density function graphs
 - [ ] Implement `NoiseChunk` cell-based sampling loop with proper XZ/Y cell sizing from noise settings
-- [ ] Add parity test: `finalDensity` at overworld (0,100,0) matches vanilla output for seed 0. `overworld_final_density_matches_vanilla_at_0_100_0_seed_0` now pins the official 26.1.2 `VanillaRegistries.createLookup()`/`RandomState.create(OVERWORLD, seed 0)` oracle value `-0.45833333333333330`. References: `RustCraft/src/worldgen.rs`, `decompiled-server-26.1.2/net/minecraft/data/registries/VanillaRegistries.java`, `decompiled-server-26.1.2/net/minecraft/world/level/levelgen/RandomState.java`.
+- [x] Add parity test: `finalDensity` at overworld (0,100,0) matches vanilla output for seed 0. `overworld_final_density_matches_vanilla_at_0_100_0_seed_0` now pins the official 26.1.2 `VanillaRegistries.createLookup()`/`RandomState.create(OVERWORLD, seed 0)` oracle value `-0.45833333333333330`. References: `RustCraft/src/worldgen.rs`, `decompiled-server-26.1.2/net/minecraft/data/registries/VanillaRegistries.java`, `decompiled-server-26.1.2/net/minecraft/world/level/levelgen/RandomState.java`.
 
 ## Noise Samplers
 
