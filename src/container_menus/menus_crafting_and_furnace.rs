@@ -105,10 +105,17 @@ impl CraftingMenu {
             .collect();
         if let Some(holder) = self.recipes.get_recipe_for("crafting", 3, 3, &items) {
             self.recipe_id = Some(holder.id);
+            // Transmute/Imbue preserve input components; all others build a plain
+            // result from the recipe's output item + count.
             self.result = holder
                 .recipe
-                .assemble()
-                .map(|r| ItemStack::new(r.item, r.count as i32))
+                .component_aware_result(&self.grid)
+                .or_else(|| {
+                    holder
+                        .recipe
+                        .assemble()
+                        .map(|r| ItemStack::new(r.item, r.count as i32))
+                })
                 .unwrap_or_else(ItemStack::empty);
             self.special_grid_after = None;
         } else if let Some((id, outcome)) = self.recipes.special_crafting_result(&self.grid) {

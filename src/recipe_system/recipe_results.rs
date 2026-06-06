@@ -282,14 +282,11 @@ impl RecipeKind {
             // BannerDuplicateRecipe, BookCloningRecipe, DecoratedPotRecipe,
             // DyedItemRecipe, FireworkRocket/Star/StarFadeRecipe, MapCloning/
             // ExtendingRecipe, ShieldDecorationRecipe) need *stack-aware* matching —
-            // their result depends on input components/damage/counts, not just item
-            // ids — but this `matches` only receives `&[Option<&'static str>]`.
-            // Implementing them 1:1 requires (a) threading full `ItemStack`s (with
-            // components) through recipe matching, and (b) for fireworks/dye/pots,
-            // new `ItemComponent`s (Fireworks, FireworkExplosion, DyedColor,
-            // PotDecorations, ChargedProjectiles) that `item_properties.rs` does not
-            // yet model. Until then `Special` only carries a static `result_hint`
-            // for registry/display purposes and never matches as a live recipe.
+            // their result depends on input components/damage/counts, not item ids,
+            // and this `matches` only receives `&[Option<&'static str>]`. They are
+            // matched + assembled live by `special_crafting::special_crafting_result`
+            // (consulted via `RecipeMap::special_crafting_result`), so this id-only
+            // path always reports `false` for them.
             RecipeKind::Special { .. } => false,
         }
     }
@@ -305,6 +302,52 @@ impl RecipeKind {
             | RecipeKind::SmithingTransform { result, .. } => Some(result.clone()),
             RecipeKind::SmithingTrim { .. } => None,
             RecipeKind::Special { result_hint, .. } => result_hint.clone(),
+        }
+    }
+
+    /// Build the result stack for the recipes whose output preserves input data
+    /// components — `Transmute` copies the transmuted item's components (e.g. a
+    /// recoloured shulker box keeps its contents, a cloned map keeps its id) and
+    /// `Imbue` copies the centre source's potion contents (tipped arrows). Returns
+    /// `None` for every other kind, whose result is a plain new item (use
+    /// [`assemble`](Self::assemble)).
+    pub fn component_aware_result(&self, grid: &[ItemStack]) -> Option<ItemStack> {
+        match self {
+            // `TransmuteRecipe.assemble` = createWithOriginalComponents(result, input,
+            // materialCount): the result is the matched input's components retyped to
+            // the result item, at `result.count + materialCount` when configured.
+            RecipeKind::Transmute {
+                input,
+                material,
+                result,
+                add_material_count_to_result,
+                ..
+            } => {
+                let mut input_stack = None;
+                let mut material_count = 0u32;
+                for stack in grid.iter().filter(|stack| !stack.is_empty()) {
+                    if input_stack.is_none() && input.matches(stack.item_id()) {
+                        input_stack = Some(stack);
+                    } else if material.matches(stack.item_id()) {
+                        material_count += 1;
+                    }
+                }
+                let input_stack = input_stack?;
+                let count =
+                    transmute_result_count(result.count, material_count, *add_material_count_to_result);
+                Some(input_stack.transmute_copy(result.item, count as i32))
+            }
+            // `ImbueRecipe.assemble`: a fresh result carrying the centre slot's
+            // potion contents.
+            RecipeKind::Imbue { result, .. } => {
+                let source = grid.get(4)?;
+                let mut stack = ItemStack::new(result.item, result.count as i32);
+                if let Some(potion) = source.component("minecraft:potion_contents") {
+                    stack.set_component(potion.clone());
+                }
+                Some(stack)
+            }
+            _ => None,
         }
     }
 
