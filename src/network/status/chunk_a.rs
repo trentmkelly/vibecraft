@@ -809,6 +809,9 @@ fn write_vanilla_feature_flags_packet<W: Write>(payload: &mut W) -> io::Result<(
 struct CompletedLogin {
     finished: ClientboundLoginFinishedPacket,
     compression: CompressionState,
+    // Held for the whole play session so the player stays registered in the
+    // shared ActiveLoginRegistry until disconnect; dropping it deregisters.
+    active_login: ActiveLoginGuard,
 }
 
 enum LoginHandshakeOutcome {
@@ -851,7 +854,7 @@ fn complete_login_handshake(
         })?;
         return Ok(LoginHandshakeOutcome::Closed);
     }
-    let (_active_login, replaced_stream) = context
+    let (active_login, replaced_stream) = context
         .shared
         .active_logins
         .register_replacing(&finished.profile.uuid, stream)?;
@@ -865,6 +868,7 @@ fn complete_login_handshake(
     Ok(LoginHandshakeOutcome::Complete(CompletedLogin {
         finished,
         compression,
+        active_login,
     }))
 }
 
@@ -2765,10 +2769,14 @@ fn handle_login_connection(
     let LoginHandshakeOutcome::Complete(CompletedLogin {
         finished,
         compression,
+        // Bound (not `_`) so it lives for the whole play session below and only
+        // deregisters the player from the ActiveLoginRegistry on disconnect.
+        active_login,
     }) = complete_login_handshake(stream, &mut context)?
     else {
         return Ok(());
     };
+    let _active_login = active_login;
     run_configuration_handshake(
         stream,
         context.shared.properties,
