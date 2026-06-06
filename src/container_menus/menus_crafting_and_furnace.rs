@@ -11,6 +11,10 @@ pub struct CraftingMenu {
     grid: [ItemStack; 9],
     result: ItemStack,
     recipe_id: Option<&'static str>,
+    /// For a matched special (`CustomRecipe`) result, the grid state to apply when
+    /// the result is taken (see [`SpecialCraftOutcome::grid_after`]). `None` for an
+    /// ordinary recipe, whose inputs are consumed via `get_remaining_items`.
+    special_grid_after: Option<Vec<ItemStack>>,
     recipes: RecipeMap,
     unlocked_recipes: BTreeSet<&'static str>,
     highlighted_recipes: BTreeSet<&'static str>,
@@ -33,6 +37,7 @@ impl CraftingMenu {
             grid: std::array::from_fn(|_| ItemStack::empty()),
             result: ItemStack::empty(),
             recipe_id: None,
+            special_grid_after: None,
             recipes,
             unlocked_recipes: BTreeSet::new(),
             highlighted_recipes: BTreeSet::new(),
@@ -105,9 +110,17 @@ impl CraftingMenu {
                 .assemble()
                 .map(|r| ItemStack::new(r.item, r.count as i32))
                 .unwrap_or_else(ItemStack::empty);
+            self.special_grid_after = None;
+        } else if let Some((id, outcome)) = self.recipes.special_crafting_result(&self.grid) {
+            // A `CustomRecipe` (repair, banner duplicate, fireworks, …) whose result
+            // depends on input components — evaluated with full stacks.
+            self.recipe_id = Some(id);
+            self.result = outcome.result;
+            self.special_grid_after = Some(outcome.grid_after);
         } else {
             self.recipe_id = None;
             self.result = ItemStack::empty();
+            self.special_grid_after = None;
         }
     }
 
@@ -128,6 +141,16 @@ impl CraftingMenu {
     }
 
     fn consume_inputs_and_refresh(&mut self) {
+        // A special (`CustomRecipe`) result carries its own post-craft grid state
+        // (e.g. the patterned banner / written book stays, the copy is consumed).
+        if let Some(grid_after) = self.special_grid_after.take() {
+            for (slot, after) in self.grid.iter_mut().zip(grid_after) {
+                *slot = after;
+            }
+            self.slots_changed();
+            return;
+        }
+
         let remaining_items = self
             .recipe_id
             .and_then(|recipe_id| self.recipes.by_key(recipe_id))

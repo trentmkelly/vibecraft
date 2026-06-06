@@ -1,3 +1,5 @@
+use crate::item_stack::ItemStack;
+
 #[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RegistryEntry {
@@ -454,6 +456,28 @@ impl RecipeMap {
         self.recipes.iter().find(|holder| {
             holder.recipe.recipe_type() == recipe_type
                 && holder.recipe.matches(grid_width, grid_height, items)
+        })
+    }
+
+    /// Evaluate the registered `crafting` special recipes (`CustomRecipe`s) against
+    /// the live grid of stacks, returning the id + outcome of the first match.
+    ///
+    /// The ordinary `RecipeKind::matches` path is id-only and cannot express the
+    /// component-dependent rules of `CustomRecipe`s, so these are checked here with
+    /// full `ItemStack`s. A special recipe only matches inputs that no ordinary
+    /// recipe does, so callers consult this after `get_recipe_for` returns `None`.
+    pub fn special_crafting_result(
+        &self,
+        grid: &[ItemStack],
+    ) -> Option<(&'static str, SpecialCraftOutcome)> {
+        if grid.iter().all(ItemStack::is_empty) {
+            return None;
+        }
+        self.recipes.iter().find_map(|holder| {
+            let RecipeKind::Special { kind, .. } = &holder.recipe else {
+                return None;
+            };
+            special_crafting_result(*kind, grid).map(|outcome| (holder.id, outcome))
         })
     }
 }
@@ -1158,6 +1182,8 @@ pub fn furnace_experience_to_award(usage: &FurnaceRecipeUsage, fraction_roll: f3
 
 mod recipe_results;
 pub use recipe_results::*;
+mod special_crafting;
+pub use special_crafting::*;
 
 #[cfg(test)]
 mod tests;
