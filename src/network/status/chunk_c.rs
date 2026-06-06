@@ -515,6 +515,11 @@ fn write_join_login_and_profile_packets(
             is_flat: false,
             ..CommonPlayerSpawnInfo::default()
         },
+        // Java mirror: ClientboundLoginPacket carries `server.enforceSecureProfile()`
+        // (PlayerList.java:179) = enforce-secure-profile && online-mode &&
+        // canValidateProfileKeys(). RustCraft has no loaded profile-key validation,
+        // so this is false (matching vanilla offline). See the matching
+        // TODO(secure-profile-enforcement) in `status_json` (chunk_e_2.rs).
         enforces_secure_chat: false,
     };
     write_framed_packet_with_compression(

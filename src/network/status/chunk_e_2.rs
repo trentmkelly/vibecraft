@@ -683,8 +683,20 @@ pub fn status_json(properties: &ServerProperties, favicon: Option<&str>) -> Stri
         .map(|value| format!(",\"favicon\":\"{}\"", escape_json_string(value)))
         .unwrap_or_default();
 
+    // Java mirror: status `enforcesSecureChat` = `server.enforceSecureProfile()`
+    // (MinecraftServer.java:1059) = `enforce-secure-profile && online-mode &&
+    // services.canValidateProfileKeys()` (DedicatedServer.java:654-656). RustCraft
+    // has not loaded a Mojang services PROFILE_KEY (no online profile-key
+    // validation), so `canValidateProfileKeys()` is false and the whole expression
+    // is false — matching vanilla offline behavior. (Previously hard-coded `true`,
+    // which diverged from vanilla offline mode.)
+    // TODO(secure-profile-enforcement): once online-mode auth (AUTH_CHAT) loads the
+    // services key set, compute this via `player_profile_key::enforce_secure_profile`
+    // (un-gate that module from cfg(test)) and add login-time signed-profile-key
+    // rejection + unsigned-chat dropping. Until then `enforce-secure-profile` only
+    // affects this advertisement, which is correctly false offline.
     format!(
-        "{{\"version\":{{\"name\":\"{}\",\"protocol\":{}}},{},\"description\":{{\"text\":\"{}\"}}{},\"enforcesSecureChat\":true}}",
+        "{{\"version\":{{\"name\":\"{}\",\"protocol\":{}}},{},\"description\":{{\"text\":\"{}\"}}{},\"enforcesSecureChat\":false}}",
         VERSION_NAME,
         PROTOCOL_VERSION,
         players,
