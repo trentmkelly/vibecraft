@@ -1454,3 +1454,67 @@ fn assert_delete_chat_packets() {
     assert_eq!(full_delete_chat[0], 0);
     assert_eq!(&full_delete_chat[1..], &[9; 256]);
 }
+
+/// `#100` — verify the wire encoding of every `RecipeDisplay` variant the
+/// recipe-book / update-recipes packets carry matches the 26.1.2 client format:
+/// the leading type-id discriminant (shapeless 0, shaped 1, furnace 2,
+/// stonecutter 3, smithing 4) plus the per-type field layout. `SlotDisplay::Item`
+/// is type 4 (then the item network id), `Empty` is 0, `AnyFuel` is 1.
+#[test]
+fn recipe_display_wire_format_per_type_matches_vanilla() {
+    let item = |id| SlotDisplayData::Item { item_id: id };
+
+    let encode = |display: RecipeDisplayData| {
+        let mut bytes = Vec::new();
+        display.write(&mut bytes).unwrap();
+        bytes
+    };
+
+    assert_eq!(
+        encode(RecipeDisplayData::CraftingShapeless {
+            ingredients: vec![item(5)],
+            result: item(6),
+            crafting_station: SlotDisplayData::Empty,
+        }),
+        vec![0, 1, 4, 5, 4, 6, 0]
+    );
+    assert_eq!(
+        encode(RecipeDisplayData::CraftingShaped {
+            width: 2,
+            height: 1,
+            ingredients: vec![item(5), item(6)],
+            result: item(7),
+            crafting_station: SlotDisplayData::Empty,
+        }),
+        vec![1, 2, 1, 2, 4, 5, 4, 6, 4, 7, 0]
+    );
+    assert_eq!(
+        encode(RecipeDisplayData::Furnace {
+            ingredient: item(5),
+            fuel: SlotDisplayData::AnyFuel,
+            result: item(6),
+            crafting_station: SlotDisplayData::Empty,
+            duration: 200,
+            experience_bits: 0,
+        }),
+        vec![2, 4, 5, 1, 4, 6, 0, 200, 1, 0, 0, 0, 0]
+    );
+    assert_eq!(
+        encode(RecipeDisplayData::Stonecutter {
+            ingredient: item(5),
+            result: item(6),
+            crafting_station: SlotDisplayData::Empty,
+        }),
+        vec![3, 4, 5, 4, 6, 0]
+    );
+    assert_eq!(
+        encode(RecipeDisplayData::Smithing {
+            template: item(5),
+            base: item(6),
+            addition: item(7),
+            result: item(8),
+            crafting_station: SlotDisplayData::Empty,
+        }),
+        vec![4, 4, 5, 4, 6, 4, 7, 4, 8, 0]
+    );
+}
