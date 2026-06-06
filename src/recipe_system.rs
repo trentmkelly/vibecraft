@@ -925,7 +925,7 @@ impl IngredientSpec {
         }
     }
 
-    #[cfg(test)]
+    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         matches!(self, IngredientSpec::Empty)
     }

@@ -1,3 +1,11 @@
+//! Recipe result/assembly logic. The `Recipe`/`CraftingRecipe`/`SmithingRecipe`
+//! interface accessors here mirror Java's always-available methods (`isSpecial`,
+//! `category`, `isIncomplete`, `cookingTime`, …); several have no production caller
+//! yet (the recipe-book sync that consumes them isn't wired), so dead code is
+//! allowed rather than gating them to test builds (which diverges from Java's
+//! always-present interface).
+#![allow(dead_code)]
+
 use super::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -129,9 +137,32 @@ impl RecipeKind {
         }
     }
 
-    #[cfg(test)]
+    /// `Recipe.isSpecial` — special (`CustomRecipe`) recipes are excluded from the
+    /// recipe book's normal categories and from datapack auto-unlock.
     pub fn is_special(&self) -> bool {
         matches!(self, RecipeKind::Special { .. })
+    }
+
+    /// `Recipe.isIncomplete` — whether a required ingredient is empty, so the recipe
+    /// cannot be crafted (in Java, `placementInfo().isImpossibleToPlace()`). For the
+    /// item-combiner smithing recipes only the base is required (template/addition
+    /// are optional). Special recipes have no fixed ingredients, so never incomplete.
+    pub fn is_incomplete(&self) -> bool {
+        match self {
+            RecipeKind::Shaped { pattern, .. } => pattern.iter().flatten().any(IngredientSpec::is_empty),
+            RecipeKind::Shapeless { ingredients, .. } => {
+                ingredients.is_empty() || ingredients.iter().any(IngredientSpec::is_empty)
+            }
+            RecipeKind::Cooking { ingredient, .. } | RecipeKind::Stonecutting { ingredient, .. } => {
+                ingredient.is_empty()
+            }
+            RecipeKind::Transmute { input, material, .. } => input.is_empty() || material.is_empty(),
+            RecipeKind::Imbue { source, material, .. } => source.is_empty() || material.is_empty(),
+            RecipeKind::SmithingTransform { base, .. } | RecipeKind::SmithingTrim { base, .. } => {
+                base.is_empty()
+            }
+            RecipeKind::Special { .. } => false,
+        }
     }
 
     #[cfg(test)]
@@ -199,7 +230,7 @@ impl RecipeKind {
         }
     }
 
-    #[cfg(test)]
+    /// `AbstractCookingRecipe.experience()` (×1000, as integer millis).
     pub fn cooking_experience_millis(&self) -> Option<i32> {
         match self {
             RecipeKind::Cooking {
@@ -388,7 +419,8 @@ impl RecipeKind {
         }
     }
 
-    #[cfg(test)]
+    /// `AbstractCookingRecipe.cookingTime()` — the explicit time or the per-kind
+    /// default.
     pub fn cooking_time(&self) -> Option<i32> {
         match self {
             RecipeKind::Cooking {

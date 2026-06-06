@@ -835,3 +835,43 @@ fn cooking_book_category_drives_recipe_book_group() {
     assert_eq!(cooking(CookingKind::Smoking, CookingBookCategory::Misc).recipe_book_category(), "smoker_food");
     assert_eq!(cooking(CookingKind::CampfireCooking, CookingBookCategory::Misc).recipe_book_category(), "campfire");
 }
+
+#[test]
+fn recipe_is_incomplete_when_a_required_ingredient_is_empty() {
+    // A complete shapeless recipe.
+    let complete = RecipeKind::Shapeless {
+        ingredients: vec![IngredientSpec::Item("minecraft:stick")],
+        result: ItemAmount::one("minecraft:torch"),
+    };
+    assert!(!complete.is_incomplete());
+
+    // An empty ingredient makes it incomplete.
+    let incomplete = RecipeKind::Shapeless {
+        ingredients: vec![IngredientSpec::Item("minecraft:stick"), IngredientSpec::Empty],
+        result: ItemAmount::one("minecraft:torch"),
+    };
+    assert!(incomplete.is_incomplete());
+
+    // Smithing: only the base is required (template/addition optional).
+    let smithing_ok = RecipeKind::SmithingTrim {
+        template: IngredientSpec::Empty,
+        base: IngredientSpec::Item("minecraft:diamond_chestplate"),
+        addition: IngredientSpec::Empty,
+        pattern: "minecraft:sentry",
+    };
+    assert!(!smithing_ok.is_incomplete(), "empty template/addition are allowed");
+    let smithing_bad = RecipeKind::SmithingTrim {
+        template: IngredientSpec::Item("minecraft:sentry_armor_trim_smithing_template"),
+        base: IngredientSpec::Empty,
+        addition: IngredientSpec::Item("minecraft:copper_ingot"),
+        pattern: "minecraft:sentry",
+    };
+    assert!(smithing_bad.is_incomplete(), "empty base is incomplete");
+
+    // Special recipes are never incomplete.
+    assert!(!RecipeKind::Special {
+        kind: crate::recipe_system::SpecialRecipeKind::RepairItem,
+        result_hint: None,
+    }
+    .is_incomplete());
+}
