@@ -1161,6 +1161,18 @@ fn tick_keep_alive_and_time(
     keep_alive_id: &mut i64,
     last_time_sync: &mut Instant,
 ) -> io::Result<()> {
+    // TODO(keepalive-timeout-handling): this (and the second loop in
+    // play_session_world_packets.rs) is an ad-hoc keepalive that only SENDS a
+    // ping (with an incrementing id) every interval — it never tracks a pending
+    // response, so a hung client is never disconnected, and the serverbound
+    // KeepAlive is consumed without validating the challenge. Java
+    // ServerCommonPacketListenerImpl: id = current millis; if a ping is still
+    // pending when the next 15s interval fires -> disconnect("disconnect.timeout");
+    // on response, require id == challenge (else disconnect) and update latency.
+    // The 1:1 logic already exists + is tested in `KeepAliveState`
+    // (network/common.rs) but is DEAD CODE here. Wiring it in (replace the ad-hoc
+    // fields with KeepAliveState, handle Disconnect by sending disconnect.timeout +
+    // closing, validate responses) completes CHECKLIST_NETWORK_GAME #273.
     if last_keep_alive.elapsed() >= PLAY_KEEP_ALIVE_INTERVAL {
         *keep_alive_id = keep_alive_id.wrapping_add(1);
         write_framed_packet_with_compression(
