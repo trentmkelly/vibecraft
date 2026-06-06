@@ -897,3 +897,5 @@ mod tests_table;
 mod tests_workstation;
 #[cfg(test)]
 mod tests_sweep;
+#[cfg(test)]
+mod tests_special_crafting;

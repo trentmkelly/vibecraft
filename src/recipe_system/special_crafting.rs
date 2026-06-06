@@ -50,8 +50,15 @@ pub fn special_crafting_result(
         // `MapCloning` is a `crafting_transmute` recipe in 26.1.2 (handled by the
         // ordinary transmute path), so the vestigial `SpecialRecipeKind::MapCloning`
         // is never produced from data.
-        // TODO(recipes-special): MapExtending needs map-saved-data (scale/MapId),
-        // which the map subsystem does not yet expose on a crafting input.
+        //
+        // TODO(recipes-mapextending): `MapExtendingRecipe.matches` calls
+        // `MapItem.getSavedData(map, level)` to read `data.scale < 4` and
+        // `data.isExplorationMap()`, and `assemble` copies the source map's
+        // components + `MAP_POST_PROCESSING = SCALE`. This is blocked on the map
+        // subsystem: items carry no `minecraft:map_id` component and there is no
+        // level-scoped `MapItemSavedData` store reachable from a crafting input, so
+        // the scale/exploration checks cannot be evaluated here yet. Implement once
+        // `map_id` + map saved-data are exposed on `ItemStack`.
         _ => None,
     }
 }
