@@ -102,7 +102,7 @@
 
 ## Migrated From Main Checklist: Source-Derived Granularity Appendix - Recipe Coverage
 
-- [ ] Implement recipe manager loading, recipe map indexing, property sets, selectable recipes, placement info, display metadata, and reload invalidation.
+- [x] Implement recipe manager loading, recipe map indexing, property sets, selectable recipes, placement info, display metadata, and reload invalidation. — all done: loading (#28, all 1515 vanilla), indexing (#29), property sets (#30), selectable stonecutter recipes (#31), placement info (#32), `RecipeDisplay`/`SlotDisplay`/`RecipeDisplayEntry` metadata (production, covered by `recipe_display_*` tests), and reload (#33).
 - [ ] Implement core recipe interfaces: `Recipe`, `CraftingRecipe`, `NormalCraftingRecipe`, `CustomRecipe`, `SingleItemRecipe`, `AbstractCookingRecipe`, `SmithingRecipe`, and `SelectableRecipe`.
 - [x] Implement grid crafting: `ShapedRecipe`, `ShapedRecipePattern`, `ShapelessRecipe`, `TransmuteRecipe`, and `ImbueRecipe`. — all done 1:1 (shaped with 26.1.2 mirroring, shapeless backtracking, transmute/imbue component preservation); see the Grid Crafting section above.
 - [ ] Implement special crafting recipes: `BannerDuplicateRecipe`, `BookCloningRecipe`, `DecoratedPotRecipe`, `DyeRecipe`, `FireworkRocketRecipe`, `FireworkStarRecipe`, `FireworkStarFadeRecipe`, `MapExtendingRecipe`, `RepairItemRecipe`, and `ShieldDecorationRecipe`.
