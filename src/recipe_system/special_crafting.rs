@@ -92,11 +92,16 @@ pub fn special_crafting_result(
         // TODO(recipes-mapextending): `MapExtendingRecipe.matches` calls
         // `MapItem.getSavedData(map, level)` to read `data.scale < 4` and
         // `data.isExplorationMap()`, and `assemble` copies the source map's
-        // components + `MAP_POST_PROCESSING = SCALE`. This is blocked on the map
-        // subsystem: items carry no `minecraft:map_id` component and there is no
-        // level-scoped `MapItemSavedData` store reachable from a crafting input, so
-        // the scale/exploration checks cannot be evaluated here yet. Implement once
-        // `map_id` + map saved-data are exposed on `ItemStack`.
+        // components + `MAP_POST_PROCESSING = SCALE`. The `minecraft:map_id`
+        // ItemComponent now exists (a prerequisite) and `map_state::MapState` holds
+        // `scale` + decorations, but three map-subsystem pieces are still missing:
+        //   1. a runtime `map_id -> MapState` store (no map saved-data registry yet),
+        //   2. `MapState::is_exploration_map()` — needs the structure/exploration
+        //      `MapDecorationType`s (mansion/monument/…) which `MapDecorationKind`
+        //      does not yet model, and
+        //   3. world access threaded into `CraftingMenu` so the result computation
+        //      can look the map id up in that store.
+        // Implement once the map subsystem exposes those.
         _ => None,
     }
 }

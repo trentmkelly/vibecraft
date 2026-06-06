@@ -101,6 +101,9 @@ pub enum ItemComponent {
     BannerPatterns(Vec<crate::block_entity::BannerPatternLayer>),
     /// `minecraft:map_post_processing` — cartography-table result marker (scale/lock).
     MapPostProcessing(MapPostProcessing),
+    /// `minecraft:map_id` (`MapId`) — the saved-data id of a filled map, used to look
+    /// up its `MapItemSavedData` (scale, decorations, …).
+    MapId(i32),
     /// `minecraft:enchantments` — enchantments applied to a tool/armour (id → level).
     Enchantments(BTreeMap<String, i32>),
     /// `minecraft:stored_enchantments` — enchantments carried by an enchanted book
@@ -326,6 +329,7 @@ impl ItemDefinition {
                 | ItemComponent::ArmorTrim { .. }
                 | ItemComponent::WritableBookContent(_)
                 | ItemComponent::WrittenBookContent { .. }
+                | ItemComponent::MapId(_)
                 | ItemComponent::DyedColor(_)
                 | ItemComponent::BaseColor(_)
                 | ItemComponent::PotionContents(_)
@@ -371,6 +375,7 @@ impl ItemComponent {
             Self::ArmorTrim { .. } => "minecraft:trim",
             Self::WritableBookContent(_) => "minecraft:writable_book_content",
             Self::WrittenBookContent { .. } => "minecraft:written_book_content",
+            Self::MapId(_) => "minecraft:map_id",
             Self::DyedColor(_) => "minecraft:dyed_color",
             Self::BaseColor(_) => "minecraft:base_color",
             Self::PotionContents(_) => "minecraft:potion_contents",
