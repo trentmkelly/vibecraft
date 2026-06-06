@@ -90,12 +90,12 @@
 
 ## Post-Login Readiness Tests
 
-- [ ] Add Mineflayer offline-mode post-login readiness test: wait for first physics tick; verify movement, chat, command suggestions, inventory window ID, and chunk visibility all usable without retry sleeps
-- [ ] Add Mineflayer login-to-play timeline test: record bot events from TCP connect through first physics tick; compare ordering, packet gaps, timeout thresholds against official `server.jar`
-- [ ] Add Mineflayer offline-mode first-tick test: verify bot can send movement, chat, command, inventory, block-look packets immediately after play state without race-condition disconnects
-- [ ] Add Mineflayer offline-mode first-action matrix: send movement, chat, command, inventory click, block dig, and block place immediately after spawn; verify vanilla-compatible success or correction
-- [ ] Add Mineflayer offline-mode reconnect-at-play-boundary test: disconnect at join-game, at first chunk, at first physics tick; verify player cleanup and next-login parity
-- [ ] Add Mineflayer offline-mode play-readiness race test: repeat login-to-first-action under randomized chunk delays; fail when any action succeeds only after an arbitrary sleep
+- [x] Add Mineflayer offline-mode post-login readiness test: wait for first physics tick; verify movement, chat, command suggestions, inventory window ID, and chunk visibility all usable without retry sleeps — `harness/mineflayer/post_login_readiness.mjs` (first-physics-tick / movement-immediate / chat-immediate / command-suggestions-immediate / inventory-window-id / chunk-visibility); `post_login_readiness.test.mjs` fail-closed (3 tests pass).
+- [x] Add Mineflayer login-to-play timeline test: record bot events from TCP connect through first physics tick; compare ordering, packet gaps, timeout thresholds against official `server.jar` — `login_timeline.mjs` (tcp-connect-start / milestone-order / packet-gap-timeout / login-to-spawn-timeout / first-physics-tick); `login_timeline.test.mjs` fail-closed (3 tests pass).
+- [x] Add Mineflayer offline-mode first-tick test: verify bot can send movement, chat, command, inventory, block-look packets immediately after play state without race-condition disconnects — `first_tick_actions.mjs` (movement / chat / command-suggestion / inventory-window / block-look / no-race-disconnect); `first_tick_actions.test.mjs` fail-closed (4 tests pass).
+- [x] Add Mineflayer offline-mode first-action matrix: send movement, chat, command, inventory click, block dig, and block place immediately after spawn; verify vanilla-compatible success or correction — `play_readiness_race.mjs` `first-action-matrix` (movement / chat / command-suggestion / inventory-click / block-dig / block-place); `play_readiness_race.test.mjs` fail-closed (4 tests pass).
+- [x] Add Mineflayer offline-mode reconnect-at-play-boundary test: disconnect at join-game, at first chunk, at first physics tick; verify player cleanup and next-login parity — `play_boundary_reconnect.mjs` (join-game / first-chunk / first-physics-tick boundaries + cleanup/next-login parity); `play_boundary_reconnect.test.mjs` (3 tests pass).
+- [x] Add Mineflayer offline-mode play-readiness race test: repeat login-to-first-action under randomized chunk delays; fail when any action succeeds only after an arbitrary sleep — `play_readiness_race.mjs` (`summarizePlayReadinessRace` requires every iteration to pass under randomized chunk delays); `play_readiness_race.test.mjs` fail-closed (4 tests pass).
 
 ## Gamerule / Advancement / Stats Tests
 
