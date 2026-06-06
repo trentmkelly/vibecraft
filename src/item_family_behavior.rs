@@ -1,3 +1,21 @@
+// TODO(item-use-block-and-entity-behaviors): the remaining behavioral item
+// classes under net/minecraft/world/item (CHECKLIST_ITEMS.md #7) still need
+// their item-USE paths wired. These are blocked on the BLOCKS (block-state
+// mutation) and ENTITIES (world entity placement) subsystems and so are not yet
+// represented here:
+//   - Throwables: SnowballItem / EggItem / EnderpearlItem / ExperienceBottleItem /
+//     WindChargeItem / FireChargeItem. The projectile ENTITIES already exist
+//     (projectile_entity::ThrowableKind / HurtingProjectileKind) but no item-use
+//     spawns them into the world.
+//   - Tool-on-block: AxeItem (strip log -> stripped), HoeItem (till dirt -> farmland),
+//     ShovelItem (path grass -> dirt_path), each a Block.useItemOn state change.
+//   - FlintAndSteelItem (set fire / ignite), BoneMealItem (apply growth),
+//     HoneycombItem (wax copper), GlowInkSacItem / InkSacItem (sign glow toggle),
+//     DebugStickItem (cycle block state).
+//   - Entity-placement items: EndCrystalItem, ArmorStandItem, ItemFrameItem,
+//     HangingEntityItem / HangingSignItem placement.
+// Implement each here (or in a sibling use-dispatch module) once BLOCKS/ENTITIES
+// expose the world mutation + entity spawn primitives, then mark #7.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UseResult {
     Success,
