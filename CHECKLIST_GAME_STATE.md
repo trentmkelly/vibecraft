@@ -14,5 +14,5 @@ Global game-state systems moved out of the top-level checklist.
 - [ ] Implement teams, colors, prefixes/suffixes, visibility rules, collision rules, friendly fire, and nametag/death message visibility.
 - [ ] Implement triggers and player-controlled scoreboard updates.
 - [x] Implement statistics categories, increment rules, persistence, and sync packets. — `src/statistics.rs`: `StatKey` (custom/category-value), `increment`, `to_vanilla_json`/`from_vanilla_json` persistence (vanilla grouped JSON), and `drain_dirty_packet` → `ClientboundAwardStatsPacket` (id 3) sync; covered by `statistics` tests (4) incl. `stat_persistence_uses_vanilla_grouped_json_shape`.
-- [ ] Implement advancement loading, criteria, progress, rewards, visibility, chat announcements, tab tree layout, and persistence.
+- [x] Implement advancement loading, criteria, progress, rewards, visibility, chat announcements, tab tree layout, and persistence.
 - [ ] Implement recipe unlocks and advancement criteria triggers.
