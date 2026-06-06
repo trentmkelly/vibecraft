@@ -925,10 +925,22 @@ fn shaped_matches(
         return false;
     }
 
-    for y_offset in 0..=(grid_height - recipe_height) {
-        for x_offset in 0..=(grid_width - recipe_width) {
-            if shaped_matches_at(&input, x_offset, y_offset) {
-                return true;
+    // `ShapedRecipePattern.matches` tries the pattern both as-authored and (for a
+    // non-symmetrical pattern) horizontally mirrored. The offset scan emulates
+    // `CraftingInput`'s bounding-box crop. Mirroring a symmetrical pattern just
+    // re-tries the identical layout, so always trying both is equivalent to Java's
+    // `symmetrical` short-circuit without needing to precompute that flag.
+    let mirrored = mirror_pattern(pattern, recipe_width, recipe_height);
+    for candidate in [pattern, mirrored.as_slice()] {
+        let input = ShapedMatchInput {
+            pattern: candidate,
+            ..input
+        };
+        for y_offset in 0..=(grid_height - recipe_height) {
+            for x_offset in 0..=(grid_width - recipe_width) {
+                if shaped_matches_at(&input, x_offset, y_offset) {
+                    return true;
+                }
             }
         }
     }
@@ -936,6 +948,22 @@ fn shaped_matches(
     false
 }
 
+/// Horizontally mirror a row-major `recipe_width × recipe_height` pattern.
+fn mirror_pattern(
+    pattern: &[Option<IngredientSpec>],
+    recipe_width: usize,
+    recipe_height: usize,
+) -> Vec<Option<IngredientSpec>> {
+    let mut mirrored = Vec::with_capacity(pattern.len());
+    for y in 0..recipe_height {
+        for x in 0..recipe_width {
+            mirrored.push(pattern[y * recipe_width + (recipe_width - 1 - x)].clone());
+        }
+    }
+    mirrored
+}
+
+#[derive(Clone, Copy)]
 struct ShapedMatchInput<'a> {
     recipe_width: usize,
     recipe_height: usize,
@@ -990,17 +1018,33 @@ fn shapeless_matches(ingredients: &[IngredientSpec], items: &[Option<&'static st
     if provided.len() != ingredients.len() {
         return false;
     }
-
+    // `ShapelessRecipe.matches` delegates to `StackedContents.canCraft`, a full
+    // ingredient→item assignment. A greedy first-match is wrong when ingredients
+    // overlap (a broad ingredient can claim the only item a narrow one needs), so
+    // assign by backtracking instead.
     let mut used = vec![false; provided.len()];
-    ingredients.iter().all(|ingredient| {
-        let Some(index) = provided
-            .iter()
-            .enumerate()
-            .position(|(index, item)| !used[index] && ingredient.matches(item))
-        else {
-            return false;
-        };
-        used[index] = true;
-        true
-    })
+    shapeless_assign(ingredients, &provided, &mut used, 0)
+}
+
+/// Backtracking bipartite match: can every ingredient from `index` on be paired
+/// with a distinct, as-yet-unused provided item?
+fn shapeless_assign(
+    ingredients: &[IngredientSpec],
+    provided: &[&'static str],
+    used: &mut [bool],
+    index: usize,
+) -> bool {
+    let Some(ingredient) = ingredients.get(index) else {
+        return true;
+    };
+    for (item_index, item) in provided.iter().enumerate() {
+        if !used[item_index] && ingredient.matches(item) {
+            used[item_index] = true;
+            if shapeless_assign(ingredients, provided, used, index + 1) {
+                return true;
+            }
+            used[item_index] = false;
+        }
+    }
+    false
 }

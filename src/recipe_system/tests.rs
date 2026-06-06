@@ -260,7 +260,11 @@ fn shaped_and_shapeless_recipes_match_vanilla_grid_rules() {
         result: ItemAmount::one("minecraft:torch"),
     };
     assert!(asymmetric.matches(2, 1, &[Some("minecraft:stick"), Some("minecraft:coal")]));
-    assert!(!asymmetric.matches(2, 1, &[Some("minecraft:coal"), Some("minecraft:stick")]));
+    // 26.1.2 `ShapedRecipePattern.matches` tries the horizontally-mirrored pattern
+    // for a non-symmetrical recipe, so the reversed layout also matches.
+    assert!(asymmetric.matches(2, 1, &[Some("minecraft:coal"), Some("minecraft:stick")]));
+    // A different item in a pattern slot still fails (mirroring is not a wildcard).
+    assert!(!asymmetric.matches(2, 1, &[Some("minecraft:stick"), Some("minecraft:stick")]));
 
     let shapeless = RecipeKind::Shapeless {
         ingredients: vec![
@@ -288,6 +292,29 @@ fn shaped_and_shapeless_recipes_match_vanilla_grid_rules() {
             Some("minecraft:paper"),
             None
         ]
+    ));
+
+    // Overlapping ingredients: a broad ingredient (any plank) + a narrow one (oak)
+    // against an oak + birch grid. A greedy first-match would assign the broad
+    // ingredient to oak and then fail the oak-only ingredient; backtracking (like
+    // `StackedContents.canCraft`) finds broad→birch, oak→oak.
+    let overlapping = RecipeKind::Shapeless {
+        ingredients: vec![
+            IngredientSpec::AnyOf(vec!["minecraft:oak_planks", "minecraft:birch_planks"]),
+            IngredientSpec::Item("minecraft:oak_planks"),
+        ],
+        result: ItemAmount::one("minecraft:stick"),
+    };
+    assert!(overlapping.matches(
+        2,
+        1,
+        &[Some("minecraft:oak_planks"), Some("minecraft:birch_planks")]
+    ));
+    // Two birch cannot satisfy the oak-only ingredient.
+    assert!(!overlapping.matches(
+        2,
+        1,
+        &[Some("minecraft:birch_planks"), Some("minecraft:birch_planks")]
     ));
 }
 
