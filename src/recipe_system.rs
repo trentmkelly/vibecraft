@@ -933,14 +933,17 @@ impl IngredientSpec {
     }
 }
 
-#[cfg(test)]
+/// `PlacementInfo` — the client-side ghost-recipe placement hint: the recipe's
+/// ingredients plus, for each grid slot, the index of the ingredient that goes
+/// there (`EMPTY_SLOT` for a gap). An empty/impossible recipe has no slots.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)]
 pub struct PlacementInfo {
     pub ingredients: Vec<IngredientSpec>,
     pub slots_to_ingredient_index: Vec<i32>,
 }
 
-#[cfg(test)]
+#[allow(dead_code)]
 impl PlacementInfo {
     pub const EMPTY_SLOT: i32 = -1;
 

@@ -241,7 +241,6 @@ impl RecipeKind {
         }
     }
 
-    #[cfg(test)]
     pub fn smithing_placement_info(&self) -> Option<PlacementInfo> {
         match self {
             RecipeKind::SmithingTransform {
@@ -264,10 +263,54 @@ impl RecipeKind {
         }
     }
 
-    #[cfg(test)]
     pub fn smithing_is_incomplete(&self) -> Option<bool> {
         self.smithing_placement_info()
             .map(|placement| placement.is_impossible_to_place())
+    }
+
+    /// `Recipe.placementInfo()` — the client-side ghost-recipe placement hint,
+    /// built per type exactly as in Java (`createPlacementInfo`): shaped from the
+    /// optional pattern, shapeless from the ingredient list, cooking/stonecutter
+    /// from the single ingredient, transmute from `input + max·material`, imbue
+    /// from the 3×3 `material…/source/material…` ring, smithing from
+    /// template/base/addition, and `CustomRecipe`s are `NOT_PLACEABLE`.
+    pub fn placement_info(&self) -> PlacementInfo {
+        match self {
+            RecipeKind::Shaped { pattern, .. } => {
+                PlacementInfo::create_from_optionals(pattern.clone())
+            }
+            RecipeKind::Shapeless { ingredients, .. } => {
+                PlacementInfo::create_list(ingredients.clone())
+            }
+            RecipeKind::Cooking { ingredient, .. } | RecipeKind::Stonecutting { ingredient, .. } => {
+                PlacementInfo::create(ingredient.clone())
+            }
+            RecipeKind::Transmute {
+                input,
+                material,
+                max_material_count,
+                ..
+            } => {
+                let mut ingredients = vec![input.clone()];
+                ingredients.extend(std::iter::repeat_n(material.clone(), *max_material_count as usize));
+                PlacementInfo::create_list(ingredients)
+            }
+            RecipeKind::Imbue { source, material, .. } => PlacementInfo::create_list(vec![
+                material.clone(),
+                material.clone(),
+                material.clone(),
+                material.clone(),
+                source.clone(),
+                material.clone(),
+                material.clone(),
+                material.clone(),
+                material.clone(),
+            ]),
+            RecipeKind::SmithingTransform { .. } | RecipeKind::SmithingTrim { .. } => self
+                .smithing_placement_info()
+                .unwrap_or_else(PlacementInfo::not_placeable),
+            RecipeKind::Special { .. } => PlacementInfo::not_placeable(),
+        }
     }
 
     pub fn matches(
@@ -432,7 +475,6 @@ impl RecipeKind {
     }
 }
 
-#[cfg(test)]
 fn optional_ingredient(ingredient: &IngredientSpec) -> Option<IngredientSpec> {
     (!ingredient.is_empty()).then(|| ingredient.clone())
 }

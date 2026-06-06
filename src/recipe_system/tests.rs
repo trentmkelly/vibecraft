@@ -875,3 +875,52 @@ fn recipe_is_incomplete_when_a_required_ingredient_is_empty() {
     }
     .is_incomplete());
 }
+
+#[test]
+fn placement_info_is_built_per_recipe_type_like_java() {
+    // Shapeless: create(list) -> one slot per ingredient, in order.
+    let shapeless = RecipeKind::Shapeless {
+        ingredients: vec![
+            IngredientSpec::Item("minecraft:stick"),
+            IngredientSpec::Item("minecraft:coal"),
+        ],
+        result: ItemAmount::one("minecraft:torch"),
+    };
+    let p = shapeless.placement_info();
+    assert_eq!(p.ingredients.len(), 2);
+    assert_eq!(p.slots_to_ingredient_index, vec![0, 1]);
+    assert!(!p.is_impossible_to_place());
+
+    // Cooking: single ingredient.
+    let cooking = RecipeKind::Cooking {
+        kind: CookingKind::Smelting,
+        ingredient: IngredientSpec::Item("minecraft:raw_iron"),
+        result: ItemAmount::one("minecraft:iron_ingot"),
+        experience_millis: 700,
+        cooking_time: None,
+        category: crate::recipe_system::CookingBookCategory::Misc,
+    };
+    assert_eq!(cooking.placement_info().slots_to_ingredient_index, vec![0]);
+
+    // Imbue: 3x3 ring of material around a centre source (= ImbueRecipe.createPlacementInfo).
+    let imbue = RecipeKind::Imbue {
+        source: IngredientSpec::Item("minecraft:lingering_potion"),
+        material: IngredientSpec::Item("minecraft:arrow"),
+        result: ItemAmount { item: "minecraft:tipped_arrow", count: 8 },
+    };
+    assert_eq!(imbue.placement_info().slots_to_ingredient_index.len(), 9);
+
+    // Special (CustomRecipe) -> NOT_PLACEABLE.
+    let special = RecipeKind::Special {
+        kind: crate::recipe_system::SpecialRecipeKind::RepairItem,
+        result_hint: None,
+    };
+    assert!(special.placement_info().is_impossible_to_place());
+
+    // A shapeless recipe with an empty ingredient is impossible to place.
+    let broken = RecipeKind::Shapeless {
+        ingredients: vec![IngredientSpec::Empty],
+        result: ItemAmount::one("minecraft:torch"),
+    };
+    assert!(broken.placement_info().is_impossible_to_place());
+}
