@@ -39,6 +39,9 @@ pub enum RecipeKind {
         result: ItemAmount,
         experience_millis: i32,
         cooking_time: Option<i32>,
+        /// `AbstractCookingRecipe.category()` — the `CookingBookCategory` from the
+        /// recipe JSON, used to pick the recipe-book group.
+        category: CookingBookCategory,
     },
     Stonecutting {
         ingredient: IngredientSpec,
@@ -138,14 +141,26 @@ impl RecipeKind {
             | RecipeKind::Shapeless { .. }
             | RecipeKind::Transmute { .. }
             | RecipeKind::Imbue { .. } => "crafting_misc",
+            // `SmeltingRecipe.recipeBookCategory`: FOOD/BLOCKS/MISC -> the matching
+            // furnace book group.
             RecipeKind::Cooking {
                 kind: CookingKind::Smelting,
+                category,
                 ..
-            } => "furnace_misc",
+            } => match category {
+                CookingBookCategory::Food => "furnace_food",
+                CookingBookCategory::Blocks => "furnace_blocks",
+                CookingBookCategory::Misc => "furnace_misc",
+            },
+            // `BlastingRecipe.recipeBookCategory`: BLOCKS -> blocks, FOOD/MISC -> misc.
             RecipeKind::Cooking {
                 kind: CookingKind::Blasting,
+                category,
                 ..
-            } => "blast_furnace_misc",
+            } => match category {
+                CookingBookCategory::Blocks => "blast_furnace_blocks",
+                CookingBookCategory::Food | CookingBookCategory::Misc => "blast_furnace_misc",
+            },
             RecipeKind::Cooking {
                 kind: CookingKind::Smoking,
                 ..

@@ -1031,6 +1031,27 @@ pub enum CookingKind {
     CampfireCooking,
 }
 
+/// `CookingBookCategory` — the recipe-book grouping a cooking recipe declares in its
+/// JSON `category` field (defaults to `Misc`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CookingBookCategory {
+    Food,
+    Blocks,
+    Misc,
+}
+
+impl CookingBookCategory {
+    /// Parse the `category` string, defaulting to `Misc` for unknown/absent values
+    /// (matching the `AbstractCookingRecipe` codec default).
+    pub fn from_id(id: Option<&str>) -> Self {
+        match id {
+            Some("food") => Self::Food,
+            Some("blocks") => Self::Blocks,
+            _ => Self::Misc,
+        }
+    }
+}
+
 impl CookingKind {
     /// `AbstractCookingRecipe` default cook time per type (ticks): smelting 200,
     /// blasting/smoking/campfire 100. Used when a recipe omits `cookingtime`.

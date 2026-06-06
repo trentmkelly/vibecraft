@@ -649,6 +649,7 @@ impl FurnaceCookingRecipe {
                 result,
                 experience_millis,
                 cooking_time,
+                ..
             } = &holder.recipe
             else {
                 continue;

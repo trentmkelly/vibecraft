@@ -890,6 +890,7 @@ fn recipe_book_display(
             result,
             experience_millis,
             cooking_time,
+            ..
         } => Some(recipe_book_cooking_display(
             *kind,
             ingredient,

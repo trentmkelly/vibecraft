@@ -209,6 +209,9 @@ fn parse_cooking_recipe(
             .get("cookingtime")
             .and_then(serde_json::Value::as_i64)
             .map(|value| value as i32),
+        category: CookingBookCategory::from_id(
+            object.get("category").and_then(serde_json::Value::as_str),
+        ),
     })
 }
 

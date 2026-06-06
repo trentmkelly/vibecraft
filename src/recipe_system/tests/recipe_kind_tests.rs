@@ -152,6 +152,7 @@ fn cooking_recipe_coverage_cases() -> Vec<RecipeKindCoverageCase> {
                 result: ItemAmount::one("minecraft:iron_ingot"),
                 experience_millis: 700,
                 cooking_time: None,
+                category: crate::recipe_system::CookingBookCategory::Misc,
             },
             1,
             1,
@@ -167,6 +168,7 @@ fn cooking_recipe_coverage_cases() -> Vec<RecipeKindCoverageCase> {
                 result: ItemAmount::one("minecraft:iron_ingot"),
                 experience_millis: 700,
                 cooking_time: None,
+                category: crate::recipe_system::CookingBookCategory::Misc,
             },
             1,
             1,
@@ -182,6 +184,7 @@ fn cooking_recipe_coverage_cases() -> Vec<RecipeKindCoverageCase> {
                 result: ItemAmount::one("minecraft:cooked_beef"),
                 experience_millis: 350,
                 cooking_time: None,
+                category: crate::recipe_system::CookingBookCategory::Misc,
             },
             1,
             1,
@@ -197,6 +200,7 @@ fn cooking_recipe_coverage_cases() -> Vec<RecipeKindCoverageCase> {
                 result: ItemAmount::one("minecraft:cooked_cod"),
                 experience_millis: 350,
                 cooking_time: None,
+                category: crate::recipe_system::CookingBookCategory::Misc,
             },
             1,
             1,
@@ -503,6 +507,7 @@ fn recipe_manager_indexes_by_type_key_and_matching_input() {
                 result: ItemAmount::one("minecraft:iron_ingot"),
                 experience_millis: 700,
                 cooking_time: None,
+                category: crate::recipe_system::CookingBookCategory::Misc,
             },
         },
         RecipeHolder {
@@ -574,6 +579,7 @@ fn recipe_manager_reload_replaces_indexes_and_recipe_access_sets() {
             result: ItemAmount::one("minecraft:iron_ingot"),
             experience_millis: 700,
             cooking_time: None,
+            category: crate::recipe_system::CookingBookCategory::Misc,
         },
     }]);
 

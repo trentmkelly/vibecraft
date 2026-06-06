@@ -27,6 +27,7 @@ fn planks_recipe() -> RecipeMap {
                 result: ItemAmount::one("minecraft:iron_ingot"),
                 experience_millis: 700,
                 cooking_time: Some(200),
+                category: crate::recipe_system::CookingBookCategory::Misc,
             },
         },
     ])

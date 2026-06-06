@@ -897,6 +897,7 @@ fn furnace_cooking_recipe_lookup_derives_from_loaded_cooking_recipes() {
                 result: ItemAmount::one("minecraft:iron_ingot"),
                 experience_millis: 700,
                 cooking_time: None, // -> default 200
+                category: crate::recipe_system::CookingBookCategory::Misc,
             },
         },
         RecipeHolder {
@@ -907,6 +908,7 @@ fn furnace_cooking_recipe_lookup_derives_from_loaded_cooking_recipes() {
                 result: ItemAmount::one("minecraft:iron_ingot"),
                 experience_millis: 700,
                 cooking_time: None, // -> default 100
+                category: crate::recipe_system::CookingBookCategory::Misc,
             },
         },
     ]);

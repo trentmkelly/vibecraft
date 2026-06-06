@@ -645,6 +645,7 @@ fn cooking_stonecutting_and_smithing_recipes_match_single_input_contracts() {
             result: ItemAmount::one("minecraft:iron_ingot"),
             experience_millis: 700,
             cooking_time: None,
+            category: crate::recipe_system::CookingBookCategory::Misc,
         };
         assert!(recipe.matches(1, 1, &[Some("minecraft:raw_iron")]));
         assert_eq!(recipe.cooking_time(), Some(expected_time));
@@ -775,6 +776,7 @@ fn cooking_recipe_experience_and_fuel_interaction_follow_furnace_rules() {
         result: ItemAmount::one("minecraft:iron_ingot"),
         experience_millis: 700,
         cooking_time: None,
+        category: crate::recipe_system::CookingBookCategory::Misc,
     };
     let fuels = FuelValues::vanilla();
 
@@ -803,3 +805,33 @@ fn cooking_recipe_experience_and_fuel_interaction_follow_furnace_rules() {
 }
 
 mod recipe_kind_tests;
+
+#[test]
+fn cooking_book_category_drives_recipe_book_group() {
+    use crate::recipe_system::CookingBookCategory;
+
+    assert_eq!(CookingBookCategory::from_id(Some("food")), CookingBookCategory::Food);
+    assert_eq!(CookingBookCategory::from_id(Some("blocks")), CookingBookCategory::Blocks);
+    assert_eq!(CookingBookCategory::from_id(Some("misc")), CookingBookCategory::Misc);
+    assert_eq!(CookingBookCategory::from_id(None), CookingBookCategory::Misc);
+
+    let cooking = |kind, category| RecipeKind::Cooking {
+        kind,
+        ingredient: IngredientSpec::Item("minecraft:raw_iron"),
+        result: ItemAmount::one("minecraft:iron_ingot"),
+        experience_millis: 700,
+        cooking_time: None,
+        category,
+    };
+
+    // SmeltingRecipe.recipeBookCategory: FOOD/BLOCKS/MISC -> the matching group.
+    assert_eq!(cooking(CookingKind::Smelting, CookingBookCategory::Food).recipe_book_category(), "furnace_food");
+    assert_eq!(cooking(CookingKind::Smelting, CookingBookCategory::Blocks).recipe_book_category(), "furnace_blocks");
+    assert_eq!(cooking(CookingKind::Smelting, CookingBookCategory::Misc).recipe_book_category(), "furnace_misc");
+    // BlastingRecipe: BLOCKS -> blocks, FOOD/MISC -> misc.
+    assert_eq!(cooking(CookingKind::Blasting, CookingBookCategory::Blocks).recipe_book_category(), "blast_furnace_blocks");
+    assert_eq!(cooking(CookingKind::Blasting, CookingBookCategory::Food).recipe_book_category(), "blast_furnace_misc");
+    // Smoker is always food; campfire is always campfire.
+    assert_eq!(cooking(CookingKind::Smoking, CookingBookCategory::Misc).recipe_book_category(), "smoker_food");
+    assert_eq!(cooking(CookingKind::CampfireCooking, CookingBookCategory::Misc).recipe_book_category(), "campfire");
+}
