@@ -1701,6 +1701,10 @@ fn handle_player_action_packet<R: Read>(
         {
             // Out of reach: Java logs "too far" and does NOT break or correct the
             // client (the client never predicts an out-of-range break). Ignore it.
+        } else if block_break_above_build_height(fields.y) {
+            // Above the world ceiling (Java handleBlockBreakAction "too high"):
+            // never break — there is no block to remove and set_block must not run
+            // outside the world's vertical bounds.
         } else if block_break_is_spawn_protected(&fields, &context) {
             // Non-op breaking inside the spawn-protection radius is denied: the
             // server does NOT change the block and re-sends the real state so the
@@ -1910,6 +1914,14 @@ fn log_player_action_debug(
 /// item's `CanDestroy` component, which is not yet modelled here.)
 fn spectator_cannot_break(game_mode: GameMode) -> bool {
     game_mode == GameMode::Spectator
+}
+
+/// Java `ServerPlayerGameMode.handleBlockBreakAction` (line 154) rejects a break
+/// when `pos.getY() > level.getMaxY()`. The single live dimension is the
+/// overworld, whose `getMaxY()` = `getMinY() + getHeight() - 1` =
+/// `OVERWORLD_MIN_Y + OVERWORLD_LEVEL_HEIGHT - 1`.
+fn block_break_above_build_height(y: i32) -> bool {
+    y > crate::world::OVERWORLD_MIN_Y + crate::world::OVERWORLD_LEVEL_HEIGHT - 1
 }
 
 fn should_break_for_player_action(
@@ -2890,6 +2902,17 @@ mod spawn_protection_wiring_tests {
         assert!(!spectator_cannot_break(GameMode::Survival));
         assert!(!spectator_cannot_break(GameMode::Creative));
         assert!(!spectator_cannot_break(GameMode::Adventure));
+    }
+
+    /// Java handleBlockBreakAction rejects `pos.getY() > getMaxY()`; the overworld
+    /// ceiling is `OVERWORLD_MIN_Y + OVERWORLD_LEVEL_HEIGHT - 1` = 319.
+    #[test]
+    fn block_break_rejected_above_overworld_build_height() {
+        assert!(!block_break_above_build_height(319));
+        assert!(!block_break_above_build_height(0));
+        assert!(!block_break_above_build_height(-64));
+        assert!(block_break_above_build_height(320));
+        assert!(block_break_above_build_height(1000));
     }
 
     /// The spawn-protection overlay component must match Java
