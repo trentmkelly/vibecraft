@@ -4,6 +4,7 @@ use super::{
     function_permission_level_from_properties, handle_legacy_status_connection, instrument_nbt,
     legacy_disconnect_packet, legacy_version0_response, legacy_version1_response,
     load_code_of_conduct_for_language, load_favicon, login_access_disconnect_reason,
+    resolve_status_icon_from,
     login_compression_threshold, login_host_ip, pig_sound_variant_nbt, read_code_of_conducts,
     read_packet, status_json, strip_minecraft_formatting, trim_material_nbt, trim_pattern_nbt,
     wolf_sound_variant_nbt, write_legacy_string, write_minimal_biome_registry_packet,
@@ -463,6 +464,36 @@ pub fn server_icon_loader_rejects_wrong_png_dimensions() {
     assert!(error.to_string().contains("64x64"));
 
     fs::remove_file(path).unwrap();
+}
+
+#[test]
+pub fn status_icon_prefers_server_icon_falls_back_to_world_icon_and_tolerates_bad_icons() {
+    let pid = std::process::id();
+    let server_icon = std::env::temp_dir().join(format!("rustcraft-resolve-{pid}-server-icon.png"));
+    let world_icon = std::env::temp_dir().join(format!("rustcraft-resolve-{pid}-world-icon.png"));
+    let _ = fs::remove_file(&server_icon);
+    let _ = fs::remove_file(&world_icon);
+
+    // Neither present -> no favicon.
+    assert_eq!(resolve_status_icon_from(&server_icon, &world_icon), None);
+
+    // Only the world icon present -> fallback is used.
+    fs::write(&world_icon, png_header(64, 64)).unwrap();
+    assert!(resolve_status_icon_from(&server_icon, &world_icon)
+        .unwrap()
+        .starts_with("data:image/png;base64,"));
+
+    // server-icon.png present and valid -> it wins over the world icon.
+    fs::write(&server_icon, png_header(64, 64)).unwrap();
+    assert!(resolve_status_icon_from(&server_icon, &world_icon).is_some());
+
+    // server-icon.png present but WRONG size -> Java picks it, fails validation,
+    // logs, and returns no icon WITHOUT falling back or aborting startup.
+    fs::write(&server_icon, png_header(32, 64)).unwrap();
+    assert_eq!(resolve_status_icon_from(&server_icon, &world_icon), None);
+
+    fs::remove_file(&server_icon).unwrap();
+    fs::remove_file(&world_icon).unwrap();
 }
 
 #[test]

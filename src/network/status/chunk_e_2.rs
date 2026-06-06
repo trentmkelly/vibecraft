@@ -659,6 +659,38 @@ pub fn load_favicon(path: &Path) -> io::Result<Option<String>> {
     )))
 }
 
+/// Resolve the server status icon, 1:1 with Java `MinecraftServer.loadStatusIcon`:
+/// prefer `server-icon.png` in the run directory, else the world folder's
+/// `icon.png`. The chosen file is validated as a 64x64 PNG and encoded as a
+/// `data:image/png;base64,` URI. On ANY load/validation error vanilla logs and
+/// continues without an icon — it never aborts startup over a bad icon — so this
+/// swallows the error to `None` rather than propagating it.
+pub fn resolve_status_icon(world_root: &Path) -> Option<String> {
+    resolve_status_icon_from(Path::new("server-icon.png"), &world_root.join("icon.png"))
+}
+
+/// Core of [`resolve_status_icon`] with both candidate paths passed explicitly
+/// so it can be tested without depending on the process working directory.
+pub(crate) fn resolve_status_icon_from(server_icon: &Path, world_icon: &Path) -> Option<String> {
+    // Java picks the first regular file (server-icon.png, then the world icon)
+    // and then validates THAT file; a found-but-invalid icon is not retried
+    // against the fallback.
+    let chosen = if server_icon.is_file() {
+        server_icon
+    } else if world_icon.is_file() {
+        world_icon
+    } else {
+        return None;
+    };
+    match load_favicon(chosen) {
+        Ok(favicon) => favicon,
+        Err(err) => {
+            eprintln!("Couldn't load server icon: {err}");
+            None
+        }
+    }
+}
+
 pub fn png_dimensions(bytes: &[u8]) -> io::Result<(u32, u32)> {
     const PNG_SIGNATURE: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
     if bytes.len() < 24 || &bytes[..8] != PNG_SIGNATURE || &bytes[12..16] != b"IHDR" {

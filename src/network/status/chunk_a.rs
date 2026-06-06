@@ -281,8 +281,10 @@ impl StatusServerRuntime {
         listener
             .set_nonblocking(true)
             .map_err(|err| format!("Failed to configure status listener on {address}: {err}"))?;
-        let favicon = load_favicon(Path::new("server-icon.png"))
-            .map_err(|err| format!("Failed to load server-icon.png: {err}"))?;
+        // Java MinecraftServer.loadStatusIcon: prefer server-icon.png, fall back
+        // to the world's icon.png, and tolerate a bad icon (log + no favicon)
+        // rather than failing startup.
+        let favicon = resolve_status_icon(world_root);
         let active_logins = ActiveLoginRegistry::default();
         let world_root = Arc::new(world_root.to_path_buf());
         let chunk_cache = GeneratedChunkCache::default();

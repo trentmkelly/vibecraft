@@ -79,7 +79,7 @@
 - [ ] Implement playerdata: `playerdata/<uuid>.dat` and `playerdata/<uuid>.dat_old`
 - [ ] Implement advancements: `advancements/<uuid>.json`
 - [ ] Implement stats: `stats/<uuid>.json`
-- [ ] Implement server icon: `server-icon.png` (64×64 PNG, base64-encoded for status response)
+- [x] Implement server icon: `server-icon.png` (64×64 PNG, base64-encoded for status response) — `chunk_e_2.rs::resolve_status_icon` (1:1 with Java `MinecraftServer.loadStatusIcon`): prefers `server-icon.png` then the world folder's `icon.png` (`storageSource.getIconFile()`), validates a 64×64 PNG via `png_dimensions` (signature + IHDR), encodes `data:image/png;base64,<b64>`, and tolerates a bad/wrong-size icon by logging + continuing without a favicon (never aborts startup, matching Java's try/catch). Live-wired into `StatusServerRuntime::new` → `status_json` favicon field + `ClientboundServerDataPacket`. Tests `server_icon_loader_requires_64_by_64_png_and_encodes_data_uri`, `server_icon_loader_rejects_wrong_png_dimensions`, `includes_favicon_when_present`, `status_icon_prefers_server_icon_falls_back_to_world_icon_and_tolerates_bad_icons` pass.
 - [ ] Implement crash reports: `crash-reports/crash-<timestamp>-server.txt`
 - [ ] Implement logs rotation: `logs/latest.log` + `logs/<date>-<n>.log.gz`
 - [x] Implement generated reports: `generated/` directory for registry/command/tag reports from `--report` flag — `generated_reports::generate_reports()` writes vanilla-named report and tag outputs, and `main::tests::report_flag_generates_reports_and_exits_before_eula_gate` covers CLI wiring; `report_generator_writes_vanilla_named_outputs` test passes.
