@@ -230,6 +230,7 @@ fn shaped_and_shapeless_recipes_match_vanilla_grid_rules() {
             Some(IngredientSpec::Item("minecraft:oak_planks")),
         ],
         result: ItemAmount::one("minecraft:crafting_table"),
+                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
     };
     let grid = vec![
         None,
@@ -258,6 +259,7 @@ fn shaped_and_shapeless_recipes_match_vanilla_grid_rules() {
             Some(IngredientSpec::Item("minecraft:coal")),
         ],
         result: ItemAmount::one("minecraft:torch"),
+                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
     };
     assert!(asymmetric.matches(2, 1, &[Some("minecraft:stick"), Some("minecraft:coal")]));
     // 26.1.2 `ShapedRecipePattern.matches` tries the horizontally-mirrored pattern
@@ -272,6 +274,7 @@ fn shaped_and_shapeless_recipes_match_vanilla_grid_rules() {
             IngredientSpec::AnyOf(vec!["minecraft:red_dye", "minecraft:blue_dye"]),
         ],
         result: ItemAmount::one("minecraft:firework_star"),
+                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
     };
     assert!(shapeless.matches(
         2,
@@ -304,6 +307,7 @@ fn shaped_and_shapeless_recipes_match_vanilla_grid_rules() {
             IngredientSpec::Item("minecraft:oak_planks"),
         ],
         result: ItemAmount::one("minecraft:stick"),
+                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
     };
     assert!(overlapping.matches(
         2,
@@ -842,6 +846,7 @@ fn recipe_is_incomplete_when_a_required_ingredient_is_empty() {
     let complete = RecipeKind::Shapeless {
         ingredients: vec![IngredientSpec::Item("minecraft:stick")],
         result: ItemAmount::one("minecraft:torch"),
+                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
     };
     assert!(!complete.is_incomplete());
 
@@ -849,6 +854,7 @@ fn recipe_is_incomplete_when_a_required_ingredient_is_empty() {
     let incomplete = RecipeKind::Shapeless {
         ingredients: vec![IngredientSpec::Item("minecraft:stick"), IngredientSpec::Empty],
         result: ItemAmount::one("minecraft:torch"),
+                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
     };
     assert!(incomplete.is_incomplete());
 
@@ -885,6 +891,7 @@ fn placement_info_is_built_per_recipe_type_like_java() {
             IngredientSpec::Item("minecraft:coal"),
         ],
         result: ItemAmount::one("minecraft:torch"),
+                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
     };
     let p = shapeless.placement_info();
     assert_eq!(p.ingredients.len(), 2);
@@ -921,6 +928,35 @@ fn placement_info_is_built_per_recipe_type_like_java() {
     let broken = RecipeKind::Shapeless {
         ingredients: vec![IngredientSpec::Empty],
         result: ItemAmount::one("minecraft:torch"),
+                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
     };
     assert!(broken.placement_info().is_impossible_to_place());
+}
+
+#[test]
+fn crafting_book_category_drives_shaped_shapeless_recipe_book_group() {
+    use crate::recipe_system::CraftingBookCategoryModel as C;
+    assert_eq!(C::from_id(Some("building")), C::Building);
+    assert_eq!(C::from_id(Some("redstone")), C::Redstone);
+    assert_eq!(C::from_id(Some("equipment")), C::Equipment);
+    assert_eq!(C::from_id(None), C::Misc);
+
+    let shaped = |category| RecipeKind::Shaped {
+        width: 1,
+        height: 1,
+        pattern: vec![Some(IngredientSpec::Item("minecraft:redstone"))],
+        result: ItemAmount::one("minecraft:redstone_block"),
+        category,
+    };
+    assert_eq!(shaped(C::Building).recipe_book_category(), "crafting_building_blocks");
+    assert_eq!(shaped(C::Redstone).recipe_book_category(), "crafting_redstone");
+    assert_eq!(shaped(C::Equipment).recipe_book_category(), "crafting_equipment");
+    assert_eq!(shaped(C::Misc).recipe_book_category(), "crafting_misc");
+
+    let shapeless = RecipeKind::Shapeless {
+        ingredients: vec![IngredientSpec::Item("minecraft:stick")],
+        result: ItemAmount::one("minecraft:torch"),
+        category: C::Building,
+    };
+    assert_eq!(shapeless.recipe_book_category(), "crafting_building_blocks");
 }

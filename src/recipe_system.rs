@@ -801,8 +801,10 @@ fn crafting_remainder(item: &str) -> Option<&'static str> {
     }
 }
 
-#[cfg(test)]
+/// `CraftingBookCategory` — the recipe-book group a crafting recipe declares in its
+/// JSON `category` field (defaults to `Misc`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum CraftingBookCategoryModel {
     Building,
     Equipment,
@@ -810,7 +812,7 @@ pub enum CraftingBookCategoryModel {
     Misc,
 }
 
-#[cfg(test)]
+#[allow(dead_code)]
 impl CraftingBookCategoryModel {
     pub fn recipe_book_category(self) -> &'static str {
         match self {
@@ -818,6 +820,17 @@ impl CraftingBookCategoryModel {
             Self::Equipment => "crafting_equipment",
             Self::Redstone => "crafting_redstone",
             Self::Misc => "crafting_misc",
+        }
+    }
+
+    /// Parse the JSON `category` string, defaulting to `Misc` (the `CraftingRecipe`
+    /// codec default).
+    pub fn from_id(id: Option<&str>) -> Self {
+        match id {
+            Some("building") => Self::Building,
+            Some("equipment") => Self::Equipment,
+            Some("redstone") => Self::Redstone,
+            _ => Self::Misc,
         }
     }
 }

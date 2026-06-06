@@ -877,12 +877,14 @@ fn recipe_book_display(
         RecipeKind::Shapeless {
             ingredients,
             result,
+            ..
         } => Some(recipe_book_shapeless_display(ingredients, result)),
         RecipeKind::Shaped {
             width,
             height,
             pattern,
             result,
+            ..
         } => Some(recipe_book_shaped_display(*width, *height, pattern, result)),
         RecipeKind::Cooking {
             kind,

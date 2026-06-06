@@ -59,6 +59,7 @@ fn every_recipe_kind_has_matches_assemble_remaining_and_unlock_coverage() {
             let remainder_recipe = RecipeKind::Shapeless {
                 ingredients: vec![IngredientSpec::Item("minecraft:water_bucket")],
                 result: ItemAmount::one("minecraft:packed_ice"),
+                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
             };
             assert_eq!(
                 remainder_recipe
@@ -112,6 +113,7 @@ fn crafting_recipe_coverage_cases() -> Vec<RecipeKindCoverageCase> {
                     Some(IngredientSpec::Item("minecraft:oak_planks")),
                 ],
                 result: ItemAmount::one("minecraft:crafting_table"),
+                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
             },
             2,
             2,
@@ -132,6 +134,7 @@ fn crafting_recipe_coverage_cases() -> Vec<RecipeKindCoverageCase> {
                     IngredientSpec::AnyOf(vec!["minecraft:red_dye", "minecraft:blue_dye"]),
                 ],
                 result: ItemAmount::one("minecraft:firework_star"),
+                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
             },
             2,
             1,
@@ -487,6 +490,7 @@ fn recipe_manager_indexes_by_type_key_and_matching_input() {
                     Some(IngredientSpec::Item("minecraft:oak_planks")),
                 ],
                 result: ItemAmount::one("minecraft:crafting_table"),
+                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
             },
         },
         RecipeHolder {
@@ -497,6 +501,7 @@ fn recipe_manager_indexes_by_type_key_and_matching_input() {
                     IngredientSpec::AnyOf(vec!["minecraft:red_dye", "minecraft:blue_dye"]),
                 ],
                 result: ItemAmount::one("minecraft:firework_star"),
+                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
             },
         },
         RecipeHolder {
@@ -631,6 +636,7 @@ fn core_recipe_interface_methods_match_java_defaults() {
                 Some(IngredientSpec::Item("minecraft:oak_planks")),
             ],
             result: ItemAmount::one("minecraft:crafting_table"),
+                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
         },
     };
     assert_eq!(holder.get_id(), "minecraft:crafting_table");

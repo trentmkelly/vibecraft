@@ -109,6 +109,7 @@ pub fn network_crafting_test_recipes() -> crate::recipe_system::RecipeMap {
     crate::recipe_system::RecipeMap::create(vec![crate::recipe_system::RecipeHolder {
         id: "minecraft:oak_planks",
         recipe: crate::recipe_system::RecipeKind::Shapeless {
+            category: crate::recipe_system::CraftingBookCategoryModel::Misc,
             ingredients: vec![crate::recipe_system::IngredientSpec::Item(
                 "minecraft:oak_log",
             )],

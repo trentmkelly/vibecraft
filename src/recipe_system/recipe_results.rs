@@ -36,10 +36,14 @@ pub enum RecipeKind {
         height: usize,
         pattern: Vec<Option<IngredientSpec>>,
         result: ItemAmount,
+        /// `CraftingRecipe.category()` — the recipe-book group from the JSON.
+        category: CraftingBookCategoryModel,
     },
     Shapeless {
         ingredients: Vec<IngredientSpec>,
         result: ItemAmount,
+        /// `CraftingRecipe.category()` — the recipe-book group from the JSON.
+        category: CraftingBookCategoryModel,
     },
     Cooking {
         kind: CookingKind,
@@ -172,10 +176,12 @@ impl RecipeKind {
 
     pub fn recipe_book_category(&self) -> &'static str {
         match self {
-            RecipeKind::Shaped { .. }
-            | RecipeKind::Shapeless { .. }
-            | RecipeKind::Transmute { .. }
-            | RecipeKind::Imbue { .. } => "crafting_misc",
+            // `ShapedRecipe`/`ShapelessRecipe` carry a `CraftingBookCategory`.
+            RecipeKind::Shaped { category, .. } | RecipeKind::Shapeless { category, .. } => {
+                category.recipe_book_category()
+            }
+            // Transmute/Imbue are always `misc` in vanilla.
+            RecipeKind::Transmute { .. } | RecipeKind::Imbue { .. } => "crafting_misc",
             // `SmeltingRecipe.recipeBookCategory`: FOOD/BLOCKS/MISC -> the matching
             // furnace book group.
             RecipeKind::Cooking {

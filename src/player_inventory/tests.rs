@@ -5,6 +5,7 @@ fn crafting_test_recipes() -> crate::recipe_system::RecipeMap {
         crate::recipe_system::RecipeHolder {
             id: "minecraft:oak_planks",
             recipe: crate::recipe_system::RecipeKind::Shapeless {
+                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
                 ingredients: vec![crate::recipe_system::IngredientSpec::Item(
                     "minecraft:oak_log",
                 )],
@@ -34,11 +35,13 @@ fn crafting_test_recipes() -> crate::recipe_system::RecipeMap {
                     )),
                 ],
                 result: crate::recipe_system::ItemAmount::one("minecraft:crafting_table"),
+                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
             },
         },
         crate::recipe_system::RecipeHolder {
             id: "minecraft:test_bucket_recipe",
             recipe: crate::recipe_system::RecipeKind::Shapeless {
+                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
                 ingredients: vec![crate::recipe_system::IngredientSpec::Item(
                     "minecraft:water_bucket",
                 )],
@@ -48,6 +51,7 @@ fn crafting_test_recipes() -> crate::recipe_system::RecipeMap {
         crate::recipe_system::RecipeHolder {
             id: "minecraft:torch",
             recipe: crate::recipe_system::RecipeKind::Shapeless {
+                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
                 ingredients: vec![
                     crate::recipe_system::IngredientSpec::Item("minecraft:stick"),
                     crate::recipe_system::IngredientSpec::Item("minecraft:stick"),

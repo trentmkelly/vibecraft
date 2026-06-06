@@ -73,6 +73,9 @@ fn parse_recipe_kind(
         "crafting_shapeless" => Ok(RecipeKind::Shapeless {
             ingredients: parse_ingredient_array(object, "ingredients", id, tags)?,
             result: parse_result(object, id)?,
+            category: CraftingBookCategoryModel::from_id(
+                object.get("category").and_then(serde_json::Value::as_str),
+            ),
         }),
         "smelting" | "blasting" | "smoking" | "campfire_cooking" => {
             parse_cooking_recipe(recipe_type, id, object, tags)
@@ -151,6 +154,9 @@ fn parse_shaped_recipe(
         height,
         pattern,
         result: parse_result(object, id)?,
+        category: CraftingBookCategoryModel::from_id(
+            object.get("category").and_then(serde_json::Value::as_str),
+        ),
     })
 }
 

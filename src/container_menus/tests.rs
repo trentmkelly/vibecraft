@@ -12,6 +12,7 @@ fn planks_recipe() -> RecipeMap {
         RecipeHolder {
             id: "minecraft:oak_planks",
             recipe: RecipeKind::Shapeless {
+                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
                 ingredients: vec![IngredientSpec::Item("minecraft:oak_log")],
                 result: ItemAmount {
                     item: "minecraft:oak_planks",
@@ -38,6 +39,7 @@ fn crafting_table_recipes() -> RecipeMap {
         RecipeHolder {
             id: "minecraft:oak_planks",
             recipe: RecipeKind::Shapeless {
+                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
                 ingredients: vec![IngredientSpec::Item("minecraft:oak_log")],
                 result: ItemAmount {
                     item: "minecraft:oak_planks",
@@ -50,6 +52,7 @@ fn crafting_table_recipes() -> RecipeMap {
             recipe: RecipeKind::Shapeless {
                 ingredients: vec![IngredientSpec::Item("minecraft:water_bucket")],
                 result: ItemAmount::one("minecraft:packed_ice"),
+                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
             },
         },
     ])
