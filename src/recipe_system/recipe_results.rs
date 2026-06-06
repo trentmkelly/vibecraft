@@ -67,6 +67,9 @@ pub enum RecipeKind {
         template: IngredientSpec,
         base: IngredientSpec,
         addition: IngredientSpec,
+        /// The `TrimPattern` id this recipe applies (e.g. `"minecraft:sentry"`),
+        /// from the recipe JSON's `pattern` field.
+        pattern: &'static str,
     },
     Special {
         kind: SpecialRecipeKind,
@@ -204,6 +207,7 @@ impl RecipeKind {
                 template,
                 base,
                 addition,
+                ..
             } => Some(PlacementInfo::create_from_optionals(vec![
                 optional_ingredient(template),
                 Some(base.clone()),
@@ -270,6 +274,7 @@ impl RecipeKind {
                 template,
                 base,
                 addition,
+                ..
             } => {
                 let [Some(template_item), Some(base_item), Some(addition_item)] = items else {
                     return false;

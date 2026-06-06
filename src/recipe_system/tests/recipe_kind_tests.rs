@@ -301,6 +301,7 @@ fn smithing_and_special_recipe_coverage_cases() -> Vec<RecipeKindCoverageCase> {
                 template: IngredientSpec::Item("minecraft:spire_armor_trim_smithing_template"),
                 base: IngredientSpec::Item("minecraft:iron_chestplate"),
                 addition: IngredientSpec::Item("minecraft:amethyst_shard"),
+                pattern: "minecraft:spire",
             },
             3,
             1,

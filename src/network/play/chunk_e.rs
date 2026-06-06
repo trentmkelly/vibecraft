@@ -912,6 +912,7 @@ fn recipe_book_display(
             template,
             base,
             addition,
+            ..
         } => Some(recipe_book_smithing_trim_display(template, base, addition)),
         // Special/transmute/imbue recipes — omit from recipe book for now.
         // Java: These use dedicated server-side logic, not generic RecipeDisplay.

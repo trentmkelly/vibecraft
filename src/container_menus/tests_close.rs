@@ -53,7 +53,7 @@ fn close_while_carrying_returns_work_slots_and_cursor_to_inventory() {
     );
     assert_close_returns(
         |p| {
-            let mut m = SmithingMenu::new();
+            let mut m = SmithingMenu::new(RecipeMap::create(Vec::new()));
             m.set_slot(0, ItemStack::new("minecraft:netherite_upgrade_smithing_template", 1), p);
             m.set_slot(1, ItemStack::new("minecraft:diamond_chestplate", 1), p);
             m.set_slot(2, ItemStack::new("minecraft:netherite_ingot", 1), p);

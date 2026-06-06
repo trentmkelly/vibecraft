@@ -691,6 +691,7 @@ fn cooking_stonecutting_and_smithing_recipes_match_single_input_contracts() {
         template: IngredientSpec::Item("minecraft:spire_armor_trim_smithing_template"),
         base: IngredientSpec::Item("minecraft:iron_chestplate"),
         addition: IngredientSpec::Item("minecraft:amethyst_shard"),
+        pattern: "minecraft:spire",
     };
 
     assert!(transform.matches(

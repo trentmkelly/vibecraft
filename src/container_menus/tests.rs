@@ -353,7 +353,7 @@ fn anvil_result_slot_rejects_placement_and_renaming_costs_one() {
 
 #[test]
 fn smithing_menu_layout_and_result_rejection() {
-    let mut menu = SmithingMenu::new();
+    let mut menu = SmithingMenu::new(RecipeMap::create(Vec::new()));
     let mut player = PlayerInventory::new();
     assert_eq!(SmithingMenu::SLOT_COUNT, 40);
     assert!(!menu.may_place(3, &ItemStack::new("minecraft:apple", 1)));

@@ -235,6 +235,9 @@ pub struct SmithingMenu {
     base: ItemStack,
     addition: ItemStack,
     result: ItemStack,
+    /// The loaded smithing recipes that drive the result (Java's `SmithingMenu`
+    /// holds the `RecipeManager`; the result is recipe-driven, not hardcoded).
+    recipes: RecipeMap,
     pub has_recipe_error: bool,
 }
 
@@ -248,12 +251,13 @@ impl SmithingMenu {
     pub const HOTBAR_END: usize = 40;
     pub const SLOT_COUNT: usize = 40;
 
-    pub fn new() -> Self {
+    pub fn new(recipes: RecipeMap) -> Self {
         Self {
             template: ItemStack::empty(),
             base: ItemStack::empty(),
             addition: ItemStack::empty(),
             result: ItemStack::empty(),
+            recipes,
             has_recipe_error: false,
         }
     }
@@ -321,7 +325,9 @@ impl SmithingMenu {
     /// `SmithingMenu.createResult`: recompute the result from the template/base/addition
     /// inputs (netherite transform or armour trim). See `smithing_create_result`.
     pub fn update_result(&mut self) {
-        self.result = smithing_create_result(&self.template, &self.base, &self.addition);
+        self.result = self
+            .recipes
+            .smithing_result(&self.template, &self.base, &self.addition);
         self.has_recipe_error = !self.base.is_empty()
             && !self.addition.is_empty()
             && !self.template.is_empty()
@@ -408,7 +414,7 @@ impl SmithingMenu {
 
 impl Default for SmithingMenu {
     fn default() -> Self {
-        Self::new()
+        Self::new(RecipeMap::create(Vec::new()))
     }
 }
 

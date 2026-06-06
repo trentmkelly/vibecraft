@@ -297,13 +297,39 @@ fn enchantment_menu_slots_changed_and_enchant_action_match_java() {
     assert_eq!(menu.click_button(2, 0, true), EnchantOutcome::Enchanted { xp_levels: 3 });
 }
 
+/// A minimal recipe set for the smithing tests: the netherite-chestplate transform
+/// and the sentry trim, mirroring the vanilla smithing recipe JSON.
+fn smithing_test_recipes() -> RecipeMap {
+    use crate::recipe_system::{IngredientSpec, ItemAmount, RecipeHolder, RecipeKind};
+    RecipeMap::create(vec![
+        RecipeHolder {
+            id: "minecraft:netherite_chestplate_smithing",
+            recipe: RecipeKind::SmithingTransform {
+                template: IngredientSpec::Item("minecraft:netherite_upgrade_smithing_template"),
+                base: IngredientSpec::Item("minecraft:diamond_chestplate"),
+                addition: IngredientSpec::Item("minecraft:netherite_ingot"),
+                result: ItemAmount::one("minecraft:netherite_chestplate"),
+            },
+        },
+        RecipeHolder {
+            id: "minecraft:sentry_armor_trim_smithing",
+            recipe: RecipeKind::SmithingTrim {
+                template: IngredientSpec::Item("minecraft:sentry_armor_trim_smithing_template"),
+                base: IngredientSpec::Item("minecraft:diamond_chestplate"),
+                addition: IngredientSpec::Item("minecraft:copper_ingot"),
+                pattern: "minecraft:sentry",
+            },
+        },
+    ])
+}
+
 #[test]
 fn smithing_menu_transform_and_trim_match_java() {
     use crate::item_properties::ItemComponent;
     let mut player = PlayerInventory::new();
 
     // --- Netherite-upgrade transform (keeps the base's components). ---
-    let mut menu = SmithingMenu::new();
+    let mut menu = SmithingMenu::new(smithing_test_recipes());
     menu.set_slot(0, ItemStack::new("minecraft:netherite_upgrade_smithing_template", 1), &mut player);
     menu.set_slot(1, ItemStack::new("minecraft:diamond_chestplate", 1), &mut player);
     menu.set_slot(2, ItemStack::new("minecraft:netherite_ingot", 1), &mut player);
@@ -312,14 +338,14 @@ fn smithing_menu_transform_and_trim_match_java() {
     assert_eq!(r.count(), 1);
 
     // Wrong addition (not a netherite ingot) -> no transform.
-    let mut menu = SmithingMenu::new();
+    let mut menu = SmithingMenu::new(smithing_test_recipes());
     menu.set_slot(0, ItemStack::new("minecraft:netherite_upgrade_smithing_template", 1), &mut player);
     menu.set_slot(1, ItemStack::new("minecraft:diamond_chestplate", 1), &mut player);
     menu.set_slot(2, ItemStack::new("minecraft:iron_ingot", 1), &mut player);
     assert!(menu.get_slot(3, &player).unwrap().is_empty());
 
     // --- Armour trim: sentry template + trimmable armour + copper ingot -> TRIM. ---
-    let mut menu = SmithingMenu::new();
+    let mut menu = SmithingMenu::new(smithing_test_recipes());
     menu.set_slot(0, ItemStack::new("minecraft:sentry_armor_trim_smithing_template", 1), &mut player);
     menu.set_slot(1, ItemStack::new("minecraft:diamond_chestplate", 1), &mut player);
     menu.set_slot(2, ItemStack::new("minecraft:copper_ingot", 1), &mut player);
@@ -333,14 +359,14 @@ fn smithing_menu_transform_and_trim_match_java() {
     // A base that already carries that exact trim -> empty result.
     let mut already = ItemStack::new("minecraft:diamond_chestplate", 1);
     already.set_component(ItemComponent::ArmorTrim { material: "minecraft:copper", pattern: "minecraft:sentry" });
-    let mut menu = SmithingMenu::new();
+    let mut menu = SmithingMenu::new(smithing_test_recipes());
     menu.set_slot(0, ItemStack::new("minecraft:sentry_armor_trim_smithing_template", 1), &mut player);
     menu.set_slot(1, already, &mut player);
     menu.set_slot(2, ItemStack::new("minecraft:copper_ingot", 1), &mut player);
     assert!(menu.get_slot(3, &player).unwrap().is_empty());
 
-    // A non-armour base for a trim template -> empty.
-    let mut menu = SmithingMenu::new();
+    // A non-armour base for a trim template -> empty (not a recipe base match).
+    let mut menu = SmithingMenu::new(smithing_test_recipes());
     menu.set_slot(0, ItemStack::new("minecraft:sentry_armor_trim_smithing_template", 1), &mut player);
     menu.set_slot(1, ItemStack::new("minecraft:diamond_sword", 1), &mut player);
     menu.set_slot(2, ItemStack::new("minecraft:copper_ingot", 1), &mut player);

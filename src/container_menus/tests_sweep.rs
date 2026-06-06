@@ -32,7 +32,7 @@ fn every_menu_reports_correct_slot_count_for_full_resync() {
     assert_eq!(DispenserMenu::new().all_slots(&player).len(), 45);
     assert_eq!(ShulkerBoxMenu::new().all_slots(&player).len(), 63);
     assert_eq!(AnvilMenu::new().all_slots(&player).len(), 39);
-    assert_eq!(SmithingMenu::new().all_slots(&player).len(), 40);
+    assert_eq!(SmithingMenu::new(RecipeMap::create(Vec::new())).all_slots(&player).len(), 40);
     assert_eq!(StonecutterMenu::new().all_slots(&player).len(), 38);
     assert_eq!(GrindstoneMenu::new().all_slots(&player).len(), 39);
     assert_eq!(EnchantmentMenu::new().all_slots(&player).len(), 38);
@@ -104,7 +104,7 @@ fn every_menu_quick_moves_a_container_slot_into_the_player_inventory() {
     assert_qm!(DispenserMenu::new(), 0, "minecraft:stone");
     assert_qm!(ShulkerBoxMenu::new(), 0, "minecraft:stone");
     assert_qm!(AnvilMenu::new(), 0, "minecraft:diamond_sword");
-    assert_qm!(SmithingMenu::new(), 1, "minecraft:diamond_chestplate");
+    assert_qm!(SmithingMenu::new(RecipeMap::create(Vec::new())), 1, "minecraft:diamond_chestplate");
     assert_qm!(StonecutterMenu::new(), 0, "minecraft:stone");
     assert_qm!(GrindstoneMenu::new(), 0, "minecraft:diamond_sword");
     assert_qm!(EnchantmentMenu::new(), 0, "minecraft:diamond_sword");

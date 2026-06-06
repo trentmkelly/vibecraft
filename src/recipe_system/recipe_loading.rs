@@ -91,6 +91,7 @@ fn parse_recipe_kind(
             template: parse_field_ingredient(object, "template", id, tags)?,
             base: parse_field_ingredient(object, "base", id, tags)?,
             addition: parse_field_ingredient(object, "addition", id, tags)?,
+            pattern: Box::leak(json_str(object, "pattern")?.to_string().into_boxed_str()),
         }),
         "crafting_transmute" => Ok(RecipeKind::Transmute {
             input: parse_field_ingredient(object, "input", id, tags)?,
@@ -571,6 +572,7 @@ pub(super) fn collect_recipe_property_sets(recipes: &[RecipeHolder]) -> Vec<Reci
                 template,
                 base,
                 addition,
+                ..
             } => {
                 push_ingredient_items(&mut smithing_template, template);
                 push_ingredient_items(&mut smithing_base, base);

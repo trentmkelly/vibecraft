@@ -11,10 +11,48 @@
 
 use std::collections::BTreeMap;
 
-use super::recipe_results::SpecialRecipeKind;
-use super::ItemAmount;
+use super::recipe_results::{RecipeKind, SpecialRecipeKind};
+use super::{ItemAmount, RecipeMap};
 use crate::item_properties::ItemComponent;
 use crate::item_stack::ItemStack;
+
+impl RecipeMap {
+    /// The result of the `SmithingMenu` for the given template/base/addition,
+    /// driven by the loaded smithing recipes (matching Java's recipe-driven
+    /// `SmithingMenu.createResult`). A `SmithingTransformRecipe` yields
+    /// `createWithOriginalComponents(result, base)` (the base's components retyped
+    /// to the result item); a `SmithingTrimRecipe` yields
+    /// `applyTrim(base, addition, pattern)`; otherwise `ItemStack::EMPTY`.
+    pub fn smithing_result(
+        &self,
+        template: &ItemStack,
+        base: &ItemStack,
+        addition: &ItemStack,
+    ) -> ItemStack {
+        if template.is_empty() || base.is_empty() || addition.is_empty() {
+            return ItemStack::empty();
+        }
+        let items = [
+            Some(template.item_id()),
+            Some(base.item_id()),
+            Some(addition.item_id()),
+        ];
+        for holder in self.values() {
+            match &holder.recipe {
+                RecipeKind::SmithingTransform { result, .. }
+                    if holder.recipe.matches(0, 0, &items) =>
+                {
+                    return base.transmute_copy(result.item, result.count.max(1) as i32);
+                }
+                RecipeKind::SmithingTrim { pattern, .. } if holder.recipe.matches(0, 0, &items) => {
+                    return smithing_apply_trim(base, addition, pattern);
+                }
+                _ => {}
+            }
+        }
+        ItemStack::empty()
+    }
+}
 
 /// The outcome of a successful special craft: the result stack plus the grid's
 /// state after one craft is taken. `grid_after[i]` is what input slot `i` becomes
@@ -694,6 +732,49 @@ fn decorated_pot(result_hint: &ItemAmount, grid: &[ItemStack]) -> Option<Special
 /// `#minecraft:decorated_pot_ingredients` — brick plus every pottery sherd.
 fn is_pot_ingredient(item_id: &str) -> bool {
     item_id == "minecraft:brick" || item_id.ends_with("_pottery_sherd")
+}
+
+// ----------------------------------------------------------------------------
+// Smithing (SmithingTransformRecipe / SmithingTrimRecipe)
+// ----------------------------------------------------------------------------
+
+/// `Items.*.trimMaterial` — the `PROVIDES_TRIM_MATERIAL` a trim-material ingredient
+/// supplies (e.g. `copper_ingot` → `minecraft:copper`). `None` for non-materials.
+pub(crate) fn trim_material_for_ingredient(item_id: &str) -> Option<&'static str> {
+    Some(match item_id {
+        "minecraft:iron_ingot" => "minecraft:iron",
+        "minecraft:copper_ingot" => "minecraft:copper",
+        "minecraft:gold_ingot" => "minecraft:gold",
+        "minecraft:netherite_ingot" => "minecraft:netherite",
+        "minecraft:diamond" => "minecraft:diamond",
+        "minecraft:emerald" => "minecraft:emerald",
+        "minecraft:lapis_lazuli" => "minecraft:lapis",
+        "minecraft:amethyst_shard" => "minecraft:amethyst",
+        "minecraft:quartz" => "minecraft:quartz",
+        "minecraft:redstone" => "minecraft:redstone",
+        "minecraft:resin_brick" => "minecraft:resin",
+        _ => return None,
+    })
+}
+
+/// `SmithingTrimRecipe.applyTrim`: stamp the trim (material from the addition's
+/// `PROVIDES_TRIM_MATERIAL`, pattern from the recipe) onto the base, or `EMPTY` if
+/// the base already carries exactly that trim or the addition provides no material.
+pub(crate) fn smithing_apply_trim(
+    base: &ItemStack,
+    addition: &ItemStack,
+    pattern: &'static str,
+) -> ItemStack {
+    let Some(material) = trim_material_for_ingredient(addition.item_id()) else {
+        return ItemStack::empty();
+    };
+    let new_trim = ItemComponent::ArmorTrim { material, pattern };
+    if base.component("minecraft:trim") == Some(&new_trim) {
+        return ItemStack::empty();
+    }
+    let mut result = base.copy_with_count(1);
+    result.set_component(new_trim);
+    result
 }
 
 #[cfg(test)]
