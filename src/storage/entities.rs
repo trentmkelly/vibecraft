@@ -244,6 +244,6 @@ mod tests {
 
         let unsupported = ChunkEntities::empty(pos).to_nbt(TARGET_DATA_VERSION - 1);
         let err = ChunkEntities::from_nbt(pos, &unsupported).unwrap_err();
-        assert!(err.contains("Unsupported world DataVersion"));
+        assert!(err.contains("Unsupported entity chunk DataVersion"));
     }
 }

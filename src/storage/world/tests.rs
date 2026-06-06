@@ -505,7 +505,7 @@ fn saved_nbt_loaders_refuse_missing_or_unsupported_data_versions() {
     fs::write(layout.saved_data_file("scoreboard"), bytes).unwrap();
     let err = layout.load_scoreboard().unwrap_err();
     assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
-    assert!(err.to_string().contains("Unsupported world DataVersion"));
+    assert!(err.to_string().contains("Unsupported scoreboard DataVersion"));
 
     let _ = fs::remove_dir_all(&path);
 }

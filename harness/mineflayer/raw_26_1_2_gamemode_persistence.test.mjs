@@ -218,22 +218,36 @@ function nbtList (name, type, payloads) {
 
 function skipNbtPayload (buffer, offset, type) {
   switch (type) {
-    case 1: return offset + 1
-    case 3: return offset + 4
-    case 5: return offset + 4
-    case 6: return offset + 8
-    case 8: {
+    case 1: return offset + 1 // Byte
+    case 2: return offset + 2 // Short (e.g. vanilla "Air")
+    case 3: return offset + 4 // Int
+    case 4: return offset + 8 // Long
+    case 5: return offset + 4 // Float
+    case 6: return offset + 8 // Double
+    case 7: { // ByteArray
+      const length = buffer.readInt32BE(offset)
+      return offset + 4 + length
+    }
+    case 8: { // String
       const length = buffer.readUInt16BE(offset)
       return offset + 2 + length
     }
-    case 9: {
+    case 9: { // List
       const childType = buffer[offset++]
       const length = buffer.readInt32BE(offset); offset += 4
       for (let i = 0; i < length; i++) offset = skipNbtPayload(buffer, offset, childType)
       return offset
     }
-    case 10:
+    case 10: // Compound
       return skipNbtCompound(buffer, offset)
+    case 11: { // IntArray
+      const length = buffer.readInt32BE(offset)
+      return offset + 4 + length * 4
+    }
+    case 12: { // LongArray
+      const length = buffer.readInt32BE(offset)
+      return offset + 4 + length * 8
+    }
     default:
       throw new Error(`unsupported test NBT type ${type}`)
   }

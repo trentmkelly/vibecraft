@@ -962,7 +962,7 @@ fn level_chunk_rejects_missing_or_unsupported_data_versions() {
     let unsupported =
         LevelChunk::empty(pos).to_nbt(crate::storage::datafix::TARGET_DATA_VERSION - 1);
     let err = LevelChunk::from_nbt(pos, &unsupported).unwrap_err();
-    assert!(err.contains("Unsupported world DataVersion"));
+    assert!(err.contains("Unsupported chunk DataVersion"));
 }
 
 #[test]

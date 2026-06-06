@@ -178,9 +178,38 @@ pub fn tag_data_version(tag: &Tag) -> Option<i32> {
         })
 }
 
+/// Acceptance policy for a saved-data tag (playerdata, chunk, entity chunk, map,
+/// and other `SavedData` surfaces). Mirrors Java `DataFixTypes.updateToCurrentVersion`,
+/// which calls `DataFixerUpper.update(type, data, fromVersion, currentVersion)`:
+/// when `fromVersion >= currentVersion` the data is returned UNCHANGED (DFU never
+/// downgrades), so a tag at or newer than [`TARGET_DATA_VERSION`] loads as-is.
+/// Only older tags require datafix upgrades, which RustCraft has not implemented
+/// yet, so those are blocked.
+///
+/// This differs from [`check_world_data_version`] (exact match), which gates the
+/// `level.dat` world version where a newer save is deliberately refused.
+pub fn check_saved_tag_data_version(found_data_version: i32) -> DataFixDecision {
+    if found_data_version >= TARGET_DATA_VERSION {
+        DataFixDecision::Current
+    } else {
+        DataFixDecision::Blocked {
+            found_data_version,
+            target_data_version: TARGET_DATA_VERSION,
+        }
+    }
+}
+
 pub fn require_current_tag_data_version(surface: &str, tag: &Tag) -> Result<(), String> {
     let version = tag_data_version(tag).ok_or_else(|| format!("{surface} missing DataVersion"))?;
-    require_current_world_data_version(version)
+    match check_saved_tag_data_version(version) {
+        DataFixDecision::Current => Ok(()),
+        DataFixDecision::Blocked {
+            found_data_version,
+            target_data_version,
+        } => Err(format!(
+            "Unsupported {surface} DataVersion {found_data_version}; RustCraft supports {target_data_version} or newer and will not perform unsafe downgrade migrations"
+        )),
+    }
 }
 
 pub fn plan_world_upgrade(options: WorldUpgradeOptions) -> Vec<WorldUpgradeStep> {
@@ -328,11 +357,12 @@ fn parse_region_file_name(file_name: &str) -> Option<RegionPos> {
 #[cfg(test)]
 mod tests {
     use super::{
-        check_world_data_version, plan_compatible_world_upgrade, plan_world_upgrade,
-        require_current_world_data_version, run_world_upgrade, DataFixDecision,
-        DataFixStrategyAction, WorldUpgradeOptions, WorldUpgradeStep, DATAFIX_STRATEGY,
-        TARGET_DATA_VERSION,
+        check_saved_tag_data_version, check_world_data_version, plan_compatible_world_upgrade,
+        plan_world_upgrade, require_current_tag_data_version, require_current_world_data_version,
+        run_world_upgrade, DataFixDecision, DataFixStrategyAction, WorldUpgradeOptions,
+        WorldUpgradeStep, DATAFIX_STRATEGY, TARGET_DATA_VERSION,
     };
+    use crate::storage::nbt::Tag;
     use crate::storage::chunk::LevelChunk;
     use crate::storage::entities::ChunkEntities;
     use crate::storage::region::ChunkPos;
@@ -360,6 +390,46 @@ mod tests {
         );
         let err = require_current_world_data_version(TARGET_DATA_VERSION - 1).unwrap_err();
         assert!(err.contains("will not perform unsafe migrations"));
+    }
+
+    #[test]
+    fn saved_tags_accept_current_or_newer_and_block_older() {
+        // Java mirror: DataFixTypes.updateToCurrentVersion ->
+        // DataFixerUpper.update(type, data, fromVersion, currentVersion) returns the
+        // data UNCHANGED when fromVersion >= currentVersion (DFU never downgrades), so
+        // saved data (playerdata, chunk, entity chunk, map, SavedData) at or newer
+        // than the target loads as-is. Only older data needs (unimplemented) upgrades.
+        assert_eq!(
+            check_saved_tag_data_version(TARGET_DATA_VERSION),
+            DataFixDecision::Current
+        );
+        assert_eq!(
+            check_saved_tag_data_version(TARGET_DATA_VERSION + 1),
+            DataFixDecision::Current
+        );
+        assert_eq!(
+            check_saved_tag_data_version(TARGET_DATA_VERSION - 1),
+            DataFixDecision::Blocked {
+                found_data_version: TARGET_DATA_VERSION - 1,
+                target_data_version: TARGET_DATA_VERSION,
+            }
+        );
+
+        // A newer playerdata tag (e.g. a save written by a point release one version
+        // ahead) loads without error, exactly like vanilla.
+        let newer = Tag::Compound(vec![(
+            "DataVersion".to_string(),
+            Tag::Int(TARGET_DATA_VERSION + 1),
+        )]);
+        assert!(require_current_tag_data_version("playerdata", &newer).is_ok());
+
+        let older = Tag::Compound(vec![(
+            "DataVersion".to_string(),
+            Tag::Int(TARGET_DATA_VERSION - 1),
+        )]);
+        let err = require_current_tag_data_version("playerdata", &older).unwrap_err();
+        assert!(err.contains("Unsupported playerdata DataVersion"));
+        assert!(err.contains("will not perform unsafe downgrade migrations"));
     }
 
     #[test]
