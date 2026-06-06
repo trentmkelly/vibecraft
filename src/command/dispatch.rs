@@ -498,6 +498,16 @@ fn kick_command(
     }
 }
 
+// TODO(op-deop-live-wiring): op_command/deop_command mutate only the transient
+// ServerCommandState (operator_players); the change is NOT applied to the live
+// PlayerAccess or persisted to ops.json (apply_command_side_effects only handles
+// weather + gamemode). Wiring the local half is feasible via the /weather pattern
+// (seed operator_players from PlayerAccess; diff + apply + persist ops.json — needs
+// a live PlayerAccess save_ops + deop, currently only test-only save_all exists).
+// Full 1:1 with Java OpCommand -> PlayerList.op also resends permission-level +
+// commands to the TARGET player, which requires sending to another player's
+// connection — blocked on the missing live player registry (same gap as the static
+// query player_count). Blocks CHECKLIST_COMMANDS #90 (left unmarked).
 fn op_command(
     state: &mut ServerCommandState,
     parts: &[&str],
