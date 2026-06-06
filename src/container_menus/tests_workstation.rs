@@ -328,14 +328,32 @@ fn smithing_menu_transform_and_trim_match_java() {
     use crate::item_properties::ItemComponent;
     let mut player = PlayerInventory::new();
 
-    // --- Netherite-upgrade transform (keeps the base's components). ---
+    // --- Netherite-upgrade transform: keeps the base's components, including
+    // enchantments and a custom name (createWithOriginalComponents). ---
     let mut menu = SmithingMenu::new(smithing_test_recipes());
+    let mut base = ItemStack::new("minecraft:diamond_chestplate", 1);
+    base.set_component(ItemComponent::Enchantments(
+        [("minecraft:protection".to_string(), 4)].into_iter().collect(),
+    ));
+    base.set_component(ItemComponent::ItemName("Aegis"));
     menu.set_slot(0, ItemStack::new("minecraft:netherite_upgrade_smithing_template", 1), &mut player);
-    menu.set_slot(1, ItemStack::new("minecraft:diamond_chestplate", 1), &mut player);
+    menu.set_slot(1, base, &mut player);
     menu.set_slot(2, ItemStack::new("minecraft:netherite_ingot", 1), &mut player);
     let r = menu.get_slot(3, &player).unwrap();
     assert_eq!(r.item_id(), "minecraft:netherite_chestplate");
     assert_eq!(r.count(), 1);
+    assert_eq!(
+        r.component("minecraft:enchantments"),
+        Some(&ItemComponent::Enchantments(
+            [("minecraft:protection".to_string(), 4)].into_iter().collect()
+        )),
+        "transform preserves enchantments"
+    );
+    assert_eq!(
+        r.component("minecraft:item_name"),
+        Some(&ItemComponent::ItemName("Aegis")),
+        "transform preserves the custom name"
+    );
 
     // Wrong addition (not a netherite ingot) -> no transform.
     let mut menu = SmithingMenu::new(smithing_test_recipes());
