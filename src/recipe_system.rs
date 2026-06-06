@@ -374,8 +374,10 @@ pub struct ClientboundUpdateRecipesPacket {
     pub stonecutter_recipes: Vec<SelectableSingleInputRecipe>,
 }
 
-#[cfg(test)]
+/// `RecipePropertySet` — the set of items accepted by a `RecipeType`'s input slot,
+/// used for client-side ingredient caching (e.g. furnace input, smithing slots).
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)]
 pub struct RecipePropertySet {
     pub key: &'static str,
     pub accepted_items: Vec<&'static str>,
@@ -486,7 +488,6 @@ impl RecipeMap {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RecipeManagerModel {
     recipes: RecipeMap,
-    #[cfg(test)]
     property_sets: Vec<RecipePropertySet>,
     #[cfg(test)]
     stonecutter_recipes: Vec<StonecutterSelection>,
@@ -501,9 +502,10 @@ impl RecipeManagerModel {
 
     pub fn reload(&mut self, recipes: Vec<RecipeHolder>) {
         self.recipes = RecipeMap::create(recipes);
+        // `RecipeManager` recomputes the per-`RecipeType` property sets on reload.
+        self.property_sets = collect_recipe_property_sets(self.recipes.values());
         #[cfg(test)]
         {
-        self.property_sets = collect_recipe_property_sets(self.recipes.values());
         self.stonecutter_recipes = self
             .recipes
             .values()

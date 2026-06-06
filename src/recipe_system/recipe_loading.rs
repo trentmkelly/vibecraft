@@ -542,7 +542,6 @@ fn parse_shape_ingredients(
     Ok(parsed)
 }
 
-#[cfg(test)]
 pub(super) fn collect_recipe_property_sets(recipes: &[RecipeHolder]) -> Vec<RecipePropertySet> {
     let mut furnace = Vec::new();
     let mut blast_furnace = Vec::new();
@@ -617,7 +616,6 @@ pub(super) fn collect_recipe_property_sets(recipes: &[RecipeHolder]) -> Vec<Reci
     ]
 }
 
-#[cfg(test)]
 fn push_ingredient_items(target: &mut Vec<&'static str>, ingredient: &IngredientSpec) {
     match ingredient {
         IngredientSpec::Empty => {}
