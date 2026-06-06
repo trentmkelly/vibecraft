@@ -245,7 +245,7 @@ struct JoinedPlaySessionStart {
 
 const ITEM_TICK_INTERVAL: Duration = Duration::from_millis(50);
 
-fn lock_status_mutex<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+pub(super) fn lock_status_mutex<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     match mutex.lock() {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
@@ -2214,6 +2214,7 @@ struct DecodedPlayPacketContext<'a, 'b> {
     chunk_cache: &'a GeneratedChunkCache,
     chunk_pipeline: &'a ChunkPipeline,
     world_items: &'a Arc<Mutex<WorldItemEntities>>,
+    weather: &'a Arc<Mutex<WeatherCycle>>,
     current_chunk_x: &'b mut i32,
     current_chunk_z: &'b mut i32,
     chunk_batch_radius: i32,
@@ -2239,6 +2240,7 @@ struct JoinedPlayPacketStepContext<'a, 'b> {
     chunk_cache: &'a GeneratedChunkCache,
     chunk_pipeline: &'a ChunkPipeline,
     world_items: &'a Arc<Mutex<WorldItemEntities>>,
+    weather: &'a Arc<Mutex<WeatherCycle>>,
     current_chunk_x: &'b mut i32,
     current_chunk_z: &'b mut i32,
     chunk_batch_radius: i32,
@@ -2316,6 +2318,7 @@ fn handle_decoded_play_packet(
                 properties: context.properties,
                 player_access: context.player_access,
                 world_seed: context.world_seed,
+                weather: context.weather,
             },
         )?;
     } else if packet_id == SERVERBOUND_USE_ITEM_ON_PACKET_ID {
@@ -2379,6 +2382,7 @@ impl<'a, 'b> JoinedPlayPacketStepContext<'a, 'b> {
             chunk_cache: self.chunk_cache,
             chunk_pipeline: self.chunk_pipeline,
             world_items: self.world_items,
+            weather: self.weather,
             current_chunk_x: self.current_chunk_x,
             current_chunk_z: self.current_chunk_z,
             chunk_batch_radius: self.chunk_batch_radius,
@@ -2603,6 +2607,7 @@ fn run_joined_play_session(
                 chunk_cache,
                 chunk_pipeline,
                 world_items,
+                weather,
                 current_chunk_x: &mut current_chunk_x,
                 current_chunk_z: &mut current_chunk_z,
                 chunk_batch_radius,

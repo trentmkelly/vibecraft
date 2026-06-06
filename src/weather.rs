@@ -125,6 +125,29 @@ impl WeatherCycle {
         }
     }
 
+    /// Java mirror: `ServerLevel.setWeatherParameters(clearTime, weatherTime,
+    /// isRaining, isThundering)` — sets the clear timer, rain/thunder timers, and the
+    /// raining/thundering flags. The rain/thunder levels are then snapped to match the
+    /// new flags (the same direct-set behaviour as [`prepare_weather`] on load), so the
+    /// per-tick weather broadcast (`broadcast_weather_if_changed`) notifies clients of
+    /// the change with the vanilla rain/thunder game events. Used by the `/weather`
+    /// command.
+    pub fn set_weather_parameters(
+        &mut self,
+        clear_time: i32,
+        weather_time: i32,
+        raining: bool,
+        thundering: bool,
+    ) {
+        self.data.clear_weather_time = clear_time;
+        self.data.rain_time = weather_time;
+        self.data.thunder_time = weather_time;
+        self.data.raining = raining;
+        self.data.thundering = thundering;
+        self.set_rain_level(if raining { 1.0 } else { 0.0 });
+        self.set_thunder_level(if thundering { 1.0 } else { 0.0 });
+    }
+
     pub fn set_rain_level(&mut self, level: f32) {
         let level = level.clamp(0.0, 1.0);
         self.old_rain_level = level;
@@ -594,6 +617,42 @@ mod tests {
                 WeatherGameEvent::ThunderLevelChange(0.90999997),
             ]
         );
+    }
+
+    #[test]
+    fn set_weather_parameters_matches_java_weather_command_clear_rain_thunder() {
+        // Java mirror: ServerLevel.setWeatherParameters used by WeatherCommand.
+        // /weather rain <t>: setWeatherParameters(0, t, true, false).
+        let mut cycle = WeatherCycle::new(WeatherData {
+            clear_weather_time: 0,
+            rain_time: 0,
+            thunder_time: 0,
+            raining: false,
+            thundering: false,
+        });
+        cycle.set_weather_parameters(0, 6000, true, false);
+        assert!(cycle.data.raining);
+        assert!(!cycle.data.thundering);
+        assert_eq!(cycle.data.rain_time, 6000);
+        assert_eq!(cycle.data.thunder_time, 6000);
+        assert_eq!(cycle.data.clear_weather_time, 0);
+        assert_eq!(cycle.rain_level, 1.0);
+        assert_eq!(cycle.thunder_level, 0.0);
+
+        // /weather thunder <t>: setWeatherParameters(0, t, true, true).
+        cycle.set_weather_parameters(0, 3000, true, true);
+        assert!(cycle.data.raining);
+        assert!(cycle.data.thundering);
+        assert_eq!(cycle.rain_level, 1.0);
+        assert_eq!(cycle.thunder_level, 1.0);
+
+        // /weather clear <t>: setWeatherParameters(t, 0, false, false).
+        cycle.set_weather_parameters(12000, 0, false, false);
+        assert!(!cycle.data.raining);
+        assert!(!cycle.data.thundering);
+        assert_eq!(cycle.data.clear_weather_time, 12000);
+        assert_eq!(cycle.rain_level, 0.0);
+        assert_eq!(cycle.thunder_level, 0.0);
     }
 
     #[test]

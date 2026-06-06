@@ -233,6 +233,7 @@ pub struct ChatCommandContext<'a> {
     pub properties: &'a ServerProperties,
     pub player_access: &'a Arc<Mutex<PlayerAccess>>,
     pub world_seed: i64,
+    pub weather: &'a Arc<Mutex<WeatherCycle>>,
 }
 
 pub fn handle_chat_command_packet<R: Read>(
@@ -265,6 +266,7 @@ pub fn handle_chat_command_packet<R: Read>(
         context.play_state,
         context.properties,
         context.world_seed,
+        context.weather,
     );
     let result = execute_builtin_command(&mut command_state, permissions, &command);
     apply_command_side_effects(
@@ -273,6 +275,7 @@ pub fn handle_chat_command_packet<R: Read>(
         context.play_state,
         context.profile,
         &command_state,
+        context.weather,
     )?;
     match result {
         Ok(result) => write_system_chat_text(
@@ -326,6 +329,7 @@ fn command_state_for_player(
     play_state: &PlaySessionState,
     properties: &ServerProperties,
     world_seed: i64,
+    weather: &Arc<Mutex<WeatherCycle>>,
 ) -> ServerCommandState {
     let mut state = ServerCommandState {
         command_source_player: Some(profile.clone()),
@@ -339,6 +343,10 @@ fn command_state_for_player(
         max_players: properties.max_players,
         world_seed,
         function_permission_level: function_permission_level_from_properties(properties),
+        // Seed the command state with the live weather so a `/weather` command can be
+        // diffed against the real cycle in `apply_command_side_effects` (and so a
+        // non-weather command leaves it untouched).
+        weather: weather_state_from_cycle(&lock_status_mutex(weather)),
         ..ServerCommandState::default()
     };
     state
@@ -348,6 +356,60 @@ fn command_state_for_player(
             gamemode: command_game_mode(play_state.game_mode),
         });
     state
+}
+
+/// Maps the live [`WeatherCycle`] to the command-model [`WeatherState`] so a
+/// `/weather` command can be diffed against (and applied back to) the real cycle.
+fn weather_state_from_cycle(cycle: &WeatherCycle) -> crate::command::WeatherState {
+    use crate::command::{WeatherMode, WeatherState};
+    if cycle.data.thundering {
+        WeatherState {
+            mode: WeatherMode::Thunder,
+            duration_ticks: Some(cycle.data.thunder_time.max(0) as u32),
+        }
+    } else if cycle.data.raining {
+        WeatherState {
+            mode: WeatherMode::Rain,
+            duration_ticks: Some(cycle.data.rain_time.max(0) as u32),
+        }
+    } else {
+        WeatherState {
+            mode: WeatherMode::Clear,
+            duration_ticks: Some(cycle.data.clear_weather_time.max(0) as u32),
+        }
+    }
+}
+
+/// Applies a command-model [`WeatherState`] to the live [`WeatherCycle`], mirroring
+/// Java `WeatherCommand`: an unspecified duration (`None`) samples the vanilla random
+/// distribution (RAIN_DELAY for clear, RAIN_DURATION for rain, THUNDER_DURATION for
+/// thunder), matching `getDuration(source, -1, …)`.
+fn apply_weather_state_to_cycle(cycle: &mut WeatherCycle, weather: crate::command::WeatherState) {
+    use crate::command::WeatherMode;
+    let durations = WeatherRandomDurations::sample_vanilla();
+    match weather.mode {
+        WeatherMode::Clear => {
+            let time = weather
+                .duration_ticks
+                .map(|d| d as i32)
+                .unwrap_or(durations.rain_delay);
+            cycle.set_weather_parameters(time, 0, false, false);
+        }
+        WeatherMode::Rain => {
+            let time = weather
+                .duration_ticks
+                .map(|d| d as i32)
+                .unwrap_or(durations.rain_duration);
+            cycle.set_weather_parameters(0, time, true, false);
+        }
+        WeatherMode::Thunder => {
+            let time = weather
+                .duration_ticks
+                .map(|d| d as i32)
+                .unwrap_or(durations.thunder_duration);
+            cycle.set_weather_parameters(0, time, true, true);
+        }
+    }
 }
 
 pub fn function_permission_level_from_properties(properties: &ServerProperties) -> PermissionLevel {
@@ -360,7 +422,19 @@ fn apply_command_side_effects(
     play_state: &mut PlaySessionState,
     profile: &NameAndId,
     command_state: &ServerCommandState,
+    weather: &Arc<Mutex<WeatherCycle>>,
 ) -> io::Result<()> {
+    // Apply a `/weather` change back to the live cycle. The command state was seeded
+    // with the current weather in `command_state_for_player`, so this only fires when
+    // the command actually changed it (non-weather commands leave it untouched). The
+    // per-tick `broadcast_weather_if_changed` then sends the vanilla rain/thunder game
+    // events to the client.
+    {
+        let mut cycle = lock_status_mutex(weather);
+        if command_state.weather != weather_state_from_cycle(&cycle) {
+            apply_weather_state_to_cycle(&mut cycle, command_state.weather);
+        }
+    }
     if let Some(entry) = command_state
         .player_game_modes
         .iter()
@@ -1066,5 +1140,60 @@ pub fn cow_sound_variant_registry_id(value: &str) -> Option<i32> {
         "classic" => Some(0),
         "moody" => Some(1),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod weather_command_tests {
+    use super::*;
+    use crate::command::{WeatherMode, WeatherState};
+
+    fn data(clear: i32, rain: i32, thunder: i32, raining: bool, thundering: bool) -> WeatherData {
+        WeatherData {
+            clear_weather_time: clear,
+            rain_time: rain,
+            thunder_time: thunder,
+            raining,
+            thundering,
+        }
+    }
+
+    #[test]
+    fn weather_state_maps_cycle_to_command_model() {
+        assert_eq!(
+            weather_state_from_cycle(&WeatherCycle::new(data(5000, 0, 0, false, false))),
+            WeatherState { mode: WeatherMode::Clear, duration_ticks: Some(5000) }
+        );
+        assert_eq!(
+            weather_state_from_cycle(&WeatherCycle::new(data(0, 6000, 6000, true, false))),
+            WeatherState { mode: WeatherMode::Rain, duration_ticks: Some(6000) }
+        );
+        assert_eq!(
+            weather_state_from_cycle(&WeatherCycle::new(data(0, 3000, 3000, true, true))),
+            WeatherState { mode: WeatherMode::Thunder, duration_ticks: Some(3000) }
+        );
+    }
+
+    #[test]
+    fn apply_weather_command_mutates_live_cycle_like_java() {
+        let mut cycle = WeatherCycle::new(data(0, 0, 0, false, false));
+        // /weather rain 6000
+        apply_weather_state_to_cycle(
+            &mut cycle,
+            WeatherState { mode: WeatherMode::Rain, duration_ticks: Some(6000) },
+        );
+        assert!(cycle.data.raining);
+        assert!(!cycle.data.thundering);
+        assert_eq!(cycle.data.rain_time, 6000);
+        assert_eq!(cycle.rain_level, 1.0);
+
+        // /weather clear with no duration samples the vanilla RAIN_DELAY range.
+        apply_weather_state_to_cycle(
+            &mut cycle,
+            WeatherState { mode: WeatherMode::Clear, duration_ticks: None },
+        );
+        assert!(!cycle.data.raining);
+        assert_eq!(cycle.rain_level, 0.0);
+        assert!((12_000..=180_000).contains(&cycle.data.clear_weather_time));
     }
 }
