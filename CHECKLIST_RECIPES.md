@@ -85,10 +85,10 @@
 - [ ] Implement `SimpleSmithingRecipe`: placeholder base (template + base + addition → result, no transformation)
 - [ ] Implement `SmithingTransformRecipe`: convert base item type to new type using template (e.g., netherite upgrade); preserve applicable components
 - [ ] Implement `SmithingTrimRecipe`: apply armor trim from template + material, store `ArmorTrim` component on result
-- [ ] Implement `StonecutterRecipe`: single input → single output, multiple outputs per input stone type registered separately
+- [x] Implement `StonecutterRecipe`: single input → single output, multiple outputs per input stone type registered separately — `RecipeKind::Stonecutting { ingredient, result }` (single input, single output; each output is its own recipe); the loader parses all 275 vanilla stonecutting recipes and `stonecutter_recipes_for_input` lists every output for an input, driving the data-driven `StonecutterMenu` (verified 1:1 in CONTAINERS).
 - [ ] Add unit test: smithing transform preserves enchantments and custom name
 - [ ] Add unit test: smithing trim applies correct material and pattern components
-- [ ] Add unit test: stonecutter lists all valid outputs for smooth stone input
+- [x] Add unit test: stonecutter lists all valid outputs for smooth stone input — `stonecutter_selectable_recipes_filter_all_outputs_for_input` exercises `stonecutter_recipes_for_input` over the loaded recipe set.
 
 ## Recipe Validation (All Types)
 
