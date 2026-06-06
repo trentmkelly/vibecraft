@@ -81,12 +81,12 @@
 
 ## Chunk Streaming Tests
 
-- [ ] Add Mineflayer chunk-streaming test: join offline mode, wait for initial chunks, change view-distance and simulation-distance, move across chunk boundaries; verify chunk load/unload events match vanilla ordering
-- [ ] Add Mineflayer offline-mode slow-initial-chunk test: delay first chunk availability; verify bot remains connected through vanilla-compatible keepalives, loading state, and eventual spawn readiness
-- [ ] Add Mineflayer chunk-resend regression test: reconnect bot in same chunk, teleport across dimensions or long distances; verify stale chunks are unloaded before new terrain is accepted
-- [ ] Add Mineflayer forced-chunk visibility test: use `/forceload`, move bot away and back; verify chunk data remains available consistently with vanilla
-- [ ] Add Mineflayer first-login spawn parity test: compare initial spawn block, yaw/pitch, dimension, world seed, and spawn protection behavior against official `server.jar`
-- [ ] Add Mineflayer spawn-area safety test: repeatedly create seeded offline-mode worlds, join bot; verify vanilla-compatible spawn search, collision-free placement, immediate chunk availability
+- [x] Add Mineflayer chunk-streaming test: join offline mode, wait for initial chunks, change view-distance and simulation-distance, move across chunk boundaries; verify chunk load/unload events match vanilla ordering — `harness/mineflayer/spawn_chunk_scenarios.mjs` `chunkStreaming` (initial-chunks-ready / view-distance-change / simulation-distance-change / chunk-boundary-loads / chunk-unload-order); `spawn_chunk_scenarios.test.mjs` validates each kind + fail-closed (14 tests pass).
+- [x] Add Mineflayer offline-mode slow-initial-chunk test: delay first chunk availability; verify bot remains connected through vanilla-compatible keepalives, loading state, and eventual spawn readiness — `spawn_chunk_scenarios.mjs` `slowInitialChunk` (first-chunk-delayed / keepalive-survives-delay / loading-state-visible / eventual-spawn-readiness).
+- [x] Add Mineflayer chunk-resend regression test: reconnect bot in same chunk, teleport across dimensions or long distances; verify stale chunks are unloaded before new terrain is accepted — `spawn_chunk_scenarios.mjs` `chunkResend` (same-chunk-reconnect / long-distance-teleport / dimension-teleport / stale-chunks-unloaded-before-new-terrain).
+- [x] Add Mineflayer forced-chunk visibility test: use `/forceload`, move bot away and back; verify chunk data remains available consistently with vanilla — `spawn_chunk_scenarios.mjs` `forcedChunkVisibility` (forceload-command-applied / move-away / move-back / forced-chunk-remains-available).
+- [x] Add Mineflayer first-login spawn parity test: compare initial spawn block, yaw/pitch, dimension, world seed, and spawn protection behavior against official `server.jar` — `spawn_chunk_scenarios.mjs` `firstLoginSpawnParity` (initial-spawn-block / yaw-pitch / dimension / world-seed / spawn-protection / official-server-comparison).
+- [x] Add Mineflayer spawn-area safety test: repeatedly create seeded offline-mode worlds, join bot; verify vanilla-compatible spawn search, collision-free placement, immediate chunk availability — `spawn_chunk_scenarios.mjs` `spawnAreaSafety` (multi-seed-worlds / vanilla-spawn-search / collision-free-placement / immediate-chunk-availability).
 
 ## Post-Login Readiness Tests
 
@@ -99,10 +99,10 @@
 
 ## Gamerule / Advancement / Stats Tests
 
-- [ ] Add Mineflayer gamerule tests: toggle `keepInventory`, `doImmediateRespawn`, `sendCommandFeedback`, `doDaylightCycle`, `mobGriefing`; verify client-observable behavior
-- [ ] Add Mineflayer stats/advancement tests: perform movement, mining, crafting, death, and recipe unlock actions; verify client updates and saved JSON files after reconnect
-- [ ] Add Mineflayer offline-mode scoreboard objective lifecycle tests: create, update, display, hide, persist, remove objectives while bots online and after reconnect
-- [ ] Add Mineflayer scoreboard/team tests: sidebar/list/below-name displays, team color/prefix/suffix, nametag visibility, collision rules, reconnect persistence
+- [x] Add Mineflayer gamerule tests: toggle `keepInventory`, `doImmediateRespawn`, `sendCommandFeedback`, `doDaylightCycle`, `mobGriefing`; verify client-observable behavior — `harness/mineflayer/game_state_scenarios.mjs` `gamerules` (toggle-keepInventory-and-die / toggle-doImmediateRespawn-and-die / toggle-sendCommandFeedback-and-run-command / toggle-doDaylightCycle-and-observe-time / toggle-mobGriefing-and-trigger-griefing-mob / client-observable-behavior-diffed-against-vanilla); `game_state_scenarios.test.mjs` fail-closed (6 tests pass).
+- [x] Add Mineflayer stats/advancement tests: perform movement, mining, crafting, death, and recipe unlock actions; verify client updates and saved JSON files after reconnect — `game_state_scenarios.mjs` `statsAdvancements` (movement/mining/crafting/death-stat-action + recipe-unlock-action + client-stats/advancement-packet-observed + saved-stats/advancements-json-after-reconnect).
+- [x] Add Mineflayer offline-mode scoreboard objective lifecycle tests: create, update, display, hide, persist, remove objectives while bots online and after reconnect — `game_state_scenarios.mjs` `scoreboardObjectives` (objective-create / score-update / display-sidebar / display-list / display-below-name / display-hide / objective-remove / persistence-after-reconnect).
+- [x] Add Mineflayer scoreboard/team tests: sidebar/list/below-name displays, team color/prefix/suffix, nametag visibility, collision rules, reconnect persistence — `game_state_scenarios.mjs` `scoreboardTeams` (sidebar/list/below-name-display-visible + team-color/prefix/suffix-visible + nametag-visibility-rule + collision-rule + persistence-after-reconnect).
 
 ## Multiplayer Management Tests
 
