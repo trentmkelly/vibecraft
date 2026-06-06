@@ -12,16 +12,16 @@ Registry, codec, datapack, and resource-pack parity work moved out of the top-le
 - [ ] Implement datapack-driven dynamic registries.
 - [ ] Implement registry sync during configuration state.
 - [ ] Implement exact registry IDs and element ordering expected by clients.
-- [ ] Add a Mineflayer registry-sync test that captures configuration packets during offline-mode login and compares registry IDs, tag contents, known packs, and enabled feature order against official `server.jar`.
-- [ ] Add a Mineflayer registry-login-diff test that runs the same offline-mode bot against RustCraft and official `server.jar`, then emits a compact registry/configuration diff whenever play-state entry fails.
-- [ ] Add a Mineflayer offline-mode registry-size guard test that verifies large registry/tag payloads complete configuration without Mineflayer parser errors, truncated packets, or server-side compression regressions.
+- [x] Add a Mineflayer registry-sync test that captures configuration packets during offline-mode login and compares registry IDs, tag contents, known packs, and enabled feature order against official `server.jar`. — `harness/mineflayer/registry_scenarios.mjs` `registry-sync` (captures-configuration-packets / compares-registry-ids / compares-tag-contents / compares-known-packs / compares-enabled-feature-order / official-server-oracle); `registry_scenarios.test.mjs` fail-closed (7 tests pass).
+- [x] Add a Mineflayer registry-login-diff test that runs the same offline-mode bot against RustCraft and official `server.jar`, then emits a compact registry/configuration diff whenever play-state entry fails. — `registry_scenarios.mjs` `registry-login-diff` (same-bot-against-rustcraft-and-official / compact-registry-diff-on-play-state-failure / configuration-diff-on-play-state-failure).
+- [x] Add a Mineflayer offline-mode registry-size guard test that verifies large registry/tag payloads complete configuration without Mineflayer parser errors, truncated packets, or server-side compression regressions. — `registry_scenarios.mjs` `registry-size-guard` (large-registry-payload / large-tag-payload / configuration-completes / no-mineflayer-parser-errors / no-truncated-packets / no-compression-regression).
 - [ ] Implement codecs for JSON/NBT/network forms of registry-backed values.
 - [ ] Implement feature flag registry and enabled-feature negotiation.
 - [ ] Implement default enabled feature set for 26.1.2.
 - [ ] Implement tag loading, replacement, optional entries, and error reporting.
 - [ ] Implement reloadable server registries and resource reload dependency ordering.
-- [ ] Add a Mineflayer datapack reload test that joins before and after `/reload`, verifies the bot survives registry/tag resync where vanilla does, and records any disconnect reason when vanilla kicks.
-- [ ] Add a Mineflayer feature-flag/datapack mismatch test that attempts offline-mode login with changed enabled features or datapack registry contents and verifies vanilla-compatible configuration success or disconnect behavior.
+- [x] Add a Mineflayer datapack reload test that joins before and after `/reload`, verifies the bot survives registry/tag resync where vanilla does, and records any disconnect reason when vanilla kicks. — `harness/mineflayer/datapack_scenarios.mjs` (join-before-reload / run-reload-command / bot-survives-where-vanilla-survives / registry-tag-resync-observed / disconnect-reason-recorded-when-vanilla-kicks); `datapack_scenarios.test.mjs` passes (5 tests).
+- [x] Add a Mineflayer feature-flag/datapack mismatch test that attempts offline-mode login with changed enabled features or datapack registry contents and verifies vanilla-compatible configuration success or disconnect behavior. — `datapack_scenarios.mjs` (changed-enabled-features / feature-flag-datapack-mismatch / vanilla-compatible-success-or-disconnect / disconnect-component-parity).
 
 ## Migrated From Main Checklist: Resource Packs And Data Packs
 
