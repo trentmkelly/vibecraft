@@ -2,6 +2,8 @@ use std::fs;
 use std::path::Path;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use crate::block_update::BlockPos;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NameAndId {
     pub uuid: String,
@@ -30,15 +32,6 @@ pub enum ProxyConnectionDecision {
     RejectPreventProxyConnections,
 }
 
-#[cfg(test)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BlockPos {
-    pub x: i32,
-    pub y: i32,
-    pub z: i32,
-}
-
-#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpawnProtection {
     pub radius: u32,
@@ -151,7 +144,6 @@ impl PlayerAccess {
             .map(|entry| entry.level)
     }
 
-    #[cfg(test)]
     pub fn has_ops(&self) -> bool {
         !self.ops.is_empty()
     }
@@ -160,7 +152,10 @@ impl PlayerAccess {
         self.op_level(uuid).is_some()
     }
 
-    #[cfg(test)]
+    /// 1:1 with Java `DedicatedServer.isUnderSpawnProtection` (gated by
+    /// `ServerLevel.mayInteract`): true when the block at `pos` is within the
+    /// `spawn-protection` radius of the world spawn and the player is a non-op on
+    /// a server that has operators. Wired into the live block-break handler.
     pub fn is_under_spawn_protection(
         &self,
         protection: &SpawnProtection,

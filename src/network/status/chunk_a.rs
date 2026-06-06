@@ -1661,6 +1661,12 @@ struct PlayerActionContext<'a, 'b> {
     live_fluid_ticks: &'b mut LiveFluidTicks,
     play_tick_count: u64,
     world_items: &'a Arc<Mutex<WorldItemEntities>>,
+    // Spawn-protection inputs (Java ServerLevel.mayInteract ->
+    // DedicatedServer.isUnderSpawnProtection): the player access registry (op
+    // status), the player's UUID, and the configured `spawn-protection` radius.
+    player_access: &'a Arc<Mutex<PlayerAccess>>,
+    profile_uuid: &'a str,
+    spawn_protection_radius: u32,
 }
 
 fn handle_player_action_packet<R: Read>(
@@ -1673,7 +1679,15 @@ fn handle_player_action_packet<R: Read>(
     let fields = read_player_action_fields(input)?;
     log_player_action_debug(&fields, play_state.game_mode, &context);
     if should_break_for_player_action(&fields, play_state.game_mode, &context) {
-        handle_player_block_break(stream, compression, play_state, &fields, &mut context)?;
+        // Java ServerLevel.mayInteract gates breaking on spawn protection. A
+        // non-op breaking inside the spawn-protection radius is denied: the
+        // server does NOT change the block and re-sends the real state so the
+        // client reverts its predicted break.
+        if block_break_is_spawn_protected(&fields, &context) {
+            write_block_break_denied(stream, compression, &fields, &context)?;
+        } else {
+            handle_player_block_break(stream, compression, play_state, &fields, &mut context)?;
+        }
     }
     // Java: ServerboundPlayerActionPacket.Action.DROP_ALL_ITEMS = 3,
     //        ServerboundPlayerActionPacket.Action.DROP_ITEM = 4.
@@ -1687,6 +1701,102 @@ fn handle_player_action_packet<R: Read>(
         )?;
     }
     Ok(())
+}
+
+/// The only dimension the live server currently runs, and the dimension
+/// `spawn-protection` applies to (Java checks `level.dimension() ==
+/// respawnData.dimension()`).
+const SPAWN_PROTECTION_DIMENSION: &str = "minecraft:overworld";
+
+/// Pure spawn-protection decision, 1:1 with Java
+/// `DedicatedServer.isUnderSpawnProtection` (via `PlayerAccess`). Returns true
+/// when breaking `pos` must be denied.
+fn spawn_protection_break_denied(
+    access: &PlayerAccess,
+    radius: u32,
+    world_spawn: crate::block_update::BlockPos,
+    player_uuid: &str,
+    pos: crate::block_update::BlockPos,
+) -> bool {
+    let protection = crate::player_access::SpawnProtection {
+        radius,
+        spawn_dimension: SPAWN_PROTECTION_DIMENSION.to_string(),
+        spawn_pos: world_spawn,
+    };
+    access.is_under_spawn_protection(&protection, SPAWN_PROTECTION_DIMENSION, pos, player_uuid)
+}
+
+/// Live wrapper around [`spawn_protection_break_denied`]. Cheap in-memory op
+/// guards run first; the world spawn (level.dat) is only read when a non-op
+/// breaks a block on a server that actually has operators.
+fn block_break_is_spawn_protected(
+    fields: &PlayerActionFields,
+    context: &PlayerActionContext<'_, '_>,
+) -> bool {
+    if context.spawn_protection_radius == 0 {
+        return false;
+    }
+    {
+        let access = lock_status_mutex(context.player_access);
+        if !access.has_ops() || access.is_op(context.profile_uuid) {
+            return false;
+        }
+    }
+    let spawn = world_spawn_suggestion(context.world_root, context.world_seed);
+    let world_spawn = crate::block_update::BlockPos {
+        x: spawn.0,
+        y: spawn.1,
+        z: spawn.2,
+    };
+    let pos = crate::block_update::BlockPos {
+        x: fields.x,
+        y: fields.y,
+        z: fields.z,
+    };
+    spawn_protection_break_denied(
+        &lock_status_mutex(context.player_access),
+        context.spawn_protection_radius,
+        world_spawn,
+        context.profile_uuid,
+        pos,
+    )
+}
+
+/// On spawn-protection denial: ack the action sequence and re-send the real
+/// block state so the client reverts its predicted break (Java
+/// `ServerPlayerGameMode` sends `ClientboundBlockUpdatePacket(level, pos)`). The
+/// block is NOT modified server-side and no drops spawn.
+fn write_block_break_denied(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    fields: &PlayerActionFields,
+    context: &PlayerActionContext<'_, '_>,
+) -> io::Result<()> {
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
+        |payload| write_var_i32(payload, fields.sequence),
+    )?;
+    let chunk = context.chunk_cache.get_or_load(
+        fields.x.div_euclid(16),
+        fields.z.div_euclid(16),
+        context.world_root,
+        context.world_seed,
+    );
+    let block_name = chunk
+        .get_block_state(fields.x, fields.y, fields.z)
+        .unwrap_or_else(|| "minecraft:air".to_string());
+    let state_id = block_state_name_network_id(&block_name).unwrap_or(AIR_BLOCK_STATE_ID);
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_BLOCK_UPDATE_PACKET_ID,
+        |payload| {
+            payload.write_all(&fields.packed_pos.to_be_bytes())?;
+            write_var_i32(payload, state_id)
+        },
+    )
 }
 
 fn log_player_action_debug(
@@ -1756,17 +1866,18 @@ fn handle_player_block_break(
     fields: &PlayerActionFields,
     context: &mut PlayerActionContext<'_, '_>,
 ) -> io::Result<()> {
-    // TODO(live-block-break-uses-game-mode-logic): this live handler bypasses
-    // the comprehensive, Java-1:1, fully-tested ServerPlayerGameMode logic in
-    // player_game_mode.rs (handle_block_break_action). It currently breaks any
-    // block on StopDestroy/creative/instamine WITHOUT enforcing: spawn
-    // protection (player_access.rs::is_under_spawn_protection + op bypass),
-    // server-side reach (block_interaction_range -> TooFar), adventure CanDestroy
+    // Spawn protection IS now enforced before this handler runs (see
+    // block_break_is_spawn_protected in handle_player_action_packet, 1:1 with
+    // Java ServerLevel.mayInteract -> DedicatedServer.isUnderSpawnProtection).
+    //
+    // TODO(live-block-break-uses-game-mode-logic): this handler still bypasses
+    // the rest of the comprehensive, Java-1:1, fully-tested ServerPlayerGameMode
+    // logic in player_game_mode.rs (handle_block_break_action). It breaks any
+    // block on StopDestroy/creative/instamine WITHOUT enforcing: server-side
+    // reach (block_interaction_range -> TooFar), adventure CanDestroy
     // restriction, spectator/may_interact gating, or per-tool break-speed timing.
-    // Those modules exist and pass unit tests but are dead code here. Wiring them
-    // in is what completes PLAYER checklist #34 (reach), #43 (ServerPlayerGameMode),
-    // and #44 (spawn protection) — all left UNMARKED until this handler routes
-    // through handle_block_break_action.
+    // Those paths exist + pass unit tests but are dead code here. Wiring them in
+    // is what completes PLAYER checklist #34 (reach) and #43 (ServerPlayerGameMode).
     write_block_break_ack_and_air(stream, compression, fields, play_state.game_mode)?;
     let block_pos = crate::block_update::BlockPos {
         x: fields.x,
@@ -2445,6 +2556,9 @@ impl<'a, 'b> DecodedPlayPacketContext<'a, 'b> {
             live_fluid_ticks: self.live_fluid_ticks,
             play_tick_count: self.play_tick_count,
             world_items: self.world_items,
+            player_access: self.player_access,
+            profile_uuid: &self.profile.uuid,
+            spawn_protection_radius: self.properties.spawn_protection,
         }
     }
 
@@ -2673,5 +2787,78 @@ mod resource_usage_tests {
         let status = "Name:\trustcraft\nVmPeak:\t2048 kB\nVmRSS:\t1536 kB\n";
 
         assert_eq!(parse_resident_memory_kib(status), Some(1536));
+    }
+}
+
+#[cfg(test)]
+mod spawn_protection_wiring_tests {
+    use super::*;
+    use crate::block_update::BlockPos;
+    use crate::player_access::{NameAndId, OpEntry, PlayerAccess};
+
+    fn op_access() -> (PlayerAccess, String) {
+        let mut access = PlayerAccess::default();
+        let op = NameAndId {
+            uuid: "00000000-0000-0000-0000-000000000002".to_string(),
+            name: "Alex".to_string(),
+        };
+        access.op(OpEntry {
+            user: op.clone(),
+            level: 4,
+            bypasses_player_limit: true,
+        });
+        (access, op.uuid)
+    }
+
+    /// The live block-break gate (`spawn_protection_break_denied`) must mirror
+    /// Java `DedicatedServer.isUnderSpawnProtection`: a non-op breaking inside
+    /// the spawn radius on a server that has ops is denied; ops, breaks outside
+    /// the radius, a zero radius, and ops-less servers are all allowed.
+    #[test]
+    fn live_break_denies_nonop_in_spawn_radius_and_allows_op_or_outside() {
+        let (access, op_uuid) = op_access();
+        let nonop = "00000000-0000-0000-0000-000000000009";
+        let spawn = BlockPos { x: 0, y: 64, z: 0 };
+
+        // Non-op inside the chebyshev radius -> denied.
+        assert!(spawn_protection_break_denied(
+            &access,
+            16,
+            spawn,
+            nonop,
+            BlockPos { x: 10, y: 64, z: 0 },
+        ));
+        // Operator inside the radius -> allowed.
+        assert!(!spawn_protection_break_denied(
+            &access,
+            16,
+            spawn,
+            &op_uuid,
+            BlockPos { x: 10, y: 64, z: 0 },
+        ));
+        // Non-op just outside the radius (dist 17 > 16) -> allowed.
+        assert!(!spawn_protection_break_denied(
+            &access,
+            16,
+            spawn,
+            nonop,
+            BlockPos { x: 17, y: 64, z: 0 },
+        ));
+        // spawn-protection=0 disables the check entirely.
+        assert!(!spawn_protection_break_denied(
+            &access,
+            0,
+            spawn,
+            nonop,
+            BlockPos { x: 0, y: 64, z: 0 },
+        ));
+        // A server with no operators never protects spawn (Java: getOps().isEmpty()).
+        assert!(!spawn_protection_break_denied(
+            &PlayerAccess::default(),
+            16,
+            spawn,
+            nonop,
+            BlockPos { x: 0, y: 64, z: 0 },
+        ));
     }
 }
