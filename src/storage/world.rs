@@ -862,7 +862,11 @@ impl WorldLayout {
     pub fn save_level_dat(&self, tag: &Tag) -> std::io::Result<()> {
         fs::create_dir_all(&self.root)?;
         let mut bytes = Vec::new();
-        write_named_tag(&mut bytes, "Data", tag)?;
+        // Java LevelStorageSource writes level.dat via NbtIo.writeCompressed: a
+        // gzip-compressed root compound (empty name) whose "Data" child holds the
+        // level data. `tag` is already `{ "Data": <leveldata> }` (see to_level_dat),
+        // so we gzip it under the empty root name to match vanilla exactly.
+        write_gzip_named_tag(&mut bytes, "", tag)?;
         durable_write_with_backup(&self.level_dat(), Some(&self.level_dat_old()), &bytes)
     }
 
@@ -871,9 +875,9 @@ impl WorldLayout {
     }
 
     pub fn load_level_dat_with_backup(&self) -> std::io::Result<Tag> {
-        match read_named_tag_file(&self.level_dat()) {
+        match read_level_dat_file(&self.level_dat()) {
             Ok((_name, tag)) => Ok(tag),
-            Err(primary_err) => match read_named_tag_file(&self.level_dat_old()) {
+            Err(primary_err) => match read_level_dat_file(&self.level_dat_old()) {
                 Ok((_name, tag)) => Ok(tag),
                 Err(_) => Err(primary_err),
             },

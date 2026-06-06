@@ -108,7 +108,7 @@
 ## Migrated From Main Checklist: World Storage
 
 - [ ] Implement world folder layout.
-- [ ] Implement `level.dat`, `level.dat_old`, and session lock behavior.
+- [x] Implement `level.dat`, `level.dat_old`, and session lock behavior. — `storage/world.rs`: `save_level_dat` writes gzip NBT under an empty root name with the `{ "Data": <leveldata> }` structure (1:1 with Java `LevelStorageSource.saveLevelData` → `NbtIo.writeCompressed(root)`), then `durable_write_with_backup(level.dat, level.dat_old)` = `Util.safeReplaceFile` (temp → rotate `level.dat`→`level.dat_old`); `load_level_dat_with_backup` reads gzip (auto-detecting legacy uncompressed for migration) with `.dat`→`.dat_old` fallback. `SessionLock` is 1:1 with Java `DirectoryLock`: `session.lock` file, ☃ (`\u{2603}`) magic marker, exclusive non-blocking lock, `is_locked` detection, release on `Drop`; live-wired in `main.rs` on startup. Tests `saves_level_dat_and_rotates_old_copy`, `level_dat_is_gzip_with_empty_root_name_like_vanilla_and_reads_legacy_uncompressed`, `session_lock_matches_vanilla_marker_and_enforces_exclusive_lock` pass.
 - [ ] Implement NBT binary format, compressed NBT, SNBT where needed, and visitor/traversal utilities.
 - [ ] Implement DataVersion tracking.
 - [ ] Implement DataFixer-equivalent world upgrade pipeline or explicit compatible upgrade tooling.

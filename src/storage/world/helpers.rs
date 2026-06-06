@@ -314,6 +314,19 @@ pub(super) fn read_gzip_named_tag_file(path: &Path) -> std::io::Result<(String, 
     read_gzip_named_tag(bytes.as_slice())
 }
 
+/// Read `level.dat`, auto-detecting the format. Vanilla writes gzip-compressed
+/// NBT (`NbtIo.writeCompressed`, gzip magic `1f 8b`); this also accepts the
+/// legacy uncompressed format RustCraft previously wrote so existing worlds keep
+/// loading after the move to vanilla-compatible gzip output.
+pub(super) fn read_level_dat_file(path: &Path) -> std::io::Result<(String, Tag)> {
+    let bytes = fs::read(path)?;
+    if bytes.starts_with(&[0x1f, 0x8b]) {
+        read_gzip_named_tag(bytes.as_slice())
+    } else {
+        read_named_tag(&mut bytes.as_slice())
+    }
+}
+
 /// Matches Java `FileNameDateFormatter.FORMATTER`: `yyyy-MM-dd_HH-mm-ss`
 /// using the system local timezone (same as Java `ZonedDateTime.now()`).
 pub(super) fn corruption_backup_stamp() -> String {

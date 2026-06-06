@@ -304,6 +304,39 @@ fn saves_level_dat_and_rotates_old_copy() {
 }
 
 #[test]
+fn level_dat_is_gzip_with_empty_root_name_like_vanilla_and_reads_legacy_uncompressed() {
+    let mut path = std::env::temp_dir();
+    path.push(format!("rustcraft-level-dat-gzip-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&path);
+    let layout = WorldLayout::new(&path);
+
+    let data = crate::storage::nbt::Tag::Compound(vec![(
+        "Data".to_string(),
+        crate::storage::nbt::Tag::Compound(vec![(
+            "LevelName".to_string(),
+            crate::storage::nbt::Tag::String("hi".to_string()),
+        )]),
+    )]);
+    layout.save_level_dat(&data).unwrap();
+
+    // Java NbtIo.writeCompressed => gzip (magic 1f 8b) with an empty root name
+    // whose payload is { "Data": <leveldata> }.
+    let raw = fs::read(layout.level_dat()).unwrap();
+    assert_eq!(&raw[..2], &[0x1f, 0x8b]);
+    let (root_name, _) = crate::storage::nbt::read_gzip_named_tag(raw.as_slice()).unwrap();
+    assert_eq!(root_name, "");
+    assert_eq!(layout.load_level_dat().unwrap(), data);
+
+    // Legacy uncompressed level.dat still loads (migration path).
+    let mut legacy = Vec::new();
+    crate::storage::nbt::write_named_tag(&mut legacy, "Data", &data).unwrap();
+    fs::write(layout.level_dat(), &legacy).unwrap();
+    assert_eq!(layout.load_level_dat().unwrap(), data);
+
+    let _ = fs::remove_dir_all(&path);
+}
+
+#[test]
 fn saves_player_data_and_json_sidecars() {
     let mut path = std::env::temp_dir();
     path.push(format!("rustcraft-player-storage-{}", std::process::id()));
