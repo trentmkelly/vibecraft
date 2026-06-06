@@ -621,6 +621,44 @@ impl FurnaceCookingRecipe {
             experience_millis,
         }
     }
+
+    /// Build the furnace's recipe view for `input_item` from the loaded cooking
+    /// recipes (`RecipeKind::Cooking`), so the furnace is driven by the same recipe
+    /// data as the rest of the game rather than a parallel table. `recipe_type` is
+    /// the furnace kind's type id (`"smelting"`/`"blasting"`/`"smoking"`). Mirrors
+    /// `AbstractFurnaceBlockEntity`'s `RecipeManager.getRecipeFor` lookup; the cook
+    /// time falls back to the `AbstractCookingRecipe` default when unspecified.
+    pub fn lookup(
+        recipes: &crate::recipe_system::RecipeMap,
+        recipe_type: &str,
+        input_item: &str,
+    ) -> Option<Self> {
+        use crate::recipe_system::RecipeKind;
+        for holder in recipes.values() {
+            let RecipeKind::Cooking {
+                kind,
+                ingredient,
+                result,
+                experience_millis,
+                cooking_time,
+            } = &holder.recipe
+            else {
+                continue;
+            };
+            if holder.recipe.recipe_type() == recipe_type && ingredient.matches(input_item) {
+                let time = cooking_time.unwrap_or_else(|| kind.default_cooking_time());
+                return Some(Self::new(
+                    holder.id,
+                    recipe_type,
+                    input_item,
+                    result.item,
+                    time,
+                    *experience_millis,
+                ));
+            }
+        }
+        None
+    }
 }
 
 impl AbstractFurnaceBlockEntity {

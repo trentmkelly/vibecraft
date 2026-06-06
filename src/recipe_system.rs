@@ -914,11 +914,11 @@ pub enum IngredientSpec {
 }
 
 impl IngredientSpec {
-    pub fn matches(&self, item: &'static str) -> bool {
+    pub fn matches(&self, item: &str) -> bool {
         match self {
             IngredientSpec::Empty => false,
             IngredientSpec::Item(expected) => *expected == item,
-            IngredientSpec::AnyOf(items) => items.contains(&item),
+            IngredientSpec::AnyOf(items) => items.iter().any(|candidate| *candidate == item),
         }
     }
 
@@ -1029,7 +1029,8 @@ pub enum CookingKind {
 }
 
 impl CookingKind {
-    #[cfg(test)]
+    /// `AbstractCookingRecipe` default cook time per type (ticks): smelting 200,
+    /// blasting/smoking/campfire 100. Used when a recipe omits `cookingtime`.
     pub fn default_cooking_time(self) -> i32 {
         match self {
             CookingKind::Smelting => 200,

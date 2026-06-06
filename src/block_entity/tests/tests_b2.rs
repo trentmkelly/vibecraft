@@ -879,3 +879,49 @@ fn banner_block_entity_tracks_color_patterns_and_update_tag_shape() {
         matches!(entity.get_update_tag(), Tag::Compound(fields) if fields.iter().any(|(key, _)| key == "patterns") && fields.iter().all(|(key, _)| key != "id"))
     );
 }
+
+#[test]
+fn furnace_cooking_recipe_lookup_derives_from_loaded_cooking_recipes() {
+    use crate::recipe_system::{
+        CookingKind, IngredientSpec, ItemAmount, RecipeHolder, RecipeKind, RecipeMap,
+    };
+
+    // raw_iron smelts to iron_ingot at the default 200 ticks, 0.7 XP; the same
+    // ingredient also has a blasting recipe at 100 ticks.
+    let recipes = RecipeMap::create(vec![
+        RecipeHolder {
+            id: "minecraft:iron_ingot_from_smelting_raw_iron",
+            recipe: RecipeKind::Cooking {
+                kind: CookingKind::Smelting,
+                ingredient: IngredientSpec::Item("minecraft:raw_iron"),
+                result: ItemAmount::one("minecraft:iron_ingot"),
+                experience_millis: 700,
+                cooking_time: None, // -> default 200
+            },
+        },
+        RecipeHolder {
+            id: "minecraft:iron_ingot_from_blasting_raw_iron",
+            recipe: RecipeKind::Cooking {
+                kind: CookingKind::Blasting,
+                ingredient: IngredientSpec::Item("minecraft:raw_iron"),
+                result: ItemAmount::one("minecraft:iron_ingot"),
+                experience_millis: 700,
+                cooking_time: None, // -> default 100
+            },
+        },
+    ]);
+
+    let smelting = FurnaceCookingRecipe::lookup(&recipes, "smelting", "minecraft:raw_iron")
+        .expect("smelting recipe should be found");
+    assert_eq!(smelting.result.item_id, "minecraft:iron_ingot");
+    assert_eq!(smelting.cooking_time, 200, "smelting default cook time");
+    assert_eq!(smelting.experience_millis, 700);
+
+    let blasting = FurnaceCookingRecipe::lookup(&recipes, "blasting", "minecraft:raw_iron")
+        .expect("blasting recipe should be found");
+    assert_eq!(blasting.cooking_time, 100, "blasting default cook time");
+
+    // No recipe for an unrelated input, and a smoker has no matching recipe here.
+    assert!(FurnaceCookingRecipe::lookup(&recipes, "smelting", "minecraft:stone").is_none());
+    assert!(FurnaceCookingRecipe::lookup(&recipes, "smoking", "minecraft:raw_iron").is_none());
+}
