@@ -538,6 +538,22 @@ fn write_join_player_state_packets(
     // Intentional Java parity divergence: RustCraft exposes `/biome` as an
     // in-game debugging helper, so the live play join sends a tiny command tree
     // entry for it even though vanilla 26.1.2 has no root `/biome` command.
+    //
+    // TODO(network-join-commands-order): this commands(16) packet is emitted in
+    // the WRONG join-sequence position. Vanilla `PlayerList.placeNewPlayer`
+    // (PlayerList.java:184-189) sends `ClientboundSetHeldSlotPacket` (105) and
+    // `ClientboundUpdateRecipesPacket` (133) BEFORE the commands packet, which is
+    // sent later via `sendPlayerPermissionLevel` -> `Commands.sendCommands`
+    // (PlayerList.java:572). The empirical vanilla join capture in
+    // `harness/mineflayer/raw_26_1_2_join_probe.mjs` (expectedPlayPacketPrefixIds)
+    // does not contain id 16 in its first 21 packets at all, so commands must move
+    // out of this state block to vanilla's real position. Emitting it here makes
+    // the live wire order read `...,64,16,105,...` instead of `...,64,105,103,...`,
+    // which fails the raw join-parity probe at index 4 ("expected 105, got 16").
+    // This blocks CHECKLIST_ITEMS.md #13/#16/#18 (raw selected-slot + login-inventory
+    // baseline fallbacks) and is full join-sequence parity work owned by
+    // CHECKLIST_NETWORK_GAME.md: it must reconcile keeping the `/biome` debug helper
+    // with byte-exact wire order against the 21-packet vanilla capture.
     write_framed_packet_with_compression(
         stream,
         compression,
