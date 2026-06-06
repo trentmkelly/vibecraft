@@ -278,6 +278,18 @@ impl RecipeKind {
                     && base.matches(base_item)
                     && addition.matches(addition_item)
             }
+            // TODO(recipes-special): `CustomRecipe` subclasses (RepairItemRecipe,
+            // BannerDuplicateRecipe, BookCloningRecipe, DecoratedPotRecipe,
+            // DyedItemRecipe, FireworkRocket/Star/StarFadeRecipe, MapCloning/
+            // ExtendingRecipe, ShieldDecorationRecipe) need *stack-aware* matching —
+            // their result depends on input components/damage/counts, not just item
+            // ids — but this `matches` only receives `&[Option<&'static str>]`.
+            // Implementing them 1:1 requires (a) threading full `ItemStack`s (with
+            // components) through recipe matching, and (b) for fireworks/dye/pots,
+            // new `ItemComponent`s (Fireworks, FireworkExplosion, DyedColor,
+            // PotDecorations, ChargedProjectiles) that `item_properties.rs` does not
+            // yet model. Until then `Special` only carries a static `result_hint`
+            // for registry/display purposes and never matches as a live recipe.
             RecipeKind::Special { .. } => false,
         }
     }
