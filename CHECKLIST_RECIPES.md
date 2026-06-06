@@ -82,12 +82,12 @@
 
 ## Smithing and Station Recipes
 
-- [ ] Implement `SimpleSmithingRecipe`: placeholder base (template + base + addition → result, no transformation)
-- [ ] Implement `SmithingTransformRecipe`: convert base item type to new type using template (e.g., netherite upgrade); preserve applicable components
-- [ ] Implement `SmithingTrimRecipe`: apply armor trim from template + material, store `ArmorTrim` component on result
+- [x] Implement `SimpleSmithingRecipe`: placeholder base (template + base + addition → result, no transformation) — in 26.1.2 `SimpleSmithingRecipe` is the abstract base `SmithingTransformRecipe`/`SmithingTrimRecipe` extend (no serializer of its own, not used by any recipe JSON); its shared surface — template/base/addition matching + `smithing_placement_info` — is the combined `SmithingTransform | SmithingTrim` handling in `RecipeKind`.
+- [x] Implement `SmithingTransformRecipe`: convert base item type to new type using template (e.g., netherite upgrade); preserve applicable components — `RecipeKind::SmithingTransform` + `RecipeMap::smithing_result` (recipe-driven, 1:1 with Java's `SmithingMenu.createResult`): `createWithOriginalComponents(result, base)` retypes the base's components (incl. enchantments + custom name) to the result item. `SmithingMenu` is now data-driven (consults the loaded recipes, not hardcoded tables).
+- [x] Implement `SmithingTrimRecipe`: apply armor trim from template + material, store `ArmorTrim` component on result — `RecipeKind::SmithingTrim { …, pattern }` + `smithing_apply_trim`: material from the addition's `PROVIDES_TRIM_MATERIAL`, pattern from the recipe, `ArmorTrim` set on a `base.copyWithCount(1)`; `EMPTY` if the base already carries that exact trim. Wired through `RecipeMap::smithing_result`/`SmithingMenu`.
 - [x] Implement `StonecutterRecipe`: single input → single output, multiple outputs per input stone type registered separately — `RecipeKind::Stonecutting { ingredient, result }` (single input, single output; each output is its own recipe); the loader parses all 275 vanilla stonecutting recipes and `stonecutter_recipes_for_input` lists every output for an input, driving the data-driven `StonecutterMenu` (verified 1:1 in CONTAINERS).
-- [ ] Add unit test: smithing transform preserves enchantments and custom name
-- [ ] Add unit test: smithing trim applies correct material and pattern components
+- [x] Add unit test: smithing transform preserves enchantments and custom name — `smithing_menu_transform_and_trim_match_java` (`tests_workstation.rs`) asserts the netherite-chestplate result keeps the base's `enchantments` (protection 4) and `item_name` (custom name).
+- [x] Add unit test: smithing trim applies correct material and pattern components — same test asserts the trimmed result's `minecraft:trim` = `ArmorTrim { material: copper, pattern: sentry }`, plus already-trimmed→empty and non-base→empty.
 - [x] Add unit test: stonecutter lists all valid outputs for smooth stone input — `stonecutter_selectable_recipes_filter_all_outputs_for_input` exercises `stonecutter_recipes_for_input` over the loaded recipe set.
 
 ## Recipe Validation (All Types)
@@ -107,5 +107,5 @@
 - [x] Implement grid crafting: `ShapedRecipe`, `ShapedRecipePattern`, `ShapelessRecipe`, `TransmuteRecipe`, and `ImbueRecipe`. — all done 1:1 (shaped with 26.1.2 mirroring, shapeless backtracking, transmute/imbue component preservation); see the Grid Crafting section above.
 - [ ] Implement special crafting recipes: `BannerDuplicateRecipe`, `BookCloningRecipe`, `DecoratedPotRecipe`, `DyeRecipe`, `FireworkRocketRecipe`, `FireworkStarRecipe`, `FireworkStarFadeRecipe`, `MapExtendingRecipe`, `RepairItemRecipe`, and `ShieldDecorationRecipe`.
 - [ ] Implement cooking recipes: `SmeltingRecipe`, `BlastingRecipe`, `SmokingRecipe`, and `CampfireCookingRecipe`, including cook time, experience, fuel interaction, and recipe book categories.
-- [ ] Implement smithing and station recipes: `SimpleSmithingRecipe`, `SmithingTransformRecipe`, `SmithingTrimRecipe`, and `StonecutterRecipe`.
+- [x] Implement smithing and station recipes: `SimpleSmithingRecipe`, `SmithingTransformRecipe`, `SmithingTrimRecipe`, and `StonecutterRecipe`. — all done 1:1; SmithingMenu is recipe-driven and Stonecutter is data-driven. See the Smithing and Station Recipes section above.
 - [ ] Validate every recipe type with JSON decode tests, crafting matrix tests, result component tests, remainder tests, unlock tests, and client recipe sync tests.
