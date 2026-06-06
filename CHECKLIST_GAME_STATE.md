@@ -13,6 +13,6 @@ Global game-state systems moved out of the top-level checklist.
 - [x] Add Mineflayer scoreboard/team tests for sidebar/list/below-name displays, team color/prefix/suffix, nametag visibility, collision rules, and reconnect persistence. — `game_state_scenarios.mjs` `scoreboardTeams` (sidebar/list/below-name-display-visible + team-color/prefix/suffix-visible + nametag-visibility-rule + collision-rule + persistence-after-reconnect).
 - [ ] Implement teams, colors, prefixes/suffixes, visibility rules, collision rules, friendly fire, and nametag/death message visibility.
 - [ ] Implement triggers and player-controlled scoreboard updates.
-- [ ] Implement statistics categories, increment rules, persistence, and sync packets.
+- [x] Implement statistics categories, increment rules, persistence, and sync packets. — `src/statistics.rs`: `StatKey` (custom/category-value), `increment`, `to_vanilla_json`/`from_vanilla_json` persistence (vanilla grouped JSON), and `drain_dirty_packet` → `ClientboundAwardStatsPacket` (id 3) sync; covered by `statistics` tests (4) incl. `stat_persistence_uses_vanilla_grouped_json_shape`.
 - [ ] Implement advancement loading, criteria, progress, rewards, visibility, chat announcements, tab tree layout, and persistence.
 - [ ] Implement recipe unlocks and advancement criteria triggers.
