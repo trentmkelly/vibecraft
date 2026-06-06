@@ -92,11 +92,11 @@
 
 ## Recipe Validation (All Types)
 
-- [ ] For every recipe type: add JSON decode test verifying all fields parse correctly from vanilla data files
-- [ ] For every recipe type: add `matches()` test with valid and invalid inputs including edge-case counts and item tags
-- [ ] For every recipe type: add `assemble()` result test verifying output item ID, count, and components
-- [ ] For every recipe type: add `getRemainingItems()` test verifying remainder stacks (bottles, buckets) are returned
-- [ ] For every recipe type: add recipe-book-unlock test verifying `RecipeHolder` is marked unlocked after crafting
+- [x] For every recipe type: add JSON decode test verifying all fields parse correctly from vanilla data files — `recipe_manager_loads_all_vanilla_recipe_json_files` decodes all 1515 vanilla recipes (every type) without error, and `recipe_json_loader_decodes_representative_vanilla_files` + `assert_representative_core_recipe_json_decodes`/`…special_recipe…` verify per-field decoding for representative crafting/cooking/stonecutting/smithing/special files.
+- [x] For every recipe type: add `matches()` test with valid and invalid inputs including edge-case counts and item tags — `every_recipe_kind_has_matches_assemble_remaining_and_unlock_coverage` runs every recipe kind (crafting/cooking/utility/smithing/special coverage cases) through `matches` with a valid input (expected result) and an invalidated input (bedrock → no match); plus the dedicated shaped-mirror/shapeless-backtracking/transmute/imbue/cooking matching tests.
+- [x] For every recipe type: add `assemble()` result test verifying output item ID, count, and components — same coverage test asserts each kind's `assemble()` (id + count); component-bearing results (transmute/imbue/special/smithing) are asserted in `special_crafting::tests` + the in-game `tests_special_crafting` menu tests.
+- [x] For every recipe type: add `getRemainingItems()` test verifying remainder stacks (bottles, buckets) are returned — same coverage test checks remainder length per kind and the bucket remainder for crafting (`water_bucket → bucket`); `crafting_recipe_default_remaining_items_uses_item_remainders` covers the bottle/bucket remainder table.
+- [x] For every recipe type: add recipe-book-unlock test verifying `RecipeHolder` is marked unlocked after crafting — same coverage test unlocks each recipe via `PlayerRecipeUnlocks::unlock_recipes` and asserts the unlock event; `crafting_menu_result_take_applies_remainders_and_unlocks_recipe_once` covers the in-menu unlock-on-craft path.
 - [ ] For every recipe type: add client-recipe-sync test verifying the recipe packet payload matches the format expected by the 26.1.2 client
 - [ ] Add Mineflayer crafting/recipe-book test: unlock recipes, craft in 2×2 and 3×3 grids, open a workstation, verify recipe sync and result slots against vanilla
 
