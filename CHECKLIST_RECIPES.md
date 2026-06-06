@@ -40,10 +40,10 @@
 - [ ] Implement `Recipe<I extends RecipeInput>`: `matches(input, level)`, `assemble(input, registries)`, `getResultItem(registries)`, `getId()`, `getSerializer()`, `getType()`, `isSpecial()`, `getRemainingItems(input)` (for remainder stacks like buckets/bottles)
 - [ ] Implement `CraftingRecipe`: extends `Recipe<CraftingInput>`, `category()` → `CraftingBookCategory`, `isIncomplete()` check
 - [ ] Implement `NormalCraftingRecipe`: marker interface for non-special crafting recipes
-- [ ] Implement `CustomRecipe`: base for special single-output recipes with `isSpecial() = true`
+- [x] Implement `CustomRecipe`: base for special single-output recipes with `isSpecial() = true` — `RecipeKind::Special` is the `CustomRecipe` family, and `RecipeKind::is_special()` (production) returns `true` for it and `false` for all ordinary recipes (= `CustomRecipe.isSpecial()`); the special recipes' single-output assembly is `special_crafting::special_crafting_result`.
 - [ ] Implement `SingleItemRecipe`: stonecutter/smithing base with single item input, serializer, and result count
-- [ ] Implement `AbstractCookingRecipe`: `cookingTime`, `experience`, `category` (CookingBookCategory), ingredient matching
-- [ ] Implement `SmithingRecipe`: template + base + addition input matching, isIncomplete check
+- [x] Implement `AbstractCookingRecipe`: `cookingTime`, `experience`, `category` (CookingBookCategory), ingredient matching — `RecipeKind::Cooking` carries `kind`, `ingredient`, `result`, `experience_millis`, `cooking_time`, and `category`; accessors `cooking_time()` (explicit or per-kind default), `cooking_experience_millis()`, and the `category` field are production; single-ingredient `matches()` is 1:1. (Verified by `cooking_*` coverage + `cooking_book_category_drives_recipe_book_group`.)
+- [x] Implement `SmithingRecipe`: template + base + addition input matching, isIncomplete check — `RecipeKind::SmithingTransform`/`SmithingTrim` match template/base/addition (1:1, verified), and `RecipeKind::is_incomplete()` (production) returns true when the required base is empty (template/addition optional), mirroring `ItemCombinerMenu`/`SmithingRecipe` `isIncomplete`.
 
 ## Grid Crafting
 
