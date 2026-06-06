@@ -895,3 +895,5 @@ mod tests_close;
 mod tests_table;
 #[cfg(test)]
 mod tests_workstation;
+#[cfg(test)]
+mod tests_sweep;
