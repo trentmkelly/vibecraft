@@ -61,6 +61,17 @@ pub enum TooltipBehavior {
     GlintOverride(bool),
 }
 
+/// `minecraft:firework_explosion` (`FireworkExplosion`) — a single firework-star
+/// burst: shape id, layered colours, fade colours, and the trail/twinkle flags.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FireworkExplosion {
+    pub shape: &'static str,
+    pub colors: Vec<u32>,
+    pub fade_colors: Vec<u32>,
+    pub trail: bool,
+    pub twinkle: bool,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ItemComponent {
     MaxStackSize(u32),
@@ -109,6 +120,31 @@ pub enum ItemComponent {
         generation: i32,
         pages: Vec<String>,
         resolved: bool,
+    },
+    /// `minecraft:dyed_color` (`DyedItemColor`) — the packed RGB tint applied to
+    /// leather armour (and other dyeable items) by the crafting dye recipe.
+    DyedColor(u32),
+    /// `minecraft:base_color` (`DyeColor`) — the base dye colour of a banner or a
+    /// shield (e.g. `"red"`), as carried over by the shield-decoration recipe.
+    BaseColor(&'static str),
+    /// `minecraft:potion_contents` (`PotionContents`) — the potion id a
+    /// potion/tipped-arrow carries (modelled by id; full effect list is data-driven).
+    PotionContents(&'static str),
+    /// `minecraft:firework_explosion` (`FireworkExplosion`) — a firework star's burst.
+    FireworkExplosion(FireworkExplosion),
+    /// `minecraft:fireworks` (`Fireworks`) — a rocket's flight duration (1–3) and the
+    /// list of star explosions it carries.
+    Fireworks {
+        flight_duration: u8,
+        explosions: Vec<FireworkExplosion>,
+    },
+    /// `minecraft:pot_decorations` (`PotDecorations`) — the four sherd/brick ids on a
+    /// decorated pot's back/left/right/front faces.
+    PotDecorations {
+        back: &'static str,
+        left: &'static str,
+        right: &'static str,
+        front: &'static str,
     },
     Custom(&'static str),
 }
@@ -290,6 +326,12 @@ impl ItemDefinition {
                 | ItemComponent::ArmorTrim { .. }
                 | ItemComponent::WritableBookContent(_)
                 | ItemComponent::WrittenBookContent { .. }
+                | ItemComponent::DyedColor(_)
+                | ItemComponent::BaseColor(_)
+                | ItemComponent::PotionContents(_)
+                | ItemComponent::FireworkExplosion(_)
+                | ItemComponent::Fireworks { .. }
+                | ItemComponent::PotDecorations { .. }
                 | ItemComponent::Custom(_) => {}
             }
         }
@@ -329,6 +371,12 @@ impl ItemComponent {
             Self::ArmorTrim { .. } => "minecraft:trim",
             Self::WritableBookContent(_) => "minecraft:writable_book_content",
             Self::WrittenBookContent { .. } => "minecraft:written_book_content",
+            Self::DyedColor(_) => "minecraft:dyed_color",
+            Self::BaseColor(_) => "minecraft:base_color",
+            Self::PotionContents(_) => "minecraft:potion_contents",
+            Self::FireworkExplosion(_) => "minecraft:firework_explosion",
+            Self::Fireworks { .. } => "minecraft:fireworks",
+            Self::PotDecorations { .. } => "minecraft:pot_decorations",
             Self::Custom(name) => name,
         }
     }
