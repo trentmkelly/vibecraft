@@ -1059,13 +1059,12 @@ pub struct FuelValues {
 }
 
 impl FuelValues {
-    // TODO(fuelvalues-tags): NOT yet 1:1 with `FuelValues.vanillaBurnTimes`, which
-    // adds whole item tags (LOGS/PLANKS/WOODEN_*/BOATS/WOOL/WOOL_CARPETS/SAPLINGS/
-    // BANNERS/SIGNS/…). This table uses one representative item per tag, so non-oak
-    // woods and other banner/wool/boat variants are missing. Make the lookup
-    // tag-aware (resolve via `item_tags`) once those ~19 fuel tags are populated.
-    // CHECKLIST_RECIPES #80 stays unchecked. `#[cfg(test)]` because the furnace
-    // consumer is not ticked in production — see TODO(cooking-server-wiring).
+    // TODO(fuelvalues-tags): NOT 1:1 with `FuelValues.vanillaBurnTimes`, which adds
+    // whole item tags (LOGS/PLANKS/WOODEN_*/BOATS/WOOL/SAPLINGS/BANNERS/SIGNS/…).
+    // This table uses one representative item per tag, so non-oak woods and other
+    // banner/wool/boat variants are missing — make the lookup tag-aware (resolve
+    // via `item_tags`) once those fuel tags are populated. #80 stays unchecked;
+    // `#[cfg(test)]` because the furnace consumer isn't ticked (cooking-server-wiring).
     #[cfg(test)]
     pub fn vanilla() -> Self {
         Self::vanilla_with_base_unit(200)
