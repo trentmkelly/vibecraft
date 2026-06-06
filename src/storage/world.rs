@@ -744,20 +744,13 @@ impl WorldLayout {
         self.root.join("session.lock")
     }
 
-    // TODO(dimension-folder-layout-26.1.2): these return the PRE-26.1.2 layout
-    // (overworld region/entities/poi at the world root). Java 26.1.2 stores EVERY
-    // dimension — including the overworld — under `dimensions/<namespace>/<path>/`:
-    // ChunkMap (ChunkMap.java:174) builds the chunk path as
-    // `getDimensionPath(dimension).resolve("region")` and `getDimensionPath` =
-    // `DimensionType.getStorageFolder` = `<root>/dimensions/<ns>/<path>` with NO
-    // overworld/nether/end (DIM-1/DIM1) special-casing (removed in 26.1.2).
-    // So the overworld region belongs at `dimensions/minecraft/overworld/region`,
-    // entities at `.../overworld/entities`, poi at `.../overworld/poi`. This
-    // divergence means RustCraft cannot load 26.1.2 vanilla/exported worlds and
-    // vice-versa. Fixing it is foundational (threads dimension-relative paths
-    // through GeneratedChunkCache + all chunk/entity/poi I/O + needs world
-    // migration), so it is deferred. Blocks CHECKLIST_STORAGE #110 (world folder
-    // layout), #28/#29 (LevelStorage path resolution), #117 (chunk serialization).
+    // TODO(dimension-folder-layout-26.1.2): PRE-26.1.2 layout. Java 26.1.2 stores
+    // EVERY dimension (incl. overworld) under `dimensions/<ns>/<path>/` —
+    // ChunkMap.java:174 uses `getDimensionPath(dim).resolve("region")`,
+    // getDimensionPath = DimensionType.getStorageFolder = `<root>/dimensions/<ns>/
+    // <path>` (no DIM-1/DIM1 special-casing). So overworld region belongs at
+    // `dimensions/minecraft/overworld/{region,entities,poi}`. Deferred (foundational
+    // + needs migration). Blocks STORAGE #110/#28/#29/#117. See memory note.
     pub fn region_dir(&self) -> PathBuf {
         self.root.join("region")
     }
