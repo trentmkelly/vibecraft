@@ -284,7 +284,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] Add a Mineflayer/raw 26.1.2 status/ping test that validates MOTD, version, player counts, and latency ping echo shape while Mineflayer play support lags the target protocol.
 - [ ] Add a Mineflayer/raw status test that compares hidden-player-count and disabled-status behavior against the decompiled 26.1.2 status handshake behavior.
 - [ ] Add a Mineflayer/raw status-to-login transition test that pings the server, immediately logs in offline mode from the same harness process, and verifies the status socket cleanup cannot corrupt the login connection.
-- [ ] Implement ping state.
+- [x] Implement ping state. — the status-state latency ping/pong: `network/ping.rs::ServerboundPingRequestPacket` reads a big-endian `long` (1:1 with Java `ServerboundPingRequestPacket` `input.readLong()`) and `ClientboundPongResponsePacket::from_request` echoes it back via `output.writeLong` (1:1 with the Java record). Live-wired in the status loop (`chunk_a.rs:686`): on packet id 1 the server reads the ping, writes the pong (`write_status_pong_packet`), and closes the connection — matching vanilla's post-pong status disconnect. Tests `reads_serverbound_ping_request_as_big_endian_long`, `writes_clientbound_pong_response_as_big_endian_long`, `pong_echoes_ping_time` pass.
 - [ ] Implement login state.
 - [ ] Add a Mineflayer offline-mode login test that reaches login success without Yggdrasil, encryption, or secure-profile requirements.
 - [ ] Add a Mineflayer offline-mode login test that asserts no session-server HTTP calls are made, no encryption request is sent, and no profile-key packet is required before login success.
