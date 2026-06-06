@@ -564,31 +564,7 @@ pub fn uuid_from_hyphenated(value: &str) -> io::Result<Uuid> {
     Ok(Uuid(bytes))
 }
 
-// TODO(worldborder-live-wiring): this `ClientboundInitializeBorderPacket` is
-// hard-coded to the vanilla default border (center 0,0, size 59999968, no lerp,
-// warning blocks 5 / time 15). To finish `/worldborder` (#169 in CHECKLIST_COMMANDS.md):
-//   1. Create a live `Arc<Mutex<world_border::WorldBorder>>` in the runtime setup
-//      (chunk_a.rs, alongside the `weather` Arc at ~chunk_a.rs:332), initialised from
-//      `PrimaryLevelData` border fields; thread it through `JoinedPlayLoopTickContext`/
-//      `JoinedPlayPacketStepContext`/`DecodedPlayPacketContext`/`ChatCommandContext`
-//      exactly like the `weather` Arc was threaded for `/weather` (commit ab35c12).
-//   2. Make this function take `&WorldBorder` and emit center/size/lerp/warning fields
-//      from it (size = `border.size()`, lerp via the `extent`, warning_blocks/time).
-//   3. In `command_state_for_player` seed `state.world_border` from the live border
-//      (single shared `world_border::WorldBorder` type — no command/live mapping needed,
-//      unlike weather), and in `apply_command_side_effects` diff `command_state.world_border`
-//      vs live; on change apply to live and send the 1:1 packet(s):
-//        - center changed -> ClientboundSetBorderCenterPacket
-//        - extent Static & size changed -> ClientboundSetBorderSizePacket{size}
-//        - extent Moving -> ClientboundSetBorderLerpSizePacket{old_size, new_size=to, lerp_time=remaining}
-//        - warning_time changed -> ClientboundSetBorderWarningDelayPacket
-//        - warning_blocks changed -> ClientboundSetBorderWarningDistancePacket
-//        - damage_per_block/safe_zone -> server-side only, no packet
-//      (Java: WorldBorder.BorderChangeListener fans these out; packet structs already
-//      exist in network/play/chunk_types_b.rs with write impls in chunk_b.rs.)
-//   4. The border ticks (lerp) per server tick via `WorldBorder::tick`; broadcast lerp
-//      updates from the play loop if needed. Then mark COMMANDS #169 and the
-//      CHECKLIST_GAMEPLAY world-border command rows as the live path becomes 1:1.
+// TODO(worldborder-live-wiring): hard-coded default border; finish `/worldborder` (#169) per the plan in memory note `project-commands-state` (thread a shared WorldBorder Arc like `weather`, diff+send the 5 SetBorder* packets).
 pub fn write_initialize_world_border_packet<W: Write>(writer: &mut W) -> io::Result<()> {
     writer.write_all(&0.0f64.to_be_bytes())?;
     writer.write_all(&0.0f64.to_be_bytes())?;
