@@ -1287,6 +1287,11 @@ struct PlayerTickContext<'a, 'b> {
     world_layout: &'b WorldLayout,
     last_player_tick: &'b mut Instant,
     play_tick_count: &'b mut u64,
+    /// Latch: false until the post-join `/biome` command tree has been sent. The
+    /// command tree is emitted once, right after the first chunk batch reaches the
+    /// client, so it lands after the join-ready prefix (matching the vanilla join
+    /// capture in `harness/mineflayer/raw_26_1_2_join_probe.mjs`).
+    join_commands_sent: &'b mut bool,
 }
 
 fn tick_player_and_chunk_sender(
@@ -1309,6 +1314,7 @@ fn tick_player_and_chunk_sender(
         world_layout,
         last_player_tick,
         play_tick_count,
+        join_commands_sent,
     } = context;
     if last_player_tick.elapsed() < SERVER_TICK_DURATION {
         return Ok(());
@@ -1363,6 +1369,15 @@ fn tick_player_and_chunk_sender(
     chunk_pipeline_stats.sent_total = chunk_pipeline_stats
         .sent_total
         .saturating_add(drained as u64);
+    // Send the `/biome` debug command tree exactly once, right after the first
+    // chunk batch reaches the client. This places the commands packet after the
+    // join-ready prefix (login..chunk_batch_start) instead of mid-join, matching
+    // the vanilla join capture; see `write_join_commands_packet` and
+    // `harness/mineflayer/raw_26_1_2_join_probe.mjs`.
+    if drained > 0 && !*join_commands_sent {
+        write_join_commands_packet(stream, compression)?;
+        *join_commands_sent = true;
+    }
     maybe_log_chunk_pipeline_stats(
         chunk_pipeline_stats,
         chunk_sender,
@@ -1395,6 +1410,7 @@ struct JoinedPlayLoopTickContext<'a, 'b> {
     live_fluid_ticks: &'b mut LiveFluidTicks,
     last_sent_rain_level: &'b mut f32,
     last_sent_thunder_level: &'b mut f32,
+    join_commands_sent: &'b mut bool,
 }
 
 fn tick_joined_play_session_loop(
@@ -1426,6 +1442,7 @@ fn tick_joined_play_session_loop(
         live_fluid_ticks,
         last_sent_rain_level,
         last_sent_thunder_level,
+        join_commands_sent,
     } = context;
     tick_keep_alive_and_time(
         stream,
@@ -1454,6 +1471,7 @@ fn tick_joined_play_session_loop(
             world_layout,
             last_player_tick,
             play_tick_count,
+            join_commands_sent,
         },
     )?;
     broadcast_weather_if_changed(
@@ -2535,6 +2553,8 @@ fn run_joined_play_session(
     // Java: ServerLevel.advanceWeatherCycle() broadcasts RainLevelChange/ThunderLevelChange
     // Hook A: wall-clock timer driving item entity age ticks at ~20 Hz (50 ms per tick).
     // Java: ItemEntity.tick() — called once per server tick, ~50 ms.
+    // Latch: the `/biome` command tree is sent once, after the first chunk batch.
+    let mut join_commands_sent = false;
     loop {
         tick_joined_play_session_loop(
             stream,
@@ -2563,6 +2583,7 @@ fn run_joined_play_session(
                 play_tick_count: &mut play_tick_count,
                 last_sent_rain_level: &mut last_sent_rain_level,
                 last_sent_thunder_level: &mut last_sent_thunder_level,
+                join_commands_sent: &mut join_commands_sent,
             },
         )?;
 

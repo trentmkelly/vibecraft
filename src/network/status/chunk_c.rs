@@ -461,6 +461,11 @@ pub fn write_minimal_play_join(
     write_join_player_state_packets(stream, compression, &context)?;
     write_join_inventory_packets(stream, compression, context.play_state)?;
     write_join_world_state_packets(stream, compression, &context, center)?;
+    // Note: the `/biome` debug command tree is intentionally NOT sent here. It is
+    // emitted once by the play loop right after the first chunk batch (see
+    // `tick_player_and_chunk_sender` / `write_join_commands_packet`), so it lands
+    // after the join-ready prefix (login..chunk_batch_start) and does not disturb
+    // the vanilla join capture in `harness/mineflayer/raw_26_1_2_join_probe.mjs`.
     // Optional disconnect-probe delay before chunks start flowing — kept
     // for parity with the legacy blocking-batch path. With the async
     // pipeline, the actual chunk batches start arriving from the play
@@ -468,6 +473,24 @@ pub fn write_minimal_play_join(
     // synchronously generated here.
     delay_initial_chunk_batch_for_probe(stream, compression)?;
     Ok(())
+}
+
+/// Emits the `/biome` debug command tree. Sent late in the join sequence (after
+/// the join-ready state/level prefix) so the live wire order matches the vanilla
+/// join capture, where the command tree arrives after the inventory and
+/// level-info packets. RustCraft exposes `/biome` as an in-game debugging helper
+/// even though vanilla 26.1.2 has no root `/biome` command — an intentional,
+/// documented Java-parity divergence in the packet *contents* (not its position).
+pub(super) fn write_join_commands_packet(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+) -> io::Result<()> {
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_COMMANDS_PACKET_ID,
+        |payload| rustcraft_debug_commands_packet().write(payload),
+    )
 }
 
 fn write_join_login_and_profile_packets(
@@ -535,31 +558,15 @@ fn write_join_player_state_packets(
         CLIENTBOUND_PLAYER_ABILITIES_PACKET_ID,
         |payload| write_player_abilities_packet(payload, context.play_state.game_mode),
     )?;
-    // Intentional Java parity divergence: RustCraft exposes `/biome` as an
-    // in-game debugging helper, so the live play join sends a tiny command tree
-    // entry for it even though vanilla 26.1.2 has no root `/biome` command.
-    //
-    // TODO(network-join-commands-order): this commands(16) packet is emitted in
-    // the WRONG join-sequence position. Vanilla `PlayerList.placeNewPlayer`
-    // (PlayerList.java:184-189) sends `ClientboundSetHeldSlotPacket` (105) and
-    // `ClientboundUpdateRecipesPacket` (133) BEFORE the commands packet, which is
-    // sent later via `sendPlayerPermissionLevel` -> `Commands.sendCommands`
-    // (PlayerList.java:572). The empirical vanilla join capture in
-    // `harness/mineflayer/raw_26_1_2_join_probe.mjs` (expectedPlayPacketPrefixIds)
-    // does not contain id 16 in its first 21 packets at all, so commands must move
-    // out of this state block to vanilla's real position. Emitting it here makes
-    // the live wire order read `...,64,16,105,...` instead of `...,64,105,103,...`,
-    // which fails the raw join-parity probe at index 4 ("expected 105, got 16").
-    // This blocks CHECKLIST_ITEMS.md #13/#16/#18 (raw selected-slot + login-inventory
-    // baseline fallbacks) and is full join-sequence parity work owned by
-    // CHECKLIST_NETWORK_GAME.md: it must reconcile keeping the `/biome` debug helper
-    // with byte-exact wire order against the 21-packet vanilla capture.
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_COMMANDS_PACKET_ID,
-        |payload| rustcraft_debug_commands_packet().write(payload),
-    )?;
+    // Note: the `/biome` debug commands packet (an intentional Java-parity
+    // divergence — vanilla 26.1.2 has no root `/biome` command) is NOT sent here.
+    // Vanilla `PlayerList.placeNewPlayer` sends `ClientboundSetHeldSlotPacket`
+    // (105) before the command tree, and the empirical vanilla join capture in
+    // `harness/mineflayer/raw_26_1_2_join_probe.mjs` shows the commands packet
+    // arrives after the join-ready prefix, so it is emitted last in
+    // `write_minimal_play_join` (see `write_join_commands_packet`). Emitting it
+    // here previously produced the wire order `...,64,16,105,...` and failed the
+    // raw join-parity probe at index 4 ("expected 105, got 16").
     write_framed_packet_with_compression(
         stream,
         compression,
