@@ -1736,7 +1736,7 @@ const SPAWN_PROTECTION_DIMENSION: &str = "minecraft:overworld";
 /// Pure spawn-protection decision, 1:1 with Java
 /// `DedicatedServer.isUnderSpawnProtection` (via `PlayerAccess`). Returns true
 /// when breaking `pos` must be denied.
-fn spawn_protection_break_denied(
+pub(crate) fn spawn_protection_break_denied(
     access: &PlayerAccess,
     radius: u32,
     world_spawn: crate::block_update::BlockPos,
@@ -1810,7 +1810,7 @@ fn spawn_protection_message_tag(x: i32, y: i32, z: i32) -> crate::storage::nbt::
 /// `ServerPlayer.sendSpawnProtectionMessage` → `sendOverlayMessage` →
 /// `sendSystemMessage(message, true)`: a system-chat packet with `overlay = true`
 /// (the action-bar slot) carrying the RED `build.spawn_protection` component.
-fn write_spawn_protection_message(
+pub(crate) fn write_spawn_protection_message(
     stream: &mut TcpStream,
     compression: CompressionState,
     x: i32,
@@ -1824,6 +1824,51 @@ fn write_spawn_protection_message(
         |payload| {
             ClientboundSystemChatPacket {
                 content: spawn_protection_message_tag(x, y, z),
+                overlay: true,
+            }
+            .write(payload)
+        },
+    )
+}
+
+/// Build the network-NBT component for the build-limit overlay message, 1:1 with
+/// Java `ServerPlayer.sendBuildLimitMessage`:
+/// `Component.translatable(isTooHigh ? "build.tooHigh" : "build.tooLow", limit)
+/// .withStyle(ChatFormatting.RED)`.
+pub(crate) fn build_limit_message_tag(is_too_high: bool, limit: i32) -> crate::storage::nbt::Tag {
+    use crate::storage::nbt::Tag;
+    Tag::Compound(vec![
+        (
+            "translate".to_string(),
+            Tag::String(
+                if is_too_high {
+                    "build.tooHigh"
+                } else {
+                    "build.tooLow"
+                }
+                .to_string(),
+            ),
+        ),
+        ("with".to_string(), Tag::List(vec![Tag::Int(limit)])),
+        ("color".to_string(), Tag::String("red".to_string())),
+    ])
+}
+
+/// Send the RED build-limit overlay message (`ServerPlayer.sendBuildLimitMessage`)
+/// as a system-chat packet with `overlay = true`.
+pub(crate) fn write_build_limit_message(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    is_too_high: bool,
+    limit: i32,
+) -> io::Result<()> {
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_SYSTEM_CHAT_PACKET_ID,
+        |payload| {
+            ClientboundSystemChatPacket {
+                content: build_limit_message_tag(is_too_high, limit),
                 overlay: true,
             }
             .write(payload)
@@ -2552,6 +2597,9 @@ fn handle_decoded_play_packet(
                 chunk_cache: context.chunk_cache,
                 live_fluid_ticks: context.live_fluid_ticks,
                 game_time: context.play_tick_count as i64,
+                player_access: context.player_access,
+                profile_uuid: &context.profile.uuid,
+                spawn_protection_radius: context.properties.spawn_protection,
             },
             &packet,
         )?;
@@ -2893,6 +2941,29 @@ mod spawn_protection_wiring_tests {
     use crate::block_update::BlockPos;
     use crate::player_access::{NameAndId, OpEntry, PlayerAccess};
     use crate::storage::nbt::Tag;
+
+    /// `build_limit_message_tag` must match Java `ServerPlayer.sendBuildLimitMessage`:
+    /// translatable `build.tooHigh`/`build.tooLow` with the integer limit arg, RED.
+    #[test]
+    fn build_limit_message_tag_matches_vanilla_translatable_component() {
+        let high = build_limit_message_tag(true, 319);
+        let Tag::Compound(fields) = high else {
+            panic!("expected compound");
+        };
+        let get = |k: &str| fields.iter().find(|(n, _)| n == k).map(|(_, v)| v);
+        assert_eq!(get("translate"), Some(&Tag::String("build.tooHigh".to_string())));
+        assert_eq!(get("with"), Some(&Tag::List(vec![Tag::Int(319)])));
+        assert_eq!(get("color"), Some(&Tag::String("red".to_string())));
+
+        let low = build_limit_message_tag(false, -64);
+        let Tag::Compound(fields) = low else {
+            panic!("expected compound");
+        };
+        assert_eq!(
+            fields.iter().find(|(n, _)| n == "translate").map(|(_, v)| v),
+            Some(&Tag::String("build.tooLow".to_string()))
+        );
+    }
 
     /// Java `Player.blockActionRestricted`: spectators can never break blocks;
     /// survival/creative/adventure are not categorically restricted here.

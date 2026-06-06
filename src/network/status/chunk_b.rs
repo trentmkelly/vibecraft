@@ -501,6 +501,11 @@ pub struct UseItemOnContext<'a, 'b> {
     pub chunk_cache: &'a GeneratedChunkCache,
     pub live_fluid_ticks: &'b mut LiveFluidTicks,
     pub game_time: i64,
+    // Spawn-protection inputs (Java handleUseItemOn -> isUnderSpawnProtection),
+    // mirroring PlayerActionContext on the block-break path.
+    pub player_access: &'a Arc<Mutex<PlayerAccess>>,
+    pub profile_uuid: &'a str,
+    pub spawn_protection_radius: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -677,6 +682,38 @@ fn write_block_item_placement_packets<W: Write>(
 /// Handles a block-placement request from the client.
 ///
 /// Java: ServerPlayerGameMode.useItemOn() -> BlockItem.place() -> Level.setBlock()
+/// Spawn-protection gate for block placement/interaction, mirroring the
+/// block-break path's `block_break_is_spawn_protected`: cheap in-memory op guards
+/// first, then read the world spawn (level.dat) only when a non-op interacts on a
+/// server that has operators. 1:1 with Java `DedicatedServer.isUnderSpawnProtection`.
+fn use_item_on_spawn_protected(
+    context: &UseItemOnContext<'_, '_>,
+    pos: crate::block_update::BlockPos,
+) -> bool {
+    if context.spawn_protection_radius == 0 {
+        return false;
+    }
+    {
+        let access = lock_status_mutex(context.player_access);
+        if !access.has_ops() || access.is_op(context.profile_uuid) {
+            return false;
+        }
+    }
+    let spawn = world_spawn_suggestion(context.world_layout.root(), context.world_seed);
+    let world_spawn = crate::block_update::BlockPos {
+        x: spawn.0,
+        y: spawn.1,
+        z: spawn.2,
+    };
+    spawn_protection_break_denied(
+        &lock_status_mutex(context.player_access),
+        context.spawn_protection_radius,
+        world_spawn,
+        context.profile_uuid,
+        pos,
+    )
+}
+
 pub fn handle_use_item_on(
     stream: &mut TcpStream,
     compression: CompressionState,
@@ -700,12 +737,30 @@ pub fn handle_use_item_on(
     if !super::player_creative_packets::is_within_block_interaction_range(state, clicked_pos) {
         return write_block_change_ack(stream, compression, packet.sequence);
     }
-    // TODO(use-item-on-build-height-and-spawn-protection): Java handleUseItemOn
-    // also rejects pos.y outside [minY, maxY] (sendBuildLimitMessage) and applies
-    // spawn protection (isUnderSpawnProtection -> sendSpawnProtectionMessage)
-    // before placement. Build-height needs both bounds (block-break only checks
-    // the ceiling); spawn protection needs PlayerAccess threaded into
-    // UseItemOnContext (not currently available here).
+    // Java handleUseItemOn build-height check (lines 1351-1357): reject placement
+    // when the clicked pos is outside [minY, maxY] (sendBuildLimitMessage + skip).
+    let max_y = crate::world::OVERWORLD_MIN_Y + crate::world::OVERWORLD_LEVEL_HEIGHT - 1;
+    let min_y = crate::world::OVERWORLD_MIN_Y;
+    if clicked_pos.y > max_y {
+        write_build_limit_message(stream, compression, true, max_y)?;
+        return write_block_change_ack(stream, compression, packet.sequence);
+    }
+    if clicked_pos.y < min_y {
+        write_build_limit_message(stream, compression, false, min_y)?;
+        return write_block_change_ack(stream, compression, packet.sequence);
+    }
+    // Java handleUseItemOn spawn protection (line 1358): a non-op interacting in
+    // the spawn-protection radius is denied with sendSpawnProtectionMessage.
+    if use_item_on_spawn_protected(&context, clicked_pos) {
+        write_spawn_protection_message(
+            stream,
+            compression,
+            clicked_pos.x,
+            clicked_pos.y,
+            clicked_pos.z,
+        )?;
+        return write_block_change_ack(stream, compression, packet.sequence);
+    }
 
     // Java: ServerPlayerGameMode.useItemOn() calls player.getItemInHand(hand).
     let held_slot = held_item_slot_for_use_item_on(state, packet);
