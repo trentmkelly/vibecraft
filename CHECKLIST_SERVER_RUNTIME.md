@@ -130,8 +130,8 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 ## Migrated From Main Checklist: Source-Derived Granularity Appendix - Operational File And API Coverage
 
 - [ ] Implement `eula.txt`, `server.properties`, `ops.json`, `whitelist.json`, `banned-players.json`, `banned-ips.json`, `usercache.json`, `session.lock`, `level.dat`, `level.dat_old`, region files, entity region files, POI files, playerdata, advancements, stats, icon, crash reports, logs, debug output, and generated reports.
-- [ ] Implement RCON authentication, command execution, response fragmentation, broadcast behavior, and failure modes.
-- [ ] Implement query protocol basic and full stat responses with plugin list behavior equivalent to vanilla.
+- [x] Implement RCON authentication, command execution, response fragmentation, broadcast behavior, and failure modes. — `src/network/rcon.rs`: vanilla auth (`SERVERDATA_AUTH`/`AUTH_FAILURE -1`), command execution + op-broadcast, `fragment_response` (4096-char `MAX_RESPONSE_CHARS` multi-packet), unknown-request + auth-failure modes; covered by `rcon_auth_success_and_failure_match_vanilla_ids`, `rcon_requires_auth_then_executes_and_broadcasts_commands`, `rcon_fragments_long_responses_and_reports_unknown_requests` (5 tests pass).
+- [x] Implement query protocol basic and full stat responses with plugin list behavior equivalent to vanilla. — `src/network/query.rs`: `BasicStatus` + `FullStat` responses, `plugin_names` plugin list, 5s `FULL_STAT_CACHE_TIME` cache, challenge-token handling; 9 query tests pass.
 - [ ] Implement JSON-RPC management methods, schemas, notifications, player DTOs, reference utilities, pending request tracking, origin checks, TLS settings, and shutdown behavior.
 - [ ] Implement chase server/client debug feature or document it as intentionally unsupported with no impact on vanilla clients.
 - [ ] Implement game test framework hooks enough for parity test execution or document a replacement harness.
