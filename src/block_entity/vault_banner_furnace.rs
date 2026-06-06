@@ -628,6 +628,14 @@ impl FurnaceCookingRecipe {
     /// the furnace kind's type id (`"smelting"`/`"blasting"`/`"smoking"`). Mirrors
     /// `AbstractFurnaceBlockEntity`'s `RecipeManager.getRecipeFor` lookup; the cook
     /// time falls back to the `AbstractCookingRecipe` default when unspecified.
+    ///
+    /// TODO(cooking-server-wiring): this unifies the cooking *model* (the furnace's
+    /// recipe view now derives from `RecipeKind::Cooking` instead of a hand-authored
+    /// table), but no production code yet calls `lookup` / `server_tick` — the
+    /// furnace block entity is only ticked from tests, and `FuelValues::vanilla()`
+    /// is `#[cfg(test)]`. Wiring the live cook loop (and production fuel values)
+    /// belongs to the server block-entity-ticking subsystem; the cooking recipe
+    /// items (CHECKLIST_RECIPES #75-81) cannot be marked until that exists.
     pub fn lookup(
         recipes: &crate::recipe_system::RecipeMap,
         recipe_type: &str,
