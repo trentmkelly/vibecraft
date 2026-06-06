@@ -58,17 +58,17 @@
 
 ## Special Crafting Recipes
 
-- [ ] Implement `BannerDuplicateRecipe`: copy banner patterns from source banner to blank banner
-- [ ] Implement `BookCloningRecipe`: duplicate a written book using a blank book, up to `maxBookGeneration - 1` copies
-- [ ] Implement `DecoratedPotRecipe`: combine 4 pottery sherds/bricks → decorated pot with correct side assignment
-- [ ] Implement `DyeRecipe`: apply dye to wool/glass/beds/candles/shulker boxes/terracotta etc., color blending for leather armor
-- [ ] Implement `FireworkRocketRecipe`: combine paper + gunpowder + optional stars → rocket with flight duration 1–3
-- [ ] Implement `FireworkStarRecipe`: combine gunpowder + colors + optional shape/trail/twinkle items → star with encoded effects
-- [ ] Implement `FireworkStarFadeRecipe`: apply fade colors to existing firework star
-- [ ] Implement `MapExtendingRecipe`: surround map with 8 paper → next-zoom-level map
-- [ ] Implement `RepairItemRecipe`: combine two damaged tools/armor of the same type → repaired item with summed durability - 5%
-- [ ] Implement `ShieldDecorationRecipe`: apply banner pattern to shield
-- [ ] Add unit test for each special recipe: verify result components match vanilla for representative inputs
+- [x] Implement `BannerDuplicateRecipe`: copy banner patterns from source banner to blank banner — `special_crafting::banner_duplicate` (1:1): a 1..=6-pattern banner + a same-colour blank banner → the colour-specific result banner with copied patterns; `getRemainingItems` leaves the source banner and consumes the blank. Wired live via `RecipeMap::special_crafting_result`/`CraftingMenu`.
+- [x] Implement `BookCloningRecipe`: duplicate a written book using a blank book, up to `maxBookGeneration - 1` copies — `special_crafting::book_cloning` (1:1): a written book of generation 0..=1 + N writable books → N copies at generation+1 (`WrittenBookContent.craftCopy`); source written book retained.
+- [x] Implement `DecoratedPotRecipe`: combine 4 pottery sherds/bricks → decorated pot with correct side assignment — `special_crafting::decorated_pot` (1:1): four `#decorated_pot_ingredients` (brick / `*_pottery_sherd`) in the cardinal 3×3 slots (back=1, left=3, right=5, front=7) → a `decorated_pot` with `PotDecorations` for the four faces.
+- [x] Implement `DyeRecipe`: apply dye to wool/glass/beds/candles/shulker boxes/terracotta etc., color blending for leather armor — `special_crafting::dyed_item` (1:1 `crafting_dye`): a dyeable target (leather/wolf armour) + ≥1 dyes → `dyed_color = DyedItemColor.applyDyes(existing, dyes)` via the `DyeColor` texture-diffuse table + intensity-scaled blend. (Fixed-colour wool/glass/bed/etc. recipes are plain `crafting_shapeless` — handled by the ordinary path.)
+- [x] Implement `FireworkRocketRecipe`: combine paper + gunpowder + optional stars → rocket with flight duration 1–3 — `special_crafting::firework_rocket` (1:1): paper + 1–3 gunpowder + optional stars → a rocket (count from the recipe result) with `Fireworks{flight_duration = gunpowder count, explosions = each star's firework_explosion}`.
+- [x] Implement `FireworkStarRecipe`: combine gunpowder + colors + optional shape/trail/twinkle items → star with encoded effects — `special_crafting::firework_star` (1:1): gunpowder + ≥1 dye + optional shape (feather=burst, fire_charge=large_ball, gold_nugget=star, `#skulls`=creeper), diamond=trail, glowstone_dust=twinkle → a star with the assembled `firework_explosion` (colours = dyes' firework RGB).
+- [x] Implement `FireworkStarFadeRecipe`: apply fade colors to existing firework star — `special_crafting::firework_star_fade` (1:1): a star + ≥1 dye → the star with `fade_colors` stamped from the dyes' firework RGB, preserving the original explosion.
+- [ ] Implement `MapExtendingRecipe`: surround map with 8 paper → next-zoom-level map — TODO(recipes-mapextending) in `special_crafting.rs`: blocked on the map subsystem. `matches` needs `MapItem.getSavedData(map, level)` (`scale < 4`, `isExplorationMap()`) but items carry no `minecraft:map_id` component and no level-scoped `MapItemSavedData` is reachable from a crafting input. Implement once map id + saved-data are exposed on `ItemStack`.
+- [x] Implement `RepairItemRecipe`: combine two damaged tools/armor of the same type → repaired item with summed durability - 5% — `special_crafting::repair_item` (1:1): two same-item single-count damageable inputs → durability = max(maxDmg); damage = max(durability − (rem1+rem2+durability*5/100), 0); only `EnchantmentTags.CURSE` enchantments carry over (max level).
+- [x] Implement `ShieldDecorationRecipe`: apply banner pattern to shield — `special_crafting::shield_decoration` (1:1): a banner + a pattern-free shield → a shield carrying the banner's `BANNER_PATTERNS` + the banner's intrinsic `BASE_COLOR`.
+- [ ] Add unit test for each special recipe: verify result components match vanilla for representative inputs — 9 of 10 done in `recipe_system::special_crafting::tests` (repair durability/curses/rejection, shield, banner duplicate, book cloning, decorated pot, dye blend, firework rocket/star/star-fade) + in-game `CraftingMenu` tests (repair, firework rocket). Pending only the blocked `MapExtendingRecipe` above.
 
 ## Cooking Recipes
 
