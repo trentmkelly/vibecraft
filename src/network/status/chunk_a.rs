@@ -1783,17 +1783,58 @@ fn block_break_is_spawn_protected(
     )
 }
 
-/// On spawn-protection denial: ack the action sequence (so the client reverts
-/// its predicted break — Java relies on the per-tick BlockChangedAck for this)
-/// and re-send the real block state for robustness. The block is NOT modified
-/// server-side and no drops spawn, matching Java
-/// `ServerPlayerGameMode.handleBlockBreakAction`'s spawn-protection branch.
-///
-/// TODO(spawn-protection-overlay-message): Java also calls
-/// `ServerPlayer.sendSpawnProtectionMessage` → a RED `build.spawn_protection`
-/// action-bar (overlay) message. Emitting that requires building the translatable
-/// component with the block pos arg; deferred (cosmetic, not part of checklist #44
-/// which covers the break-prevention enforcement).
+/// Build the network-NBT component for the spawn-protection overlay message,
+/// 1:1 with Java `ServerPlayer.sendSpawnProtectionMessage`:
+/// `Component.translatable("build.spawn_protection", pos.toShortString())
+/// .withStyle(ChatFormatting.RED)`. `Vec3i.toShortString()` is `"x, y, z"`.
+fn spawn_protection_message_tag(x: i32, y: i32, z: i32) -> crate::storage::nbt::Tag {
+    use crate::storage::nbt::Tag;
+    Tag::Compound(vec![
+        (
+            "translate".to_string(),
+            Tag::String("build.spawn_protection".to_string()),
+        ),
+        (
+            "with".to_string(),
+            Tag::List(vec![Tag::String(format!("{x}, {y}, {z}"))]),
+        ),
+        ("color".to_string(), Tag::String("red".to_string())),
+    ])
+}
+
+/// Send the spawn-protection feedback, 1:1 with Java
+/// `ServerPlayer.sendSpawnProtectionMessage` → `sendOverlayMessage` →
+/// `sendSystemMessage(message, true)`: a system-chat packet with `overlay = true`
+/// (the action-bar slot) carrying the RED `build.spawn_protection` component.
+fn write_spawn_protection_message(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    x: i32,
+    y: i32,
+    z: i32,
+) -> io::Result<()> {
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_SYSTEM_CHAT_PACKET_ID,
+        |payload| {
+            ClientboundSystemChatPacket {
+                content: spawn_protection_message_tag(x, y, z),
+                overlay: true,
+            }
+            .write(payload)
+        },
+    )
+}
+
+/// On spawn-protection denial, mirror Java
+/// `ServerPlayerGameMode.handleBlockBreakAction`'s spawn-protection branch:
+/// 1. ack the action sequence (so the client reverts its predicted break — Java
+///    relies on the per-tick BlockChangedAck for this);
+/// 2. re-send the real block state for robustness (the block is NOT modified
+///    server-side and no drops spawn);
+/// 3. send the RED `build.spawn_protection` overlay message
+///    (`ServerPlayer.sendSpawnProtectionMessage`).
 fn write_block_break_denied(
     stream: &mut TcpStream,
     compression: CompressionState,
@@ -1824,7 +1865,8 @@ fn write_block_break_denied(
             payload.write_all(&fields.packed_pos.to_be_bytes())?;
             write_var_i32(payload, state_id)
         },
-    )
+    )?;
+    write_spawn_protection_message(stream, compression, fields.x, fields.y, fields.z)
 }
 
 fn log_player_action_debug(
@@ -2826,6 +2868,29 @@ mod spawn_protection_wiring_tests {
     use super::*;
     use crate::block_update::BlockPos;
     use crate::player_access::{NameAndId, OpEntry, PlayerAccess};
+    use crate::storage::nbt::Tag;
+
+    /// The spawn-protection overlay component must match Java
+    /// `Component.translatable("build.spawn_protection", pos.toShortString())`
+    /// with RED color: a compound with `translate`/`with`/`color`, where the
+    /// single `with` arg is the `"x, y, z"` short-string of the block pos.
+    #[test]
+    fn spawn_protection_message_tag_matches_vanilla_translatable_component() {
+        let tag = spawn_protection_message_tag(10, 64, -3);
+        let Tag::Compound(fields) = tag else {
+            panic!("expected compound component");
+        };
+        let get = |key: &str| fields.iter().find(|(k, _)| k == key).map(|(_, v)| v);
+        assert_eq!(
+            get("translate"),
+            Some(&Tag::String("build.spawn_protection".to_string()))
+        );
+        assert_eq!(get("color"), Some(&Tag::String("red".to_string())));
+        assert_eq!(
+            get("with"),
+            Some(&Tag::List(vec![Tag::String("10, 64, -3".to_string())]))
+        );
+    }
 
     fn op_access() -> (PlayerAccess, String) {
         let mut access = PlayerAccess::default();
