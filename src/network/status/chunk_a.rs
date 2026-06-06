@@ -1679,11 +1679,21 @@ fn handle_player_action_packet<R: Read>(
     let fields = read_player_action_fields(input)?;
     log_player_action_debug(&fields, play_state.game_mode, &context);
     if should_break_for_player_action(&fields, play_state.game_mode, &context) {
-        // Java ServerLevel.mayInteract gates breaking on spawn protection. A
-        // non-op breaking inside the spawn-protection radius is denied: the
-        // server does NOT change the block and re-sends the real state so the
-        // client reverts its predicted break.
-        if block_break_is_spawn_protected(&fields, &context) {
+        let block_pos = crate::block_update::BlockPos {
+            x: fields.x,
+            y: fields.y,
+            z: fields.z,
+        };
+        // Java ServerPlayerGameMode.handleBlockBreakAction (lines 153-170) checks,
+        // in order: reach, then spawn protection, then the break itself.
+        if !super::player_creative_packets::is_within_block_interaction_range(play_state, block_pos)
+        {
+            // Out of reach: Java logs "too far" and does NOT break or correct the
+            // client (the client never predicts an out-of-range break). Ignore it.
+        } else if block_break_is_spawn_protected(&fields, &context) {
+            // Non-op breaking inside the spawn-protection radius is denied: the
+            // server does NOT change the block and re-sends the real state so the
+            // client reverts its predicted break.
             write_block_break_denied(stream, compression, &fields, &context)?;
         } else {
             handle_player_block_break(stream, compression, play_state, &fields, &mut context)?;
@@ -1873,18 +1883,21 @@ fn handle_player_block_break(
     fields: &PlayerActionFields,
     context: &mut PlayerActionContext<'_, '_>,
 ) -> io::Result<()> {
-    // Spawn protection IS now enforced before this handler runs (see
-    // block_break_is_spawn_protected in handle_player_action_packet, 1:1 with
-    // Java ServerLevel.mayInteract -> DedicatedServer.isUnderSpawnProtection).
+    // Reach and spawn protection ARE now enforced before this handler runs (see
+    // handle_player_action_packet: is_within_block_interaction_range +
+    // block_break_is_spawn_protected, 1:1 with Java
+    // ServerPlayerGameMode.handleBlockBreakAction reach/mayInteract checks).
     //
     // TODO(live-block-break-uses-game-mode-logic): this handler still bypasses
     // the rest of the comprehensive, Java-1:1, fully-tested ServerPlayerGameMode
     // logic in player_game_mode.rs (handle_block_break_action). It breaks any
-    // block on StopDestroy/creative/instamine WITHOUT enforcing: server-side
-    // reach (block_interaction_range -> TooFar), adventure CanDestroy
-    // restriction, spectator/may_interact gating, or per-tool break-speed timing.
-    // Those paths exist + pass unit tests but are dead code here. Wiring them in
-    // is what completes PLAYER checklist #34 (reach) and #43 (ServerPlayerGameMode).
+    // block on StopDestroy/creative/instamine WITHOUT enforcing adventure
+    // CanDestroy restriction, spectator/may_interact gating, or per-tool
+    // break-speed timing (which needs per-player server-side destroy-progress
+    // tracking across ticks). Those paths exist + pass unit tests but are dead
+    // code here. Wiring them in is what completes PLAYER #43 (ServerPlayerGameMode).
+    // PLAYER #34 (reach) additionally needs entity attack-range (3.0), blocked on
+    // the live entity/combat system (MOBS).
     write_block_break_ack_and_air(stream, compression, fields, play_state.game_mode)?;
     let block_pos = crate::block_update::BlockPos {
         x: fields.x,

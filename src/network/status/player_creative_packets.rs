@@ -70,7 +70,7 @@ pub(in crate::network::status) fn apply_pick_item_from_block_packet(
         y: packet.y,
         z: packet.z,
     };
-    if !is_within_pick_block_range(state, pos) {
+    if !is_within_block_interaction_range(state, pos) {
         return PickItemOutcome::NoItem;
     }
     let Some(block_state) = try_read_block_model_at(chunk_cache, world_layout, pos) else {
@@ -137,7 +137,13 @@ fn apply_pick_item_stack(state: &mut PlaySessionState, stack: ItemStack) -> Pick
     }
 }
 
-fn is_within_pick_block_range(
+/// Server-authoritative block interaction reach, 1:1 with Java
+/// `Player.isWithinBlockInteractionRange(pos, 1.0)`: the squared AABB distance
+/// from the player's eye to the target block must be below
+/// `(blockInteractionRange + 1.0)²`, where the range is 4.5 survival / 5.0
+/// creative (`Player.DEFAULT_BLOCK_INTERACTION_RANGE` 4.5 plus the creative
+/// `+0.5` modifier). Used for both block placement and block breaking.
+pub(crate) fn is_within_block_interaction_range(
     state: &PlaySessionState,
     pos: crate::block_update::BlockPos,
 ) -> bool {
@@ -163,5 +169,37 @@ fn axis_distance_to_unit_interval(point: f64, min: f64, max: f64) -> f64 {
         point - max
     } else {
         0.0
+    }
+}
+
+#[cfg(test)]
+mod reach_tests {
+    use super::*;
+    use crate::block_update::BlockPos;
+
+    /// `is_within_block_interaction_range` must match Java
+    /// `Player.isWithinBlockInteractionRange(pos, 1.0)` boundaries: survival
+    /// reaches `(4.5+1.0)²` and creative `(5.0+1.0)²` squared eye-to-AABB
+    /// distance. With the eye at (0.5, 1.62, 0.5), a block at x=6 sits at
+    /// squared distance 5.5²+0.62² ≈ 30.63 — outside survival's 30.25 but inside
+    /// creative's 36.
+    #[test]
+    fn block_interaction_range_matches_java_survival_and_creative_bounds() {
+        let mut state = PlaySessionState::default();
+        state.x = 0.5;
+        state.y = 0.0;
+        state.z = 0.5;
+        state.game_mode = GameMode::Survival;
+
+        // Nearby block (nearest face 4.5 out): within reach in both modes.
+        assert!(is_within_block_interaction_range(&state, BlockPos { x: 5, y: 0, z: 0 }));
+        // Far block (6.5 out): out of reach in both modes.
+        assert!(!is_within_block_interaction_range(&state, BlockPos { x: 7, y: 0, z: 0 }));
+        // Boundary block (5.5 out): just out of survival reach...
+        assert!(!is_within_block_interaction_range(&state, BlockPos { x: 6, y: 0, z: 0 }));
+
+        // ...but within creative reach.
+        state.game_mode = GameMode::Creative;
+        assert!(is_within_block_interaction_range(&state, BlockPos { x: 6, y: 0, z: 0 }));
     }
 }
