@@ -41,10 +41,12 @@ pub fn special_crafting_result(
         SpecialRecipeKind::RepairItem => repair_item(grid),
         SpecialRecipeKind::ShieldDecoration => shield_decoration(result_hint?, grid),
         SpecialRecipeKind::BannerDuplicate => banner_duplicate(result_hint?, grid),
+        SpecialRecipeKind::BookCloning => book_cloning(result_hint?, grid),
+        SpecialRecipeKind::DecoratedPot => decorated_pot(result_hint?, grid),
         // TODO(recipes-special): port the remaining `CustomRecipe` assemblers to
-        // real `ItemStack`s — book cloning, decorated pot, dye, the three firework
-        // recipes, and map cloning/extending. Until each is implemented here it
-        // does not function in-game.
+        // real `ItemStack`s — dye, the three firework recipes, and map
+        // cloning/extending. Until each is implemented here it does not function
+        // in-game.
         _ => None,
     }
 }
@@ -279,6 +281,127 @@ fn crafting_enchantments(stack: &ItemStack) -> BTreeMap<String, i32> {
     }
 }
 
+// ----------------------------------------------------------------------------
+// BookCloningRecipe
+// ----------------------------------------------------------------------------
+
+/// `BookCloningRecipe` — a written book (generation 0 or 1) plus one or more
+/// writable books yields that many copies at generation + 1; the source written
+/// book is left behind.
+fn book_cloning(result_hint: &ItemAmount, grid: &[ItemStack]) -> Option<SpecialCraftOutcome> {
+    let present = present_indexed(grid);
+    if present.len() < 2 {
+        return None;
+    }
+    let mut source = None;
+    let mut material_count = 0i32;
+    for (_, stack) in &present {
+        if stack.item_id() == "minecraft:written_book" {
+            // `allowed_generations` defaults to 0..=1.
+            let generation = written_book_generation(stack)?;
+            if !(0..=1).contains(&generation) || source.replace(*stack).is_some() {
+                return None;
+            }
+        } else if stack.item_id() == "minecraft:writable_book" {
+            material_count += 1;
+        } else {
+            return None;
+        }
+    }
+    let source = source?;
+    if material_count == 0 {
+        return None;
+    }
+
+    // createWithOriginalComponents(result, source, count - 1) -> count copies, then
+    // WRITTEN_BOOK_CONTENT = source.craftCopy() (generation + 1).
+    let mut result = source.transmute_copy(result_hint.item, material_count);
+    bump_written_book_generation(&mut result);
+
+    // getRemainingItems: the (first) written book stays at count 1; the writable
+    // books are consumed.
+    let mut kept = false;
+    let grid_after = grid
+        .iter()
+        .map(|stack| {
+            if !kept && stack.component("minecraft:written_book_content").is_some() {
+                kept = true;
+                stack.copy_with_count(1)
+            } else {
+                ItemStack::empty()
+            }
+        })
+        .collect();
+    Some(SpecialCraftOutcome { result, grid_after })
+}
+
+/// The `generation` of a stack's `written_book_content`, if present.
+fn written_book_generation(stack: &ItemStack) -> Option<i32> {
+    match stack.component("minecraft:written_book_content") {
+        Some(ItemComponent::WrittenBookContent { generation, .. }) => Some(*generation),
+        _ => None,
+    }
+}
+
+/// `WrittenBookContent.craftCopy`: increment the generation by one.
+fn bump_written_book_generation(stack: &mut ItemStack) {
+    if let Some(ItemComponent::WrittenBookContent {
+        title,
+        author,
+        generation,
+        pages,
+        resolved,
+    }) = stack.component("minecraft:written_book_content")
+    {
+        let copy = ItemComponent::WrittenBookContent {
+            title: title.clone(),
+            author: author.clone(),
+            generation: generation + 1,
+            pages: pages.clone(),
+            resolved: *resolved,
+        };
+        stack.set_component(copy);
+    }
+}
+
+// ----------------------------------------------------------------------------
+// DecoratedPotRecipe
+// ----------------------------------------------------------------------------
+
+/// `DecoratedPotRecipe` — four pottery sherds/bricks in the cardinal slots of the
+/// 3×3 grid form a decorated pot whose four faces are the placed ingredients.
+fn decorated_pot(result_hint: &ItemAmount, grid: &[ItemStack]) -> Option<SpecialCraftOutcome> {
+    if grid.len() != 9 {
+        return None;
+    }
+    // The four cardinal slots: back=(1,0), left=(0,1), right=(2,1), front=(1,2).
+    let present = present_indexed(grid);
+    if present.len() != 4 || present.iter().any(|(index, _)| !matches!(index, 1 | 3 | 5 | 7)) {
+        return None;
+    }
+    let face = |index: usize| -> Option<&'static str> {
+        let stack = &grid[index];
+        (!stack.is_empty() && is_pot_ingredient(stack.item_id())).then(|| stack.item_id())
+    };
+    let decorations = ItemComponent::PotDecorations {
+        back: face(1)?,
+        left: face(3)?,
+        right: face(5)?,
+        front: face(7)?,
+    };
+    let mut result = ItemStack::new(result_hint.item, result_hint.count as i32);
+    result.set_component(decorations);
+    Some(SpecialCraftOutcome {
+        result,
+        grid_after: vec![ItemStack::empty(); grid.len()],
+    })
+}
+
+/// `#minecraft:decorated_pot_ingredients` — brick plus every pottery sherd.
+fn is_pot_ingredient(item_id: &str) -> bool {
+    item_id == "minecraft:brick" || item_id.ends_with("_pottery_sherd")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -416,6 +539,80 @@ mod tests {
             &grid
         )
         .is_none());
+    }
+
+    fn written_book(generation: i32) -> ItemStack {
+        let mut stack = ItemStack::new("minecraft:written_book", 1);
+        stack.set_component(ItemComponent::WrittenBookContent {
+            title: "Tale".to_string(),
+            author: "Steve".to_string(),
+            generation,
+            pages: vec!["page".to_string()],
+            resolved: true,
+        });
+        stack
+    }
+
+    #[test]
+    fn book_cloning_copies_at_next_generation_and_keeps_source() {
+        let hint = ItemAmount::one("minecraft:written_book");
+        let grid = grid_with(&[
+            (0, written_book(0)),
+            (1, ItemStack::new("minecraft:writable_book", 1)),
+            (2, ItemStack::new("minecraft:writable_book", 1)),
+        ]);
+        let outcome = special_crafting_result(SpecialRecipeKind::BookCloning, Some(&hint), &grid)
+            .expect("written book + 2 writable books should clone");
+        assert_eq!(outcome.result.item_id(), "minecraft:written_book");
+        assert_eq!(outcome.result.count(), 2, "one copy per writable book");
+        assert_eq!(written_book_generation(&outcome.result), Some(1));
+        // Source written book retained, writable books consumed.
+        assert_eq!(outcome.grid_after[0].item_id(), "minecraft:written_book");
+        assert!(outcome.grid_after[1].is_empty());
+        assert!(outcome.grid_after[2].is_empty());
+
+        // A generation-2 source is out of the allowed 0..=1 range.
+        let grid = grid_with(&[
+            (0, written_book(2)),
+            (1, ItemStack::new("minecraft:writable_book", 1)),
+        ]);
+        assert!(
+            special_crafting_result(SpecialRecipeKind::BookCloning, Some(&hint), &grid).is_none()
+        );
+    }
+
+    #[test]
+    fn decorated_pot_records_four_faces() {
+        let hint = ItemAmount::one("minecraft:decorated_pot");
+        let grid = grid_with(&[
+            (1, ItemStack::new("minecraft:brick", 1)),
+            (3, ItemStack::new("minecraft:angler_pottery_sherd", 1)),
+            (5, ItemStack::new("minecraft:brick", 1)),
+            (7, ItemStack::new("minecraft:skull_pottery_sherd", 1)),
+        ]);
+        let outcome = special_crafting_result(SpecialRecipeKind::DecoratedPot, Some(&hint), &grid)
+            .expect("four cardinal pot ingredients should craft a decorated pot");
+        assert_eq!(outcome.result.item_id(), "minecraft:decorated_pot");
+        assert_eq!(
+            outcome.result.component("minecraft:pot_decorations"),
+            Some(&ItemComponent::PotDecorations {
+                back: "minecraft:brick",
+                left: "minecraft:angler_pottery_sherd",
+                right: "minecraft:brick",
+                front: "minecraft:skull_pottery_sherd",
+            })
+        );
+
+        // An ingredient off the cardinal slots is rejected.
+        let grid = grid_with(&[
+            (0, ItemStack::new("minecraft:brick", 1)),
+            (3, ItemStack::new("minecraft:brick", 1)),
+            (5, ItemStack::new("minecraft:brick", 1)),
+            (7, ItemStack::new("minecraft:brick", 1)),
+        ]);
+        assert!(
+            special_crafting_result(SpecialRecipeKind::DecoratedPot, Some(&hint), &grid).is_none()
+        );
     }
 
     #[test]
