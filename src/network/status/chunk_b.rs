@@ -361,6 +361,18 @@ pub fn tick_play_session_food(
     tick_count: u64,
 ) -> bool {
     if state.health <= 0.0 {
+        // TODO(player-death-event-flow): there is currently no live death handler.
+        // On the health<=0 transition Java fires ServerPlayer.die(): send
+        // ClientboundPlayerCombatKillPacket (id 68), spawn the inventory as item
+        // entities via Inventory::death_drops (player_inventory.rs) gated on the
+        // keepInventory gamerule, spawn XP orbs totalling
+        // player_xp_reward_on_death (player_entity.rs), record last_death_location,
+        // then await the client's respawn request. The drop/orb logic exists and
+        // is unit-tested but is not wired here because the server has no live
+        // entity-simulation tick yet (item entities + XP orbs never spawn/tick/
+        // get picked up — see experience_system.rs orb_pickup_in_range /
+        // non_living_entity.rs merge, both currently test-only). Blocks PLAYER
+        // checklist #38 (XP orb pickup/merge), #40 (death drops), #41 (respawn).
         return false;
     }
 

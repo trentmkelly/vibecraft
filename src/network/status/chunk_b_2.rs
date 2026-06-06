@@ -424,6 +424,18 @@ pub fn handle_play_respawn_request(
     world_root: &Path,
     world_seed: i64,
 ) -> io::Result<()> {
+    // TODO(respawn-config-spawn-block): consume the player's stored respawn
+    // position before falling back to world default. Java
+    // ServerPlayer.findRespawnPositionAndUseSpawnBlock (ServerPlayer.java:995)
+    // reads RespawnConfig (the 26.1.2 `respawn` NBT compound via
+    // RespawnConfig.CODEC, NOT the legacy SpawnX/SpawnY/SpawnZ this session
+    // still serializes in play_session_state_nbt.rs), then resolves the spawn
+    // block: respawn anchor (consume 1 charge unless forced), else bed (gated
+    // on EnvironmentAttributes BED_RULE), else missingRespawnBlock -> default.
+    // The primitives exist in respawn.rs (use_bed/use_respawn_anchor/
+    // consume_respawn_anchor_charge/validate_spawn_point) but are not wired in
+    // here, and the legacy NBT shape must be replaced with the RespawnConfig
+    // codec first. Until then we always respawn at the world spawn.
     let spawn = find_default_player_spawn(world_root, world_seed, state.game_mode);
     apply_spawn_placement_to_state(state, spawn);
     reset_play_state_after_death_respawn(state);
