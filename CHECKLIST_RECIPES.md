@@ -27,7 +27,7 @@
 
 - [x] Implement `RecipeManager` loading from datapack `data/*/recipe/*.json` files with `RecipeSerializer` dispatch — `recipe_loading::load_recipe_directory` parses every vanilla recipe JSON (serializer dispatch by `type` in `load_recipe_json`), verified by `recipe_manager_loads_all_vanilla_recipe_json_files` (1515 recipes load: 1094 crafting, 73 smelting, 275 stonecutting).
 - [x] Implement `RecipeMap` per-type recipe indexing: `getRecipeFor(type, input, level)` and `getAllRecipesFor(type)` — `RecipeMap::get_recipe_for` (first match by type, like Java) + `by_type`; covered by `recipe_manager_indexes_by_type_key_and_matching_input`.
-- [ ] Implement `RecipePropertySet` per `RecipeType` for client-side ingredient caching
+- [x] Implement `RecipePropertySet` per `RecipeType` for client-side ingredient caching — `collect_recipe_property_sets` builds the 7 vanilla sets (furnace/blast_furnace/smoker/campfire input + smithing template/base/addition) as the union of each type's ingredient items, 1:1 with `RecipePropertySet.create`; `RecipeManagerModel::reload` recomputes them in production. Verified by `recipe_manager_reload_replaces_indexes_and_recipe_access_sets`.
 - [x] Implement `SelectableRecipe` (stonecutter): list of outputs per input item, recipe selection index — `StonecutterSelection` + `stonecutter_recipes_for_input`; verified live by `StonecutterMenu` (CONTAINERS) and `stonecutter_selectable_recipes_filter_all_outputs_for_input`.
 - [ ] Implement recipe `PlacementInfo` for client-side ingredient placement hints
 - [x] Implement reload invalidation: clear recipe cache and re-index on `ServerReloadableResources` reload — `RecipeManagerModel::reload`/`RecipeMap` re-index; covered by `recipe_manager_reload_replaces_indexes_and_recipe_access_sets`.
