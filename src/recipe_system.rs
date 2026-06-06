@@ -918,6 +918,9 @@ impl IngredientSpec {
         match self {
             IngredientSpec::Empty => false,
             IngredientSpec::Item(expected) => *expected == item,
+            // `contains(&item)` would require `item: &'static str`; the `&str`
+            // parameter (so non-static furnace inputs can match) needs `any`.
+            #[allow(clippy::manual_contains)]
             IngredientSpec::AnyOf(items) => items.iter().any(|candidate| *candidate == item),
         }
     }
