@@ -474,10 +474,11 @@ impl RecipeMap {
             return None;
         }
         self.recipes.iter().find_map(|holder| {
-            let RecipeKind::Special { kind, .. } = &holder.recipe else {
+            let RecipeKind::Special { kind, result_hint } = &holder.recipe else {
                 return None;
             };
-            special_crafting_result(*kind, grid).map(|outcome| (holder.id, outcome))
+            special_crafting_result(*kind, result_hint.as_ref(), grid)
+                .map(|outcome| (holder.id, outcome))
         })
     }
 }

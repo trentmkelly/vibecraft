@@ -248,22 +248,22 @@ fn parse_crafting_special_recipe(
     let recipe = match recipe_type {
         "crafting_special_bannerduplicate" => {
             parse_field_ingredient(object, "banner", id, tags)?;
-            parse_result(object, id)?;
-            special_recipe(SpecialRecipeKind::BannerDuplicate)
+            let result = parse_result(object, id)?;
+            special_recipe(SpecialRecipeKind::BannerDuplicate, Some(result))
         }
         "crafting_special_bookcloning" => {
             parse_field_ingredient(object, "source", id, tags)?;
             parse_field_ingredient(object, "material", id, tags)?;
-            parse_result(object, id)?;
+            let result = parse_result(object, id)?;
             parse_allowed_generations(object, id)?;
-            special_recipe(SpecialRecipeKind::BookCloning)
+            special_recipe(SpecialRecipeKind::BookCloning, Some(result))
         }
         "crafting_special_firework_rocket" => {
             parse_field_ingredient(object, "shell", id, tags)?;
             parse_field_ingredient(object, "fuel", id, tags)?;
             parse_field_ingredient(object, "star", id, tags)?;
-            parse_result(object, id)?;
-            special_recipe(SpecialRecipeKind::FireworkRocket)
+            let result = parse_result(object, id)?;
+            special_recipe(SpecialRecipeKind::FireworkRocket, Some(result))
         }
         "crafting_special_firework_star" => {
             parse_shape_ingredients(object, id, tags)?;
@@ -271,28 +271,28 @@ fn parse_crafting_special_recipe(
             parse_field_ingredient(object, "twinkle", id, tags)?;
             parse_field_ingredient(object, "fuel", id, tags)?;
             parse_field_ingredient(object, "dye", id, tags)?;
-            parse_result(object, id)?;
-            special_recipe(SpecialRecipeKind::FireworkStar)
+            let result = parse_result(object, id)?;
+            special_recipe(SpecialRecipeKind::FireworkStar, Some(result))
         }
         "crafting_special_firework_star_fade" => {
             parse_field_ingredient(object, "target", id, tags)?;
             parse_field_ingredient(object, "dye", id, tags)?;
-            parse_result(object, id)?;
-            special_recipe(SpecialRecipeKind::FireworkStarFade)
+            let result = parse_result(object, id)?;
+            special_recipe(SpecialRecipeKind::FireworkStarFade, Some(result))
         }
-        "crafting_special_mapcloning" => special_recipe(SpecialRecipeKind::MapCloning),
+        "crafting_special_mapcloning" => special_recipe(SpecialRecipeKind::MapCloning, None),
         "crafting_special_mapextending" => {
             parse_field_ingredient(object, "map", id, tags)?;
             parse_field_ingredient(object, "material", id, tags)?;
-            parse_result(object, id)?;
-            special_recipe(SpecialRecipeKind::MapExtending)
+            let result = parse_result(object, id)?;
+            special_recipe(SpecialRecipeKind::MapExtending, Some(result))
         }
-        "crafting_special_repairitem" => special_recipe(SpecialRecipeKind::RepairItem),
+        "crafting_special_repairitem" => special_recipe(SpecialRecipeKind::RepairItem, None),
         "crafting_special_shielddecoration" => {
             parse_field_ingredient(object, "banner", id, tags)?;
             parse_field_ingredient(object, "target", id, tags)?;
-            parse_result(object, id)?;
-            special_recipe(SpecialRecipeKind::ShieldDecoration)
+            let result = parse_result(object, id)?;
+            special_recipe(SpecialRecipeKind::ShieldDecoration, Some(result))
         }
         other => return Err(format!("recipe {id} has unsupported type minecraft:{other}")),
     };
@@ -345,11 +345,8 @@ pub fn load_recipe_directory(recipe_dir: &std::path::Path) -> Result<RecipeManag
     Ok(RecipeManagerModel::new(recipes))
 }
 
-fn special_recipe(kind: SpecialRecipeKind) -> RecipeKind {
-    RecipeKind::Special {
-        kind,
-        result_hint: None,
-    }
+fn special_recipe(kind: SpecialRecipeKind, result_hint: Option<ItemAmount>) -> RecipeKind {
+    RecipeKind::Special { kind, result_hint }
 }
 
 fn json_str<'a>(
