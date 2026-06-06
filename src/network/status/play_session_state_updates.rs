@@ -29,6 +29,15 @@ pub fn update_play_session_state<R: Read>(
     }
 }
 
+// TODO(live-move-validation): these handlers assign the client-sent position
+// directly to state.x/y/z with NO server-authoritative validation. The
+// comprehensive, Java-1:1, fully-tested validate_player_move/validate_vehicle_move
+// in movement_validation.rs (moved-too-quickly 100²/300², coordinate clamping,
+// teleport-ack authority, illegal-stance/flying anti-cheat, packet correction)
+// exists but is dead code — never called from the live loop. Routing these
+// handlers through it is what completes PLAYER checklist #130 (server
+// authoritative movement validation) and #131 (anti-cheat checks), both left
+// UNMARKED until then.
 fn update_position_packet<R: Read>(
     input: &mut R,
     state: &mut PlaySessionState,

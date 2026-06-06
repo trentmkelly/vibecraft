@@ -1756,6 +1756,17 @@ fn handle_player_block_break(
     fields: &PlayerActionFields,
     context: &mut PlayerActionContext<'_, '_>,
 ) -> io::Result<()> {
+    // TODO(live-block-break-uses-game-mode-logic): this live handler bypasses
+    // the comprehensive, Java-1:1, fully-tested ServerPlayerGameMode logic in
+    // player_game_mode.rs (handle_block_break_action). It currently breaks any
+    // block on StopDestroy/creative/instamine WITHOUT enforcing: spawn
+    // protection (player_access.rs::is_under_spawn_protection + op bypass),
+    // server-side reach (block_interaction_range -> TooFar), adventure CanDestroy
+    // restriction, spectator/may_interact gating, or per-tool break-speed timing.
+    // Those modules exist and pass unit tests but are dead code here. Wiring them
+    // in is what completes PLAYER checklist #34 (reach), #43 (ServerPlayerGameMode),
+    // and #44 (spawn protection) — all left UNMARKED until this handler routes
+    // through handle_block_break_action.
     write_block_break_ack_and_air(stream, compression, fields, play_state.game_mode)?;
     let block_pos = crate::block_update::BlockPos {
         x: fields.x,
