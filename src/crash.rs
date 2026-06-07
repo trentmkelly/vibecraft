@@ -74,6 +74,52 @@ pub fn default_uncaught_exception_handler_with_name_actions(
     ]
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CrashReportReferenceModel {
+    title: String,
+    exception: JavaThrowableModel,
+}
+
+impl CrashReportReferenceModel {
+    pub fn new(title: impl Into<String>, exception: JavaThrowableModel) -> Self {
+        Self {
+            title: title.into(),
+            exception,
+        }
+    }
+
+    pub fn get_title(&self) -> &str {
+        &self.title
+    }
+
+    pub fn get_exception(&self) -> &JavaThrowableModel {
+        &self.exception
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReportedExceptionModel {
+    report: CrashReportReferenceModel,
+}
+
+impl ReportedExceptionModel {
+    pub fn new(report: CrashReportReferenceModel) -> Self {
+        Self { report }
+    }
+
+    pub fn get_report(&self) -> &CrashReportReferenceModel {
+        &self.report
+    }
+
+    pub fn get_cause(&self) -> &JavaThrowableModel {
+        self.report.get_exception()
+    }
+
+    pub fn get_message(&self) -> &str {
+        self.report.get_title()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct CrashReport {
     title: String,
@@ -724,5 +770,16 @@ mod tests {
                 },
             ]
         );
+    }
+
+    #[test]
+    fn reported_exception_delegates_report_cause_and_message_like_java() {
+        let throwable = JavaThrowableModel::new("IllegalArgumentException", Some("bad id"));
+        let report = super::CrashReportReferenceModel::new("Loading registry", throwable.clone());
+        let reported = super::ReportedExceptionModel::new(report.clone());
+
+        assert_eq!(reported.get_report(), &report);
+        assert_eq!(reported.get_cause(), &throwable);
+        assert_eq!(reported.get_message(), "Loading registry");
     }
 }
