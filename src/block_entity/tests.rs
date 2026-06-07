@@ -192,6 +192,19 @@ fn assert_trial_spawner_java_events_particles_and_spawn_gate() {
         TrialSpawnerBlockEntity::detect_player_particle_count(12),
         80
     );
+    let config = TrialSpawnerConfigModel::default();
+    assert_eq!(config.ticks_between_item_spawners(), 160);
+    let with_spawning = config.with_spawning("minecraft:stray");
+    assert_eq!(with_spawning.spawn_potentials.len(), 1);
+    assert_eq!(
+        with_spawning.spawn_potentials[0].entity_id(),
+        Some("minecraft:stray")
+    );
+    assert_eq!(with_spawning.loot_tables_to_eject, config.loot_tables_to_eject);
+    assert_eq!(
+        with_spawning.items_to_drop_when_ominous,
+        config.items_to_drop_when_ominous
+    );
     assert!(TrialSpawnerBlockEntity::can_spawn_in_level(true, true, true, false));
     assert!(!TrialSpawnerBlockEntity::can_spawn_in_level(true, false, true, true));
     assert!(!TrialSpawnerBlockEntity::can_spawn_in_level(true, false, false, false));

@@ -489,6 +489,8 @@ impl Default for TrialSpawnerConfigModel {
 }
 
 impl TrialSpawnerConfigModel {
+    pub const TICKS_BETWEEN_ITEM_SPAWNERS: i64 = 160;
+
     pub fn target_total_mobs(&self, additional_players: usize) -> i32 {
         (self.total_mobs + self.total_mobs_added_per_player * additional_players as f32).floor()
             as i32
@@ -498,6 +500,16 @@ impl TrialSpawnerConfigModel {
         (self.simultaneous_mobs
             + self.simultaneous_mobs_added_per_player * additional_players as f32)
             .floor() as i32
+    }
+
+    pub fn ticks_between_item_spawners(&self) -> i64 {
+        Self::TICKS_BETWEEN_ITEM_SPAWNERS
+    }
+
+    pub fn with_spawning(&self, entity_id: impl Into<String>) -> Self {
+        let mut config = self.clone();
+        config.spawn_potentials = vec![SpawnDataModel::new(entity_id)];
+        config
     }
 
     pub(super) fn to_tag(&self) -> Tag {
