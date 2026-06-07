@@ -128,7 +128,9 @@ impl BlockEntity {
             BlockEntityTypeId::Sign
             | BlockEntityTypeId::HangingSign
             | BlockEntityTypeId::Skull
-            | BlockEntityTypeId::StructureBlock => self.save_custom_only(),
+            | BlockEntityTypeId::StructureBlock
+            | BlockEntityTypeId::TestBlock
+            | BlockEntityTypeId::TestInstanceBlock => self.save_custom_only(),
             BlockEntityTypeId::MobSpawner => {
                 let Tag::Compound(mut values) = self.save_custom_only() else {
                     return Tag::Compound(Vec::new());

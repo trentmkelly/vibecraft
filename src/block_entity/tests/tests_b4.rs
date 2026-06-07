@@ -537,3 +537,124 @@ fn structure_block_entity_wrapper_surfaces_match_java() {
         )])
     );
 }
+
+#[test]
+fn test_block_entity_wrapper_surfaces_match_java() {
+    let mut test_block = TestBlockEntityState {
+        mode: TestBlockMode::Fail,
+        message: " failure ".to_string(),
+        powered: true,
+        triggered: true,
+    };
+
+    assert_eq!(
+        test_block.set_mode_with_block_update(TestBlockMode::Start),
+        TestBlockEntityState::SET_MODE_UPDATE_FLAGS
+    );
+    assert!(test_block.should_log());
+    assert!(test_block.reset_updates_neighbors(true));
+    assert!(!test_block.powered);
+    assert!(!test_block.triggered);
+    assert!(test_block.trigger_updates_neighbors(true));
+    assert!(test_block.powered);
+    assert!(!test_block.triggered);
+
+    test_block.mode = TestBlockMode::Log;
+    assert!(!test_block.trigger_updates_neighbors(true));
+    assert!(test_block.triggered);
+    test_block.message = "   ".to_string();
+    assert!(!test_block.should_log());
+
+    let mut entity =
+        BlockEntity::new(BlockEntityTypeId::TestBlock, pos(), "minecraft:test_block").unwrap();
+    entity
+        .custom_data
+        .insert("message".to_string(), Tag::String("hello".to_string()));
+    entity.components.insert(
+        "minecraft:custom_name".to_string(),
+        Tag::String("\"Test\"".to_string()),
+    );
+    assert_eq!(
+        entity.get_update_tag(),
+        Tag::Compound(vec![(
+            "message".to_string(),
+            Tag::String("hello".to_string())
+        )])
+    );
+}
+
+#[test]
+fn test_instance_block_entity_render_beam_and_update_tag_match_java() {
+    let mut state = TestInstanceBlockEntityState {
+        data: TestInstanceBlockEntityData {
+            test: Some("minecraft:always_pass".to_string()),
+            size: (3, 4, 5),
+            rotation: "clockwise_90".to_string(),
+            ignore_entities: true,
+            status: TestInstanceStatus::Cleared,
+            error_message: None,
+        },
+        errors: Vec::new(),
+    };
+
+    assert_eq!(state.render_mode(), StructureRenderMode::Box);
+    assert_eq!(state.beam_sections(true), Vec::<i32>::new());
+    state.set_running();
+    assert_eq!(
+        state.beam_sections(true),
+        vec![TestInstanceBlockEntityState::BEAM_RUNNING]
+    );
+    state.set_success();
+    assert_eq!(
+        state.beam_sections(true),
+        vec![TestInstanceBlockEntityState::BEAM_SUCCESS]
+    );
+    state.set_error_message("required failure");
+    assert_eq!(
+        state.beam_sections(true),
+        vec![TestInstanceBlockEntityState::BEAM_REQUIRED_FAILED]
+    );
+    assert_eq!(
+        state.beam_sections(false),
+        vec![TestInstanceBlockEntityState::BEAM_OPTIONAL_FAILED]
+    );
+
+    assert_eq!(
+        TestInstanceBlockEntityState::structure_pos(BlockPos { x: 10, y: 64, z: -2 }, 2),
+        BlockPos { x: 12, y: 67, z: 1 }
+    );
+    assert_eq!(state.transformed_size("clockwise_90"), (5, 4, 3));
+    assert_eq!(
+        state.start_corner(BlockPos { x: 10, y: 64, z: -2 }, "clockwise_180", 0),
+        BlockPos { x: 12, y: 65, z: 3 }
+    );
+    assert_eq!(
+        state.renderable_box(1, "clockwise_90"),
+        StructureRenderableBox {
+            min: BlockPos { x: 1, y: 2, z: 2 },
+            max: BlockPos { x: 6, y: 6, z: 5 },
+        }
+    );
+    assert_eq!(
+        state.get_update_tag(),
+        state.save_additional()
+    );
+    assert!(!state.world_operations_supported());
+
+    let mut entity = BlockEntity::new(
+        BlockEntityTypeId::TestInstanceBlock,
+        pos(),
+        "minecraft:test_instance_block",
+    )
+    .unwrap();
+    entity
+        .custom_data
+        .insert("data".to_string(), state.data.to_tag());
+    entity.components.insert(
+        "minecraft:custom_name".to_string(),
+        Tag::String("\"Instance\"".to_string()),
+    );
+    assert!(
+        matches!(entity.get_update_tag(), Tag::Compound(values) if values.iter().any(|(key, _)| key == "data") && values.iter().all(|(key, _)| key != "components"))
+    );
+}

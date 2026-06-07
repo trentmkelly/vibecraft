@@ -33,6 +33,8 @@ impl Default for TestBlockEntityState {
 }
 
 impl TestBlockEntityState {
+    pub const SET_MODE_UPDATE_FLAGS: i32 = 2;
+
     pub fn save_additional(&self) -> Tag {
         Tag::Compound(vec![
             (
@@ -76,6 +78,37 @@ impl TestBlockEntityState {
         } else {
             self.triggered = true;
         }
+    }
+
+    pub fn set_mode_with_block_update(&mut self, mode: TestBlockMode) -> i32 {
+        self.mode = mode;
+        Self::SET_MODE_UPDATE_FLAGS
+    }
+
+    pub fn reset_updates_neighbors(&mut self, has_level: bool) -> bool {
+        self.triggered = false;
+        if self.mode == TestBlockMode::Start && has_level {
+            self.powered = false;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn trigger_updates_neighbors(&mut self, has_level: bool) -> bool {
+        if self.mode == TestBlockMode::Start && has_level {
+            self.powered = true;
+            true
+        } else {
+            if self.mode != TestBlockMode::Start {
+                self.triggered = true;
+            }
+            false
+        }
+    }
+
+    pub fn should_log(&self) -> bool {
+        !self.message.trim().is_empty()
     }
 }
 
@@ -197,6 +230,13 @@ impl TestInstanceBlockEntityData {
 }
 
 impl TestInstanceBlockEntityState {
+    pub const STRUCTURE_OFFSET: BlockPos = BlockPos { x: 0, y: 1, z: 1 };
+    pub const PLACE_UPDATE_FLAGS: i32 = 818;
+    pub const BEAM_RUNNING: i32 = 0xFF80_8080u32 as i32;
+    pub const BEAM_SUCCESS: i32 = 0xFF00_FF00u32 as i32;
+    pub const BEAM_REQUIRED_FAILED: i32 = 0xFFFF_0000u32 as i32;
+    pub const BEAM_OPTIONAL_FAILED: i32 = 0xFFFF_8000u32 as i32;
+
     pub fn save_additional(&self) -> Tag {
         let mut fields = vec![("data".to_string(), self.data.to_tag())];
         if !self.errors.is_empty() {
@@ -255,6 +295,85 @@ impl TestInstanceBlockEntityState {
 
     pub fn clear_error_markers(&mut self) {
         self.errors.clear();
+    }
+
+    pub fn get_update_tag(&self) -> Tag {
+        self.save_additional()
+    }
+
+    pub fn render_mode(&self) -> StructureRenderMode {
+        StructureRenderMode::Box
+    }
+
+    pub fn beam_sections(&self, required: bool) -> Vec<i32> {
+        match self.data.status {
+            TestInstanceStatus::Cleared => Vec::new(),
+            TestInstanceStatus::Running => vec![Self::BEAM_RUNNING],
+            TestInstanceStatus::Finished if self.data.error_message.is_none() => {
+                vec![Self::BEAM_SUCCESS]
+            }
+            TestInstanceStatus::Finished if required => vec![Self::BEAM_REQUIRED_FAILED],
+            TestInstanceStatus::Finished => vec![Self::BEAM_OPTIONAL_FAILED],
+        }
+    }
+
+    pub fn structure_pos(origin: BlockPos, padding: i32) -> BlockPos {
+        BlockPos {
+            x: origin.x + padding + Self::STRUCTURE_OFFSET.x,
+            y: origin.y + padding + Self::STRUCTURE_OFFSET.y,
+            z: origin.z + padding + Self::STRUCTURE_OFFSET.z,
+        }
+    }
+
+    pub fn transformed_size(&self, resolved_rotation: &str) -> (i32, i32, i32) {
+        if matches!(resolved_rotation, "clockwise_90" | "counterclockwise_90") {
+            (self.data.size.2, self.data.size.1, self.data.size.0)
+        } else {
+            self.data.size
+        }
+    }
+
+    pub fn start_corner(&self, origin: BlockPos, resolved_rotation: &str, padding: i32) -> BlockPos {
+        let pos = Self::structure_pos(origin, padding);
+        match resolved_rotation {
+            "clockwise_90" => BlockPos {
+                x: pos.x + self.data.size.2 - 1,
+                ..pos
+            },
+            "clockwise_180" => BlockPos {
+                x: pos.x + self.data.size.0 - 1,
+                z: pos.z + self.data.size.2 - 1,
+                ..pos
+            },
+            "counterclockwise_90" => BlockPos {
+                z: pos.z + self.data.size.0 - 1,
+                ..pos
+            },
+            _ => pos,
+        }
+    }
+
+    pub fn renderable_box(&self, padding: i32, resolved_rotation: &str) -> StructureRenderableBox {
+        let min = BlockPos {
+            x: Self::STRUCTURE_OFFSET.x + padding,
+            y: Self::STRUCTURE_OFFSET.y + padding,
+            z: Self::STRUCTURE_OFFSET.z + padding,
+        };
+        let size = self.transformed_size(resolved_rotation);
+        StructureRenderableBox {
+            min,
+            max: BlockPos {
+                x: min.x + size.0,
+                y: min.y + size.1,
+                z: min.z + size.2,
+            },
+        }
+    }
+
+    // TODO(test-instance-world-ops): wire reset/save/export/run/place/barrier
+    // operations through GameTestRunner, ServerLevel, and StructureTemplateManager.
+    pub fn world_operations_supported(&self) -> bool {
+        false
     }
 }
 
