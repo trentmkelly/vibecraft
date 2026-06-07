@@ -377,6 +377,80 @@ pub fn transfer_intent_disabled_sends_vanilla_transfers_disabled_disconnect() {
     handle.join().unwrap();
 }
 
+/// A connected loopback (server_end, client_end) pair for exercising packet
+/// writers against a real socket.
+fn loopback_pair() -> (std::net::TcpStream, std::net::TcpStream) {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    let client = std::net::TcpStream::connect(addr).unwrap();
+    let (server, _) = listener.accept().unwrap();
+    (server, client)
+}
+
+#[test]
+pub fn keep_alive_tick_sends_challenge_after_the_vanilla_interval() {
+    let (mut server, mut client) = loopback_pair();
+    let clock = Arc::new(Mutex::new(crate::world_time::ServerClockManager::default()));
+    let mut keep_alive = crate::network::common::KeepAliveState::new(0, 0);
+    // Back-date the epoch so `now_ms` ≈ 16 s > the 15 s interval → a challenge sends.
+    let epoch = std::time::Instant::now() - std::time::Duration::from_secs(16);
+    let mut last_time_sync = std::time::Instant::now();
+
+    let alive = super::tick_keep_alive_and_time(
+        &mut server,
+        crate::network::compression::CompressionState::disabled(),
+        &clock,
+        &mut keep_alive,
+        epoch,
+        &mut last_time_sync,
+    )
+    .unwrap();
+
+    assert!(alive);
+    assert!(keep_alive.is_pending());
+    let frame = read_packet(&mut client).unwrap();
+    let mut payload = &frame[..];
+    assert_eq!(
+        read_var_i32(&mut payload).unwrap(),
+        crate::network::play::CLIENTBOUND_KEEP_ALIVE_PACKET_ID
+    );
+}
+
+#[test]
+pub fn keep_alive_tick_disconnects_when_previous_challenge_unanswered() {
+    let (mut server, mut client) = loopback_pair();
+    let clock = Arc::new(Mutex::new(crate::world_time::ServerClockManager::default()));
+    // Pre-seed a pending challenge at t=15 s (via the model), then run the live tick
+    // at ≈32 s — still pending one interval later → `disconnect.timeout`.
+    let mut keep_alive = crate::network::common::KeepAliveState::new(0, 0);
+    assert!(matches!(
+        keep_alive.tick(15_000, false),
+        crate::network::common::KeepAliveTick::Send(_)
+    ));
+    let epoch = std::time::Instant::now() - std::time::Duration::from_secs(32);
+    let mut last_time_sync = std::time::Instant::now();
+
+    let alive = super::tick_keep_alive_and_time(
+        &mut server,
+        crate::network::compression::CompressionState::disabled(),
+        &clock,
+        &mut keep_alive,
+        epoch,
+        &mut last_time_sync,
+    )
+    .unwrap();
+
+    assert!(!alive);
+    let frame = read_packet(&mut client).unwrap();
+    let mut payload = &frame[..];
+    assert_eq!(
+        read_var_i32(&mut payload).unwrap(),
+        crate::network::play::CLIENTBOUND_DISCONNECT_PACKET_ID
+    );
+    let rest = String::from_utf8_lossy(payload);
+    assert!(rest.contains("disconnect.timeout"));
+}
+
 fn status_player(name: &str, allows_listing: bool) -> StatusPlayer {
     StatusPlayer {
         uuid: crate::player_access::NameAndId::create_offline(name).uuid,

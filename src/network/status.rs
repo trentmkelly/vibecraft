@@ -34,8 +34,9 @@ use crate::loot_system::{
 use crate::network::codec::ComponentJson;
 use crate::network::codec::{write_bitset, write_identifier, write_uuid, Uuid};
 use crate::network::common::{
-    ClientboundDisconnectPacket, ClientboundServerLinksPacket, ServerboundClientInformationPacket,
-    ServerboundCustomPayloadPacket, ServerLinkEntry, ServerLinkLabel, ServerLinkType,
+    ClientboundDisconnectPacket, ClientboundServerLinksPacket, KeepAliveState, KeepAliveTick,
+    ServerboundClientInformationPacket, ServerboundCustomPayloadPacket, ServerboundKeepAlivePacket,
+    ServerLinkEntry, ServerLinkLabel, ServerLinkType,
 };
 use crate::network::compression::CompressionState;
 use crate::network::configuration::ClientboundCodeOfConductPacket;

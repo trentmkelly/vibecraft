@@ -518,7 +518,7 @@ pub fn write_system_chat_text(
     )
 }
 
-fn write_disconnect_component(
+pub(super) fn write_disconnect_component(
     stream: &mut TcpStream,
     compression: CompressionState,
     translation_key: &str,

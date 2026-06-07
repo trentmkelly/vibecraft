@@ -234,8 +234,10 @@ struct JoinedPlaySessionStart {
     loaded_chunks: BTreeSet<(i32, i32)>,
     chunk_sender: PlayerChunkSender,
     chunk_pipeline_stats: ChunkPipelineSessionStats,
-    last_keep_alive: Instant,
-    keep_alive_id: i64,
+    /// Keepalive challenge/timeout tracker (Java `ServerCommonPacketListenerImpl`
+    /// keepAlive fields), driven off `keep_alive_epoch` for millisecond timestamps.
+    keep_alive: KeepAliveState,
+    keep_alive_epoch: Instant,
     last_sent_rain_level: f32,
     last_sent_thunder_level: f32,
     last_time_sync: Instant,
@@ -1213,8 +1215,8 @@ fn initialize_joined_play_session(
         loaded_chunks,
         chunk_sender,
         chunk_pipeline_stats: ChunkPipelineSessionStats::default(),
-        last_keep_alive: Instant::now(),
-        keep_alive_id: 0,
+        keep_alive: KeepAliveState::new(0, 0),
+        keep_alive_epoch: Instant::now(),
         last_sent_rain_level: join_rain_level,
         last_sent_thunder_level: join_thunder_level,
         last_time_sync: Instant::now(),
@@ -1244,35 +1246,36 @@ fn send_existing_item_entities(
     Ok(())
 }
 
-fn tick_keep_alive_and_time(
+/// Returns `false` once the keepalive has timed out (the `disconnect.timeout`
+/// packet has already been written and the play loop should end the session).
+pub(super) fn tick_keep_alive_and_time(
     stream: &mut TcpStream,
     compression: CompressionState,
     clock: &Arc<Mutex<ServerClockManager>>,
-    last_keep_alive: &mut Instant,
-    keep_alive_id: &mut i64,
+    keep_alive: &mut KeepAliveState,
+    keep_alive_epoch: Instant,
     last_time_sync: &mut Instant,
-) -> io::Result<()> {
-    // TODO(keepalive-timeout-handling): this (and the second loop in
-    // play_session_world_packets.rs) is an ad-hoc keepalive that only SENDS a
-    // ping (with an incrementing id) every interval — it never tracks a pending
-    // response, so a hung client is never disconnected, and the serverbound
-    // KeepAlive is consumed without validating the challenge. Java
-    // ServerCommonPacketListenerImpl: id = current millis; if a ping is still
-    // pending when the next 15s interval fires -> disconnect("disconnect.timeout");
-    // on response, require id == challenge (else disconnect) and update latency.
-    // The 1:1 logic already exists + is tested in `KeepAliveState`
-    // (network/common.rs) but is DEAD CODE here. Wiring it in (replace the ad-hoc
-    // fields with KeepAliveState, handle Disconnect by sending disconnect.timeout +
-    // closing, validate responses) completes CHECKLIST_NETWORK_GAME #273.
-    if last_keep_alive.elapsed() >= PLAY_KEEP_ALIVE_INTERVAL {
-        *keep_alive_id = keep_alive_id.wrapping_add(1);
-        write_framed_packet_with_compression(
-            stream,
-            compression,
-            CLIENTBOUND_KEEP_ALIVE_PACKET_ID,
-            |payload| payload.write_all(&keep_alive_id.to_be_bytes()),
-        )?;
-        *last_keep_alive = Instant::now();
+) -> io::Result<bool> {
+    // 1:1 with Java `ServerCommonPacketListenerImpl.keepConnectionAlive`: every 15 s
+    // (`KeepAliveState::VANILLA_INTERVAL_MS`) send a `ClientboundKeepAlivePacket`
+    // whose challenge is the current ms; if the previous ping is still unanswered
+    // when the next interval fires, disconnect with `disconnect.timeout`. The live
+    // socket is never "singleplayer owner" (real connection), so that gate is false.
+    let now_ms = keep_alive_epoch.elapsed().as_millis() as u64;
+    match keep_alive.tick(now_ms, false) {
+        KeepAliveTick::Idle => {}
+        KeepAliveTick::Send(packet) => {
+            write_framed_packet_with_compression(
+                stream,
+                compression,
+                CLIENTBOUND_KEEP_ALIVE_PACKET_ID,
+                |payload| payload.write_all(&packet.id.to_be_bytes()),
+            )?;
+        }
+        KeepAliveTick::Disconnect => {
+            write_disconnect_component(stream, compression, "disconnect.timeout")?;
+            return Ok(false);
+        }
     }
 
     // Time heartbeat: empty clock map, just the current game_time.
@@ -1293,7 +1296,7 @@ fn tick_keep_alive_and_time(
         )?;
         *last_time_sync = Instant::now();
     }
-    Ok(())
+    Ok(true)
 }
 
 fn tick_item_entities_for_client(
@@ -1506,8 +1509,8 @@ struct JoinedPlayLoopTickContext<'a, 'b> {
     chunk_sender: &'b mut PlayerChunkSender,
     chunk_pipeline_stats: &'b mut ChunkPipelineSessionStats,
     world_layout: &'b WorldLayout,
-    last_keep_alive: &'b mut Instant,
-    keep_alive_id: &'b mut i64,
+    keep_alive: &'b mut KeepAliveState,
+    keep_alive_epoch: Instant,
     last_time_sync: &'b mut Instant,
     last_item_tick: &'b mut Instant,
     last_player_tick: &'b mut Instant,
@@ -1518,12 +1521,14 @@ struct JoinedPlayLoopTickContext<'a, 'b> {
     join_commands_sent: &'b mut bool,
 }
 
+/// Returns `false` when the session should end (e.g. a keepalive timeout, whose
+/// `disconnect.timeout` packet has already been written).
 fn tick_joined_play_session_loop(
     stream: &mut TcpStream,
     compression: CompressionState,
     play_state: &mut PlaySessionState,
     context: JoinedPlayLoopTickContext<'_, '_>,
-) -> io::Result<()> {
+) -> io::Result<bool> {
     let JoinedPlayLoopTickContext {
         properties,
         world_root,
@@ -1538,8 +1543,8 @@ fn tick_joined_play_session_loop(
         chunk_sender,
         chunk_pipeline_stats,
         world_layout,
-        last_keep_alive,
-        keep_alive_id,
+        keep_alive,
+        keep_alive_epoch,
         last_time_sync,
         last_item_tick,
         last_player_tick,
@@ -1549,14 +1554,16 @@ fn tick_joined_play_session_loop(
         last_sent_thunder_level,
         join_commands_sent,
     } = context;
-    tick_keep_alive_and_time(
+    if !tick_keep_alive_and_time(
         stream,
         compression,
         clock,
-        last_keep_alive,
-        keep_alive_id,
+        keep_alive,
+        keep_alive_epoch,
         last_time_sync,
-    )?;
+    )? {
+        return Ok(false);
+    }
     tick_item_entities_for_client(stream, compression, world_items, last_item_tick)?;
     tick_player_and_chunk_sender(
         stream,
@@ -1585,7 +1592,8 @@ fn tick_joined_play_session_loop(
         weather,
         last_sent_rain_level,
         last_sent_thunder_level,
-    )
+    )?;
+    Ok(true)
 }
 
 fn persist_play_disconnect_state(
@@ -2592,6 +2600,10 @@ struct DecodedPlayPacketContext<'a, 'b> {
     /// The player's registry guard, used to propagate play-phase
     /// `ClientInformation` listing-preference changes to the status sample.
     active_login: &'a ActiveLoginGuard,
+    /// Keepalive tracker, so a serverbound `KeepAlive` response can be validated
+    /// against the pending challenge (Java `handleKeepAlive`).
+    keep_alive: &'b mut KeepAliveState,
+    keep_alive_epoch: Instant,
 }
 
 enum PlayPacketDispatchOutcome {
@@ -2619,6 +2631,8 @@ struct JoinedPlayPacketStepContext<'a, 'b> {
     live_fluid_ticks: &'b mut LiveFluidTicks,
     play_tick_count: u64,
     active_login: &'a ActiveLoginGuard,
+    keep_alive: &'b mut KeepAliveState,
+    keep_alive_epoch: Instant,
 }
 
 fn read_and_dispatch_joined_play_packet(
@@ -2745,6 +2759,18 @@ fn handle_decoded_play_packet(
         // value is the decode-side validation, so a malformed/oversized payload
         // closes the connection (the read errors) rather than reaching a handler.
         let _ = ServerboundCustomPayloadPacket::read(&mut input)?;
+    } else if packet_id == SERVERBOUND_KEEP_ALIVE_PACKET_ID {
+        // Validate the keepalive response against the pending challenge (Java
+        // `ServerCommonPacketListenerImpl.handleKeepAlive`): a matching id clears the
+        // pending flag and updates latency; a stale/unsolicited id disconnects with
+        // `disconnect.timeout`.
+        let packet = ServerboundKeepAlivePacket::read(&mut input)?;
+        let now_ms = context.keep_alive_epoch.elapsed().as_millis() as u64;
+        if let KeepAliveTick::Disconnect = context.keep_alive.handle_response(packet, now_ms, false)
+        {
+            write_disconnect_component(stream, compression, "disconnect.timeout")?;
+            return Ok(PlayPacketDispatchOutcome::EndSession);
+        }
     } else if !play_packet_is_handled_after_state_update(packet_id) {
         persist_play_disconnect_state(
             context.properties,
@@ -2782,6 +2808,8 @@ impl<'a, 'b> JoinedPlayPacketStepContext<'a, 'b> {
             live_fluid_ticks: self.live_fluid_ticks,
             play_tick_count: self.play_tick_count,
             active_login: self.active_login,
+            keep_alive: self.keep_alive,
+            keep_alive_epoch: self.keep_alive_epoch,
         }
     }
 }
@@ -2945,8 +2973,8 @@ fn run_joined_play_session(
         mut loaded_chunks,
         mut chunk_sender,
         mut chunk_pipeline_stats,
-        mut last_keep_alive,
-        mut keep_alive_id,
+        mut keep_alive,
+        keep_alive_epoch,
         mut last_sent_rain_level,
         mut last_sent_thunder_level,
         mut last_time_sync,
@@ -2963,7 +2991,7 @@ fn run_joined_play_session(
     // once after the first chunk batch.
     let mut join_commands_sent = false;
     loop {
-        tick_joined_play_session_loop(
+        if !tick_joined_play_session_loop(
             stream,
             compression,
             &mut play_state,
@@ -2982,8 +3010,8 @@ fn run_joined_play_session(
                 chunk_pipeline_stats: &mut chunk_pipeline_stats,
                 live_fluid_ticks: &mut live_fluid_ticks,
                 world_layout: &world_layout,
-                last_keep_alive: &mut last_keep_alive,
-                keep_alive_id: &mut keep_alive_id,
+                keep_alive: &mut keep_alive,
+                keep_alive_epoch,
                 last_time_sync: &mut last_time_sync,
                 last_item_tick: &mut last_item_tick,
                 last_player_tick: &mut last_player_tick,
@@ -2992,7 +3020,10 @@ fn run_joined_play_session(
                 last_sent_thunder_level: &mut last_sent_thunder_level,
                 join_commands_sent: &mut join_commands_sent,
             },
-        )?;
+        )? {
+            // Keepalive timed out (disconnect.timeout already written).
+            return Ok(());
+        }
 
         let packet_outcome = read_and_dispatch_joined_play_packet(
             stream,
@@ -3019,6 +3050,8 @@ fn run_joined_play_session(
                 live_fluid_ticks: &mut live_fluid_ticks,
                 play_tick_count,
                 active_login,
+                keep_alive: &mut keep_alive,
+                keep_alive_epoch,
             },
         )?;
         if let PlayPacketDispatchOutcome::EndSession = packet_outcome {
