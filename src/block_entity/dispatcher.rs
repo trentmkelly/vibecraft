@@ -128,6 +128,7 @@ impl BlockEntity {
             BlockEntityTypeId::Sign
             | BlockEntityTypeId::HangingSign
             | BlockEntityTypeId::Skull
+            | BlockEntityTypeId::EndGateway
             | BlockEntityTypeId::StructureBlock
             | BlockEntityTypeId::TestBlock
             | BlockEntityTypeId::TestInstanceBlock => self.save_custom_only(),

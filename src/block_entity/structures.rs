@@ -46,6 +46,10 @@ impl TheEndGatewayBlockEntity {
     pub const ATTENTION_INTERVAL: i64 = 2400;
     pub const EVENT_COOLDOWN: i32 = 1;
     pub const GATEWAY_HEIGHT_ABOVE_SURFACE: i32 = 10;
+    pub const MIN_SPAWNABLE_Y: i32 = -20_000_000;
+    pub const MAX_SPAWNABLE_Y: i32 = 20_000_000;
+    pub const MIN_WORLD_BOUND: i32 = -30_000_000;
+    pub const MAX_WORLD_BOUND: i32 = 30_000_000;
 
     pub fn new() -> Self {
         Self {
@@ -81,7 +85,8 @@ impl TheEndGatewayBlockEntity {
             exit_portal: entries
                 .iter()
                 .find(|(name, _)| name == "exit_portal")
-                .and_then(|(_, tag)| block_pos_from_tag(tag)),
+                .and_then(|(_, tag)| block_pos_from_tag(tag))
+                .filter(|pos| Self::is_in_spawnable_bounds(*pos)),
             exact_teleport: get_bool(entries, "ExactTeleport").unwrap_or(false),
         }
     }
@@ -142,6 +147,35 @@ impl TheEndGatewayBlockEntity {
 
     pub fn get_update_tag(&self) -> Tag {
         self.save_additional()
+    }
+
+    pub fn is_in_spawnable_bounds(pos: BlockPos) -> bool {
+        (Self::MIN_SPAWNABLE_Y..Self::MAX_SPAWNABLE_Y).contains(&pos.y)
+            && (Self::MIN_WORLD_BOUND..Self::MAX_WORLD_BOUND).contains(&pos.x)
+            && (Self::MIN_WORLD_BOUND..Self::MAX_WORLD_BOUND).contains(&pos.z)
+    }
+
+    pub fn exact_portal_position(exit_portal: BlockPos) -> (f64, f64, f64) {
+        (
+            exit_portal.x as f64 + 0.5,
+            exit_portal.y as f64,
+            exit_portal.z as f64 + 0.5,
+        )
+    }
+
+    pub fn inexact_exit_search_origin(exit_portal: BlockPos) -> BlockPos {
+        exit_portal.relative(Direction::Up).relative(Direction::Up)
+    }
+
+    pub fn inexact_portal_position(exit_position: BlockPos) -> (f64, f64, f64) {
+        Self::exact_portal_position(exit_position.relative(Direction::Up))
+    }
+
+    pub fn particle_amount(rendered_faces: impl IntoIterator<Item = bool>) -> i32 {
+        rendered_faces
+            .into_iter()
+            .filter(|should_render| *should_render)
+            .count() as i32
     }
 }
 

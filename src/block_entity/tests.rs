@@ -243,6 +243,7 @@ fn end_gateway_block_entity_saves_ticks_cooldown_and_exit_like_java() {
     assert_end_gateway_exit_position_save_load(&mut gateway);
     assert_end_gateway_cooldown_phase(&mut gateway);
     assert_end_gateway_attention_interval();
+    assert_end_gateway_bounds_targets_particles_and_packet_tags();
 }
 
 fn assert_end_gateway_spawn_phase(gateway: &mut TheEndGatewayBlockEntity) {
@@ -253,6 +254,10 @@ fn assert_end_gateway_spawn_phase(gateway: &mut TheEndGatewayBlockEntity) {
     assert_eq!(TheEndGatewayBlockEntity::COOLDOWN_TIME, 40);
     assert_eq!(TheEndGatewayBlockEntity::ATTENTION_INTERVAL, 2400);
     assert_eq!(TheEndGatewayBlockEntity::GATEWAY_HEIGHT_ABOVE_SURFACE, 10);
+    assert_eq!(TheEndGatewayBlockEntity::MIN_SPAWNABLE_Y, -20_000_000);
+    assert_eq!(TheEndGatewayBlockEntity::MAX_SPAWNABLE_Y, 20_000_000);
+    assert_eq!(TheEndGatewayBlockEntity::MIN_WORLD_BOUND, -30_000_000);
+    assert_eq!(TheEndGatewayBlockEntity::MAX_WORLD_BOUND, 30_000_000);
 
     gateway.age = 199;
     assert_eq!(gateway.spawn_percent(0.5), 0.9975);
@@ -308,6 +313,97 @@ fn assert_end_gateway_attention_interval() {
     assert!(attention.portal_tick());
     assert_eq!(attention.age, 2400);
     assert_eq!(attention.teleport_cooldown, 40);
+}
+
+fn assert_end_gateway_bounds_targets_particles_and_packet_tags() {
+    let valid_exit = BlockPos {
+        x: 29_999_999,
+        y: 19_999_999,
+        z: -30_000_000,
+    };
+    assert!(TheEndGatewayBlockEntity::is_in_spawnable_bounds(valid_exit));
+    assert!(!TheEndGatewayBlockEntity::is_in_spawnable_bounds(
+        BlockPos {
+            x: 30_000_000,
+            y: 80,
+            z: 0,
+        }
+    ));
+    assert!(!TheEndGatewayBlockEntity::is_in_spawnable_bounds(
+        BlockPos {
+            x: 0,
+            y: 20_000_000,
+            z: 0,
+        }
+    ));
+
+    let out_of_bounds_exit_tag = Tag::Compound(vec![
+        ("Age".to_string(), Tag::Long(9)),
+        (
+            "exit_portal".to_string(),
+            Tag::List(vec![Tag::Int(0), Tag::Int(20_000_000), Tag::Int(0)]),
+        ),
+        ("ExactTeleport".to_string(), Tag::Byte(1)),
+    ]);
+    let loaded = TheEndGatewayBlockEntity::load_additional(&out_of_bounds_exit_tag);
+    assert_eq!(loaded.age, 9);
+    assert_eq!(loaded.exit_portal, None);
+    assert!(loaded.exact_teleport);
+
+    assert_eq!(
+        TheEndGatewayBlockEntity::exact_portal_position(BlockPos {
+            x: 12,
+            y: 80,
+            z: -7,
+        }),
+        (12.5, 80.0, -6.5)
+    );
+    assert_eq!(
+        TheEndGatewayBlockEntity::inexact_exit_search_origin(BlockPos {
+            x: 12,
+            y: 80,
+            z: -7,
+        }),
+        BlockPos {
+            x: 12,
+            y: 82,
+            z: -7,
+        }
+    );
+    assert_eq!(
+        TheEndGatewayBlockEntity::inexact_portal_position(BlockPos {
+            x: 12,
+            y: 86,
+            z: -7,
+        }),
+        (12.5, 87.0, -6.5)
+    );
+    assert_eq!(
+        TheEndGatewayBlockEntity::particle_amount([true, false, true, true, false, false]),
+        3
+    );
+
+    let mut block_entity = BlockEntity::new(
+        BlockEntityTypeId::EndGateway,
+        pos(),
+        "minecraft:end_gateway",
+    )
+    .unwrap();
+    block_entity
+        .custom_data
+        .insert("Age".to_string(), Tag::Long(200));
+    block_entity.components.insert(
+        "minecraft:custom_name".to_string(),
+        Tag::String("Gateway".to_string()),
+    );
+    assert_eq!(
+        block_entity.get_update_packet(),
+        ClientboundBlockEntityDataPacket {
+            pos: pos(),
+            ty: BlockEntityTypeId::EndGateway,
+            tag: Tag::Compound(vec![("Age".to_string(), Tag::Long(200))]),
+        }
+    );
 }
 
 #[test]
