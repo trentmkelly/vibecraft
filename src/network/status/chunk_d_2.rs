@@ -726,6 +726,14 @@ pub fn write_minimal_update_tags_packet<W: Write>(writer: &mut W) -> io::Result<
 }
 
 pub fn write_vanilla_known_packs_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    // Advertise the single vanilla `minecraft:core` known pack at the current
+    // version. Because the 26.1.2 client agrees on this pack, it pre-loads every
+    // built-in datapack registry from its own copy; any synchronized registry the
+    // server does NOT re-send in the registry-data sync keeps that pre-loaded value.
+    // That is why RustCraft can omit `minecraft:test_environment`,
+    // `minecraft:test_instance`, and `minecraft:dialog` (gametest infra + the dialog
+    // system, none referenced on the join/play-init path) — the client uses its
+    // known-pack copies, and the offline join flow reaches play unaffected.
     write_var_i32(writer, 1)?;
     write_string(writer, "minecraft")?;
     write_string(writer, "core")?;
