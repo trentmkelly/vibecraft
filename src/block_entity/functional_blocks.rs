@@ -782,6 +782,90 @@ impl ShelfBlockEntity {
         self.save_additional()
     }
 
+    pub fn collect_implicit_components(&self) -> Tag {
+        Tag::Compound(vec![(
+            "minecraft:container".to_string(),
+            container_items_tag(&self.items),
+        )])
+    }
+
+    pub fn apply_implicit_components(&mut self, components: &Tag) {
+        let Some(entries) = compound_entries(components) else {
+            return;
+        };
+        if let Some(Tag::List(items)) = entries
+            .iter()
+            .find(|(name, _)| name == "minecraft:container")
+            .map(|(_, tag)| tag)
+        {
+            self.items.fill(None);
+            for item_tag in items {
+                let Some(item_entries) = compound_entries(item_tag) else {
+                    continue;
+                };
+                let Some(slot) = get_byte(item_entries, "Slot") else {
+                    continue;
+                };
+                if let Some(slot) = usize::try_from(slot)
+                    .ok()
+                    .filter(|slot| *slot < Self::MAX_ITEMS)
+                {
+                    self.items[slot] = PotItemStack::from_tag(item_tag);
+                }
+            }
+        }
+    }
+
+    pub fn remove_components_from_tag(tag: &Tag) -> Tag {
+        let Some(entries) = compound_entries(tag) else {
+            return tag.clone();
+        };
+        Tag::Compound(
+            entries
+                .iter()
+                .filter(|(name, _)| name != "Items")
+                .cloned()
+                .collect(),
+        )
+    }
+
+    pub fn still_valid(&self, same_block_entity: bool, player_distance_sqr: f64) -> bool {
+        same_block_entity && player_distance_sqr <= 64.0
+    }
+
+    pub fn set_changed_side_effects(
+        &self,
+        has_level: bool,
+        event: Option<&'static str>,
+    ) -> Option<(Option<&'static str>, i32)> {
+        has_level.then_some((event, 3))
+    }
+
+    pub fn default_set_changed_side_effects(
+        &self,
+        has_level: bool,
+    ) -> Option<(Option<&'static str>, i32)> {
+        self.set_changed_side_effects(has_level, Some("minecraft:block_activate"))
+    }
+
+    pub fn item_owner_position(pos: BlockPos) -> (f64, f64, f64) {
+        (pos.x as f64 + 0.5, pos.y as f64 + 0.5, pos.z as f64 + 0.5)
+    }
+
+    pub fn visual_rotation_y_degrees(facing: Direction) -> f32 {
+        match facing.opposite() {
+            Direction::South => 0.0,
+            Direction::West => 90.0,
+            Direction::North => 180.0,
+            Direction::East => 270.0,
+            Direction::Up | Direction::Down => 0.0,
+        }
+    }
+
+    pub fn get_align_items_to_bottom(&self) -> bool {
+        self.align_items_to_bottom
+    }
+
     pub fn get_item(&self, slot: usize) -> Option<&PotItemStack> {
         self.items.get(slot).and_then(Option::as_ref)
     }

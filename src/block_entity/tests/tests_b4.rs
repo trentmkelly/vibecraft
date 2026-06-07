@@ -126,3 +126,58 @@ fn randomizable_container_components_and_loot_table_tags_match_java() {
         Tag::Compound(vec![("TransferCooldown".to_string(), Tag::Int(8))])
     );
 }
+
+#[test]
+fn shelf_block_entity_components_owner_and_change_effects_match_java() {
+    let mut shelf = ShelfBlockEntity::new();
+    shelf.set_item_no_update(1, Some(stack("minecraft:book", 1)));
+    shelf.align_items_to_bottom = true;
+
+    let components = shelf.collect_implicit_components();
+    assert_eq!(
+        components,
+        Tag::Compound(vec![(
+            "minecraft:container".to_string(),
+            Tag::List(vec![Tag::Compound(vec![
+                ("Slot".to_string(), Tag::Byte(1)),
+                ("id".to_string(), Tag::String("minecraft:book".to_string())),
+                ("count".to_string(), Tag::Int(1)),
+            ])]),
+        )])
+    );
+
+    let mut from_components = ShelfBlockEntity::new();
+    from_components.apply_implicit_components(&components);
+    assert_eq!(from_components.get_item(1), Some(&stack("minecraft:book", 1)));
+    assert!(!from_components.get_align_items_to_bottom());
+
+    let saved = shelf.save_additional();
+    assert_eq!(
+        ShelfBlockEntity::remove_components_from_tag(&saved),
+        Tag::Compound(vec![(
+            ShelfBlockEntity::ALIGN_ITEMS_TO_BOTTOM_TAG.to_string(),
+            Tag::Byte(1),
+        )])
+    );
+    assert!(shelf.still_valid(true, 64.0));
+    assert!(!shelf.still_valid(true, 64.01));
+    assert!(!shelf.still_valid(false, 1.0));
+    assert_eq!(shelf.default_set_changed_side_effects(false), None);
+    assert_eq!(
+        shelf.default_set_changed_side_effects(true),
+        Some((Some("minecraft:block_activate"), 3))
+    );
+    assert_eq!(shelf.set_changed_side_effects(true, None), Some((None, 3)));
+    assert_eq!(
+        ShelfBlockEntity::item_owner_position(BlockPos { x: 4, y: 70, z: -2 }),
+        (4.5, 70.5, -1.5)
+    );
+    assert_eq!(
+        ShelfBlockEntity::visual_rotation_y_degrees(Direction::North),
+        0.0
+    );
+    assert_eq!(
+        ShelfBlockEntity::visual_rotation_y_degrees(Direction::East),
+        90.0
+    );
+}

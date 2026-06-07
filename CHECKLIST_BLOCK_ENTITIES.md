@@ -48,7 +48,7 @@
 - [ ] Implement `DispenserBlockEntity`: 9-slot inventory, comparator output, behavior dispatch on redstone activation
 - [ ] Implement `DropperBlockEntity`: 9-slot inventory, item-drop vs. dispense-into-container behavior difference
 - [ ] Implement `HopperBlockEntity`: 8-tick transfer cooldown, suck-from-above (entity or block slot), push-below, `canPlaceItem()`/`canTakeItem()` sided checks, comparator output
-- [ ] Implement `ShelfBlockEntity` (new in 26.1.2): per-slot item display, 3-slot shelf storage (`MAX_ITEMS = 3`), comparator output based on filled-slot count
+- [x] Implement `ShelfBlockEntity` (new in 26.1.2): per-slot item display, 3-slot shelf storage (`MAX_ITEMS = 3`), comparator output based on filled-slot count — Audited against Java 26.1.2: Rust models the 3-slot `ListBackedContainer`, item save/load/update tag, `align_items_to_bottom`, slot swap/remove/set, component container apply/collect/removal, still-valid range check, `setChanged` block-activate/update side effects, ItemOwner center position, facing-opposite visual rotation, and comparator filled-slot count; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 shelf_block_entity`.
 - [ ] Add parity test: chest loot-table realization (loot generated once, consistent across reconnect), double-chest merged access
 - [ ] Add parity test: hopper 8-tick transfer rate, priority when both push and pull available, container hop chain
 - [ ] Add parity test: trapped chest redstone signal level = viewer count
