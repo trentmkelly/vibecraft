@@ -4762,7 +4762,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/world/level/block/sounds`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/sounds/AmbientDesertBlockSoundsPlayer.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/sounds/AmbientDesertBlockSoundsPlayer.java`. — Audited against Java 26.1.2: Rust `block_sounds` covers random gates (`2100`, `200`, `130`, badlands skip `3`), exact sound IDs (`block.sand.idle`, `block.dry_grass.ambient`, `block.deadbush.idle`), dry-vegetation tag membership (`#terracotta`, sand, red sand), sand tag membership (sand/red sand), two-block dry-vegetation support check, four-horizontal-column sand ambient counter/early-exit behavior, near-surface and far-column vertical scans with air-above requirement, and red-sand/terracotta badlands dead-bush skip behavior. Live `Level.playLocalSound`/`playPlayerSound` side effects remain modeled as planned sound emissions. Covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 block_sounds`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/sounds/package-info.java`. — Audited against Java 26.1.2: metadata-only `@NullMarked` package annotation with no runtime behavior, protocol surface, serialization, or gameplay logic to port; Rust's type system already models nullability without a package-level annotation.
 
 ## `decompiled-server-26.1.2/net/minecraft/world/level/block/state`

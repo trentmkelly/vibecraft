@@ -12,6 +12,7 @@ mod block_entity;
 mod block_metadata;
 #[cfg(test)]
 mod block_regression;
+mod block_sounds;
 mod block_update;
 mod boss_fight;
 mod chat_component;
