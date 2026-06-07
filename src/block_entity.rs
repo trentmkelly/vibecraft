@@ -1086,10 +1086,7 @@ pub struct CreakingHeartTickContext {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SculkCatalystEventResult {
-    Ignored,
-    Bloom { pulse_ticks: i32 },
-}
+pub enum SculkCatalystEventResult { Ignored, Bloom { pulse_ticks: i32, consumed_experience: bool, added_cursors: usize, award_it_spreads: bool } }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SculkShriekerBlockEntity {

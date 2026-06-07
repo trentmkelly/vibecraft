@@ -669,6 +669,7 @@ impl SculkChargeCursor {
 
 impl SculkCatalystBlockEntity {
     pub const LISTENER_RADIUS: i32 = 8;
+    pub const DELIVERY_MODE: &'static str = "by_distance";
     pub const PULSE_TICKS: i32 = 8;
     pub const MAX_CURSORS: usize = 32;
     pub const MAX_CHARGE: i32 = 1000;
@@ -696,21 +697,29 @@ impl SculkCatalystBlockEntity {
         experience_reward: i32,
         should_drop_experience: bool,
         experience_already_consumed: bool,
+        last_hurt_by_player: bool,
     ) -> SculkCatalystEventResult {
         if experience_already_consumed {
             return SculkCatalystEventResult::Ignored;
         }
+        let before = self.cursors.len();
         if should_drop_experience && experience_reward > 0 {
             self.add_cursors(offset_pos(source_pos, 0, 1, 0), experience_reward);
         }
         self.pulse_ticks = Self::PULSE_TICKS;
         SculkCatalystEventResult::Bloom {
             pulse_ticks: Self::PULSE_TICKS,
+            consumed_experience: true,
+            added_cursors: self.cursors.len() - before,
+            award_it_spreads: last_hurt_by_player,
         }
     }
 
     pub fn tick(&mut self, origin: BlockPos) {
         self.pulse_ticks = self.pulse_ticks.saturating_sub(1);
+        // TODO(Java parity): replace this cursor decay model with full
+        // SculkSpreader::updateCursors once SculkBehaviour world mutation,
+        // vein spreading, cursor movement, and level-event particles are ported.
         self.cursors.retain_mut(|cursor| {
             if chessboard_distance(cursor.pos, origin) > Self::MAX_CURSOR_DISTANCE {
                 return false;
@@ -730,13 +739,10 @@ impl SculkCatalystBlockEntity {
     }
 
     pub fn save_additional(&self) -> Tag {
-        Tag::Compound(vec![
-            (
-                "cursors".to_string(),
-                Tag::List(self.cursors.iter().map(SculkChargeCursor::to_tag).collect()),
-            ),
-            ("pulse_ticks".to_string(), Tag::Int(self.pulse_ticks)),
-        ])
+        Tag::Compound(vec![(
+            "cursors".to_string(),
+            Tag::List(self.cursors.iter().map(SculkChargeCursor::to_tag).collect()),
+        )])
     }
 
     pub fn load_additional(tag: &Tag) -> Self {
@@ -759,8 +765,7 @@ impl SculkCatalystBlockEntity {
             .unwrap_or_default();
         Self {
             cursors,
-            pulse_ticks: get_int(entries, "pulse_ticks").unwrap_or(0).max(0),
+            pulse_ticks: 0,
         }
     }
 }
-

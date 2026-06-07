@@ -124,14 +124,20 @@ fn calibrated_sculk_sensor_filters_vibrations_by_back_signal() {
 #[test]
 fn sculk_catalyst_block_entity_queues_charge_and_pulses_on_mob_death() {
     assert_eq!(SculkCatalystBlockEntity::LISTENER_RADIUS, 8);
+    assert_eq!(SculkCatalystBlockEntity::DELIVERY_MODE, "by_distance");
     assert_eq!(SculkCatalystBlockEntity::PULSE_TICKS, 8);
     assert_eq!(SculkCatalystBlockEntity::MAX_CURSORS, 32);
     assert_eq!(SculkCatalystBlockEntity::MAX_CHARGE, 1000);
 
     let mut catalyst = SculkCatalystBlockEntity::new();
     assert_eq!(
-        catalyst.handle_entity_die(BlockPos { x: 3, y: 64, z: -2 }, 2300, true, false,),
-        SculkCatalystEventResult::Bloom { pulse_ticks: 8 }
+        catalyst.handle_entity_die(BlockPos { x: 3, y: 64, z: -2 }, 2300, true, false, true),
+        SculkCatalystEventResult::Bloom {
+            pulse_ticks: 8,
+            consumed_experience: true,
+            added_cursors: 3,
+            award_it_spreads: true,
+        }
     );
     assert_eq!(catalyst.pulse_ticks, 8);
     assert_eq!(
@@ -144,7 +150,9 @@ fn sculk_catalyst_block_entity_queues_charge_and_pulses_on_mob_death() {
     );
 
     let saved = catalyst.save_additional();
-    assert_eq!(SculkCatalystBlockEntity::load_additional(&saved), catalyst);
+    let loaded = SculkCatalystBlockEntity::load_additional(&saved);
+    assert_eq!(loaded.cursors, catalyst.cursors);
+    assert_eq!(loaded.pulse_ticks, 0);
     catalyst.tick(BlockPos { x: 0, y: 64, z: 0 });
     assert_eq!(catalyst.pulse_ticks, 7);
     assert_eq!(catalyst.cursors[0].decay_delay, 0);
@@ -154,7 +162,7 @@ fn sculk_catalyst_block_entity_queues_charge_and_pulses_on_mob_death() {
 
     let mut ignored = SculkCatalystBlockEntity::new();
     assert_eq!(
-        ignored.handle_entity_die(BlockPos { x: 0, y: 0, z: 0 }, 5, true, true),
+        ignored.handle_entity_die(BlockPos { x: 0, y: 0, z: 0 }, 5, true, true, false),
         SculkCatalystEventResult::Ignored
     );
     assert!(ignored.cursors.is_empty());
