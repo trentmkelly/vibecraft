@@ -8,6 +8,14 @@ impl BeaconBeamSection {
     pub fn increase_height(&mut self) {
         self.height += 1;
     }
+
+    pub fn color(&self) -> i32 {
+        self.color
+    }
+
+    pub fn height(&self) -> i32 {
+        self.height
+    }
 }
 
 impl BeaconBlockEntity {
@@ -110,6 +118,10 @@ impl BeaconBlockEntity {
 
     pub fn comparator_output(&self) -> u8 {
         self.levels.clamp(0, Self::MAX_LEVELS) as u8
+    }
+
+    pub fn beam_sections(&self) -> &[BeaconBeamSection] {
+        &self.beam_sections
     }
 
     pub fn update_base(

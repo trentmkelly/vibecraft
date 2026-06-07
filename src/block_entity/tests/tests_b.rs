@@ -409,6 +409,12 @@ fn assert_beacon_payment_and_persistence_match_java(beacon: &mut BeaconBlockEnti
 }
 
 fn assert_beacon_beam_sections_match_java() {
+    let mut section = BeaconBeamSection::new(0xFF00_FF00u32 as i32);
+    assert_eq!(section.color(), 0xFF00_FF00u32 as i32);
+    assert_eq!(section.height(), 1);
+    section.increase_height();
+    assert_eq!(section.height(), 2);
+
     let sections = BeaconBlockEntity::scan_beam([
         BeaconBeamBlock::TintedGlass(0xFFFF_0000u32 as i32),
         BeaconBeamBlock::TintedGlass(0xFFFF_0000u32 as i32),
@@ -432,6 +438,9 @@ fn assert_beacon_beam_sections_match_java() {
             },
         ]
     );
+    let mut beacon = BeaconBlockEntity::new();
+    beacon.beam_sections = sections.clone();
+    assert_eq!(beacon.beam_sections(), sections.as_slice());
     assert_eq!(
         BeaconBlockEntity::scan_beam([BeaconBeamBlock::Blocking]),
         Vec::<BeaconBeamSection>::new()
