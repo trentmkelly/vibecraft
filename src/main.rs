@@ -139,6 +139,7 @@ mod random_tick;
 mod recipe_system;
 mod redstone;
 mod registry;
+mod report_type;
 mod resources;
 mod respawn;
 mod runtime;

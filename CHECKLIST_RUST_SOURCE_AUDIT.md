@@ -308,6 +308,7 @@ Generated on 2026-05-24 from RustCraft implementation and harness sources, exclu
 - [ ] Audit Rust implementation file `src/registry/builtin.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/registry/mod.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/registry/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [x] Audit Rust implementation file `src/report_type.rs` against the Java source and checklist coverage. This file is the complete Rust parity model for `net/minecraft/ReportType.java`; static record data, modulo comment selection, fallback behavior, and header formatting are covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 report_type`.
 - [ ] Audit Rust implementation file `src/resources.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/resources/metadata_parser.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/resources/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
