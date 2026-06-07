@@ -706,6 +706,8 @@ fn assert_shulker_box_animation_and_sided_insertion() {
 fn assert_dispenser_and_dropper_activation_slots() {
     let mut dispenser = ContainerBlockEntityModel::new(ContainerBlockEntityKind::Dispenser);
     assert_eq!(dispenser.kind.size(), 9);
+    assert_eq!(dispenser.kind.menu_type(), "generic_3x3");
+    assert_eq!(dispenser.kind.default_name(), "container.dispenser");
     dispenser.set_item(1, Some(stack("minecraft:arrow", 1)));
     dispenser.set_item(5, Some(stack("minecraft:egg", 1)));
     assert_eq!(
@@ -714,6 +716,9 @@ fn assert_dispenser_and_dropper_activation_slots() {
     );
 
     let mut dropper = ContainerBlockEntityModel::new(ContainerBlockEntityKind::Dropper);
+    assert_eq!(dropper.kind.size(), 9);
+    assert_eq!(dropper.kind.menu_type(), "generic_3x3");
+    assert_eq!(dropper.kind.default_name(), "container.dropper");
     dropper.set_item(2, Some(stack("minecraft:cobblestone", 1)));
     assert_eq!(
         dropper.activate_once(&[0]),
