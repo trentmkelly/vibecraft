@@ -4723,7 +4723,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/trialspawner`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/trialspawner/PlayerDetector.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/trialspawner/PlayerDetector.java`. — Audited against Java 26.1.2: Rust models the three detector variants (`NO_CREATIVE_PLAYERS`, `INCLUDING_CREATIVE_PLAYERS`, and debug `SHEEP`), strict player range checks, spectator exclusion, creative-player inclusion/exclusion by variant, optional line-of-sight filtering, alive sheep filtering, and selector-owned candidate collection as caller-provided data. Covered by `cargo test -q -j 1 player_detector_variants_match_trial_spawner_java_filters`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/trialspawner/TrialSpawner.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/trialspawner/TrialSpawnerConfig.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/trialspawner/TrialSpawnerConfigs.java`.

@@ -38,6 +38,53 @@ pub struct TrialPlayer {
     pub distance: i32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerDetectorKind {
+    NoCreativePlayers,
+    IncludingCreativePlayers,
+    Sheep,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlayerDetectorCandidate {
+    pub uuid: String,
+    pub entity_type: String,
+    pub distance: f64,
+    pub creative: bool,
+    pub spectator: bool,
+    pub alive: bool,
+    pub line_of_sight: bool,
+}
+
+pub fn detect_trial_spawner_players(
+    kind: PlayerDetectorKind,
+    candidates: &[PlayerDetectorCandidate],
+    required_player_range: f64,
+    require_line_of_sight: bool,
+) -> Vec<String> {
+    candidates
+        .iter()
+        .filter(|candidate| {
+            candidate.distance < required_player_range
+                && (!require_line_of_sight || candidate.line_of_sight)
+                && match kind {
+                    PlayerDetectorKind::NoCreativePlayers => {
+                        candidate.entity_type == "minecraft:player"
+                            && !candidate.creative
+                            && !candidate.spectator
+                    }
+                    PlayerDetectorKind::IncludingCreativePlayers => {
+                        candidate.entity_type == "minecraft:player" && !candidate.spectator
+                    }
+                    PlayerDetectorKind::Sheep => {
+                        candidate.entity_type == "minecraft:sheep" && candidate.alive
+                    }
+                }
+        })
+        .map(|candidate| candidate.uuid.clone())
+        .collect()
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TrialSpawnerEvent {
     Idle,
@@ -436,6 +483,107 @@ mod tests {
             obstruction_free: true,
             tracked_mobs: 0,
         }
+    }
+
+    #[test]
+    fn player_detector_variants_match_trial_spawner_java_filters() {
+        let candidates = vec![
+            PlayerDetectorCandidate {
+                uuid: "survival".to_string(),
+                entity_type: "minecraft:player".to_string(),
+                distance: 13.0,
+                creative: false,
+                spectator: false,
+                alive: true,
+                line_of_sight: true,
+            },
+            PlayerDetectorCandidate {
+                uuid: "creative".to_string(),
+                entity_type: "minecraft:player".to_string(),
+                distance: 13.0,
+                creative: true,
+                spectator: false,
+                alive: true,
+                line_of_sight: true,
+            },
+            PlayerDetectorCandidate {
+                uuid: "spectator".to_string(),
+                entity_type: "minecraft:player".to_string(),
+                distance: 13.0,
+                creative: false,
+                spectator: true,
+                alive: true,
+                line_of_sight: true,
+            },
+            PlayerDetectorCandidate {
+                uuid: "blocked".to_string(),
+                entity_type: "minecraft:player".to_string(),
+                distance: 13.0,
+                creative: false,
+                spectator: false,
+                alive: true,
+                line_of_sight: false,
+            },
+            PlayerDetectorCandidate {
+                uuid: "edge".to_string(),
+                entity_type: "minecraft:player".to_string(),
+                distance: 14.0,
+                creative: false,
+                spectator: false,
+                alive: true,
+                line_of_sight: true,
+            },
+            PlayerDetectorCandidate {
+                uuid: "sheep".to_string(),
+                entity_type: "minecraft:sheep".to_string(),
+                distance: 14.0,
+                creative: false,
+                spectator: false,
+                alive: true,
+                line_of_sight: true,
+            },
+            PlayerDetectorCandidate {
+                uuid: "dead-sheep".to_string(),
+                entity_type: "minecraft:sheep".to_string(),
+                distance: 4.0,
+                creative: false,
+                spectator: false,
+                alive: false,
+                line_of_sight: true,
+            },
+        ];
+
+        assert_eq!(
+            detect_trial_spawner_players(
+                PlayerDetectorKind::NoCreativePlayers,
+                &candidates,
+                14.0,
+                true
+            ),
+            vec!["survival".to_string()]
+        );
+        assert_eq!(
+            detect_trial_spawner_players(
+                PlayerDetectorKind::IncludingCreativePlayers,
+                &candidates,
+                14.0,
+                true
+            ),
+            vec!["survival".to_string(), "creative".to_string()]
+        );
+        assert_eq!(
+            detect_trial_spawner_players(
+                PlayerDetectorKind::NoCreativePlayers,
+                &candidates,
+                14.0,
+                false
+            ),
+            vec!["survival".to_string(), "blocked".to_string()]
+        );
+        assert_eq!(
+            detect_trial_spawner_players(PlayerDetectorKind::Sheep, &candidates, 15.0, true),
+            vec!["sheep".to_string()]
+        );
     }
 
     #[test]
