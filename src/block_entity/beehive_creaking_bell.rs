@@ -412,6 +412,8 @@ impl CreakingHeartBlockEntity {
 
 impl SculkShriekerBlockEntity {
     pub const LISTENER_RADIUS: i32 = 8;
+    pub const LISTENABLE_EVENTS_TAG: &'static str = "minecraft:shrieker_can_listen";
+    pub const REQUIRES_ADJACENT_CHUNKS_TO_BE_TICKING: bool = true;
     pub const WARNING_SOUND_RADIUS: i32 = 10;
     pub const WARDEN_SPAWN_ATTEMPTS: i32 = 20;
     pub const WARDEN_SPAWN_RANGE_XZ: i32 = 5;
@@ -441,7 +443,7 @@ impl SculkShriekerBlockEntity {
             return Self::new(false);
         };
         Self {
-            warning_level: get_int(entries, "warning_level").unwrap_or(0).clamp(0, 4),
+            warning_level: get_int(entries, "warning_level").unwrap_or(0),
             vibration_data: entries
                 .iter()
                 .find(|(name, _)| name == "listener")
@@ -460,6 +462,18 @@ impl SculkShriekerBlockEntity {
         !shrieking_block_state && has_player_source
     }
 
+    pub fn try_get_player(
+        source_is_player: bool,
+        controlling_passenger_is_player: bool,
+        projectile_owner_is_player: bool,
+        item_owner_is_player: bool,
+    ) -> bool {
+        source_is_player
+            || controlling_passenger_is_player
+            || projectile_owner_is_player
+            || item_owner_is_player
+    }
+
     pub fn try_shriek(
         &mut self,
         has_player: bool,
@@ -476,10 +490,23 @@ impl SculkShriekerBlockEntity {
             return SculkShriekResult::Ignored;
         }
         if let Some(warning_level) = tracker_warning_level {
-            self.warning_level = warning_level.clamp(0, Self::WARDEN_SUMMON_WARNING_LEVEL);
+            self.warning_level = warning_level;
         }
         self.start_shrieking();
         self.try_respond(can_respond, warden_spawn_available)
+    }
+
+    pub fn pre_remove_side_effects(
+        &self,
+        shrieking_block_state: bool,
+        can_respond: bool,
+        warden_spawn_available: bool,
+    ) -> SculkShriekResult {
+        if shrieking_block_state {
+            self.try_respond(can_respond, warden_spawn_available)
+        } else {
+            SculkShriekResult::Ignored
+        }
     }
 
     pub fn try_respond(

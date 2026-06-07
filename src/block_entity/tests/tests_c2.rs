@@ -460,6 +460,14 @@ fn sculk_shrieker_block_entity_tracks_warning_shriek_and_warden_response() {
 
 fn assert_sculk_shrieker_constants() {
     assert_eq!(SculkShriekerBlockEntity::LISTENER_RADIUS, 8);
+    assert_eq!(
+        SculkShriekerBlockEntity::LISTENABLE_EVENTS_TAG,
+        "minecraft:shrieker_can_listen"
+    );
+    assert_eq!(
+        [SculkShriekerBlockEntity::REQUIRES_ADJACENT_CHUNKS_TO_BE_TICKING],
+        [true]
+    );
     assert_eq!(SculkShriekerBlockEntity::WARNING_SOUND_RADIUS, 10);
     assert_eq!(SculkShriekerBlockEntity::SHRIEKING_TICKS, 90);
     assert_eq!(SculkShriekerBlockEntity::DARKNESS_RADIUS, 40);
@@ -474,6 +482,11 @@ fn assert_sculk_shrieker_gates_invalid_shrieks() -> SculkShriekerBlockEntity {
     assert!(shrieker.can_receive_vibration(false, true));
     assert!(!shrieker.can_receive_vibration(false, false));
     assert!(!shrieker.can_receive_vibration(true, true));
+    assert!(SculkShriekerBlockEntity::try_get_player(true, false, false, false));
+    assert!(SculkShriekerBlockEntity::try_get_player(false, true, false, false));
+    assert!(SculkShriekerBlockEntity::try_get_player(false, false, true, false));
+    assert!(SculkShriekerBlockEntity::try_get_player(false, false, false, true));
+    assert!(!SculkShriekerBlockEntity::try_get_player(false, false, false, false));
     assert_eq!(
         shrieker.try_shriek(false, true, Some(1), false),
         SculkShriekResult::Ignored
@@ -523,6 +536,25 @@ fn assert_sculk_shrieker_summon_persistence_and_disabled_mode(
     assert_eq!(loaded.warning_level, 4);
     assert_eq!(loaded.shrieking_ticks, 0);
     assert!(!loaded.can_summon);
+    assert_eq!(
+        SculkShriekerBlockEntity::load_additional(&Tag::Compound(vec![(
+            "warning_level".to_string(),
+            Tag::Int(99),
+        )]))
+        .warning_level,
+        99
+    );
+    assert_eq!(
+        shrieker.pre_remove_side_effects(true, true, false),
+        SculkShriekResult::ReplySound {
+            warning_level: 4,
+            darkness_radius: 40,
+        }
+    );
+    assert_eq!(
+        shrieker.pre_remove_side_effects(false, true, true),
+        SculkShriekResult::Ignored
+    );
 
     let mut disabled = SculkShriekerBlockEntity::new(false);
     assert_eq!(
