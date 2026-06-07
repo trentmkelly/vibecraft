@@ -696,6 +696,122 @@ impl DecoratedPotWobbleStyle {
 impl DecoratedPotBlockEntity {
     pub const EVENT_POT_WOBBLES: i32 = 1;
 
+    pub fn update_packet_type(&self) -> BlockEntityTypeId {
+        BlockEntityTypeId::DecoratedPot
+    }
+
+    pub fn update_tag(&self) -> Tag {
+        self.save_additional()
+    }
+
+    pub fn create_decorated_pot_template(decorations: &PotDecorations) -> Tag {
+        Tag::Compound(vec![
+            (
+                "id".to_string(),
+                Tag::String("minecraft:decorated_pot".to_string()),
+            ),
+            (
+                "components".to_string(),
+                Tag::Compound(vec![(
+                    "minecraft:pot_decorations".to_string(),
+                    decorations.to_tag(),
+                )]),
+            ),
+        ])
+    }
+
+    pub fn create_decorated_pot_instance(decorations: &PotDecorations) -> Tag {
+        Self::create_decorated_pot_template(decorations)
+    }
+
+    pub fn collect_implicit_components(&self) -> Tag {
+        Tag::Compound(vec![
+            (
+                "minecraft:pot_decorations".to_string(),
+                self.decorations.to_tag(),
+            ),
+            (
+                "minecraft:container".to_string(),
+                Tag::List(
+                    self.item
+                        .iter()
+                        .filter(|item| !item.is_empty())
+                        .map(PotItemStack::to_tag)
+                        .collect(),
+                ),
+            ),
+        ])
+    }
+
+    pub fn apply_implicit_components(&mut self, components: &Tag) {
+        let Some(entries) = compound_entries(components) else {
+            return;
+        };
+        if let Some((_, decorations)) = entries
+            .iter()
+            .find(|(name, _)| name == "minecraft:pot_decorations")
+        {
+            self.decorations = PotDecorations::from_tag(decorations);
+        }
+        if let Some(Tag::List(items)) = entries
+            .iter()
+            .find(|(name, _)| name == "minecraft:container")
+            .map(|(_, tag)| tag)
+        {
+            self.item = items.first().and_then(PotItemStack::from_tag);
+        }
+    }
+
+    pub fn remove_components_from_tag(tag: &Tag) -> Tag {
+        let Some(entries) = compound_entries(tag) else {
+            return tag.clone();
+        };
+        Tag::Compound(
+            entries
+                .iter()
+                .filter(|(name, _)| name != "sherds" && name != "item")
+                .cloned()
+                .collect(),
+        )
+    }
+
+    pub fn get_the_item(&mut self) -> Option<&PotItemStack> {
+        self.unpack_loot_table();
+        self.item.as_ref()
+    }
+
+    pub fn split_the_item(&mut self, count: i32) -> Option<PotItemStack> {
+        self.unpack_loot_table();
+        let item = self.item.as_mut()?;
+        let split_count = item.count.min(count).max(0);
+        if split_count == 0 {
+            return None;
+        }
+        let result = PotItemStack {
+            item_id: item.item_id.clone(),
+            count: split_count,
+        };
+        item.count -= split_count;
+        if item.is_empty() {
+            self.item = None;
+        }
+        Some(result)
+    }
+
+    pub fn set_the_item(&mut self, item: Option<PotItemStack>) {
+        self.unpack_loot_table();
+        self.item = item.filter(|item| !item.is_empty());
+    }
+
+    pub fn unpack_loot_table(&mut self) -> bool {
+        if self.loot_table.take().is_some() {
+            self.loot_table_seed = 0;
+            true
+        } else {
+            false
+        }
+    }
+
     pub fn save_additional(&self) -> Tag {
         let mut fields = Vec::new();
         if !self.decorations.is_empty() {

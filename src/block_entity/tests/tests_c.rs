@@ -230,6 +230,13 @@ fn decorated_pot_saves_sherds_item_loot_and_wobble_like_java() {
         ..DecoratedPotBlockEntity::default()
     };
 
+    let saved = assert_decorated_pot_save_round_trip(&pot);
+    assert_decorated_pot_component_methods(&pot, &saved);
+    assert_decorated_pot_loot_and_single_item_methods(&mut pot);
+    assert_decorated_pot_negative_wobble_event(&mut pot);
+}
+
+fn assert_decorated_pot_save_round_trip(pot: &DecoratedPotBlockEntity) -> Tag {
     assert_eq!(
         pot.decorations.ordered(),
         vec![
@@ -262,7 +269,10 @@ fn decorated_pot_saves_sherds_item_loot_and_wobble_like_java() {
             "minecraft:brick".to_string(),
         ]
     );
+
     let saved = pot.save_additional();
+    assert_eq!(pot.update_packet_type(), BlockEntityTypeId::DecoratedPot);
+    assert_eq!(pot.update_tag(), saved);
     assert_eq!(
         saved,
         Tag::Compound(vec![
@@ -287,19 +297,104 @@ fn decorated_pot_saves_sherds_item_loot_and_wobble_like_java() {
             ),
         ])
     );
-    assert_eq!(DecoratedPotBlockEntity::load_additional(&saved), pot);
+    assert_eq!(DecoratedPotBlockEntity::load_additional(&saved), *pot);
+    saved
+}
 
+fn assert_decorated_pot_component_methods(pot: &DecoratedPotBlockEntity, saved: &Tag) {
+    assert_eq!(
+        DecoratedPotBlockEntity::create_decorated_pot_template(&pot.decorations),
+        Tag::Compound(vec![
+            (
+                "id".to_string(),
+                Tag::String("minecraft:decorated_pot".to_string())
+            ),
+            (
+                "components".to_string(),
+                Tag::Compound(vec![(
+                    "minecraft:pot_decorations".to_string(),
+                    pot.decorations.to_tag()
+                )])
+            ),
+        ])
+    );
+    assert_eq!(
+        DecoratedPotBlockEntity::create_decorated_pot_instance(&pot.decorations),
+        DecoratedPotBlockEntity::create_decorated_pot_template(&pot.decorations)
+    );
+    assert_eq!(
+        pot.collect_implicit_components(),
+        Tag::Compound(vec![
+            (
+                "minecraft:pot_decorations".to_string(),
+                pot.decorations.to_tag()
+            ),
+            (
+                "minecraft:container".to_string(),
+                Tag::List(vec![Tag::Compound(vec![
+                    (
+                        "id".to_string(),
+                        Tag::String("minecraft:diamond".to_string())
+                    ),
+                    ("count".to_string(), Tag::Int(2)),
+                ])])
+            ),
+        ])
+    );
+    let mut component_loaded = DecoratedPotBlockEntity::default();
+    component_loaded.apply_implicit_components(&pot.collect_implicit_components());
+    assert_eq!(component_loaded.decorations, pot.decorations);
+    assert_eq!(component_loaded.item, pot.item);
+    assert_eq!(
+        DecoratedPotBlockEntity::remove_components_from_tag(saved),
+        Tag::Compound(Vec::new())
+    );
+}
+
+fn assert_decorated_pot_loot_and_single_item_methods(pot: &mut DecoratedPotBlockEntity) {
     pot.loot_table = Some("minecraft:chests/trial_chambers/reward".to_string());
     pot.loot_table_seed = 123;
     let loot_saved = pot.save_additional();
     assert!(
         matches!(&loot_saved, Tag::Compound(fields) if fields.iter().any(|(key, _)| key == "LootTable") && fields.iter().all(|(key, _)| key != "item"))
     );
-    let loaded_loot = DecoratedPotBlockEntity::load_additional(&loot_saved);
+    let mut loaded_loot = DecoratedPotBlockEntity::load_additional(&loot_saved);
     assert_eq!(loaded_loot.loot_table, pot.loot_table);
     assert_eq!(loaded_loot.loot_table_seed, 123);
     assert_eq!(loaded_loot.item, None);
 
+    assert!(loaded_loot.get_the_item().is_none());
+    assert_eq!(loaded_loot.loot_table, None);
+    assert_eq!(loaded_loot.loot_table_seed, 0);
+    pot.set_the_item(Some(PotItemStack {
+        item_id: "minecraft:emerald".to_string(),
+        count: 5,
+    }));
+    assert_eq!(
+        pot.split_the_item(2),
+        Some(PotItemStack {
+            item_id: "minecraft:emerald".to_string(),
+            count: 2,
+        })
+    );
+    assert_eq!(
+        pot.get_the_item(),
+        Some(&PotItemStack {
+            item_id: "minecraft:emerald".to_string(),
+            count: 3,
+        })
+    );
+    assert_eq!(
+        pot.split_the_item(99),
+        Some(PotItemStack {
+            item_id: "minecraft:emerald".to_string(),
+            count: 3,
+        })
+    );
+    assert_eq!(pot.get_the_item(), None);
+}
+
+fn assert_decorated_pot_negative_wobble_event(pot: &mut DecoratedPotBlockEntity) {
     assert_eq!(DecoratedPotWobbleStyle::Positive.duration(), 7);
     assert_eq!(DecoratedPotWobbleStyle::Negative.duration(), 10);
     assert!(pot.trigger_event(
