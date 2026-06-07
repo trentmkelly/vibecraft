@@ -248,6 +248,26 @@ struct JoinedPlaySessionStart {
 
 const ITEM_TICK_INTERVAL: Duration = Duration::from_millis(50);
 
+/// Maps the play-session [`GameMode`] to the command model's game mode (and back
+/// via [`play_game_mode`]). Used when seeding/applying `/gamemode` command state.
+pub(super) fn command_game_mode(game_mode: GameMode) -> crate::command::GameMode {
+    match game_mode {
+        GameMode::Survival => crate::command::GameMode::Survival,
+        GameMode::Creative => crate::command::GameMode::Creative,
+        GameMode::Adventure => crate::command::GameMode::Adventure,
+        GameMode::Spectator => crate::command::GameMode::Spectator,
+    }
+}
+
+pub(super) fn play_game_mode(game_mode: crate::command::GameMode) -> GameMode {
+    match game_mode {
+        crate::command::GameMode::Survival => GameMode::Survival,
+        crate::command::GameMode::Creative => GameMode::Creative,
+        crate::command::GameMode::Adventure => GameMode::Adventure,
+        crate::command::GameMode::Spectator => GameMode::Spectator,
+    }
+}
+
 /// Handshake `ClientIntent` ids, 1:1 with Java `ClientIntent` (`STATUS_ID`/
 /// `LOGIN_ID`/`TRANSFER_ID`).
 const INTENTION_STATUS: i32 = 1;
@@ -2670,6 +2690,7 @@ fn handle_decoded_play_packet(
                 player_access: context.player_access,
                 world_seed: context.world_seed,
                 weather: context.weather,
+                active_login: context.active_login,
             },
         )?;
     } else if packet_id == SERVERBOUND_USE_ITEM_ON_PACKET_ID {

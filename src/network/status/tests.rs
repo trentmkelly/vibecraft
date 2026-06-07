@@ -505,6 +505,34 @@ pub fn active_login_registry_only_counts_in_play_sessions_and_tracks_listing() {
 }
 
 #[test]
+pub fn active_login_guard_in_play_profiles_enumerates_full_online_roster() {
+    // Two distinct players online — the roster snapshot a guard exposes (used to
+    // seed `/list`) must contain BOTH, not just the guard's own player. Matches
+    // Java PlayerList.getPlayers being shared across all connections.
+    let registry = ActiveLoginRegistry::default();
+    let alex = crate::player_access::NameAndId::create_offline("Alex");
+    let steve = crate::player_access::NameAndId::create_offline("Steve");
+    let (alex_guard, _) = registry
+        .register_replacing(&alex.uuid, "Alex", &loopback_stream())
+        .unwrap();
+    let (steve_guard, _) = registry
+        .register_replacing(&steve.uuid, "Steve", &loopback_stream())
+        .unwrap();
+    alex_guard.mark_in_play();
+    steve_guard.mark_in_play();
+
+    // Either guard sees the whole roster (the session map is shared).
+    let mut names: Vec<String> = alex_guard
+        .in_play_profiles()
+        .into_iter()
+        .map(|profile| profile.name)
+        .collect();
+    names.sort();
+    assert_eq!(names, vec!["Alex".to_string(), "Steve".to_string()]);
+    assert_eq!(steve_guard.in_play_profiles().len(), 2);
+}
+
+#[test]
 pub fn active_login_registry_replacement_uses_new_session_and_token_guards_old() {
     let registry = ActiveLoginRegistry::default();
     let steve = crate::player_access::NameAndId::create_offline("Steve");

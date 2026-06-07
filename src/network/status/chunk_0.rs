@@ -738,6 +738,24 @@ impl ActiveLoginGuard {
         self.with_own_session(|session| session.in_play = true);
     }
 
+    /// Snapshot every player currently in the PLAY state as `NameAndId`, for
+    /// commands that enumerate the online roster (Java `PlayerList.getPlayers`,
+    /// e.g. `/list`). The guard shares the registry's session map, so this sees
+    /// all sessions, not just its own.
+    pub fn in_play_profiles(&self) -> Vec<NameAndId> {
+        match self.sessions.lock() {
+            Ok(sessions) => sessions
+                .iter()
+                .filter(|(_, session)| session.in_play)
+                .map(|(uuid, session)| NameAndId {
+                    uuid: uuid.clone(),
+                    name: session.name.clone(),
+                })
+                .collect(),
+            Err(_) => Vec::new(),
+        }
+    }
+
     fn with_own_session(&self, update: impl FnOnce(&mut ActiveLoginSession)) {
         if let Ok(mut sessions) = self.sessions.lock() {
             if let Some(session) = sessions.get_mut(&self.uuid) {

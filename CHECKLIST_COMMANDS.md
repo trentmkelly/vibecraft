@@ -104,7 +104,7 @@
 - [ ] Implement `/help`.
 - [ ] Implement `/item`.
 - [ ] Implement `/jfr`.
-- [ ] Implement `/kick`, `/kill`, `/list`.
+- [ ] Implement `/kick`, `/kill`, `/list`. — `/list` is DONE and live-correct: `command_state_for_player` seeds `online_players` from the shared `ActiveLoginRegistry` (`ActiveLoginGuard::in_play_profiles`, = Java `PlayerList.getPlayers`), and `command_feedback_text` renders `commands.list.players` ("There are N of a max of M players online: …"). REMAINING (keeps this bundled item unchecked): `/kick` needs cross-player SEND to disconnect the target's stream (STAGE 4 registry wiring), and `/kill` needs the live death flow (no live death event handler yet). See `TODO(kick-kill-live-wiring)` in play_session_world_packets.rs.
 - [ ] Implement `/locate`.
 - [ ] Implement `/loot`.
 - [ ] Implement `/msg`, `/teammsg`, `/say`, `/tellraw`.

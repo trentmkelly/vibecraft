@@ -234,6 +234,9 @@ pub struct ChatCommandContext<'a> {
     pub player_access: &'a Arc<Mutex<PlayerAccess>>,
     pub world_seed: i64,
     pub weather: &'a Arc<Mutex<WeatherCycle>>,
+    /// The player's registry guard, used to enumerate the live online roster for
+    /// roster commands like `/list` (Java `PlayerList.getPlayers`).
+    pub active_login: &'a ActiveLoginGuard,
 }
 
 pub fn handle_chat_command_packet<R: Read>(
@@ -267,6 +270,7 @@ pub fn handle_chat_command_packet<R: Read>(
         context.properties,
         context.world_seed,
         context.weather,
+        context.active_login,
     );
     let result = execute_builtin_command(&mut command_state, permissions, &command);
     apply_command_side_effects(
@@ -330,7 +334,14 @@ fn command_state_for_player(
     properties: &ServerProperties,
     world_seed: i64,
     weather: &Arc<Mutex<WeatherCycle>>,
+    active_login: &ActiveLoginGuard,
 ) -> ServerCommandState {
+    // Live online roster (Java `PlayerList.getPlayers`), falling back to the
+    // executor if the snapshot is somehow empty so `/list` never reports zero.
+    let mut online_players = active_login.in_play_profiles();
+    if online_players.is_empty() {
+        online_players.push(profile.clone());
+    }
     let mut state = ServerCommandState {
         command_source_player: Some(profile.clone()),
         command_source_position: crate::command::Vec3 {
@@ -339,13 +350,12 @@ fn command_state_for_player(
             z: play_state.z,
         },
         world_preset: properties.level_type.clone(),
-        online_players: vec![profile.clone()],
+        online_players,
         max_players: properties.max_players,
         world_seed,
         function_permission_level: function_permission_level_from_properties(properties),
-        // Seed the command state with the live weather so a `/weather` command can be
-        // diffed against the real cycle in `apply_command_side_effects` (and so a
-        // non-weather command leaves it untouched).
+        // Seed with live weather so `/weather` can be diffed against the real cycle
+        // in `apply_command_side_effects` (non-weather commands leave it untouched).
         weather: weather_state_from_cycle(&lock_status_mutex(weather)),
         ..ServerCommandState::default()
     };
@@ -382,8 +392,7 @@ fn weather_state_from_cycle(cycle: &WeatherCycle) -> crate::command::WeatherStat
 
 /// Applies a command-model [`WeatherState`] to the live [`WeatherCycle`], mirroring
 /// Java `WeatherCommand`: an unspecified duration (`None`) samples the vanilla random
-/// distribution (RAIN_DELAY for clear, RAIN_DURATION for rain, THUNDER_DURATION for
-/// thunder), matching `getDuration(source, -1, …)`.
+/// distribution (`getDuration(source, -1, …)`).
 fn apply_weather_state_to_cycle(cycle: &mut WeatherCycle, weather: crate::command::WeatherState) {
     use crate::command::WeatherMode;
     let durations = WeatherRandomDurations::sample_vanilla();
@@ -424,17 +433,21 @@ fn apply_command_side_effects(
     command_state: &ServerCommandState,
     weather: &Arc<Mutex<WeatherCycle>>,
 ) -> io::Result<()> {
-    // Apply a `/weather` change back to the live cycle. The command state was seeded
-    // with the current weather in `command_state_for_player`, so this only fires when
-    // the command actually changed it (non-weather commands leave it untouched). The
-    // per-tick `broadcast_weather_if_changed` then sends the vanilla rain/thunder game
-    // events to the client.
+    // Apply a `/weather` change back to the live cycle: the state was seeded with
+    // the current weather, so this only fires when the command changed it (per-tick
+    // `broadcast_weather_if_changed` then sends the rain/thunder game events).
     {
         let mut cycle = lock_status_mutex(weather);
         if command_state.weather != weather_state_from_cycle(&cycle) {
             apply_weather_state_to_cycle(&mut cycle, command_state.weather);
         }
     }
+    // TODO(kick-kill-live-wiring): CHECKLIST_COMMANDS.md "/kick, /kill, /list" —
+    // `/list` is live (seeded from the registry in `command_state_for_player`), but
+    // `/kick` needs cross-player SEND to disconnect the target's stream (STAGE 4 of
+    // [[project-live-player-registry-gap]]) and `/kill` needs the live death flow
+    // (no live death event handler yet; see the live entity-tick gap). Both gate
+    // marking that bundled item.
     if let Some(entry) = command_state
         .player_game_modes
         .iter()
@@ -456,24 +469,6 @@ fn apply_command_side_effects(
         }
     }
     Ok(())
-}
-
-fn command_game_mode(game_mode: GameMode) -> crate::command::GameMode {
-    match game_mode {
-        GameMode::Survival => crate::command::GameMode::Survival,
-        GameMode::Creative => crate::command::GameMode::Creative,
-        GameMode::Adventure => crate::command::GameMode::Adventure,
-        GameMode::Spectator => crate::command::GameMode::Spectator,
-    }
-}
-
-fn play_game_mode(game_mode: crate::command::GameMode) -> GameMode {
-    match game_mode {
-        crate::command::GameMode::Survival => GameMode::Survival,
-        crate::command::GameMode::Creative => GameMode::Creative,
-        crate::command::GameMode::Adventure => GameMode::Adventure,
-        crate::command::GameMode::Spectator => GameMode::Spectator,
-    }
 }
 
 pub(super) fn command_feedback_text(
@@ -743,10 +738,9 @@ pub fn load_or_generate_spawn_chunk_uncached(
             }
         }
     });
-    // Mirror Java's `ThreadedLevelLightEngine.initializeLight`/`lightChunk`:
-    // if the chunk's per-section light arrays were not stamped at save time,
-    // run the full propagator now so the outgoing packet ships real values
-    // instead of the previous "fullbright everywhere" stub.
+    // Mirror Java's `ThreadedLevelLightEngine.initializeLight`/`lightChunk`: if the
+    // chunk's per-section light was not stamped at save time, run the full
+    // propagator now so the packet ships real values, not a fullbright stub.
     let light_started = Instant::now();
     let light_result = if !chunk.light_correct {
         let level_height = crate::lighting::level_height::LevelHeightAccessor::new(
