@@ -238,6 +238,29 @@ fn decorated_pot_saves_sherds_item_loot_and_wobble_like_java() {
             "minecraft:brick".to_string(),
         ]
     );
+    assert_eq!(
+        pot.decorations.tooltip_items(),
+        vec![
+            "minecraft:brick".to_string(),
+            "minecraft:brick".to_string(),
+            "minecraft:arms_up_pottery_sherd".to_string(),
+            "minecraft:angler_pottery_sherd".to_string(),
+        ]
+    );
+    assert!(PotDecorations::default().tooltip_items().is_empty());
+    let short = PotDecorations::from_tag(&Tag::List(vec![
+        Tag::String("minecraft:skull_pottery_sherd".to_string()),
+        Tag::String("minecraft:brick".to_string()),
+    ]));
+    assert_eq!(
+        short.ordered(),
+        vec![
+            "minecraft:skull_pottery_sherd".to_string(),
+            "minecraft:brick".to_string(),
+            "minecraft:brick".to_string(),
+            "minecraft:brick".to_string(),
+        ]
+    );
     let saved = pot.save_additional();
     assert_eq!(
         saved,

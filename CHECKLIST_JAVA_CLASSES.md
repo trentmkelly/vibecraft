@@ -4699,7 +4699,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/LecternBlockEntity.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/LidBlockEntity.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/ListBackedContainer.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/PotDecorations.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/PotDecorations.java`. — Audited against Java 26.1.2: the record stores optional back/left/right/front items, normalizes `Items.BRICK` and missing list entries to empty sides, serializes in back/left/right/front order with brick fallback, and emits non-empty tooltips in front/left/right/back order. Rust parity is `PotDecorations::{new,ordered,tooltip_items,to_tag,from_tag}`; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 decorated_pot_saves_sherds_item_loot_and_wobble_like_java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/RandomizableContainerBlockEntity.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/SculkCatalystBlockEntity.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/SculkSensorBlockEntity.java`.

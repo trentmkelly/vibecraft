@@ -516,6 +516,17 @@ impl PotDecorations {
             .collect()
     }
 
+    pub fn tooltip_items(&self) -> Vec<String> {
+        if self.is_empty() {
+            return Vec::new();
+        }
+
+        [&self.front, &self.left, &self.right, &self.back]
+            .into_iter()
+            .map(|side| side.clone().unwrap_or_else(|| Self::BRICK.to_string()))
+            .collect()
+    }
+
     pub(super) fn is_empty(&self) -> bool {
         self.back.is_none() && self.left.is_none() && self.right.is_none() && self.front.is_none()
     }
