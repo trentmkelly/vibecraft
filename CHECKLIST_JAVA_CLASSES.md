@@ -4719,7 +4719,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/TickingBlockEntity.java`. — Audited against Java 26.1.2: the interface exposes `tick()`, `isRemoved()`, `getPos()`, and `getType()` for level/chunk scheduler wrappers. Rust parity is `TickingBlockEntity::tick()`, `is_removed()`, `pos()`, and `type_key()` delegating to the wrapped `BlockEntity`; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 ticking_block_entity_wrapper_exposes_scheduler_shape`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/TrappedChestBlockEntity.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/TrialSpawnerBlockEntity.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/package-info.java`. — Audited against Java 26.1.2: metadata-only `@NullMarked` package annotation with no runtime behavior, protocol surface, serialization, or gameplay logic to port; Rust's type system already models nullability without a package-level annotation.
 
 ## `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/trialspawner`
 
@@ -4729,7 +4729,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/trialspawner/TrialSpawnerConfigs.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/trialspawner/TrialSpawnerState.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/trialspawner/TrialSpawnerStateData.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/trialspawner/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/trialspawner/package-info.java`. — Audited against Java 26.1.2: metadata-only `@NullMarked` package annotation with no runtime behavior, protocol surface, serialization, or gameplay logic to port; Rust's type system already models nullability without a package-level annotation.
 
 ## `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/vault`
 
@@ -4739,7 +4739,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/vault/VaultServerData.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/vault/VaultSharedData.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/vault/VaultState.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/vault/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/vault/package-info.java`. — Audited against Java 26.1.2: metadata-only `@NullMarked` package annotation with no runtime behavior, protocol surface, serialization, or gameplay logic to port; Rust's type system already models nullability without a package-level annotation.
 
 ## `decompiled-server-26.1.2/net/minecraft/world/level/block/grower`
 
