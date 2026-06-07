@@ -714,6 +714,32 @@ fn assert_dispenser_and_dropper_activation_slots() {
         dispenser.activate_once(&[0, 1]),
         ContainerActivation::Dispense { slot: 1 }
     );
+    assert_eq!(dispenser.random_non_empty_slot(&[0, 1]), Some(1));
+
+    let mut inserting = ContainerBlockEntityModel::new(ContainerBlockEntityKind::Dispenser);
+    inserting.set_item(0, Some(stack("minecraft:stone", 60)));
+    inserting.set_item(1, Some(stack("minecraft:dirt", 3)));
+    inserting.set_item(2, Some(stack("minecraft:stone", 64)));
+    inserting.content_changed = false;
+    assert_eq!(inserting.insert_item(stack("minecraft:stone", 10)), None);
+    assert_eq!(inserting.get_item(0), Some(&stack("minecraft:stone", 64)));
+    assert_eq!(inserting.get_item(2), Some(&stack("minecraft:stone", 64)));
+    assert_eq!(inserting.get_item(3), Some(&stack("minecraft:stone", 6)));
+    assert!(inserting.content_changed);
+    assert_eq!(
+        inserting.insert_item(stack("minecraft:dirt", 400)),
+        Some(stack("minecraft:dirt", 19))
+    );
+    assert_eq!(inserting.get_item(1), Some(&stack("minecraft:dirt", 64)));
+    assert_eq!(inserting.get_item(4), Some(&stack("minecraft:dirt", 64)));
+    assert_eq!(inserting.get_item(8), Some(&stack("minecraft:dirt", 64)));
+
+    let loaded_dispenser = ContainerBlockEntityModel::load_additional(
+        ContainerBlockEntityKind::Dispenser,
+        &inserting.save_additional(),
+    );
+    assert_eq!(loaded_dispenser.kind, ContainerBlockEntityKind::Dispenser);
+    assert_eq!(loaded_dispenser.items, inserting.items);
 
     let mut dropper = ContainerBlockEntityModel::new(ContainerBlockEntityKind::Dropper);
     assert_eq!(dropper.kind.size(), 9);

@@ -315,6 +315,45 @@ impl ContainerBlockEntityModel {
         replace_slot
     }
 
+    pub fn insert_item(&mut self, mut item_stack: PotItemStack) -> Option<PotItemStack> {
+        if item_stack.is_empty() {
+            return None;
+        }
+
+        let max_stack_size = Self::MAX_STACK_SIZE;
+        for slot in 0..self.items.len() {
+            let target = self.items[slot].as_mut();
+            let can_insert = target
+                .as_ref()
+                .is_none_or(|target| target.item_id == item_stack.item_id);
+            if !can_insert {
+                continue;
+            }
+
+            let target_count = target.as_ref().map_or(0, |target| target.count);
+            let transfer_count = item_stack.count.min(max_stack_size - target_count);
+            if transfer_count > 0 {
+                if let Some(target) = target {
+                    target.count += transfer_count;
+                    item_stack.count -= transfer_count;
+                } else {
+                    let inserted = PotItemStack {
+                        item_id: item_stack.item_id.clone(),
+                        count: transfer_count,
+                    };
+                    self.set_item(slot, Some(inserted));
+                    item_stack.count -= transfer_count;
+                }
+            }
+
+            if item_stack.is_empty() {
+                break;
+            }
+        }
+
+        (!item_stack.is_empty()).then_some(item_stack)
+    }
+
     pub fn activate_once(&self, random_rolls: &[usize]) -> ContainerActivation {
         let Some(slot) = self.random_non_empty_slot(random_rolls) else {
             return ContainerActivation::None;
