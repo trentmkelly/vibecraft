@@ -34,6 +34,10 @@ impl EndPortalBlockEntity {
     pub fn save_additional(&self) -> Tag {
         Tag::Compound(Vec::new())
     }
+
+    pub fn should_render_face(direction: Direction) -> bool {
+        matches!(direction, Direction::Down | Direction::Up)
+    }
 }
 
 impl TheEndGatewayBlockEntity {
@@ -518,4 +522,3 @@ impl StructureBlockEntity {
         )
     }
 }
-

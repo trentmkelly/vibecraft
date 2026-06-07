@@ -4715,7 +4715,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/TestBlockEntity.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/TestInstanceBlockEntity.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/TheEndGatewayBlockEntity.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/TheEndPortalBlockEntity.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/TheEndPortalBlockEntity.java`. — Audited against Java 26.1.2: the block entity has no custom NBT, uses `BlockEntityType.END_PORTAL`, and renders only Y-axis faces. Rust parity is `EndPortalBlockEntity::save_additional()` + `EndPortalBlockEntity::should_render_face()` + `BlockEntity::get_update_packet()`; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 end_portal_block_entity_is_zero_data_portal_placeholder`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/TickingBlockEntity.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/TrappedChestBlockEntity.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/TrialSpawnerBlockEntity.java`.

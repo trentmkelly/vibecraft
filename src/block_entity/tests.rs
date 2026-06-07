@@ -205,6 +205,17 @@ fn end_portal_block_entity_is_zero_data_portal_placeholder() {
         EndPortalBlockEntity.save_additional(),
         Tag::Compound(Vec::new())
     );
+    for direction in [Direction::Down, Direction::Up] {
+        assert!(EndPortalBlockEntity::should_render_face(direction));
+    }
+    for direction in [
+        Direction::West,
+        Direction::East,
+        Direction::North,
+        Direction::South,
+    ] {
+        assert!(!EndPortalBlockEntity::should_render_face(direction));
+    }
     assert_eq!(
         portal.save_with_full_metadata(),
         Tag::Compound(vec![
@@ -214,6 +225,14 @@ fn end_portal_block_entity_is_zero_data_portal_placeholder() {
             ("y".to_string(), Tag::Int(pos().y)),
             ("z".to_string(), Tag::Int(pos().z)),
         ])
+    );
+    assert_eq!(
+        portal.get_update_packet(),
+        ClientboundBlockEntityDataPacket {
+            pos: pos(),
+            ty: BlockEntityTypeId::EndPortal,
+            tag: Tag::Compound(vec![("components".to_string(), Tag::Compound(Vec::new()))]),
+        }
     );
 }
 
