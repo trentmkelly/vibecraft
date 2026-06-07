@@ -554,6 +554,10 @@ fn sign_block_entities_track_front_back_text_filtering_wax_and_hanging_shape() {
 fn assert_sign_defaults_and_blank_edit_rejection(sign: &mut SignBlockEntityModel) {
     assert_eq!(SignBlockEntityModel::MAX_TEXT_LINE_WIDTH, 90);
     assert_eq!(SignBlockEntityModel::TEXT_LINE_HEIGHT, 10);
+    assert_eq!(
+        SignBlockEntityModel::INTERACTION_FAILED_SOUND,
+        "minecraft:block.waxed_sign_interact_fail"
+    );
     assert_eq!(sign.front_text.color, DyeColor::Black);
     assert!(!sign.front_text.has_message(false));
     assert!(!sign.update_sign_text(
@@ -629,12 +633,30 @@ fn assert_hanging_sign_shape_and_load(loaded: SignBlockEntityModel) {
     hanging.sign = loaded;
     assert_eq!(HangingSignBlockEntityModel::MAX_TEXT_LINE_WIDTH, 60);
     assert_eq!(HangingSignBlockEntityModel::TEXT_LINE_HEIGHT, 9);
-    let loaded_hanging =
-        HangingSignBlockEntityModel::load_additional(&hanging.save_additional());
     assert_eq!(
-        loaded_hanging.attachment,
+        HangingSignBlockEntityModel::INTERACTION_FAILED_SOUND,
+        "minecraft:block.waxed_hanging_sign_interact_fail"
+    );
+    assert_eq!(
+        HangingSignAttachment::from_block_state("minecraft:oak_wall_hanging_sign[facing=north]"),
+        HangingSignAttachment::Wall
+    );
+    assert_eq!(
+        HangingSignAttachment::from_block_state(
+            "minecraft:oak_hanging_sign[attached=true,rotation=8]"
+        ),
         HangingSignAttachment::CeilingMiddle
     );
+    assert_eq!(
+        HangingSignAttachment::from_block_state("minecraft:oak_hanging_sign[attached=false]"),
+        HangingSignAttachment::Ceiling
+    );
+    let saved = hanging.save_additional();
+    assert!(
+        !matches!(&saved, Tag::Compound(entries) if entries.iter().any(|(name, _)| name == "attachment"))
+    );
+    let loaded_hanging = HangingSignBlockEntityModel::load_additional(&saved);
+    assert_eq!(loaded_hanging.attachment, HangingSignAttachment::Ceiling);
     assert_eq!(loaded_hanging.sign.front_text.lines[0].raw, "raw one");
 }
 

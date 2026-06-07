@@ -374,6 +374,16 @@ impl HangingSignAttachment {
             _ => None,
         }
     }
+
+    pub fn from_block_state(block_state: &str) -> Self {
+        if block_state.contains("_wall_hanging_sign") {
+            Self::Wall
+        } else if block_state.contains("attached=true") {
+            Self::CeilingMiddle
+        } else {
+            Self::Ceiling
+        }
+    }
 }
 
 impl SignLine {
@@ -506,6 +516,7 @@ impl SignText {
 impl SignBlockEntityModel {
     pub const MAX_TEXT_LINE_WIDTH: i32 = 90;
     pub const TEXT_LINE_HEIGHT: i32 = 10;
+    pub const INTERACTION_FAILED_SOUND: &'static str = "minecraft:block.waxed_sign_interact_fail";
 
     pub fn text(&self, front_text: bool) -> &SignText {
         if front_text {
@@ -621,6 +632,8 @@ impl SignBlockEntityModel {
 impl HangingSignBlockEntityModel {
     pub const MAX_TEXT_LINE_WIDTH: i32 = 60;
     pub const TEXT_LINE_HEIGHT: i32 = 9;
+    pub const INTERACTION_FAILED_SOUND: &'static str =
+        "minecraft:block.waxed_hanging_sign_interact_fail";
 
     pub fn new(attachment: HangingSignAttachment) -> Self {
         Self {
@@ -630,24 +643,14 @@ impl HangingSignBlockEntityModel {
     }
 
     pub fn save_additional(&self) -> Tag {
-        let mut entries = match self.sign.save_additional() {
-            Tag::Compound(entries) => entries,
-            _ => Vec::new(),
-        };
-        entries.push((
-            "attachment".to_string(),
-            Tag::String(self.attachment.as_str().to_string()),
-        ));
-        Tag::Compound(entries)
+        self.sign.save_additional()
     }
 
     pub fn load_additional(tag: &Tag) -> Self {
-        let sign = SignBlockEntityModel::load_additional(tag);
-        let attachment = compound_entries(tag)
-            .and_then(|entries| get_string(entries, "attachment"))
-            .and_then(HangingSignAttachment::from_str)
-            .unwrap_or(HangingSignAttachment::Ceiling);
-        Self { sign, attachment }
+        Self {
+            sign: SignBlockEntityModel::load_additional(tag),
+            attachment: HangingSignAttachment::Ceiling,
+        }
     }
 }
 
