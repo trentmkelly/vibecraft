@@ -4743,8 +4743,8 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/world/level/block/grower`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/grower/TreeGrower.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/grower/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/grower/TreeGrower.java`. — Audited against Java 26.1.2: Rust covers the named grower registry/codec surface (`oak`, `spruce`, `mangrove`, `azalea`, `birch`, `jungle`, `acacia`, `cherry`, `dark_oak`, `pale_oak`), secondary chance selection, flower-aware tree variants, mega-tree secondary selection, sapling-to-grower mapping, Java 2x2 mega sapling scan order `(0,0)`, `(0,-1)`, `(-1,0)`, `(-1,-1)`, sapling clear/restore plan positions, flower scan bounds from below/north(2)/west(2) through above/south(2)/east(2), and minimum-height lookup from the primary configured feature trunk base heights. Live `ConfiguredFeature.place`, fluid-state replacement, block update emission, and registry holder lookup remain under `TODO(tree-grower-live-feature)` plus the existing worldgen feature-execution checklist rows. Covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 plant`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/grower/package-info.java`. — Audited against Java 26.1.2: metadata-only `@NullMarked` package annotation with no runtime behavior, protocol surface, serialization, or gameplay logic to port; Rust's type system already models nullability without a package-level annotation.
 
 ## `decompiled-server-26.1.2/net/minecraft/world/level/block`
 

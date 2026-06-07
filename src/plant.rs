@@ -42,6 +42,215 @@ pub enum PlantAction {
     Transform(BlockStateModel),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TreeGrowerModel {
+    pub name: &'static str,
+    pub secondary_chance: f32,
+    pub mega_tree: Option<&'static str>,
+    pub secondary_mega_tree: Option<&'static str>,
+    pub tree: Option<&'static str>,
+    pub secondary_tree: Option<&'static str>,
+    pub flowers: Option<&'static str>,
+    pub secondary_flowers: Option<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TreeGrowPlan {
+    Single {
+        feature: &'static str,
+        clear_pos: BlockPos,
+        restore_pos: BlockPos,
+    },
+    Mega {
+        feature: &'static str,
+        origin: BlockPos,
+        clear_positions: [BlockPos; 4],
+    },
+}
+
+pub const TREE_GROWERS: [TreeGrowerModel; 10] = [
+    TreeGrowerModel {
+        name: "oak",
+        secondary_chance: 0.1,
+        mega_tree: None,
+        secondary_mega_tree: None,
+        tree: Some("minecraft:oak"),
+        secondary_tree: Some("minecraft:fancy_oak"),
+        flowers: Some("minecraft:oak_bees_005"),
+        secondary_flowers: Some("minecraft:fancy_oak_bees_005"),
+    },
+    TreeGrowerModel {
+        name: "spruce",
+        secondary_chance: 0.5,
+        mega_tree: Some("minecraft:mega_spruce"),
+        secondary_mega_tree: Some("minecraft:mega_pine"),
+        tree: Some("minecraft:spruce"),
+        secondary_tree: None,
+        flowers: None,
+        secondary_flowers: None,
+    },
+    TreeGrowerModel {
+        name: "mangrove",
+        secondary_chance: 0.85,
+        mega_tree: None,
+        secondary_mega_tree: None,
+        tree: Some("minecraft:mangrove"),
+        secondary_tree: Some("minecraft:tall_mangrove"),
+        flowers: None,
+        secondary_flowers: None,
+    },
+    TreeGrowerModel::simple("azalea", None, Some("minecraft:azalea_tree"), None),
+    TreeGrowerModel::simple(
+        "birch",
+        None,
+        Some("minecraft:birch"),
+        Some("minecraft:birch_bees_005"),
+    ),
+    TreeGrowerModel::simple(
+        "jungle",
+        Some("minecraft:mega_jungle_tree"),
+        Some("minecraft:jungle_tree_no_vine"),
+        None,
+    ),
+    TreeGrowerModel::simple("acacia", None, Some("minecraft:acacia"), None),
+    TreeGrowerModel::simple(
+        "cherry",
+        None,
+        Some("minecraft:cherry"),
+        Some("minecraft:cherry_bees_005"),
+    ),
+    TreeGrowerModel::simple("dark_oak", Some("minecraft:dark_oak"), None, None),
+    TreeGrowerModel::simple("pale_oak", Some("minecraft:pale_oak_bonemeal"), None, None),
+];
+
+impl TreeGrowerModel {
+    pub const fn simple(
+        name: &'static str,
+        mega_tree: Option<&'static str>,
+        tree: Option<&'static str>,
+        flowers: Option<&'static str>,
+    ) -> Self {
+        Self {
+            name,
+            secondary_chance: 0.0,
+            mega_tree,
+            secondary_mega_tree: None,
+            tree,
+            secondary_tree: None,
+            flowers,
+            secondary_flowers: None,
+        }
+    }
+
+    pub fn by_name(name: &str) -> Option<Self> {
+        TREE_GROWERS
+            .iter()
+            .copied()
+            .find(|grower| grower.name == name)
+    }
+
+    pub fn configured_feature(self, random_float: f32, has_flowers: bool) -> Option<&'static str> {
+        if random_float < self.secondary_chance {
+            if has_flowers {
+                if let Some(feature) = self.secondary_flowers {
+                    return Some(feature);
+                }
+            }
+            if let Some(feature) = self.secondary_tree {
+                return Some(feature);
+            }
+        }
+        if has_flowers {
+            self.flowers.or(self.tree)
+        } else {
+            self.tree
+        }
+    }
+
+    pub fn configured_mega_feature(self, random_float: f32) -> Option<&'static str> {
+        if random_float < self.secondary_chance {
+            self.secondary_mega_tree.or(self.mega_tree)
+        } else {
+            self.mega_tree
+        }
+    }
+
+    pub fn grow_plan(
+        self,
+        pos: BlockPos,
+        state: &BlockStateModel,
+        mega_random_float: f32,
+        tree_random_float: f32,
+        has_flowers: bool,
+        mut is_sapling_at: impl FnMut(BlockPos, &str) -> bool,
+    ) -> Option<TreeGrowPlan> {
+        // TODO(tree-grower-live-feature): execute these plans through Java-shaped
+        // ConfiguredFeature.place once the worldgen feature runtime is wired into live block ticks.
+        if let Some(feature) = self.configured_mega_feature(mega_random_float) {
+            for dx in [0, -1] {
+                for dz in [0, -1] {
+                    let origin = offset_pos(pos, dx, 0, dz);
+                    let clear_positions = two_by_two_positions(origin);
+                    if clear_positions
+                        .iter()
+                        .all(|candidate| is_sapling_at(*candidate, &state.registry_id))
+                    {
+                        return Some(TreeGrowPlan::Mega {
+                            feature,
+                            origin,
+                            clear_positions,
+                        });
+                    }
+                }
+            }
+        }
+
+        self.configured_feature(tree_random_float, has_flowers)
+            .map(|feature| TreeGrowPlan::Single {
+                feature,
+                clear_pos: pos,
+                restore_pos: pos,
+            })
+    }
+
+    pub fn minimum_height(self) -> Option<i32> {
+        self.tree.and_then(tree_feature_base_height)
+    }
+}
+
+pub fn tree_grower_for_sapling(registry_id: &str) -> Option<TreeGrowerModel> {
+    let name = match registry_id {
+        "minecraft:oak_sapling" => "oak",
+        "minecraft:spruce_sapling" => "spruce",
+        "minecraft:birch_sapling" => "birch",
+        "minecraft:jungle_sapling" => "jungle",
+        "minecraft:acacia_sapling" => "acacia",
+        "minecraft:dark_oak_sapling" => "dark_oak",
+        "minecraft:pale_oak_sapling" => "pale_oak",
+        "minecraft:cherry_sapling" => "cherry",
+        "minecraft:mangrove_propagule" => "mangrove",
+        "minecraft:azalea" | "minecraft:flowering_azalea" => "azalea",
+        _ => return None,
+    };
+    TreeGrowerModel::by_name(name)
+}
+
+pub fn has_tree_grower_flowers(
+    pos: BlockPos,
+    mut is_flower_at: impl FnMut(BlockPos) -> bool,
+) -> bool {
+    for x in (pos.x - 2)..=(pos.x + 2) {
+        for y in (pos.y - 1)..=(pos.y + 1) {
+            for z in (pos.z - 2)..=(pos.z + 2) {
+                if is_flower_at(BlockPos { x, y, z }) {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
 pub fn plant_family(state: &BlockStateModel) -> Option<PlantFamily> {
     let id = state.registry_id.as_str();
     if matches!(
@@ -263,25 +472,47 @@ fn moss_spread(pos: BlockPos) -> PlantAction {
 }
 
 fn tree_feature_for_sapling(registry_id: &str) -> &'static str {
-    match registry_id {
-        "minecraft:oak_sapling" => "minecraft:oak",
-        "minecraft:spruce_sapling" => "minecraft:spruce",
-        "minecraft:birch_sapling" => "minecraft:birch",
-        "minecraft:jungle_sapling" => "minecraft:jungle",
-        "minecraft:acacia_sapling" => "minecraft:acacia",
-        "minecraft:dark_oak_sapling" => "minecraft:dark_oak",
-        "minecraft:cherry_sapling" => "minecraft:cherry",
-        "minecraft:mangrove_propagule" => "minecraft:mangrove",
-        _ => "minecraft:tree",
+    tree_grower_for_sapling(registry_id)
+        .and_then(|grower| grower.configured_feature(1.0, false))
+        .unwrap_or("minecraft:tree")
+}
+
+fn offset_pos(pos: BlockPos, x: i32, y: i32, z: i32) -> BlockPos {
+    BlockPos {
+        x: pos.x + x,
+        y: pos.y + y,
+        z: pos.z + z,
+    }
+}
+
+fn two_by_two_positions(origin: BlockPos) -> [BlockPos; 4] {
+    [
+        origin,
+        offset_pos(origin, 1, 0, 0),
+        offset_pos(origin, 0, 0, 1),
+        offset_pos(origin, 1, 0, 1),
+    ]
+}
+
+fn tree_feature_base_height(feature: &str) -> Option<i32> {
+    match feature {
+        "minecraft:oak" | "minecraft:jungle_tree_no_vine" => Some(4),
+        "minecraft:birch" | "minecraft:acacia" | "minecraft:spruce" => Some(5),
+        "minecraft:cherry" => Some(7),
+        "minecraft:azalea_tree" => Some(4),
+        "minecraft:mangrove" => Some(2),
+        _ => None,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        age_of, bonemeal, coral_schedule_if_dry, coral_tick, growing_plant_tick, leaves_decay,
-        plant_family, random_tick_crop, sculk_sensor_transition, update_leaf_distance, with_age,
-        PlantAction, PlantFamily, CORAL_DIE_TICKS, LEAVES_DECAY_DISTANCE, MAX_CROP_AGE,
+        age_of, bonemeal, coral_schedule_if_dry, coral_tick, growing_plant_tick,
+        has_tree_grower_flowers, leaves_decay, plant_family, random_tick_crop,
+        sculk_sensor_transition, tree_grower_for_sapling, update_leaf_distance, with_age,
+        PlantAction, PlantFamily, TreeGrowPlan, TreeGrowerModel, CORAL_DIE_TICKS,
+        LEAVES_DECAY_DISTANCE, MAX_CROP_AGE, TREE_GROWERS,
     };
     use crate::block_behavior::BlockStateModel;
     use crate::block_update::{BlockPos, Direction};
@@ -356,6 +587,130 @@ mod tests {
             PlantAction::GrowTree {
                 feature: "minecraft:oak".to_string()
             }
+        );
+    }
+
+    #[test]
+    fn tree_grower_registry_and_feature_selection_match_java() {
+        assert_eq!(TREE_GROWERS.len(), 10);
+        let oak = TreeGrowerModel::by_name("oak").unwrap();
+        assert_eq!(oak.configured_feature(0.2, false), Some("minecraft:oak"));
+        assert_eq!(
+            oak.configured_feature(0.05, false),
+            Some("minecraft:fancy_oak")
+        );
+        assert_eq!(
+            oak.configured_feature(0.2, true),
+            Some("minecraft:oak_bees_005")
+        );
+        assert_eq!(
+            oak.configured_feature(0.05, true),
+            Some("minecraft:fancy_oak_bees_005")
+        );
+
+        let spruce = TreeGrowerModel::by_name("spruce").unwrap();
+        assert_eq!(
+            spruce.configured_mega_feature(0.6),
+            Some("minecraft:mega_spruce")
+        );
+        assert_eq!(
+            spruce.configured_mega_feature(0.4),
+            Some("minecraft:mega_pine")
+        );
+
+        let mangrove = TreeGrowerModel::by_name("mangrove").unwrap();
+        assert_eq!(
+            mangrove.configured_feature(0.9, false),
+            Some("minecraft:mangrove")
+        );
+        assert_eq!(
+            mangrove.configured_feature(0.8, false),
+            Some("minecraft:tall_mangrove")
+        );
+    }
+
+    #[test]
+    fn tree_grower_sapling_mapping_minimum_height_and_flower_scan_match_java() {
+        assert_eq!(
+            tree_grower_for_sapling("minecraft:pale_oak_sapling")
+                .unwrap()
+                .configured_mega_feature(1.0),
+            Some("minecraft:pale_oak_bonemeal")
+        );
+        assert_eq!(
+            tree_grower_for_sapling("minecraft:flowering_azalea")
+                .unwrap()
+                .minimum_height(),
+            Some(4)
+        );
+        assert_eq!(
+            TreeGrowerModel::by_name("cherry").unwrap().minimum_height(),
+            Some(7)
+        );
+        assert_eq!(
+            TreeGrowerModel::by_name("dark_oak")
+                .unwrap()
+                .minimum_height(),
+            None
+        );
+
+        let pos = BlockPos {
+            x: 10,
+            y: 64,
+            z: -4,
+        };
+        assert!(has_tree_grower_flowers(pos, |candidate| candidate
+            == BlockPos { x: 8, y: 63, z: -6 }));
+        assert!(has_tree_grower_flowers(pos, |candidate| candidate
+            == BlockPos {
+                x: 12,
+                y: 65,
+                z: -2
+            }));
+        assert!(!has_tree_grower_flowers(pos, |candidate| candidate
+            == BlockPos {
+                x: 13,
+                y: 64,
+                z: -4
+            }));
+    }
+
+    #[test]
+    fn tree_grow_plan_scans_mega_offsets_and_falls_back_to_single_like_java() {
+        let pos = BlockPos { x: 5, y: 70, z: 5 };
+        let state = BlockStateModel::new("minecraft:spruce_sapling");
+        let spruce = tree_grower_for_sapling(&state.registry_id).unwrap();
+        let plan = spruce
+            .grow_plan(pos, &state, 0.25, 1.0, false, |candidate, sapling| {
+                sapling == "minecraft:spruce_sapling"
+                    && matches!(
+                        (candidate.x, candidate.z),
+                        (4, 4) | (5, 4) | (4, 5) | (5, 5)
+                    )
+            })
+            .unwrap();
+        assert_eq!(
+            plan,
+            TreeGrowPlan::Mega {
+                feature: "minecraft:mega_pine",
+                origin: BlockPos { x: 4, y: 70, z: 4 },
+                clear_positions: [
+                    BlockPos { x: 4, y: 70, z: 4 },
+                    BlockPos { x: 5, y: 70, z: 4 },
+                    BlockPos { x: 4, y: 70, z: 5 },
+                    BlockPos { x: 5, y: 70, z: 5 },
+                ],
+            }
+        );
+
+        assert_eq!(
+            spruce.grow_plan(pos, &state, 0.75, 1.0, false, |candidate, _| candidate
+                == pos),
+            Some(TreeGrowPlan::Single {
+                feature: "minecraft:spruce",
+                clear_pos: pos,
+                restore_pos: pos,
+            })
         );
     }
 
