@@ -78,7 +78,7 @@
 
 ## World / System Block Entities
 
-- [ ] Implement `SpawnerBlockEntity`: `SpawnData` (entity NBT, custom spawn rules), `nextSpawnData` pool (weighted random), `requiredPlayerRange` (16 blocks default), delay, `minSpawnDelay`/`maxSpawnDelay`, `spawnCount`, `maxNearbyEntities`, activation (player within range), mob-cap check, no-sky-access check
+- [x] Implement `SpawnerBlockEntity`: `SpawnData` (entity NBT, custom spawn rules), `nextSpawnData` pool (weighted random), `requiredPlayerRange` (16 blocks default), delay, `minSpawnDelay`/`maxSpawnDelay`, `spawnCount`, `maxNearbyEntities`, activation (player within range), mob-cap check, no-sky-access check. — Audited against Java 26.1.2 `SpawnerBlockEntity`/`BaseSpawner`: Rust covers default BaseSpawner timing/count/range constants, weighted `SpawnPotentials`, nullable `SpawnData`, set-entity-id mutation, player-range and `isSpawnerBlockEnabled` gates, delay reset including random range, countdown, spawn attempts, custom light/no-sky rules, collision/spawn/obstruction gates, nearby-entity cap, successful spawn-cycle delay and next-spawn-data selection, client spin/display gating, event id `1`, save/load, custom-only update tag with `SpawnPotentials` stripped, and set-next-spawn-data update flags `260`; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 spawner_block_entity`.
 - [ ] Implement `TrialSpawnerBlockEntity`: state machine (INACTIVE → WAITING_FOR_PLAYERS → ACTIVE → WAITING_FOR_REWARD_EJECTION → COOLDOWN), normal vs. ominous config, `detectedPlayers` set per trial, ejection slot positions, `TrialSpawnerConfig` from data
 - [ ] Implement `VaultBlockEntity`: state machine (INACTIVE ↔ ACTIVE → UNLOCKING → EJECTING), `VaultConfig` (loot table, activation/deactivation range, key item, display override), rewarded-player set, shared display item, connected players, item ejection queue, update tag with shared data only
 - [ ] Implement `JigsawBlockEntity`: joint type, target pool, name, final-state, selection priority, placement priority, orientation hint
@@ -86,7 +86,7 @@
 - [ ] Implement `TheEndGatewayBlockEntity`: age counter, exact-teleport flag (`exactTeleport`), exit position, beam animation (ray shot toward exit on teleport use)
 - [ ] Implement `TheEndPortalBlockEntity`: placeholder type entry in registry; triggers end dimension entry
 - [ ] Implement `TestBlockEntity` and `TestInstanceBlockEntity`: game-test framework support
-- [ ] Add parity test: spawner delay and entity cycling after NBT save/load; mob-cap check prevents overcrowding
+- [x] Add parity test: spawner delay and entity cycling after NBT save/load; mob-cap check prevents overcrowding. — Covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 spawner_block_entity`, which verifies negative-delay reset, countdown, spawn-cycle potential selection, NBT save/load round-trip, and max-nearby-entity rejection.
 - [ ] Add parity test: trial spawner state machine transitions (activation, cooldown duration, ominous vs. normal config)
 - [ ] Add parity test: vault key insert, duplicate rewarded-player rejection, state delays, reward ejection order, shared-data update tag, save/load
 

@@ -442,3 +442,51 @@ fn smoker_block_entity_specialization_matches_java() {
         FurnaceTickResult::Idle
     );
 }
+
+#[test]
+fn spawner_block_entity_wrapper_update_tag_and_client_spin_match_java() {
+    let mut entity =
+        BlockEntity::new(BlockEntityTypeId::MobSpawner, pos(), "minecraft:spawner").unwrap();
+    entity
+        .custom_data
+        .insert("Delay".to_string(), Tag::Short(20));
+    entity.custom_data.insert(
+        "SpawnPotentials".to_string(),
+        Tag::List(vec![SpawnDataModel::new("minecraft:zombie").to_tag()]),
+    );
+    assert_eq!(
+        entity.get_update_tag(),
+        Tag::Compound(vec![("Delay".to_string(), Tag::Short(20))])
+    );
+
+    let mut spawner = SpawnerBlockEntity {
+        spawn_delay: 20,
+        spin: 45.0,
+        old_spin: 12.0,
+        ..SpawnerBlockEntity::default()
+    };
+    spawner.client_tick_with_display(true, false);
+    assert_eq!(spawner.spawn_delay, 20);
+    assert_eq!(spawner.spin, 45.0);
+    assert_eq!(spawner.old_spin, 12.0);
+
+    spawner.client_tick_with_display(true, true);
+    assert_eq!(spawner.spawn_delay, 19);
+    assert_eq!(spawner.old_spin, 45.0);
+    assert!(spawner.spin > 45.0);
+
+    let update_flags =
+        spawner.set_next_spawn_data(SpawnDataModel::new("minecraft:skeleton"), true);
+    assert_eq!(
+        update_flags,
+        Some(SpawnerBlockEntity::NEXT_SPAWN_DATA_UPDATE_FLAGS)
+    );
+    assert_eq!(
+        spawner.next_spawn_data.as_ref().and_then(SpawnDataModel::entity_id),
+        Some("minecraft:skeleton")
+    );
+    assert_eq!(
+        spawner.set_next_spawn_data(SpawnDataModel::new("minecraft:pig"), false),
+        None
+    );
+}

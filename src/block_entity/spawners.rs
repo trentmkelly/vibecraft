@@ -129,6 +129,7 @@ impl Default for SpawnerBlockEntity {
 
 impl SpawnerBlockEntity {
     pub const EVENT_SPAWN: i32 = 1;
+    pub const NEXT_SPAWN_DATA_UPDATE_FLAGS: i32 = 260;
 
     pub fn config(&self) -> SpawnerConfig {
         SpawnerConfig {
@@ -157,6 +158,15 @@ impl SpawnerBlockEntity {
             .next_spawn_data
             .get_or_insert_with(SpawnDataModel::default);
         data.entity = Tag::Compound(vec![("id".to_string(), Tag::String(entity_id))]);
+    }
+
+    pub fn set_next_spawn_data(
+        &mut self,
+        data: SpawnDataModel,
+        has_level: bool,
+    ) -> Option<i32> {
+        self.next_spawn_data = Some(data);
+        has_level.then_some(Self::NEXT_SPAWN_DATA_UPDATE_FLAGS)
     }
 
     pub fn delay(&mut self, random_roll: i32) {
@@ -257,8 +267,15 @@ impl SpawnerBlockEntity {
     }
 
     pub fn client_tick(&mut self, player_in_range: bool) {
+        self.client_tick_with_display(player_in_range, true);
+    }
+
+    pub fn client_tick_with_display(&mut self, player_in_range: bool, has_display_entity: bool) {
         if !player_in_range {
             self.old_spin = self.spin;
+            return;
+        }
+        if !has_display_entity {
             return;
         }
         if self.spawn_delay > 0 {

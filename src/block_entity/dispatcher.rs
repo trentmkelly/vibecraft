@@ -128,6 +128,13 @@ impl BlockEntity {
             BlockEntityTypeId::Sign | BlockEntityTypeId::HangingSign | BlockEntityTypeId::Skull => {
                 self.save_custom_only()
             }
+            BlockEntityTypeId::MobSpawner => {
+                let Tag::Compound(mut values) = self.save_custom_only() else {
+                    return Tag::Compound(Vec::new());
+                };
+                values.retain(|(key, _)| key != "SpawnPotentials");
+                Tag::Compound(values)
+            }
             _ => self.save_without_metadata(),
         }
     }
