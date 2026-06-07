@@ -1,5 +1,147 @@
 use super::super::*;
+use super::super::decorated_pot_patterns::{
+    decorated_pot_pattern_asset_id, decorated_pot_pattern_from_item, DECORATED_POT_PATTERNS,
+};
 use super::*;
+
+const EXPECTED_DECORATED_POT_PATTERNS: &[(&str, &str, &str)] = &[
+    ("blank", "decorated_pot_side", "minecraft:brick"),
+    (
+        "angler",
+        "angler_pottery_pattern",
+        "minecraft:angler_pottery_sherd",
+    ),
+    (
+        "archer",
+        "archer_pottery_pattern",
+        "minecraft:archer_pottery_sherd",
+    ),
+    (
+        "arms_up",
+        "arms_up_pottery_pattern",
+        "minecraft:arms_up_pottery_sherd",
+    ),
+    (
+        "blade",
+        "blade_pottery_pattern",
+        "minecraft:blade_pottery_sherd",
+    ),
+    (
+        "brewer",
+        "brewer_pottery_pattern",
+        "minecraft:brewer_pottery_sherd",
+    ),
+    (
+        "burn",
+        "burn_pottery_pattern",
+        "minecraft:burn_pottery_sherd",
+    ),
+    (
+        "danger",
+        "danger_pottery_pattern",
+        "minecraft:danger_pottery_sherd",
+    ),
+    (
+        "explorer",
+        "explorer_pottery_pattern",
+        "minecraft:explorer_pottery_sherd",
+    ),
+    (
+        "flow",
+        "flow_pottery_pattern",
+        "minecraft:flow_pottery_sherd",
+    ),
+    (
+        "friend",
+        "friend_pottery_pattern",
+        "minecraft:friend_pottery_sherd",
+    ),
+    (
+        "guster",
+        "guster_pottery_pattern",
+        "minecraft:guster_pottery_sherd",
+    ),
+    (
+        "heart",
+        "heart_pottery_pattern",
+        "minecraft:heart_pottery_sherd",
+    ),
+    (
+        "heartbreak",
+        "heartbreak_pottery_pattern",
+        "minecraft:heartbreak_pottery_sherd",
+    ),
+    (
+        "howl",
+        "howl_pottery_pattern",
+        "minecraft:howl_pottery_sherd",
+    ),
+    (
+        "miner",
+        "miner_pottery_pattern",
+        "minecraft:miner_pottery_sherd",
+    ),
+    (
+        "mourner",
+        "mourner_pottery_pattern",
+        "minecraft:mourner_pottery_sherd",
+    ),
+    (
+        "plenty",
+        "plenty_pottery_pattern",
+        "minecraft:plenty_pottery_sherd",
+    ),
+    (
+        "prize",
+        "prize_pottery_pattern",
+        "minecraft:prize_pottery_sherd",
+    ),
+    (
+        "scrape",
+        "scrape_pottery_pattern",
+        "minecraft:scrape_pottery_sherd",
+    ),
+    (
+        "sheaf",
+        "sheaf_pottery_pattern",
+        "minecraft:sheaf_pottery_sherd",
+    ),
+    (
+        "shelter",
+        "shelter_pottery_pattern",
+        "minecraft:shelter_pottery_sherd",
+    ),
+    (
+        "skull",
+        "skull_pottery_pattern",
+        "minecraft:skull_pottery_sherd",
+    ),
+    (
+        "snort",
+        "snort_pottery_pattern",
+        "minecraft:snort_pottery_sherd",
+    ),
+];
+
+#[test]
+fn decorated_pot_patterns_match_java_26_1_2_registry_and_item_map() {
+    assert_eq!(
+        DECORATED_POT_PATTERNS.len(),
+        EXPECTED_DECORATED_POT_PATTERNS.len()
+    );
+    for (entry, &(key, asset_id, item)) in DECORATED_POT_PATTERNS
+        .iter()
+        .zip(EXPECTED_DECORATED_POT_PATTERNS)
+    {
+        assert_eq!(entry.key, key);
+        assert_eq!(entry.pattern.asset_id, asset_id);
+        assert_eq!(entry.item, item);
+        assert_eq!(decorated_pot_pattern_asset_id(key), Some(asset_id));
+        assert_eq!(decorated_pot_pattern_from_item(item), Some(key));
+    }
+    assert_eq!(decorated_pot_pattern_from_item("minecraft:diamond"), None);
+    assert_eq!(decorated_pot_pattern_asset_id("missing"), None);
+}
 
 #[test]
 fn banner_pattern_layers_preserve_order_and_enforce_six_layer_cap() {

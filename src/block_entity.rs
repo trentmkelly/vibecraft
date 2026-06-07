@@ -834,6 +834,18 @@ pub struct PotDecorations {
     pub front: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DecoratedPotPattern {
+    pub asset_id: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DecoratedPotPatternEntry {
+    pub key: &'static str,
+    pub pattern: DecoratedPotPattern,
+    pub item: &'static str,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PotItemStack {
     pub item_id: String,
@@ -1161,6 +1173,8 @@ mod beacon_signs_brewing;
 mod spawners;
 
 mod vault_banner_furnace;
+
+mod decorated_pot_patterns;
 
 mod container_decorative;
 
