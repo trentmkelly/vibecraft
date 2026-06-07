@@ -575,6 +575,37 @@ impl EnchantingTableBlockEntity {
         self.save_additional()
     }
 
+    pub fn collect_implicit_components(&self) -> Tag {
+        let mut entries = Vec::new();
+        if let Some(custom_name) = &self.custom_name {
+            entries.push((
+                "minecraft:custom_name".to_string(),
+                Tag::String(custom_name.clone()),
+            ));
+        }
+        Tag::Compound(entries)
+    }
+
+    pub fn apply_implicit_components(&mut self, components: &Tag) {
+        let Some(entries) = compound_entries(components) else {
+            return;
+        };
+        self.custom_name = get_string(entries, "minecraft:custom_name").map(ToString::to_string);
+    }
+
+    pub fn remove_components_from_tag(tag: &Tag) -> Tag {
+        let Some(entries) = compound_entries(tag) else {
+            return tag.clone();
+        };
+        Tag::Compound(
+            entries
+                .iter()
+                .filter(|(name, _)| name != "CustomName")
+                .cloned()
+                .collect(),
+        )
+    }
+
     pub fn bookshelf_offsets() -> Vec<BlockPos> {
         let mut offsets = Vec::new();
         for x in -2i32..=2 {
@@ -611,13 +642,14 @@ impl EnchantingTableBlockEntity {
         &mut self,
         player_offset_xz: Option<(f64, f64)>,
         next_flip_delta: Option<f32>,
+        force_page_turn: bool,
     ) {
         self.o_open = self.open;
         self.o_rot = self.rot;
         if let Some((xd, zd)) = player_offset_xz {
             self.t_rot = (zd.atan2(xd)) as f32;
             self.open += 0.1;
-            if self.open < 0.5 {
+            if self.open < 0.5 || force_page_turn {
                 if let Some(delta) = next_flip_delta {
                     let old = self.flip_t;
                     if delta != 0.0 {

@@ -179,6 +179,12 @@ fn assert_jukebox_set_without_playing_path() {
 #[test]
 fn enchanting_table_saves_name_scans_bookshelves_and_animates_book_like_java() {
     let mut table = EnchantingTableBlockEntity::new();
+    assert_enchanting_table_names_components_and_update_tag(&mut table);
+    assert_enchanting_table_bookshelf_offsets_and_scan_cap();
+    assert_enchanting_table_book_animation(&mut table);
+}
+
+fn assert_enchanting_table_names_components_and_update_tag(table: &mut EnchantingTableBlockEntity) {
     assert_eq!(
         table.display_name(),
         EnchantingTableBlockEntity::DEFAULT_NAME
@@ -197,7 +203,23 @@ fn enchanting_table_saves_name_scans_bookshelves_and_animates_book_like_java() {
         Some("\"Arcana\"".to_string())
     );
     assert_eq!(table.get_update_tag(), saved);
+    assert_eq!(
+        table.collect_implicit_components(),
+        Tag::Compound(vec![(
+            "minecraft:custom_name".to_string(),
+            Tag::String("\"Arcana\"".to_string())
+        )])
+    );
+    let mut from_components = EnchantingTableBlockEntity::new();
+    from_components.apply_implicit_components(&table.collect_implicit_components());
+    assert_eq!(from_components.custom_name, table.custom_name);
+    assert_eq!(
+        EnchantingTableBlockEntity::remove_components_from_tag(&saved),
+        Tag::Compound(vec![])
+    );
+}
 
+fn assert_enchanting_table_bookshelf_offsets_and_scan_cap() {
     let offsets = EnchantingTableBlockEntity::bookshelf_offsets();
     assert_eq!(offsets.len(), 32);
     assert!(offsets.contains(&BlockPos { x: -2, y: 0, z: 0 }));
@@ -208,24 +230,33 @@ fn enchanting_table_saves_name_scans_bookshelves_and_animates_book_like_java() {
         EnchantingTableBlockEntity::count_valid_bookshelves(power, transmit),
         15
     );
+}
 
-    table.book_animation_tick(Some((1.0, 0.0)), Some(2.0));
+fn assert_enchanting_table_book_animation(table: &mut EnchantingTableBlockEntity) {
+    table.book_animation_tick(Some((1.0, 0.0)), Some(2.0), false);
     assert_eq!(table.time, 1);
     assert_eq!(table.o_open, 0.0);
     assert_eq!(table.open, 0.1);
     assert_eq!(table.t_rot, 0.0);
     assert!(table.flip > 0.0);
     let previous_flip = table.flip;
-    table.book_animation_tick(None, None);
+    table.book_animation_tick(None, None, false);
     assert_eq!(table.time, 2);
     assert_eq!(table.o_open, 0.1);
     assert_eq!(table.open, 0.0);
     assert!(table.t_rot > 0.0);
     assert!(table.flip >= previous_flip);
 
+    table.open = 0.8;
+    let previous_target = table.flip_t;
+    table.book_animation_tick(Some((0.0, 1.0)), Some(3.0), false);
+    assert_eq!(table.flip_t, previous_target);
+    table.book_animation_tick(Some((0.0, 1.0)), Some(3.0), true);
+    assert_eq!(table.flip_t, previous_target + 3.0);
+
     table.rot = std::f32::consts::TAU;
     table.t_rot = -std::f32::consts::TAU;
-    table.book_animation_tick(None, None);
+    table.book_animation_tick(None, None, false);
     assert!(table.rot < std::f32::consts::PI);
     assert!(table.t_rot > -std::f32::consts::PI);
 }
