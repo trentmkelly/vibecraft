@@ -5,7 +5,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 ## `decompiled-server-26.1.2/net/minecraft`
 
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/CharPredicate.java`. Rust `JavaCharPredicate` models Java `char` as a UTF-16 `u16` code unit and covers `test`, short-circuiting `and`/`or`, and `negate`; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 char_predicate`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/ChatFormatting.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/ChatFormatting.java`. Rust `ChatFormatting` covers the Java enum constants/order, `char` codes, ids, RGB colors, format/color classification, lowercase serialized names, `toString` formatting code, cleaned-name/id/code lookup behavior, nullable strip-formatting semantics, `getNames` filters, and color-codec validation; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 chat_formatting`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/CrashReport.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/CrashReportCategory.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/CrashReportDetail.java`.

@@ -20,6 +20,7 @@ mod block_sounds;
 mod block_update;
 mod boss_fight;
 mod chat_component;
+mod chat_formatting;
 mod chat_trust;
 mod char_predicate;
 mod chunk_manager;
