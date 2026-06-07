@@ -567,16 +567,7 @@ fn assert_chest_loot_lock_lid_and_persistence() {
     assert_eq!(chest.merged_chest_access_size(false), 27);
     assert_eq!(chest.merged_chest_access_size(true), 54);
 
-    chest.start_open();
-    for _ in 0..10 {
-        chest.tick_lid();
-    }
-    assert!((chest.lid_progress - 1.0).abs() < 0.001);
-    chest.stop_open();
-    for _ in 0..10 {
-        chest.tick_lid();
-    }
-    assert!((chest.lid_progress - 0.0).abs() < 0.001);
+    assert_chest_lid_interpolates_like_java(&mut chest);
 
     let loaded_chest = ContainerBlockEntityModel::load_additional(
         ContainerBlockEntityKind::Chest,
@@ -585,6 +576,28 @@ fn assert_chest_loot_lock_lid_and_persistence() {
     assert_eq!(loaded_chest.custom_name.as_deref(), Some("Supply Cache"));
     assert_eq!(loaded_chest.lock_key.as_deref(), Some("brass_key"));
     assert_eq!(loaded_chest.items[0], Some(stack("minecraft:apple", 32)));
+}
+
+fn assert_chest_lid_interpolates_like_java(chest: &mut ContainerBlockEntityModel) {
+    chest.start_open();
+    chest.tick_lid();
+    assert!((chest.chest_lid.previous_openness() - 0.0).abs() < 0.001);
+    assert!((chest.lid_progress - 0.1).abs() < 0.001);
+    assert!((chest.chest_lid_openness(0.5) - 0.05).abs() < 0.001);
+    for _ in 0..10 {
+        chest.tick_lid();
+    }
+    assert!((chest.lid_progress - 1.0).abs() < 0.001);
+
+    chest.stop_open();
+    chest.tick_lid();
+    assert!((chest.chest_lid.previous_openness() - 1.0).abs() < 0.001);
+    assert!((chest.lid_progress - 0.9).abs() < 0.001);
+    assert!((chest.chest_lid_openness(0.5) - 0.95).abs() < 0.001);
+    for _ in 0..10 {
+        chest.tick_lid();
+    }
+    assert!((chest.lid_progress - 0.0).abs() < 0.001);
 }
 
 fn assert_trapped_chest_signal_tracks_openers() {

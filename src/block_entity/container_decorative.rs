@@ -48,6 +48,7 @@ impl ContainerBlockEntityModel {
             loot_table: None,
             loot_table_seed: 0,
             viewer_count: 0,
+            chest_lid: ChestLidController::new(),
             lid_progress: 0.0,
             shulker_status: ShulkerBoxAnimationStatus::Closed,
             shulker_color: None,
@@ -139,15 +140,17 @@ impl ContainerBlockEntityModel {
     pub fn tick_lid(&mut self) {
         match self.kind {
             ContainerBlockEntityKind::Chest | ContainerBlockEntityKind::TrappedChest => {
-                if self.viewer_count > 0 {
-                    self.lid_progress = (self.lid_progress + Self::CHEST_LID_STEP).min(1.0);
-                } else {
-                    self.lid_progress = (self.lid_progress - Self::CHEST_LID_STEP).max(0.0);
-                }
+                self.chest_lid.should_be_open(self.viewer_count > 0);
+                self.chest_lid.tick_lid();
+                self.lid_progress = self.chest_lid.openness();
             }
             ContainerBlockEntityKind::ShulkerBox => self.tick_shulker_animation(),
             _ => {}
         }
+    }
+
+    pub fn chest_lid_openness(&self, partial_tick: f32) -> f32 {
+        self.chest_lid.get_openness(partial_tick)
     }
 
     pub fn trapped_chest_signal(&self) -> u8 {
@@ -331,6 +334,43 @@ impl ContainerBlockEntityModel {
                 }
             }
         }
+    }
+}
+
+impl ChestLidController {
+    pub const STEP: f32 = 0.1;
+
+    pub const fn new() -> Self {
+        Self {
+            should_be_open: false,
+            openness: 0.0,
+            previous_openness: 0.0,
+        }
+    }
+
+    pub fn tick_lid(&mut self) {
+        self.previous_openness = self.openness;
+        if !self.should_be_open && self.openness > 0.0 {
+            self.openness = (self.openness - Self::STEP).max(0.0);
+        } else if self.should_be_open && self.openness < 1.0 {
+            self.openness = (self.openness + Self::STEP).min(1.0);
+        }
+    }
+
+    pub fn get_openness(&self, partial_tick: f32) -> f32 {
+        self.previous_openness + partial_tick * (self.openness - self.previous_openness)
+    }
+
+    pub fn should_be_open(&mut self, should_be_open: bool) {
+        self.should_be_open = should_be_open;
+    }
+
+    pub const fn openness(&self) -> f32 {
+        self.openness
+    }
+
+    pub const fn previous_openness(&self) -> f32 {
+        self.previous_openness
     }
 }
 

@@ -789,6 +789,13 @@ pub enum ContainerActivation {
     Pull { to_slot: usize },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ChestLidController {
+    should_be_open: bool,
+    openness: f32,
+    previous_openness: f32,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ContainerBlockEntityModel {
     pub kind: ContainerBlockEntityKind,
@@ -798,6 +805,7 @@ pub struct ContainerBlockEntityModel {
     pub loot_table: Option<String>,
     pub loot_table_seed: i64,
     pub viewer_count: i32,
+    pub chest_lid: ChestLidController,
     pub lid_progress: f32,
     pub shulker_status: ShulkerBoxAnimationStatus,
     pub shulker_color: Option<DyeColor>,
