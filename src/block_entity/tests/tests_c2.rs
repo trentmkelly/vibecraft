@@ -4,6 +4,11 @@ use super::*;
 fn sculk_sensor_block_entity_tracks_vibration_phase_frequency_and_power() {
     assert_eq!(SculkSensorBlockEntity::LISTENER_RADIUS, 8);
     assert_eq!(SculkSensorBlockEntity::DEFAULT_LAST_VIBRATION_FREQUENCY, 0);
+    let sensor_user_flags = [
+        SculkSensorBlockEntity::CAN_TRIGGER_AVOID_VIBRATION,
+        SculkSensorBlockEntity::REQUIRES_ADJACENT_CHUNKS_TO_BE_TICKING,
+    ];
+    assert_eq!(sensor_user_flags, [true, true]);
     assert_sculk_sensor_immediate_activation_and_cooldown();
     assert_sculk_sensor_delayed_vibration_and_persistence();
 }
@@ -13,6 +18,9 @@ fn assert_sculk_sensor_immediate_activation_and_cooldown() {
     assert!(sensor.can_receive_vibration("minecraft:step", true));
     assert!(!sensor.can_receive_vibration("minecraft:unknown", true));
     assert!(!sensor.can_receive_vibration("minecraft:step", false));
+    assert!(!sensor.can_receive_vibration_from("minecraft:block_place", true, true));
+    assert!(!sensor.can_receive_vibration_from("minecraft:block_destroy", true, true));
+    assert!(sensor.can_receive_vibration_from("minecraft:block_place", true, false));
 
     assert_eq!(
         sensor.receive_vibration("minecraft:block_place", 3.2),
@@ -77,9 +85,10 @@ fn assert_sculk_sensor_delayed_vibration_and_persistence() {
         loaded.last_vibration_frequency,
         delayed.last_vibration_frequency
     );
-    assert_eq!(loaded.phase, delayed.phase);
-    assert_eq!(loaded.power, delayed.power);
-    assert_eq!(loaded.active_ticks, delayed.active_ticks);
+    assert_eq!(loaded.phase, SculkSensorPhase::Listening);
+    assert_eq!(loaded.power, 0);
+    assert_eq!(loaded.active_ticks, 0);
+    assert_eq!(loaded.vibration_data, delayed.vibration_data);
     assert_eq!(delayed.get_update_tag(), saved);
 }
 

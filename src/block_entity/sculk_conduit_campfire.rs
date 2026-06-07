@@ -348,6 +348,8 @@ impl SculkSensorPhase {
 impl SculkSensorBlockEntity {
     pub const DEFAULT_LAST_VIBRATION_FREQUENCY: u8 = 0;
     pub const LISTENER_RADIUS: i32 = 8;
+    pub const CAN_TRIGGER_AVOID_VIBRATION: bool = true;
+    pub const REQUIRES_ADJACENT_CHUNKS_TO_BE_TICKING: bool = true;
     pub const ACTIVE_TICKS: i32 = 30;
     pub const COOLDOWN_TICKS: i32 = 10;
 
@@ -369,12 +371,6 @@ impl SculkSensorBlockEntity {
                 Tag::Int(i32::from(self.last_vibration_frequency)),
             ),
             ("listener".to_string(), self.listener_tag()),
-            (
-                "phase".to_string(),
-                Tag::String(self.phase.as_str().to_string()),
-            ),
-            ("power".to_string(), Tag::Byte(self.power as i8)),
-            ("active_ticks".to_string(), Tag::Int(self.active_ticks)),
         ])
     }
 
@@ -386,11 +382,6 @@ impl SculkSensorBlockEntity {
         sensor.last_vibration_frequency = get_int(entries, "last_vibration_frequency")
             .unwrap_or(0)
             .clamp(0, 15) as u8;
-        sensor.phase = get_string(entries, "phase")
-            .and_then(SculkSensorPhase::from_str)
-            .unwrap_or(SculkSensorPhase::Listening);
-        sensor.power = get_byte(entries, "power").unwrap_or(0).clamp(0, 15) as u8;
-        sensor.active_ticks = get_int(entries, "active_ticks").unwrap_or(0).max(0);
         if let Some(listener_tag) = entries.iter().find(|(name, _)| name == "listener") {
             sensor.vibration_data = vibration_data_from_tag(&listener_tag.1);
         }
@@ -402,6 +393,20 @@ impl SculkSensorBlockEntity {
     }
 
     pub fn can_receive_vibration(&self, event_id: &str, sensor_can_activate: bool) -> bool {
+        self.can_receive_vibration_from(event_id, sensor_can_activate, false)
+    }
+
+    pub fn can_receive_vibration_from(
+        &self,
+        event_id: &str,
+        sensor_can_activate: bool,
+        event_pos_is_sensor_pos: bool,
+    ) -> bool {
+        if event_pos_is_sensor_pos
+            && matches!(event_id, "minecraft:block_destroy" | "minecraft:block_place")
+        {
+            return false;
+        }
         sensor_can_activate
             && self.phase == SculkSensorPhase::Listening
             && vibration_frequency(event_id) != NO_VIBRATION_FREQUENCY
