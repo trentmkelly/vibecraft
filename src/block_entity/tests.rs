@@ -1029,3 +1029,4 @@ mod tests_c2;
 mod tests_d;
 mod tests_e;
 mod tests_trial_spawner;
+mod tests_vault;

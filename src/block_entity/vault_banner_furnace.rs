@@ -44,6 +44,17 @@ impl Default for VaultConfigModel {
 }
 
 impl VaultConfigModel {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.activation_range > self.deactivation_range {
+            Err(format!(
+                "Activation range must ({:?}) be less or equal to deactivation range ({:?})",
+                self.activation_range, self.deactivation_range
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
     pub(super) fn to_tag(&self) -> Tag {
         let mut fields = vec![
             (
@@ -113,12 +124,79 @@ impl Default for VaultBlockEntity {
 impl VaultBlockEntity {
     pub const UNLOCKING_DELAY_TICKS: i64 = 14;
     pub const STATE_UPDATE_RATE_TICKS: i64 = 20;
+    pub const DISPLAY_CYCLE_TICK_RATE: i64 = 20;
     pub const INSERT_FAIL_SOUND_BUFFER_TICKS: i64 = 15;
+    pub const CLIENT_ROTATION_SPEED: f32 = 10.0;
+    pub const CLIENT_PARTICLE_TICK_RATE: i64 = 20;
+    pub const CLIENT_IDLE_PARTICLE_CHANCE: f32 = 0.5;
+    pub const CLIENT_AMBIENT_SOUND_CHANCE: f32 = 0.02;
+    pub const ACTIVATION_PARTICLE_COUNT: i32 = 20;
+    pub const DEACTIVATION_PARTICLE_COUNT: i32 = 20;
     pub const MAX_REWARDED_PLAYERS: usize = 128;
+
+    // TODO(vault-live-level): wire Java's live ServerLevel/client operations for loot-table
+    // resolution, player stat/key consumption, block-state mutation, level events, sounds,
+    // spawned reward items, and particle emission once those runtime systems are unified.
 
     pub fn tick_client(&mut self) {
         self.previous_spin = self.current_spin;
-        self.current_spin = (self.current_spin + 10.0).rem_euclid(360.0);
+        self.current_spin = (self.current_spin + Self::CLIENT_ROTATION_SPEED).rem_euclid(360.0);
+    }
+
+    pub fn should_cycle_display_item(game_time: i64, state: VaultStateModel) -> bool {
+        game_time % Self::DISPLAY_CYCLE_TICK_RATE == 0 && state == VaultStateModel::Active
+    }
+
+    pub fn can_eject_reward(&self) -> bool {
+        self.config.key_item.count > 0
+            && !self.config.key_item.item_id.is_empty()
+            && self.state != VaultStateModel::Inactive
+    }
+
+    pub fn ejection_progress(&self) -> f32 {
+        if self.total_ejections_needed <= 0 {
+            return 0.0;
+        }
+        if self.total_ejections_needed == 1 {
+            return 1.0;
+        }
+        let remaining = self.items_to_eject.len() as f32;
+        1.0 - ((remaining - 1.0) / (self.total_ejections_needed as f32 - 1.0))
+    }
+
+    pub fn display_active_effects(&self) -> bool {
+        self.display_item.is_some()
+    }
+
+    pub fn keyhole_position(pos: BlockPos, facing: Direction) -> (f64, f64, f64) {
+        let (step_x, step_z) = match facing {
+            Direction::West => (-1.0, 0.0),
+            Direction::East => (1.0, 0.0),
+            Direction::North => (0.0, -1.0),
+            Direction::South => (0.0, 1.0),
+            Direction::Down | Direction::Up => (0.0, 0.0),
+        };
+        (
+            pos.x as f64 + 0.5 + step_x * 0.5,
+            pos.y as f64 + 1.75,
+            pos.z as f64 + 0.5 + step_z * 0.5,
+        )
+    }
+
+    pub fn random_pos_center_of_cage(pos: BlockPos, x: f64, y: f64, z: f64) -> (f64, f64, f64) {
+        (
+            pos.x as f64 + 0.4 + x * 0.2,
+            pos.y as f64 + 0.4 + y * 0.2,
+            pos.z as f64 + 0.4 + z * 0.2,
+        )
+    }
+
+    pub fn random_pos_inside_cage(pos: BlockPos, x: f64, y: f64, z: f64) -> (f64, f64, f64) {
+        (
+            pos.x as f64 + 0.1 + x * 0.8,
+            pos.y as f64 + 0.25 + y * 0.5,
+            pos.z as f64 + 0.1 + z * 0.8,
+        )
     }
 
     pub fn tick_server(
@@ -127,14 +205,18 @@ impl VaultBlockEntity {
         detected_players: &[String],
         display_roll: Option<PotItemStack>,
     ) -> VaultTickResult {
-        if game_time % 20 == 0 && self.state == VaultStateModel::Active {
+        let cycled_display = Self::should_cycle_display_item(game_time, self.state);
+        if cycled_display {
             self.display_item = display_roll;
-            return VaultTickResult::DisplayItemCycled(self.display_item.clone());
         }
         if game_time < self.state_updating_resumes_at {
-            return VaultTickResult::Waiting;
+            return if cycled_display {
+                VaultTickResult::DisplayItemCycled(self.display_item.clone())
+            } else {
+                VaultTickResult::Waiting
+            };
         }
-        match self.state {
+        let result = match self.state {
             VaultStateModel::Inactive => {
                 self.update_connected_players(detected_players, self.config.activation_range);
                 self.state_updating_resumes_at = game_time + Self::STATE_UPDATE_RATE_TICKS;
@@ -169,6 +251,7 @@ impl VaultBlockEntity {
                 } else {
                     self.total_ejections_needed = 0;
                     self.update_connected_players(detected_players, self.config.deactivation_range);
+                    self.state_updating_resumes_at = game_time + Self::STATE_UPDATE_RATE_TICKS;
                     self.state = if self.connected_players.is_empty() {
                         VaultStateModel::Inactive
                     } else {
@@ -177,6 +260,11 @@ impl VaultBlockEntity {
                     VaultTickResult::EjectionFinished
                 }
             }
+        };
+        if result == VaultTickResult::Waiting && cycled_display {
+            VaultTickResult::DisplayItemCycled(self.display_item.clone())
+        } else {
+            result
         }
     }
 
@@ -230,13 +318,12 @@ impl VaultBlockEntity {
         }
     }
 
-    pub(super) fn update_connected_players(&mut self, detected_players: &[String], range: f64) {
+    pub(super) fn update_connected_players(&mut self, detected_players: &[String], _range: f64) {
         self.connected_players = detected_players
             .iter()
             .filter(|player| !self.rewarded_players.contains(*player))
             .cloned()
             .collect();
-        self.connected_particles_range = range;
     }
 
     pub fn save_additional(&self) -> Tag {
