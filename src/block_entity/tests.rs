@@ -1,5 +1,7 @@
 use super::*;
-use crate::block_entity::spawners::{TrialSpawnerFlameParticle, TrialSpawnerTrackedMob};
+use crate::block_entity::spawners::{
+    TrialSpawnerFlameParticle, TrialSpawnerParticleEmission, TrialSpawnerTrackedMob,
+};
 
 fn pos() -> BlockPos {
     BlockPos {
@@ -163,6 +165,19 @@ fn assert_trial_spawner_state_flags_and_client_spin(spawner: &mut TrialSpawnerBl
     assert!(TrialSpawnerStateModel::WaitingForPlayers.has_spinning_mob());
     assert!(TrialSpawnerStateModel::Active.is_capable_of_spawning());
     assert!(!TrialSpawnerStateModel::Cooldown.is_capable_of_spawning());
+    assert_eq!(TrialSpawnerStateModel::Inactive.serialized_name(), "inactive");
+    assert_eq!(
+        TrialSpawnerStateModel::WaitingForPlayers.particle_emission(),
+        TrialSpawnerParticleEmission::SmallFlames
+    );
+    assert_eq!(
+        TrialSpawnerStateModel::Active.particle_emission(),
+        TrialSpawnerParticleEmission::FlamesAndSmoke
+    );
+    assert_eq!(
+        TrialSpawnerStateModel::Cooldown.particle_emission(),
+        TrialSpawnerParticleEmission::SmokeInsideAndTopFace
+    );
     spawner.next_mob_spawns_at = 100;
     spawner.tick_client(0);
     assert_eq!(spawner.old_spin, 0.0);
@@ -188,6 +203,11 @@ fn assert_trial_spawner_java_events_particles_and_spawn_gate() {
     assert_eq!(TrialSpawnerBlockEntity::BECOME_OMINOUS_EVENT, 3020);
     assert_eq!(TrialSpawnerBlockEntity::SPAWN_PARTICLE_COUNT, 20);
     assert_eq!(TrialSpawnerBlockEntity::EJECT_ITEM_PARTICLE_COUNT, 20);
+    assert_eq!(
+        TrialSpawnerBlockEntity::DELAY_BEFORE_EJECT_AFTER_KILLING_LAST_MOB,
+        40
+    );
+    assert_eq!(TrialSpawnerBlockEntity::TIME_BETWEEN_REWARD_EJECTIONS, 30);
     assert_eq!(
         TrialSpawnerBlockEntity::detect_player_particle_count(12),
         80

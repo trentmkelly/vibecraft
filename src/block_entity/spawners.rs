@@ -429,6 +429,29 @@ impl TrialSpawnerStateModel {
     pub fn is_capable_of_spawning(self) -> bool {
         matches!(self, Self::WaitingForPlayers | Self::Active)
     }
+
+    pub fn particle_emission(self) -> TrialSpawnerParticleEmission {
+        match self {
+            Self::Inactive => TrialSpawnerParticleEmission::None,
+            Self::WaitingForPlayers
+            | Self::WaitingForRewardEjection
+            | Self::EjectingReward => TrialSpawnerParticleEmission::SmallFlames,
+            Self::Active => TrialSpawnerParticleEmission::FlamesAndSmoke,
+            Self::Cooldown => TrialSpawnerParticleEmission::SmokeInsideAndTopFace,
+        }
+    }
+
+    pub fn serialized_name(self) -> &'static str {
+        self.as_str()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrialSpawnerParticleEmission {
+    None,
+    SmallFlames,
+    FlamesAndSmoke,
+    SmokeInsideAndTopFace,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -672,6 +695,7 @@ impl TrialSpawnerBlockEntity {
     pub const DETECT_PLAYER_MAX_PLAYER_BONUS: i32 = 10;
     pub const EJECT_ITEM_PARTICLE_COUNT: i32 = 20;
     pub const SPAWNING_AMBIENT_SOUND_CHANCE: f32 = 0.02;
+    pub const DELAY_BEFORE_EJECT_AFTER_KILLING_LAST_MOB: i64 = 40;
     pub const MAX_MOB_TRACKING_DISTANCE: i32 = 47;
     pub const MAX_MOB_TRACKING_DISTANCE_SQR: i32 =
         Self::MAX_MOB_TRACKING_DISTANCE * Self::MAX_MOB_TRACKING_DISTANCE;
