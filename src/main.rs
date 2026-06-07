@@ -153,6 +153,7 @@ mod statistics;
 mod status_effect;
 mod storage;
 mod structure_resources;
+mod shared_constants;
 mod suppress_forbidden;
 mod tracing_executor;
 mod trial_system;

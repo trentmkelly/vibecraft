@@ -319,6 +319,7 @@ Generated on 2026-05-24 from RustCraft implementation and harness sources, exclu
 - [ ] Audit Rust implementation file `src/scheduled_tick.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/seed_validation.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/server_properties.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [x] Audit Rust implementation file `src/shared_constants.rs` against the Java source and checklist coverage. This file is the complete Rust parity model for `net/minecraft/SharedConstants.java`; constants, debug system-property gates, integer debug parsing, current-version state, protocol version, debug terrain, illegal filename characters, and static initializer actions are covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 shared_constants`.
 - [ ] Audit Rust implementation file `src/spawning.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/special_block.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/statistics.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
