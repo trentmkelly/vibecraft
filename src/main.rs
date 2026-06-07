@@ -147,6 +147,7 @@ mod scheduled_tick;
 mod seed_validation;
 mod server_properties;
 mod spawning;
+mod system_report;
 mod special_block;
 #[cfg(test)]
 mod statistics;

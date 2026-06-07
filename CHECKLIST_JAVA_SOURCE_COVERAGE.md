@@ -103,7 +103,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. Each pack
 - [ ] `net/minecraft/ReportedException.java` (1 Java files): add class-level Rust port tasks and parity tests.
 - [x] `net/minecraft/SharedConstants.java` (1 Java files): class-level Rust port task completed by `src/shared_constants.rs`, including constants, debug-property gates, version state, protocol, debug terrain, and static initializer tests.
 - [ ] `net/minecraft/SuppressForbidden.java` (1 Java files): add class-level Rust port tasks and parity tests.
-- [ ] `net/minecraft/SystemReport.java` (1 Java files): add class-level Rust port tasks and parity tests.
+- [x] `net/minecraft/SystemReport.java` (1 Java files): class-level Rust port task completed by `src/system_report.rs`, including ordered entries, memory/JVM flag formatting, hardware/storage collection, error fallback, and output formatting tests.
 - [ ] `net/minecraft/TracingExecutor.java` (1 Java files): add class-level Rust port tasks and parity tests.
 - [x] `net/minecraft/WorldVersion.java` (1 Java files): class-level Rust port task completed by `src/world_version.rs`, including `WorldVersion.Simple` field access, pack-type switching, and `DataVersion` compatibility tests.
 - [ ] `net/minecraft/advancements` (16 Java files): add class-level Rust port tasks and parity tests.
