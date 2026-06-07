@@ -44,7 +44,7 @@
 - [ ] Implement `ChestBlockEntity`: lid animation via `ChestLidController` (0.1 per tick open/close), double-chest neighbor detection for merged access, `ContainerOpenersCounter` for hopper-blocking, comparator output
 - [ ] Implement `TrappedChestBlockEntity`: emits `min(15, viewerCount)` redstone signal proportional to viewer count
 - [ ] Implement `BarrelBlockEntity`: no lid animation, `ContainerOpenersCounter` for hopper-blocking, comparator output
-- [ ] Implement `ShulkerBoxBlockEntity`: attached color, 4-state animation (CLOSED/OPENING/OPENED/CLOSING) at 0.1/tick, collision forced solid when CLOSED, 27-slot inventory
+- [x] Implement `ShulkerBoxBlockEntity`: attached color, 4-state animation (CLOSED/OPENING/OPENED/CLOSING) at 0.1/tick, collision forced solid when CLOSED, 27-slot inventory. — Audited against Java 26.1.2: Rust now exposes the class constants, event action `1` open-count trigger, first-open/last-close effects with removed/spectator gates, previous/current progress interpolation, lid-height and collision movement helpers, all 27 sided slots, always-true sided extraction, nested shulker insertion rejection, no-op pre-remove behavior, and color lookup from colored shulker block ids; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 shulker_box`.
 - [ ] Implement `DispenserBlockEntity`: 9-slot inventory, comparator output, behavior dispatch on redstone activation
 - [ ] Implement `DropperBlockEntity`: 9-slot inventory, item-drop vs. dispense-into-container behavior difference
 - [ ] Implement `HopperBlockEntity`: 8-tick transfer cooldown, suck-from-above (entity or block slot), push-below, `canPlaceItem()`/`canTakeItem()` sided checks, comparator output

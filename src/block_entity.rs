@@ -810,6 +810,7 @@ pub struct ContainerBlockEntityModel {
     pub content_changed: bool,
     pub chest_lid: ChestLidController,
     pub lid_progress: f32,
+    pub shulker_progress_old: f32,
     pub shulker_status: ShulkerBoxAnimationStatus,
     pub shulker_color: Option<DyeColor>,
     pub transfer_cooldown: i32,
@@ -1182,6 +1183,7 @@ mod spawners;
 mod vault_banner_furnace;
 mod decorated_pot_patterns;
 mod container_decorative;
+pub mod shulker_box;
 mod ender_chest;
 mod sculk_conduit_campfire;
 mod beehive_creaking_bell;

@@ -181,3 +181,104 @@ fn shelf_block_entity_components_owner_and_change_effects_match_java() {
         90.0
     );
 }
+
+#[test]
+fn shulker_box_block_entity_constants_events_and_color_match_java() {
+    assert_eq!(ContainerBlockEntityModel::SHULKER_COLUMNS, 9);
+    assert_eq!(ContainerBlockEntityModel::SHULKER_ROWS, 3);
+    assert_eq!(ContainerBlockEntityModel::SHULKER_CONTAINER_SIZE, 27);
+    assert_eq!(ContainerBlockEntityModel::SHULKER_EVENT_SET_OPEN_COUNT, 1);
+    assert_eq!(ContainerBlockEntityModel::SHULKER_OPENING_TICK_LENGTH, 10);
+    assert_eq!(ContainerBlockEntityModel::SHULKER_MAX_LID_HEIGHT, 0.5);
+    assert_eq!(ContainerBlockEntityModel::SHULKER_MAX_LID_ROTATION, 270.0);
+    assert_eq!(
+        ContainerBlockEntityModel::shulker_color_from_block_id("minecraft:purple_shulker_box"),
+        Some(DyeColor::Purple)
+    );
+    assert_eq!(
+        ContainerBlockEntityModel::shulker_color_from_block_id("minecraft:shulker_box"),
+        None
+    );
+
+    let mut shulker = ContainerBlockEntityModel::new(ContainerBlockEntityKind::ShulkerBox);
+    assert_eq!(shulker.shulker_start_open_effects(false, true), None);
+    assert_eq!(shulker.shulker_start_open_effects(true, false), None);
+    assert_eq!(
+        shulker.shulker_start_open_effects(false, false),
+        Some(shulker_box::ShulkerBoxBlockEvent {
+            action: 1,
+            open_count: 1,
+            first_open_or_last_close: true,
+        })
+    );
+    assert_eq!(shulker.shulker_status, ShulkerBoxAnimationStatus::Opening);
+    assert_eq!(
+        shulker.shulker_start_open_effects(false, false),
+        Some(shulker_box::ShulkerBoxBlockEvent {
+            action: 1,
+            open_count: 2,
+            first_open_or_last_close: false,
+        })
+    );
+    assert_eq!(
+        shulker.shulker_stop_open_effects(false, false),
+        Some(shulker_box::ShulkerBoxBlockEvent {
+            action: 1,
+            open_count: 1,
+            first_open_or_last_close: false,
+        })
+    );
+    assert_eq!(
+        shulker.shulker_stop_open_effects(false, false),
+        Some(shulker_box::ShulkerBoxBlockEvent {
+            action: 1,
+            open_count: 0,
+            first_open_or_last_close: true,
+        })
+    );
+    assert_eq!(shulker.shulker_status, ShulkerBoxAnimationStatus::Closing);
+
+    assert!(shulker.trigger_shulker_event(1, 1));
+    assert_eq!(shulker.viewer_count, 1);
+    assert_eq!(shulker.shulker_status, ShulkerBoxAnimationStatus::Opening);
+    assert!(!shulker.trigger_shulker_event(99, 0));
+}
+
+#[test]
+fn shulker_box_block_entity_progress_collision_and_sided_access_match_java() {
+    let mut shulker = ContainerBlockEntityModel::new(ContainerBlockEntityKind::ShulkerBox);
+    assert!(shulker.trigger_shulker_event(1, 1));
+    shulker.tick_lid();
+
+    assert_eq!(shulker.shulker_progress_old, 0.0);
+    assert!((shulker.lid_progress - 0.1).abs() < f32::EPSILON);
+    assert!((shulker.shulker_progress(0.5) - 0.05).abs() < f32::EPSILON);
+    assert!((shulker.shulker_bounding_lid_height(1.0) - 0.05).abs() < f32::EPSILON);
+
+    assert_eq!(
+        shulker.shulker_collision_move_delta(Direction::East, 0.0, 0.1),
+        Some(shulker_box::ShulkerBoxCollisionMove {
+            dx: 0.06000000074505806,
+            dy: 0.0,
+            dz: 0.0,
+        })
+    );
+
+    for _ in 0..9 {
+        shulker.tick_lid();
+    }
+    assert_eq!(shulker.shulker_status, ShulkerBoxAnimationStatus::Opened);
+    assert_eq!(shulker.lid_progress, 1.0);
+
+    assert_eq!(shulker.shulker_slots_for_face(), (0..27).collect::<Vec<_>>());
+    assert!(shulker.shulker_can_take_through_face());
+    assert!(!shulker.can_place_through_face(0, "minecraft:white_shulker_box", Direction::Up));
+    assert!(shulker.can_place_through_face(0, "minecraft:diamond", Direction::Up));
+    assert!(!shulker.shulker_pre_remove_has_side_effects());
+
+    assert!(shulker.trigger_shulker_event(1, 0));
+    for _ in 0..10 {
+        shulker.tick_lid();
+    }
+    assert!(shulker.shulker_forces_solid_collision());
+}

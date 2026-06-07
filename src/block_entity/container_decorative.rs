@@ -181,6 +181,7 @@ impl ContainerBlockEntityModel {
             content_changed: false,
             chest_lid: ChestLidController::new(),
             lid_progress: 0.0,
+            shulker_progress_old: 0.0,
             shulker_status: ShulkerBoxAnimationStatus::Closed,
             shulker_color: None,
             transfer_cooldown: if kind == ContainerBlockEntityKind::Hopper {
@@ -665,6 +666,7 @@ impl ContainerBlockEntityModel {
     }
 
     pub(super) fn tick_shulker_animation(&mut self) {
+        self.shulker_progress_old = self.lid_progress;
         match self.shulker_status {
             ShulkerBoxAnimationStatus::Closed => self.lid_progress = 0.0,
             ShulkerBoxAnimationStatus::Opening => {
