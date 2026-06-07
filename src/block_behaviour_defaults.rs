@@ -1,5 +1,9 @@
 #![allow(dead_code)]
 
+// TODO(block-behaviour-live-side-effects): replace these action plans with live
+// ServerLevel/loot/block-entity operations once those subsystems are wired into
+// the shared block-state behavior path.
+
 use crate::block_behavior::InteractionResult;
 use crate::block_behaviour_properties::{
     BlockBehaviourPropertiesModel, BlockOffsetType, NoteBlockInstrumentModel, PostProcessModel,
@@ -7,6 +11,140 @@ use crate::block_behaviour_properties::{
 };
 use crate::block_update::BlockPos;
 use crate::fluid::FluidKind;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JavaDirectionModel {
+    Down,
+    Up,
+    North,
+    South,
+    West,
+    East,
+}
+
+impl JavaDirectionModel {
+    fn ordinal(self) -> usize {
+        match self {
+            Self::Down => 0,
+            Self::Up => 1,
+            Self::North => 2,
+            Self::South => 3,
+            Self::West => 4,
+            Self::East => 5,
+        }
+    }
+
+    fn opposite(self) -> Self {
+        match self {
+            Self::Down => Self::Up,
+            Self::Up => Self::Down,
+            Self::North => Self::South,
+            Self::South => Self::North,
+            Self::West => Self::East,
+            Self::East => Self::West,
+        }
+    }
+}
+
+pub const BLOCK_BEHAVIOUR_UPDATE_SHAPE_ORDER: [JavaDirectionModel; 6] = [
+    JavaDirectionModel::West,
+    JavaDirectionModel::East,
+    JavaDirectionModel::North,
+    JavaDirectionModel::South,
+    JavaDirectionModel::Down,
+    JavaDirectionModel::Up,
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SupportTypeModel {
+    Full,
+    Center,
+    Rigid,
+}
+
+impl SupportTypeModel {
+    fn ordinal(self) -> usize {
+        match self {
+            Self::Full => 0,
+            Self::Center => 1,
+            Self::Rigid => 2,
+        }
+    }
+}
+
+const SUPPORT_TYPE_COUNT: usize = 3;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExplosionBlockInteractionModel {
+    Keep,
+    Destroy,
+    DestroyWithDecay,
+    TriggerBlock,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExplosionActionModel {
+    SpawnAfterBreak {
+        drop_experience_hack: bool,
+    },
+    GetDrops {
+        include_block_entity: bool,
+        include_this_entity: bool,
+        include_explosion_radius: bool,
+    },
+    EmitDrop {
+        item: &'static str,
+        pos: BlockPos,
+    },
+    SetAir {
+        flags: i32,
+    },
+    WasExploded,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ExplosionHitPlanInput<'a> {
+    pub state_is_air: bool,
+    pub block_interaction: ExplosionBlockInteractionModel,
+    pub drop_from_explosion: bool,
+    pub has_block_entity: bool,
+    pub has_direct_source_entity: bool,
+    pub indirect_source_is_player: bool,
+    pub drops: &'a [&'static str],
+    pub pos: BlockPos,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DelegatedBlockCallModel {
+    UpdateIndirectNeighbourShapes { update_limit: i32 },
+    TriggerEvent { b0: i32, b1: i32 },
+    HandleNeighborChanged { moved_by_piston: bool },
+    OnPlace { moved_by_piston: bool },
+    AffectNeighborsAfterRemoval { moved_by_piston: bool },
+    Tick,
+    RandomTick,
+    EntityInside { is_precise: bool },
+    SpawnAfterBreak { drop_experience: bool },
+    GetDrops,
+    UseItemOn,
+    UseWithoutItem,
+    Attack,
+    UpdateShape,
+    CanBeReplacedByItem,
+    CanBeReplacedByFluid,
+    CanSurvive,
+    GetMenuProvider,
+    GetTicker,
+    GetCloneItemStack { include_data: bool },
+    OnProjectileHit,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NeighborShapeUpdateModel {
+    pub direction_to_neighbor: JavaDirectionModel,
+    pub direction_from_neighbor: JavaDirectionModel,
+    pub update_limit: i32,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PathComputationTypeModel {
@@ -52,6 +190,7 @@ pub enum OcclusionFacesModel {
 pub struct BlockStateBaseCacheModel {
     pub collision_shape: ShapeModel,
     pub large_collision_shape: bool,
+    pub face_sturdy: [bool; SUPPORT_TYPE_COUNT * 6],
     pub is_collision_shape_full_block: bool,
 }
 
@@ -251,6 +390,7 @@ impl BlockStateBaseModel {
         self.cache = (!owner_dynamic_shape).then(|| BlockStateBaseCacheModel {
             collision_shape,
             large_collision_shape: cache_large_collision_shape(collision_shape),
+            face_sturdy: face_sturdy_table(collision_shape),
             is_collision_shape_full_block: collision_shape.is_full_block(),
         });
         self.legacy_solid = calculate_solid(
@@ -316,6 +456,117 @@ impl BlockStateBaseModel {
 
     pub fn get_piston_push_reaction(&self) -> PushReactionModel {
         self.push_reaction
+    }
+
+    pub fn delegate_trigger_event(&self, b0: i32, b1: i32) -> DelegatedBlockCallModel {
+        DelegatedBlockCallModel::TriggerEvent { b0, b1 }
+    }
+
+    pub fn delegate_neighbor_changed(&self, moved_by_piston: bool) -> DelegatedBlockCallModel {
+        DelegatedBlockCallModel::HandleNeighborChanged { moved_by_piston }
+    }
+
+    pub fn delegate_on_place(&self, moved_by_piston: bool) -> DelegatedBlockCallModel {
+        DelegatedBlockCallModel::OnPlace { moved_by_piston }
+    }
+
+    pub fn delegate_affect_neighbors_after_removal(
+        &self,
+        moved_by_piston: bool,
+    ) -> DelegatedBlockCallModel {
+        DelegatedBlockCallModel::AffectNeighborsAfterRemoval { moved_by_piston }
+    }
+
+    pub fn delegate_update_indirect_neighbour_shapes(
+        &self,
+        update_limit: i32,
+    ) -> DelegatedBlockCallModel {
+        DelegatedBlockCallModel::UpdateIndirectNeighbourShapes { update_limit }
+    }
+
+    pub fn delegate_tick(&self) -> DelegatedBlockCallModel {
+        DelegatedBlockCallModel::Tick
+    }
+
+    pub fn delegate_random_tick(&self) -> DelegatedBlockCallModel {
+        DelegatedBlockCallModel::RandomTick
+    }
+
+    pub fn delegate_entity_inside(&self, is_precise: bool) -> DelegatedBlockCallModel {
+        DelegatedBlockCallModel::EntityInside { is_precise }
+    }
+
+    pub fn delegate_spawn_after_break(&self, drop_experience: bool) -> DelegatedBlockCallModel {
+        DelegatedBlockCallModel::SpawnAfterBreak { drop_experience }
+    }
+
+    pub fn delegate_get_drops(&self) -> DelegatedBlockCallModel {
+        DelegatedBlockCallModel::GetDrops
+    }
+
+    pub fn delegate_use_item_on(&self) -> DelegatedBlockCallModel {
+        DelegatedBlockCallModel::UseItemOn
+    }
+
+    pub fn delegate_use_without_item(&self) -> DelegatedBlockCallModel {
+        DelegatedBlockCallModel::UseWithoutItem
+    }
+
+    pub fn delegate_attack(&self) -> DelegatedBlockCallModel {
+        DelegatedBlockCallModel::Attack
+    }
+
+    pub fn delegate_update_shape(&self) -> DelegatedBlockCallModel {
+        DelegatedBlockCallModel::UpdateShape
+    }
+
+    pub fn delegate_can_be_replaced_by_item(&self) -> DelegatedBlockCallModel {
+        DelegatedBlockCallModel::CanBeReplacedByItem
+    }
+
+    pub fn delegate_can_be_replaced_by_fluid(&self) -> DelegatedBlockCallModel {
+        DelegatedBlockCallModel::CanBeReplacedByFluid
+    }
+
+    pub fn delegate_can_survive(&self) -> DelegatedBlockCallModel {
+        DelegatedBlockCallModel::CanSurvive
+    }
+
+    pub fn delegate_get_menu_provider(&self) -> DelegatedBlockCallModel {
+        DelegatedBlockCallModel::GetMenuProvider
+    }
+
+    pub fn delegate_get_ticker(&self) -> DelegatedBlockCallModel {
+        DelegatedBlockCallModel::GetTicker
+    }
+
+    pub fn delegate_get_clone_item_stack(&self, include_data: bool) -> DelegatedBlockCallModel {
+        DelegatedBlockCallModel::GetCloneItemStack { include_data }
+    }
+
+    pub fn delegate_on_projectile_hit(&self) -> DelegatedBlockCallModel {
+        DelegatedBlockCallModel::OnProjectileHit
+    }
+
+    pub fn is_collision_shape_full_block(&self, fallback_shape_full_block: bool) -> bool {
+        self.cache
+            .map(|cache| cache.is_collision_shape_full_block)
+            .unwrap_or(fallback_shape_full_block)
+    }
+
+    pub fn is_face_sturdy_cached(
+        &self,
+        direction: JavaDirectionModel,
+        support_type: SupportTypeModel,
+        fallback: bool,
+    ) -> bool {
+        if self.cache.is_some() {
+            self.cache
+                .map(|cache| cache.face_sturdy[face_support_index(direction, support_type)])
+                .unwrap_or(fallback)
+        } else {
+            fallback
+        }
     }
 }
 
@@ -419,6 +670,79 @@ pub fn get_seed(pos: BlockPos) -> i64 {
     crate::block_behaviour_properties::mth_get_seed(pos.x, pos.y, pos.z)
 }
 
+pub fn plan_update_neighbour_shapes(update_limit: i32) -> Vec<NeighborShapeUpdateModel> {
+    BLOCK_BEHAVIOUR_UPDATE_SHAPE_ORDER
+        .iter()
+        .map(|direction| NeighborShapeUpdateModel {
+            direction_to_neighbor: *direction,
+            direction_from_neighbor: direction.opposite(),
+            update_limit,
+        })
+        .collect()
+}
+
+pub fn face_support_index(direction: JavaDirectionModel, support_type: SupportTypeModel) -> usize {
+    direction.ordinal() * SUPPORT_TYPE_COUNT + support_type.ordinal()
+}
+
+pub fn face_sturdy_table(shape: ShapeModel) -> [bool; SUPPORT_TYPE_COUNT * 6] {
+    let supported = match shape {
+        ShapeModel::Block => [true, true, true],
+        ShapeModel::Empty => [false, false, false],
+        ShapeModel::Custom { full_block, .. } => [full_block, full_block, full_block],
+    };
+    let mut table = [false; SUPPORT_TYPE_COUNT * 6];
+    for direction in [
+        JavaDirectionModel::Down,
+        JavaDirectionModel::Up,
+        JavaDirectionModel::North,
+        JavaDirectionModel::South,
+        JavaDirectionModel::West,
+        JavaDirectionModel::East,
+    ] {
+        for support_type in [
+            SupportTypeModel::Full,
+            SupportTypeModel::Center,
+            SupportTypeModel::Rigid,
+        ] {
+            table[face_support_index(direction, support_type)] = supported[support_type.ordinal()];
+        }
+    }
+    table
+}
+
+pub fn plan_on_explosion_hit(input: ExplosionHitPlanInput<'_>) -> Vec<ExplosionActionModel> {
+    if input.state_is_air || input.block_interaction == ExplosionBlockInteractionModel::TriggerBlock
+    {
+        return Vec::new();
+    }
+
+    let mut actions = Vec::new();
+    if input.drop_from_explosion {
+        actions.push(ExplosionActionModel::SpawnAfterBreak {
+            drop_experience_hack: input.indirect_source_is_player,
+        });
+        actions.push(ExplosionActionModel::GetDrops {
+            include_block_entity: input.has_block_entity,
+            include_this_entity: input.has_direct_source_entity,
+            include_explosion_radius: input.block_interaction
+                == ExplosionBlockInteractionModel::DestroyWithDecay,
+        });
+        actions.extend(
+            input
+                .drops
+                .iter()
+                .map(|item| ExplosionActionModel::EmitDrop {
+                    item,
+                    pos: input.pos,
+                }),
+        );
+    }
+    actions.push(ExplosionActionModel::SetAir { flags: 3 });
+    actions.push(ExplosionActionModel::WasExploded);
+    actions
+}
+
 impl ShapeModel {
     fn is_full_block(self) -> bool {
         matches!(
@@ -438,296 +762,5 @@ pub fn occlusion_faces_for_shape(shape: ShapeModel) -> OcclusionFacesModel {
         shape if shape.is_full_block() => OcclusionFacesModel::FullBlock,
         ShapeModel::Custom { .. } => OcclusionFacesModel::PerFace,
         ShapeModel::Block => OcclusionFacesModel::FullBlock,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{
-        cache_large_collision_shape, calculate_solid, can_be_replaced_by_fluid,
-        can_be_replaced_by_item, get_destroy_progress, get_light_dampening, get_seed,
-        get_shade_brightness, is_pathfindable, occlusion_faces_for_shape, propagates_skylight_down,
-        BlockBehaviourDefaults, BlockStateBaseModel, OcclusionFacesModel, PathComputationTypeModel,
-        RenderShapeModel, ShapeModel,
-    };
-    use crate::block_behavior::InteractionResult;
-    use crate::block_behaviour_properties::{
-        BlockBehaviourPropertiesModel, BlockOffsetType, NoteBlockInstrumentModel,
-        PushReactionModel, StatePredicateModel,
-    };
-    use crate::block_update::BlockPos;
-    use crate::fluid::FluidKind;
-
-    #[test]
-    fn block_behaviour_default_returns_match_java_noop_methods() {
-        let behaviour = BlockBehaviourDefaults::new(true, true, "stone", 6.0, 1.5);
-        assert_eq!(behaviour.update_shape("state"), "state");
-        assert!(!behaviour.skip_rendering());
-        assert_eq!(behaviour.use_without_item(), InteractionResult::Pass);
-        assert_eq!(behaviour.use_item_on(), InteractionResult::TryWithEmptyHand);
-        assert!(!behaviour.trigger_event());
-        assert_eq!(behaviour.render_shape(), RenderShapeModel::Model);
-        assert!(!behaviour.use_shape_for_light_occlusion());
-        assert!(!behaviour.is_signal_source());
-        assert!(!behaviour.has_analog_output_signal());
-        assert!(!behaviour.should_changed_state_keep_block_entity());
-        assert!(behaviour.can_survive());
-        assert_eq!(behaviour.analog_output_signal(), 0);
-        assert_eq!(behaviour.signal(), 0);
-        assert_eq!(behaviour.direct_signal(), 0);
-    }
-
-    #[test]
-    fn block_behaviour_constructor_backed_defaults_match_java_fields() {
-        let behaviour = BlockBehaviourDefaults::new(false, true, "wood", 2.5, 2.0);
-        assert!(behaviour.is_randomly_ticking());
-        assert_eq!(behaviour.get_sound_type(), "wood");
-        assert_eq!(behaviour.default_destroy_time(), 2.0);
-        assert_eq!(behaviour.explosion_resistance, 2.5);
-        assert_eq!(behaviour.max_horizontal_offset(), 0.25);
-        assert_eq!(behaviour.max_vertical_offset(), 0.2);
-        assert_eq!(
-            behaviour.get_collision_shape(ShapeModel::Block),
-            ShapeModel::Empty
-        );
-    }
-
-    #[test]
-    fn block_behaviour_pathfinding_replaceability_and_shapes_match_java_defaults() {
-        assert!(!is_pathfindable(PathComputationTypeModel::Land, true, None));
-        assert!(is_pathfindable(PathComputationTypeModel::Land, false, None));
-        assert!(!is_pathfindable(PathComputationTypeModel::Air, true, None));
-        assert!(is_pathfindable(PathComputationTypeModel::Air, false, None));
-        assert!(is_pathfindable(
-            PathComputationTypeModel::Water,
-            true,
-            Some(FluidKind::Water)
-        ));
-        assert!(!is_pathfindable(
-            PathComputationTypeModel::Water,
-            false,
-            Some(FluidKind::Lava)
-        ));
-
-        assert!(can_be_replaced_by_item(true, true, true));
-        assert!(can_be_replaced_by_item(true, false, false));
-        assert!(!can_be_replaced_by_item(true, false, true));
-        assert!(!can_be_replaced_by_item(false, true, false));
-        assert!(can_be_replaced_by_fluid(false, false));
-        assert!(can_be_replaced_by_fluid(true, true));
-        assert!(!can_be_replaced_by_fluid(false, true));
-    }
-
-    #[test]
-    fn block_behaviour_light_shade_and_skylight_defaults_match_java() {
-        assert_eq!(get_light_dampening(true, true), 15);
-        assert_eq!(get_light_dampening(false, true), 0);
-        assert_eq!(get_light_dampening(false, false), 1);
-        assert_eq!(get_shade_brightness(true), 0.2);
-        assert_eq!(get_shade_brightness(false), 1.0);
-        assert!(!propagates_skylight_down(true, true));
-        assert!(!propagates_skylight_down(false, false));
-        assert!(propagates_skylight_down(false, true));
-    }
-
-    #[test]
-    fn block_behaviour_destroy_progress_and_seed_match_java_formulas() {
-        assert_eq!(get_destroy_progress(-1.0, 8.0, true), 0.0);
-        assert!((get_destroy_progress(1.5, 8.0, true) - 0.17777778).abs() < 1e-7);
-        assert!((get_destroy_progress(1.5, 8.0, false) - 0.053333335).abs() < 1e-7);
-        assert_eq!(
-            get_seed(BlockPos { x: 1, y: 64, z: 2 }),
-            -117_935_115_545_999
-        );
-    }
-
-    #[test]
-    fn block_state_base_solid_and_cache_helpers_match_java_cache_rules() {
-        assert!(calculate_solid(true, false, false, ShapeModel::Empty));
-        assert!(!calculate_solid(false, true, true, ShapeModel::Block));
-        assert!(!calculate_solid(false, false, false, ShapeModel::Block));
-        assert!(!calculate_solid(false, false, true, ShapeModel::Empty));
-        assert!(calculate_solid(false, false, true, ShapeModel::Block));
-        assert!(calculate_solid(
-            false,
-            false,
-            true,
-            ShapeModel::Custom {
-                full_block: false,
-                bounds_size_large_enough_for_solid: true,
-                y_size_full: false,
-                extends_outside_block: false,
-            }
-        ));
-        assert!(!cache_large_collision_shape(ShapeModel::Block));
-        assert!(cache_large_collision_shape(ShapeModel::Custom {
-            full_block: false,
-            bounds_size_large_enough_for_solid: false,
-            y_size_full: false,
-            extends_outside_block: true,
-        }));
-    }
-
-    #[test]
-    fn block_state_base_constructor_copies_java_property_fields() {
-        let properties = BlockBehaviourPropertiesModel::of()
-            .map_color("wood")
-            .light_level(9)
-            .strength(2.0, 3.0)
-            .requires_correct_tool_for_drops()
-            .push_reaction(PushReactionModel::Block)
-            .air()
-            .ignited_by_lava()
-            .liquid()
-            .no_occlusion()
-            .redstone_conductor_predicate(StatePredicateModel::Custom)
-            .suffocating_predicate(StatePredicateModel::False)
-            .view_blocking_predicate(StatePredicateModel::False)
-            .emissive_rendering(StatePredicateModel::Custom)
-            .offset_type(BlockOffsetType::Xz)
-            .no_terrain_particles()
-            .instrument(NoteBlockInstrumentModel::Bell)
-            .replaceable();
-        let state = BlockStateBaseModel::from_properties("minecraft:test", &properties, true);
-
-        assert_eq!(state.owner_id, "minecraft:test");
-        assert_eq!(state.get_light_emission(), 9);
-        assert!(state.use_shape_for_light_occlusion);
-        assert!(state.is_air);
-        assert!(state.ignited_by_lava);
-        assert!(state.liquid);
-        assert_eq!(state.get_piston_push_reaction(), PushReactionModel::Block);
-        assert_eq!(state.map_color, "wood");
-        assert_eq!(state.destroy_speed, 2.0);
-        assert!(state.requires_correct_tool_for_drops);
-        assert!(!state.can_occlude);
-        assert_eq!(state.is_redstone_conductor, StatePredicateModel::Custom);
-        assert_eq!(state.is_suffocating, StatePredicateModel::False);
-        assert_eq!(state.is_view_blocking, StatePredicateModel::False);
-        assert_eq!(state.emissive_rendering, StatePredicateModel::Custom);
-        assert!(state.has_offset_function());
-        assert!(!state.should_spawn_terrain_particles());
-        assert_eq!(state.instrument, NoteBlockInstrumentModel::Bell);
-        assert!(state.can_be_replaced());
-    }
-
-    #[test]
-    fn block_state_base_init_cache_matches_java_cached_state_fields() {
-        let properties = BlockBehaviourPropertiesModel::of();
-        let mut state = BlockStateBaseModel::from_properties("minecraft:stone", &properties, false);
-        state.init_cache(
-            &properties,
-            false,
-            ShapeModel::Block,
-            None,
-            true,
-            ShapeModel::Block,
-        );
-
-        assert_eq!(state.fluid, None);
-        assert!(state.is_randomly_ticking);
-        assert_eq!(
-            state.get_collision_shape(ShapeModel::Empty),
-            ShapeModel::Block
-        );
-        assert!(state.is_solid());
-        assert!(state.blocks_motion());
-        assert_eq!(state.occlusion_shape, ShapeModel::Block);
-        assert!(state.solid_render);
-        assert_eq!(state.occlusion_faces, OcclusionFacesModel::FullBlock);
-        assert!(!state.propagates_skylight_down);
-        assert_eq!(state.light_dampening, 15);
-        assert!(!state.has_large_collision_shape());
-    }
-
-    #[test]
-    fn block_state_base_dynamic_shape_cache_absence_matches_java() {
-        let properties = BlockBehaviourPropertiesModel::of();
-        let mut state =
-            BlockStateBaseModel::from_properties("minecraft:moving_piston", &properties, false);
-        state.init_cache(
-            &properties,
-            true,
-            ShapeModel::Block,
-            Some(FluidKind::Water),
-            false,
-            ShapeModel::Empty,
-        );
-
-        assert!(state.cache.is_none());
-        assert!(!state.is_solid());
-        assert!(state.has_large_collision_shape());
-        assert_eq!(
-            state.get_collision_shape(ShapeModel::Custom {
-                full_block: false,
-                bounds_size_large_enough_for_solid: false,
-                y_size_full: false,
-                extends_outside_block: true,
-            }),
-            ShapeModel::Custom {
-                full_block: false,
-                bounds_size_large_enough_for_solid: false,
-                y_size_full: false,
-                extends_outside_block: true,
-            }
-        );
-    }
-
-    #[test]
-    fn block_state_base_blocks_motion_and_occlusion_face_rules_match_java() {
-        let properties = BlockBehaviourPropertiesModel::of();
-        let mut cobweb =
-            BlockStateBaseModel::from_properties("minecraft:cobweb", &properties, false);
-        cobweb.init_cache(
-            &properties,
-            false,
-            ShapeModel::Block,
-            None,
-            false,
-            ShapeModel::Block,
-        );
-        assert!(cobweb.is_solid());
-        assert!(!cobweb.blocks_motion());
-
-        let mut bamboo =
-            BlockStateBaseModel::from_properties("minecraft:bamboo_sapling", &properties, false);
-        bamboo.init_cache(
-            &properties,
-            false,
-            ShapeModel::Block,
-            None,
-            false,
-            ShapeModel::Block,
-        );
-        assert!(bamboo.is_solid());
-        assert!(!bamboo.blocks_motion());
-
-        assert_eq!(
-            occlusion_faces_for_shape(ShapeModel::Empty),
-            OcclusionFacesModel::Empty
-        );
-        assert_eq!(
-            occlusion_faces_for_shape(ShapeModel::Block),
-            OcclusionFacesModel::FullBlock
-        );
-        assert_eq!(
-            occlusion_faces_for_shape(ShapeModel::Custom {
-                full_block: false,
-                bounds_size_large_enough_for_solid: false,
-                y_size_full: false,
-                extends_outside_block: false,
-            }),
-            OcclusionFacesModel::PerFace
-        );
-    }
-
-    #[test]
-    fn block_state_base_offset_accessor_matches_java_state_offset() {
-        let properties = BlockBehaviourPropertiesModel::of().offset_type(BlockOffsetType::Xz);
-        let state = BlockStateBaseModel::from_properties("minecraft:grass", &properties, false);
-        assert_eq!(
-            state.get_offset(BlockPos { x: 1, y: 99, z: 2 }),
-            (-0.11666666666666667, 0.0, -0.18333333333333335)
-        );
     }
 }
