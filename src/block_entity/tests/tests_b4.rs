@@ -490,3 +490,50 @@ fn spawner_block_entity_wrapper_update_tag_and_client_spin_match_java() {
         None
     );
 }
+
+#[test]
+fn structure_block_entity_wrapper_surfaces_match_java() {
+    let mut structure = StructureBlockEntity::new(StructureBlockMode::Data);
+    assert_eq!(StructureBlockEntity::SCAN_CORNER_BLOCKS_RANGE, 5);
+    assert_eq!(StructureBlockEntity::MAX_OFFSET_PER_AXIS, 48);
+    assert_eq!(StructureBlockEntity::MAX_SIZE_PER_AXIS, 48);
+    assert_eq!(structure.used_by(false, true), None);
+    assert_eq!(structure.used_by(true, true), Some(true));
+    assert_eq!(structure.used_by(true, false), Some(false));
+
+    structure.created_by("Builder");
+    assert_eq!(structure.author, "Builder");
+    assert_eq!(
+        structure.set_mode_with_block_update(StructureBlockMode::Load),
+        StructureBlockEntity::SET_MODE_UPDATE_FLAGS
+    );
+    assert_eq!(structure.mode, StructureBlockMode::Load);
+    assert_eq!(structure.place_update_flags(), StructureBlockEntity::PLACE_UPDATE_FLAGS);
+    structure.strict = true;
+    assert_eq!(
+        structure.place_update_flags(),
+        StructureBlockEntity::PLACE_STRICT_UPDATE_FLAGS
+    );
+    assert!(!structure.template_world_operations_supported());
+
+    let mut entity = BlockEntity::new(
+        BlockEntityTypeId::StructureBlock,
+        pos(),
+        "minecraft:structure_block",
+    )
+    .unwrap();
+    entity
+        .custom_data
+        .insert("mode".to_string(), Tag::String("LOAD".to_string()));
+    entity.components.insert(
+        "minecraft:custom_name".to_string(),
+        Tag::String("\"Structure\"".to_string()),
+    );
+    assert_eq!(
+        entity.get_update_tag(),
+        Tag::Compound(vec![(
+            "mode".to_string(),
+            Tag::String("LOAD".to_string())
+        )])
+    );
+}

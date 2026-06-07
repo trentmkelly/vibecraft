@@ -312,6 +312,11 @@ impl StructureRotation {
 impl StructureBlockEntity {
     pub const MAX_OFFSET_PER_AXIS: i32 = 48;
     pub const MAX_SIZE_PER_AXIS: i32 = 48;
+    pub const SCAN_CORNER_BLOCKS_RANGE: i32 = 5;
+    pub const SET_MODE_UPDATE_FLAGS: i32 = 2;
+    pub const DETECT_SIZE_UPDATE_FLAGS: i32 = 3;
+    pub const PLACE_STRICT_UPDATE_FLAGS: i32 = 818;
+    pub const PLACE_UPDATE_FLAGS: i32 = 2;
 
     pub fn new(mode: StructureBlockMode) -> Self {
         Self {
@@ -353,6 +358,27 @@ impl StructureBlockEntity {
 
     pub fn set_structure_size(&mut self, size: (i32, i32, i32)) {
         self.structure_size = Self::clamp_structure_size(size);
+    }
+
+    pub fn created_by(&mut self, creator_plain_text_name: &str) {
+        self.author = creator_plain_text_name.to_string();
+    }
+
+    pub fn used_by(&self, can_use_game_master_blocks: bool, client_side: bool) -> Option<bool> {
+        can_use_game_master_blocks.then_some(client_side)
+    }
+
+    pub fn set_mode_with_block_update(&mut self, mode: StructureBlockMode) -> i32 {
+        self.mode = mode;
+        Self::SET_MODE_UPDATE_FLAGS
+    }
+
+    pub fn place_update_flags(&self) -> i32 {
+        if self.strict {
+            Self::PLACE_STRICT_UPDATE_FLAGS
+        } else {
+            Self::PLACE_UPDATE_FLAGS
+        }
     }
 
     pub fn save_additional(&self) -> Tag {
@@ -437,6 +463,12 @@ impl StructureBlockEntity {
 
     pub fn get_update_tag(&self) -> Tag {
         self.save_additional()
+    }
+
+    // TODO(structure-block-world-ops): wire detect/save/load/place/unload/loadable
+    // operations through the live ServerLevel StructureTemplateManager model.
+    pub fn template_world_operations_supported(&self) -> bool {
+        false
     }
 
     pub fn render_mode(&self) -> StructureRenderMode {

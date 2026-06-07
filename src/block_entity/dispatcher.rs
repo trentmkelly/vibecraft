@@ -125,9 +125,10 @@ impl BlockEntity {
             | BlockEntityTypeId::Hopper
             | BlockEntityTypeId::Dispenser
             | BlockEntityTypeId::Dropper => Tag::Compound(Vec::new()),
-            BlockEntityTypeId::Sign | BlockEntityTypeId::HangingSign | BlockEntityTypeId::Skull => {
-                self.save_custom_only()
-            }
+            BlockEntityTypeId::Sign
+            | BlockEntityTypeId::HangingSign
+            | BlockEntityTypeId::Skull
+            | BlockEntityTypeId::StructureBlock => self.save_custom_only(),
             BlockEntityTypeId::MobSpawner => {
                 let Tag::Compound(mut values) = self.save_custom_only() else {
                     return Tag::Compound(Vec::new());
