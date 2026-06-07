@@ -16,6 +16,8 @@ pub const SHAPE_UPDATE_ORDER: [Direction; 6] = [
     Direction::Down,
     Direction::Up,
 ];
+pub const STATE_HOLDER_NAME_TAG: &str = "Name";
+pub const STATE_HOLDER_PROPERTIES_TAG: &str = "Properties";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Rotation {
@@ -181,6 +183,80 @@ impl BlockStateModel {
         self.properties.get(name).map(String::as_str)
     }
 
+    pub fn has_property(&self, name: &str) -> bool {
+        self.properties.contains_key(name)
+    }
+
+    pub fn get_properties(&self) -> impl Iterator<Item = &str> {
+        self.properties.keys().map(String::as_str)
+    }
+
+    pub fn get_values(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.properties
+            .iter()
+            .map(|(key, value)| (key.as_str(), value.as_str()))
+    }
+
+    pub fn get_value_or_else<'a>(&'a self, name: &str, default: &'a str) -> &'a str {
+        self.property(name).unwrap_or(default)
+    }
+
+    pub fn try_set_property(mut self, name: &str, value: impl Into<String>) -> Self {
+        if let Some(property) = self.properties.get_mut(name) {
+            *property = value.into();
+        }
+        self
+    }
+
+    pub fn set_property_value(
+        mut self,
+        name: &str,
+        value: &str,
+        allowed_values: &[&str],
+    ) -> Result<Self, String> {
+        if !self.has_property(name) {
+            return Err(format!(
+                "Cannot set property {name} as it does not exist in {}",
+                self.registry_id
+            ));
+        }
+        if !allowed_values.contains(&value) {
+            return Err(format!(
+                "Cannot set property {name} to {value} on {}, it is not an allowed value",
+                self.registry_id
+            ));
+        }
+        self.properties.insert(name.to_string(), value.to_string());
+        Ok(self)
+    }
+
+    pub fn cycle_property(self, name: &str, allowed_values: &[&str]) -> Result<Self, String> {
+        let current = self.property(name).ok_or_else(|| {
+            format!(
+                "Cannot get property {name} as it does not exist in {}",
+                self.registry_id
+            )
+        })?;
+        let next = find_next_state_holder_value(allowed_values, current)?;
+        self.set_property_value(name, next, allowed_values)
+    }
+
+    pub fn is_singleton_state(&self) -> bool {
+        self.properties.is_empty()
+    }
+
+    pub fn state_holder_string(&self) -> String {
+        if self.is_singleton_state() {
+            return self.registry_id.clone();
+        }
+        let values = self
+            .get_values()
+            .map(|(key, value)| format!("{key}={value}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        format!("{}[{values}]", self.registry_id)
+    }
+
     pub fn is_air(&self) -> bool {
         self.registry_id == "minecraft:air"
     }
@@ -188,6 +264,17 @@ impl BlockStateModel {
     pub fn has_block_entity(&self) -> bool {
         has_block_entity_for_block(self.registry_id.as_str())
     }
+}
+
+pub fn find_next_state_holder_value<'a>(
+    values: &'a [&'a str],
+    current: &str,
+) -> Result<&'a str, String> {
+    let index = values
+        .iter()
+        .position(|value| *value == current)
+        .ok_or_else(|| format!("current value {current} is not in the allowed values"))?;
+    Ok(values[(index + 1) % values.len()])
 }
 
 pub fn placement_pos(context: PlacementContext) -> BlockPos {
@@ -456,9 +543,15 @@ pub enum PlacementDenyReason {
 /// Squared distance from `point` to the closest point of the 1×1×1 block AABB
 /// at `pos` — `new AABB(pos).distanceToSqr(point)` in vanilla.
 fn block_aabb_distance_sq(pos: crate::block_update::BlockPos, point: (f64, f64, f64)) -> f64 {
-    let dx = ((pos.x as f64) - point.0).max(point.0 - (pos.x as f64 + 1.0)).max(0.0);
-    let dy = ((pos.y as f64) - point.1).max(point.1 - (pos.y as f64 + 1.0)).max(0.0);
-    let dz = ((pos.z as f64) - point.2).max(point.2 - (pos.z as f64 + 1.0)).max(0.0);
+    let dx = ((pos.x as f64) - point.0)
+        .max(point.0 - (pos.x as f64 + 1.0))
+        .max(0.0);
+    let dy = ((pos.y as f64) - point.1)
+        .max(point.1 - (pos.y as f64 + 1.0))
+        .max(0.0);
+    let dz = ((pos.z as f64) - point.2)
+        .max(point.2 - (pos.z as f64 + 1.0))
+        .max(0.0);
     dx * dx + dy * dy + dz * dz
 }
 

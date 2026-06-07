@@ -4770,8 +4770,8 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/state/BlockBehaviour.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/state/BlockState.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/state/StateDefinition.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/state/StateHolder.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/state/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/state/StateHolder.java`. Rust `BlockStateModel` now exposes Java `StateHolder` tag names, singleton detection, sorted property/value iteration, get/default lookup, try-set no-op for absent properties, allowed-value set validation, wraparound cycle behavior, and Java-style state string formatting. Java's neighbor-array cache is represented behaviorally by immutable value updates in Rust rather than identity-cached state instances; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 block_state_holder`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/state/package-info.java`. Metadata-only `@NullMarked` package annotation; no Rust runtime behavior needed beyond the state-holder null-free surface covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 block_state_holder`.
 
 ## `decompiled-server-26.1.2/net/minecraft/world/level/block/state/pattern`
 

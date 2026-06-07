@@ -3,9 +3,10 @@
 #[cfg(test)]
 mod tests {
     use crate::block_behavior::{
-        can_replace, place_facing_opposite_player, placement_pos, plan_destroy_block,
-        update_shape_or_destroy, BlockStateModel, HorizontalFacing, PlacementContext,
-        ShapeUpdateContext, ShapeUpdateResult,
+        can_replace, find_next_state_holder_value, place_facing_opposite_player, placement_pos,
+        plan_destroy_block, update_shape_or_destroy, BlockStateModel, HorizontalFacing,
+        PlacementContext, ShapeUpdateContext, ShapeUpdateResult, STATE_HOLDER_NAME_TAG,
+        STATE_HOLDER_PROPERTIES_TAG,
     };
     use crate::block_update::{BlockPos, BlockUpdateAction, Direction, UpdateFlags};
     use crate::fluid::{
@@ -134,6 +135,94 @@ mod tests {
         assert_eq!(
             chiseled_bookshelf_use(2, true),
             SpecialBlockAction::RemoveItem { slot: 2 }
+        );
+    }
+
+    #[test]
+    fn block_state_holder_property_surface_matches_java_state_holder() {
+        assert_eq!(STATE_HOLDER_NAME_TAG, "Name");
+        assert_eq!(STATE_HOLDER_PROPERTIES_TAG, "Properties");
+
+        let state = BlockStateModel::new("minecraft:oak_stairs")
+            .with_property("waterlogged", "false")
+            .with_property("facing", "north")
+            .with_property("half", "bottom");
+
+        assert!(!state.is_singleton_state());
+        assert_eq!(
+            state.get_properties().collect::<Vec<_>>(),
+            vec!["facing", "half", "waterlogged"]
+        );
+        assert_eq!(
+            state.get_values().collect::<Vec<_>>(),
+            vec![
+                ("facing", "north"),
+                ("half", "bottom"),
+                ("waterlogged", "false")
+            ]
+        );
+        assert!(state.has_property("facing"));
+        assert!(!state.has_property("shape"));
+        assert_eq!(state.property("facing"), Some("north"));
+        assert_eq!(state.get_value_or_else("shape", "straight"), "straight");
+        assert_eq!(
+            state.state_holder_string(),
+            "minecraft:oak_stairs[facing=north,half=bottom,waterlogged=false]"
+        );
+
+        let singleton = BlockStateModel::new("minecraft:stone");
+        assert!(singleton.is_singleton_state());
+        assert_eq!(singleton.state_holder_string(), "minecraft:stone");
+    }
+
+    #[test]
+    fn block_state_holder_set_try_set_and_cycle_match_java_state_holder() {
+        let facing_values = ["north", "east", "south", "west"];
+        assert_eq!(
+            find_next_state_holder_value(&facing_values, "north").unwrap(),
+            "east"
+        );
+        assert_eq!(
+            find_next_state_holder_value(&facing_values, "west").unwrap(),
+            "north"
+        );
+
+        let state = BlockStateModel::new("minecraft:oak_stairs").with_property("facing", "west");
+        assert_eq!(
+            state
+                .clone()
+                .cycle_property("facing", &facing_values)
+                .unwrap(),
+            BlockStateModel::new("minecraft:oak_stairs").with_property("facing", "north")
+        );
+        assert_eq!(
+            state
+                .clone()
+                .set_property_value("facing", "south", &facing_values)
+                .unwrap()
+                .property("facing"),
+            Some("south")
+        );
+        assert!(state
+            .clone()
+            .set_property_value("facing", "up", &facing_values)
+            .is_err());
+        assert!(state
+            .clone()
+            .cycle_property("missing", &facing_values)
+            .is_err());
+
+        assert_eq!(
+            state
+                .clone()
+                .try_set_property("facing", "east")
+                .property("facing"),
+            Some("east")
+        );
+        assert_eq!(
+            state.clone().try_set_property("missing", "value"),
+            state,
+            "Java trySetValue returns this when the property is absent"
         );
     }
 
