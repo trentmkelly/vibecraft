@@ -696,6 +696,8 @@ impl TrialSpawnerBlockEntity {
     pub const EJECT_ITEM_PARTICLE_COUNT: i32 = 20;
     pub const SPAWNING_AMBIENT_SOUND_CHANCE: f32 = 0.02;
     pub const DELAY_BEFORE_EJECT_AFTER_KILLING_LAST_MOB: i64 = 40;
+    pub const DELAY_BETWEEN_PLAYER_SCANS: i64 = 20;
+    pub const TRIAL_OMEN_PER_BAD_OMEN_LEVEL: i32 = 18_000;
     pub const MAX_MOB_TRACKING_DISTANCE: i32 = 47;
     pub const MAX_MOB_TRACKING_DISTANCE_SQR: i32 =
         Self::MAX_MOB_TRACKING_DISTANCE * Self::MAX_MOB_TRACKING_DISTANCE;
@@ -767,6 +769,85 @@ impl TrialSpawnerBlockEntity {
         Self::DETECT_PLAYER_BASE_PARTICLE_COUNT
             + detected_player_count.clamp(0, Self::DETECT_PLAYER_MAX_PLAYER_BONUS)
                 * Self::DETECT_PLAYER_PARTICLES_PER_PLAYER
+    }
+
+    pub fn block_pos_as_long(pos: BlockPos) -> i64 {
+        const HORIZONTAL_BITS: u32 = 26;
+        const Y_BITS: u32 = 12;
+        const Z_OFFSET: u32 = Y_BITS;
+        const X_OFFSET: u32 = Y_BITS + HORIZONTAL_BITS;
+        const HORIZONTAL_MASK: i64 = (1_i64 << HORIZONTAL_BITS) - 1;
+        const Y_MASK: i64 = (1_i64 << Y_BITS) - 1;
+
+        ((pos.x as i64 & HORIZONTAL_MASK) << X_OFFSET)
+            | (pos.y as i64 & Y_MASK)
+            | ((pos.z as i64 & HORIZONTAL_MASK) << Z_OFFSET)
+    }
+
+    pub fn is_player_scan_throttled(pos: BlockPos, game_time: i64) -> bool {
+        (Self::block_pos_as_long(pos) + game_time) % Self::DELAY_BETWEEN_PLAYER_SCANS != 0
+    }
+
+    pub fn count_additional_players(detected_player_count: usize) -> usize {
+        detected_player_count.saturating_sub(1)
+    }
+
+    pub fn is_ready_to_spawn_next_mob(&self, game_time: i64, additional_players: usize) -> bool {
+        game_time >= self.next_mob_spawns_at
+            && self.current_mobs.len()
+                < self
+                    .active_config()
+                    .target_simultaneous_mobs(additional_players) as usize
+    }
+
+    pub fn is_ready_to_open_shutter(
+        game_time: i64,
+        cooldown_ends_at: i64,
+        delay_before_open: f32,
+        target_cooldown_length: i32,
+    ) -> bool {
+        let cooldown_started_at = cooldown_ends_at - i64::from(target_cooldown_length);
+        game_time as f32 >= cooldown_started_at as f32 + delay_before_open
+    }
+
+    pub fn is_ready_to_eject_items(
+        game_time: i64,
+        cooldown_ends_at: i64,
+        time_between_ejections: f32,
+        target_cooldown_length: i32,
+    ) -> bool {
+        let cooldown_started_at = cooldown_ends_at - i64::from(target_cooldown_length);
+        ((game_time - cooldown_started_at) as f32 % time_between_ejections) == 0.0
+    }
+
+    pub fn is_cooldown_finished(game_time: i64, cooldown_ends_at: i64) -> bool {
+        game_time >= cooldown_ends_at
+    }
+
+    pub fn low_resolution_position_seed(level_seed: i64, pos: BlockPos) -> i64 {
+        let low_resolution = BlockPos {
+            x: pos.x.div_euclid(30),
+            y: pos.y.div_euclid(20),
+            z: pos.z.div_euclid(30),
+        };
+        level_seed + Self::block_pos_as_long(low_resolution)
+    }
+
+    pub fn trial_omen_duration_from_bad_omen_amplifier(amplifier: i32) -> i32 {
+        Self::TRIAL_OMEN_PER_BAD_OMEN_LEVEL * (amplifier + 1)
+    }
+
+    pub fn reset_statistics(&mut self) {
+        self.detected_players.clear();
+        self.total_mobs_spawned = 0;
+        self.next_mob_spawns_at = 0;
+        self.cooldown_ends_at = 0;
+    }
+
+    pub fn reset_state_data(&mut self) {
+        self.current_mobs.clear();
+        self.next_spawn_data = None;
+        self.reset_statistics();
     }
 
     // TODO(trial-spawner-live-level): wire Java's live ServerLevel operations for spawnMob,
