@@ -921,3 +921,37 @@ pub fn painting_variant_registry_carries_dimensions_and_title_author() {
     assert!(field_value(earth, "title").is_some());
     assert!(field_value(earth, "author").is_none());
 }
+
+#[test]
+pub fn dimension_type_overworld_carries_syncable_audio_attributes() {
+    let entries = registry_entries_with_nbt(write_minimal_dimension_type_registry_packet);
+    let overworld = &entries["minecraft:overworld"];
+    let attrs = compound_field(overworld, "attributes");
+
+    // ambient_sounds: mood with the vanilla cave settings (AmbientMoodSettings).
+    let mood = compound_field(
+        compound_field(attrs, "minecraft:audio/ambient_sounds"),
+        "mood",
+    );
+    assert_eq!(
+        field_value(mood, "sound"),
+        Some(&Tag::String("minecraft:ambient.cave".to_string()))
+    );
+    assert_eq!(field_value(mood, "tick_delay"), Some(&Tag::Int(6000)));
+    assert_eq!(field_value(mood, "block_search_extent"), Some(&Tag::Int(8)));
+    assert_eq!(field_value(mood, "offset"), Some(&Tag::Double(2.0)));
+
+    // background_music: default + creative Music entries (12000/24000).
+    let music = compound_field(attrs, "minecraft:audio/background_music");
+    let default = compound_field(music, "default");
+    assert_eq!(
+        field_value(default, "sound"),
+        Some(&Tag::String("minecraft:music.game".to_string()))
+    );
+    assert_eq!(field_value(default, "min_delay"), Some(&Tag::Int(12000)));
+    assert_eq!(field_value(default, "max_delay"), Some(&Tag::Int(24000)));
+    assert_eq!(
+        field_value(compound_field(music, "creative"), "sound"),
+        Some(&Tag::String("minecraft:music.creative".to_string()))
+    );
+}

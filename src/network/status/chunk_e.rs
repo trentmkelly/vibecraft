@@ -717,6 +717,17 @@ pub fn dimension_type_nbt(dimension_type: &str) -> Tag {
     }
 }
 
+/// A `Music` value (Java `Music.CODEC`): `sound` + `min_delay`/`max_delay`; the
+/// optional `replace_current_music` (default `false`) is omitted. The overworld
+/// background music uses 12000/24000.
+fn overworld_music_nbt(sound: &str) -> Tag {
+    Tag::Compound(vec![
+        ("sound".to_string(), Tag::String(sound.to_string())),
+        ("min_delay".to_string(), Tag::Int(12000)),
+        ("max_delay".to_string(), Tag::Int(24000)),
+    ])
+}
+
 pub fn overworld_dimension_type_nbt(has_ceiling: bool) -> Tag {
     // `attributes` encodes via EnvironmentAttributeMap.NETWORK_CODEC (syncable only).
     // Each entry uses EnvironmentAttributeMap.Entry.createCodec: override modifier →
@@ -727,10 +738,12 @@ pub fn overworld_dimension_type_nbt(has_ceiling: bool) -> Tag {
     //   ARGB_COLOR → ExtraCodecs.STRING_ARGB_COLOR  → hexColor(8) → Tag::String "#aarrggbb"
     //   FLOAT      → Codec.FLOAT                    → Tag::Float
     //
-    // Non-syncable gameplay/audio attributes (bed_rule, nether_portal_spawns_piglin,
+    // Non-syncable gameplay attributes (bed_rule, nether_portal_spawns_piglin,
     // respawn_anchor_works) are filtered out by NETWORK_CODEC and must be omitted here.
-    // Audio attributes (ambient_sounds, background_music) are syncable but their complex
-    // codec structs are not yet implemented; clients fall back to their EMPTY defaults.
+    // The syncable audio attributes are encoded as their bare value codecs (base
+    // overrides): AmbientSounds.CODEC `{mood: AmbientMoodSettings}` (loop absent,
+    // additions empty → omitted) and BackgroundMusic.CODEC `{default, creative}`
+    // (underwater absent → omitted). `sound` fields are bare SoundEvent identifiers.
     let attributes = Tag::Compound(vec![
         (
             "minecraft:visual/sky_color".to_string(),
@@ -751,6 +764,31 @@ pub fn overworld_dimension_type_nbt(has_ceiling: bool) -> Tag {
         (
             "minecraft:visual/ambient_light_color".to_string(),
             Tag::String("#0a0a0a".to_string()),
+        ),
+        (
+            "minecraft:audio/ambient_sounds".to_string(),
+            Tag::Compound(vec![(
+                "mood".to_string(),
+                Tag::Compound(vec![
+                    (
+                        "sound".to_string(),
+                        Tag::String("minecraft:ambient.cave".to_string()),
+                    ),
+                    ("tick_delay".to_string(), Tag::Int(6000)),
+                    ("block_search_extent".to_string(), Tag::Int(8)),
+                    ("offset".to_string(), Tag::Double(2.0)),
+                ]),
+            )]),
+        ),
+        (
+            "minecraft:audio/background_music".to_string(),
+            Tag::Compound(vec![
+                ("default".to_string(), overworld_music_nbt("minecraft:music.game")),
+                (
+                    "creative".to_string(),
+                    overworld_music_nbt("minecraft:music.creative"),
+                ),
+            ]),
         ),
     ]);
 
