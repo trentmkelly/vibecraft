@@ -244,6 +244,30 @@ impl ContainerBlockEntityModel {
         }
     }
 
+    pub fn trapped_chest_signal_open_count(
+        &self,
+        previous: i32,
+        current: i32,
+    ) -> Option<TrappedChestOpenCountEffect> {
+        if self.kind != ContainerBlockEntityKind::TrappedChest || previous == current {
+            return None;
+        }
+
+        Some(TrappedChestOpenCountEffect {
+            update_positions: vec![
+                self.world_position,
+                BlockPos {
+                    x: self.world_position.x,
+                    y: self.world_position.y - 1,
+                    z: self.world_position.z,
+                },
+            ],
+            source_block: "minecraft:trapped_chest",
+            orientation_facing: self.facing.opposite(),
+            orientation_up: Direction::Up,
+        })
+    }
+
     pub fn barrel_is_open(&self) -> bool {
         self.kind == ContainerBlockEntityKind::Barrel && self.viewer_count > 0
     }

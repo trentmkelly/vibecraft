@@ -636,10 +636,37 @@ fn assert_chest_lid_interpolates_like_java(chest: &mut ContainerBlockEntityModel
 
 fn assert_trapped_chest_signal_tracks_openers() {
     let mut trapped = ContainerBlockEntityModel::new(ContainerBlockEntityKind::TrappedChest);
+    trapped.world_position = BlockPos {
+        x: 12,
+        y: 70,
+        z: -4,
+    };
+    trapped.facing = Direction::North;
     for _ in 0..20 {
         trapped.start_open();
     }
     assert_eq!(trapped.trapped_chest_signal(), 15);
+    assert_eq!(
+        trapped.trapped_chest_signal_open_count(0, 20),
+        Some(TrappedChestOpenCountEffect {
+            update_positions: vec![
+                BlockPos {
+                    x: 12,
+                    y: 70,
+                    z: -4,
+                },
+                BlockPos {
+                    x: 12,
+                    y: 69,
+                    z: -4,
+                },
+            ],
+            source_block: "minecraft:trapped_chest",
+            orientation_facing: Direction::South,
+            orientation_up: Direction::Up,
+        })
+    );
+    assert_eq!(trapped.trapped_chest_signal_open_count(20, 20), None);
     for _ in 0..6 {
         trapped.stop_open();
     }

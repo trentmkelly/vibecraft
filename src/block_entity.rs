@@ -816,6 +816,14 @@ pub struct ContainerBlockEntityModel {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrappedChestOpenCountEffect {
+    pub update_positions: Vec<BlockPos>,
+    pub source_block: &'static str,
+    pub orientation_facing: Direction,
+    pub orientation_up: Direction,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BannerPatternLayer {
     pub pattern: String,
     pub color: DyeColor,
@@ -1163,25 +1171,16 @@ pub enum BlockEntityError {
 }
 
 mod test_blocks;
-
 mod structures;
-
 mod functional_blocks;
 #[cfg(test)]
 use functional_blocks::*;
-
 mod beacon_signs_brewing;
-
 mod spawners;
-
 mod vault_banner_furnace;
-
 mod decorated_pot_patterns;
-
 mod container_decorative;
-
 mod sculk_conduit_campfire;
-
 mod beehive_creaking_bell;
 pub use beehive_creaking_bell::*;
 
