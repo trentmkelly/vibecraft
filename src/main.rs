@@ -5,6 +5,7 @@ mod attribute_system;
 mod base_entity;
 mod biome;
 mod block_behavior;
+mod block_behaviour_defaults;
 mod block_behaviour_properties;
 #[cfg(test)]
 mod block_behavior_tests;
