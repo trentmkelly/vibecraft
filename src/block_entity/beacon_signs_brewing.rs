@@ -251,6 +251,7 @@ impl LecternBlockEntity {
     pub const DATA_PAGE: i32 = 0;
     pub const SLOT_BOOK: usize = 0;
     pub const NUM_SLOTS: usize = 1;
+    pub const MAX_STACK_SIZE: i32 = 1;
     pub const PAGE_CHANGE_IMPULSE_TICKS: i32 = 2;
     pub const DISPLAY_NAME: &'static str = "container.lectern";
 
@@ -298,6 +299,10 @@ impl LecternBlockEntity {
         })
     }
 
+    pub fn get_book(&self) -> Option<&PotItemStack> {
+        self.book.as_ref()
+    }
+
     pub fn set_book(&mut self, book: Option<PotItemStack>, page_count: i32) {
         self.book = book.filter(|book| !book.is_empty());
         self.page = 0;
@@ -309,9 +314,7 @@ impl LecternBlockEntity {
     }
 
     pub fn clear_content(&mut self) {
-        self.book = None;
-        self.page = 0;
-        self.page_count = 0;
+        self.set_book(None, 0);
     }
 
     pub fn set_page(&mut self, page: i32) -> bool {
@@ -326,6 +329,56 @@ impl LecternBlockEntity {
         self.page = 0;
         self.page_count = 0;
         book
+    }
+
+    pub fn remove_item(&mut self, slot: usize, count: i32) -> Option<PotItemStack> {
+        if slot != Self::SLOT_BOOK || count <= 0 {
+            return None;
+        }
+        let book = self.book.as_mut()?;
+        let removed_count = book.count.min(count);
+        let removed = PotItemStack {
+            item_id: book.item_id.clone(),
+            count: removed_count,
+        };
+        book.count -= removed_count;
+        if book.is_empty() {
+            self.book = None;
+            self.page = 0;
+            self.page_count = 0;
+        }
+        Some(removed)
+    }
+
+    pub fn max_stack_size(&self) -> i32 {
+        Self::MAX_STACK_SIZE
+    }
+
+    pub fn can_place_item(&self, _slot: usize, _item: &PotItemStack) -> bool {
+        false
+    }
+
+    pub fn still_valid(&self, same_block_entity: bool, player_distance_sqr: f64) -> bool {
+        same_block_entity && player_distance_sqr <= 64.0 && self.has_book()
+    }
+
+    pub fn pre_remove_side_effects(
+        &self,
+        pos: BlockPos,
+        facing: Direction,
+        state_has_book: bool,
+    ) -> Option<LecternBookDrop> {
+        if !state_has_book {
+            return None;
+        }
+        let book = self.book.as_ref()?.clone();
+        let (step_x, step_z) = lectern_facing_steps(facing);
+        Some(LecternBookDrop {
+            item: book,
+            x: pos.x as f64 + 0.5 + 0.25 * step_x,
+            y: pos.y as f64 + 1.0,
+            z: pos.z as f64 + 0.5 + 0.25 * step_z,
+        })
     }
 
     pub fn open_menu(&self, container_id: i32) -> BlockEntityMenuOpen {
@@ -354,6 +407,16 @@ impl LecternBlockEntity {
         } else {
             page.clamp(0, self.page_count - 1)
         }
+    }
+}
+
+fn lectern_facing_steps(facing: Direction) -> (f64, f64) {
+    match facing {
+        Direction::North => (0.0, -1.0),
+        Direction::South => (0.0, 1.0),
+        Direction::West => (-1.0, 0.0),
+        Direction::East => (1.0, 0.0),
+        Direction::Down | Direction::Up => (0.0, 0.0),
     }
 }
 

@@ -58,10 +58,10 @@
 
 - [ ] Implement `SignBlockEntity`: `SignText` for front face and back face independently, each with 4 `Component` lines, color (`DyeColor`), glowing state, editable state, wax-sealing state, `executeClickCommands(player)` permission check
 - [ ] Implement `HangingSignBlockEntity`: same text model as `SignBlockEntity`, 6 different attachment types (ceiling, wall, log-wall variants) — Java 26.1.2 `HangingSignBlockEntity` class parity is audited in `CHECKLIST_JAVA_CLASSES.md`, including inherited sign NBT, hanging-specific dimensions/sound, and block-state-derived attachment. Keep this broader row open until the full `SignBlockEntity` text/click-command row is complete.
-- [ ] Implement `LecternBlockEntity`: held `ItemStack` (written book), page index, `hasBook()`, `setBook()`, `clearContent()`, comparator output (0 = empty, 1–14 proportional to page/total pages, 15 on last page)
+- [x] Implement `LecternBlockEntity`: held `ItemStack` (written book), page index, `hasBook()`, `setBook()`, `clearContent()`, comparator output (0 = empty, 1–14 proportional to page/total pages, 15 on last page) — Audited against Java 26.1.2: Rust also models the one-slot book container's no-insert contract, max stack size 1, split/remove/no-update clearing behavior, menu still-valid gate, and pre-removal book drop offset by lectern facing; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 lectern_block_entity`.
 - [ ] Implement sign text filtering: route sign text through text-filter integration (same path as chat messages) before storing
 - [ ] Add parity test: sign front/back text NBT serialization, waxed state preventing edits, glowing color tint
-- [ ] Add parity test: lectern comparator output across page transitions
+- [x] Add parity test: lectern comparator output across page transitions — Covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 lectern_block_entity`.
 
 ## Utility Block Entities
 

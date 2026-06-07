@@ -452,6 +452,8 @@ pub struct LecternBlockEntity {
     pub page: i32,
     pub page_count: i32,
 }
+#[derive(Debug, Clone, PartialEq)]
+pub struct LecternBookDrop { pub item: PotItemStack, pub x: f64, pub y: f64, pub z: f64 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HangingSignAttachment {
