@@ -21,6 +21,59 @@ pub fn install_panic_hook() {
     }));
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JavaUncaughtExceptionModel {
+    pub thread_name: String,
+    pub throwable: JavaThrowableModel,
+}
+
+impl JavaUncaughtExceptionModel {
+    pub fn new(thread_name: impl Into<String>, throwable: JavaThrowableModel) -> Self {
+        Self {
+            thread_name: thread_name.into(),
+            throwable,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum JavaUncaughtExceptionLogAction {
+    WithThrowable {
+        message: &'static str,
+        throwable: JavaThrowableModel,
+    },
+    Message {
+        message: &'static str,
+    },
+    ThreadThrowable {
+        thread_name: String,
+        throwable: JavaThrowableModel,
+    },
+}
+
+pub fn default_uncaught_exception_handler_actions(
+    exception: JavaUncaughtExceptionModel,
+) -> Vec<JavaUncaughtExceptionLogAction> {
+    vec![JavaUncaughtExceptionLogAction::WithThrowable {
+        message: "Caught previously unhandled exception :",
+        throwable: exception.throwable,
+    }]
+}
+
+pub fn default_uncaught_exception_handler_with_name_actions(
+    exception: JavaUncaughtExceptionModel,
+) -> Vec<JavaUncaughtExceptionLogAction> {
+    vec![
+        JavaUncaughtExceptionLogAction::Message {
+            message: "Caught previously unhandled exception :",
+        },
+        JavaUncaughtExceptionLogAction::ThreadThrowable {
+            thread_name: exception.thread_name,
+            throwable: exception.throwable,
+        },
+    ]
+}
+
 #[derive(Debug, Clone)]
 pub struct CrashReport {
     title: String,
@@ -637,6 +690,39 @@ mod tests {
                 },
             ),
             "World: (15,64,16), Section: (at 15,0,0 in 0,4,1; chunk contains blocks 0,0,16 to 15,255,31), Region: (0,0; contains chunks 0,0 to 31,31, blocks 0,0,0 to 511,255,511)"
+        );
+    }
+
+    #[test]
+    fn default_uncaught_exception_handler_matches_java_single_logger_call() {
+        let throwable = JavaThrowableModel::new("IllegalStateException", Some("boom"));
+        let exception = super::JavaUncaughtExceptionModel::new("Server thread", throwable.clone());
+
+        assert_eq!(
+            super::default_uncaught_exception_handler_actions(exception),
+            vec![super::JavaUncaughtExceptionLogAction::WithThrowable {
+                message: "Caught previously unhandled exception :",
+                throwable,
+            }]
+        );
+    }
+
+    #[test]
+    fn default_uncaught_exception_handler_with_name_matches_java_two_logger_calls() {
+        let throwable = JavaThrowableModel::new("RuntimeException", Some("bad tick"));
+        let exception = super::JavaUncaughtExceptionModel::new("Worker-1", throwable.clone());
+
+        assert_eq!(
+            super::default_uncaught_exception_handler_with_name_actions(exception),
+            vec![
+                super::JavaUncaughtExceptionLogAction::Message {
+                    message: "Caught previously unhandled exception :",
+                },
+                super::JavaUncaughtExceptionLogAction::ThreadThrowable {
+                    thread_name: "Worker-1".to_string(),
+                    throwable,
+                },
+            ]
         );
     }
 }
