@@ -412,6 +412,12 @@ fn comparator_block_entity_persists_output_and_uses_compare_subtract_logic() {
 
 #[test]
 fn daylight_detector_updates_power_with_vanilla_solar_math_and_tick_cadence() {
+    assert_eq!(type_info(BlockEntityTypeId::DaylightDetector).key, "daylight_detector");
+    assert_eq!(
+        type_info(BlockEntityTypeId::DaylightDetector).valid_blocks,
+        &["minecraft:daylight_detector"]
+    );
+
     let mut normal = DaylightDetectorBlockEntity::new(false);
     assert_eq!(normal.save_additional(), Tag::Compound(Vec::new()));
     assert!(!normal.tick(19, 15, 0.0));
