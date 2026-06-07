@@ -955,3 +955,30 @@ pub fn dimension_type_overworld_carries_syncable_audio_attributes() {
         Some(&Tag::String("minecraft:music.creative".to_string()))
     );
 }
+
+#[test]
+pub fn damage_type_and_banner_pattern_tags_match_vanilla_set() {
+    use super::super::{BANNER_PATTERN_TAGS, DAMAGE_TYPE_TAGS};
+
+    // 33 vanilla damage_type tags; `bypasses_cooldown` is a code-only TagKey with no
+    // data file and is NOT synced.
+    assert_eq!(DAMAGE_TYPE_TAGS.len(), 33);
+    assert!(DAMAGE_TYPE_TAGS
+        .iter()
+        .all(|(id, _)| *id != "minecraft:bypasses_cooldown"));
+    assert!(DAMAGE_TYPE_TAGS
+        .iter()
+        .any(|(id, _)| *id == "minecraft:is_fire"));
+
+    // no_item_required excludes base/bricks/curly_border (which vanilla omits).
+    let (_, no_item) = BANNER_PATTERN_TAGS
+        .iter()
+        .find(|(id, _)| *id == "minecraft:no_item_required")
+        .unwrap();
+    assert_eq!(no_item.len(), 32);
+    for excluded in ["base", "bricks", "curly_border"] {
+        assert!(!no_item.contains(&excluded), "{excluded} should be excluded");
+    }
+    // The 10 pattern_item/* tags are present.
+    assert_eq!(BANNER_PATTERN_TAGS.len(), 11);
+}

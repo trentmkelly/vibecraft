@@ -83,7 +83,9 @@ pub const DAMAGE_TYPE_TAGS: &[(&str, &[i32])] = &[
         ],
     ),
     ("minecraft:bypasses_invulnerability", &[32, 19]),
-    ("minecraft:bypasses_cooldown", &[]),
+    // NOTE: `minecraft:bypasses_cooldown` is a code-only TagKey
+    // (`DamageTypeTags.BYPASSES_COOLDOWN`) with NO `data/.../damage_type/*.json`,
+    // so vanilla loads it empty and does NOT sync it — it is intentionally not sent.
     ("minecraft:bypasses_effects", &[40]),
     ("minecraft:bypasses_resistance", &[32, 19]),
     ("minecraft:bypasses_enchantments", &[36]),
@@ -400,9 +402,12 @@ pub const BANNER_PATTERNS: &[&str] = &[
 
 pub const BANNER_PATTERN_TAGS: &[(&str, &[&str])] = &[
     (
+        // 1:1 with `data/.../tags/banner_pattern/no_item_required.json` (32 patterns).
+        // `base`, `bricks` (field_masoned), and `curly_border` (bordure_indented) are
+        // NOT here in vanilla — bricks/curly_border require their pattern items, and
+        // `base` is not an applied pattern.
         "minecraft:no_item_required",
         &[
-            "base",
             "square_bottom_left",
             "square_bottom_right",
             "square_top_left",
@@ -435,8 +440,6 @@ pub const BANNER_PATTERN_TAGS: &[(&str, &[&str])] = &[
             "border",
             "gradient",
             "gradient_up",
-            "bricks",
-            "curly_border",
         ],
     ),
     ("minecraft:pattern_item/flower", &["flower"]),
