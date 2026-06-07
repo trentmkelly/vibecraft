@@ -322,8 +322,7 @@ fn jigsaw_block_entity_saves_priorities_joint_and_generation_plan_like_java() {
     assert_eq!(JigsawBlockEntity::load_additional(&saved), jigsaw);
     assert_eq!(jigsaw.get_update_tag(), saved);
 
-    let plan =
-        jigsaw.generation_plan(BlockPos { x: 4, y: 70, z: 8 }, Direction::North, 5, true);
+    let plan = jigsaw.generation_plan(BlockPos { x: 4, y: 70, z: 8 }, Direction::North, 5, true);
     assert_eq!(
         plan,
         JigsawGenerationPlan {
@@ -892,3 +891,4 @@ mod tests_b2;
 mod tests_c;
 mod tests_c2;
 mod tests_d;
+mod tests_e;

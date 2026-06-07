@@ -185,21 +185,35 @@ mod reach_tests {
     /// creative's 36.
     #[test]
     fn block_interaction_range_matches_java_survival_and_creative_bounds() {
-        let mut state = PlaySessionState::default();
-        state.x = 0.5;
-        state.y = 0.0;
-        state.z = 0.5;
-        state.game_mode = GameMode::Survival;
+        let mut state = PlaySessionState {
+            x: 0.5,
+            y: 0.0,
+            z: 0.5,
+            game_mode: GameMode::Survival,
+            ..PlaySessionState::default()
+        };
 
         // Nearby block (nearest face 4.5 out): within reach in both modes.
-        assert!(is_within_block_interaction_range(&state, BlockPos { x: 5, y: 0, z: 0 }));
+        assert!(is_within_block_interaction_range(
+            &state,
+            BlockPos { x: 5, y: 0, z: 0 }
+        ));
         // Far block (6.5 out): out of reach in both modes.
-        assert!(!is_within_block_interaction_range(&state, BlockPos { x: 7, y: 0, z: 0 }));
+        assert!(!is_within_block_interaction_range(
+            &state,
+            BlockPos { x: 7, y: 0, z: 0 }
+        ));
         // Boundary block (5.5 out): just out of survival reach...
-        assert!(!is_within_block_interaction_range(&state, BlockPos { x: 6, y: 0, z: 0 }));
+        assert!(!is_within_block_interaction_range(
+            &state,
+            BlockPos { x: 6, y: 0, z: 0 }
+        ));
 
         // ...but within creative reach.
         state.game_mode = GameMode::Creative;
-        assert!(is_within_block_interaction_range(&state, BlockPos { x: 6, y: 0, z: 0 }));
+        assert!(is_within_block_interaction_range(
+            &state,
+            BlockPos { x: 6, y: 0, z: 0 }
+        ));
     }
 }

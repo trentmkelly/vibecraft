@@ -48,7 +48,6 @@ pub struct BlockStateDefinition {
     pub occlusion_shape: ShapeKind,
 }
 
-
 pub(super) const fn block(
     numeric_id: usize,
     field_name: &'static str,
@@ -63,6 +62,7 @@ pub(super) const fn block(
 
 mod registry_data_a;
 mod registry_data_b;
+mod registry_data_c;
 
 use std::sync::LazyLock;
 
@@ -70,11 +70,11 @@ pub static BLOCK_REGISTRY: LazyLock<&'static [BlockRegistryEntry]> = LazyLock::n
     let combined: Vec<BlockRegistryEntry> = registry_data_a::ENTRIES
         .iter()
         .chain(registry_data_b::ENTRIES.iter())
+        .chain(registry_data_c::ENTRIES.iter())
         .copied()
         .collect();
     Box::leak(combined.into_boxed_slice())
 });
-
 
 const AXIS_VALUES: &[&str] = &["x", "y", "z"];
 const BOOLEAN_VALUES: &[&str] = &["false", "true"];
