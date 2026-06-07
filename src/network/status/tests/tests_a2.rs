@@ -729,3 +729,98 @@ pub fn all_air_persisted_chunks_are_not_reused_for_spawn_terrain() {
             .expect("normal preset should generate visible terrain");
     assert!(chunk_has_non_air_blocks(&generated));
 }
+
+#[test]
+pub fn wolf_sound_variant_uses_per_variant_adult_and_generic_baby_sounds() {
+    // angry: adult ambient/death/… use the wolf_angry prefix, but adult step is the
+    // generic entity.wolf.step; baby is the shared entity.baby_wolf.* set
+    // (SoundEvents.registerWolfSoundVariants).
+    let angry = wolf_sound_variant_nbt("angry");
+    let adult = compound_field(&angry, "adult_sounds");
+    assert_eq!(
+        field_value(adult, "ambient_sound"),
+        Some(&Tag::String("minecraft:entity.wolf_angry.ambient".to_string()))
+    );
+    assert_eq!(
+        field_value(adult, "whine_sound"),
+        Some(&Tag::String("minecraft:entity.wolf_angry.whine".to_string()))
+    );
+    assert_eq!(
+        field_value(adult, "step_sound"),
+        Some(&Tag::String("minecraft:entity.wolf.step".to_string()))
+    );
+    let baby = compound_field(&angry, "baby_sounds");
+    assert_eq!(
+        field_value(baby, "ambient_sound"),
+        Some(&Tag::String("minecraft:entity.baby_wolf.ambient".to_string()))
+    );
+    assert_eq!(
+        field_value(baby, "step_sound"),
+        Some(&Tag::String("minecraft:entity.baby_wolf.step".to_string()))
+    );
+
+    // classic uses the bare `wolf` prefix for adult sounds.
+    let classic = wolf_sound_variant_nbt("classic");
+    assert_eq!(
+        field_value(compound_field(&classic, "adult_sounds"), "ambient_sound"),
+        Some(&Tag::String("minecraft:entity.wolf.ambient".to_string()))
+    );
+}
+
+#[test]
+pub fn animal_sound_variants_use_per_variant_prefixes_and_generic_baby_sounds() {
+    // cow is flat: moody → every sound uses the cow_moody prefix.
+    let moody = cow_sound_variant_nbt("moody");
+    assert_eq!(
+        field_value(&moody, "ambient_sound"),
+        Some(&Tag::String("minecraft:entity.cow_moody.ambient".to_string()))
+    );
+    assert_eq!(
+        field_value(&moody, "step_sound"),
+        Some(&Tag::String("minecraft:entity.cow_moody.step".to_string()))
+    );
+
+    // pig mini: adult eat is prefixed, step is the generic entity.pig.step, baby is
+    // the shared entity.baby_pig.* set.
+    let mini = pig_sound_variant_nbt("mini");
+    let adult = compound_field(&mini, "adult_sounds");
+    assert_eq!(
+        field_value(adult, "eat_sound"),
+        Some(&Tag::String("minecraft:entity.pig_mini.eat".to_string()))
+    );
+    assert_eq!(
+        field_value(adult, "step_sound"),
+        Some(&Tag::String("minecraft:entity.pig.step".to_string()))
+    );
+    assert_eq!(
+        field_value(compound_field(&mini, "baby_sounds"), "eat_sound"),
+        Some(&Tag::String("minecraft:entity.baby_pig.eat".to_string()))
+    );
+
+    // cat royal: adult uses cat_royal prefix, baby uses the generic baby_cat set.
+    let royal = cat_sound_variant_nbt("royal");
+    assert_eq!(
+        field_value(compound_field(&royal, "adult_sounds"), "purreow_sound"),
+        Some(&Tag::String("minecraft:entity.cat_royal.purreow".to_string()))
+    );
+    assert_eq!(
+        field_value(compound_field(&royal, "baby_sounds"), "purreow_sound"),
+        Some(&Tag::String("minecraft:entity.baby_cat.purreow".to_string()))
+    );
+
+    // chicken picky: adult ambient prefixed, step generic, baby generic.
+    let picky = chicken_sound_variant_nbt("picky");
+    assert_eq!(
+        field_value(compound_field(&picky, "adult_sounds"), "ambient_sound"),
+        Some(&Tag::String("minecraft:entity.chicken_picky.ambient".to_string()))
+    );
+    assert_eq!(
+        field_value(compound_field(&picky, "adult_sounds"), "step_sound"),
+        Some(&Tag::String("minecraft:entity.chicken.step".to_string()))
+    );
+    assert_eq!(
+        field_value(compound_field(&picky, "baby_sounds"), "ambient_sound"),
+        Some(&Tag::String("minecraft:entity.baby_chicken.ambient".to_string()))
+    );
+}
+

@@ -866,15 +866,15 @@ pub fn status_ping_packet_echoes_payload_for_client_latency_measurement() {
 #[test]
 pub fn animal_sound_variant_payloads_match_nested_26_1_2_codecs() {
     assert_sound_variant_fields(
-        cow_sound_variant_nbt(),
+        cow_sound_variant_nbt("classic"),
         &["ambient_sound", "hurt_sound", "death_sound", "step_sound"],
     );
     assert_nested_sound_variant_fields(
-        chicken_sound_variant_nbt(),
+        chicken_sound_variant_nbt("classic"),
         &["ambient_sound", "hurt_sound", "death_sound", "step_sound"],
     );
     assert_nested_sound_variant_fields(
-        pig_sound_variant_nbt(),
+        pig_sound_variant_nbt("classic"),
         &[
             "ambient_sound",
             "hurt_sound",
@@ -884,7 +884,7 @@ pub fn animal_sound_variant_payloads_match_nested_26_1_2_codecs() {
         ],
     );
     assert_nested_sound_variant_fields(
-        cat_sound_variant_nbt(),
+        cat_sound_variant_nbt("classic"),
         &[
             "ambient_sound",
             "stray_ambient_sound",
@@ -898,7 +898,7 @@ pub fn animal_sound_variant_payloads_match_nested_26_1_2_codecs() {
         ],
     );
     assert_nested_sound_variant_fields(
-        wolf_sound_variant_nbt(),
+        wolf_sound_variant_nbt("classic"),
         &[
             "ambient_sound",
             "death_sound",

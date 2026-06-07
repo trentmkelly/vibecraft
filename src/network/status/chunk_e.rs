@@ -474,8 +474,8 @@ pub fn write_vanilla_wolf_variant_registry_packet<W: Write>(writer: &mut W) -> i
 
 pub fn write_vanilla_cat_sound_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
     const VARIANTS: &[&str] = &["classic", "royal"];
-    write_variant_registry(writer, "minecraft:cat_sound_variant", VARIANTS, |_| {
-        cat_sound_variant_nbt()
+    write_variant_registry(writer, "minecraft:cat_sound_variant", VARIANTS, |variant| {
+        cat_sound_variant_nbt(variant)
     })
 }
 
@@ -483,22 +483,22 @@ pub fn write_vanilla_chicken_sound_variant_registry_packet<W: Write>(
     writer: &mut W,
 ) -> io::Result<()> {
     const VARIANTS: &[&str] = &["classic", "picky"];
-    write_variant_registry(writer, "minecraft:chicken_sound_variant", VARIANTS, |_| {
-        chicken_sound_variant_nbt()
+    write_variant_registry(writer, "minecraft:chicken_sound_variant", VARIANTS, |variant| {
+        chicken_sound_variant_nbt(variant)
     })
 }
 
 pub fn write_vanilla_cow_sound_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
     const VARIANTS: &[&str] = &["classic", "moody"];
-    write_variant_registry(writer, "minecraft:cow_sound_variant", VARIANTS, |_| {
-        cow_sound_variant_nbt()
+    write_variant_registry(writer, "minecraft:cow_sound_variant", VARIANTS, |variant| {
+        cow_sound_variant_nbt(variant)
     })
 }
 
 pub fn write_vanilla_pig_sound_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
     const VARIANTS: &[&str] = &["big", "classic", "mini"];
-    write_variant_registry(writer, "minecraft:pig_sound_variant", VARIANTS, |_| {
-        pig_sound_variant_nbt()
+    write_variant_registry(writer, "minecraft:pig_sound_variant", VARIANTS, |variant| {
+        pig_sound_variant_nbt(variant)
     })
 }
 
@@ -506,8 +506,8 @@ pub fn write_vanilla_wolf_sound_variant_registry_packet<W: Write>(
     writer: &mut W,
 ) -> io::Result<()> {
     const VARIANTS: &[&str] = &["angry", "big", "classic", "cute", "grumpy", "puglin", "sad"];
-    write_variant_registry(writer, "minecraft:wolf_sound_variant", VARIANTS, |_| {
-        wolf_sound_variant_nbt()
+    write_variant_registry(writer, "minecraft:wolf_sound_variant", VARIANTS, |variant| {
+        wolf_sound_variant_nbt(variant)
     })
 }
 

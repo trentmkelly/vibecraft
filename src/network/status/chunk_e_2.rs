@@ -180,97 +180,161 @@ pub fn painting_variant_nbt(id: &str) -> Tag {
     ])
 }
 
-pub fn cow_sound_variant_nbt() -> Tag {
+/// Per-variant animal-sound prefix, 1:1 with the `SoundSet.getSoundEventIdentifier`
+/// helpers: classic→`<kind>`, every other variant→`<kind>_<id>`.
+fn animal_sound_prefix(kind: &str, variant: &str) -> String {
+    if variant == "classic" {
+        kind.to_string()
+    } else {
+        format!("{kind}_{variant}")
+    }
+}
+
+/// 1:1 with Java `SoundEvents.registerCowSoundVariants`: a flat `CowSoundVariant`
+/// (ambient/hurt/death/step), all four using the variant's prefix.
+pub fn cow_sound_variant_nbt(variant: &str) -> Tag {
+    let prefix = animal_sound_prefix("cow", variant);
     Tag::Compound(vec![
-        sound_field("ambient_sound", "minecraft:entity.cow.ambient"),
-        sound_field("hurt_sound", "minecraft:entity.cow.hurt"),
-        sound_field("death_sound", "minecraft:entity.cow.death"),
-        sound_field("step_sound", "minecraft:entity.cow.step"),
+        sound_field("ambient_sound", &format!("minecraft:entity.{prefix}.ambient")),
+        sound_field("hurt_sound", &format!("minecraft:entity.{prefix}.hurt")),
+        sound_field("death_sound", &format!("minecraft:entity.{prefix}.death")),
+        sound_field("step_sound", &format!("minecraft:entity.{prefix}.step")),
     ])
 }
 
-pub fn chicken_sound_variant_nbt() -> Tag {
-    let sounds = chicken_sound_set_nbt();
+/// 1:1 with `SoundEvents.registerChickenSoundVariants`: adult ambient/hurt/death use
+/// the variant prefix, step is the generic `entity.chicken.step`; the baby set is the
+/// shared `entity.baby_chicken.*`.
+pub fn chicken_sound_variant_nbt(variant: &str) -> Tag {
+    let prefix = animal_sound_prefix("chicken", variant);
     Tag::Compound(vec![
-        ("adult_sounds".to_string(), sounds.clone()),
-        ("baby_sounds".to_string(), sounds),
+        (
+            "adult_sounds".to_string(),
+            Tag::Compound(vec![
+                sound_field("ambient_sound", &format!("minecraft:entity.{prefix}.ambient")),
+                sound_field("hurt_sound", &format!("minecraft:entity.{prefix}.hurt")),
+                sound_field("death_sound", &format!("minecraft:entity.{prefix}.death")),
+                sound_field("step_sound", "minecraft:entity.chicken.step"),
+            ]),
+        ),
+        (
+            "baby_sounds".to_string(),
+            Tag::Compound(vec![
+                sound_field("ambient_sound", "minecraft:entity.baby_chicken.ambient"),
+                sound_field("hurt_sound", "minecraft:entity.baby_chicken.hurt"),
+                sound_field("death_sound", "minecraft:entity.baby_chicken.death"),
+                sound_field("step_sound", "minecraft:entity.baby_chicken.step"),
+            ]),
+        ),
     ])
 }
 
-pub fn chicken_sound_set_nbt() -> Tag {
+/// 1:1 with `SoundEvents.registerPigSoundVariants`: adult ambient/hurt/death/eat use
+/// the variant prefix, step is the generic `entity.pig.step`; baby set is the shared
+/// `entity.baby_pig.*`.
+pub fn pig_sound_variant_nbt(variant: &str) -> Tag {
+    let prefix = animal_sound_prefix("pig", variant);
     Tag::Compound(vec![
-        sound_field("ambient_sound", "minecraft:entity.chicken.ambient"),
-        sound_field("hurt_sound", "minecraft:entity.chicken.hurt"),
-        sound_field("death_sound", "minecraft:entity.chicken.death"),
-        sound_field("step_sound", "minecraft:entity.chicken.step"),
+        (
+            "adult_sounds".to_string(),
+            Tag::Compound(vec![
+                sound_field("ambient_sound", &format!("minecraft:entity.{prefix}.ambient")),
+                sound_field("hurt_sound", &format!("minecraft:entity.{prefix}.hurt")),
+                sound_field("death_sound", &format!("minecraft:entity.{prefix}.death")),
+                sound_field("step_sound", "minecraft:entity.pig.step"),
+                sound_field("eat_sound", &format!("minecraft:entity.{prefix}.eat")),
+            ]),
+        ),
+        (
+            "baby_sounds".to_string(),
+            Tag::Compound(vec![
+                sound_field("ambient_sound", "minecraft:entity.baby_pig.ambient"),
+                sound_field("hurt_sound", "minecraft:entity.baby_pig.hurt"),
+                sound_field("death_sound", "minecraft:entity.baby_pig.death"),
+                sound_field("step_sound", "minecraft:entity.baby_pig.step"),
+                sound_field("eat_sound", "minecraft:entity.baby_pig.eat"),
+            ]),
+        ),
     ])
 }
 
-pub fn pig_sound_variant_nbt() -> Tag {
-    let sounds = pig_sound_set_nbt();
+/// 1:1 with `SoundEvents.registerCatSoundVariants`: all nine adult sounds use the
+/// variant prefix; the baby set is the shared `entity.baby_cat.*` (same nine fields).
+pub fn cat_sound_variant_nbt(variant: &str) -> Tag {
+    let prefix = animal_sound_prefix("cat", variant);
     Tag::Compound(vec![
-        ("adult_sounds".to_string(), sounds.clone()),
-        ("baby_sounds".to_string(), sounds),
+        ("adult_sounds".to_string(), cat_sound_set_nbt(&prefix)),
+        ("baby_sounds".to_string(), cat_sound_set_nbt("baby_cat")),
     ])
 }
 
-pub fn pig_sound_set_nbt() -> Tag {
+fn cat_sound_set_nbt(prefix: &str) -> Tag {
     Tag::Compound(vec![
-        sound_field("ambient_sound", "minecraft:entity.pig.ambient"),
-        sound_field("hurt_sound", "minecraft:entity.pig.hurt"),
-        sound_field("death_sound", "minecraft:entity.pig.death"),
-        sound_field("step_sound", "minecraft:entity.pig.step"),
-        sound_field("eat_sound", "minecraft:entity.generic.eat"),
+        sound_field("ambient_sound", &format!("minecraft:entity.{prefix}.ambient")),
+        sound_field(
+            "stray_ambient_sound",
+            &format!("minecraft:entity.{prefix}.stray_ambient"),
+        ),
+        sound_field("hiss_sound", &format!("minecraft:entity.{prefix}.hiss")),
+        sound_field("hurt_sound", &format!("minecraft:entity.{prefix}.hurt")),
+        sound_field("death_sound", &format!("minecraft:entity.{prefix}.death")),
+        sound_field("eat_sound", &format!("minecraft:entity.{prefix}.eat")),
+        sound_field(
+            "beg_for_food_sound",
+            &format!("minecraft:entity.{prefix}.beg_for_food"),
+        ),
+        sound_field("purr_sound", &format!("minecraft:entity.{prefix}.purr")),
+        sound_field("purreow_sound", &format!("minecraft:entity.{prefix}.purreow")),
     ])
 }
 
-pub fn cat_sound_variant_nbt() -> Tag {
-    let sounds = cat_sound_set_nbt();
+/// Per-variant wolf sound set, 1:1 with Java `SoundEvents.registerWolfSoundVariants`:
+/// the ADULT ambient/death/growl/hurt/pant/whine use the variant's `SoundSet`
+/// prefix (`wolf`, `wolf_angry`, …) while `step` is always the generic
+/// `entity.wolf.step` (`WOLF_STEP`); every variant's BABY set is the shared generic
+/// `entity.baby_wolf.*` set.
+pub fn wolf_sound_variant_nbt(variant: &str) -> Tag {
     Tag::Compound(vec![
-        ("adult_sounds".to_string(), sounds.clone()),
-        ("baby_sounds".to_string(), sounds),
+        (
+            "adult_sounds".to_string(),
+            wolf_adult_sound_set_nbt(variant),
+        ),
+        ("baby_sounds".to_string(), wolf_baby_sound_set_nbt()),
     ])
 }
 
-pub fn cat_sound_set_nbt() -> Tag {
-    Tag::Compound(vec![
-        sound_field("ambient_sound", "minecraft:entity.cat.ambient"),
-        sound_field("stray_ambient_sound", "minecraft:entity.cat.stray_ambient"),
-        sound_field("hiss_sound", "minecraft:entity.cat.hiss"),
-        sound_field("hurt_sound", "minecraft:entity.cat.hurt"),
-        sound_field("death_sound", "minecraft:entity.cat.death"),
-        sound_field("eat_sound", "minecraft:entity.generic.eat"),
-        sound_field("beg_for_food_sound", "minecraft:entity.cat.beg_for_food"),
-        sound_field("purr_sound", "minecraft:entity.cat.purr"),
-        sound_field("purreow_sound", "minecraft:entity.cat.purreow"),
-    ])
+/// Java `WolfSoundVariants.SoundSet.getSoundEventIdentifier`: classic→`wolf`,
+/// every other variant→`wolf_<id>`.
+fn wolf_sound_prefix(variant: &str) -> String {
+    if variant == "classic" {
+        "wolf".to_string()
+    } else {
+        format!("wolf_{variant}")
+    }
 }
 
-// TODO(per-variant-sound-data): NOT 1:1 — Java `WolfSoundVariants.bootstrap`
-// gives each of the 7 variants its OWN sound set via `SoundEvents.WOLF_SOUNDS`
-// (classic→`entity.wolf.*`, angry→`entity.wolf_angry.*`, big→`entity.wolf_big.*`,
-// cute/grumpy/puglin/sad likewise), but every variant here emits the same generic
-// `entity.wolf.*` set. The compound shape/field names are codec-correct, but the
-// sound ids are wrong for non-classic variants. Same gap for cat/cow/chicken/pig
-// sound variants. Blocks the "Sync minecraft:*_sound_variant" checklist items —
-// they stay UNMARKED until the per-variant `SoundSet` prefixes are populated.
-pub fn wolf_sound_variant_nbt() -> Tag {
-    let sounds = wolf_sound_set_nbt();
+fn wolf_adult_sound_set_nbt(variant: &str) -> Tag {
+    let prefix = wolf_sound_prefix(variant);
     Tag::Compound(vec![
-        ("adult_sounds".to_string(), sounds.clone()),
-        ("baby_sounds".to_string(), sounds),
-    ])
-}
-
-pub fn wolf_sound_set_nbt() -> Tag {
-    Tag::Compound(vec![
-        sound_field("ambient_sound", "minecraft:entity.wolf.ambient"),
-        sound_field("death_sound", "minecraft:entity.wolf.death"),
-        sound_field("growl_sound", "minecraft:entity.wolf.growl"),
-        sound_field("hurt_sound", "minecraft:entity.wolf.hurt"),
-        sound_field("pant_sound", "minecraft:entity.wolf.pant"),
-        sound_field("whine_sound", "minecraft:entity.wolf.whine"),
+        sound_field("ambient_sound", &format!("minecraft:entity.{prefix}.ambient")),
+        sound_field("death_sound", &format!("minecraft:entity.{prefix}.death")),
+        sound_field("growl_sound", &format!("minecraft:entity.{prefix}.growl")),
+        sound_field("hurt_sound", &format!("minecraft:entity.{prefix}.hurt")),
+        sound_field("pant_sound", &format!("minecraft:entity.{prefix}.pant")),
+        sound_field("whine_sound", &format!("minecraft:entity.{prefix}.whine")),
         sound_field("step_sound", "minecraft:entity.wolf.step"),
+    ])
+}
+
+fn wolf_baby_sound_set_nbt() -> Tag {
+    Tag::Compound(vec![
+        sound_field("ambient_sound", "minecraft:entity.baby_wolf.ambient"),
+        sound_field("death_sound", "minecraft:entity.baby_wolf.death"),
+        sound_field("growl_sound", "minecraft:entity.baby_wolf.growl"),
+        sound_field("hurt_sound", "minecraft:entity.baby_wolf.hurt"),
+        sound_field("pant_sound", "minecraft:entity.baby_wolf.pant"),
+        sound_field("whine_sound", "minecraft:entity.baby_wolf.whine"),
+        sound_field("step_sound", "minecraft:entity.baby_wolf.step"),
     ])
 }
 
