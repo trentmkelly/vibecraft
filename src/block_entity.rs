@@ -805,6 +805,7 @@ pub struct ContainerBlockEntityModel {
     pub loot_table: Option<String>,
     pub loot_table_seed: i64,
     pub viewer_count: i32,
+    pub content_changed: bool,
     pub chest_lid: ChestLidController,
     pub lid_progress: f32,
     pub shulker_status: ShulkerBoxAnimationStatus,

@@ -48,6 +48,7 @@ impl ContainerBlockEntityModel {
             loot_table: None,
             loot_table_seed: 0,
             viewer_count: 0,
+            content_changed: false,
             chest_lid: ChestLidController::new(),
             lid_progress: 0.0,
             shulker_status: ShulkerBoxAnimationStatus::Closed,
@@ -116,8 +117,89 @@ impl ContainerBlockEntityModel {
             return false;
         }
         self.unpack_loot_table();
-        self.items[slot] = stack.filter(|stack| !stack.is_empty());
+        self.set_item_no_update(slot, stack);
+        self.content_changed = true;
         true
+    }
+
+    pub fn set_item_no_update(&mut self, slot: usize, stack: Option<PotItemStack>) -> bool {
+        if slot >= self.items.len() {
+            return false;
+        }
+        self.items[slot] = stack
+            .filter(|stack| !stack.is_empty())
+            .map(Self::limit_stack_size);
+        true
+    }
+
+    pub fn count(&self) -> usize {
+        self.items.iter().flatten().count()
+    }
+
+    pub fn container_size(&self) -> usize {
+        self.items.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.items.iter().all(Option::is_none)
+    }
+
+    pub fn clear_content(&mut self) {
+        self.items.fill(None);
+    }
+
+    pub fn get_item(&self, slot: usize) -> Option<&PotItemStack> {
+        self.items.get(slot).and_then(Option::as_ref)
+    }
+
+    pub fn remove_item(&mut self, slot: usize, count: i32) -> Option<PotItemStack> {
+        let removed = self.remove_item_no_update_with_count(slot, count)?;
+        self.content_changed = true;
+        Some(removed)
+    }
+
+    pub fn remove_item_no_update(&mut self, slot: usize) -> Option<PotItemStack> {
+        self.remove_item_no_update_with_count(slot, Self::MAX_STACK_SIZE)
+    }
+
+    pub fn can_place_item(&self, slot: usize, item: &PotItemStack) -> bool {
+        if slot >= self.items.len() || !self.accepts_item_type(item) {
+            return false;
+        }
+        self.items[slot]
+            .as_ref()
+            .is_none_or(|current| current.count < Self::MAX_STACK_SIZE)
+    }
+
+    pub fn accepts_item_type(&self, item: &PotItemStack) -> bool {
+        let _ = item;
+        true
+    }
+
+    fn remove_item_no_update_with_count(
+        &mut self,
+        slot: usize,
+        count: i32,
+    ) -> Option<PotItemStack> {
+        if count <= 0 {
+            return None;
+        }
+        let stack = self.items.get_mut(slot)?.as_mut()?;
+        let removed_count = stack.count.min(count);
+        let removed = PotItemStack {
+            item_id: stack.item_id.clone(),
+            count: removed_count,
+        };
+        stack.count -= removed_count;
+        if stack.is_empty() {
+            self.items[slot] = None;
+        }
+        Some(removed)
+    }
+
+    fn limit_stack_size(mut stack: PotItemStack) -> PotItemStack {
+        stack.count = stack.count.min(Self::MAX_STACK_SIZE);
+        stack
     }
 
     pub fn start_open(&mut self) {

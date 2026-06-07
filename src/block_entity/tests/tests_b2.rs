@@ -536,6 +536,7 @@ fn assert_furnace_sided_slots_and_container_helpers(
 #[test]
 fn container_block_entities_track_loot_openers_lids_redstone_and_hopper_like_java() {
     assert_chest_loot_lock_lid_and_persistence();
+    assert_list_backed_container_defaults_match_java();
     assert_trapped_chest_signal_tracks_openers();
     assert_barrel_open_state_tracks_viewers();
     assert_shulker_box_animation_and_sided_insertion();
@@ -576,6 +577,39 @@ fn assert_chest_loot_lock_lid_and_persistence() {
     assert_eq!(loaded_chest.custom_name.as_deref(), Some("Supply Cache"));
     assert_eq!(loaded_chest.lock_key.as_deref(), Some("brass_key"));
     assert_eq!(loaded_chest.items[0], Some(stack("minecraft:apple", 32)));
+}
+
+fn assert_list_backed_container_defaults_match_java() {
+    let mut chest = ContainerBlockEntityModel::new(ContainerBlockEntityKind::Chest);
+    assert_eq!(chest.container_size(), 27);
+    assert_eq!(chest.count(), 0);
+    assert!(chest.is_empty());
+    assert_eq!(chest.get_item(0), None);
+    assert!(!chest.content_changed);
+
+    assert!(chest.set_item_no_update(0, Some(stack("minecraft:apple", 80))));
+    assert_eq!(chest.get_item(0), Some(&stack("minecraft:apple", 64)));
+    assert_eq!(chest.count(), 1);
+    assert!(!chest.content_changed);
+    assert!(!chest.can_place_item(0, &stack("minecraft:apple", 1)));
+    assert!(chest.can_place_item(1, &stack("minecraft:air", 0)));
+
+    assert_eq!(chest.remove_item(0, 16), Some(stack("minecraft:apple", 16)));
+    assert_eq!(chest.get_item(0), Some(&stack("minecraft:apple", 48)));
+    assert!(chest.content_changed);
+    chest.content_changed = false;
+    assert_eq!(
+        chest.remove_item_no_update(0),
+        Some(stack("minecraft:apple", 48))
+    );
+    assert_eq!(chest.get_item(0), None);
+    assert!(!chest.content_changed);
+
+    assert!(chest.set_item(1, Some(stack("minecraft:stone", 1))));
+    assert!(chest.content_changed);
+    chest.clear_content();
+    assert_eq!(chest.container_size(), 27);
+    assert!(chest.is_empty());
 }
 
 fn assert_chest_lid_interpolates_like_java(chest: &mut ContainerBlockEntityModel) {
