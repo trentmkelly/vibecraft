@@ -394,14 +394,9 @@ fn hyphenate_uuid(uuid: Uuid) -> String {
 fn read_bool<R: Read>(reader: &mut R) -> io::Result<bool> {
     let mut byte = [0u8; 1];
     reader.read_exact(&mut byte)?;
-    match byte[0] {
-        0 => Ok(false),
-        1 => Ok(true),
-        _ => Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "invalid boolean value",
-        )),
-    }
+    // Java `FriendlyByteBuf.readBoolean` = `readByte() != 0` — any non-zero byte is
+    // true, so match that exactly rather than rejecting bytes > 1.
+    Ok(byte[0] != 0)
 }
 
 fn write_bool<W: Write>(writer: &mut W, value: bool) -> io::Result<()> {

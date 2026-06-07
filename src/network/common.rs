@@ -988,14 +988,9 @@ fn read_u8<R: Read>(reader: &mut R) -> io::Result<u8> {
 }
 
 fn read_bool<R: Read>(reader: &mut R) -> io::Result<bool> {
-    match read_u8(reader)? {
-        0 => Ok(false),
-        1 => Ok(true),
-        _ => Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "invalid boolean value",
-        )),
-    }
+    // Java `FriendlyByteBuf.readBoolean` = `readByte() != 0` — any non-zero byte is
+    // true (matches the play/status `read_bool` helpers), not just 0/1.
+    Ok(read_u8(reader)? != 0)
 }
 
 fn write_bool<W: Write>(writer: &mut W, value: bool) -> io::Result<()> {

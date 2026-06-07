@@ -84,15 +84,14 @@ where
     R: Read,
     F: FnOnce(&mut R) -> io::Result<T>,
 {
+    // Java `FriendlyByteBuf.readNullable`/`readOptional` use `readBoolean()` for the
+    // presence marker, i.e. any non-zero byte means present — match that exactly.
     let mut present = [0u8; 1];
     reader.read_exact(&mut present)?;
-    match present[0] {
-        0 => Ok(None),
-        1 => Ok(Some(read(reader)?)),
-        _ => Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "invalid optional marker",
-        )),
+    if present[0] != 0 {
+        Ok(Some(read(reader)?))
+    } else {
+        Ok(None)
     }
 }
 
@@ -392,6 +391,18 @@ mod tests {
         assert_eq!(read_string(&mut input, 16).unwrap(), "hello");
         assert_eq!(read_identifier(&mut input).unwrap(), id);
         assert_eq!(read_uuid(&mut input).unwrap(), uuid);
+    }
+
+    #[test]
+    fn optional_presence_marker_is_lenient_like_java_read_boolean() {
+        // Java `readNullable` uses `readBoolean()` (any non-zero → present), so a
+        // marker byte of 2 must be treated as `Some`, not rejected.
+        let mut input = cursor(vec![2, 0x07]);
+        let value = read_optional(&mut input, read_var_i32).unwrap();
+        assert_eq!(value, Some(7));
+
+        let mut absent = cursor(vec![0]);
+        assert_eq!(read_optional(&mut absent, read_var_i32).unwrap(), None);
     }
 
     #[test]
