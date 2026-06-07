@@ -43,6 +43,7 @@ Generated on 2026-05-24 from RustCraft implementation and harness sources, exclu
 - [ ] Audit Rust implementation file `src/boss_fight/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/chat_component.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/chat_trust.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [x] Audit Rust implementation file `src/char_predicate.rs` against the Java source and checklist coverage. This file is the complete Rust parity model for `net/minecraft/CharPredicate.java`; Java's functional `test`, default short-circuiting `and`/`or`, and `negate` are covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 char_predicate`.
 - [ ] Audit Rust implementation file `src/chunk_manager.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/chunk_task.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/chunk_ticket.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.

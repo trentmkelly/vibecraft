@@ -21,6 +21,7 @@ mod block_update;
 mod boss_fight;
 mod chat_component;
 mod chat_trust;
+mod char_predicate;
 mod chunk_manager;
 mod chunk_task;
 mod chunk_ticket;
