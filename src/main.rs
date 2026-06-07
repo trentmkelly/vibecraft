@@ -152,6 +152,7 @@ mod statistics;
 mod status_effect;
 mod storage;
 mod structure_resources;
+mod suppress_forbidden;
 mod trial_system;
 #[cfg(test)]
 mod vehicle_entity;

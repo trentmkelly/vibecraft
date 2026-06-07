@@ -341,6 +341,7 @@ Generated on 2026-05-24 from RustCraft implementation and harness sources, exclu
 - [ ] Audit Rust implementation file `src/storage/world/helpers.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/storage/world/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/structure_resources.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [x] Audit Rust implementation file `src/suppress_forbidden.rs` against the Java source and checklist coverage. This file is the complete Rust parity model for `net/minecraft/SuppressForbidden.java`; retention, target set, and required reason member are covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 suppress_forbidden`.
 - [ ] Audit Rust implementation file `src/trial_system.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/vehicle_entity.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/vibration.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
