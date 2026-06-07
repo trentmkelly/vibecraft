@@ -4748,22 +4748,22 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/world/level/block`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/package-info.java`. — Audited against Java 26.1.2: metadata-only `@NullMarked` package annotation with no runtime behavior, protocol surface, serialization, or gameplay logic to port; Rust's type system already models nullability without a package-level annotation.
 
 ## `decompiled-server-26.1.2/net/minecraft/world/level/block/piston`
 
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/piston/MovingPistonBlock.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/piston/PistonBaseBlock.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/piston/PistonHeadBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/piston/PistonMath.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/piston/PistonMath.java`. — Audited against Java 26.1.2: Rust `piston_movement_area` mirrors `getMovementArea(AABB, Direction, amount)` for all six directions, including Java's axis-direction signed delta, min/max sweep interval, and negative-amount behavior. Covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 collision_shape`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/piston/PistonMovingBlockEntity.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/piston/PistonStructureResolver.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/piston/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/piston/package-info.java`. — Audited against Java 26.1.2: metadata-only `@NullMarked` package annotation with no runtime behavior, protocol surface, serialization, or gameplay logic to port; Rust's type system already models nullability without a package-level annotation.
 
 ## `decompiled-server-26.1.2/net/minecraft/world/level/block/sounds`
 
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/sounds/AmbientDesertBlockSoundsPlayer.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/sounds/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/sounds/package-info.java`. — Audited against Java 26.1.2: metadata-only `@NullMarked` package annotation with no runtime behavior, protocol surface, serialization, or gameplay logic to port; Rust's type system already models nullability without a package-level annotation.
 
 ## `decompiled-server-26.1.2/net/minecraft/world/level/block/state`
 

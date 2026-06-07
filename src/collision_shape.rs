@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use crate::block_update::Direction;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Aabb {
     pub min_x: f64,
@@ -27,6 +29,66 @@ impl Aabb {
             max_y,
             max_z,
         }
+    }
+}
+
+pub fn piston_movement_area(aabb: Aabb, direction: Direction, amount: f64) -> Aabb {
+    let axis_step = match direction {
+        Direction::West | Direction::Down | Direction::North => -1.0,
+        Direction::East | Direction::Up | Direction::South => 1.0,
+    };
+    let delta = amount * axis_step;
+    let min = delta.min(0.0);
+    let max = delta.max(0.0);
+    match direction {
+        Direction::West => Aabb::new(
+            aabb.min_x + min,
+            aabb.min_y,
+            aabb.min_z,
+            aabb.min_x + max,
+            aabb.max_y,
+            aabb.max_z,
+        ),
+        Direction::East => Aabb::new(
+            aabb.max_x + min,
+            aabb.min_y,
+            aabb.min_z,
+            aabb.max_x + max,
+            aabb.max_y,
+            aabb.max_z,
+        ),
+        Direction::Down => Aabb::new(
+            aabb.min_x,
+            aabb.min_y + min,
+            aabb.min_z,
+            aabb.max_x,
+            aabb.min_y + max,
+            aabb.max_z,
+        ),
+        Direction::Up => Aabb::new(
+            aabb.min_x,
+            aabb.max_y + min,
+            aabb.min_z,
+            aabb.max_x,
+            aabb.max_y + max,
+            aabb.max_z,
+        ),
+        Direction::North => Aabb::new(
+            aabb.min_x,
+            aabb.min_y,
+            aabb.min_z + min,
+            aabb.max_x,
+            aabb.max_y,
+            aabb.min_z + max,
+        ),
+        Direction::South => Aabb::new(
+            aabb.min_x,
+            aabb.min_y,
+            aabb.max_z + min,
+            aabb.max_x,
+            aabb.max_y,
+            aabb.max_z + max,
+        ),
     }
 }
 
@@ -377,6 +439,7 @@ pub fn combined_block_fluid_collision(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::block_update::Direction;
 
     #[test]
     fn vanilla_box_creation_collapses_empty_and_full_unit_shapes() {
@@ -482,5 +545,38 @@ mod tests {
 
         let union = join(&lower, &upper, BooleanOpKind::Or);
         assert_eq!(union.boxes().len(), 2);
+    }
+
+    #[test]
+    fn piston_movement_area_matches_java_directional_face_sweep() {
+        let aabb = Aabb::new(1.0, 2.0, 3.0, 4.0, 6.0, 8.0);
+        assert_eq!(
+            piston_movement_area(aabb, Direction::West, 0.25),
+            Aabb::new(0.75, 2.0, 3.0, 1.0, 6.0, 8.0)
+        );
+        assert_eq!(
+            piston_movement_area(aabb, Direction::East, 0.25),
+            Aabb::new(4.0, 2.0, 3.0, 4.25, 6.0, 8.0)
+        );
+        assert_eq!(
+            piston_movement_area(aabb, Direction::Down, 0.5),
+            Aabb::new(1.0, 1.5, 3.0, 4.0, 2.0, 8.0)
+        );
+        assert_eq!(
+            piston_movement_area(aabb, Direction::Up, 0.5),
+            Aabb::new(1.0, 6.0, 3.0, 4.0, 6.5, 8.0)
+        );
+        assert_eq!(
+            piston_movement_area(aabb, Direction::North, 0.75),
+            Aabb::new(1.0, 2.0, 2.25, 4.0, 6.0, 3.0)
+        );
+        assert_eq!(
+            piston_movement_area(aabb, Direction::South, 0.75),
+            Aabb::new(1.0, 2.0, 8.0, 4.0, 6.0, 8.75)
+        );
+        assert_eq!(
+            piston_movement_area(aabb, Direction::East, -0.25),
+            Aabb::new(3.75, 2.0, 3.0, 4.0, 6.0, 8.0)
+        );
     }
 }
