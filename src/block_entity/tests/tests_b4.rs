@@ -370,3 +370,75 @@ fn skull_dispatcher_update_tag_uses_custom_only_nbt_like_java() {
         )])
     );
 }
+
+#[test]
+fn smoker_block_entity_specialization_matches_java() {
+    let fuels = FuelValues::vanilla();
+    let smoking = FurnaceCookingRecipe::new(
+        "minecraft:cooked_beef_from_smoking",
+        "smoking",
+        "minecraft:beef",
+        "minecraft:cooked_beef",
+        100,
+        350,
+    );
+    let smelting = FurnaceCookingRecipe::new(
+        "minecraft:cooked_beef_from_smelting",
+        "smelting",
+        "minecraft:beef",
+        "minecraft:cooked_beef",
+        200,
+        350,
+    );
+    let mut smoker = AbstractFurnaceBlockEntity::smoker();
+
+    assert_eq!(smoker.kind.default_name(), "container.smoker");
+    assert_eq!(smoker.kind.menu_type(), "smoker");
+    assert_eq!(smoker.kind.recipe_type(), "smoking");
+    assert_eq!(smoker.kind.default_cooking_time(), 100);
+    assert_eq!(smoker.open_menu(4).menu_type, "smoker");
+
+    smoker.set_item(
+        AbstractFurnaceBlockEntity::INGREDIENT_SLOT,
+        Some(stack("minecraft:beef", 1)),
+        Some(&smoking),
+    );
+    smoker.set_item(
+        AbstractFurnaceBlockEntity::FUEL_SLOT,
+        Some(stack("minecraft:coal", 1)),
+        Some(&smoking),
+    );
+    assert_eq!(
+        smoker.server_tick(&fuels, Some(&smoking)),
+        FurnaceTickResult::LitChanged { lit: true }
+    );
+    assert_eq!(smoker.lit_total_time, 800);
+    assert_eq!(smoker.cooking_total_time, 100);
+    for _ in 1..99 {
+        smoker.server_tick(&fuels, Some(&smoking));
+    }
+    assert_eq!(
+        smoker.server_tick(&fuels, Some(&smoking)),
+        FurnaceTickResult::Burned { output_count: 1 }
+    );
+    assert_eq!(
+        smoker.items[AbstractFurnaceBlockEntity::RESULT_SLOT],
+        Some(stack("minecraft:cooked_beef", 1))
+    );
+
+    let mut wrong_recipe = AbstractFurnaceBlockEntity::smoker();
+    wrong_recipe.set_item(
+        AbstractFurnaceBlockEntity::INGREDIENT_SLOT,
+        Some(stack("minecraft:beef", 1)),
+        Some(&smelting),
+    );
+    wrong_recipe.set_item(
+        AbstractFurnaceBlockEntity::FUEL_SLOT,
+        Some(stack("minecraft:coal", 1)),
+        Some(&smelting),
+    );
+    assert_eq!(
+        wrong_recipe.server_tick(&fuels, Some(&smelting)),
+        FurnaceTickResult::Idle
+    );
+}
