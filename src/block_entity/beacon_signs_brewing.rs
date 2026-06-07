@@ -1001,13 +1001,13 @@ impl CrafterBlockEntity {
         }
     }
 
-    pub fn server_tick(&mut self) -> bool {
+    pub fn server_tick(&mut self) -> Option<(&'static str, bool)> {
         let next = self.crafting_ticks_remaining - 1;
         if next >= 0 {
             self.crafting_ticks_remaining = next;
-            next == 0
+            (next == 0).then_some(("crafting", false))
         } else {
-            false
+            None
         }
     }
 

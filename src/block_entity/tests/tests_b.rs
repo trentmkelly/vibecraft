@@ -795,7 +795,14 @@ fn crafter_block_entity_tracks_disabled_slots_triggered_pulse_and_output_like_ja
 fn assert_crafter_layout_disabled_slots_and_input_rules(crafter: &mut CrafterBlockEntity) {
     assert_eq!(CrafterBlockEntity::CONTAINER_WIDTH, 3);
     assert_eq!(CrafterBlockEntity::CONTAINER_HEIGHT, 3);
+    assert_eq!(CrafterBlockEntity::CONTAINER_SIZE, 9);
+    assert_eq!(CrafterBlockEntity::DATA_TRIGGERED, 9);
     assert_eq!(CrafterBlockEntity::NUM_DATA, 10);
+    assert_eq!(CrafterBlockEntity::SLOT_DISABLED, 1);
+    assert_eq!(CrafterBlockEntity::SLOT_ENABLED, 0);
+    assert_eq!(CrafterBlockEntity::DISPLAY_NAME, "container.crafter");
+    assert!(!crafter.triggered);
+    assert_eq!(crafter.crafting_ticks_remaining, 0);
     assert_eq!(crafter.redstone_signal(), 0);
     assert!(crafter.set_slot_state(8, false));
     assert!(crafter.is_slot_disabled(8));
@@ -899,9 +906,9 @@ fn assert_crafter_pulse_result_and_tick_lifecycle(
     );
     assert_eq!(crafter.items[1], None);
     for _ in 1..CrafterBlockEntity::MAX_CRAFTING_TICKS {
-        assert!(!crafter.server_tick());
+        assert_eq!(crafter.server_tick(), None);
     }
-    assert!(crafter.server_tick());
+    assert_eq!(crafter.server_tick(), Some(("crafting", false)));
     assert_eq!(crafter.crafting_ticks_remaining, 0);
 }
 
