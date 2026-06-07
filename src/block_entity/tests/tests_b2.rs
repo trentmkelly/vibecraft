@@ -696,7 +696,20 @@ fn assert_dispenser_and_dropper_activation_slots() {
 
 fn assert_hopper_slots_cooldown_push_pull_and_persistence() {
     let mut hopper = ContainerBlockEntityModel::new(ContainerBlockEntityKind::Hopper);
+    hopper.world_position = BlockPos {
+        x: -3,
+        y: 64,
+        z: 9,
+    };
     assert_eq!(hopper.kind.size(), 5);
+    assert_eq!(
+        ContainerBlockEntityModel::hopper_suck_aabb(),
+        crate::collision_shape::Aabb::new(0.0, 11.0 / 16.0, 0.0, 1.0, 2.0, 1.0)
+    );
+    assert_eq!(hopper.hopper_level_x(), -2.5);
+    assert_eq!(hopper.hopper_level_y(), 64.5);
+    assert_eq!(hopper.hopper_level_z(), 9.5);
+    assert!(hopper.hopper_is_grid_aligned());
     assert_eq!(
         hopper.transfer_cooldown,
         ContainerBlockEntityModel::HOPPER_NO_COOLDOWN

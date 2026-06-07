@@ -4692,7 +4692,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/FuelValues.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/FurnaceBlockEntity.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/HangingSignBlockEntity.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/Hopper.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/Hopper.java`. — Audited against Java 26.1.2: the support interface extends `Container`, defines `SUCK_AABB = Block.column(16, 11, 32)` as `(0, 11/16, 0)..(1, 2, 1)`, returns that AABB from `getSuckAabb()`, and exposes hopper level coordinates plus grid alignment. Rust parity is `ContainerBlockEntityModel::{hopper_suck_aabb,hopper_level_x,hopper_level_y,hopper_level_z,hopper_is_grid_aligned}` backed by `world_position`; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 container_block_entities_track_loot_openers_lids_redstone_and_hopper_like_java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/HopperBlockEntity.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/JigsawBlockEntity.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/JukeboxBlockEntity.java`.

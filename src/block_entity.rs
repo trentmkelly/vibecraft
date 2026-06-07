@@ -799,6 +799,7 @@ pub struct ChestLidController {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ContainerBlockEntityModel {
     pub kind: ContainerBlockEntityKind,
+    pub world_position: BlockPos,
     pub items: Vec<Option<PotItemStack>>,
     pub custom_name: Option<String>,
     pub lock_key: Option<String>,

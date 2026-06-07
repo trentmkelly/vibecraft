@@ -42,6 +42,7 @@ impl ContainerBlockEntityModel {
     pub fn new(kind: ContainerBlockEntityKind) -> Self {
         Self {
             kind,
+            world_position: BlockPos { x: 0, y: 0, z: 0 },
             items: vec![None; kind.size()],
             custom_name: None,
             lock_key: None,
@@ -349,6 +350,26 @@ impl ContainerBlockEntityModel {
 
     pub fn hopper_can_take_item(&self, slot: usize, direction: Direction) -> bool {
         self.hopper_slots_for_face(direction).contains(&slot) && self.items[slot].is_some()
+    }
+
+    pub const fn hopper_suck_aabb() -> crate::collision_shape::Aabb {
+        crate::collision_shape::Aabb::new(0.0, 11.0 / 16.0, 0.0, 1.0, 2.0, 1.0)
+    }
+
+    pub fn hopper_level_x(&self) -> f64 {
+        f64::from(self.world_position.x) + 0.5
+    }
+
+    pub fn hopper_level_y(&self) -> f64 {
+        f64::from(self.world_position.y) + 0.5
+    }
+
+    pub fn hopper_level_z(&self) -> f64 {
+        f64::from(self.world_position.z) + 0.5
+    }
+
+    pub const fn hopper_is_grid_aligned(&self) -> bool {
+        true
     }
 
     pub fn comparator_output(&self) -> u8 {
