@@ -35,7 +35,7 @@ use crate::network::codec::ComponentJson;
 use crate::network::codec::{write_bitset, write_identifier, write_uuid, Uuid};
 use crate::network::common::{
     ClientboundDisconnectPacket, ClientboundServerLinksPacket, ServerboundClientInformationPacket,
-    ServerLinkEntry, ServerLinkLabel, ServerLinkType,
+    ServerboundCustomPayloadPacket, ServerLinkEntry, ServerLinkLabel, ServerLinkType,
 };
 use crate::network::compression::CompressionState;
 use crate::network::configuration::ClientboundCodeOfConductPacket;
@@ -89,7 +89,8 @@ use crate::network::play::{
     SERVERBOUND_CLIENT_COMMAND_PACKET_ID, SERVERBOUND_CLIENT_INFORMATION_PACKET_ID,
     SERVERBOUND_CLIENT_TICK_END_PACKET_ID, SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID,
     SERVERBOUND_CONTAINER_CLICK_PACKET_ID, SERVERBOUND_CONTAINER_CLOSE_PACKET_ID,
-    SERVERBOUND_EDIT_BOOK_PACKET_ID, SERVERBOUND_KEEP_ALIVE_PACKET_ID,
+    SERVERBOUND_CUSTOM_PAYLOAD_PACKET_ID, SERVERBOUND_EDIT_BOOK_PACKET_ID,
+    SERVERBOUND_KEEP_ALIVE_PACKET_ID,
     SERVERBOUND_MOVE_PLAYER_POS_PACKET_ID, SERVERBOUND_MOVE_PLAYER_POS_ROT_PACKET_ID,
     SERVERBOUND_MOVE_PLAYER_ROT_PACKET_ID, SERVERBOUND_MOVE_PLAYER_STATUS_ONLY_PACKET_ID,
     SERVERBOUND_PICK_ITEM_FROM_BLOCK_PACKET_ID, SERVERBOUND_PICK_ITEM_FROM_ENTITY_PACKET_ID,

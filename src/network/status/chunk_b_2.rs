@@ -65,6 +65,7 @@ pub fn play_packet_has_live_status_handler(packet_id: i32) -> bool {
                 | SERVERBOUND_RECIPE_BOOK_SEEN_RECIPE_PACKET_ID
                 | SERVERBOUND_PLACE_RECIPE_PACKET_ID
                 | SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID
+                | SERVERBOUND_CUSTOM_PAYLOAD_PACKET_ID
         )
 }
 

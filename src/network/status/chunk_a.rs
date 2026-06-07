@@ -2738,6 +2738,13 @@ fn handle_decoded_play_packet(
         context
             .active_login
             .set_allows_listing(packet.information.allows_listing);
+    } else if packet_id == SERVERBOUND_CUSTOM_PAYLOAD_PACKET_ID {
+        // Parse + validate (the codec enforces the 32767-byte serverbound limit and
+        // the `minecraft:brand` channel) then discard. Java
+        // `ServerCommonPacketListenerImpl.handleCustomPayload` is an empty no-op; the
+        // value is the decode-side validation, so a malformed/oversized payload
+        // closes the connection (the read errors) rather than reaching a handler.
+        let _ = ServerboundCustomPayloadPacket::read(&mut input)?;
     } else if !play_packet_is_handled_after_state_update(packet_id) {
         persist_play_disconnect_state(
             context.properties,

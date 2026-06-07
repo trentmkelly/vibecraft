@@ -386,6 +386,14 @@ pub fn wait_for_configuration_packet_with_rate_limit<R: Read>(
             }
             continue;
         }
+        if packet_id == SERVERBOUND_CONFIGURATION_CUSTOM_PAYLOAD_PACKET_ID {
+            // The vanilla client sends `minecraft:brand` during configuration. Parse
+            // + validate it (the codec enforces the 32767-byte limit and known
+            // channel) then discard — Java `handleCustomPayload` is a no-op; an
+            // oversized/malformed payload errors here and closes the connection.
+            let _ = ServerboundCustomPayloadPacket::read(&mut input)?;
+            continue;
+        }
         if is_tolerated_serverbound_configuration_packet(packet_id) {
             continue;
         }

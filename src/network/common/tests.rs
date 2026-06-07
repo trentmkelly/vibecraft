@@ -144,6 +144,24 @@ fn rejects_oversized_serverbound_unknown_custom_payload() {
 }
 
 #[test]
+fn read_rejects_oversized_serverbound_unknown_custom_payload() {
+    // The decode-side limit is what the live config/play custom-payload handler
+    // relies on (Java `DiscardedPayload.codec(id, 32767)` throws on read). Build a
+    // wire frame with an unknown channel and a payload one byte over the limit.
+    let channel = Identifier::parse("rustcraft:debug").unwrap();
+    let mut bytes = Vec::new();
+    crate::network::codec::write_identifier(&mut bytes, &channel).unwrap();
+    bytes.extend(vec![0u8; MAX_SERVERBOUND_CUSTOM_PAYLOAD_SIZE + 1]);
+    assert!(ServerboundCustomPayloadPacket::read(&mut Cursor::new(bytes)).is_err());
+
+    // A payload exactly at the limit decodes to an Unknown payload.
+    let mut at_limit = Vec::new();
+    crate::network::codec::write_identifier(&mut at_limit, &channel).unwrap();
+    at_limit.extend(vec![0u8; MAX_SERVERBOUND_CUSTOM_PAYLOAD_SIZE]);
+    assert!(ServerboundCustomPayloadPacket::read(&mut Cursor::new(at_limit)).is_ok());
+}
+
+#[test]
 fn round_trips_client_information_with_vanilla_defaults() {
     let packet = ServerboundClientInformationPacket {
         information: ClientInformation::default(),
