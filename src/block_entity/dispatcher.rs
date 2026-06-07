@@ -129,6 +129,7 @@ impl BlockEntity {
             | BlockEntityTypeId::HangingSign
             | BlockEntityTypeId::Skull
             | BlockEntityTypeId::EndGateway
+            | BlockEntityTypeId::TrialSpawner
             | BlockEntityTypeId::StructureBlock
             | BlockEntityTypeId::TestBlock
             | BlockEntityTypeId::TestInstanceBlock => self.save_custom_only(),

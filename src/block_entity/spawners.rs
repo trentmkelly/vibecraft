@@ -410,6 +410,25 @@ impl TrialSpawnerStateModel {
             Self::Active | Self::WaitingForRewardEjection | Self::EjectingReward => 8,
         }
     }
+
+    pub fn spinning_mob_speed(self) -> f64 {
+        match self {
+            Self::WaitingForPlayers => 200.0,
+            Self::Active => 1000.0,
+            Self::Inactive
+            | Self::WaitingForRewardEjection
+            | Self::EjectingReward
+            | Self::Cooldown => -1.0,
+        }
+    }
+
+    pub fn has_spinning_mob(self) -> bool {
+        self.spinning_mob_speed() >= 0.0
+    }
+
+    pub fn is_capable_of_spawning(self) -> bool {
+        matches!(self, Self::WaitingForPlayers | Self::Active)
+    }
 }
 
 impl Default for TrialSpawnerConfigModel {
@@ -591,6 +610,7 @@ impl TrialSpawnerBlockEntity {
     pub const DETECT_PLAYER_SPAWN_BUFFER: i64 = 40;
     pub const TIME_BETWEEN_REWARD_EJECTIONS: i64 = 30;
     pub const TICKS_BETWEEN_OMINOUS_ITEM_SPAWNERS: i64 = 160;
+    pub const BLOCK_UPDATE_FLAGS: i32 = 3;
 
     pub fn active_config(&self) -> &TrialSpawnerConfigModel {
         if self.is_ominous {
@@ -598,6 +618,44 @@ impl TrialSpawnerBlockEntity {
         } else {
             &self.config.normal_config
         }
+    }
+
+    pub fn get_state(&self, has_trial_spawner_state_property: bool) -> TrialSpawnerStateModel {
+        if has_trial_spawner_state_property {
+            self.state
+        } else {
+            TrialSpawnerStateModel::Inactive
+        }
+    }
+
+    pub fn set_state(&mut self, state: TrialSpawnerStateModel) -> i32 {
+        self.state = state;
+        Self::BLOCK_UPDATE_FLAGS
+    }
+
+    pub fn mark_updated_flags(&self) -> i32 {
+        Self::BLOCK_UPDATE_FLAGS
+    }
+
+    pub fn set_entity_id(&mut self, entity_id: impl Into<String>, has_level: bool) -> bool {
+        if !has_level {
+            return false;
+        }
+        self.override_entity_to_spawn(entity_id);
+        true
+    }
+
+    pub fn tick_client(&mut self, game_time: i64) {
+        if self.state.has_spinning_mob() {
+            let spawn_delay = (self.next_mob_spawns_at - game_time).max(0) as f64;
+            self.old_spin = self.spin;
+            self.spin = (self.spin + self.state.spinning_mob_speed() / (spawn_delay + 200.0))
+                % 360.0;
+        }
+    }
+
+    pub fn reward_ejection_position(pos: BlockPos) -> (f64, f64, f64) {
+        (pos.x as f64 + 0.5, pos.y as f64 + 1.2, pos.z as f64 + 0.5)
     }
 
     pub fn apply_ominous(&mut self, game_time: i64) {

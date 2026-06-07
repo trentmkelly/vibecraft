@@ -130,6 +130,65 @@ fn assert_unsupported_block_entity_states() {
 }
 
 #[test]
+fn trial_spawner_wrapper_update_state_and_client_spin_match_java() {
+    let mut spawner = TrialSpawnerBlockEntity::default();
+    assert_eq!(spawner.get_state(false), TrialSpawnerStateModel::Inactive);
+    assert_eq!(spawner.get_state(true), TrialSpawnerStateModel::Inactive);
+    assert_eq!(
+        spawner.set_state(TrialSpawnerStateModel::WaitingForPlayers),
+        TrialSpawnerBlockEntity::BLOCK_UPDATE_FLAGS
+    );
+    assert_eq!(
+        spawner.mark_updated_flags(),
+        TrialSpawnerBlockEntity::BLOCK_UPDATE_FLAGS
+    );
+    assert_eq!(
+        spawner.get_state(true),
+        TrialSpawnerStateModel::WaitingForPlayers
+    );
+
+    assert_eq!(
+        TrialSpawnerStateModel::WaitingForPlayers.spinning_mob_speed(),
+        200.0
+    );
+    assert_eq!(TrialSpawnerStateModel::Active.spinning_mob_speed(), 1000.0);
+    assert!(TrialSpawnerStateModel::WaitingForPlayers.has_spinning_mob());
+    assert!(TrialSpawnerStateModel::Active.is_capable_of_spawning());
+    assert!(!TrialSpawnerStateModel::Cooldown.is_capable_of_spawning());
+    spawner.next_mob_spawns_at = 100;
+    spawner.tick_client(0);
+    assert_eq!(spawner.old_spin, 0.0);
+    assert!((spawner.spin - (200.0 / 300.0)).abs() < f64::EPSILON);
+    assert_eq!(
+        TrialSpawnerBlockEntity::reward_ejection_position(pos()),
+        (18.5, 65.2, 35.5)
+    );
+
+    assert!(!spawner.set_entity_id("minecraft:husk", false));
+    assert!(spawner.config.normal_config.spawn_potentials.is_empty());
+    assert!(spawner.set_entity_id("minecraft:husk", true));
+    assert_eq!(
+        spawner.config.normal_config.spawn_potentials[0].entity_id(),
+        Some("minecraft:husk")
+    );
+
+    let mut entity =
+        BlockEntity::new(BlockEntityTypeId::TrialSpawner, pos(), "minecraft:trial_spawner")
+            .unwrap();
+    entity.custom_data.insert(
+        "spawn_data".to_string(),
+        SpawnDataModel::new("minecraft:husk").to_tag(),
+    );
+    entity.components.insert(
+        "minecraft:custom_name".to_string(),
+        Tag::String("Trial".to_string()),
+    );
+    assert!(
+        matches!(entity.get_update_packet().tag, Tag::Compound(fields) if fields.iter().any(|(key, _)| key == "spawn_data") && fields.iter().all(|(key, _)| key != "components"))
+    );
+}
+
+#[test]
 fn bed_block_entity_is_color_only_placeholder() {
     for (block_state, color) in [
         ("minecraft:white_bed", DyeColor::White),
