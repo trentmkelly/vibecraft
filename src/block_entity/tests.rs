@@ -927,6 +927,7 @@ fn command_block_editor_packet_and_client_update_require_permission() {
 
 mod tests_b;
 mod tests_b2;
+mod tests_b3;
 mod tests_c;
 mod tests_c2;
 mod tests_d;

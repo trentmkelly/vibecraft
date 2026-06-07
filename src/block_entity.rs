@@ -1184,6 +1184,7 @@ mod spawners;
 mod vault_banner_furnace;
 mod decorated_pot_patterns;
 mod container_decorative;
+mod ender_chest;
 mod sculk_conduit_campfire;
 mod beehive_creaking_bell;
 pub use beehive_creaking_bell::*;
