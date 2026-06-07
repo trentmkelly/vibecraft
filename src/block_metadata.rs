@@ -3,6 +3,7 @@
 use std::collections::BTreeMap;
 
 pub const VANILLA_BLOCK_REGISTRY_COUNT: usize = 1144;
+pub const STATE_DEFINITION_NAME_PATTERN: &str = "^[a-z0-9_]+$";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BlockRegistryEntry {
@@ -374,6 +375,104 @@ pub fn possible_state_count(definition: &BlockStateDefinition) -> usize {
         .max(1)
 }
 
+pub fn is_valid_state_definition_name(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
+}
+
+pub fn validate_property_definition(
+    owner: &str,
+    property: &BlockPropertyDefinition,
+    existing_names: &[&str],
+) -> Result<(), String> {
+    if !is_valid_state_definition_name(property.name) {
+        return Err(format!(
+            "{owner} has invalidly named property: {}",
+            property.name
+        ));
+    }
+    if property.values.len() <= 1 {
+        return Err(format!(
+            "{owner} attempted use property {} with <= 1 possible values",
+            property.name
+        ));
+    }
+    for value in property.values {
+        if !is_valid_state_definition_name(value) {
+            return Err(format!(
+                "{owner} has property: {} with invalidly named value: {value}",
+                property.name
+            ));
+        }
+    }
+    if existing_names.contains(&property.name) {
+        return Err(format!("{owner} has duplicate property: {}", property.name));
+    }
+    Ok(())
+}
+
+impl BlockStateDefinition {
+    pub fn get_owner(&self) -> &str {
+        self.registry_id
+    }
+
+    pub fn get_properties(&self) -> Vec<&BlockPropertyDefinition> {
+        let mut properties = self.properties.iter().collect::<Vec<_>>();
+        properties.sort_by_key(|property| property.name);
+        properties
+    }
+
+    pub fn get_property(&self, name: &str) -> Option<&BlockPropertyDefinition> {
+        self.properties
+            .iter()
+            .find(|property| property.name == name)
+    }
+
+    pub fn is_singleton_state(&self) -> bool {
+        self.properties.is_empty()
+    }
+
+    pub fn any_state(&self) -> BTreeMap<&'static str, &'static str> {
+        default_state(self)
+    }
+
+    pub fn possible_states(&self) -> Vec<BTreeMap<&'static str, &'static str>> {
+        let properties = self.get_properties();
+        if properties.is_empty() {
+            return vec![BTreeMap::new()];
+        }
+
+        let mut states = vec![BTreeMap::new()];
+        for property in properties {
+            let mut next_states = Vec::with_capacity(states.len() * property.values.len());
+            for state in &states {
+                for value in property.values {
+                    let mut next = state.clone();
+                    next.insert(property.name, *value);
+                    next_states.push(next);
+                }
+            }
+            states = next_states;
+        }
+        states
+    }
+
+    pub fn state_definition_string(&self) -> String {
+        let properties = self
+            .get_properties()
+            .iter()
+            .map(|property| property.name)
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!(
+            "StateDefinition{{block={}, properties=[{properties}]}}",
+            self.registry_id
+        )
+    }
+}
+
 pub fn default_state(definition: &BlockStateDefinition) -> BTreeMap<&'static str, &'static str> {
     definition
         .properties
@@ -385,8 +484,9 @@ pub fn default_state(definition: &BlockStateDefinition) -> BTreeMap<&'static str
 #[cfg(test)]
 mod tests {
     use super::{
-        default_state, possible_state_count, registry_entry_by_id, representative_state_definition,
-        BLOCK_REGISTRY, VANILLA_BLOCK_REGISTRY_COUNT,
+        default_state, is_valid_state_definition_name, possible_state_count, registry_entry_by_id,
+        representative_state_definition, validate_property_definition, BlockPropertyDefinition,
+        BLOCK_REGISTRY, STATE_DEFINITION_NAME_PATTERN, VANILLA_BLOCK_REGISTRY_COUNT,
     };
     use crate::block_metadata::ShapeKind;
     use std::collections::BTreeSet;
@@ -437,6 +537,104 @@ mod tests {
         assert_eq!(defaults["half"], "bottom");
         assert_eq!(defaults["shape"], "straight");
         assert_eq!(defaults["waterlogged"], "false");
+    }
+
+    #[test]
+    fn state_definition_builder_validation_matches_java_name_rules() {
+        assert_eq!(STATE_DEFINITION_NAME_PATTERN, "^[a-z0-9_]+$");
+        assert!(is_valid_state_definition_name("waterlogged"));
+        assert!(is_valid_state_definition_name("age_0"));
+        assert!(!is_valid_state_definition_name(""));
+        assert!(!is_valid_state_definition_name("Waterlogged"));
+        assert!(!is_valid_state_definition_name("half-top"));
+
+        let valid = BlockPropertyDefinition {
+            name: "mode",
+            values: &["low", "high"],
+            default_value: "low",
+        };
+        assert!(validate_property_definition("minecraft:test", &valid, &[]).is_ok());
+        assert!(validate_property_definition("minecraft:test", &valid, &["mode"]).is_err());
+        assert!(validate_property_definition(
+            "minecraft:test",
+            &BlockPropertyDefinition {
+                name: "Mode",
+                values: &["low", "high"],
+                default_value: "low",
+            },
+            &[],
+        )
+        .is_err());
+        assert!(validate_property_definition(
+            "minecraft:test",
+            &BlockPropertyDefinition {
+                name: "mode",
+                values: &["only"],
+                default_value: "only",
+            },
+            &[],
+        )
+        .is_err());
+        assert!(validate_property_definition(
+            "minecraft:test",
+            &BlockPropertyDefinition {
+                name: "mode",
+                values: &["valid", "not-valid"],
+                default_value: "valid",
+            },
+            &[],
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn state_definition_accessors_match_java_sorted_property_surface() {
+        let stairs = representative_state_definition("minecraft:oak_stairs").unwrap();
+        assert_eq!(stairs.get_owner(), "minecraft:oak_stairs");
+        assert!(!stairs.is_singleton_state());
+        assert_eq!(
+            stairs
+                .get_properties()
+                .iter()
+                .map(|property| property.name)
+                .collect::<Vec<_>>(),
+            vec!["facing", "half", "shape", "waterlogged"]
+        );
+        assert_eq!(
+            stairs.get_property("shape").unwrap().values,
+            &[
+                "straight",
+                "inner_left",
+                "inner_right",
+                "outer_left",
+                "outer_right"
+            ]
+        );
+        assert!(stairs.get_property("missing").is_none());
+        assert_eq!(
+            stairs.state_definition_string(),
+            "StateDefinition{block=minecraft:oak_stairs, properties=[facing, half, shape, waterlogged]}"
+        );
+
+        let stone = representative_state_definition("minecraft:stone").unwrap();
+        assert!(stone.is_singleton_state());
+        assert!(stone.get_properties().is_empty());
+        assert_eq!(stone.possible_states(), vec![Default::default()]);
+    }
+
+    #[test]
+    fn state_definition_possible_states_match_java_cartesian_generation() {
+        let chest = representative_state_definition("minecraft:chest").unwrap();
+        let states = chest.possible_states();
+        assert_eq!(states.len(), possible_state_count(&chest));
+        assert_eq!(states.len(), 24);
+        assert_eq!(states.first().unwrap()["facing"], "north");
+        assert_eq!(states.first().unwrap()["type"], "single");
+        assert_eq!(states.first().unwrap()["waterlogged"], "false");
+        assert_eq!(states.last().unwrap()["facing"], "east");
+        assert_eq!(states.last().unwrap()["type"], "right");
+        assert_eq!(states.last().unwrap()["waterlogged"], "true");
+        assert_eq!(chest.any_state(), default_state(&chest));
     }
 
     #[test]
