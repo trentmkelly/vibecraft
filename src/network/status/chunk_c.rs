@@ -383,6 +383,7 @@ pub fn wait_for_configuration_packet_with_rate_limit<R: Read>(
             if let Some(active_login) = active_login {
                 let packet = ServerboundClientInformationPacket::read(&mut input)?;
                 active_login.set_allows_listing(packet.information.allows_listing);
+                active_login.set_language(&packet.information.language);
             }
             continue;
         }

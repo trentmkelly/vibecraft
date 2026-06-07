@@ -607,6 +607,23 @@ pub fn active_login_guard_in_play_profiles_enumerates_full_online_roster() {
 }
 
 #[test]
+pub fn active_login_guard_captures_client_language_for_code_of_conduct() {
+    let registry = ActiveLoginRegistry::default();
+    let alex = crate::player_access::NameAndId::create_offline("Alex");
+    let (guard, _) = registry
+        .register_replacing(&alex.uuid, "Alex", &loopback_stream())
+        .unwrap();
+
+    // Defaults to en_us before any ClientInformation arrives.
+    assert_eq!(guard.language(), "en_us");
+
+    // The client locale is captured (lowercased, like Java's
+    // codeOfConducts.get(language.toLowerCase())).
+    guard.set_language("FR_FR");
+    assert_eq!(guard.language(), "fr_fr");
+}
+
+#[test]
 pub fn active_login_registry_replacement_uses_new_session_and_token_guards_old() {
     let registry = ActiveLoginRegistry::default();
     let steve = crate::player_access::NameAndId::create_offline("Steve");

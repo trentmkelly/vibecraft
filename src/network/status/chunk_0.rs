@@ -715,6 +715,11 @@ pub struct ActiveLoginSession {
     /// `ClientInformation.createDefault()` — and is updated when a
     /// `ServerboundClientInformation` packet arrives during configuration or play.
     pub allows_listing: bool,
+    /// The client's locale (Java `ClientInformation.language`), captured from the
+    /// configuration-phase `ServerboundClientInformation`. Defaults to `en_us`
+    /// (`ClientInformation.createDefault`). Used to pick the localized server code
+    /// of conduct text (Java `ServerConfigurationPacketListenerImpl.addOptionalTasks`).
+    pub language: String,
 }
 
 pub struct ActiveLoginGuard {
@@ -736,6 +741,25 @@ impl ActiveLoginGuard {
     /// status online total (Java `PlayerList.placeNewPlayer` adding the player).
     pub fn mark_in_play(&self) {
         self.with_own_session(|session| session.in_play = true);
+    }
+
+    /// Capture the client's locale from its configuration-phase `ClientInformation`,
+    /// stored lowercased (Java looks up `codeOfConducts.get(language.toLowerCase())`).
+    pub fn set_language(&self, language: &str) {
+        let language = language.to_lowercase();
+        self.with_own_session(|session| session.language = language);
+    }
+
+    /// The client's locale, or `en_us` if no `ClientInformation` has arrived yet.
+    pub fn language(&self) -> String {
+        match self.sessions.lock() {
+            Ok(sessions) => sessions
+                .get(&self.uuid)
+                .filter(|session| session.token == self.token)
+                .map(|session| session.language.clone())
+                .unwrap_or_else(|| "en_us".to_string()),
+            Err(_) => "en_us".to_string(),
+        }
     }
 
     /// Snapshot every player currently in the PLAY state as `NameAndId`, for
@@ -789,6 +813,7 @@ impl ActiveLoginRegistry {
                     name: name.to_string(),
                     in_play: false,
                     allows_listing: false,
+                    language: "en_us".to_string(),
                 },
             )
             .map(|session| session.stream);

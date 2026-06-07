@@ -1115,7 +1115,14 @@ fn run_known_pack_configuration_exchange(
         rate_limiter,
         active_login,
     )?;
-    if let Some(code_of_conduct) = load_code_of_conduct_for_language(properties, "en_us")? {
+    // Java `addOptionalTasks` selects the code of conduct by the client's locale
+    // (`clientInformation.language()`), falling back to `en_us` then the first entry
+    // (the fallback chain lives in `load_code_of_conduct_for_language`). The client's
+    // `ClientInformation` is sent first thing in configuration, so it has been
+    // captured into the registry session by this point.
+    if let Some(code_of_conduct) =
+        load_code_of_conduct_for_language(properties, &active_login.language())?
+    {
         write_framed_packet_with_compression(
             stream,
             compression,
