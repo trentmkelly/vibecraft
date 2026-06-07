@@ -352,7 +352,7 @@ All 182 packets in `net/minecraft/network/protocol/game/` must be implemented. F
 - [ ] Sync `minecraft:trim_material` during configuration with all vanilla trim materials, including `redstone`.
 - [ ] Sync `minecraft:wolf_variant` during configuration with all vanilla wolf variants.
 - [ ] Sync `minecraft:wolf_sound_variant` during configuration with a non-empty codec-compatible default.
-- [ ] Sync `minecraft:pig_variant` during configuration with `temperate`, `warm`, and `cold`.
+- [x] Sync `minecraft:pig_variant` during configuration with `temperate`, `warm`, and `cold`. — `write_vanilla_pig_variant_registry_packet` (chunk_e.rs) sends `cold`/`temperate`/`warm` (alphabetical) during configuration. Each entry's NBT is 1:1 with Java `PigVariant.NETWORK_CODEC` = `ModelAndTexture(model default NORMAL, asset_id)` + `baby_asset_id` (spawn_conditions are DIRECT_CODEC-only, not synced): `animal_texture_variant_nbt` writes `asset_id = minecraft:entity/pig/pig_<temp>` and `baby_asset_id = minecraft:entity/pig/pig_<temp>_baby` (matching `PigVariants.register`'s `Identifier.withDefaultNamespace("entity/pig/"+name)`), with `model` omitted for NORMAL (temperate/warm) and `"cold"` for COLD — matching `ModelType` serialized names NORMAL=`normal`/COLD=`cold`. Verified vs decompiled `PigVariants.java`/`PigVariant.java`/`ModelAndTexture.java`/`ClientAsset.java`. Covered by the registry manifest (`expected_entry_count`) + payload tests.
 - [ ] Sync `minecraft:pig_sound_variant` during configuration with a non-empty codec-compatible default.
 - [ ] Sync `minecraft:frog_variant` during configuration with `temperate`, `warm`, and `cold`.
 - [ ] Sync `minecraft:cat_variant` during configuration with all vanilla cat variants.
