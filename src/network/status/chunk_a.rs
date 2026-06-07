@@ -248,6 +248,12 @@ struct JoinedPlaySessionStart {
 
 const ITEM_TICK_INTERVAL: Duration = Duration::from_millis(50);
 
+/// Handshake `ClientIntent` ids, 1:1 with Java `ClientIntent` (`STATUS_ID`/
+/// `LOGIN_ID`/`TRANSFER_ID`).
+const INTENTION_STATUS: i32 = 1;
+const INTENTION_LOGIN: i32 = 2;
+const INTENTION_TRANSFER: i32 = 3;
+
 pub(super) fn lock_status_mutex<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     match mutex.lock() {
         Ok(guard) => guard,
@@ -656,10 +662,23 @@ fn handle_status_connection(
     input.read_exact(&mut port_bytes)?;
     let _server_port = u16::from_be_bytes(port_bytes);
     let next_state = read_var_i32(&mut input)?;
-    if next_state == 2 {
+    // Java ServerHandshakePacketListenerImpl.handleIntention routes by ClientIntent:
+    // STATUS=1, LOGIN=2, TRANSFER=3 (`ClientIntent.byId`); any other id throws
+    // (→ connection closed). LOGIN and TRANSFER share `beginLogin` (protocol-version
+    // check then login), but TRANSFER is first gated on `acceptsTransfers()`
+    // (`accepts-transfers`, default false) — when disabled it is rejected with a
+    // login-state `multiplayer.disconnect.transfers_disabled` disconnect.
+    if next_state == INTENTION_LOGIN || next_state == INTENTION_TRANSFER {
+        if next_state == INTENTION_TRANSFER && !properties.accepts_transfers {
+            return write_transfers_disabled_disconnect(&mut stream);
+        }
         if protocol != PROTOCOL_VERSION {
             return write_login_protocol_mismatch_disconnect(&mut stream, protocol);
         }
+        // The `transferred` flag (Java `CommonListenerCookie.transferred`) is
+        // connection metadata for the transfer-cookie flow with no observable
+        // effect on the offline login/configuration/play handshake, so both
+        // intents proceed through the same login path.
         return handle_login_connection(
             &mut stream,
             LoginConnectionContext {
@@ -671,7 +690,7 @@ fn handle_status_connection(
             },
         );
     }
-    if next_state != 1 {
+    if next_state != INTENTION_STATUS {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "unsupported handshake target state",
@@ -732,6 +751,22 @@ pub fn write_login_protocol_mismatch_disconnect(
                 "{{\"translate\":\"{}\",\"with\":[\"{}\"]}}",
                 key, VERSION_NAME
             )),
+        }
+        .write(payload)
+    })
+}
+
+/// 1:1 with Java `ServerHandshakePacketListenerImpl.handleIntention` TRANSFER case
+/// when `acceptsTransfers()` is false: send a login-state disconnect with the
+/// `multiplayer.disconnect.transfers_disabled` reason (no translation args) and
+/// close. The outbound protocol is already LOGIN at this point, so the login
+/// disconnect packet form is correct.
+pub fn write_transfers_disabled_disconnect(stream: &mut TcpStream) -> io::Result<()> {
+    write_framed_packet(stream, CLIENTBOUND_LOGIN_DISCONNECT_PACKET_ID, |payload| {
+        ClientboundLoginDisconnectPacket {
+            reason: crate::network::codec::ComponentJson(
+                "{\"translate\":\"multiplayer.disconnect.transfers_disabled\"}".to_string(),
+            ),
         }
         .write(payload)
     })

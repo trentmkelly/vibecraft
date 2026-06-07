@@ -20,9 +20,10 @@ use super::{
     write_vanilla_pig_sound_variant_registry_packet, write_vanilla_pig_variant_registry_packet,
     write_vanilla_trim_pattern_registry_packet, write_vanilla_wolf_sound_variant_registry_packet,
     write_vanilla_wolf_variant_registry_packet,
-    write_vanilla_zombie_nautilus_variant_registry_packet, write_world_clock_registry_packet,
-    ActiveLoginRegistry, StatusPlayer, INSTRUMENTS, MAX_PACKET_SIZE, MAX_STATUS_PLAYER_SAMPLE,
-    STATUS_ANONYMOUS_NAME, STATUS_ANONYMOUS_UUID, TRIM_MATERIALS,
+    write_transfers_disabled_disconnect, write_vanilla_zombie_nautilus_variant_registry_packet,
+    write_world_clock_registry_packet, ActiveLoginRegistry, StatusPlayer, INSTRUMENTS,
+    MAX_PACKET_SIZE, MAX_STATUS_PLAYER_SAMPLE, STATUS_ANONYMOUS_NAME, STATUS_ANONYMOUS_UUID,
+    TRIM_MATERIALS,
 };
 use crate::random_source::LegacyRandom;
 use crate::command::PermissionLevel;
@@ -346,6 +347,34 @@ pub fn hidden_online_players_preserves_counts_and_omits_sample_entries() {
     let json = status_json(&properties, None, &[]);
 
     assert!(json.contains("\"players\":{\"max\":37,\"online\":0,\"sample\":[]}"));
+}
+
+#[test]
+pub fn transfer_intent_disabled_sends_vanilla_transfers_disabled_disconnect() {
+    // Java ServerHandshakePacketListenerImpl TRANSFER case with acceptsTransfers()
+    // false: a login-state disconnect with `multiplayer.disconnect.transfers_disabled`
+    // (no translation args).
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    let handle = std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        write_transfers_disabled_disconnect(&mut stream).unwrap();
+    });
+
+    let mut client = std::net::TcpStream::connect(addr).unwrap();
+    let frame = read_packet(&mut client).unwrap();
+    let mut payload = &frame[..];
+    assert_eq!(
+        read_var_i32(&mut payload).unwrap(),
+        crate::network::login::CLIENTBOUND_LOGIN_DISCONNECT_PACKET_ID
+    );
+    let packet =
+        crate::network::login::ClientboundLoginDisconnectPacket::read(&mut payload).unwrap();
+    assert_eq!(
+        packet.reason.0,
+        "{\"translate\":\"multiplayer.disconnect.transfers_disabled\"}"
+    );
+    handle.join().unwrap();
 }
 
 fn status_player(name: &str, allows_listing: bool) -> StatusPlayer {
