@@ -1,3 +1,7 @@
+use super::super::container_decorative::{
+    ContainerOpenersCounterEffect, ContainerOpenersCounterModel, ContainerOpenersGameEvent,
+    ContainerUserOpenState,
+};
 use super::super::*;
 use super::*;
 
@@ -537,6 +541,7 @@ fn assert_furnace_sided_slots_and_container_helpers(
 fn container_block_entities_track_loot_openers_lids_redstone_and_hopper_like_java() {
     assert_chest_loot_lock_lid_and_persistence();
     assert_list_backed_container_defaults_match_java();
+    assert_container_openers_counter_matches_java_transitions();
     assert_trapped_chest_signal_tracks_openers();
     assert_barrel_open_state_tracks_viewers();
     assert_shulker_box_animation_and_sided_insertion();
@@ -632,6 +637,107 @@ fn assert_chest_lid_interpolates_like_java(chest: &mut ContainerBlockEntityModel
         chest.tick_lid();
     }
     assert!((chest.lid_progress - 0.0).abs() < 0.001);
+}
+
+fn assert_container_openers_counter_matches_java_transitions() {
+    let mut counter = ContainerOpenersCounterModel::default();
+    assert_eq!(counter.open_count, 0);
+    assert_eq!(counter.search_box_inflate_range(), 4.0);
+
+    assert_eq!(
+        counter.increment_openers(6.0),
+        ContainerOpenersCounterEffect {
+            on_open: true,
+            on_close: false,
+            game_event: Some(ContainerOpenersGameEvent::Open),
+            opener_count_changed: (0, 1),
+            schedule_recheck_delay: Some(ContainerOpenersCounterModel::CHECK_TICK_DELAY),
+        }
+    );
+    assert_eq!(counter.open_count, 1);
+    assert_eq!(counter.search_box_inflate_range(), 10.0);
+
+    assert_eq!(
+        counter.increment_openers(3.0),
+        ContainerOpenersCounterEffect {
+            on_open: false,
+            on_close: false,
+            game_event: None,
+            opener_count_changed: (1, 2),
+            schedule_recheck_delay: None,
+        }
+    );
+    assert_eq!(counter.open_count, 2);
+    assert_eq!(counter.search_box_inflate_range(), 10.0);
+
+    assert_eq!(
+        counter.decrement_openers(),
+        ContainerOpenersCounterEffect {
+            on_open: false,
+            on_close: false,
+            game_event: None,
+            opener_count_changed: (2, 1),
+            schedule_recheck_delay: None,
+        }
+    );
+    assert_eq!(
+        counter.decrement_openers(),
+        ContainerOpenersCounterEffect {
+            on_open: false,
+            on_close: true,
+            game_event: Some(ContainerOpenersGameEvent::Close),
+            opener_count_changed: (1, 0),
+            schedule_recheck_delay: None,
+        }
+    );
+    assert_eq!(counter.max_interaction_range, 0.0);
+
+    let entities = [
+        ContainerUserOpenState {
+            has_container_open: true,
+            spectator: false,
+            interaction_range: 2.5,
+        },
+        ContainerUserOpenState {
+            has_container_open: true,
+            spectator: true,
+            interaction_range: 99.0,
+        },
+        ContainerUserOpenState {
+            has_container_open: false,
+            spectator: false,
+            interaction_range: 7.0,
+        },
+        ContainerUserOpenState {
+            has_container_open: true,
+            spectator: false,
+            interaction_range: 8.0,
+        },
+    ];
+    assert_eq!(counter.entities_with_container_open(&entities).len(), 2);
+    assert_eq!(
+        counter.recheck_openers(&entities),
+        ContainerOpenersCounterEffect {
+            on_open: true,
+            on_close: false,
+            game_event: Some(ContainerOpenersGameEvent::Open),
+            opener_count_changed: (0, 2),
+            schedule_recheck_delay: Some(ContainerOpenersCounterModel::CHECK_TICK_DELAY),
+        }
+    );
+    assert_eq!(counter.open_count, 2);
+    assert_eq!(counter.search_box_inflate_range(), 12.0);
+
+    assert_eq!(
+        counter.recheck_openers(&[]),
+        ContainerOpenersCounterEffect {
+            on_open: false,
+            on_close: true,
+            game_event: Some(ContainerOpenersGameEvent::Close),
+            opener_count_changed: (2, 0),
+            schedule_recheck_delay: None,
+        }
+    );
 }
 
 fn assert_trapped_chest_signal_tracks_openers() {
@@ -754,11 +860,7 @@ fn assert_dispenser_and_dropper_activation_slots() {
 
 fn assert_hopper_slots_cooldown_push_pull_and_persistence() {
     let mut hopper = ContainerBlockEntityModel::new(ContainerBlockEntityKind::Hopper);
-    hopper.world_position = BlockPos {
-        x: -3,
-        y: 64,
-        z: 9,
-    };
+    hopper.world_position = BlockPos { x: -3, y: 64, z: 9 };
     assert_eq!(hopper.kind.size(), 5);
     assert_eq!(
         ContainerBlockEntityModel::hopper_suck_aabb(),

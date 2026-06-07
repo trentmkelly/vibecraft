@@ -1,5 +1,45 @@
 use super::*;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContainerOpenersGameEvent {
+    Open,
+    Close,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct ContainerOpenersCounterModel {
+    pub open_count: i32,
+    pub max_interaction_range: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ContainerUserOpenState {
+    pub has_container_open: bool,
+    pub spectator: bool,
+    pub interaction_range: f64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ContainerOpenersCounterEffect {
+    pub on_open: bool,
+    pub on_close: bool,
+    pub game_event: Option<ContainerOpenersGameEvent>,
+    pub opener_count_changed: (i32, i32),
+    pub schedule_recheck_delay: Option<u32>,
+}
+
+impl ContainerOpenersCounterEffect {
+    fn changed(previous: i32, current: i32) -> Self {
+        Self {
+            on_open: false,
+            on_close: false,
+            game_event: None,
+            opener_count_changed: (previous, current),
+            schedule_recheck_delay: None,
+        }
+    }
+}
+
 impl ContainerBlockEntityKind {
     pub fn size(self) -> usize {
         match self {
@@ -27,6 +67,83 @@ impl ContainerBlockEntityKind {
             Self::Dropper => "container.dropper",
             Self::Hopper => "container.hopper",
         }
+    }
+}
+
+impl ContainerOpenersCounterModel {
+    pub const CHECK_TICK_DELAY: u32 = 5;
+
+    pub fn increment_openers(
+        &mut self,
+        max_interaction_range: f64,
+    ) -> ContainerOpenersCounterEffect {
+        let previous = self.open_count;
+        self.open_count += 1;
+        let mut effect = ContainerOpenersCounterEffect::changed(previous, self.open_count);
+        if previous == 0 {
+            effect.on_open = true;
+            effect.game_event = Some(ContainerOpenersGameEvent::Open);
+            effect.schedule_recheck_delay = Some(Self::CHECK_TICK_DELAY);
+        }
+        self.max_interaction_range = self.max_interaction_range.max(max_interaction_range);
+        effect
+    }
+
+    pub fn decrement_openers(&mut self) -> ContainerOpenersCounterEffect {
+        let previous = self.open_count;
+        self.open_count -= 1;
+        let mut effect = ContainerOpenersCounterEffect::changed(previous, self.open_count);
+        if self.open_count == 0 {
+            effect.on_close = true;
+            effect.game_event = Some(ContainerOpenersGameEvent::Close);
+            self.max_interaction_range = 0.0;
+        }
+        effect
+    }
+
+    pub fn search_box_inflate_range(&self) -> f64 {
+        self.max_interaction_range + 4.0
+    }
+
+    pub fn entities_with_container_open<'a>(
+        &self,
+        entities: &'a [ContainerUserOpenState],
+    ) -> Vec<&'a ContainerUserOpenState> {
+        let _ = self.search_box_inflate_range();
+        entities
+            .iter()
+            .filter(|entity| entity.has_container_open && !entity.spectator)
+            .collect()
+    }
+
+    pub fn recheck_openers(
+        &mut self,
+        entities: &[ContainerUserOpenState],
+    ) -> ContainerOpenersCounterEffect {
+        let active_entities = self.entities_with_container_open(entities);
+        self.max_interaction_range = active_entities
+            .iter()
+            .fold(0.0_f64, |max, entity| max.max(entity.interaction_range));
+
+        let previous = self.open_count;
+        let current = active_entities.len() as i32;
+        let mut effect = ContainerOpenersCounterEffect::changed(previous, current);
+        if previous != current {
+            let is_open = current != 0;
+            let was_open = previous != 0;
+            if is_open && !was_open {
+                effect.on_open = true;
+                effect.game_event = Some(ContainerOpenersGameEvent::Open);
+            } else if !is_open {
+                effect.on_close = true;
+                effect.game_event = Some(ContainerOpenersGameEvent::Close);
+            }
+            self.open_count = current;
+        }
+        if current > 0 {
+            effect.schedule_recheck_delay = Some(Self::CHECK_TICK_DELAY);
+        }
+        effect
     }
 }
 
