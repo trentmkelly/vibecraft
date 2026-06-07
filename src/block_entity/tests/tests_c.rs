@@ -1,7 +1,8 @@
-use super::super::*;
+use super::super::container_decorative::CopperGolemStatueSpawn;
 use super::super::decorated_pot_patterns::{
     decorated_pot_pattern_asset_id, decorated_pot_pattern_from_item, DECORATED_POT_PATTERNS,
 };
+use super::super::*;
 use super::*;
 
 const EXPECTED_DECORATED_POT_PATTERNS: &[(&str, &str, &str)] = &[
@@ -522,13 +523,30 @@ fn copper_golem_statue_tracks_weather_pose_comparator_and_clone_components() {
     statue.update_pose();
     assert_eq!(statue.pose, CopperGolemStatuePose::Standing);
 
-    statue.custom_name = Some("{\"text\":\"Copper Buddy\"}".to_string());
+    statue.create_statue(Some("{\"text\":\"Copper Buddy\"}".to_string()));
     assert_eq!(
         statue.save_additional(),
         Tag::Compound(vec![(
             "CustomName".to_string(),
             Tag::String("{\"text\":\"Copper Buddy\"}".to_string())
         )])
+    );
+    assert_eq!(
+        statue.update_packet_type(),
+        BlockEntityTypeId::CopperGolemStatue
+    );
+    assert_eq!(
+        statue.remove_statue(BlockPos { x: 4, y: 65, z: -9 }, Direction::West),
+        CopperGolemStatueSpawn {
+            custom_name: Some("{\"text\":\"Copper Buddy\"}".to_string()),
+            x: 4.5,
+            y: 65.0,
+            z: -8.5,
+            y_rot: 90.0,
+            y_head_rot: 90.0,
+            y_body_rot: 90.0,
+            play_spawn_sound: true,
+        }
     );
     assert_eq!(
         statue.clone_item_components(),
@@ -538,6 +556,22 @@ fn copper_golem_statue_tracks_weather_pose_comparator_and_clone_components() {
                 Tag::Compound(vec![(
                     "copper_golem_pose".to_string(),
                     Tag::String("standing".to_string())
+                )])
+            ),
+            (
+                "minecraft:custom_name".to_string(),
+                Tag::String("{\"text\":\"Copper Buddy\"}".to_string())
+            ),
+        ])
+    );
+    assert_eq!(
+        statue.item_components_for_pose(CopperGolemStatuePose::Star),
+        Tag::Compound(vec![
+            (
+                "minecraft:block_state".to_string(),
+                Tag::Compound(vec![(
+                    "copper_golem_pose".to_string(),
+                    Tag::String("star".to_string())
                 )])
             ),
             (

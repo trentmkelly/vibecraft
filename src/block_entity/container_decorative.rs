@@ -28,6 +28,18 @@ pub struct ContainerOpenersCounterEffect {
     pub schedule_recheck_delay: Option<u32>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct CopperGolemStatueSpawn {
+    pub custom_name: Option<String>,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+    pub y_rot: f32,
+    pub y_head_rot: f32,
+    pub y_body_rot: f32,
+    pub play_spawn_sound: bool,
+}
+
 impl ContainerOpenersCounterEffect {
     fn changed(previous: i32, current: i32) -> Self {
         Self {
@@ -827,6 +839,28 @@ impl CopperGolemStatueBlockEntity {
         self.pose = self.pose.next();
     }
 
+    pub fn create_statue(&mut self, copper_golem_custom_name: Option<String>) {
+        self.custom_name = copper_golem_custom_name;
+    }
+
+    pub fn remove_statue(&self, pos: BlockPos, facing: Direction) -> CopperGolemStatueSpawn {
+        let y_rot = copper_golem_statue_y_rot(facing);
+        CopperGolemStatueSpawn {
+            custom_name: self.custom_name.clone(),
+            x: f64::from(pos.x) + 0.5,
+            y: f64::from(pos.y),
+            z: f64::from(pos.z) + 0.5,
+            y_rot,
+            y_head_rot: y_rot,
+            y_body_rot: y_rot,
+            play_spawn_sound: true,
+        }
+    }
+
+    pub const fn update_packet_type(&self) -> BlockEntityTypeId {
+        BlockEntityTypeId::CopperGolemStatue
+    }
+
     pub fn comparator_output(&self) -> u8 {
         self.pose.comparator_output()
     }
@@ -839,12 +873,12 @@ impl CopperGolemStatueBlockEntity {
         Tag::Compound(fields)
     }
 
-    pub fn clone_item_components(&self) -> Tag {
+    pub fn item_components_for_pose(&self, pose: CopperGolemStatuePose) -> Tag {
         let mut fields = vec![(
             "minecraft:block_state".to_string(),
             Tag::Compound(vec![(
                 "copper_golem_pose".to_string(),
-                Tag::String(self.pose.serialized_name().to_string()),
+                Tag::String(pose.serialized_name().to_string()),
             )]),
         )];
         if let Some(custom_name) = &self.custom_name {
@@ -854,6 +888,20 @@ impl CopperGolemStatueBlockEntity {
             ));
         }
         Tag::Compound(fields)
+    }
+
+    pub fn clone_item_components(&self) -> Tag {
+        self.item_components_for_pose(self.pose)
+    }
+}
+
+const fn copper_golem_statue_y_rot(facing: Direction) -> f32 {
+    match facing {
+        Direction::South => 0.0,
+        Direction::West => 90.0,
+        Direction::North => 180.0,
+        Direction::East => 270.0,
+        Direction::Up | Direction::Down => 0.0,
     }
 }
 
