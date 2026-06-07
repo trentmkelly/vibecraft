@@ -766,6 +766,10 @@ fn fuel_values_match_vanilla_burn_time_defaults() {
     assert_eq!(fuels.burn_duration(Some("minecraft:diamond")), 0);
     assert!(fuels.is_fuel("minecraft:stick"));
     assert!(!fuels.is_fuel("minecraft:bucket"));
+    let fuel_items = fuels.fuel_items().collect::<Vec<_>>();
+    assert!(fuel_items.contains(&"minecraft:lava_bucket"));
+    assert!(fuel_items.contains(&"minecraft:stick"));
+    assert!(!fuel_items.contains(&"minecraft:bucket"));
 
     let faster = FuelValues::vanilla_with_base_unit(100);
     assert_eq!(faster.burn_duration(Some("minecraft:coal")), 800);

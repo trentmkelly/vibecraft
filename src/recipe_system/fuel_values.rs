@@ -195,6 +195,10 @@ impl FuelValues {
     pub fn is_fuel(&self, item: &str) -> bool {
         self.burn_duration(Some(item)) > 0
     }
+
+    pub fn fuel_items(&self) -> impl Iterator<Item = &'static str> + '_ {
+        self.entries.iter().map(|(item, _)| *item)
+    }
 }
 
 #[cfg(test)]
@@ -228,7 +232,13 @@ mod tests {
         assert_eq!(fuel.burn_duration(Some("minecraft:stick")), 100);
 
         // LOGS expands to EVERY wood type, not just oak (the old representative bug).
-        for log in ["minecraft:oak_log", "minecraft:birch_log", "minecraft:spruce_log", "minecraft:jungle_log", "minecraft:cherry_log"] {
+        for log in [
+            "minecraft:oak_log",
+            "minecraft:birch_log",
+            "minecraft:spruce_log",
+            "minecraft:jungle_log",
+            "minecraft:cherry_log",
+        ] {
             assert_eq!(fuel.burn_duration(Some(log)), 300, "{log} should burn 300t");
         }
         // PLANKS, WOOL, BANNERS, BOATS all expand across colours/woods.
@@ -239,9 +249,17 @@ mod tests {
         assert_eq!(fuel.burn_duration(Some("minecraft:oak_slab")), 150);
 
         // NON_FLAMMABLE_WOOD (crimson/warped) is removed even though it's in #logs/#planks.
-        assert_eq!(fuel.burn_duration(Some("minecraft:crimson_stem")), 0, "crimson never burns");
+        assert_eq!(
+            fuel.burn_duration(Some("minecraft:crimson_stem")),
+            0,
+            "crimson never burns"
+        );
         assert_eq!(fuel.burn_duration(Some("minecraft:warped_planks")), 0);
         assert!(!fuel.is_fuel("minecraft:crimson_door"));
+        assert!(fuel.fuel_items().any(|item| item == "minecraft:oak_log"));
+        assert!(!fuel
+            .fuel_items()
+            .any(|item| item == "minecraft:warped_planks"));
 
         // Non-fuel.
         assert_eq!(fuel.burn_duration(Some("minecraft:stone")), 0);
