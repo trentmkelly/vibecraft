@@ -159,14 +159,18 @@ pub fn wolf_assets_nbt(file_name: &str, suffix: &str) -> Tag {
 }
 
 pub fn zombie_nautilus_variant_nbt(variant: &str) -> Tag {
+    // Java `ZombieNautilusVariant.NETWORK_CODEC` = `ModelAndTexture` only (no baby
+    // texture, no spawn_conditions): `asset_id` plus an optional `model` that is
+    // OMITTED for the default `NORMAL` (`optionalFieldOf("model", NORMAL)`).
     let (asset_id, model) = match variant {
         "warm" => ("minecraft:entity/nautilus/zombie_nautilus_coral", "warm"),
         _ => ("minecraft:entity/nautilus/zombie_nautilus", "normal"),
     };
-    Tag::Compound(vec![
-        ("asset_id".to_string(), Tag::String(asset_id.to_string())),
-        ("model".to_string(), Tag::String(model.to_string())),
-    ])
+    let mut fields = vec![("asset_id".to_string(), Tag::String(asset_id.to_string()))];
+    if model != "normal" {
+        fields.push(("model".to_string(), Tag::String(model.to_string())));
+    }
+    Tag::Compound(fields)
 }
 
 pub fn painting_variant_nbt(id: &str) -> Tag {
