@@ -742,6 +742,13 @@ fn structure_block_entity_round_trips_bounds_and_render_box() {
             },
         }
     );
+    let renderable = structure.renderable_box();
+    assert_eq!(renderable.local_pos(), renderable.min);
+    assert_eq!(renderable.size(), (12, 0, 48));
+    assert_eq!(
+        StructureRenderableBox::from_corners(60, -48, 55, 48, -48, 7),
+        renderable
+    );
 
     let saved = structure.save_additional();
     assert_eq!(StructureBlockEntity::load_additional(&saved), structure);

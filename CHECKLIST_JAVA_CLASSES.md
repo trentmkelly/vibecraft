@@ -4666,7 +4666,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/BlockEntity.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/BlockEntityTicker.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/BlockEntityType.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/BoundingBoxRenderable.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/BoundingBoxRenderable.java`. — Audited against Java 26.1.2: the interface exposes render modes `NONE`/`BOX`/`BOX_AND_INVISIBLE_BLOCKS`, `getRenderableBox()`, and `RenderableBox.fromCorners()` as min local position plus max-min size. Rust parity is `StructureRenderMode`, `StructureBlockEntity::render_mode()`, `StructureBlockEntity::renderable_box()`, and `StructureRenderableBox::{from_corners,local_pos,size}`; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 structure_block_entity_round_trips_bounds_and_render_box`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/BrewingStandBlockEntity.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/BrushableBlockEntity.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/CalibratedSculkSensorBlockEntity.java`.

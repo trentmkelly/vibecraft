@@ -522,3 +522,39 @@ impl StructureBlockEntity {
         )
     }
 }
+
+impl StructureRenderableBox {
+    pub fn from_corners(
+        x1: i32,
+        y1: i32,
+        z1: i32,
+        x2: i32,
+        y2: i32,
+        z2: i32,
+    ) -> Self {
+        Self {
+            min: BlockPos {
+                x: x1.min(x2),
+                y: y1.min(y2),
+                z: z1.min(z2),
+            },
+            max: BlockPos {
+                x: x1.max(x2),
+                y: y1.max(y2),
+                z: z1.max(z2),
+            },
+        }
+    }
+
+    pub fn local_pos(&self) -> BlockPos {
+        self.min
+    }
+
+    pub fn size(&self) -> (i32, i32, i32) {
+        (
+            self.max.x - self.min.x,
+            self.max.y - self.min.y,
+            self.max.z - self.min.z,
+        )
+    }
+}
