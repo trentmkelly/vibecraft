@@ -77,6 +77,7 @@ mod gametest_resources;
 mod generated_reports;
 mod gravity;
 mod inhabited_time;
+mod identifier_exception;
 mod inventory;
 mod inventory_transactions;
 mod item_catalog;

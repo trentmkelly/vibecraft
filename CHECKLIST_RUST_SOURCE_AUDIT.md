@@ -130,6 +130,7 @@ Generated on 2026-05-24 from RustCraft implementation and harness sources, exclu
 - [ ] Audit Rust implementation file `src/generated_reports.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/gravity.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/inhabited_time.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [x] Audit Rust implementation file `src/identifier_exception.rs` against the Java source and checklist coverage. This file is the complete Rust parity model for `net/minecraft/IdentifierException.java`; escaped constructor messages and optional cause retention are covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 identifier_exception`.
 - [ ] Audit Rust implementation file `src/inventory.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/inventory_transactions.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/item_catalog.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
