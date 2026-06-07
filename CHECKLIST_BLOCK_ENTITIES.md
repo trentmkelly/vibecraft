@@ -93,7 +93,7 @@
 ## Decorative / Lore Block Entities
 
 - [ ] Implement `BannerBlockEntity`: banner color, `BannerPatternLayers` list (up to 6 `BannerPatternLayer` each with pattern holder + `DyeColor`), serialization for both save NBT and `getUpdateTag()` network subset
-- [ ] Implement `BedBlockEntity`: empty placeholder (no data), required only for `BlockEntityType` registration and color variant
+- [x] Implement `BedBlockEntity`: empty placeholder (no data), required only for `BlockEntityType` registration and color variant. — Java 26.1.2 `BedBlockEntity` only stores final `DyeColor` from `BedBlock`, adds no custom save payload, and returns a normal `ClientboundBlockEntityDataPacket`; Rust `BedBlockEntity::from_block_state()` covers all 16 bed color blocks, `save_additional()` is empty, and `BlockEntity::get_update_packet()` emits the save-without-metadata update tag. Covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 bed_block_entity_is_color_only_placeholder`.
 - [ ] Implement `BrushableBlockEntity`: brush-progress animation (0–10), loot-table seeded item, loot-table seed, brush-item durability tracking, FULL/HIT/RESET state, `unpackLootTable()` on first brush
 - [ ] Implement `DecoratedPotBlockEntity`: `PotDecorations` (4 sides: back/left/right/front, each a sherd or brick), loot-table content, 1-slot item storage, wobble animation (type + ticks)
 - [ ] Implement `SkullBlockEntity`: owner profile component data, note-block sound data, custom-name component data, update tag, component stripping, and powered animation state

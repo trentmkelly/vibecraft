@@ -131,24 +131,30 @@ fn assert_unsupported_block_entity_states() {
 
 #[test]
 fn bed_block_entity_is_color_only_placeholder() {
-    assert_eq!(
-        BedBlockEntity::from_block_state("minecraft:white_bed"),
-        Some(BedBlockEntity {
-            color: DyeColor::White
-        })
-    );
-    assert_eq!(
-        BedBlockEntity::from_block_state("minecraft:light_blue_bed"),
-        Some(BedBlockEntity {
-            color: DyeColor::LightBlue
-        })
-    );
-    assert_eq!(
-        BedBlockEntity::from_block_state("minecraft:black_bed"),
-        Some(BedBlockEntity {
-            color: DyeColor::Black
-        })
-    );
+    for (block_state, color) in [
+        ("minecraft:white_bed", DyeColor::White),
+        ("minecraft:orange_bed", DyeColor::Orange),
+        ("minecraft:magenta_bed", DyeColor::Magenta),
+        ("minecraft:light_blue_bed", DyeColor::LightBlue),
+        ("minecraft:yellow_bed", DyeColor::Yellow),
+        ("minecraft:lime_bed", DyeColor::Lime),
+        ("minecraft:pink_bed", DyeColor::Pink),
+        ("minecraft:gray_bed", DyeColor::Gray),
+        ("minecraft:light_gray_bed", DyeColor::LightGray),
+        ("minecraft:cyan_bed", DyeColor::Cyan),
+        ("minecraft:purple_bed", DyeColor::Purple),
+        ("minecraft:blue_bed", DyeColor::Blue),
+        ("minecraft:brown_bed", DyeColor::Brown),
+        ("minecraft:green_bed", DyeColor::Green),
+        ("minecraft:red_bed", DyeColor::Red),
+        ("minecraft:black_bed", DyeColor::Black),
+    ] {
+        assert_eq!(
+            BedBlockEntity::from_block_state(block_state),
+            Some(BedBlockEntity { color }),
+            "{block_state}"
+        );
+    }
     assert_eq!(BedBlockEntity::from_block_state("minecraft:stone"), None);
 
     let bed = BlockEntity::new(BlockEntityTypeId::Bed, pos(), "minecraft:red_bed").unwrap();
@@ -174,6 +180,14 @@ fn bed_block_entity_is_color_only_placeholder() {
             ("y".to_string(), Tag::Int(pos().y)),
             ("z".to_string(), Tag::Int(pos().z)),
         ])
+    );
+    assert_eq!(
+        bed.get_update_packet(),
+        ClientboundBlockEntityDataPacket {
+            pos: pos(),
+            ty: BlockEntityTypeId::Bed,
+            tag: Tag::Compound(vec![("components".to_string(), Tag::Compound(Vec::new()))]),
+        }
     );
 }
 

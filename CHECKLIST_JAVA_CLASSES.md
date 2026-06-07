@@ -4659,7 +4659,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/BaseContainerBlockEntity.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/BeaconBeamOwner.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/BeaconBlockEntity.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/BedBlockEntity.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/BedBlockEntity.java`. — Audited against Java 26.1.2: the entity stores only bed color from `BedBlock`, has no additional NBT fields, and sends the standard block-entity data packet. Rust parity is `BedBlockEntity::from_block_state()` + empty `save_additional()` + `BlockEntity::get_update_packet()`; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 bed_block_entity_is_color_only_placeholder`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/BeehiveBlockEntity.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/BellBlockEntity.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/BlastFurnaceBlockEntity.java`.
