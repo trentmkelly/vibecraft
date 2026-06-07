@@ -24,7 +24,9 @@ Generated on 2026-05-24 from RustCraft implementation and harness sources, exclu
 - [ ] Audit Rust implementation file `src/block_entity/dispatcher.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/block_entity/functional_blocks.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/block_entity/sculk_conduit_campfire.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/block_entity/shared_models.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/block_entity/spawners.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [ ] Audit Rust implementation file `src/block_entity/skull.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/block_entity/structures.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/block_entity/test_blocks.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/block_entity/tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
@@ -354,6 +356,7 @@ Generated on 2026-05-24 from RustCraft implementation and harness sources, exclu
 - [ ] Audit Rust implementation file `src/world.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/world_border.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/world_time.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [x] Audit Rust implementation file `src/world_version.rs` against the Java source and checklist coverage. This file is the complete Rust parity model for `net/minecraft/WorldVersion.java`, `net/minecraft/DetectedVersion.java`, and the `DataVersion` compatibility behavior those classes depend on; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 world_version`.
 - [ ] Audit Rust implementation file `src/worldgen.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/worldgen/aquatic_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/worldgen/basalt_column_feature_plans.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.

@@ -167,6 +167,7 @@ mod weather;
 mod world;
 mod world_border;
 mod world_time;
+mod world_version;
 mod worldgen;
 mod worldgen_comparison;
 mod worldgen_resources;

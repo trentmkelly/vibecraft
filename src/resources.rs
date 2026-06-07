@@ -7,6 +7,8 @@ use std::path::Path;
 use crate::registry::{feature_flags, FeatureFlagSet, Identifier};
 
 pub const VANILLA_PACK_ID: &str = "vanilla";
+pub const CLIENT_RESOURCE_PACK_FORMAT_MAJOR: u32 = 84;
+pub const CLIENT_RESOURCE_PACK_FORMAT_MINOR: u32 = 0;
 pub const SERVER_DATA_PACK_FORMAT_MAJOR: u32 = 101;
 pub const SERVER_DATA_PACK_FORMAT_MINOR: u32 = 1;
 pub const LAST_PRE_MINOR_SERVER_DATA_PACK_FORMAT: u32 = 81;
@@ -430,10 +432,27 @@ pub struct PackFormat {
 }
 
 impl PackFormat {
-    pub fn current_server_data() -> Self {
+    pub const fn current_client_resources() -> Self {
+        Self {
+            major: CLIENT_RESOURCE_PACK_FORMAT_MAJOR,
+            minor: CLIENT_RESOURCE_PACK_FORMAT_MINOR,
+        }
+    }
+
+    pub const fn current_server_data() -> Self {
         Self {
             major: SERVER_DATA_PACK_FORMAT_MAJOR,
             minor: SERVER_DATA_PACK_FORMAT_MINOR,
+        }
+    }
+}
+
+impl std::fmt::Display for PackFormat {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.minor == 0 {
+            write!(formatter, "{}", self.major)
+        } else {
+            write!(formatter, "{}.{}", self.major, self.minor)
         }
     }
 }

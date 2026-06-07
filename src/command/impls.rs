@@ -190,19 +190,13 @@ impl VersionInfo {
     pub const CURRENT_26_1_2: Self = Self {
         id: "26.1.2",
         name: "26.1.2",
-        data_version: 4790,
-        series: "main",
-        protocol_version: 775,
-        build_time: "2026-04-09T10:11:03+00:00",
-        resource_pack_version: PackVersion {
-            major: 84,
-            minor: 0,
-        },
-        data_pack_version: PackVersion {
-            major: 101,
-            minor: 1,
-        },
-        stable: true,
+        data_version: crate::world_version::CURRENT_DATA_VERSION,
+        series: crate::world_version::CURRENT_DATA_SERIES,
+        protocol_version: crate::world_version::CURRENT_PROTOCOL_VERSION,
+        build_time: crate::world_version::CURRENT_BUILD_TIME,
+        resource_pack_version: crate::resources::PackFormat::current_client_resources(),
+        data_pack_version: crate::resources::PackFormat::current_server_data(),
+        stable: crate::world_version::CURRENT_STABLE,
     };
 
     pub fn command_lines(&self) -> Vec<String> {

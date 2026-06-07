@@ -1,3 +1,4 @@
+use crate::resources::PackFormat;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommandResult {
@@ -184,23 +185,7 @@ pub struct VersionInfo {
     pub series: &'static str,
     pub protocol_version: i32,
     pub build_time: &'static str,
-    pub resource_pack_version: PackVersion,
-    pub data_pack_version: PackVersion,
+    pub resource_pack_version: PackFormat,
+    pub data_pack_version: PackFormat,
     pub stable: bool,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PackVersion {
-    pub major: u32,
-    pub minor: u32,
-}
-
-impl std::fmt::Display for PackVersion {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.minor == 0 {
-            write!(formatter, "{}", self.major)
-        } else {
-            write!(formatter, "{}.{}", self.major, self.minor)
-        }
-    }
 }
