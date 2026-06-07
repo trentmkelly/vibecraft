@@ -578,7 +578,9 @@ impl ContainerBlockEntityModel {
         }
         if let Some(loot_table) = &self.loot_table {
             fields.push(("LootTable".to_string(), Tag::String(loot_table.clone())));
-            fields.push(("LootTableSeed".to_string(), Tag::Long(self.loot_table_seed)));
+            if self.loot_table_seed != 0 {
+                fields.push(("LootTableSeed".to_string(), Tag::Long(self.loot_table_seed)));
+            }
         } else {
             fields.push(("Items".to_string(), container_items_tag(&self.items)));
         }
@@ -610,6 +612,58 @@ impl ContainerBlockEntityModel {
         container
     }
 
+    pub fn collect_implicit_components(&self) -> Tag {
+        let mut components = Vec::new();
+        if let Some(name) = &self.custom_name {
+            components.push(("minecraft:custom_name".to_string(), Tag::String(name.clone())));
+        }
+        if let Some(lock) = &self.lock_key {
+            components.push(("minecraft:lock".to_string(), Tag::String(lock.clone())));
+        }
+        components.push(("minecraft:container".to_string(), container_items_tag(&self.items)));
+        if let Some(loot_table) = &self.loot_table {
+            let mut loot = vec![("loot_table".to_string(), Tag::String(loot_table.clone()))];
+            if self.loot_table_seed != 0 {
+                loot.push(("seed".to_string(), Tag::Long(self.loot_table_seed)));
+            }
+            components.push(("minecraft:container_loot".to_string(), Tag::Compound(loot)));
+        }
+        Tag::Compound(components)
+    }
+
+    pub fn apply_implicit_components(&mut self, components: &Tag) {
+        let Some(entries) = compound_entries(components) else {
+            return;
+        };
+        self.custom_name = get_string(entries, "minecraft:custom_name").map(ToString::to_string);
+        self.lock_key = get_string(entries, "minecraft:lock").map(ToString::to_string);
+        if let Some(Tag::List(items)) = entries
+            .iter()
+            .find(|(name, _)| name == "minecraft:container")
+            .map(|(_, tag)| tag)
+        {
+            self.items.fill(None);
+            load_container_component_items(items, &mut self.items);
+        }
+        if let Some(loot_entries) = entries
+            .iter()
+            .find(|(name, _)| name == "minecraft:container_loot")
+            .and_then(|(_, tag)| compound_entries(tag))
+        {
+            self.loot_table = get_string(loot_entries, "loot_table").map(ToString::to_string);
+            self.loot_table_seed = get_long(loot_entries, "seed").unwrap_or(0);
+        }
+    }
+
+    pub fn remove_components_from_tag(tag: &Tag) -> Tag {
+        let Some(entries) = compound_entries(tag) else {
+            return tag.clone();
+        };
+        Tag::Compound(entries.iter().filter(|(name, _)| {
+            !matches!(name.as_str(), "CustomName" | "lock" | "Items" | "LootTable" | "LootTableSeed")
+        }).cloned().collect())
+    }
+
     pub(super) fn tick_shulker_animation(&mut self) {
         match self.shulker_status {
             ShulkerBoxAnimationStatus::Closed => self.lid_progress = 0.0,
@@ -629,6 +683,16 @@ impl ContainerBlockEntityModel {
                 }
             }
         }
+    }
+}
+
+fn load_container_component_items(saved_items: &[Tag], items: &mut [Option<PotItemStack>]) {
+    for item in saved_items {
+        let Some(item_entries) = compound_entries(item) else {
+            continue;
+        };
+        let slot = get_byte(item_entries, "Slot").unwrap_or(-1);
+        if (0..items.len() as i8).contains(&slot) { items[slot as usize] = PotItemStack::from_tag(item); }
     }
 }
 

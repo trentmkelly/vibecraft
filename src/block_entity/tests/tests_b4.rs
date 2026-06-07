@@ -45,3 +45,84 @@ fn lectern_block_entity_container_contract_and_pre_remove_match_java() {
     assert_eq!(lectern.page, 0);
     assert_eq!(lectern.page_count, 0);
 }
+
+#[test]
+fn randomizable_container_components_and_loot_table_tags_match_java() {
+    let mut chest = ContainerBlockEntityModel::new(ContainerBlockEntityKind::Chest);
+    chest.custom_name = Some("Supply Cache".to_string());
+    chest.lock_key = Some("brass_key".to_string());
+    chest.items[2] = Some(stack("minecraft:apple", 5));
+    chest.loot_table = Some("minecraft:chests/simple_dungeon".to_string());
+
+    assert_eq!(
+        chest.save_additional(),
+        Tag::Compound(vec![
+            ("CustomName".to_string(), Tag::String("Supply Cache".to_string())),
+            ("lock".to_string(), Tag::String("brass_key".to_string())),
+            (
+                "LootTable".to_string(),
+                Tag::String("minecraft:chests/simple_dungeon".to_string()),
+            ),
+        ])
+    );
+
+    chest.loot_table_seed = 42;
+    let components = chest.collect_implicit_components();
+    assert_eq!(
+        components,
+        Tag::Compound(vec![
+            (
+                "minecraft:custom_name".to_string(),
+                Tag::String("Supply Cache".to_string()),
+            ),
+            (
+                "minecraft:lock".to_string(),
+                Tag::String("brass_key".to_string()),
+            ),
+            (
+                "minecraft:container".to_string(),
+                Tag::List(vec![Tag::Compound(vec![
+                    ("Slot".to_string(), Tag::Byte(2)),
+                    ("id".to_string(), Tag::String("minecraft:apple".to_string())),
+                    ("count".to_string(), Tag::Int(5)),
+                ])]),
+            ),
+            (
+                "minecraft:container_loot".to_string(),
+                Tag::Compound(vec![
+                    (
+                        "loot_table".to_string(),
+                        Tag::String("minecraft:chests/simple_dungeon".to_string()),
+                    ),
+                    ("seed".to_string(), Tag::Long(42)),
+                ]),
+            ),
+        ])
+    );
+
+    let mut loaded = ContainerBlockEntityModel::new(ContainerBlockEntityKind::Chest);
+    loaded.apply_implicit_components(&components);
+    assert_eq!(loaded.custom_name.as_deref(), Some("Supply Cache"));
+    assert_eq!(loaded.lock_key.as_deref(), Some("brass_key"));
+    assert_eq!(loaded.items[2], Some(stack("minecraft:apple", 5)));
+    assert_eq!(
+        loaded.loot_table.as_deref(),
+        Some("minecraft:chests/simple_dungeon")
+    );
+    assert_eq!(loaded.loot_table_seed, 42);
+
+    assert_eq!(
+        ContainerBlockEntityModel::remove_components_from_tag(&Tag::Compound(vec![
+            ("CustomName".to_string(), Tag::String("Supply Cache".to_string())),
+            ("lock".to_string(), Tag::String("brass_key".to_string())),
+            ("Items".to_string(), container_items_tag(&loaded.items)),
+            (
+                "LootTable".to_string(),
+                Tag::String("minecraft:chests/simple_dungeon".to_string()),
+            ),
+            ("LootTableSeed".to_string(), Tag::Long(42)),
+            ("TransferCooldown".to_string(), Tag::Int(8)),
+        ])),
+        Tag::Compound(vec![("TransferCooldown".to_string(), Tag::Int(8))])
+    );
+}

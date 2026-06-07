@@ -40,7 +40,7 @@
 ## Container Block Entities
 
 - [ ] Implement `BaseContainerBlockEntity`: custom-name `Component` component, lock `LockCode`, loot-table `ResourceKey`, loot-table seed, `unpackLootTable(player)` trigger on first open, `MenuProvider` interface with `createMenu()`
-- [ ] Implement `RandomizableContainerBlockEntity`: loot-table seeded realization (loot table generates once, then replaced with real items)
+- [x] Implement `RandomizableContainerBlockEntity`: loot-table seeded realization (loot table generates once, then replaced with real items) — Audited against Java 26.1.2: Rust models the randomizable container state wrapper with `LootTable`/non-zero `LootTableSeed` persistence, spectator lockout while unresolved loot is present, lazy one-shot loot-table unpacking before item access/mutation/menu creation, component collection/application for custom name, lock, container contents, and seeded container loot, and component-key removal from saved NBT; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 randomizable_container_components_and_loot_table_tags_match_java` and the existing `container_block_entities_track_loot_openers_lids_redstone_and_hopper_like_java` coverage.
 - [ ] Implement `ChestBlockEntity`: lid animation via `ChestLidController` (0.1 per tick open/close), double-chest neighbor detection for merged access, `ContainerOpenersCounter` for hopper-blocking, comparator output
 - [ ] Implement `TrappedChestBlockEntity`: emits `min(15, viewerCount)` redstone signal proportional to viewer count
 - [ ] Implement `BarrelBlockEntity`: no lid animation, `ContainerOpenersCounter` for hopper-blocking, comparator output
