@@ -28,7 +28,10 @@ pub fn read_string<R: Read>(reader: &mut R, max_chars: usize) -> io::Result<Stri
     reader.read_exact(&mut bytes)?;
     let string =
         String::from_utf8(bytes).map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
-    if string.chars().count() > max_chars {
+    // Java `Utf8String.read` bounds the decoded string by `result.length()`, i.e.
+    // the UTF-16 code-unit count (astral chars count as 2), NOT the code-point
+    // count — so use `encode_utf16().count()` to match exactly.
+    if string.encode_utf16().count() > max_chars {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "string too long",
@@ -38,14 +41,23 @@ pub fn read_string<R: Read>(reader: &mut R, max_chars: usize) -> io::Result<Stri
 }
 
 pub fn write_string<W: Write>(writer: &mut W, value: &str, max_chars: usize) -> io::Result<()> {
-    if value.chars().count() > max_chars {
+    // Java `Utf8String.write`: reject when the UTF-16 length exceeds `maxLength`,
+    // then when the UTF-8 byte length exceeds `maxLength * 4` (`utf8MaxBytes`).
+    if value.encode_utf16().count() > max_chars {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             "string too long",
         ));
     }
-    write_var_i32(writer, value.len() as i32)?;
-    writer.write_all(value.as_bytes())
+    let bytes = value.as_bytes();
+    if bytes.len() > max_chars * 4 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "string too long",
+        ));
+    }
+    write_var_i32(writer, bytes.len() as i32)?;
+    writer.write_all(bytes)
 }
 
 pub fn read_identifier<R: Read>(reader: &mut R) -> io::Result<Identifier> {
@@ -380,6 +392,26 @@ mod tests {
         assert_eq!(read_string(&mut input, 16).unwrap(), "hello");
         assert_eq!(read_identifier(&mut input).unwrap(), id);
         assert_eq!(read_uuid(&mut input).unwrap(), uuid);
+    }
+
+    #[test]
+    fn string_length_limit_counts_utf16_units_like_java() {
+        // An astral-plane char (😀, U+1F600) is ONE Rust code point but TWO UTF-16
+        // code units — Java `String.length()` counts 2, so a max of 1 must reject it
+        // and a max of 2 must accept it (round-tripping the 4 UTF-8 bytes).
+        let emoji = "\u{1F600}";
+        assert_eq!(emoji.chars().count(), 1);
+        assert_eq!(emoji.encode_utf16().count(), 2);
+
+        assert!(write_string(&mut Vec::new(), emoji, 1).is_err());
+
+        let mut bytes = Vec::new();
+        write_string(&mut bytes, emoji, 2).unwrap();
+        // VarInt(4) + 4 UTF-8 bytes.
+        assert_eq!(bytes[0], 4);
+        assert_eq!(read_string(&mut cursor(bytes.clone()), 2).unwrap(), emoji);
+        // The same wire bytes must be rejected when the reader's limit is 1.
+        assert!(read_string(&mut cursor(bytes), 1).is_err());
     }
 
     #[test]
