@@ -19,7 +19,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/SharedConstants.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/SuppressForbidden.java`. Rust `SuppressForbiddenModel` captures Java's `@Retention(CLASS)`, target set `{CONSTRUCTOR, FIELD, METHOD, TYPE}`, and required `reason()` element; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 suppress_forbidden`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/SystemReport.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/TracingExecutor.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/TracingExecutor.java`. Rust `tracing_executor` models Java's IDE named-executor branch with thread rename/restore, Tracy named branch, direct-service fallback when Tracy is unavailable, unnamed `execute` wrapping with the IDE flag, throwable close-suppression behavior from Java try-with-resources, and `shutdownAndAwait` shutdown-now behavior after false/interrupted termination; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 tracing_executor`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/WorldVersion.java`.
 
 ## `decompiled-server-26.1.2/net/minecraft/advancements`
