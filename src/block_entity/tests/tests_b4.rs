@@ -348,3 +348,25 @@ fn sign_dispatcher_update_tag_uses_custom_only_nbt_like_java() {
         matches!(hanging.get_update_tag(), Tag::Compound(values) if values.iter().all(|(key, _)| key != "components"))
     );
 }
+
+#[test]
+fn skull_dispatcher_update_tag_uses_custom_only_nbt_like_java() {
+    let mut skull =
+        BlockEntity::new(BlockEntityTypeId::Skull, pos(), "minecraft:player_head").unwrap();
+    skull.custom_data.insert(
+        "note_block_sound".to_string(),
+        Tag::String("minecraft:block.note_block.harp".to_string()),
+    );
+    skull.components.insert(
+        "minecraft:custom_name".to_string(),
+        Tag::String("{\"text\":\"Head\"}".to_string()),
+    );
+
+    assert_eq!(
+        skull.get_update_tag(),
+        Tag::Compound(vec![(
+            "note_block_sound".to_string(),
+            Tag::String("minecraft:block.note_block.harp".to_string())
+        )])
+    );
+}
