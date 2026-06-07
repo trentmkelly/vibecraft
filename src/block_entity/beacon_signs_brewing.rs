@@ -579,6 +579,7 @@ impl SignText {
 impl SignBlockEntityModel {
     pub const MAX_TEXT_LINE_WIDTH: i32 = 90;
     pub const TEXT_LINE_HEIGHT: i32 = 10;
+    pub const COMMAND_PERMISSION_LEVEL: i32 = 2;
     pub const INTERACTION_FAILED_SOUND: &'static str = "minecraft:block.waxed_sign_interact_fail";
 
     pub fn text(&self, front_text: bool) -> &SignText {
@@ -638,6 +639,24 @@ impl SignBlockEntityModel {
         true
     }
 
+    pub fn set_text(&mut self, text: SignText, front_text: bool) -> bool {
+        let current = self.text_mut(front_text);
+        if *current == text {
+            return false;
+        }
+        *current = text;
+        true
+    }
+
+    pub fn update_text(
+        &mut self,
+        front_text: bool,
+        function: impl FnOnce(SignText) -> SignText,
+    ) -> bool {
+        let next = function(self.text(front_text).clone());
+        self.set_text(next, front_text)
+    }
+
     pub fn set_waxed(&mut self, is_waxed: bool) -> bool {
         if self.is_waxed == is_waxed {
             false
@@ -671,6 +690,22 @@ impl SignBlockEntityModel {
         ])
     }
 
+    pub fn get_update_tag(&self) -> Tag {
+        self.save_additional()
+    }
+
+    pub fn is_facing_front_text(
+        block_pos: BlockPos,
+        sign_hitbox_center_xz: (f64, f64),
+        sign_y_rotation_degrees: f32,
+        player_xz: (f64, f64),
+    ) -> bool {
+        let xd = player_xz.0 - (f64::from(block_pos.x) + sign_hitbox_center_xz.0);
+        let zd = player_xz.1 - (f64::from(block_pos.z) + sign_hitbox_center_xz.1);
+        let player_y_rotation_degrees = (zd.atan2(xd).to_degrees() as f32) - 90.0;
+        degrees_difference_abs(sign_y_rotation_degrees, player_y_rotation_degrees) <= 90.0
+    }
+
     pub fn load_additional(tag: &Tag) -> Self {
         let Some(entries) = compound_entries(tag) else {
             return Self::default();
@@ -689,6 +724,15 @@ impl SignBlockEntityModel {
             is_waxed: get_bool(entries, "is_waxed").unwrap_or(false),
             player_who_may_edit: None,
         }
+    }
+}
+
+fn degrees_difference_abs(a: f32, b: f32) -> f32 {
+    let difference = (a - b).rem_euclid(360.0);
+    if difference > 180.0 {
+        360.0 - difference
+    } else {
+        difference
     }
 }
 

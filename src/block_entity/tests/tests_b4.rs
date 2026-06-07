@@ -282,3 +282,69 @@ fn shulker_box_block_entity_progress_collision_and_sided_access_match_java() {
     }
     assert!(shulker.shulker_forces_solid_collision());
 }
+
+#[test]
+fn sign_block_entity_update_text_face_and_update_tag_match_java() {
+    let mut sign = SignBlockEntityModel::default();
+    assert_eq!(SignBlockEntityModel::COMMAND_PERMISSION_LEVEL, 2);
+
+    let mut front = sign.front_text.clone();
+    front.set_message(0, "front", "filtered front");
+    assert!(sign.set_text(front.clone(), true));
+    assert!(!sign.set_text(front, true));
+
+    assert!(sign.update_text(false, |mut text| {
+        text.set_message(1, "back", "filtered back");
+        text
+    }));
+    assert!(!sign.update_text(false, |text| text));
+    assert_eq!(sign.back_text.lines[1].raw, "back");
+
+    let saved = sign.save_additional();
+    assert_eq!(sign.get_update_tag(), saved);
+    assert!(SignBlockEntityModel::is_facing_front_text(
+        BlockPos { x: 10, y: 64, z: -3 },
+        (0.5, 0.5),
+        0.0,
+        (10.5, -2.5),
+    ));
+    assert!(!SignBlockEntityModel::is_facing_front_text(
+        BlockPos { x: 10, y: 64, z: -3 },
+        (0.5, 0.5),
+        0.0,
+        (10.5, -3.5),
+    ));
+}
+
+#[test]
+fn sign_dispatcher_update_tag_uses_custom_only_nbt_like_java() {
+    let mut sign = BlockEntity::new(BlockEntityTypeId::Sign, pos(), "minecraft:oak_sign").unwrap();
+    sign.custom_data
+        .insert("front_text".to_string(), Tag::String("hello".to_string()));
+    sign.components.insert(
+        "minecraft:custom_name".to_string(),
+        Tag::String("\"Name\"".to_string()),
+    );
+
+    assert_eq!(
+        sign.get_update_tag(),
+        Tag::Compound(vec![(
+            "front_text".to_string(),
+            Tag::String("hello".to_string())
+        )])
+    );
+
+    let mut hanging =
+        BlockEntity::new(BlockEntityTypeId::HangingSign, pos(), "minecraft:oak_hanging_sign")
+            .unwrap();
+    hanging
+        .custom_data
+        .insert("back_text".to_string(), Tag::String("hi".to_string()));
+    hanging.components.insert(
+        "minecraft:custom_name".to_string(),
+        Tag::String("\"Name\"".to_string()),
+    );
+    assert!(
+        matches!(hanging.get_update_tag(), Tag::Compound(values) if values.iter().all(|(key, _)| key != "components"))
+    );
+}

@@ -125,6 +125,7 @@ impl BlockEntity {
             | BlockEntityTypeId::Hopper
             | BlockEntityTypeId::Dispenser
             | BlockEntityTypeId::Dropper => Tag::Compound(Vec::new()),
+            BlockEntityTypeId::Sign | BlockEntityTypeId::HangingSign => self.save_custom_only(),
             _ => self.save_without_metadata(),
         }
     }

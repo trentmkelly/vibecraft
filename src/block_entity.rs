@@ -464,6 +464,7 @@ pub enum HangingSignAttachment {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SignLine {
+    // TODO(Java parity): store full chat Components, including style and non-command click events.
     pub raw: String,
     pub filtered: String,
     pub click_command: Option<String>,
