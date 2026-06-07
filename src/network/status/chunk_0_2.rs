@@ -160,6 +160,12 @@ pub struct ChatTypeEntry {
     pub narration_parameters: &'static [&'static str],
 }
 
+// Order matches the official 26.1.2 registry-sync transcript: data-driven
+// registries (loaded from `data/minecraft/chat_type/*.json`) are sent SORTED
+// ALPHABETICALLY by id (chat, emote_command, msg_command_incoming,
+// msg_command_outgoing, say_command, team_msg_command_incoming,
+// team_msg_command_outgoing), NOT in `ChatType.bootstrap` registration order.
+// Pinned by `synced_registry_entry_orders_match_official_transcript_fixtures`.
 pub const CHAT_TYPES: &[ChatTypeEntry] = &[
     ChatTypeEntry {
         id: "chat",
