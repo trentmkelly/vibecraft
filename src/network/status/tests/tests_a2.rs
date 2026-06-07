@@ -824,3 +824,65 @@ pub fn animal_sound_variants_use_per_variant_prefixes_and_generic_baby_sounds() 
     );
 }
 
+
+/// Parse a registry-data packet into a map of entry id → NBT payload Tag.
+fn registry_entries_with_nbt(
+    write_packet: fn(&mut Vec<u8>) -> std::io::Result<()>,
+) -> std::collections::BTreeMap<String, Tag> {
+    let mut payload = Vec::new();
+    write_packet(&mut payload).unwrap();
+    let mut cursor = Cursor::new(payload);
+    let _registry = crate::network::codec::read_identifier(&mut cursor).unwrap();
+    let count = read_var_i32(&mut cursor).unwrap();
+    let mut out = std::collections::BTreeMap::new();
+    for _ in 0..count {
+        let id = crate::network::codec::read_identifier(&mut cursor)
+            .unwrap()
+            .to_string();
+        let mut present = [0u8; 1];
+        cursor.read_exact(&mut present).unwrap();
+        let mut tag_id = [0u8; 1];
+        cursor.read_exact(&mut tag_id).unwrap();
+        let tag = Tag::read_payload(tag_id[0], &mut cursor).unwrap();
+        out.insert(id, tag);
+    }
+    out
+}
+
+#[test]
+pub fn damage_type_registry_carries_full_per_type_vanilla_data() {
+    let entries = registry_entries_with_nbt(write_minimal_damage_type_registry_packet);
+
+    // in_fire: effects=burning, exhaustion=0.1, message_id=inFire, scaling present.
+    let in_fire = &entries["minecraft:in_fire"];
+    assert_eq!(
+        field_value(in_fire, "message_id"),
+        Some(&Tag::String("inFire".to_string()))
+    );
+    assert_eq!(
+        field_value(in_fire, "scaling"),
+        Some(&Tag::String("when_caused_by_living_non_player".to_string()))
+    );
+    assert_eq!(field_value(in_fire, "exhaustion"), Some(&Tag::Float(0.1)));
+    assert_eq!(
+        field_value(in_fire, "effects"),
+        Some(&Tag::String("burning".to_string()))
+    );
+
+    // arrow: HURT effects → the optional field is omitted.
+    let arrow = &entries["minecraft:arrow"];
+    assert_eq!(
+        field_value(arrow, "message_id"),
+        Some(&Tag::String("arrow".to_string()))
+    );
+    assert!(field_value(arrow, "effects").is_none());
+    assert!(field_value(arrow, "death_message_type").is_none());
+
+    // fall: non-default death_message_type is written.
+    let fall = &entries["minecraft:fall"];
+    assert_eq!(
+        field_value(fall, "death_message_type"),
+        Some(&Tag::String("fall_variants".to_string()))
+    );
+    assert!(field_value(fall, "effects").is_none());
+}

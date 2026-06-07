@@ -622,25 +622,49 @@ pub fn write_empty_bitset<W: Write>(writer: &mut W) -> io::Result<()> {
 }
 
 pub fn write_minimal_damage_type_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
+    use crate::damage_type::{builtin_damage_type, DamageEffects, DeathMessageType};
     write_parsed_identifier(writer, "minecraft:damage_type")?;
     write_var_i32(writer, DAMAGE_TYPES.len() as i32)?;
+    // `DAMAGE_TYPES` is the alphabetical id list (data-driven registry order, which
+    // the `minecraft:damage_type` tag indices also reference); the per-entry data is
+    // the verified-vs-vanilla `BUILTIN_DAMAGE_TYPES`.
     for damage_type in DAMAGE_TYPES {
-        write_parsed_identifier(writer, &format!("minecraft:{damage_type}"))?;
+        let id = format!("minecraft:{damage_type}");
+        let def = builtin_damage_type(&id).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("missing builtin damage type {id}"),
+            )
+        })?;
+        write_parsed_identifier(writer, &id)?;
         write_bool(writer, true)?;
-        write_network_nbt(
-            writer,
-            &Tag::Compound(vec![
-                (
-                    "message_id".to_string(),
-                    Tag::String((*damage_type).to_string()),
-                ),
-                (
-                    "scaling".to_string(),
-                    Tag::String("when_caused_by_living_non_player".to_string()),
-                ),
-                ("exhaustion".to_string(), Tag::Float(0.0)),
-            ]),
-        )?;
+        // Java `DamageType.DIRECT_CODEC`: message_id + scaling + exhaustion, plus an
+        // optional `effects` (default HURT omitted) and `death_message_type`
+        // (default DEFAULT omitted).
+        let mut fields = vec![
+            (
+                "message_id".to_string(),
+                Tag::String(def.message_id.to_string()),
+            ),
+            (
+                "scaling".to_string(),
+                Tag::String(def.scaling.id().to_string()),
+            ),
+            ("exhaustion".to_string(), Tag::Float(def.exhaustion)),
+        ];
+        if def.effects != DamageEffects::Hurt {
+            fields.push((
+                "effects".to_string(),
+                Tag::String(def.effects.id().to_string()),
+            ));
+        }
+        if def.death_message_type != DeathMessageType::Default {
+            fields.push((
+                "death_message_type".to_string(),
+                Tag::String(def.death_message_type.id().to_string()),
+            ));
+        }
+        write_network_nbt(writer, &Tag::Compound(fields))?;
     }
     Ok(())
 }
