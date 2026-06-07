@@ -580,6 +580,14 @@ impl FurnaceBlockEntityKind {
         }
     }
 
+    pub fn default_name(self) -> &'static str {
+        match self {
+            Self::Furnace => "container.furnace",
+            Self::BlastFurnace => "container.blast_furnace",
+            Self::Smoker => "container.smoker",
+        }
+    }
+
     pub fn recipe_type(self) -> &'static str {
         match self {
             Self::Furnace => "smelting",

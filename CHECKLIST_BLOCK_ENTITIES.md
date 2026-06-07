@@ -31,7 +31,7 @@
 ## Furnace Family
 
 - [ ] Implement `AbstractFurnaceBlockEntity`: `litTime`/`litDuration` burn progress, `cookingProgress`/`cookingTotalTime` cook progress, per-tick recipe matching against the registered recipe type, `FuelValues` lookup for fuel slot items, XP recipe-use accumulation and XP orb count on result extraction, sided inventory access (`getMaxStackSize()` per slot), comparator output based on inventory fullness
-- [ ] Implement `FurnaceBlockEntity`: recipe type `minecraft:smelting`, 200-tick cook time, standard fuels
+- [x] Implement `FurnaceBlockEntity`: recipe type `minecraft:smelting`, 200-tick cook time, standard fuels — Java 26.1.2 `FurnaceBlockEntity` specializes `AbstractFurnaceBlockEntity` with `BlockEntityType.FURNACE`, `RecipeType.SMELTING`, default title `container.furnace`, and `FurnaceMenu`; Rust `FurnaceBlockEntityKind::Furnace` exposes `recipe_type() == "smelting"`, `default_cooking_time() == 200`, `default_name() == "container.furnace"`, `menu_type() == "furnace"`, and ticks with `FuelValues` standard fuels; covered by `furnace_family_ticks_fuel_recipes_xp_sided_slots_and_speed_like_java` and `gui_block_entities_open_with_menu_id_initial_slots_and_close_state`.
 - [ ] Implement `BlastFurnaceBlockEntity`: recipe type `minecraft:blasting`, 100-tick cook time (2× speed)
 - [ ] Implement `SmokerBlockEntity`: recipe type `minecraft:smoking`, 100-tick cook time (2× speed)
 - [ ] Add parity test: smelting progress ticks, fuel exhaustion, XP float accumulation, and XP orb count on item pickup

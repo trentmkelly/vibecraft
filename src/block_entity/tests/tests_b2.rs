@@ -370,6 +370,8 @@ fn assert_smelting_furnace_ticks_fuel_xp_and_persists(
     smelting: &FurnaceCookingRecipe,
 ) {
     let mut furnace = AbstractFurnaceBlockEntity::furnace();
+    assert_eq!(furnace.kind.default_name(), "container.furnace");
+    assert_eq!(furnace.kind.menu_type(), "furnace");
     assert_eq!(furnace.kind.recipe_type(), "smelting");
     assert_eq!(furnace.kind.default_cooking_time(), 200);
     set_furnace_stack(
