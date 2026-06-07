@@ -886,3 +886,38 @@ pub fn damage_type_registry_carries_full_per_type_vanilla_data() {
     );
     assert!(field_value(fall, "effects").is_none());
 }
+
+#[test]
+pub fn painting_variant_registry_carries_dimensions_and_title_author() {
+    let entries = registry_entries_with_nbt(write_vanilla_painting_variant_registry_packet);
+
+    // kebab: 1x1, both title (yellow) and author (gray) translate components.
+    let kebab = &entries["minecraft:kebab"];
+    assert_eq!(field_value(kebab, "width"), Some(&Tag::Int(1)));
+    assert_eq!(field_value(kebab, "height"), Some(&Tag::Int(1)));
+    let title = compound_field(kebab, "title");
+    assert_eq!(
+        field_value(title, "translate"),
+        Some(&Tag::String("painting.minecraft.kebab.title".to_string()))
+    );
+    assert_eq!(
+        field_value(title, "color"),
+        Some(&Tag::String("yellow".to_string()))
+    );
+    let author = compound_field(kebab, "author");
+    assert_eq!(
+        field_value(author, "color"),
+        Some(&Tag::String("gray".to_string()))
+    );
+
+    // pigscene: 4x4.
+    let pigscene = &entries["minecraft:pigscene"];
+    assert_eq!(field_value(pigscene, "width"), Some(&Tag::Int(4)));
+    assert_eq!(field_value(pigscene, "height"), Some(&Tag::Int(4)));
+
+    // earth: 2x2, has a title but NO author (matching the vanilla JSON).
+    let earth = &entries["minecraft:earth"];
+    assert_eq!(field_value(earth, "width"), Some(&Tag::Int(2)));
+    assert!(field_value(earth, "title").is_some());
+    assert!(field_value(earth, "author").is_none());
+}

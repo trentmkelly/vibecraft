@@ -524,62 +524,66 @@ pub fn write_vanilla_zombie_nautilus_variant_registry_packet<W: Write>(
 }
 
 pub fn write_vanilla_painting_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
-    const PAINTINGS: &[&str] = &[
-        "alban",
-        "aztec",
-        "aztec2",
-        "backyard",
-        "baroque",
-        "bomb",
-        "bouquet",
-        "burning_skull",
-        "bust",
-        "cavebird",
-        "changing",
-        "cotan",
-        "courbet",
-        "creebet",
-        "dennis",
-        "donkey_kong",
-        "earth",
-        "endboss",
-        "fern",
-        "fighters",
-        "finding",
-        "fire",
-        "graham",
-        "humble",
-        "kebab",
-        "lowmist",
-        "match",
-        "meditative",
-        "orb",
-        "owlemons",
-        "passage",
-        "pigscene",
-        "plant",
-        "pointer",
-        "pond",
-        "pool",
-        "prairie_ride",
-        "sea",
-        "skeleton",
-        "skull_and_roses",
-        "stage",
-        "sunflowers",
-        "sunset",
-        "tides",
-        "unpacked",
-        "void",
-        "wanderer",
-        "wasteland",
-        "water",
-        "wind",
-        "wither",
+    // (id, width, height) — per `data/minecraft/painting_variant/*.json`, alphabetical.
+    const PAINTINGS: &[(&str, i32, i32)] = &[
+        ("alban", 1, 1),
+        ("aztec", 1, 1),
+        ("aztec2", 1, 1),
+        ("backyard", 3, 4),
+        ("baroque", 2, 2),
+        ("bomb", 1, 1),
+        ("bouquet", 3, 3),
+        ("burning_skull", 4, 4),
+        ("bust", 2, 2),
+        ("cavebird", 3, 3),
+        ("changing", 4, 2),
+        ("cotan", 3, 3),
+        ("courbet", 2, 1),
+        ("creebet", 2, 1),
+        ("dennis", 3, 3),
+        ("donkey_kong", 4, 3),
+        ("earth", 2, 2),
+        ("endboss", 3, 3),
+        ("fern", 3, 3),
+        ("fighters", 4, 2),
+        ("finding", 4, 2),
+        ("fire", 2, 2),
+        ("graham", 1, 2),
+        ("humble", 2, 2),
+        ("kebab", 1, 1),
+        ("lowmist", 4, 2),
+        ("match", 2, 2),
+        ("meditative", 1, 1),
+        ("orb", 4, 4),
+        ("owlemons", 3, 3),
+        ("passage", 4, 2),
+        ("pigscene", 4, 4),
+        ("plant", 1, 1),
+        ("pointer", 4, 4),
+        ("pond", 3, 4),
+        ("pool", 2, 1),
+        ("prairie_ride", 1, 2),
+        ("sea", 2, 1),
+        ("skeleton", 4, 3),
+        ("skull_and_roses", 2, 2),
+        ("stage", 2, 2),
+        ("sunflowers", 3, 3),
+        ("sunset", 2, 1),
+        ("tides", 3, 3),
+        ("unpacked", 4, 4),
+        ("void", 2, 2),
+        ("wanderer", 1, 2),
+        ("wasteland", 1, 1),
+        ("water", 2, 2),
+        ("wind", 2, 2),
+        ("wither", 2, 2),
     ];
-    write_variant_registry(writer, "minecraft:painting_variant", PAINTINGS, |id| {
-        painting_variant_nbt(id)
-    })
+    write_variant_registry(
+        writer,
+        "minecraft:painting_variant",
+        PAINTINGS,
+        |(id, width, height)| painting_variant_nbt(id, *width, *height),
+    )
 }
 
 fn write_variant_registry<W, T, F>(
@@ -610,6 +614,12 @@ trait VariantRegistryElement {
 impl VariantRegistryElement for &str {
     fn id(&self) -> &str {
         self
+    }
+}
+
+impl VariantRegistryElement for (&str, i32, i32) {
+    fn id(&self) -> &str {
+        self.0
     }
 }
 

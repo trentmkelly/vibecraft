@@ -173,14 +173,41 @@ pub fn zombie_nautilus_variant_nbt(variant: &str) -> Tag {
     Tag::Compound(fields)
 }
 
-pub fn painting_variant_nbt(id: &str) -> Tag {
-    Tag::Compound(vec![
-        ("width".to_string(), Tag::Int(1)),
-        ("height".to_string(), Tag::Int(1)),
+/// 1:1 with Java `PaintingVariant.DIRECT_CODEC`: `width`(1-16), `height`(1-16),
+/// `asset_id`, and the optional `title`/`author` Components. Every vanilla painting
+/// carries a yellow `painting.minecraft.<id>.title` and a gray
+/// `painting.minecraft.<id>.author` translate component, except earth/fire/water/
+/// wind/wither which have no author (`data/minecraft/painting_variant/*.json`).
+pub fn painting_variant_nbt(id: &str, width: i32, height: i32) -> Tag {
+    const NO_AUTHOR: &[&str] = &["earth", "fire", "water", "wind", "wither"];
+    let mut fields = vec![
+        ("width".to_string(), Tag::Int(width)),
+        ("height".to_string(), Tag::Int(height)),
         (
             "asset_id".to_string(),
             Tag::String(format!("minecraft:{id}")),
         ),
+        (
+            "title".to_string(),
+            painting_text_component(id, "title", "yellow"),
+        ),
+    ];
+    if !NO_AUTHOR.contains(&id) {
+        fields.push((
+            "author".to_string(),
+            painting_text_component(id, "author", "gray"),
+        ));
+    }
+    Tag::Compound(fields)
+}
+
+fn painting_text_component(id: &str, kind: &str, color: &str) -> Tag {
+    Tag::Compound(vec![
+        (
+            "translate".to_string(),
+            Tag::String(format!("painting.minecraft.{id}.{kind}")),
+        ),
+        ("color".to_string(), Tag::String(color.to_string())),
     ])
 }
 
