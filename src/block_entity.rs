@@ -380,11 +380,10 @@ pub struct CommandBlockChainStep {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum JukeboxSongEvent {
-    Started,
-    Stopped,
-    ItemChanged,
-}
+pub enum JukeboxSongEvent { Started, Stopped, ItemChanged }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JukeboxRemovalEffect { pub popped_item: Option<PotItemStack>, pub game_event: &'static str, pub level_event: i32 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JukeboxBlockEntity {

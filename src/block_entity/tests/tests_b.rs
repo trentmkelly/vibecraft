@@ -99,9 +99,11 @@ fn jukebox_block_entity_tracks_disc_playback_ticks_and_outputs() {
     assert_jukebox_rejects_second_disc_and_pops_item(&mut jukebox, disc);
     assert_jukebox_inert_item_paths();
     assert_jukebox_set_without_playing_path();
+    assert_jukebox_removal_effects_and_playable_gate();
 }
 
 fn assert_jukebox_plays_and_persists_disc(jukebox: &mut JukeboxBlockEntity, disc: &PotItemStack) {
+    assert_eq!(jukebox.max_stack_size(), 1);
     assert!(jukebox.can_place_item(disc));
     assert_eq!(
         jukebox.set_the_item(Some(disc.clone())),
@@ -158,6 +160,10 @@ fn assert_jukebox_inert_item_paths() {
         item_id: "minecraft:diamond".to_string(),
         count: 1,
     }));
+    assert!(!inert.can_place_item(&PotItemStack {
+        item_id: "minecraft:music_disc_fake".to_string(),
+        count: 1,
+    }));
     assert!(inert.can_take_item(true));
     assert!(!inert.can_take_item(false));
 }
@@ -174,6 +180,18 @@ fn assert_jukebox_set_without_playing_path() {
     assert!(!without_playing.is_playing);
     assert_eq!(without_playing.redstone_signal(), 0);
     assert_eq!(without_playing.comparator_output(), 15);
+}
+
+fn assert_jukebox_removal_effects_and_playable_gate() {
+    let mut jukebox = JukeboxBlockEntity::new();
+    let disc = stack("minecraft:music_disc_cat", 1);
+    assert_eq!(jukebox.set_the_item(Some(disc.clone())), JukeboxSongEvent::Started);
+    let effect = jukebox.set_removed();
+    assert_eq!(effect.popped_item, Some(disc));
+    assert_eq!(effect.game_event, JukeboxBlockEntity::STOP_GAME_EVENT);
+    assert_eq!(effect.level_event, JukeboxBlockEntity::STOP_LEVEL_EVENT);
+    assert!(jukebox.item.is_none());
+    assert_eq!(jukebox.pre_remove_side_effects(), None);
 }
 
 #[test]

@@ -389,6 +389,9 @@ impl JukeboxBlockEntity {
     pub const RECORD_ITEM_TAG_ID: &'static str = "RecordItem";
     pub const TICKS_SINCE_SONG_STARTED_TAG_ID: &'static str = "ticks_since_song_started";
     pub const STOP_LEVEL_EVENT: i32 = 1011;
+    pub const MAX_STACK_SIZE: i32 = 1;
+    pub const STOP_GAME_EVENT: &'static str = "minecraft:jukebox_stop_play";
+    pub const PLAY_GAME_EVENT: &'static str = "minecraft:jukebox_play";
 
     pub fn new() -> Self {
         Self {
@@ -492,6 +495,23 @@ impl JukeboxBlockEntity {
         destination_has_empty_slot
     }
 
+    pub const fn max_stack_size(&self) -> i32 {
+        Self::MAX_STACK_SIZE
+    }
+
+    pub fn set_removed(&mut self) -> JukeboxRemovalEffect {
+        let popped_item = self.pop_out_the_item();
+        JukeboxRemovalEffect {
+            popped_item,
+            game_event: Self::STOP_GAME_EVENT,
+            level_event: Self::STOP_LEVEL_EVENT,
+        }
+    }
+
+    pub fn pre_remove_side_effects(&mut self) -> Option<PotItemStack> {
+        self.pop_out_the_item()
+    }
+
     pub(super) fn song_item(&self) -> Option<&str> {
         self.item
             .as_ref()
@@ -500,7 +520,8 @@ impl JukeboxBlockEntity {
 }
 
 pub(super) fn jukebox_song_item_id(item_id: &str) -> Option<&str> {
-    item_id.strip_prefix("minecraft:music_disc_")
+    let song_id = item_id.strip_prefix("minecraft:music_disc_")?;
+    (jukebox_song_comparator_output(song_id) > 0).then_some(song_id)
 }
 
 pub(super) fn jukebox_song_comparator_output(song_id: &str) -> u8 {
