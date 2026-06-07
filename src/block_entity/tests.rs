@@ -1,4 +1,5 @@
 use super::*;
+use crate::block_entity::spawners::{TrialSpawnerFlameParticle, TrialSpawnerTrackedMob};
 
 fn pos() -> BlockPos {
     BlockPos {
@@ -132,6 +133,13 @@ fn assert_unsupported_block_entity_states() {
 #[test]
 fn trial_spawner_wrapper_update_state_and_client_spin_match_java() {
     let mut spawner = TrialSpawnerBlockEntity::default();
+    assert_trial_spawner_state_flags_and_client_spin(&mut spawner);
+    assert_trial_spawner_java_events_particles_and_spawn_gate();
+    assert_trial_spawner_mob_tracking_and_entity_override(&mut spawner);
+    assert_trial_spawner_update_packet_omits_components();
+}
+
+fn assert_trial_spawner_state_flags_and_client_spin(spawner: &mut TrialSpawnerBlockEntity) {
     assert_eq!(spawner.get_state(false), TrialSpawnerStateModel::Inactive);
     assert_eq!(spawner.get_state(true), TrialSpawnerStateModel::Inactive);
     assert_eq!(
@@ -163,6 +171,58 @@ fn trial_spawner_wrapper_update_state_and_client_spin_match_java() {
         TrialSpawnerBlockEntity::reward_ejection_position(pos()),
         (18.5, 65.2, 35.5)
     );
+}
+
+fn assert_trial_spawner_java_events_particles_and_spawn_gate() {
+    assert_eq!(TrialSpawnerFlameParticle::Normal.encode(), 0);
+    assert_eq!(TrialSpawnerFlameParticle::Ominous.encode(), 1);
+    assert_eq!(TrialSpawnerFlameParticle::decode(1), TrialSpawnerFlameParticle::Ominous);
+    assert_eq!(TrialSpawnerFlameParticle::decode(2), TrialSpawnerFlameParticle::Normal);
+    assert_eq!(
+        TrialSpawnerFlameParticle::Ominous.particle_id(),
+        "minecraft:soul_fire_flame"
+    );
+    assert_eq!(TrialSpawnerBlockEntity::SPAWN_MOB_EVENT, 3011);
+    assert_eq!(TrialSpawnerBlockEntity::SPAWN_MOB_AT_EVENT, 3012);
+    assert_eq!(TrialSpawnerBlockEntity::EJECT_REWARD_EVENT, 3014);
+    assert_eq!(TrialSpawnerBlockEntity::BECOME_OMINOUS_EVENT, 3020);
+    assert_eq!(TrialSpawnerBlockEntity::SPAWN_PARTICLE_COUNT, 20);
+    assert_eq!(TrialSpawnerBlockEntity::EJECT_ITEM_PARTICLE_COUNT, 20);
+    assert_eq!(
+        TrialSpawnerBlockEntity::detect_player_particle_count(12),
+        80
+    );
+    assert!(TrialSpawnerBlockEntity::can_spawn_in_level(true, true, true, false));
+    assert!(!TrialSpawnerBlockEntity::can_spawn_in_level(true, false, true, true));
+    assert!(!TrialSpawnerBlockEntity::can_spawn_in_level(true, false, false, false));
+    assert!(!TrialSpawnerBlockEntity::can_spawn_in_level(false, true, false, true));
+}
+
+fn assert_trial_spawner_mob_tracking_and_entity_override(spawner: &mut TrialSpawnerBlockEntity) {
+    assert!(TrialSpawnerBlockEntity::should_mob_be_untracked(
+        TrialSpawnerTrackedMob {
+            exists: false,
+            alive: true,
+            same_dimension: true,
+            distance_squared: 0,
+        }
+    ));
+    assert!(!TrialSpawnerBlockEntity::should_mob_be_untracked(
+        TrialSpawnerTrackedMob {
+            exists: true,
+            alive: true,
+            same_dimension: true,
+            distance_squared: TrialSpawnerBlockEntity::MAX_MOB_TRACKING_DISTANCE_SQR,
+        }
+    ));
+    assert!(TrialSpawnerBlockEntity::should_mob_be_untracked(
+        TrialSpawnerTrackedMob {
+            exists: true,
+            alive: true,
+            same_dimension: true,
+            distance_squared: TrialSpawnerBlockEntity::MAX_MOB_TRACKING_DISTANCE_SQR + 1,
+        }
+    ));
 
     assert!(!spawner.set_entity_id("minecraft:husk", false));
     assert!(spawner.config.normal_config.spawn_potentials.is_empty());
@@ -171,7 +231,9 @@ fn trial_spawner_wrapper_update_state_and_client_spin_match_java() {
         spawner.config.normal_config.spawn_potentials[0].entity_id(),
         Some("minecraft:husk")
     );
+}
 
+fn assert_trial_spawner_update_packet_omits_components() {
     let mut entity =
         BlockEntity::new(BlockEntityTypeId::TrialSpawner, pos(), "minecraft:trial_spawner")
             .unwrap();

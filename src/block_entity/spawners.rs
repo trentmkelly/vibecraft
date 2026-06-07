@@ -431,6 +431,43 @@ impl TrialSpawnerStateModel {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrialSpawnerFlameParticle {
+    Normal,
+    Ominous,
+}
+
+impl TrialSpawnerFlameParticle {
+    pub fn encode(self) -> i32 {
+        match self {
+            Self::Normal => 0,
+            Self::Ominous => 1,
+        }
+    }
+
+    pub fn decode(data: i32) -> Self {
+        match data {
+            1 => Self::Ominous,
+            _ => Self::Normal,
+        }
+    }
+
+    pub fn particle_id(self) -> &'static str {
+        match self {
+            Self::Normal => "minecraft:flame",
+            Self::Ominous => "minecraft:soul_fire_flame",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TrialSpawnerTrackedMob {
+    pub exists: bool,
+    pub alive: bool,
+    pub same_dimension: bool,
+    pub distance_squared: i32,
+}
+
 impl Default for TrialSpawnerConfigModel {
     fn default() -> Self {
         Self {
@@ -611,6 +648,21 @@ impl TrialSpawnerBlockEntity {
     pub const TIME_BETWEEN_REWARD_EJECTIONS: i64 = 30;
     pub const TICKS_BETWEEN_OMINOUS_ITEM_SPAWNERS: i64 = 160;
     pub const BLOCK_UPDATE_FLAGS: i32 = 3;
+    pub const SPAWN_MOB_EVENT: i32 = 3011;
+    pub const SPAWN_MOB_AT_EVENT: i32 = 3012;
+    pub const DETECT_PLAYER_EVENT: i32 = 3013;
+    pub const EJECT_REWARD_EVENT: i32 = 3014;
+    pub const OMINOUS_DETECT_PLAYER_EVENT: i32 = 3019;
+    pub const BECOME_OMINOUS_EVENT: i32 = 3020;
+    pub const SPAWN_PARTICLE_COUNT: i32 = 20;
+    pub const DETECT_PLAYER_BASE_PARTICLE_COUNT: i32 = 30;
+    pub const DETECT_PLAYER_PARTICLES_PER_PLAYER: i32 = 5;
+    pub const DETECT_PLAYER_MAX_PLAYER_BONUS: i32 = 10;
+    pub const EJECT_ITEM_PARTICLE_COUNT: i32 = 20;
+    pub const SPAWNING_AMBIENT_SOUND_CHANCE: f32 = 0.02;
+    pub const MAX_MOB_TRACKING_DISTANCE: i32 = 47;
+    pub const MAX_MOB_TRACKING_DISTANCE_SQR: i32 =
+        Self::MAX_MOB_TRACKING_DISTANCE * Self::MAX_MOB_TRACKING_DISTANCE;
 
     pub fn active_config(&self) -> &TrialSpawnerConfigModel {
         if self.is_ominous {
@@ -618,6 +670,16 @@ impl TrialSpawnerBlockEntity {
         } else {
             &self.config.normal_config
         }
+    }
+
+    pub fn can_spawn_in_level(
+        spawner_blocks_work: bool,
+        override_peaceful_and_mob_spawn_rule: bool,
+        peaceful: bool,
+        spawn_mobs_rule: bool,
+    ) -> bool {
+        spawner_blocks_work
+            && (override_peaceful_and_mob_spawn_rule || (!peaceful && spawn_mobs_rule))
     }
 
     pub fn get_state(&self, has_trial_spawner_state_property: bool) -> TrialSpawnerStateModel {
@@ -658,6 +720,22 @@ impl TrialSpawnerBlockEntity {
         (pos.x as f64 + 0.5, pos.y as f64 + 1.2, pos.z as f64 + 0.5)
     }
 
+    pub fn should_mob_be_untracked(mob: TrialSpawnerTrackedMob) -> bool {
+        !mob.exists
+            || !mob.alive
+            || !mob.same_dimension
+            || mob.distance_squared > Self::MAX_MOB_TRACKING_DISTANCE_SQR
+    }
+
+    pub fn detect_player_particle_count(detected_player_count: i32) -> i32 {
+        Self::DETECT_PLAYER_BASE_PARTICLE_COUNT
+            + detected_player_count.clamp(0, Self::DETECT_PLAYER_MAX_PLAYER_BONUS)
+                * Self::DETECT_PLAYER_PARTICLES_PER_PLAYER
+    }
+
+    // TODO(trial-spawner-live-level): wire Java's live ServerLevel operations for spawnMob,
+    // ejectReward, particle emission, ambient sounds, and ominous item spawner placement once the
+    // entity loader, loot-table runtime, world collision/clip, and level-event systems are unified.
     pub fn apply_ominous(&mut self, game_time: i64) {
         self.is_ominous = true;
         self.current_mobs.clear();
