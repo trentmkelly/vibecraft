@@ -13,7 +13,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/DefaultUncaughtExceptionHandlerWithName.java`. Rust `default_uncaught_exception_handler_with_name_actions` models Java's two logger calls: first the fixed message, then `logger.error(thread.getName(), throwable)`; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 default_uncaught_exception_handler`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/DetectedVersion.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/IdentifierException.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/Optionull.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/Optionull.java`. Rust `optionull` models Java null branches for `orElse`, `map`, `mapOrDefault`, lazy `mapOrElse`, `first`, `firstOrDefault`, lazy `firstOrElse`, and all object/primitive array `isNullOrEmpty` overload semantics through nullable slices; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 optionull`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/ReportType.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/ReportedException.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/SharedConstants.java`.

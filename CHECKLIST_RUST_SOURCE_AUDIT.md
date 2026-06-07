@@ -271,6 +271,7 @@ Generated on 2026-05-24 from RustCraft implementation and harness sources, exclu
 - [ ] Audit Rust implementation file `src/network/varint.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/non_living_entity.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/operational_coverage.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [x] Audit Rust implementation file `src/optionull.rs` against the Java source and checklist coverage. This file is the complete Rust parity model for `net/minecraft/Optionull.java`; null mapping helpers, first-element helpers, supplier laziness, and nullable array emptiness behavior are covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 optionull`.
 - [ ] Audit Rust implementation file `src/parity_harness.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/performance_benchmarks.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/persistence_roundtrip_tests.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.

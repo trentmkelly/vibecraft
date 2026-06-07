@@ -106,6 +106,7 @@ mod network;
 mod non_living_entity;
 #[cfg(test)]
 mod operational_coverage;
+mod optionull;
 #[cfg(test)]
 mod parity_harness;
 mod performance_benchmarks;
