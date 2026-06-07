@@ -279,6 +279,7 @@ pub struct WeightedTrialSpawnerData {
     pub entity_id: String,
     pub entity_data: serde_json::Map<String, serde_json::Value>,
     pub weight: i32,
+    pub equipment_loot_table: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -372,6 +373,12 @@ fn parse_spawn_potentials(
                 entity_id: json_string(entity, "id")?,
                 entity_data: entity.clone(),
                 weight: required_i32_range(object, "weight", 1, i32::MAX)?,
+                equipment_loot_table: data
+                    .get("equipment")
+                    .and_then(serde_json::Value::as_object)
+                    .and_then(|equipment| equipment.get("loot_table"))
+                    .map(json_string_value)
+                    .transpose()?,
             })
         })
         .collect()
@@ -698,6 +705,18 @@ mod tests {
         paths.sort();
 
         assert_eq!(paths.len(), 28);
+        let expected_keys = trial_spawner_config_bootstrap_keys();
+        let actual_keys: BTreeSet<_> = paths
+            .iter()
+            .map(|path| {
+                path.strip_prefix(root)
+                    .unwrap()
+                    .with_extension("")
+                    .to_string_lossy()
+                    .replace('\\', "/")
+            })
+            .collect();
+        assert_eq!(actual_keys, expected_keys);
         let mut entity_ids = BTreeSet::new();
         let mut ominous_overrides = 0;
         for path in &paths {
@@ -722,6 +741,22 @@ mod tests {
             }
             if path.ends_with("ominous.json") {
                 ominous_overrides += 1;
+                assert_eq!(
+                    config
+                        .loot_tables_to_eject
+                        .iter()
+                        .map(|table| (table.id.as_str(), table.weight))
+                        .collect::<Vec<_>>(),
+                    vec![
+                        ("minecraft:spawners/ominous/trial_chamber/key", 3),
+                        (
+                            "minecraft:spawners/ominous/trial_chamber/consumables",
+                            7
+                        ),
+                    ],
+                    "{} should use Java's ominous ejection weights",
+                    path.display()
+                );
                 assert!(
                     config
                         .loot_tables_to_eject
@@ -737,6 +772,53 @@ mod tests {
         assert!(entity_ids.contains("minecraft:breeze"));
         assert!(entity_ids.contains("minecraft:zombie"));
         assert!(entity_ids.contains("minecraft:slime"));
+    }
+
+    #[test]
+    fn trial_spawner_bootstrap_custom_spawn_data_matches_java_helpers() {
+        let root = std::path::Path::new("../decompiled-server-26.1.2/data/minecraft/trial_spawner");
+        let baby = load_trial_spawner_config_resource(
+            root.join("trial_chamber/small_melee/baby_zombie/normal.json"),
+        )
+        .unwrap();
+        assert_eq!(baby.spawn_potentials[0].entity_id, "minecraft:zombie");
+        assert_eq!(
+            baby.spawn_potentials[0].entity_data.get("IsBaby"),
+            Some(&serde_json::Value::from(1))
+        );
+
+        let slime = load_trial_spawner_config_resource(
+            root.join("trial_chamber/small_melee/slime/normal.json"),
+        )
+        .unwrap();
+        assert_eq!(
+            slime
+                .spawn_potentials
+                .iter()
+                .map(|potential| (
+                    potential.entity_data.get("Size").and_then(serde_json::Value::as_i64),
+                    potential.weight
+                ))
+                .collect::<Vec<_>>(),
+            vec![(Some(1), 3), (Some(2), 1)]
+        );
+
+        let husk = load_trial_spawner_config_resource(
+            root.join("trial_chamber/melee/husk/ominous.json"),
+        )
+        .unwrap();
+        assert_eq!(
+            husk.spawn_potentials[0].equipment_loot_table.as_deref(),
+            Some("minecraft:equipment/trial_chamber_melee")
+        );
+        let skeleton = load_trial_spawner_config_resource(
+            root.join("trial_chamber/ranged/skeleton/ominous.json"),
+        )
+        .unwrap();
+        assert_eq!(
+            skeleton.spawn_potentials[0].equipment_loot_table.as_deref(),
+            Some("minecraft:equipment/trial_chamber_ranged")
+        );
     }
 
     #[test]
@@ -773,5 +855,27 @@ mod tests {
                 paths.push(path);
             }
         }
+    }
+
+    fn trial_spawner_config_bootstrap_keys() -> BTreeSet<String> {
+        [
+            "trial_chamber/breeze",
+            "trial_chamber/melee/husk",
+            "trial_chamber/melee/spider",
+            "trial_chamber/melee/zombie",
+            "trial_chamber/ranged/poison_skeleton",
+            "trial_chamber/ranged/skeleton",
+            "trial_chamber/ranged/stray",
+            "trial_chamber/slow_ranged/poison_skeleton",
+            "trial_chamber/slow_ranged/skeleton",
+            "trial_chamber/slow_ranged/stray",
+            "trial_chamber/small_melee/baby_zombie",
+            "trial_chamber/small_melee/cave_spider",
+            "trial_chamber/small_melee/silverfish",
+            "trial_chamber/small_melee/slime",
+        ]
+        .into_iter()
+        .flat_map(|base| [format!("{base}/normal"), format!("{base}/ominous")])
+        .collect()
     }
 }
