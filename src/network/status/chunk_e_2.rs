@@ -246,6 +246,14 @@ pub fn cat_sound_set_nbt() -> Tag {
     ])
 }
 
+// TODO(per-variant-sound-data): NOT 1:1 — Java `WolfSoundVariants.bootstrap`
+// gives each of the 7 variants its OWN sound set via `SoundEvents.WOLF_SOUNDS`
+// (classic→`entity.wolf.*`, angry→`entity.wolf_angry.*`, big→`entity.wolf_big.*`,
+// cute/grumpy/puglin/sad likewise), but every variant here emits the same generic
+// `entity.wolf.*` set. The compound shape/field names are codec-correct, but the
+// sound ids are wrong for non-classic variants. Same gap for cat/cow/chicken/pig
+// sound variants. Blocks the "Sync minecraft:*_sound_variant" checklist items —
+// they stay UNMARKED until the per-variant `SoundSet` prefixes are populated.
 pub fn wolf_sound_variant_nbt() -> Tag {
     let sounds = wolf_sound_set_nbt();
     Tag::Compound(vec![
