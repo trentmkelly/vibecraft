@@ -1043,6 +1043,10 @@ pub enum CreakingHeartStateModel {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CreakingHeartAction {
     None,
+    OutputSignalChanged {
+        previous: i32,
+        current: i32,
+    },
     StateChanged(CreakingHeartStateModel),
     SpawnProtector {
         attempts: i32,

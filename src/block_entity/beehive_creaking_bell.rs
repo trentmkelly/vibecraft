@@ -295,7 +295,12 @@ impl CreakingHeartBlockEntity {
         let mut actions = Vec::new();
         let computed_signal = self.compute_analog_output_signal(context.protector_distance);
         if self.output_signal != computed_signal {
+            let previous = self.output_signal;
             self.output_signal = computed_signal;
+            actions.push(CreakingHeartAction::OutputSignalChanged {
+                previous,
+                current: computed_signal,
+            });
         }
 
         if self.emitter_ticks > 0 {

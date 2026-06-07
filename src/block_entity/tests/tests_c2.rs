@@ -348,7 +348,7 @@ fn assert_creaking_heart_output_persistence_and_hurt_pulse(heart: &mut CreakingH
     );
     assert_eq!(heart.emitter_ticks, 100);
     assert_eq!(heart.creaking_hurt(true, 2), CreakingHeartAction::None);
-    heart.server_tick(CreakingHeartTickContext {
+    let signal_actions = heart.server_tick(CreakingHeartTickContext {
         has_required_logs: true,
         creaking_active: true,
         spawning_monsters: true,
@@ -357,7 +357,27 @@ fn assert_creaking_heart_output_persistence_and_hurt_pulse(heart: &mut CreakingH
         protector_distance: Some(4.0),
         ..CreakingHeartTickContext::default()
     });
+    assert!(
+        signal_actions.contains(&CreakingHeartAction::OutputSignalChanged {
+            previous: 0,
+            current: 14,
+        })
+    );
+    assert_eq!(heart.output_signal, 14);
     assert_eq!(heart.emitter_ticks, 99);
+
+    let unchanged_signal_actions = heart.server_tick(CreakingHeartTickContext {
+        has_required_logs: true,
+        creaking_active: true,
+        spawning_monsters: true,
+        player_nearby: true,
+        protector_resolved: true,
+        protector_distance: Some(4.0),
+        ..CreakingHeartTickContext::default()
+    });
+    assert!(!unchanged_signal_actions
+        .iter()
+        .any(|action| matches!(action, CreakingHeartAction::OutputSignalChanged { .. })));
 }
 
 fn assert_creaking_heart_removes_distant_protector(heart: &mut CreakingHeartBlockEntity) {
