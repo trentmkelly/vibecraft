@@ -227,6 +227,27 @@ mod tests {
     }
 
     #[test]
+    fn block_state_concrete_wrapper_matches_java_block_state() {
+        let constructed = BlockStateModel::from_property_pairs(
+            "minecraft:chest",
+            [
+                ("waterlogged", "false"),
+                ("type", "single"),
+                ("facing", "north"),
+            ],
+        );
+        assert_eq!(constructed.as_state(), &constructed);
+        assert_eq!(
+            constructed.state_holder_string(),
+            "minecraft:chest[facing=north,type=single,waterlogged=false]"
+        );
+
+        let default_chest = BlockStateModel::default_for("minecraft:chest").unwrap();
+        assert_eq!(default_chest, constructed);
+        assert!(BlockStateModel::default_for("minecraft:not_a_block").is_none());
+    }
+
+    #[test]
     fn redstone_fluid_and_scheduled_tick_behaviors_match_vanilla_shapes() {
         assert_eq!(dust_propagated_power(15), 14);
         assert_eq!(input_reset_delay(InputKind::WoodenButton), Some(30));

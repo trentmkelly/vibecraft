@@ -158,6 +158,21 @@ impl BlockStateModel {
         }
     }
 
+    pub fn from_property_pairs<I, K, V>(registry_id: impl Into<String>, properties: I) -> Self
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: Into<String>,
+        V: Into<String>,
+    {
+        Self {
+            registry_id: registry_id.into(),
+            properties: properties
+                .into_iter()
+                .map(|(name, value)| (name.into(), value.into()))
+                .collect(),
+        }
+    }
+
     pub fn default_for(registry_id: &str) -> Option<Self> {
         let definition = representative_state_definition(registry_id)?;
         let properties = default_state(&definition)
@@ -172,6 +187,10 @@ impl BlockStateModel {
 
     pub fn air() -> Self {
         Self::new("minecraft:air")
+    }
+
+    pub fn as_state(&self) -> &Self {
+        self
     }
 
     pub fn with_property(mut self, name: &str, value: impl Into<String>) -> Self {
