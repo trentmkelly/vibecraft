@@ -5,6 +5,8 @@ use std::net::{SocketAddr, UdpSocket};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use crate::network::status::ActiveLoginRegistry;
+
 const GAME_TYPE: &str = "SMP";
 const GAME_ID: &str = "MINECRAFT";
 const CHALLENGE_TTL: Duration = Duration::from_secs(30);
@@ -164,6 +166,7 @@ pub fn spawn_query_server(
     bind_ip: &str,
     port: u16,
     info: QueryServerInfo,
+    active_logins: Option<ActiveLoginRegistry>,
 ) -> Result<JoinHandle<()>, String> {
     let address = format!("{bind_ip}:{port}");
     let socket = UdpSocket::bind(&address)
@@ -173,16 +176,26 @@ pub fn spawn_query_server(
         .map_err(|err| format!("Failed to configure query listener timeout: {err}"))?;
     thread::Builder::new()
         .name("Query Listener".to_string())
-        .spawn(move || run_query_loop(socket, info))
+        .spawn(move || run_query_loop(socket, info, active_logins))
         .map_err(|err| format!("Failed to start query listener thread: {err}"))
 }
 
-fn run_query_loop(socket: UdpSocket, info: QueryServerInfo) {
+fn run_query_loop(
+    socket: UdpSocket,
+    mut info: QueryServerInfo,
+    active_logins: Option<ActiveLoginRegistry>,
+) {
     let mut protocol = QueryProtocol::new();
     let mut buffer = [0u8; 1460];
     loop {
         match socket.recv_from(&mut buffer) {
             Ok((len, remote)) => {
+                // Refresh the live player view per request (Java GS4 reads
+                // `getPlayerCount`/`getPlayerNames` at response time, not at boot).
+                if let Some(active_logins) = &active_logins {
+                    info.player_count = active_logins.online_count();
+                    info.player_names = active_logins.online_player_names();
+                }
                 let now = Instant::now();
                 let Some(response) = protocol.handle_packet(remote, &buffer[..len], now, &info)
                 else {

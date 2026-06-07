@@ -221,6 +221,9 @@ struct PlayConnectionContext<'a> {
     shared: ConnectionSharedContext<'a>,
     remote_address: &'a str,
     rate_limiter: &'a mut PacketRateLimiter,
+    /// The player's registry guard, so play-phase `ClientInformation` updates can
+    /// propagate the listing preference to the status player sample.
+    active_login: &'a ActiveLoginGuard,
 }
 
 struct JoinedPlaySessionStart {
@@ -259,8 +262,10 @@ pub fn run_status_server(
     world_root: &Path,
     world_seed: i64,
     console_input: &Receiver<ConsoleInput>,
+    active_logins: ActiveLoginRegistry,
 ) -> Result<(), String> {
-    let runtime = StatusServerRuntime::new(bind_ip, port, properties, world_root, world_seed)?;
+    let runtime =
+        StatusServerRuntime::new(bind_ip, port, properties, world_root, world_seed, active_logins)?;
     runtime.start_tick_thread();
     println!("Status listener bound to {}", runtime.address);
     run_status_accept_loop(runtime, properties, world_seed, console_input);
@@ -274,6 +279,7 @@ impl StatusServerRuntime {
         properties: &ServerProperties,
         world_root: &Path,
         world_seed: i64,
+        active_logins: ActiveLoginRegistry,
     ) -> Result<Self, String> {
         let address = format!("{bind_ip}:{port}");
         let listener = TcpListener::bind(&address)
@@ -283,9 +289,9 @@ impl StatusServerRuntime {
             .map_err(|err| format!("Failed to configure status listener on {address}: {err}"))?;
         // Java MinecraftServer.loadStatusIcon: prefer server-icon.png, fall back
         // to the world's icon.png, and tolerate a bad icon (log + no favicon)
-        // rather than failing startup.
+        // rather than failing startup. The active-login registry is shared with
+        // the GS4 query listener so both report the same live player set.
         let favicon = resolve_status_icon(world_root);
-        let active_logins = ActiveLoginRegistry::default();
         let world_root = Arc::new(world_root.to_path_buf());
         let chunk_cache = GeneratedChunkCache::default();
         // Async chunk generation coordinator (Phase 2/3 of the chunking rework).
@@ -624,7 +630,11 @@ fn handle_status_connection(
 
     let mut first = [0u8; 1];
     if stream.peek(&mut first)? == 1 && first[0] == 0xFE {
-        return handle_legacy_status_tcp_connection(&mut stream, properties);
+        return handle_legacy_status_tcp_connection(
+            &mut stream,
+            properties,
+            shared.active_logins.online_count(),
+        );
     }
 
     let mut rate_limiter =
@@ -689,7 +699,7 @@ fn handle_status_connection(
                     return Ok(());
                 }
                 status_requested = true;
-                let json = status_json(properties, favicon);
+                let json = status_json(properties, favicon, &shared.active_logins.status_players());
                 write_status_response_packet(&mut stream, &json)?;
             }
             1 => {
@@ -779,6 +789,7 @@ fn wait_for_configuration_packet_or_rate_disconnect(
     expected_packet_id: i32,
     expected_name: &'static str,
     rate_limiter: &mut PacketRateLimiter,
+    active_login: &ActiveLoginGuard,
 ) -> io::Result<()> {
     match wait_for_configuration_packet_with_rate_limit(
         stream,
@@ -786,6 +797,7 @@ fn wait_for_configuration_packet_or_rate_disconnect(
         expected_packet_id,
         expected_name,
         rate_limiter,
+        Some(active_login),
     ) {
         Ok(()) => Ok(()),
         Err(err) if is_rate_limit_disconnect_error(&err) => {
@@ -857,7 +869,7 @@ fn complete_login_handshake(
     let (active_login, replaced_stream) = context
         .shared
         .active_logins
-        .register_replacing(&finished.profile.uuid, stream)?;
+        .register_replacing(&finished.profile.uuid, &finished.profile.name, stream)?;
     if let Some(replaced_stream) = replaced_stream {
         let _ = replaced_stream.shutdown(Shutdown::Both);
     }
@@ -979,6 +991,7 @@ fn run_configuration_handshake(
     properties: &ServerProperties,
     compression: CompressionState,
     rate_limiter: &mut PacketRateLimiter,
+    active_login: &ActiveLoginGuard,
 ) -> io::Result<()> {
     if let Some(packet) = bug_report_server_links_packet(properties) {
         write_framed_packet_with_compression(
@@ -1001,7 +1014,13 @@ fn run_configuration_handshake(
         CLIENTBOUND_CONFIGURATION_UPDATE_TAGS_PACKET_ID,
         write_minimal_update_tags_packet,
     )?;
-    run_known_pack_configuration_exchange(stream, properties, compression, rate_limiter)?;
+    run_known_pack_configuration_exchange(
+        stream,
+        properties,
+        compression,
+        rate_limiter,
+        active_login,
+    )?;
     write_framed_packet_with_compression(
         stream,
         compression,
@@ -1014,6 +1033,7 @@ fn run_configuration_handshake(
         SERVERBOUND_CONFIGURATION_FINISH_PACKET_ID,
         "finish configuration",
         rate_limiter,
+        active_login,
     )
 }
 
@@ -1022,6 +1042,7 @@ fn run_known_pack_configuration_exchange(
     properties: &ServerProperties,
     compression: CompressionState,
     rate_limiter: &mut PacketRateLimiter,
+    active_login: &ActiveLoginGuard,
 ) -> io::Result<()> {
     write_framed_packet_with_compression(
         stream,
@@ -1035,6 +1056,7 @@ fn run_known_pack_configuration_exchange(
         SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID,
         "selected known packs",
         rate_limiter,
+        active_login,
     )?;
     if let Some(code_of_conduct) = load_code_of_conduct_for_language(properties, "en_us")? {
         write_framed_packet_with_compression(
@@ -1049,6 +1071,7 @@ fn run_known_pack_configuration_exchange(
             SERVERBOUND_CONFIGURATION_ACCEPT_CODE_OF_CONDUCT_PACKET_ID,
             "code of conduct acceptance",
             rate_limiter,
+            active_login,
         )?;
     }
     Ok(())
@@ -2511,6 +2534,9 @@ struct DecodedPlayPacketContext<'a, 'b> {
     chunk_sender: &'b mut PlayerChunkSender,
     live_fluid_ticks: &'b mut LiveFluidTicks,
     play_tick_count: u64,
+    /// The player's registry guard, used to propagate play-phase
+    /// `ClientInformation` listing-preference changes to the status sample.
+    active_login: &'a ActiveLoginGuard,
 }
 
 enum PlayPacketDispatchOutcome {
@@ -2537,6 +2563,7 @@ struct JoinedPlayPacketStepContext<'a, 'b> {
     chunk_sender: &'b mut PlayerChunkSender,
     live_fluid_ticks: &'b mut LiveFluidTicks,
     play_tick_count: u64,
+    active_login: &'a ActiveLoginGuard,
 }
 
 fn read_and_dispatch_joined_play_packet(
@@ -2646,6 +2673,15 @@ fn handle_decoded_play_packet(
     )? {
     } else if packet_id == SERVERBOUND_CHUNK_BATCH_RECEIVED_PACKET_ID {
         handle_chunk_batch_received_packet(&mut input, context.chunk_sender)?;
+    } else if packet_id == SERVERBOUND_CLIENT_INFORMATION_PACKET_ID {
+        // A mid-session settings change re-sends ClientInformation; propagate the
+        // listing preference to the status sample (Java
+        // `ServerGamePacketListenerImpl.handleClientInformation` →
+        // `ServerPlayer.updateOptions`).
+        let packet = ServerboundClientInformationPacket::read(&mut input)?;
+        context
+            .active_login
+            .set_allows_listing(packet.information.allows_listing);
     } else if !play_packet_is_handled_after_state_update(packet_id) {
         persist_play_disconnect_state(
             context.properties,
@@ -2682,6 +2718,7 @@ impl<'a, 'b> JoinedPlayPacketStepContext<'a, 'b> {
             chunk_sender: self.chunk_sender,
             live_fluid_ticks: self.live_fluid_ticks,
             play_tick_count: self.play_tick_count,
+            active_login: self.active_login,
         }
     }
 }
@@ -2776,13 +2813,16 @@ fn handle_login_connection(
     else {
         return Ok(());
     };
-    let _active_login = active_login;
     run_configuration_handshake(
         stream,
         context.shared.properties,
         compression,
         context.rate_limiter,
+        &active_login,
     )?;
+    // The player now enters the PLAY state — Java `PlayerList.placeNewPlayer`
+    // adds them to `getPlayers()`, which is what the status online count reflects.
+    active_login.mark_in_play();
     let LoginConnectionContext {
         shared,
         remote_address,
@@ -2797,10 +2837,17 @@ fn handle_login_connection(
             shared,
             remote_address,
             rate_limiter,
+            active_login: &active_login,
         },
     )
 }
 
+// The play session is a flat orchestrator: it unpacks the joined-session state
+// and then loops, delegating each tick to `tick_joined_play_session_loop` and
+// each inbound packet to `read_and_dispatch_joined_play_packet`. Its length is
+// almost entirely per-field context plumbing, so it reads more clearly as one
+// function than split across artificial seams.
+#[allow(clippy::too_many_lines)]
 fn run_joined_play_session(
     stream: &mut TcpStream,
     compression: CompressionState,
@@ -2811,6 +2858,7 @@ fn run_joined_play_session(
         shared,
         remote_address,
         rate_limiter,
+        active_login,
     } = context;
     let ConnectionSharedContext {
         properties,
@@ -2845,18 +2893,11 @@ fn run_joined_play_session(
         mut play_tick_count,
         mut live_fluid_ticks,
     } = initialize_joined_play_session(stream, compression, &finished, shared, remote_address)?;
-    // Per-session chunk sender (Java mirror: PlayerChunkSender attached to
-    // ServerPlayer). Seeded with the initial view-distance window below;
-    // the per-tick `drain_chunk_sender` call inside the play loop produces
-    // the actual chunk batches once the pipeline has generated chunks.
-    // `memory_connection=false` because this is a real socket-backed
-    // connection — Java's memory-connection short-circuit (LAN integrated
-    // servers) does not apply.
-    // Track last sent weather levels so we can detect changes and notify the client.
-    // Java: ServerLevel.advanceWeatherCycle() broadcasts RainLevelChange/ThunderLevelChange
-    // Hook A: wall-clock timer driving item entity age ticks at ~20 Hz (50 ms per tick).
-    // Java: ItemEntity.tick() — called once per server tick, ~50 ms.
-    // Latch: the `/biome` command tree is sent once, after the first chunk batch.
+    // The per-session `chunk_sender` (Java `PlayerChunkSender`), weather-level
+    // latches, and item-entity tick timer were all seeded in
+    // `initialize_joined_play_session`; the per-tick loop below drains/advances
+    // them. `join_commands_sent` latches the one-shot `/biome` command tree, sent
+    // once after the first chunk batch.
     let mut join_commands_sent = false;
     loop {
         tick_joined_play_session_loop(
@@ -2914,6 +2955,7 @@ fn run_joined_play_session(
                 chunk_sender: &mut chunk_sender,
                 live_fluid_ticks: &mut live_fluid_ticks,
                 play_tick_count,
+                active_login,
             },
         )?;
         if let PlayPacketDispatchOutcome::EndSession = packet_outcome {

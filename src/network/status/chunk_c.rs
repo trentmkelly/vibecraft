@@ -355,6 +355,7 @@ pub fn wait_for_configuration_packet<R: Read>(
         expected_packet_id,
         expected_name,
         &mut rate_limiter,
+        None,
     )
 }
 
@@ -364,6 +365,7 @@ pub fn wait_for_configuration_packet_with_rate_limit<R: Read>(
     expected_packet_id: i32,
     expected_name: &'static str,
     rate_limiter: &mut PacketRateLimiter,
+    active_login: Option<&ActiveLoginGuard>,
 ) -> io::Result<()> {
     for _ in 0..32 {
         let packet = read_packet_with_rate_limit(reader, compression, rate_limiter)?;
@@ -372,6 +374,17 @@ pub fn wait_for_configuration_packet_with_rate_limit<R: Read>(
         if packet_id == expected_packet_id {
             validate_expected_configuration_packet(&mut input, expected_packet_id)?;
             return Ok(());
+        }
+        if packet_id == SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID {
+            // The vanilla client interleaves its ClientInformation during
+            // configuration; capture the listing preference so the status player
+            // sample is correct when this player reaches the PLAY state (Java
+            // `ServerConfigurationPacketListenerImpl.handleClientInformation`).
+            if let Some(active_login) = active_login {
+                let packet = ServerboundClientInformationPacket::read(&mut input)?;
+                active_login.set_allows_listing(packet.information.allows_listing);
+            }
+            continue;
         }
         if is_tolerated_serverbound_configuration_packet(packet_id) {
             continue;

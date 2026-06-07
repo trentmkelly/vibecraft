@@ -903,6 +903,7 @@ pub fn configuration_wait_honors_connection_rate_limit() {
         SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID,
         "selected known packs",
         &mut rate_limiter,
+        None,
     )
     .unwrap_err();
     assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);

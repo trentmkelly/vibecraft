@@ -1,5 +1,6 @@
 use super::*;
 use crate::network::varint::read_frame_length;
+use crate::random_source::LegacyRandom;
 
 pub fn chat_type_nbt(chat_type: &ChatTypeEntry) -> Tag {
     Tag::Compound(vec![
@@ -449,6 +450,7 @@ pub fn write_status_pong_packet<W: Write>(
 pub fn handle_legacy_status_tcp_connection(
     stream: &mut TcpStream,
     properties: &ServerProperties,
+    online: usize,
 ) -> io::Result<()> {
     stream.set_nonblocking(true)?;
     let mut request = Vec::new();
@@ -466,7 +468,7 @@ pub fn handle_legacy_status_tcp_connection(
         }
     }
     stream.set_nonblocking(false)?;
-    let response = legacy_status_response(&request, properties)?;
+    let response = legacy_status_response(&request, properties, online)?;
     stream.write_all(&response)
 }
 
@@ -474,16 +476,18 @@ pub fn handle_legacy_status_tcp_connection(
 pub fn handle_legacy_status_connection<W: Read + Write>(
     stream: &mut W,
     properties: &ServerProperties,
+    online: usize,
 ) -> io::Result<()> {
     let mut request = Vec::new();
     stream.read_to_end(&mut request)?;
-    let response = legacy_status_response(&request, properties)?;
+    let response = legacy_status_response(&request, properties, online)?;
     stream.write_all(&response)
 }
 
 pub fn legacy_status_response(
     request: &[u8],
     properties: &ServerProperties,
+    online: usize,
 ) -> io::Result<Vec<u8>> {
     if request.first() != Some(&0xFE) {
         return Err(io::Error::new(
@@ -493,10 +497,10 @@ pub fn legacy_status_response(
     }
 
     let body = match &request[1..] {
-        [] => legacy_version0_response(properties),
-        [0x01] => legacy_version1_response(properties),
+        [] => legacy_version0_response(properties, online),
+        [0x01] => legacy_version1_response(properties, online),
         [0x01, tail @ ..] if read_legacy_ping_host_payload(tail).is_some() => {
-            legacy_version1_response(properties)
+            legacy_version1_response(properties, online)
         }
         _ => {
             return Err(io::Error::new(
@@ -541,14 +545,14 @@ pub fn read_legacy_ping_host_payload(input: &[u8]) -> Option<()> {
     (u32::from_be_bytes(port) <= u16::MAX as u32).then_some(())
 }
 
-pub fn legacy_version0_response(properties: &ServerProperties) -> String {
-    format!("{}§{}§{}", properties.motd, 0, properties.max_players)
+pub fn legacy_version0_response(properties: &ServerProperties, online: usize) -> String {
+    format!("{}§{}§{}", properties.motd, online, properties.max_players)
 }
 
-pub fn legacy_version1_response(properties: &ServerProperties) -> String {
+pub fn legacy_version1_response(properties: &ServerProperties, online: usize) -> String {
     format!(
         "§1\0{}\0{}\0{}\0{}\0{}",
-        127, VERSION_NAME, properties.motd, 0, properties.max_players
+        127, VERSION_NAME, properties.motd, online, properties.max_players
     )
 }
 
@@ -703,11 +707,126 @@ pub fn png_dimensions(bytes: &[u8]) -> io::Result<(u32, u32)> {
     Ok((width, height))
 }
 
-pub fn status_json(properties: &ServerProperties, favicon: Option<&str>) -> String {
-    let players = format!(
-        "\"players\":{{\"max\":{},\"online\":0,\"sample\":[]}}",
-        properties.max_players
-    );
+/// The maximum number of players included in a status response sample, 1:1 with
+/// Java `MinecraftServer.MAX_STATUS_PLAYER_SAMPLE`.
+pub const MAX_STATUS_PLAYER_SAMPLE: usize = 12;
+
+/// The dashed nil UUID used by the anonymous status profile (Java `Util.NIL_UUID`).
+pub const STATUS_ANONYMOUS_UUID: &str = "00000000-0000-0000-0000-000000000000";
+
+/// The display name of the anonymous status profile (Java
+/// `MinecraftServer.ANONYMOUS_PLAYER_PROFILE`).
+pub const STATUS_ANONYMOUS_NAME: &str = "Anonymous Player";
+
+/// A player visible to the status query: their offline profile id/name and
+/// whether they opted into server listings (Java `ServerPlayer.allowsListing`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StatusPlayer {
+    /// Dashed-lowercase profile UUID string (Java `UUIDUtil.STRING_CODEC` form).
+    pub uuid: String,
+    pub name: String,
+    pub allows_listing: bool,
+}
+
+/// Build the `(online, sample)` pair for a status response, 1:1 with Java
+/// `MinecraftServer.buildPlayerStatus`:
+/// - `online` is the live player count.
+/// - When `hide_online_players` is set the sample is empty (but the count is kept).
+/// - Otherwise up to [`MAX_STATUS_PLAYER_SAMPLE`] players are taken from a random
+///   contiguous window (`Mth.nextInt(random, 0, online - sampleSize)`), each shown
+///   by name when `allows_listing` else as the anonymous nil-UUID profile, and the
+///   resulting list is shuffled (`Util.shuffle`).
+///
+/// `random` is the server RNG equivalent; its sequence cannot match a live
+/// vanilla server's (that uses a long-lived non-deterministic `RandomSource`), so
+/// only the structural rules above are reproduced. For `online <= sampleSize`
+/// every player is included and `Mth.nextInt(random, 0, 0)` consumes no RNG —
+/// matching Java exactly — so only the shuffle reorders the (complete) list.
+pub fn build_player_status(
+    players: &[StatusPlayer],
+    hide_online_players: bool,
+    random: &mut LegacyRandom,
+) -> (usize, Vec<(String, String)>) {
+    let online = players.len();
+    if hide_online_players {
+        return (online, Vec::new());
+    }
+
+    let sample_size = online.min(MAX_STATUS_PLAYER_SAMPLE);
+    let max_offset = online - sample_size;
+    // Java `Mth.nextInt(random, 0, max_offset)`: when `min >= max` it returns
+    // `min` without drawing from the RNG.
+    let offset = if max_offset == 0 {
+        0
+    } else {
+        random.next_i32_bound(max_offset as i32 + 1) as usize
+    };
+
+    let mut sample: Vec<(String, String)> = (0..sample_size)
+        .map(|index| {
+            let player = &players[offset + index];
+            if player.allows_listing {
+                (player.uuid.clone(), player.name.clone())
+            } else {
+                (
+                    STATUS_ANONYMOUS_UUID.to_string(),
+                    STATUS_ANONYMOUS_NAME.to_string(),
+                )
+            }
+        })
+        .collect();
+
+    // Java `Util.shuffle`: Fisher-Yates from the tail.
+    for index in (2..=sample.len()).rev() {
+        let swap_to = random.next_i32_bound(index as i32) as usize;
+        sample.swap(index - 1, swap_to);
+    }
+
+    (online, sample)
+}
+
+/// Render the `"players"` object of a status response. `players` is the live
+/// in-play snapshot (see [`ActiveLoginRegistry::status_players`]).
+fn status_players_json(properties: &ServerProperties, players: &[StatusPlayer]) -> String {
+    // Seed the sample RNG deterministically from the player set. Java draws from
+    // the server's live RandomSource (non-deterministic across calls); since the
+    // sampled subset is only observable for >12 players and has no canonical
+    // permutation, a set-derived seed keeps behaviour reproducible without
+    // changing the conformance rules encoded in `build_player_status`.
+    let mut seed: i64 = players.len() as i64;
+    for player in players {
+        for byte in player.uuid.bytes() {
+            seed = seed.wrapping_mul(31).wrapping_add(byte as i64);
+        }
+    }
+    let mut random = LegacyRandom::new(seed);
+    let (online, sample) =
+        build_player_status(players, properties.hide_online_players, &mut random);
+
+    let sample_json = sample
+        .iter()
+        .map(|(uuid, name)| {
+            format!(
+                "{{\"id\":\"{}\",\"name\":\"{}\"}}",
+                escape_json_string(uuid),
+                escape_json_string(name)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+
+    format!(
+        "\"players\":{{\"max\":{},\"online\":{},\"sample\":[{}]}}",
+        properties.max_players, online, sample_json
+    )
+}
+
+pub fn status_json(
+    properties: &ServerProperties,
+    favicon: Option<&str>,
+    players: &[StatusPlayer],
+) -> String {
+    let players = status_players_json(properties, players);
 
     let favicon = favicon
         .map(|value| format!(",\"favicon\":\"{}\"", escape_json_string(value)))

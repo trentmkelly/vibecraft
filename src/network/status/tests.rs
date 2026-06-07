@@ -1,5 +1,5 @@
 use super::{
-    banner_pattern_nbt, bug_report_server_links_packet, cat_sound_variant_nbt,
+    banner_pattern_nbt, build_player_status, bug_report_server_links_packet, cat_sound_variant_nbt,
     chicken_sound_variant_nbt, cow_sound_variant_nbt, encode_base64, escape_json_string,
     function_permission_level_from_properties, handle_legacy_status_connection, instrument_nbt,
     legacy_disconnect_packet, legacy_version0_response, legacy_version1_response,
@@ -21,8 +21,10 @@ use super::{
     write_vanilla_trim_pattern_registry_packet, write_vanilla_wolf_sound_variant_registry_packet,
     write_vanilla_wolf_variant_registry_packet,
     write_vanilla_zombie_nautilus_variant_registry_packet, write_world_clock_registry_packet,
-    INSTRUMENTS, MAX_PACKET_SIZE, TRIM_MATERIALS,
+    ActiveLoginRegistry, StatusPlayer, INSTRUMENTS, MAX_PACKET_SIZE, MAX_STATUS_PLAYER_SAMPLE,
+    STATUS_ANONYMOUS_NAME, STATUS_ANONYMOUS_UUID, TRIM_MATERIALS,
 };
+use crate::random_source::LegacyRandom;
 use crate::command::PermissionLevel;
 use crate::network::common::{ServerLinkLabel, ServerLinkType};
 use crate::network::ping::ServerboundPingRequestPacket;
@@ -288,7 +290,7 @@ pub fn escapes_status_description() {
 pub fn includes_26_1_2_protocol_in_status_json() {
     let mut properties = test_properties();
     properties.set("motd", "RustCraft Test");
-    let json = status_json(&properties, None);
+    let json = status_json(&properties, None, &[]);
     assert!(json.contains("\"name\":\"26.1.2\""));
     assert!(json.contains("\"protocol\":775"));
     assert!(json.contains("\"max\":20"));
@@ -341,9 +343,162 @@ pub fn hidden_online_players_preserves_counts_and_omits_sample_entries() {
     properties.set("hide-online-players", "true");
     properties.set("max-players", "37");
 
-    let json = status_json(&properties, None);
+    let json = status_json(&properties, None, &[]);
 
     assert!(json.contains("\"players\":{\"max\":37,\"online\":0,\"sample\":[]}"));
+}
+
+fn status_player(name: &str, allows_listing: bool) -> StatusPlayer {
+    StatusPlayer {
+        uuid: crate::player_access::NameAndId::create_offline(name).uuid,
+        name: name.to_string(),
+        allows_listing,
+    }
+}
+
+#[test]
+pub fn status_json_reports_live_online_count_and_listed_player_sample() {
+    let properties = test_properties();
+    let players = [status_player("Alex", true), status_player("Steve", true)];
+
+    let json = status_json(&properties, None, &players);
+
+    // Online count reflects the live in-play set, max from properties.
+    assert!(json.contains("\"online\":2"));
+    assert!(json.contains("\"max\":20"));
+    // Both listed players appear by name + dashed UUID (order is shuffled, so
+    // assert membership rather than a fixed sequence).
+    assert!(json.contains("\"name\":\"Alex\""));
+    assert!(json.contains("\"name\":\"Steve\""));
+    assert!(json.contains(&format!(
+        "\"id\":\"{}\"",
+        crate::player_access::NameAndId::create_offline("Alex").uuid
+    )));
+}
+
+#[test]
+pub fn status_json_anonymises_players_who_opt_out_of_listing() {
+    let properties = test_properties();
+    // Steve opted out (allowsListing=false) → shown as the anonymous nil profile.
+    let players = [status_player("Steve", false)];
+
+    let json = status_json(&properties, None, &players);
+
+    assert!(json.contains("\"online\":1"));
+    assert!(json.contains(&format!("\"name\":\"{STATUS_ANONYMOUS_NAME}\"")));
+    assert!(json.contains(&format!("\"id\":\"{STATUS_ANONYMOUS_UUID}\"")));
+    assert!(!json.contains("\"name\":\"Steve\""));
+}
+
+#[test]
+pub fn build_player_status_includes_every_player_when_under_sample_cap() {
+    // For online <= 12 the whole roster is included (Mth.nextInt(0,0) offset),
+    // only reordered by the shuffle.
+    let players: Vec<StatusPlayer> = (0..MAX_STATUS_PLAYER_SAMPLE)
+        .map(|index| status_player(&format!("Player{index}"), true))
+        .collect();
+    let mut random = LegacyRandom::new(1);
+
+    let (online, sample) = build_player_status(&players, false, &mut random);
+
+    assert_eq!(online, MAX_STATUS_PLAYER_SAMPLE);
+    assert_eq!(sample.len(), MAX_STATUS_PLAYER_SAMPLE);
+    let names: std::collections::BTreeSet<&str> =
+        sample.iter().map(|(_, name)| name.as_str()).collect();
+    let expected: std::collections::BTreeSet<&str> =
+        players.iter().map(|player| player.name.as_str()).collect();
+    assert_eq!(names, expected);
+}
+
+#[test]
+pub fn build_player_status_caps_sample_at_twelve_and_keeps_full_count() {
+    // 20 players online → online=20 but the sample is capped at 12 (Java
+    // MAX_STATUS_PLAYER_SAMPLE), drawn from a contiguous window.
+    let players: Vec<StatusPlayer> = (0..20)
+        .map(|index| status_player(&format!("Player{index:02}"), true))
+        .collect();
+    let mut random = LegacyRandom::new(42);
+
+    let (online, sample) = build_player_status(&players, false, &mut random);
+
+    assert_eq!(online, 20);
+    assert_eq!(sample.len(), MAX_STATUS_PLAYER_SAMPLE);
+}
+
+#[test]
+pub fn build_player_status_hidden_returns_count_only() {
+    let players = [status_player("Alex", true), status_player("Steve", true)];
+    let mut random = LegacyRandom::new(7);
+
+    let (online, sample) = build_player_status(&players, true, &mut random);
+
+    assert_eq!(online, 2);
+    assert!(sample.is_empty());
+}
+
+/// Open a real loopback TCP connection and return the client end, so registry
+/// sessions (which hold a cloned `TcpStream`) can be exercised without a socket
+/// mock. The accepted server end is dropped — only the handle matters here.
+fn loopback_stream() -> std::net::TcpStream {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    let client = std::net::TcpStream::connect(addr).unwrap();
+    let _server = listener.accept().unwrap();
+    client
+}
+
+#[test]
+pub fn active_login_registry_only_counts_in_play_sessions_and_tracks_listing() {
+    let registry = ActiveLoginRegistry::default();
+    let alex = crate::player_access::NameAndId::create_offline("Alex");
+    let (alex_guard, replaced) = registry
+        .register_replacing(&alex.uuid, "Alex", &loopback_stream())
+        .unwrap();
+    assert!(replaced.is_none());
+
+    // Still in login/config — not counted toward the status online total yet
+    // (Java only counts players added to PlayerList on play entry).
+    assert_eq!(registry.online_count(), 0);
+    assert!(registry.status_players().is_empty());
+
+    // Entering PLAY makes the player visible; listing defaults to false
+    // (ClientInformation.createDefault), so the sample anonymises them.
+    alex_guard.mark_in_play();
+    assert_eq!(registry.online_count(), 1);
+    assert_eq!(registry.online_player_names(), vec!["Alex".to_string()]);
+    let sampled = registry.status_players();
+    assert_eq!(sampled.len(), 1);
+    assert!(!sampled[0].allows_listing);
+
+    // A ClientInformation opt-in flips the listing flag for the sample.
+    alex_guard.set_allows_listing(true);
+    assert!(registry.status_players()[0].allows_listing);
+}
+
+#[test]
+pub fn active_login_registry_replacement_uses_new_session_and_token_guards_old() {
+    let registry = ActiveLoginRegistry::default();
+    let steve = crate::player_access::NameAndId::create_offline("Steve");
+    let (old_guard, _) = registry
+        .register_replacing(&steve.uuid, "Steve", &loopback_stream())
+        .unwrap();
+    old_guard.mark_in_play();
+
+    // A second login for the same UUID replaces the session and returns the old
+    // stream so the caller can disconnect it ("logged in from another location").
+    let (new_guard, replaced) = registry
+        .register_replacing(&steve.uuid, "Steve", &loopback_stream())
+        .unwrap();
+    assert!(replaced.is_some());
+    new_guard.mark_in_play();
+    assert_eq!(registry.online_count(), 1);
+
+    // The stale guard's token no longer matches, so dropping/updating it cannot
+    // clobber the live session.
+    old_guard.set_allows_listing(true);
+    assert!(!registry.status_players()[0].allows_listing);
+    new_guard.set_allows_listing(true);
+    assert!(registry.status_players()[0].allows_listing);
 }
 
 #[test]
@@ -439,7 +594,7 @@ pub fn login_access_gate_matches_java_ban_whitelist_and_op_order() {
 #[test]
 pub fn includes_favicon_when_present() {
     let properties = test_properties();
-    let json = status_json(&properties, Some("data:image/png;base64,iVBORw0KGgo="));
+    let json = status_json(&properties, Some("data:image/png;base64,iVBORw0KGgo="), &[]);
     assert!(json.contains("\"favicon\":\"data:image/png;base64,iVBORw0KGgo=\""));
 }
 
@@ -525,11 +680,11 @@ pub fn formats_legacy_status_responses_like_vanilla() -> io::Result<()> {
     let properties = test_properties();
 
     assert_eq!(
-        legacy_version0_response(&properties),
+        legacy_version0_response(&properties, 0),
         "A Minecraft Server§0§20"
     );
     assert_eq!(
-        legacy_version1_response(&properties),
+        legacy_version1_response(&properties, 0),
         "§1\x00127\x0026.1.2\0A Minecraft Server\x000\x0020"
     );
 
@@ -551,7 +706,7 @@ pub fn handles_legacy_1_6_ping_host_payload() {
     request.extend_from_slice(&payload);
 
     let mut stream = CursorStream::new(request);
-    handle_legacy_status_connection(&mut stream, &properties).unwrap();
+    handle_legacy_status_connection(&mut stream, &properties, 0).unwrap();
 
     assert_eq!(stream.written[0], 255);
     assert_eq!(

@@ -703,6 +703,18 @@ pub struct ActiveLoginRegistry {
 pub struct ActiveLoginSession {
     pub token: u64,
     pub stream: TcpStream,
+    /// Player profile name captured at login, used to build the status player
+    /// sample (Java `NameAndId.name`).
+    pub name: String,
+    /// Whether the player has reached the PLAY state. Java only counts players in
+    /// `PlayerList.getPlayers()` (added on play entry) toward the status online
+    /// count, so login/configuration-phase sessions are excluded until this flips.
+    pub in_play: bool,
+    /// Whether the player opted into server listings (Java
+    /// `ServerPlayer.allowsListing`). Defaults to `false` — matching
+    /// `ClientInformation.createDefault()` — and is updated when a
+    /// `ServerboundClientInformation` packet arrives during configuration or play.
+    pub allows_listing: bool,
 }
 
 pub struct ActiveLoginGuard {
@@ -711,10 +723,37 @@ pub struct ActiveLoginGuard {
     pub token: u64,
 }
 
+impl ActiveLoginGuard {
+    /// Update this session's listing preference, 1:1 with the effect of Java
+    /// `ServerPlayer.updateOptions` propagating `ClientInformation.allowsListing`.
+    /// The token guard ensures a stale (already-replaced) login can never clobber
+    /// the session that displaced it.
+    pub fn set_allows_listing(&self, allows_listing: bool) {
+        self.with_own_session(|session| session.allows_listing = allows_listing);
+    }
+
+    /// Mark this session as having entered the PLAY state so it is counted in the
+    /// status online total (Java `PlayerList.placeNewPlayer` adding the player).
+    pub fn mark_in_play(&self) {
+        self.with_own_session(|session| session.in_play = true);
+    }
+
+    fn with_own_session(&self, update: impl FnOnce(&mut ActiveLoginSession)) {
+        if let Ok(mut sessions) = self.sessions.lock() {
+            if let Some(session) = sessions.get_mut(&self.uuid) {
+                if session.token == self.token {
+                    update(session);
+                }
+            }
+        }
+    }
+}
+
 impl ActiveLoginRegistry {
     pub fn register_replacing(
         &self,
         uuid: &str,
+        name: &str,
         stream: &TcpStream,
     ) -> io::Result<(ActiveLoginGuard, Option<TcpStream>)> {
         let token = self.next_token.fetch_add(1, Ordering::Relaxed);
@@ -724,7 +763,16 @@ impl ActiveLoginRegistry {
             .lock()
             .map_err(|_| io::Error::other("active login registry mutex poisoned"))?;
         let old = sessions
-            .insert(uuid.to_string(), ActiveLoginSession { token, stream })
+            .insert(
+                uuid.to_string(),
+                ActiveLoginSession {
+                    token,
+                    stream,
+                    name: name.to_string(),
+                    in_play: false,
+                    allows_listing: false,
+                },
+            )
             .map(|session| session.stream);
 
         Ok((
@@ -735,5 +783,47 @@ impl ActiveLoginRegistry {
             },
             old,
         ))
+    }
+
+    /// Snapshot the players currently in the PLAY state for a status response, as
+    /// `(uuid, name, allows_listing)` triples. Mirrors Java
+    /// `MinecraftServer.buildPlayerStatus` reading `playerList.getPlayers()`:
+    /// login/configuration-phase sessions are excluded.
+    pub fn status_players(&self) -> Vec<StatusPlayer> {
+        match self.sessions.lock() {
+            Ok(sessions) => sessions
+                .iter()
+                .filter(|(_, session)| session.in_play)
+                .map(|(uuid, session)| StatusPlayer {
+                    uuid: uuid.clone(),
+                    name: session.name.clone(),
+                    allows_listing: session.allows_listing,
+                })
+                .collect(),
+            Err(_) => Vec::new(),
+        }
+    }
+
+    /// Number of players currently in the PLAY state — the status online count
+    /// (Java `playerList.getPlayers().size()`).
+    pub fn online_count(&self) -> usize {
+        match self.sessions.lock() {
+            Ok(sessions) => sessions.values().filter(|session| session.in_play).count(),
+            Err(_) => 0,
+        }
+    }
+
+    /// Names of every player currently in the PLAY state, for the GS4 query
+    /// response (Java `PlayerList.getPlayerNamesArray`). Unlike the status sample
+    /// this is not filtered by listing preference — the query lists all players.
+    pub fn online_player_names(&self) -> Vec<String> {
+        match self.sessions.lock() {
+            Ok(sessions) => sessions
+                .values()
+                .filter(|session| session.in_play)
+                .map(|session| session.name.clone())
+                .collect(),
+            Err(_) => Vec::new(),
+        }
     }
 }

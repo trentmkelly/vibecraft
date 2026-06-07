@@ -168,7 +168,7 @@ use eula::Eula;
 use log::{LogLevel, Logger};
 use network::query::{spawn_query_server, QueryServerInfo};
 use network::rcon::spawn_rcon_server;
-use network::status::{read_code_of_conducts, run_status_server};
+use network::status::{read_code_of_conducts, run_status_server, ActiveLoginRegistry};
 use resources::{
     configure_pack_repository, DataPackConfig, DataPackRepository, PackConfigureOptions,
     WorldDataConfiguration,
@@ -498,6 +498,11 @@ fn start_network_listeners(
     logger.info("Starting status/login listener with minimal play join support.")?;
 
     let bind_ip = listener_bind_ip(properties);
+    // Shared registry of online players, populated by the status/login listener as
+    // players reach the PLAY state. Both the status and GS4 query listeners read it
+    // so they report the same live player count and names (Java `MinecraftServer`
+    // owns the single `PlayerList` both protocols consult).
+    let active_logins = ActiveLoginRegistry::default();
     if properties.enable_query {
         let query_info = QueryServerInfo {
             server_name: properties.motd.clone(),
@@ -510,7 +515,12 @@ fn start_network_listeners(
             max_players: properties.max_players as usize,
             player_names: Vec::new(),
         };
-        spawn_query_server(bind_ip, properties.query_port, query_info)?;
+        spawn_query_server(
+            bind_ip,
+            properties.query_port,
+            query_info,
+            Some(active_logins.clone()),
+        )?;
         logger.info(&format!(
             "Query listener binding to {bind_ip}:{}",
             properties.query_port
@@ -542,6 +552,7 @@ fn start_network_listeners(
         &runtime.universe.join(&runtime.world_name),
         world_seed,
         console_input,
+        active_logins,
     )
 }
 
