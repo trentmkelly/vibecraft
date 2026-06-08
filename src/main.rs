@@ -6,6 +6,8 @@ mod advancement_rewards;
 mod advancement_system;
 #[cfg(test)]
 mod advancement_tree;
+#[cfg(test)]
+mod advancement_trigger_registry;
 mod ai_system;
 mod attribute_system;
 mod base_entity;
