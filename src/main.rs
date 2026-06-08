@@ -77,6 +77,8 @@ mod command_hex_color_argument;
 #[cfg(test)]
 mod command_heightmap_type_argument;
 #[cfg(test)]
+mod command_identifier_argument;
+#[cfg(test)]
 mod command_parser_utils;
 #[cfg(test)]
 mod command_result_callback;
