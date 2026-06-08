@@ -61,6 +61,8 @@ mod command_cacheable_function;
 #[cfg(test)]
 mod command_build_context;
 #[cfg(test)]
+mod command_color_argument;
+#[cfg(test)]
 mod command_commands;
 #[cfg(test)]
 mod command_execution_source;
