@@ -93,6 +93,8 @@ mod command_result_callback;
 #[cfg(test)]
 mod command_signing_context;
 #[cfg(test)]
+mod command_slot_arguments;
+#[cfg(test)]
 mod command_source;
 #[cfg(test)]
 mod command_source_stack;
