@@ -187,6 +187,8 @@ mod criterion_bee_nest;
 mod criterion_block_interaction;
 #[cfg(test)]
 mod criterion_slots_predicate;
+#[cfg(test)]
+mod criterion_spear_mobs;
 mod crash;
 mod crash_recovery_tests;
 #[cfg(test)]
