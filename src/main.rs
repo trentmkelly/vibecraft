@@ -89,6 +89,8 @@ mod command_source;
 #[cfg(test)]
 mod command_source_stack;
 #[cfg(test)]
+mod command_scoreboard_slot_argument;
+#[cfg(test)]
 mod command_shared_suggestion_provider;
 #[cfg(test)]
 mod command_string_representable_argument;

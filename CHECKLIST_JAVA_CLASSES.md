@@ -176,7 +176,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/ResourceOrTagKeyArgument.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/ResourceSelectorArgument.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/ScoreHolderArgument.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/ScoreboardSlotArgument.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/ScoreboardSlotArgument.java`. Rust `command_scoreboard_slot_argument` covers Java's `displaySlot()` factory, examples, typed `getDisplaySlot` context retrieval, `StringReader.readUnquotedString` token/cursor behavior, exact case-sensitive `DisplaySlot.CODEC.byName` parsing, invalid values without cursor reset, suggestions over every `DisplaySlot.getSerializedName`, `DisplaySlot` enum order/ids/names, `BY_ID` zero fallback, and `teamColorToSlot` mappings for colors versus formats; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 scoreboard_slot_argument`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/SignedArgument.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/SlotArgument.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/SlotsArgument.java`.
