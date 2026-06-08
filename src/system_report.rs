@@ -137,6 +137,12 @@ pub struct SystemReportModel {
 }
 
 impl SystemReportModel {
+    pub fn empty() -> Self {
+        Self {
+            entries: Vec::new(),
+        }
+    }
+
     pub fn new(
         version: &WorldVersionModel,
         runtime: &JavaRuntimeSnapshotModel,

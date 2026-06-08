@@ -9,6 +9,8 @@ use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::block_update::BlockPos;
+use crate::report_type::ReportTypeModel;
+use crate::system_report::SystemReportModel;
 
 pub fn install_panic_hook() {
     panic::set_hook(Box::new(|info| {
@@ -273,6 +275,9 @@ impl fmt::Display for JavaStackTraceElementModel {
 pub struct JavaThrowableModel {
     pub class_simple_name: String,
     pub message: Option<String>,
+    pub stack_trace: Vec<JavaStackTraceElementModel>,
+    pub cause: Option<Box<JavaThrowableModel>>,
+    pub reported_exception_report: Option<Box<CrashReportReferenceModel>>,
 }
 
 impl JavaThrowableModel {
@@ -280,7 +285,316 @@ impl JavaThrowableModel {
         Self {
             class_simple_name: class_simple_name.into(),
             message: message.map(Into::into),
+            stack_trace: Vec::new(),
+            cause: None,
+            reported_exception_report: None,
         }
+    }
+
+    pub fn with_stack_trace(mut self, stack_trace: Vec<JavaStackTraceElementModel>) -> Self {
+        self.stack_trace = stack_trace;
+        self
+    }
+
+    pub fn completion_exception(cause: JavaThrowableModel) -> Self {
+        Self {
+            class_simple_name: "CompletionException".to_string(),
+            message: None,
+            stack_trace: Vec::new(),
+            cause: Some(Box::new(cause)),
+            reported_exception_report: None,
+        }
+    }
+
+    pub fn reported_exception(report: CrashReportReferenceModel) -> Self {
+        Self {
+            class_simple_name: "ReportedException".to_string(),
+            message: Some(report.get_title().to_string()),
+            stack_trace: Vec::new(),
+            cause: Some(Box::new(report.get_exception().clone())),
+            reported_exception_report: Some(Box::new(report)),
+        }
+    }
+
+    fn class_name_for_printing(&self) -> String {
+        if self.class_simple_name.contains('.') {
+            self.class_simple_name.clone()
+        } else {
+            format!("java.lang.{}", self.class_simple_name)
+        }
+    }
+
+    fn with_title_message_for_null_message(&self, title: &str) -> Self {
+        if self.message.is_some() {
+            return self.clone();
+        }
+
+        match self.class_simple_name.as_str() {
+            "NullPointerException" | "StackOverflowError" | "OutOfMemoryError" => {
+                let mut replacement = self.clone();
+                replacement.message = Some(title.to_string());
+                replacement
+            }
+            _ => self.clone(),
+        }
+    }
+
+    pub fn print_stack_trace_string(&self) -> String {
+        let mut out = String::new();
+        out.push_str(&self.class_name_for_printing());
+        if let Some(message) = &self.message {
+            out.push_str(": ");
+            out.push_str(message);
+        }
+        out.push('\n');
+        for element in &self.stack_trace {
+            out.push_str("\tat ");
+            out.push_str(&element.to_string());
+            out.push('\n');
+        }
+        out
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CrashReportSaveError {
+    Io(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CrashReportPreloadAction {
+    AllocateMemoryReserve,
+    BuildFriendlyReport { title: &'static str },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CrashReportModel {
+    title: String,
+    exception: JavaThrowableModel,
+    details: Vec<CrashReportCategoryModel>,
+    save_file: Option<PathBuf>,
+    tracking_stack_trace: bool,
+    uncategorized_stack_trace: Option<Vec<JavaStackTraceElementModel>>,
+    system_report: SystemReportModel,
+}
+
+impl CrashReportModel {
+    pub fn new(
+        title: impl Into<String>,
+        exception: JavaThrowableModel,
+        system_report: SystemReportModel,
+    ) -> Self {
+        Self {
+            title: title.into(),
+            exception,
+            details: Vec::new(),
+            save_file: None,
+            tracking_stack_trace: true,
+            uncategorized_stack_trace: Some(Vec::new()),
+            system_report,
+        }
+    }
+
+    pub fn get_title(&self) -> &str {
+        &self.title
+    }
+
+    pub fn get_exception(&self) -> &JavaThrowableModel {
+        &self.exception
+    }
+
+    pub fn get_save_file(&self) -> Option<&Path> {
+        self.save_file.as_deref()
+    }
+
+    pub fn get_system_report(&self) -> &SystemReportModel {
+        &self.system_report
+    }
+
+    pub fn get_exception_message(&self) -> String {
+        self.exception
+            .with_title_message_for_null_message(&self.title)
+            .print_stack_trace_string()
+    }
+
+    pub fn add_category_from_thread_trace(
+        &mut self,
+        name: impl Into<String>,
+        nested_offset: usize,
+        current_thread_trace: &[JavaStackTraceElementModel],
+    ) -> &CrashReportCategoryModel {
+        let mut category = CrashReportCategoryModel::new(name);
+        if self.tracking_stack_trace {
+            let size =
+                category.fill_in_stack_trace_from_thread_trace(current_thread_trace, nested_offset);
+            let full_trace = &self.exception.stack_trace;
+            let trace_index = full_trace.len() as isize - size as isize;
+            let source = usize::try_from(trace_index)
+                .ok()
+                .and_then(|index| full_trace.get(index))
+                .cloned();
+            let next = if full_trace.len() + 1 >= size {
+                full_trace.get(full_trace.len() + 1 - size).cloned()
+            } else {
+                None
+            };
+
+            self.tracking_stack_trace = category.validate_stack_trace(source, next);
+            if full_trace.len() >= size
+                && trace_index >= 0
+                && (trace_index as usize) < full_trace.len()
+            {
+                self.uncategorized_stack_trace = Some(full_trace[..trace_index as usize].to_vec());
+            } else {
+                self.tracking_stack_trace = false;
+            }
+        }
+
+        self.details.push(category);
+        let index = self.details.len() - 1;
+        &self.details[index]
+    }
+
+    pub fn get_details(&mut self, current_thread_name: &str) -> String {
+        let mut builder = String::new();
+        self.append_details(&mut builder, current_thread_name);
+        builder
+    }
+
+    pub fn append_details(&mut self, builder: &mut String, current_thread_name: &str) {
+        if self
+            .uncategorized_stack_trace
+            .as_ref()
+            .is_none_or(Vec::is_empty)
+            && !self.details.is_empty()
+        {
+            self.uncategorized_stack_trace = Some(
+                self.details[0]
+                    .stacktrace()
+                    .iter()
+                    .take(1)
+                    .cloned()
+                    .collect(),
+            );
+        }
+
+        if let Some(stack_trace) = &self.uncategorized_stack_trace {
+            if !stack_trace.is_empty() {
+                builder.push_str("-- Head --\n");
+                builder.push_str("Thread: ");
+                builder.push_str(current_thread_name);
+                builder.push_str("\nStacktrace:\n");
+                for element in stack_trace {
+                    builder.push_str("\tat ");
+                    builder.push_str(&element.to_string());
+                    builder.push('\n');
+                }
+                builder.push('\n');
+            }
+        }
+
+        for entry in &self.details {
+            entry.get_details(builder);
+            builder.push_str("\n\n");
+        }
+
+        self.system_report.append_to_crash_report_string(builder);
+    }
+
+    pub fn get_friendly_report_at(
+        &mut self,
+        report_type: ReportTypeModel,
+        extra_comments: &[&str],
+        current_thread_name: &str,
+        formatted_time: &str,
+        nanos: u128,
+    ) -> String {
+        let mut builder = String::new();
+        report_type.append_header_at_nanos(&mut builder, extra_comments, nanos);
+        builder.push_str("Time: ");
+        builder.push_str(formatted_time);
+        builder.push('\n');
+        builder.push_str("Description: ");
+        builder.push_str(&self.title);
+        builder.push_str("\n\n");
+        builder.push_str(&self.get_exception_message());
+        builder.push_str(
+            "\n\nA detailed walkthrough of the error, its code path and all known details is as follows:\n",
+        );
+        builder.push_str(&"-".repeat(87));
+        builder.push_str("\n\n");
+        self.append_details(&mut builder, current_thread_name);
+        builder
+    }
+
+    pub fn save_to_file_at(
+        &mut self,
+        save_file: &Path,
+        report_type: ReportTypeModel,
+        extra_comments: &[&str],
+        current_thread_name: &str,
+        formatted_time: &str,
+        nanos: u128,
+    ) -> bool {
+        if self.save_file.is_some() {
+            return false;
+        }
+
+        let result = (|| -> std::io::Result<()> {
+            if let Some(parent) = save_file.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::write(
+                save_file,
+                self.get_friendly_report_at(
+                    report_type,
+                    extra_comments,
+                    current_thread_name,
+                    formatted_time,
+                    nanos,
+                ),
+            )
+        })();
+
+        if result.is_ok() {
+            self.save_file = Some(save_file.to_path_buf());
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn for_throwable(
+        throwable: JavaThrowableModel,
+        title: &str,
+        system_report: SystemReportModel,
+    ) -> Self {
+        let mut current = throwable;
+        while current.class_simple_name == "CompletionException" {
+            let Some(cause) = current.cause.take() else {
+                break;
+            };
+            current = *cause;
+        }
+
+        if let Some(report) = current.reported_exception_report {
+            Self::new(
+                report.get_title().to_string(),
+                report.get_exception().clone(),
+                system_report,
+            )
+        } else {
+            Self::new(title.to_string(), current, system_report)
+        }
+    }
+
+    pub fn preload_actions() -> Vec<CrashReportPreloadAction> {
+        vec![
+            CrashReportPreloadAction::AllocateMemoryReserve,
+            CrashReportPreloadAction::BuildFriendlyReport {
+                title: "Don't panic!",
+            },
+        ]
     }
 }
 
@@ -549,237 +863,4 @@ fn section_to_block_coord(section_coord: i32) -> i32 {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{
-        crash_report_format_block_location_xyz, crash_report_format_location,
-        crash_report_format_location_in_level, CrashReport, CrashReportCategoryModel,
-        CrashReportDetailValue, JavaLevelHeightAccessorModel, JavaStackTraceElementModel,
-        JavaThrowableModel,
-    };
-    use crate::block_update::BlockPos;
-    use std::fs;
-
-    #[test]
-    fn rendered_crash_report_contains_required_sections() {
-        let report = CrashReport {
-            title: "boom".to_string(),
-            details: vec![
-                ("Thread".to_string(), "main".to_string()),
-                ("World State".to_string(), "not loaded".to_string()),
-            ],
-            backtrace: "trace".to_string(),
-        };
-
-        let rendered = report.render();
-        assert!(rendered.contains("---- RustCraft Crash Report ----"));
-        assert!(rendered.contains("Description: boom"));
-        assert!(rendered.contains("-- System Details --"));
-        assert!(rendered.contains("World State: not loaded"));
-        assert!(rendered.contains("-- Backtrace --"));
-    }
-
-    #[test]
-    fn writes_vanilla_named_server_crash_report_file() {
-        let mut dir = std::env::temp_dir();
-        dir.push(format!("rustcraft-crash-report-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
-
-        let report = CrashReport {
-            title: "boom".to_string(),
-            details: vec![("Thread".to_string(), "main".to_string())],
-            backtrace: "trace".to_string(),
-        };
-
-        let path = report.write_to_dir(&dir).unwrap();
-        let file_name = path.file_name().unwrap().to_string_lossy();
-        assert!(file_name.starts_with("crash-"));
-        assert!(file_name.ends_with("-server.txt"));
-        assert!(fs::read_to_string(path)
-            .unwrap()
-            .contains("Description: boom"));
-
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn crash_report_category_entry_values_match_java_entry_constructor() {
-        let mut category = CrashReportCategoryModel::new("Level");
-        category.set_detail("String", "stone");
-        category.set_detail("Number", 7);
-        category.set_detail_null("Null");
-        category.set_detail_error(
-            "Failure",
-            JavaThrowableModel::new("IllegalStateException", Some("bad state")),
-        );
-        category.set_detail_error(
-            "Missing message",
-            JavaThrowableModel::new("NullPointerException", Option::<String>::None),
-        );
-
-        assert_eq!(
-            category.details(),
-            "-- Level --\nDetails:\n\tString: stone\n\tNumber: 7\n\tNull: ~~NULL~~\n\tFailure: ~~ERROR~~ IllegalStateException: bad state\n\tMissing message: ~~ERROR~~ NullPointerException: null"
-        );
-    }
-
-    #[test]
-    fn crash_report_category_detail_callback_matches_java_callable_handling() {
-        let mut category = CrashReportCategoryModel::new("Callbacks");
-        category.set_detail_callback("Ok", || Ok(CrashReportDetailValue::from("value")));
-        category.set_detail_callback("Err", || {
-            Err(JavaThrowableModel::new("RuntimeException", Some("boom")))
-        });
-
-        assert_eq!(
-            category.details(),
-            "-- Callbacks --\nDetails:\n\tOk: value\n\tErr: ~~ERROR~~ RuntimeException: boom"
-        );
-    }
-
-    #[test]
-    fn crash_report_category_location_formatting_matches_java_math() {
-        let level = JavaLevelHeightAccessorModel {
-            min_y: -64,
-            max_y: 319,
-        };
-
-        assert_eq!(
-            crash_report_format_location(1.234, -5.0, 9.876),
-            "1.23,-5.00,9.88"
-        );
-        assert_eq!(
-            crash_report_format_location_in_level(level, -1.2, 70.9, 512.0),
-            "-1.20,70.90,512.00 - World: (-2,70,512), Section: (at 14,6,0 in -1,4,32; chunk contains blocks -16,-64,512 to -1,319,527), Region: (-1,1; contains chunks -32,32 to -1,63, blocks -512,-64,512 to -1,319,1023)"
-        );
-        assert_eq!(
-            crash_report_format_block_location_xyz(level, 32, -1, -33),
-            "World: (32,-1,-33), Section: (at 0,15,15 in 2,-1,-3; chunk contains blocks 32,-64,-48 to 47,319,-33), Region: (0,-1; contains chunks 0,-32 to 31,-1, blocks 0,-64,-512 to 511,319,-1)"
-        );
-    }
-
-    #[test]
-    fn crash_report_category_stacktrace_render_trim_and_validate_match_java() {
-        let full = vec![
-            JavaStackTraceElementModel::new("java.lang.Thread", "getStackTrace", "Thread.java", 1),
-            JavaStackTraceElementModel::new(
-                "net.minecraft.CrashReportCategory",
-                "fillInStackTrace",
-                "CrashReportCategory.java",
-                126,
-            ),
-            JavaStackTraceElementModel::new(
-                "net.minecraft.CrashReport",
-                "addCategory",
-                "CrashReport.java",
-                145,
-            ),
-            JavaStackTraceElementModel::new("game.Source", "tick", "Source.java", 10),
-            JavaStackTraceElementModel::new("game.Next", "run", "Next.java", 20),
-        ];
-        let mut category = CrashReportCategoryModel::new("Stack");
-
-        assert_eq!(category.fill_in_stack_trace_from_thread_trace(&full, 0), 2);
-        assert_eq!(
-            category.stacktrace(),
-            &[
-                JavaStackTraceElementModel::new("game.Source", "tick", "Source.java", 10),
-                JavaStackTraceElementModel::new("game.Next", "run", "Next.java", 20),
-            ]
-        );
-
-        let source = JavaStackTraceElementModel::new("game.Source", "tick", "Source.java", 99);
-        let next = JavaStackTraceElementModel::new("game.Next", "run", "Next.java", 20);
-        assert!(category.validate_stack_trace(Some(source.clone()), Some(next)));
-        assert_eq!(category.stacktrace()[0], source);
-        assert!(category.details().contains("\nStacktrace:\n\tat game.Source.tick(Source.java:99)\n\tat game.Next.run(Next.java:20)"));
-
-        assert!(!category.validate_stack_trace(
-            Some(JavaStackTraceElementModel::new(
-                "other.Source",
-                "tick",
-                "Source.java",
-                99
-            )),
-            Some(JavaStackTraceElementModel::new(
-                "game.Next",
-                "run",
-                "Next.java",
-                20
-            )),
-        ));
-
-        category.trim_stacktrace(1);
-        assert_eq!(
-            category.stacktrace(),
-            &[JavaStackTraceElementModel::new(
-                "game.Source",
-                "tick",
-                "Source.java",
-                99
-            )]
-        );
-    }
-
-    #[test]
-    fn crash_report_category_block_location_uses_block_pos() {
-        let level = JavaLevelHeightAccessorModel {
-            min_y: 0,
-            max_y: 255,
-        };
-        assert_eq!(
-            super::crash_report_format_block_location(
-                level,
-                BlockPos {
-                    x: 15,
-                    y: 64,
-                    z: 16,
-                },
-            ),
-            "World: (15,64,16), Section: (at 15,0,0 in 0,4,1; chunk contains blocks 0,0,16 to 15,255,31), Region: (0,0; contains chunks 0,0 to 31,31, blocks 0,0,0 to 511,255,511)"
-        );
-    }
-
-    #[test]
-    fn default_uncaught_exception_handler_matches_java_single_logger_call() {
-        let throwable = JavaThrowableModel::new("IllegalStateException", Some("boom"));
-        let exception = super::JavaUncaughtExceptionModel::new("Server thread", throwable.clone());
-
-        assert_eq!(
-            super::default_uncaught_exception_handler_actions(exception),
-            vec![super::JavaUncaughtExceptionLogAction::WithThrowable {
-                message: "Caught previously unhandled exception :",
-                throwable,
-            }]
-        );
-    }
-
-    #[test]
-    fn default_uncaught_exception_handler_with_name_matches_java_two_logger_calls() {
-        let throwable = JavaThrowableModel::new("RuntimeException", Some("bad tick"));
-        let exception = super::JavaUncaughtExceptionModel::new("Worker-1", throwable.clone());
-
-        assert_eq!(
-            super::default_uncaught_exception_handler_with_name_actions(exception),
-            vec![
-                super::JavaUncaughtExceptionLogAction::Message {
-                    message: "Caught previously unhandled exception :",
-                },
-                super::JavaUncaughtExceptionLogAction::ThreadThrowable {
-                    thread_name: "Worker-1".to_string(),
-                    throwable,
-                },
-            ]
-        );
-    }
-
-    #[test]
-    fn reported_exception_delegates_report_cause_and_message_like_java() {
-        let throwable = JavaThrowableModel::new("IllegalArgumentException", Some("bad id"));
-        let report = super::CrashReportReferenceModel::new("Loading registry", throwable.clone());
-        let reported = super::ReportedExceptionModel::new(report.clone());
-
-        assert_eq!(reported.get_report(), &report);
-        assert_eq!(reported.get_cause(), &throwable);
-        assert_eq!(reported.get_message(), "Loading registry");
-    }
-}
+mod tests;

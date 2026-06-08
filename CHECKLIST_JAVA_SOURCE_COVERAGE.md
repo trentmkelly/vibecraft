@@ -91,7 +91,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. Each pack
 
 - [ ] `net/minecraft/CharPredicate.java` (1 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/ChatFormatting.java` (1 Java files): add class-level Rust port tasks and parity tests.
-- [ ] `net/minecraft/CrashReport.java` (1 Java files): add class-level Rust port tasks and parity tests.
+- [x] `net/minecraft/CrashReport.java` (1 Java files): class-level Rust port task completed by `src/crash.rs` and `src/crash/tests.rs`, including details/friendly report formatting, save-once behavior, stack-trace category tracking, throwable unwrapping, and preload tests.
 - [ ] `net/minecraft/CrashReportCategory.java` (1 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/CrashReportDetail.java` (1 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/DefaultUncaughtExceptionHandler.java` (1 Java files): add class-level Rust port tasks and parity tests.
