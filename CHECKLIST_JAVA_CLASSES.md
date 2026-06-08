@@ -430,15 +430,16 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/data`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/AtlasIds.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/BlockFamilies.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/BlockFamily.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/CachedOutput.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/DataGenerator.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/DataProvider.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/HashCache.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/Main.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/PackOutput.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/AtlasIds.java`. Rust `data_package` covers the 15 default-namespace atlas identifiers in Java declaration order; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_package`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/BlockFamilies.java`. Rust `data_package` covers the Java family table count and sentinels, duplicate-family failure text, MAP/getAllFamilies/getFamily behavior, and representative wooden/copper/quartz/deepslate entries; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_package`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/BlockFamily.java`. Rust `data_package` covers all 21 variants and recipe groups, builder variant insertion, sign/wall-sign pairing, generation flags, stonecutter flag, recipe-group/unlock option blank filtering, and accessors; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_package`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/CachedOutput.java`. Rust `data_package` covers `NO_CACHE` write-through behavior and output path recording; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_package`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/DataGenerator.java`. Rust `data_package` covers vanilla and built-in datapack output paths, provider id prefixing, duplicate provider rejection, to-run filtering, and cached/uncached provider run surfaces; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_package`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/DataProvider.java`. Rust `data_package` covers stable JSON field ordering (`type`, `parent`, then lexical), save path behavior, and factory naming surface; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_package`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/HashCache.java`. Rust `data_package` covers provider registration, version run decisions, missing provider failures, provider cache header/data load-save shape, update write-if-needed behavior, unchanged-file skip, close result, and post-close write rejection text; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_package`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/Main.java`. Rust `data_package` covers CLI option names/default output, cached generator construction, shutdown call, converter/server provider wiring sentinels, reports, trade-rebalance providers, and feature-pack metadata providers; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_package`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/PackOutput.java`. Rust `data_package` covers output targets, target subdirectories, path providers, registry element/tag/component providers, namespace-aware file paths, and JSON extension behavior; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_package`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/package-info.java`. Rust `data_package` records the `net.minecraft.data` package `@NullMarked` contract; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_package`.
 
 ## `decompiled-server-26.1.2/net/minecraft/data/advancements`
 

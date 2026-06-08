@@ -365,6 +365,8 @@ mod crash_recovery_tests;
 mod creative_inventory;
 mod damage_type;
 #[cfg(test)]
+mod data_package;
+#[cfg(test)]
 mod datapack_reload_tests;
 #[cfg(test)]
 mod dialog_system;
