@@ -196,6 +196,8 @@ mod core_particles;
 #[cfg(test)]
 mod core_registry_codecs;
 #[cfg(test)]
+mod core_registries;
+#[cfg(test)]
 mod core_registry_helpers;
 #[cfg(test)]
 mod core_registry_interface;

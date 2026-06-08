@@ -423,10 +423,10 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/core/registries`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/registries/BuiltInRegistries.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/registries/ConcurrentHolderGetter.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/registries/Registries.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/registries/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/registries/BuiltInRegistries.java`. Rust `registry::builtin` and `core_registries` cover the Java built-in registry declaration order, default keys, intrusive-holder flags, writable root registry, loader/bootstrap/freeze/validate contract, and documented non-built-in registry omissions; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 builtin_registry` and `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 core_registries`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/registries/ConcurrentHolderGetter.java`. Rust `core_registries` covers element and tag cache behavior, including cached `Optional.empty` misses, separate element/tag caches, original lookup call counts, and lock-entry behavior only on cache misses; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 core_registries`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/registries/Registries.java`. Rust `core_registries` and `registry::tests` cover the 147 Java registry key declarations, default-namespace key creation, root registry identifier, level/stem conversion through the shared `dimension` registry id, element/tag/component directory paths, and BuiltInRegistries reference alignment with `Registries`; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 core_registries` and `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 builtin_registry`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/registries/package-info.java`. Rust `core_registries` records the `net.minecraft.core.registries` package `@NullMarked` contract; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 core_registries`.
 
 ## `decompiled-server-26.1.2/net/minecraft/data`
 
