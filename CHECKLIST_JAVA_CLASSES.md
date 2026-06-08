@@ -159,7 +159,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/GameModeArgument.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/GameProfileArgument.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/HeightmapTypeArgument.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/HexColorArgument.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/HexColorArgument.java`. Rust `command_hex_color_argument` covers Java's examples, `hexColor()` factory, typed `getHexColor` context retrieval, `StringReader.readUnquotedString` token/cursor behavior, 3-digit nibble duplication, 6-digit channel parsing through Java-like signed `Integer.parseInt` slices, `ARGB.color(255, r, g, b)` masking and signed `int` results, invalid-length command syntax errors, unchecked number-format errors for bad digits, and `SharedSuggestionProvider.suggest(EXAMPLES)` filtering; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 hex_color_argument`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/IdentifierArgument.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/MessageArgument.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/NbtPathArgument.java`.
