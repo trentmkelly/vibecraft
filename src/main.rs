@@ -144,6 +144,8 @@ mod criterion_lightning_strike;
 #[cfg(test)]
 mod criterion_location_predicate;
 #[cfg(test)]
+mod criterion_loot_table_trigger;
+#[cfg(test)]
 mod criterion_block_predicate;
 #[cfg(test)]
 mod criterion_bee_nest;
