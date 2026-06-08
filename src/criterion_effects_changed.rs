@@ -79,15 +79,36 @@ impl MobEffectsPredicateModel {
         Self { effect_map }
     }
 
-    pub fn matches(&self, player: &PlayerEffectsModel) -> bool {
+    pub fn matches_entity(&self, entity: &EntityEffectsModel) -> bool {
+        match entity {
+            EntityEffectsModel::Living(living) => self.matches_living_entity(living),
+            EntityEffectsModel::NonLiving => false,
+        }
+    }
+
+    pub fn matches_living_entity(&self, entity: &PlayerEffectsModel) -> bool {
+        self.matches_effects(&entity.effects)
+    }
+
+    pub fn matches_effects(&self, effects: &BTreeMap<Identifier, MobEffectInstanceModel>) -> bool {
         for (effect, predicate) in &self.effect_map {
-            if !predicate.matches(player.effects.get(effect)) {
+            if !predicate.matches(effects.get(effect)) {
                 return false;
             }
         }
 
         true
     }
+
+    pub fn matches(&self, player: &PlayerEffectsModel) -> bool {
+        self.matches_living_entity(player)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EntityEffectsModel {
+    Living(PlayerEffectsModel),
+    NonLiving,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -333,6 +354,80 @@ mod tests {
         assert!(!predicate.matches(Some(&MobEffectInstanceModel::new(1, 99, false, true))));
         assert!(!predicate.matches(Some(&MobEffectInstanceModel::new(1, 200, true, true))));
         assert!(!predicate.matches(Some(&MobEffectInstanceModel::new(1, 200, false, false))));
+    }
+
+    #[test]
+    fn mob_effects_predicate_entity_overload_rejects_non_living_entities() {
+        let predicate = MobEffectsPredicateModel::default();
+
+        assert!(
+            predicate.matches_entity(&EntityEffectsModel::Living(PlayerEffectsModel::default()))
+        );
+        assert!(!predicate.matches_entity(&EntityEffectsModel::NonLiving));
+    }
+
+    #[test]
+    fn mob_effects_predicate_requires_every_effect_map_entry_to_match_raw_effects() {
+        let predicate = MobEffectsPredicateModel::new(BTreeMap::from([
+            (
+                id("minecraft:speed"),
+                MobEffectInstancePredicateModel::new(
+                    IntBoundsModel::exactly(1),
+                    IntBoundsModel::between(100, 300),
+                    Some(false),
+                    Some(true),
+                ),
+            ),
+            (
+                id("minecraft:strength"),
+                MobEffectInstancePredicateModel::default(),
+            ),
+        ]));
+        let matching_effects = BTreeMap::from([
+            (
+                id("minecraft:speed"),
+                MobEffectInstanceModel::new(1, 200, false, true),
+            ),
+            (
+                id("minecraft:strength"),
+                MobEffectInstanceModel::new(0, 60, true, false),
+            ),
+        ]);
+        let missing_strength = BTreeMap::from([(
+            id("minecraft:speed"),
+            MobEffectInstanceModel::new(1, 200, false, true),
+        )]);
+
+        assert!(predicate.matches_effects(&matching_effects));
+        assert!(!predicate.matches_effects(&missing_strength));
+    }
+
+    #[test]
+    fn mob_effects_builder_always_builds_optional_predicate_with_inserted_entries() {
+        let predicate = MobEffectsPredicateBuilder::effects()
+            .and(id("minecraft:speed"))
+            .and_with(
+                id("minecraft:strength"),
+                MobEffectInstancePredicateModel::new(
+                    IntBoundsModel::exactly(2),
+                    IntBoundsModel::any(),
+                    None,
+                    None,
+                ),
+            )
+            .build()
+            .unwrap();
+        let matching = PlayerEffectsModel::default()
+            .with_effect(
+                id("minecraft:speed"),
+                MobEffectInstanceModel::new(0, 20, false, true),
+            )
+            .with_effect(
+                id("minecraft:strength"),
+                MobEffectInstanceModel::new(2, 20, false, true),
+            );
+
+        assert!(predicate.matches_living_entity(&matching));
     }
 
     #[test]
