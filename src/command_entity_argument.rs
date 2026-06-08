@@ -43,10 +43,6 @@ impl EntityArgumentModel {
         if token.starts_with('@') && !allow_selectors {
             return Err(EntityArgumentError::SelectorsNotAllowed);
         }
-        // TODO(selector-parity): `EntitySelectorParser` supports @n and many
-        // option validators that are tracked by the open command_selector audit.
-        // EntityArgument delegates to that parser; this wrapper intentionally
-        // keeps those gaps owned by `src/command_selector.rs`.
         let selector = Selector::parse(&token).map_err(EntityArgumentError::Selector)?;
         if selector.limit > 1 && self.single {
             reader.set_cursor(0);
@@ -449,6 +445,11 @@ mod tests {
                 scores: BTreeMap::new(),
                 nbt: BTreeMap::new(),
                 predicates: Vec::new(),
+                gamemode: None,
+                experience_level: 0,
+                x_rotation: 0.0,
+                y_rotation: 0.0,
+                advancements: BTreeMap::new(),
             },
             position: Vec3 { x, y: 64.0, z: 0.0 },
         }

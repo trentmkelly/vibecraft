@@ -304,6 +304,11 @@ mod tests {
                 scores: BTreeMap::new(),
                 nbt: BTreeMap::new(),
                 predicates: Vec::new(),
+                gamemode: None,
+                experience_level: 0,
+                x_rotation: 0.0,
+                y_rotation: 0.0,
+                advancements: BTreeMap::new(),
             },
             position: Vec3 {
                 x: 0.0,

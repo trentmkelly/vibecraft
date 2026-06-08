@@ -1,5 +1,10 @@
 use std::collections::BTreeMap;
 
+pub const SELECTOR_PACKAGE_NULL_MARKED: bool = true;
+pub const SELECTOR_OPTIONS_PACKAGE_NULL_MARKED: bool = true;
+type AdvancementCriteriaModel = BTreeMap<String, bool>;
+type ParsedAdvancementCriteria = Vec<(String, AdvancementCriteriaModel)>;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Vec3 {
     pub x: f64,
@@ -7,7 +12,7 @@ pub struct Vec3 {
     pub z: f64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct EntityRecord {
     pub name: String,
     pub entity_type: String,
@@ -19,6 +24,11 @@ pub struct EntityRecord {
     pub scores: BTreeMap<String, i32>,
     pub nbt: BTreeMap<String, String>,
     pub predicates: Vec<String>,
+    pub gamemode: Option<String>,
+    pub experience_level: i32,
+    pub x_rotation: f64,
+    pub y_rotation: f64,
+    pub advancements: BTreeMap<String, BTreeMap<String, bool>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -39,7 +49,11 @@ pub struct Selector {
     pub entity_type: Option<Inverted<String>>,
     pub team: Option<Inverted<String>>,
     pub tag: Option<Inverted<String>>,
+    pub gamemode: Option<Inverted<String>>,
     pub distance: Option<RangeF64>,
+    pub level: Option<RangeI32>,
+    pub x_rotation: Option<RangeF64>,
+    pub y_rotation: Option<RangeF64>,
     pub x: Option<f64>,
     pub y: Option<f64>,
     pub z: Option<f64>,
@@ -49,6 +63,7 @@ pub struct Selector {
     pub scores: BTreeMap<String, RangeI32>,
     pub nbt: BTreeMap<String, String>,
     pub predicate: Option<Inverted<String>>,
+    pub advancements: BTreeMap<String, BTreeMap<String, bool>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -56,6 +71,7 @@ pub enum SelectorBase {
     NearestPlayer,
     AllPlayers,
     AllEntities,
+    NearestEntity,
     CurrentEntity,
     RandomPlayer,
     Name(String),
@@ -91,9 +107,13 @@ pub struct RangeI32 {
 pub enum SelectorError {
     Empty,
     InvalidBase,
+    InvalidNameOrUuid,
     InvalidOption(String),
+    InapplicableOption(String),
     InvalidRange(String),
     InvalidLimit,
+    NegativeDistance,
+    NegativeLevel,
 }
 
 impl Selector {
@@ -102,6 +122,9 @@ impl Selector {
             return Err(SelectorError::Empty);
         }
         if !input.starts_with('@') {
+            if input.len() > 16 && !is_uuid_like(input) {
+                return Err(SelectorError::InvalidNameOrUuid);
+            }
             return Ok(name_selector(input));
         }
         let (head, options) = if let Some(start) = input.find('[') {
@@ -126,6 +149,7 @@ impl Selector {
                 usize::MAX,
                 SelectorSort::Arbitrary,
             ),
+            "@n" => base_selector(SelectorBase::NearestEntity, true, 1, SelectorSort::Nearest),
             "@s" => {
                 let mut selector = base_selector(
                     SelectorBase::CurrentEntity,
@@ -140,8 +164,9 @@ impl Selector {
             _ => return Err(SelectorError::InvalidBase),
         };
         if let Some(options) = options {
+            let mut used = SelectorOptionState::default();
             for option in split_options(options) {
-                apply_option(&mut selector, option)?;
+                apply_option(&mut selector, option, &mut used)?;
             }
         }
         Ok(selector)
@@ -221,9 +246,30 @@ impl Selector {
                 return false;
             }
         }
+        if let Some(gamemode) = &self.gamemode {
+            let value = entity.gamemode.as_deref().unwrap_or("");
+            if (value == gamemode.value) == gamemode.inverted {
+                return false;
+            }
+        }
         if let Some(range) = self.distance {
             let distance = distance_sqr(entry.position, origin).sqrt();
             if !range.contains(distance) {
+                return false;
+            }
+        }
+        if let Some(level) = self.level {
+            if !entity.player || !level.contains(entity.experience_level) {
+                return false;
+            }
+        }
+        if let Some(rotation) = self.x_rotation {
+            if !rotation.contains_wrapped_degrees(entity.x_rotation) {
+                return false;
+            }
+        }
+        if let Some(rotation) = self.y_rotation {
+            if !rotation.contains_wrapped_degrees(entity.y_rotation) {
                 return false;
             }
         }
@@ -253,6 +299,16 @@ impl Selector {
                 return false;
             }
         }
+        if !self.advancements.iter().all(|(advancement, criteria)| {
+            let actual = entity.advancements.get(advancement);
+            criteria.iter().all(|(criterion, expected)| {
+                actual
+                    .and_then(|criteria| criteria.get(criterion))
+                    .is_some_and(|done| done == expected)
+            })
+        }) {
+            return false;
+        }
         true
     }
 
@@ -273,6 +329,17 @@ impl RangeF64 {
     fn contains(self, value: f64) -> bool {
         self.min.map(|min| value >= min).unwrap_or(true)
             && self.max.map(|max| value <= max).unwrap_or(true)
+    }
+
+    fn contains_wrapped_degrees(self, value: f64) -> bool {
+        let min = wrap_degrees(self.min.unwrap_or(0.0));
+        let max = wrap_degrees(self.max.unwrap_or(359.0));
+        let value = wrap_degrees(value);
+        if min > max {
+            value >= min || value <= max
+        } else {
+            value >= min && value <= max
+        }
     }
 }
 
@@ -300,7 +367,11 @@ fn base_selector(
         entity_type: None,
         team: None,
         tag: None,
+        gamemode: None,
         distance: None,
+        level: None,
+        x_rotation: None,
+        y_rotation: None,
         x: None,
         y: None,
         z: None,
@@ -310,6 +381,7 @@ fn base_selector(
         scores: BTreeMap::new(),
         nbt: BTreeMap::new(),
         predicate: None,
+        advancements: BTreeMap::new(),
     }
 }
 
@@ -324,20 +396,87 @@ fn name_selector(input: &str) -> Selector {
     selector
 }
 
-fn apply_option(selector: &mut Selector, option: &str) -> Result<(), SelectorError> {
+#[derive(Default)]
+struct SelectorOptionState {
+    has_name_equals: bool,
+    has_name_not_equals: bool,
+    has_gamemode_equals: bool,
+    has_gamemode_not_equals: bool,
+    has_team_equals: bool,
+    has_team_not_equals: bool,
+    has_type_limited: bool,
+    has_type_inverted: bool,
+    has_scores: bool,
+    has_advancements: bool,
+    is_limited: bool,
+    is_sorted: bool,
+}
+
+fn apply_option(
+    selector: &mut Selector,
+    option: &str,
+    used: &mut SelectorOptionState,
+) -> Result<(), SelectorError> {
     let Some((key, value)) = option.split_once('=') else {
         return Err(SelectorError::InvalidOption(option.to_string()));
     };
     match key {
-        "name" => selector.name = Some(parse_inverted_string(value)),
-        "type" => selector.entity_type = Some(parse_inverted_string(value)),
-        "team" => selector.team = Some(parse_inverted_string(value)),
+        "name" => {
+            selector.name = Some(parse_name_option(value, used)?);
+        }
+        "type" => {
+            let parsed = parse_type_option(value, used)?;
+            if parsed.value == "minecraft:player" && !parsed.inverted {
+                selector.includes_entities = false;
+            }
+            selector.entity_type = Some(parsed);
+        }
+        "team" => {
+            let parsed = parse_inverted_string(value);
+            if parsed.inverted {
+                used.has_team_not_equals = true;
+            } else if used.has_team_equals {
+                return Err(SelectorError::InapplicableOption("team".to_string()));
+            } else {
+                used.has_team_equals = true;
+            }
+            selector.team = Some(parsed);
+        }
         "tag" => selector.tag = Some(parse_inverted_string(value)),
         "predicate" => selector.predicate = Some(parse_inverted_string(value)),
-        "distance" => selector.distance = Some(parse_range_f64(value)?),
-        "x" => selector.x = Some(parse_f64(value)?),
-        "y" => selector.y = Some(parse_f64(value)?),
-        "z" => selector.z = Some(parse_f64(value)?),
+        "distance" => {
+            let range = parse_range_f64(value)?;
+            if range.min.is_some_and(|value| value < 0.0)
+                || range.max.is_some_and(|value| value < 0.0)
+            {
+                return Err(SelectorError::NegativeDistance);
+            }
+            selector.distance = Some(range);
+            selector.world_limited = true;
+        }
+        "level" => {
+            let range = parse_range_i32(value)?;
+            if range.min.is_some_and(|value| value < 0) || range.max.is_some_and(|value| value < 0)
+            {
+                return Err(SelectorError::NegativeLevel);
+            }
+            selector.level = Some(range);
+            selector.includes_entities = false;
+        }
+        "x_rotation" => selector.x_rotation = Some(parse_range_f64(value)?),
+        "y_rotation" => selector.y_rotation = Some(parse_range_f64(value)?),
+        "x" => {
+            selector.x = Some(parse_f64(value)?);
+            selector.world_limited = true;
+        }
+        "y" => {
+            selector.y = Some(parse_f64(value)?);
+            selector.world_limited = true;
+        }
+        "z" => {
+            selector.z = Some(parse_f64(value)?);
+            selector.world_limited = true;
+        }
         "dx" => {
             selector.dx = Some(parse_f64(value)?);
             selector.world_limited = true;
@@ -351,35 +490,153 @@ fn apply_option(selector: &mut Selector, option: &str) -> Result<(), SelectorErr
             selector.world_limited = true;
         }
         "limit" => {
-            let limit = value
-                .parse::<usize>()
-                .map_err(|_| SelectorError::InvalidLimit)?;
-            if limit == 0 {
-                return Err(SelectorError::InvalidLimit);
-            }
-            selector.limit = limit;
+            selector.limit = parse_limit_option(value, selector.current_entity, used)?;
         }
         "sort" => {
-            selector.sort = match value {
-                "nearest" => SelectorSort::Nearest,
-                "furthest" => SelectorSort::Furthest,
-                "random" => SelectorSort::Random,
-                "arbitrary" => SelectorSort::Arbitrary,
-                _ => return Err(SelectorError::InvalidOption(option.to_string())),
-            }
+            selector.sort = parse_sort_option(value, option, selector.current_entity, used)?;
+        }
+        "gamemode" => {
+            selector.gamemode = Some(parse_gamemode_option(value, used)?);
+            selector.includes_entities = false;
         }
         "scores" => {
-            for (name, range) in parse_map(value)? {
-                selector.scores.insert(name, parse_range_i32(&range)?);
-            }
+            parse_scores_option(value, selector, used)?;
         }
         "nbt" => {
             for (name, expected) in parse_map(value)? {
                 selector.nbt.insert(name, expected);
             }
         }
+        "advancements" => {
+            parse_advancements_option(value, selector, used)?;
+        }
         _ => return Err(SelectorError::InvalidOption(key.to_string())),
     }
+    Ok(())
+}
+
+fn parse_name_option(
+    value: &str,
+    used: &mut SelectorOptionState,
+) -> Result<Inverted<String>, SelectorError> {
+    let parsed = parse_inverted_string(value);
+    if used.has_name_not_equals && !parsed.inverted {
+        return Err(SelectorError::InapplicableOption("name".to_string()));
+    }
+    if parsed.inverted {
+        used.has_name_not_equals = true;
+    } else if used.has_name_equals {
+        return Err(SelectorError::InapplicableOption("name".to_string()));
+    } else {
+        used.has_name_equals = true;
+    }
+    Ok(parsed)
+}
+
+fn parse_type_option(
+    value: &str,
+    used: &mut SelectorOptionState,
+) -> Result<Inverted<String>, SelectorError> {
+    let parsed = parse_inverted_string(value);
+    if used.has_type_inverted && !parsed.inverted {
+        return Err(SelectorError::InapplicableOption("type".to_string()));
+    }
+    if parsed.inverted {
+        used.has_type_inverted = true;
+    } else if used.has_type_limited {
+        return Err(SelectorError::InapplicableOption("type".to_string()));
+    } else {
+        used.has_type_limited = true;
+    }
+    Ok(parsed)
+}
+
+fn parse_limit_option(
+    value: &str,
+    current_entity: bool,
+    used: &mut SelectorOptionState,
+) -> Result<usize, SelectorError> {
+    let limit = value
+        .parse::<usize>()
+        .map_err(|_| SelectorError::InvalidLimit)?;
+    if limit == 0 {
+        return Err(SelectorError::InvalidLimit);
+    }
+    if current_entity || used.is_limited {
+        return Err(SelectorError::InapplicableOption("limit".to_string()));
+    }
+    used.is_limited = true;
+    Ok(limit)
+}
+
+fn parse_sort_option(
+    value: &str,
+    option: &str,
+    current_entity: bool,
+    used: &mut SelectorOptionState,
+) -> Result<SelectorSort, SelectorError> {
+    if current_entity || used.is_sorted {
+        return Err(SelectorError::InapplicableOption("sort".to_string()));
+    }
+    let sort = match value {
+        "nearest" => SelectorSort::Nearest,
+        "furthest" => SelectorSort::Furthest,
+        "random" => SelectorSort::Random,
+        "arbitrary" => SelectorSort::Arbitrary,
+        _ => return Err(SelectorError::InvalidOption(option.to_string())),
+    };
+    used.is_sorted = true;
+    Ok(sort)
+}
+
+fn parse_gamemode_option(
+    value: &str,
+    used: &mut SelectorOptionState,
+) -> Result<Inverted<String>, SelectorError> {
+    let parsed = parse_inverted_string(value);
+    if used.has_gamemode_not_equals && !parsed.inverted {
+        return Err(SelectorError::InapplicableOption("gamemode".to_string()));
+    }
+    if parsed.inverted {
+        used.has_gamemode_not_equals = true;
+    } else if used.has_gamemode_equals {
+        return Err(SelectorError::InapplicableOption("gamemode".to_string()));
+    } else {
+        used.has_gamemode_equals = true;
+    }
+    Ok(parsed)
+}
+
+fn parse_scores_option(
+    value: &str,
+    selector: &mut Selector,
+    used: &mut SelectorOptionState,
+) -> Result<(), SelectorError> {
+    if used.has_scores {
+        return Err(SelectorError::InapplicableOption("scores".to_string()));
+    }
+    for (name, range) in parse_map(value)? {
+        selector.scores.insert(name, parse_range_i32(&range)?);
+    }
+    used.has_scores = true;
+    Ok(())
+}
+
+fn parse_advancements_option(
+    value: &str,
+    selector: &mut Selector,
+    used: &mut SelectorOptionState,
+) -> Result<(), SelectorError> {
+    if used.has_advancements {
+        return Err(SelectorError::InapplicableOption(
+            "advancements".to_string(),
+        ));
+    }
+    for (name, criteria) in parse_nested_bool_map(value)? {
+        selector.advancements.insert(name, criteria);
+    }
+    selector.includes_entities = false;
+    used.has_advancements = true;
     Ok(())
 }
 
@@ -425,6 +682,30 @@ fn parse_map(input: &str) -> Result<Vec<(String, String)>, SelectorError> {
             Ok((key.trim().to_string(), value.trim().to_string()))
         })
         .collect()
+}
+
+fn parse_nested_bool_map(input: &str) -> Result<ParsedAdvancementCriteria, SelectorError> {
+    let mut result = Vec::new();
+    for (key, value) in parse_map(input)? {
+        if value.starts_with('{') {
+            let criteria = parse_map(&value)?
+                .into_iter()
+                .map(|(criterion, done)| {
+                    let value = done
+                        .parse::<bool>()
+                        .map_err(|_| SelectorError::InvalidOption(done.clone()))?;
+                    Ok((criterion, value))
+                })
+                .collect::<Result<_, _>>()?;
+            result.push((key, criteria));
+        } else {
+            let value = value
+                .parse::<bool>()
+                .map_err(|_| SelectorError::InvalidOption(value.clone()))?;
+            result.push((key, BTreeMap::from([("".to_string(), value)])));
+        }
+    }
+    Ok(result)
 }
 
 fn parse_inverted_string(value: &str) -> Inverted<String> {
@@ -523,6 +804,24 @@ fn stable_random_key(value: &str) -> u64 {
     })
 }
 
+fn is_uuid_like(value: &str) -> bool {
+    let parts = value.split('-').map(str::len).collect::<Vec<_>>();
+    parts == [8, 4, 4, 4, 12]
+        && value
+            .chars()
+            .filter(|ch| *ch != '-')
+            .all(|ch| ch.is_ascii_hexdigit())
+}
+
+fn wrap_degrees(value: f64) -> f64 {
+    let wrapped = value.rem_euclid(360.0);
+    if wrapped >= 180.0 {
+        wrapped - 360.0
+    } else {
+        wrapped
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -546,6 +845,11 @@ mod tests {
                 scores: BTreeMap::new(),
                 nbt: BTreeMap::new(),
                 predicates: Vec::new(),
+                gamemode: None,
+                experience_level: 0,
+                x_rotation: 0.0,
+                y_rotation: 0.0,
+                advancements: BTreeMap::new(),
             },
             position,
         }
@@ -553,6 +857,8 @@ mod tests {
 
     #[test]
     fn parses_selector_bases_limits_sorts_and_ranges() {
+        const { assert!(SELECTOR_PACKAGE_NULL_MARKED) };
+        const { assert!(SELECTOR_OPTIONS_PACKAGE_NULL_MARKED) };
         let selector =
             Selector::parse("@e[type=minecraft:zombie,distance=..10,limit=2,sort=nearest]")
                 .unwrap();
@@ -572,6 +878,31 @@ mod tests {
             Selector::parse("@a[limit=0]"),
             Err(SelectorError::InvalidLimit)
         );
+        assert_eq!(
+            Selector::parse("@n").unwrap().base,
+            SelectorBase::NearestEntity
+        );
+        assert_eq!(
+            Selector::parse("@a[distance=-1..2]"),
+            Err(SelectorError::NegativeDistance)
+        );
+        assert_eq!(
+            Selector::parse("@a[level=-1]"),
+            Err(SelectorError::NegativeLevel)
+        );
+        assert_eq!(
+            Selector::parse("@s[limit=2]"),
+            Err(SelectorError::InapplicableOption("limit".to_string()))
+        );
+        assert_eq!(
+            Selector::parse("@a[name=!Alex,name=Steve]"),
+            Err(SelectorError::InapplicableOption("name".to_string()))
+        );
+        assert_eq!(
+            Selector::parse("this_name_is_far_too_long"),
+            Err(SelectorError::InvalidNameOrUuid)
+        );
+        assert!(Selector::parse("dd12be42-52a9-4a91-a8a1-11c01849e498").is_ok());
     }
 
     #[test]
@@ -702,6 +1033,65 @@ mod tests {
                 None
             ),
             vec![alex.entity]
+        );
+    }
+
+    #[test]
+    fn gamemode_level_rotation_and_advancement_options_match_java_filters() {
+        let mut alex = entity(
+            "Alex",
+            "u1",
+            true,
+            "minecraft:player",
+            Vec3 {
+                x: 0.0,
+                y: 64.0,
+                z: 0.0,
+            },
+        );
+        alex.entity.gamemode = Some("survival".to_string());
+        alex.entity.experience_level = 12;
+        alex.entity.x_rotation = 350.0;
+        alex.entity.y_rotation = 45.0;
+        alex.entity.advancements.insert(
+            "minecraft:story/root".to_string(),
+            BTreeMap::from([("".to_string(), true)]),
+        );
+        let mut steve = entity(
+            "Steve",
+            "u2",
+            true,
+            "minecraft:player",
+            Vec3 {
+                x: 1.0,
+                y: 64.0,
+                z: 0.0,
+            },
+        );
+        steve.entity.gamemode = Some("creative".to_string());
+        steve.entity.experience_level = 3;
+        steve.entity.x_rotation = 90.0;
+        steve.entity.y_rotation = 180.0;
+        let entities = vec![alex.clone(), steve];
+
+        let selector = Selector::parse("@a[gamemode=survival,level=10..,x_rotation=340..20,y_rotation=40..50,advancements={minecraft:story/root=true}]").unwrap();
+        assert!(!selector.includes_entities);
+        assert_eq!(
+            selector.select(
+                &entities,
+                Vec3 {
+                    x: 0.0,
+                    y: 64.0,
+                    z: 0.0
+                },
+                "overworld",
+                None
+            ),
+            vec![alex.entity]
+        );
+        assert_eq!(
+            Selector::parse("@a[gamemode=!survival,gamemode=creative]"),
+            Err(SelectorError::InapplicableOption("gamemode".to_string()))
         );
     }
 
