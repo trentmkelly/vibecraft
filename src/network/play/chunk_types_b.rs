@@ -399,6 +399,20 @@ pub struct AdvancementHolderData {
     pub value: AdvancementData,
 }
 
+impl AdvancementHolderData {
+    pub fn java_equals_by_id(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+
+    pub fn java_hash_key(&self) -> &Identifier {
+        &self.id
+    }
+
+    pub fn java_to_string(&self) -> String {
+        self.id.to_string()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdvancementData {
     pub parent: Option<Identifier>,

@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::chat_formatting::ChatFormatting;
 use crate::network::play::{
     AdvancementHolderData, AdvancementProgressData, ClientboundAdvancementsPacket,
     CriterionProgressData,
@@ -23,6 +24,107 @@ pub enum AdvancementFrame {
     Task,
     Challenge,
     Goal,
+}
+
+impl AdvancementFrame {
+    pub const VALUES: [Self; 3] = [Self::Task, Self::Challenge, Self::Goal];
+
+    pub fn serialized_name(self) -> &'static str {
+        match self {
+            Self::Task => "task",
+            Self::Challenge => "challenge",
+            Self::Goal => "goal",
+        }
+    }
+
+    pub fn chat_color(self) -> ChatFormatting {
+        match self {
+            Self::Task | Self::Goal => ChatFormatting::Green,
+            Self::Challenge => ChatFormatting::DarkPurple,
+        }
+    }
+
+    pub fn display_name_translation_key(self) -> String {
+        format!("advancements.toast.{}", self.serialized_name())
+    }
+
+    pub fn announcement_translation_key(self) -> String {
+        format!("chat.type.advancement.{}", self.serialized_name())
+    }
+
+    pub fn create_announcement(self, player_display_name: &str, advancement_name: &str) -> String {
+        format!(
+            "{} {} {}",
+            self.announcement_translation_key(),
+            player_display_name,
+            advancement_name
+        )
+    }
+
+    pub fn from_serialized_name(name: &str) -> Option<Self> {
+        match name {
+            "task" => Some(Self::Task),
+            "challenge" => Some(Self::Challenge),
+            "goal" => Some(Self::Goal),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CriterionProgressModel {
+    obtained_epoch_millis: Option<i64>,
+}
+
+impl CriterionProgressModel {
+    pub fn new() -> Self {
+        Self {
+            obtained_epoch_millis: None,
+        }
+    }
+
+    pub fn from_obtained_epoch_millis(obtained_epoch_millis: i64) -> Self {
+        Self {
+            obtained_epoch_millis: Some(obtained_epoch_millis),
+        }
+    }
+
+    pub fn is_done(&self) -> bool {
+        self.obtained_epoch_millis.is_some()
+    }
+
+    pub fn grant_at_epoch_millis(&mut self, obtained_epoch_millis: i64) {
+        self.obtained_epoch_millis = Some(obtained_epoch_millis);
+    }
+
+    pub fn revoke(&mut self) {
+        self.obtained_epoch_millis = None;
+    }
+
+    pub fn get_obtained_epoch_millis(&self) -> Option<i64> {
+        self.obtained_epoch_millis
+    }
+
+    pub fn to_network_data(&self) -> CriterionProgressData {
+        CriterionProgressData {
+            obtained_epoch_millis: self.obtained_epoch_millis,
+        }
+    }
+
+    pub fn from_network_data(data: CriterionProgressData) -> Self {
+        Self {
+            obtained_epoch_millis: data.obtained_epoch_millis,
+        }
+    }
+}
+
+impl std::fmt::Display for CriterionProgressModel {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.obtained_epoch_millis {
+            Some(epoch_millis) => write!(formatter, "CriterionProgress{{obtained={epoch_millis}}}"),
+            None => write!(formatter, "CriterionProgress{{obtained=false}}"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -942,5 +1044,100 @@ mod tests {
         let (known, highlight) = unlocks.pack();
         assert!(known.is_empty());
         assert!(highlight.is_empty());
+    }
+
+    #[test]
+    fn advancement_type_model_matches_java_enum_fields_and_announcement() {
+        assert_eq!(
+            AdvancementFrame::VALUES.map(AdvancementFrame::serialized_name),
+            ["task", "challenge", "goal"]
+        );
+        assert_eq!(AdvancementFrame::Task.chat_color(), ChatFormatting::Green);
+        assert_eq!(
+            AdvancementFrame::Challenge.chat_color(),
+            ChatFormatting::DarkPurple
+        );
+        assert_eq!(AdvancementFrame::Goal.chat_color(), ChatFormatting::Green);
+        assert_eq!(
+            AdvancementFrame::Challenge.display_name_translation_key(),
+            "advancements.toast.challenge"
+        );
+        assert_eq!(
+            AdvancementFrame::Goal.announcement_translation_key(),
+            "chat.type.advancement.goal"
+        );
+        assert_eq!(
+            AdvancementFrame::Task.create_announcement("Steve", "Stone Age"),
+            "chat.type.advancement.task Steve Stone Age"
+        );
+        assert_eq!(
+            AdvancementFrame::from_serialized_name("challenge"),
+            Some(AdvancementFrame::Challenge)
+        );
+        assert_eq!(AdvancementFrame::from_serialized_name("unknown"), None);
+    }
+
+    #[test]
+    fn criterion_progress_model_matches_java_done_grant_revoke_and_network() {
+        let mut progress = CriterionProgressModel::new();
+        assert!(!progress.is_done());
+        assert_eq!(progress.get_obtained_epoch_millis(), None);
+        assert_eq!(progress.to_string(), "CriterionProgress{obtained=false}");
+        assert_eq!(
+            progress.to_network_data(),
+            CriterionProgressData {
+                obtained_epoch_millis: None
+            }
+        );
+
+        progress.grant_at_epoch_millis(1_700_000_000_123);
+        assert!(progress.is_done());
+        assert_eq!(
+            progress.get_obtained_epoch_millis(),
+            Some(1_700_000_000_123)
+        );
+        assert_eq!(
+            progress.to_string(),
+            "CriterionProgress{obtained=1700000000123}"
+        );
+        assert_eq!(
+            CriterionProgressModel::from_network_data(progress.to_network_data()),
+            progress
+        );
+
+        progress.revoke();
+        assert!(!progress.is_done());
+        assert_eq!(
+            CriterionProgressModel::from_obtained_epoch_millis(42).to_network_data(),
+            CriterionProgressData {
+                obtained_epoch_millis: Some(42)
+            }
+        );
+    }
+
+    #[test]
+    fn advancement_holder_model_matches_java_id_only_identity_methods() {
+        let id = Identifier::parse("minecraft:story/root").unwrap();
+        let other_id = Identifier::parse("minecraft:story/mine_stone").unwrap();
+        let holder =
+            AdvancementHolderData::minimal(id.clone(), None, vec![vec!["a".to_string()]], false);
+        let same_id_different_value = AdvancementHolderData::minimal(
+            id.clone(),
+            Some(other_id.clone()),
+            vec![vec!["b".to_string()]],
+            true,
+        );
+        let different_id = AdvancementHolderData::minimal(
+            other_id.clone(),
+            None,
+            vec![vec!["a".to_string()]],
+            false,
+        );
+
+        assert_ne!(holder, same_id_different_value);
+        assert!(holder.java_equals_by_id(&same_id_different_value));
+        assert!(!holder.java_equals_by_id(&different_id));
+        assert_eq!(holder.java_hash_key(), &id);
+        assert_eq!(holder.java_to_string(), "minecraft:story/root");
     }
 }
