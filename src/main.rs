@@ -197,6 +197,8 @@ mod criterion_state_properties_predicate;
 mod criterion_summoned_entity;
 #[cfg(test)]
 mod criterion_tag_predicate;
+#[cfg(test)]
+mod criterion_tame_animal;
 mod crash;
 mod crash_recovery_tests;
 #[cfg(test)]
