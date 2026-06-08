@@ -42,7 +42,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/advancements/criterion`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/advancements/criterion/AnyBlockInteractionTrigger.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/advancements/criterion/AnyBlockInteractionTrigger.java`. Rust `criterion_block_interaction` covers Java's advancement-location loot context construction with origin/player/block-state/tool parameters, optional location predicate matching, trigger id, and validation context behavior; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 any_block_interaction_trigger`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/advancements/criterion/BeeNestDestroyedTrigger.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/advancements/criterion/BlockPredicate.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/advancements/criterion/BredAnimalsTrigger.java`.
@@ -59,7 +59,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/advancements/criterion/DamagePredicate.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/advancements/criterion/DamageSourcePredicate.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/advancements/criterion/DataComponentMatchers.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/advancements/criterion/DefaultBlockInteractionTrigger.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/advancements/criterion/DefaultBlockInteractionTrigger.java`. Rust `criterion_block_interaction` covers Java's block-use loot context construction without a tool parameter, optional location predicate matching, trigger id, and validation context behavior; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 default_block_interaction`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/advancements/criterion/DistancePredicate.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/advancements/criterion/DistanceTrigger.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/advancements/criterion/EffectsChangedTrigger.java`.
@@ -85,7 +85,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/advancements/criterion/InventoryChangeTrigger.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/advancements/criterion/ItemDurabilityTrigger.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/advancements/criterion/ItemPredicate.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/advancements/criterion/ItemUsedOnLocationTrigger.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/advancements/criterion/ItemUsedOnLocationTrigger.java`. Rust `criterion_block_interaction` covers Java's advancement-location loot context construction with tool parameter, optional location predicate matching, validation context behavior, and static factory trigger ids for placed block, placed block with properties, item used on block, and allay drop item on block; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 item_used_on_location_static`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/advancements/criterion/KilledByArrowTrigger.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/advancements/criterion/KilledTrigger.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/advancements/criterion/LevitationTrigger.java`.
