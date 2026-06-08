@@ -170,6 +170,8 @@ mod criterion_recipe_unlocked;
 #[cfg(test)]
 mod criterion_sheep_predicate;
 #[cfg(test)]
+mod criterion_shot_crossbow;
+#[cfg(test)]
 mod criterion_block_predicate;
 #[cfg(test)]
 mod criterion_bee_nest;
