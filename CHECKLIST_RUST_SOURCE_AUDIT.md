@@ -63,6 +63,7 @@ Generated on 2026-05-24 from RustCraft implementation and harness sources, exclu
 - [ ] Audit Rust implementation file `src/collision_shape.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/combat_damage.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/command.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
+- [x] Audit Rust implementation file `src/command_argument_visitor.rs` against the Java source and checklist coverage. This file is the complete Rust parity model for `ArgumentVisitor.java`; root/child context traversal, root-redirect rejection, node-order argument visitation, literal skipping, nullable parsed argument lookup, and output callback delivery are covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 argument_visitor`.
 - [ ] Audit Rust implementation file `src/command/admin_player.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/command/dispatch.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/command/enchant_gamemode_rules.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.

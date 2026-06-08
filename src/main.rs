@@ -48,6 +48,8 @@ mod collision_shape;
 mod combat_damage;
 mod combat_tracker;
 mod command;
+#[cfg(test)]
+mod command_argument_visitor;
 mod command_execution;
 mod command_feedback;
 mod command_parity;

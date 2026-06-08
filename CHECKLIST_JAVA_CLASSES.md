@@ -132,7 +132,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/commands`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/ArgumentVisitor.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/ArgumentVisitor.java`. Rust `command_argument_visitor` covers Java's `visitArguments` traversal from root context through the child chain, `rejectRootRedirects` stopping before a child whose root node equals the original root node, per-context node-order iteration, literal-node skipping, argument-node lookup by name from the context argument map, nullable/missing parsed argument forwarding, and output callback context/argument/value delivery; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 argument_visitor`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/BrigadierExceptions.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/CacheableFunction.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/CommandBuildContext.java`.
