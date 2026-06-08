@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::advancement_criteria::AdvancementRequirementsModel;
 use crate::chat_formatting::ChatFormatting;
 use crate::network::play::{
     AdvancementHolderData, AdvancementProgressData, ClientboundAdvancementsPacket,
@@ -344,7 +345,11 @@ fn parse_advancement_requirements(
         }
         requirements.push(parsed_group);
     }
-    Ok(requirements)
+    let requirements = AdvancementRequirementsModel::new(requirements);
+    requirements
+        .validate(criteria)
+        .map_err(|err| format!("advancement {id} {err}"))?;
+    Ok(requirements.requirements().to_vec())
 }
 
 fn parse_advancement_rewards(value: &serde_json::Value) -> Result<AdvancementRewards, String> {

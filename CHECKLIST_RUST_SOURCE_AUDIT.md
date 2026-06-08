@@ -4,6 +4,7 @@ Generated on 2026-05-24 from RustCraft implementation and harness sources, exclu
 
 ## Rust Implementation Files
 
+- [x] Audit Rust implementation file `src/advancement_criteria.rs` against the Java source and checklist coverage. This file is the complete Rust parity model for `AdvancementRequirements.java`, `Criterion.java`, `CriterionTrigger.java`, and `CriterionTriggerInstance.java`; construction, validation, listener award flow, and validation callback behavior are covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 advancement_requirements`, `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 criterion_trigger_models`, and parser integration coverage in `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 advancement_json_loader_rejects_invalid_requirements`.
 - [ ] Audit Rust implementation file `src/advancement_system.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/ai_system.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
 - [ ] Audit Rust implementation file `src/attribute_system.rs` against the Java source and checklist coverage; add missing parity tasks before marking reviewed.
