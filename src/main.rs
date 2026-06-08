@@ -1,6 +1,8 @@
 #[cfg(test)]
 mod advancement_criteria;
 #[cfg(test)]
+mod advancement_progress;
+#[cfg(test)]
 mod advancement_rewards;
 #[cfg(test)]
 mod advancement_system;
