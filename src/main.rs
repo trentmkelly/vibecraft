@@ -62,6 +62,8 @@ mod command_result_callback;
 mod command_signing_context;
 #[cfg(test)]
 mod command_source;
+#[cfg(test)]
+mod command_source_stack;
 mod command_execution;
 mod command_feedback;
 mod command_parity;
