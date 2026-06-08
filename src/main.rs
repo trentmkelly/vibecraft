@@ -192,6 +192,8 @@ mod core_mapped_registry;
 #[cfg(test)]
 mod core_misc;
 #[cfg(test)]
+mod core_particles;
+#[cfg(test)]
 mod core_registry_codecs;
 #[cfg(test)]
 mod core_registry_helpers;
