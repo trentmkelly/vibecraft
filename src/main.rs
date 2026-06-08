@@ -72,6 +72,8 @@ mod command_signing_context;
 mod command_source;
 #[cfg(test)]
 mod command_source_stack;
+#[cfg(test)]
+mod command_shared_suggestion_provider;
 mod command_execution;
 mod command_feedback;
 mod command_parity;
