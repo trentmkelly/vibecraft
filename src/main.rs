@@ -94,6 +94,8 @@ mod command_parity;
 #[cfg(test)]
 mod command_selector;
 mod command_tree;
+#[cfg(test)]
+mod command_uuid_argument;
 mod console;
 mod container_block;
 mod container_menus;

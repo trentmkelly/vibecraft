@@ -186,7 +186,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/TemplateMirrorArgument.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/TemplateRotationArgument.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/TimeArgument.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/UuidArgument.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/UuidArgument.java`. Rust `command_uuid_argument` covers Java's `uuid()` factory, typed `getUuid` context retrieval, single example UUID, leading `^([-A-Fa-f0-9]+)` match semantics, uppercase/lowercase hex acceptance, canonical UUID bit splitting/string normalization, cursor advancement only after successful `UUID.fromString`, non-UUID suffix handling, and cursor preservation on invalid or malformed UUID input; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 uuid_argument`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/WaypointArgument.java`.
 
 ## `decompiled-server-26.1.2/net/minecraft/commands/arguments/blocks`
