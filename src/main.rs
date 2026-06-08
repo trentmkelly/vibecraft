@@ -58,6 +58,8 @@ mod console;
 mod container_block;
 mod container_menus;
 #[cfg(test)]
+mod criterion_bred_animals;
+#[cfg(test)]
 mod criterion_block_predicate;
 #[cfg(test)]
 mod criterion_bee_nest;
