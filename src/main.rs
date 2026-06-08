@@ -129,6 +129,8 @@ mod command_slot_arguments;
 #[cfg(test)]
 mod command_style_argument;
 #[cfg(test)]
+mod command_swizzle_argument;
+#[cfg(test)]
 mod command_source;
 #[cfg(test)]
 mod command_source_stack;

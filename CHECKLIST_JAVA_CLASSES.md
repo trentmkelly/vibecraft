@@ -204,7 +204,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/coordinates/Coordinates.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/coordinates/LocalCoordinates.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/coordinates/RotationArgument.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/coordinates/SwizzleArgument.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/coordinates/SwizzleArgument.java`. Rust `command_swizzle_argument` covers Java's `swizzle()` factory, examples, typed context retrieval, literal-space-only parse stop condition, empty-set parse behavior, unique `x`/`y`/`z` axis collection, invalid-character errors after `StringReader.read()`, duplicate-axis errors after consuming the duplicate, and tab/newline-as-invalid behavior; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 swizzle_argument`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/coordinates/Vec2Argument.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/coordinates/Vec3Argument.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/coordinates/WorldCoordinate.java`.
