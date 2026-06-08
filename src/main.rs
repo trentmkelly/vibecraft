@@ -203,6 +203,8 @@ mod criterion_tame_animal;
 mod criterion_target_block;
 #[cfg(test)]
 mod criterion_trade_trigger;
+#[cfg(test)]
+mod criterion_used_ender_eye;
 mod crash;
 mod crash_recovery_tests;
 #[cfg(test)]
