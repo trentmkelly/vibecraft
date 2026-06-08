@@ -118,6 +118,8 @@ mod criterion_fluid_predicate;
 #[cfg(test)]
 mod criterion_food_predicate;
 #[cfg(test)]
+mod criterion_game_type_predicate;
+#[cfg(test)]
 mod criterion_block_predicate;
 #[cfg(test)]
 mod criterion_bee_nest;
