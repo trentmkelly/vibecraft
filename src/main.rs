@@ -195,6 +195,8 @@ mod criterion_start_riding;
 mod criterion_state_properties_predicate;
 #[cfg(test)]
 mod criterion_summoned_entity;
+#[cfg(test)]
+mod criterion_tag_predicate;
 mod crash;
 mod crash_recovery_tests;
 #[cfg(test)]
