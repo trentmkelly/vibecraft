@@ -58,6 +58,8 @@ mod command_cacheable_function;
 mod command_build_context;
 #[cfg(test)]
 mod command_result_callback;
+#[cfg(test)]
+mod command_signing_context;
 mod command_execution;
 mod command_feedback;
 mod command_parity;
