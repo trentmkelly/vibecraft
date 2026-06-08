@@ -8,16 +8,18 @@ use crate::network::play::{
 };
 use crate::registry::Identifier;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AdvancementDisplay {
+    pub icon: Identifier,
     pub title: String,
     pub description: String,
+    pub background: Option<Identifier>,
     pub frame: AdvancementFrame,
     pub show_toast: bool,
     pub announce_chat: bool,
     pub hidden: bool,
-    pub x: i32,
-    pub y: i32,
+    pub x: f32,
+    pub y: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -136,7 +138,7 @@ pub struct AdvancementRewards {
     pub function: Option<Identifier>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AdvancementDefinition {
     pub id: Identifier,
     pub parent: Option<Identifier>,
@@ -377,6 +379,11 @@ fn parse_advancement_display(value: &serde_json::Value) -> Result<AdvancementDis
         .as_object()
         .ok_or_else(|| "advancement display must be an object".to_string())?;
     Ok(AdvancementDisplay {
+        icon: parse_display_icon(
+            object
+                .get("icon")
+                .ok_or_else(|| "advancement display missing icon".to_string())?,
+        )?,
         title: stringify_component(
             object
                 .get("title")
@@ -387,6 +394,10 @@ fn parse_advancement_display(value: &serde_json::Value) -> Result<AdvancementDis
                 .get("description")
                 .ok_or_else(|| "advancement display missing description".to_string())?,
         )?,
+        background: object
+            .get("background")
+            .map(|value| json_string(value, "background").and_then(|id| Identifier::parse(&id)))
+            .transpose()?,
         frame: match object
             .get("frame")
             .and_then(serde_json::Value::as_str)
@@ -409,9 +420,19 @@ fn parse_advancement_display(value: &serde_json::Value) -> Result<AdvancementDis
             .get("hidden")
             .and_then(serde_json::Value::as_bool)
             .unwrap_or(false),
-        x: 0,
-        y: 0,
+        x: 0.0,
+        y: 0.0,
     })
+}
+
+fn parse_display_icon(value: &serde_json::Value) -> Result<Identifier, String> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| "advancement display icon must be an object".to_string())?;
+    let id = object
+        .get("id")
+        .ok_or_else(|| "advancement display icon missing id".to_string())?;
+    Identifier::parse(&json_string(id, "icon id")?)
 }
 
 fn parse_identifier_array(
@@ -758,8 +779,8 @@ pub fn assign_tree_layout(definitions: &mut [AdvancementDefinition]) {
     for definition in definitions {
         let index = child_counts.entry(definition.parent.clone()).or_insert(0);
         if let Some(display) = &mut definition.display {
-            display.x = definition.parent.as_ref().map_or(0, |_| 1);
-            display.y = *index;
+            display.x = definition.parent.as_ref().map_or(0.0, |_| 1.0);
+            display.y = *index as f32;
         }
         *index += 1;
     }
@@ -771,14 +792,16 @@ mod tests {
 
     fn display(hidden: bool, announce_chat: bool) -> AdvancementDisplay {
         AdvancementDisplay {
+            icon: Identifier::parse("minecraft:stone").unwrap(),
             title: "Title".to_string(),
             description: "Description".to_string(),
+            background: None,
             frame: AdvancementFrame::Task,
             show_toast: true,
             announce_chat,
             hidden,
-            x: 0,
-            y: 0,
+            x: 0.0,
+            y: 0.0,
         }
     }
 
@@ -841,8 +864,8 @@ mod tests {
             .unwrap(),
         ];
         assign_tree_layout(&mut definitions);
-        assert_eq!(definitions[0].display.as_ref().unwrap().x, 0);
-        assert_eq!(definitions[1].display.as_ref().unwrap().x, 1);
+        assert_eq!(definitions[0].display.as_ref().unwrap().x, 0.0);
+        assert_eq!(definitions[1].display.as_ref().unwrap().x, 1.0);
 
         let mut player = PlayerAdvancementSet::default();
         assert!(!definitions[1].visible_to(&player, &definitions));
@@ -940,7 +963,7 @@ mod tests {
         );
 
         assign_tree_layout(std::slice::from_mut(&mut root));
-        assert_eq!(root.display.as_ref().unwrap().x, 0);
+        assert_eq!(root.display.as_ref().unwrap().x, 0.0);
     }
 
     #[test]
