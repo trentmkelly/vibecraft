@@ -120,6 +120,8 @@ mod criterion_food_predicate;
 #[cfg(test)]
 mod criterion_game_type_predicate;
 #[cfg(test)]
+mod criterion_impossible_trigger;
+#[cfg(test)]
 mod criterion_block_predicate;
 #[cfg(test)]
 mod criterion_bee_nest;
