@@ -83,6 +83,8 @@ mod command_operation_argument;
 #[cfg(test)]
 mod command_parser_utils;
 #[cfg(test)]
+mod command_range_argument;
+#[cfg(test)]
 mod command_result_callback;
 #[cfg(test)]
 mod command_signing_context;
