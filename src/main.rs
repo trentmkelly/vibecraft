@@ -158,6 +158,8 @@ mod criterion_player_hurt_entity;
 #[cfg(test)]
 mod criterion_player_interact;
 #[cfg(test)]
+mod criterion_player_predicate;
+#[cfg(test)]
 mod criterion_block_predicate;
 #[cfg(test)]
 mod criterion_bee_nest;
