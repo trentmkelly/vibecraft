@@ -50,6 +50,8 @@ mod combat_tracker;
 mod command;
 #[cfg(test)]
 mod command_argument_visitor;
+#[cfg(test)]
+mod command_brigadier_exceptions;
 mod command_execution;
 mod command_feedback;
 mod command_parity;
