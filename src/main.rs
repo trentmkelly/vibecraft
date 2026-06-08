@@ -205,6 +205,8 @@ mod criterion_target_block;
 mod criterion_trade_trigger;
 #[cfg(test)]
 mod criterion_used_ender_eye;
+#[cfg(test)]
+mod criterion_used_totem;
 mod crash;
 mod crash_recovery_tests;
 #[cfg(test)]
