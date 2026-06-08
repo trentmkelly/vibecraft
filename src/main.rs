@@ -57,6 +57,8 @@ mod command_cacheable_function;
 #[cfg(test)]
 mod command_build_context;
 #[cfg(test)]
+mod command_commands;
+#[cfg(test)]
 mod command_result_callback;
 #[cfg(test)]
 mod command_signing_context;
