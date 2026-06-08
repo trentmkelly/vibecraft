@@ -96,6 +96,8 @@ mod criterion_enter_block;
 #[cfg(test)]
 mod criterion_entity_equipment_predicate;
 #[cfg(test)]
+mod criterion_entity_flags_predicate;
+#[cfg(test)]
 mod criterion_block_predicate;
 #[cfg(test)]
 mod criterion_bee_nest;
