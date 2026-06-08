@@ -1,6 +1,11 @@
 #[cfg(test)]
 use std::collections::VecDeque;
 
+#[cfg(test)]
+pub const EXECUTION_PACKAGE_NULL_MARKED: bool = true;
+#[cfg(test)]
+pub const EXECUTION_TASKS_PACKAGE_NULL_MARKED: bool = true;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Vec3 {
     pub x: f64,
@@ -63,11 +68,166 @@ pub enum CommandTask {
 }
 
 #[cfg(test)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChainModifiersModel {
+    flags: u8,
+}
+
+#[cfg(test)]
+impl ChainModifiersModel {
+    pub const DEFAULT: Self = Self { flags: 0 };
+    const FLAG_FORKED: u8 = 1;
+    const FLAG_RETURN: u8 = 2;
+
+    pub fn flags(self) -> u8 {
+        self.flags
+    }
+
+    pub fn is_forked(self) -> bool {
+        self.flags & Self::FLAG_FORKED != 0
+    }
+
+    pub fn set_forked(self) -> Self {
+        self.set_flag(Self::FLAG_FORKED)
+    }
+
+    pub fn is_return(self) -> bool {
+        self.flags & Self::FLAG_RETURN != 0
+    }
+
+    pub fn set_return(self) -> Self {
+        self.set_flag(Self::FLAG_RETURN)
+    }
+
+    fn set_flag(self, flag: u8) -> Self {
+        let new_flags = self.flags | flag;
+        if new_flags == self.flags {
+            self
+        } else {
+            Self { flags: new_flags }
+        }
+    }
+}
+
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommandFrame {
     pub depth: usize,
     pub return_value: Option<CommandOutcome>,
     pub discarded: bool,
+}
+
+#[cfg(test)]
+impl CommandFrame {
+    pub fn return_success(&mut self, value: i32) {
+        self.return_value = Some(CommandOutcome {
+            success: true,
+            result: value,
+        });
+    }
+
+    pub fn return_failure(&mut self) {
+        self.return_value = Some(CommandOutcome {
+            success: false,
+            result: 0,
+        });
+    }
+
+    pub fn discard(&mut self) {
+        self.discarded = true;
+    }
+}
+
+#[cfg(test)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TraceEventModel {
+    Command {
+        depth: usize,
+        command: String,
+    },
+    Return {
+        depth: usize,
+        command: String,
+        result: i32,
+    },
+    Error(String),
+    Call {
+        depth: usize,
+        function: String,
+        size: usize,
+    },
+    Closed,
+}
+
+#[cfg(test)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TraceCallbacksModel {
+    pub events: Vec<TraceEventModel>,
+}
+
+#[cfg(test)]
+impl TraceCallbacksModel {
+    pub fn on_command(&mut self, depth: usize, command: impl Into<String>) {
+        self.events.push(TraceEventModel::Command {
+            depth,
+            command: command.into(),
+        });
+    }
+
+    pub fn on_return(&mut self, depth: usize, command: impl Into<String>, result: i32) {
+        self.events.push(TraceEventModel::Return {
+            depth,
+            command: command.into(),
+            result,
+        });
+    }
+
+    pub fn on_error(&mut self, message: impl Into<String>) {
+        self.events.push(TraceEventModel::Error(message.into()));
+    }
+
+    pub fn on_call(&mut self, depth: usize, function: impl Into<String>, size: usize) {
+        self.events.push(TraceEventModel::Call {
+            depth,
+            function: function.into(),
+            size,
+        });
+    }
+
+    pub fn close(&mut self) {
+        self.events.push(TraceEventModel::Closed);
+    }
+}
+
+#[cfg(test)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EntryActionModel {
+    Task(CommandTask),
+    Fallthrough,
+    Isolated(Vec<CommandTask>),
+    CallFunction {
+        id: String,
+        entries: Vec<CommandTask>,
+        return_parent_frame: bool,
+    },
+}
+
+#[cfg(test)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandQueueEntryModel {
+    pub frame: CommandFrame,
+    pub action: EntryActionModel,
+}
+
+#[cfg(test)]
+impl CommandQueueEntryModel {
+    pub fn new(frame: CommandFrame, action: EntryActionModel) -> Self {
+        Self { frame, action }
+    }
+
+    pub fn execute(self, context: &mut ExecutionContextModel) {
+        self.action.execute(context, self.frame);
+    }
 }
 
 #[cfg(test)]
@@ -82,6 +242,7 @@ pub struct ExecutionContextModel {
     pub queue_overflow: bool,
     pub fork_limit_reached: bool,
     pub callbacks: Vec<CommandOutcome>,
+    pub tracer: Option<TraceCallbacksModel>,
 }
 
 impl CommandSourceStackModel {
@@ -150,12 +311,31 @@ impl ExecutionContextModel {
             queue_overflow: false,
             fork_limit_reached: false,
             callbacks: Vec::new(),
+            tracer: None,
         }
     }
 
     pub fn with_max_queue_depth(mut self, max_queue_depth: usize) -> Self {
         self.max_queue_depth = max_queue_depth;
         self
+    }
+
+    pub fn tracer(&self) -> Option<&TraceCallbacksModel> {
+        self.tracer.as_ref()
+    }
+
+    pub fn set_tracer(&mut self, tracer: Option<TraceCallbacksModel>) {
+        self.tracer = tracer;
+    }
+
+    pub fn close(&mut self) {
+        if let Some(tracer) = &mut self.tracer {
+            tracer.close();
+        }
+    }
+
+    pub fn increment_cost(&mut self) {
+        self.quota = self.quota.saturating_sub(1);
     }
 
     pub fn queue_initial_command(
@@ -287,6 +467,135 @@ impl ExecutionContextModel {
 }
 
 #[cfg(test)]
+impl EntryActionModel {
+    pub fn execute(self, context: &mut ExecutionContextModel, mut frame: CommandFrame) {
+        match self {
+            Self::Task(task) => context.queue_next(frame, task),
+            Self::Fallthrough => {
+                frame.return_failure();
+                frame.discard();
+                context
+                    .callbacks
+                    .push(frame.return_value.expect("fallthrough result"));
+                context.discard_at_depth_or_higher(frame.depth);
+            }
+            Self::Isolated(tasks) => {
+                let new_frame = current_frame(frame.depth + 1);
+                for task in tasks {
+                    context.queue_next(new_frame.clone(), task);
+                }
+            }
+            Self::CallFunction {
+                id,
+                entries,
+                return_parent_frame,
+            } => {
+                context.increment_cost();
+                if let Some(tracer) = &mut context.tracer {
+                    tracer.on_call(frame.depth, id, entries.len());
+                }
+                let new_depth = frame.depth + 1;
+                let new_frame = if return_parent_frame {
+                    CommandFrame {
+                        depth: new_depth,
+                        ..frame
+                    }
+                } else {
+                    current_frame(new_depth)
+                };
+                ContinuationTaskModel::schedule(context, new_frame, entries);
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+pub struct ExecutionControlModel<'a> {
+    context: &'a mut ExecutionContextModel,
+    frame: CommandFrame,
+}
+
+#[cfg(test)]
+impl<'a> ExecutionControlModel<'a> {
+    pub fn create(context: &'a mut ExecutionContextModel, frame: CommandFrame) -> Self {
+        Self { context, frame }
+    }
+
+    pub fn queue_next(&mut self, action: EntryActionModel) {
+        CommandQueueEntryModel::new(self.frame.clone(), action).execute(self.context);
+    }
+
+    pub fn set_tracer(&mut self, tracer: Option<TraceCallbacksModel>) {
+        self.context.set_tracer(tracer);
+    }
+
+    pub fn tracer(&self) -> Option<&TraceCallbacksModel> {
+        self.context.tracer()
+    }
+
+    pub fn current_frame(&self) -> &CommandFrame {
+        &self.frame
+    }
+}
+
+#[cfg(test)]
+pub struct UnboundEntryActionModel {
+    task: CommandTask,
+}
+
+#[cfg(test)]
+impl UnboundEntryActionModel {
+    pub fn new(task: CommandTask) -> Self {
+        Self { task }
+    }
+
+    pub fn bind(&self, sender: &CommandSourceStackModel) -> EntryActionModel {
+        let task = match &self.task {
+            CommandTask::Command {
+                command, returning, ..
+            } => CommandTask::Command {
+                command: command.clone(),
+                source: sender.source.clone(),
+                returning: *returning,
+            },
+            CommandTask::FunctionCall { id, returning, .. } => CommandTask::FunctionCall {
+                id: id.clone(),
+                source: sender.source.clone(),
+                returning: *returning,
+            },
+            CommandTask::Fallthrough => CommandTask::Fallthrough,
+        };
+        EntryActionModel::Task(task)
+    }
+}
+
+#[cfg(test)]
+pub struct ContinuationTaskModel;
+
+#[cfg(test)]
+impl ContinuationTaskModel {
+    pub fn schedule(
+        context: &mut ExecutionContextModel,
+        frame: CommandFrame,
+        arguments: Vec<CommandTask>,
+    ) {
+        match arguments.len() {
+            0 => {}
+            1 | 2 => {
+                for argument in arguments {
+                    context.queue_next(frame.clone(), argument);
+                }
+            }
+            _ => {
+                for argument in arguments.into_iter().rev() {
+                    context.queue_next(frame.clone(), argument);
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
 pub fn execute_as(
     source: &CommandSourceStackModel,
     entities: &[&str],
@@ -315,6 +624,36 @@ pub fn propagate_results(
         .filter(|callback| **callback != ResultCallback::Empty)
         .map(|_| outcome)
         .collect()
+}
+
+#[cfg(test)]
+pub fn run_guarded_custom_command(
+    callbacks: &mut Vec<CommandOutcome>,
+    tracer: Option<&mut TraceCallbacksModel>,
+    modifiers: ChainModifiersModel,
+    guarded: Result<CommandOutcome, &str>,
+) -> Option<CommandOutcome> {
+    match guarded {
+        Ok(outcome) => {
+            callbacks.push(outcome);
+            Some(outcome)
+        }
+        Err(message) => {
+            if let Some(tracer) = tracer {
+                let suffix = if modifiers.is_forked() {
+                    " forked"
+                } else {
+                    " single"
+                };
+                tracer.on_error(format!("{message}{suffix}"));
+            }
+            callbacks.push(CommandOutcome {
+                success: false,
+                result: 0,
+            });
+            None
+        }
+    }
 }
 
 #[cfg(test)]
@@ -350,6 +689,8 @@ mod tests {
 
     #[test]
     fn source_stack_mutators_preserve_context_like_command_source_stack() {
+        const { assert!(EXECUTION_PACKAGE_NULL_MARKED) };
+        const { assert!(EXECUTION_TASKS_PACKAGE_NULL_MARKED) };
         let source = CommandSourceStackModel::new("server", "overworld", 4)
             .with_position(Vec3 {
                 x: 1.0,
@@ -370,6 +711,227 @@ mod tests {
         assert_eq!(
             source.callbacks,
             vec![ResultCallback::StoreResult, ResultCallback::ReturnFrame]
+        );
+    }
+
+    #[test]
+    fn chain_modifiers_frame_trace_and_queue_entry_match_execution_records() {
+        let modifiers = ChainModifiersModel::DEFAULT.set_forked().set_return();
+        assert!(modifiers.is_forked());
+        assert!(modifiers.is_return());
+        assert_eq!(modifiers.flags(), 3);
+        assert_eq!(modifiers.set_return(), modifiers);
+
+        let mut frame = current_frame(2);
+        frame.return_success(7);
+        assert_eq!(
+            frame.return_value,
+            Some(CommandOutcome {
+                success: true,
+                result: 7
+            })
+        );
+        frame.discard();
+        assert!(frame.discarded);
+
+        let mut tracer = TraceCallbacksModel::default();
+        tracer.on_command(1, "say hi");
+        tracer.on_return(1, "say hi", 1);
+        tracer.on_error("bad command");
+        tracer.on_call(2, "minecraft:tick", 3);
+        tracer.close();
+        assert_eq!(
+            tracer.events,
+            vec![
+                TraceEventModel::Command {
+                    depth: 1,
+                    command: "say hi".to_string()
+                },
+                TraceEventModel::Return {
+                    depth: 1,
+                    command: "say hi".to_string(),
+                    result: 1
+                },
+                TraceEventModel::Error("bad command".to_string()),
+                TraceEventModel::Call {
+                    depth: 2,
+                    function: "minecraft:tick".to_string(),
+                    size: 3
+                },
+                TraceEventModel::Closed
+            ]
+        );
+
+        let mut context = ExecutionContextModel::new(10, 8);
+        CommandQueueEntryModel::new(
+            current_frame(0),
+            EntryActionModel::Task(CommandTask::Command {
+                command: "say queued".to_string(),
+                source: "server".to_string(),
+                returning: false,
+            }),
+        )
+        .execute(&mut context);
+        assert_eq!(context.queue.len(), 1);
+
+        context.set_tracer(Some(TraceCallbacksModel::default()));
+        context.close();
+        assert_eq!(
+            context.tracer.as_ref().unwrap().events,
+            vec![TraceEventModel::Closed]
+        );
+    }
+
+    #[test]
+    fn execution_control_unbound_action_and_isolated_call_bind_like_java_interfaces() {
+        let source = CommandSourceStackModel::new("server", "overworld", 4).with_entity("Alex");
+        let mut context = ExecutionContextModel::new(10, 8);
+        let frame = current_frame(3);
+        let mut control = ExecutionControlModel::create(&mut context, frame.clone());
+        control.set_tracer(Some(TraceCallbacksModel::default()));
+        assert_eq!(control.current_frame(), &frame);
+        assert!(control.tracer().is_some());
+        control.queue_next(EntryActionModel::Task(CommandTask::Command {
+            command: "say control".to_string(),
+            source: "server".to_string(),
+            returning: false,
+        }));
+        assert_eq!(context.queue.len(), 1);
+
+        let unbound = UnboundEntryActionModel::new(CommandTask::Command {
+            command: "say bound".to_string(),
+            source: "old".to_string(),
+            returning: false,
+        });
+        let action = unbound.bind(&source);
+        let mut bound_context = ExecutionContextModel::new(10, 8);
+        action.execute(&mut bound_context, current_frame(0));
+        assert!(matches!(
+            bound_context.queue.front().unwrap().1,
+            CommandTask::Command { ref source, .. } if source == "Alex"
+        ));
+
+        EntryActionModel::Isolated(vec![CommandTask::Command {
+            command: "say isolated".to_string(),
+            source: "server".to_string(),
+            returning: false,
+        }])
+        .execute(&mut bound_context, current_frame(1));
+        assert!(bound_context.queue.iter().any(|(frame, task)| {
+            frame.depth == 2
+                && matches!(
+                    task,
+                    CommandTask::Command { command, .. } if command == "say isolated"
+                )
+        }));
+    }
+
+    #[test]
+    fn fallthrough_call_function_and_continuation_tasks_match_java_scheduling() {
+        let mut context = ExecutionContextModel::new(10, 8);
+        context.set_tracer(Some(TraceCallbacksModel::default()));
+        EntryActionModel::CallFunction {
+            id: "minecraft:tick".to_string(),
+            entries: vec![
+                CommandTask::Command {
+                    command: "say one".to_string(),
+                    source: "server".to_string(),
+                    returning: false,
+                },
+                CommandTask::Command {
+                    command: "say two".to_string(),
+                    source: "server".to_string(),
+                    returning: false,
+                },
+                CommandTask::Command {
+                    command: "say three".to_string(),
+                    source: "server".to_string(),
+                    returning: false,
+                },
+            ],
+            return_parent_frame: false,
+        }
+        .execute(&mut context, current_frame(0));
+        assert_eq!(context.quota, 9);
+        assert_eq!(context.queue.len(), 3);
+        assert!(context.queue.iter().all(|(frame, _)| frame.depth == 1));
+        assert_eq!(
+            context.tracer.as_ref().unwrap().events,
+            vec![TraceEventModel::Call {
+                depth: 0,
+                function: "minecraft:tick".to_string(),
+                size: 3
+            }]
+        );
+
+        let mut fallthrough = ExecutionContextModel::new(10, 8);
+        fallthrough.queue_next(
+            CommandFrame {
+                depth: 2,
+                return_value: None,
+                discarded: false,
+            },
+            CommandTask::Command {
+                command: "say skipped".to_string(),
+                source: "server".to_string(),
+                returning: false,
+            },
+        );
+        EntryActionModel::Fallthrough.execute(&mut fallthrough, current_frame(2));
+        assert_eq!(
+            fallthrough.callbacks,
+            vec![CommandOutcome {
+                success: false,
+                result: 0
+            }]
+        );
+        assert!(fallthrough.queue.is_empty());
+    }
+
+    #[test]
+    fn custom_command_error_handling_traces_errors_and_fires_failure_callback() {
+        let mut callbacks = Vec::new();
+        let mut tracer = TraceCallbacksModel::default();
+        assert_eq!(
+            run_guarded_custom_command(
+                &mut callbacks,
+                Some(&mut tracer),
+                ChainModifiersModel::DEFAULT,
+                Ok(CommandOutcome {
+                    success: true,
+                    result: 4
+                })
+            ),
+            Some(CommandOutcome {
+                success: true,
+                result: 4
+            })
+        );
+        assert_eq!(
+            run_guarded_custom_command(
+                &mut callbacks,
+                Some(&mut tracer),
+                ChainModifiersModel::DEFAULT.set_forked(),
+                Err("syntax")
+            ),
+            None
+        );
+        assert_eq!(
+            callbacks,
+            vec![
+                CommandOutcome {
+                    success: true,
+                    result: 4
+                },
+                CommandOutcome {
+                    success: false,
+                    result: 0
+                }
+            ]
+        );
+        assert_eq!(
+            tracer.events,
+            vec![TraceEventModel::Error("syntax forked".to_string())]
         );
     }
 
