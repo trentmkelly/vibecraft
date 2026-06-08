@@ -178,6 +178,8 @@ mod criterion_single_component_item_predicate;
 #[cfg(test)]
 mod criterion_slide_down_block;
 #[cfg(test)]
+mod criterion_slime_predicate;
+#[cfg(test)]
 mod criterion_block_predicate;
 #[cfg(test)]
 mod criterion_bee_nest;
