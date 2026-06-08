@@ -106,6 +106,8 @@ mod criterion_entity_sub_predicates;
 #[cfg(test)]
 mod criterion_entity_type_predicate;
 #[cfg(test)]
+mod criterion_fall_after_explosion;
+#[cfg(test)]
 mod criterion_block_predicate;
 #[cfg(test)]
 mod criterion_bee_nest;
