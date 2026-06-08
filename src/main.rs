@@ -11,6 +11,8 @@ mod advancement_system;
 #[cfg(test)]
 mod advancement_tree;
 #[cfg(test)]
+mod advancement_tree_position;
+#[cfg(test)]
 mod advancement_trigger_registry;
 mod ai_system;
 mod attribute_system;
