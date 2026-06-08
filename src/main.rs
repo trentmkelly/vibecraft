@@ -174,6 +174,8 @@ mod criterion_shot_crossbow;
 #[cfg(test)]
 mod criterion_simple_trigger;
 #[cfg(test)]
+mod criterion_single_component_item_predicate;
+#[cfg(test)]
 mod criterion_block_predicate;
 #[cfg(test)]
 mod criterion_bee_nest;
