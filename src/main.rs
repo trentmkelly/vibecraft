@@ -172,6 +172,8 @@ mod core_misc;
 #[cfg(test)]
 mod core_registry_helpers;
 #[cfg(test)]
+mod core_section_pos;
+#[cfg(test)]
 mod core_orientation;
 #[cfg(test)]
 mod criterion_bred_animals;
