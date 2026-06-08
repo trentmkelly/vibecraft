@@ -658,19 +658,19 @@ impl StringReaderModel {
         self.cursor
     }
 
-    fn set_cursor(&mut self, cursor: usize) {
+    pub(crate) fn set_cursor(&mut self, cursor: usize) {
         self.cursor = cursor;
     }
 
-    fn can_read(&self) -> bool {
+    pub(crate) fn can_read(&self) -> bool {
         self.cursor < self.input.len()
     }
 
-    fn peek(&self) -> char {
+    pub(crate) fn peek(&self) -> char {
         self.input.as_bytes()[self.cursor] as char
     }
 
-    fn skip(&mut self) {
+    pub(crate) fn skip(&mut self) {
         self.cursor += 1;
     }
 

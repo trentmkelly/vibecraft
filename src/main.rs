@@ -59,6 +59,8 @@ mod command_brigadier_exceptions;
 #[cfg(test)]
 mod command_cacheable_function;
 #[cfg(test)]
+mod command_block_position_arguments;
+#[cfg(test)]
 mod command_component_argument;
 #[cfg(test)]
 mod command_nbt_arguments;
