@@ -130,6 +130,8 @@ mod criterion_item_durability;
 #[cfg(test)]
 mod criterion_item_predicate;
 #[cfg(test)]
+mod criterion_killed_by_arrow;
+#[cfg(test)]
 mod criterion_block_predicate;
 #[cfg(test)]
 mod criterion_bee_nest;
