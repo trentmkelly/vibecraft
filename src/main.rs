@@ -182,6 +182,8 @@ mod core_holders;
 #[cfg(test)]
 mod core_layered_registry;
 #[cfg(test)]
+mod core_mapped_registry;
+#[cfg(test)]
 mod core_misc;
 #[cfg(test)]
 mod core_registry_codecs;
