@@ -74,6 +74,27 @@ impl RegistryAccessModel {
         })
     }
 
+    fn from_registry_entries(
+        entries: impl IntoIterator<Item = RegistryEntryModel>,
+    ) -> Result<Self, String> {
+        let mut by_key = BTreeMap::new();
+        for entry in entries {
+            if by_key.insert(entry.key, entry.value).is_some() {
+                return Err("Duplicate key in immutable registry access".to_string());
+            }
+        }
+        Ok(Self {
+            registries: by_key,
+            frozen: false,
+        })
+    }
+
+    fn from_registry_of_registries(
+        registries: RegistryOfRegistriesModel,
+    ) -> RegistryOfRegistriesAccessModel {
+        RegistryOfRegistriesAccessModel { registries }
+    }
+
     fn from_map(registries: BTreeMap<ResourceKeyModel, RegistryModel>) -> Self {
         Self {
             registries,
@@ -117,6 +138,63 @@ impl RegistryAccessModel {
 
     fn is_frozen(&self) -> bool {
         self.frozen && self.registries.values().all(|registry| registry.frozen)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RegistryOfRegistriesModel {
+    entries: BTreeMap<ResourceKeyModel, RegistryModel>,
+}
+
+impl RegistryOfRegistriesModel {
+    fn new(registries: impl IntoIterator<Item = RegistryModel>) -> Self {
+        Self {
+            entries: registries
+                .into_iter()
+                .map(|registry| (registry.key.clone(), registry))
+                .collect(),
+        }
+    }
+
+    fn get_optional(&self, key: &ResourceKeyModel) -> Option<&RegistryModel> {
+        self.entries.get(key)
+    }
+
+    fn entry_set(&self) -> Vec<RegistryEntryModel> {
+        self.entries
+            .iter()
+            .map(|(key, value)| RegistryEntryModel {
+                key: key.clone(),
+                value: value.clone(),
+            })
+            .collect()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RegistryOfRegistriesAccessModel {
+    registries: RegistryOfRegistriesModel,
+}
+
+impl RegistryOfRegistriesAccessModel {
+    fn lookup(&self, key: &ResourceKeyModel) -> Option<&RegistryModel> {
+        self.registries.get_optional(key)
+    }
+
+    fn registries(&self) -> Vec<RegistryEntryModel> {
+        self.registries.entry_set()
+    }
+
+    fn list_registry_keys(&self) -> Vec<ResourceKeyModel> {
+        self.registries
+            .entry_set()
+            .into_iter()
+            .map(|entry| entry.key)
+            .collect()
+    }
+
+    fn freeze(&self) -> &Self {
+        self
     }
 }
 
@@ -452,5 +530,89 @@ mod tests {
                 .unwrap_err(),
             "Duplicated registry minecraft:biome"
         );
+    }
+
+    #[test]
+    fn registry_access_empty_lookup_and_list_keys_match_java_defaults() {
+        let empty = RegistryAccessModel::empty();
+        assert!(empty.is_frozen());
+        assert!(empty.registries().is_empty());
+        assert!(empty.list_registry_keys().is_empty());
+        assert!(empty
+            .lookup(&ResourceKeyModel::new("minecraft:biome"))
+            .is_none());
+        assert_eq!(
+            empty
+                .lookup_or_throw(&ResourceKeyModel::new("minecraft:biome"))
+                .unwrap_err(),
+            "Missing registry: minecraft:biome"
+        );
+    }
+
+    #[test]
+    fn immutable_registry_access_constructors_and_freeze_match_java_registry_entries() {
+        let biome = RegistryModel::new("minecraft:biome", ["plains"]);
+        let dimension_type = RegistryModel::new("minecraft:dimension_type", ["overworld"]);
+        let from_list =
+            RegistryAccessModel::from_registries([biome.clone(), dimension_type.clone()]).unwrap();
+        assert!(!from_list.is_frozen());
+        assert_eq!(
+            from_list.list_registry_keys(),
+            vec![
+                ResourceKeyModel::new("minecraft:biome"),
+                ResourceKeyModel::new("minecraft:dimension_type"),
+            ]
+        );
+
+        let entries = from_list.registries();
+        assert_eq!(entries[0].key, ResourceKeyModel::new("minecraft:biome"));
+        assert_eq!(entries[0].value.entries, vec!["plains"]);
+
+        let from_entries = RegistryAccessModel::from_registry_entries(entries).unwrap();
+        assert_eq!(
+            from_entries
+                .lookup_or_throw(&ResourceKeyModel::new("minecraft:dimension_type"))
+                .unwrap()
+                .entries,
+            vec!["overworld"]
+        );
+
+        let frozen = from_entries.freeze();
+        assert!(frozen.is_frozen());
+        assert!(
+            frozen
+                .lookup_or_throw(&ResourceKeyModel::new("minecraft:biome"))
+                .unwrap()
+                .frozen
+        );
+    }
+
+    #[test]
+    fn from_registry_of_registries_delegates_lookup_and_freeze_returns_self() {
+        let registry_of_registries = RegistryOfRegistriesModel::new([
+            RegistryModel::new("minecraft:root", ["registry"]),
+            RegistryModel::new("minecraft:biome", ["plains"]),
+        ]);
+        let access = RegistryAccessModel::from_registry_of_registries(registry_of_registries);
+
+        assert_eq!(
+            access
+                .lookup(&ResourceKeyModel::new("minecraft:biome"))
+                .unwrap()
+                .entries,
+            vec!["plains"]
+        );
+        assert!(access
+            .lookup(&ResourceKeyModel::new("minecraft:missing"))
+            .is_none());
+        assert_eq!(
+            access.list_registry_keys(),
+            vec![
+                ResourceKeyModel::new("minecraft:biome"),
+                ResourceKeyModel::new("minecraft:root"),
+            ]
+        );
+        assert_eq!(access.freeze(), &access);
+        assert_eq!(access.registries().len(), 2);
     }
 }
