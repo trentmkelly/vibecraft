@@ -80,6 +80,8 @@ mod criterion_damage_predicate;
 #[cfg(test)]
 mod criterion_damage_source_predicate;
 #[cfg(test)]
+mod criterion_data_component_matchers;
+#[cfg(test)]
 mod criterion_block_predicate;
 #[cfg(test)]
 mod criterion_bee_nest;
