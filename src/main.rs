@@ -140,6 +140,8 @@ mod criterion_light_predicate;
 #[cfg(test)]
 mod criterion_lightning_bolt_predicate;
 #[cfg(test)]
+mod criterion_lightning_strike;
+#[cfg(test)]
 mod criterion_block_predicate;
 #[cfg(test)]
 mod criterion_bee_nest;
