@@ -172,6 +172,8 @@ mod criterion_sheep_predicate;
 #[cfg(test)]
 mod criterion_shot_crossbow;
 #[cfg(test)]
+mod criterion_simple_trigger;
+#[cfg(test)]
 mod criterion_block_predicate;
 #[cfg(test)]
 mod criterion_bee_nest;
