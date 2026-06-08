@@ -110,6 +110,82 @@ pub enum CauldronItem {
     PlainShulkerBox,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CauldronDispatcherKind {
+    Empty,
+    Water,
+    Lava,
+    PowderSnow,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CauldronInteractionKind {
+    Default,
+    FillWater,
+    FillLava,
+    FillPowderSnow,
+    EmptyWaterPotion,
+    FillBucketWater,
+    FillGlassBottle,
+    AddWaterPotion,
+    CleanDyedItem,
+    CleanBanner,
+    CleanShulkerBox,
+    FillBucketLava,
+    FillBucketPowderSnow,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CauldronItemKey {
+    WaterBucket,
+    LavaBucket,
+    PowderSnowBucket,
+    Bucket,
+    Potion,
+    GlassBottle,
+    Banner(&'static str),
+    ShulkerBox(&'static str),
+    LeatherArmor,
+    Other,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CauldronItemTag {
+    CanRemoveDye,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CauldronItemStackModel {
+    pub item: CauldronItemKey,
+    pub tags: Vec<CauldronItemTag>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CauldronDispatcherModel {
+    pub name: &'static str,
+    pub kind: CauldronDispatcherKind,
+    tags: Vec<(CauldronItemTag, CauldronInteractionKind)>,
+    items: Vec<(CauldronItemKey, CauldronInteractionKind)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CauldronBootstrapModel {
+    pub dispatchers: Vec<CauldronDispatcherModel>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CauldronResult {
+    Success,
+    Consume,
+    TryWithEmptyHand,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CauldronInteractionTrace {
+    pub result: CauldronResult,
+    pub server_action: Option<CauldronAction>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CauldronAction {
     Success {
@@ -279,6 +355,178 @@ pub fn execute_dispense(
         | DispenseBehaviorKind::EquipAnimal => {
             vec![DispenseAction::UseOnBlock { target, behavior }]
         }
+    }
+}
+
+pub const CAULDRON_DISPATCHER_CODEC_KEYS: [&str; 4] = ["empty", "water", "lava", "powder_snow"];
+
+pub const JAVA_NULL_MARKED_CAULDRON_PACKAGE: bool = true;
+
+pub const JAVA_CAULDRON_COLOURS: [&str; 16] = [
+    "white",
+    "gray",
+    "black",
+    "blue",
+    "brown",
+    "cyan",
+    "green",
+    "light_blue",
+    "light_gray",
+    "lime",
+    "magenta",
+    "orange",
+    "pink",
+    "purple",
+    "red",
+    "yellow",
+];
+
+pub fn cauldron_package_is_null_marked() -> bool {
+    JAVA_NULL_MARKED_CAULDRON_PACKAGE
+}
+
+impl CauldronDispatcherModel {
+    pub fn new(name: &'static str, kind: CauldronDispatcherKind) -> Self {
+        Self {
+            name,
+            kind,
+            tags: Vec::new(),
+            items: Vec::new(),
+        }
+    }
+
+    pub fn put_item(&mut self, item: CauldronItemKey, interaction: CauldronInteractionKind) {
+        self.items.push((item, interaction));
+    }
+
+    pub fn put_tag(&mut self, tag: CauldronItemTag, interaction: CauldronInteractionKind) {
+        self.tags.push((tag, interaction));
+    }
+
+    pub fn get(&self, stack: &CauldronItemStackModel) -> CauldronInteractionKind {
+        self.tags
+            .iter()
+            .find_map(|(tag, interaction)| stack.tags.contains(tag).then_some(*interaction))
+            .or_else(|| {
+                self.items
+                    .iter()
+                    .find_map(|(item, interaction)| (*item == stack.item).then_some(*interaction))
+            })
+            .unwrap_or(CauldronInteractionKind::Default)
+    }
+
+    pub fn item_mappings(&self) -> &[(CauldronItemKey, CauldronInteractionKind)] {
+        &self.items
+    }
+
+    pub fn tag_mappings(&self) -> &[(CauldronItemTag, CauldronInteractionKind)] {
+        &self.tags
+    }
+}
+
+pub fn cauldron_bootstrap_model() -> CauldronBootstrapModel {
+    let mut empty = new_cauldron_dispatcher("empty", CauldronDispatcherKind::Empty);
+    add_default_cauldron_interactions(&mut empty);
+    empty.put_item(
+        CauldronItemKey::Potion,
+        CauldronInteractionKind::EmptyWaterPotion,
+    );
+
+    let mut water = new_cauldron_dispatcher("water", CauldronDispatcherKind::Water);
+    add_default_cauldron_interactions(&mut water);
+    water.put_item(
+        CauldronItemKey::Bucket,
+        CauldronInteractionKind::FillBucketWater,
+    );
+    water.put_item(
+        CauldronItemKey::GlassBottle,
+        CauldronInteractionKind::FillGlassBottle,
+    );
+    water.put_item(
+        CauldronItemKey::Potion,
+        CauldronInteractionKind::AddWaterPotion,
+    );
+    water.put_tag(
+        CauldronItemTag::CanRemoveDye,
+        CauldronInteractionKind::CleanDyedItem,
+    );
+    for colour in JAVA_CAULDRON_COLOURS {
+        water.put_item(
+            CauldronItemKey::Banner(colour),
+            CauldronInteractionKind::CleanBanner,
+        );
+    }
+    for colour in JAVA_CAULDRON_COLOURS {
+        water.put_item(
+            CauldronItemKey::ShulkerBox(colour),
+            CauldronInteractionKind::CleanShulkerBox,
+        );
+    }
+
+    let mut lava = new_cauldron_dispatcher("lava", CauldronDispatcherKind::Lava);
+    lava.put_item(
+        CauldronItemKey::Bucket,
+        CauldronInteractionKind::FillBucketLava,
+    );
+    add_default_cauldron_interactions(&mut lava);
+
+    let mut powder_snow =
+        new_cauldron_dispatcher("powder_snow", CauldronDispatcherKind::PowderSnow);
+    powder_snow.put_item(
+        CauldronItemKey::Bucket,
+        CauldronInteractionKind::FillBucketPowderSnow,
+    );
+    add_default_cauldron_interactions(&mut powder_snow);
+
+    CauldronBootstrapModel {
+        dispatchers: vec![empty, water, lava, powder_snow],
+    }
+}
+
+fn new_cauldron_dispatcher(
+    name: &'static str,
+    kind: CauldronDispatcherKind,
+) -> CauldronDispatcherModel {
+    CauldronDispatcherModel::new(name, kind)
+}
+
+fn add_default_cauldron_interactions(dispatcher: &mut CauldronDispatcherModel) {
+    dispatcher.put_item(
+        CauldronItemKey::LavaBucket,
+        CauldronInteractionKind::FillLava,
+    );
+    dispatcher.put_item(
+        CauldronItemKey::WaterBucket,
+        CauldronInteractionKind::FillWater,
+    );
+    dispatcher.put_item(
+        CauldronItemKey::PowderSnowBucket,
+        CauldronInteractionKind::FillPowderSnow,
+    );
+}
+
+pub fn cauldron_interaction_trace(
+    content: CauldronContent,
+    item: CauldronItem,
+    under_water: bool,
+    client_side: bool,
+) -> CauldronInteractionTrace {
+    let server_action = cauldron_interaction(content, item, under_water);
+    let result = match &server_action {
+        CauldronAction::Success { .. } | CauldronAction::CleanItem { .. } => {
+            CauldronResult::Success
+        }
+        CauldronAction::ConsumeOnly => CauldronResult::Consume,
+        CauldronAction::TryWithEmptyHand => CauldronResult::TryWithEmptyHand,
+    };
+    CauldronInteractionTrace {
+        result,
+        server_action: (!client_side
+            && !matches!(
+                server_action,
+                CauldronAction::TryWithEmptyHand | CauldronAction::ConsumeOnly
+            ))
+        .then_some(server_action),
     }
 }
 
@@ -584,6 +832,145 @@ mod tests {
                 target: BlockPos { x: 9, y: 64, z: -5 },
                 behavior: DispenseBehaviorKind::FillContainer
             }]
+        );
+    }
+
+    #[test]
+    fn cauldron_dispatchers_match_java_bootstrap_registration() {
+        let bootstrap = cauldron_bootstrap_model();
+        let names: Vec<_> = bootstrap
+            .dispatchers
+            .iter()
+            .map(|dispatcher| dispatcher.name)
+            .collect();
+        assert_eq!(names, CAULDRON_DISPATCHER_CODEC_KEYS);
+        assert!(cauldron_package_is_null_marked());
+
+        let empty = &bootstrap.dispatchers[0];
+        assert_eq!(
+            empty.item_mappings(),
+            &[
+                (
+                    CauldronItemKey::LavaBucket,
+                    CauldronInteractionKind::FillLava
+                ),
+                (
+                    CauldronItemKey::WaterBucket,
+                    CauldronInteractionKind::FillWater
+                ),
+                (
+                    CauldronItemKey::PowderSnowBucket,
+                    CauldronInteractionKind::FillPowderSnow
+                ),
+                (
+                    CauldronItemKey::Potion,
+                    CauldronInteractionKind::EmptyWaterPotion
+                )
+            ]
+        );
+
+        let lava = &bootstrap.dispatchers[2];
+        assert_eq!(
+            lava.item_mappings()[0],
+            (
+                CauldronItemKey::Bucket,
+                CauldronInteractionKind::FillBucketLava
+            )
+        );
+        assert_eq!(
+            lava.get(&CauldronItemStackModel {
+                item: CauldronItemKey::Other,
+                tags: vec![]
+            }),
+            CauldronInteractionKind::Default
+        );
+    }
+
+    #[test]
+    fn water_dispatcher_registers_java_cleaning_items_and_tag_precedence() {
+        let bootstrap = cauldron_bootstrap_model();
+        let water = &bootstrap.dispatchers[1];
+
+        assert_eq!(
+            water.tag_mappings(),
+            &[(
+                CauldronItemTag::CanRemoveDye,
+                CauldronInteractionKind::CleanDyedItem
+            )]
+        );
+        assert_eq!(
+            water.get(&CauldronItemStackModel {
+                item: CauldronItemKey::Potion,
+                tags: vec![CauldronItemTag::CanRemoveDye]
+            }),
+            CauldronInteractionKind::CleanDyedItem
+        );
+
+        let banner_items: Vec<_> = water
+            .item_mappings()
+            .iter()
+            .filter_map(|(item, interaction)| {
+                matches!(interaction, CauldronInteractionKind::CleanBanner).then_some(*item)
+            })
+            .collect();
+        let shulker_items: Vec<_> = water
+            .item_mappings()
+            .iter()
+            .filter_map(|(item, interaction)| {
+                matches!(interaction, CauldronInteractionKind::CleanShulkerBox).then_some(*item)
+            })
+            .collect();
+        assert_eq!(banner_items.len(), 16);
+        assert_eq!(shulker_items.len(), 16);
+        assert_eq!(banner_items[0], CauldronItemKey::Banner("white"));
+        assert_eq!(banner_items[15], CauldronItemKey::Banner("yellow"));
+        assert_eq!(shulker_items[0], CauldronItemKey::ShulkerBox("white"));
+        assert_eq!(shulker_items[15], CauldronItemKey::ShulkerBox("yellow"));
+    }
+
+    #[test]
+    fn cauldron_trace_keeps_java_result_and_server_side_effects_separate() {
+        assert_eq!(
+            cauldron_interaction_trace(
+                CauldronContent::Water { level: 2 },
+                CauldronItem::GlassBottle,
+                false,
+                true
+            ),
+            CauldronInteractionTrace {
+                result: CauldronResult::Success,
+                server_action: None
+            }
+        );
+        assert_eq!(
+            cauldron_interaction_trace(
+                CauldronContent::Water { level: 2 },
+                CauldronItem::GlassBottle,
+                false,
+                false
+            ),
+            CauldronInteractionTrace {
+                result: CauldronResult::Success,
+                server_action: Some(CauldronAction::Success {
+                    new_content: CauldronContent::Water { level: 1 },
+                    returned_item: "minecraft:potion{water}",
+                    stat: "use_cauldron",
+                    sound: "bottle_fill",
+                    game_event: "fluid_pickup"
+                })
+            }
+        );
+        assert_eq!(
+            cauldron_interaction_trace(
+                CauldronContent::Empty,
+                CauldronItem::PowderSnowBucket,
+                true,
+                false
+            ),
+            CauldronInteractionTrace {
+                result: CauldronResult::Consume,
+                server_action: None
+            }
         );
     }
 

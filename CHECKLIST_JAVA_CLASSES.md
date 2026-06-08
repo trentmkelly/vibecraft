@@ -340,9 +340,9 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/core/cauldron`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/cauldron/CauldronInteraction.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/cauldron/CauldronInteractions.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/cauldron/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/cauldron/CauldronInteraction.java`. Rust `dispenser_cauldron` now covers the functional default result, dispatcher item/tag maps, tag-before-item lookup, and unknown-item fallback to `TRY_WITH_EMPTY_HAND`; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 cauldron_`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/cauldron/CauldronInteractions.java`. Rust `dispenser_cauldron` now covers the four late-bound dispatcher ids, bootstrap default bucket registrations, empty/water/lava/powder-snow dispatcher-specific entries, water potion/bottle layer transitions, full-bucket predicates, underwater lava and powder-snow consume behavior, water-only dye/banner/shulker cleaning, Java colour registration order, sounds, stats, game events, and client/server side-effect separation; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 cauldron_`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/cauldron/package-info.java`. Rust `dispenser_cauldron` records the package-level `@NullMarked` contract via `JAVA_NULL_MARKED_CAULDRON_PACKAGE`; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 cauldron_`.
 
 ## `decompiled-server-26.1.2/net/minecraft/core/component`
 
