@@ -180,6 +180,8 @@ mod core_direction;
 #[cfg(test)]
 mod core_holders;
 #[cfg(test)]
+mod core_layered_registry;
+#[cfg(test)]
 mod core_misc;
 #[cfg(test)]
 mod core_registry_helpers;
