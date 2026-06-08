@@ -201,6 +201,8 @@ mod criterion_tag_predicate;
 mod criterion_tame_animal;
 #[cfg(test)]
 mod criterion_target_block;
+#[cfg(test)]
+mod criterion_trade_trigger;
 mod crash;
 mod crash_recovery_tests;
 #[cfg(test)]
