@@ -71,6 +71,8 @@ mod command_color_argument;
 #[cfg(test)]
 mod command_commands;
 #[cfg(test)]
+mod command_coordinate_arguments;
+#[cfg(test)]
 mod command_dimension_argument;
 #[cfg(test)]
 mod command_execution_source;
