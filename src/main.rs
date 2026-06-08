@@ -193,6 +193,8 @@ mod criterion_spear_mobs;
 mod criterion_start_riding;
 #[cfg(test)]
 mod criterion_state_properties_predicate;
+#[cfg(test)]
+mod criterion_summoned_entity;
 mod crash;
 mod crash_recovery_tests;
 #[cfg(test)]
