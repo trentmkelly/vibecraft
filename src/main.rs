@@ -71,6 +71,8 @@ mod command_entity_anchor_argument;
 #[cfg(test)]
 mod command_function_instantiation_exception;
 #[cfg(test)]
+mod command_game_mode_argument;
+#[cfg(test)]
 mod command_hex_color_argument;
 #[cfg(test)]
 mod command_heightmap_type_argument;
