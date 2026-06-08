@@ -128,7 +128,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/advancements`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/advancements/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/advancements/package-info.java`. Audited Java source: this package-info only applies `@NullMarked` to `net.minecraft.advancements` and has no runtime behavior or Rust analogue to port; no dedicated Rust tests required.
 
 ## `decompiled-server-26.1.2/net/minecraft/commands`
 
