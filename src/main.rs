@@ -63,6 +63,8 @@ mod command_execution_source;
 #[cfg(test)]
 mod command_function_instantiation_exception;
 #[cfg(test)]
+mod command_parser_utils;
+#[cfg(test)]
 mod command_result_callback;
 #[cfg(test)]
 mod command_signing_context;
