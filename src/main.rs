@@ -57,6 +57,8 @@ mod command_argument_visitor;
 #[cfg(test)]
 mod command_brigadier_exceptions;
 #[cfg(test)]
+mod command_block_arguments;
+#[cfg(test)]
 mod command_cacheable_function;
 #[cfg(test)]
 mod command_block_position_arguments;

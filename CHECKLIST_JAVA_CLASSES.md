@@ -191,11 +191,11 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/commands/arguments/blocks`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/blocks/BlockInput.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/blocks/BlockPredicateArgument.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/blocks/BlockStateArgument.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/blocks/BlockStateParser.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/blocks/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/blocks/BlockInput.java`. Rust `command_block_arguments` covers Java's block-state/property/NBT matching, subset NBT comparison, defined-property overwrite behavior, neighbor-shape update path, air fallback, block placement affected flag, and block-entity tag load/change notification behavior; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 block_arguments`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/blocks/BlockPredicateArgument.java`. Rust `command_block_arguments` covers Java's factory, examples, typed context getter, block and tag predicate parse paths, tag membership checks, vague-property validation at test time, optional NBT matching, `requiresNbt`, tag error cursor reset, and root/open suggestions; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 block_arguments`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/blocks/BlockStateArgument.java`. Rust `command_block_arguments` covers Java's factory, examples, typed context getter, block parser delegation, explicit-property capture, NBT acceptance, tag rejection outside testing mode, unknown-block cursor reset, and root/open suggestions; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 block_arguments`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/blocks/BlockStateParser.java`. Rust `command_block_arguments` covers Java's block/tag parser entry points, default namespace handling, property validation, duplicate/unknown/invalid/missing value errors, unclosed property errors, vague tag-property parse behavior, NBT compound parsing, cursor reset on parse-entry errors, state serialization, and tested suggestion branches; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 block_arguments`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/blocks/package-info.java`. Rust `command_block_arguments` records the package's `@NullMarked` metadata as a no-runtime-behavior parity constant; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 block_arguments`.
 
 ## `decompiled-server-26.1.2/net/minecraft/commands/arguments/coordinates`
 
