@@ -168,6 +168,8 @@ mod console;
 mod container_block;
 mod container_menus;
 #[cfg(test)]
+mod core_block_box;
+#[cfg(test)]
 mod core_misc;
 #[cfg(test)]
 mod core_registry_helpers;
