@@ -148,7 +148,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/commands/arguments`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/AngleArgument.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/AngleArgument.java`. Rust `command_angle_argument` covers Java's examples, `angle()` factory, incomplete-input error, `WorldCoordinate.isRelative` tilde consumption, default zero value for bare relative angles, float parsing until space, invalid/NaN/infinite rejection, cursor advancement, and `SingleAngle.getAngle` applying sender Y rotation only for relative angles before `Mth.wrapDegrees`; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 angle_argument`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/ArgumentSignatures.java`. Rust `command_argument_signatures` covers Java's `EMPTY`, `FriendlyByteBuf` collection shape with max 8 entries, `Entry` name UTF max 16 plus fixed 256-byte `MessageSignature`, read/write rejection of over-limit counts and names, and `signCommand` signing argument values, filtering null signatures, and preserving command argument order; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 argument_signatures`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/ColorArgument.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/ComponentArgument.java`.
