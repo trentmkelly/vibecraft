@@ -88,6 +88,8 @@ mod command_source;
 mod command_source_stack;
 #[cfg(test)]
 mod command_shared_suggestion_provider;
+#[cfg(test)]
+mod command_string_representable_argument;
 mod command_execution;
 mod command_feedback;
 mod command_parity;
