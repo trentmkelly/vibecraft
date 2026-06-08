@@ -79,6 +79,8 @@ mod command_heightmap_type_argument;
 #[cfg(test)]
 mod command_identifier_argument;
 #[cfg(test)]
+mod command_misc_argument_audits;
+#[cfg(test)]
 mod command_operation_argument;
 #[cfg(test)]
 mod command_objective_argument;
