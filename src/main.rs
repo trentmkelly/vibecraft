@@ -136,6 +136,8 @@ mod criterion_killed_trigger;
 #[cfg(test)]
 mod criterion_levitation;
 #[cfg(test)]
+mod criterion_light_predicate;
+#[cfg(test)]
 mod criterion_block_predicate;
 #[cfg(test)]
 mod criterion_bee_nest;
