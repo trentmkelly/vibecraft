@@ -72,6 +72,8 @@ mod criterion_construct_beacon;
 #[cfg(test)]
 mod criterion_consume_item;
 #[cfg(test)]
+mod criterion_context_aware_predicate;
+#[cfg(test)]
 mod criterion_block_predicate;
 #[cfg(test)]
 mod criterion_bee_nest;
