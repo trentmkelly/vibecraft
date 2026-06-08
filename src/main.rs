@@ -114,6 +114,8 @@ mod criterion_fishing_hook_predicate;
 #[cfg(test)]
 mod criterion_fishing_rod_hooked;
 #[cfg(test)]
+mod criterion_fluid_predicate;
+#[cfg(test)]
 mod criterion_block_predicate;
 #[cfg(test)]
 mod criterion_bee_nest;
