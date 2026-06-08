@@ -66,6 +66,8 @@ mod criterion_change_dimension;
 #[cfg(test)]
 mod criterion_channeled_lightning;
 #[cfg(test)]
+mod criterion_collection_predicates;
+#[cfg(test)]
 mod criterion_block_predicate;
 #[cfg(test)]
 mod criterion_bee_nest;
