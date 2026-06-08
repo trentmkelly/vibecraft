@@ -185,6 +185,8 @@ mod criterion_block_predicate;
 mod criterion_bee_nest;
 #[cfg(test)]
 mod criterion_block_interaction;
+#[cfg(test)]
+mod criterion_slots_predicate;
 mod crash;
 mod crash_recovery_tests;
 #[cfg(test)]
