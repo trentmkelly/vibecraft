@@ -100,6 +100,8 @@ mod criterion_entity_flags_predicate;
 #[cfg(test)]
 mod criterion_entity_hurt_player;
 #[cfg(test)]
+mod criterion_entity_predicate;
+#[cfg(test)]
 mod criterion_block_predicate;
 #[cfg(test)]
 mod criterion_bee_nest;
