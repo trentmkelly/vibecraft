@@ -188,6 +188,8 @@ mod core_registry_codecs;
 #[cfg(test)]
 mod core_registry_helpers;
 #[cfg(test)]
+mod core_registry_synchronization;
+#[cfg(test)]
 mod core_section_pos;
 #[cfg(test)]
 mod core_orientation;
