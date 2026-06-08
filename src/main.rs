@@ -110,6 +110,8 @@ mod criterion_fall_after_explosion;
 #[cfg(test)]
 mod criterion_filled_bucket;
 #[cfg(test)]
+mod criterion_fishing_hook_predicate;
+#[cfg(test)]
 mod criterion_block_predicate;
 #[cfg(test)]
 mod criterion_bee_nest;
