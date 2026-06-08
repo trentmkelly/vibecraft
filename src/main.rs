@@ -65,6 +65,8 @@ mod command_color_argument;
 #[cfg(test)]
 mod command_commands;
 #[cfg(test)]
+mod command_dimension_argument;
+#[cfg(test)]
 mod command_execution_source;
 #[cfg(test)]
 mod command_entity_anchor_argument;
