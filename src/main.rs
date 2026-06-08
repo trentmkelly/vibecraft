@@ -126,6 +126,8 @@ mod criterion_input_predicate;
 #[cfg(test)]
 mod criterion_inventory_change;
 #[cfg(test)]
+mod criterion_item_durability;
+#[cfg(test)]
 mod criterion_block_predicate;
 #[cfg(test)]
 mod criterion_bee_nest;
