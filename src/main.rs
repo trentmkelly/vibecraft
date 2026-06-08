@@ -95,6 +95,8 @@ mod command_parity;
 mod command_selector;
 mod command_tree;
 #[cfg(test)]
+mod command_template_transform_arguments;
+#[cfg(test)]
 mod command_time_argument;
 #[cfg(test)]
 mod command_uuid_argument;
