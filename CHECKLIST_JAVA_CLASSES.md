@@ -397,7 +397,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/core`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/package-info.java`. Rust `core_misc` records the top-level `net.minecraft.core` package `@NullMarked` contract via `CORE_PACKAGE_NULL_MARKED`; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 core_misc`.
 
 ## `decompiled-server-26.1.2/net/minecraft/core/particles`
 
