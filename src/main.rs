@@ -150,6 +150,8 @@ mod criterion_min_max_bounds;
 #[cfg(test)]
 mod criterion_movement_predicate;
 #[cfg(test)]
+mod criterion_nbt_predicate;
+#[cfg(test)]
 mod criterion_block_predicate;
 #[cfg(test)]
 mod criterion_bee_nest;
