@@ -54,6 +54,8 @@ mod command_argument_visitor;
 mod command_brigadier_exceptions;
 #[cfg(test)]
 mod command_cacheable_function;
+#[cfg(test)]
+mod command_build_context;
 mod command_execution;
 mod command_feedback;
 mod command_parity;
