@@ -149,7 +149,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 ## `decompiled-server-26.1.2/net/minecraft/commands/arguments`
 
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/AngleArgument.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/ArgumentSignatures.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/ArgumentSignatures.java`. Rust `command_argument_signatures` covers Java's `EMPTY`, `FriendlyByteBuf` collection shape with max 8 entries, `Entry` name UTF max 16 plus fixed 256-byte `MessageSignature`, read/write rejection of over-limit counts and names, and `signCommand` signing argument values, filtering null signatures, and preserving command argument order; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 argument_signatures`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/ColorArgument.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/ComponentArgument.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/arguments/CompoundTagArgument.java`.

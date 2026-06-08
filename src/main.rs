@@ -49,6 +49,8 @@ mod combat_damage;
 mod combat_tracker;
 mod command;
 #[cfg(test)]
+mod command_argument_signatures;
+#[cfg(test)]
 mod command_argument_visitor;
 #[cfg(test)]
 mod command_brigadier_exceptions;
