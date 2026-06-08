@@ -423,6 +423,133 @@ fn macro_function_instantiation_substitutes_compound_arguments_like_vanilla() {
 }
 
 #[test]
+fn string_template_model_scans_and_substitutes_like_java() {
+    const { assert!(COMMAND_FUNCTIONS_PACKAGE_NULL_MARKED) };
+    let template = StringTemplateModel::from_string("say $(name) $$ $(count)").unwrap();
+    assert_eq!(
+        template.segments,
+        vec!["say ".to_string(), " $$ ".to_string()]
+    );
+    assert_eq!(
+        template.variables,
+        vec!["name".to_string(), "count".to_string()]
+    );
+    assert_eq!(
+        template
+            .substitute(&["Alex".to_string(), "3".to_string()])
+            .unwrap(),
+        "say Alex $$ 3"
+    );
+    assert!(StringTemplateModel::from_string("say $name")
+        .unwrap_err()
+        .contains("No variables"));
+    assert!(StringTemplateModel::from_string("say $(name")
+        .unwrap_err()
+        .contains("Unterminated"));
+    assert!(StringTemplateModel::from_string("say $(bad-name)")
+        .unwrap_err()
+        .contains("Invalid macro variable name"));
+}
+
+#[test]
+fn function_builder_model_converts_plain_entries_like_java() {
+    let mut plain_builder = FunctionBuilderModel::new();
+    plain_builder.add_command("say before");
+    let mut plain_function = plain_builder.build("example:plain");
+    assert_eq!(plain_function.id(), "example:plain");
+    assert_eq!(
+        plain_function
+            .instantiate(Some(r#"{ignored:"argument"}"#))
+            .unwrap(),
+        InstantiatedFunctionModel {
+            id: "example:plain".to_string(),
+            entries: vec!["say before".to_string()],
+        }
+    );
+
+    let mut function = macro_function_model_fixture();
+    assert_eq!(function.id(), "example:macro");
+    let CommandFunctionModel::Macro(macro_function) = &function else {
+        panic!("builder should produce a macro function after add_macro");
+    };
+    assert_eq!(macro_function.parameters, vec!["name", "count"]);
+    assert_eq!(
+        macro_function.entries,
+        vec![
+            FunctionEntryModel::Plain("say before".to_string()),
+            FunctionEntryModel::Macro {
+                template: StringTemplateModel::from_string("say $(name)").unwrap(),
+                parameter_indices: vec![0],
+            },
+            FunctionEntryModel::Plain("say after".to_string()),
+            FunctionEntryModel::Macro {
+                template: StringTemplateModel::from_string("say $(count) $(name)").unwrap(),
+                parameter_indices: vec![1, 0],
+            },
+        ]
+    );
+
+    assert_eq!(
+        function
+            .instantiate(Some(r#"{name:"Steve",count:7l}"#))
+            .unwrap(),
+        InstantiatedFunctionModel {
+            id: instantiated_function_id(
+                "example:macro",
+                &["name".to_string(), "count".to_string()]
+            ),
+            entries: vec![
+                "say before".to_string(),
+                "say Steve".to_string(),
+                "say after".to_string(),
+                "say 7 Steve".to_string(),
+            ],
+        }
+    );
+}
+
+#[test]
+fn macro_function_model_uses_java_move_to_last_cache() {
+    let mut function = macro_function_model_fixture();
+    function
+        .instantiate(Some(r#"{name:"Steve",count:7l}"#))
+        .unwrap();
+    for count in 8..16 {
+        function
+            .instantiate(Some(&format!(r#"{{name:"Name{count}",count:{count}l}}"#)))
+            .unwrap();
+    }
+    let CommandFunctionModel::Macro(macro_function) = &mut function else {
+        panic!("builder should remain a macro function");
+    };
+    assert_eq!(macro_function.cached_keys().len(), 8);
+    assert!(!macro_function
+        .cached_keys()
+        .contains(&vec!["Steve".to_string(), "7".to_string()]));
+    assert_eq!(
+        macro_function.cached_keys().last().unwrap(),
+        &vec!["Name15".to_string(), "15".to_string()]
+    );
+
+    macro_function
+        .instantiate(Some(r#"{name:"Name8",count:8l}"#))
+        .unwrap();
+    assert_eq!(
+        macro_function.cached_keys().last().unwrap(),
+        &vec!["Name8".to_string(), "8".to_string()]
+    );
+}
+
+fn macro_function_model_fixture() -> CommandFunctionModel {
+    let mut builder = FunctionBuilderModel::new();
+    builder.add_command("say before");
+    builder.add_macro("say $(name)", 2).unwrap();
+    builder.add_command("say after");
+    builder.add_macro("say $(count) $(name)", 4).unwrap();
+    builder.build("example:macro")
+}
+
+#[test]
 fn function_with_entity_block_and_storage_sources_instantiates_macros() {
     let function = CommandFunctionDefinition {
         id: "minecraft:macro".to_string(),
