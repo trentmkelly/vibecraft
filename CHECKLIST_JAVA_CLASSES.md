@@ -304,9 +304,9 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/BlockBox.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/BlockMath.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/BlockPos.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/ClientAsset.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/Cloner.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/Cursor3D.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/ClientAsset.java`. Rust `core_misc` covers downloaded texture `id()`/`texturePath()` behavior, resource texture explicit and default `"textures/{path}.png"` mapping, the `"asset_id"` field name, and id-only stream value semantics; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 core_misc`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/Cloner.java`. Rust `core_misc` covers source-context encode followed by target-context decode, Java error message prefixes for encode/decode failures, nullable factory lookup, and `addCodec` replacement/chaining behavior; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 core_misc`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/Cursor3D.java`. Rust `core_misc` covers inclusive extents, Java's x-fastest/y-next/z-slowest advance order, terminal false return, absolute next coordinates, and inside/face/edge/corner boundary classification constants; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 core_misc`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/DefaultedMappedRegistry.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/DefaultedRegistry.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/Direction.java`.
@@ -322,10 +322,10 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/IdMapper.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/LayeredRegistryAccess.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/MappedRegistry.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/NonNullList.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/NonNullList.java`. Rust `core_misc` covers all Java factories, null rejection for default-sized lists and element mutation/insertion, get/set/add/remove size effects, and the two `clear()` modes for nullable versus non-null default values; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 core_misc`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/Position.java`. Rust `core_orientation` covers Java's `Position` accessor-only contract for `x()`, `y()`, and `z()` through an implementing position model; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 core_orientation`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/QuartPos.java`. Rust `core_orientation` covers Java's constants, block-to-quart arithmetic right shift, local quart mask, quart-to-block shift, section-to-quart shift, and quart-to-section arithmetic right shift including negative coordinates; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 core_orientation`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/RegistrationInfo.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/RegistrationInfo.java`. Rust `core_misc` covers the record shape and `BUILT_IN` value with empty known pack info and stable lifecycle; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 core_misc`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/Registry.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/RegistryAccess.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/RegistryCodecs.java`.
@@ -333,9 +333,9 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/RegistrySynchronization.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/Rotations.java`. Rust `core_orientation` covers Java record construction normalization with finite `% 360.0F` and non-finite zeroing, fixed-size 3-float codec shape, and stream codec big-endian float encode/decode order; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 core_orientation`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/SectionPos.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/TypedInstance.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/UUIDUtil.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/Vec3i.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/TypedInstance.java`. Rust `core_misc` covers `typeHolder()` delegation for tags, tag/key/set membership checks, and Java reference-identity semantics for raw type and holder comparisons through explicit holder/value identities; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 core_misc`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/UUIDUtil.java`. Rust `core_misc` covers int-array and byte-array conversion order, strict dashed string parsing, authlib undashed lenient parsing, invalid int-array length errors, and MD5/version-3 offline player UUID generation for known names; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 core_misc`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/Vec3i.java`. Rust `core_misc` covers `ZERO`, offset codec bounds/errors, Java hash and comparison ordering, offset/subtract/multiply/relative/cross helpers, axis access, mutable tuple conversion, short string formatting, and squared/Manhattan/chessboard distance helpers; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 core_misc`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/WritableRegistry.java`.
 
 ## `decompiled-server-26.1.2/net/minecraft/core/cauldron`
