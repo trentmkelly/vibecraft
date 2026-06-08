@@ -76,6 +76,8 @@ mod criterion_context_aware_predicate;
 #[cfg(test)]
 mod criterion_cured_zombie_villager;
 #[cfg(test)]
+mod criterion_damage_predicate;
+#[cfg(test)]
 mod criterion_block_predicate;
 #[cfg(test)]
 mod criterion_bee_nest;
