@@ -189,6 +189,8 @@ mod criterion_block_interaction;
 mod criterion_slots_predicate;
 #[cfg(test)]
 mod criterion_spear_mobs;
+#[cfg(test)]
+mod criterion_start_riding;
 mod crash;
 mod crash_recovery_tests;
 #[cfg(test)]
