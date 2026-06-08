@@ -275,28 +275,28 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/commands`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/package-info.java`. Rust `command_synchronization` records this package's `@NullMarked` metadata as a no-runtime-behavior parity constant; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 command_synchronization`.
 
 ## `decompiled-server-26.1.2/net/minecraft/commands/synchronization`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/synchronization/ArgumentTypeInfo.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/synchronization/ArgumentTypeInfos.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/synchronization/ArgumentUtils.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/synchronization/SingletonArgumentInfo.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/synchronization/SuggestionProviders.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/synchronization/ArgumentTypeInfo.java`. Rust `command_synchronization` covers Java's template/type split for argument serializers, including template-backed network/json serialization and instantiate/type identity behavior through parity models; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 command_synchronization`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/synchronization/ArgumentTypeInfos.java`. Rust `command_synchronization` covers Java's bootstrap registration order, protocol ids, context-free versus context-aware singleton registrations, specialized info registrations, recognized-class lookup, unrecognized-class errors, and unpack routing shape; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 command_synchronization`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/synchronization/ArgumentUtils.java`. Rust `command_synchronization` covers number flag bit layout, min/max flag tests, command-node JSON type/parser/properties/executable/permissions/redirect serialization, unknown-node fallback, and used-argument-type discovery across children and redirects with visited-node protection; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 command_synchronization`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/synchronization/SingletonArgumentInfo.java`. Rust `command_synchronization` covers singleton argument infos writing no network/json payload, deserializing/unpacking to the stored template, and preserving context-free versus context-aware constructor metadata in the bootstrap table; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 command_synchronization`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/synchronization/SuggestionProviders.java`. Rust `command_synchronization` covers built-in provider names, duplicate registration rejection, unknown-provider fallback to `minecraft:ask_server`, registered-name lookup, and unregistered-provider name fallback; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 command_synchronization`.
 
 ## `decompiled-server-26.1.2/net/minecraft/commands/synchronization/brigadier`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/synchronization/brigadier/DoubleArgumentInfo.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/synchronization/brigadier/FloatArgumentInfo.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/synchronization/brigadier/IntegerArgumentInfo.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/synchronization/brigadier/LongArgumentInfo.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/synchronization/brigadier/StringArgumentSerializer.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/synchronization/brigadier/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/synchronization/brigadier/DoubleArgumentInfo.java`. Rust `command_synchronization` covers Java's default `-Double.MAX_VALUE`/`Double.MAX_VALUE` bounds, one-byte min/max flags, optional big-endian double payloads, deserialize defaults, JSON min/max omission, and template kind preservation; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 command_synchronization`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/synchronization/brigadier/FloatArgumentInfo.java`. Rust `command_synchronization` covers Java's default `-Float.MAX_VALUE`/`Float.MAX_VALUE` bounds, one-byte min/max flags, optional big-endian float payloads, deserialize defaults, JSON min/max omission, and template kind preservation; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 command_synchronization`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/synchronization/brigadier/IntegerArgumentInfo.java`. Rust `command_synchronization` covers Java's default `Integer.MIN_VALUE`/`Integer.MAX_VALUE` bounds, one-byte min/max flags, optional big-endian int payloads, deserialize defaults, JSON min/max omission, and template kind preservation; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 command_synchronization`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/synchronization/brigadier/LongArgumentInfo.java`. Rust `command_synchronization` covers Java's default `Long.MIN_VALUE`/`Long.MAX_VALUE` bounds, one-byte min/max flags, optional big-endian long payloads, deserialize defaults, JSON min/max omission, and template kind preservation; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 command_synchronization`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/synchronization/brigadier/StringArgumentSerializer.java`. Rust `command_synchronization` covers Java's Brigadier string enum ordinals, network varint enum encoding/decoding, invalid ordinal rejection, JSON type names (`word`, `phrase`, `greedy`), and instantiate target shape for the three string variants; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 command_synchronization`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/synchronization/brigadier/package-info.java`. Rust `command_synchronization` records this package's `@NullMarked` metadata as a no-runtime-behavior parity constant; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 command_synchronization`.
 
 ## `decompiled-server-26.1.2/net/minecraft/commands/synchronization`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/synchronization/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/commands/synchronization/package-info.java`. Rust `command_synchronization` records this package's `@NullMarked` metadata as a no-runtime-behavior parity constant; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 command_synchronization`.
 
 ## `decompiled-server-26.1.2/net/minecraft/core`
 
