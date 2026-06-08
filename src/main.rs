@@ -63,6 +63,8 @@ mod command_component_argument;
 #[cfg(test)]
 mod command_nbt_arguments;
 #[cfg(test)]
+mod command_nbt_path_argument;
+#[cfg(test)]
 mod command_build_context;
 #[cfg(test)]
 mod command_color_argument;
