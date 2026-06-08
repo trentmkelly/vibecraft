@@ -443,9 +443,9 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/data/advancements`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/advancements/AdvancementProvider.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/advancements/AdvancementSubProvider.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/advancements/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/advancements/AdvancementProvider.java`. Rust `data_advancements` covers advancement registry path providers, registry-future composition, subprovider iteration, duplicate id rejection, `DataProvider.saveStable` task construction with `Advancement.CODEC` and lookup context, and provider name; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_advancements`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/advancements/AdvancementSubProvider.java`. Rust `data_advancements` covers the generate callback contract and `createPlaceholder` factory using `Advancement.Builder.advancement().build(Identifier.parse(id))`; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_advancements`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/advancements/package-info.java`. Rust `data_advancements` records the `net.minecraft.data.advancements` package `@NullMarked` contract; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_advancements`.
 
 ## `decompiled-server-26.1.2/net/minecraft/data/advancements/packs`
 
