@@ -95,6 +95,8 @@ mod command_range_argument;
 #[cfg(test)]
 mod command_result_callback;
 #[cfg(test)]
+mod command_resource_selector_argument;
+#[cfg(test)]
 mod command_signing_context;
 #[cfg(test)]
 mod command_slot_arguments;
