@@ -191,6 +191,8 @@ mod criterion_slots_predicate;
 mod criterion_spear_mobs;
 #[cfg(test)]
 mod criterion_start_riding;
+#[cfg(test)]
+mod criterion_state_properties_predicate;
 mod crash;
 mod crash_recovery_tests;
 #[cfg(test)]
