@@ -164,6 +164,8 @@ mod criterion_player_trigger;
 #[cfg(test)]
 mod criterion_raider_predicate;
 #[cfg(test)]
+mod criterion_recipe_crafted;
+#[cfg(test)]
 mod criterion_block_predicate;
 #[cfg(test)]
 mod criterion_bee_nest;
