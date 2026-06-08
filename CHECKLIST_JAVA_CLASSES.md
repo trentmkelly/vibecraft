@@ -300,7 +300,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/core`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/AxisCycle.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/AxisCycle.java`. Rust `core_orientation` covers Java's `NONE`/`FORWARD`/`BACKWARD` axis permutations for integer and double coordinates, axis ordinal cycling with floor-mod behavior, inverse mapping, and `between(from, to)` lookup; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 core_orientation`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/BlockBox.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/BlockMath.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/BlockPos.java`.
@@ -310,8 +310,8 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/DefaultedMappedRegistry.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/DefaultedRegistry.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/Direction.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/Direction8.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/FrontAndTop.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/Direction8.java`. Rust `core_orientation` covers Java's eight horizontal direction combinations, immutable direction-set contents, and X/Z step accumulation from the member cardinal directions; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 core_orientation`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/FrontAndTop.java`. Rust `core_orientation` covers Java's 12 serialized names, stored front/top directions, `fromFrontAndTop(front, top)` lookup table behavior, and missing pair fallback; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 core_orientation`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/GlobalPos.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/Holder.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/HolderGetter.java`.
@@ -323,15 +323,15 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/LayeredRegistryAccess.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/MappedRegistry.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/NonNullList.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/Position.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/QuartPos.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/Position.java`. Rust `core_orientation` covers Java's `Position` accessor-only contract for `x()`, `y()`, and `z()` through an implementing position model; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 core_orientation`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/QuartPos.java`. Rust `core_orientation` covers Java's constants, block-to-quart arithmetic right shift, local quart mask, quart-to-block shift, section-to-quart shift, and quart-to-section arithmetic right shift including negative coordinates; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 core_orientation`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/RegistrationInfo.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/Registry.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/RegistryAccess.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/RegistryCodecs.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/RegistrySetBuilder.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/RegistrySynchronization.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/Rotations.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/Rotations.java`. Rust `core_orientation` covers Java record construction normalization with finite `% 360.0F` and non-finite zeroing, fixed-size 3-float codec shape, and stream codec big-endian float encode/decode order; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 core_orientation`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/SectionPos.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/TypedInstance.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/core/UUIDUtil.java`.
