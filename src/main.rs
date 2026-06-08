@@ -180,6 +180,8 @@ mod core_component_predicates;
 #[cfg(test)]
 mod core_defaulted_registry;
 #[cfg(test)]
+mod core_dispenser;
+#[cfg(test)]
 mod core_direction;
 #[cfg(test)]
 mod core_holders;
