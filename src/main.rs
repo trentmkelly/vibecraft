@@ -67,6 +67,8 @@ mod command_commands;
 #[cfg(test)]
 mod command_execution_source;
 #[cfg(test)]
+mod command_entity_anchor_argument;
+#[cfg(test)]
 mod command_function_instantiation_exception;
 #[cfg(test)]
 mod command_hex_color_argument;
