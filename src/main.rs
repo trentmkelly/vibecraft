@@ -92,6 +92,8 @@ mod criterion_enchanted_item;
 #[cfg(test)]
 mod criterion_enchantment_predicate;
 #[cfg(test)]
+mod criterion_enter_block;
+#[cfg(test)]
 mod criterion_block_predicate;
 #[cfg(test)]
 mod criterion_bee_nest;
