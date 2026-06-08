@@ -174,6 +174,8 @@ mod core_block_box;
 #[cfg(test)]
 mod core_block_pos;
 #[cfg(test)]
+mod core_components;
+#[cfg(test)]
 mod core_defaulted_registry;
 #[cfg(test)]
 mod core_direction;
