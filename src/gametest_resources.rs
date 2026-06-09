@@ -293,6 +293,28 @@ impl GameTestAssertPosError {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GameTestBatchModel {
+    pub index: i32,
+    pub game_test_infos: Vec<String>,
+    pub environment: String,
+}
+
+pub fn create_gametest_batch(
+    index: i32,
+    game_test_infos: Vec<String>,
+    environment: impl Into<String>,
+) -> Result<GameTestBatchModel, String> {
+    if game_test_infos.is_empty() {
+        return Err("A GameTestBatch must include at least one GameTestInfo!".to_string());
+    }
+    Ok(GameTestBatchModel {
+        index,
+        game_test_infos,
+        environment: environment.into(),
+    })
+}
+
 pub fn parse_test_environment_json(raw: &str) -> Result<TestEnvironmentDefinition, String> {
     let value: serde_json::Value =
         serde_json::from_str(raw).map_err(|err| format!("invalid test environment JSON: {err}"))?;
@@ -454,6 +476,9 @@ mod tests {
     );
     const GAME_TEST_ASSERT_POS_EXCEPTION_JAVA: &str = include_str!(
         "../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestAssertPosException.java"
+    );
+    const GAME_TEST_BATCH_JAVA: &str = include_str!(
+        "../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestBatch.java"
     );
 
     #[test]
@@ -905,6 +930,41 @@ mod tests {
                 relative_pos,
                 tick: 99,
             }
+        );
+    }
+
+    #[test]
+    fn gametest_batch_matches_java_record_shape() {
+        assert_eq!(GAME_TEST_BATCH_JAVA.lines().count(), 12);
+        for sentinel in [
+            "public record GameTestBatch(int index, Collection<GameTestInfo> gameTestInfos, Holder<TestEnvironmentDefinition<?>> environment)",
+            "if (gameTestInfos.isEmpty())",
+            "throw new IllegalArgumentException(\"A GameTestBatch must include at least one GameTestInfo!\");",
+        ] {
+            assert!(
+                GAME_TEST_BATCH_JAVA.contains(sentinel),
+                "missing GameTestBatch sentinel {sentinel}"
+            );
+        }
+    }
+
+    #[test]
+    fn gametest_batch_rejects_empty_and_preserves_record_fields() {
+        assert_eq!(
+            create_gametest_batch(0, Vec::new(), "minecraft:default"),
+            Err("A GameTestBatch must include at least one GameTestInfo!".to_string())
+        );
+        assert_eq!(
+            create_gametest_batch(
+                2,
+                vec!["minecraft:always_pass".to_string()],
+                "minecraft:default"
+            ),
+            Ok(GameTestBatchModel {
+                index: 2,
+                game_test_infos: vec!["minecraft:always_pass".to_string()],
+                environment: "minecraft:default".to_string(),
+            })
         );
     }
 
