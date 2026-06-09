@@ -29,6 +29,9 @@ const GAME_TEST_EXCEPTION_JAVA: &str = include_str!(
 const GAME_TEST_HELPER_JAVA: &str = include_str!(
     "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestHelper.java"
 );
+const GAME_TEST_INFO_JAVA: &str = include_str!(
+    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestInfo.java"
+);
 const GAME_TEST_BATCH_JAVA: &str = include_str!(
     "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestBatch.java"
 );
@@ -943,6 +946,147 @@ fn gametest_helper_models_rotation_dependent_coordinates_and_bounds() {
             z_size: 7,
         }
     );
+}
+
+#[test]
+fn gametest_info_matches_java_lifecycle_source_shape() {
+    assert_eq!(GAME_TEST_INFO_JAVA.lines().count(), 361);
+    assert_eq!(
+        GAME_TEST_INFO_JAVA
+            .lines()
+            .filter(|line| {
+                line.starts_with("   public")
+                    || line.starts_with("   private")
+                    || line.starts_with("   static")
+                    || line.starts_with("   protected")
+                    || line.starts_with("   int ")
+                    || line.starts_with("   GameTestSequence ")
+            })
+            .count(),
+        60
+    );
+    for sentinel in [
+        "private final Holder.Reference<GameTestInstance> test;",
+        "private final Collection<GameTestListener> listeners = Lists.newArrayList();",
+        "private final Collection<GameTestSequence> sequences = Lists.newCopyOnWriteArrayList();",
+        "private final Object2LongMap<Runnable> runAtTickTimeMap = new Object2LongOpenHashMap();",
+        "this.tickCount = -(this.test.value().setupTicks() + tickDelay + 1);",
+        "this.listeners.forEach(listener -> listener.testStructureLoaded(this));",
+        "this.listeners.forEach(listener -> listener.testFailed(this, runner));",
+        "this.listeners.forEach(listener -> listener.testPassed(this, runner));",
+        "this.fail(new GameTestTimeoutException(Component.translatable(\"test.error.timeout.no_result\", this.test.value().maxTicks())));",
+        "this.fail(new GameTestTimeoutException(Component.translatable(\"test.error.timeout.no_sequences_finished\", this.test.value().maxTicks())));",
+        "this.runAtTickTimeMap.put(assertAtTickTime, time);",
+        "throw new IllegalStateException(\"This GameTestInfo has no position\");",
+        "throw new IllegalStateException(\"Could not find a test instance block entity at the given coordinate \" + this.testBlockPos);",
+        "return this.test.value().info().rotation().getRotated(this.extraRotation);",
+        "return this.test.value().maxAttempts() > 1;",
+        "GameTestInfo i = new GameTestInfo(this.test, this.extraRotation, this.level, this.retryOptions());",
+    ] {
+        assert!(
+            GAME_TEST_INFO_JAVA.contains(sentinel),
+            "missing GameTestInfo sentinel {sentinel}"
+        );
+    }
+    assert_eq!(
+        GAMETEST_INFO_SERVER_RUNTIME_TODO,
+        "gametest-info-server-runtime"
+    );
+}
+
+#[test]
+fn gametest_info_models_start_scheduling_timeout_and_success_state() {
+    let mut info = GameTestInfoStateModel::new(
+        "minecraft:always_pass",
+        false,
+        3,
+        2,
+        RotationModel::Clockwise90,
+        RotationModel::Clockwise180,
+        "noRetries",
+    )
+    .with_retries(2, 1);
+    info.set_test_block_pos(Some(BlockPosModel::new(1, 2, 3)));
+    info.start_execution(4);
+    assert_eq!(info.tick_count, -7);
+    assert!(info.is_optional());
+    assert!(!info.is_required());
+    assert!(info.is_flaky());
+    assert_eq!(info.get_rotation(), RotationModel::Counterclockwise90);
+
+    info.set_run_at_tick_time(1, "first");
+    info.set_run_at_tick_time(4, "late");
+    while info.tick_count < -1 {
+        assert_eq!(info.tick_internal(), GameTestInfoTickOutcome::Running);
+    }
+    assert_eq!(info.tick_internal(), GameTestInfoTickOutcome::Started);
+    assert!(info.started);
+    assert_eq!(info.tick_count, 0);
+    assert_eq!(info.tick_internal(), GameTestInfoTickOutcome::Running);
+    assert_eq!(
+        info.scheduled_actions,
+        vec![ScheduledGameTestAction {
+            tick: 4,
+            action: "late".to_string(),
+        }]
+    );
+
+    assert_eq!(info.tick_internal(), GameTestInfoTickOutcome::Running);
+    assert_eq!(info.tick_internal(), GameTestInfoTickOutcome::Running);
+    assert_eq!(info.tick_internal(), GameTestInfoTickOutcome::Failed);
+    assert!(info.has_failed());
+    assert_eq!(
+        info.error,
+        Some("test.error.timeout.no_result:3".to_string())
+    );
+
+    let mut passed = GameTestInfoStateModel::new(
+        "minecraft:pass",
+        true,
+        10,
+        0,
+        RotationModel::None,
+        RotationModel::None,
+        "noRetries",
+    );
+    passed.succeed();
+    assert!(passed.has_succeeded());
+    assert!(!passed.has_failed());
+}
+
+#[test]
+fn gametest_info_copy_reset_preserves_identity_position_retries_and_clears_runtime() {
+    let mut info = GameTestInfoStateModel::new(
+        "minecraft:reset",
+        true,
+        20,
+        1,
+        RotationModel::Counterclockwise90,
+        RotationModel::Clockwise90,
+        "flaky",
+    )
+    .with_retries(4, 2);
+    info.set_test_block_pos(Some(BlockPosModel::new(4, 5, 6)));
+    info.start_execution(0);
+    info.started = true;
+    info.done = true;
+    info.error = Some("boom".to_string());
+    info.set_run_at_tick_time(5, "old");
+    info.create_sequence();
+
+    let reset = info.copy_reset();
+    assert_eq!(reset.id, "minecraft:reset");
+    assert_eq!(reset.test_block_pos, Some(BlockPosModel::new(4, 5, 6)));
+    assert_eq!(reset.max_attempts, 4);
+    assert_eq!(reset.required_successes, 2);
+    assert_eq!(reset.get_rotation(), RotationModel::None);
+    assert_eq!(reset.retry_options, "flaky");
+    assert_eq!(reset.tick_count, 0);
+    assert!(!reset.started);
+    assert!(!reset.done);
+    assert_eq!(reset.error, None);
+    assert!(reset.scheduled_actions.is_empty());
+    assert_eq!(reset.sequence_count, 0);
 }
 
 #[test]

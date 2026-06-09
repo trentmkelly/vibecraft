@@ -493,6 +493,7 @@ pub fn create_gametest_event_with_minimum_delay(
 }
 
 pub const GAMETEST_HELPER_WORLD_RUNTIME_TODO: &str = "gametest-helper-world-runtime";
+pub const GAMETEST_INFO_SERVER_RUNTIME_TODO: &str = "gametest-info-server-runtime";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GameTestRelativeBounds {
@@ -680,6 +681,213 @@ fn block_pos_to_gametest(pos: BlockPosModel) -> GameTestBlockPos {
         x: pos.x(),
         y: pos.y(),
         z: pos.z(),
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GameTestInfoStateModel {
+    pub id: String,
+    pub required: bool,
+    pub max_ticks: i32,
+    pub setup_ticks: i32,
+    pub max_attempts: i32,
+    pub required_successes: i32,
+    pub test_rotation: RotationModel,
+    pub extra_rotation: RotationModel,
+    pub retry_options: String,
+    pub test_block_pos: Option<BlockPosModel>,
+    pub tick_count: i32,
+    pub started: bool,
+    pub done: bool,
+    pub error: Option<String>,
+    pub placed_structure: bool,
+    pub chunks_loaded: bool,
+    pub scheduled_actions: Vec<ScheduledGameTestAction>,
+    pub sequence_count: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GameTestInfoTickOutcome {
+    WaitingForStructure,
+    WaitingForChunks,
+    Started,
+    Running,
+    Passed,
+    Failed,
+}
+
+impl GameTestInfoStateModel {
+    pub fn new(
+        id: impl Into<String>,
+        required: bool,
+        max_ticks: i32,
+        setup_ticks: i32,
+        test_rotation: RotationModel,
+        extra_rotation: RotationModel,
+        retry_options: impl Into<String>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            required,
+            max_ticks,
+            setup_ticks,
+            max_attempts: 1,
+            required_successes: 1,
+            test_rotation,
+            extra_rotation,
+            retry_options: retry_options.into(),
+            test_block_pos: None,
+            tick_count: 0,
+            started: false,
+            done: false,
+            error: None,
+            placed_structure: false,
+            chunks_loaded: false,
+            scheduled_actions: Vec::new(),
+            sequence_count: 0,
+        }
+    }
+
+    pub fn with_retries(mut self, max_attempts: i32, required_successes: i32) -> Self {
+        self.max_attempts = max_attempts;
+        self.required_successes = required_successes;
+        self
+    }
+
+    pub fn set_test_block_pos(&mut self, pos: Option<BlockPosModel>) {
+        self.test_block_pos = pos;
+    }
+
+    pub fn start_execution(&mut self, tick_delay: i32) {
+        self.tick_count = -(self.setup_ticks + tick_delay + 1);
+    }
+
+    pub fn set_run_at_tick_time(&mut self, time: i64, action: impl Into<String>) {
+        self.scheduled_actions.push(ScheduledGameTestAction {
+            tick: time,
+            action: action.into(),
+        });
+    }
+
+    pub fn create_sequence(&mut self) {
+        self.sequence_count += 1;
+    }
+
+    pub fn get_rotation(&self) -> RotationModel {
+        gametest_rotation_get_rotated(self.test_rotation, self.extra_rotation)
+    }
+
+    pub fn is_required(&self) -> bool {
+        self.required
+    }
+
+    pub fn is_optional(&self) -> bool {
+        !self.required
+    }
+
+    pub fn is_flaky(&self) -> bool {
+        self.max_attempts > 1
+    }
+
+    pub fn has_succeeded(&self) -> bool {
+        self.done && self.error.is_none()
+    }
+
+    pub fn has_failed(&self) -> bool {
+        self.error.is_some()
+    }
+
+    pub fn fail(&mut self, error: impl Into<String>) {
+        self.error = Some(error.into());
+    }
+
+    pub fn succeed(&mut self) {
+        if self.error.is_none() {
+            self.finish();
+        }
+    }
+
+    pub fn finish(&mut self) {
+        self.done = true;
+    }
+
+    pub fn tick_internal(&mut self) -> GameTestInfoTickOutcome {
+        if self.done {
+            return if self.error.is_some() {
+                GameTestInfoTickOutcome::Failed
+            } else {
+                GameTestInfoTickOutcome::Passed
+            };
+        }
+
+        self.tick_count += 1;
+        if self.tick_count < 0 {
+            return GameTestInfoTickOutcome::Running;
+        }
+
+        if !self.started {
+            self.started = true;
+            return GameTestInfoTickOutcome::Started;
+        }
+
+        self.scheduled_actions
+            .retain(|action| action.tick > i64::from(self.tick_count));
+        if self.tick_count > self.max_ticks {
+            if self.sequence_count == 0 {
+                self.fail(format!("test.error.timeout.no_result:{}", self.max_ticks));
+            } else {
+                self.fail(format!(
+                    "test.error.timeout.no_sequences_finished:{}",
+                    self.max_ticks
+                ));
+            }
+            self.finish();
+            return GameTestInfoTickOutcome::Failed;
+        }
+
+        GameTestInfoTickOutcome::Running
+    }
+
+    pub fn copy_reset(&self) -> Self {
+        let mut copy = Self::new(
+            self.id.clone(),
+            self.required,
+            self.max_ticks,
+            self.setup_ticks,
+            self.test_rotation,
+            self.extra_rotation,
+            self.retry_options.clone(),
+        )
+        .with_retries(self.max_attempts, self.required_successes);
+        copy.test_block_pos = self.test_block_pos;
+        copy
+    }
+}
+
+pub fn gametest_rotation_get_rotated(
+    rotation: RotationModel,
+    extra_rotation: RotationModel,
+) -> RotationModel {
+    match extra_rotation {
+        RotationModel::Clockwise90 => match rotation {
+            RotationModel::None => RotationModel::Clockwise90,
+            RotationModel::Clockwise90 => RotationModel::Clockwise180,
+            RotationModel::Clockwise180 => RotationModel::Counterclockwise90,
+            RotationModel::Counterclockwise90 => RotationModel::None,
+        },
+        RotationModel::Clockwise180 => match rotation {
+            RotationModel::None => RotationModel::Clockwise180,
+            RotationModel::Clockwise90 => RotationModel::Counterclockwise90,
+            RotationModel::Clockwise180 => RotationModel::None,
+            RotationModel::Counterclockwise90 => RotationModel::Clockwise90,
+        },
+        RotationModel::Counterclockwise90 => match rotation {
+            RotationModel::None => RotationModel::Counterclockwise90,
+            RotationModel::Clockwise90 => RotationModel::None,
+            RotationModel::Clockwise180 => RotationModel::Clockwise90,
+            RotationModel::Counterclockwise90 => RotationModel::Clockwise180,
+        },
+        RotationModel::None => rotation,
     }
 }
 
