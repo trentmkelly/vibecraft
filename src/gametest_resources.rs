@@ -928,6 +928,30 @@ pub fn bootstrap_gametest_instance_types() -> Vec<(&'static str, GameTestInstanc
     ]
 }
 
+pub const ALWAYS_PASS_GAMETEST_INSTANCE_ID: &str = "minecraft:always_pass";
+
+pub fn bootstrap_gametest_instances() -> Vec<(String, GameTestInstanceModel)> {
+    vec![(
+        ALWAYS_PASS_GAMETEST_INSTANCE_ID.to_string(),
+        GameTestInstanceModel {
+            kind: GameTestInstanceTypeModel::Function,
+            data: GameTestInstanceDataModel {
+                environment: DEFAULT_GAMETEST_ENVIRONMENT_KEY.to_string(),
+                structure: "minecraft:empty".to_string(),
+                max_ticks: 1,
+                setup_ticks: 1,
+                required: false,
+                rotation: RotationModel::None,
+                manual_only: false,
+                max_attempts: 1,
+                required_successes: 1,
+                sky_access: false,
+                padding: 0,
+            },
+        },
+    )]
+}
+
 impl GameTestInstanceModel {
     pub fn batch(&self) -> &str {
         &self.data.environment
