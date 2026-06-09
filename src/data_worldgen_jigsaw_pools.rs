@@ -1,4 +1,7 @@
-use crate::worldgen::{JIGSAW_POOL_BOOTSTRAP_SOURCES, JIGSAW_STRUCTURE_START_POOLS};
+use crate::worldgen::{
+    load_template_pool_registry, ParsedJigsawTemplatePool, JIGSAW_POOL_BOOTSTRAP_SOURCES,
+    JIGSAW_STRUCTURE_START_POOLS,
+};
 
 const ANCIENT_CITY_STRUCTURE_PIECES_JAVA: &str = include_str!(
     "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/AncientCityStructurePieces.java"
@@ -22,6 +25,9 @@ const BASTION_SHARED_POOLS_JAVA: &str = include_str!(
 );
 const BASTION_TREASURE_ROOM_POOLS_JAVA: &str = include_str!(
     "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/BastionTreasureRoomPools.java"
+);
+const DESERT_VILLAGE_POOLS_JAVA: &str = include_str!(
+    "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/DesertVillagePools.java"
 );
 
 #[derive(Debug, Clone, Copy)]
@@ -168,6 +174,27 @@ const JIGSAW_POOL_SOURCES: &[JigsawPoolSourceAudit] = &[
             "StructurePoolElement.single(\"bastion/treasure/extensions/empty\", treasureRooms)",
         ],
     },
+    JigsawPoolSourceAudit {
+        source_file: "DesertVillagePools.java",
+        source: DESERT_VILLAGE_POOLS_JAVA,
+        line_count: 253,
+        registrations: 12,
+        single_elements: 0,
+        list_elements: 0,
+        empty_elements: 4,
+        bootstrap_calls: 0,
+        sentinels: &[
+            "public static final ResourceKey<StructureTemplatePool> START = Pools.createKey(\"village/desert/town_centers\");",
+            "Holder<PlacedFeature> patchCactusVillage = placedFeatures.getOrThrow(VillagePlacements.PATCH_CACTUS_VILLAGE);",
+            "Holder<StructureProcessorList> zombieDesert = processorLists.getOrThrow(ProcessorLists.ZOMBIE_DESERT);",
+            "Holder<StructureTemplatePool> terminators = pools.getOrThrow(TERMINATORS_KEY);",
+            "Pair.of(StructurePoolElement.legacy(\"village/desert/zombie/town_centers/desert_meeting_point_3\", zombieDesert), 1)",
+            "Pair.of(StructurePoolElement.legacy(\"village/desert/houses/desert_large_farm_1\", farmDesert), 11)",
+            "Pair.of(StructurePoolElement.legacy(\"village/desert/houses/desert_large_farm_1\", zombieDesert), 7)",
+            "Pair.of(StructurePoolElement.feature(patchCactusVillage), 4)",
+            "Pair.of(StructurePoolElement.legacy(\"village/desert/camel_spawn\"), 1)",
+        ],
+    },
 ];
 
 fn count_occurrences(source: &str, needle: &str) -> usize {
@@ -189,6 +216,29 @@ fn rust_registration_count(source_file: &str) -> usize {
         .find(|source| source.source_file == source_file)
         .map(|source| source.registrations)
         .unwrap_or_else(|| panic!("missing Rust jigsaw bootstrap source: {source_file}"))
+}
+
+fn desert_pool<'a>(
+    pools: &'a std::collections::BTreeMap<String, ParsedJigsawTemplatePool>,
+    id: &str,
+) -> &'a ParsedJigsawTemplatePool {
+    pools
+        .get(id)
+        .unwrap_or_else(|| panic!("missing parsed desert template pool: {id}"))
+}
+
+fn pool_weight_sum(pool: &ParsedJigsawTemplatePool) -> i32 {
+    pool.elements.iter().map(|entry| entry.weight).sum()
+}
+
+fn pool_entry_by_location<'a>(
+    pool: &'a ParsedJigsawTemplatePool,
+    location: &str,
+) -> &'a crate::worldgen::ParsedJigsawTemplatePoolEntry {
+    pool.elements
+        .iter()
+        .find(|entry| entry.element.location.as_deref() == Some(location))
+        .unwrap_or_else(|| panic!("missing template pool element location: {location}"))
 }
 
 #[cfg(test)]
@@ -246,7 +296,7 @@ mod tests {
     }
 
     #[test]
-    fn ancient_city_and_bastion_start_pool_metadata_matches_java() {
+    fn ancient_city_bastion_and_desert_start_pool_metadata_matches_java() {
         let ancient_city_start = JIGSAW_STRUCTURE_START_POOLS
             .iter()
             .find(|pool| pool.source_file == "AncientCityStructurePieces.java")
@@ -263,5 +313,149 @@ mod tests {
             .expect("missing bastion start pool metadata");
         assert_eq!(bastion_start.structure_family, "bastion");
         assert_eq!(bastion_start.pool, "minecraft:bastion/starts");
+
+        let desert_start = JIGSAW_STRUCTURE_START_POOLS
+            .iter()
+            .find(|pool| pool.source_file == "DesertVillagePools.java")
+            .expect("missing desert village start pool metadata");
+        assert_eq!(desert_start.structure_family, "village/desert");
+        assert_eq!(desert_start.pool, "minecraft:village/desert/town_centers");
+    }
+
+    fn load_vanilla_template_pools() -> crate::worldgen::ParsedTemplatePoolRegistry {
+        load_template_pool_registry(
+            "../decompiled-server-26.1.2/data/minecraft/worldgen/template_pool",
+        )
+        .expect("vanilla template-pool registry should load")
+    }
+
+    #[test]
+    fn desert_village_template_pool_json_ids_match_java_bootstrap() {
+        let registry = load_vanilla_template_pools();
+        let desert_ids = registry
+            .pools
+            .keys()
+            .filter(|id| id.starts_with("minecraft:village/desert/"))
+            .map(String::as_str)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            desert_ids,
+            vec![
+                "minecraft:village/desert/camel",
+                "minecraft:village/desert/decor",
+                "minecraft:village/desert/houses",
+                "minecraft:village/desert/streets",
+                "minecraft:village/desert/terminators",
+                "minecraft:village/desert/town_centers",
+                "minecraft:village/desert/villagers",
+                "minecraft:village/desert/zombie/decor",
+                "minecraft:village/desert/zombie/houses",
+                "minecraft:village/desert/zombie/streets",
+                "minecraft:village/desert/zombie/terminators",
+                "minecraft:village/desert/zombie/villagers",
+            ]
+        );
+    }
+
+    #[test]
+    fn desert_village_town_and_street_pools_match_java_bootstrap() {
+        let registry = load_vanilla_template_pools();
+        let town_centers = desert_pool(&registry.pools, "minecraft:village/desert/town_centers");
+        assert_eq!(town_centers.fallback, "minecraft:empty");
+        assert_eq!(town_centers.elements.len(), 6);
+        assert_eq!(
+            town_centers
+                .elements
+                .iter()
+                .map(|entry| entry.weight)
+                .collect::<Vec<_>>(),
+            vec![98, 98, 49, 2, 2, 1]
+        );
+        assert_eq!(
+            town_centers.elements[3].element.location.as_deref(),
+            Some("minecraft:village/desert/zombie/town_centers/desert_meeting_point_1")
+        );
+        assert_eq!(
+            town_centers.elements[3].element.processors,
+            vec!["minecraft:zombie_desert".to_string()]
+        );
+
+        let streets = desert_pool(&registry.pools, "minecraft:village/desert/streets");
+        assert_eq!(streets.fallback, "minecraft:village/desert/terminators");
+        assert_eq!(streets.elements.len(), 11);
+        assert_eq!(pool_weight_sum(streets), 35);
+        assert!(streets
+            .elements
+            .iter()
+            .all(|entry| entry.element.projection.as_deref() == Some("terrain_matching")));
+    }
+
+    #[test]
+    fn desert_village_house_pools_match_java_bootstrap() {
+        let registry = load_vanilla_template_pools();
+        let houses = desert_pool(&registry.pools, "minecraft:village/desert/houses");
+        assert_eq!(houses.fallback, "minecraft:village/desert/terminators");
+        assert_eq!(houses.elements.len(), 29);
+        assert_eq!(pool_weight_sum(houses), 72);
+        let large_farm = pool_entry_by_location(
+            houses,
+            "minecraft:village/desert/houses/desert_large_farm_1",
+        );
+        assert_eq!(
+            large_farm.element.processors,
+            vec!["minecraft:farm_desert".to_string()]
+        );
+        assert_eq!(large_farm.weight, 11);
+        assert_eq!(
+            houses.elements.last().unwrap().element.element_type,
+            "minecraft:empty_pool_element"
+        );
+        assert_eq!(houses.elements.last().unwrap().weight, 5);
+
+        let zombie_houses = desert_pool(&registry.pools, "minecraft:village/desert/zombie/houses");
+        assert_eq!(
+            zombie_houses.fallback,
+            "minecraft:village/desert/zombie/terminators"
+        );
+        assert_eq!(zombie_houses.elements.len(), 29);
+        assert_eq!(pool_weight_sum(zombie_houses), 68);
+        let zombie_large_farm = pool_entry_by_location(
+            zombie_houses,
+            "minecraft:village/desert/houses/desert_large_farm_1",
+        );
+        assert_eq!(zombie_large_farm.weight, 7);
+        assert_eq!(
+            zombie_large_farm.element.processors,
+            vec!["minecraft:zombie_desert".to_string()]
+        );
+    }
+
+    #[test]
+    fn desert_village_decor_camel_and_villager_pools_match_java_bootstrap() {
+        let registry = load_vanilla_template_pools();
+        let decor = desert_pool(&registry.pools, "minecraft:village/desert/decor");
+        assert_eq!(decor.fallback, "minecraft:empty");
+        assert_eq!(pool_weight_sum(decor), 28);
+        assert_eq!(
+            decor.elements[1].element.feature.as_deref(),
+            Some("minecraft:patch_cactus")
+        );
+        assert_eq!(
+            decor.elements[2].element.feature.as_deref(),
+            Some("minecraft:pile_hay")
+        );
+
+        let camel = desert_pool(&registry.pools, "minecraft:village/desert/camel");
+        assert_eq!(camel.elements.len(), 1);
+        assert_eq!(camel.elements[0].weight, 1);
+        assert_eq!(
+            camel.elements[0].element.location.as_deref(),
+            Some("minecraft:village/desert/camel_spawn")
+        );
+
+        let zombie_villagers =
+            desert_pool(&registry.pools, "minecraft:village/desert/zombie/villagers");
+        assert_eq!(pool_weight_sum(zombie_villagers), 11);
+        assert_eq!(zombie_villagers.elements.len(), 2);
     }
 }
