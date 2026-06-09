@@ -300,6 +300,21 @@ pub struct GameTestBatchModel {
     pub environment: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GameTestInfoModel {
+    pub test: String,
+    pub environment: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DecoratedGameTestInfoModel {
+    pub info: GameTestInfoModel,
+    pub rotation: &'static str,
+    pub retry_options: &'static str,
+}
+
+pub const MAX_GAMETESTS_PER_BATCH: usize = 50;
+
 pub fn create_gametest_batch(
     index: i32,
     game_test_infos: Vec<String>,
@@ -313,6 +328,63 @@ pub fn create_gametest_batch(
         game_test_infos,
         environment: environment.into(),
     })
+}
+
+pub fn direct_gametest_decorator(
+    test: impl Into<String>,
+    environment: impl Into<String>,
+) -> DecoratedGameTestInfoModel {
+    DecoratedGameTestInfoModel {
+        info: GameTestInfoModel {
+            test: test.into(),
+            environment: environment.into(),
+        },
+        rotation: "NONE",
+        retry_options: "noRetries",
+    }
+}
+
+pub fn gametest_batches_from_infos(
+    game_test_infos: &[Option<GameTestInfoModel>],
+    max_tests_per_batch: usize,
+) -> Result<Vec<GameTestBatchModel>, String> {
+    if max_tests_per_batch == 0 {
+        return Err("partition size must be positive".to_string());
+    }
+
+    let mut grouped: Vec<(String, Vec<String>)> = Vec::new();
+    for info in game_test_infos.iter().flatten() {
+        match grouped
+            .iter_mut()
+            .find(|(environment, _)| environment == &info.environment)
+        {
+            Some((_, tests)) => tests.push(info.test.clone()),
+            None => grouped.push((info.environment.clone(), vec![info.test.clone()])),
+        }
+    }
+
+    grouped
+        .into_iter()
+        .flat_map(|(environment, tests)| {
+            tests
+                .chunks(max_tests_per_batch)
+                .enumerate()
+                .map(move |(index, chunk)| {
+                    create_gametest_batch(index as i32, chunk.to_vec(), environment.clone())
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+pub fn divide_decorated_gametests_into_batches(
+    all_tests: &[DecoratedGameTestInfoModel],
+) -> Result<Vec<GameTestBatchModel>, String> {
+    let infos = all_tests
+        .iter()
+        .map(|decorated| Some(decorated.info.clone()))
+        .collect::<Vec<_>>();
+    gametest_batches_from_infos(&infos, MAX_GAMETESTS_PER_BATCH)
 }
 
 pub fn parse_test_environment_json(raw: &str) -> Result<TestEnvironmentDefinition, String> {
@@ -479,6 +551,9 @@ mod tests {
     );
     const GAME_TEST_BATCH_JAVA: &str = include_str!(
         "../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestBatch.java"
+    );
+    const GAME_TEST_BATCH_FACTORY_JAVA: &str = include_str!(
+        "../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestBatchFactory.java"
     );
 
     #[test]
@@ -965,6 +1040,99 @@ mod tests {
                 game_test_infos: vec!["minecraft:always_pass".to_string()],
                 environment: "minecraft:default".to_string(),
             })
+        );
+    }
+
+    #[test]
+    fn gametest_batch_factory_matches_java_source_shape() {
+        assert_eq!(GAME_TEST_BATCH_FACTORY_JAVA.lines().count(), 66);
+        for sentinel in [
+            "private static final int MAX_TESTS_PER_BATCH = 50;",
+            "public static final GameTestBatchFactory.TestDecorator DIRECT",
+            "new GameTestInfo(test, Rotation.NONE, level, RetryOptions.noRetries())",
+            ".collect(Collectors.groupingBy(info -> info.getTest().batch()))",
+            "Lists.partition(testsInBatch, 50)",
+            ".filter(Objects::nonNull)",
+            "Lists.partition(testsInBatch, maxTestsPerBatch)",
+            "return new GameTestBatch(counter, tests, batch);",
+            "Stream<GameTestInfo> decorate(Holder.Reference<GameTestInstance> test, ServerLevel level);",
+        ] {
+            assert!(
+                GAME_TEST_BATCH_FACTORY_JAVA.contains(sentinel),
+                "missing GameTestBatchFactory sentinel {sentinel}"
+            );
+        }
+    }
+
+    #[test]
+    fn gametest_batch_factory_direct_decorator_matches_java_defaults() {
+        let decorated = direct_gametest_decorator("minecraft:always_pass", "minecraft:default");
+        assert_eq!(
+            decorated,
+            DecoratedGameTestInfoModel {
+                info: GameTestInfoModel {
+                    test: "minecraft:always_pass".to_string(),
+                    environment: "minecraft:default".to_string(),
+                },
+                rotation: "NONE",
+                retry_options: "noRetries",
+            }
+        );
+        assert_eq!(
+            divide_decorated_gametests_into_batches(&[decorated]).unwrap(),
+            vec![GameTestBatchModel {
+                index: 0,
+                game_test_infos: vec!["minecraft:always_pass".to_string()],
+                environment: "minecraft:default".to_string(),
+            }]
+        );
+    }
+
+    #[test]
+    fn gametest_batch_factory_filters_nulls_groups_and_partitions() {
+        let mut infos = (0..51)
+            .map(|index| {
+                Some(GameTestInfoModel {
+                    test: format!("minecraft:default_{index}"),
+                    environment: "minecraft:default".to_string(),
+                })
+            })
+            .collect::<Vec<_>>();
+        infos.push(None);
+        infos.push(Some(GameTestInfoModel {
+            test: "minecraft:rainy".to_string(),
+            environment: "minecraft:rain".to_string(),
+        }));
+
+        let batches = gametest_batches_from_infos(&infos, MAX_GAMETESTS_PER_BATCH).unwrap();
+        assert_eq!(batches.len(), 3);
+        assert_eq!(batches[0].environment, "minecraft:default");
+        assert_eq!(batches[0].index, 0);
+        assert_eq!(batches[0].game_test_infos.len(), 50);
+        assert_eq!(batches[1].environment, "minecraft:default");
+        assert_eq!(batches[1].index, 1);
+        assert_eq!(batches[1].game_test_infos, vec!["minecraft:default_50"]);
+        assert_eq!(
+            batches[2],
+            GameTestBatchModel {
+                index: 0,
+                game_test_infos: vec!["minecraft:rainy".to_string()],
+                environment: "minecraft:rain".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn gametest_batch_factory_rejects_zero_partition_size() {
+        assert_eq!(
+            gametest_batches_from_infos(
+                &[Some(GameTestInfoModel {
+                    test: "minecraft:always_pass".to_string(),
+                    environment: "minecraft:default".to_string(),
+                })],
+                0
+            ),
+            Err("partition size must be positive".to_string())
         );
     }
 
