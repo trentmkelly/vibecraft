@@ -498,8 +498,8 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/data/metadata`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/metadata/PackMetadataGenerator.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/metadata/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/metadata/PackMetadataGenerator.java`. Rust `data_metadata` covers Java's `DataProvider` shape, output folder storage, metadata section map keyed by `MetadataSectionType.name()`, codec/JsonOps/getOrThrow JSON-object supplier semantics, duplicate-key overwrite behavior, `run` aggregation into a `JsonObject`, stable save path to `pack.mcmeta`, provider name, feature-pack `pack` metadata section using built-in server data pack version minor range, and optional feature-flags metadata section; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_metadata`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/metadata/package-info.java`. Rust `data_metadata` covers the package's `@NullMarked` annotation, package declaration, and jspecify import; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_metadata_package_info`.
 
 ## `decompiled-server-26.1.2/net/minecraft/data`
 

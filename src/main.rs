@@ -379,6 +379,7 @@ mod damage_type;
 #[cfg(test)] mod data_loot_provider;
 #[cfg(test)] mod data_loot_shearing;
 #[cfg(test)] mod data_loot_vanilla_entity;
+#[cfg(test)] mod data_metadata;
 #[cfg(test)] mod data_package;
 #[cfg(test)] mod datapack_reload_tests;
 #[cfg(test)] mod dialog_system;
@@ -420,8 +421,7 @@ mod loot_system;
 mod management_security;
 mod management_server;
 mod map_state;
-#[cfg(test)]
-mod mob_family;
+#[cfg(test)] mod mob_family;
 mod mob_interaction;
 #[cfg(test)]
 mod movement_physics;
