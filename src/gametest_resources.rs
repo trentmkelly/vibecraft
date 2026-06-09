@@ -220,6 +220,31 @@ pub fn function_gametest_description_rows(function: &str) -> [(&'static str, Str
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GameTestExceptionBase {
+    pub message: String,
+}
+
+impl GameTestExceptionBase {
+    pub fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+        }
+    }
+
+    pub fn runtime_message(&self) -> &str {
+        &self.message
+    }
+}
+
+pub trait GameTestExceptionModel {
+    type Description;
+
+    fn base_exception(&self) -> &GameTestExceptionBase;
+
+    fn get_description(&self) -> Self::Description;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GameTestAssertError {
     pub message: String,
     pub tick: i32,

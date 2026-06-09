@@ -21,8 +21,11 @@ const GAME_TEST_ASSERT_EXCEPTION_JAVA: &str = include_str!(
         "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestAssertException.java"
     );
 const GAME_TEST_ASSERT_POS_EXCEPTION_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestAssertPosException.java"
-    );
+    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestAssertPosException.java"
+);
+const GAME_TEST_EXCEPTION_JAVA: &str = include_str!(
+    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestException.java"
+);
 const GAME_TEST_BATCH_JAVA: &str = include_str!(
     "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestBatch.java"
 );
@@ -404,6 +407,50 @@ fn function_gametest_instance_run_and_description_match_java() {
             BUILTIN_ALWAYS_PASS_FUNCTION_ID.to_string()
         )]
     );
+}
+
+#[test]
+fn gametest_exception_matches_java_abstract_base_shape() {
+    assert_eq!(GAME_TEST_EXCEPTION_JAVA.lines().count(), 11);
+    for sentinel in [
+        "public abstract class GameTestException extends RuntimeException",
+        "public GameTestException(final String message)",
+        "super(message);",
+        "public abstract Component getDescription();",
+    ] {
+        assert!(
+            GAME_TEST_EXCEPTION_JAVA.contains(sentinel),
+            "missing GameTestException sentinel {sentinel}"
+        );
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StubGameTestException {
+    base: GameTestExceptionBase,
+    description: String,
+}
+
+impl GameTestExceptionModel for StubGameTestException {
+    type Description = String;
+
+    fn base_exception(&self) -> &GameTestExceptionBase {
+        &self.base
+    }
+
+    fn get_description(&self) -> Self::Description {
+        self.description.clone()
+    }
+}
+
+#[test]
+fn gametest_exception_base_preserves_runtime_message_and_requires_description() {
+    let exception = StubGameTestException {
+        base: GameTestExceptionBase::new("runtime text"),
+        description: "component text".to_string(),
+    };
+    assert_eq!(exception.base_exception().runtime_message(), "runtime text");
+    assert_eq!(exception.get_description(), "component text");
 }
 
 #[test]
