@@ -525,8 +525,8 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/data/recipes/packs`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/recipes/packs/VanillaRecipeProvider.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/recipes/packs/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/recipes/packs/VanillaRecipeProvider.java`. Rust `data_vanilla_recipe_provider` covers the provider class and private constructor contract, root advancement and vanilla feature-gated block-family generation, exact smeltable groups, recipe-family call counts, builder-family usage counts, high-risk custom/special/transmute/cooking sentinels, smithing trim template pairs and generated trim recipe IDs, dyed shulker/bundle helper coverage, nested `Runner` creation/name contract, `TrimTemplate` record shape, and source line-count drift; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 vanilla_recipe_provider`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/recipes/packs/package-info.java`. Rust `data_vanilla_recipe_provider` covers the package's `@NullMarked` annotation, package declaration, and jspecify import; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 vanilla_recipe_provider`.
 
 ## `decompiled-server-26.1.2/net/minecraft/data/registries`
 
