@@ -891,6 +891,118 @@ pub fn gametest_rotation_get_rotated(
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GameTestInstanceDataModel {
+    pub environment: String,
+    pub structure: String,
+    pub max_ticks: i32,
+    pub setup_ticks: i32,
+    pub required: bool,
+    pub rotation: RotationModel,
+    pub manual_only: bool,
+    pub max_attempts: i32,
+    pub required_successes: i32,
+    pub sky_access: bool,
+    pub padding: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GameTestInstanceTypeModel {
+    BlockBased,
+    Function,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GameTestInstanceModel {
+    pub kind: GameTestInstanceTypeModel,
+    pub data: GameTestInstanceDataModel,
+}
+
+pub fn bootstrap_gametest_instance_types() -> Vec<(&'static str, GameTestInstanceTypeModel)> {
+    vec![
+        (
+            "minecraft:block_based",
+            GameTestInstanceTypeModel::BlockBased,
+        ),
+        ("minecraft:function", GameTestInstanceTypeModel::Function),
+    ]
+}
+
+impl GameTestInstanceModel {
+    pub fn batch(&self) -> &str {
+        &self.data.environment
+    }
+
+    pub fn structure(&self) -> &str {
+        &self.data.structure
+    }
+
+    pub fn max_ticks(&self) -> i32 {
+        self.data.max_ticks
+    }
+
+    pub fn setup_ticks(&self) -> i32 {
+        self.data.setup_ticks
+    }
+
+    pub fn required(&self) -> bool {
+        self.data.required
+    }
+
+    pub fn manual_only(&self) -> bool {
+        self.data.manual_only
+    }
+
+    pub fn max_attempts(&self) -> i32 {
+        self.data.max_attempts
+    }
+
+    pub fn required_successes(&self) -> i32 {
+        self.data.required_successes
+    }
+
+    pub fn sky_access(&self) -> bool {
+        self.data.sky_access
+    }
+
+    pub fn rotation(&self) -> RotationModel {
+        self.data.rotation
+    }
+
+    pub fn padding(&self) -> i32 {
+        self.data.padding
+    }
+
+    pub fn type_description(&self) -> &'static str {
+        match self.kind {
+            GameTestInstanceTypeModel::BlockBased => "test_instance.type.block_based",
+            GameTestInstanceTypeModel::Function => "test_instance.type.function",
+        }
+    }
+
+    pub fn describe(&self) -> Vec<(&'static str, String)> {
+        let mut rows = vec![(
+            "test_instance.description.type",
+            self.type_description().to_string(),
+        )];
+        rows.extend(self.describe_info());
+        rows
+    }
+
+    pub fn describe_info(&self) -> [(&'static str, String); 2] {
+        [
+            (
+                "test_instance.description.structure",
+                self.data.structure.clone(),
+            ),
+            (
+                "test_instance.description.batch",
+                self.data.environment.clone(),
+            ),
+        ]
+    }
+}
+
 pub fn parse_test_environment_json(raw: &str) -> Result<TestEnvironmentDefinition, String> {
     let value: serde_json::Value =
         serde_json::from_str(raw).map_err(|err| format!("invalid test environment JSON: {err}"))?;
@@ -1028,3 +1140,5 @@ fn json_bool(
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_instance;
