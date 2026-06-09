@@ -651,6 +651,141 @@ fn squared_distance(a: BlockPosModel, b: BlockPosModel) -> i32 {
     dx * dx + dy * dy + dz * dz
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TestFinderSourceModel {
+    pub id: String,
+    pub position: BlockPosModel,
+    pub level: StructureUtilsLevelModel,
+    pub failed_tests: Vec<TestFinderTestModel>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TestFinderTestModel {
+    pub id: String,
+    pub required: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TestFinderModel {
+    pub source_id: String,
+    pub tests: Vec<TestFinderTestModel>,
+    pub test_positions: Vec<BlockPosModel>,
+}
+
+impl TestFinderModel {
+    pub fn find_tests(&self) -> Vec<TestFinderTestModel> {
+        self.tests.clone()
+    }
+
+    pub fn find_test_pos(&self) -> Vec<BlockPosModel> {
+        self.test_positions.clone()
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TestFinderBuilderModel {
+    copies: Option<usize>,
+}
+
+impl TestFinderBuilderModel {
+    pub fn create_multiple_copies(self, amount: usize) -> Self {
+        Self {
+            copies: Some(amount),
+        }
+    }
+
+    pub fn radius(self, source: &TestFinderSourceModel, radius: i32) -> TestFinderModel {
+        self.build(
+            source,
+            Vec::new(),
+            structure_utils_find_test_blocks(source.position, radius, &source.level),
+        )
+    }
+
+    pub fn nearest(self, source: &TestFinderSourceModel) -> TestFinderModel {
+        self.build(
+            source,
+            Vec::new(),
+            structure_utils_find_nearest_test(source.position, 15, &source.level)
+                .into_iter()
+                .collect(),
+        )
+    }
+
+    pub fn all_nearby(self, source: &TestFinderSourceModel) -> TestFinderModel {
+        self.build(
+            source,
+            Vec::new(),
+            structure_utils_find_test_blocks(source.position, 250, &source.level),
+        )
+    }
+
+    pub fn looked_at(self, source: &TestFinderSourceModel) -> TestFinderModel {
+        self.build(
+            source,
+            Vec::new(),
+            structure_utils_looked_at_test_pos(source.position, &source.level)
+                .into_iter()
+                .collect(),
+        )
+    }
+
+    pub fn failed_tests(
+        self,
+        source: &TestFinderSourceModel,
+        only_required_tests: bool,
+    ) -> TestFinderModel {
+        self.build(
+            source,
+            source
+                .failed_tests
+                .iter()
+                .filter(|test| !only_required_tests || test.required)
+                .cloned()
+                .collect(),
+            Vec::new(),
+        )
+    }
+
+    pub fn by_resource_selection(
+        self,
+        source: &TestFinderSourceModel,
+        holders: Vec<TestFinderTestModel>,
+    ) -> TestFinderModel {
+        self.build(source, holders, Vec::new())
+    }
+
+    fn build(
+        self,
+        source: &TestFinderSourceModel,
+        tests: Vec<TestFinderTestModel>,
+        test_positions: Vec<BlockPosModel>,
+    ) -> TestFinderModel {
+        TestFinderModel {
+            source_id: source.id.clone(),
+            tests: copy_items(tests, self.copies),
+            test_positions: copy_items(test_positions, self.copies),
+        }
+    }
+}
+
+pub fn test_finder_builder() -> TestFinderBuilderModel {
+    TestFinderBuilderModel::default()
+}
+
+fn copy_items<T: Clone>(items: Vec<T>, copies: Option<usize>) -> Vec<T> {
+    if let Some(amount) = copies {
+        let source = items;
+        let mut copied = Vec::with_capacity(source.len() * amount);
+        for _ in 0..amount {
+            copied.extend(source.iter().cloned());
+        }
+        copied
+    } else {
+        items
+    }
+}
+
 #[cfg(test)]
 mod tests_structure_utils {
     use super::*;
@@ -844,6 +979,194 @@ mod tests_structure_utils {
         assert_eq!(
             structure_utils_looked_at_test_pos(BlockPosModel::new(18, 64, 0), &level),
             Some(BlockPosModel::new(20, 64, 0))
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests_test_finder {
+    use super::*;
+
+    const TEST_FINDER_JAVA: &str = include_str!(
+        "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/TestFinder.java"
+    );
+    const TEST_INSTANCE_FINDER_JAVA: &str = include_str!(
+        "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/TestInstanceFinder.java"
+    );
+    const TEST_POS_FINDER_JAVA: &str = include_str!(
+        "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/TestPosFinder.java"
+    );
+
+    fn source() -> TestFinderSourceModel {
+        TestFinderSourceModel {
+            id: "source".to_string(),
+            position: BlockPosModel::new(0, 64, 0),
+            level: StructureUtilsLevelModel {
+                test_blocks: vec![
+                    StructureUtilsTestBlockModel {
+                        pos: BlockPosModel::new(2, 64, 0),
+                        structure_bounding_box: StructureUtilsBoxModel::from_corners(
+                            BlockPosModel::new(2, 64, 0),
+                            BlockPosModel::new(4, 70, 2),
+                        ),
+                        structure_bounds_hit: false,
+                    },
+                    StructureUtilsTestBlockModel {
+                        pos: BlockPosModel::new(20, 64, 0),
+                        structure_bounding_box: StructureUtilsBoxModel::from_corners(
+                            BlockPosModel::new(20, 64, 0),
+                            BlockPosModel::new(22, 70, 2),
+                        ),
+                        structure_bounds_hit: true,
+                    },
+                    StructureUtilsTestBlockModel {
+                        pos: BlockPosModel::new(300, 64, 0),
+                        structure_bounding_box: StructureUtilsBoxModel::from_corners(
+                            BlockPosModel::new(300, 64, 0),
+                            BlockPosModel::new(302, 70, 2),
+                        ),
+                        structure_bounds_hit: true,
+                    },
+                ],
+                ..Default::default()
+            },
+            failed_tests: vec![
+                TestFinderTestModel {
+                    id: "minecraft:required".to_string(),
+                    required: true,
+                },
+                TestFinderTestModel {
+                    id: "minecraft:optional".to_string(),
+                    required: false,
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn test_finder_and_functional_interfaces_match_java_source_shape() {
+        assert_eq!(TEST_FINDER_JAVA.lines().count(), 130);
+        assert_eq!(TEST_INSTANCE_FINDER_JAVA.lines().count(), 9);
+        assert_eq!(TEST_POS_FINDER_JAVA.lines().count(), 9);
+        for sentinel in [
+            "public class TestFinder implements TestInstanceFinder, TestPosFinder",
+            "private static final TestInstanceFinder NO_FUNCTIONS = Stream::empty;",
+            "private static final TestPosFinder NO_STRUCTURES = Stream::empty;",
+            "public Stream<BlockPos> findTestPos()",
+            "public Stream<Holder.Reference<GameTestInstance>> findTests()",
+            "public TestFinder.Builder createMultipleCopies(final int amount)",
+            "private static <Q> UnaryOperator<Supplier<Stream<Q>>> createCopies(final int amount)",
+            "for (int i = 0; i < amount; i++)",
+            "copyList.addAll(sourceList);",
+            "StructureUtils.findTestBlocks(pos, radius, source.getLevel())",
+            "StructureUtils.findNearestTest(pos, 15, source.getLevel()).stream()",
+            "StructureUtils.findTestBlocks(pos, 250, source.getLevel())",
+            "StructureUtils.lookedAtTestPos(BlockPos.containing(source.getPosition()), source.getPlayer().getCamera(), source.getLevel())",
+            "FailedTestTracker.getLastFailedTests().filter(test -> !onlyRequiredTests || test.value().required())",
+            "this.build((CommandSourceStack)sourceStack.getSource(), holders::stream, TestFinder.NO_STRUCTURES)",
+            "return this.failedTests(sourceStack, false);",
+            "@FunctionalInterface",
+            "Stream<Holder.Reference<GameTestInstance>> findTests();",
+            "Stream<BlockPos> findTestPos();",
+        ] {
+            assert!(
+                TEST_FINDER_JAVA.contains(sentinel)
+                    || TEST_INSTANCE_FINDER_JAVA.contains(sentinel)
+                    || TEST_POS_FINDER_JAVA.contains(sentinel),
+                "missing TestFinder sentinel {sentinel}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_finder_position_builders_delegate_to_structure_utils_like_java() {
+        let source = source();
+
+        assert_eq!(
+            test_finder_builder().radius(&source, 25).find_test_pos(),
+            vec![BlockPosModel::new(2, 64, 0), BlockPosModel::new(20, 64, 0)]
+        );
+        assert_eq!(
+            test_finder_builder().nearest(&source).find_test_pos(),
+            vec![BlockPosModel::new(2, 64, 0)]
+        );
+        assert_eq!(
+            test_finder_builder().all_nearby(&source).find_test_pos(),
+            vec![BlockPosModel::new(2, 64, 0), BlockPosModel::new(20, 64, 0)]
+        );
+        assert_eq!(
+            test_finder_builder().looked_at(&source).find_test_pos(),
+            vec![BlockPosModel::new(20, 64, 0)]
+        );
+    }
+
+    #[test]
+    fn test_finder_failed_and_resource_selection_match_java() {
+        let source = source();
+        assert_eq!(
+            test_finder_builder()
+                .failed_tests(&source, false)
+                .find_tests(),
+            source.failed_tests
+        );
+        assert_eq!(
+            test_finder_builder()
+                .failed_tests(&source, true)
+                .find_tests(),
+            vec![TestFinderTestModel {
+                id: "minecraft:required".to_string(),
+                required: true,
+            }]
+        );
+        assert_eq!(
+            test_finder_builder()
+                .by_resource_selection(
+                    &source,
+                    vec![TestFinderTestModel {
+                        id: "minecraft:selected".to_string(),
+                        required: true,
+                    }],
+                )
+                .find_tests(),
+            vec![TestFinderTestModel {
+                id: "minecraft:selected".to_string(),
+                required: true,
+            }]
+        );
+    }
+
+    #[test]
+    fn test_finder_create_multiple_copies_repeats_tests_and_positions_like_java() {
+        let source = source();
+        let copied_positions = test_finder_builder()
+            .create_multiple_copies(3)
+            .nearest(&source)
+            .find_test_pos();
+        assert_eq!(
+            copied_positions,
+            vec![
+                BlockPosModel::new(2, 64, 0),
+                BlockPosModel::new(2, 64, 0),
+                BlockPosModel::new(2, 64, 0),
+            ]
+        );
+
+        let copied_tests = test_finder_builder()
+            .create_multiple_copies(2)
+            .failed_tests(&source, true)
+            .find_tests();
+        assert_eq!(
+            copied_tests,
+            vec![
+                TestFinderTestModel {
+                    id: "minecraft:required".to_string(),
+                    required: true,
+                },
+                TestFinderTestModel {
+                    id: "minecraft:required".to_string(),
+                    required: true,
+                },
+            ]
         );
     }
 }
