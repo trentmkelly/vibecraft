@@ -335,8 +335,7 @@ mod criterion_slime_predicate;
 mod criterion_block_predicate;
 #[cfg(test)]
 mod criterion_bee_nest;
-#[cfg(test)]
-mod criterion_block_interaction;
+#[cfg(test)] mod criterion_block_interaction;
 #[cfg(test)] mod criterion_slots_predicate;
 #[cfg(test)] mod criterion_spear_mobs;
 #[cfg(test)] mod criterion_start_riding;
@@ -380,6 +379,7 @@ mod damage_type;
 #[cfg(test)] mod data_smithing_trim_recipe_builder;
 #[cfg(test)] mod data_special_recipe_builder;
 #[cfg(test)] mod data_structures;
+#[cfg(test)] mod data_tags_core;
 #[cfg(test)] mod data_transmute_recipe_builder;
 #[cfg(test)] mod data_vanilla_recipe_provider;
 #[cfg(test)] mod datapack_reload_tests;

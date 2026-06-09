@@ -557,16 +557,16 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/tags/FlatLevelGeneratorPresetTagsProvider.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/tags/FluidTagsProvider.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/tags/GameEventTagsProvider.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/tags/HolderTagProvider.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/tags/HolderTagProvider.java`. Rust `data_tags_core` covers the `TagsProvider` subclass constructor and `Holder.Reference::key` mapping through `TagAppender.forBuilder(...).map(...)`; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_tags_core`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/tags/InstrumentTagsProvider.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/tags/IntrinsicHolderTagsProvider.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/tags/KeyTagProvider.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/tags/IntrinsicHolderTagsProvider.java`. Rust `data_tags_core` covers both constructors, parent-provider forwarding, key-extractor storage, and intrinsic element-to-key mapping through `TagAppender.forBuilder(...).map(keyExtractor)`; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_tags_core`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/tags/KeyTagProvider.java`. Rust `data_tags_core` covers key-based builder access, `TagAppender.forBuilder` return behavior, and the replace-overload's `TagBuilder.setReplace(replace)` side effect; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_tags_core`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/tags/PaintingVariantTagsProvider.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/tags/PoiTypeTagsProvider.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/tags/PotionTagsProvider.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/tags/StructureTagsProvider.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/tags/TagAppender.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/tags/TagsProvider.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/tags/TagAppender.java`. Rust `data_tags_core` covers single/varargs/collection/stream add forwarding, required and optional element/tag writes into `TagBuilder`, fluent returns, `forBuilder` adapter behavior, `map` delegation, and Java's mapped `addOptional` required-add behavior; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_tags_core`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/tags/TagsProvider.java`. Rust `data_tags_core` covers path-provider creation, parent lookup defaulting, provider name, contents lifecycle, builder clearing and `addTags` call, linked builder map, element/tag verification against contents and parent tags, optional-entry verification behavior, unresolved-reference error sentinel, stable `TagFile` save path, raw builder creation, contents getter, and `TagLookup.empty/contains`; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_tags_core`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/tags/TimelineTagsProvider.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/tags/TradeRebalanceEnchantmentTagsProvider.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/tags/TradeRebalanceTradeTagsProvider.java`.
@@ -575,7 +575,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/tags/VanillaItemTagsProvider.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/tags/VillagerTradesTagsProvider.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/tags/WorldPresetTagsProvider.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/tags/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/tags/package-info.java`. Rust `data_tags_core` covers the package's `@NullMarked` annotation, package declaration, and jspecify import; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_tags_core`.
 
 ## `decompiled-server-26.1.2/net/minecraft/data/worldgen`
 
