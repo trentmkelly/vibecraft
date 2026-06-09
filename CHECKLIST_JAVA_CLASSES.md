@@ -459,14 +459,14 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/data/info`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/info/BiomeParametersDumpReport.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/info/BlockListReport.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/info/CommandsReport.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/info/DatapackStructureReport.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/info/PacketReport.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/info/RegistryComponentsReport.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/info/RegistryDumpReport.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/info/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/info/BiomeParametersDumpReport.java`. Rust `data_info` covers report name/path, known preset iteration, registry serialization context, climate parameter-list codec shape, partial encode logging, and per-preset JSON path suffixing; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_info`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/info/BlockListReport.java`. Rust `data_info` covers `blocks.json`, block property arrays, state property objects, protocol ids, default-state marker, BlockTypes definition encoding, and failure text sentinel; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_info`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/info/CommandsReport.java`. Rust `data_info` covers `commands.json`, `Commands.CommandSelection.ALL`, validation-context creation, dispatcher root serialization, and report name; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_info`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/info/DatapackStructureReport.java`. Rust `data_info` covers `datapack.json`, manual pseudo/stable dynamic entries, built-in and unstable dynamic entry shapes, non-registry `structure`/`function` formats, duplicate-key failure, and report codec fields; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_info`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/info/PacketReport.java`. Rust `data_info` covers `packets.json`, the nine protocol templates, grouping by protocol id, flow ids, packet type ids, network protocol ids, and report name; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_info`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/info/RegistryComponentsReport.java`. Rust `data_info` covers default component initializer iteration, registry component path providers, non-empty component filtering, DataComponentPatch encoding under `components`, and failure text sentinel; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_info`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/info/RegistryDumpReport.java`. Rust `data_info` covers `registries.json`, root built-in registry iteration, default registry key emission, registry and entry protocol ids, entries object shape, and report name; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_info`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/info/package-info.java`. Rust `data_info` records the `net.minecraft.data.info` package `@NullMarked` contract; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_info`.
 
 ## `decompiled-server-26.1.2/net/minecraft/data/loot`
 

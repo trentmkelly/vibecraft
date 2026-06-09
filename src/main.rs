@@ -364,12 +364,10 @@ mod crash_recovery_tests;
 #[cfg(test)]
 mod creative_inventory;
 mod damage_type;
-#[cfg(test)]
-mod data_advancement_packs;
-#[cfg(test)]
-mod data_advancements;
-#[cfg(test)]
-mod data_package;
+#[cfg(test)] mod data_advancement_packs;
+#[cfg(test)] mod data_advancements;
+#[cfg(test)] mod data_info;
+#[cfg(test)] mod data_package;
 #[cfg(test)]
 mod datapack_reload_tests;
 #[cfg(test)]
