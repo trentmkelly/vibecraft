@@ -2,6 +2,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 const PACKAGE_NULL_MARKED: bool = true;
+const VANILLA_LOOT_TABLE_PROVIDER_JAVA: &str = include_str!(
+    "../../decompiled-server-26.1.2/net/minecraft/data/loot/packs/VanillaLootTableProvider.java"
+);
 
 fn package_null_marked() -> bool {
     PACKAGE_NULL_MARKED
@@ -130,11 +133,16 @@ impl LootTableProviderModel {
             });
         }
         let mut problems = Vec::new();
-        for missing in self.required_tables.difference(&tables.keys().cloned().collect()) {
-            problems.push(MissingTableProblemModel {
-                id: missing.clone(),
-            }
-            .description());
+        for missing in self
+            .required_tables
+            .difference(&tables.keys().cloned().collect())
+        {
+            problems.push(
+                MissingTableProblemModel {
+                    id: missing.clone(),
+                }
+                .description(),
+            );
         }
         for (id, table) in &tables {
             for problem in &table.validation_errors {
@@ -180,6 +188,36 @@ fn path_for_loot_table(id: &str) -> String {
     format!("data/{namespace}/loot_table/{path}.json")
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct VanillaLootTableProviderSummary {
+    required_tables_source: &'static str,
+    subproviders: Vec<(&'static str, &'static str)>,
+}
+
+fn vanilla_loot_table_provider_summary() -> VanillaLootTableProviderSummary {
+    VanillaLootTableProviderSummary {
+        required_tables_source: "BuiltInLootTables.all()",
+        subproviders: vec![
+            ("VanillaFishingLoot", "fishing"),
+            ("VanillaChestLoot", "chest"),
+            ("VanillaEntityLoot", "entity"),
+            ("VanillaEquipmentLoot", "equipment"),
+            ("VanillaBlockLoot", "block"),
+            ("VanillaPiglinBarterLoot", "piglin_barter"),
+            ("VanillaGiftLoot", "gift"),
+            ("VanillaArchaeologyLoot", "archaeology"),
+            ("VanillaShearingLoot", "shearing"),
+            ("VanillaEntityInteractLoot", "entity_interact"),
+            ("VanillaBlockInteractLoot", "block_interact"),
+            ("VanillaChargedCreeperExplosionLoot", "entity"),
+        ],
+    }
+}
+
+fn count_occurrences(source: &str, needle: &str) -> usize {
+    source.match_indices(needle).count()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -198,7 +236,10 @@ mod tests {
         }
     }
 
-    fn subprovider(param_set: &str, tables: Vec<(&str, LootTableBuilderModel)>) -> SubProviderEntryModel {
+    fn subprovider(
+        param_set: &str,
+        tables: Vec<(&str, LootTableBuilderModel)>,
+    ) -> SubProviderEntryModel {
         SubProviderEntryModel {
             provider: StaticSubProviderModel {
                 tables: tables
@@ -233,7 +274,10 @@ mod tests {
         subprovider.generate(&mut |id, builder| generated.push((id, builder.label)));
         assert_eq!(
             generated,
-            vec![("minecraft:gameplay/fishing".to_string(), "fishing".to_string())]
+            vec![(
+                "minecraft:gameplay/fishing".to_string(),
+                "fishing".to_string()
+            )]
         );
     }
 
@@ -265,7 +309,10 @@ mod tests {
             ["minecraft:entities/zombie"],
             vec![subprovider(
                 "entity",
-                vec![("minecraft:entities/skeleton", LootTableBuilderModel::new("skeleton"))],
+                vec![(
+                    "minecraft:entities/skeleton",
+                    LootTableBuilderModel::new("skeleton"),
+                )],
             )],
         );
         let err = must_err(provider.run());
@@ -297,7 +344,10 @@ mod tests {
                 "generic",
                 vec![
                     ("minecraft:loot/a", LootTableBuilderModel::new("a")),
-                    ("minecraft:loot/a_collision", LootTableBuilderModel::new("b")),
+                    (
+                        "minecraft:loot/a_collision",
+                        LootTableBuilderModel::new("b"),
+                    ),
                 ],
             )],
         );
@@ -310,5 +360,79 @@ mod tests {
                     .to_string()
             ]
         );
+    }
+
+    #[test]
+    fn vanilla_loot_table_provider_matches_java_required_tables_and_subprovider_order() {
+        let provider = vanilla_loot_table_provider_summary();
+        assert_eq!(provider.required_tables_source, "BuiltInLootTables.all()");
+        assert_eq!(
+            provider.subproviders,
+            vec![
+                ("VanillaFishingLoot", "fishing"),
+                ("VanillaChestLoot", "chest"),
+                ("VanillaEntityLoot", "entity"),
+                ("VanillaEquipmentLoot", "equipment"),
+                ("VanillaBlockLoot", "block"),
+                ("VanillaPiglinBarterLoot", "piglin_barter"),
+                ("VanillaGiftLoot", "gift"),
+                ("VanillaArchaeologyLoot", "archaeology"),
+                ("VanillaShearingLoot", "shearing"),
+                ("VanillaEntityInteractLoot", "entity_interact"),
+                ("VanillaBlockInteractLoot", "block_interact"),
+                ("VanillaChargedCreeperExplosionLoot", "entity"),
+            ]
+        );
+    }
+
+    #[test]
+    fn vanilla_loot_table_provider_java_source_counts_match_authoritative_file() {
+        assert_eq!(
+            count_occurrences(VANILLA_LOOT_TABLE_PROVIDER_JAVA, "new LootTableProvider("),
+            1
+        );
+        assert_eq!(
+            count_occurrences(
+                VANILLA_LOOT_TABLE_PROVIDER_JAVA,
+                "new LootTableProvider.SubProviderEntry"
+            ),
+            12
+        );
+        assert_eq!(
+            count_occurrences(VANILLA_LOOT_TABLE_PROVIDER_JAVA, "LootContextParamSets."),
+            12
+        );
+        assert_eq!(
+            count_occurrences(VANILLA_LOOT_TABLE_PROVIDER_JAVA, "BuiltInLootTables.all()"),
+            1
+        );
+    }
+
+    #[test]
+    fn vanilla_loot_table_provider_java_source_sentinels_match_authoritative_file() {
+        for expected in [
+            "public class VanillaLootTableProvider",
+            "public static LootTableProvider create(final PackOutput output, final CompletableFuture<HolderLookup.Provider> registries)",
+            "return new LootTableProvider(",
+            "output,\n         BuiltInLootTables.all(),",
+            "new LootTableProvider.SubProviderEntry(VanillaFishingLoot::new, LootContextParamSets.FISHING)",
+            "new LootTableProvider.SubProviderEntry(VanillaChestLoot::new, LootContextParamSets.CHEST)",
+            "new LootTableProvider.SubProviderEntry(VanillaEntityLoot::new, LootContextParamSets.ENTITY)",
+            "new LootTableProvider.SubProviderEntry(VanillaEquipmentLoot::new, LootContextParamSets.EQUIPMENT)",
+            "new LootTableProvider.SubProviderEntry(VanillaBlockLoot::new, LootContextParamSets.BLOCK)",
+            "new LootTableProvider.SubProviderEntry(VanillaPiglinBarterLoot::new, LootContextParamSets.PIGLIN_BARTER)",
+            "new LootTableProvider.SubProviderEntry(VanillaGiftLoot::new, LootContextParamSets.GIFT)",
+            "new LootTableProvider.SubProviderEntry(VanillaArchaeologyLoot::new, LootContextParamSets.ARCHAEOLOGY)",
+            "new LootTableProvider.SubProviderEntry(VanillaShearingLoot::new, LootContextParamSets.SHEARING)",
+            "new LootTableProvider.SubProviderEntry(VanillaEntityInteractLoot::new, LootContextParamSets.ENTITY_INTERACT)",
+            "new LootTableProvider.SubProviderEntry(VanillaBlockInteractLoot::new, LootContextParamSets.BLOCK_INTERACT)",
+            "new LootTableProvider.SubProviderEntry(VanillaChargedCreeperExplosionLoot::new, LootContextParamSets.ENTITY)",
+            "registries\n      );",
+        ] {
+            assert!(
+                VANILLA_LOOT_TABLE_PROVIDER_JAVA.contains(expected),
+                "missing Java sentinel: {expected}"
+            );
+        }
     }
 }
