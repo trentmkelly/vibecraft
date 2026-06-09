@@ -382,6 +382,7 @@ mod damage_type;
 #[cfg(test)] mod data_worldgen_dimension_types;
 #[cfg(test)] mod data_worldgen_jigsaw_pools;
 #[cfg(test)] mod data_worldgen_noise_data;
+#[cfg(test)] mod data_worldgen_processor_lists;
 #[cfg(test)] mod datapack_reload_tests;
 #[cfg(test)] mod dialog_system;
 mod dispenser_cauldron;
@@ -424,8 +425,7 @@ mod management_server;
 mod map_state;
 #[cfg(test)] mod mob_family;
 mod mob_interaction;
-#[cfg(test)]
-mod movement_physics;
+#[cfg(test)] mod movement_physics;
 #[cfg(test)]
 mod movement_validation;
 mod network;

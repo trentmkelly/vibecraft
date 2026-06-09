@@ -274,6 +274,7 @@ fn parse_structure_processor_value(
         .map(str::to_string);
     let cannot_replace = object
         .get("cannot_replace")
+        .or_else(|| object.get("value"))
         .and_then(|value| value.as_str())
         .map(str::to_string);
 
