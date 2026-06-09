@@ -351,8 +351,7 @@ mod criterion_summoned_entity;
 mod criterion_tag_predicate;
 #[cfg(test)] mod criterion_tame_animal;
 #[cfg(test)] mod criterion_target_block;
-#[cfg(test)]
-mod criterion_trade_trigger;
+#[cfg(test)] mod criterion_trade_trigger;
 #[cfg(test)] mod criterion_used_ender_eye;
 #[cfg(test)] mod criterion_used_totem;
 #[cfg(test)] mod criterion_using_item;
@@ -382,6 +381,7 @@ mod damage_type;
 #[cfg(test)] mod data_simple_cooking_recipe_builder;
 #[cfg(test)] mod data_single_item_recipe_builder;
 #[cfg(test)] mod data_smithing_transform_recipe_builder;
+#[cfg(test)] mod data_smithing_trim_recipe_builder;
 #[cfg(test)] mod datapack_reload_tests;
 #[cfg(test)] mod dialog_system;
 mod dispenser_cauldron;
