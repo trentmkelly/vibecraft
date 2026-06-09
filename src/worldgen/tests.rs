@@ -1,16 +1,19 @@
 use super::{
     builtin_density_function, builtin_noise_generator_settings, builtin_noise_router,
-    density_function_type, random_state_normal_noise_snapshot, AquiferNoiseSettings,
-    BinaryDensityFunction, BiomeGenerationSettingsModel, BlendingDataPacked, BlendingOutput,
-    BlockPos, BlockPredicate, BlockPredicateContext, CarverShape, CaveDensityOutput, CaveSurface,
-    ConfiguredFeatureSource, DensityFunction, DensityMarker, FeatureConfigurationKind,
-    FeatureFamily, FlatLayerInfo, FloatProvider, FluidStatus, FoliagePlacerKind,
-    FoliagePlacerModel, GenerationDecorationStep, HeightProvider, HeightRange,
-    MappedDensityFunction, MobSpawnerDataModel, NoiseRouterPreset, NoiseSettings,
-    OreVeinDecisionInput, OreVeinifierConstants, PlacedFeatureSource, PlacementContextModel,
-    PlacementModifier, RandomSpreadType, RandomStateNoiseCache, SpawnBlockKind, SpawnColumnHeights,
-    StructureFamily, StructurePlacementKind, SurfaceConditionSource, SurfaceMaterialContext,
-    SurfaceRuleKind, SurfaceRulePreset, SurfaceRuleSource, TreePlacementBlockKind, TrunkPlacerKind,
+    density_function_type, placement_utils_count_extra, placement_utils_create_key,
+    placement_utils_filtered_by_block_survival, placement_utils_inline_placed,
+    placement_utils_is_empty, placement_utils_only_when_empty, random_state_normal_noise_snapshot,
+    AquiferNoiseSettings, BinaryDensityFunction, BiomeGenerationSettingsModel, BlendingDataPacked,
+    BlendingOutput, BlockPos, BlockPredicate, BlockPredicateContext, CarverShape,
+    CaveDensityOutput, CaveSurface, ConfiguredFeatureSource, DensityFunction, DensityMarker,
+    FeatureConfigurationKind, FeatureFamily, FlatLayerInfo, FloatProvider, FluidStatus,
+    FoliagePlacerKind, FoliagePlacerModel, GenerationDecorationStep, HeightProvider, HeightRange,
+    InlinePlacedFeatureModel, MappedDensityFunction, MobSpawnerDataModel, NoiseRouterPreset,
+    NoiseSettings, OreVeinDecisionInput, OreVeinifierConstants, PlacedFeatureSource,
+    PlacementContextModel, PlacementModifier, PlacementUtilsCountExtra, RandomSpreadType,
+    RandomStateNoiseCache, SpawnBlockKind, SpawnColumnHeights, StructureFamily,
+    StructurePlacementKind, SurfaceConditionSource, SurfaceMaterialContext, SurfaceRuleKind,
+    SurfaceRulePreset, SurfaceRuleSource, TreePlacementBlockKind, TrunkPlacerKind,
     TrunkPlacerModel, VerticalAnchor, WeightedHeightProvider, WorldCarverType,
     WorldGenerationHeightContext, AQUIFER_NOISE_SETTINGS,
     AQUIFER_SURFACE_SAMPLING_OFFSETS_IN_CHUNKS, BLENDING_CELL_COLUMN_COUNT, BLENDING_CONSTANTS,
@@ -24,11 +27,16 @@ use super::{
     NETHER_NOISE_SETTINGS, NORMAL_NOISE_INPUT_FACTOR, NORMAL_NOISE_PARAMETERS,
     NORMAL_NOISE_TARGET_DEVIATION, ORE_VEINIFIER_CONSTANTS, ORE_VEIN_TYPES,
     OVERWORLD_NOISE_SETTINGS, OVERWORLD_SPAWN_TARGET, PLACED_FEATURE_BOOTSTRAP_SOURCES,
-    SPAWN_SELECTION_CONSTANTS, STRUCTURE_FAMILIES, STRUCTURE_PIECE_TYPES,
-    STRUCTURE_POOL_ELEMENT_TYPES, STRUCTURE_POS_RULE_TEST_TYPES, STRUCTURE_PROCESSOR_LISTS,
-    STRUCTURE_PROCESSOR_TYPES, STRUCTURE_RULE_TEST_TYPES, STRUCTURE_TYPES, SURFACE_CONDITION_TYPES,
-    SURFACE_RULE_TYPES, SYNTH_NOISE_SOURCES, TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY,
-    UPGRADE_DATA_MODEL, WORLD_CARVER_TYPES, WORLD_PRESETS, Y_DENSITY,
+    PLACEMENT_UTILS_BOOTSTRAP_ORDER, PLACEMENT_UTILS_FULL_RANGE, PLACEMENT_UTILS_HEIGHTMAP,
+    PLACEMENT_UTILS_HEIGHTMAP_NO_LEAVES, PLACEMENT_UTILS_HEIGHTMAP_OCEAN_FLOOR,
+    PLACEMENT_UTILS_HEIGHTMAP_TOP_SOLID, PLACEMENT_UTILS_HEIGHTMAP_WORLD_SURFACE,
+    PLACEMENT_UTILS_RANGE_10_10, PLACEMENT_UTILS_RANGE_4_4, PLACEMENT_UTILS_RANGE_8_8,
+    PLACEMENT_UTILS_RANGE_BOTTOM_TO_MAX_TERRAIN_HEIGHT, SPAWN_SELECTION_CONSTANTS,
+    STRUCTURE_FAMILIES, STRUCTURE_PIECE_TYPES, STRUCTURE_POOL_ELEMENT_TYPES,
+    STRUCTURE_POS_RULE_TEST_TYPES, STRUCTURE_PROCESSOR_LISTS, STRUCTURE_PROCESSOR_TYPES,
+    STRUCTURE_RULE_TEST_TYPES, STRUCTURE_TYPES, SURFACE_CONDITION_TYPES, SURFACE_RULE_TYPES,
+    SYNTH_NOISE_SOURCES, TEST_NEGATIVE_DENSITY, TEST_POSITIVE_DENSITY, UPGRADE_DATA_MODEL,
+    WORLD_CARVER_TYPES, WORLD_PRESETS, Y_DENSITY,
 };
 use crate::biome::{quantize_coord, BiomeSourceModel};
 use crate::storage::chunk::{
@@ -55,6 +63,8 @@ mod placement_registry_misc_overworld_tests;
 mod placement_registry_nether_tests;
 
 mod placement_registry_ore_tests;
+
+mod placement_utils_tests;
 
 mod world_preset_tests;
 

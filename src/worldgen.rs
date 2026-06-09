@@ -198,6 +198,9 @@ mod block_predicates;
 pub use self::block_predicates::*;
 mod placement_modifiers;
 pub use self::placement_modifiers::*;
+mod placement_utils;
+#[cfg(test)]
+use self::placement_utils::*;
 mod world_preset_resolvers;
 pub use self::world_preset_resolvers::*;
 mod live_chunk_generation;
