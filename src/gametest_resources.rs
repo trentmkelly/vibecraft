@@ -7,6 +7,7 @@ use std::collections::BTreeSet;
 
 pub mod generated_models;
 pub use generated_models::*;
+pub mod environment_models;
 pub mod listener_models;
 pub use listener_models::*;
 pub mod main_util_models;
