@@ -16,6 +16,9 @@ const GAME_TEST_MAIN_UTIL_JAVA: &str = include_str!(
 const GAME_TEST_RUNNER_JAVA: &str = include_str!(
     "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestRunner.java"
 );
+const GAME_TEST_SEQUENCE_JAVA: &str = include_str!(
+    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestSequence.java"
+);
 
 fn instance() -> GameTestInstanceModel {
     GameTestInstanceModel {
@@ -551,4 +554,119 @@ fn gametest_runner_structure_spawners_match_java_defaults() {
         Some("minecraft:spawn".to_string())
     );
     assert_eq!(info.tick_count, -4);
+}
+
+#[test]
+fn gametest_sequence_matches_java_event_queue_shape() {
+    assert_eq!(GAME_TEST_SEQUENCE_JAVA.lines().count(), 146);
+    for sentinel in [
+        "private final GameTestInfo parent;",
+        "private final List<GameTestEvent> events = Lists.newArrayList();",
+        "private int lastTick;",
+        "this.lastTick = parent.getTick();",
+        "this.events.add(GameTestEvent.create(assertion));",
+        "this.events.add(GameTestEvent.create(expectedDelay, assertion));",
+        "this.events.add(GameTestEvent.createWithMinimumDelay(minimumDelay, assertion));",
+        "return this.thenExecuteAfter(delta, () -> {});",
+        "this.events.add(GameTestEvent.create(() -> this.executeWithoutFail(assertion)));",
+        "if (this.parent.getTick() < this.lastTick + delta)",
+        "Component.translatable(\"test.error.sequence.not_completed\")",
+        "this.events.add(GameTestEvent.create(this.parent::succeed));",
+        "this.events.add(GameTestEvent.create(() -> this.parent.fail(e.get())));",
+        "this.events.add(GameTestEvent.create(() -> result.trigger(this.parent.getTick())));",
+        "this.parent.fail(e);",
+        "event.assertion.run();",
+        "iterator.remove();",
+        "event.minimumDelay != null && event.minimumDelay > delay",
+        "test.error.sequence.minimum_tick",
+        "event.expectedDelay != null && event.expectedDelay != delay",
+        "test.error.sequence.invalid_tick",
+        "private static final int NOT_TRIGGERED = -1;",
+        "throw new IllegalStateException(\"Condition already triggered at \" + this.triggerTime);",
+        "test.error.sequence.condition_not_triggered",
+        "test.error.sequence.condition_already_triggered",
+    ] {
+        assert!(
+            GAME_TEST_SEQUENCE_JAVA.contains(sentinel),
+            "missing GameTestSequence sentinel {sentinel}"
+        );
+    }
+}
+
+#[test]
+fn gametest_sequence_validates_expected_and_minimum_delays() {
+    let mut sequence = GameTestSequenceModel::new(10);
+    sequence
+        .then_wait_until_delay(3, "expected")
+        .then_wait_at_least(5, "minimum")
+        .then_succeed();
+    assert_eq!(sequence.tick(13), GameTestSequenceOutcome::Continue);
+    assert_eq!(
+        sequence.tick(16),
+        GameTestSequenceOutcome::ParentFailed {
+            message: "test.error.sequence.minimum_tick:18".to_string(),
+            tick: 16,
+        }
+    );
+
+    let mut invalid = GameTestSequenceModel::new(0);
+    invalid.then_wait_until_delay(2, "expected");
+    assert_eq!(
+        invalid.tick(3),
+        GameTestSequenceOutcome::ParentFailed {
+            message: "test.error.sequence.invalid_tick:2".to_string(),
+            tick: 3,
+        }
+    );
+}
+
+#[test]
+fn gametest_sequence_tick_variants_and_parent_events_match_java() {
+    let mut sequence = GameTestSequenceModel::new(0);
+    sequence.then_execute_after(4, "late");
+    assert_eq!(
+        sequence.tick_and_continue(2),
+        GameTestSequenceOutcome::Continue
+    );
+    assert_eq!(sequence.events.len(), 1);
+    assert_eq!(
+        sequence.tick_and_fail_if_not_complete(2),
+        GameTestSequenceOutcome::ParentFailed {
+            message: "test.error.sequence.not_completed".to_string(),
+            tick: 2,
+        }
+    );
+
+    let mut parent = GameTestSequenceModel::new(0);
+    parent.then_fail("boom");
+    assert_eq!(
+        parent.tick(0),
+        GameTestSequenceOutcome::ParentFailed {
+            message: "boom".to_string(),
+            tick: 0,
+        }
+    );
+
+    let mut succeed = GameTestSequenceModel::new(0);
+    succeed.then_succeed();
+    assert_eq!(succeed.tick(0), GameTestSequenceOutcome::ParentSucceeded);
+}
+
+#[test]
+fn gametest_sequence_condition_matches_java_trigger_rules() {
+    let mut condition = GameTestSequenceConditionModel::default();
+    assert_eq!(
+        condition.assert_triggered_this_tick(5),
+        Err("test.error.sequence.condition_not_triggered".to_string())
+    );
+    assert_eq!(condition.trigger(4), Ok(()));
+    assert_eq!(
+        condition.assert_triggered_this_tick(5),
+        Err("test.error.sequence.condition_already_triggered:4".to_string())
+    );
+    assert_eq!(condition.assert_triggered_this_tick(4), Ok(()));
+    assert_eq!(
+        condition.trigger(6),
+        Err("Condition already triggered at 4".to_string())
+    );
 }
