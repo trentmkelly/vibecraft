@@ -695,12 +695,12 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gametest/framework/TestInstanceFinder.java`. Rust `gametest_resources::runner_models::TestFinderModel` covers the functional `findTests()` surface through resource-selection, failed-test, required-only, and copy-wrapper paths; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 test_finder`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gametest/framework/TestPosFinder.java`. Rust `gametest_resources::runner_models::TestFinderModel` covers the functional `findTestPos()` surface through radius, nearest, all-nearby, looked-at, and copy-wrapper paths; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 test_finder`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gametest/framework/TestReporter.java`. Rust `gametest_resources::reporter_models` covers the reporter callback surface (`onTestFailed`, `onTestSuccess`) and default no-op `finish()` behavior through the concrete/global reporter models; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 reporter`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gametest/framework/UnknownGameTestException.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gametest/framework/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gametest/framework/UnknownGameTestException.java`. Rust `gametest_resources::timeout_models::UnknownGameTestExceptionModel` covers the `GameTestException` inheritance shape, stored throwable reason message, superclass runtime message from `reason.getMessage()`, and `getDescription()` returning `test.error.unknown` with the reason message; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 unknown_gametest_exception`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gametest/framework/package-info.java`. Verified the framework package-info remains the Java `@NullMarked` package annotation for `net.minecraft.gametest.framework`; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 gametest_package_info`.
 
 ## `decompiled-server-26.1.2/net/minecraft/gametest`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gametest/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gametest/package-info.java`. Verified the gametest package-info remains the Java `@NullMarked` package annotation for `net.minecraft.gametest`; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 gametest_package_info`.
 
 ## `decompiled-server-26.1.2/net/minecraft/gizmos`
 
