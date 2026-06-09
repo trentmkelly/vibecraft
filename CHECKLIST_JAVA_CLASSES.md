@@ -470,7 +470,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/data/loot`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/loot/BlockLootSubProvider.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/loot/BlockLootSubProvider.java`. Rust `data_loot` covers Java's explosion condition/decay helpers, silk-touch/shears dispatch predicates, single-item/count tables, pot flower drops, slab/property/door tables, block-entity component copying, beehive/bee-nest state/component copying, ore/grass/stem/leaf/crop count and fortune helper shapes, candle/segmented/multiface/double-plant state conditions, no-drop behavior, add/drop shortcut methods, missing/no-table/non-block validation in `generate`, enabled-block filtering, duplicate loot-table seen handling, and leaf chance constants; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_loot`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/loot/EntityLootSubProvider.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/loot/LootTableProvider.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/loot/LootTableSubProvider.java`.
