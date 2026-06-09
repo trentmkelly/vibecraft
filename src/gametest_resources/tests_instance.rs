@@ -19,6 +19,9 @@ const GAME_TEST_RUNNER_JAVA: &str = include_str!(
 const GAME_TEST_SEQUENCE_JAVA: &str = include_str!(
     "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestSequence.java"
 );
+const GAME_TEST_SERVER_JAVA: &str = include_str!(
+    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestServer.java"
+);
 
 fn instance() -> GameTestInstanceModel {
     GameTestInstanceModel {
@@ -669,4 +672,197 @@ fn gametest_sequence_condition_matches_java_trigger_rules() {
         condition.trigger(6),
         Err("Condition already triggered at 4".to_string())
     );
+}
+
+#[test]
+fn gametest_server_matches_java_server_bootstrap_and_runtime_shape() {
+    assert_eq!(GAME_TEST_SERVER_JAVA.lines().count(), 433);
+    for sentinel in [
+        "private static final int PROGRESS_REPORT_INTERVAL = 20;",
+        "private static final int TEST_POSITION_RANGE = 14999992;",
+        "FeatureFlags.REGISTRY",
+        "FeatureFlags.REDSTONE_EXPERIMENTS, FeatureFlags.MINECART_IMPROVEMENTS",
+        "private static final WorldOptions WORLD_OPTIONS = new WorldOptions(0L, false, false);",
+        "packRepository.reload();",
+        "enabledPacks.remove(\"vanilla\");",
+        "enabledPacks.addFirst(\"vanilla\");",
+        "new LevelSettings(\"Test Level\", GameType.CREATIVE",
+        "WorldPresets.FLAT",
+        "System.exit(-1);",
+        "this.setPlayerList(new PlayerList(this, this.registries(), this.playerDataStorage, new EmptyNotificationService()) {});",
+        "Gizmos.withCollector(GizmoCollector.NOOP);",
+        "this.testBatches = this.evaluateTestsToRun(level);",
+        "getTestsForSelection(level.registryAccess(), this.testSelection.get()).filter(test -> !test.value().manualOnly()).toList();",
+        "decorator = GameTestServer::rotateAndMultiply;",
+        "100 * Rotation.values().length",
+        "decorator = this::multiplyTest;",
+        "decorator = GameTestBatchFactory.DIRECT;",
+        "testRegistry.listElements().filter(test -> !test.value().manualOnly()).toList();",
+        "for (Rotation rotation : Rotation.values())",
+        "for (int i = 0; i < 100; i++)",
+        "ResourceSelectorArgument.parse(new StringReader(selection)",
+        "for (int i = 0; i < this.repeatCount; i++)",
+        "if (level.getGameTime() % 20L == 0L)",
+        "GlobalTestReporter.finish();",
+        "this.testTracker.hasFailedRequired()",
+        "this.testTracker.hasFailedOptional()",
+        "testInfo.getRotation() != Rotation.NONE",
+        "systemReport.setDetail(\"Type\", \"Game test server\");",
+        "System.exit(this.testTracker != null ? this.testTracker.getFailedRequiredCount() : -1);",
+        "System.exit(1);",
+        "random.nextIntBetweenInclusive(-14999992, 14999992)",
+        "new StructureGridSpawner(startPos, 8, false)",
+        "return false;",
+        "return LevelBasedPermissionSet.ALL;",
+        "return LevelBasedPermissionSet.OWNER;",
+        "return 0;",
+        "return 1;",
+        "return Optional.empty();",
+        "Optional.of(NameAndId.createOffline(name))",
+    ] {
+        assert!(
+            GAME_TEST_SERVER_JAVA.contains(sentinel),
+            "missing GameTestServer sentinel {sentinel}"
+        );
+    }
+    assert_eq!(GAMETEST_SERVER_RUNTIME_TODO, "gametest-server-runtime");
+    assert_eq!(GAMETEST_SERVER_PROGRESS_REPORT_INTERVAL, 20);
+    assert_eq!(GAMETEST_SERVER_TEST_POSITION_RANGE, 14_999_992);
+    assert_eq!(GAMETEST_SERVER_WORLD_SEED, 0);
+    assert_eq!(
+        gametest_server_enabled_feature_policy(),
+        "all_except_redstone_experiments_and_minecart_improvements"
+    );
+}
+
+fn server_tests() -> Vec<GameTestServerTestModel> {
+    vec![
+        GameTestServerTestModel {
+            id: "minecraft:always_pass".to_string(),
+            manual_only: false,
+            required: false,
+        },
+        GameTestServerTestModel {
+            id: "minecraft:manual".to_string(),
+            manual_only: true,
+            required: true,
+        },
+    ]
+}
+
+#[test]
+fn gametest_server_evaluates_selection_verify_repeat_and_direct_paths() {
+    let verify = evaluate_gametest_server_tests(
+        &GameTestServerOptionsModel {
+            test_selection: Some("minecraft:always_*".to_string()),
+            verify: true,
+            repeat_count: 1,
+        },
+        &server_tests(),
+    )
+    .unwrap();
+    assert_eq!(verify.decorator, GameTestServerDecoratorModel::Verify);
+    assert_eq!(verify.tests.len(), 400);
+    assert_eq!(verify.tests[0].rotation, RotationModel::None);
+    assert_eq!(verify.tests[100].rotation, RotationModel::Clockwise90);
+
+    let repeated = evaluate_gametest_server_tests(
+        &GameTestServerOptionsModel {
+            test_selection: Some("minecraft:always_pass".to_string()),
+            verify: false,
+            repeat_count: 3,
+        },
+        &server_tests(),
+    )
+    .unwrap();
+    assert_eq!(repeated.decorator, GameTestServerDecoratorModel::Repeat);
+    assert_eq!(repeated.tests.len(), 3);
+    assert!(repeated
+        .tests
+        .iter()
+        .all(|test| test.rotation == RotationModel::None));
+
+    let direct = evaluate_gametest_server_tests(
+        &GameTestServerOptionsModel {
+            test_selection: None,
+            verify: false,
+            repeat_count: 1,
+        },
+        &server_tests(),
+    )
+    .unwrap();
+    assert_eq!(direct.decorator, GameTestServerDecoratorModel::Direct);
+    assert_eq!(direct.tests.len(), 1);
+    assert_eq!(direct.tests[0].test_id, "minecraft:always_pass");
+
+    assert_eq!(
+        evaluate_gametest_server_tests(
+            &GameTestServerOptionsModel {
+                test_selection: Some("minecraft:missing".to_string()),
+                verify: false,
+                repeat_count: 1,
+            },
+            &server_tests(),
+        ),
+        Err("Test selection matcher found no tests".to_string())
+    );
+}
+
+#[test]
+fn gametest_server_models_properties_start_positions_and_failure_logs() {
+    assert_eq!(
+        gametest_server_properties(),
+        GameTestServerPropertiesModel {
+            hard_core: false,
+            rcon_broadcast: false,
+            dedicated_server: false,
+            rate_limit_packets_per_second: 0,
+            native_transport: false,
+            published: false,
+            inform_admins: false,
+            max_players: 1,
+            tick_time_logging_enabled: false,
+            system_report_type: "Game test server",
+        }
+    );
+    assert_eq!(
+        gametest_server_start_pos(-14_999_992, 14_999_992),
+        Ok((-14_999_992, -59, 14_999_992))
+    );
+    assert_eq!(
+        gametest_server_start_pos(14_999_993, 0),
+        Err("start position outside GameTestServer range".to_string())
+    );
+    assert_eq!(
+        gametest_server_failed_test_log("minecraft:fail", RotationModel::None, "boom"),
+        "minecraft:fail: boom"
+    );
+    assert_eq!(
+        gametest_server_failed_test_log("minecraft:fail", RotationModel::Clockwise90, "boom"),
+        "minecraft:fail with rotation clockwise_90: boom"
+    );
+}
+
+#[test]
+fn gametest_server_mock_resolvers_match_java_empty_and_offline_behavior() {
+    assert_eq!(mock_profile_fetch_by_name("Steve"), None);
+    assert_eq!(mock_profile_fetch_by_id("uuid"), None);
+
+    let mut resolver = MockUserNameToIdResolverModel::default();
+    assert_eq!(
+        resolver.get_by_name("Alex"),
+        Some(("Alex".to_string(), "offline:Alex".to_string()))
+    );
+    assert_eq!(resolver.get_by_id("known"), None);
+    resolver.add("Alex", "known");
+    assert_eq!(
+        resolver.get_by_name("Alex"),
+        Some(("Alex".to_string(), "known".to_string()))
+    );
+    assert_eq!(
+        resolver.get_by_id("known"),
+        Some(("Alex".to_string(), "known".to_string()))
+    );
+    resolver.resolve_offline_users(true);
+    resolver.save();
 }

@@ -13,6 +13,8 @@ pub mod runner_models;
 pub use runner_models::*;
 pub mod sequence_models;
 pub use sequence_models::*;
+pub mod server_models;
+pub use server_models::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TestEnvironmentDefinition {
