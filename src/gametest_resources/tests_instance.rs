@@ -7,6 +7,9 @@ const GAME_TEST_INSTANCE_JAVA: &str = include_str!(
 const GAME_TEST_INSTANCES_JAVA: &str = include_str!(
     "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestInstances.java"
 );
+const GAME_TEST_LISTENER_JAVA: &str = include_str!(
+    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestListener.java"
+);
 
 fn instance() -> GameTestInstanceModel {
     GameTestInstanceModel {
@@ -180,4 +183,71 @@ fn gametest_instances_bootstraps_vanilla_always_pass_instance() {
     assert_eq!(vanilla.max_ticks, instances[0].1.data.max_ticks);
     assert_eq!(vanilla.setup_ticks, instances[0].1.data.setup_ticks);
     assert_eq!(vanilla.required, instances[0].1.data.required);
+}
+
+#[test]
+fn gametest_listener_matches_java_interface_shape() {
+    assert_eq!(GAME_TEST_LISTENER_JAVA.lines().count(), 11);
+    for sentinel in [
+        "public interface GameTestListener",
+        "void testStructureLoaded(GameTestInfo testInfo);",
+        "void testPassed(GameTestInfo testInfo, GameTestRunner runner);",
+        "void testFailed(GameTestInfo testInfo, GameTestRunner runner);",
+        "void testAddedForRerun(GameTestInfo original, GameTestInfo copy, GameTestRunner runner);",
+    ] {
+        assert!(
+            GAME_TEST_LISTENER_JAVA.contains(sentinel),
+            "missing GameTestListener sentinel {sentinel}"
+        );
+    }
+}
+
+#[test]
+fn gametest_listener_records_all_callbacks_in_order() {
+    let original = GameTestInfoStateModel::new(
+        "minecraft:original",
+        true,
+        20,
+        0,
+        RotationModel::None,
+        RotationModel::None,
+        "noRetries",
+    );
+    let copy = GameTestInfoStateModel::new(
+        "minecraft:copy",
+        true,
+        20,
+        0,
+        RotationModel::None,
+        RotationModel::None,
+        "noRetries",
+    );
+    let mut listener = RecordingGameTestListener::default();
+
+    listener.test_structure_loaded(&original);
+    listener.test_passed(&original, "runner");
+    listener.test_failed(&copy, "runner");
+    listener.test_added_for_rerun(&original, &copy, "runner");
+
+    assert_eq!(
+        listener.events,
+        vec![
+            GameTestListenerEvent::StructureLoaded {
+                test_id: "minecraft:original".to_string(),
+            },
+            GameTestListenerEvent::Passed {
+                test_id: "minecraft:original".to_string(),
+                runner: "runner".to_string(),
+            },
+            GameTestListenerEvent::Failed {
+                test_id: "minecraft:copy".to_string(),
+                runner: "runner".to_string(),
+            },
+            GameTestListenerEvent::AddedForRerun {
+                original_id: "minecraft:original".to_string(),
+                copy_id: "minecraft:copy".to_string(),
+                runner: "runner".to_string(),
+            },
+        ]
+    );
 }
