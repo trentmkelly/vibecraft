@@ -3,6 +3,9 @@ use super::*;
 const AQUATIC_FEATURES_JAVA: &str = include_str!(
     "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/features/AquaticFeatures.java"
 );
+const CAVE_FEATURES_JAVA: &str = include_str!(
+    "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/features/CaveFeatures.java"
+);
 
 fn count_occurrences(source: &str, needle: &str) -> usize {
     source.match_indices(needle).count()
@@ -265,6 +268,225 @@ fn aquatic_features_java_bootstrap_matches_configured_feature_registry() {
     assert!(features
         .iter()
         .all(|feature| feature["placement"].as_array().is_some_and(Vec::is_empty)));
+}
+
+#[test]
+fn cave_features_java_source_shape_matches_configured_feature_registry() {
+    assert_eq!(CAVE_FEATURES_JAVA.lines().count(), 494);
+    assert_eq!(
+        count_occurrences(CAVE_FEATURES_JAVA, "FeatureUtils.createKey("),
+        24
+    );
+    assert_eq!(
+        count_occurrences(CAVE_FEATURES_JAVA, "FeatureUtils.register("),
+        24
+    );
+    assert_eq!(
+        count_occurrences(CAVE_FEATURES_JAVA, "PlacementUtils.inlinePlaced"),
+        12
+    );
+    assert_eq!(
+        count_occurrences(CAVE_FEATURES_JAVA, "new VegetationPatchConfiguration"),
+        5
+    );
+    assert_eq!(
+        count_occurrences(CAVE_FEATURES_JAVA, "new BlockColumnConfiguration"),
+        3
+    );
+    assert_eq!(
+        count_occurrences(CAVE_FEATURES_JAVA, "new SculkPatchConfiguration"),
+        2
+    );
+
+    for sentinel in [
+        "MONSTER_ROOM = FeatureUtils.createKey(\"monster_room\")",
+        "SCULK_VEIN = FeatureUtils.createKey(\"sculk_vein\")",
+        "HolderGetter<ConfiguredFeature<?, ?>> configuredFeatures = context.lookup(Registries.CONFIGURED_FEATURE);",
+        "HolderGetter<StructureProcessorList> processorLists = context.lookup(Registries.PROCESSOR_LIST);",
+        "FeatureUtils.register(context, MONSTER_ROOM, Feature.MONSTER_ROOM);",
+        "new FossilFeatureConfiguration(fossilStructures, fossilCoalStructures, fossilRot, processorLists.getOrThrow(ProcessorLists.FOSSIL_COAL), 4)",
+        "new UnderwaterMagmaConfiguration(5, 1, 0.5F)",
+        "new SculkPatchConfiguration(10, 32, 64, 0, 1, ConstantInt.of(0), 0.5F)",
+        "new SculkPatchConfiguration(10, 32, 64, 0, 1, UniformInt.of(1, 3), 0.5F)",
+        "new GeodeLayerSettings(1.7, 2.2, 3.2, 4.2)",
+    ] {
+        assert!(
+            CAVE_FEATURES_JAVA.contains(sentinel),
+            "missing CaveFeatures sentinel {sentinel}"
+        );
+    }
+}
+
+#[test]
+fn cave_features_configured_feature_keys_match_java_bootstrap() {
+    let cave_keys = CONFIGURED_FEATURES
+        .iter()
+        .filter(|feature| feature.source == ConfiguredFeatureSource::Cave)
+        .map(|feature| feature.id)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        cave_keys,
+        vec![
+            "minecraft:monster_room",
+            "minecraft:fossil_coal",
+            "minecraft:fossil_diamonds",
+            "minecraft:dripstone_cluster",
+            "minecraft:large_dripstone",
+            "minecraft:pointed_dripstone",
+            "minecraft:underwater_magma",
+            "minecraft:glow_lichen",
+            "minecraft:rooted_azalea_tree",
+            "minecraft:cave_vine",
+            "minecraft:cave_vine_in_moss",
+            "minecraft:moss_vegetation",
+            "minecraft:moss_patch",
+            "minecraft:moss_patch_bonemeal",
+            "minecraft:dripleaf",
+            "minecraft:clay_with_dripleaves",
+            "minecraft:clay_pool_with_dripleaves",
+            "minecraft:lush_caves_clay",
+            "minecraft:moss_patch_ceiling",
+            "minecraft:spore_blossom",
+            "minecraft:amethyst_geode",
+            "minecraft:sculk_patch_deep_dark",
+            "minecraft:sculk_patch_ancient_city",
+            "minecraft:sculk_vein",
+        ]
+    );
+}
+
+#[test]
+fn cave_features_configured_feature_types_match_vanilla_json() {
+    for (id, feature_type) in [
+        ("minecraft:monster_room", "minecraft:monster_room"),
+        ("minecraft:fossil_coal", "minecraft:fossil"),
+        ("minecraft:fossil_diamonds", "minecraft:fossil"),
+        ("minecraft:dripstone_cluster", "minecraft:dripstone_cluster"),
+        ("minecraft:large_dripstone", "minecraft:large_dripstone"),
+        (
+            "minecraft:pointed_dripstone",
+            "minecraft:simple_random_selector",
+        ),
+        ("minecraft:underwater_magma", "minecraft:underwater_magma"),
+        ("minecraft:glow_lichen", "minecraft:multiface_growth"),
+        ("minecraft:rooted_azalea_tree", "minecraft:root_system"),
+        ("minecraft:cave_vine", "minecraft:block_column"),
+        ("minecraft:cave_vine_in_moss", "minecraft:block_column"),
+        ("minecraft:moss_vegetation", "minecraft:simple_block"),
+        ("minecraft:moss_patch", "minecraft:vegetation_patch"),
+        (
+            "minecraft:moss_patch_bonemeal",
+            "minecraft:vegetation_patch",
+        ),
+        ("minecraft:dripleaf", "minecraft:simple_random_selector"),
+        (
+            "minecraft:clay_with_dripleaves",
+            "minecraft:vegetation_patch",
+        ),
+        (
+            "minecraft:clay_pool_with_dripleaves",
+            "minecraft:waterlogged_vegetation_patch",
+        ),
+        (
+            "minecraft:lush_caves_clay",
+            "minecraft:random_boolean_selector",
+        ),
+        ("minecraft:moss_patch_ceiling", "minecraft:vegetation_patch"),
+        ("minecraft:spore_blossom", "minecraft:simple_block"),
+        ("minecraft:amethyst_geode", "minecraft:geode"),
+        ("minecraft:sculk_patch_deep_dark", "minecraft:sculk_patch"),
+        (
+            "minecraft:sculk_patch_ancient_city",
+            "minecraft:sculk_patch",
+        ),
+        ("minecraft:sculk_vein", "minecraft:multiface_growth"),
+    ] {
+        assert_eq!(configured_feature_json(id)["type"], feature_type, "{id}");
+    }
+}
+
+#[test]
+fn cave_features_representative_configs_match_vanilla_json() {
+    let fossil_coal = configured_feature_json("minecraft:fossil_coal");
+    assert_eq!(
+        fossil_coal["config"]["fossil_structures"]
+            .as_array()
+            .unwrap()
+            .len(),
+        8
+    );
+    assert_eq!(
+        fossil_coal["config"]["overlay_structures"]
+            .as_array()
+            .unwrap()
+            .len(),
+        8
+    );
+    assert_eq!(
+        fossil_coal["config"]["fossil_processors"],
+        "minecraft:fossil_rot"
+    );
+    assert_eq!(
+        fossil_coal["config"]["overlay_processors"],
+        "minecraft:fossil_coal"
+    );
+    assert_eq!(fossil_coal["config"]["max_empty_corners_allowed"], 4);
+
+    let dripstone_cluster = configured_feature_json("minecraft:dripstone_cluster");
+    assert_eq!(
+        dripstone_cluster["config"]["floor_to_ceiling_search_range"],
+        12
+    );
+    assert_eq!(dripstone_cluster["config"]["height"]["min_inclusive"], 3);
+    assert_eq!(dripstone_cluster["config"]["height"]["max_inclusive"], 6);
+    assert_eq!(dripstone_cluster["config"]["radius"]["min_inclusive"], 2);
+    assert_eq!(dripstone_cluster["config"]["radius"]["max_inclusive"], 8);
+
+    let underwater_magma = configured_feature_json("minecraft:underwater_magma");
+    assert_eq!(underwater_magma["config"]["floor_search_range"], 5);
+    assert_eq!(
+        underwater_magma["config"]["placement_radius_around_floor"],
+        1
+    );
+    assert_eq!(
+        underwater_magma["config"]["placement_probability_per_valid_position"],
+        0.5
+    );
+
+    let moss_patch = configured_feature_json("minecraft:moss_patch");
+    assert_eq!(
+        moss_patch["config"]["replaceable"],
+        "#minecraft:moss_replaceable"
+    );
+    assert_eq!(moss_patch["config"]["surface"], "floor");
+    assert_eq!(
+        moss_patch["config"]["vegetation_feature"]["feature"],
+        "minecraft:moss_vegetation"
+    );
+
+    let lush_caves_clay = configured_feature_json("minecraft:lush_caves_clay");
+    assert_eq!(
+        lush_caves_clay["config"]["feature_true"]["feature"],
+        "minecraft:clay_with_dripleaves"
+    );
+    assert_eq!(
+        lush_caves_clay["config"]["feature_false"]["feature"],
+        "minecraft:clay_pool_with_dripleaves"
+    );
+
+    let deep_dark = configured_feature_json("minecraft:sculk_patch_deep_dark");
+    assert_eq!(deep_dark["config"]["charge_count"], 10);
+    assert_eq!(deep_dark["config"]["extra_rare_growths"], 0);
+
+    let ancient_city = configured_feature_json("minecraft:sculk_patch_ancient_city");
+    assert_eq!(
+        ancient_city["config"]["extra_rare_growths"]["min_inclusive"],
+        1
+    );
+    assert_eq!(
+        ancient_city["config"]["extra_rare_growths"]["max_inclusive"],
+        3
+    );
 }
 
 #[test]
