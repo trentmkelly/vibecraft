@@ -14,12 +14,15 @@ const BIOME_DATA_JAVA: &str = include_str!(
 const END_BIOMES_JAVA: &str = include_str!(
     "../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/biome/EndBiomes.java"
 );
+const NETHER_BIOMES_JAVA: &str = include_str!(
+    "../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/biome/NetherBiomes.java"
+);
 
 fn count_occurrences(source: &str, needle: &str) -> usize {
     source.match_indices(needle).count()
 }
 
-fn end_biome_json(id: &str) -> super::BiomeData {
+fn vanilla_biome_json(id: &str) -> super::BiomeData {
     let path = format!(
         "../decompiled-server-26.1.2/data/minecraft/worldgen/biome/{}.json",
         id.trim_start_matches("minecraft:")
@@ -35,6 +38,51 @@ fn padded_feature_steps(steps: &[&[&str]]) -> [Vec<String>; 11] {
         padded[index] = step.iter().map(|feature| (*feature).to_string()).collect();
     }
     padded
+}
+
+fn assert_spawn_category_matches(
+    parsed: &super::BiomeData,
+    model: &crate::worldgen::BiomeGenerationSettingsModel,
+    category: MobCategory,
+    category_name: &str,
+) {
+    let parsed_entries = parsed
+        .mob_spawn_settings
+        .spawners
+        .get(&category)
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
+    let model_entries = crate::worldgen::biome_spawns_for_category(model, category_name);
+    assert_eq!(
+        parsed_entries.len(),
+        model_entries.len(),
+        "{category_name} spawn count"
+    );
+    for (parsed_entry, model_entry) in parsed_entries.iter().zip(model_entries) {
+        assert_eq!(parsed_entry.entity_type, model_entry.entity_type);
+        assert_eq!(parsed_entry.weight, model_entry.weight);
+        assert_eq!(parsed_entry.min_count, model_entry.min_count);
+        assert_eq!(parsed_entry.max_count, model_entry.max_count);
+    }
+}
+
+fn assert_spawn_costs_match(
+    parsed: &super::BiomeData,
+    model: &crate::worldgen::BiomeGenerationSettingsModel,
+) {
+    assert_eq!(
+        parsed.mob_spawn_settings.spawn_costs.len(),
+        model.spawn_costs.len()
+    );
+    for cost in model.spawn_costs {
+        let parsed_cost = parsed
+            .mob_spawn_settings
+            .spawn_costs
+            .get(cost.entity_type)
+            .unwrap_or_else(|| panic!("missing spawn cost for {}", cost.entity_type));
+        assert_eq!(parsed_cost.energy_budget, cost.energy_budget);
+        assert_eq!(parsed_cost.charge, cost.charge);
+    }
 }
 
 #[test]
@@ -148,7 +196,7 @@ fn end_biomes_builtin_generation_models_match_vanilla_json() {
         "minecraft:small_end_islands",
         "minecraft:end_barrens",
     ] {
-        let parsed = end_biome_json(id);
+        let parsed = vanilla_biome_json(id);
         let model = crate::worldgen::biome_generation_settings(id)
             .unwrap_or_else(|| panic!("missing Rust biome generation settings for {id}"));
         assert!(!parsed.has_precipitation);
@@ -171,6 +219,91 @@ fn end_biomes_builtin_generation_models_match_vanilla_json() {
         assert_eq!(parsed_monsters[0].weight, model_monsters[0].weight);
         assert_eq!(parsed_monsters[0].min_count, model_monsters[0].min_count);
         assert_eq!(parsed_monsters[0].max_count, model_monsters[0].max_count);
+    }
+}
+
+#[test]
+fn nether_biomes_java_source_shape_matches_rust_nether_models() {
+    assert_eq!(NETHER_BIOMES_JAVA.lines().count(), 241);
+    assert_eq!(
+        count_occurrences(NETHER_BIOMES_JAVA, "public static Biome "),
+        5
+    );
+    assert_eq!(count_occurrences(NETHER_BIOMES_JAVA, ".addCarver("), 5);
+    assert_eq!(count_occurrences(NETHER_BIOMES_JAVA, ".addFeature("), 59);
+    assert_eq!(count_occurrences(NETHER_BIOMES_JAVA, ".addSpawn("), 19);
+    assert_eq!(count_occurrences(NETHER_BIOMES_JAVA, ".addMobCharge("), 5);
+    assert_eq!(
+        count_occurrences(
+            NETHER_BIOMES_JAVA,
+            "BiomeDefaultFeatures.addNetherDefaultOres"
+        ),
+        4
+    );
+    assert_eq!(
+        count_occurrences(
+            NETHER_BIOMES_JAVA,
+            "BiomeDefaultFeatures.addDefaultMushrooms"
+        ),
+        3
+    );
+    assert_eq!(
+        count_occurrences(NETHER_BIOMES_JAVA, "BiomeDefaultFeatures.addAncientDebris"),
+        1
+    );
+    for sentinel in [
+        ".hasPrecipitation(false)",
+        ".temperature(2.0F)",
+        ".downfall(0.0F)",
+        ".waterColor(4159204)",
+        "EntityType.ZOMBIFIED_PIGLIN, 4, 4",
+        "EntityType.STRIDER, 1, 2",
+        "NetherPlacements.PATCH_SOUL_FIRE",
+        "NetherPlacements.BASALT_PILLAR",
+        "NetherPlacements.SMALL_BASALT_COLUMNS",
+        "TreePlacements.CRIMSON_FUNGI",
+        "TreePlacements.WARPED_FUNGI",
+        "NetherPlacements.TWISTING_VINES",
+    ] {
+        assert!(
+            NETHER_BIOMES_JAVA.contains(sentinel),
+            "missing NetherBiomes sentinel {sentinel}"
+        );
+    }
+}
+
+#[test]
+fn nether_biomes_builtin_generation_models_match_vanilla_json() {
+    for id in [
+        "minecraft:nether_wastes",
+        "minecraft:crimson_forest",
+        "minecraft:warped_forest",
+        "minecraft:soul_sand_valley",
+        "minecraft:basalt_deltas",
+    ] {
+        let parsed = vanilla_biome_json(id);
+        let model = crate::worldgen::biome_generation_settings(id)
+            .unwrap_or_else(|| panic!("missing Rust biome generation settings for {id}"));
+        assert!(!parsed.has_precipitation);
+        assert_eq!(parsed.temperature, 2.0);
+        assert_eq!(parsed.downfall, 0.0);
+        assert_eq!(
+            parsed.generation_settings.carvers,
+            model
+                .carvers
+                .iter()
+                .map(|carver| (*carver).to_string())
+                .collect::<Vec<_>>(),
+            "carvers mismatch for {id}"
+        );
+        assert_eq!(
+            parsed.generation_settings.features,
+            padded_feature_steps(model.feature_steps),
+            "feature steps mismatch for {id}"
+        );
+        assert_spawn_category_matches(&parsed, model, MobCategory::Monster, "monster");
+        assert_spawn_category_matches(&parsed, model, MobCategory::Creature, "creature");
+        assert_spawn_costs_match(&parsed, model);
     }
 }
 
