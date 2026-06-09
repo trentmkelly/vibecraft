@@ -826,7 +826,8 @@ pub fn parse_multi_noise_preset_json(
 ///
 /// Implements the `Biome.DIRECT_CODEC` deserialization contract:
 /// - Top-level `has_precipitation`, `temperature`, `downfall` come from `ClimateSettings`.
-/// - `carvers`: flat list of carver resource IDs.
+/// - `carvers`: flat list of carver resource IDs; vanilla JSON may encode a single holder as a
+///   string or a holder set as an array.
 /// - `features`: array of arrays; exactly 11 steps (absent trailing steps become empty vecs).
 /// - `spawners`: object keyed by `MobCategory` serialized name; each value is an array of
 ///   `{type, weight, minCount, maxCount}` entries matching `WeightedList<SpawnerData>`.
@@ -877,7 +878,8 @@ fn parse_generation_settings(
             .iter()
             .filter_map(|value| value.as_str().map(String::from))
             .collect(),
-        Some(_) => return Err("'carvers' must be an array".to_string()),
+        Some(serde_json::Value::String(carver)) => vec![carver.clone()],
+        Some(_) => return Err("'carvers' must be an array or string".to_string()),
         None => Vec::new(),
     };
     Ok(BiomeGenerationSettings {

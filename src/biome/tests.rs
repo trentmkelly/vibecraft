@@ -8,6 +8,14 @@ use super::{
     BUILTIN_BIOMES, NETHER_BIOME_PARAMETERS,
 };
 
+const BIOME_DATA_JAVA: &str = include_str!(
+    "../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/biome/BiomeData.java"
+);
+
+fn count_occurrences(source: &str, needle: &str) -> usize {
+    source.match_indices(needle).count()
+}
+
 #[test]
 fn builtin_biome_registry_keys_match_26_1_2_biomes_order() {
     assert_eq!(BUILTIN_BIOMES.len(), 65);
@@ -18,6 +26,62 @@ fn builtin_biome_registry_keys_match_26_1_2_biomes_order() {
     assert_eq!(BUILTIN_BIOMES.last().unwrap().id, "minecraft:end_barrens");
     assert_eq!(builtin_biome("plains").unwrap().id, "minecraft:plains");
     assert!(builtin_biome("missing").is_none());
+}
+
+#[test]
+fn biome_data_java_bootstrap_shape_matches_builtin_biome_registry() {
+    assert_eq!(BIOME_DATA_JAVA.lines().count(), 81);
+    assert!(BIOME_DATA_JAVA.contains(
+        "HolderGetter<PlacedFeature> placedFeatures = context.lookup(Registries.PLACED_FEATURE);"
+    ));
+    assert!(BIOME_DATA_JAVA.contains("HolderGetter<ConfiguredWorldCarver<?>> carvers = context.lookup(Registries.CONFIGURED_CARVER);"));
+    assert_eq!(count_occurrences(BIOME_DATA_JAVA, "context.register("), 65);
+    assert_eq!(count_occurrences(BIOME_DATA_JAVA, "OverworldBiomes."), 55);
+    assert_eq!(count_occurrences(BIOME_DATA_JAVA, "NetherBiomes."), 5);
+    assert_eq!(count_occurrences(BIOME_DATA_JAVA, "EndBiomes."), 5);
+    assert_eq!(
+        count_occurrences(BIOME_DATA_JAVA, "context.register(Biomes."),
+        BUILTIN_BIOMES.len()
+    );
+    for sentinel in [
+        "context.register(Biomes.THE_VOID, OverworldBiomes.theVoid(placedFeatures, carvers));",
+        "context.register(Biomes.PALE_GARDEN, OverworldBiomes.darkForest(placedFeatures, carvers, true));",
+        "context.register(Biomes.DEEP_LUKEWARM_OCEAN, OverworldBiomes.lukeWarmOcean(placedFeatures, carvers, true));",
+        "context.register(Biomes.NETHER_WASTES, NetherBiomes.netherWastes(placedFeatures, carvers));",
+        "context.register(Biomes.THE_END, EndBiomes.theEnd(placedFeatures, carvers));",
+        "context.register(Biomes.END_BARRENS, EndBiomes.endBarrens(placedFeatures, carvers));",
+    ] {
+        assert!(BIOME_DATA_JAVA.contains(sentinel), "missing BiomeData sentinel {sentinel}");
+    }
+}
+
+#[test]
+fn biome_data_registered_biomes_all_have_parseable_vanilla_json() {
+    let mut parsed_ids = Vec::new();
+    for biome in BUILTIN_BIOMES {
+        let path = format!(
+            "../decompiled-server-26.1.2/data/minecraft/worldgen/biome/{}.json",
+            biome.id.trim_start_matches("minecraft:")
+        );
+        let json = std::fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("failed to read {path}: {err}"));
+        let parsed = parse_biome_json(biome.id, &json)
+            .unwrap_or_else(|err| panic!("failed to parse {path}: {err}"));
+        parsed_ids.push(parsed.id);
+    }
+
+    assert_eq!(parsed_ids.len(), 65);
+    assert_eq!(
+        parsed_ids.first().map(String::as_str),
+        Some("minecraft:the_void")
+    );
+    assert_eq!(
+        parsed_ids.last().map(String::as_str),
+        Some("minecraft:end_barrens")
+    );
+    assert!(parsed_ids.contains(&"minecraft:pale_garden".to_string()));
+    assert!(parsed_ids.contains(&"minecraft:nether_wastes".to_string()));
+    assert!(parsed_ids.contains(&"minecraft:the_end".to_string()));
 }
 
 #[test]

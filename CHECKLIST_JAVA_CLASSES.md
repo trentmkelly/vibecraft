@@ -610,7 +610,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/data/worldgen/biome`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/worldgen/biome/BiomeData.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/worldgen/biome/BiomeData.java`. Rust `biome` covers the 65-entry biome bootstrap source shape, placed-feature/configured-carver lookup sentinels, overworld/nether/end registration counts, representative `THE_VOID`, `PALE_GARDEN`, `DEEP_LUKEWARM_OCEAN`, `NETHER_WASTES`, `THE_END`, and `END_BARRENS` registrations, `BUILTIN_BIOMES` count/order sentinels, and parseability of every registered vanilla `worldgen/biome/*.json`; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 biome_data`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/worldgen/biome/EndBiomes.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/worldgen/biome/NetherBiomes.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/worldgen/biome/OverworldBiomes.java`.
