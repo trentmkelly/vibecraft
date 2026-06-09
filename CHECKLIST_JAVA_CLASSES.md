@@ -618,7 +618,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/data/worldgen/features`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/worldgen/features/AquaticFeatures.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/worldgen/features/AquaticFeatures.java`. Rust `worldgen` covers the seven aquatic configured-feature bootstrap keys/source entries, Java source line/register/createKey/configuration/helper-call counts and sentinels, and parsed vanilla JSON parity for seagrass probabilities, sea-pickle count, kelp empty config, and warm-ocean coral selector entries; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 aquatic_features`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/worldgen/features/CaveFeatures.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/worldgen/features/EndFeatures.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/worldgen/features/FeatureUtils.java`.

@@ -1,5 +1,23 @@
 use super::*;
 
+const AQUATIC_FEATURES_JAVA: &str = include_str!(
+    "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/features/AquaticFeatures.java"
+);
+
+fn count_occurrences(source: &str, needle: &str) -> usize {
+    source.match_indices(needle).count()
+}
+
+fn configured_feature_json(id: &str) -> serde_json::Value {
+    let path = format!(
+        "../decompiled-server-26.1.2/data/minecraft/worldgen/configured_feature/{}.json",
+        id.trim_start_matches("minecraft:")
+    );
+    let json =
+        std::fs::read_to_string(&path).unwrap_or_else(|err| panic!("failed to read {path}: {err}"));
+    serde_json::from_str(&json).unwrap_or_else(|err| panic!("failed to parse {path}: {err}"))
+}
+
 #[test]
 fn feature_type_registry_matches_vanilla_feature_order() {
     assert_eq!(FEATURE_TYPES.len(), 60);
@@ -154,6 +172,99 @@ fn configured_feature_bootstrap_keys_match_vanilla_sources() {
         super::super::configured_feature("sculk_patch_ancient_city").map(|feature| feature.source),
         Some(ConfiguredFeatureSource::Cave)
     );
+}
+
+#[test]
+fn aquatic_features_java_bootstrap_matches_configured_feature_registry() {
+    assert_eq!(AQUATIC_FEATURES_JAVA.lines().count(), 43);
+    assert_eq!(
+        count_occurrences(AQUATIC_FEATURES_JAVA, "FeatureUtils.createKey("),
+        7
+    );
+    assert_eq!(
+        count_occurrences(AQUATIC_FEATURES_JAVA, "FeatureUtils.register("),
+        7
+    );
+    assert_eq!(
+        count_occurrences(AQUATIC_FEATURES_JAVA, "new ProbabilityFeatureConfiguration"),
+        4
+    );
+    assert_eq!(
+        count_occurrences(AQUATIC_FEATURES_JAVA, "new CountConfiguration(20)"),
+        1
+    );
+    assert_eq!(
+        count_occurrences(AQUATIC_FEATURES_JAVA, "PlacementUtils.inlinePlaced"),
+        3
+    );
+
+    for sentinel in [
+        "SEAGRASS_SHORT = FeatureUtils.createKey(\"seagrass_short\")",
+        "SEAGRASS_SLIGHTLY_LESS_SHORT = FeatureUtils.createKey(\"seagrass_slightly_less_short\")",
+        "WARM_OCEAN_VEGETATION = FeatureUtils.createKey(\"warm_ocean_vegetation\")",
+        "FeatureUtils.register(context, SEAGRASS_SHORT, Feature.SEAGRASS, new ProbabilityFeatureConfiguration(0.3F));",
+        "FeatureUtils.register(context, SEAGRASS_TALL, Feature.SEAGRASS, new ProbabilityFeatureConfiguration(0.8F));",
+        "FeatureUtils.register(context, SEA_PICKLE, Feature.SEA_PICKLE, new CountConfiguration(20));",
+        "FeatureUtils.register(context, KELP, Feature.KELP);",
+        "Feature.CORAL_TREE, FeatureConfiguration.NONE",
+        "Feature.CORAL_CLAW, FeatureConfiguration.NONE",
+        "Feature.CORAL_MUSHROOM, FeatureConfiguration.NONE",
+    ] {
+        assert!(
+            AQUATIC_FEATURES_JAVA.contains(sentinel),
+            "missing AquaticFeatures sentinel {sentinel}"
+        );
+    }
+
+    let aquatic_keys = CONFIGURED_FEATURES
+        .iter()
+        .filter(|feature| feature.source == ConfiguredFeatureSource::Aquatic)
+        .map(|feature| feature.id)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        aquatic_keys,
+        vec![
+            "minecraft:seagrass_short",
+            "minecraft:seagrass_slightly_less_short",
+            "minecraft:seagrass_mid",
+            "minecraft:seagrass_tall",
+            "minecraft:sea_pickle",
+            "minecraft:kelp",
+            "minecraft:warm_ocean_vegetation",
+        ]
+    );
+
+    for (id, probability) in [
+        ("minecraft:seagrass_short", 0.3),
+        ("minecraft:seagrass_slightly_less_short", 0.4),
+        ("minecraft:seagrass_mid", 0.6),
+        ("minecraft:seagrass_tall", 0.8),
+    ] {
+        let parsed = configured_feature_json(id);
+        assert_eq!(parsed["type"], "minecraft:seagrass", "{id}");
+        assert_eq!(parsed["config"]["probability"], probability, "{id}");
+    }
+
+    let sea_pickle = configured_feature_json("minecraft:sea_pickle");
+    assert_eq!(sea_pickle["type"], "minecraft:sea_pickle");
+    assert_eq!(sea_pickle["config"]["count"], 20);
+
+    let kelp = configured_feature_json("minecraft:kelp");
+    assert_eq!(kelp["type"], "minecraft:kelp");
+    assert_eq!(kelp["config"], serde_json::json!({}));
+
+    let warm_ocean = configured_feature_json("minecraft:warm_ocean_vegetation");
+    assert_eq!(warm_ocean["type"], "minecraft:simple_random_selector");
+    let features = warm_ocean["config"]["features"]
+        .as_array()
+        .expect("warm ocean vegetation features must be an array");
+    assert_eq!(features.len(), 3);
+    assert_eq!(features[0]["feature"]["type"], "minecraft:coral_tree");
+    assert_eq!(features[1]["feature"]["type"], "minecraft:coral_claw");
+    assert_eq!(features[2]["feature"]["type"], "minecraft:coral_mushroom");
+    assert!(features
+        .iter()
+        .all(|feature| feature["placement"].as_array().is_some_and(Vec::is_empty)));
 }
 
 #[test]
