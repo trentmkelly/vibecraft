@@ -6,6 +6,9 @@ const AQUATIC_FEATURES_JAVA: &str = include_str!(
 const CAVE_FEATURES_JAVA: &str = include_str!(
     "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/features/CaveFeatures.java"
 );
+const END_FEATURES_JAVA: &str = include_str!(
+    "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/features/EndFeatures.java"
+);
 
 fn count_occurrences(source: &str, needle: &str) -> usize {
     source.match_indices(needle).count()
@@ -487,6 +490,77 @@ fn cave_features_representative_configs_match_vanilla_json() {
         ancient_city["config"]["extra_rare_growths"]["max_inclusive"],
         3
     );
+}
+
+#[test]
+fn end_features_java_bootstrap_matches_configured_feature_registry() {
+    assert_eq!(END_FEATURES_JAVA.lines().count(), 28);
+    assert_eq!(
+        count_occurrences(END_FEATURES_JAVA, "FeatureUtils.createKey("),
+        6
+    );
+    assert_eq!(
+        count_occurrences(END_FEATURES_JAVA, "FeatureUtils.register("),
+        6
+    );
+    for sentinel in [
+        "END_PLATFORM = FeatureUtils.createKey(\"end_platform\")",
+        "END_GATEWAY_DELAYED = FeatureUtils.createKey(\"end_gateway_delayed\")",
+        "FeatureUtils.register(context, END_PLATFORM, Feature.END_PLATFORM);",
+        "new EndSpikeConfiguration(false, ImmutableList.of(), null)",
+        "EndGatewayConfiguration.knownExit(ServerLevel.END_SPAWN_POINT, true)",
+        "EndGatewayConfiguration.delayedExitSearch()",
+        "FeatureUtils.register(context, CHORUS_PLANT, Feature.CHORUS_PLANT);",
+        "FeatureUtils.register(context, END_ISLAND, Feature.END_ISLAND);",
+    ] {
+        assert!(
+            END_FEATURES_JAVA.contains(sentinel),
+            "missing EndFeatures sentinel {sentinel}"
+        );
+    }
+
+    let end_keys = CONFIGURED_FEATURES
+        .iter()
+        .filter(|feature| feature.source == ConfiguredFeatureSource::End)
+        .map(|feature| feature.id)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        end_keys,
+        vec![
+            "minecraft:end_platform",
+            "minecraft:end_spike",
+            "minecraft:end_gateway_return",
+            "minecraft:end_gateway_delayed",
+            "minecraft:chorus_plant",
+            "minecraft:end_island",
+        ]
+    );
+
+    for (id, feature_type) in [
+        ("minecraft:end_platform", "minecraft:end_platform"),
+        ("minecraft:end_spike", "minecraft:end_spike"),
+        ("minecraft:end_gateway_return", "minecraft:end_gateway"),
+        ("minecraft:end_gateway_delayed", "minecraft:end_gateway"),
+        ("minecraft:chorus_plant", "minecraft:chorus_plant"),
+        ("minecraft:end_island", "minecraft:end_island"),
+    ] {
+        assert_eq!(configured_feature_json(id)["type"], feature_type, "{id}");
+    }
+
+    let end_spike = configured_feature_json("minecraft:end_spike");
+    assert_eq!(end_spike["config"]["crystal_invulnerable"], false);
+    assert_eq!(end_spike["config"]["spikes"].as_array().unwrap().len(), 0);
+
+    let gateway_return = configured_feature_json("minecraft:end_gateway_return");
+    assert_eq!(gateway_return["config"]["exact"], true);
+    assert_eq!(
+        gateway_return["config"]["exit"],
+        serde_json::json!([100, 50, 0])
+    );
+
+    let gateway_delayed = configured_feature_json("minecraft:end_gateway_delayed");
+    assert_eq!(gateway_delayed["config"]["exact"], false);
+    assert!(gateway_delayed["config"].get("exit").is_none());
 }
 
 #[test]
