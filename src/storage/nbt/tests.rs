@@ -1,6 +1,7 @@
 use super::accounter::{
     NbtAccounter, NbtAccounterError, DEFAULT_NBT_QUOTA, UNCOMPRESSED_NBT_QUOTA,
 };
+use super::numeric::NbtNumericValue;
 use super::tag_metadata::{
     root_parse_action, tag_type, NbtTagTypeLookup, ReportedNbtExceptionModel, RootParseAction,
     RootVisitResult, TAG_TYPES,
@@ -31,6 +32,14 @@ const TAG_TYPE_JAVA: &str =
     include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/TagType.java");
 const TAG_TYPES_JAVA: &str =
     include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/TagTypes.java");
+const NUMERIC_TAG_JAVA: &str =
+    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/NumericTag.java");
+const PRIMITIVE_TAG_JAVA: &str =
+    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/PrimitiveTag.java");
+const FLOAT_TAG_JAVA: &str =
+    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/FloatTag.java");
+const DOUBLE_TAG_JAVA: &str =
+    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/DoubleTag.java");
 
 #[test]
 fn nbt_accounter_matches_java_quota_depth_and_error_contracts() {
@@ -198,6 +207,64 @@ fn reported_nbt_exception_is_reported_exception_wrapper_like_java() {
 
     let reported = ReportedNbtExceptionModel::new("NBT crash report");
     assert_eq!(reported.crash_report, "NBT crash report");
+}
+
+#[test]
+fn numeric_and_primitive_tag_interface_conversions_match_java() {
+    for sentinel in [
+        "public sealed interface NumericTag extends PrimitiveTag",
+        "default Optional<Number> asNumber()",
+        "default Optional<Boolean> asBoolean()",
+        "return Optional.of(this.byteValue() != 0);",
+        "public sealed interface PrimitiveTag extends Tag permits NumericTag, StringTag",
+        "default Tag copy()",
+        "return this;",
+        "return Mth.floor(this.value);",
+        "return (byte)(Mth.floor(this.value) & 0xFF);",
+    ] {
+        assert!(
+            NUMERIC_TAG_JAVA.contains(sentinel)
+                || PRIMITIVE_TAG_JAVA.contains(sentinel)
+                || FLOAT_TAG_JAVA.contains(sentinel)
+                || DOUBLE_TAG_JAVA.contains(sentinel),
+            "missing numeric/primitive sentinel {sentinel}"
+        );
+    }
+
+    assert_eq!(
+        Tag::Byte(-1).numeric_value(),
+        Some(NbtNumericValue::Byte(-1))
+    );
+    assert_eq!(Tag::String("primitive".to_string()).numeric_value(), None);
+    assert!(Tag::Double(-1.2).is_primitive());
+    assert!(Tag::String(String::new()).is_primitive());
+    assert!(!Tag::List(vec![]).is_primitive());
+    assert!(!Tag::Compound(vec![]).is_primitive());
+
+    let int_value = Tag::Int(257).numeric_value().unwrap();
+    assert_eq!(int_value.byte_value(), 1);
+    assert_eq!(int_value.short_value(), 257);
+    assert_eq!(int_value.int_value(), 257);
+    assert_eq!(int_value.long_value(), 257);
+    assert_eq!(int_value.float_value(), 257.0);
+    assert_eq!(int_value.double_value(), 257.0);
+    assert!(int_value.boolean_value());
+
+    let long_value = Tag::Long(0x1_0000_0001).numeric_value().unwrap();
+    assert_eq!(long_value.int_value(), 1);
+    assert_eq!(long_value.byte_value(), 1);
+
+    let float_value = Tag::Float(-1.2).numeric_value().unwrap();
+    assert_eq!(float_value.int_value(), -2);
+    assert_eq!(float_value.short_value(), -2);
+    assert_eq!(float_value.byte_value(), -2);
+    assert_eq!(float_value.long_value(), -1);
+
+    let double_value = Tag::Double(258.75).numeric_value().unwrap();
+    assert_eq!(double_value.int_value(), 258);
+    assert_eq!(double_value.short_value(), 258);
+    assert_eq!(double_value.byte_value(), 2);
+    assert_eq!(double_value.float_value(), 258.75_f32);
 }
 
 #[test]

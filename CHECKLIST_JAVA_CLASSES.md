@@ -747,8 +747,8 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/NbtIo.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/NbtOps.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/NbtUtils.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/NumericTag.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/PrimitiveTag.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/NumericTag.java`. Rust `NbtNumericValue` and `Tag::numeric_value` mirror Java numeric-tag optional conversion behavior, including byte/short/int/long/float/double projections, boolean conversion from byte value, and Java-style floor/wrap conversions for float/double byte/short/int results; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 numeric_and_primitive_tag`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/PrimitiveTag.java`. Rust `Tag::is_primitive` mirrors the Java primitive family boundary (`NumericTag` and `StringTag`) while compound/list/array tags remain non-primitive; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 numeric_and_primitive_tag`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/ReportedNbtException.java`. Rust `ReportedNbtExceptionModel` records the Java class's only behavior: a thin `ReportedException` wrapper around a crash report; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 reported_nbt_exception`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/ShortTag.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/SnbtGrammar.java`.

@@ -7,6 +7,8 @@ use flate2::Compression;
 #[allow(dead_code)]
 pub mod accounter;
 #[allow(dead_code)]
+pub mod numeric;
+#[allow(dead_code)]
 pub mod tag_metadata;
 
 pub const DEFAULT_MAX_NBT_DEPTH: usize = 512;
@@ -43,6 +45,33 @@ pub struct NbtFieldSelector {
 }
 
 impl Tag {
+    #[allow(dead_code)]
+    pub fn numeric_value(&self) -> Option<numeric::NbtNumericValue> {
+        match self {
+            Tag::Byte(value) => Some(numeric::NbtNumericValue::Byte(*value)),
+            Tag::Short(value) => Some(numeric::NbtNumericValue::Short(*value)),
+            Tag::Int(value) => Some(numeric::NbtNumericValue::Int(*value)),
+            Tag::Long(value) => Some(numeric::NbtNumericValue::Long(*value)),
+            Tag::Float(value) => Some(numeric::NbtNumericValue::Float(*value)),
+            Tag::Double(value) => Some(numeric::NbtNumericValue::Double(*value)),
+            _ => None,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn is_primitive(&self) -> bool {
+        matches!(
+            self,
+            Tag::Byte(_)
+                | Tag::Short(_)
+                | Tag::Int(_)
+                | Tag::Long(_)
+                | Tag::Float(_)
+                | Tag::Double(_)
+                | Tag::String(_)
+        )
+    }
+
     pub fn id(&self) -> u8 {
         match self {
             Tag::End => 0,
