@@ -9,6 +9,9 @@ const CAVE_FEATURES_JAVA: &str = include_str!(
 const END_FEATURES_JAVA: &str = include_str!(
     "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/features/EndFeatures.java"
 );
+const FEATURE_UTILS_JAVA: &str = include_str!(
+    "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/features/FeatureUtils.java"
+);
 
 fn count_occurrences(source: &str, needle: &str) -> usize {
     source.match_indices(needle).count()
@@ -178,6 +181,61 @@ fn configured_feature_bootstrap_keys_match_vanilla_sources() {
         super::super::configured_feature("sculk_patch_ancient_city").map(|feature| feature.source),
         Some(ConfiguredFeatureSource::Cave)
     );
+}
+
+#[test]
+fn feature_utils_java_bootstrap_dispatch_matches_configured_feature_registry() {
+    assert_eq!(FEATURE_UTILS_JAVA.lines().count(), 40);
+    assert_eq!(
+        count_occurrences(FEATURE_UTILS_JAVA, "Features.bootstrap(context);"),
+        9
+    );
+    assert_eq!(count_occurrences(FEATURE_UTILS_JAVA, "void register("), 2);
+    for sentinel in [
+        "AquaticFeatures.bootstrap(context);",
+        "CaveFeatures.bootstrap(context);",
+        "EndFeatures.bootstrap(context);",
+        "MiscOverworldFeatures.bootstrap(context);",
+        "NetherFeatures.bootstrap(context);",
+        "OreFeatures.bootstrap(context);",
+        "PileFeatures.bootstrap(context);",
+        "TreeFeatures.bootstrap(context);",
+        "VegetationFeatures.bootstrap(context);",
+        "ResourceKey.create(Registries.CONFIGURED_FEATURE, Identifier.withDefaultNamespace(name))",
+        "register(context, id, feature, FeatureConfiguration.NONE);",
+        "context.register(id, new ConfiguredFeature(feature, config));",
+    ] {
+        assert!(
+            FEATURE_UTILS_JAVA.contains(sentinel),
+            "missing FeatureUtils sentinel {sentinel}"
+        );
+    }
+
+    assert_eq!(CONFIGURED_FEATURES.len(), 221);
+    assert_eq!(
+        CONFIGURED_FEATURES
+            .iter()
+            .take_while(|feature| feature.source == ConfiguredFeatureSource::Aquatic)
+            .count(),
+        7
+    );
+    assert_eq!(
+        CONFIGURED_FEATURES
+            .iter()
+            .skip_while(|feature| feature.source == ConfiguredFeatureSource::Aquatic)
+            .take_while(|feature| feature.source == ConfiguredFeatureSource::Cave)
+            .count(),
+        24
+    );
+    assert_eq!(
+        super::super::configured_feature("kelp").map(|feature| feature.id),
+        Some("minecraft:kelp")
+    );
+    assert_eq!(
+        super::super::configured_feature("minecraft:end_island").map(|feature| feature.source),
+        Some(ConfiguredFeatureSource::End)
+    );
+    assert!(super::super::configured_feature("minecraft:missing_feature").is_none());
 }
 
 #[test]
