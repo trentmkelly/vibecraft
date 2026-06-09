@@ -9,6 +9,9 @@ const REGISTRIES_JAVA: &str =
 const TEST_DATA_JAVA: &str = include_str!(
     "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/TestData.java"
 );
+const TEST_FUNCTION_LOADER_JAVA: &str = include_str!(
+    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/TestFunctionLoader.java"
+);
 
 #[test]
 fn generated_test_matches_java_record_and_constructor_shape() {
@@ -158,5 +161,50 @@ fn test_data_constructors_and_map_preserve_java_defaults_and_fields() {
             sky_access: true,
             padding: 3,
         }
+    );
+}
+
+#[test]
+fn test_function_loader_matches_java_source_shape() {
+    assert_eq!(TEST_FUNCTION_LOADER_JAVA.lines().count(), 24);
+    for sentinel in [
+        "public abstract class TestFunctionLoader",
+        "private static final List<TestFunctionLoader> loaders = new ArrayList<>();",
+        "public static void registerLoader(final TestFunctionLoader loader)",
+        "loaders.add(loader);",
+        "public static void runLoaders(final Registry<Consumer<GameTestHelper>> registry)",
+        "for (TestFunctionLoader loader : loaders)",
+        "loader.load((key, function) -> Registry.register(registry, key, function));",
+        "public abstract void load(BiConsumer<ResourceKey<Consumer<GameTestHelper>>, Consumer<GameTestHelper>> register);",
+    ] {
+        assert!(
+            TEST_FUNCTION_LOADER_JAVA.contains(sentinel),
+            "missing TestFunctionLoader sentinel {sentinel}"
+        );
+    }
+}
+
+#[test]
+fn test_function_loader_registers_and_runs_loaders_in_insertion_order() {
+    let mut registry = TestFunctionLoaderRegistryModel::default();
+    registry.register_loader(TestFunctionLoaderModel::new(vec![
+        ("minecraft:first".to_string(), "succeed".to_string()),
+        ("minecraft:second".to_string(), "fail".to_string()),
+    ]));
+    registry.register_loader(TestFunctionLoaderModel::new(vec![(
+        "minecraft:third".to_string(),
+        "noop".to_string(),
+    )]));
+
+    assert!(registry.registry.is_empty());
+    registry.run_loaders();
+
+    assert_eq!(
+        registry.registry,
+        vec![
+            ("minecraft:first".to_string(), "succeed".to_string()),
+            ("minecraft:second".to_string(), "fail".to_string()),
+            ("minecraft:third".to_string(), "noop".to_string()),
+        ]
     );
 }

@@ -163,3 +163,36 @@ impl<EnvironmentType> GameTestDataModel<EnvironmentType> {
         }
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TestFunctionLoaderModel {
+    pub registrations: Vec<(String, String)>,
+}
+
+impl TestFunctionLoaderModel {
+    pub fn new(registrations: Vec<(String, String)>) -> Self {
+        Self { registrations }
+    }
+
+    pub fn load(&self, registry: &mut Vec<(String, String)>) {
+        registry.extend(self.registrations.iter().cloned());
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TestFunctionLoaderRegistryModel {
+    pub loaders: Vec<TestFunctionLoaderModel>,
+    pub registry: Vec<(String, String)>,
+}
+
+impl TestFunctionLoaderRegistryModel {
+    pub fn register_loader(&mut self, loader: TestFunctionLoaderModel) {
+        self.loaders.push(loader);
+    }
+
+    pub fn run_loaders(&mut self) {
+        for loader in &self.loaders {
+            loader.load(&mut self.registry);
+        }
+    }
+}
