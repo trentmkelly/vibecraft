@@ -10,6 +10,9 @@ const GAME_TEST_INSTANCES_JAVA: &str = include_str!(
 const GAME_TEST_LISTENER_JAVA: &str = include_str!(
     "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestListener.java"
 );
+const GAME_TEST_MAIN_UTIL_JAVA: &str = include_str!(
+    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestMainUtil.java"
+);
 
 fn instance() -> GameTestInstanceModel {
     GameTestInstanceModel {
@@ -249,5 +252,130 @@ fn gametest_listener_records_all_callbacks_in_order() {
                 runner: "runner".to_string(),
             },
         ]
+    );
+}
+
+#[test]
+fn gametest_main_util_matches_java_cli_and_server_bootstrap_shape() {
+    assert_eq!(GAME_TEST_MAIN_UTIL_JAVA.lines().count(), 138);
+    for sentinel in [
+        "private static final String DEFAULT_UNIVERSE_DIR = \"gametestserver\";",
+        "private static final String LEVEL_NAME = \"gametestworld\";",
+        "parser.accepts(\n         \"universe\"",
+        "parser.accepts(\"report\", \"Exports results in a junit-like XML report at the given path.\")",
+        "parser.accepts(\n         \"tests\"",
+        "parser.accepts(\n         \"verify\"",
+        "parser.accepts(\"repeatCount\", \"Runs each of the specified tests this many times\")",
+        "parser.accepts(\"packs\", \"A folder of datapacks to include in the world\")",
+        "parser.allowsUnrecognizedOptions();",
+        "Please specify a test selection to run the verify option. For example: --verify --tests example:test_something_*",
+        "Flag --verify is true, the --repeatCount value will be ignored",
+        "GlobalTestReporter.replaceWith(new JUnitLikeTestReporter((File)report.value(options)));",
+        "Bootstrap.bootStrap();",
+        "Util.startTimerHackThread();",
+        "createOrResetDir(universePath);",
+        "onUniverseCreated.accept(universePath);",
+        "copyPacks(universePath, packFolder);",
+        "LevelStorageSource.createDefault(Paths.get(universePath)).createAccess(\"gametestworld\")",
+        "ServerPacksSource.createPackRepository(levelStorageSource)",
+        "MinecraftServer.spin(",
+        "optionalFromOption(options, tests)",
+        "FileUtils.deleteDirectory(universeDir.toFile());",
+        "Files.createDirectories(universeDir);",
+        "Paths.get(serverPath).resolve(\"gametestworld\").resolve(\"datapacks\")",
+        "Files.isRegularFile(path.resolve(\"pack.mcmeta\"))",
+        "path.toString().endsWith(\".zip\")",
+    ] {
+        assert!(
+            GAME_TEST_MAIN_UTIL_JAVA.contains(sentinel),
+            "missing GameTestMainUtil sentinel {sentinel}"
+        );
+    }
+    assert_eq!(
+        GAMETEST_MAIN_UTIL_SERVER_RUNTIME_TODO,
+        "gametest-main-util-server-runtime"
+    );
+}
+
+#[test]
+fn gametest_main_util_models_help_verify_and_launch_decisions() {
+    assert_eq!(
+        GameTestMainOptionsModel::parse(&["--help"])
+            .unwrap()
+            .decision(false),
+        GameTestMainDecision::PrintHelp
+    );
+    assert_eq!(
+        GameTestMainOptionsModel::parse(&["--verify", "true"])
+            .unwrap()
+            .decision(false),
+        GameTestMainDecision::VerifyRequiresTests {
+            exit_code: -1,
+            message: "Please specify a test selection to run the verify option. For example: --verify --tests example:test_something_*",
+        }
+    );
+
+    let options = GameTestMainOptionsModel::parse(&[
+        "--unknown",
+        "--universe",
+        "tmp-gametest",
+        "--report",
+        "report.xml",
+        "--tests",
+        "minecraft:always_*",
+        "--verify",
+        "true",
+        "--repeatCount",
+        "10",
+        "--packs",
+        "packs",
+    ])
+    .unwrap();
+    assert_eq!(
+        options.decision(true),
+        GameTestMainDecision::Launch(GameTestServerLaunchModel {
+            universe_path: "tmp-gametest".to_string(),
+            level_name: GAMETEST_LEVEL_NAME,
+            report: Some("report.xml".to_string()),
+            tests: Some("minecraft:always_*".to_string()),
+            verify: true,
+            repeat_count: 10,
+            packs: Some("packs".to_string()),
+            verify_ignores_repeat_count: true,
+        })
+    );
+}
+
+#[test]
+fn gametest_main_util_filters_pack_copy_targets_like_java() {
+    let entries = vec![
+        PackSourceEntryModel {
+            name: "folder-pack".to_string(),
+            is_directory: true,
+            has_pack_mcmeta: true,
+            is_zip: false,
+        },
+        PackSourceEntryModel {
+            name: "missing-meta".to_string(),
+            is_directory: true,
+            has_pack_mcmeta: false,
+            is_zip: false,
+        },
+        PackSourceEntryModel {
+            name: "archive.zip".to_string(),
+            is_directory: false,
+            has_pack_mcmeta: false,
+            is_zip: true,
+        },
+        PackSourceEntryModel {
+            name: "notes.txt".to_string(),
+            is_directory: false,
+            has_pack_mcmeta: false,
+            is_zip: false,
+        },
+    ];
+    assert_eq!(
+        gametest_main_pack_copy_targets(&entries),
+        vec!["folder-pack".to_string(), "archive.zip".to_string()]
     );
 }
