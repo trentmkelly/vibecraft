@@ -311,8 +311,7 @@ mod criterion_player_hurt_entity;
 mod criterion_player_interact;
 #[cfg(test)]
 mod criterion_player_predicate;
-#[cfg(test)]
-mod criterion_player_trigger;
+#[cfg(test)] mod criterion_player_trigger;
 #[cfg(test)] mod criterion_raider_predicate;
 #[cfg(test)] mod criterion_recipe_crafted;
 #[cfg(test)] mod criterion_recipe_unlocked;
@@ -381,6 +380,7 @@ mod damage_type;
 #[cfg(test)] mod data_tags_villager_trades;
 #[cfg(test)] mod data_transmute_recipe_builder;
 #[cfg(test)] mod data_vanilla_recipe_provider;
+#[cfg(test)] mod data_worldgen_biome_defaults;
 #[cfg(test)] mod data_worldgen_jigsaw_pools;
 #[cfg(test)] mod datapack_reload_tests;
 #[cfg(test)] mod dialog_system;
