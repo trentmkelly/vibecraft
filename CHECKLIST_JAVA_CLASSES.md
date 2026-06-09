@@ -538,11 +538,11 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/data/structures`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/structures/NbtToSnbt.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/structures/SnbtDatafixer.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/structures/SnbtToNbt.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/structures/StructureUpdater.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/structures/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/structures/NbtToSnbt.java`. Rust `data_structures` covers provider fields/name, input-folder walking, `.nbt` filtering, async conversion dispatch, input-directory error handling, Java relative-name derivation with slash normalization and extension stripping, compressed NBT read to SNBT conversion, nullable failure path, UTF-8 newline-terminated SNBT writes, SHA-1 write cache use, and source counts/sentinels; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_structures`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/structures/SnbtDatafixer.java`. Rust `data_structures` covers built-in version setup, bootstrap call, per-argument directory updates, `.snbt` filtering, read/parse/update/write loop, `CachedOutput.NO_CACHE` rewrite behavior, and exception wrapping; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_structures`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/structures/SnbtToNbt.java`. Rust `data_structures` covers provider constructors/name, mutable filter chain ordering, input-folder walking, `.snbt` filtering, fail-fast task sequencing, Java relative-name derivation, SNBT parse, compressed NBT write/hash task result, write-if-needed destination path, write error logging, conversion exception shape, filter interface, and task-result record; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_structures`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/structures/StructureUpdater.java`. Rust `data_structures` covers the `SnbtToNbt.Filter` implementation, server-data `data/minecraft/structure/` prefix gating, data-version default `500`, target version `4763`, too-old warning condition/message, structure datafix type, block-registry template load, and template save output; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_structures`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/structures/package-info.java`. Rust `data_structures` covers the package's `@NullMarked` annotation, package declaration, and jspecify import; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_structures`.
 
 ## `decompiled-server-26.1.2/net/minecraft/data/tags`
 
