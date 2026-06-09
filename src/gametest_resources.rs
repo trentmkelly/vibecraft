@@ -11,6 +11,8 @@ pub mod listener_models;
 pub use listener_models::*;
 pub mod main_util_models;
 pub use main_util_models::*;
+pub mod reporter_models;
+pub use reporter_models::*;
 pub mod runner_models;
 pub use runner_models::*;
 pub mod sequence_models;
@@ -1185,3 +1187,5 @@ mod tests;
 mod tests_generated;
 #[cfg(test)]
 mod tests_instance;
+#[cfg(test)]
+mod tests_reporter;
