@@ -477,7 +477,7 @@ impl LoadedTags {
 
 mod builtin;
 #[cfg(test)]
-use builtin::*;
+pub use builtin::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct FeatureFlag {

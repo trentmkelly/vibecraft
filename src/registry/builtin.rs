@@ -695,9 +695,9 @@ impl BuiltInRegistries {
             &mut dimension_types,
             &[
                 "minecraft:overworld",
-                "minecraft:overworld_caves",
                 "minecraft:the_nether",
                 "minecraft:the_end",
+                "minecraft:overworld_caves",
             ],
         )?;
 

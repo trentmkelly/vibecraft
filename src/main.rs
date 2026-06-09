@@ -305,8 +305,7 @@ mod criterion_movement_predicate;
 mod criterion_nbt_predicate;
 #[cfg(test)]
 mod criterion_picked_up_item_trigger;
-#[cfg(test)]
-mod criterion_player_hurt_entity;
+#[cfg(test)] mod criterion_player_hurt_entity;
 #[cfg(test)] mod criterion_player_interact;
 #[cfg(test)] mod criterion_player_predicate;
 #[cfg(test)] mod criterion_player_trigger;
@@ -381,6 +380,7 @@ mod damage_type;
 #[cfg(test)] mod data_worldgen_biome_defaults;
 #[cfg(test)] mod data_worldgen_bootstrap_context;
 #[cfg(test)] mod data_worldgen_carvers;
+#[cfg(test)] mod data_worldgen_dimension_types;
 #[cfg(test)] mod data_worldgen_jigsaw_pools;
 #[cfg(test)] mod datapack_reload_tests;
 #[cfg(test)] mod dialog_system;
