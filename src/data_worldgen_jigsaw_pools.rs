@@ -43,6 +43,9 @@ const SAVANNA_VILLAGE_POOLS_JAVA: &str = include_str!(
 const SNOWY_VILLAGE_POOLS_JAVA: &str = include_str!(
     "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/SnowyVillagePools.java"
 );
+const TAIGA_VILLAGE_POOLS_JAVA: &str = include_str!(
+    "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/TaigaVillagePools.java"
+);
 
 #[derive(Debug, Clone, Copy)]
 struct JigsawPoolSourceAudit {
@@ -327,6 +330,32 @@ const JIGSAW_POOL_SOURCES: &[JigsawPoolSourceAudit] = &[
             "Pair.of(StructurePoolElement.legacy(\"village/snowy/zombie/villagers/unemployed\"), 10)",
         ],
     },
+    JigsawPoolSourceAudit {
+        source_file: "TaigaVillagePools.java",
+        source: TAIGA_VILLAGE_POOLS_JAVA,
+        line_count: 264,
+        registrations: 10,
+        single_elements: 0,
+        list_elements: 0,
+        empty_elements: 4,
+        bootstrap_calls: 0,
+        sentinels: &[
+            "public static final ResourceKey<StructureTemplatePool> START = Pools.createKey(\"village/taiga/town_centers\");",
+            "Holder<PlacedFeature> pineVillage = placedFeatures.getOrThrow(VillagePlacements.PINE_VILLAGE);",
+            "Holder<PlacedFeature> patchBerryBushVillage = placedFeatures.getOrThrow(VillagePlacements.PATCH_BERRY_BUSH_VILLAGE);",
+            "Holder<StructureProcessorList> mossify10Percent = processorLists.getOrThrow(ProcessorLists.MOSSIFY_10_PERCENT);",
+            "Holder<StructureProcessorList> zombieTaiga = processorLists.getOrThrow(ProcessorLists.ZOMBIE_TAIGA);",
+            "Holder<StructureProcessorList> streetSnowyOrTaiga = processorLists.getOrThrow(ProcessorLists.STREET_SNOWY_OR_TAIGA);",
+            "Holder<StructureProcessorList> farmTaiga = processorLists.getOrThrow(ProcessorLists.FARM_TAIGA);",
+            "Pair.of(StructurePoolElement.legacy(\"village/taiga/town_centers/taiga_meeting_point_1\", mossify10Percent), 49)",
+            "Pair.of(StructurePoolElement.legacy(\"village/taiga/zombie/town_centers/taiga_meeting_point_2\", zombieTaiga), 1)",
+            "Pair.of(StructurePoolElement.legacy(\"village/taiga/streets/straight_05\", streetSnowyOrTaiga), 7)",
+            "Pair.of(StructurePoolElement.legacy(\"village/taiga/houses/taiga_large_farm_2\", farmTaiga), 6)",
+            "Pair.of(StructurePoolElement.legacy(\"village/taiga/zombie/houses/taiga_large_farm_2\", zombieTaiga), 6)",
+            "Pair.of(StructurePoolElement.feature(patchBerryBushVillage), 1)",
+            "Pair.of(StructurePoolElement.legacy(\"village/taiga/zombie/villagers/unemployed\"), 10)",
+        ],
+    },
 ];
 
 fn count_occurrences(source: &str, needle: &str) -> usize {
@@ -486,6 +515,13 @@ mod tests {
             .expect("missing snowy village start pool metadata");
         assert_eq!(snowy_start.structure_family, "village/snowy");
         assert_eq!(snowy_start.pool, "minecraft:village/snowy/town_centers");
+
+        let taiga_start = JIGSAW_STRUCTURE_START_POOLS
+            .iter()
+            .find(|pool| pool.source_file == "TaigaVillagePools.java")
+            .expect("missing taiga village start pool metadata");
+        assert_eq!(taiga_start.structure_family, "village/taiga");
+        assert_eq!(taiga_start.pool, "minecraft:village/taiga/town_centers");
     }
 
     fn load_vanilla_template_pools() -> crate::worldgen::ParsedTemplatePoolRegistry {

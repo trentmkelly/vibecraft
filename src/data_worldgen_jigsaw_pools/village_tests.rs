@@ -365,3 +365,176 @@ fn snowy_village_decor_tree_and_villager_pools_match_java_bootstrap() {
     assert_eq!(pool_weight_sum(zombie_villagers), 11);
     assert_eq!(zombie_villagers.elements.len(), 2);
 }
+
+#[test]
+fn taiga_village_template_pool_json_ids_match_java_bootstrap() {
+    let registry = load_vanilla_template_pools();
+    let taiga_ids = registry
+        .pools
+        .keys()
+        .filter(|id| id.starts_with("minecraft:village/taiga/"))
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        taiga_ids,
+        vec![
+            "minecraft:village/taiga/decor",
+            "minecraft:village/taiga/houses",
+            "minecraft:village/taiga/streets",
+            "minecraft:village/taiga/terminators",
+            "minecraft:village/taiga/town_centers",
+            "minecraft:village/taiga/villagers",
+            "minecraft:village/taiga/zombie/decor",
+            "minecraft:village/taiga/zombie/houses",
+            "minecraft:village/taiga/zombie/streets",
+            "minecraft:village/taiga/zombie/villagers",
+        ]
+    );
+}
+
+#[test]
+fn taiga_village_town_street_and_terminator_pools_match_java_bootstrap() {
+    let registry = load_vanilla_template_pools();
+    let town_centers = parsed_pool(&registry.pools, "minecraft:village/taiga/town_centers");
+    assert_eq!(town_centers.fallback, "minecraft:empty");
+    assert_eq!(town_centers.elements.len(), 4);
+    assert_eq!(pool_weight_sum(town_centers), 100);
+    assert_eq!(
+        town_centers
+            .elements
+            .iter()
+            .map(|entry| entry.weight)
+            .collect::<Vec<_>>(),
+        vec![49, 49, 1, 1]
+    );
+    assert_eq!(
+        pool_entry_by_location(
+            town_centers,
+            "minecraft:village/taiga/town_centers/taiga_meeting_point_1",
+        )
+        .element
+        .processors,
+        vec!["minecraft:mossify_10_percent".to_string()]
+    );
+    assert_eq!(
+        pool_entry_by_location(
+            town_centers,
+            "minecraft:village/taiga/zombie/town_centers/taiga_meeting_point_2",
+        )
+        .element
+        .processors,
+        vec!["minecraft:zombie_taiga".to_string()]
+    );
+
+    let streets = parsed_pool(&registry.pools, "minecraft:village/taiga/streets");
+    assert_eq!(streets.fallback, "minecraft:village/taiga/terminators");
+    assert_eq!(streets.elements.len(), 16);
+    assert_eq!(pool_weight_sum(streets), 49);
+    assert!(streets.elements.iter().all(|entry| entry.element.processors
+        == vec!["minecraft:street_snowy_or_taiga".to_string()]));
+    assert!(streets
+        .elements
+        .iter()
+        .all(|entry| entry.element.projection.as_deref() == Some("terrain_matching")));
+    assert_eq!(
+        pool_entry_by_location(streets, "minecraft:village/taiga/streets/straight_05").weight,
+        7
+    );
+
+    let zombie_streets = parsed_pool(&registry.pools, "minecraft:village/taiga/zombie/streets");
+    assert_eq!(zombie_streets.fallback, "minecraft:village/taiga/terminators");
+    assert_eq!(zombie_streets.elements.len(), 16);
+    assert_eq!(pool_weight_sum(zombie_streets), 49);
+
+    let terminators = parsed_pool(&registry.pools, "minecraft:village/taiga/terminators");
+    assert_eq!(terminators.fallback, "minecraft:empty");
+    assert_eq!(terminators.elements.len(), 4);
+    assert!(terminators.elements.iter().all(|entry| entry.element.processors
+        == vec!["minecraft:street_snowy_or_taiga".to_string()]));
+}
+
+#[test]
+fn taiga_village_house_pools_match_java_bootstrap() {
+    let registry = load_vanilla_template_pools();
+    let houses = parsed_pool(&registry.pools, "minecraft:village/taiga/houses");
+    assert_eq!(houses.fallback, "minecraft:village/taiga/terminators");
+    assert_eq!(houses.elements.len(), 28);
+    assert_eq!(pool_weight_sum(houses), 76);
+    assert_eq!(
+        pool_entry_by_location(houses, "minecraft:village/taiga/houses/taiga_small_house_1")
+            .element
+            .processors,
+        vec!["minecraft:mossify_10_percent".to_string()]
+    );
+    let large_farm = pool_entry_by_location(
+        houses,
+        "minecraft:village/taiga/houses/taiga_large_farm_2",
+    );
+    assert_eq!(
+        large_farm.element.processors,
+        vec!["minecraft:farm_taiga".to_string()]
+    );
+    assert_eq!(large_farm.weight, 6);
+    assert_eq!(houses.elements.last().unwrap().weight, 6);
+
+    let zombie_houses = parsed_pool(&registry.pools, "minecraft:village/taiga/zombie/houses");
+    assert_eq!(zombie_houses.fallback, "minecraft:village/taiga/terminators");
+    assert_eq!(zombie_houses.elements.len(), 27);
+    assert_eq!(pool_weight_sum(zombie_houses), 74);
+    assert_eq!(
+        pool_entry_by_location(
+            zombie_houses,
+            "minecraft:village/taiga/zombie/houses/taiga_large_farm_2",
+        )
+        .weight,
+        6
+    );
+    assert_eq!(
+        pool_entry_by_location(
+            zombie_houses,
+            "minecraft:village/taiga/houses/taiga_butcher_shop_1",
+        )
+        .element
+        .processors,
+        vec!["minecraft:zombie_taiga".to_string()]
+    );
+}
+
+#[test]
+fn taiga_village_decor_and_villager_pools_match_java_bootstrap() {
+    let registry = load_vanilla_template_pools();
+    let decor = parsed_pool(&registry.pools, "minecraft:village/taiga/decor");
+    assert_eq!(decor.fallback, "minecraft:empty");
+    assert_eq!(decor.elements.len(), 13);
+    assert_eq!(pool_weight_sum(decor), 39);
+    assert_eq!(
+        decor.elements[7].element.feature.as_deref(),
+        Some("minecraft:spruce")
+    );
+    assert_eq!(
+        decor.elements[8].element.feature.as_deref(),
+        Some("minecraft:pine")
+    );
+    assert_eq!(
+        decor.elements[12].element.element_type,
+        "minecraft:empty_pool_element"
+    );
+    assert_eq!(decor.elements[12].weight, 4);
+
+    let zombie_decor = parsed_pool(&registry.pools, "minecraft:village/taiga/zombie/decor");
+    assert_eq!(zombie_decor.fallback, "minecraft:empty");
+    assert_eq!(zombie_decor.elements.len(), 10);
+    assert_eq!(pool_weight_sum(zombie_decor), 26);
+    assert_eq!(
+        zombie_decor.elements[8].element.feature.as_deref(),
+        Some("minecraft:patch_berry_bush")
+    );
+
+    let villagers = parsed_pool(&registry.pools, "minecraft:village/taiga/villagers");
+    assert_eq!(pool_weight_sum(villagers), 12);
+    assert_eq!(villagers.elements.len(), 3);
+    let zombie_villagers =
+        parsed_pool(&registry.pools, "minecraft:village/taiga/zombie/villagers");
+    assert_eq!(pool_weight_sum(zombie_villagers), 11);
+    assert_eq!(zombie_villagers.elements.len(), 2);
+}
