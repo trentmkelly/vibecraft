@@ -50,6 +50,8 @@ mod placement_registry_cave_tests;
 
 mod placement_registry_end_tests;
 
+mod placement_registry_misc_overworld_tests;
+
 mod world_preset_tests;
 
 mod live_surface_tests;
