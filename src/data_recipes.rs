@@ -7,6 +7,8 @@ const RECIPE_BUILDER_JAVA: &str =
     include_str!("../../decompiled-server-26.1.2/net/minecraft/data/recipes/RecipeBuilder.java");
 const RECIPE_CATEGORY_JAVA: &str =
     include_str!("../../decompiled-server-26.1.2/net/minecraft/data/recipes/RecipeCategory.java");
+const RECIPE_OUTPUT_JAVA: &str =
+    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/recipes/RecipeOutput.java");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DataRecipeCategory {
@@ -110,6 +112,46 @@ struct CustomCraftingSaveModel {
     book_info: CraftingBookInfoModel,
     factory_name: &'static str,
     advancement_criteria: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct AcceptedRecipeModel {
+    id: String,
+    recipe: String,
+    advancement: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RecipeOutputModel {
+    accepted: Vec<AcceptedRecipeModel>,
+    advancement_builder: String,
+    root_advancement_included: bool,
+}
+
+impl RecipeOutputModel {
+    fn new(advancement_builder: &str) -> Self {
+        Self {
+            accepted: Vec::new(),
+            advancement_builder: advancement_builder.to_string(),
+            root_advancement_included: false,
+        }
+    }
+
+    fn accept(&mut self, id: &str, recipe: &str, advancement: Option<&str>) {
+        self.accepted.push(AcceptedRecipeModel {
+            id: id.to_string(),
+            recipe: recipe.to_string(),
+            advancement: advancement.map(str::to_string),
+        });
+    }
+
+    fn advancement(&self) -> &str {
+        &self.advancement_builder
+    }
+
+    fn include_root_advancement(&mut self) {
+        self.root_advancement_included = true;
+    }
 }
 
 fn create_crafting_common_info(show_notification: bool) -> CraftingCommonInfoModel {
@@ -285,6 +327,38 @@ mod tests {
     }
 
     #[test]
+    fn recipe_output_accepts_nullable_advancement_and_exposes_root_hook() {
+        let mut output = RecipeOutputModel::new("Advancement.Builder");
+        assert_eq!(output.advancement(), "Advancement.Builder");
+        assert!(!output.root_advancement_included);
+
+        output.accept(
+            "minecraft:stone_pickaxe",
+            "StonePickaxeRecipe",
+            Some("recipes/tools/stone_pickaxe"),
+        );
+        output.accept("minecraft:debug_marker", "DebugMarkerRecipe", None);
+        output.include_root_advancement();
+
+        assert_eq!(
+            output.accepted,
+            vec![
+                AcceptedRecipeModel {
+                    id: "minecraft:stone_pickaxe".to_string(),
+                    recipe: "StonePickaxeRecipe".to_string(),
+                    advancement: Some("recipes/tools/stone_pickaxe".to_string()),
+                },
+                AcceptedRecipeModel {
+                    id: "minecraft:debug_marker".to_string(),
+                    recipe: "DebugMarkerRecipe".to_string(),
+                    advancement: None,
+                },
+            ]
+        );
+        assert!(output.root_advancement_included);
+    }
+
+    #[test]
     fn custom_crafting_builder_source_counts_match_authoritative_java() {
         assert_eq!(
             count_occurrences(CUSTOM_CRAFTING_RECIPE_BUILDER_JAVA, "save("),
@@ -337,6 +411,17 @@ mod tests {
     }
 
     #[test]
+    fn recipe_output_source_counts_match_authoritative_java() {
+        assert_eq!(count_occurrences(RECIPE_OUTPUT_JAVA, "accept("), 1);
+        assert_eq!(count_occurrences(RECIPE_OUTPUT_JAVA, "advancement()"), 1);
+        assert_eq!(
+            count_occurrences(RECIPE_OUTPUT_JAVA, "includeRootAdvancement"),
+            1
+        );
+        assert_eq!(count_occurrences(RECIPE_OUTPUT_JAVA, "@Nullable"), 1);
+    }
+
+    #[test]
     fn recipe_datagen_java_source_sentinels_match_authoritative_files() {
         assert_source_contains_all(
             CUSTOM_CRAFTING_RECIPE_BUILDER_JAVA,
@@ -382,6 +467,14 @@ mod tests {
                 "BREWING(\"brewing\")",
                 "MISC(\"misc\")",
                 "public String getFolderName()",
+            ],
+        );
+        assert_source_contains_all(
+            RECIPE_OUTPUT_JAVA,
+            &[
+                "void accept(ResourceKey<Recipe<?>> id, Recipe<?> recipe, @Nullable AdvancementHolder advancement);",
+                "Advancement.Builder advancement();",
+                "void includeRootAdvancement();",
             ],
         );
     }
