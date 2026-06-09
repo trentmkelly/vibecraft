@@ -1,3 +1,11 @@
+const LOOT_PACKS_PACKAGE_INFO_JAVA: &str =
+    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/loot/packs/package-info.java");
+const LOOT_PACKS_PACKAGE_NULL_MARKED: bool = true;
+
+fn loot_packs_package_null_marked() -> bool {
+    LOOT_PACKS_PACKAGE_NULL_MARKED
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum DyeColorModel {
     White,
@@ -597,6 +605,19 @@ mod tests {
                 (DyeColorModel::Red, "minecraft:red_wool"),
                 (DyeColorModel::Black, "minecraft:black_wool"),
             ]
+        );
+    }
+
+    #[test]
+    fn loot_packs_package_info_matches_java_null_marked_metadata() {
+        assert!(loot_packs_package_null_marked());
+        assert_eq!(
+            count_occurrences(LOOT_PACKS_PACKAGE_INFO_JAVA, "@NullMarked"),
+            1
+        );
+        assert!(LOOT_PACKS_PACKAGE_INFO_JAVA.contains("package net.minecraft.data.loot.packs;"));
+        assert!(
+            LOOT_PACKS_PACKAGE_INFO_JAVA.contains("import org.jspecify.annotations.NullMarked;")
         );
     }
 
