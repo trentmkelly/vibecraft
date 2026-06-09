@@ -325,8 +325,7 @@ mod criterion_sheep_predicate;
 mod criterion_shot_crossbow;
 #[cfg(test)]
 mod criterion_simple_trigger;
-#[cfg(test)]
-mod criterion_single_component_item_predicate;
+#[cfg(test)] mod criterion_single_component_item_predicate;
 #[cfg(test)] mod criterion_slide_down_block;
 #[cfg(test)] mod criterion_slime_predicate;
 #[cfg(test)] mod criterion_block_predicate;
@@ -376,6 +375,7 @@ mod damage_type;
 #[cfg(test)] mod data_special_recipe_builder;
 #[cfg(test)] mod data_structures;
 #[cfg(test)] mod data_tags_core;
+#[cfg(test)] mod data_tags_entity_types;
 #[cfg(test)] mod data_tags_medium_providers;
 #[cfg(test)] mod data_tags_registry_providers;
 #[cfg(test)] mod data_tags_trade_rebalance_trades;
