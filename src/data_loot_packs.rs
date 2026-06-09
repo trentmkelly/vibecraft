@@ -311,9 +311,75 @@ fn vanilla_entity_interact_tables() -> Vec<EntityInteractTableSummary> {
     }]
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct EquipmentTableSummary {
+    id: &'static str,
+    pool_count: usize,
+    nested_reference: Option<&'static str>,
+    weighted_entries: Vec<&'static str>,
+    enchanted_entries: Vec<&'static str>,
+}
+
+fn vanilla_equipment_tables() -> Vec<EquipmentTableSummary> {
+    vec![
+        EquipmentTableSummary {
+            id: "minecraft:equipment/trial_chamber",
+            pool_count: 1,
+            nested_reference: None,
+            weighted_entries: vec![
+                "chainmail_helmet+chainmail_chestplate:copper_bolt_trim@4",
+                "iron_helmet+iron_chestplate:copper_flow_trim@2",
+                "diamond_helmet+diamond_chestplate:copper_flow_trim@1",
+            ],
+            enchanted_entries: vec![],
+        },
+        EquipmentTableSummary {
+            id: "minecraft:equipment/trial_chamber_melee",
+            pool_count: 2,
+            nested_reference: Some("minecraft:equipment/trial_chamber"),
+            weighted_entries: vec!["iron_sword@4", "diamond_sword@1"],
+            enchanted_entries: vec!["iron_sword:sharpness=1", "iron_sword:knockback=1"],
+        },
+        EquipmentTableSummary {
+            id: "minecraft:equipment/trial_chamber_ranged",
+            pool_count: 2,
+            nested_reference: Some("minecraft:equipment/trial_chamber"),
+            weighted_entries: vec!["bow@2"],
+            enchanted_entries: vec!["bow:power=1", "bow:punch=1"],
+        },
+    ]
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TrialChamberEquipmentHelperSummary {
+    pool_count: usize,
+    roll_shape: &'static str,
+    chance_per_piece: &'static str,
+    trim_component: &'static str,
+    enchantments: Vec<&'static str>,
+}
+
+fn trial_chamber_equipment_helper() -> TrialChamberEquipmentHelperSummary {
+    TrialChamberEquipmentHelperSummary {
+        pool_count: 2,
+        roll_shape: "constant:1",
+        chance_per_piece: "random_chance:0.5",
+        trim_component: "minecraft:trim",
+        enchantments: vec![
+            "protection=4",
+            "projectile_protection=4",
+            "fire_protection=4",
+        ],
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn count_occurrences(source: &str, needle: &str) -> usize {
+        source.match_indices(needle).count()
+    }
 
     #[test]
     fn loot_data_wool_item_by_dye_matches_java_enum_map() {
@@ -614,6 +680,124 @@ mod tests {
             "public record VanillaEntityInteractLoot(HolderLookup.Provider registries) implements LootTableSubProvider",
             "BuiltInLootTables.ARMADILLO_BRUSH",
             "LootTable.lootTable().withPool(LootPool.lootPool().setRolls(ConstantValue.exactly(1.0F)).add(LootItem.lootTableItem(Items.ARMADILLO_SCUTE)))",
+        ] {
+            assert!(source.contains(expected), "missing Java sentinel: {expected}");
+        }
+    }
+
+    #[test]
+    fn vanilla_equipment_loot_matches_java_table_shapes() {
+        let tables = vanilla_equipment_tables();
+        assert_eq!(
+            tables.iter().map(|table| table.id).collect::<Vec<_>>(),
+            vec![
+                "minecraft:equipment/trial_chamber",
+                "minecraft:equipment/trial_chamber_melee",
+                "minecraft:equipment/trial_chamber_ranged",
+            ]
+        );
+        assert_eq!(
+            tables
+                .iter()
+                .map(|table| (table.pool_count, table.nested_reference))
+                .collect::<Vec<_>>(),
+            vec![
+                (1, None),
+                (2, Some("minecraft:equipment/trial_chamber")),
+                (2, Some("minecraft:equipment/trial_chamber")),
+            ]
+        );
+        assert_eq!(
+            tables[0].weighted_entries,
+            vec![
+                "chainmail_helmet+chainmail_chestplate:copper_bolt_trim@4",
+                "iron_helmet+iron_chestplate:copper_flow_trim@2",
+                "diamond_helmet+diamond_chestplate:copper_flow_trim@1",
+            ]
+        );
+        assert_eq!(
+            tables[1].enchanted_entries,
+            vec!["iron_sword:sharpness=1", "iron_sword:knockback=1"]
+        );
+        assert_eq!(
+            tables[2].enchanted_entries,
+            vec!["bow:power=1", "bow:punch=1"]
+        );
+    }
+
+    #[test]
+    fn vanilla_equipment_helper_matches_java_trim_and_enchantment_shape() {
+        let helper = trial_chamber_equipment_helper();
+        assert_eq!(helper.pool_count, 2);
+        assert_eq!(helper.roll_shape, "constant:1");
+        assert_eq!(helper.chance_per_piece, "random_chance:0.5");
+        assert_eq!(helper.trim_component, "minecraft:trim");
+        assert_eq!(
+            helper.enchantments,
+            vec![
+                "protection=4",
+                "projectile_protection=4",
+                "fire_protection=4"
+            ]
+        );
+    }
+
+    #[test]
+    fn vanilla_equipment_java_source_counts_match_authoritative_file() {
+        let source = include_str!(
+            "../../decompiled-server-26.1.2/net/minecraft/data/loot/packs/VanillaEquipmentLoot.java"
+        );
+        assert_eq!(count_occurrences(source, "output.accept"), 3);
+        assert_eq!(count_occurrences(source, "LootPool.lootPool("), 7);
+        assert_eq!(count_occurrences(source, "LootItem.lootTableItem"), 9);
+        assert_eq!(
+            count_occurrences(source, "NestedLootTable.inlineLootTable"),
+            3
+        );
+        assert_eq!(
+            count_occurrences(source, "NestedLootTable.lootTableReference"),
+            2
+        );
+        assert_eq!(count_occurrences(source, "withEnchantment"), 10);
+        assert_eq!(
+            count_occurrences(source, "SetComponentsFunction.setComponent"),
+            2
+        );
+        assert_eq!(
+            count_occurrences(source, "LootItemRandomChanceCondition.randomChance"),
+            2
+        );
+    }
+
+    #[test]
+    fn vanilla_equipment_java_source_sentinels_match_authoritative_file() {
+        let source = include_str!(
+            "../../decompiled-server-26.1.2/net/minecraft/data/loot/packs/VanillaEquipmentLoot.java"
+        );
+        for expected in [
+            "public record VanillaEquipmentLoot(HolderLookup.Provider registries) implements LootTableSubProvider",
+            "BuiltInLootTables.EQUIPMENT_TRIAL_CHAMBER",
+            "BuiltInLootTables.EQUIPMENT_TRIAL_CHAMBER_MELEE",
+            "BuiltInLootTables.EQUIPMENT_TRIAL_CHAMBER_RANGED",
+            "ArmorTrim flowTrim = new ArmorTrim(trimMaterials.getOrThrow(TrimMaterials.COPPER), trimPatterns.getOrThrow(TrimPatterns.FLOW))",
+            "ArmorTrim boltTrim = new ArmorTrim(trimMaterials.getOrThrow(TrimMaterials.COPPER), trimPatterns.getOrThrow(TrimPatterns.BOLT))",
+            "trialChamberEquipment(Items.CHAINMAIL_HELMET, Items.CHAINMAIL_CHESTPLATE, boltTrim, enchantments)",
+            "trialChamberEquipment(Items.IRON_HELMET, Items.IRON_CHESTPLATE, flowTrim, enchantments)",
+            "trialChamberEquipment(Items.DIAMOND_HELMET, Items.DIAMOND_CHESTPLATE, flowTrim, enchantments)",
+            "LootPool.lootPool().setRolls(ConstantValue.exactly(1.0F)).add(NestedLootTable.lootTableReference(BuiltInLootTables.EQUIPMENT_TRIAL_CHAMBER))",
+            "LootItem.lootTableItem(Items.IRON_SWORD).setWeight(4)",
+            "withEnchantment(enchantments.getOrThrow(Enchantments.SHARPNESS), ConstantValue.exactly(1.0F))",
+            "withEnchantment(enchantments.getOrThrow(Enchantments.KNOCKBACK), ConstantValue.exactly(1.0F))",
+            "LootItem.lootTableItem(Items.DIAMOND_SWORD)",
+            "LootItem.lootTableItem(Items.BOW).setWeight(2)",
+            "withEnchantment(enchantments.getOrThrow(Enchantments.POWER), ConstantValue.exactly(1.0F))",
+            "withEnchantment(enchantments.getOrThrow(Enchantments.PUNCH), ConstantValue.exactly(1.0F))",
+            "public static LootTable.Builder trialChamberEquipment(",
+            "LootItemRandomChanceCondition.randomChance(0.5F)",
+            "SetComponentsFunction.setComponent(DataComponents.TRIM, trim)",
+            "withEnchantment(enchantments.getOrThrow(Enchantments.PROTECTION), ConstantValue.exactly(4.0F))",
+            "withEnchantment(enchantments.getOrThrow(Enchantments.PROJECTILE_PROTECTION), ConstantValue.exactly(4.0F))",
+            "withEnchantment(enchantments.getOrThrow(Enchantments.FIRE_PROTECTION), ConstantValue.exactly(4.0F))",
         ] {
             assert!(source.contains(expected), "missing Java sentinel: {expected}");
         }
