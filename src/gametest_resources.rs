@@ -241,6 +241,58 @@ impl GameTestAssertError {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GameTestBlockPos {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GameTestAssertPosError {
+    pub base: GameTestAssertError,
+    pub absolute_pos: GameTestBlockPos,
+    pub relative_pos: GameTestBlockPos,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GameTestAssertPosDescription {
+    pub translation_key: &'static str,
+    pub message: String,
+    pub absolute_pos: GameTestBlockPos,
+    pub relative_pos: GameTestBlockPos,
+    pub tick: i32,
+}
+
+impl GameTestAssertPosError {
+    pub fn new(
+        message: impl Into<String>,
+        absolute_pos: GameTestBlockPos,
+        relative_pos: GameTestBlockPos,
+        tick: i32,
+    ) -> Self {
+        Self {
+            base: GameTestAssertError::new(message, tick),
+            absolute_pos,
+            relative_pos,
+        }
+    }
+
+    pub fn description(&self) -> GameTestAssertPosDescription {
+        GameTestAssertPosDescription {
+            translation_key: "test.error.position",
+            message: self.base.message.clone(),
+            absolute_pos: self.absolute_pos,
+            relative_pos: self.relative_pos,
+            tick: self.base.tick,
+        }
+    }
+
+    pub fn message_to_show_at_block(&self) -> &str {
+        &self.base.message
+    }
+}
+
 pub fn parse_test_environment_json(raw: &str) -> Result<TestEnvironmentDefinition, String> {
     let value: serde_json::Value =
         serde_json::from_str(raw).map_err(|err| format!("invalid test environment JSON: {err}"))?;
@@ -399,6 +451,9 @@ mod tests {
     );
     const GAME_TEST_ASSERT_EXCEPTION_JAVA: &str = include_str!(
         "../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestAssertException.java"
+    );
+    const GAME_TEST_ASSERT_POS_EXCEPTION_JAVA: &str = include_str!(
+        "../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestAssertPosException.java"
     );
 
     #[test]
@@ -797,6 +852,58 @@ mod tests {
                 translation_key: "test.error.tick",
                 message: "expected block".to_string(),
                 tick: 42,
+            }
+        );
+    }
+
+    #[test]
+    fn gametest_assert_pos_exception_matches_java_source_shape() {
+        assert_eq!(GAME_TEST_ASSERT_POS_EXCEPTION_JAVA.lines().count(), 43);
+        assert_eq!(
+            GAME_TEST_ASSERT_POS_EXCEPTION_JAVA
+                .match_indices("extends GameTestAssertException")
+                .count(),
+            1
+        );
+        for sentinel in [
+            "private final BlockPos absolutePos;",
+            "private final BlockPos relativePos;",
+            "super(baseMessage, tick);",
+            "Component.translatable(",
+            "\"test.error.position\"",
+            "this.absolutePos.getX()",
+            "this.relativePos.getZ()",
+            "public Component getMessageToShowAtBlock()",
+            "public @Nullable BlockPos getRelativePos()",
+            "public @Nullable BlockPos getAbsolutePos()",
+        ] {
+            assert!(
+                GAME_TEST_ASSERT_POS_EXCEPTION_JAVA.contains(sentinel),
+                "missing GameTestAssertPosException sentinel {sentinel}"
+            );
+        }
+    }
+
+    #[test]
+    fn gametest_assert_pos_exception_description_and_accessors_match_java() {
+        let absolute_pos = GameTestBlockPos {
+            x: 10,
+            y: 64,
+            z: -3,
+        };
+        let relative_pos = GameTestBlockPos { x: 1, y: 2, z: 3 };
+        let error = GameTestAssertPosError::new("wrong block", absolute_pos, relative_pos, 99);
+        assert_eq!(error.message_to_show_at_block(), "wrong block");
+        assert_eq!(error.absolute_pos, absolute_pos);
+        assert_eq!(error.relative_pos, relative_pos);
+        assert_eq!(
+            error.description(),
+            GameTestAssertPosDescription {
+                translation_key: "test.error.position",
+                message: "wrong block".to_string(),
+                absolute_pos,
+                relative_pos,
+                tick: 99,
             }
         );
     }
