@@ -9,6 +9,12 @@ const JUNIT_LIKE_TEST_REPORTER_JAVA: &str = include_str!(
 const LOG_TEST_REPORTER_JAVA: &str = include_str!(
     "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/LogTestReporter.java"
 );
+const REPORT_GAME_LISTENER_JAVA: &str = include_str!(
+    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/ReportGameListener.java"
+);
+const RETRY_OPTIONS_JAVA: &str = include_str!(
+    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/RetryOptions.java"
+);
 const TEST_REPORTER_JAVA: &str = include_str!(
     "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/TestReporter.java"
 );
@@ -183,5 +189,284 @@ fn junit_reporter_records_cases_failure_skipped_success_and_finish_save_target()
                 result: None,
             },
         ]
+    );
+}
+
+#[test]
+fn retry_options_match_java_source_shape_and_attempt_logic() {
+    assert_eq!(RETRY_OPTIONS_JAVA.lines().count(), 23);
+    for sentinel in [
+        "public record RetryOptions(int numberOfTries, boolean haltOnFailure)",
+        "private static final RetryOptions NO_RETRIES = new RetryOptions(1, true);",
+        "return this.numberOfTries < 1;",
+        "boolean hasFailures = attempts != successes;",
+        "boolean hasMoreAttempts = this.unlimitedTries() || attempts < this.numberOfTries;",
+        "return hasMoreAttempts && (!hasFailures || !this.haltOnFailure);",
+        "return this.numberOfTries != 1;",
+    ] {
+        assert!(
+            RETRY_OPTIONS_JAVA.contains(sentinel),
+            "missing RetryOptions sentinel {sentinel}"
+        );
+    }
+
+    assert_eq!(RetryOptionsModel::no_retries().number_of_tries, 1);
+    assert!(RetryOptionsModel {
+        number_of_tries: 0,
+        halt_on_failure: true,
+    }
+    .unlimited_tries());
+    assert!(!RetryOptionsModel::no_retries().has_retries());
+    assert!(RetryOptionsModel {
+        number_of_tries: 3,
+        halt_on_failure: true,
+    }
+    .has_retries());
+    assert!(RetryOptionsModel {
+        number_of_tries: 3,
+        halt_on_failure: true,
+    }
+    .has_tries_left(2, 2));
+    assert!(!RetryOptionsModel {
+        number_of_tries: 3,
+        halt_on_failure: true,
+    }
+    .has_tries_left(2, 1));
+    assert!(RetryOptionsModel {
+        number_of_tries: 3,
+        halt_on_failure: false,
+    }
+    .has_tries_left(2, 1));
+    assert!(!RetryOptionsModel {
+        number_of_tries: 3,
+        halt_on_failure: false,
+    }
+    .has_tries_left(3, 2));
+}
+
+#[test]
+fn report_game_listener_matches_java_source_shape() {
+    assert_eq!(REPORT_GAME_LISTENER_JAVA.lines().count(), 136);
+    for sentinel in [
+        "private int attempts = 0;",
+        "private int successes = 0;",
+        "this.attempts++;",
+        "String.format(Locale.ROOT, \"[Run: %4d, Ok: %4d, Fail: %4d\"",
+        "retryOptions.numberOfTries() - this.attempts",
+        "runner.rerunTest(testInfo);",
+        "this.successes++;",
+        "reportPassed(testInfo, testInfo.id() + \" passed! (\" + testInfo.getRunTime() + \"ms / \" + testInfo.getTick() + \"gameticks)\");",
+        "Flaky test \" + testInfo + \" succeeded, attempt: \"",
+        "reportFailure(testInfo, new ExhaustedAttemptsException(this.attempts, this.successes, testInfo));",
+        "copy.addListener(this);",
+        "blockEntity.setSuccess()",
+        "GlobalTestReporter.onTestSuccess(testInfo);",
+        "blockEntity.setErrorMessage(description)",
+        "markError(assertError.getAbsolutePos(), assertError.getMessageToShowAtBlock())",
+        "GlobalTestReporter.onTestFailed(testInfo);",
+    ] {
+        assert!(
+            REPORT_GAME_LISTENER_JAVA.contains(sentinel),
+            "missing ReportGameListener sentinel {sentinel}"
+        );
+    }
+}
+
+#[test]
+fn report_game_listener_reports_plain_success_and_failure_to_world_and_global_reporter() {
+    let mut listener = ReportGameListenerModel::default();
+    let passed = ReportGameListenerTestInfoModel::new("minecraft:plain_pass").with_runtime(123, 7);
+    listener.test_structure_loaded();
+    listener.test_passed(&passed);
+
+    assert_eq!(listener.attempts, 1);
+    assert_eq!(listener.successes, 1);
+    assert_eq!(
+        listener.block_entity_events,
+        vec![ReportGameListenerBlockEntityEvent::Success]
+    );
+    assert_eq!(
+        listener.chats,
+        vec![ReportGameListenerChatEvent {
+            format: ReportGameListenerChatFormat::Green,
+            text: "minecraft:plain_pass passed! (123ms / 7gameticks)".to_string(),
+        }]
+    );
+    assert_eq!(
+        listener.global_calls,
+        vec![TestReporterCall::Success(
+            "minecraft:plain_pass".to_string()
+        )]
+    );
+
+    let mut listener = ReportGameListenerModel::default();
+    let failed = ReportGameListenerTestInfoModel::new("minecraft:plain_fail")
+        .with_error(ReportGameListenerErrorModel::plain("boom"));
+    listener.test_structure_loaded();
+    listener.test_failed(&failed);
+
+    assert_eq!(
+        listener.block_entity_events,
+        vec![ReportGameListenerBlockEntityEvent::ErrorMessage(
+            "boom".to_string()
+        )]
+    );
+    assert_eq!(
+        listener.chats,
+        vec![ReportGameListenerChatEvent {
+            format: ReportGameListenerChatFormat::Red,
+            text: "minecraft:plain_fail failed! boom".to_string(),
+        }]
+    );
+    assert_eq!(
+        listener.global_calls,
+        vec![TestReporterCall::Failed("minecraft:plain_fail".to_string())]
+    );
+}
+
+#[test]
+fn report_game_listener_retry_status_and_rerun_match_java() {
+    let mut listener = ReportGameListenerModel::default();
+    let retrying = ReportGameListenerTestInfoModel::new("minecraft:retry")
+        .with_runtime(50, 2)
+        .with_retry_options(RetryOptionsModel {
+            number_of_tries: 3,
+            halt_on_failure: false,
+        });
+
+    listener.test_structure_loaded();
+    listener.test_failed(
+        &retrying
+            .clone()
+            .with_error(ReportGameListenerErrorModel::plain("first failure")),
+    );
+
+    assert_eq!(
+        listener.chats,
+        vec![
+            ReportGameListenerChatEvent {
+                format: ReportGameListenerChatFormat::Red,
+                text: "minecraft:retry failed! first failure".to_string(),
+            },
+            ReportGameListenerChatEvent {
+                format: ReportGameListenerChatFormat::Red,
+                text: "[Run:    1, Ok:    0, Fail:    1, Left:    2]        minecraft:retry failed! 50ms"
+                    .to_string(),
+            },
+        ]
+    );
+    assert_eq!(listener.reruns, vec!["minecraft:retry".to_string()]);
+
+    listener.test_structure_loaded();
+    listener.test_passed(&retrying);
+
+    assert_eq!(listener.successes, 1);
+    assert_eq!(
+        listener.reruns,
+        vec!["minecraft:retry".to_string(), "minecraft:retry".to_string()]
+    );
+    assert_eq!(
+        listener.global_calls,
+        vec![
+            TestReporterCall::Failed("minecraft:retry".to_string()),
+            TestReporterCall::Success("minecraft:retry".to_string()),
+        ]
+    );
+    assert_eq!(
+        listener.chats.last().map(|event| event.text.as_str()),
+        Some("[Run:    2, Ok:    1, Fail:    1, Left:    1]        minecraft:retry passed! 50ms")
+    );
+}
+
+#[test]
+fn report_game_listener_flaky_success_rerun_and_exhaustion_match_java() {
+    let mut listener = ReportGameListenerModel::default();
+    let flaky = ReportGameListenerTestInfoModel::new("minecraft:flaky").flaky(3, 2);
+
+    listener.test_structure_loaded();
+    listener.test_passed(&flaky);
+    assert_eq!(
+        listener.chats,
+        vec![ReportGameListenerChatEvent {
+            format: ReportGameListenerChatFormat::Green,
+            text: "Flaky test minecraft:flaky succeeded, attempt: 1 successes: 1".to_string(),
+        }]
+    );
+    assert_eq!(listener.reruns, vec!["minecraft:flaky".to_string()]);
+
+    listener.test_structure_loaded();
+    listener.test_passed(&flaky);
+    assert_eq!(
+        listener.chats.last(),
+        Some(&ReportGameListenerChatEvent {
+            format: ReportGameListenerChatFormat::Green,
+            text: "minecraft:flaky passed 2 times of 2 attempts.".to_string(),
+        })
+    );
+    assert_eq!(
+        listener.global_calls.last(),
+        Some(&TestReporterCall::Success("minecraft:flaky".to_string()))
+    );
+
+    let mut listener = ReportGameListenerModel::default();
+    let failed_flaky = ReportGameListenerTestInfoModel::new("minecraft:flaky_fail")
+        .flaky(3, 2)
+        .with_error(ReportGameListenerErrorModel::plain("last failure"));
+    listener.test_structure_loaded();
+    listener.test_failed(&failed_flaky);
+    assert_eq!(listener.reruns, vec!["minecraft:flaky_fail".to_string()]);
+
+    listener.test_structure_loaded();
+    listener.test_failed(&failed_flaky);
+    assert_eq!(
+        listener.block_entity_events,
+        vec![ReportGameListenerBlockEntityEvent::ErrorMessage(
+            "Not enough successes: 0 out of 2 attempts. Required successes: 2. max attempts: 3."
+                .to_string()
+        )]
+    );
+    assert_eq!(
+        listener.global_calls,
+        vec![TestReporterCall::Failed("minecraft:flaky_fail".to_string())]
+    );
+}
+
+#[test]
+fn report_game_listener_assertion_descriptions_positions_and_rerun_attachment_match_java() {
+    let mut listener = ReportGameListenerModel::default();
+    let positional_failure = ReportGameListenerTestInfoModel::new("minecraft:assert_pos")
+        .optional()
+        .with_error(ReportGameListenerErrorModel::positional_assertion(
+            "wrong block",
+            "test.error.position",
+            BlockPosModel::new(9, 10, 11),
+            "show this at block",
+        ));
+
+    listener.test_structure_loaded();
+    listener.test_failed(&positional_failure);
+
+    assert_eq!(
+        listener.block_entity_events,
+        vec![
+            ReportGameListenerBlockEntityEvent::ErrorMessage("test.error.position".to_string()),
+            ReportGameListenerBlockEntityEvent::MarkError {
+                absolute_pos: BlockPosModel::new(9, 10, 11),
+                message: "show this at block".to_string(),
+            },
+        ]
+    );
+    assert_eq!(
+        listener.chats,
+        vec![ReportGameListenerChatEvent {
+            format: ReportGameListenerChatFormat::Yellow,
+            text: "(optional) minecraft:assert_pos failed! wrong block".to_string(),
+        }]
+    );
+
+    listener.test_added_for_rerun(&ReportGameListenerTestInfoModel::new("minecraft:copy"));
+    assert_eq!(
+        listener.attached_rerun_ids,
+        vec!["minecraft:copy".to_string()]
     );
 }
