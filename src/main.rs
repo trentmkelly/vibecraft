@@ -377,6 +377,7 @@ mod damage_type;
 #[cfg(test)] mod data_loot_packs;
 #[cfg(test)] mod data_loot_piglin_barter;
 #[cfg(test)] mod data_loot_provider;
+#[cfg(test)] mod data_loot_shearing;
 #[cfg(test)] mod data_loot_vanilla_entity;
 #[cfg(test)] mod data_package;
 #[cfg(test)] mod datapack_reload_tests;
@@ -407,8 +408,7 @@ mod inventory;
 mod inventory_transactions;
 mod item_catalog;
 mod item_entity;
-#[cfg(test)]
-mod item_family_behavior;
+#[cfg(test)] mod item_family_behavior;
 mod item_properties;
 mod item_stack;
 mod item_tags;
