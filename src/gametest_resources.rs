@@ -11,6 +11,7 @@ pub mod environment_models;
 pub mod gizmo_models;
 pub mod listener_models;
 pub use listener_models::*;
+pub mod locale_models;
 pub mod main_util_models;
 pub use main_util_models::*;
 pub mod multiple_tracker_models;

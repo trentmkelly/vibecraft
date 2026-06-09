@@ -722,9 +722,9 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/locale`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/locale/DeprecatedTranslationsInfo.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/locale/Language.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/locale/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/locale/DeprecatedTranslationsInfo.java`. Rust `DeprecatedTranslationsInfoModel` mirrors the Java record fields and codec shape (`removed`, `renamed`), default deprecated resource load, and `applyToMap` removal/rename behavior including deleting the target key when the source rename is missing; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 locale`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/locale/Language.java`. Rust `LanguageModel` mirrors default `en_us` loading, deprecated translation application, `%d`/`%f` format-specifier rewriting to Java's `%$1s` replacement shape, lookup/default/has contracts, injection model, right-to-left flag, and visual-order list mapping surface; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 locale`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/locale/package-info.java`. Verified the locale package-info remains the Java `@NullMarked` package annotation for `net.minecraft.locale`; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 locale`.
 
 ## `decompiled-server-26.1.2/net/minecraft/nbt`
 

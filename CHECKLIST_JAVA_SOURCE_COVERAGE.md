@@ -146,7 +146,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. Each pack
 - [ ] `net/minecraft/gametest` (2 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/gametest/framework` (43 Java files): add class-level Rust port tasks and parity tests.
 - [x] `net/minecraft/gizmos` (15 Java files): add class-level Rust port tasks and parity tests. — Covered by `src/gametest_resources/gizmo_models.rs` model parity for the full gizmo record/interface set plus `CHECKLIST_JAVA_CLASSES.md` per-file entries; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 gizmo`.
-- [ ] `net/minecraft/locale` (3 Java files): add class-level Rust port tasks and parity tests.
+- [x] `net/minecraft/locale` (3 Java files): add class-level Rust port tasks and parity tests. — Covered by `src/gametest_resources/locale_models.rs` and per-file entries in `CHECKLIST_JAVA_CLASSES.md` for `DeprecatedTranslationsInfo`, `Language`, and package metadata; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 locale`.
 - [ ] `net/minecraft/nbt` (36 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/nbt/visitors` (7 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/network` (42 Java files): add class-level Rust port tasks and parity tests.
