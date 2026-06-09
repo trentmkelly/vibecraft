@@ -32,6 +32,9 @@ const DESERT_VILLAGE_POOLS_JAVA: &str = include_str!(
 const PILLAGER_OUTPOST_POOLS_JAVA: &str = include_str!(
     "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/PillagerOutpostPools.java"
 );
+const PLAIN_VILLAGE_POOLS_JAVA: &str = include_str!(
+    "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/PlainVillagePools.java"
+);
 
 #[derive(Debug, Clone, Copy)]
 struct JigsawPoolSourceAudit {
@@ -218,6 +221,28 @@ const JIGSAW_POOL_SOURCES: &[JigsawPoolSourceAudit] = &[
             "Pair.of(StructurePoolElement.empty(), 6)",
         ],
     },
+    JigsawPoolSourceAudit {
+        source_file: "PlainVillagePools.java",
+        source: PLAIN_VILLAGE_POOLS_JAVA,
+        line_count: 359,
+        registrations: 17,
+        single_elements: 0,
+        list_elements: 0,
+        empty_elements: 6,
+        bootstrap_calls: 0,
+        sentinels: &[
+            "public static final ResourceKey<StructureTemplatePool> START = Pools.createKey(\"village/plains/town_centers\");",
+            "Holder<PlacedFeature> oakVillage = placedFeatures.getOrThrow(VillagePlacements.OAK_VILLAGE);",
+            "Holder<StructureProcessorList> mossify10Percent = processorLists.getOrThrow(ProcessorLists.MOSSIFY_10_PERCENT);",
+            "Holder<StructureProcessorList> zombiePlains = processorLists.getOrThrow(ProcessorLists.ZOMBIE_PLAINS);",
+            "Holder<StructureProcessorList> streetPlains = processorLists.getOrThrow(ProcessorLists.STREET_PLAINS);",
+            "Pair.of(StructurePoolElement.legacy(\"village/plains/town_centers/plains_fountain_01\", mossify20Percent), 50)",
+            "Pair.of(StructurePoolElement.legacy(\"village/plains/houses/plains_large_farm_1\", farmPlains), 4)",
+            "Pair.of(StructurePoolElement.feature(flowerPlainVillage), 1)",
+            "Pair.of(StructurePoolElement.legacy(\"village/common/animals/cat_jellie\"), 1)",
+            "Pair.of(StructurePoolElement.legacy(\"village/common/well_bottom\"), 1)",
+        ],
+    },
 ];
 
 fn count_occurrences(source: &str, needle: &str) -> usize {
@@ -319,7 +344,7 @@ mod tests {
     }
 
     #[test]
-    fn ancient_city_bastion_desert_and_outpost_start_pool_metadata_matches_java() {
+    fn jigsaw_start_pool_metadata_matches_java_bootstraps() {
         let ancient_city_start = JIGSAW_STRUCTURE_START_POOLS
             .iter()
             .find(|pool| pool.source_file == "AncientCityStructurePieces.java")
@@ -350,6 +375,13 @@ mod tests {
             .expect("missing pillager outpost start pool metadata");
         assert_eq!(outpost_start.structure_family, "pillager_outpost");
         assert_eq!(outpost_start.pool, "minecraft:pillager_outpost/base_plates");
+
+        let plain_start = JIGSAW_STRUCTURE_START_POOLS
+            .iter()
+            .find(|pool| pool.source_file == "PlainVillagePools.java")
+            .expect("missing plains village start pool metadata");
+        assert_eq!(plain_start.structure_family, "village/plains");
+        assert_eq!(plain_start.pool, "minecraft:village/plains/town_centers");
     }
 
     fn load_vanilla_template_pools() -> crate::worldgen::ParsedTemplatePoolRegistry {
@@ -589,5 +621,225 @@ mod tests {
             "minecraft:empty_pool_element"
         );
         assert_eq!(features.elements.last().unwrap().weight, 6);
+    }
+
+    #[test]
+    fn plains_village_template_pool_json_ids_match_java_bootstrap() {
+        let registry = load_vanilla_template_pools();
+        let plains_ids = registry
+            .pools
+            .keys()
+            .filter(|id| id.starts_with("minecraft:village/plains/"))
+            .map(String::as_str)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            plains_ids,
+            vec![
+                "minecraft:village/plains/decor",
+                "minecraft:village/plains/houses",
+                "minecraft:village/plains/streets",
+                "minecraft:village/plains/terminators",
+                "minecraft:village/plains/town_centers",
+                "minecraft:village/plains/trees",
+                "minecraft:village/plains/villagers",
+                "minecraft:village/plains/zombie/decor",
+                "minecraft:village/plains/zombie/houses",
+                "minecraft:village/plains/zombie/streets",
+                "minecraft:village/plains/zombie/villagers",
+            ]
+        );
+
+        let common_ids = registry
+            .pools
+            .keys()
+            .filter(|id| id.starts_with("minecraft:village/common/"))
+            .map(String::as_str)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            common_ids,
+            vec![
+                "minecraft:village/common/animals",
+                "minecraft:village/common/butcher_animals",
+                "minecraft:village/common/cats",
+                "minecraft:village/common/iron_golem",
+                "minecraft:village/common/sheep",
+                "minecraft:village/common/well_bottoms",
+            ]
+        );
+    }
+
+    #[test]
+    fn plains_village_town_and_street_pools_match_java_bootstrap() {
+        let registry = load_vanilla_template_pools();
+        let town_centers = parsed_pool(&registry.pools, "minecraft:village/plains/town_centers");
+        assert_eq!(town_centers.fallback, "minecraft:empty");
+        assert_eq!(town_centers.elements.len(), 8);
+        assert_eq!(pool_weight_sum(town_centers), 204);
+        assert_eq!(
+            town_centers
+                .elements
+                .iter()
+                .map(|entry| entry.weight)
+                .collect::<Vec<_>>(),
+            vec![50, 50, 50, 50, 1, 1, 1, 1]
+        );
+        assert_eq!(
+            pool_entry_by_location(
+                town_centers,
+                "minecraft:village/plains/town_centers/plains_fountain_01"
+            )
+            .element
+            .processors,
+            vec!["minecraft:mossify_20_percent".to_string()]
+        );
+        assert_eq!(
+            pool_entry_by_location(
+                town_centers,
+                "minecraft:village/plains/zombie/town_centers/plains_fountain_01"
+            )
+            .element
+            .processors,
+            vec!["minecraft:zombie_plains".to_string()]
+        );
+
+        let streets = parsed_pool(&registry.pools, "minecraft:village/plains/streets");
+        assert_eq!(streets.fallback, "minecraft:village/plains/terminators");
+        assert_eq!(streets.elements.len(), 16);
+        assert_eq!(pool_weight_sum(streets), 49);
+        assert!(streets
+            .elements
+            .iter()
+            .all(|entry| entry.element.processors == vec!["minecraft:street_plains".to_string()]));
+        assert!(streets
+            .elements
+            .iter()
+            .all(|entry| entry.element.projection.as_deref() == Some("terrain_matching")));
+
+        let zombie_streets =
+            parsed_pool(&registry.pools, "minecraft:village/plains/zombie/streets");
+        assert_eq!(zombie_streets.elements.len(), 16);
+        assert_eq!(pool_weight_sum(zombie_streets), 49);
+    }
+
+    #[test]
+    fn plains_village_house_pools_match_java_bootstrap() {
+        let registry = load_vanilla_template_pools();
+        let houses = parsed_pool(&registry.pools, "minecraft:village/plains/houses");
+        assert_eq!(houses.fallback, "minecraft:village/plains/terminators");
+        assert_eq!(houses.elements.len(), 37);
+        assert_eq!(pool_weight_sum(houses), 87);
+        assert_eq!(
+            pool_entry_by_location(
+                houses,
+                "minecraft:village/plains/houses/plains_small_house_1"
+            )
+            .element
+            .processors,
+            vec!["minecraft:mossify_10_percent".to_string()]
+        );
+        let large_farm = pool_entry_by_location(
+            houses,
+            "minecraft:village/plains/houses/plains_large_farm_1",
+        );
+        assert_eq!(
+            large_farm.element.processors,
+            vec!["minecraft:farm_plains".to_string()]
+        );
+        assert_eq!(large_farm.weight, 4);
+        assert_eq!(
+            pool_entry_by_location(
+                houses,
+                "minecraft:village/plains/houses/plains_meeting_point_4"
+            )
+            .element
+            .processors,
+            vec!["minecraft:mossify_70_percent".to_string()]
+        );
+        assert_eq!(
+            houses.elements.last().unwrap().element.element_type,
+            "minecraft:empty_pool_element"
+        );
+        assert_eq!(houses.elements.last().unwrap().weight, 10);
+
+        let zombie_houses = parsed_pool(&registry.pools, "minecraft:village/plains/zombie/houses");
+        assert_eq!(
+            zombie_houses.fallback,
+            "minecraft:village/plains/terminators"
+        );
+        assert_eq!(zombie_houses.elements.len(), 36);
+        assert_eq!(pool_weight_sum(zombie_houses), 83);
+        assert_eq!(
+            pool_entry_by_location(
+                zombie_houses,
+                "minecraft:village/plains/zombie/houses/plains_small_house_1"
+            )
+            .element
+            .processors,
+            vec!["minecraft:zombie_plains".to_string()]
+        );
+        assert_eq!(zombie_houses.elements.last().unwrap().weight, 10);
+    }
+
+    #[test]
+    fn plains_village_decor_tree_villager_and_common_pools_match_java_bootstrap() {
+        let registry = load_vanilla_template_pools();
+        let trees = parsed_pool(&registry.pools, "minecraft:village/plains/trees");
+        assert_eq!(trees.elements.len(), 1);
+        assert_eq!(
+            trees.elements[0].element.feature.as_deref(),
+            Some("minecraft:oak")
+        );
+
+        let decor = parsed_pool(&registry.pools, "minecraft:village/plains/decor");
+        assert_eq!(pool_weight_sum(decor), 7);
+        assert_eq!(
+            decor.elements[1].element.feature.as_deref(),
+            Some("minecraft:oak")
+        );
+        assert_eq!(
+            decor.elements[2].element.feature.as_deref(),
+            Some("minecraft:flower_plain")
+        );
+        assert_eq!(
+            decor.elements[3].element.feature.as_deref(),
+            Some("minecraft:pile_hay")
+        );
+        assert_eq!(decor.elements.last().unwrap().weight, 2);
+
+        let villagers = parsed_pool(&registry.pools, "minecraft:village/plains/villagers");
+        assert_eq!(pool_weight_sum(villagers), 12);
+        assert_eq!(villagers.elements.len(), 3);
+        let zombie_villagers =
+            parsed_pool(&registry.pools, "minecraft:village/plains/zombie/villagers");
+        assert_eq!(pool_weight_sum(zombie_villagers), 11);
+        assert_eq!(zombie_villagers.elements.len(), 2);
+
+        let animals = parsed_pool(&registry.pools, "minecraft:village/common/animals");
+        assert_eq!(animals.elements.len(), 10);
+        assert_eq!(pool_weight_sum(animals), 26);
+        assert_eq!(
+            pool_entry_by_location(animals, "minecraft:village/common/animals/cows_1").weight,
+            7
+        );
+        assert_eq!(animals.elements.last().unwrap().weight, 5);
+
+        let cats = parsed_pool(&registry.pools, "minecraft:village/common/cats");
+        assert_eq!(cats.elements.len(), 11);
+        assert_eq!(pool_weight_sum(cats), 13);
+        assert_eq!(
+            pool_entry_by_location(cats, "minecraft:village/common/animals/cat_jellie").weight,
+            1
+        );
+
+        let iron_golem = parsed_pool(&registry.pools, "minecraft:village/common/iron_golem");
+        assert_eq!(
+            iron_golem.elements[0].element.location.as_deref(),
+            Some("minecraft:village/common/iron_golem")
+        );
+        let well_bottoms = parsed_pool(&registry.pools, "minecraft:village/common/well_bottoms");
+        assert_eq!(
+            well_bottoms.elements[0].element.location.as_deref(),
+            Some("minecraft:village/common/well_bottom")
+        );
     }
 }
