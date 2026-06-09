@@ -381,6 +381,7 @@ mod damage_type;
 #[cfg(test)] mod data_loot_vanilla_entity;
 #[cfg(test)] mod data_metadata;
 #[cfg(test)] mod data_package;
+#[cfg(test)] mod data_recipes;
 #[cfg(test)] mod datapack_reload_tests;
 #[cfg(test)] mod dialog_system;
 mod dispenser_cauldron;
@@ -428,8 +429,7 @@ mod movement_physics;
 #[cfg(test)]
 mod movement_validation;
 mod network;
-#[cfg(test)]
-mod non_living_entity;
+#[cfg(test)] mod non_living_entity;
 #[cfg(test)]
 mod operational_coverage;
 mod optionull;

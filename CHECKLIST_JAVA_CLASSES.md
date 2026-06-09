@@ -507,9 +507,9 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/data/recipes`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/recipes/CustomCraftingRecipeBuilder.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/recipes/RecipeBuilder.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/recipes/RecipeCategory.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/recipes/CustomCraftingRecipeBuilder.java`. Rust `data_recipes` covers Java's category/factory storage, static `customCrafting` factory, advancement unlock forwarding, nullable group storage, string-name save conversion to recipe `ResourceKey`, save-by-key construction of crafting common info with notifications enabled, crafting book info from category/group, factory invocation, and output accept with built advancement; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_recipes`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/recipes/RecipeBuilder.java`. Rust `data_recipes` covers Java's root recipe advancement id, save overload/default-id behavior, redundant explicit default-id rejection text, crafting book category switch, common info notification flag, crafting book group null-to-empty behavior, and default recipe id from result item key; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_recipes`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/recipes/RecipeCategory.java`. Rust `data_recipes` covers all nine Java enum variants in declaration order and their folder names; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_recipes`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/recipes/RecipeOutput.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/recipes/RecipeProvider.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/recipes/RecipeUnlockAdvancementBuilder.java`.
