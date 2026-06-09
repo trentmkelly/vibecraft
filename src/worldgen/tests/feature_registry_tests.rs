@@ -12,6 +12,9 @@ const END_FEATURES_JAVA: &str = include_str!(
 const FEATURE_UTILS_JAVA: &str = include_str!(
     "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/features/FeatureUtils.java"
 );
+const MISC_OVERWORLD_FEATURES_JAVA: &str = include_str!(
+    "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/features/MiscOverworldFeatures.java"
+);
 
 fn count_occurrences(source: &str, needle: &str) -> usize {
     source.match_indices(needle).count()
@@ -619,6 +622,157 @@ fn end_features_java_bootstrap_matches_configured_feature_registry() {
     let gateway_delayed = configured_feature_json("minecraft:end_gateway_delayed");
     assert_eq!(gateway_delayed["config"]["exact"], false);
     assert!(gateway_delayed["config"].get("exit").is_none());
+}
+
+#[test]
+fn misc_overworld_features_java_source_shape_matches_configured_feature_registry() {
+    assert_eq!(MISC_OVERWORLD_FEATURES_JAVA.lines().count(), 201);
+    assert_eq!(
+        count_occurrences(MISC_OVERWORLD_FEATURES_JAVA, "FeatureUtils.createKey("),
+        18
+    );
+    assert_eq!(
+        count_occurrences(MISC_OVERWORLD_FEATURES_JAVA, "FeatureUtils.register("),
+        18
+    );
+    assert_eq!(
+        count_occurrences(MISC_OVERWORLD_FEATURES_JAVA, "new DiskConfiguration"),
+        5
+    );
+    assert_eq!(
+        count_occurrences(MISC_OVERWORLD_FEATURES_JAVA, "new SpringConfiguration"),
+        3
+    );
+    assert_eq!(
+        count_occurrences(MISC_OVERWORLD_FEATURES_JAVA, "new RuleBasedStateProvider("),
+        2
+    );
+    for sentinel in [
+        "ICE_SPIKE = FeatureUtils.createKey(\"ice_spike\")",
+        "SPRING_WATER = FeatureUtils.createKey(\"spring_water\")",
+        "new SpikeConfiguration(",
+        "new BlockBlobConfiguration(Blocks.MOSSY_COBBLESTONE.defaultBlockState(), BlockPredicate.matchesTag(BlockTags.FOREST_ROCK_CAN_PLACE_ON))",
+        "FeatureUtils.register(context, BLUE_ICE, Feature.BLUE_ICE);",
+        "FeatureUtils.register(context, FREEZE_TOP_LAYER, Feature.FREEZE_TOP_LAYER);",
+        "FeatureUtils.register(context, DESERT_WELL, Feature.DESERT_WELL);",
+        "new SpringConfiguration(",
+        "Fluids.WATER.defaultFluidState()",
+    ] {
+        assert!(
+            MISC_OVERWORLD_FEATURES_JAVA.contains(sentinel),
+            "missing MiscOverworldFeatures sentinel {sentinel}"
+        );
+    }
+}
+
+#[test]
+fn misc_overworld_features_keys_and_types_match_vanilla_json() {
+    let keys = CONFIGURED_FEATURES
+        .iter()
+        .filter(|feature| feature.source == ConfiguredFeatureSource::MiscOverworld)
+        .map(|feature| feature.id)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        keys,
+        vec![
+            "minecraft:ice_spike",
+            "minecraft:ice_patch",
+            "minecraft:forest_rock",
+            "minecraft:iceberg_packed",
+            "minecraft:iceberg_blue",
+            "minecraft:blue_ice",
+            "minecraft:lake_lava",
+            "minecraft:disk_clay",
+            "minecraft:disk_gravel",
+            "minecraft:disk_sand",
+            "minecraft:freeze_top_layer",
+            "minecraft:disk_grass",
+            "minecraft:bonus_chest",
+            "minecraft:void_start_platform",
+            "minecraft:desert_well",
+            "minecraft:spring_lava_overworld",
+            "minecraft:spring_lava_frozen",
+            "minecraft:spring_water",
+        ]
+    );
+
+    for (id, feature_type) in [
+        ("minecraft:ice_spike", "minecraft:spike"),
+        ("minecraft:ice_patch", "minecraft:disk"),
+        ("minecraft:forest_rock", "minecraft:block_blob"),
+        ("minecraft:iceberg_packed", "minecraft:iceberg"),
+        ("minecraft:iceberg_blue", "minecraft:iceberg"),
+        ("minecraft:blue_ice", "minecraft:blue_ice"),
+        ("minecraft:lake_lava", "minecraft:lake"),
+        ("minecraft:disk_clay", "minecraft:disk"),
+        ("minecraft:disk_gravel", "minecraft:disk"),
+        ("minecraft:disk_sand", "minecraft:disk"),
+        ("minecraft:freeze_top_layer", "minecraft:freeze_top_layer"),
+        ("minecraft:disk_grass", "minecraft:disk"),
+        ("minecraft:bonus_chest", "minecraft:bonus_chest"),
+        (
+            "minecraft:void_start_platform",
+            "minecraft:void_start_platform",
+        ),
+        ("minecraft:desert_well", "minecraft:desert_well"),
+        (
+            "minecraft:spring_lava_overworld",
+            "minecraft:spring_feature",
+        ),
+        ("minecraft:spring_lava_frozen", "minecraft:spring_feature"),
+        ("minecraft:spring_water", "minecraft:spring_feature"),
+    ] {
+        assert_eq!(configured_feature_json(id)["type"], feature_type, "{id}");
+    }
+}
+
+#[test]
+fn misc_overworld_features_representative_configs_match_vanilla_json() {
+    let ice_spike = configured_feature_json("minecraft:ice_spike");
+    assert_eq!(ice_spike["config"]["state"]["Name"], "minecraft:packed_ice");
+    assert_eq!(
+        ice_spike["config"]["can_replace"]["tag"],
+        "minecraft:ice_spike_replaceable"
+    );
+
+    let disk_sand = configured_feature_json("minecraft:disk_sand");
+    assert_eq!(
+        disk_sand["config"]["state_provider"]["fallback"]["state"]["Name"],
+        "minecraft:sand"
+    );
+    assert_eq!(
+        disk_sand["config"]["state_provider"]["rules"][0]["then"]["state"]["Name"],
+        "minecraft:sandstone"
+    );
+    assert_eq!(disk_sand["config"]["radius"]["max_inclusive"], 6);
+    assert_eq!(disk_sand["config"]["half_height"], 2);
+
+    let disk_grass = configured_feature_json("minecraft:disk_grass");
+    assert_eq!(
+        disk_grass["config"]["state_provider"]["rules"][0]["then"]["state"]["Name"],
+        "minecraft:grass_block"
+    );
+    assert_eq!(
+        disk_grass["config"]["target"]["blocks"],
+        serde_json::json!(["minecraft:dirt", "minecraft:mud"])
+    );
+
+    for (id, state_name, valid_block_count) in [
+        ("minecraft:spring_lava_overworld", "minecraft:lava", 8),
+        ("minecraft:spring_lava_frozen", "minecraft:lava", 3),
+        ("minecraft:spring_water", "minecraft:water", 11),
+    ] {
+        let spring = configured_feature_json(id);
+        assert_eq!(spring["config"]["state"]["Name"], state_name, "{id}");
+        assert_eq!(spring["config"]["requires_block_below"], true, "{id}");
+        assert_eq!(spring["config"]["rock_count"], 4, "{id}");
+        assert_eq!(spring["config"]["hole_count"], 1, "{id}");
+        assert_eq!(
+            spring["config"]["valid_blocks"].as_array().unwrap().len(),
+            valid_block_count,
+            "{id}"
+        );
+    }
 }
 
 #[test]
