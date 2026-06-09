@@ -49,6 +49,9 @@ const TAIGA_VILLAGE_POOLS_JAVA: &str = include_str!(
 const TRAIL_RUINS_STRUCTURE_POOLS_JAVA: &str = include_str!(
     "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/TrailRuinsStructurePools.java"
 );
+const TRIAL_CHAMBERS_STRUCTURE_POOLS_JAVA: &str = include_str!(
+    "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/TrialChambersStructurePools.java"
+);
 
 #[derive(Debug, Clone, Copy)]
 struct JigsawPoolSourceAudit {
@@ -381,6 +384,29 @@ const JIGSAW_POOL_SOURCES: &[JigsawPoolSourceAudit] = &[
             "Pair.of(StructurePoolElement.single(\"trail_ruins/decor/decor_7\", housesArchyProcessor), 1)",
         ],
     },
+    JigsawPoolSourceAudit {
+        source_file: "TrialChambersStructurePools.java",
+        source: TRIAL_CHAMBERS_STRUCTURE_POOLS_JAVA,
+        line_count: 561,
+        registrations: 34,
+        single_elements: 194,
+        list_elements: 0,
+        empty_elements: 6,
+        bootstrap_calls: 0,
+        sentinels: &[
+            "public static final ResourceKey<StructureTemplatePool> START = Pools.createKey(\"trial_chambers/chamber/end\");",
+            "public static final ResourceKey<StructureTemplatePool> HALLWAY_FALLBACK = Pools.createKey(\"trial_chambers/hallway/fallback\");",
+            "PoolAliasBinding.randomGroup(",
+            "PoolAliasBinding.random(\n            spawner(\"contents/melee\")",
+            "PoolAliasBinding.random(\n            spawner(\"contents/small_melee\")",
+            "Holder<StructureProcessorList> trialChambersCopperBulbDegradation = processorLists.getOrThrow(ProcessorLists.TRIAL_CHAMBERS_COPPER_BULB_DEGRADATION);",
+            "Pair.of(StructurePoolElement.single(\"trial_chambers/chamber/assembly/cover_7\"), 5)",
+            "Pair.of(StructurePoolElement.single(\"trial_chambers/chamber/chamber_8\", trialChambersCopperBulbDegradation), 150)",
+            "Pair.of(StructurePoolElement.empty(), 22)",
+            "Pools.register(\n         context,\n         \"trial_chambers/spawner/all\"",
+            "PoolAliasBindings.registerTargetsAsPools(context, empty, ALIAS_BINDINGS);",
+        ],
+    },
 ];
 
 fn count_occurrences(source: &str, needle: &str) -> usize {
@@ -429,6 +455,9 @@ fn pool_entry_by_location<'a>(
 
 #[cfg(test)]
 mod village_tests;
+
+#[cfg(test)]
+mod trail_trial_tests;
 
 #[cfg(test)]
 mod tests {
@@ -551,6 +580,16 @@ mod tests {
             .expect("missing trail ruins start pool metadata");
         assert_eq!(trail_ruins_start.structure_family, "trail_ruins");
         assert_eq!(trail_ruins_start.pool, "minecraft:trail_ruins/tower");
+
+        let trial_chambers_start = JIGSAW_STRUCTURE_START_POOLS
+            .iter()
+            .find(|pool| pool.source_file == "TrialChambersStructurePools.java")
+            .expect("missing trial chambers start pool metadata");
+        assert_eq!(trial_chambers_start.structure_family, "trial_chambers");
+        assert_eq!(
+            trial_chambers_start.pool,
+            "minecraft:trial_chambers/chamber/end"
+        );
     }
 
     fn load_vanilla_template_pools() -> crate::worldgen::ParsedTemplatePoolRegistry {
@@ -590,132 +629,6 @@ mod tests {
                 "Pools.java is missing chained bootstrap for {chained_source}"
             );
         }
-    }
-
-    fn assert_single_processor_pool(
-        pool: &ParsedJigsawTemplatePool,
-        element_count: usize,
-        processor: &str,
-    ) {
-        assert_eq!(pool.fallback, "minecraft:empty");
-        assert_eq!(pool.elements.len(), element_count);
-        assert_eq!(pool_weight_sum(pool), element_count as i32);
-        assert!(pool.elements.iter().all(|entry| entry.weight == 1));
-        assert!(pool.elements.iter().all(|entry| {
-            entry.element.element_type == "minecraft:single_pool_element"
-                && entry.element.processors.len() == 1
-                && entry.element.processors[0] == processor
-                && entry.element.projection.as_deref() == Some("rigid")
-        }));
-    }
-
-    #[test]
-    fn trail_ruins_template_pool_json_ids_match_java_bootstrap() {
-        let registry = load_vanilla_template_pools();
-        let trail_ruins_ids = registry
-            .pools
-            .keys()
-            .filter(|id| id.starts_with("minecraft:trail_ruins/"))
-            .map(String::as_str)
-            .collect::<Vec<_>>();
-        assert_eq!(
-            trail_ruins_ids,
-            vec![
-                "minecraft:trail_ruins/buildings",
-                "minecraft:trail_ruins/buildings/grouped",
-                "minecraft:trail_ruins/decor",
-                "minecraft:trail_ruins/roads",
-                "minecraft:trail_ruins/tower",
-                "minecraft:trail_ruins/tower/additions",
-                "minecraft:trail_ruins/tower/tower_top",
-            ]
-        );
-    }
-
-    #[test]
-    fn trail_ruins_tower_and_road_pools_match_java_bootstrap() {
-        let registry = load_vanilla_template_pools();
-        let tower = parsed_pool(&registry.pools, "minecraft:trail_ruins/tower");
-        assert_single_processor_pool(tower, 5, "minecraft:trail_ruins_houses_archaeology");
-        assert_eq!(
-            tower.elements[0].element.location.as_deref(),
-            Some("minecraft:trail_ruins/tower/tower_1")
-        );
-        assert_eq!(
-            tower.elements[4].element.location.as_deref(),
-            Some("minecraft:trail_ruins/tower/tower_5")
-        );
-
-        let tower_top = parsed_pool(&registry.pools, "minecraft:trail_ruins/tower/tower_top");
-        assert_single_processor_pool(tower_top, 5, "minecraft:trail_ruins_tower_top_archaeology");
-        assert_eq!(
-            tower_top.elements[4].element.location.as_deref(),
-            Some("minecraft:trail_ruins/tower/tower_top_5")
-        );
-
-        let additions = parsed_pool(&registry.pools, "minecraft:trail_ruins/tower/additions");
-        assert_single_processor_pool(additions, 25, "minecraft:trail_ruins_houses_archaeology");
-        assert_eq!(
-            additions.elements[0].element.location.as_deref(),
-            Some("minecraft:trail_ruins/tower/hall_1")
-        );
-        assert_eq!(
-            additions.elements[24].element.location.as_deref(),
-            Some("minecraft:trail_ruins/tower/stable_5")
-        );
-
-        let roads = parsed_pool(&registry.pools, "minecraft:trail_ruins/roads");
-        assert_single_processor_pool(roads, 7, "minecraft:trail_ruins_roads_archaeology");
-        assert_eq!(
-            roads.elements[0].element.location.as_deref(),
-            Some("minecraft:trail_ruins/roads/long_road_end")
-        );
-        assert_eq!(
-            roads.elements[6].element.location.as_deref(),
-            Some("minecraft:trail_ruins/roads/road_spacer_1")
-        );
-    }
-
-    #[test]
-    fn trail_ruins_building_and_decor_pools_match_java_bootstrap() {
-        let registry = load_vanilla_template_pools();
-        for (id, element_count) in [
-            ("minecraft:trail_ruins/buildings", 15),
-            ("minecraft:trail_ruins/buildings/grouped", 20),
-            ("minecraft:trail_ruins/decor", 7),
-        ] {
-            assert_single_processor_pool(
-                parsed_pool(&registry.pools, id),
-                element_count,
-                "minecraft:trail_ruins_houses_archaeology",
-            );
-        }
-
-        let buildings = parsed_pool(&registry.pools, "minecraft:trail_ruins/buildings");
-        assert_eq!(
-            buildings.elements[0].element.location.as_deref(),
-            Some("minecraft:trail_ruins/buildings/group_hall_1")
-        );
-        assert_eq!(
-            buildings.elements[14].element.location.as_deref(),
-            Some("minecraft:trail_ruins/buildings/one_room_5")
-        );
-
-        let grouped = parsed_pool(&registry.pools, "minecraft:trail_ruins/buildings/grouped");
-        assert_eq!(
-            grouped.elements[0].element.location.as_deref(),
-            Some("minecraft:trail_ruins/buildings/group_full_1")
-        );
-        assert_eq!(
-            grouped.elements[19].element.location.as_deref(),
-            Some("minecraft:trail_ruins/buildings/group_room_5")
-        );
-
-        let decor = parsed_pool(&registry.pools, "minecraft:trail_ruins/decor");
-        assert_eq!(
-            decor.elements[6].element.location.as_deref(),
-            Some("minecraft:trail_ruins/decor/decor_7")
-        );
     }
 
     #[test]
