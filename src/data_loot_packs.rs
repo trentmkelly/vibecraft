@@ -294,6 +294,23 @@ fn vanilla_charged_creeper_loot_summary() -> ChargedCreeperLootSummary {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct EntityInteractTableSummary {
+    id: &'static str,
+    pool_count: usize,
+    roll_shape: &'static str,
+    item: &'static str,
+}
+
+fn vanilla_entity_interact_tables() -> Vec<EntityInteractTableSummary> {
+    vec![EntityInteractTableSummary {
+        id: "minecraft:gameplay/armadillo_brush",
+        pool_count: 1,
+        roll_shape: "constant:1",
+        item: "minecraft:armadillo_scute",
+    }]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -569,6 +586,34 @@ mod tests {
             "BuiltInLootTables.CHARGED_CREEPER",
             "AlternativesEntry.alternatives(alternatives.toArray(LootPoolEntryContainer.Builder[]::new))",
             "private record Entry(ResourceKey<LootTable> lootTable, EntityType<?> entityType, Item item)",
+        ] {
+            assert!(source.contains(expected), "missing Java sentinel: {expected}");
+        }
+    }
+
+    #[test]
+    fn vanilla_entity_interact_loot_matches_java_armadillo_brush_table() {
+        let tables = vanilla_entity_interact_tables();
+        assert_eq!(
+            tables,
+            vec![EntityInteractTableSummary {
+                id: "minecraft:gameplay/armadillo_brush",
+                pool_count: 1,
+                roll_shape: "constant:1",
+                item: "minecraft:armadillo_scute",
+            }]
+        );
+    }
+
+    #[test]
+    fn vanilla_entity_interact_java_source_sentinels_match_authoritative_file() {
+        let source = include_str!(
+            "../../decompiled-server-26.1.2/net/minecraft/data/loot/packs/VanillaEntityInteractLoot.java"
+        );
+        for expected in [
+            "public record VanillaEntityInteractLoot(HolderLookup.Provider registries) implements LootTableSubProvider",
+            "BuiltInLootTables.ARMADILLO_BRUSH",
+            "LootTable.lootTable().withPool(LootPool.lootPool().setRolls(ConstantValue.exactly(1.0F)).add(LootItem.lootTableItem(Items.ARMADILLO_SCUTE)))",
         ] {
             assert!(source.contains(expected), "missing Java sentinel: {expected}");
         }
