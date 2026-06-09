@@ -375,6 +375,7 @@ mod damage_type;
 #[cfg(test)] mod data_loot_entity;
 #[cfg(test)] mod data_loot_gift;
 #[cfg(test)] mod data_loot_packs;
+#[cfg(test)] mod data_loot_piglin_barter;
 #[cfg(test)] mod data_loot_provider;
 #[cfg(test)] mod data_loot_vanilla_entity;
 #[cfg(test)] mod data_package;
@@ -397,8 +398,7 @@ mod fluid;
 #[cfg(test)] mod fuzz_tests;
 mod game_event;
 mod game_rules;
-#[cfg(test)]
-mod gametest_resources;
+#[cfg(test)] mod gametest_resources;
 mod generated_reports;
 mod gravity;
 mod inhabited_time;
