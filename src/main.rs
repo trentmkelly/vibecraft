@@ -323,8 +323,7 @@ mod criterion_recipe_unlocked;
 mod criterion_sheep_predicate;
 #[cfg(test)]
 mod criterion_shot_crossbow;
-#[cfg(test)]
-mod criterion_simple_trigger;
+#[cfg(test)] mod criterion_simple_trigger;
 #[cfg(test)] mod criterion_single_component_item_predicate;
 #[cfg(test)] mod criterion_slide_down_block;
 #[cfg(test)] mod criterion_slime_predicate;
@@ -374,6 +373,7 @@ mod damage_type;
 #[cfg(test)] mod data_smithing_trim_recipe_builder;
 #[cfg(test)] mod data_special_recipe_builder;
 #[cfg(test)] mod data_structures;
+#[cfg(test)] mod data_tags_biomes;
 #[cfg(test)] mod data_tags_core;
 #[cfg(test)] mod data_tags_entity_types;
 #[cfg(test)] mod data_tags_medium_providers;
