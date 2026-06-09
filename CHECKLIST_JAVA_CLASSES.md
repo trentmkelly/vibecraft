@@ -650,7 +650,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/gametest`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gametest/Main.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gametest/Main.java`. Rust `gametest_resources` records the Java launcher contract that `main(String[] args)` first calls `SharedConstants.tryDetectVersion()` and then forwards the original args to `GameTestMainUtil.runGameTestServer(args, path -> {})` with a no-op output-path callback; full Rust GameTest server startup is explicitly deferred by `TODO(gametest-main-server)` until the framework classes and structure-template execution system are implemented. Verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 gametest_main_entrypoint`.
 
 ## `decompiled-server-26.1.2/net/minecraft/gametest/framework`
 

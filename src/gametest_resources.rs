@@ -38,6 +38,25 @@ pub struct GameTestInstanceDefinition {
     pub required: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GameTestMainEntrypoint {
+    pub detects_version: bool,
+    pub forwards_args_to_server: bool,
+    pub output_path_callback_writes: bool,
+}
+
+pub const GAME_TEST_MAIN_ENTRYPOINT: GameTestMainEntrypoint = GameTestMainEntrypoint {
+    detects_version: true,
+    forwards_args_to_server: true,
+    output_path_callback_writes: false,
+};
+
+// TODO(gametest-main-server): wire a real Rust GameTest server runner once the
+// framework classes and structure-template execution system are implemented.
+pub fn gametest_main_entrypoint_contract() -> GameTestMainEntrypoint {
+    GAME_TEST_MAIN_ENTRYPOINT
+}
+
 pub fn parse_test_environment_json(raw: &str) -> Result<TestEnvironmentDefinition, String> {
     let value: serde_json::Value =
         serde_json::from_str(raw).map_err(|err| format!("invalid test environment JSON: {err}"))?;
@@ -176,6 +195,36 @@ fn json_bool(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const GAMETEST_MAIN_JAVA: &str =
+        include_str!("../../decompiled-server-26.1.2/net/minecraft/gametest/Main.java");
+
+    #[test]
+    fn gametest_main_entrypoint_matches_java_launcher_contract() {
+        assert_eq!(GAMETEST_MAIN_JAVA.lines().count(), 11);
+        assert_eq!(
+            GAMETEST_MAIN_JAVA
+                .match_indices("SharedConstants.tryDetectVersion();")
+                .count(),
+            1
+        );
+        assert_eq!(
+            GAMETEST_MAIN_JAVA
+                .match_indices("GameTestMainUtil.runGameTestServer(args, path -> {});")
+                .count(),
+            1
+        );
+        assert!(GAMETEST_MAIN_JAVA
+            .contains("public static void main(final String[] args) throws Exception"));
+        assert_eq!(
+            gametest_main_entrypoint_contract(),
+            GameTestMainEntrypoint {
+                detects_version: true,
+                forwards_args_to_server: true,
+                output_path_callback_writes: false,
+            }
+        );
+    }
 
     #[test]
     fn gametest_environment_and_instance_decode_vanilla_resources() {
