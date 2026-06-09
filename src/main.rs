@@ -317,8 +317,7 @@ mod criterion_player_trigger;
 mod criterion_raider_predicate;
 #[cfg(test)]
 mod criterion_recipe_crafted;
-#[cfg(test)]
-mod criterion_recipe_unlocked;
+#[cfg(test)] mod criterion_recipe_unlocked;
 #[cfg(test)] mod criterion_sheep_predicate;
 #[cfg(test)] mod criterion_shot_crossbow;
 #[cfg(test)] mod criterion_simple_trigger;
@@ -380,6 +379,7 @@ mod damage_type;
 #[cfg(test)] mod data_tags_trade_rebalance_trades;
 #[cfg(test)] mod data_tags_vanilla_blocks;
 #[cfg(test)] mod data_tags_vanilla_enchantments;
+#[cfg(test)] mod data_tags_vanilla_items;
 #[cfg(test)] mod data_transmute_recipe_builder;
 #[cfg(test)] mod data_vanilla_recipe_provider;
 #[cfg(test)] mod datapack_reload_tests;
