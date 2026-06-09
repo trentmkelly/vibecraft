@@ -128,6 +128,84 @@ fn trade_rebalance_loot_table_provider() -> LootProviderSummary {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ArchaeologyTableSummary {
+    id: &'static str,
+    entry_count: usize,
+    weighted_entries: usize,
+    sentinel_entries: Vec<&'static str>,
+}
+
+fn vanilla_archaeology_tables() -> Vec<ArchaeologyTableSummary> {
+    vec![
+        ArchaeologyTableSummary {
+            id: "minecraft:archaeology/desert_well",
+            entry_count: 6,
+            weighted_entries: 2,
+            sentinel_entries: vec![
+                "arms_up_pottery_sherd@2",
+                "brewer_pottery_sherd@2",
+                "suspicious_stew=night_vision,jump_boost,weakness,blindness,poison,saturation",
+            ],
+        },
+        ArchaeologyTableSummary {
+            id: "minecraft:archaeology/desert_pyramid",
+            entry_count: 8,
+            weighted_entries: 0,
+            sentinel_entries: vec![
+                "archer_pottery_sherd",
+                "miner_pottery_sherd",
+                "prize_pottery_sherd",
+                "skull_pottery_sherd",
+            ],
+        },
+        ArchaeologyTableSummary {
+            id: "minecraft:archaeology/trail_ruins_common",
+            entry_count: 31,
+            weighted_entries: 14,
+            sentinel_entries: vec![
+                "emerald@2",
+                "purple_candle@2",
+                "spruce_hanging_sign",
+                "lead",
+            ],
+        },
+        ArchaeologyTableSummary {
+            id: "minecraft:archaeology/trail_ruins_rare",
+            entry_count: 12,
+            weighted_entries: 0,
+            sentinel_entries: vec![
+                "burn_pottery_sherd",
+                "wayfinder_armor_trim_smithing_template",
+                "host_armor_trim_smithing_template",
+                "music_disc_relic",
+            ],
+        },
+        ArchaeologyTableSummary {
+            id: "minecraft:archaeology/ocean_ruin_warm",
+            entry_count: 10,
+            weighted_entries: 5,
+            sentinel_entries: vec![
+                "angler_pottery_sherd",
+                "sniffer_egg",
+                "iron_axe",
+                "gold_nugget@2",
+            ],
+        },
+        ArchaeologyTableSummary {
+            id: "minecraft:archaeology/ocean_ruin_cold",
+            entry_count: 10,
+            weighted_entries: 5,
+            sentinel_entries: vec![
+                "blade_pottery_sherd",
+                "explorer_pottery_sherd",
+                "plenty_pottery_sherd",
+                "gold_nugget@2",
+            ],
+        },
+    ]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -231,5 +309,51 @@ mod tests {
         assert!(source.contains(
             "new LootTableProvider.SubProviderEntry(TradeRebalanceChestLoot::new, LootContextParamSets.CHEST)"
         ));
+    }
+
+    #[test]
+    fn vanilla_archaeology_loot_emits_all_java_tables_with_entry_counts() {
+        let tables = vanilla_archaeology_tables();
+        assert_eq!(
+            tables.iter().map(|table| table.id).collect::<Vec<_>>(),
+            vec![
+                "minecraft:archaeology/desert_well",
+                "minecraft:archaeology/desert_pyramid",
+                "minecraft:archaeology/trail_ruins_common",
+                "minecraft:archaeology/trail_ruins_rare",
+                "minecraft:archaeology/ocean_ruin_warm",
+                "minecraft:archaeology/ocean_ruin_cold",
+            ]
+        );
+        assert_eq!(
+            tables
+                .iter()
+                .map(|table| (table.entry_count, table.weighted_entries))
+                .collect::<Vec<_>>(),
+            vec![(6, 2), (8, 0), (31, 14), (12, 0), (10, 5), (10, 5)]
+        );
+        assert!(tables[0].sentinel_entries.iter().any(|entry| entry.contains("suspicious_stew")));
+        assert!(tables[3].sentinel_entries.contains(&"music_disc_relic"));
+        assert!(tables[4].sentinel_entries.contains(&"sniffer_egg"));
+    }
+
+    #[test]
+    fn vanilla_archaeology_java_source_sentinels_match_authoritative_file() {
+        let source = include_str!(
+            "../../decompiled-server-26.1.2/net/minecraft/data/loot/packs/VanillaArchaeologyLoot.java"
+        );
+        for expected in [
+            "BuiltInLootTables.DESERT_WELL_ARCHAEOLOGY",
+            "BuiltInLootTables.DESERT_PYRAMID_ARCHAEOLOGY",
+            "BuiltInLootTables.TRAIL_RUINS_ARCHAEOLOGY_COMMON",
+            "BuiltInLootTables.TRAIL_RUINS_ARCHAEOLOGY_RARE",
+            "BuiltInLootTables.OCEAN_RUIN_WARM_ARCHAEOLOGY",
+            "BuiltInLootTables.OCEAN_RUIN_COLD_ARCHAEOLOGY",
+            "withEffect(MobEffects.NIGHT_VISION, UniformGenerator.between(7.0F, 10.0F))",
+            "LootItem.lootTableItem(Items.SNIFFER_EGG)",
+            "LootItem.lootTableItem(Items.MUSIC_DISC_RELIC)",
+        ] {
+            assert!(source.contains(expected), "missing Java sentinel: {expected}");
+        }
     }
 }
