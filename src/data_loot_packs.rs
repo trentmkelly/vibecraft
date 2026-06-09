@@ -206,6 +206,38 @@ fn vanilla_archaeology_tables() -> Vec<ArchaeologyTableSummary> {
     ]
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct BlockInteractTableSummary {
+    id: &'static str,
+    pool_count: usize,
+    sentinel_entries: Vec<&'static str>,
+}
+
+fn vanilla_block_interact_tables() -> Vec<BlockInteractTableSummary> {
+    vec![
+        BlockInteractTableSummary {
+            id: "minecraft:gameplay/harvest_beehive",
+            pool_count: 1,
+            sentinel_entries: vec!["honeycomb:count=3"],
+        },
+        BlockInteractTableSummary {
+            id: "minecraft:gameplay/harvest_cave_vine",
+            pool_count: 1,
+            sentinel_entries: vec!["glow_berries"],
+        },
+        BlockInteractTableSummary {
+            id: "minecraft:gameplay/harvest_sweet_berry_bush",
+            pool_count: 2,
+            sentinel_entries: vec!["sweet_berries:age=3:count=1", "sweet_berries:count=1..2"],
+        },
+        BlockInteractTableSummary {
+            id: "minecraft:gameplay/carve_pumpkin",
+            pool_count: 1,
+            sentinel_entries: vec!["pumpkin_seeds:count=4"],
+        },
+    ]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -352,6 +384,51 @@ mod tests {
             "withEffect(MobEffects.NIGHT_VISION, UniformGenerator.between(7.0F, 10.0F))",
             "LootItem.lootTableItem(Items.SNIFFER_EGG)",
             "LootItem.lootTableItem(Items.MUSIC_DISC_RELIC)",
+        ] {
+            assert!(source.contains(expected), "missing Java sentinel: {expected}");
+        }
+    }
+
+    #[test]
+    fn vanilla_block_interact_loot_matches_java_table_set_and_counts() {
+        let tables = vanilla_block_interact_tables();
+        assert_eq!(
+            tables.iter().map(|table| table.id).collect::<Vec<_>>(),
+            vec![
+                "minecraft:gameplay/harvest_beehive",
+                "minecraft:gameplay/harvest_cave_vine",
+                "minecraft:gameplay/harvest_sweet_berry_bush",
+                "minecraft:gameplay/carve_pumpkin",
+            ]
+        );
+        assert_eq!(
+            tables
+                .iter()
+                .map(|table| table.pool_count)
+                .collect::<Vec<_>>(),
+            vec![1, 1, 2, 1]
+        );
+        assert!(tables[0].sentinel_entries.contains(&"honeycomb:count=3"));
+        assert!(tables[2]
+            .sentinel_entries
+            .contains(&"sweet_berries:age=3:count=1"));
+        assert!(tables[3].sentinel_entries.contains(&"pumpkin_seeds:count=4"));
+    }
+
+    #[test]
+    fn vanilla_block_interact_java_source_sentinels_match_authoritative_file() {
+        let source = include_str!(
+            "../../decompiled-server-26.1.2/net/minecraft/data/loot/packs/VanillaBlockInteractLoot.java"
+        );
+        for expected in [
+            "BuiltInLootTables.HARVEST_BEEHIVE",
+            "LootItem.lootTableItem(Items.HONEYCOMB).apply(SetItemCountFunction.setCount(ConstantValue.exactly(3.0F)))",
+            "BuiltInLootTables.HARVEST_CAVE_VINE",
+            "BuiltInLootTables.HARVEST_SWEET_BERRY_BUSH",
+            "hasProperty(SweetBerryBushBlock.AGE, 3)",
+            "UniformGenerator.between(1.0F, 2.0F)",
+            "BuiltInLootTables.CARVE_PUMPKIN",
+            "LootItem.lootTableItem(Items.PUMPKIN_SEEDS).apply(SetItemCountFunction.setCount(ConstantValue.exactly(4.0F)))",
         ] {
             assert!(source.contains(expected), "missing Java sentinel: {expected}");
         }
