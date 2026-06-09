@@ -207,6 +207,40 @@ pub fn function_gametest_description_rows(function: &str) -> [(&'static str, Str
     [("test_instance.description.function", function.to_string())]
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GameTestAssertError {
+    pub message: String,
+    pub tick: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GameTestAssertDescription {
+    pub translation_key: &'static str,
+    pub message: String,
+    pub tick: i32,
+}
+
+impl GameTestAssertError {
+    pub fn new(message: impl Into<String>, tick: i32) -> Self {
+        Self {
+            message: message.into(),
+            tick,
+        }
+    }
+
+    pub fn runtime_message(&self) -> &str {
+        &self.message
+    }
+
+    pub fn description(&self) -> GameTestAssertDescription {
+        GameTestAssertDescription {
+            translation_key: "test.error.tick",
+            message: self.message.clone(),
+            tick: self.tick,
+        }
+    }
+}
+
 pub fn parse_test_environment_json(raw: &str) -> Result<TestEnvironmentDefinition, String> {
     let value: serde_json::Value =
         serde_json::from_str(raw).map_err(|err| format!("invalid test environment JSON: {err}"))?;
@@ -362,6 +396,9 @@ mod tests {
     );
     const FUNCTION_GAME_TEST_INSTANCE_JAVA: &str = include_str!(
         "../../decompiled-server-26.1.2/net/minecraft/gametest/framework/FunctionGameTestInstance.java"
+    );
+    const GAME_TEST_ASSERT_EXCEPTION_JAVA: &str = include_str!(
+        "../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestAssertException.java"
     );
 
     #[test]
@@ -724,6 +761,43 @@ mod tests {
                 "test_instance.description.function",
                 BUILTIN_ALWAYS_PASS_FUNCTION_ID.to_string()
             )]
+        );
+    }
+
+    #[test]
+    fn gametest_assert_exception_matches_java_source_shape() {
+        assert_eq!(GAME_TEST_ASSERT_EXCEPTION_JAVA.lines().count(), 24);
+        assert_eq!(
+            GAME_TEST_ASSERT_EXCEPTION_JAVA
+                .match_indices("extends GameTestException")
+                .count(),
+            1
+        );
+        for sentinel in [
+            "protected final Component message;",
+            "protected final int tick;",
+            "super(message.getString());",
+            "Component.translatable(\"test.error.tick\", this.message, this.tick)",
+            "return this.getDescription().getString();",
+        ] {
+            assert!(
+                GAME_TEST_ASSERT_EXCEPTION_JAVA.contains(sentinel),
+                "missing GameTestAssertException sentinel {sentinel}"
+            );
+        }
+    }
+
+    #[test]
+    fn gametest_assert_exception_runtime_message_and_description_match_java() {
+        let error = GameTestAssertError::new("expected block", 42);
+        assert_eq!(error.runtime_message(), "expected block");
+        assert_eq!(
+            error.description(),
+            GameTestAssertDescription {
+                translation_key: "test.error.tick",
+                message: "expected block".to_string(),
+                tick: 42,
+            }
         );
     }
 
