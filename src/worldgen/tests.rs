@@ -84,6 +84,8 @@ mod configured_carver_tests;
 
 mod feature_registry_tests;
 
+mod feature_registry_nether_tests;
+
 mod biome_generation_basic_tests;
 
 mod biome_neighbor_payload_surface_tests;

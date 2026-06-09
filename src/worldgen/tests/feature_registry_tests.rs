@@ -15,7 +15,6 @@ const FEATURE_UTILS_JAVA: &str = include_str!(
 const MISC_OVERWORLD_FEATURES_JAVA: &str = include_str!(
     "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/features/MiscOverworldFeatures.java"
 );
-
 fn count_occurrences(source: &str, needle: &str) -> usize {
     source.match_indices(needle).count()
 }
