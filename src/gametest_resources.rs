@@ -428,6 +428,43 @@ impl GameTestBatchListenerModel for RecordingGameTestBatchListener {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GameTestEventModel {
+    pub expected_delay: Option<i64>,
+    pub minimum_delay: Option<i64>,
+    pub assertion: String,
+}
+
+pub fn create_gametest_event(assertion: impl Into<String>) -> GameTestEventModel {
+    GameTestEventModel {
+        expected_delay: None,
+        minimum_delay: None,
+        assertion: assertion.into(),
+    }
+}
+
+pub fn create_gametest_event_at(
+    expected_tick: i64,
+    assertion: impl Into<String>,
+) -> GameTestEventModel {
+    GameTestEventModel {
+        expected_delay: Some(expected_tick),
+        minimum_delay: None,
+        assertion: assertion.into(),
+    }
+}
+
+pub fn create_gametest_event_with_minimum_delay(
+    minimum_delay: i64,
+    assertion: impl Into<String>,
+) -> GameTestEventModel {
+    GameTestEventModel {
+        expected_delay: None,
+        minimum_delay: Some(minimum_delay),
+        assertion: assertion.into(),
+    }
+}
+
 pub fn parse_test_environment_json(raw: &str) -> Result<TestEnvironmentDefinition, String> {
     let value: serde_json::Value =
         serde_json::from_str(raw).map_err(|err| format!("invalid test environment JSON: {err}"))?;

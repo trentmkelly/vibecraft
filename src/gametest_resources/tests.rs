@@ -35,6 +35,9 @@ const GAME_TEST_BATCH_LISTENER_JAVA: &str = include_str!(
 const GAME_TEST_ENVIRONMENTS_JAVA: &str = include_str!(
     "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestEnvironments.java"
 );
+const GAME_TEST_EVENT_JAVA: &str = include_str!(
+    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestEvent.java"
+);
 
 #[test]
 fn gametest_main_entrypoint_matches_java_launcher_contract() {
@@ -685,6 +688,53 @@ fn gametest_environments_bootstraps_default_all_of_empty() {
                 definitions: Vec::new(),
             }
         )]
+    );
+}
+
+#[test]
+fn gametest_event_matches_java_factory_shape() {
+    assert_eq!(GAME_TEST_EVENT_JAVA.lines().count(), 27);
+    for sentinel in [
+        "public final @Nullable Long expectedDelay;",
+        "public final @Nullable Long minimumDelay;",
+        "public final Runnable assertion;",
+        "private GameTestEvent(final @Nullable Long expectedDelay, final @Nullable Long minimumDelay, final Runnable assertion)",
+        "return new GameTestEvent(null, null, runnable);",
+        "return new GameTestEvent(expectedTick, null, runnable);",
+        "return new GameTestEvent(null, minimumDelay, runnable);",
+    ] {
+        assert!(
+            GAME_TEST_EVENT_JAVA.contains(sentinel),
+            "missing GameTestEvent sentinel {sentinel}"
+        );
+    }
+}
+
+#[test]
+fn gametest_event_factories_set_only_their_delay_field() {
+    assert_eq!(
+        create_gametest_event("assert-now"),
+        GameTestEventModel {
+            expected_delay: None,
+            minimum_delay: None,
+            assertion: "assert-now".to_string(),
+        }
+    );
+    assert_eq!(
+        create_gametest_event_at(12, "assert-at"),
+        GameTestEventModel {
+            expected_delay: Some(12),
+            minimum_delay: None,
+            assertion: "assert-at".to_string(),
+        }
+    );
+    assert_eq!(
+        create_gametest_event_with_minimum_delay(5, "assert-after"),
+        GameTestEventModel {
+            expected_delay: None,
+            minimum_delay: Some(5),
+            assertion: "assert-after".to_string(),
+        }
     );
 }
 
