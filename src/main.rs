@@ -349,8 +349,7 @@ mod criterion_state_properties_predicate;
 mod criterion_summoned_entity;
 #[cfg(test)]
 mod criterion_tag_predicate;
-#[cfg(test)]
-mod criterion_tame_animal;
+#[cfg(test)] mod criterion_tame_animal;
 #[cfg(test)]
 mod criterion_target_block;
 #[cfg(test)]
@@ -382,6 +381,7 @@ mod damage_type;
 #[cfg(test)] mod data_shaped_recipe_builder;
 #[cfg(test)] mod data_shapeless_recipe_builder;
 #[cfg(test)] mod data_simple_cooking_recipe_builder;
+#[cfg(test)] mod data_single_item_recipe_builder;
 #[cfg(test)] mod datapack_reload_tests;
 #[cfg(test)] mod dialog_system;
 mod dispenser_cauldron;
