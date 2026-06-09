@@ -383,6 +383,7 @@ mod damage_type;
 #[cfg(test)] mod data_worldgen_jigsaw_pools;
 #[cfg(test)] mod data_worldgen_noise_data;
 #[cfg(test)] mod data_worldgen_processor_lists;
+#[cfg(test)] mod data_worldgen_structure_sets;
 #[cfg(test)] mod datapack_reload_tests;
 #[cfg(test)] mod dialog_system;
 mod dispenser_cauldron;
@@ -430,8 +431,7 @@ mod mob_interaction;
 mod movement_validation;
 mod network;
 #[cfg(test)] mod non_living_entity;
-#[cfg(test)]
-mod operational_coverage;
+#[cfg(test)] mod operational_coverage;
 mod optionull;
 #[cfg(test)]
 mod parity_harness;
