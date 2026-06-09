@@ -1,6 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const DATA_PACKAGE_NULL_MARKED: bool = true;
+const DATA_PACKAGE_INFO_JAVA: &str =
+    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/package-info.java");
 
 const ATLAS_IDS: &[&str] = &[
     "minecraft:armor_trims",
@@ -798,5 +800,11 @@ mod tests {
         const {
             assert!(DATA_PACKAGE_NULL_MARKED);
         }
+        assert_eq!(
+            DATA_PACKAGE_INFO_JAVA.match_indices("@NullMarked").count(),
+            1
+        );
+        assert!(DATA_PACKAGE_INFO_JAVA.contains("package net.minecraft.data;"));
+        assert!(DATA_PACKAGE_INFO_JAVA.contains("import org.jspecify.annotations.NullMarked;"));
     }
 }
