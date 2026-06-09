@@ -141,6 +141,27 @@ pub fn builtin_gametest_bootstrap_return() -> BuiltinGameTestFunctionAction {
     BuiltinGameTestFunctionAction::Succeed
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExhaustedAttemptsError {
+    pub message: String,
+    pub cause: Option<String>,
+}
+
+pub fn exhausted_attempts_error(
+    attempts: i32,
+    successes: i32,
+    required_successes: i32,
+    max_attempts: i32,
+    cause: Option<String>,
+) -> ExhaustedAttemptsError {
+    ExhaustedAttemptsError {
+        message: format!(
+            "Not enough successes: {successes} out of {attempts} attempts. Required successes: {required_successes}. max attempts: {max_attempts}."
+        ),
+        cause,
+    }
+}
+
 pub fn parse_test_environment_json(raw: &str) -> Result<TestEnvironmentDefinition, String> {
     let value: serde_json::Value =
         serde_json::from_str(raw).map_err(|err| format!("invalid test environment JSON: {err}"))?;
@@ -287,6 +308,9 @@ mod tests {
     );
     const BUILTIN_TEST_FUNCTIONS_JAVA: &str = include_str!(
         "../../decompiled-server-26.1.2/net/minecraft/gametest/framework/BuiltinTestFunctions.java"
+    );
+    const EXHAUSTED_ATTEMPTS_EXCEPTION_JAVA: &str = include_str!(
+        "../../decompiled-server-26.1.2/net/minecraft/gametest/framework/ExhaustedAttemptsException.java"
     );
 
     #[test]
@@ -506,6 +530,53 @@ mod tests {
         assert_eq!(
             builtin_gametest_bootstrap_return(),
             BuiltinGameTestFunctionAction::Succeed
+        );
+    }
+
+    #[test]
+    fn exhausted_attempts_exception_matches_java_source_shape() {
+        assert_eq!(EXHAUSTED_ATTEMPTS_EXCEPTION_JAVA.lines().count(), 18);
+        assert_eq!(
+            EXHAUSTED_ATTEMPTS_EXCEPTION_JAVA
+                .match_indices("class ExhaustedAttemptsException extends Throwable")
+                .count(),
+            1
+        );
+        assert_eq!(
+            EXHAUSTED_ATTEMPTS_EXCEPTION_JAVA
+                .match_indices("testInfo.requiredSuccesses()")
+                .count(),
+            1
+        );
+        assert_eq!(
+            EXHAUSTED_ATTEMPTS_EXCEPTION_JAVA
+                .match_indices("testInfo.maxAttempts()")
+                .count(),
+            1
+        );
+        assert_eq!(
+            EXHAUSTED_ATTEMPTS_EXCEPTION_JAVA
+                .match_indices("testInfo.getError()")
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn exhausted_attempts_exception_message_and_cause_match_java() {
+        assert_eq!(
+            exhausted_attempts_error(5, 2, 3, 7, Some("last failure".to_string())),
+            ExhaustedAttemptsError {
+                message: "Not enough successes: 2 out of 5 attempts. Required successes: 3. max attempts: 7.".to_string(),
+                cause: Some("last failure".to_string()),
+            }
+        );
+        assert_eq!(
+            exhausted_attempts_error(1, 0, 1, 1, None),
+            ExhaustedAttemptsError {
+                message: "Not enough successes: 0 out of 1 attempts. Required successes: 1. max attempts: 1.".to_string(),
+                cause: None,
+            }
         );
     }
 
