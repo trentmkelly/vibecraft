@@ -64,6 +64,8 @@ mod placement_registry_nether_tests;
 
 mod placement_registry_ore_tests;
 
+mod placement_registry_tree_tests;
+
 mod placement_utils_tests;
 
 mod world_preset_tests;
