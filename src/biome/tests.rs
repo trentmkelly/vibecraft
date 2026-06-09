@@ -11,9 +11,30 @@ use super::{
 const BIOME_DATA_JAVA: &str = include_str!(
     "../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/biome/BiomeData.java"
 );
+const END_BIOMES_JAVA: &str = include_str!(
+    "../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/biome/EndBiomes.java"
+);
 
 fn count_occurrences(source: &str, needle: &str) -> usize {
     source.match_indices(needle).count()
+}
+
+fn end_biome_json(id: &str) -> super::BiomeData {
+    let path = format!(
+        "../decompiled-server-26.1.2/data/minecraft/worldgen/biome/{}.json",
+        id.trim_start_matches("minecraft:")
+    );
+    let json =
+        std::fs::read_to_string(&path).unwrap_or_else(|err| panic!("failed to read {path}: {err}"));
+    parse_biome_json(id, &json).unwrap_or_else(|err| panic!("failed to parse {path}: {err}"))
+}
+
+fn padded_feature_steps(steps: &[&[&str]]) -> [Vec<String>; 11] {
+    let mut padded: [Vec<String>; 11] = Default::default();
+    for (index, step) in steps.iter().take(11).enumerate() {
+        padded[index] = step.iter().map(|feature| (*feature).to_string()).collect();
+    }
+    padded
 }
 
 #[test]
@@ -82,6 +103,75 @@ fn biome_data_registered_biomes_all_have_parseable_vanilla_json() {
     assert!(parsed_ids.contains(&"minecraft:pale_garden".to_string()));
     assert!(parsed_ids.contains(&"minecraft:nether_wastes".to_string()));
     assert!(parsed_ids.contains(&"minecraft:the_end".to_string()));
+}
+
+#[test]
+fn end_biomes_java_source_shape_matches_rust_end_models() {
+    assert_eq!(END_BIOMES_JAVA.lines().count(), 57);
+    assert_eq!(
+        count_occurrences(END_BIOMES_JAVA, "public static Biome "),
+        5
+    );
+    assert_eq!(
+        count_occurrences(END_BIOMES_JAVA, "private static Biome baseEndBiome"),
+        1
+    );
+    assert_eq!(count_occurrences(END_BIOMES_JAVA, ".addFeature("), 5);
+    assert_eq!(
+        count_occurrences(END_BIOMES_JAVA, "BiomeDefaultFeatures.endSpawns(mobs);"),
+        1
+    );
+    for sentinel in [
+        ".hasPrecipitation(false)",
+        ".temperature(0.5F)",
+        ".downfall(0.5F)",
+        ".waterColor(4159204)",
+        "GenerationStep.Decoration.SURFACE_STRUCTURES, EndPlacements.END_SPIKE",
+        "GenerationStep.Decoration.TOP_LAYER_MODIFICATION, EndPlacements.END_PLATFORM",
+        "GenerationStep.Decoration.SURFACE_STRUCTURES, EndPlacements.END_GATEWAY_RETURN",
+        "GenerationStep.Decoration.VEGETAL_DECORATION, EndPlacements.CHORUS_PLANT",
+        "GenerationStep.Decoration.RAW_GENERATION, EndPlacements.END_ISLAND_DECORATED",
+    ] {
+        assert!(
+            END_BIOMES_JAVA.contains(sentinel),
+            "missing EndBiomes sentinel {sentinel}"
+        );
+    }
+}
+
+#[test]
+fn end_biomes_builtin_generation_models_match_vanilla_json() {
+    for id in [
+        "minecraft:the_end",
+        "minecraft:end_highlands",
+        "minecraft:end_midlands",
+        "minecraft:small_end_islands",
+        "minecraft:end_barrens",
+    ] {
+        let parsed = end_biome_json(id);
+        let model = crate::worldgen::biome_generation_settings(id)
+            .unwrap_or_else(|| panic!("missing Rust biome generation settings for {id}"));
+        assert!(!parsed.has_precipitation);
+        assert_eq!(parsed.temperature, 0.5);
+        assert_eq!(parsed.downfall, 0.5);
+        assert!(parsed.generation_settings.carvers.is_empty());
+        assert_eq!(
+            parsed.generation_settings.features,
+            padded_feature_steps(model.feature_steps),
+            "feature steps mismatch for {id}"
+        );
+        let parsed_monsters = parsed
+            .mob_spawn_settings
+            .spawners
+            .get(&MobCategory::Monster)
+            .expect("End biome should have monster spawns");
+        let model_monsters = crate::worldgen::biome_spawns_for_category(model, "monster");
+        assert_eq!(parsed_monsters.len(), model_monsters.len());
+        assert_eq!(parsed_monsters[0].entity_type, "minecraft:enderman");
+        assert_eq!(parsed_monsters[0].weight, model_monsters[0].weight);
+        assert_eq!(parsed_monsters[0].min_count, model_monsters[0].min_count);
+        assert_eq!(parsed_monsters[0].max_count, model_monsters[0].max_count);
+    }
 }
 
 #[test]
