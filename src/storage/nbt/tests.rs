@@ -32,6 +32,16 @@ const TAG_TYPE_JAVA: &str =
     include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/TagType.java");
 const TAG_TYPES_JAVA: &str =
     include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/TagTypes.java");
+const END_TAG_JAVA: &str =
+    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/EndTag.java");
+const BYTE_TAG_JAVA: &str =
+    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/ByteTag.java");
+const SHORT_TAG_JAVA: &str =
+    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/ShortTag.java");
+const INT_TAG_JAVA: &str =
+    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/IntTag.java");
+const LONG_TAG_JAVA: &str =
+    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/LongTag.java");
 const NUMERIC_TAG_JAVA: &str =
     include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/NumericTag.java");
 const PRIMITIVE_TAG_JAVA: &str =
@@ -142,22 +152,22 @@ fn nbt_tag_type_registry_metadata_matches_java() {
     }
 
     let expected = [
-        (0, "END", "TAG_End", Some(0)),
-        (1, "BYTE", "TAG_Byte", Some(1)),
-        (2, "SHORT", "TAG_Short", Some(2)),
-        (3, "INT", "TAG_Int", Some(4)),
-        (4, "LONG", "TAG_Long", Some(8)),
-        (5, "FLOAT", "TAG_Float", Some(4)),
-        (6, "DOUBLE", "TAG_Double", Some(8)),
-        (7, "BYTE[]", "TAG_Byte_Array", None),
-        (8, "STRING", "TAG_String", None),
-        (9, "LIST", "TAG_List", None),
-        (10, "COMPOUND", "TAG_Compound", None),
-        (11, "INT[]", "TAG_Int_Array", None),
-        (12, "LONG[]", "TAG_Long_Array", None),
+        (0, "END", "TAG_End", Some(0), Some(8)),
+        (1, "BYTE", "TAG_Byte", Some(1), Some(9)),
+        (2, "SHORT", "TAG_Short", Some(2), Some(10)),
+        (3, "INT", "TAG_Int", Some(4), Some(12)),
+        (4, "LONG", "TAG_Long", Some(8), Some(16)),
+        (5, "FLOAT", "TAG_Float", Some(4), Some(12)),
+        (6, "DOUBLE", "TAG_Double", Some(8), Some(16)),
+        (7, "BYTE[]", "TAG_Byte_Array", None, None),
+        (8, "STRING", "TAG_String", None, None),
+        (9, "LIST", "TAG_List", None, None),
+        (10, "COMPOUND", "TAG_Compound", None, None),
+        (11, "INT[]", "TAG_Int_Array", None, None),
+        (12, "LONG[]", "TAG_Long_Array", None, None),
     ];
     assert_eq!(TAG_TYPES.len(), expected.len());
-    for (id, name, pretty_name, static_payload_size) in expected {
+    for (id, name, pretty_name, static_payload_size, self_size_in_bytes) in expected {
         let NbtTagTypeLookup::Known(info) = tag_type(id) else {
             panic!("tag type {id} should be known");
         };
@@ -165,6 +175,7 @@ fn nbt_tag_type_registry_metadata_matches_java() {
         assert_eq!(info.name, name);
         assert_eq!(info.pretty_name, pretty_name);
         assert_eq!(info.static_payload_size, static_payload_size);
+        assert_eq!(info.self_size_in_bytes, self_size_in_bytes);
     }
 
     assert_eq!(
@@ -207,6 +218,135 @@ fn reported_nbt_exception_is_reported_exception_wrapper_like_java() {
 
     let reported = ReportedNbtExceptionModel::new("NBT crash report");
     assert_eq!(reported.crash_report, "NBT crash report");
+}
+
+#[test]
+fn scalar_nbt_tag_classes_match_java_payloads_sizes_and_copy_contracts() {
+    for (source, sentinels) in [
+        (
+            END_TAG_JAVA,
+            [
+                "private static final int SELF_SIZE_IN_BYTES = 8;",
+                "public static final EndTag INSTANCE = new EndTag();",
+                "return EndTag.INSTANCE;",
+                "public EndTag copy()",
+                "return this;",
+            ],
+        ),
+        (
+            BYTE_TAG_JAVA,
+            [
+                "private static final int SELF_SIZE_IN_BYTES = 9;",
+                "public static final ByteTag ZERO = valueOf((byte)0);",
+                "public static final ByteTag ONE = valueOf((byte)1);",
+                "return ByteTag.Cache.cache[128 + data];",
+                "output.writeByte(this.value);",
+            ],
+        ),
+        (
+            SHORT_TAG_JAVA,
+            [
+                "private static final int SELF_SIZE_IN_BYTES = 10;",
+                "return i >= -128 && i <= 1024",
+                "output.writeShort(this.value);",
+                "return (byte)(this.value & 0xFF);",
+                "public ShortTag copy()",
+            ],
+        ),
+        (
+            INT_TAG_JAVA,
+            [
+                "private static final int SELF_SIZE_IN_BYTES = 12;",
+                "output.writeInt(this.value);",
+                "return (short)(this.value & 65535);",
+                "return (byte)(this.value & 0xFF);",
+                "public IntTag copy()",
+            ],
+        ),
+        (
+            LONG_TAG_JAVA,
+            [
+                "private static final int SELF_SIZE_IN_BYTES = 16;",
+                "output.writeLong(this.value);",
+                "return (int)(this.value & -1L);",
+                "return (byte)(this.value & 255L);",
+                "public LongTag copy()",
+            ],
+        ),
+        (
+            FLOAT_TAG_JAVA,
+            [
+                "private static final int SELF_SIZE_IN_BYTES = 12;",
+                "public static final FloatTag ZERO = new FloatTag(0.0F);",
+                "output.writeFloat(this.value);",
+                "return Mth.floor(this.value);",
+                "public FloatTag copy()",
+            ],
+        ),
+        (
+            DOUBLE_TAG_JAVA,
+            [
+                "private static final int SELF_SIZE_IN_BYTES = 16;",
+                "public static final DoubleTag ZERO = new DoubleTag(0.0);",
+                "output.writeDouble(this.value);",
+                "return (long)Math.floor(this.value);",
+                "public DoubleTag copy()",
+            ],
+        ),
+    ] {
+        for sentinel in sentinels {
+            assert!(
+                source.contains(sentinel),
+                "missing scalar tag sentinel {sentinel}"
+            );
+        }
+    }
+
+    let scalar_cases = [
+        (Tag::End, 0, Some(8), Vec::new()),
+        (Tag::Byte(-2), 1, Some(9), vec![0xFE]),
+        (Tag::Short(0x1234), 2, Some(10), vec![0x12, 0x34]),
+        (
+            Tag::Int(0x1234_5678),
+            3,
+            Some(12),
+            vec![0x12, 0x34, 0x56, 0x78],
+        ),
+        (
+            Tag::Long(0x0102_0304_0506_0708),
+            4,
+            Some(16),
+            vec![1, 2, 3, 4, 5, 6, 7, 8],
+        ),
+        (
+            Tag::Float(1.5),
+            5,
+            Some(12),
+            1.5_f32.to_bits().to_be_bytes().to_vec(),
+        ),
+        (
+            Tag::Double(-2.25),
+            6,
+            Some(16),
+            (-2.25_f64).to_bits().to_be_bytes().to_vec(),
+        ),
+    ];
+
+    for (tag, id, self_size_in_bytes, expected_payload) in scalar_cases {
+        let NbtTagTypeLookup::Known(info) = tag_type(id) else {
+            panic!("tag type {id} should be known");
+        };
+        assert_eq!(tag.id(), id as u8);
+        assert_eq!(info.self_size_in_bytes, self_size_in_bytes);
+        assert_eq!(info.static_payload_size, Some(expected_payload.len()));
+
+        let mut payload = Vec::new();
+        tag.write_payload(&mut payload).unwrap();
+        assert_eq!(payload, expected_payload);
+        let decoded = Tag::read_payload(id as u8, &mut payload.as_slice()).unwrap();
+        assert_eq!(decoded, tag);
+        assert_eq!(tag.clone(), tag);
+    }
 }
 
 #[test]
