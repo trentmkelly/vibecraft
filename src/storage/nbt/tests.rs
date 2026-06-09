@@ -1,6 +1,10 @@
 use super::accounter::{
     NbtAccounter, NbtAccounterError, DEFAULT_NBT_QUOTA, UNCOMPRESSED_NBT_QUOTA,
 };
+use super::tag_metadata::{
+    root_parse_action, tag_type, NbtTagTypeLookup, ReportedNbtExceptionModel, RootParseAction,
+    RootVisitResult, TAG_TYPES,
+};
 use super::{
     parse_snbt, read_gzip_named_tag, read_named_tag, read_named_tag_limited, write_gzip_named_tag,
     write_named_tag, NbtFieldSelector, Tag, DEFAULT_MAX_NBT_DEPTH,
@@ -18,6 +22,15 @@ const NBT_FORMAT_EXCEPTION_JAVA: &str =
     include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/NbtFormatException.java");
 const NBT_PACKAGE_INFO_JAVA: &str =
     include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/package-info.java");
+const REPORTED_NBT_EXCEPTION_JAVA: &str = include_str!(
+    "../../../../decompiled-server-26.1.2/net/minecraft/nbt/ReportedNbtException.java"
+);
+const TAG_JAVA: &str =
+    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/Tag.java");
+const TAG_TYPE_JAVA: &str =
+    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/TagType.java");
+const TAG_TYPES_JAVA: &str =
+    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/TagTypes.java");
 
 #[test]
 fn nbt_accounter_matches_java_quota_depth_and_error_contracts() {
@@ -99,6 +112,95 @@ fn nbt_exception_and_package_metadata_match_java_hierarchy() {
 }
 
 #[test]
+fn nbt_tag_type_registry_metadata_matches_java() {
+    for sentinel in [
+        "byte TAG_END = 0;",
+        "byte TAG_LONG_ARRAY = 12;",
+        "int MAX_DEPTH = 512;",
+        "TagType.createInvalid(typeId)",
+        "return \"INVALID[\" + id + \"]\";",
+        "return \"UNKNOWN_\" + id;",
+        "case CONTINUE:",
+        "case BREAK:",
+        "this.skip(input, accounter);",
+    ] {
+        assert!(
+            TAG_JAVA.contains(sentinel)
+                || TAG_TYPE_JAVA.contains(sentinel)
+                || TAG_TYPES_JAVA.contains(sentinel),
+            "missing NBT tag metadata sentinel {sentinel}"
+        );
+    }
+
+    let expected = [
+        (0, "END", "TAG_End", Some(0)),
+        (1, "BYTE", "TAG_Byte", Some(1)),
+        (2, "SHORT", "TAG_Short", Some(2)),
+        (3, "INT", "TAG_Int", Some(4)),
+        (4, "LONG", "TAG_Long", Some(8)),
+        (5, "FLOAT", "TAG_Float", Some(4)),
+        (6, "DOUBLE", "TAG_Double", Some(8)),
+        (7, "BYTE[]", "TAG_Byte_Array", None),
+        (8, "STRING", "TAG_String", None),
+        (9, "LIST", "TAG_List", None),
+        (10, "COMPOUND", "TAG_Compound", None),
+        (11, "INT[]", "TAG_Int_Array", None),
+        (12, "LONG[]", "TAG_Long_Array", None),
+    ];
+    assert_eq!(TAG_TYPES.len(), expected.len());
+    for (id, name, pretty_name, static_payload_size) in expected {
+        let NbtTagTypeLookup::Known(info) = tag_type(id) else {
+            panic!("tag type {id} should be known");
+        };
+        assert_eq!(info.id, id as u8);
+        assert_eq!(info.name, name);
+        assert_eq!(info.pretty_name, pretty_name);
+        assert_eq!(info.static_payload_size, static_payload_size);
+    }
+
+    assert_eq!(
+        tag_type(-1),
+        NbtTagTypeLookup::Invalid {
+            id: -1,
+            name: "INVALID[-1]".to_string(),
+            pretty_name: "UNKNOWN_-1".to_string(),
+        }
+    );
+    assert_eq!(
+        tag_type(99),
+        NbtTagTypeLookup::Invalid {
+            id: 99,
+            name: "INVALID[99]".to_string(),
+            pretty_name: "UNKNOWN_99".to_string(),
+        }
+    );
+    assert_eq!(
+        root_parse_action(RootVisitResult::Continue),
+        RootParseAction::ParsePayload
+    );
+    assert_eq!(
+        root_parse_action(RootVisitResult::Halt),
+        RootParseAction::Stop
+    );
+    assert_eq!(
+        root_parse_action(RootVisitResult::Break),
+        RootParseAction::SkipPayload
+    );
+}
+
+#[test]
+fn reported_nbt_exception_is_reported_exception_wrapper_like_java() {
+    assert!(REPORTED_NBT_EXCEPTION_JAVA
+        .contains("public class ReportedNbtException extends ReportedException"));
+    assert!(REPORTED_NBT_EXCEPTION_JAVA
+        .contains("public ReportedNbtException(final CrashReport report)"));
+    assert!(REPORTED_NBT_EXCEPTION_JAVA.contains("super(report);"));
+
+    let reported = ReportedNbtExceptionModel::new("NBT crash report");
+    assert_eq!(reported.crash_report, "NBT crash report");
+}
+
+#[test]
 fn nbt_strings_use_java_modified_utf8_not_standard_utf8() {
     // Null char: Java modified UTF-8 encodes U+0000 as two bytes C0 80 (NOT the
     // single 0x00 standard UTF-8 uses), with an unsigned u16 length prefix.
@@ -125,7 +227,14 @@ fn nbt_strings_use_java_modified_utf8_not_standard_utf8() {
     assert_eq!(snowman, vec![0x00, 0x03, 0xE2, 0x98, 0x83]);
 
     // Round-trip every case (including a mixed string) through read_payload.
-    for s in ["", "abc", "\u{0000}", "\u{1F600}", "\u{2603}", "a\u{0000}b😀c"] {
+    for s in [
+        "",
+        "abc",
+        "\u{0000}",
+        "\u{1F600}",
+        "\u{2603}",
+        "a\u{0000}b😀c",
+    ] {
         let mut bytes = Vec::new();
         Tag::String(s.to_string())
             .write_payload(&mut bytes)

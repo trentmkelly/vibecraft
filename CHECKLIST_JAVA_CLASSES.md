@@ -749,7 +749,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/NbtUtils.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/NumericTag.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/PrimitiveTag.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/ReportedNbtException.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/ReportedNbtException.java`. Rust `ReportedNbtExceptionModel` records the Java class's only behavior: a thin `ReportedException` wrapper around a crash report; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 reported_nbt_exception`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/ShortTag.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/SnbtGrammar.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/SnbtOperations.java`.
@@ -759,8 +759,8 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/StringTagVisitor.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/Tag.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/TagParser.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/TagType.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/TagTypes.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/TagType.java`. Rust `tag_metadata` mirrors Java tag-type names, pretty names, invalid-type names, static skip sizes, and `parseRoot` continue/halt/break action mapping; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 nbt_tag_type_registry_metadata`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/TagTypes.java`. Rust `tag_metadata::tag_type` mirrors Java's 0..12 type table and invalid fallback for out-of-range IDs; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 nbt_tag_type_registry_metadata`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/TagVisitor.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/TextComponentTagVisitor.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/package-info.java`. Verified the NBT package-info remains the Java `@NullMarked` package annotation for `net.minecraft.nbt`; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 nbt_exception_and_package_metadata`.

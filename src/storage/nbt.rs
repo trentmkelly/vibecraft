@@ -6,6 +6,8 @@ use flate2::Compression;
 
 #[allow(dead_code)]
 pub mod accounter;
+#[allow(dead_code)]
+pub mod tag_metadata;
 
 pub const DEFAULT_MAX_NBT_DEPTH: usize = 512;
 
