@@ -169,6 +169,10 @@ pub fn tag_type(type_id: i32) -> NbtTagTypeLookup {
         })
 }
 
+pub fn string_size_in_bytes(value: &str) -> usize {
+    36 + 2 * value.encode_utf16().count()
+}
+
 pub fn root_parse_action(result: RootVisitResult) -> RootParseAction {
     match result {
         RootVisitResult::Continue => RootParseAction::ParsePayload,

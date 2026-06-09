@@ -2,9 +2,10 @@ use super::accounter::{
     NbtAccounter, NbtAccounterError, DEFAULT_NBT_QUOTA, UNCOMPRESSED_NBT_QUOTA,
 };
 use super::numeric::NbtNumericValue;
+use super::snbt_string::escape_snbt_string_without_quotes;
 use super::tag_metadata::{
-    root_parse_action, tag_type, NbtTagTypeLookup, ReportedNbtExceptionModel, RootParseAction,
-    RootVisitResult, TAG_TYPES,
+    root_parse_action, string_size_in_bytes, tag_type, NbtTagTypeLookup, ReportedNbtExceptionModel,
+    RootParseAction, RootVisitResult, TAG_TYPES,
 };
 use super::{
     parse_snbt, read_gzip_named_tag, read_named_tag, read_named_tag_limited, write_gzip_named_tag,
@@ -42,6 +43,10 @@ const INT_TAG_JAVA: &str =
     include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/IntTag.java");
 const LONG_TAG_JAVA: &str =
     include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/LongTag.java");
+const STRING_TAG_JAVA: &str =
+    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/StringTag.java");
+const STRING_TAG_VISITOR_JAVA: &str =
+    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/StringTagVisitor.java");
 const NUMERIC_TAG_JAVA: &str =
     include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/NumericTag.java");
 const PRIMITIVE_TAG_JAVA: &str =
@@ -50,6 +55,8 @@ const FLOAT_TAG_JAVA: &str =
     include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/FloatTag.java");
 const DOUBLE_TAG_JAVA: &str =
     include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/DoubleTag.java");
+const SNBT_GRAMMAR_JAVA: &str =
+    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/SnbtGrammar.java");
 
 #[test]
 fn nbt_accounter_matches_java_quota_depth_and_error_contracts() {
@@ -347,6 +354,83 @@ fn scalar_nbt_tag_classes_match_java_payloads_sizes_and_copy_contracts() {
         assert_eq!(decoded, tag);
         assert_eq!(tag.clone(), tag);
     }
+}
+
+#[test]
+fn string_tag_matches_java_modified_utf_size_and_quote_contracts() {
+    for sentinel in [
+        "private static final int SELF_SIZE_IN_BYTES = 36;",
+        "private static final StringTag EMPTY = new StringTag(\"\");",
+        "input.skipBytes(input.readUnsignedShort());",
+        "return data.isEmpty() ? EMPTY : new StringTag(data);",
+        "output.writeUTF(this.value);",
+        "return 36 + 2 * this.value.length();",
+        "return Optional.of(this.value);",
+        "StringTag.quoteAndEscape(tag.value())",
+        "StringTag.quoteAndEscape(input, this.builder);",
+    ] {
+        assert!(
+            STRING_TAG_JAVA.contains(sentinel)
+                || STRING_TAG_VISITOR_JAVA.contains(sentinel)
+                || SNBT_GRAMMAR_JAVA.contains(sentinel),
+            "missing StringTag sentinel {sentinel}"
+        );
+    }
+    for sentinel in [
+        "case '\\b' -> \"b\";",
+        "case '\\t' -> \"t\";",
+        "case '\\n' -> \"n\";",
+        "case '\\f' -> \"f\";",
+        "case '\\r' -> \"r\";",
+        "c < ' ' ? \"x\" + HEX_ESCAPE.toHexDigits((byte)c) : null",
+    ] {
+        assert!(
+            SNBT_GRAMMAR_JAVA.contains(sentinel),
+            "missing SNBT escape sentinel {sentinel}"
+        );
+    }
+
+    let value = "a\u{0000}b😀c";
+    assert_eq!(
+        string_size_in_bytes(value),
+        36 + 2 * value.encode_utf16().count()
+    );
+
+    let mut payload = Vec::new();
+    Tag::String(value.to_string())
+        .write_payload(&mut payload)
+        .unwrap();
+    assert_eq!(&payload[..2], &[0x00, 0x0B]);
+    assert_eq!(
+        Tag::read_payload(8, &mut payload.as_slice()).unwrap(),
+        Tag::String(value.to_string())
+    );
+
+    assert_eq!(Tag::String(String::new()).to_snbt(), "\"\"");
+    assert_eq!(
+        Tag::String("A \"quoted\" name".to_string()).to_snbt(),
+        "'A \"quoted\" name'"
+    );
+    assert_eq!(
+        Tag::String("it's fine".to_string()).to_snbt(),
+        "\"it's fine\""
+    );
+    assert_eq!(
+        Tag::String("line\n\u{0001}\\".to_string()).to_snbt(),
+        "\"line\\n\\x01\\\\\""
+    );
+    assert_eq!(
+        escape_snbt_string_without_quotes("\"'\n\\"),
+        "\\\"\\'\\n\\\\"
+    );
+    assert_eq!(
+        Tag::Compound(vec![
+            ("true".to_string(), Tag::String("reserved".to_string())),
+            ("valid_key".to_string(), Tag::String("ok".to_string())),
+        ])
+        .to_snbt(),
+        "{\"true\":\"reserved\",valid_key:\"ok\"}"
+    );
 }
 
 #[test]

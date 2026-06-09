@@ -9,6 +9,8 @@ pub mod accounter;
 #[allow(dead_code)]
 pub mod numeric;
 #[allow(dead_code)]
+pub mod snbt_string;
+#[allow(dead_code)]
 pub mod tag_metadata;
 
 pub const DEFAULT_MAX_NBT_DEPTH: usize = 512;
@@ -317,7 +319,7 @@ impl Tag {
                     .collect::<Vec<_>>()
                     .join(",")
             ),
-            Tag::String(value) => format!("\"{}\"", escape_snbt_string(value)),
+            Tag::String(value) => snbt_string::quote_and_escape_snbt_string(value),
             Tag::List(values) => format!(
                 "[{}]",
                 values
@@ -330,7 +332,9 @@ impl Tag {
                 "{{{}}}",
                 values
                     .iter()
-                    .map(|(name, value)| format!("{}:{}", quote_snbt_key(name), value.to_snbt()))
+                    .map(|(name, value)| {
+                        format!("{}:{}", snbt_string::quote_snbt_key(name), value.to_snbt())
+                    })
                     .collect::<Vec<_>>()
                     .join(",")
             ),
@@ -487,21 +491,6 @@ pub fn parse_snbt(input: &str) -> io::Result<Tag> {
     Ok(tag)
 }
 
-fn quote_snbt_key(key: &str) -> String {
-    if key
-        .chars()
-        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '.' | '+'))
-    {
-        key.to_string()
-    } else {
-        format!("\"{}\"", escape_snbt_string(key))
-    }
-}
-
-fn escape_snbt_string(value: &str) -> String {
-    value.replace('\\', "\\\\").replace('"', "\\\"")
-}
-
 #[cfg(test)]
 fn render_text_component_tag(
     tag: &Tag,
@@ -522,7 +511,7 @@ fn render_text_component_tag(
         Tag::Long(value) => format!("{value}l"),
         Tag::Float(value) => format!("{value}f"),
         Tag::Double(value) => format!("{value}d"),
-        Tag::String(value) => format!("\"{}\"", escape_snbt_string(value)),
+        Tag::String(value) => snbt_string::quote_and_escape_snbt_string(value),
         Tag::ByteArray(values) => render_text_component_array(
             "B",
             values.iter().map(|value| format!("{value}b")).collect(),
@@ -669,7 +658,7 @@ fn render_text_component_compound(
 
     for (index, (key, value)) in entries.iter().enumerate() {
         rendered.push_str(&entry_indent);
-        rendered.push_str(&quote_snbt_key(key));
+        rendered.push_str(&snbt_string::quote_snbt_key(key));
         rendered.push_str(": ");
         rendered.push_str(&render_text_component_tag(
             value,
