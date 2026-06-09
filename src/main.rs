@@ -375,6 +375,7 @@ mod damage_type;
 #[cfg(test)] mod data_loot_entity;
 #[cfg(test)] mod data_loot_packs;
 #[cfg(test)] mod data_loot_provider;
+#[cfg(test)] mod data_loot_vanilla_entity;
 #[cfg(test)] mod data_package;
 #[cfg(test)] mod datapack_reload_tests;
 #[cfg(test)] mod dialog_system;
@@ -387,8 +388,7 @@ mod entity_physics;
 mod entity_validation;
 #[cfg(test)] mod entity_variants;
 mod environment_attributes;
-#[cfg(test)]
-mod equipment_trim;
+#[cfg(test)] mod equipment_trim;
 mod eula;
 mod experience_system;
 mod fire;
