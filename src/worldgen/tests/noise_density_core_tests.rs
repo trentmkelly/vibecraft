@@ -1,5 +1,22 @@
 use super::*;
 
+const TERRAIN_PROVIDER_JAVA: &str = include_str!(
+    "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/TerrainProvider.java"
+);
+const CUBIC_SPLINE_JAVA: &str =
+    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/util/CubicSpline.java");
+
+fn occurrence_count(source: &str, needle: &str) -> usize {
+    source.matches(needle).count()
+}
+
+fn assert_close(actual: f64, expected: f64) {
+    assert!(
+        (actual - expected).abs() < 1e-12,
+        "expected {expected}, got {actual}"
+    );
+}
+
 #[test]
 fn noise_generator_settings_bootstrap_matches_vanilla_order_and_flags() {
     assert_eq!(
@@ -593,6 +610,82 @@ fn simplex_noise_3d_sampling_covers_all_rank_order_corner_paths() {
 }
 
 #[test]
+fn terrain_provider_java_source_shape_matches_rust_spline_model() {
+    assert_eq!(TERRAIN_PROVIDER_JAVA.lines().count(), 310);
+    for sentinel in [
+        "DEEP_OCEAN_CONTINENTALNESS = -0.51F",
+        "OCEAN_CONTINENTALNESS = -0.4F",
+        "PLAINS_CONTINENTALNESS = 0.1F",
+        "BEACH_CONTINENTALNESS = -0.15F",
+        "AMPLIFIED_OFFSET = BoundedFloatFunction.createUnlimited",
+        "AMPLIFIED_FACTOR = BoundedFloatFunction.createUnlimited",
+        "AMPLIFIED_JAGGEDNESS = BoundedFloatFunction.createUnlimited",
+    ] {
+        assert!(
+            TERRAIN_PROVIDER_JAVA.contains(sentinel),
+            "missing TerrainProvider sentinel {sentinel}"
+        );
+    }
+    for method in [
+        "overworldOffset(",
+        "overworldFactor(",
+        "overworldJaggedness(",
+        "buildErosionOffsetSpline(",
+        "buildErosionJaggednessSpline(",
+        "buildRidgeJaggednessSpline(",
+        "buildWeirdnessJaggednessSpline(",
+        "getErosionFactor(",
+        "buildMountainRidgeSplineWithPoints(",
+        "mountainContinentalness(",
+        "calculateMountainRidgeZeroContinentalnessPoint(",
+        "ridgeSpline(",
+    ] {
+        assert!(
+            TERRAIN_PROVIDER_JAVA.contains(method),
+            "missing TerrainProvider method {method}"
+        );
+    }
+    assert_eq!(occurrence_count(TERRAIN_PROVIDER_JAVA, ".addPoint("), 87);
+    assert_eq!(
+        occurrence_count(TERRAIN_PROVIDER_JAVA, "CubicSpline.builder"),
+        2
+    );
+    assert_eq!(
+        occurrence_count(TERRAIN_PROVIDER_JAVA, "CubicSpline.<C, I>builder"),
+        16
+    );
+    assert_eq!(
+        occurrence_count(TERRAIN_PROVIDER_JAVA, "NoiseRouterData.peaksAndValleys"),
+        2
+    );
+    assert_eq!(occurrence_count(TERRAIN_PROVIDER_JAVA, "Mth.lerp"), 4);
+    assert_eq!(
+        occurrence_count(TERRAIN_PROVIDER_JAVA, "calculateSlope("),
+        4
+    );
+}
+
+#[test]
+fn cubic_spline_java_source_shape_matches_terrain_spline_evaluator() {
+    assert_eq!(CUBIC_SPLINE_JAVA.lines().count(), 307);
+    for sentinel in [
+        "int start = findIntervalStart(this.locations, input);",
+        "return Mth.binarySearch(0, locations.length, i -> input < locations[i]) - 1;",
+        "float a = d1 * (x2 - x1) - (y2 - y1);",
+        "float b = -d2 * (x2 - x1) + (y2 - y1);",
+        "return Mth.lerp(t, y1, y2) + t * (1.0F - t) * Mth.lerp(t, a, b);",
+        "private static float linearExtend",
+        "float minValue = Float.POSITIVE_INFINITY;",
+        "float maxValue = Float.NEGATIVE_INFINITY;",
+    ] {
+        assert!(
+            CUBIC_SPLINE_JAVA.contains(sentinel),
+            "missing CubicSpline sentinel {sentinel}"
+        );
+    }
+}
+
+#[test]
 fn terrain_spline_holders_evaluate_vanilla_terrain_provider_shapes() {
     let context = super::super::TerrainSplineContext {
         continents: 0.2,
@@ -618,16 +711,106 @@ fn terrain_spline_holders_evaluate_vanilla_terrain_provider_shapes() {
     assert!((amplified_jaggedness.apply(context) - 0.0).abs() < 1e-12);
 
     for spline in [
-        offset,
-        factor,
-        jaggedness,
-        amplified_offset,
-        amplified_factor,
-        amplified_jaggedness,
+        &offset,
+        &factor,
+        &jaggedness,
+        &amplified_offset,
+        &amplified_factor,
+        &amplified_jaggedness,
     ] {
         let bounds = spline.bounds();
         assert!(bounds.0.is_finite());
         assert!(bounds.1.is_finite());
         assert!(bounds.0 <= bounds.1);
+    }
+}
+
+#[test]
+fn terrain_spline_variants_match_terrain_provider_regression_samples() {
+    let offset = super::super::terrain_spline(super::super::TerrainSplineKind::Offset);
+    let factor = super::super::terrain_spline(super::super::TerrainSplineKind::Factor);
+    let jaggedness = super::super::terrain_spline(super::super::TerrainSplineKind::Jaggedness);
+    let amplified_offset =
+        super::super::terrain_spline(super::super::TerrainSplineKind::AmplifiedOffset);
+    let amplified_factor =
+        super::super::terrain_spline(super::super::TerrainSplineKind::AmplifiedFactor);
+    let amplified_jaggedness =
+        super::super::terrain_spline(super::super::TerrainSplineKind::AmplifiedJaggedness);
+    for (
+        context,
+        expected_offset,
+        expected_factor,
+        expected_jaggedness,
+        expected_amplified_offset,
+        expected_amplified_factor,
+        expected_amplified_jaggedness,
+    ) in [
+        (
+            super::super::TerrainSplineContext {
+                continents: -0.6,
+                erosion: 0.15,
+                weirdness: -0.7,
+                ridges: super::super::peaks_and_valleys(-0.7),
+            },
+            -0.2222,
+            3.95,
+            0.0,
+            -0.2222,
+            3.95,
+            0.0,
+        ),
+        (
+            super::super::TerrainSplineContext {
+                continents: 0.8,
+                erosion: -0.8,
+                weirdness: 0.05,
+                ridges: super::super::peaks_and_valleys(0.05),
+            },
+            0.31091066101544634,
+            5.1994140625,
+            0.0,
+            0.6320881393178455,
+            0.6340821017071245,
+            0.0,
+        ),
+        (
+            super::super::TerrainSplineContext {
+                continents: 0.8,
+                erosion: -0.95,
+                weirdness: -0.02,
+                ridges: 1.0,
+            },
+            1.452639938561368,
+            5.6153474999999995,
+            0.63,
+            2.905279877122736,
+            0.6578232451574016,
+            1.26,
+        ),
+    ] {
+        assert_close(offset.apply(context), expected_offset);
+        assert_close(factor.apply(context), expected_factor);
+        assert_close(jaggedness.apply(context), expected_jaggedness);
+        assert_close(amplified_offset.apply(context), expected_amplified_offset);
+        assert_close(amplified_factor.apply(context), expected_amplified_factor);
+        assert_close(
+            amplified_jaggedness.apply(context),
+            expected_amplified_jaggedness,
+        );
+        assert_close(
+            super::super::terrain_spline(super::super::TerrainSplineKind::LargeBiomesOffset)
+                .apply(context),
+            expected_offset,
+        );
+        assert_close(
+            super::super::terrain_spline(super::super::TerrainSplineKind::LargeBiomesFactor)
+                .apply(context),
+            expected_factor,
+        );
+        assert_close(
+            super::super::terrain_spline(super::super::TerrainSplineKind::LargeBiomesJaggedness)
+                .apply(context),
+            expected_jaggedness,
+        );
     }
 }
