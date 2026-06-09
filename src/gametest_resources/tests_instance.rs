@@ -22,6 +22,9 @@ const GAME_TEST_SEQUENCE_JAVA: &str = include_str!(
 const GAME_TEST_SERVER_JAVA: &str = include_str!(
     "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestServer.java"
 );
+const STRUCTURE_GRID_SPAWNER_JAVA: &str = include_str!(
+    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/StructureGridSpawner.java"
+);
 const GAME_TEST_TICKER_JAVA: &str = include_str!(
     "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestTicker.java"
 );
@@ -978,4 +981,122 @@ fn gametest_ticker_halting_during_tick_recursively_clears_when_idle() {
     assert_eq!(ticker.runner, None);
     assert_eq!(ticker.runner_stop_count, 1);
     assert_eq!(ticker.state, GameTestTickerStateModel::Idle);
+}
+
+#[test]
+fn structure_grid_spawner_matches_java_source_shape() {
+    assert_eq!(STRUCTURE_GRID_SPAWNER_JAVA.lines().count(), 71);
+    for sentinel in [
+        "private static final int SPACE_BETWEEN_COLUMNS = 5;",
+        "private static final int SPACE_BETWEEN_ROWS = 6;",
+        "private final int testsPerRow;",
+        "private int currentRowCount;",
+        "private AABB rowBounds;",
+        "private final BlockPos.MutableBlockPos nextTestNorthWestCorner;",
+        "private final BlockPos firstTestNorthWestCorner;",
+        "private final boolean clearOnBatch;",
+        "private float maxX = -1.0F;",
+        "private final Collection<GameTestInfo> testInLastBatch = new ArrayList<>();",
+        "this.nextTestNorthWestCorner = firstTestNorthWestCorner.mutable();",
+        "this.rowBounds = new AABB(this.nextTestNorthWestCorner);",
+        "StructureUtils.clearSpaceForStructure(boundingBox, level);",
+        "this.testInLastBatch.clear();",
+        "this.nextTestNorthWestCorner.set(this.firstTestNorthWestCorner);",
+        "testInfo.setTestBlockPos(northWestCorner);",
+        "GameTestInfo infoWithStructure = testInfo.prepareTestStructure();",
+        "return Optional.empty();",
+        "infoWithStructure.startExecution(1);",
+        "this.nextTestNorthWestCorner.move((int)structureBounds.getXsize() + 5, 0, 0);",
+        "this.nextTestNorthWestCorner.move(0, 0, (int)this.rowBounds.getZsize() + 6);",
+        "this.nextTestNorthWestCorner.setX(this.firstTestNorthWestCorner.getX());",
+        "this.testInLastBatch.add(testInfo);",
+        "return Optional.of(testInfo);",
+    ] {
+        assert!(
+            STRUCTURE_GRID_SPAWNER_JAVA.contains(sentinel),
+            "missing StructureGridSpawner sentinel {sentinel}"
+        );
+    }
+}
+
+#[test]
+fn structure_grid_spawner_places_tests_in_rows_and_tracks_bounds_like_java() {
+    let first = BlockPosModel::new(10, 64, 20);
+    let mut spawner = StructureGridSpawnerModel::new(first, 2, false);
+    let mut first_test = StructureGridSpawnerTestModel::new("minecraft:first", 4, 3);
+    let mut second_test = StructureGridSpawnerTestModel::new("minecraft:second", 6, 5);
+    let mut third_test = StructureGridSpawnerTestModel::new("minecraft:third", 2, 2);
+
+    assert_eq!(
+        spawner.spawn_structure(&mut first_test),
+        Some("minecraft:first".to_string())
+    );
+    assert_eq!(first_test.test_block_pos, Some(first));
+    assert_eq!(first_test.start_delay, Some(1));
+    assert_eq!(
+        spawner.next_test_north_west_corner,
+        BlockPosModel::new(19, 64, 20)
+    );
+    assert_eq!(spawner.max_x, 19.0);
+    assert_eq!(spawner.current_row_count, 1);
+
+    assert_eq!(
+        spawner.spawn_structure(&mut second_test),
+        Some("minecraft:second".to_string())
+    );
+    assert_eq!(
+        second_test.test_block_pos,
+        Some(BlockPosModel::new(19, 64, 20))
+    );
+    assert_eq!(spawner.current_row_count, 0);
+    assert_eq!(
+        spawner.next_test_north_west_corner,
+        BlockPosModel::new(10, 64, 31)
+    );
+    assert_eq!(
+        spawner.row_bounds,
+        StructureGridBoundsModel::point(BlockPosModel::new(10, 64, 31))
+    );
+
+    assert_eq!(
+        spawner.spawn_structure(&mut third_test),
+        Some("minecraft:third".to_string())
+    );
+    assert_eq!(
+        third_test.test_block_pos,
+        Some(BlockPosModel::new(10, 64, 31))
+    );
+    assert_eq!(spawner.tests_in_last_batch.len(), 3);
+}
+
+#[test]
+fn structure_grid_spawner_unprepared_tests_do_not_advance_or_start() {
+    let first = BlockPosModel::new(0, 70, 0);
+    let mut spawner = StructureGridSpawnerModel::new(first, 1, false);
+    let mut unprepared = StructureGridSpawnerTestModel::new("minecraft:missing", 4, 4).unprepared();
+
+    assert_eq!(spawner.spawn_structure(&mut unprepared), None);
+    assert_eq!(unprepared.test_block_pos, Some(first));
+    assert_eq!(unprepared.start_delay, None);
+    assert_eq!(spawner.next_test_north_west_corner, first);
+    assert_eq!(spawner.current_row_count, 0);
+    assert!(spawner.tests_in_last_batch.is_empty());
+}
+
+#[test]
+fn structure_grid_spawner_clear_on_batch_clears_previous_batch_and_resets_cursor() {
+    let first = BlockPosModel::new(5, 80, 5);
+    let mut spawner = StructureGridSpawnerModel::new(first, 3, true);
+    let mut test = StructureGridSpawnerTestModel::new("minecraft:first", 4, 4);
+    spawner.spawn_structure(&mut test);
+
+    assert_eq!(spawner.tests_in_last_batch.len(), 1);
+    assert_ne!(spawner.next_test_north_west_corner, first);
+
+    spawner.on_batch_start();
+
+    assert_eq!(spawner.cleared_bounds, vec![test.test_bounding_box]);
+    assert!(spawner.tests_in_last_batch.is_empty());
+    assert_eq!(spawner.next_test_north_west_corner, first);
+    assert_eq!(spawner.row_bounds, StructureGridBoundsModel::point(first));
 }

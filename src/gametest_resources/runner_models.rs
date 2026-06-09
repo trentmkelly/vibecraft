@@ -1,4 +1,4 @@
-use super::{create_gametest_batch, GameTestBatchModel, GameTestInfoStateModel};
+use super::{create_gametest_batch, BlockPosModel, GameTestBatchModel, GameTestInfoStateModel};
 
 pub const GAMETEST_RUNNER_SERVER_RUNTIME_TODO: &str = "gametest-runner-server-runtime";
 pub const DEFAULT_GAMETESTS_PER_ROW: i32 = 8;
@@ -220,5 +220,183 @@ impl GameTestRunnerModel {
             self.stopped = false;
             self.run_batch(0);
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StructureGridBoundsModel {
+    pub min: BlockPosModel,
+    pub max: BlockPosModel,
+}
+
+impl StructureGridBoundsModel {
+    pub fn point(pos: BlockPosModel) -> Self {
+        Self { min: pos, max: pos }
+    }
+
+    pub fn from_corner_and_size(
+        north_west_corner: BlockPosModel,
+        x_size: i32,
+        z_size: i32,
+    ) -> Self {
+        Self {
+            min: north_west_corner,
+            max: BlockPosModel::new(
+                north_west_corner.x() + x_size,
+                north_west_corner.y(),
+                north_west_corner.z() + z_size,
+            ),
+        }
+    }
+
+    pub fn minmax(self, other: Self) -> Self {
+        Self {
+            min: BlockPosModel::new(
+                self.min.x().min(other.min.x()),
+                self.min.y().min(other.min.y()),
+                self.min.z().min(other.min.z()),
+            ),
+            max: BlockPosModel::new(
+                self.max.x().max(other.max.x()),
+                self.max.y().max(other.max.y()),
+                self.max.z().max(other.max.z()),
+            ),
+        }
+    }
+
+    pub fn x_size(self) -> i32 {
+        self.max.x() - self.min.x()
+    }
+
+    pub fn z_size(self) -> i32 {
+        self.max.z() - self.min.z()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StructureGridSpawnerTestModel {
+    pub id: String,
+    pub prepared: bool,
+    pub test_block_pos: Option<BlockPosModel>,
+    pub structure_bounds: StructureGridBoundsModel,
+    pub test_bounding_box: StructureGridBoundsModel,
+    pub start_delay: Option<i32>,
+}
+
+impl StructureGridSpawnerTestModel {
+    pub fn new(id: impl Into<String>, x_size: i32, z_size: i32) -> Self {
+        let origin = BlockPosModel::ZERO;
+        let bounds = StructureGridBoundsModel::from_corner_and_size(origin, x_size, z_size);
+        Self {
+            id: id.into(),
+            prepared: true,
+            test_block_pos: None,
+            structure_bounds: bounds,
+            test_bounding_box: bounds,
+            start_delay: None,
+        }
+    }
+
+    pub fn unprepared(mut self) -> Self {
+        self.prepared = false;
+        self
+    }
+
+    fn set_test_block_pos(&mut self, pos: BlockPosModel) {
+        self.test_block_pos = Some(pos);
+        let x_size = self.structure_bounds.x_size();
+        let z_size = self.structure_bounds.z_size();
+        self.structure_bounds = StructureGridBoundsModel::from_corner_and_size(pos, x_size, z_size);
+        self.test_bounding_box = self.structure_bounds;
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StructureGridSpawnerModel {
+    pub tests_per_row: i32,
+    pub current_row_count: i32,
+    pub row_bounds: StructureGridBoundsModel,
+    pub next_test_north_west_corner: BlockPosModel,
+    pub first_test_north_west_corner: BlockPosModel,
+    pub clear_on_batch: bool,
+    pub max_x: f32,
+    pub tests_in_last_batch: Vec<StructureGridSpawnerTestModel>,
+    pub cleared_bounds: Vec<StructureGridBoundsModel>,
+}
+
+impl StructureGridSpawnerModel {
+    pub const SPACE_BETWEEN_COLUMNS: i32 = 5;
+    pub const SPACE_BETWEEN_ROWS: i32 = 6;
+
+    pub fn new(
+        first_test_north_west_corner: BlockPosModel,
+        tests_per_row: i32,
+        clear_on_batch: bool,
+    ) -> Self {
+        Self {
+            tests_per_row,
+            current_row_count: 0,
+            row_bounds: StructureGridBoundsModel::point(first_test_north_west_corner),
+            next_test_north_west_corner: first_test_north_west_corner,
+            first_test_north_west_corner,
+            clear_on_batch,
+            max_x: -1.0,
+            tests_in_last_batch: Vec::new(),
+            cleared_bounds: Vec::new(),
+        }
+    }
+
+    pub fn on_batch_start(&mut self) {
+        if self.clear_on_batch {
+            self.cleared_bounds.extend(
+                self.tests_in_last_batch
+                    .iter()
+                    .map(|test| test.test_bounding_box),
+            );
+            self.tests_in_last_batch.clear();
+            self.row_bounds = StructureGridBoundsModel::point(self.first_test_north_west_corner);
+            self.next_test_north_west_corner = self.first_test_north_west_corner;
+        }
+    }
+
+    pub fn spawn_structure(
+        &mut self,
+        test_info: &mut StructureGridSpawnerTestModel,
+    ) -> Option<String> {
+        let north_west_corner = self.next_test_north_west_corner;
+        test_info.set_test_block_pos(north_west_corner);
+        if !test_info.prepared {
+            return None;
+        }
+
+        test_info.start_delay = Some(1);
+        let structure_bounds = test_info.structure_bounds;
+        self.row_bounds = self.row_bounds.minmax(structure_bounds);
+        self.next_test_north_west_corner = BlockPosModel::new(
+            self.next_test_north_west_corner.x()
+                + structure_bounds.x_size()
+                + Self::SPACE_BETWEEN_COLUMNS,
+            self.next_test_north_west_corner.y(),
+            self.next_test_north_west_corner.z(),
+        );
+        if self.next_test_north_west_corner.x() as f32 > self.max_x {
+            self.max_x = self.next_test_north_west_corner.x() as f32;
+        }
+
+        self.current_row_count += 1;
+        if self.current_row_count >= self.tests_per_row {
+            self.current_row_count = 0;
+            self.next_test_north_west_corner = BlockPosModel::new(
+                self.first_test_north_west_corner.x(),
+                self.next_test_north_west_corner.y(),
+                self.next_test_north_west_corner.z()
+                    + self.row_bounds.z_size()
+                    + Self::SPACE_BETWEEN_ROWS,
+            );
+            self.row_bounds = StructureGridBoundsModel::point(self.next_test_north_west_corner);
+        }
+
+        self.tests_in_last_batch.push(test_info.clone());
+        Some(test_info.id.clone())
     }
 }
