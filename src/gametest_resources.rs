@@ -25,6 +25,18 @@ pub enum TestEnvironmentDefinition {
     },
 }
 
+pub const DEFAULT_GAMETEST_ENVIRONMENT_NAME: &str = "default";
+pub const DEFAULT_GAMETEST_ENVIRONMENT_KEY: &str = "minecraft:default";
+
+pub fn bootstrap_gametest_environments() -> Vec<(String, TestEnvironmentDefinition)> {
+    vec![(
+        DEFAULT_GAMETEST_ENVIRONMENT_KEY.to_string(),
+        TestEnvironmentDefinition::AllOf {
+            definitions: Vec::new(),
+        },
+    )]
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GameTestInstanceKind {
     Function { function: String },

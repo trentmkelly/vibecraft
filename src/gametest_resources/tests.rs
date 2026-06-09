@@ -32,6 +32,9 @@ const GAME_TEST_BATCH_FACTORY_JAVA: &str = include_str!(
 const GAME_TEST_BATCH_LISTENER_JAVA: &str = include_str!(
     "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestBatchListener.java"
 );
+const GAME_TEST_ENVIRONMENTS_JAVA: &str = include_str!(
+    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestEnvironments.java"
+);
 
 #[test]
 fn gametest_main_entrypoint_matches_java_launcher_contract() {
@@ -651,6 +654,37 @@ fn gametest_batch_listener_records_start_and_finish_callbacks() {
             GameTestBatchListenerEvent::Starting(batch.clone()),
             GameTestBatchListenerEvent::Finished(batch),
         ]
+    );
+}
+
+#[test]
+fn gametest_environments_matches_java_bootstrap_shape() {
+    assert_eq!(GAME_TEST_ENVIRONMENTS_JAVA.lines().count(), 20);
+    for sentinel in [
+        "String DEFAULT = \"default\";",
+        "ResourceKey<TestEnvironmentDefinition<?>> DEFAULT_KEY = create(\"default\");",
+        "ResourceKey.create(Registries.TEST_ENVIRONMENT, Identifier.withDefaultNamespace(name))",
+        "context.register(DEFAULT_KEY, new TestEnvironmentDefinition.AllOf(List.of()));",
+    ] {
+        assert!(
+            GAME_TEST_ENVIRONMENTS_JAVA.contains(sentinel),
+            "missing GameTestEnvironments sentinel {sentinel}"
+        );
+    }
+}
+
+#[test]
+fn gametest_environments_bootstraps_default_all_of_empty() {
+    assert_eq!(DEFAULT_GAMETEST_ENVIRONMENT_NAME, "default");
+    assert_eq!(DEFAULT_GAMETEST_ENVIRONMENT_KEY, "minecraft:default");
+    assert_eq!(
+        bootstrap_gametest_environments(),
+        vec![(
+            "minecraft:default".to_string(),
+            TestEnvironmentDefinition::AllOf {
+                definitions: Vec::new(),
+            }
+        )]
     );
 }
 
