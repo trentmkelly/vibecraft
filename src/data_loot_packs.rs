@@ -238,6 +238,62 @@ fn vanilla_block_interact_tables() -> Vec<BlockInteractTableSummary> {
     ]
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ChargedCreeperEntrySummary {
+    table_id: &'static str,
+    entity_type: &'static str,
+    dropped_item: &'static str,
+}
+
+fn vanilla_charged_creeper_entries() -> Vec<ChargedCreeperEntrySummary> {
+    vec![
+        ChargedCreeperEntrySummary {
+            table_id: "minecraft:entities/charged_creeper/piglin",
+            entity_type: "minecraft:piglin",
+            dropped_item: "minecraft:piglin_head",
+        },
+        ChargedCreeperEntrySummary {
+            table_id: "minecraft:entities/charged_creeper/creeper",
+            entity_type: "minecraft:creeper",
+            dropped_item: "minecraft:creeper_head",
+        },
+        ChargedCreeperEntrySummary {
+            table_id: "minecraft:entities/charged_creeper/skeleton",
+            entity_type: "minecraft:skeleton",
+            dropped_item: "minecraft:skeleton_skull",
+        },
+        ChargedCreeperEntrySummary {
+            table_id: "minecraft:entities/charged_creeper/wither_skeleton",
+            entity_type: "minecraft:wither_skeleton",
+            dropped_item: "minecraft:wither_skeleton_skull",
+        },
+        ChargedCreeperEntrySummary {
+            table_id: "minecraft:entities/charged_creeper/zombie",
+            entity_type: "minecraft:zombie",
+            dropped_item: "minecraft:zombie_head",
+        },
+    ]
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ChargedCreeperLootSummary {
+    dispatcher_table_id: &'static str,
+    entry_count: usize,
+    per_entry_pool_count: usize,
+    per_entry_roll_shape: &'static str,
+    dispatcher_roll_shape: &'static str,
+}
+
+fn vanilla_charged_creeper_loot_summary() -> ChargedCreeperLootSummary {
+    ChargedCreeperLootSummary {
+        dispatcher_table_id: "minecraft:entities/charged_creeper",
+        entry_count: vanilla_charged_creeper_entries().len(),
+        per_entry_pool_count: 1,
+        per_entry_roll_shape: "constant:1",
+        dispatcher_roll_shape: "constant:1",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -308,7 +364,10 @@ mod tests {
     fn trade_rebalance_provider_registers_only_chest_subprovider() {
         let provider = trade_rebalance_loot_table_provider();
         assert_eq!(provider.required_tables, 0);
-        assert_eq!(provider.subproviders, vec![("TradeRebalanceChestLoot", "chest")]);
+        assert_eq!(
+            provider.subproviders,
+            vec![("TradeRebalanceChestLoot", "chest")]
+        );
     }
 
     #[test]
@@ -364,7 +423,10 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![(6, 2), (8, 0), (31, 14), (12, 0), (10, 5), (10, 5)]
         );
-        assert!(tables[0].sentinel_entries.iter().any(|entry| entry.contains("suspicious_stew")));
+        assert!(tables[0]
+            .sentinel_entries
+            .iter()
+            .any(|entry| entry.contains("suspicious_stew")));
         assert!(tables[3].sentinel_entries.contains(&"music_disc_relic"));
         assert!(tables[4].sentinel_entries.contains(&"sniffer_egg"));
     }
@@ -385,7 +447,10 @@ mod tests {
             "LootItem.lootTableItem(Items.SNIFFER_EGG)",
             "LootItem.lootTableItem(Items.MUSIC_DISC_RELIC)",
         ] {
-            assert!(source.contains(expected), "missing Java sentinel: {expected}");
+            assert!(
+                source.contains(expected),
+                "missing Java sentinel: {expected}"
+            );
         }
     }
 
@@ -412,7 +477,9 @@ mod tests {
         assert!(tables[2]
             .sentinel_entries
             .contains(&"sweet_berries:age=3:count=1"));
-        assert!(tables[3].sentinel_entries.contains(&"pumpkin_seeds:count=4"));
+        assert!(tables[3]
+            .sentinel_entries
+            .contains(&"pumpkin_seeds:count=4"));
     }
 
     #[test]
@@ -429,6 +496,79 @@ mod tests {
             "UniformGenerator.between(1.0F, 2.0F)",
             "BuiltInLootTables.CARVE_PUMPKIN",
             "LootItem.lootTableItem(Items.PUMPKIN_SEEDS).apply(SetItemCountFunction.setCount(ConstantValue.exactly(4.0F)))",
+        ] {
+            assert!(source.contains(expected), "missing Java sentinel: {expected}");
+        }
+    }
+
+    #[test]
+    fn vanilla_charged_creeper_loot_matches_java_entry_order_and_heads() {
+        let entries = vanilla_charged_creeper_entries();
+        assert_eq!(
+            entries
+                .iter()
+                .map(|entry| (entry.table_id, entry.entity_type, entry.dropped_item))
+                .collect::<Vec<_>>(),
+            vec![
+                (
+                    "minecraft:entities/charged_creeper/piglin",
+                    "minecraft:piglin",
+                    "minecraft:piglin_head"
+                ),
+                (
+                    "minecraft:entities/charged_creeper/creeper",
+                    "minecraft:creeper",
+                    "minecraft:creeper_head"
+                ),
+                (
+                    "minecraft:entities/charged_creeper/skeleton",
+                    "minecraft:skeleton",
+                    "minecraft:skeleton_skull"
+                ),
+                (
+                    "minecraft:entities/charged_creeper/wither_skeleton",
+                    "minecraft:wither_skeleton",
+                    "minecraft:wither_skeleton_skull"
+                ),
+                (
+                    "minecraft:entities/charged_creeper/zombie",
+                    "minecraft:zombie",
+                    "minecraft:zombie_head"
+                ),
+            ]
+        );
+
+        let summary = vanilla_charged_creeper_loot_summary();
+        assert_eq!(
+            summary.dispatcher_table_id,
+            "minecraft:entities/charged_creeper"
+        );
+        assert_eq!(summary.entry_count, 5);
+        assert_eq!(summary.per_entry_pool_count, 1);
+        assert_eq!(summary.per_entry_roll_shape, "constant:1");
+        assert_eq!(summary.dispatcher_roll_shape, "constant:1");
+    }
+
+    #[test]
+    fn vanilla_charged_creeper_java_source_sentinels_match_authoritative_file() {
+        let source = include_str!(
+            "../../decompiled-server-26.1.2/net/minecraft/data/loot/packs/VanillaChargedCreeperExplosionLoot.java"
+        );
+        for expected in [
+            "private static final List<VanillaChargedCreeperExplosionLoot.Entry> ENTRIES = List.of(",
+            "BuiltInLootTables.CHARGED_CREEPER_PIGLIN, EntityType.PIGLIN, Items.PIGLIN_HEAD",
+            "BuiltInLootTables.CHARGED_CREEPER_CREEPER, EntityType.CREEPER, Items.CREEPER_HEAD",
+            "BuiltInLootTables.CHARGED_CREEPER_SKELETON, EntityType.SKELETON, Items.SKELETON_SKULL",
+            "BuiltInLootTables.CHARGED_CREEPER_WITHER_SKELETON, EntityType.WITHER_SKELETON, Items.WITHER_SKELETON_SKULL",
+            "BuiltInLootTables.CHARGED_CREEPER_ZOMBIE, EntityType.ZOMBIE, Items.ZOMBIE_HEAD",
+            "HolderGetter<EntityType<?>> entityTypes = this.registries.lookupOrThrow(Registries.ENTITY_TYPE)",
+            "List<LootPoolEntryContainer.Builder<?>> alternatives = new ArrayList<>(ENTRIES.size())",
+            "LootPool.lootPool().setRolls(ConstantValue.exactly(1.0F)).add(LootItem.lootTableItem(entry.item))",
+            "EntityPredicate.Builder.entity().entityType(EntityTypePredicate.of(entityTypes, entry.entityType))",
+            "alternatives.add(NestedLootTable.lootTableReference(entry.lootTable).when(predicate))",
+            "BuiltInLootTables.CHARGED_CREEPER",
+            "AlternativesEntry.alternatives(alternatives.toArray(LootPoolEntryContainer.Builder[]::new))",
+            "private record Entry(ResourceKey<LootTable> lootTable, EntityType<?> entityType, Item item)",
         ] {
             assert!(source.contains(expected), "missing Java sentinel: {expected}");
         }
