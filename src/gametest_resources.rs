@@ -5,6 +5,8 @@ use crate::core_block_pos::{BlockPosModel, RotationModel};
 use crate::core_direction::DirectionModel;
 use std::collections::BTreeSet;
 
+pub mod generated_models;
+pub use generated_models::*;
 pub mod listener_models;
 pub use listener_models::*;
 pub mod main_util_models;
@@ -1179,5 +1181,7 @@ fn json_bool(
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_generated;
 #[cfg(test)]
 mod tests_instance;
