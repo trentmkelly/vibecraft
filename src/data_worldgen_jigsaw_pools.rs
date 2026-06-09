@@ -40,6 +40,9 @@ const POOLS_JAVA: &str =
 const SAVANNA_VILLAGE_POOLS_JAVA: &str = include_str!(
     "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/SavannaVillagePools.java"
 );
+const SNOWY_VILLAGE_POOLS_JAVA: &str = include_str!(
+    "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/SnowyVillagePools.java"
+);
 
 #[derive(Debug, Clone, Copy)]
 struct JigsawPoolSourceAudit {
@@ -299,6 +302,31 @@ const JIGSAW_POOL_SOURCES: &[JigsawPoolSourceAudit] = &[
             "Pair.of(StructurePoolElement.legacy(\"village/savanna/zombie/villagers/unemployed\"), 10)",
         ],
     },
+    JigsawPoolSourceAudit {
+        source_file: "SnowyVillagePools.java",
+        source: SNOWY_VILLAGE_POOLS_JAVA,
+        line_count: 266,
+        registrations: 11,
+        single_elements: 0,
+        list_elements: 0,
+        empty_elements: 4,
+        bootstrap_calls: 0,
+        sentinels: &[
+            "public static final ResourceKey<StructureTemplatePool> START = Pools.createKey(\"village/snowy/town_centers\");",
+            "Holder<PlacedFeature> spruceVillage = placedFeatures.getOrThrow(VillagePlacements.SPRUCE_VILLAGE);",
+            "Holder<PlacedFeature> pileIceVillage = placedFeatures.getOrThrow(VillagePlacements.PILE_ICE_VILLAGE);",
+            "Holder<StructureProcessorList> streetSnowyOrTaiga = processorLists.getOrThrow(ProcessorLists.STREET_SNOWY_OR_TAIGA);",
+            "Holder<StructureProcessorList> farmSnowy = processorLists.getOrThrow(ProcessorLists.FARM_SNOWY);",
+            "Holder<StructureProcessorList> zombieSnowy = processorLists.getOrThrow(ProcessorLists.ZOMBIE_SNOWY);",
+            "Pair.of(StructurePoolElement.legacy(\"village/snowy/town_centers/snowy_meeting_point_3\"), 150)",
+            "Pair.of(StructurePoolElement.legacy(\"village/snowy/zombie/town_centers/snowy_meeting_point_3\"), 3)",
+            "Pair.of(StructurePoolElement.legacy(\"village/snowy/streets/straight_04\", streetSnowyOrTaiga), 7)",
+            "Pair.of(StructurePoolElement.legacy(\"village/snowy/houses/snowy_farm_2\", farmSnowy), 3)",
+            "Pair.of(StructurePoolElement.legacy(\"village/snowy/zombie/houses/snowy_medium_house_3\", zombieSnowy), 1)",
+            "Pair.of(StructurePoolElement.feature(pileIceVillage), 4)",
+            "Pair.of(StructurePoolElement.legacy(\"village/snowy/zombie/villagers/unemployed\"), 10)",
+        ],
+    },
 ];
 
 fn count_occurrences(source: &str, needle: &str) -> usize {
@@ -344,6 +372,9 @@ fn pool_entry_by_location<'a>(
         .find(|entry| entry.element.location.as_deref() == Some(location))
         .unwrap_or_else(|| panic!("missing template pool element location: {location}"))
 }
+
+#[cfg(test)]
+mod village_tests;
 
 #[cfg(test)]
 mod tests {
@@ -448,6 +479,13 @@ mod tests {
             savanna_start.pool,
             "minecraft:village/savanna/town_centers"
         );
+
+        let snowy_start = JIGSAW_STRUCTURE_START_POOLS
+            .iter()
+            .find(|pool| pool.source_file == "SnowyVillagePools.java")
+            .expect("missing snowy village start pool metadata");
+        assert_eq!(snowy_start.structure_family, "village/snowy");
+        assert_eq!(snowy_start.pool, "minecraft:village/snowy/town_centers");
     }
 
     fn load_vanilla_template_pools() -> crate::worldgen::ParsedTemplatePoolRegistry {
@@ -941,194 +979,4 @@ mod tests {
         );
     }
 
-    #[test]
-    fn savanna_village_template_pool_json_ids_match_java_bootstrap() {
-        let registry = load_vanilla_template_pools();
-        let savanna_ids = registry
-            .pools
-            .keys()
-            .filter(|id| id.starts_with("minecraft:village/savanna/"))
-            .map(String::as_str)
-            .collect::<Vec<_>>();
-        assert_eq!(
-            savanna_ids,
-            vec![
-                "minecraft:village/savanna/decor",
-                "minecraft:village/savanna/houses",
-                "minecraft:village/savanna/streets",
-                "minecraft:village/savanna/terminators",
-                "minecraft:village/savanna/town_centers",
-                "minecraft:village/savanna/trees",
-                "minecraft:village/savanna/villagers",
-                "minecraft:village/savanna/zombie/decor",
-                "minecraft:village/savanna/zombie/houses",
-                "minecraft:village/savanna/zombie/streets",
-                "minecraft:village/savanna/zombie/terminators",
-                "minecraft:village/savanna/zombie/villagers",
-            ]
-        );
-    }
-
-    #[test]
-    fn savanna_village_town_street_and_terminator_pools_match_java_bootstrap() {
-        let registry = load_vanilla_template_pools();
-        let town_centers = parsed_pool(&registry.pools, "minecraft:village/savanna/town_centers");
-        assert_eq!(town_centers.fallback, "minecraft:empty");
-        assert_eq!(town_centers.elements.len(), 8);
-        assert_eq!(pool_weight_sum(town_centers), 459);
-        assert_eq!(
-            town_centers
-                .elements
-                .iter()
-                .map(|entry| entry.weight)
-                .collect::<Vec<_>>(),
-            vec![100, 50, 150, 150, 2, 1, 3, 3]
-        );
-        assert_eq!(
-            pool_entry_by_location(
-                town_centers,
-                "minecraft:village/savanna/zombie/town_centers/savanna_meeting_point_4",
-            )
-            .element
-            .processors,
-            vec!["minecraft:zombie_savanna".to_string()]
-        );
-
-        let streets = parsed_pool(&registry.pools, "minecraft:village/savanna/streets");
-        assert_eq!(streets.fallback, "minecraft:village/savanna/terminators");
-        assert_eq!(streets.elements.len(), 19);
-        assert_eq!(pool_weight_sum(streets), 56);
-        assert!(streets
-            .elements
-            .iter()
-            .all(|entry| entry.element.processors == vec!["minecraft:street_savanna".to_string()]));
-        assert!(streets
-            .elements
-            .iter()
-            .all(|entry| entry.element.projection.as_deref() == Some("terrain_matching")));
-        assert_eq!(
-            pool_entry_by_location(
-                streets,
-                "minecraft:village/savanna/streets/straight_04"
-            )
-            .weight,
-            7
-        );
-
-        let zombie_streets =
-            parsed_pool(&registry.pools, "minecraft:village/savanna/zombie/streets");
-        assert_eq!(
-            zombie_streets.fallback,
-            "minecraft:village/savanna/zombie/terminators"
-        );
-        assert_eq!(zombie_streets.elements.len(), 19);
-        assert_eq!(pool_weight_sum(zombie_streets), 56);
-
-        let terminators = parsed_pool(&registry.pools, "minecraft:village/savanna/terminators");
-        assert_eq!(terminators.fallback, "minecraft:empty");
-        assert_eq!(terminators.elements.len(), 5);
-        assert_eq!(
-            terminators.elements[4].element.location.as_deref(),
-            Some("minecraft:village/savanna/terminators/terminator_05")
-        );
-        let zombie_terminators =
-            parsed_pool(&registry.pools, "minecraft:village/savanna/zombie/terminators");
-        assert_eq!(zombie_terminators.fallback, "minecraft:empty");
-        assert_eq!(
-            zombie_terminators.elements[4].element.location.as_deref(),
-            Some("minecraft:village/savanna/zombie/terminators/terminator_05")
-        );
-    }
-
-    #[test]
-    fn savanna_village_house_pools_match_java_bootstrap() {
-        let registry = load_vanilla_template_pools();
-        let houses = parsed_pool(&registry.pools, "minecraft:village/savanna/houses");
-        assert_eq!(houses.fallback, "minecraft:village/savanna/terminators");
-        assert_eq!(houses.elements.len(), 32);
-        assert_eq!(pool_weight_sum(houses), 81);
-        let large_farm = pool_entry_by_location(
-            houses,
-            "minecraft:village/savanna/houses/savanna_large_farm_2",
-        );
-        assert_eq!(
-            large_farm.element.processors,
-            vec!["minecraft:farm_savanna".to_string()]
-        );
-        assert_eq!(large_farm.weight, 6);
-        assert_eq!(
-            houses.elements.last().unwrap().element.element_type,
-            "minecraft:empty_pool_element"
-        );
-        assert_eq!(houses.elements.last().unwrap().weight, 5);
-
-        let zombie_houses =
-            parsed_pool(&registry.pools, "minecraft:village/savanna/zombie/houses");
-        assert_eq!(
-            zombie_houses.fallback,
-            "minecraft:village/savanna/zombie/terminators"
-        );
-        assert_eq!(zombie_houses.elements.len(), 32);
-        assert_eq!(pool_weight_sum(zombie_houses), 72);
-        assert_eq!(
-            pool_entry_by_location(
-                zombie_houses,
-                "minecraft:village/savanna/zombie/houses/savanna_large_farm_2",
-            )
-            .weight,
-            4
-        );
-        assert_eq!(
-            pool_entry_by_location(
-                zombie_houses,
-                "minecraft:village/savanna/houses/savanna_butchers_shop_1",
-            )
-            .element
-            .processors,
-            vec!["minecraft:zombie_savanna".to_string()]
-        );
-    }
-
-    #[test]
-    fn savanna_village_decor_tree_and_villager_pools_match_java_bootstrap() {
-        let registry = load_vanilla_template_pools();
-        let trees = parsed_pool(&registry.pools, "minecraft:village/savanna/trees");
-        assert_eq!(trees.elements.len(), 1);
-        assert_eq!(
-            trees.elements[0].element.feature.as_deref(),
-            Some("minecraft:acacia")
-        );
-
-        let decor = parsed_pool(&registry.pools, "minecraft:village/savanna/decor");
-        assert_eq!(decor.fallback, "minecraft:empty");
-        assert_eq!(pool_weight_sum(decor), 17);
-        assert_eq!(
-            decor.elements[1].element.feature.as_deref(),
-            Some("minecraft:acacia")
-        );
-        assert_eq!(
-            decor.elements[2].element.feature.as_deref(),
-            Some("minecraft:pile_hay")
-        );
-        assert_eq!(
-            decor.elements[3].element.feature.as_deref(),
-            Some("minecraft:pile_melon")
-        );
-        assert_eq!(decor.elements.last().unwrap().weight, 4);
-
-        let zombie_decor = parsed_pool(&registry.pools, "minecraft:village/savanna/zombie/decor");
-        assert_eq!(
-            zombie_decor.elements[0].element.processors,
-            vec!["minecraft:zombie_savanna".to_string()]
-        );
-        assert_eq!(pool_weight_sum(zombie_decor), 17);
-
-        let villagers = parsed_pool(&registry.pools, "minecraft:village/savanna/villagers");
-        assert_eq!(pool_weight_sum(villagers), 12);
-        assert_eq!(villagers.elements.len(), 3);
-        let zombie_villagers =
-            parsed_pool(&registry.pools, "minecraft:village/savanna/zombie/villagers");
-        assert_eq!(pool_weight_sum(zombie_villagers), 11);
-        assert_eq!(zombie_villagers.elements.len(), 2);
-    }
 }
