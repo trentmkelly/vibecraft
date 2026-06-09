@@ -44,6 +44,8 @@ mod noise_parity_tests;
 
 mod placement_registry_tests;
 
+mod placement_registry_aquatic_tests;
+
 mod world_preset_tests;
 
 mod live_surface_tests;

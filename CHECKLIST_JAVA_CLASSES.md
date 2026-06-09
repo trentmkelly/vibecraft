@@ -636,7 +636,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/data/worldgen/placement`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/worldgen/placement/AquaticPlacements.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/worldgen/placement/AquaticPlacements.java`. Rust `worldgen` covers the 12 aquatic placed-feature bootstrap keys/source entries, Java source line/register/createKey/seagrass-placement/noise-count/rarity/count-placement counts and sentinels, parsed vanilla JSON parity for every aquatic placed feature's configured-feature reference, and representative seagrass count, sea-pickle rarity, kelp noise-count, warm-ocean vegetation noise-count, heightmap, in-square, and biome placement modifiers; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 aquatic_placements`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/worldgen/placement/CavePlacements.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/worldgen/placement/EndPlacements.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/worldgen/placement/MiscOverworldPlacements.java`.
