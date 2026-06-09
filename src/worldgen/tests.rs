@@ -68,6 +68,8 @@ mod placement_registry_tree_tests;
 
 mod placement_registry_vegetation_tests;
 
+mod placement_registry_village_tests;
+
 mod placement_utils_tests;
 
 mod world_preset_tests;
