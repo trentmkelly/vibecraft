@@ -35,6 +35,8 @@ const PILLAGER_OUTPOST_POOLS_JAVA: &str = include_str!(
 const PLAIN_VILLAGE_POOLS_JAVA: &str = include_str!(
     "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/PlainVillagePools.java"
 );
+const POOLS_JAVA: &str =
+    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/worldgen/Pools.java");
 
 #[derive(Debug, Clone, Copy)]
 struct JigsawPoolSourceAudit {
@@ -243,6 +245,31 @@ const JIGSAW_POOL_SOURCES: &[JigsawPoolSourceAudit] = &[
             "Pair.of(StructurePoolElement.legacy(\"village/common/well_bottom\"), 1)",
         ],
     },
+    JigsawPoolSourceAudit {
+        source_file: "Pools.java",
+        source: POOLS_JAVA,
+        line_count: 41,
+        registrations: 2,
+        single_elements: 0,
+        list_elements: 0,
+        empty_elements: 0,
+        bootstrap_calls: 6,
+        sentinels: &[
+            "public static final ResourceKey<StructureTemplatePool> EMPTY = createKey(\"empty\");",
+            "return ResourceKey.create(Registries.TEMPLATE_POOL, location);",
+            "return createKey(Identifier.withDefaultNamespace(name));",
+            "return createKey(Identifier.parse(name));",
+            "context.register(createKey(name), pool);",
+            "Holder<StructureTemplatePool> empty = pools.getOrThrow(EMPTY);",
+            "context.register(EMPTY, new StructureTemplatePool(empty, ImmutableList.of(), StructureTemplatePool.Projection.RIGID));",
+            "BastionPieces.bootstrap(context);",
+            "PillagerOutpostPools.bootstrap(context);",
+            "VillagePools.bootstrap(context);",
+            "AncientCityStructurePieces.bootstrap(context);",
+            "TrailRuinsStructurePools.bootstrap(context);",
+            "TrialChambersStructurePools.bootstrap(context);",
+        ],
+    },
 ];
 
 fn count_occurrences(source: &str, needle: &str) -> usize {
@@ -389,6 +416,38 @@ mod tests {
             "../decompiled-server-26.1.2/data/minecraft/worldgen/template_pool",
         )
         .expect("vanilla template-pool registry should load")
+    }
+
+    #[test]
+    fn root_pools_bootstrap_empty_pool_and_chained_sources_match_java() {
+        let registry = load_vanilla_template_pools();
+        let empty = parsed_pool(&registry.pools, "minecraft:empty");
+        assert_eq!(empty.fallback, "minecraft:empty");
+        assert!(empty.elements.is_empty());
+
+        assert_eq!(
+            JIGSAW_POOL_BOOTSTRAP_SOURCES
+                .iter()
+                .find(|source| source.source_file == "Pools.java")
+                .map(|source| source.registrations),
+            Some(2)
+        );
+        for chained_source in [
+            "BastionPieces.java",
+            "PillagerOutpostPools.java",
+            "VillagePools.java",
+            "AncientCityStructurePieces.java",
+            "TrailRuinsStructurePools.java",
+            "TrialChambersStructurePools.java",
+        ] {
+            assert!(
+                POOLS_JAVA.contains(&format!(
+                    "{}.bootstrap(context);",
+                    chained_source.trim_end_matches(".java")
+                )),
+                "Pools.java is missing chained bootstrap for {chained_source}"
+            );
+        }
     }
 
     #[test]
