@@ -571,6 +571,10 @@ pub const JIGSAW_POOL_BOOTSTRAP_SOURCES: &[JigsawPoolBootstrapSource] = &[
         registrations: 2,
     },
     JigsawPoolBootstrapSource {
+        source_file: "VillagePools.java",
+        registrations: 0,
+    },
+    JigsawPoolBootstrapSource {
         source_file: "SavannaVillagePools.java",
         registrations: 12,
     },
@@ -722,4 +726,3 @@ const fn random_spread(
         spread_type,
     }
 }
-

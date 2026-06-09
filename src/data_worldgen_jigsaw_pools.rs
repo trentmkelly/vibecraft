@@ -52,6 +52,8 @@ const TRAIL_RUINS_STRUCTURE_POOLS_JAVA: &str = include_str!(
 const TRIAL_CHAMBERS_STRUCTURE_POOLS_JAVA: &str = include_str!(
     "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/TrialChambersStructurePools.java"
 );
+const VILLAGE_POOLS_JAVA: &str =
+    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/worldgen/VillagePools.java");
 
 #[derive(Debug, Clone, Copy)]
 struct JigsawPoolSourceAudit {
@@ -283,6 +285,23 @@ const JIGSAW_POOL_SOURCES: &[JigsawPoolSourceAudit] = &[
             "AncientCityStructurePieces.bootstrap(context);",
             "TrailRuinsStructurePools.bootstrap(context);",
             "TrialChambersStructurePools.bootstrap(context);",
+        ],
+    },
+    JigsawPoolSourceAudit {
+        source_file: "VillagePools.java",
+        source: VILLAGE_POOLS_JAVA,
+        line_count: 13,
+        registrations: 0,
+        single_elements: 0,
+        list_elements: 0,
+        empty_elements: 0,
+        bootstrap_calls: 5,
+        sentinels: &[
+            "PlainVillagePools.bootstrap(context);",
+            "SnowyVillagePools.bootstrap(context);",
+            "SavannaVillagePools.bootstrap(context);",
+            "DesertVillagePools.bootstrap(context);",
+            "TaigaVillagePools.bootstrap(context);",
         ],
     },
     JigsawPoolSourceAudit {

@@ -23,7 +23,7 @@ fn jigsaw_and_processor_registries_match_vanilla_bootstrap_surface() {
     assert!(STRUCTURE_PIECE_TYPES.contains(&"shpr"));
     assert!(STRUCTURE_PIECE_TYPES.contains(&"shipwreck"));
 
-    assert_eq!(JIGSAW_POOL_BOOTSTRAP_SOURCES.len(), 17);
+    assert_eq!(JIGSAW_POOL_BOOTSTRAP_SOURCES.len(), 18);
     assert_eq!(
         JIGSAW_POOL_BOOTSTRAP_SOURCES
             .iter()
