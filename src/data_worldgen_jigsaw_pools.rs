@@ -46,6 +46,9 @@ const SNOWY_VILLAGE_POOLS_JAVA: &str = include_str!(
 const TAIGA_VILLAGE_POOLS_JAVA: &str = include_str!(
     "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/TaigaVillagePools.java"
 );
+const TRAIL_RUINS_STRUCTURE_POOLS_JAVA: &str = include_str!(
+    "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/TrailRuinsStructurePools.java"
+);
 
 #[derive(Debug, Clone, Copy)]
 struct JigsawPoolSourceAudit {
@@ -356,6 +359,28 @@ const JIGSAW_POOL_SOURCES: &[JigsawPoolSourceAudit] = &[
             "Pair.of(StructurePoolElement.legacy(\"village/taiga/zombie/villagers/unemployed\"), 10)",
         ],
     },
+    JigsawPoolSourceAudit {
+        source_file: "TrailRuinsStructurePools.java",
+        source: TRAIL_RUINS_STRUCTURE_POOLS_JAVA,
+        line_count: 177,
+        registrations: 7,
+        single_elements: 84,
+        list_elements: 0,
+        empty_elements: 0,
+        bootstrap_calls: 0,
+        sentinels: &[
+            "public static final ResourceKey<StructureTemplatePool> START = Pools.createKey(\"trail_ruins/tower\");",
+            "Holder<StructureProcessorList> housesArchyProcessor = processorLists.getOrThrow(ProcessorLists.TRAIL_RUINS_HOUSES_ARCHAEOLOGY);",
+            "Holder<StructureProcessorList> roadsArchyProcessor = processorLists.getOrThrow(ProcessorLists.TRAIL_RUINS_ROADS_ARCHAEOLOGY);",
+            "Holder<StructureProcessorList> towerTopArchyProcessor = processorLists.getOrThrow(ProcessorLists.TRAIL_RUINS_TOWER_TOP_ARCHAEOLOGY);",
+            "Pair.of(StructurePoolElement.single(\"trail_ruins/tower/tower_5\", housesArchyProcessor), 1)",
+            "Pair.of(StructurePoolElement.single(\"trail_ruins/tower/tower_top_5\", towerTopArchyProcessor), 1)",
+            "Pair.of(StructurePoolElement.single(\"trail_ruins/tower/stable_5\", housesArchyProcessor), 1)",
+            "Pair.of(StructurePoolElement.single(\"trail_ruins/roads/road_spacer_1\", roadsArchyProcessor), 1)",
+            "Pair.of(StructurePoolElement.single(\"trail_ruins/buildings/group_room_5\", housesArchyProcessor), 1)",
+            "Pair.of(StructurePoolElement.single(\"trail_ruins/decor/decor_7\", housesArchyProcessor), 1)",
+        ],
+    },
 ];
 
 fn count_occurrences(source: &str, needle: &str) -> usize {
@@ -504,10 +529,7 @@ mod tests {
             .find(|pool| pool.source_file == "SavannaVillagePools.java")
             .expect("missing savanna village start pool metadata");
         assert_eq!(savanna_start.structure_family, "village/savanna");
-        assert_eq!(
-            savanna_start.pool,
-            "minecraft:village/savanna/town_centers"
-        );
+        assert_eq!(savanna_start.pool, "minecraft:village/savanna/town_centers");
 
         let snowy_start = JIGSAW_STRUCTURE_START_POOLS
             .iter()
@@ -522,6 +544,13 @@ mod tests {
             .expect("missing taiga village start pool metadata");
         assert_eq!(taiga_start.structure_family, "village/taiga");
         assert_eq!(taiga_start.pool, "minecraft:village/taiga/town_centers");
+
+        let trail_ruins_start = JIGSAW_STRUCTURE_START_POOLS
+            .iter()
+            .find(|pool| pool.source_file == "TrailRuinsStructurePools.java")
+            .expect("missing trail ruins start pool metadata");
+        assert_eq!(trail_ruins_start.structure_family, "trail_ruins");
+        assert_eq!(trail_ruins_start.pool, "minecraft:trail_ruins/tower");
     }
 
     fn load_vanilla_template_pools() -> crate::worldgen::ParsedTemplatePoolRegistry {
@@ -561,6 +590,132 @@ mod tests {
                 "Pools.java is missing chained bootstrap for {chained_source}"
             );
         }
+    }
+
+    fn assert_single_processor_pool(
+        pool: &ParsedJigsawTemplatePool,
+        element_count: usize,
+        processor: &str,
+    ) {
+        assert_eq!(pool.fallback, "minecraft:empty");
+        assert_eq!(pool.elements.len(), element_count);
+        assert_eq!(pool_weight_sum(pool), element_count as i32);
+        assert!(pool.elements.iter().all(|entry| entry.weight == 1));
+        assert!(pool.elements.iter().all(|entry| {
+            entry.element.element_type == "minecraft:single_pool_element"
+                && entry.element.processors.len() == 1
+                && entry.element.processors[0] == processor
+                && entry.element.projection.as_deref() == Some("rigid")
+        }));
+    }
+
+    #[test]
+    fn trail_ruins_template_pool_json_ids_match_java_bootstrap() {
+        let registry = load_vanilla_template_pools();
+        let trail_ruins_ids = registry
+            .pools
+            .keys()
+            .filter(|id| id.starts_with("minecraft:trail_ruins/"))
+            .map(String::as_str)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            trail_ruins_ids,
+            vec![
+                "minecraft:trail_ruins/buildings",
+                "minecraft:trail_ruins/buildings/grouped",
+                "minecraft:trail_ruins/decor",
+                "minecraft:trail_ruins/roads",
+                "minecraft:trail_ruins/tower",
+                "minecraft:trail_ruins/tower/additions",
+                "minecraft:trail_ruins/tower/tower_top",
+            ]
+        );
+    }
+
+    #[test]
+    fn trail_ruins_tower_and_road_pools_match_java_bootstrap() {
+        let registry = load_vanilla_template_pools();
+        let tower = parsed_pool(&registry.pools, "minecraft:trail_ruins/tower");
+        assert_single_processor_pool(tower, 5, "minecraft:trail_ruins_houses_archaeology");
+        assert_eq!(
+            tower.elements[0].element.location.as_deref(),
+            Some("minecraft:trail_ruins/tower/tower_1")
+        );
+        assert_eq!(
+            tower.elements[4].element.location.as_deref(),
+            Some("minecraft:trail_ruins/tower/tower_5")
+        );
+
+        let tower_top = parsed_pool(&registry.pools, "minecraft:trail_ruins/tower/tower_top");
+        assert_single_processor_pool(tower_top, 5, "minecraft:trail_ruins_tower_top_archaeology");
+        assert_eq!(
+            tower_top.elements[4].element.location.as_deref(),
+            Some("minecraft:trail_ruins/tower/tower_top_5")
+        );
+
+        let additions = parsed_pool(&registry.pools, "minecraft:trail_ruins/tower/additions");
+        assert_single_processor_pool(additions, 25, "minecraft:trail_ruins_houses_archaeology");
+        assert_eq!(
+            additions.elements[0].element.location.as_deref(),
+            Some("minecraft:trail_ruins/tower/hall_1")
+        );
+        assert_eq!(
+            additions.elements[24].element.location.as_deref(),
+            Some("minecraft:trail_ruins/tower/stable_5")
+        );
+
+        let roads = parsed_pool(&registry.pools, "minecraft:trail_ruins/roads");
+        assert_single_processor_pool(roads, 7, "minecraft:trail_ruins_roads_archaeology");
+        assert_eq!(
+            roads.elements[0].element.location.as_deref(),
+            Some("minecraft:trail_ruins/roads/long_road_end")
+        );
+        assert_eq!(
+            roads.elements[6].element.location.as_deref(),
+            Some("minecraft:trail_ruins/roads/road_spacer_1")
+        );
+    }
+
+    #[test]
+    fn trail_ruins_building_and_decor_pools_match_java_bootstrap() {
+        let registry = load_vanilla_template_pools();
+        for (id, element_count) in [
+            ("minecraft:trail_ruins/buildings", 15),
+            ("minecraft:trail_ruins/buildings/grouped", 20),
+            ("minecraft:trail_ruins/decor", 7),
+        ] {
+            assert_single_processor_pool(
+                parsed_pool(&registry.pools, id),
+                element_count,
+                "minecraft:trail_ruins_houses_archaeology",
+            );
+        }
+
+        let buildings = parsed_pool(&registry.pools, "minecraft:trail_ruins/buildings");
+        assert_eq!(
+            buildings.elements[0].element.location.as_deref(),
+            Some("minecraft:trail_ruins/buildings/group_hall_1")
+        );
+        assert_eq!(
+            buildings.elements[14].element.location.as_deref(),
+            Some("minecraft:trail_ruins/buildings/one_room_5")
+        );
+
+        let grouped = parsed_pool(&registry.pools, "minecraft:trail_ruins/buildings/grouped");
+        assert_eq!(
+            grouped.elements[0].element.location.as_deref(),
+            Some("minecraft:trail_ruins/buildings/group_full_1")
+        );
+        assert_eq!(
+            grouped.elements[19].element.location.as_deref(),
+            Some("minecraft:trail_ruins/buildings/group_room_5")
+        );
+
+        let decor = parsed_pool(&registry.pools, "minecraft:trail_ruins/decor");
+        assert_eq!(
+            decor.elements[6].element.location.as_deref(),
+            Some("minecraft:trail_ruins/decor/decor_7")
+        );
     }
 
     #[test]
@@ -1014,5 +1169,4 @@ mod tests {
             Some("minecraft:village/common/well_bottom")
         );
     }
-
 }
