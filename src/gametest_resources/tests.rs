@@ -26,6 +26,9 @@ const GAME_TEST_ASSERT_POS_EXCEPTION_JAVA: &str = include_str!(
 const GAME_TEST_EXCEPTION_JAVA: &str = include_str!(
     "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestException.java"
 );
+const GAME_TEST_HELPER_JAVA: &str = include_str!(
+    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestHelper.java"
+);
 const GAME_TEST_BATCH_JAVA: &str = include_str!(
     "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestBatch.java"
 );
@@ -781,6 +784,163 @@ fn gametest_event_factories_set_only_their_delay_field() {
             expected_delay: None,
             minimum_delay: Some(5),
             assertion: "assert-after".to_string(),
+        }
+    );
+}
+
+#[test]
+fn gametest_helper_matches_java_source_shape_and_deferred_world_surface() {
+    assert_eq!(GAME_TEST_HELPER_JAVA.lines().count(), 1150);
+    assert_eq!(
+        GAME_TEST_HELPER_JAVA
+            .lines()
+            .filter(|line| {
+                line.starts_with("   public")
+                    || line.starts_with("   private")
+                    || line.starts_with("   static")
+                    || line.starts_with("   protected")
+            })
+            .count(),
+        165
+    );
+    for sentinel in [
+        "private final GameTestInfo testInfo;",
+        "private boolean finalCheckAdded;",
+        "return new GameTestAssertException(description, this.testInfo.getTick());",
+        "return new GameTestAssertPosException(description, this.absolutePos(pos), pos, this.testInfo.getTick());",
+        "throw new IllegalStateException(\"This test already has final clause\");",
+        "this.testInfo.createSequence().thenWaitUntil(0L, asserter).thenSucceed();",
+        "this.testInfo.createSequence().thenWaitUntil(asserter).thenSucceed();",
+        "this.testInfo.createSequence().thenWaitUntil(tick, asserter).thenSucceed();",
+        "this.runAtTickTime(this.testInfo.getTimeoutTicks() - 1, asserter);",
+        "this.runAtTickTime(this.testInfo.getTick() + ticksToDelay, whatToRun);",
+        "StructureTemplate.transform(absolutePosBeforeTransform, Mirror.NONE, this.testInfo.getRotation(), testPos)",
+        "Rotation inverseRotation = this.testInfo.getRotation().getRotated(Rotation.CLOCKWISE_180);",
+        "return this.testInfo.getRotation().rotate(Direction.SOUTH);",
+        "return this.getTestRotation().rotate(direction);",
+        "case COUNTERCLOCKWISE_90:",
+        "case CLOCKWISE_90:",
+        "this.getBounds().inflate(this.testInfo.getTest().padding())",
+        "BlockPos.MutableBlockPos.betweenClosedStream(aabb).forEach(forBlock);",
+        "Arrays.sort(directions, Comparator.comparingDouble",
+    ] {
+        assert!(
+            GAME_TEST_HELPER_JAVA.contains(sentinel),
+            "missing GameTestHelper sentinel {sentinel}"
+        );
+    }
+    assert_eq!(
+        GAMETEST_HELPER_WORLD_RUNTIME_TODO,
+        "gametest-helper-world-runtime"
+    );
+}
+
+#[test]
+fn gametest_helper_models_assertions_timing_and_single_final_clause() {
+    let mut helper = GameTestHelperModel::new(
+        BlockPosModel::new(10, 64, -5),
+        RotationModel::Clockwise90,
+        20,
+        100,
+        GameTestRelativeBounds {
+            x_size: 3,
+            y_size: 4,
+            z_size: 7,
+        },
+    );
+
+    assert_eq!(
+        helper.assertion_exception("boom"),
+        GameTestAssertError::new("boom", 20)
+    );
+    assert_eq!(
+        helper.assertion_exception_at_pos(BlockPosModel::new(1, 2, 3), "pos boom"),
+        GameTestAssertPosError::new(
+            "pos boom",
+            GameTestBlockPos { x: 7, y: 66, z: -4 },
+            GameTestBlockPos { x: 1, y: 2, z: 3 },
+            20,
+        )
+    );
+    assert_eq!(
+        helper.run_before_test_end("before-end"),
+        ScheduledGameTestAction {
+            tick: 99,
+            action: "before-end".to_string(),
+        }
+    );
+    assert_eq!(
+        helper.run_after_delay(6, "later"),
+        ScheduledGameTestAction {
+            tick: 26,
+            action: "later".to_string(),
+        }
+    );
+    assert_eq!(
+        helper.succeed_when("done").unwrap(),
+        GameTestFinalCheck::When {
+            action: "done".to_string(),
+        }
+    );
+    assert_eq!(
+        helper.succeed_if("again"),
+        Err("This test already has final clause".to_string())
+    );
+}
+
+#[test]
+fn gametest_helper_models_rotation_dependent_coordinates_and_bounds() {
+    let helper = GameTestHelperModel::new(
+        BlockPosModel::new(10, 64, -5),
+        RotationModel::Clockwise90,
+        0,
+        20,
+        GameTestRelativeBounds {
+            x_size: 3,
+            y_size: 4,
+            z_size: 7,
+        },
+    );
+
+    let relative = BlockPosModel::new(1, 2, 3);
+    let absolute = helper.absolute_pos(relative);
+    assert_eq!(absolute, BlockPosModel::new(7, 66, -4));
+    assert_eq!(helper.relative_pos(absolute), relative);
+    assert_eq!(helper.get_test_direction(), DirectionModel::West);
+    assert_eq!(
+        helper.get_absolute_direction(DirectionModel::North),
+        DirectionModel::East
+    );
+    assert_eq!(
+        helper.get_absolute_direction(DirectionModel::Up),
+        DirectionModel::Up
+    );
+    assert_eq!(
+        helper.get_relative_bounds(),
+        GameTestRelativeBounds {
+            x_size: 7,
+            y_size: 4,
+            z_size: 3,
+        }
+    );
+
+    let unrotated = GameTestHelperModel::new(
+        BlockPosModel::new(0, 0, 0),
+        RotationModel::Clockwise180,
+        0,
+        1,
+        GameTestRelativeBounds {
+            x_size: 3,
+            y_size: 4,
+            z_size: 7,
+        },
+    );
+    assert_eq!(
+        unrotated.get_relative_bounds(),
+        GameTestRelativeBounds {
+            x_size: 3,
+            y_size: 4,
+            z_size: 7,
         }
     );
 }

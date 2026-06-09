@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 
 use crate::block_entity::TestBlockMode;
+use crate::core_block_pos::{BlockPosModel, RotationModel};
+use crate::core_direction::DirectionModel;
 use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -487,6 +489,197 @@ pub fn create_gametest_event_with_minimum_delay(
         expected_delay: None,
         minimum_delay: Some(minimum_delay),
         assertion: assertion.into(),
+    }
+}
+
+pub const GAMETEST_HELPER_WORLD_RUNTIME_TODO: &str = "gametest-helper-world-runtime";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GameTestRelativeBounds {
+    pub x_size: i32,
+    pub y_size: i32,
+    pub z_size: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScheduledGameTestAction {
+    pub tick: i64,
+    pub action: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GameTestFinalCheck {
+    If { action: String },
+    When { action: String },
+    OnTickWhen { tick: i64, action: String },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GameTestHelperModel {
+    pub origin: BlockPosModel,
+    pub rotation: RotationModel,
+    pub tick: i64,
+    pub timeout_ticks: i64,
+    pub structure_size: GameTestRelativeBounds,
+    final_check_added: bool,
+}
+
+impl GameTestHelperModel {
+    pub fn new(
+        origin: BlockPosModel,
+        rotation: RotationModel,
+        tick: i64,
+        timeout_ticks: i64,
+        structure_size: GameTestRelativeBounds,
+    ) -> Self {
+        Self {
+            origin,
+            rotation,
+            tick,
+            timeout_ticks,
+            structure_size,
+            final_check_added: false,
+        }
+    }
+
+    pub fn assertion_exception(&self, description: impl Into<String>) -> GameTestAssertError {
+        GameTestAssertError::new(description, self.tick as i32)
+    }
+
+    pub fn assertion_exception_at_pos(
+        &self,
+        relative_pos: BlockPosModel,
+        description: impl Into<String>,
+    ) -> GameTestAssertPosError {
+        GameTestAssertPosError::new(
+            description,
+            block_pos_to_gametest(self.absolute_pos(relative_pos)),
+            block_pos_to_gametest(relative_pos),
+            self.tick as i32,
+        )
+    }
+
+    pub fn run_at_tick_time(
+        &self,
+        time: i64,
+        action: impl Into<String>,
+    ) -> ScheduledGameTestAction {
+        ScheduledGameTestAction {
+            tick: time,
+            action: action.into(),
+        }
+    }
+
+    pub fn run_before_test_end(&self, action: impl Into<String>) -> ScheduledGameTestAction {
+        self.run_at_tick_time(self.timeout_ticks - 1, action)
+    }
+
+    pub fn run_after_delay(
+        &self,
+        ticks_to_delay: i64,
+        action: impl Into<String>,
+    ) -> ScheduledGameTestAction {
+        self.run_at_tick_time(self.tick + ticks_to_delay, action)
+    }
+
+    pub fn succeed_if(&mut self, action: impl Into<String>) -> Result<GameTestFinalCheck, String> {
+        self.ensure_single_final_check()?;
+        Ok(GameTestFinalCheck::If {
+            action: action.into(),
+        })
+    }
+
+    pub fn succeed_when(
+        &mut self,
+        action: impl Into<String>,
+    ) -> Result<GameTestFinalCheck, String> {
+        self.ensure_single_final_check()?;
+        Ok(GameTestFinalCheck::When {
+            action: action.into(),
+        })
+    }
+
+    pub fn succeed_on_tick_when(
+        &mut self,
+        tick: i64,
+        action: impl Into<String>,
+    ) -> Result<GameTestFinalCheck, String> {
+        self.ensure_single_final_check()?;
+        Ok(GameTestFinalCheck::OnTickWhen {
+            tick,
+            action: action.into(),
+        })
+    }
+
+    fn ensure_single_final_check(&mut self) -> Result<(), String> {
+        if self.final_check_added {
+            return Err("This test already has final clause".to_string());
+        }
+        self.final_check_added = true;
+        Ok(())
+    }
+
+    pub fn absolute_pos(&self, relative_pos: BlockPosModel) -> BlockPosModel {
+        let rotated = relative_pos.rotate(self.rotation);
+        self.origin.offset(rotated.x(), rotated.y(), rotated.z())
+    }
+
+    pub fn relative_pos(&self, absolute_pos: BlockPosModel) -> BlockPosModel {
+        let offset = absolute_pos.offset(-self.origin.x(), -self.origin.y(), -self.origin.z());
+        offset.rotate(inverse_gametest_rotation(self.rotation))
+    }
+
+    pub fn get_test_direction(&self) -> DirectionModel {
+        gametest_helper_rotate_direction(self.rotation, DirectionModel::South)
+    }
+
+    pub fn get_absolute_direction(&self, direction: DirectionModel) -> DirectionModel {
+        gametest_helper_rotate_direction(self.rotation, direction)
+    }
+
+    pub fn get_relative_bounds(&self) -> GameTestRelativeBounds {
+        match self.rotation {
+            RotationModel::Clockwise90 | RotationModel::Counterclockwise90 => {
+                GameTestRelativeBounds {
+                    x_size: self.structure_size.z_size,
+                    y_size: self.structure_size.y_size,
+                    z_size: self.structure_size.x_size,
+                }
+            }
+            RotationModel::None | RotationModel::Clockwise180 => self.structure_size,
+        }
+    }
+}
+
+pub fn gametest_helper_rotate_direction(
+    rotation: RotationModel,
+    direction: DirectionModel,
+) -> DirectionModel {
+    match direction {
+        DirectionModel::Up | DirectionModel::Down => direction,
+        _ => match rotation {
+            RotationModel::Clockwise90 => direction.clockwise_y(),
+            RotationModel::Clockwise180 => direction.opposite(),
+            RotationModel::Counterclockwise90 => direction.counter_clockwise_y(),
+            RotationModel::None => direction,
+        },
+    }
+}
+
+fn inverse_gametest_rotation(rotation: RotationModel) -> RotationModel {
+    match rotation {
+        RotationModel::Clockwise90 => RotationModel::Counterclockwise90,
+        RotationModel::Counterclockwise90 => RotationModel::Clockwise90,
+        RotationModel::Clockwise180 => RotationModel::Clockwise180,
+        RotationModel::None => RotationModel::None,
+    }
+}
+
+fn block_pos_to_gametest(pos: BlockPosModel) -> GameTestBlockPos {
+    GameTestBlockPos {
+        x: pos.x(),
+        y: pos.y(),
+        z: pos.z(),
     }
 }
 
