@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use crate::block_entity::TestBlockMode;
+use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TestEnvironmentDefinition {
@@ -162,6 +163,25 @@ pub fn exhausted_attempts_error(
     }
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FailedTestTrackerModel {
+    last_failed_tests: BTreeSet<String>,
+}
+
+impl FailedTestTrackerModel {
+    pub fn remember_failed_test(&mut self, test: impl Into<String>) {
+        self.last_failed_tests.insert(test.into());
+    }
+
+    pub fn forget_failed_tests(&mut self) {
+        self.last_failed_tests.clear();
+    }
+
+    pub fn last_failed_tests(&self) -> Vec<&str> {
+        self.last_failed_tests.iter().map(String::as_str).collect()
+    }
+}
+
 pub fn parse_test_environment_json(raw: &str) -> Result<TestEnvironmentDefinition, String> {
     let value: serde_json::Value =
         serde_json::from_str(raw).map_err(|err| format!("invalid test environment JSON: {err}"))?;
@@ -311,6 +331,9 @@ mod tests {
     );
     const EXHAUSTED_ATTEMPTS_EXCEPTION_JAVA: &str = include_str!(
         "../../decompiled-server-26.1.2/net/minecraft/gametest/framework/ExhaustedAttemptsException.java"
+    );
+    const FAILED_TEST_TRACKER_JAVA: &str = include_str!(
+        "../../decompiled-server-26.1.2/net/minecraft/gametest/framework/FailedTestTracker.java"
     );
 
     #[test]
@@ -578,6 +601,47 @@ mod tests {
                 cause: None,
             }
         );
+    }
+
+    #[test]
+    fn failed_test_tracker_matches_java_source_shape() {
+        assert_eq!(FAILED_TEST_TRACKER_JAVA.lines().count(), 22);
+        assert_eq!(
+            FAILED_TEST_TRACKER_JAVA
+                .match_indices("private static final Set<Holder.Reference<GameTestInstance>> LAST_FAILED_TESTS = Sets.newHashSet();")
+                .count(),
+            1
+        );
+        for sentinel in [
+            "public static Stream<Holder.Reference<GameTestInstance>> getLastFailedTests()",
+            "return LAST_FAILED_TESTS.stream();",
+            "public static void rememberFailedTest(final Holder.Reference<GameTestInstance> test)",
+            "LAST_FAILED_TESTS.add(test);",
+            "public static void forgetFailedTests()",
+            "LAST_FAILED_TESTS.clear();",
+        ] {
+            assert!(
+                FAILED_TEST_TRACKER_JAVA.contains(sentinel),
+                "missing FailedTestTracker sentinel {sentinel}"
+            );
+        }
+    }
+
+    #[test]
+    fn failed_test_tracker_remembers_uniquely_and_forgets_like_java_set() {
+        let mut tracker = FailedTestTrackerModel::default();
+        assert!(tracker.last_failed_tests().is_empty());
+
+        tracker.remember_failed_test("minecraft:always_pass");
+        tracker.remember_failed_test("minecraft:block_based");
+        tracker.remember_failed_test("minecraft:always_pass");
+        assert_eq!(
+            tracker.last_failed_tests(),
+            vec!["minecraft:always_pass", "minecraft:block_based"]
+        );
+
+        tracker.forget_failed_tests();
+        assert!(tracker.last_failed_tests().is_empty());
     }
 
     #[test]
