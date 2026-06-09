@@ -371,10 +371,10 @@ mod damage_type;
 #[cfg(test)] mod data_info;
 #[cfg(test)] mod data_loot;
 #[cfg(test)] mod data_loot_entity;
+#[cfg(test)] mod data_loot_provider;
 #[cfg(test)] mod data_package;
 #[cfg(test)] mod datapack_reload_tests;
-#[cfg(test)]
-mod dialog_system;
+#[cfg(test)] mod dialog_system;
 mod dispenser_cauldron;
 mod enchantment_system;
 #[cfg(test)]
