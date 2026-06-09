@@ -202,6 +202,8 @@ mod core_registry_helpers;
 #[cfg(test)]
 mod core_registry_interface;
 #[cfg(test)]
+mod core_registry_set_builder;
+#[cfg(test)]
 mod core_registry_synchronization;
 #[cfg(test)]
 mod core_section_pos;
