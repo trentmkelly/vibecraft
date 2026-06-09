@@ -303,8 +303,7 @@ mod criterion_min_max_bounds;
 mod criterion_movement_predicate;
 #[cfg(test)]
 mod criterion_nbt_predicate;
-#[cfg(test)]
-mod criterion_picked_up_item_trigger;
+#[cfg(test)] mod criterion_picked_up_item_trigger;
 #[cfg(test)] mod criterion_player_hurt_entity;
 #[cfg(test)] mod criterion_player_interact;
 #[cfg(test)] mod criterion_player_predicate;
@@ -382,6 +381,7 @@ mod damage_type;
 #[cfg(test)] mod data_worldgen_carvers;
 #[cfg(test)] mod data_worldgen_dimension_types;
 #[cfg(test)] mod data_worldgen_jigsaw_pools;
+#[cfg(test)] mod data_worldgen_noise_data;
 #[cfg(test)] mod datapack_reload_tests;
 #[cfg(test)] mod dialog_system;
 mod dispenser_cauldron;
