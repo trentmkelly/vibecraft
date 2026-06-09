@@ -13,6 +13,9 @@ const GAME_TEST_LISTENER_JAVA: &str = include_str!(
 const GAME_TEST_MAIN_UTIL_JAVA: &str = include_str!(
     "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestMainUtil.java"
 );
+const GAME_TEST_RUNNER_JAVA: &str = include_str!(
+    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestRunner.java"
+);
 
 fn instance() -> GameTestInstanceModel {
     GameTestInstanceModel {
@@ -378,4 +381,174 @@ fn gametest_main_util_filters_pack_copy_targets_like_java() {
         gametest_main_pack_copy_targets(&entries),
         vec!["folder-pack".to_string(), "archive.zip".to_string()]
     );
+}
+
+#[test]
+fn gametest_runner_matches_java_batch_lifecycle_shape() {
+    assert_eq!(GAME_TEST_RUNNER_JAVA.lines().count(), 259);
+    for sentinel in [
+        "public static final int DEFAULT_TESTS_PER_ROW = 8;",
+        "private final List<GameTestBatchListener> batchListeners = Lists.newArrayList();",
+        "private final List<GameTestInfo> scheduledForRerun = Lists.newArrayList();",
+        "private boolean stopped = true;",
+        "testTicker.setRunner(this);",
+        "this.allTestInfos.forEach(info -> info.addListener(new ReportGameListener()));",
+        "this.stopped = false;",
+        "this.runBatch(0);",
+        "this.stopped = true;",
+        "GameTestInfo copy = info.copyReset();",
+        "listener.testAddedForRerun(info, copy, this)",
+        "if (batchIndex >= this.batches.size())",
+        "this.endCurrentEnvironment();",
+        "this.runScheduledRerunTests();",
+        "if (batchIndex > 0 && this.clearBetweenBatches)",
+        "this.batchListeners.forEach(listener -> listener.testBatchStarting(currentBatch));",
+        "this.batchListeners.forEach(listener -> listener.testBatchFinished(currentBatch));",
+        "forcedChunks.forEach(pos -> GameTestRunner.this.level.setChunkForced(ChunkPos.getX(pos), ChunkPos.getZ(pos), false));",
+        "GameTestTicker.SINGLETON.clear();",
+        "this.batches = ImmutableList.copyOf(this.testBatcher.batch(this.scheduledForRerun));",
+        "this.batches = ImmutableList.of();",
+        "private GameTestRunner.GameTestBatcher batcher = GameTestBatchFactory.fromGameTestInfo();",
+        "private GameTestRunner.StructureSpawner existingStructureSpawner = GameTestRunner.StructureSpawner.IN_PLACE;",
+        "private GameTestRunner.StructureSpawner newStructureSpawner = GameTestRunner.StructureSpawner.NOT_SET;",
+        "private boolean haltOnError = false;",
+        "private boolean clearBetweenBatches = false;",
+        "StructureSpawner IN_PLACE = testInfo -> Optional.ofNullable(testInfo.prepareTestStructure()).map(e -> e.startExecution(1));",
+        "StructureSpawner NOT_SET = testInfo -> Optional.empty();",
+    ] {
+        assert!(
+            GAME_TEST_RUNNER_JAVA.contains(sentinel),
+            "missing GameTestRunner sentinel {sentinel}"
+        );
+    }
+    assert_eq!(DEFAULT_GAMETESTS_PER_ROW, 8);
+    assert_eq!(
+        GAMETEST_RUNNER_SERVER_RUNTIME_TODO,
+        "gametest-runner-server-runtime"
+    );
+}
+
+#[test]
+fn gametest_runner_builder_defaults_match_java() {
+    let batch = create_gametest_batch(
+        0,
+        vec!["minecraft:always_pass".to_string()],
+        "minecraft:default",
+    )
+    .unwrap();
+    let builder = GameTestRunnerBuilderModel::from_batches(vec![batch]);
+    assert_eq!(builder.batcher, "GameTestBatchFactory.fromGameTestInfo");
+    assert_eq!(
+        builder.existing_structure_spawner,
+        StructureSpawnerModel::InPlace
+    );
+    assert_eq!(builder.new_structure_spawner, StructureSpawnerModel::NotSet);
+    assert!(!builder.halt_on_error);
+    assert!(!builder.clear_between_batches);
+}
+
+#[test]
+fn gametest_runner_starts_batches_tears_down_and_completes() {
+    let batches = vec![
+        create_gametest_batch(0, vec!["one".to_string()], "minecraft:env_a").unwrap(),
+        create_gametest_batch(1, vec!["two".to_string()], "minecraft:env_b").unwrap(),
+    ];
+    let mut runner = GameTestRunnerBuilderModel::from_batches(batches)
+        .clear_between_batches()
+        .build();
+    assert_eq!(
+        runner.all_test_infos,
+        vec!["one".to_string(), "two".to_string()]
+    );
+
+    runner.start();
+    assert!(!runner.stopped);
+    assert_eq!(
+        runner.current_environment,
+        Some("minecraft:env_a".to_string())
+    );
+    runner.complete_batch(0, false);
+    assert_eq!(
+        runner.current_environment,
+        Some("minecraft:env_b".to_string())
+    );
+    runner.complete_batch(1, false);
+    assert!(runner.stopped);
+    assert!(runner.current_environment.is_none());
+    assert!(runner.batches.is_empty());
+    assert!(runner.events.contains(&GameTestRunnerEvent::BatchStarting {
+        index: 0,
+        environment: "minecraft:env_a".to_string(),
+    }));
+    assert!(runner.events.contains(&GameTestRunnerEvent::BatchFinished {
+        index: 1,
+        environment: "minecraft:env_b".to_string(),
+    }));
+}
+
+#[test]
+fn gametest_runner_halt_on_error_tears_down_and_clears_ticker() {
+    let batch = create_gametest_batch(0, vec!["failing".to_string()], "minecraft:default").unwrap();
+    let mut runner = GameTestRunnerBuilderModel::from_batches(vec![batch])
+        .halt_on_error()
+        .build();
+
+    runner.start();
+    runner.complete_batch(0, true);
+
+    assert!(runner.stopped);
+    assert!(runner.current_environment.is_none());
+    assert!(runner
+        .events
+        .contains(&GameTestRunnerEvent::ForcedChunksCleared));
+    assert!(runner.events.contains(&GameTestRunnerEvent::TickerCleared));
+}
+
+#[test]
+fn gametest_runner_rerun_copy_is_batched_when_stopped() {
+    let mut runner = GameTestRunnerBuilderModel::from_batches(Vec::new()).build();
+    let original = GameTestInfoStateModel::new(
+        "minecraft:rerun",
+        true,
+        20,
+        0,
+        RotationModel::None,
+        RotationModel::None,
+        "noRetries",
+    );
+
+    runner.rerun_test(&original);
+
+    assert!(!runner.stopped);
+    assert_eq!(runner.scheduled_for_rerun, Vec::<String>::new());
+    assert_eq!(runner.batches.len(), 1);
+    assert_eq!(runner.batches[0].game_test_infos, vec!["minecraft:rerun"]);
+    assert!(runner
+        .events
+        .contains(&GameTestRunnerEvent::TestAddedForRerun {
+            original_id: "minecraft:rerun".to_string(),
+            copy_id: "minecraft:rerun".to_string(),
+        }));
+}
+
+#[test]
+fn gametest_runner_structure_spawners_match_java_defaults() {
+    let mut info = GameTestInfoStateModel::new(
+        "minecraft:spawn",
+        true,
+        20,
+        2,
+        RotationModel::None,
+        RotationModel::None,
+        "noRetries",
+    );
+    assert_eq!(
+        StructureSpawnerModel::NotSet.spawn_structure(&mut info),
+        None
+    );
+    assert_eq!(
+        StructureSpawnerModel::InPlace.spawn_structure(&mut info),
+        Some("minecraft:spawn".to_string())
+    );
+    assert_eq!(info.tick_count, -4);
 }
