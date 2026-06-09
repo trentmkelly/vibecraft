@@ -373,6 +373,198 @@ fn trial_chamber_equipment_helper() -> TrialChamberEquipmentHelperSummary {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct FishingDispatcherEntrySummary {
+    table_id: &'static str,
+    weight: i32,
+    quality: i32,
+    condition: Option<&'static str>,
+}
+
+fn vanilla_fishing_dispatcher_entries() -> Vec<FishingDispatcherEntrySummary> {
+    vec![
+        FishingDispatcherEntrySummary {
+            table_id: "minecraft:gameplay/fishing/junk",
+            weight: 10,
+            quality: -2,
+            condition: None,
+        },
+        FishingDispatcherEntrySummary {
+            table_id: "minecraft:gameplay/fishing/treasure",
+            weight: 5,
+            quality: 2,
+            condition: Some("fishing_hook_in_open_water"),
+        },
+        FishingDispatcherEntrySummary {
+            table_id: "minecraft:gameplay/fishing/fish",
+            weight: 85,
+            quality: -1,
+            condition: None,
+        },
+    ]
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct FishingEntrySummary {
+    item: &'static str,
+    weight: i32,
+    functions: Vec<&'static str>,
+    condition: Option<&'static str>,
+}
+
+fn vanilla_fishing_fish_entries() -> Vec<FishingEntrySummary> {
+    vec![
+        FishingEntrySummary {
+            item: "minecraft:cod",
+            weight: 60,
+            functions: vec![],
+            condition: None,
+        },
+        FishingEntrySummary {
+            item: "minecraft:salmon",
+            weight: 25,
+            functions: vec![],
+            condition: None,
+        },
+        FishingEntrySummary {
+            item: "minecraft:tropical_fish",
+            weight: 2,
+            functions: vec![],
+            condition: None,
+        },
+        FishingEntrySummary {
+            item: "minecraft:pufferfish",
+            weight: 13,
+            functions: vec![],
+            condition: None,
+        },
+    ]
+}
+
+fn vanilla_fishing_junk_entries() -> Vec<FishingEntrySummary> {
+    vec![
+        FishingEntrySummary {
+            item: "minecraft:lily_pad",
+            weight: 17,
+            functions: vec![],
+            condition: None,
+        },
+        FishingEntrySummary {
+            item: "minecraft:leather_boots",
+            weight: 10,
+            functions: vec!["damage=0.0..0.9"],
+            condition: None,
+        },
+        FishingEntrySummary {
+            item: "minecraft:leather",
+            weight: 10,
+            functions: vec![],
+            condition: None,
+        },
+        FishingEntrySummary {
+            item: "minecraft:bone",
+            weight: 10,
+            functions: vec![],
+            condition: None,
+        },
+        FishingEntrySummary {
+            item: "minecraft:potion",
+            weight: 10,
+            functions: vec!["potion=water"],
+            condition: None,
+        },
+        FishingEntrySummary {
+            item: "minecraft:string",
+            weight: 5,
+            functions: vec![],
+            condition: None,
+        },
+        FishingEntrySummary {
+            item: "minecraft:fishing_rod",
+            weight: 2,
+            functions: vec!["damage=0.0..0.9"],
+            condition: None,
+        },
+        FishingEntrySummary {
+            item: "minecraft:bowl",
+            weight: 10,
+            functions: vec![],
+            condition: None,
+        },
+        FishingEntrySummary {
+            item: "minecraft:stick",
+            weight: 5,
+            functions: vec![],
+            condition: None,
+        },
+        FishingEntrySummary {
+            item: "minecraft:ink_sac",
+            weight: 1,
+            functions: vec!["count=10"],
+            condition: None,
+        },
+        FishingEntrySummary {
+            item: "minecraft:tripwire_hook",
+            weight: 10,
+            functions: vec![],
+            condition: None,
+        },
+        FishingEntrySummary {
+            item: "minecraft:rotten_flesh",
+            weight: 10,
+            functions: vec![],
+            condition: None,
+        },
+        FishingEntrySummary {
+            item: "minecraft:bamboo",
+            weight: 10,
+            functions: vec![],
+            condition: Some("biome in jungle,sparse_jungle,bamboo_jungle"),
+        },
+    ]
+}
+
+fn vanilla_fishing_treasure_entries() -> Vec<FishingEntrySummary> {
+    vec![
+        FishingEntrySummary {
+            item: "minecraft:name_tag",
+            weight: 1,
+            functions: vec![],
+            condition: None,
+        },
+        FishingEntrySummary {
+            item: "minecraft:saddle",
+            weight: 1,
+            functions: vec![],
+            condition: None,
+        },
+        FishingEntrySummary {
+            item: "minecraft:bow",
+            weight: 1,
+            functions: vec!["damage=0.0..0.25", "enchant_with_levels=30"],
+            condition: None,
+        },
+        FishingEntrySummary {
+            item: "minecraft:fishing_rod",
+            weight: 1,
+            functions: vec!["damage=0.0..0.25", "enchant_with_levels=30"],
+            condition: None,
+        },
+        FishingEntrySummary {
+            item: "minecraft:book",
+            weight: 1,
+            functions: vec!["enchant_with_levels=30"],
+            condition: None,
+        },
+        FishingEntrySummary {
+            item: "minecraft:nautilus_shell",
+            weight: 1,
+            functions: vec![],
+            condition: None,
+        },
+    ]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -798,6 +990,185 @@ mod tests {
             "withEnchantment(enchantments.getOrThrow(Enchantments.PROTECTION), ConstantValue.exactly(4.0F))",
             "withEnchantment(enchantments.getOrThrow(Enchantments.PROJECTILE_PROTECTION), ConstantValue.exactly(4.0F))",
             "withEnchantment(enchantments.getOrThrow(Enchantments.FIRE_PROTECTION), ConstantValue.exactly(4.0F))",
+        ] {
+            assert!(source.contains(expected), "missing Java sentinel: {expected}");
+        }
+    }
+
+    #[test]
+    fn vanilla_fishing_dispatcher_matches_java_category_weights() {
+        let entries = vanilla_fishing_dispatcher_entries();
+        assert_eq!(
+            entries,
+            vec![
+                FishingDispatcherEntrySummary {
+                    table_id: "minecraft:gameplay/fishing/junk",
+                    weight: 10,
+                    quality: -2,
+                    condition: None,
+                },
+                FishingDispatcherEntrySummary {
+                    table_id: "minecraft:gameplay/fishing/treasure",
+                    weight: 5,
+                    quality: 2,
+                    condition: Some("fishing_hook_in_open_water"),
+                },
+                FishingDispatcherEntrySummary {
+                    table_id: "minecraft:gameplay/fishing/fish",
+                    weight: 85,
+                    quality: -1,
+                    condition: None,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn vanilla_fishing_fish_loot_matches_java_weights() {
+        let entries = vanilla_fishing_fish_entries();
+        assert_eq!(
+            entries
+                .iter()
+                .map(|entry| (entry.item, entry.weight))
+                .collect::<Vec<_>>(),
+            vec![
+                ("minecraft:cod", 60),
+                ("minecraft:salmon", 25),
+                ("minecraft:tropical_fish", 2),
+                ("minecraft:pufferfish", 13),
+            ]
+        );
+        assert!(entries
+            .iter()
+            .all(|entry| entry.functions.is_empty() && entry.condition.is_none()));
+    }
+
+    #[test]
+    fn vanilla_fishing_junk_loot_matches_java_weights_functions_and_biome_gate() {
+        let entries = vanilla_fishing_junk_entries();
+        assert_eq!(entries.len(), 13);
+        assert_eq!(
+            entries
+                .iter()
+                .map(|entry| (entry.item, entry.weight))
+                .collect::<Vec<_>>(),
+            vec![
+                ("minecraft:lily_pad", 17),
+                ("minecraft:leather_boots", 10),
+                ("minecraft:leather", 10),
+                ("minecraft:bone", 10),
+                ("minecraft:potion", 10),
+                ("minecraft:string", 5),
+                ("minecraft:fishing_rod", 2),
+                ("minecraft:bowl", 10),
+                ("minecraft:stick", 5),
+                ("minecraft:ink_sac", 1),
+                ("minecraft:tripwire_hook", 10),
+                ("minecraft:rotten_flesh", 10),
+                ("minecraft:bamboo", 10),
+            ]
+        );
+        assert_eq!(entries[1].functions, vec!["damage=0.0..0.9"]);
+        assert_eq!(entries[4].functions, vec!["potion=water"]);
+        assert_eq!(entries[6].functions, vec!["damage=0.0..0.9"]);
+        assert_eq!(entries[9].functions, vec!["count=10"]);
+        assert_eq!(
+            entries[12].condition,
+            Some("biome in jungle,sparse_jungle,bamboo_jungle")
+        );
+    }
+
+    #[test]
+    fn vanilla_fishing_treasure_loot_matches_java_functions() {
+        let entries = vanilla_fishing_treasure_entries();
+        assert_eq!(entries.len(), 6);
+        assert_eq!(
+            entries
+                .iter()
+                .map(|entry| (entry.item, entry.functions.clone()))
+                .collect::<Vec<_>>(),
+            vec![
+                ("minecraft:name_tag", vec![]),
+                ("minecraft:saddle", vec![]),
+                (
+                    "minecraft:bow",
+                    vec!["damage=0.0..0.25", "enchant_with_levels=30"]
+                ),
+                (
+                    "minecraft:fishing_rod",
+                    vec!["damage=0.0..0.25", "enchant_with_levels=30"]
+                ),
+                ("minecraft:book", vec!["enchant_with_levels=30"]),
+                ("minecraft:nautilus_shell", vec![]),
+            ]
+        );
+        assert!(entries
+            .iter()
+            .all(|entry| entry.weight == 1 && entry.condition.is_none()));
+    }
+
+    #[test]
+    fn vanilla_fishing_java_source_counts_match_authoritative_file() {
+        let source = include_str!(
+            "../../decompiled-server-26.1.2/net/minecraft/data/loot/packs/VanillaFishingLoot.java"
+        );
+        assert_eq!(count_occurrences(source, "output.accept"), 4);
+        assert_eq!(count_occurrences(source, "LootPool.lootPool("), 4);
+        assert_eq!(count_occurrences(source, "LootItem.lootTableItem"), 23);
+        assert_eq!(
+            count_occurrences(source, "NestedLootTable.lootTableReference"),
+            3
+        );
+        assert_eq!(
+            count_occurrences(source, "SetItemDamageFunction.setDamage"),
+            4
+        );
+        assert_eq!(
+            count_occurrences(source, "EnchantWithLevelsFunction.enchantWithLevels"),
+            3
+        );
+        assert_eq!(count_occurrences(source, "SetPotionFunction.setPotion"), 1);
+        assert_eq!(
+            count_occurrences(source, "SetItemCountFunction.setCount"),
+            1
+        );
+        assert_eq!(count_occurrences(source, "setWeight"), 20);
+        assert_eq!(count_occurrences(source, "setQuality"), 3);
+        assert_eq!(count_occurrences(source, "LocationCheck.checkLocation"), 1);
+        assert_eq!(
+            count_occurrences(source, "FishingHookPredicate.inOpenWater"),
+            1
+        );
+    }
+
+    #[test]
+    fn vanilla_fishing_java_source_sentinels_match_authoritative_file() {
+        let source = include_str!(
+            "../../decompiled-server-26.1.2/net/minecraft/data/loot/packs/VanillaFishingLoot.java"
+        );
+        for expected in [
+            "public record VanillaFishingLoot(HolderLookup.Provider registries) implements LootTableSubProvider",
+            "BuiltInLootTables.FISHING",
+            "BuiltInLootTables.FISHING_FISH",
+            "BuiltInLootTables.FISHING_JUNK",
+            "BuiltInLootTables.FISHING_TREASURE",
+            "NestedLootTable.lootTableReference(BuiltInLootTables.FISHING_JUNK).setWeight(10).setQuality(-2)",
+            "NestedLootTable.lootTableReference(BuiltInLootTables.FISHING_TREASURE)",
+            "FishingHookPredicate.inOpenWater(true)",
+            "NestedLootTable.lootTableReference(BuiltInLootTables.FISHING_FISH).setWeight(85).setQuality(-1)",
+            "LootItem.lootTableItem(Items.COD).setWeight(60)",
+            "LootItem.lootTableItem(Items.SALMON).setWeight(25)",
+            "LootItem.lootTableItem(Items.TROPICAL_FISH).setWeight(2)",
+            "LootItem.lootTableItem(Items.PUFFERFISH).setWeight(13)",
+            "LootItem.lootTableItem(Items.LEATHER_BOOTS).setWeight(10).apply(SetItemDamageFunction.setDamage(UniformGenerator.between(0.0F, 0.9F)))",
+            "LootItem.lootTableItem(Items.POTION).setWeight(10).apply(SetPotionFunction.setPotion(Potions.WATER))",
+            "LootItem.lootTableItem(Items.FISHING_ROD).setWeight(2).apply(SetItemDamageFunction.setDamage(UniformGenerator.between(0.0F, 0.9F)))",
+            "LootItem.lootTableItem(Items.INK_SAC).setWeight(1).apply(SetItemCountFunction.setCount(ConstantValue.exactly(10.0F)))",
+            "HolderSet.direct(\n                                       biomes.getOrThrow(Biomes.JUNGLE), biomes.getOrThrow(Biomes.SPARSE_JUNGLE), biomes.getOrThrow(Biomes.BAMBOO_JUNGLE)",
+            "LootItem.lootTableItem(Items.BOW)\n                        .apply(SetItemDamageFunction.setDamage(UniformGenerator.between(0.0F, 0.25F)))",
+            "EnchantWithLevelsFunction.enchantWithLevels(this.registries, ConstantValue.exactly(30.0F))",
+            "LootItem.lootTableItem(Items.NAUTILUS_SHELL)",
+            "public static LootTable.Builder fishingFishLootTable()",
         ] {
             assert!(source.contains(expected), "missing Java sentinel: {expected}");
         }
