@@ -20,6 +20,9 @@ const NETHER_BIOMES_JAVA: &str = include_str!(
 const OVERWORLD_BIOMES_JAVA: &str = include_str!(
     "../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/biome/OverworldBiomes.java"
 );
+const BIOME_PACKAGE_INFO_JAVA: &str = include_str!(
+    "../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/biome/package-info.java"
+);
 
 fn count_occurrences(source: &str, needle: &str) -> usize {
     source.match_indices(needle).count()
@@ -189,6 +192,14 @@ fn biome_data_registered_biomes_all_have_parseable_vanilla_json() {
     assert!(parsed_ids.contains(&"minecraft:pale_garden".to_string()));
     assert!(parsed_ids.contains(&"minecraft:nether_wastes".to_string()));
     assert!(parsed_ids.contains(&"minecraft:the_end".to_string()));
+}
+
+#[test]
+fn biome_package_info_is_null_marked_metadata_only() {
+    assert_eq!(BIOME_PACKAGE_INFO_JAVA.lines().count(), 4);
+    assert!(BIOME_PACKAGE_INFO_JAVA.contains("@NullMarked"));
+    assert!(BIOME_PACKAGE_INFO_JAVA.contains("package net.minecraft.data.worldgen.biome;"));
+    assert!(BIOME_PACKAGE_INFO_JAVA.contains("import org.jspecify.annotations.NullMarked;"));
 }
 
 #[test]
