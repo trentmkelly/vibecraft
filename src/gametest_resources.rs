@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use crate::block_entity::TestBlockMode;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TestEnvironmentDefinition {
     AllOf {
@@ -55,6 +57,69 @@ pub const GAME_TEST_MAIN_ENTRYPOINT: GameTestMainEntrypoint = GameTestMainEntryp
 // framework classes and structure-template execution system are implemented.
 pub fn gametest_main_entrypoint_contract() -> GameTestMainEntrypoint {
     GAME_TEST_MAIN_ENTRYPOINT
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BlockBasedTestBlockState {
+    pub mode: TestBlockMode,
+    pub triggered: bool,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BlockBasedTestRunOutcome {
+    StartTriggered,
+    MissingStart,
+    TooManyStarts,
+    MissingAccept,
+    Succeeded,
+    Failed { message: String },
+    Continue { log_reset_count: usize },
+}
+
+pub fn block_based_test_start_outcome(
+    blocks: &[BlockBasedTestBlockState],
+) -> BlockBasedTestRunOutcome {
+    match blocks
+        .iter()
+        .filter(|block| block.mode == TestBlockMode::Start)
+        .count()
+    {
+        0 => BlockBasedTestRunOutcome::MissingStart,
+        1 => BlockBasedTestRunOutcome::StartTriggered,
+        _ => BlockBasedTestRunOutcome::TooManyStarts,
+    }
+}
+
+// TODO(gametest-block-based-world-scan): replace this pure decision model with
+// GameTestHelper-backed structure scanning when the GameTest framework is wired.
+pub fn block_based_test_tick_outcome(
+    blocks: &[BlockBasedTestBlockState],
+) -> BlockBasedTestRunOutcome {
+    let accept_blocks = blocks
+        .iter()
+        .filter(|block| block.mode == TestBlockMode::Accept)
+        .collect::<Vec<_>>();
+    if accept_blocks.is_empty() {
+        return BlockBasedTestRunOutcome::MissingAccept;
+    }
+    if accept_blocks.iter().any(|block| block.triggered) {
+        return BlockBasedTestRunOutcome::Succeeded;
+    }
+    if let Some(fail) = blocks
+        .iter()
+        .find(|block| block.mode == TestBlockMode::Fail && block.triggered)
+    {
+        return BlockBasedTestRunOutcome::Failed {
+            message: fail.message.clone(),
+        };
+    }
+    BlockBasedTestRunOutcome::Continue {
+        log_reset_count: blocks
+            .iter()
+            .filter(|block| block.mode == TestBlockMode::Log && block.triggered)
+            .count(),
+    }
 }
 
 pub fn parse_test_environment_json(raw: &str) -> Result<TestEnvironmentDefinition, String> {
@@ -198,6 +263,9 @@ mod tests {
 
     const GAMETEST_MAIN_JAVA: &str =
         include_str!("../../decompiled-server-26.1.2/net/minecraft/gametest/Main.java");
+    const BLOCK_BASED_TEST_INSTANCE_JAVA: &str = include_str!(
+        "../../decompiled-server-26.1.2/net/minecraft/gametest/framework/BlockBasedTestInstance.java"
+    );
 
     #[test]
     fn gametest_main_entrypoint_matches_java_launcher_contract() {
@@ -223,6 +291,146 @@ mod tests {
                 forwards_args_to_server: true,
                 output_path_callback_writes: false,
             }
+        );
+    }
+
+    #[test]
+    fn block_based_test_instance_matches_java_source_shape() {
+        assert_eq!(BLOCK_BASED_TEST_INSTANCE_JAVA.lines().count(), 91);
+        assert_eq!(
+            BLOCK_BASED_TEST_INSTANCE_JAVA
+                .match_indices("RecordCodecBuilder.mapCodec")
+                .count(),
+            1
+        );
+        assert_eq!(
+            BLOCK_BASED_TEST_INSTANCE_JAVA
+                .match_indices("TestData.CODEC.forGetter(GameTestInstance::info)")
+                .count(),
+            1
+        );
+        assert_eq!(
+            BLOCK_BASED_TEST_INSTANCE_JAVA
+                .match_indices("helper.onEachTick")
+                .count(),
+            1
+        );
+        for sentinel in [
+            "blockEntity.trigger();",
+            "test_block.error.missing",
+            "test_block.error.too_many",
+            "TestBlockMode.ACCEPT",
+            "TestBlockMode.FAIL",
+            "TestBlockMode.LOG",
+            "blockEntity.reset();",
+            "Component.translatable(\"test_instance.type.block_based\")",
+        ] {
+            assert!(
+                BLOCK_BASED_TEST_INSTANCE_JAVA.contains(sentinel),
+                "missing BlockBasedTestInstance sentinel {sentinel}"
+            );
+        }
+    }
+
+    #[test]
+    fn block_based_test_instance_decodes_block_based_resources() {
+        let raw = r#"{
+            "type": "minecraft:block_based",
+            "environment": "minecraft:default",
+            "structure": "minecraft:test_block_based",
+            "max_ticks": 200,
+            "setup_ticks": 5,
+            "required": true
+        }"#;
+        assert_eq!(
+            parse_test_instance_json(raw).expect("block_based test instance"),
+            GameTestInstanceDefinition {
+                kind: GameTestInstanceKind::BlockBased,
+                environment: "minecraft:default".to_string(),
+                structure: "minecraft:test_block_based".to_string(),
+                max_ticks: 200,
+                setup_ticks: 5,
+                required: true,
+            }
+        );
+    }
+
+    #[test]
+    fn block_based_test_instance_start_block_rules_match_java() {
+        assert_eq!(
+            block_based_test_start_outcome(&[]),
+            BlockBasedTestRunOutcome::MissingStart
+        );
+        assert_eq!(
+            block_based_test_start_outcome(&[BlockBasedTestBlockState {
+                mode: TestBlockMode::Start,
+                triggered: false,
+                message: String::new(),
+            }]),
+            BlockBasedTestRunOutcome::StartTriggered
+        );
+        assert_eq!(
+            block_based_test_start_outcome(&[
+                BlockBasedTestBlockState {
+                    mode: TestBlockMode::Start,
+                    triggered: false,
+                    message: String::new(),
+                },
+                BlockBasedTestBlockState {
+                    mode: TestBlockMode::Start,
+                    triggered: false,
+                    message: String::new(),
+                },
+            ]),
+            BlockBasedTestRunOutcome::TooManyStarts
+        );
+    }
+
+    #[test]
+    fn block_based_test_instance_tick_rules_match_java() {
+        assert_eq!(
+            block_based_test_tick_outcome(&[]),
+            BlockBasedTestRunOutcome::MissingAccept
+        );
+        assert_eq!(
+            block_based_test_tick_outcome(&[BlockBasedTestBlockState {
+                mode: TestBlockMode::Accept,
+                triggered: true,
+                message: String::new(),
+            }]),
+            BlockBasedTestRunOutcome::Succeeded
+        );
+        assert_eq!(
+            block_based_test_tick_outcome(&[
+                BlockBasedTestBlockState {
+                    mode: TestBlockMode::Accept,
+                    triggered: false,
+                    message: String::new(),
+                },
+                BlockBasedTestBlockState {
+                    mode: TestBlockMode::Fail,
+                    triggered: true,
+                    message: "boom".to_string(),
+                },
+            ]),
+            BlockBasedTestRunOutcome::Failed {
+                message: "boom".to_string(),
+            }
+        );
+        assert_eq!(
+            block_based_test_tick_outcome(&[
+                BlockBasedTestBlockState {
+                    mode: TestBlockMode::Accept,
+                    triggered: false,
+                    message: String::new(),
+                },
+                BlockBasedTestBlockState {
+                    mode: TestBlockMode::Log,
+                    triggered: true,
+                    message: "note".to_string(),
+                },
+            ]),
+            BlockBasedTestRunOutcome::Continue { log_reset_count: 1 }
         );
     }
 
