@@ -15,6 +15,8 @@ pub mod sequence_models;
 pub use sequence_models::*;
 pub mod server_models;
 pub use server_models::*;
+pub mod ticker_models;
+pub use ticker_models::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TestEnvironmentDefinition {

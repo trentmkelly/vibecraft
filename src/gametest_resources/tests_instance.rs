@@ -22,6 +22,9 @@ const GAME_TEST_SEQUENCE_JAVA: &str = include_str!(
 const GAME_TEST_SERVER_JAVA: &str = include_str!(
     "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestServer.java"
 );
+const GAME_TEST_TICKER_JAVA: &str = include_str!(
+    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestTicker.java"
+);
 
 fn instance() -> GameTestInstanceModel {
     GameTestInstanceModel {
@@ -865,4 +868,114 @@ fn gametest_server_mock_resolvers_match_java_empty_and_offline_behavior() {
     );
     resolver.resolve_offline_users(true);
     resolver.save();
+}
+
+#[test]
+fn gametest_ticker_matches_java_singleton_state_machine_shape() {
+    assert_eq!(GAME_TEST_TICKER_JAVA.lines().count(), 62);
+    for sentinel in [
+        "public static final GameTestTicker SINGLETON = new GameTestTicker();",
+        "private final Collection<GameTestInfo> testInfos = Lists.newCopyOnWriteArrayList();",
+        "private @Nullable GameTestRunner runner;",
+        "private GameTestTicker.State state = GameTestTicker.State.IDLE;",
+        "private GameTestTicker()",
+        "this.testInfos.add(testInfo);",
+        "if (this.state != GameTestTicker.State.IDLE)",
+        "this.state = GameTestTicker.State.HALTING;",
+        "this.testInfos.clear();",
+        "this.runner.stop();",
+        "this.runner = null;",
+        "Util.logAndPauseIfInIde(\"The runner was already set in GameTestTicker\");",
+        "this.state = GameTestTicker.State.RUNNING;",
+        "this.testInfos.forEach(i -> i.tick(this.runner));",
+        "this.testInfos.removeIf(GameTestInfo::isDone);",
+        "GameTestTicker.State finishingState = this.state;",
+        "this.state = GameTestTicker.State.IDLE;",
+        "if (finishingState == GameTestTicker.State.HALTING)",
+        "IDLE,",
+        "RUNNING,",
+        "HALTING;",
+    ] {
+        assert!(
+            GAME_TEST_TICKER_JAVA.contains(sentinel),
+            "missing GameTestTicker sentinel {sentinel}"
+        );
+    }
+    assert_eq!(GAMETEST_TICKER_SINGLETON, "GameTestTicker.SINGLETON");
+}
+
+#[test]
+fn gametest_ticker_clear_and_set_runner_match_java() {
+    let mut ticker = GameTestTickerModel::default();
+    ticker.add(GameTestInfoStateModel::new(
+        "minecraft:one",
+        true,
+        1,
+        0,
+        RotationModel::None,
+        RotationModel::None,
+        "noRetries",
+    ));
+    ticker.set_runner("runner-a");
+    ticker.set_runner("runner-b");
+    assert_eq!(
+        ticker.warnings,
+        vec!["The runner was already set in GameTestTicker"]
+    );
+
+    ticker.clear();
+    assert!(ticker.test_infos.is_empty());
+    assert_eq!(ticker.runner, None);
+    assert_eq!(ticker.runner_stop_count, 1);
+
+    ticker.state = GameTestTickerStateModel::Running;
+    ticker.clear();
+    assert_eq!(ticker.state, GameTestTickerStateModel::Halting);
+}
+
+#[test]
+fn gametest_ticker_ticks_only_when_runner_exists_and_removes_done_tests() {
+    let mut ticker = GameTestTickerModel::default();
+    let mut done = GameTestInfoStateModel::new(
+        "minecraft:done",
+        true,
+        1,
+        0,
+        RotationModel::None,
+        RotationModel::None,
+        "noRetries",
+    );
+    done.succeed();
+    ticker.add(done);
+    assert!(ticker.tick().is_empty());
+    assert_eq!(ticker.test_infos.len(), 1);
+
+    ticker.set_runner("runner");
+    let outcomes = ticker.tick();
+    assert_eq!(outcomes, vec![GameTestInfoTickOutcome::Passed]);
+    assert!(ticker.test_infos.is_empty());
+    assert_eq!(ticker.state, GameTestTickerStateModel::Idle);
+}
+
+#[test]
+fn gametest_ticker_halting_during_tick_recursively_clears_when_idle() {
+    let mut ticker = GameTestTickerModel::default();
+    ticker.add(GameTestInfoStateModel::new(
+        "minecraft:one",
+        true,
+        1,
+        0,
+        RotationModel::None,
+        RotationModel::None,
+        "noRetries",
+    ));
+    ticker.set_runner("runner");
+
+    let outcomes = ticker.tick_with_clear_after(Some(0));
+
+    assert_eq!(outcomes, vec![GameTestInfoTickOutcome::Started]);
+    assert!(ticker.test_infos.is_empty());
+    assert_eq!(ticker.runner, None);
+    assert_eq!(ticker.runner_stop_count, 1);
+    assert_eq!(ticker.state, GameTestTickerStateModel::Idle);
 }
