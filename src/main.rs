@@ -373,6 +373,7 @@ mod damage_type;
 #[cfg(test)] mod data_loot_block;
 #[cfg(test)] mod data_loot_chest;
 #[cfg(test)] mod data_loot_entity;
+#[cfg(test)] mod data_loot_gift;
 #[cfg(test)] mod data_loot_packs;
 #[cfg(test)] mod data_loot_provider;
 #[cfg(test)] mod data_loot_vanilla_entity;
@@ -393,8 +394,7 @@ mod eula;
 mod experience_system;
 mod fire;
 mod fluid;
-#[cfg(test)]
-mod fuzz_tests;
+#[cfg(test)] mod fuzz_tests;
 mod game_event;
 mod game_rules;
 #[cfg(test)]
