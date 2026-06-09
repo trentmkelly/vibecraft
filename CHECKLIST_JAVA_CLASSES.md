@@ -478,7 +478,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/data/loot/packs`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/loot/packs/LootData.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/loot/packs/LootData.java`. Rust `data_loot_packs` covers Java's `WOOL_ITEM_BY_DYE` enum-map contents and DyeColor declaration order for all 16 wool blocks; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_loot_packs`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/loot/packs/TradeRebalanceChestLoot.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/loot/packs/TradeRebalanceLootTableProvider.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/loot/packs/VanillaArchaeologyLoot.java`.
