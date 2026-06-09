@@ -182,6 +182,31 @@ impl FailedTestTrackerModel {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FunctionGameTestRunOutcome {
+    Invoked { function: String },
+    MissingFunction { message: String },
+}
+
+pub fn function_gametest_run_outcome(
+    function: &str,
+    registered_functions: &[&str],
+) -> FunctionGameTestRunOutcome {
+    if registered_functions.contains(&function) {
+        FunctionGameTestRunOutcome::Invoked {
+            function: function.to_string(),
+        }
+    } else {
+        FunctionGameTestRunOutcome::MissingFunction {
+            message: format!("Trying to access missing test function: {function}"),
+        }
+    }
+}
+
+pub fn function_gametest_description_rows(function: &str) -> [(&'static str, String); 1] {
+    [("test_instance.description.function", function.to_string())]
+}
+
 pub fn parse_test_environment_json(raw: &str) -> Result<TestEnvironmentDefinition, String> {
     let value: serde_json::Value =
         serde_json::from_str(raw).map_err(|err| format!("invalid test environment JSON: {err}"))?;
@@ -334,6 +359,9 @@ mod tests {
     );
     const FAILED_TEST_TRACKER_JAVA: &str = include_str!(
         "../../decompiled-server-26.1.2/net/minecraft/gametest/framework/FailedTestTracker.java"
+    );
+    const FUNCTION_GAME_TEST_INSTANCE_JAVA: &str = include_str!(
+        "../../decompiled-server-26.1.2/net/minecraft/gametest/framework/FunctionGameTestInstance.java"
     );
 
     #[test]
@@ -642,6 +670,61 @@ mod tests {
 
         tracker.forget_failed_tests();
         assert!(tracker.last_failed_tests().is_empty());
+    }
+
+    #[test]
+    fn function_gametest_instance_matches_java_source_shape() {
+        assert_eq!(FUNCTION_GAME_TEST_INSTANCE_JAVA.lines().count(), 57);
+        assert_eq!(
+            FUNCTION_GAME_TEST_INSTANCE_JAVA
+                .match_indices("ResourceKey.codec(Registries.TEST_FUNCTION).fieldOf(\"function\")")
+                .count(),
+            1
+        );
+        assert_eq!(
+            FUNCTION_GAME_TEST_INSTANCE_JAVA
+                .match_indices("TestData.CODEC.forGetter(GameTestInstance::info)")
+                .count(),
+            1
+        );
+        for sentinel in [
+            "orElseThrow(() -> new IllegalStateException(\"Trying to access missing test function: \" + this.function.identifier()))",
+            ".accept(helper);",
+            "return this.function;",
+            "Component.translatable(\"test_instance.type.function\")",
+            "this.descriptionRow(\"test_instance.description.function\", this.function.identifier().toString())",
+        ] {
+            assert!(
+                FUNCTION_GAME_TEST_INSTANCE_JAVA.contains(sentinel),
+                "missing FunctionGameTestInstance sentinel {sentinel}"
+            );
+        }
+    }
+
+    #[test]
+    fn function_gametest_instance_run_and_description_match_java() {
+        assert_eq!(
+            function_gametest_run_outcome(
+                BUILTIN_ALWAYS_PASS_FUNCTION_ID,
+                &[BUILTIN_ALWAYS_PASS_FUNCTION_ID]
+            ),
+            FunctionGameTestRunOutcome::Invoked {
+                function: BUILTIN_ALWAYS_PASS_FUNCTION_ID.to_string(),
+            }
+        );
+        assert_eq!(
+            function_gametest_run_outcome("minecraft:missing", &[BUILTIN_ALWAYS_PASS_FUNCTION_ID]),
+            FunctionGameTestRunOutcome::MissingFunction {
+                message: "Trying to access missing test function: minecraft:missing".to_string(),
+            }
+        );
+        assert_eq!(
+            function_gametest_description_rows(BUILTIN_ALWAYS_PASS_FUNCTION_ID),
+            [(
+                "test_instance.description.function",
+                BUILTIN_ALWAYS_PASS_FUNCTION_ID.to_string()
+            )]
+        );
     }
 
     #[test]
