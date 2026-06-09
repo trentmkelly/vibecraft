@@ -29,6 +29,9 @@ const BASTION_TREASURE_ROOM_POOLS_JAVA: &str = include_str!(
 const DESERT_VILLAGE_POOLS_JAVA: &str = include_str!(
     "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/DesertVillagePools.java"
 );
+const PILLAGER_OUTPOST_POOLS_JAVA: &str = include_str!(
+    "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/PillagerOutpostPools.java"
+);
 
 #[derive(Debug, Clone, Copy)]
 struct JigsawPoolSourceAudit {
@@ -195,6 +198,26 @@ const JIGSAW_POOL_SOURCES: &[JigsawPoolSourceAudit] = &[
             "Pair.of(StructurePoolElement.legacy(\"village/desert/camel_spawn\"), 1)",
         ],
     },
+    JigsawPoolSourceAudit {
+        source_file: "PillagerOutpostPools.java",
+        source: PILLAGER_OUTPOST_POOLS_JAVA,
+        line_count: 74,
+        registrations: 4,
+        single_elements: 0,
+        list_elements: 1,
+        empty_elements: 1,
+        bootstrap_calls: 0,
+        sentinels: &[
+            "public static final ResourceKey<StructureTemplatePool> START = Pools.createKey(\"pillager_outpost/base_plates\");",
+            "Holder<StructureProcessorList> outpostRot = processorLists.getOrThrow(ProcessorLists.OUTPOST_ROT);",
+            "Holder<StructureTemplatePool> empty = pools.getOrThrow(Pools.EMPTY);",
+            "StructurePoolElement.legacy(\"pillager_outpost/base_plate\")",
+            "StructurePoolElement.legacy(\"pillager_outpost/watchtower_overgrown\", outpostRot)",
+            "Pools.register(\n         context,\n         \"pillager_outpost/feature_plates\"",
+            "Pair.of(StructurePoolElement.legacy(\"pillager_outpost/feature_cage_with_allays\"), 1)",
+            "Pair.of(StructurePoolElement.empty(), 6)",
+        ],
+    },
 ];
 
 fn count_occurrences(source: &str, needle: &str) -> usize {
@@ -218,13 +241,13 @@ fn rust_registration_count(source_file: &str) -> usize {
         .unwrap_or_else(|| panic!("missing Rust jigsaw bootstrap source: {source_file}"))
 }
 
-fn desert_pool<'a>(
+fn parsed_pool<'a>(
     pools: &'a std::collections::BTreeMap<String, ParsedJigsawTemplatePool>,
     id: &str,
 ) -> &'a ParsedJigsawTemplatePool {
     pools
         .get(id)
-        .unwrap_or_else(|| panic!("missing parsed desert template pool: {id}"))
+        .unwrap_or_else(|| panic!("missing parsed template pool: {id}"))
 }
 
 fn pool_weight_sum(pool: &ParsedJigsawTemplatePool) -> i32 {
@@ -296,7 +319,7 @@ mod tests {
     }
 
     #[test]
-    fn ancient_city_bastion_and_desert_start_pool_metadata_matches_java() {
+    fn ancient_city_bastion_desert_and_outpost_start_pool_metadata_matches_java() {
         let ancient_city_start = JIGSAW_STRUCTURE_START_POOLS
             .iter()
             .find(|pool| pool.source_file == "AncientCityStructurePieces.java")
@@ -320,6 +343,13 @@ mod tests {
             .expect("missing desert village start pool metadata");
         assert_eq!(desert_start.structure_family, "village/desert");
         assert_eq!(desert_start.pool, "minecraft:village/desert/town_centers");
+
+        let outpost_start = JIGSAW_STRUCTURE_START_POOLS
+            .iter()
+            .find(|pool| pool.source_file == "PillagerOutpostPools.java")
+            .expect("missing pillager outpost start pool metadata");
+        assert_eq!(outpost_start.structure_family, "pillager_outpost");
+        assert_eq!(outpost_start.pool, "minecraft:pillager_outpost/base_plates");
     }
 
     fn load_vanilla_template_pools() -> crate::worldgen::ParsedTemplatePoolRegistry {
@@ -360,7 +390,7 @@ mod tests {
     #[test]
     fn desert_village_town_and_street_pools_match_java_bootstrap() {
         let registry = load_vanilla_template_pools();
-        let town_centers = desert_pool(&registry.pools, "minecraft:village/desert/town_centers");
+        let town_centers = parsed_pool(&registry.pools, "minecraft:village/desert/town_centers");
         assert_eq!(town_centers.fallback, "minecraft:empty");
         assert_eq!(town_centers.elements.len(), 6);
         assert_eq!(
@@ -380,7 +410,7 @@ mod tests {
             vec!["minecraft:zombie_desert".to_string()]
         );
 
-        let streets = desert_pool(&registry.pools, "minecraft:village/desert/streets");
+        let streets = parsed_pool(&registry.pools, "minecraft:village/desert/streets");
         assert_eq!(streets.fallback, "minecraft:village/desert/terminators");
         assert_eq!(streets.elements.len(), 11);
         assert_eq!(pool_weight_sum(streets), 35);
@@ -393,7 +423,7 @@ mod tests {
     #[test]
     fn desert_village_house_pools_match_java_bootstrap() {
         let registry = load_vanilla_template_pools();
-        let houses = desert_pool(&registry.pools, "minecraft:village/desert/houses");
+        let houses = parsed_pool(&registry.pools, "minecraft:village/desert/houses");
         assert_eq!(houses.fallback, "minecraft:village/desert/terminators");
         assert_eq!(houses.elements.len(), 29);
         assert_eq!(pool_weight_sum(houses), 72);
@@ -412,7 +442,7 @@ mod tests {
         );
         assert_eq!(houses.elements.last().unwrap().weight, 5);
 
-        let zombie_houses = desert_pool(&registry.pools, "minecraft:village/desert/zombie/houses");
+        let zombie_houses = parsed_pool(&registry.pools, "minecraft:village/desert/zombie/houses");
         assert_eq!(
             zombie_houses.fallback,
             "minecraft:village/desert/zombie/terminators"
@@ -433,7 +463,7 @@ mod tests {
     #[test]
     fn desert_village_decor_camel_and_villager_pools_match_java_bootstrap() {
         let registry = load_vanilla_template_pools();
-        let decor = desert_pool(&registry.pools, "minecraft:village/desert/decor");
+        let decor = parsed_pool(&registry.pools, "minecraft:village/desert/decor");
         assert_eq!(decor.fallback, "minecraft:empty");
         assert_eq!(pool_weight_sum(decor), 28);
         assert_eq!(
@@ -445,7 +475,7 @@ mod tests {
             Some("minecraft:pile_hay")
         );
 
-        let camel = desert_pool(&registry.pools, "minecraft:village/desert/camel");
+        let camel = parsed_pool(&registry.pools, "minecraft:village/desert/camel");
         assert_eq!(camel.elements.len(), 1);
         assert_eq!(camel.elements[0].weight, 1);
         assert_eq!(
@@ -454,8 +484,110 @@ mod tests {
         );
 
         let zombie_villagers =
-            desert_pool(&registry.pools, "minecraft:village/desert/zombie/villagers");
+            parsed_pool(&registry.pools, "minecraft:village/desert/zombie/villagers");
         assert_eq!(pool_weight_sum(zombie_villagers), 11);
         assert_eq!(zombie_villagers.elements.len(), 2);
+    }
+
+    #[test]
+    fn pillager_outpost_template_pool_json_ids_match_java_bootstrap() {
+        let registry = load_vanilla_template_pools();
+        let outpost_ids = registry
+            .pools
+            .keys()
+            .filter(|id| id.starts_with("minecraft:pillager_outpost/"))
+            .map(String::as_str)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            outpost_ids,
+            vec![
+                "minecraft:pillager_outpost/base_plates",
+                "minecraft:pillager_outpost/feature_plates",
+                "minecraft:pillager_outpost/features",
+                "minecraft:pillager_outpost/towers",
+            ]
+        );
+    }
+
+    #[test]
+    fn pillager_outpost_base_tower_and_feature_pools_match_java_bootstrap() {
+        let registry = load_vanilla_template_pools();
+        let base_plates = parsed_pool(&registry.pools, "minecraft:pillager_outpost/base_plates");
+        assert_eq!(base_plates.fallback, "minecraft:empty");
+        assert_eq!(base_plates.elements.len(), 1);
+        assert_eq!(base_plates.elements[0].weight, 1);
+        assert_eq!(
+            base_plates.elements[0].element.location.as_deref(),
+            Some("minecraft:pillager_outpost/base_plate")
+        );
+        assert_eq!(
+            base_plates.elements[0].element.projection.as_deref(),
+            Some("rigid")
+        );
+
+        let towers = parsed_pool(&registry.pools, "minecraft:pillager_outpost/towers");
+        assert_eq!(towers.fallback, "minecraft:empty");
+        assert_eq!(towers.elements.len(), 1);
+        assert_eq!(towers.elements[0].weight, 1);
+        assert_eq!(
+            towers.elements[0].element.element_type,
+            "minecraft:list_pool_element"
+        );
+        assert_eq!(towers.elements[0].element.children.len(), 2);
+        assert_eq!(
+            towers.elements[0].element.children[0].location.as_deref(),
+            Some("minecraft:pillager_outpost/watchtower")
+        );
+        assert_eq!(
+            towers.elements[0].element.children[1].location.as_deref(),
+            Some("minecraft:pillager_outpost/watchtower_overgrown")
+        );
+        assert_eq!(
+            towers.elements[0].element.children[1].processors,
+            vec!["minecraft:outpost_rot".to_string()]
+        );
+
+        let feature_plates =
+            parsed_pool(&registry.pools, "minecraft:pillager_outpost/feature_plates");
+        assert_eq!(feature_plates.fallback, "minecraft:empty");
+        assert_eq!(feature_plates.elements.len(), 1);
+        assert_eq!(
+            feature_plates.elements[0].element.location.as_deref(),
+            Some("minecraft:pillager_outpost/feature_plate")
+        );
+        assert_eq!(
+            feature_plates.elements[0].element.projection.as_deref(),
+            Some("terrain_matching")
+        );
+    }
+
+    #[test]
+    fn pillager_outpost_features_pool_matches_java_bootstrap() {
+        let registry = load_vanilla_template_pools();
+        let features = parsed_pool(&registry.pools, "minecraft:pillager_outpost/features");
+        assert_eq!(features.fallback, "minecraft:empty");
+        assert_eq!(features.elements.len(), 8);
+        assert_eq!(pool_weight_sum(features), 13);
+        assert_eq!(
+            features
+                .elements
+                .iter()
+                .filter_map(|entry| entry.element.location.as_deref())
+                .collect::<Vec<_>>(),
+            vec![
+                "minecraft:pillager_outpost/feature_cage1",
+                "minecraft:pillager_outpost/feature_cage2",
+                "minecraft:pillager_outpost/feature_cage_with_allays",
+                "minecraft:pillager_outpost/feature_logs",
+                "minecraft:pillager_outpost/feature_tent1",
+                "minecraft:pillager_outpost/feature_tent2",
+                "minecraft:pillager_outpost/feature_targets",
+            ]
+        );
+        assert_eq!(
+            features.elements.last().unwrap().element.element_type,
+            "minecraft:empty_pool_element"
+        );
+        assert_eq!(features.elements.last().unwrap().weight, 6);
     }
 }
