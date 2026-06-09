@@ -329,8 +329,7 @@ mod criterion_simple_trigger;
 mod criterion_single_component_item_predicate;
 #[cfg(test)]
 mod criterion_slide_down_block;
-#[cfg(test)]
-mod criterion_slime_predicate;
+#[cfg(test)] mod criterion_slime_predicate;
 #[cfg(test)] mod criterion_block_predicate;
 #[cfg(test)] mod criterion_bee_nest;
 #[cfg(test)] mod criterion_block_interaction;
@@ -380,6 +379,7 @@ mod damage_type;
 #[cfg(test)] mod data_tags_core;
 #[cfg(test)] mod data_tags_medium_providers;
 #[cfg(test)] mod data_tags_registry_providers;
+#[cfg(test)] mod data_tags_trade_rebalance_trades;
 #[cfg(test)] mod data_transmute_recipe_builder;
 #[cfg(test)] mod data_vanilla_recipe_provider;
 #[cfg(test)] mod datapack_reload_tests;
