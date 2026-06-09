@@ -17,6 +17,9 @@ const END_BIOMES_JAVA: &str = include_str!(
 const NETHER_BIOMES_JAVA: &str = include_str!(
     "../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/biome/NetherBiomes.java"
 );
+const OVERWORLD_BIOMES_JAVA: &str = include_str!(
+    "../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/biome/OverworldBiomes.java"
+);
 
 fn count_occurrences(source: &str, needle: &str) -> usize {
     source.match_indices(needle).count()
@@ -41,6 +44,7 @@ fn padded_feature_steps(steps: &[&[&str]]) -> [Vec<String>; 11] {
 }
 
 fn assert_spawn_category_matches(
+    id: &str,
     parsed: &super::BiomeData,
     model: &crate::worldgen::BiomeGenerationSettingsModel,
     category: MobCategory,
@@ -56,13 +60,13 @@ fn assert_spawn_category_matches(
     assert_eq!(
         parsed_entries.len(),
         model_entries.len(),
-        "{category_name} spawn count"
+        "{category_name} spawn count for {id}"
     );
     for (parsed_entry, model_entry) in parsed_entries.iter().zip(model_entries) {
-        assert_eq!(parsed_entry.entity_type, model_entry.entity_type);
-        assert_eq!(parsed_entry.weight, model_entry.weight);
-        assert_eq!(parsed_entry.min_count, model_entry.min_count);
-        assert_eq!(parsed_entry.max_count, model_entry.max_count);
+        assert_eq!(parsed_entry.entity_type, model_entry.entity_type, "{id}");
+        assert_eq!(parsed_entry.weight, model_entry.weight, "{id}");
+        assert_eq!(parsed_entry.min_count, model_entry.min_count, "{id}");
+        assert_eq!(parsed_entry.max_count, model_entry.max_count, "{id}");
     }
 }
 
@@ -83,6 +87,40 @@ fn assert_spawn_costs_match(
         assert_eq!(parsed_cost.energy_budget, cost.energy_budget);
         assert_eq!(parsed_cost.charge, cost.charge);
     }
+}
+
+fn assert_generation_model_matches_vanilla_json(id: &str) {
+    let parsed = vanilla_biome_json(id);
+    let model = crate::worldgen::biome_generation_settings(id)
+        .unwrap_or_else(|| panic!("missing Rust biome generation settings for {id}"));
+    assert_eq!(
+        parsed.generation_settings.carvers, model.carvers,
+        "carver mismatch for {id}"
+    );
+    assert_eq!(
+        parsed.generation_settings.features,
+        padded_feature_steps(model.feature_steps),
+        "feature steps mismatch for {id}"
+    );
+    assert_eq!(
+        parsed.mob_spawn_settings.creature_spawn_probability, model.creature_spawn_probability,
+        "creature spawn probability mismatch for {id}"
+    );
+    for (category, category_name) in [
+        (MobCategory::Monster, "monster"),
+        (MobCategory::Creature, "creature"),
+        (MobCategory::Ambient, "ambient"),
+        (MobCategory::Axolotls, "axolotls"),
+        (
+            MobCategory::UndergroundWaterCreature,
+            "underground_water_creature",
+        ),
+        (MobCategory::WaterAmbient, "water_ambient"),
+        (MobCategory::WaterCreature, "water_creature"),
+    ] {
+        assert_spawn_category_matches(id, &parsed, model, category, category_name);
+    }
+    assert_spawn_costs_match(&parsed, model);
 }
 
 #[test]
@@ -151,6 +189,93 @@ fn biome_data_registered_biomes_all_have_parseable_vanilla_json() {
     assert!(parsed_ids.contains(&"minecraft:pale_garden".to_string()));
     assert!(parsed_ids.contains(&"minecraft:nether_wastes".to_string()));
     assert!(parsed_ids.contains(&"minecraft:the_end".to_string()));
+}
+
+#[test]
+fn overworld_biomes_java_source_shape_matches_rust_overworld_models() {
+    assert_eq!(OVERWORLD_BIOMES_JAVA.lines().count(), 949);
+    assert_eq!(
+        count_occurrences(OVERWORLD_BIOMES_JAVA, "public static Biome "),
+        32
+    );
+    assert_eq!(
+        count_occurrences(OVERWORLD_BIOMES_JAVA, "private static Biome"),
+        5
+    );
+    assert_eq!(
+        count_occurrences(
+            OVERWORLD_BIOMES_JAVA,
+            "private static void globalOverworldGeneration"
+        ),
+        1
+    );
+    assert_eq!(
+        count_occurrences(
+            OVERWORLD_BIOMES_JAVA,
+            "globalOverworldGeneration(generation);"
+        ),
+        24
+    );
+    assert_eq!(count_occurrences(OVERWORLD_BIOMES_JAVA, ".addCarver("), 3);
+    assert_eq!(count_occurrences(OVERWORLD_BIOMES_JAVA, ".addFeature("), 20);
+    assert_eq!(count_occurrences(OVERWORLD_BIOMES_JAVA, ".addSpawn("), 54);
+    assert_eq!(
+        count_occurrences(OVERWORLD_BIOMES_JAVA, "BiomeDefaultFeatures.addDefaultOres"),
+        25
+    );
+    assert_eq!(
+        count_occurrences(
+            OVERWORLD_BIOMES_JAVA,
+            "BiomeDefaultFeatures.addDefaultSoftDisks"
+        ),
+        23
+    );
+    assert_eq!(
+        count_occurrences(
+            OVERWORLD_BIOMES_JAVA,
+            "BiomeDefaultFeatures.addDefaultMushrooms"
+        ),
+        16
+    );
+    for sentinel in [
+        "public static int calculateSkyColor(final float temperature)",
+        ".hasPrecipitation(true)",
+        ".setAttribute(EnvironmentAttributes.SKY_COLOR, calculateSkyColor(temperature))",
+        "BiomeDefaultFeatures.addDefaultCarversAndLakes(generation);",
+        "BiomeDefaultFeatures.addSurfaceFreezing(generation);",
+        "generation.addCarver(Carvers.CAVE);",
+        "generation.addCarver(Carvers.CAVE_EXTRA_UNDERGROUND);",
+        "generation.addCarver(Carvers.CANYON);",
+        "EntityType.OCELOT, 1, 1",
+        "VegetationPlacements.PALE_GARDEN_FLOWERS",
+        "VegetationPlacements.PALE_MOSS_PATCH",
+        "BiomeDefaultFeatures.addCherryGroveVegetation(generation);",
+        "AquaticPlacements.SEAGRASS_WARM",
+        "BiomeDefaultFeatures.addDesertExtraDecoration(generation);",
+        "MiscOverworldPlacements.ICE_SPIKE",
+        "MiscOverworldPlacements.ICE_PATCH",
+    ] {
+        assert!(
+            OVERWORLD_BIOMES_JAVA.contains(sentinel),
+            "missing OverworldBiomes sentinel {sentinel}"
+        );
+    }
+}
+
+#[test]
+fn overworld_biomes_builtin_generation_models_match_vanilla_json() {
+    let overworld_ids: Vec<&str> = BUILTIN_BIOMES
+        .iter()
+        .map(|biome| biome.id)
+        .take_while(|id| *id != "minecraft:nether_wastes")
+        .collect();
+    assert_eq!(overworld_ids.len(), 55);
+    assert_eq!(overworld_ids.first(), Some(&"minecraft:the_void"));
+    assert_eq!(overworld_ids.last(), Some(&"minecraft:deep_dark"));
+
+    for id in overworld_ids {
+        assert_generation_model_matches_vanilla_json(id);
+    }
 }
 
 #[test]
@@ -301,8 +426,8 @@ fn nether_biomes_builtin_generation_models_match_vanilla_json() {
             padded_feature_steps(model.feature_steps),
             "feature steps mismatch for {id}"
         );
-        assert_spawn_category_matches(&parsed, model, MobCategory::Monster, "monster");
-        assert_spawn_category_matches(&parsed, model, MobCategory::Creature, "creature");
+        assert_spawn_category_matches(id, &parsed, model, MobCategory::Monster, "monster");
+        assert_spawn_category_matches(id, &parsed, model, MobCategory::Creature, "creature");
         assert_spawn_costs_match(&parsed, model);
     }
 }

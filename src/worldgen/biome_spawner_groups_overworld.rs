@@ -735,6 +735,41 @@ pub const SNOWY_PLAINS_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     },
 ];
 
+pub const ICE_SPIKES_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
+    MobSpawnerGroupModel {
+        category: "ambient",
+        entries: PLAINS_AMBIENT_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "axolotls",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "creature",
+        entries: SNOWY_PLAINS_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "misc",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "monster",
+        entries: ICE_SPIKES_MONSTER_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "underground_water_creature",
+        entries: PLAINS_UNDERGROUND_WATER_CREATURE_SPAWNS,
+    },
+    MobSpawnerGroupModel {
+        category: "water_ambient",
+        entries: &[],
+    },
+    MobSpawnerGroupModel {
+        category: "water_creature",
+        entries: &[],
+    },
+];
+
 pub const JUNGLE_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     MobSpawnerGroupModel {
         category: "ambient",
@@ -824,7 +859,7 @@ pub const BAMBOO_JUNGLE_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
     },
     MobSpawnerGroupModel {
         category: "monster",
-        entries: JUNGLE_MONSTER_SPAWNS,
+        entries: BAMBOO_JUNGLE_MONSTER_SPAWNS,
     },
     MobSpawnerGroupModel {
         category: "underground_water_creature",
@@ -979,4 +1014,3 @@ pub const DRIPSTONE_CAVES_SPAWNER_GROUPS: &[MobSpawnerGroupModel] = &[
         entries: &[],
     },
 ];
-

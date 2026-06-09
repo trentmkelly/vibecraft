@@ -479,7 +479,7 @@ pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &
         feature_steps: ICE_SPIKES_FEATURE_STEPS,
         creature_spawn_probability: 0.07,
         spawn_costs: &[],
-        spawners: SNOWY_PLAINS_SPAWNER_GROUPS,
+        spawners: ICE_SPIKES_SPAWNER_GROUPS,
     },
     BiomeGenerationSettingsModel {
         biome: "minecraft:jungle",
@@ -522,4 +522,3 @@ pub const BUILTIN_BIOME_GENERATION_SETTINGS: &[BiomeGenerationSettingsModel] = &
         spawners: MANGROVE_SWAMP_SPAWNER_GROUPS,
     },
 ];
-
