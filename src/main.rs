@@ -385,6 +385,7 @@ mod damage_type;
 #[cfg(test)] mod data_worldgen_processor_lists;
 #[cfg(test)] mod data_worldgen_structure_sets;
 #[cfg(test)] mod data_worldgen_structures;
+#[cfg(test)] mod data_worldgen_surface_rule_data;
 #[cfg(test)] mod datapack_reload_tests;
 #[cfg(test)] mod dialog_system;
 mod dispenser_cauldron;
@@ -474,8 +475,7 @@ mod server_properties;
 mod spawning;
 mod system_report;
 mod special_block;
-#[cfg(test)]
-mod statistics;
+#[cfg(test)] mod statistics;
 mod status_effect;
 mod storage;
 mod structure_resources;
