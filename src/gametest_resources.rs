@@ -8,6 +8,7 @@ use std::collections::BTreeSet;
 pub mod generated_models;
 pub use generated_models::*;
 pub mod environment_models;
+pub mod gizmo_models;
 pub mod listener_models;
 pub use listener_models::*;
 pub mod main_util_models;
@@ -26,6 +27,8 @@ pub mod ticker_models;
 pub use ticker_models::*;
 pub mod timeout_models;
 pub use timeout_models::*;
+#[cfg(test)]
+mod tests_gizmos;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TestEnvironmentDefinition {

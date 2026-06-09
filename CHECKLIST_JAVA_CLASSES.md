@@ -704,21 +704,21 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/gizmos`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/ArrowGizmo.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/CircleGizmo.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/CuboidGizmo.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/Gizmo.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/GizmoCollector.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/GizmoPrimitives.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/GizmoProperties.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/GizmoStyle.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/Gizmos.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/LineGizmo.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/PointGizmo.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/RectGizmo.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/SimpleGizmoCollector.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/TextGizmo.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/ArrowGizmo.java`. Rust `gizmos::GizmoModel::Arrow` emits the shaft plus four rotated/clamped tip lines with Java default width and alpha-multiplied ARGB; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 gizmo`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/CircleGizmo.java`. Rust `gizmos::GizmoModel::Circle` emits 20 Java segment vertices plus the closing point, optional triangle fan fill, and optional stroke lines; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 gizmo`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/CuboidGizmo.java`. Rust `gizmos::GizmoModel::Cuboid` emits Java face quads, 12 edge lines, optional colored corner stroke multiplication, and alpha-adjusted style colors; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 gizmo`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/Gizmo.java`. Rust `gizmos::GizmoModel::emit()` mirrors the Java `Gizmo.emit(GizmoPrimitives,float)` callback surface through a captured primitive stream; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 gizmo`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/GizmoCollector.java`. Rust `gizmos::GizmoPropertiesModel::Ignored` and `SimpleGizmoCollectorModel::add()` mirror Java `IGNORED`, `NOOP`, and fluent add-property behavior; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 gizmo`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/GizmoPrimitives.java`. Rust `gizmos::GizmoPrimitiveModel` captures Java point, line, triangle fan, quad, and text primitive emissions; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 gizmo`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/GizmoProperties.java`. Rust `gizmos::GizmoPropertiesModel` mirrors `setAlwaysOnTop()`, `persistForMillis()`, and `fadeOut()` fluent mutation on stored instances plus ignored no-ops; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 gizmo`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/GizmoStyle.java`. Rust `gizmos::GizmoStyleModel` mirrors stroke/fill/strokeAndFill factories, default widths, fill/stroke predicates, and Java `ARGB.multiplyAlpha` behavior; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 gizmo`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/Gizmos.java`. Rust `gizmos::GizmosModel` mirrors collector scoping/restoration, no-collector failure, and Java helper constructors for cuboids, circles, lines, arrows, rects, points, and billboard text; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 gizmo`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/LineGizmo.java`. Rust `gizmos::GizmoModel::Line` emits start/end, Java default width `3.0F`, explicit width, and alpha-multiplied color; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 gizmo`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/PointGizmo.java`. Rust `gizmos::GizmoModel::Point` emits position, Java alpha-multiplied ARGB, and size through the captured primitive stream; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 gizmo`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/RectGizmo.java`. Rust `gizmos::rect_from_cuboid_face()` mirrors Java corner ordering for all six `Direction` faces and `GizmoModel::Rect` emits optional fill plus four stroke edges; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 gizmo`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/SimpleGizmoCollector.java`. Rust `gizmos::SimpleGizmoCollectorModel` mirrors permanent/temporary lists, drain-before-expire-removal ordering, `persistForMillis`, `fadeOut`, `isAlwaysOnTop`, and fade alpha clamping; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 gizmo`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/TextGizmo.java`. Rust `gizmos::GizmoModel::Text` mirrors centered/left-aligned style factories, default scale `0.32F`, scale/alignment mutation, and alpha-adjusted text style emission; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 gizmo`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/gizmos/package-info.java`. Verified the gizmos package-info remains the Java `@NullMarked` package annotation for `net.minecraft.gizmos`; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 gizmo`.
 
 ## `decompiled-server-26.1.2/net/minecraft/locale`
 
