@@ -4,6 +4,9 @@ use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 
+#[allow(dead_code)]
+pub mod accounter;
+
 pub const DEFAULT_MAX_NBT_DEPTH: usize = 512;
 
 #[derive(Debug, Clone, PartialEq)]

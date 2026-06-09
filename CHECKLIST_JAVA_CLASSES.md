@@ -740,10 +740,10 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/ListTag.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/LongArrayTag.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/LongTag.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/NbtAccounter.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/NbtAccounterException.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/NbtException.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/NbtFormatException.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/NbtAccounter.java`. Rust `NbtAccounter` mirrors Java's default/uncompressed/unlimited quotas, 512 default max depth, byte accounting overload behavior, negative-size rejection, quota-exceeded diagnostics, push/pop depth rules, and visible-for-testing usage/depth accessors; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 nbt_accounter`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/NbtAccounterException.java`. Rust `NbtAccounterError` preserves the Java accounter exception message surfaces for quota, depth, negative-size, and top-level pop failures; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 nbt_accounter`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/NbtException.java`. Verified Java's base NBT exception hierarchy root extends `RuntimeException`; Rust uses typed `NbtAccounterError` plus `io::Error` for parser/reader failures rather than a shared unchecked exception base; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 nbt_exception_and_package_metadata`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/NbtFormatException.java`. Verified Java's format exception is a metadata-thin subclass of `NbtException`; Rust parser failures continue to use `io::ErrorKind::InvalidData` at parser boundaries; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 nbt_exception_and_package_metadata`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/NbtIo.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/NbtOps.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/NbtUtils.java`.
@@ -763,7 +763,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/TagTypes.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/TagVisitor.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/TextComponentTagVisitor.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/package-info.java`. Verified the NBT package-info remains the Java `@NullMarked` package annotation for `net.minecraft.nbt`; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 nbt_exception_and_package_metadata`.
 
 ## `decompiled-server-26.1.2/net/minecraft/nbt/visitors`
 

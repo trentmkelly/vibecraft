@@ -1,8 +1,102 @@
+use super::accounter::{
+    NbtAccounter, NbtAccounterError, DEFAULT_NBT_QUOTA, UNCOMPRESSED_NBT_QUOTA,
+};
 use super::{
     parse_snbt, read_gzip_named_tag, read_named_tag, read_named_tag_limited, write_gzip_named_tag,
-    write_named_tag, NbtFieldSelector, Tag,
+    write_named_tag, NbtFieldSelector, Tag, DEFAULT_MAX_NBT_DEPTH,
 };
 use std::io::Cursor;
+
+const NBT_ACCOUNTER_JAVA: &str =
+    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/NbtAccounter.java");
+const NBT_EXCEPTION_JAVA: &str =
+    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/NbtException.java");
+const NBT_ACCOUNTER_EXCEPTION_JAVA: &str = include_str!(
+    "../../../../decompiled-server-26.1.2/net/minecraft/nbt/NbtAccounterException.java"
+);
+const NBT_FORMAT_EXCEPTION_JAVA: &str =
+    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/NbtFormatException.java");
+const NBT_PACKAGE_INFO_JAVA: &str =
+    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/package-info.java");
+
+#[test]
+fn nbt_accounter_matches_java_quota_depth_and_error_contracts() {
+    for sentinel in [
+        "public static final int DEFAULT_NBT_QUOTA = 2097152;",
+        "public static final int UNCOMPRESSED_NBT_QUOTA = 104857600;",
+        "private static final int MAX_STACK_DEPTH = 512;",
+        "return new NbtAccounter(quota, 512);",
+        "return new NbtAccounter(2097152L, 512);",
+        "return new NbtAccounter(104857600L, 512);",
+        "return new NbtAccounter(Long.MAX_VALUE, 512);",
+        "Tried to account NBT tag with negative size:",
+        "Tried to read NBT tag that was too big; tried to allocate:",
+        "Tried to read NBT tag with too high complexity, depth > ",
+        "NBT-Accounter tried to pop stack-depth at top-level",
+    ] {
+        assert!(
+            NBT_ACCOUNTER_JAVA.contains(sentinel),
+            "missing NbtAccounter sentinel {sentinel}"
+        );
+    }
+
+    assert_eq!(DEFAULT_NBT_QUOTA, 2_097_152);
+    assert_eq!(UNCOMPRESSED_NBT_QUOTA, 104_857_600);
+    assert_eq!(DEFAULT_MAX_NBT_DEPTH, 512);
+
+    let mut accounter = NbtAccounter::create(10);
+    accounter.account_bytes(4).unwrap();
+    accounter.account_entries(3, 2).unwrap();
+    assert_eq!(accounter.usage(), 10);
+    assert_eq!(
+        accounter.account_bytes(1).unwrap_err(),
+        NbtAccounterError::QuotaExceeded {
+            usage: 10,
+            size: 1,
+            quota: 10
+        }
+    );
+    assert_eq!(
+        NbtAccounter::default_quota()
+            .account_bytes(-1)
+            .unwrap_err()
+            .to_string(),
+        "Tried to account NBT tag with negative size: -1"
+    );
+
+    let mut depth_limited = NbtAccounter::new(100, 1);
+    depth_limited.push_depth().unwrap();
+    assert_eq!(depth_limited.depth(), 1);
+    assert_eq!(
+        depth_limited.push_depth().unwrap_err(),
+        NbtAccounterError::DepthExceeded { max_depth: 1 }
+    );
+    depth_limited.pop_depth().unwrap();
+    assert_eq!(
+        depth_limited.pop_depth().unwrap_err(),
+        NbtAccounterError::PopAtTopLevel
+    );
+
+    NbtAccounter::uncompressed_quota()
+        .account_bytes(UNCOMPRESSED_NBT_QUOTA)
+        .unwrap();
+    NbtAccounter::unlimited_heap()
+        .account_bytes(i64::MAX)
+        .unwrap();
+}
+
+#[test]
+fn nbt_exception_and_package_metadata_match_java_hierarchy() {
+    assert!(NBT_EXCEPTION_JAVA.contains("public class NbtException extends RuntimeException"));
+    assert!(NBT_ACCOUNTER_EXCEPTION_JAVA
+        .contains("public class NbtAccounterException extends NbtException"));
+    assert!(
+        NBT_FORMAT_EXCEPTION_JAVA.contains("public class NbtFormatException extends NbtException")
+    );
+    assert!(NBT_PACKAGE_INFO_JAVA.contains("@NullMarked"));
+    assert!(NBT_PACKAGE_INFO_JAVA.contains("package net.minecraft.nbt;"));
+    assert!(NBT_PACKAGE_INFO_JAVA.contains("import org.jspecify.annotations.NullMarked;"));
+}
 
 #[test]
 fn nbt_strings_use_java_modified_utf8_not_standard_utf8() {
