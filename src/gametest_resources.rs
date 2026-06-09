@@ -122,6 +122,25 @@ pub fn block_based_test_tick_outcome(
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuiltinGameTestFunctionAction {
+    Succeed,
+}
+
+pub const BUILTIN_ALWAYS_PASS_FUNCTION_ID: &str = "minecraft:always_pass";
+
+pub fn builtin_gametest_function(id: &str) -> Option<BuiltinGameTestFunctionAction> {
+    let normalized = id.strip_prefix("minecraft:").unwrap_or(id);
+    match normalized {
+        "always_pass" => Some(BuiltinGameTestFunctionAction::Succeed),
+        _ => None,
+    }
+}
+
+pub fn builtin_gametest_bootstrap_return() -> BuiltinGameTestFunctionAction {
+    BuiltinGameTestFunctionAction::Succeed
+}
+
 pub fn parse_test_environment_json(raw: &str) -> Result<TestEnvironmentDefinition, String> {
     let value: serde_json::Value =
         serde_json::from_str(raw).map_err(|err| format!("invalid test environment JSON: {err}"))?;
@@ -265,6 +284,9 @@ mod tests {
         include_str!("../../decompiled-server-26.1.2/net/minecraft/gametest/Main.java");
     const BLOCK_BASED_TEST_INSTANCE_JAVA: &str = include_str!(
         "../../decompiled-server-26.1.2/net/minecraft/gametest/framework/BlockBasedTestInstance.java"
+    );
+    const BUILTIN_TEST_FUNCTIONS_JAVA: &str = include_str!(
+        "../../decompiled-server-26.1.2/net/minecraft/gametest/framework/BuiltinTestFunctions.java"
     );
 
     #[test]
@@ -435,6 +457,59 @@ mod tests {
     }
 
     #[test]
+    fn builtin_test_functions_match_java_source_shape() {
+        assert_eq!(BUILTIN_TEST_FUNCTIONS_JAVA.lines().count(), 28);
+        assert_eq!(
+            BUILTIN_TEST_FUNCTIONS_JAVA
+                .match_indices("ALWAYS_PASS")
+                .count(),
+            5
+        );
+        assert_eq!(
+            BUILTIN_TEST_FUNCTIONS_JAVA
+                .match_indices("Identifier.withDefaultNamespace(name)")
+                .count(),
+            1
+        );
+        assert_eq!(
+            BUILTIN_TEST_FUNCTIONS_JAVA
+                .match_indices("registerLoader(new BuiltinTestFunctions())")
+                .count(),
+            1
+        );
+        for sentinel in [
+            "public static final ResourceKey<Consumer<GameTestHelper>> ALWAYS_PASS = create(\"always_pass\");",
+            "public static final Consumer<GameTestHelper> ALWAYS_PASS_INSTANCE = GameTestHelper::succeed;",
+            "runLoaders(registry);",
+            "return ALWAYS_PASS_INSTANCE;",
+            "register.accept(ALWAYS_PASS, ALWAYS_PASS_INSTANCE);",
+        ] {
+            assert!(
+                BUILTIN_TEST_FUNCTIONS_JAVA.contains(sentinel),
+                "missing BuiltinTestFunctions sentinel {sentinel}"
+            );
+        }
+    }
+
+    #[test]
+    fn builtin_test_functions_register_always_pass_only() {
+        assert_eq!(BUILTIN_ALWAYS_PASS_FUNCTION_ID, "minecraft:always_pass");
+        assert_eq!(
+            builtin_gametest_function("minecraft:always_pass"),
+            Some(BuiltinGameTestFunctionAction::Succeed)
+        );
+        assert_eq!(
+            builtin_gametest_function("always_pass"),
+            Some(BuiltinGameTestFunctionAction::Succeed)
+        );
+        assert_eq!(builtin_gametest_function("minecraft:unknown"), None);
+        assert_eq!(
+            builtin_gametest_bootstrap_return(),
+            BuiltinGameTestFunctionAction::Succeed
+        );
+    }
+
+    #[test]
     fn gametest_environment_and_instance_decode_vanilla_resources() {
         let environment = parse_test_environment_json(include_str!(
             "../../decompiled-server-26.1.2/data/minecraft/test_environment/default.json"
@@ -455,7 +530,7 @@ mod tests {
             instance,
             GameTestInstanceDefinition {
                 kind: GameTestInstanceKind::Function {
-                    function: "minecraft:always_pass".to_string()
+                    function: BUILTIN_ALWAYS_PASS_FUNCTION_ID.to_string()
                 },
                 environment: "minecraft:default".to_string(),
                 structure: "minecraft:empty".to_string(),
