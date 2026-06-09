@@ -54,6 +54,8 @@ mod placement_registry_misc_overworld_tests;
 
 mod placement_registry_nether_tests;
 
+mod placement_registry_ore_tests;
+
 mod world_preset_tests;
 
 mod live_surface_tests;
