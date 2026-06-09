@@ -338,8 +338,7 @@ mod criterion_bee_nest;
 #[cfg(test)]
 mod criterion_block_interaction;
 #[cfg(test)] mod criterion_slots_predicate;
-#[cfg(test)]
-mod criterion_spear_mobs;
+#[cfg(test)] mod criterion_spear_mobs;
 #[cfg(test)]
 mod criterion_start_riding;
 #[cfg(test)] mod criterion_state_properties_predicate;
@@ -370,6 +369,7 @@ mod damage_type;
 #[cfg(test)] mod data_loot_vanilla_entity;
 #[cfg(test)] mod data_metadata;
 #[cfg(test)] mod data_package;
+#[cfg(test)] mod data_registries;
 #[cfg(test)] mod data_recipe_unlock_advancement;
 #[cfg(test)] mod data_recipes;
 #[cfg(test)] mod data_recipes_package;

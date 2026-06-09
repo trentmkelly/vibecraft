@@ -530,11 +530,11 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/data/registries`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/registries/RegistriesDatapackGenerator.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/registries/RegistryPatchGenerator.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/registries/TradeRebalanceRegistries.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/registries/VanillaRegistries.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/registries/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/registries/RegistriesDatapackGenerator.java`. Rust `data_registries` covers the provider fields, `run` serialization context creation, `WORLDGEN_REGISTRIES` traversal, optional registry dump behavior, registry element path creation, stable JSON save path, encode-error failed future message, provider name, and source counts; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_registries`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/registries/RegistryPatchGenerator.java`. Rust `data_registries` covers vanilla parent future mapping, static registry access, cloner codec registration from `WORLDGEN_REGISTRIES`, patch building, full patched lookup, optional biome/placed-feature lookup, fallback to parent registries, and conditional biome-filter validation; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_registries`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/registries/TradeRebalanceRegistries.java`. Rust `data_registries` covers the villager-trade-only patch builder and `RegistryPatchGenerator.createLookup` delegation; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_registries`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/registries/VanillaRegistries.java`. Rust `data_registries` covers all 45 vanilla `RegistrySetBuilder` bootstrap entries in Java declaration order, lookup creation from built-in static registries, biome-feature `BiomeFilter.biome()` validation for keyed and inline placed features, missing-filter log message shapes, and source counts/sentinels; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_registries`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/data/registries/package-info.java`. Rust `data_registries` covers the package's `@NullMarked` annotation, package declaration, and jspecify import; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_registries`.
 
 ## `decompiled-server-26.1.2/net/minecraft/data/structures`
 
