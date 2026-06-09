@@ -545,6 +545,60 @@ fn primitive_array_tags_match_java_collection_payloads_and_sizes() {
 }
 
 #[test]
+fn string_tag_visitor_matches_java_snbt_rendering_order_and_suffixes() {
+    for sentinel in [
+        "private static final Pattern UNQUOTED_KEY_MATCH = Pattern.compile(\"[A-Za-z._]+[A-Za-z0-9._+-]*\");",
+        "this.builder.append(tag.value()).append('b');",
+        "this.builder.append(tag.value()).append('s');",
+        "this.builder.append(tag.value()).append('L');",
+        "this.builder.append(tag.value()).append('f');",
+        "this.builder.append(tag.value()).append('d');",
+        "this.builder.append(\"[B;\");",
+        "this.builder.append(data[i]).append('B');",
+        "this.builder.append(\"[I;\");",
+        "this.builder.append(\"[L;\");",
+        "this.builder.append(data[i]).append('L');",
+        "entries.sort(Entry.comparingByKey());",
+        "!input.equalsIgnoreCase(\"true\") && !input.equalsIgnoreCase(\"false\")",
+        "this.builder.append(\"END\");",
+    ] {
+        assert!(
+            STRING_TAG_VISITOR_JAVA.contains(sentinel),
+            "missing StringTagVisitor sentinel {sentinel}"
+        );
+    }
+
+    assert_eq!(Tag::End.to_snbt(), "END");
+    assert_eq!(Tag::Byte(-1).to_snbt(), "-1b");
+    assert_eq!(Tag::Short(2).to_snbt(), "2s");
+    assert_eq!(Tag::Int(3).to_snbt(), "3");
+    assert_eq!(Tag::Long(4).to_snbt(), "4L");
+    assert_eq!(Tag::Float(1.5).to_snbt(), "1.5f");
+    assert_eq!(Tag::Double(2.25).to_snbt(), "2.25d");
+    assert_eq!(Tag::ByteArray(vec![1, -2]).to_snbt(), "[B;1B,-2B]");
+    assert_eq!(Tag::IntArray(vec![3, -4]).to_snbt(), "[I;3,-4]");
+    assert_eq!(Tag::LongArray(vec![5, -6]).to_snbt(), "[L;5L,-6L]");
+    assert_eq!(
+        Tag::List(vec![
+            Tag::String("x".to_string()),
+            Tag::String("y".to_string())
+        ])
+        .to_snbt(),
+        "[\"x\",\"y\"]"
+    );
+    assert_eq!(
+        Tag::Compound(vec![
+            ("z".to_string(), Tag::Int(3)),
+            ("a".to_string(), Tag::Byte(1)),
+            ("true".to_string(), Tag::String("reserved".to_string())),
+            ("1bad".to_string(), Tag::String("number-start".to_string())),
+        ])
+        .to_snbt(),
+        "{\"1bad\":\"number-start\",a:1b,\"true\":\"reserved\",z:3}"
+    );
+}
+
+#[test]
 fn numeric_and_primitive_tag_interface_conversions_match_java() {
     for sentinel in [
         "public sealed interface NumericTag extends PrimitiveTag",
@@ -799,7 +853,11 @@ fn snbt_parser_round_trips_printer_shapes_and_reports_errors() {
     ]);
 
     let printed = tag.to_snbt();
-    assert_eq!(parse_snbt(&printed).unwrap(), tag);
+    assert_eq!(
+        printed,
+        "{bytes:[B;1B,2B],enabled:1b,ints:[I;3,4],longs:[L;5L,6L],name:'A \"quoted\" name',nested:[1,2]}"
+    );
+    assert_eq!(parse_snbt(&printed).unwrap().to_snbt(), printed);
     assert_eq!(parse_snbt("{flag:true}").unwrap().to_snbt(), "{flag:1b}");
     assert_eq!(parse_snbt("12s").unwrap(), Tag::Short(12));
     assert_eq!(parse_snbt("3.5f").unwrap(), Tag::Float(3.5));

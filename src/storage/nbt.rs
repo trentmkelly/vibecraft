@@ -330,8 +330,8 @@ impl Tag {
             ),
             Tag::Compound(values) => format!(
                 "{{{}}}",
-                values
-                    .iter()
+                sorted_compound_entries(values)
+                    .into_iter()
                     .map(|(name, value)| {
                         format!("{}:{}", snbt_string::quote_snbt_key(name), value.to_snbt())
                     })
@@ -419,6 +419,15 @@ impl Tag {
     pub fn to_text_component_plain(&self, indentation: &str, sort_keys: bool) -> String {
         render_text_component_tag(self, indentation, sort_keys, 0, 0)
     }
+}
+
+fn sorted_compound_entries(values: &[(String, Tag)]) -> Vec<(&str, &Tag)> {
+    let mut entries = values
+        .iter()
+        .map(|(name, value)| (name.as_str(), value))
+        .collect::<Vec<_>>();
+    entries.sort_by(|left, right| left.0.cmp(right.0));
+    entries
 }
 
 #[cfg(test)]
