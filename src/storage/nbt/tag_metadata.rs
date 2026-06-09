@@ -173,6 +173,18 @@ pub fn string_size_in_bytes(value: &str) -> usize {
     36 + 2 * value.encode_utf16().count()
 }
 
+pub fn byte_array_size_in_bytes(len: usize) -> usize {
+    24 + len
+}
+
+pub fn int_array_size_in_bytes(len: usize) -> usize {
+    24 + 4 * len
+}
+
+pub fn long_array_size_in_bytes(len: usize) -> usize {
+    24 + 8 * len
+}
+
 pub fn root_parse_action(result: RootVisitResult) -> RootParseAction {
     match result {
         RootVisitResult::Continue => RootParseAction::ParsePayload,

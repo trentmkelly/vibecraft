@@ -4,8 +4,9 @@ use super::accounter::{
 use super::numeric::NbtNumericValue;
 use super::snbt_string::escape_snbt_string_without_quotes;
 use super::tag_metadata::{
-    root_parse_action, string_size_in_bytes, tag_type, NbtTagTypeLookup, ReportedNbtExceptionModel,
-    RootParseAction, RootVisitResult, TAG_TYPES,
+    byte_array_size_in_bytes, int_array_size_in_bytes, long_array_size_in_bytes, root_parse_action,
+    string_size_in_bytes, tag_type, NbtTagTypeLookup, ReportedNbtExceptionModel, RootParseAction,
+    RootVisitResult, TAG_TYPES,
 };
 use super::{
     parse_snbt, read_gzip_named_tag, read_named_tag, read_named_tag_limited, write_gzip_named_tag,
@@ -47,6 +48,14 @@ const STRING_TAG_JAVA: &str =
     include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/StringTag.java");
 const STRING_TAG_VISITOR_JAVA: &str =
     include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/StringTagVisitor.java");
+const COLLECTION_TAG_JAVA: &str =
+    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/CollectionTag.java");
+const BYTE_ARRAY_TAG_JAVA: &str =
+    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/ByteArrayTag.java");
+const INT_ARRAY_TAG_JAVA: &str =
+    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/IntArrayTag.java");
+const LONG_ARRAY_TAG_JAVA: &str =
+    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/LongArrayTag.java");
 const NUMERIC_TAG_JAVA: &str =
     include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/NumericTag.java");
 const PRIMITIVE_TAG_JAVA: &str =
@@ -431,6 +440,108 @@ fn string_tag_matches_java_modified_utf_size_and_quote_contracts() {
         .to_snbt(),
         "{\"true\":\"reserved\",valid_key:\"ok\"}"
     );
+}
+
+#[test]
+fn primitive_array_tags_match_java_collection_payloads_and_sizes() {
+    for sentinel in [
+        "public sealed interface CollectionTag extends Tag, Iterable<Tag>",
+        "return this.size() == 0;",
+        "throw new NoSuchElementException();",
+        "return CollectionTag.this.get(this.index++);",
+    ] {
+        assert!(
+            COLLECTION_TAG_JAVA.contains(sentinel),
+            "missing CollectionTag sentinel {sentinel}"
+        );
+    }
+
+    for (source, sentinels) in [
+        (
+            BYTE_ARRAY_TAG_JAVA,
+            [
+                "private static final int SELF_SIZE_IN_BYTES = 24;",
+                "accounter.accountBytes(1L, length);",
+                "input.skipBytes(input.readInt() * 1);",
+                "return 24 + 1 * this.data.length;",
+                "return Optional.of(this.data);",
+                "numeric.byteValue()",
+            ],
+        ),
+        (
+            INT_ARRAY_TAG_JAVA,
+            [
+                "private static final int SELF_SIZE_IN_BYTES = 24;",
+                "accounter.accountBytes(4L, length);",
+                "input.skipBytes(input.readInt() * 4);",
+                "return 24 + 4 * this.data.length;",
+                "return Optional.of(this.data);",
+                "numeric.intValue()",
+            ],
+        ),
+        (
+            LONG_ARRAY_TAG_JAVA,
+            [
+                "private static final int SELF_SIZE_IN_BYTES = 24;",
+                "accounter.accountBytes(8L, length);",
+                "input.skipBytes(input.readInt() * 8);",
+                "return 24 + 8 * this.data.length;",
+                "return Optional.of(this.data);",
+                "numeric.longValue()",
+            ],
+        ),
+    ] {
+        for sentinel in sentinels {
+            assert!(
+                source.contains(sentinel),
+                "missing primitive array tag sentinel {sentinel}"
+            );
+        }
+    }
+
+    let byte_array = Tag::ByteArray(vec![-1, 2]);
+    let mut byte_payload = Vec::new();
+    byte_array.write_payload(&mut byte_payload).unwrap();
+    assert_eq!(byte_payload, vec![0, 0, 0, 2, 0xFF, 0x02]);
+    assert_eq!(
+        Tag::read_payload(7, &mut byte_payload.as_slice()).unwrap(),
+        byte_array
+    );
+    assert_eq!(byte_array_size_in_bytes(2), 26);
+    assert_eq!(byte_array.to_snbt(), "[B;-1B,2B]");
+
+    let int_array = Tag::IntArray(vec![1, -2]);
+    let mut int_payload = Vec::new();
+    int_array.write_payload(&mut int_payload).unwrap();
+    assert_eq!(
+        int_payload,
+        vec![0, 0, 0, 2, 0, 0, 0, 1, 0xFF, 0xFF, 0xFF, 0xFE]
+    );
+    assert_eq!(
+        Tag::read_payload(11, &mut int_payload.as_slice()).unwrap(),
+        int_array
+    );
+    assert_eq!(int_array_size_in_bytes(2), 32);
+    assert_eq!(int_array.to_snbt(), "[I;1,-2]");
+
+    let long_array = Tag::LongArray(vec![1, -2]);
+    let mut long_payload = Vec::new();
+    long_array.write_payload(&mut long_payload).unwrap();
+    assert_eq!(
+        long_payload,
+        vec![0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE]
+    );
+    assert_eq!(
+        Tag::read_payload(12, &mut long_payload.as_slice()).unwrap(),
+        long_array
+    );
+    assert_eq!(long_array_size_in_bytes(2), 40);
+    assert_eq!(long_array.to_snbt(), "[L;1L,-2L]");
+
+    assert_eq!(Tag::ByteArray(vec![]).payload_size(), 4);
+    assert_eq!(Tag::IntArray(vec![1, 2]).payload_size(), 12);
+    assert_eq!(Tag::LongArray(vec![1, 2]).payload_size(), 20);
+    assert_eq!(Tag::ByteArray(vec![1]).clone(), Tag::ByteArray(vec![1]));
 }
 
 #[test]
