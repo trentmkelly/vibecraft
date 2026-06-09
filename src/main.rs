@@ -343,8 +343,7 @@ mod criterion_slots_predicate;
 mod criterion_spear_mobs;
 #[cfg(test)]
 mod criterion_start_riding;
-#[cfg(test)]
-mod criterion_state_properties_predicate;
+#[cfg(test)] mod criterion_state_properties_predicate;
 #[cfg(test)] mod criterion_summoned_entity;
 #[cfg(test)] mod criterion_tag_predicate;
 #[cfg(test)] mod criterion_tame_animal;
@@ -374,6 +373,7 @@ mod damage_type;
 #[cfg(test)] mod data_package;
 #[cfg(test)] mod data_recipe_unlock_advancement;
 #[cfg(test)] mod data_recipes;
+#[cfg(test)] mod data_recipes_package;
 #[cfg(test)] mod data_shaped_recipe_builder;
 #[cfg(test)] mod data_shapeless_recipe_builder;
 #[cfg(test)] mod data_simple_cooking_recipe_builder;
