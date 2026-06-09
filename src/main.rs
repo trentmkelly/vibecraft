@@ -384,6 +384,7 @@ mod damage_type;
 #[cfg(test)] mod data_worldgen_noise_data;
 #[cfg(test)] mod data_worldgen_processor_lists;
 #[cfg(test)] mod data_worldgen_structure_sets;
+#[cfg(test)] mod data_worldgen_structures;
 #[cfg(test)] mod datapack_reload_tests;
 #[cfg(test)] mod dialog_system;
 mod dispenser_cauldron;
@@ -433,8 +434,7 @@ mod network;
 #[cfg(test)] mod non_living_entity;
 #[cfg(test)] mod operational_coverage;
 mod optionull;
-#[cfg(test)]
-mod parity_harness;
+#[cfg(test)] mod parity_harness;
 mod performance_benchmarks;
 #[cfg(test)]
 mod persistence_roundtrip_tests;
