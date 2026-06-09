@@ -1,4 +1,6 @@
-use super::{create_gametest_batch, BlockPosModel, GameTestBatchModel, GameTestInfoStateModel};
+use super::{
+    create_gametest_batch, BlockPosModel, GameTestBatchModel, GameTestInfoStateModel, RotationModel,
+};
 
 pub const GAMETEST_RUNNER_SERVER_RUNTIME_TODO: &str = "gametest-runner-server-runtime";
 pub const DEFAULT_GAMETESTS_PER_ROW: i32 = 8;
@@ -398,5 +400,450 @@ impl StructureGridSpawnerModel {
 
         self.tests_in_last_batch.push(test_info.clone());
         Some(test_info.id.clone())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StructureUtilsBoxModel {
+    pub min: BlockPosModel,
+    pub max: BlockPosModel,
+}
+
+impl StructureUtilsBoxModel {
+    pub fn from_corners(a: BlockPosModel, b: BlockPosModel) -> Self {
+        Self {
+            min: BlockPosModel::new(a.x().min(b.x()), a.y().min(b.y()), a.z().min(b.z())),
+            max: BlockPosModel::new(a.x().max(b.x()), a.y().max(b.y()), a.z().max(b.z())),
+        }
+    }
+
+    pub fn move_by(self, dx: i32, dy: i32, dz: i32) -> Self {
+        Self {
+            min: BlockPosModel::new(self.min.x() + dx, self.min.y() + dy, self.min.z() + dz),
+            max: BlockPosModel::new(self.max.x() + dx, self.max.y() + dy, self.max.z() + dz),
+        }
+    }
+
+    pub fn contains(self, pos: BlockPosModel) -> bool {
+        (self.min.x()..=self.max.x()).contains(&pos.x())
+            && (self.min.y()..=self.max.y()).contains(&pos.y())
+            && (self.min.z()..=self.max.z()).contains(&pos.z())
+    }
+
+    pub fn positions(self) -> Vec<BlockPosModel> {
+        let mut positions = Vec::new();
+        for x in self.min.x()..=self.max.x() {
+            for y in self.min.y()..=self.max.y() {
+                for z in self.min.z()..=self.max.z() {
+                    positions.push(BlockPosModel::new(x, y, z));
+                }
+            }
+        }
+        positions
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StructureUtilsCreatedTestModel {
+    pub id: String,
+    pub structure_pos: BlockPosModel,
+    pub size: BlockPosModel,
+    pub rotation: RotationModel,
+    pub status: &'static str,
+    pub ignores_entities: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StructureUtilsTestBlockModel {
+    pub pos: BlockPosModel,
+    pub structure_bounding_box: StructureUtilsBoxModel,
+    pub structure_bounds_hit: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StructureUtilsLevelModel {
+    pub placed_blocks: Vec<(BlockPosModel, &'static str)>,
+    pub neighbor_updates: Vec<BlockPosModel>,
+    pub cleared_tick_areas: Vec<StructureUtilsBoxModel>,
+    pub cleared_block_event_areas: Vec<StructureUtilsBoxModel>,
+    pub discarded_entity_count: usize,
+    pub test_blocks: Vec<StructureUtilsTestBlockModel>,
+    pub created_tests: Vec<StructureUtilsCreatedTestModel>,
+}
+
+pub fn structure_utils_rotation_for_steps(rotation_steps: i32) -> Result<RotationModel, String> {
+    match rotation_steps {
+        0 => Ok(RotationModel::None),
+        1 => Ok(RotationModel::Clockwise90),
+        2 => Ok(RotationModel::Clockwise180),
+        3 => Ok(RotationModel::Counterclockwise90),
+        _ => Err(format!(
+            "rotationSteps must be a value from 0-3. Got value {rotation_steps}"
+        )),
+    }
+}
+
+pub fn structure_utils_steps_for_rotation(rotation: RotationModel) -> i32 {
+    match rotation {
+        RotationModel::None => 0,
+        RotationModel::Clockwise90 => 1,
+        RotationModel::Clockwise180 => 2,
+        RotationModel::Counterclockwise90 => 3,
+    }
+}
+
+pub fn structure_utils_transformed_far_corner(
+    structure_position: BlockPosModel,
+    size: BlockPosModel,
+    rotation: RotationModel,
+) -> BlockPosModel {
+    let far_corner = BlockPosModel::new(
+        structure_position.x() + size.x() - 1,
+        structure_position.y() + size.y() - 1,
+        structure_position.z() + size.z() - 1,
+    );
+    structure_utils_transform(far_corner, rotation, structure_position)
+}
+
+pub fn structure_utils_structure_bounding_box(
+    north_west_corner: BlockPosModel,
+    size: BlockPosModel,
+    rotation: RotationModel,
+) -> StructureUtilsBoxModel {
+    let far_corner = structure_utils_transformed_far_corner(north_west_corner, size, rotation);
+    let bounding_box = StructureUtilsBoxModel::from_corners(north_west_corner, far_corner);
+    let current_north_west_x = bounding_box.min.x().min(bounding_box.max.x());
+    let current_north_west_z = bounding_box.min.z().min(bounding_box.max.z());
+    bounding_box.move_by(
+        north_west_corner.x() - current_north_west_x,
+        0,
+        north_west_corner.z() - current_north_west_z,
+    )
+}
+
+pub fn structure_utils_create_new_empty_test(
+    level: &mut StructureUtilsLevelModel,
+    id: impl Into<String>,
+    structure_pos: BlockPosModel,
+    size: BlockPosModel,
+    rotation: RotationModel,
+) -> StructureUtilsCreatedTestModel {
+    let structure_position =
+        BlockPosModel::new(structure_pos.x(), structure_pos.y() + 1, structure_pos.z());
+    let structure_bounding_box =
+        structure_utils_structure_bounding_box(structure_position, size, rotation);
+    structure_utils_clear_space_for_structure(level, structure_bounding_box);
+    level
+        .placed_blocks
+        .push((structure_pos, "test_instance_block"));
+    let test = StructureUtilsCreatedTestModel {
+        id: id.into(),
+        structure_pos,
+        size,
+        rotation,
+        status: "CLEARED",
+        ignores_entities: false,
+    };
+    level.created_tests.push(test.clone());
+    test
+}
+
+pub fn structure_utils_clear_space_for_structure(
+    level: &mut StructureUtilsLevelModel,
+    structure_bounding_box: StructureUtilsBoxModel,
+) {
+    let ground_height = structure_bounding_box.min.y() - 1;
+    for pos in structure_bounding_box.positions() {
+        let block = if pos.y() < ground_height {
+            "stone"
+        } else {
+            "air"
+        };
+        level.placed_blocks.push((pos, block));
+        level.neighbor_updates.push(pos);
+    }
+    level.cleared_tick_areas.push(structure_bounding_box);
+    level.cleared_block_event_areas.push(structure_bounding_box);
+    level.discarded_entity_count += 1;
+}
+
+pub fn structure_utils_find_test_blocks(
+    center_pos: BlockPosModel,
+    search_radius: i32,
+    level: &StructureUtilsLevelModel,
+) -> Vec<BlockPosModel> {
+    level
+        .test_blocks
+        .iter()
+        .filter(|test| manhattan(test.pos, center_pos) <= search_radius)
+        .map(|test| test.pos)
+        .collect()
+}
+
+pub fn structure_utils_find_test_containing_pos(
+    pos: BlockPosModel,
+    search_radius: i32,
+    level: &StructureUtilsLevelModel,
+) -> Option<BlockPosModel> {
+    level
+        .test_blocks
+        .iter()
+        .filter(|test| manhattan(test.pos, pos) <= search_radius)
+        .find(|test| test.structure_bounding_box.contains(pos))
+        .map(|test| test.pos)
+}
+
+pub fn structure_utils_find_nearest_test(
+    relative_to_pos: BlockPosModel,
+    search_radius: i32,
+    level: &StructureUtilsLevelModel,
+) -> Option<BlockPosModel> {
+    level
+        .test_blocks
+        .iter()
+        .filter(|test| manhattan(test.pos, relative_to_pos) <= search_radius)
+        .min_by_key(|test| manhattan(test.pos, relative_to_pos))
+        .map(|test| test.pos)
+}
+
+pub fn structure_utils_looked_at_test_pos(
+    pos: BlockPosModel,
+    level: &StructureUtilsLevelModel,
+) -> Option<BlockPosModel> {
+    level
+        .test_blocks
+        .iter()
+        .filter(|test| manhattan(test.pos, pos) <= 250)
+        .filter(|test| test.structure_bounds_hit)
+        .min_by_key(|test| squared_distance(test.pos, pos))
+        .map(|test| test.pos)
+}
+
+fn structure_utils_transform(
+    pos: BlockPosModel,
+    rotation: RotationModel,
+    pivot: BlockPosModel,
+) -> BlockPosModel {
+    let rel_x = pos.x() - pivot.x();
+    let rel_z = pos.z() - pivot.z();
+    match rotation {
+        RotationModel::None => pos,
+        RotationModel::Clockwise90 => {
+            BlockPosModel::new(pivot.x() - rel_z, pos.y(), pivot.z() + rel_x)
+        }
+        RotationModel::Clockwise180 => {
+            BlockPosModel::new(pivot.x() - rel_x, pos.y(), pivot.z() - rel_z)
+        }
+        RotationModel::Counterclockwise90 => {
+            BlockPosModel::new(pivot.x() + rel_z, pos.y(), pivot.z() - rel_x)
+        }
+    }
+}
+
+fn manhattan(a: BlockPosModel, b: BlockPosModel) -> i32 {
+    (a.x() - b.x()).abs() + (a.y() - b.y()).abs() + (a.z() - b.z()).abs()
+}
+
+fn squared_distance(a: BlockPosModel, b: BlockPosModel) -> i32 {
+    let dx = a.x() - b.x();
+    let dy = a.y() - b.y();
+    let dz = a.z() - b.z();
+    dx * dx + dy * dy + dz * dz
+}
+
+#[cfg(test)]
+mod tests_structure_utils {
+    use super::*;
+
+    const STRUCTURE_UTILS_JAVA: &str = include_str!(
+        "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/StructureUtils.java"
+    );
+
+    #[test]
+    fn structure_utils_matches_java_source_shape() {
+        assert_eq!(STRUCTURE_UTILS_JAVA.lines().count(), 149);
+        for sentinel in [
+            "public static final int DEFAULT_Y_SEARCH_RADIUS = 10;",
+            "public static @Nullable Path testStructuresTargetDir;",
+            "public static @Nullable Path testStructuresSourceDir;",
+            "public static Rotation getRotationForRotationSteps(final int rotationSteps)",
+            "throw new IllegalArgumentException(\"rotationSteps must be a value from 0-3. Got value \" + rotationSteps);",
+            "public static int getRotationStepsForRotation(final Rotation rotation)",
+            "clearSpaceForStructure(structureBoundingBox, level);",
+            "level.setBlockAndUpdate(structurePos, Blocks.TEST_INSTANCE_BLOCK.defaultBlockState());",
+            "test.set(new TestInstanceBlockEntity.Data(Optional.of(key), size, rotation, false, TestInstanceBlockEntity.Status.CLEARED, Optional.empty()))",
+            "BlockPos.betweenClosedStream(structureBoundingBox).forEach(pos -> clearBlock(groundHeight, pos, level));",
+            "level.getBlockTicks().clearArea(structureBoundingBox);",
+            "level.clearBlockEvents(structureBoundingBox);",
+            "livingEntities.forEach(Entity::discard);",
+            "BlockPos farCornerBeforeTransform = structurePosition.offset(size).offset(-1, -1, -1);",
+            "BoundingBox.fromCorners(northWestCorner, farCorner);",
+            "return findTestBlocks(pos, searchRadius, level).filter(testBlockPosToCheck -> doesStructureContain(testBlockPosToCheck, pos, level)).findFirst();",
+            "Comparator<BlockPos> distanceToPlayer = Comparator.comparingInt(pos -> pos.distManhattan(relativeToPos));",
+            "PoiManager.Occupancy.ANY",
+            "blockEntity.getStructureBounds().clip(start, end).isPresent()",
+            "if (pos.getY() < airIfAboveThisY)",
+            "BlockInput blockInput = new BlockInput(blockState, Collections.emptySet(), null);",
+            "blockInput.place(level, pos, 818);",
+            "blockEntity.getStructureBoundingBox().isInside(pos)",
+        ] {
+            assert!(
+                STRUCTURE_UTILS_JAVA.contains(sentinel),
+                "missing StructureUtils sentinel {sentinel}"
+            );
+        }
+    }
+
+    #[test]
+    fn structure_utils_rotation_steps_match_java() {
+        assert_eq!(
+            structure_utils_rotation_for_steps(0),
+            Ok(RotationModel::None)
+        );
+        assert_eq!(
+            structure_utils_rotation_for_steps(1),
+            Ok(RotationModel::Clockwise90)
+        );
+        assert_eq!(
+            structure_utils_rotation_for_steps(2),
+            Ok(RotationModel::Clockwise180)
+        );
+        assert_eq!(
+            structure_utils_rotation_for_steps(3),
+            Ok(RotationModel::Counterclockwise90)
+        );
+        assert_eq!(
+            structure_utils_rotation_for_steps(4),
+            Err("rotationSteps must be a value from 0-3. Got value 4".to_string())
+        );
+        assert_eq!(structure_utils_steps_for_rotation(RotationModel::None), 0);
+        assert_eq!(
+            structure_utils_steps_for_rotation(RotationModel::Clockwise90),
+            1
+        );
+        assert_eq!(
+            structure_utils_steps_for_rotation(RotationModel::Clockwise180),
+            2
+        );
+        assert_eq!(
+            structure_utils_steps_for_rotation(RotationModel::Counterclockwise90),
+            3
+        );
+    }
+
+    #[test]
+    fn structure_utils_bounding_box_and_far_corner_match_java_transform_flow() {
+        let origin = BlockPosModel::new(10, 64, 20);
+        let size = BlockPosModel::new(3, 2, 4);
+
+        assert_eq!(
+            structure_utils_transformed_far_corner(origin, size, RotationModel::None),
+            BlockPosModel::new(12, 65, 23)
+        );
+        assert_eq!(
+            structure_utils_structure_bounding_box(origin, size, RotationModel::None),
+            StructureUtilsBoxModel::from_corners(origin, BlockPosModel::new(12, 65, 23))
+        );
+        assert_eq!(
+            structure_utils_transformed_far_corner(origin, size, RotationModel::Clockwise90),
+            BlockPosModel::new(7, 65, 22)
+        );
+        assert_eq!(
+            structure_utils_structure_bounding_box(origin, size, RotationModel::Clockwise90),
+            StructureUtilsBoxModel::from_corners(
+                BlockPosModel::new(10, 64, 20),
+                BlockPosModel::new(13, 65, 22)
+            )
+        );
+        assert_eq!(
+            structure_utils_structure_bounding_box(origin, size, RotationModel::Clockwise180),
+            StructureUtilsBoxModel::from_corners(
+                BlockPosModel::new(10, 64, 20),
+                BlockPosModel::new(12, 65, 23)
+            )
+        );
+    }
+
+    #[test]
+    fn structure_utils_create_and_clear_space_match_java_side_effects() {
+        let mut level = StructureUtilsLevelModel::default();
+        let created = structure_utils_create_new_empty_test(
+            &mut level,
+            "minecraft:test",
+            BlockPosModel::new(2, 10, 3),
+            BlockPosModel::new(2, 2, 2),
+            RotationModel::None,
+        );
+
+        assert_eq!(created.id, "minecraft:test");
+        assert_eq!(created.status, "CLEARED");
+        assert!(!created.ignores_entities);
+        assert!(level
+            .placed_blocks
+            .contains(&(BlockPosModel::new(2, 10, 3), "test_instance_block")));
+        assert_eq!(level.cleared_tick_areas.len(), 1);
+        assert_eq!(level.cleared_block_event_areas, level.cleared_tick_areas);
+        assert_eq!(level.discarded_entity_count, 1);
+
+        let cleared = level.cleared_tick_areas[0];
+        assert_eq!(cleared.min, BlockPosModel::new(2, 11, 3));
+        assert_eq!(cleared.max, BlockPosModel::new(3, 12, 4));
+        assert!(level
+            .placed_blocks
+            .iter()
+            .any(|(pos, block)| *pos == BlockPosModel::new(2, 11, 3) && *block == "air"));
+        assert!(level
+            .neighbor_updates
+            .contains(&BlockPosModel::new(3, 12, 4)));
+    }
+
+    #[test]
+    fn structure_utils_find_test_blocks_containing_nearest_and_looked_at_match_java_queries() {
+        let level = StructureUtilsLevelModel {
+            test_blocks: vec![
+                StructureUtilsTestBlockModel {
+                    pos: BlockPosModel::new(0, 64, 0),
+                    structure_bounding_box: StructureUtilsBoxModel::from_corners(
+                        BlockPosModel::new(0, 64, 0),
+                        BlockPosModel::new(4, 70, 4),
+                    ),
+                    structure_bounds_hit: false,
+                },
+                StructureUtilsTestBlockModel {
+                    pos: BlockPosModel::new(8, 64, 0),
+                    structure_bounding_box: StructureUtilsBoxModel::from_corners(
+                        BlockPosModel::new(8, 64, 0),
+                        BlockPosModel::new(12, 70, 4),
+                    ),
+                    structure_bounds_hit: true,
+                },
+                StructureUtilsTestBlockModel {
+                    pos: BlockPosModel::new(20, 64, 0),
+                    structure_bounding_box: StructureUtilsBoxModel::from_corners(
+                        BlockPosModel::new(20, 64, 0),
+                        BlockPosModel::new(24, 70, 4),
+                    ),
+                    structure_bounds_hit: true,
+                },
+            ],
+            ..Default::default()
+        };
+
+        assert_eq!(
+            structure_utils_find_test_blocks(BlockPosModel::new(0, 64, 0), 10, &level),
+            vec![BlockPosModel::new(0, 64, 0), BlockPosModel::new(8, 64, 0)]
+        );
+        assert_eq!(
+            structure_utils_find_test_containing_pos(BlockPosModel::new(10, 66, 2), 20, &level),
+            Some(BlockPosModel::new(8, 64, 0))
+        );
+        assert_eq!(
+            structure_utils_find_nearest_test(BlockPosModel::new(7, 64, 0), 20, &level),
+            Some(BlockPosModel::new(8, 64, 0))
+        );
+        assert_eq!(
+            structure_utils_looked_at_test_pos(BlockPosModel::new(18, 64, 0), &level),
+            Some(BlockPosModel::new(20, 64, 0))
+        );
     }
 }
