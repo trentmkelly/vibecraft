@@ -17,6 +17,8 @@ pub mod server_models;
 pub use server_models::*;
 pub mod ticker_models;
 pub use ticker_models::*;
+pub mod timeout_models;
+pub use timeout_models::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TestEnvironmentDefinition {

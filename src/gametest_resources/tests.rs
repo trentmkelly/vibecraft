@@ -32,6 +32,9 @@ const GAME_TEST_HELPER_JAVA: &str = include_str!(
 const GAME_TEST_INFO_JAVA: &str = include_str!(
     "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestInfo.java"
 );
+const GAME_TEST_TIMEOUT_EXCEPTION_JAVA: &str = include_str!(
+    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestTimeoutException.java"
+);
 const GAME_TEST_BATCH_JAVA: &str = include_str!(
     "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestBatch.java"
 );
@@ -545,6 +548,48 @@ fn gametest_assert_pos_exception_description_and_accessors_match_java() {
             relative_pos,
             tick: 99,
         }
+    );
+}
+
+#[test]
+fn gametest_timeout_exception_matches_java_source_shape() {
+    assert_eq!(GAME_TEST_TIMEOUT_EXCEPTION_JAVA.lines().count(), 17);
+    assert_eq!(
+        GAME_TEST_TIMEOUT_EXCEPTION_JAVA
+            .match_indices("extends GameTestException")
+            .count(),
+        1
+    );
+    for sentinel in [
+        "protected final Component message;",
+        "public GameTestTimeoutException(final Component message)",
+        "super(message.getString());",
+        "this.message = message;",
+        "public Component getDescription()",
+        "return this.message;",
+    ] {
+        assert!(
+            GAME_TEST_TIMEOUT_EXCEPTION_JAVA.contains(sentinel),
+            "missing GameTestTimeoutException sentinel {sentinel}"
+        );
+    }
+}
+
+#[test]
+fn gametest_timeout_exception_runtime_message_and_description_match_java() {
+    let exception = GameTestTimeoutExceptionModel::new("test.error.timeout.no_result:20");
+
+    assert_eq!(
+        exception.runtime_message(),
+        "test.error.timeout.no_result:20"
+    );
+    assert_eq!(
+        exception.base_exception().runtime_message(),
+        "test.error.timeout.no_result:20"
+    );
+    assert_eq!(
+        exception.get_description(),
+        "test.error.timeout.no_result:20"
     );
 }
 
