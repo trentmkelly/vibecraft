@@ -371,6 +371,7 @@ mod damage_type;
 #[cfg(test)] mod data_info;
 #[cfg(test)] mod data_loot;
 #[cfg(test)] mod data_loot_block;
+#[cfg(test)] mod data_loot_chest;
 #[cfg(test)] mod data_loot_entity;
 #[cfg(test)] mod data_loot_packs;
 #[cfg(test)] mod data_loot_provider;
@@ -384,8 +385,7 @@ mod entity_category;
 #[cfg(test)] mod entity_metadata;
 mod entity_physics;
 mod entity_validation;
-#[cfg(test)]
-mod entity_variants;
+#[cfg(test)] mod entity_variants;
 mod environment_attributes;
 #[cfg(test)]
 mod equipment_trim;
