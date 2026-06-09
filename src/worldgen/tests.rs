@@ -46,6 +46,8 @@ mod placement_registry_tests;
 
 mod placement_registry_aquatic_tests;
 
+mod placement_registry_cave_tests;
+
 mod world_preset_tests;
 
 mod live_surface_tests;
