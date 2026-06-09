@@ -92,6 +92,8 @@ mod feature_registry_pile_tests;
 
 mod feature_registry_tree_tests;
 
+mod feature_registry_vegetation_tests;
+
 mod biome_generation_basic_tests;
 
 mod biome_neighbor_payload_surface_tests;
