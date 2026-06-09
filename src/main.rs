@@ -361,8 +361,7 @@ mod criterion_used_ender_eye;
 #[cfg(test)] mod criterion_using_item;
 mod crash;
 mod crash_recovery_tests;
-#[cfg(test)]
-mod creative_inventory;
+#[cfg(test)] mod creative_inventory;
 mod damage_type;
 #[cfg(test)] mod data_advancement_packs;
 #[cfg(test)] mod data_advancements;
@@ -382,6 +381,7 @@ mod damage_type;
 #[cfg(test)] mod data_recipe_unlock_advancement;
 #[cfg(test)] mod data_recipes;
 #[cfg(test)] mod data_shaped_recipe_builder;
+#[cfg(test)] mod data_shapeless_recipe_builder;
 #[cfg(test)] mod datapack_reload_tests;
 #[cfg(test)] mod dialog_system;
 mod dispenser_cauldron;
