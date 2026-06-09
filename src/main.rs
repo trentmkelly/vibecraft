@@ -346,8 +346,7 @@ mod criterion_start_riding;
 #[cfg(test)]
 mod criterion_state_properties_predicate;
 #[cfg(test)] mod criterion_summoned_entity;
-#[cfg(test)]
-mod criterion_tag_predicate;
+#[cfg(test)] mod criterion_tag_predicate;
 #[cfg(test)] mod criterion_tame_animal;
 #[cfg(test)] mod criterion_target_block;
 #[cfg(test)] mod criterion_trade_trigger;
@@ -382,6 +381,7 @@ mod damage_type;
 #[cfg(test)] mod data_smithing_transform_recipe_builder;
 #[cfg(test)] mod data_smithing_trim_recipe_builder;
 #[cfg(test)] mod data_special_recipe_builder;
+#[cfg(test)] mod data_transmute_recipe_builder;
 #[cfg(test)] mod datapack_reload_tests;
 #[cfg(test)] mod dialog_system;
 mod dispenser_cauldron;
