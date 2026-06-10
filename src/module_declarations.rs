@@ -35,6 +35,7 @@ mod block_properties;
 mod block_regression;
 mod block_sounds;
 mod block_states;
+mod block_survival;
 mod block_tags;
 mod block_update;
 mod boss_fight;
