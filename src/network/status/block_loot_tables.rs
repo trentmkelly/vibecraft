@@ -3,7 +3,8 @@ use super::*;
 /// Builds the block loot table for `block_name`, matching the JSON loot tables
 /// from data/minecraft/loot_table/blocks/ in the Java source.
 pub fn block_loot_table(block_name: &str) -> Option<LootTable> {
-    let key = block_name.strip_prefix("minecraft:").unwrap_or(block_name);
+    let block_id = block_name.split_once('[').map_or(block_name, |(id, _)| id);
+    let key = block_id.strip_prefix("minecraft:").unwrap_or(block_id);
     let random_sequence = format!("minecraft:blocks/{key}");
 
     terrain_block_loot_table(key, &random_sequence)
@@ -13,6 +14,20 @@ pub fn block_loot_table(block_name: &str) -> Option<LootTable> {
         .or_else(|| plant_block_loot_table(key, &random_sequence))
         .or_else(|| crop_block_loot_table(key, &random_sequence))
         .or_else(|| special_block_loot_table(key, &random_sequence))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn loot_table_lookup_ignores_block_state_properties() {
+        let plain = block_loot_table("minecraft:oak_log").expect("oak log loot table");
+        let state =
+            block_loot_table("minecraft:oak_log[axis=y]").expect("oak log state loot table");
+
+        assert_eq!(plain, state);
+    }
 }
 
 fn terrain_block_loot_table(key: &str, random_sequence: &str) -> Option<LootTable> {

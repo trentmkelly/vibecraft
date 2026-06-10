@@ -18,6 +18,72 @@ fn oak_planks_recipe_map() -> RecipeMap {
 }
 
 #[test]
+pub fn picking_up_oak_log_unlocks_and_sends_oak_planks_recipe() {
+    let recipe_dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("vanilla-data/data/minecraft/recipe");
+    let recipe_manager =
+        load_recipe_directory(&recipe_dir).expect("vanilla recipe directory should load");
+    let recipes = recipe_manager.recipe_map().clone();
+    let mut state = session_state_with_inventory(&[]);
+    state.inventory_menu = InventoryMenu::new(PlayerInventory::new(), recipes);
+
+    let world_items = Arc::new(Mutex::new(WorldItemEntities::restore(
+        vec![DroppedItem {
+            entity_id: 2,
+            item: "minecraft:oak_log",
+            count: 1,
+            x: state.x,
+            y: state.y,
+            z: state.z,
+            vel_x: 0.0,
+            vel_y: 0.0,
+            vel_z: 0.0,
+            pickup_delay: 0,
+            age: 0,
+            target_uuid: None,
+        }],
+        2,
+    )));
+
+    let (mut server, mut client) = loopback_pair();
+    process_item_pickups(
+        &mut server,
+        CompressionState::disabled(),
+        &mut state,
+        "00000000-0000-0000-0000-000000000000",
+        &world_items,
+        &recipe_manager,
+    )
+    .expect("pickup processing should write recipe unlock packets");
+    drop(server);
+    client
+        .set_read_timeout(Some(std::time::Duration::from_millis(50)))
+        .unwrap();
+
+    let known_recipes = state.inventory_menu.recipe_book_known_recipes();
+    let highlighted_recipes = state.inventory_menu.recipe_book_highlighted_recipes();
+    assert!(
+        known_recipes.contains(&"minecraft:oak_planks"),
+        "oak log pickup should unlock oak_planks; known recipes were {known_recipes:?}"
+    );
+    assert!(
+        highlighted_recipes.contains(&"minecraft:oak_planks"),
+        "oak log pickup should highlight oak_planks; highlighted recipes were {highlighted_recipes:?}"
+    );
+    assert!(world_items.lock().unwrap().entities.is_empty());
+
+    let mut packet_ids = Vec::new();
+    while let Ok(frame) = read_packet(&mut client) {
+        let mut payload = &frame[..];
+        packet_ids.push(read_var_i32(&mut payload).unwrap());
+    }
+    assert!(
+        packet_ids.contains(&CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID),
+        "oak log pickup should send recipe_book_add for oak_planks; saw {packet_ids:?}"
+    );
+}
+
+#[test]
 pub fn play_session_state_nbt_round_trip_preserves_recipe_book_state() {
     let recipes = oak_planks_recipe_map();
     let mut state = session_state_with_inventory(&[]);
