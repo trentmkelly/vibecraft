@@ -866,7 +866,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/contents/ScoreContents.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/contents/SelectorContents.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/contents/TranslatableContents.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/contents/TranslatableFormatException.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/contents/TranslatableFormatException.java`. Rust `chat_component::translatable_format_exception::TranslatableFormatException` mirrors Java's three constructors, Locale.ROOT-style invariant message text for parse errors, invalid argument index, and cause-wrapping parse failure, plus `TranslatableContents.toString()` formatting with optional fallback and `Arrays.toString`-style args; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 translatable_format_exception`.
 
 ## `decompiled-server-26.1.2/net/minecraft/network/chat/contents/data`
 

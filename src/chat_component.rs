@@ -14,6 +14,8 @@ pub mod hover_event;
 pub mod resolution_context;
 #[path = "throwing_component.rs"]
 pub mod throwing_component;
+#[path = "translatable_format_exception.rs"]
+pub mod translatable_format_exception;
 
 pub use resolution_context::ResolutionContext;
 
