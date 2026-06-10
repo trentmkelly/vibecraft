@@ -2,6 +2,7 @@
 
 use std::collections::VecDeque;
 use std::path::PathBuf;
+use std::thread::{self, ThreadId};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DecodedPacket {
@@ -123,6 +124,92 @@ pub struct CrashReportConnectionDetails {
     pub listener_details: Vec<(String, String)>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChannelFutureResult {
+    pub success: bool,
+    pub cause: Option<String>,
+}
+
+impl ChannelFutureResult {
+    pub fn success() -> Self {
+        Self {
+            success: true,
+            cause: None,
+        }
+    }
+
+    pub fn failure(cause: impl Into<String>) -> Self {
+        Self {
+            success: false,
+            cause: Some(cause.into()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SendFailureAction {
+    None,
+    FireExceptionCaught(String),
+    WriteAndFlushFallback(DecodedPacket),
+}
+
+pub struct PacketSendListener;
+
+impl PacketSendListener {
+    pub fn then_run(future: ChannelFutureResult, runnable: impl FnOnce()) -> SendFailureAction {
+        runnable();
+        if future.success {
+            SendFailureAction::None
+        } else {
+            SendFailureAction::FireExceptionCaught(future.cause.unwrap_or_default())
+        }
+    }
+
+    pub fn exceptionally_send(
+        future: ChannelFutureResult,
+        handler: impl FnOnce() -> Option<DecodedPacket>,
+    ) -> SendFailureAction {
+        if future.success {
+            return SendFailureAction::None;
+        }
+
+        match handler() {
+            Some(packet) => SendFailureAction::WriteAndFlushFallback(packet),
+            None => SendFailureAction::FireExceptionCaught(future.cause.unwrap_or_default()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProtocolPacketDetails {
+    pub packet_type: &'static str,
+    pub network_id: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProtocolInfoDetails {
+    pub id: ConnectionProtocol,
+    pub flow: PacketFlow,
+    pub packets: Vec<ProtocolPacketDetails>,
+}
+
+impl ProtocolInfoDetails {
+    pub fn list_packets(&self, mut visitor: impl FnMut(&'static str, i32)) {
+        for packet in &self.packets {
+            visitor(packet.packet_type, packet.network_id);
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProtocolInfo {
+    pub id: ConnectionProtocol,
+    pub flow: PacketFlow,
+    pub codec: &'static str,
+    pub bundler_info: Option<&'static str>,
+    pub details: ProtocolInfoDetails,
+}
+
 pub trait JavaPacketListener {
     fn flow(&self) -> PacketFlow;
     fn protocol(&self) -> ConnectionProtocol;
@@ -182,6 +269,92 @@ pub trait ServerboundPacketListener: JavaPacketListener {
 
 pub trait TickablePacketListener: JavaPacketListener {
     fn tick(&mut self);
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PacketRejected {
+    pub message: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PacketProcessingError {
+    ReportedOutOfMemory(String),
+    Other(String),
+}
+
+pub trait PacketProcessorTask {
+    fn should_handle_message(&self) -> bool;
+    fn handle(&mut self) -> Result<(), PacketProcessingError>;
+    fn on_packet_error(&mut self, error: PacketProcessingError);
+}
+
+#[derive(Debug)]
+pub struct PacketProcessor<T> {
+    packets_to_be_handled: VecDeque<T>,
+    running_thread: ThreadId,
+    closed: bool,
+}
+
+impl<T> PacketProcessor<T>
+where
+    T: PacketProcessorTask,
+{
+    pub fn new(running_thread: ThreadId) -> Self {
+        Self {
+            packets_to_be_handled: VecDeque::new(),
+            running_thread,
+            closed: false,
+        }
+    }
+
+    pub fn for_current_thread() -> Self {
+        Self::new(thread::current().id())
+    }
+
+    pub fn is_same_thread(&self) -> bool {
+        thread::current().id() == self.running_thread
+    }
+
+    pub fn schedule_if_possible(&mut self, task: T) -> Result<(), PacketRejected> {
+        if self.closed {
+            return Err(PacketRejected {
+                message: "Server already shutting down",
+            });
+        }
+        self.packets_to_be_handled.push_back(task);
+        Ok(())
+    }
+
+    pub fn process_queued_packets(&mut self) -> Result<(), PacketProcessingError> {
+        if self.closed {
+            return Ok(());
+        }
+
+        while let Some(mut task) = self.packets_to_be_handled.pop_front() {
+            if task.should_handle_message() {
+                match task.handle() {
+                    Ok(()) => {}
+                    Err(error @ PacketProcessingError::ReportedOutOfMemory(_)) => {
+                        return Err(error);
+                    }
+                    Err(error) => task.on_packet_error(error),
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn close(&mut self) {
+        self.closed = true;
+    }
+
+    pub fn is_closed(&self) -> bool {
+        self.closed
+    }
+
+    pub fn queue_len(&self) -> usize {
+        self.packets_to_be_handled.len()
+    }
 }
 
 pub trait SkipPacketException {}
@@ -349,10 +522,13 @@ impl PacketListener for RecordingListener {
 #[cfg(test)]
 mod tests {
     use super::{
-        ClientboundPacketListener, ConnectionProtocol, DecodedPacket, DisconnectionDetails,
-        DispatchOutcome, JavaPacketListener, MainThreadPacketQueue, PacketDirection, PacketFlow,
-        ProtocolState, RecordingListener, ServerboundPacketListener, SkipPacketDecoderException,
-        SkipPacketEncoderException, SkipPacketException, SkipPacketFailure, TickablePacketListener,
+        ChannelFutureResult, ClientboundPacketListener, ConnectionProtocol, DecodedPacket,
+        DisconnectionDetails, DispatchOutcome, JavaPacketListener, MainThreadPacketQueue,
+        PacketDirection, PacketFlow, PacketProcessingError, PacketProcessor, PacketProcessorTask,
+        PacketRejected, PacketSendListener, ProtocolInfo, ProtocolInfoDetails,
+        ProtocolPacketDetails, ProtocolState, RecordingListener, SendFailureAction,
+        ServerboundPacketListener, SkipPacketDecoderException, SkipPacketEncoderException,
+        SkipPacketException, SkipPacketFailure, TickablePacketListener,
     };
 
     fn packet(id: i32) -> DecodedPacket {
@@ -592,6 +768,236 @@ mod tests {
         listener.tick();
         listener.tick();
         assert_eq!(listener.ticks, 2);
+    }
+
+    #[test]
+    fn packet_send_listener_matches_java_future_branches() {
+        const PACKET_SEND_LISTENER_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/PacketSendListener.java"
+        );
+
+        for sentinel in [
+            "public static ChannelFutureListener thenRun(final Runnable runnable)",
+            "runnable.run();",
+            "if (!future.isSuccess())",
+            "future.channel().pipeline().fireExceptionCaught(future.cause());",
+            "public static ChannelFutureListener exceptionallySend",
+            "Packet<?> newPacket = handler.get();",
+            "future.channel().writeAndFlush(newPacket, future.channel().voidPromise());",
+        ] {
+            assert!(
+                PACKET_SEND_LISTENER_JAVA.contains(sentinel),
+                "missing PacketSendListener sentinel {sentinel}"
+            );
+        }
+
+        let mut ran = false;
+        let success = PacketSendListener::then_run(ChannelFutureResult::success(), || {
+            ran = true;
+        });
+        assert!(ran);
+        assert_eq!(success, SendFailureAction::None);
+
+        let mut ran = false;
+        let failure = PacketSendListener::then_run(ChannelFutureResult::failure("closed"), || {
+            ran = true;
+        });
+        assert!(ran);
+        assert_eq!(
+            failure,
+            SendFailureAction::FireExceptionCaught("closed".to_string())
+        );
+
+        assert_eq!(
+            PacketSendListener::exceptionally_send(ChannelFutureResult::success(), || {
+                Some(packet(1))
+            }),
+            SendFailureAction::None
+        );
+        assert_eq!(
+            PacketSendListener::exceptionally_send(ChannelFutureResult::failure("io"), || {
+                Some(packet(9))
+            }),
+            SendFailureAction::WriteAndFlushFallback(packet(9))
+        );
+        assert_eq!(
+            PacketSendListener::exceptionally_send(ChannelFutureResult::failure("io"), || None),
+            SendFailureAction::FireExceptionCaught("io".to_string())
+        );
+    }
+
+    #[derive(Debug, Clone)]
+    struct TestProcessorTask {
+        should_handle: bool,
+        result: Result<(), PacketProcessingError>,
+        handled: bool,
+        errors: Vec<PacketProcessingError>,
+    }
+
+    impl TestProcessorTask {
+        fn handled() -> Self {
+            Self {
+                should_handle: true,
+                result: Ok(()),
+                handled: false,
+                errors: Vec::new(),
+            }
+        }
+
+        fn ignored() -> Self {
+            Self {
+                should_handle: false,
+                result: Ok(()),
+                handled: false,
+                errors: Vec::new(),
+            }
+        }
+
+        fn failing(error: PacketProcessingError) -> Self {
+            Self {
+                should_handle: true,
+                result: Err(error),
+                handled: false,
+                errors: Vec::new(),
+            }
+        }
+    }
+
+    impl PacketProcessorTask for TestProcessorTask {
+        fn should_handle_message(&self) -> bool {
+            self.should_handle
+        }
+
+        fn handle(&mut self) -> Result<(), PacketProcessingError> {
+            self.handled = true;
+            self.result.clone()
+        }
+
+        fn on_packet_error(&mut self, error: PacketProcessingError) {
+            self.errors.push(error);
+        }
+    }
+
+    #[test]
+    fn packet_processor_matches_java_queue_close_and_error_contracts() {
+        const PACKET_PROCESSOR_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/PacketProcessor.java"
+        );
+
+        for sentinel in [
+            "Queues.newConcurrentLinkedQueue()",
+            "Thread.currentThread() == this.runningThread",
+            "throw new RejectedExecutionException(\"Server already shutting down\")",
+            "this.packetsToBeHandled.add(new PacketProcessor.ListenerAndPacket<>(listener, packet))",
+            "while (!this.packetsToBeHandled.isEmpty())",
+            "if (this.listener.shouldHandleMessage(this.packet))",
+            "this.packet.handle(this.listener);",
+            "re.getCause() instanceof OutOfMemoryError",
+            "this.listener.onPacketError(this.packet, e);",
+        ] {
+            assert!(
+                PACKET_PROCESSOR_JAVA.contains(sentinel),
+                "missing PacketProcessor sentinel {sentinel}"
+            );
+        }
+
+        let mut processor = PacketProcessor::for_current_thread();
+        assert!(processor.is_same_thread());
+        processor
+            .schedule_if_possible(TestProcessorTask::handled())
+            .unwrap();
+        processor
+            .schedule_if_possible(TestProcessorTask::ignored())
+            .unwrap();
+        processor
+            .schedule_if_possible(TestProcessorTask::failing(PacketProcessingError::Other(
+                "decode".to_string(),
+            )))
+            .unwrap();
+        assert_eq!(processor.queue_len(), 3);
+        assert_eq!(processor.process_queued_packets(), Ok(()));
+        assert_eq!(processor.queue_len(), 0);
+
+        processor
+            .schedule_if_possible(TestProcessorTask::failing(
+                PacketProcessingError::ReportedOutOfMemory("oom".to_string()),
+            ))
+            .unwrap();
+        assert_eq!(
+            processor.process_queued_packets(),
+            Err(PacketProcessingError::ReportedOutOfMemory(
+                "oom".to_string()
+            ))
+        );
+
+        processor.close();
+        assert!(processor.is_closed());
+        assert_eq!(
+            processor.schedule_if_possible(TestProcessorTask::handled()),
+            Err(PacketRejected {
+                message: "Server already shutting down"
+            })
+        );
+        assert_eq!(processor.process_queued_packets(), Ok(()));
+    }
+
+    #[test]
+    fn protocol_info_matches_java_details_surface() {
+        const PROTOCOL_INFO_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/ProtocolInfo.java"
+        );
+
+        for sentinel in [
+            "ConnectionProtocol id();",
+            "PacketFlow flow();",
+            "StreamCodec<ByteBuf, Packet<? super T>> codec();",
+            "@Nullable BundlerInfo bundlerInfo();",
+            "void listPackets(ProtocolInfo.Details.PacketVisitor output);",
+            "void accept(PacketType<?> type, int networkId);",
+            "ProtocolInfo.Details details();",
+        ] {
+            assert!(
+                PROTOCOL_INFO_JAVA.contains(sentinel),
+                "missing ProtocolInfo sentinel {sentinel}"
+            );
+        }
+
+        let details = ProtocolInfoDetails {
+            id: ConnectionProtocol::Play,
+            flow: PacketFlow::Clientbound,
+            packets: vec![
+                ProtocolPacketDetails {
+                    packet_type: "minecraft:add_entity",
+                    network_id: 0,
+                },
+                ProtocolPacketDetails {
+                    packet_type: "minecraft:bundle_delimiter",
+                    network_id: 1,
+                },
+            ],
+        };
+        let info = ProtocolInfo {
+            id: ConnectionProtocol::Play,
+            flow: PacketFlow::Clientbound,
+            codec: "IdDispatchCodec",
+            bundler_info: Some("BundlerInfo"),
+            details: details.clone(),
+        };
+        assert_eq!(info.id.id(), "play");
+        assert_eq!(info.flow, PacketFlow::Clientbound);
+        assert_eq!(info.bundler_info, Some("BundlerInfo"));
+
+        let mut listed = Vec::new();
+        details.list_packets(|packet_type, network_id| {
+            listed.push((packet_type, network_id));
+        });
+        assert_eq!(
+            listed,
+            vec![
+                ("minecraft:add_entity", 0),
+                ("minecraft:bundle_delimiter", 1)
+            ]
+        );
     }
 
     fn assert_skip_marker<T: SkipPacketException>(_value: &T) {}
