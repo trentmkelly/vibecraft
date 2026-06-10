@@ -11,6 +11,7 @@ pub mod snbt_operations;
 pub mod snbt_string;
 pub mod tag_access;
 pub mod tag_metadata;
+pub mod tag_parser;
 
 pub const DEFAULT_MAX_NBT_DEPTH: usize = 512;
 
