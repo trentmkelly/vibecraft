@@ -566,6 +566,30 @@ fn inventory_menu_result_take_consumes_inputs_remainders_and_unlocks_recipe_once
 }
 
 #[test]
+fn inventory_menu_direct_recipe_unlock_highlights_and_deduplicates() {
+    let mut menu = InventoryMenu::new(PlayerInventory::new(), crafting_test_recipes());
+
+    assert!(menu.unlock_recipe("minecraft:oak_planks"));
+    assert_eq!(menu.recipe_unlock_events(), &["minecraft:oak_planks"]);
+    assert_eq!(
+        menu.recipe_book_known_recipes(),
+        vec!["minecraft:oak_planks"]
+    );
+    assert_eq!(
+        menu.recipe_book_highlighted_recipes(),
+        vec!["minecraft:oak_planks"]
+    );
+
+    assert!(!menu.unlock_recipe("minecraft:oak_planks"));
+    assert_eq!(
+        menu.recipe_unlock_events(),
+        &["minecraft:oak_planks"],
+        "duplicate acquisition must not emit another recipe-book add event"
+    );
+    assert!(!menu.unlock_recipe("minecraft:missing"));
+}
+
+#[test]
 fn inventory_menu_quick_move_uses_vanilla_inventory_zones() {
     let mut menu = InventoryMenu::new(PlayerInventory::new(), crafting_test_recipes());
     menu.set_slot(1, ItemStack::new("minecraft:oak_log", 1));

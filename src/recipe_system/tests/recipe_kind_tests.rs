@@ -867,6 +867,32 @@ fn recipe_manager_loads_all_vanilla_recipe_json_files() {
 }
 
 #[test]
+fn recipe_manager_loads_vanilla_inventory_recipe_unlocks_from_advancements() {
+    let recipe_dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("vanilla-data/data/minecraft/recipe");
+    let manager = load_recipe_directory(&recipe_dir).expect("vanilla recipe directory should load");
+
+    let oak_log_unlocks = manager.recipes_unlocked_by_item("minecraft:oak_log");
+    assert!(
+        oak_log_unlocks.contains(&"minecraft:oak_planks"),
+        "minecraft:oak_log should unlock minecraft:oak_planks; got {oak_log_unlocks:?}"
+    );
+
+    let stripped_oak_unlocks = manager.recipes_unlocked_by_item("minecraft:stripped_oak_wood");
+    assert!(
+        stripped_oak_unlocks.contains(&"minecraft:oak_planks"),
+        "minecraft:stripped_oak_wood should unlock minecraft:oak_planks via #minecraft:oak_logs"
+    );
+
+    assert!(
+        !manager
+            .recipes_unlocked_by_item("minecraft:cobblestone")
+            .contains(&"minecraft:oak_planks"),
+        "non-log items must not unlock oak planks"
+    );
+}
+
+#[test]
 fn special_recipe_kinds_cover_checklist_families_and_serializer_names() {
     let special = [
         (SpecialRecipeKind::Transmute, "crafting_transmute"),

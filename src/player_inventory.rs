@@ -782,6 +782,19 @@ impl InventoryMenu {
         self.highlighted_recipes.remove(recipe_id);
     }
 
+    pub fn unlock_recipe(&mut self, recipe_id: &'static str) -> bool {
+        if self.recipes.by_key(recipe_id).is_none() {
+            return false;
+        }
+        if self.unlocked_recipes.insert(recipe_id) {
+            self.highlighted_recipes.insert(recipe_id);
+            self.recipe_unlock_events.push(recipe_id);
+            true
+        } else {
+            false
+        }
+    }
+
     pub fn recipe_book_type(&self) -> RecipeBookType {
         RecipeBookType::Crafting
     }
@@ -877,10 +890,7 @@ impl InventoryMenu {
             return ItemStack::empty();
         }
         self.crafting.consume_inputs_and_refresh(&self.recipes);
-        if self.unlocked_recipes.insert(recipe_id) {
-            self.highlighted_recipes.insert(recipe_id);
-            self.recipe_unlock_events.push(recipe_id);
-        }
+        self.unlock_recipe(recipe_id);
         result
     }
 

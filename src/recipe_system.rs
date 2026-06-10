@@ -488,6 +488,7 @@ impl RecipeMap {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RecipeManagerModel {
     recipes: RecipeMap,
+    acquisition_unlocks: Vec<RecipeAcquisitionUnlock>,
     property_sets: Vec<RecipePropertySet>,
     #[cfg(test)]
     stonecutter_recipes: Vec<StonecutterSelection>,
@@ -526,6 +527,18 @@ impl RecipeManagerModel {
         &self.recipes
     }
 
+    pub fn set_acquisition_unlocks(&mut self, unlocks: Vec<RecipeAcquisitionUnlock>) {
+        self.acquisition_unlocks = unlocks;
+    }
+
+    pub fn recipes_unlocked_by_item(&self, item: &str) -> Vec<&'static str> {
+        self.acquisition_unlocks
+            .iter()
+            .filter(|unlock| unlock.matches(item))
+            .map(|unlock| unlock.recipe_id)
+            .collect()
+    }
+
     #[cfg(test)]
     pub fn property_set(&self, key: &str) -> RecipePropertySet {
         self.property_sets
@@ -541,6 +554,27 @@ impl RecipeManagerModel {
     #[cfg(test)]
     pub fn stonecutter_recipes(&self) -> &[StonecutterSelection] {
         &self.stonecutter_recipes
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecipeAcquisitionUnlock {
+    pub recipe_id: &'static str,
+    pub ingredients: Vec<IngredientSpec>,
+}
+
+impl RecipeAcquisitionUnlock {
+    pub fn new(recipe_id: &'static str, ingredients: Vec<IngredientSpec>) -> Self {
+        Self {
+            recipe_id,
+            ingredients,
+        }
+    }
+
+    pub fn matches(&self, item: &str) -> bool {
+        self.ingredients
+            .iter()
+            .any(|ingredient| ingredient.matches(item))
     }
 }
 

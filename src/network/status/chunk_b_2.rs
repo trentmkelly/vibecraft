@@ -71,6 +71,7 @@ pub fn play_packet_has_live_status_handler(packet_id: i32) -> bool {
 
 struct PickupEvent {
     entity_id: i32,
+    item: &'static str,
     picked_up: i32,
     fully_consumed: bool,
 }
@@ -105,6 +106,7 @@ fn collect_item_pickup_events(
         entity.count = new_count;
         events.push(PickupEvent {
             entity_id: entity.entity_id,
+            item: entity.item,
             picked_up,
             fully_consumed: new_count <= 0,
         });
@@ -212,14 +214,53 @@ pub fn process_item_pickups(
     state: &mut PlaySessionState,
     player_uuid: &str,
     world_items: &Arc<Mutex<WorldItemEntities>>,
+    recipe_manager: &RecipeManagerModel,
 ) -> io::Result<()> {
     // Java: Inventory.add() mutates slots; we detect changes via times_changed().
     let times_changed_before = state.inventory_menu.player_inventory().times_changed();
     let events = collect_item_pickup_events(state, player_uuid, world_items)?;
     write_item_pickup_packets(stream, compression, &events)?;
+    unlock_recipes_for_pickups(state, recipe_manager, &events);
     // Java: AbstractContainerMenu.broadcastChanges() sends slot updates with an
     // incremented state ID. We send full ContainerSetContent for simplicity.
-    write_pickup_inventory_sync(stream, compression, state, times_changed_before)
+    write_pickup_inventory_sync(stream, compression, state, times_changed_before)?;
+    write_pickup_recipe_unlocks(stream, compression, state, recipe_manager)
+}
+
+fn unlock_recipes_for_pickups(
+    state: &mut PlaySessionState,
+    recipe_manager: &RecipeManagerModel,
+    events: &[PickupEvent],
+) {
+    for event in events {
+        if event.picked_up <= 0 {
+            continue;
+        }
+        for recipe_id in recipe_manager.recipes_unlocked_by_item(event.item) {
+            state.inventory_menu.unlock_recipe(recipe_id);
+        }
+    }
+}
+
+fn write_pickup_recipe_unlocks<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    state: &mut PlaySessionState,
+    recipe_manager: &RecipeManagerModel,
+) -> io::Result<()> {
+    let unlock_events = state.inventory_menu.drain_recipe_unlock_events();
+    if unlock_events.is_empty() {
+        return Ok(());
+    }
+    let Some(packet) = build_recipe_book_add(&unlock_events, recipe_manager.recipe_map()) else {
+        return Ok(());
+    };
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID,
+        |payload| packet.write(payload),
+    )
 }
 
 pub fn load_play_session_state(

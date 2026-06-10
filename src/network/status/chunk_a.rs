@@ -1696,6 +1696,7 @@ struct PositionSessionContext<'a, 'b> {
     world_seed: i64,
     profile_uuid: &'a str,
     world_items: &'a Arc<Mutex<WorldItemEntities>>,
+    recipe_manager: &'a RecipeManagerModel,
     chunk_pipeline: &'a ChunkPipeline,
     current_chunk_x: &'b mut i32,
     current_chunk_z: &'b mut i32,
@@ -1721,6 +1722,7 @@ fn handle_position_session_update(
         chunk_batch_radius,
         loaded_chunks,
         chunk_sender,
+        recipe_manager,
     } = context;
     let next_chunk_x = chunk_coordinate(play_state.x);
     let next_chunk_z = chunk_coordinate(play_state.z);
@@ -1749,7 +1751,14 @@ fn handle_position_session_update(
     // Hook B: Pickup check — mirrors Player.aiStep() proximity sweep.
     // Spectators cannot pick up items.
     if play_state.game_mode != GameMode::Spectator {
-        process_item_pickups(stream, compression, play_state, profile_uuid, world_items)?;
+        process_item_pickups(
+            stream,
+            compression,
+            play_state,
+            profile_uuid,
+            world_items,
+            recipe_manager,
+        )?;
     }
     Ok(())
 }
@@ -2843,6 +2852,7 @@ impl<'a, 'b> DecodedPlayPacketContext<'a, 'b> {
             world_seed: self.world_seed,
             profile_uuid: &self.profile.uuid,
             world_items: self.world_items,
+            recipe_manager: self.recipe_manager,
             chunk_pipeline: self.chunk_pipeline,
             current_chunk_x: self.current_chunk_x,
             current_chunk_z: self.current_chunk_z,

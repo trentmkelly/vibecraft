@@ -352,7 +352,176 @@ pub fn load_recipe_directory(recipe_dir: &std::path::Path) -> Result<RecipeManag
         recipes.push(load_recipe_json(recipe_id, &raw, &tags)?);
     }
 
-    Ok(RecipeManagerModel::new(recipes))
+    let mut manager = RecipeManagerModel::new(recipes);
+    manager.set_acquisition_unlocks(load_recipe_acquisition_unlocks(recipe_dir, &tags)?);
+    Ok(manager)
+}
+
+fn load_recipe_acquisition_unlocks(
+    recipe_dir: &std::path::Path,
+    tags: &ItemTagMap,
+) -> Result<Vec<RecipeAcquisitionUnlock>, String> {
+    let Some(namespace_dir) = recipe_dir.parent() else {
+        return Ok(Vec::new());
+    };
+    let mut paths = advancement_paths(&namespace_dir.join("advancement").join("recipes"))?;
+    if paths.is_empty() {
+        paths = advancement_paths(&bundled_decompiled_recipe_advancement_dir())?;
+    }
+    paths.sort();
+
+    let mut unlocks = Vec::new();
+    for path in paths {
+        let raw = std::fs::read_to_string(&path).map_err(|err| {
+            format!(
+                "failed to read recipe advancement file {}: {err}",
+                path.display()
+            )
+        })?;
+        let value: serde_json::Value = serde_json::from_str(&raw).map_err(|err| {
+            format!(
+                "failed to parse recipe advancement {} as JSON: {err}",
+                path.display()
+            )
+        })?;
+        collect_recipe_acquisition_unlocks(&value, tags, &mut unlocks)?;
+    }
+    Ok(unlocks)
+}
+
+fn bundled_decompiled_recipe_advancement_dir() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap_or_else(|| std::path::Path::new("."))
+        .join("decompiled-server-26.1.2")
+        .join("data")
+        .join("minecraft")
+        .join("advancement")
+        .join("recipes")
+}
+
+fn advancement_paths(dir: &std::path::Path) -> Result<Vec<std::path::PathBuf>, String> {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(err) => {
+            return Err(format!(
+                "failed to read recipe advancement directory {}: {err}",
+                dir.display()
+            ))
+        }
+    };
+
+    let mut paths = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|err| {
+            format!(
+                "failed to enumerate recipe advancement directory {}: {err}",
+                dir.display()
+            )
+        })?;
+        let path = entry.path();
+        if path.is_dir() {
+            paths.extend(advancement_paths(&path)?);
+        } else if path.extension().and_then(|ext| ext.to_str()) == Some("json") {
+            paths.push(path);
+        }
+    }
+    Ok(paths)
+}
+
+fn collect_recipe_acquisition_unlocks(
+    value: &serde_json::Value,
+    tags: &ItemTagMap,
+    unlocks: &mut Vec<RecipeAcquisitionUnlock>,
+) -> Result<(), String> {
+    let Some(reward_recipes) = value
+        .get("rewards")
+        .and_then(|rewards| rewards.get("recipes"))
+        .and_then(serde_json::Value::as_array)
+    else {
+        return Ok(());
+    };
+    let ingredients = inventory_changed_criteria_ingredients(value, tags)?;
+    if ingredients.is_empty() {
+        return Ok(());
+    }
+    for recipe_id in reward_recipes {
+        let Some(recipe_id) = recipe_id.as_str() else {
+            continue;
+        };
+        unlocks.push(RecipeAcquisitionUnlock::new(
+            Box::leak(recipe_id.to_string().into_boxed_str()),
+            ingredients.clone(),
+        ));
+    }
+    Ok(())
+}
+
+fn inventory_changed_criteria_ingredients(
+    value: &serde_json::Value,
+    tags: &ItemTagMap,
+) -> Result<Vec<IngredientSpec>, String> {
+    let Some(criteria) = value.get("criteria").and_then(serde_json::Value::as_object) else {
+        return Ok(Vec::new());
+    };
+    let mut ingredients = Vec::new();
+    for criterion in criteria.values() {
+        if criterion.get("trigger").and_then(serde_json::Value::as_str)
+            != Some("minecraft:inventory_changed")
+        {
+            continue;
+        }
+        let Some(items) = criterion
+            .get("conditions")
+            .and_then(|conditions| conditions.get("items"))
+            .and_then(serde_json::Value::as_array)
+        else {
+            continue;
+        };
+        for item_predicate in items {
+            if let Some(item_value) = item_predicate.get("items") {
+                let ingredient = parse_item_predicate_items(item_value, tags)?;
+                push_ingredient_unique(&mut ingredients, ingredient);
+            }
+        }
+    }
+    Ok(ingredients)
+}
+
+fn parse_item_predicate_items(
+    value: &serde_json::Value,
+    tags: &ItemTagMap,
+) -> Result<IngredientSpec, String> {
+    if let Some(item) = value.as_str() {
+        return resolve_ingredient_string(item, tags);
+    }
+    if let Some(items) = value.as_array() {
+        let mut parsed = Vec::new();
+        for item in items {
+            let Some(item) = item.as_str() else {
+                continue;
+            };
+            match resolve_ingredient_string(item, tags)? {
+                IngredientSpec::Item(id) => push_unique(&mut parsed, id),
+                IngredientSpec::AnyOf(ids) => {
+                    for id in ids {
+                        push_unique(&mut parsed, id);
+                    }
+                }
+                IngredientSpec::Empty => {}
+            }
+        }
+        return Ok(IngredientSpec::AnyOf(parsed));
+    }
+    Ok(IngredientSpec::Empty)
+}
+
+fn push_ingredient_unique(target: &mut Vec<IngredientSpec>, ingredient: IngredientSpec) {
+    if ingredient.is_empty() || target.iter().any(|existing| existing == &ingredient) {
+        return;
+    }
+    target.push(ingredient);
 }
 
 fn special_recipe(kind: SpecialRecipeKind, result_hint: Option<ItemAmount>) -> RecipeKind {
