@@ -319,6 +319,10 @@ pub fn state_for_placement(
 }
 
 /// Families whose placement is a pure orientation function of the context.
+#[expect(
+    clippy::too_many_lines,
+    reason = "Java placement rules stay grouped by family for parity review"
+)]
 fn oriented_placement(
     block_type: &str,
     state: BlockStateModel,
@@ -597,6 +601,10 @@ fn wall_sign_placement(
 }
 
 /// Families that pick a half/axis slice from the precise click location.
+#[expect(
+    clippy::too_many_lines,
+    reason = "Java placement rules stay grouped by family for parity review"
+)]
 fn sliced_placement(
     block_type: &str,
     state: BlockStateModel,
@@ -826,7 +834,7 @@ fn door_hinge(context: &PlaceContext, world: &impl PlacementWorld) -> &'static s
     // Java tallies isCollisionShapeFullBlock on both rows.
     let full = |state: &BlockStateModel| {
         state_physics_by_name(&state.state_name())
-            .is_some_and(|physics| crate::block_properties::collision_shape_is_full_cube(physics))
+            .is_some_and(crate::block_properties::collision_shape_is_full_cube)
     };
     let is_lower_door = |state: &BlockStateModel| {
         block_state_entry(&state.registry_id)

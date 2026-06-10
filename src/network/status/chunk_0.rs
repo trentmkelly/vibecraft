@@ -48,6 +48,7 @@ impl Default for PlaySessionState {
             inventory_menu: InventoryMenu::new(PlayerInventory::new(), RecipeMap::default()),
             carried_item: ItemStack::empty(),
             container_state_id: 0,
+            next_container_id: 1,
             recipe_book_settings: ClientboundRecipeBookSettingsPacket {
                 crafting: RecipeBookTypeSettings::CLOSED_UNFILTERED,
                 furnace: RecipeBookTypeSettings::CLOSED_UNFILTERED,

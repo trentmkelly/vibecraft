@@ -247,6 +247,10 @@ pub(crate) struct PlaySessionState {
     /// Sent in every `ContainerSetSlot` and `ContainerSetContent` packet; validated by the
     /// server when a `ServerboundContainerClickPacket` arrives.
     container_state_id: i32,
+    /// Next non-player container ID. Java increments `containerCounter` and uses
+    /// IDs 1..100 for server-opened menus; container ID 0 is always the player
+    /// inventory menu.
+    next_container_id: i32,
     recipe_book_settings: ClientboundRecipeBookSettingsPacket,
 }
 
@@ -261,6 +265,8 @@ pub use chunk_a::*;
 
 mod chunk_b;
 pub use chunk_b::*;
+
+mod block_menu_open;
 
 mod play_session_state_updates;
 pub use play_session_state_updates::*;

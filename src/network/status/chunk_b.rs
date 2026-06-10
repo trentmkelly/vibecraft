@@ -1,4 +1,5 @@
 use super::*;
+use super::block_menu_open::{block_menu_open_for_state, write_open_block_menu};
 
 pub fn cache_login_profile(
     player_access: &Arc<Mutex<PlayerAccess>>,
@@ -514,7 +515,7 @@ struct BlockItemPlacementTarget {
     existing_state: crate::block_behavior::BlockStateModel,
 }
 
-fn write_block_change_ack<W: Write>(
+pub(super) fn write_block_change_ack<W: Write>(
     writer: &mut W,
     compression: CompressionState,
     sequence: i32,
@@ -769,6 +770,13 @@ pub fn handle_use_item_on(
         .player_inventory()
         .get(held_slot)
         .clone();
+    let suppress_using_block = state.input_shift && !held_item.is_empty();
+    let clicked_state = read_block_model_at(context.world_layout, context.world_seed, clicked_pos);
+    if !suppress_using_block {
+        if let Some(menu) = block_menu_open_for_state(&clicked_state) {
+            return write_open_block_menu(stream, compression, state, menu, packet.sequence);
+        }
+    }
     if held_item.is_empty() {
         return write_block_change_ack(stream, compression, packet.sequence);
     }
