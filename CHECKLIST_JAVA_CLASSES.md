@@ -769,8 +769,8 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/visitors/CollectFields.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/visitors/CollectToTag.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/visitors/FieldSelector.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/visitors/FieldTree.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/visitors/FieldSelector.java`. Rust `NbtFieldSelectorSpec` mirrors Java's path/type/name record and its root, child, and grandchild constructor shapes; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 field_selector_and_tree`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/visitors/FieldTree.java`. Rust `NbtFieldTree` mirrors Java root depth `1`, recursive path insertion into `fieldsToRecurse`, selected field type storage, and type-sensitive `isSelected`; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 field_selector_and_tree`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/visitors/SkipAll.java`. Rust `SkipAllVisitor` mirrors Java `SkipAll.INSTANCE` default behavior: every scalar/list/root/container callback continues while unnamed entries, named entries, and list elements return `SKIP`; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 skip_all_visitor`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/visitors/SkipFields.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/visitors/package-info.java`. Verified the visitors package-info remains the Java `@NullMarked` package annotation for `net.minecraft.nbt.visitors`; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 nbt_visitors_package_info`.

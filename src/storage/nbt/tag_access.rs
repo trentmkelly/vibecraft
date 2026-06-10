@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::numeric::NbtNumericValue;
 use super::tag_metadata::{
     byte_array_size_in_bytes, int_array_size_in_bytes, list_size_in_bytes,
@@ -128,6 +130,81 @@ impl NbtStreamTagVisitor for SkipAllVisitor {
 
     fn visit_root_entry(&mut self, _tag_type: NbtTagTypeLookup) -> StreamValueResult {
         StreamValueResult::Continue
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NbtFieldSelectorSpec {
+    pub path: Vec<String>,
+    pub tag_type: NbtTagTypeLookup,
+    pub name: String,
+}
+
+impl NbtFieldSelectorSpec {
+    pub fn new(path: Vec<String>, tag_type: NbtTagTypeLookup, name: impl Into<String>) -> Self {
+        Self {
+            path,
+            tag_type,
+            name: name.into(),
+        }
+    }
+
+    pub fn root(tag_type: NbtTagTypeLookup, name: impl Into<String>) -> Self {
+        Self::new(Vec::new(), tag_type, name)
+    }
+
+    pub fn child(
+        parent: impl Into<String>,
+        tag_type: NbtTagTypeLookup,
+        name: impl Into<String>,
+    ) -> Self {
+        Self::new(vec![parent.into()], tag_type, name)
+    }
+
+    pub fn grandchild(
+        grandparent: impl Into<String>,
+        parent: impl Into<String>,
+        tag_type: NbtTagTypeLookup,
+        name: impl Into<String>,
+    ) -> Self {
+        Self::new(vec![grandparent.into(), parent.into()], tag_type, name)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NbtFieldTree {
+    pub depth: usize,
+    pub selected_fields: HashMap<String, NbtTagTypeLookup>,
+    pub fields_to_recurse: HashMap<String, NbtFieldTree>,
+}
+
+impl NbtFieldTree {
+    pub fn create_root() -> Self {
+        Self::new(1)
+    }
+
+    fn new(depth: usize) -> Self {
+        Self {
+            depth,
+            selected_fields: HashMap::new(),
+            fields_to_recurse: HashMap::new(),
+        }
+    }
+
+    pub fn add_entry(&mut self, field: &NbtFieldSelectorSpec) {
+        if self.depth <= field.path.len() {
+            self.fields_to_recurse
+                .entry(field.path[self.depth - 1].clone())
+                .or_insert_with(|| Self::new(self.depth + 1))
+                .add_entry(field);
+        } else {
+            self.selected_fields
+                .insert(field.name.clone(), field.tag_type.clone());
+        }
+    }
+
+    pub fn is_selected(&self, tag_type: &NbtTagTypeLookup, id: &str) -> bool {
+        self.selected_fields.get(id) == Some(tag_type)
     }
 }
 

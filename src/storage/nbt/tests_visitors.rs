@@ -1,5 +1,6 @@
 use super::tag_access::{
-    NbtStreamTagVisitor, SkipAllVisitor, StreamEntryResult, StreamValueResult,
+    NbtFieldSelectorSpec, NbtFieldTree, NbtStreamTagVisitor, SkipAllVisitor, StreamEntryResult,
+    StreamValueResult,
 };
 use super::tag_metadata::tag_type;
 
@@ -7,6 +8,11 @@ const STREAM_TAG_VISITOR_JAVA: &str =
     include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/StreamTagVisitor.java");
 const SKIP_ALL_JAVA: &str =
     include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/visitors/SkipAll.java");
+const FIELD_SELECTOR_JAVA: &str = include_str!(
+    "../../../../decompiled-server-26.1.2/net/minecraft/nbt/visitors/FieldSelector.java"
+);
+const FIELD_TREE_JAVA: &str =
+    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/visitors/FieldTree.java");
 const NBT_VISITORS_PACKAGE_INFO_JAVA: &str = include_str!(
     "../../../../decompiled-server-26.1.2/net/minecraft/nbt/visitors/package-info.java"
 );
@@ -119,4 +125,58 @@ fn skip_all_visitor_matches_java_default_results() {
         visitor.visit_root_entry(tag_type(10)),
         StreamValueResult::Continue
     );
+}
+
+#[test]
+fn field_selector_and_tree_match_java_path_type_name_contract() {
+    for sentinel in [
+        "public record FieldSelector(List<String> path, TagType<?> type, String name)",
+        "this(List.of(), type, name);",
+        "this(List.of(parent), type, name);",
+        "this(List.of(grandparent, parent), type, name);",
+    ] {
+        assert!(
+            FIELD_SELECTOR_JAVA.contains(sentinel),
+            "missing FieldSelector sentinel {sentinel}"
+        );
+    }
+    for sentinel in [
+        "public record FieldTree(int depth, Map<String, TagType<?>> selectedFields, Map<String, FieldTree> fieldsToRecurse)",
+        "return new FieldTree(1);",
+        "if (this.depth <= field.path().size())",
+        "this.fieldsToRecurse.computeIfAbsent(field.path().get(this.depth - 1), s -> new FieldTree(this.depth + 1)).addEntry(field);",
+        "this.selectedFields.put(field.name(), field.type());",
+        "return type.equals(this.selectedFields().get(id));",
+    ] {
+        assert!(
+            FIELD_TREE_JAVA.contains(sentinel),
+            "missing FieldTree sentinel {sentinel}"
+        );
+    }
+
+    let root_selector = NbtFieldSelectorSpec::root(tag_type(3), "DataVersion");
+    assert!(root_selector.path.is_empty());
+    assert_eq!(root_selector.name, "DataVersion");
+    assert_eq!(root_selector.tag_type, tag_type(3));
+
+    let child_selector = NbtFieldSelectorSpec::child("Data", tag_type(8), "LevelName");
+    assert_eq!(child_selector.path, vec!["Data"]);
+    let grandchild_selector =
+        NbtFieldSelectorSpec::grandchild("Data", "Player", tag_type(1), "OnGround");
+    assert_eq!(grandchild_selector.path, vec!["Data", "Player"]);
+
+    let mut root = NbtFieldTree::create_root();
+    assert_eq!(root.depth, 1);
+    root.add_entry(&root_selector);
+    root.add_entry(&child_selector);
+    root.add_entry(&grandchild_selector);
+
+    assert!(root.is_selected(&tag_type(3), "DataVersion"));
+    assert!(!root.is_selected(&tag_type(8), "DataVersion"));
+    let data_frame = root.fields_to_recurse.get("Data").unwrap();
+    assert_eq!(data_frame.depth, 2);
+    assert!(data_frame.is_selected(&tag_type(8), "LevelName"));
+    let player_frame = data_frame.fields_to_recurse.get("Player").unwrap();
+    assert_eq!(player_frame.depth, 3);
+    assert!(player_frame.is_selected(&tag_type(1), "OnGround"));
 }
