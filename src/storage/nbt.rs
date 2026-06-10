@@ -8,6 +8,7 @@ pub mod accounter;
 pub mod nbt_io;
 pub mod numeric;
 pub mod snbt_operations;
+pub mod snbt_printer;
 pub mod snbt_string;
 pub mod tag_access;
 pub mod tag_metadata;

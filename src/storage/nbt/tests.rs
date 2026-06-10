@@ -1067,7 +1067,7 @@ fn snbt_printer_size_accounting_and_traversal_cover_nested_tags() {
     // Byte-array elements use uppercase 'B', matching Java StringTagVisitor.
     assert_eq!(
         tag.to_snbt(),
-        "{name:\"A \\\"quoted\\\" name\",bytes:[B;1B,2B],nested:[1,2]}"
+        "{bytes:[B;1B,2B],name:'A \"quoted\" name',nested:[1,2]}"
     );
     assert_eq!(tag.payload_size(), 61);
 
