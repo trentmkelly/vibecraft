@@ -227,6 +227,104 @@ fn nbt_tag_type_registry_metadata_matches_java() {
 }
 
 #[test]
+fn tag_interface_matches_java_ids_types_sizes_and_optional_accessors() {
+    for sentinel in [
+        "public sealed interface Tag permits CompoundTag, CollectionTag, PrimitiveTag, EndTag",
+        "int OBJECT_HEADER = 8;",
+        "int ARRAY_HEADER = 12;",
+        "int OBJECT_REFERENCE = 4;",
+        "int STRING_SIZE = 28;",
+        "byte TAG_END = 0;",
+        "byte TAG_LONG_ARRAY = 12;",
+        "int MAX_DEPTH = 512;",
+        "default Optional<String> asString()",
+        "default Optional<Number> asNumber()",
+        "default Optional<Boolean> asBoolean()",
+        "default Optional<byte[]> asByteArray()",
+        "default Optional<CompoundTag> asCompound()",
+        "default Optional<ListTag> asList()",
+        "return this.asByte().map(b -> b != 0);",
+    ] {
+        assert!(
+            TAG_JAVA.contains(sentinel),
+            "missing Tag sentinel {sentinel}"
+        );
+    }
+
+    let expected_ids = [
+        (Tag::End, 0, 8),
+        (Tag::Byte(1), 1, 9),
+        (Tag::Short(2), 2, 10),
+        (Tag::Int(3), 3, 12),
+        (Tag::Long(4), 4, 16),
+        (Tag::Float(5.0), 5, 12),
+        (Tag::Double(6.0), 6, 16),
+        (Tag::ByteArray(vec![1, 2]), 7, 26),
+        (Tag::String("a😀".to_string()), 8, 42),
+        (
+            Tag::List(vec![Tag::Int(1), Tag::String("x".to_string())]),
+            9,
+            94,
+        ),
+        (
+            Tag::Compound(vec![
+                ("a😀".to_string(), Tag::Byte(1)),
+                ("nested".to_string(), Tag::List(vec![Tag::Int(2)])),
+            ]),
+            10,
+            48 + (28 + 2 * 3 + 36 + 9) + (28 + 2 * 6 + 36 + 52),
+        ),
+        (Tag::IntArray(vec![1, 2]), 11, 32),
+        (Tag::LongArray(vec![1, 2]), 12, 40),
+    ];
+
+    for (tag, id, size_in_bytes) in expected_ids {
+        assert_eq!(tag.id(), id);
+        let NbtTagTypeLookup::Known(info) = tag.tag_type() else {
+            panic!("tag type {id} should be known");
+        };
+        assert_eq!(info.id, id);
+        assert_eq!(tag.copy_tag(), tag);
+        assert_eq!(tag.size_in_bytes(), size_in_bytes);
+    }
+
+    let numeric = Tag::Int(257);
+    assert_eq!(numeric.as_number(), Some(NbtNumericValue::Int(257)));
+    assert_eq!(numeric.as_byte(), Some(1));
+    assert_eq!(numeric.as_short(), Some(257));
+    assert_eq!(numeric.as_int(), Some(257));
+    assert_eq!(numeric.as_long(), Some(257));
+    assert_eq!(numeric.as_float(), Some(257.0));
+    assert_eq!(numeric.as_double(), Some(257.0));
+    assert_eq!(numeric.as_boolean(), Some(true));
+
+    assert_eq!(Tag::Byte(0).as_boolean(), Some(false));
+    assert_eq!(Tag::String("value".to_string()).as_string(), Some("value"));
+    assert_eq!(Tag::String("value".to_string()).as_int(), None);
+    assert_eq!(Tag::End.as_string(), None);
+    assert_eq!(Tag::End.as_number(), None);
+    assert_eq!(Tag::End.as_boolean(), None);
+
+    let bytes = Tag::ByteArray(vec![1, -2]);
+    assert_eq!(bytes.as_byte_array(), Some(&[1, -2][..]));
+    assert_eq!(bytes.as_int_array(), None);
+    let ints = Tag::IntArray(vec![3, 4]);
+    assert_eq!(ints.as_int_array(), Some(&[3, 4][..]));
+    let longs = Tag::LongArray(vec![5, 6]);
+    assert_eq!(longs.as_long_array(), Some(&[5, 6][..]));
+
+    let list = Tag::List(vec![Tag::Byte(1)]);
+    assert_eq!(list.as_list(), Some(&[Tag::Byte(1)][..]));
+    assert_eq!(list.as_compound(), None);
+    let compound = Tag::Compound(vec![("key".to_string(), Tag::String("value".to_string()))]);
+    assert_eq!(
+        compound.as_compound(),
+        Some(&[("key".to_string(), Tag::String("value".to_string()))][..])
+    );
+    assert_eq!(compound.as_list(), None);
+}
+
+#[test]
 fn reported_nbt_exception_is_reported_exception_wrapper_like_java() {
     assert!(REPORTED_NBT_EXCEPTION_JAVA
         .contains("public class ReportedNbtException extends ReportedException"));

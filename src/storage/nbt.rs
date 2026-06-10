@@ -11,6 +11,8 @@ pub mod numeric;
 #[allow(dead_code)]
 pub mod snbt_string;
 #[allow(dead_code)]
+pub mod tag_access;
+#[allow(dead_code)]
 pub mod tag_metadata;
 
 pub const DEFAULT_MAX_NBT_DEPTH: usize = 512;
