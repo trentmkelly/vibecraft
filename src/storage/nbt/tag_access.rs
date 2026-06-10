@@ -22,6 +22,115 @@ pub trait NbtTagVisitor {
     fn visit_end(&mut self);
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StreamEntryResult {
+    Enter,
+    Skip,
+    Break,
+    Halt,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StreamValueResult {
+    Continue,
+    Break,
+    Halt,
+}
+
+#[allow(dead_code)]
+pub trait NbtStreamTagVisitor {
+    fn visit_end(&mut self) -> StreamValueResult;
+    fn visit_string(&mut self, value: &str) -> StreamValueResult;
+    fn visit_byte(&mut self, value: i8) -> StreamValueResult;
+    fn visit_short(&mut self, value: i16) -> StreamValueResult;
+    fn visit_int(&mut self, value: i32) -> StreamValueResult;
+    fn visit_long(&mut self, value: i64) -> StreamValueResult;
+    fn visit_float(&mut self, value: f32) -> StreamValueResult;
+    fn visit_double(&mut self, value: f64) -> StreamValueResult;
+    fn visit_byte_array(&mut self, value: &[i8]) -> StreamValueResult;
+    fn visit_int_array(&mut self, value: &[i32]) -> StreamValueResult;
+    fn visit_long_array(&mut self, value: &[i64]) -> StreamValueResult;
+    fn visit_list(&mut self, element_type: NbtTagTypeLookup, size: usize) -> StreamValueResult;
+    fn visit_entry(&mut self, tag_type: NbtTagTypeLookup) -> StreamEntryResult;
+    fn visit_named_entry(&mut self, tag_type: NbtTagTypeLookup, id: &str) -> StreamEntryResult;
+    fn visit_element(&mut self, tag_type: NbtTagTypeLookup, index: usize) -> StreamEntryResult;
+    fn visit_container_end(&mut self) -> StreamValueResult;
+    fn visit_root_entry(&mut self, tag_type: NbtTagTypeLookup) -> StreamValueResult;
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct SkipAllVisitor;
+
+impl NbtStreamTagVisitor for SkipAllVisitor {
+    fn visit_end(&mut self) -> StreamValueResult {
+        StreamValueResult::Continue
+    }
+
+    fn visit_string(&mut self, _value: &str) -> StreamValueResult {
+        StreamValueResult::Continue
+    }
+
+    fn visit_byte(&mut self, _value: i8) -> StreamValueResult {
+        StreamValueResult::Continue
+    }
+
+    fn visit_short(&mut self, _value: i16) -> StreamValueResult {
+        StreamValueResult::Continue
+    }
+
+    fn visit_int(&mut self, _value: i32) -> StreamValueResult {
+        StreamValueResult::Continue
+    }
+
+    fn visit_long(&mut self, _value: i64) -> StreamValueResult {
+        StreamValueResult::Continue
+    }
+
+    fn visit_float(&mut self, _value: f32) -> StreamValueResult {
+        StreamValueResult::Continue
+    }
+
+    fn visit_double(&mut self, _value: f64) -> StreamValueResult {
+        StreamValueResult::Continue
+    }
+
+    fn visit_byte_array(&mut self, _value: &[i8]) -> StreamValueResult {
+        StreamValueResult::Continue
+    }
+
+    fn visit_int_array(&mut self, _value: &[i32]) -> StreamValueResult {
+        StreamValueResult::Continue
+    }
+
+    fn visit_long_array(&mut self, _value: &[i64]) -> StreamValueResult {
+        StreamValueResult::Continue
+    }
+
+    fn visit_list(&mut self, _element_type: NbtTagTypeLookup, _size: usize) -> StreamValueResult {
+        StreamValueResult::Continue
+    }
+
+    fn visit_entry(&mut self, _tag_type: NbtTagTypeLookup) -> StreamEntryResult {
+        StreamEntryResult::Skip
+    }
+
+    fn visit_named_entry(&mut self, _tag_type: NbtTagTypeLookup, _id: &str) -> StreamEntryResult {
+        StreamEntryResult::Skip
+    }
+
+    fn visit_element(&mut self, _tag_type: NbtTagTypeLookup, _index: usize) -> StreamEntryResult {
+        StreamEntryResult::Skip
+    }
+
+    fn visit_container_end(&mut self) -> StreamValueResult {
+        StreamValueResult::Continue
+    }
+
+    fn visit_root_entry(&mut self, _tag_type: NbtTagTypeLookup) -> StreamValueResult {
+        StreamValueResult::Continue
+    }
+}
+
 #[allow(dead_code)]
 impl Tag {
     pub fn tag_type(&self) -> NbtTagTypeLookup {
