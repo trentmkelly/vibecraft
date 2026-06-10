@@ -185,6 +185,10 @@ pub fn long_array_size_in_bytes(len: usize) -> usize {
     24 + 8 * len
 }
 
+pub fn list_size_in_bytes(child_sizes: &[usize]) -> usize {
+    36 + 4 * child_sizes.len() + child_sizes.iter().sum::<usize>()
+}
+
 pub fn root_parse_action(result: RootVisitResult) -> RootParseAction {
     match result {
         RootVisitResult::Continue => RootParseAction::ParsePayload,

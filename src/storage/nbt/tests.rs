@@ -4,9 +4,9 @@ use super::accounter::{
 use super::numeric::NbtNumericValue;
 use super::snbt_string::escape_snbt_string_without_quotes;
 use super::tag_metadata::{
-    byte_array_size_in_bytes, int_array_size_in_bytes, long_array_size_in_bytes, root_parse_action,
-    string_size_in_bytes, tag_type, NbtTagTypeLookup, ReportedNbtExceptionModel, RootParseAction,
-    RootVisitResult, TAG_TYPES,
+    byte_array_size_in_bytes, int_array_size_in_bytes, list_size_in_bytes,
+    long_array_size_in_bytes, root_parse_action, string_size_in_bytes, tag_type, NbtTagTypeLookup,
+    ReportedNbtExceptionModel, RootParseAction, RootVisitResult, TAG_TYPES,
 };
 use super::{
     parse_snbt, read_gzip_named_tag, read_named_tag, read_named_tag_limited, write_gzip_named_tag,
@@ -56,6 +56,8 @@ const INT_ARRAY_TAG_JAVA: &str =
     include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/IntArrayTag.java");
 const LONG_ARRAY_TAG_JAVA: &str =
     include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/LongArrayTag.java");
+const LIST_TAG_JAVA: &str =
+    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/ListTag.java");
 const NUMERIC_TAG_JAVA: &str =
     include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/NumericTag.java");
 const PRIMITIVE_TAG_JAVA: &str =
@@ -596,6 +598,71 @@ fn string_tag_visitor_matches_java_snbt_rendering_order_and_suffixes() {
         .to_snbt(),
         "{\"1bad\":\"number-start\",a:1b,\"true\":\"reserved\",z:3}"
     );
+}
+
+#[test]
+fn list_tag_matches_java_homogeneous_and_wrapper_contracts() {
+    for sentinel in [
+        "private static final String WRAPPER_MARKER = \"\";",
+        "private static final int SELF_SIZE_IN_BYTES = 36;",
+        "if (typeId == 0 && count > 0)",
+        "throw new NbtFormatException(\"Missing type on ListTag\");",
+        "return count;",
+        "if (homogenousType == 0)",
+        "return 10;",
+        "return tag instanceof CompoundTag compoundTag && !isWrapper(compoundTag) ? compoundTag : wrapElement(tag);",
+        "return new CompoundTag(Map.of(\"\", tag));",
+        "this.add(tryUnwrap(compound));",
+        "size += 4 * this.list.size();",
+        "copy.add(tag.copy());",
+        "return Optional.of(this);",
+    ] {
+        assert!(
+            LIST_TAG_JAVA.contains(sentinel),
+            "missing ListTag sentinel {sentinel}"
+        );
+    }
+
+    let homogenous = Tag::List(vec![Tag::Int(1), Tag::Int(-2)]);
+    let mut homogenous_payload = Vec::new();
+    homogenous.write_payload(&mut homogenous_payload).unwrap();
+    assert_eq!(
+        homogenous_payload,
+        vec![3, 0, 0, 0, 2, 0, 0, 0, 1, 0xFF, 0xFF, 0xFF, 0xFE]
+    );
+    assert_eq!(
+        Tag::read_payload(9, &mut homogenous_payload.as_slice()).unwrap(),
+        homogenous
+    );
+
+    let mixed = Tag::List(vec![Tag::Int(1), Tag::String("x".to_string())]);
+    let mut mixed_payload = Vec::new();
+    mixed.write_payload(&mut mixed_payload).unwrap();
+    assert_eq!(&mixed_payload[..5], &[10, 0, 0, 0, 2]);
+    assert_eq!(
+        Tag::read_payload(9, &mut mixed_payload.as_slice()).unwrap(),
+        mixed
+    );
+    assert_eq!(mixed.to_snbt(), "[1,\"x\"]");
+
+    let wrapper_compound = Tag::List(vec![Tag::Compound(vec![("".to_string(), Tag::Int(7))])]);
+    let mut wrapper_payload = Vec::new();
+    wrapper_compound
+        .write_payload(&mut wrapper_payload)
+        .unwrap();
+    assert_eq!(
+        Tag::read_payload(9, &mut wrapper_payload.as_slice()).unwrap(),
+        wrapper_compound
+    );
+
+    let missing_type = vec![0, 0, 0, 0, 1];
+    let err = Tag::read_payload(9, &mut missing_type.as_slice()).unwrap_err();
+    assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    assert!(err.to_string().contains("Missing type on ListTag"));
+
+    assert_eq!(list_size_in_bytes(&[12, 12]), 68);
+    assert_eq!(Tag::List(vec![]).payload_size(), 5);
+    assert_eq!(Tag::List(vec![Tag::Int(1), Tag::Int(2)]).payload_size(), 13);
 }
 
 #[test]

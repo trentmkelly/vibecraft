@@ -136,14 +136,17 @@ impl Tag {
             9 => {
                 let element_id = read_u8(reader)?;
                 let len = read_len_i32(reader)?;
+                if element_id == 0 && len > 0 {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "Missing type on ListTag",
+                    ));
+                }
                 let mut values = Vec::with_capacity(len);
                 for _ in 0..len {
-                    values.push(Tag::read_payload_at_depth(
-                        element_id,
-                        reader,
-                        depth + 1,
-                        max_depth,
-                    )?);
+                    let value =
+                        Tag::read_payload_at_depth(element_id, reader, depth + 1, max_depth)?;
+                    values.push(unwrap_list_element(value));
                 }
                 Tag::List(values)
             }
@@ -204,17 +207,11 @@ impl Tag {
             }
             Tag::String(value) => write_string(writer, value),
             Tag::List(values) => {
-                let element_id = values.first().map(Tag::id).unwrap_or(0);
-                if values.iter().any(|value| value.id() != element_id) {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "NBT lists must contain one tag type",
-                    ));
-                }
+                let element_id = identify_list_raw_element_type(values);
                 writer.write_all(&[element_id])?;
                 write_len_i32(writer, values.len())?;
                 for value in values {
-                    value.write_payload(writer)?;
+                    wrap_list_element_if_needed(element_id, value).write_payload(writer)?;
                 }
                 Ok(())
             }
@@ -428,6 +425,40 @@ fn sorted_compound_entries(values: &[(String, Tag)]) -> Vec<(&str, &Tag)> {
         .collect::<Vec<_>>();
     entries.sort_by(|left, right| left.0.cmp(right.0));
     entries
+}
+
+fn identify_list_raw_element_type(values: &[Tag]) -> u8 {
+    let mut element_type = 0;
+    for value in values {
+        let value_type = value.id();
+        if element_type == 0 {
+            element_type = value_type;
+        } else if element_type != value_type {
+            return 10;
+        }
+    }
+    element_type
+}
+
+fn wrap_list_element_if_needed(element_type: u8, value: &Tag) -> Tag {
+    if element_type != 10 {
+        return value.clone();
+    }
+    match value {
+        Tag::Compound(entries) if !is_list_wrapper(entries) => value.clone(),
+        _ => Tag::Compound(vec![("".to_string(), value.clone())]),
+    }
+}
+
+fn unwrap_list_element(value: Tag) -> Tag {
+    match value {
+        Tag::Compound(mut entries) if is_list_wrapper(&entries) => entries.remove(0).1,
+        value => value,
+    }
+}
+
+fn is_list_wrapper(entries: &[(String, Tag)]) -> bool {
+    entries.len() == 1 && entries[0].0.is_empty()
 }
 
 #[cfg(test)]
