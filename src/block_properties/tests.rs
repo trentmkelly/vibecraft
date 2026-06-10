@@ -275,3 +275,35 @@ fn full_report_round_trips_against_vendored_json() {
     }
     assert_eq!(checked, VANILLA_BLOCK_STATE_COUNT_26_1_2);
 }
+
+#[test]
+fn face_sturdy_masks_match_java_support_type_semantics() {
+    use crate::block_properties::{is_face_sturdy, SupportType};
+    // Java Direction ordinals: DOWN=0, UP=1.
+    let stone = physics("minecraft:stone");
+    for direction in 0..6 {
+        for support in [SupportType::Full, SupportType::Center, SupportType::Rigid] {
+            assert!(is_face_sturdy(stone, direction, support));
+        }
+    }
+
+    // A dry top slab is sturdy only on its UP face; a bottom slab only DOWN.
+    let top = physics("minecraft:oak_slab[type=top,waterlogged=false]");
+    assert!(is_face_sturdy(top, 1, SupportType::Full));
+    assert!(!is_face_sturdy(top, 0, SupportType::Full));
+    let bottom = physics("minecraft:oak_slab[type=bottom,waterlogged=false]");
+    assert!(is_face_sturdy(bottom, 0, SupportType::Full));
+    assert!(!is_face_sturdy(bottom, 1, SupportType::Full));
+
+    // Torches support nothing; a hopper's top face is RIGID-sturdy (its rim
+    // ring fills the 14x14 rigid test) but not FULL or CENTER (the bowl hole).
+    let torch = physics("minecraft:torch");
+    for direction in 0..6 {
+        assert!(!is_face_sturdy(torch, direction, SupportType::Full));
+    }
+    let hopper = physics("minecraft:hopper");
+    assert!(is_face_sturdy(hopper, 1, SupportType::Rigid));
+    assert!(!is_face_sturdy(hopper, 1, SupportType::Full));
+    assert!(!is_face_sturdy(hopper, 1, SupportType::Center));
+    assert!(is_face_sturdy(hopper, 0, SupportType::Center));
+}

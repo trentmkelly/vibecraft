@@ -236,6 +236,19 @@ public class BlockPropertyDump {
       json.addProperty(
          "view_blocking", suppress(() -> state.isViewBlocking(EmptyBlockGetter.INSTANCE, BlockPos.ZERO))
       );
+
+      // BlockStateBase.isFaceSturdy(direction, supportType) as an 18-bit mask:
+      // bit = direction.ordinal() * 3 + supportType.ordinal() (FULL, CENTER, RIGID).
+      int faceSturdy = 0;
+      for (Direction direction : Direction.values()) {
+         for (net.minecraft.world.level.block.SupportType supportType
+               : net.minecraft.world.level.block.SupportType.values()) {
+            if (state.isFaceSturdy(EmptyBlockGetter.INSTANCE, BlockPos.ZERO, direction, supportType)) {
+               faceSturdy |= 1 << (direction.ordinal() * 3 + supportType.ordinal());
+            }
+         }
+      }
+      json.addProperty("face_sturdy", faceSturdy);
       return json;
    }
 

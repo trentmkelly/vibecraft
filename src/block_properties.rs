@@ -104,6 +104,9 @@ pub struct StatePhysics {
     pub pathfind_water: bool,
     pub suffocating: bool,
     pub view_blocking: bool,
+    /// `BlockStateBase.isFaceSturdy(direction, supportType)` as an 18-bit mask;
+    /// bit = `direction_ordinal * 3 + support_type_ordinal` (FULL, CENTER, RIGID).
+    pub face_sturdy: u32,
     pub fluid: StateFluid,
     /// Indices into [`shape`].
     pub shape: u16,
@@ -313,6 +316,9 @@ fn parse_state(state: &Value, sound_type_indices: &HashMap<String, u16>) -> Stat
         pathfind_water: boolean(state, "pathfind_water"),
         suffocating: boolean(state, "suffocating"),
         view_blocking: boolean(state, "view_blocking"),
+        face_sturdy: state["face_sturdy"]
+            .as_u64()
+            .unwrap_or_else(|| panic!("missing face sturdy mask")) as u32,
         fluid,
         shape: shape_index(state, "shape"),
         collision_shape: shape_index(state, "collision_shape"),
@@ -553,6 +559,27 @@ pub fn state_physics_by_name(name: &str) -> Option<&'static StatePhysics> {
 /// The interned voxel shape boxes for a shape index from [`StatePhysics`].
 pub fn shape(index: u16) -> &'static [ShapeBox] {
     &TABLES.shapes[index as usize]
+}
+
+/// Java `SupportType` for face-sturdiness queries (`FULL`, `CENTER`, `RIGID`),
+/// in Java ordinal order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SupportType {
+    Full = 0,
+    Center = 1,
+    Rigid = 2,
+}
+
+/// Java: `BlockStateBase.isFaceSturdy(level, pos, direction, supportType)` —
+/// position-independent in vanilla (derived from the block support shape), so
+/// the probe captured it per state. `direction_ordinal` uses Java `Direction`
+/// ordinals (DOWN, UP, NORTH, SOUTH, WEST, EAST).
+pub fn is_face_sturdy(
+    state: &StatePhysics,
+    direction_ordinal: usize,
+    support_type: SupportType,
+) -> bool {
+    state.face_sturdy & (1 << (direction_ordinal * 3 + support_type as usize)) != 0
 }
 
 /// Whether a state's collision shape is exactly the full unit cube
