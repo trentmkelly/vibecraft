@@ -3,9 +3,15 @@ use super::*;
 #[test]
 fn entries_cover_full_vanilla_block_registry_in_protocol_order() {
     let entries = block_state_entries();
-    assert_eq!(entries.len(), crate::block_metadata::VANILLA_BLOCK_REGISTRY_COUNT);
+    assert_eq!(
+        entries.len(),
+        crate::block_metadata::VANILLA_BLOCK_REGISTRY_COUNT
+    );
     assert_eq!(entries[0].registry_id, "minecraft:air");
-    assert_eq!(entries.last().unwrap().registry_id, "minecraft:firefly_bush");
+    assert_eq!(
+        entries.last().unwrap().registry_id,
+        "minecraft:firefly_bush"
+    );
 
     // State-id ranges are contiguous across the whole registry, exactly like
     // Java's Block.BLOCK_STATE_REGISTRY incremental registration.
@@ -23,7 +29,10 @@ fn entries_cover_full_vanilla_block_registry_in_protocol_order() {
     assert_eq!(next_id as usize, VANILLA_BLOCK_STATE_COUNT_26_1_2);
 
     // The block-state table and the block registry agree entry-by-entry.
-    for (entry, registry) in entries.iter().zip(crate::block_metadata::BLOCK_REGISTRY.iter()) {
+    for (entry, registry) in entries
+        .iter()
+        .zip(crate::block_metadata::BLOCK_REGISTRY.iter())
+    {
         assert_eq!(entry.registry_id, registry.registry_id);
     }
 }
@@ -54,7 +63,10 @@ fn every_official_block_state_round_trips_against_the_vanilla_report() {
             let properties = state["properties"].as_object().unwrap_or(&empty);
             if properties.is_empty() {
                 assert_eq!(entry.base_state_id, id, "{name} singleton");
-                assert_eq!(block_state_name_for_network_id(id).as_deref(), Some(name.as_str()));
+                assert_eq!(
+                    block_state_name_for_network_id(id).as_deref(),
+                    Some(name.as_str())
+                );
             } else {
                 let rendered = properties
                     .iter()
@@ -71,7 +83,11 @@ fn every_official_block_state_round_trips_against_the_vanilla_report() {
                 );
                 let round_trip = block_state_name_for_network_id(id)
                     .unwrap_or_else(|| panic!("no name for {id}"));
-                assert_eq!(network_id_for_block_state(&round_trip), Some(id), "{round_trip}");
+                assert_eq!(
+                    network_id_for_block_state(&round_trip),
+                    Some(id),
+                    "{round_trip}"
+                );
             }
             checked_states += 1;
         }
@@ -87,10 +103,19 @@ fn known_vanilla_state_ids_resolve_like_java() {
     assert_eq!(network_id_for_block_state("minecraft:air"), Some(0));
     assert_eq!(network_id_for_block_state("minecraft:stone"), Some(1));
     assert_eq!(network_id_for_block_state("minecraft:water"), Some(86));
-    assert_eq!(network_id_for_block_state("minecraft:water[level=7]"), Some(93));
-    assert_eq!(network_id_for_block_state("minecraft:lava[level=15]"), Some(117));
+    assert_eq!(
+        network_id_for_block_state("minecraft:water[level=7]"),
+        Some(93)
+    );
+    assert_eq!(
+        network_id_for_block_state("minecraft:lava[level=15]"),
+        Some(117)
+    );
     assert_eq!(network_id_for_block_state("minecraft:obsidian"), Some(3369));
-    assert_eq!(network_id_for_block_state("minecraft:sunflower"), Some(12916));
+    assert_eq!(
+        network_id_for_block_state("minecraft:sunflower"),
+        Some(12916)
+    );
     assert_eq!(
         network_id_for_block_state("minecraft:grass_block[snowy=true]"),
         Some(8)
@@ -100,9 +125,7 @@ fn known_vanilla_state_ids_resolve_like_java() {
         Some(9)
     );
     assert_eq!(
-        network_id_for_block_state(
-            "minecraft:chest[facing=north,type=single,waterlogged=false]"
-        ),
+        network_id_for_block_state("minecraft:chest[facing=north,type=single,waterlogged=false]"),
         network_id_for_block_state("minecraft:chest"),
     );
 }
@@ -139,7 +162,10 @@ fn name_parsing_matches_nbt_utils_read_block_state_leniency() {
     assert_eq!(network_id_for_block_state("oak_stairs"), Some(default));
     // Unknown blocks fail instead of guessing.
     assert_eq!(network_id_for_block_state("minecraft:not_a_block"), None);
-    assert_eq!(network_id_for_block_state("minecraft:not_a_block[facing=north]"), None);
+    assert_eq!(
+        network_id_for_block_state("minecraft:not_a_block[facing=north]"),
+        None
+    );
 }
 
 #[test]
@@ -154,8 +180,7 @@ fn network_id_reverse_lookup_decodes_owning_block_and_properties() {
         Some("minecraft:oak_stairs[facing=north,half=bottom,shape=straight,waterlogged=false]")
     );
     assert_eq!(
-        block_state_entry_for_network_id(stairs_default)
-            .map(|entry| entry.registry_id),
+        block_state_entry_for_network_id(stairs_default).map(|entry| entry.registry_id),
         Some("minecraft:oak_stairs")
     );
     assert!(block_state_name_for_network_id(-1).is_none());

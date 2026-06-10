@@ -23,6 +23,11 @@ mod state_data_a;
 mod state_data_b;
 mod state_data_c;
 mod state_data_d;
+mod state_data_e;
+mod state_data_f;
+mod state_data_g;
+mod state_data_h;
+mod state_data_i;
 
 /// Total number of block states registered by vanilla 26.1.2.
 pub const VANILLA_BLOCK_STATE_COUNT_26_1_2: usize = 29873;
@@ -43,8 +48,9 @@ pub struct StateProperty {
 pub struct BlockStateEntryData {
     pub registry_id: &'static str,
     /// The registered block-type key from the official report's
-    /// `definition.type` (e.g. `minecraft:torch` for every `BaseTorchBlock`),
-    /// identifying which Java block class owns this block's behavior.
+    /// `definition.type`, without the `minecraft:` namespace (e.g. `torch`
+    /// for every `BaseTorchBlock`), identifying which Java block class owns
+    /// this block's behavior.
     pub block_type: &'static str,
     pub base_state_id: i32,
     pub default_state_id: i32,
@@ -82,11 +88,34 @@ impl BlockStateEntryData {
     }
 }
 
+/// Compact constructor used by the generated data files to keep each row on a
+/// single line under the per-file line budget.
+const fn entry(
+    registry_id: &'static str,
+    block_type: &'static str,
+    base_state_id: i32,
+    default_state_id: i32,
+    properties: &'static [StateProperty],
+) -> BlockStateEntryData {
+    BlockStateEntryData {
+        registry_id,
+        block_type,
+        base_state_id,
+        default_state_id,
+        properties,
+    }
+}
+
 static ENTRIES: LazyLock<Vec<BlockStateEntryData>> = LazyLock::new(|| {
     state_data_b::ENTRIES
         .iter()
         .chain(state_data_c::ENTRIES.iter())
         .chain(state_data_d::ENTRIES.iter())
+        .chain(state_data_e::ENTRIES.iter())
+        .chain(state_data_f::ENTRIES.iter())
+        .chain(state_data_g::ENTRIES.iter())
+        .chain(state_data_h::ENTRIES.iter())
+        .chain(state_data_i::ENTRIES.iter())
         .copied()
         .collect()
 });

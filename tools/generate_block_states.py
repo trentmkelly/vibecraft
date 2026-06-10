@@ -7,7 +7,7 @@ Inputs (vendored from `java -DbundlerMainClass=net.minecraft.data.Main -jar serv
 
 Outputs (all fully generated, do not edit by hand):
   src/block_metadata/registry_data_{a,b,c}.rs      (1:1 protocol-ordered block registry)
-  src/block_states/state_data_{a,b,c,d}.rs         (full per-block state definitions)
+  src/block_states/state_data_{a,b,...}.rs         (full per-block state definitions)
 
 The per-block property order in blocks.json's `properties` map does NOT always match
 the actual state-id cartesian ordering (e.g. chest, piston_head). We therefore derive
@@ -166,22 +166,23 @@ def generate_states(registry, blocks):
         joined = ", ".join(props)
         shared.append(f"pub(super) const {const}: &[StateProperty] = &[{joined}];\n")
 
-    chunks = split_even(entries, 3)
+    # Keep each generated file under the 1200-line build gate even after
+    # rustfmt; the compact `entry()` constructor keeps rows single-line.
+    chunks = split_even(entries, 8)
     files = []
-    for letter, chunk in zip("bcd", chunks):
+    for letter, chunk in zip("bcdefghi", chunks):
         lines = [
             HEADER,
             "use super::state_data_a::*;\n",
-            "use super::BlockStateEntryData;\n",
+            "use super::{entry, BlockStateEntryData};\n",
             "\n",
+            "#[rustfmt::skip]\n",
             "pub(super) const ENTRIES: &[BlockStateEntryData] = &[\n",
         ]
         for name, base, default, list_const, block_type in chunk:
+            short_type = block_type.removeprefix("minecraft:")
             lines.append(
-                f'    BlockStateEntryData {{ registry_id: "{name}", '
-                f'block_type: "{block_type}", '
-                f"base_state_id: {base}, default_state_id: {default}, "
-                f"properties: {list_const} }},\n"
+                f'    entry("{name}", "{short_type}", {base}, {default}, {list_const}),\n'
             )
         lines.append("];\n")
         files.append((f"state_data_{letter}.rs", lines))
