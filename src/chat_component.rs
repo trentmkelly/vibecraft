@@ -16,6 +16,8 @@ pub mod formatted_text;
 pub mod hover_event;
 #[path = "keybind_contents.rs"]
 pub mod keybind_contents;
+#[path = "nbt_contents.rs"]
+pub mod nbt_contents;
 #[path = "number_format.rs"]
 pub mod number_format;
 #[path = "object_contents.rs"]
