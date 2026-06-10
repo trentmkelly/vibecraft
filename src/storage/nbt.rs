@@ -7,6 +7,7 @@ use flate2::Compression;
 pub mod accounter;
 pub mod compound_tag;
 pub mod nbt_io;
+pub mod nbt_utils;
 pub mod numeric;
 pub mod snbt_operations;
 pub mod snbt_printer;
