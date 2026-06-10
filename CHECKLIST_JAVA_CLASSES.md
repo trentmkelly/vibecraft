@@ -814,10 +814,10 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/TickablePacketListener.java`. Rust `network::dispatch::TickablePacketListener` mirrors Java's `PacketListener` extension that adds a required `tick()` callback; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 listener_surfaces`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/UnconfiguredPipelineHandler.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/Utf8String.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/VarInt.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/VarLong.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/Varint21FrameDecoder.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/Varint21LengthFieldPrepender.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/VarInt.java`. Rust `network::varint` mirrors Java VarInt max size, continuation-bit detection, byte-size calculation including negative five-byte values, little 7-bit group read/write encoding, unsigned right-shift write loop, and too-large error surface; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 varint`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/VarLong.java`. Rust `network::varint` mirrors Java VarLong max size, continuation-bit detection, byte-size calculation including negative ten-byte values, little 7-bit group read/write encoding, unsigned right-shift write loop, and too-large error surface; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 varlong`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/Varint21FrameDecoder.java`. Rust `read_frame_length`/`decode_varint21_frame` mirror Java's three-byte frame-length limit, incomplete-frame no-output behavior, zero-length and wider-than-21-bit rejection, payload extraction, and bandwidth monitor accounting of length plus VarInt header size; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 frame_length`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/Varint21LengthFieldPrepender.java`. Rust `prepend_varint21_frame` mirrors Java's max three-byte header guard, packet-too-large error, VarInt length write, and payload copy behavior; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 varint21_length_field_prepender`.
 
 ## `decompiled-server-26.1.2/net/minecraft/network/chat`
 
