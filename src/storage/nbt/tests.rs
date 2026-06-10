@@ -30,6 +30,8 @@ const REPORTED_NBT_EXCEPTION_JAVA: &str = include_str!(
 );
 const TAG_JAVA: &str =
     include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/Tag.java");
+const TAG_VISITOR_JAVA: &str =
+    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/TagVisitor.java");
 const TAG_TYPE_JAVA: &str =
     include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/TagType.java");
 const TAG_TYPES_JAVA: &str =
@@ -322,6 +324,130 @@ fn tag_interface_matches_java_ids_types_sizes_and_optional_accessors() {
         Some(&[("key".to_string(), Tag::String("value".to_string()))][..])
     );
     assert_eq!(compound.as_list(), None);
+}
+
+#[test]
+fn tag_visitor_dispatch_matches_java_visit_methods() {
+    for sentinel in [
+        "void visitString(StringTag tag);",
+        "void visitByte(ByteTag tag);",
+        "void visitShort(ShortTag tag);",
+        "void visitInt(IntTag tag);",
+        "void visitLong(LongTag tag);",
+        "void visitFloat(FloatTag tag);",
+        "void visitDouble(DoubleTag tag);",
+        "void visitByteArray(ByteArrayTag tag);",
+        "void visitIntArray(IntArrayTag tag);",
+        "void visitLongArray(LongArrayTag tag);",
+        "void visitList(ListTag tag);",
+        "void visitCompound(CompoundTag tag);",
+        "void visitEnd(EndTag tag);",
+        "void accept(TagVisitor visitor);",
+    ] {
+        assert!(
+            TAG_VISITOR_JAVA.contains(sentinel) || TAG_JAVA.contains(sentinel),
+            "missing TagVisitor sentinel {sentinel}"
+        );
+    }
+
+    #[derive(Default)]
+    struct RecordingVisitor {
+        visits: Vec<String>,
+    }
+
+    impl super::tag_access::NbtTagVisitor for RecordingVisitor {
+        fn visit_string(&mut self, value: &str) {
+            self.visits.push(format!("string:{value}"));
+        }
+
+        fn visit_byte(&mut self, value: i8) {
+            self.visits.push(format!("byte:{value}"));
+        }
+
+        fn visit_short(&mut self, value: i16) {
+            self.visits.push(format!("short:{value}"));
+        }
+
+        fn visit_int(&mut self, value: i32) {
+            self.visits.push(format!("int:{value}"));
+        }
+
+        fn visit_long(&mut self, value: i64) {
+            self.visits.push(format!("long:{value}"));
+        }
+
+        fn visit_float(&mut self, value: f32) {
+            self.visits.push(format!("float:{value}"));
+        }
+
+        fn visit_double(&mut self, value: f64) {
+            self.visits.push(format!("double:{value}"));
+        }
+
+        fn visit_byte_array(&mut self, value: &[i8]) {
+            self.visits.push(format!("byte_array:{}", value.len()));
+        }
+
+        fn visit_int_array(&mut self, value: &[i32]) {
+            self.visits.push(format!("int_array:{}", value.len()));
+        }
+
+        fn visit_long_array(&mut self, value: &[i64]) {
+            self.visits.push(format!("long_array:{}", value.len()));
+        }
+
+        fn visit_list(&mut self, value: &[Tag]) {
+            self.visits.push(format!("list:{}", value.len()));
+        }
+
+        fn visit_compound(&mut self, value: &[(String, Tag)]) {
+            self.visits.push(format!("compound:{}", value.len()));
+        }
+
+        fn visit_end(&mut self) {
+            self.visits.push("end".to_string());
+        }
+    }
+
+    let tags = [
+        Tag::String("text".to_string()),
+        Tag::Byte(-1),
+        Tag::Short(2),
+        Tag::Int(3),
+        Tag::Long(4),
+        Tag::Float(5.5),
+        Tag::Double(6.25),
+        Tag::ByteArray(vec![1, 2]),
+        Tag::IntArray(vec![3, 4, 5]),
+        Tag::LongArray(vec![6]),
+        Tag::List(vec![Tag::Byte(1), Tag::Byte(2)]),
+        Tag::Compound(vec![("key".to_string(), Tag::Int(7))]),
+        Tag::End,
+    ];
+
+    let mut visitor = RecordingVisitor::default();
+    for tag in tags {
+        tag.accept_tag_visitor(&mut visitor);
+    }
+
+    assert_eq!(
+        visitor.visits,
+        vec![
+            "string:text",
+            "byte:-1",
+            "short:2",
+            "int:3",
+            "long:4",
+            "float:5.5",
+            "double:6.25",
+            "byte_array:2",
+            "int_array:3",
+            "long_array:1",
+            "list:2",
+            "compound:1",
+            "end",
+        ]
+    );
 }
 
 #[test]

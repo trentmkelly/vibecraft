@@ -6,6 +6,23 @@ use super::tag_metadata::{
 use super::Tag;
 
 #[allow(dead_code)]
+pub trait NbtTagVisitor {
+    fn visit_string(&mut self, value: &str);
+    fn visit_byte(&mut self, value: i8);
+    fn visit_short(&mut self, value: i16);
+    fn visit_int(&mut self, value: i32);
+    fn visit_long(&mut self, value: i64);
+    fn visit_float(&mut self, value: f32);
+    fn visit_double(&mut self, value: f64);
+    fn visit_byte_array(&mut self, value: &[i8]);
+    fn visit_int_array(&mut self, value: &[i32]);
+    fn visit_long_array(&mut self, value: &[i64]);
+    fn visit_list(&mut self, value: &[Tag]);
+    fn visit_compound(&mut self, value: &[(String, Tag)]);
+    fn visit_end(&mut self);
+}
+
+#[allow(dead_code)]
 impl Tag {
     pub fn tag_type(&self) -> NbtTagTypeLookup {
         tag_type(self.id() as i32)
@@ -111,6 +128,24 @@ impl Tag {
         match self {
             Tag::List(values) => Some(values),
             _ => None,
+        }
+    }
+
+    pub fn accept_tag_visitor<V: NbtTagVisitor>(&self, visitor: &mut V) {
+        match self {
+            Tag::End => visitor.visit_end(),
+            Tag::Byte(value) => visitor.visit_byte(*value),
+            Tag::Short(value) => visitor.visit_short(*value),
+            Tag::Int(value) => visitor.visit_int(*value),
+            Tag::Long(value) => visitor.visit_long(*value),
+            Tag::Float(value) => visitor.visit_float(*value),
+            Tag::Double(value) => visitor.visit_double(*value),
+            Tag::ByteArray(values) => visitor.visit_byte_array(values),
+            Tag::String(value) => visitor.visit_string(value),
+            Tag::List(values) => visitor.visit_list(values),
+            Tag::Compound(values) => visitor.visit_compound(values),
+            Tag::IntArray(values) => visitor.visit_int_array(values),
+            Tag::LongArray(values) => visitor.visit_long_array(values),
         }
     }
 }
