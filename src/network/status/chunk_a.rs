@@ -2080,8 +2080,8 @@ fn log_player_action_debug(
     );
     let destroy_time = actual_block
         .as_deref()
-        .and_then(representative_state_definition)
-        .map(|def| def.physical.destroy_time);
+        .and_then(crate::block_properties::state_physics_by_name)
+        .map(|physics| physics.destroy_speed);
     crate::log::log_debug(&format!(
         "instabreak check: actual_block={actual_block:?} destroy_time={destroy_time:?}"
     ));
@@ -2125,8 +2125,8 @@ fn should_break_for_player_action(
             fields.z,
         )
         .as_deref()
-        .and_then(representative_state_definition)
-        .is_some_and(|def| def.physical.destroy_time == 0.0)
+        .and_then(crate::block_properties::state_physics_by_name)
+        .is_some_and(|physics| physics.destroy_speed == 0.0)
     };
     fields.action == 2 || (fields.action == 0 && game_mode == GameMode::Creative) || is_instabreak
 }

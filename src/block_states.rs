@@ -161,6 +161,23 @@ pub fn network_id_for_block_state(name: &str) -> Option<i32> {
     Some(state_id)
 }
 
+/// The default-state property assignments of a block, in definition order.
+/// Java equivalent: reading `block.defaultBlockState().getValues()`.
+pub fn default_state_properties(
+    registry_id: &str,
+) -> Option<Vec<(&'static str, &'static str)>> {
+    let entry = block_state_entry(registry_id)?;
+    let indices = entry.decode(entry.default_state_id);
+    Some(
+        entry
+            .properties
+            .iter()
+            .zip(indices)
+            .map(|(property, value_index)| (property.name, property.values[value_index]))
+            .collect(),
+    )
+}
+
 /// The block-state entry owning a global network state id.
 pub fn block_state_entry_for_network_id(state_id: i32) -> Option<&'static BlockStateEntryData> {
     if state_id < 0 {

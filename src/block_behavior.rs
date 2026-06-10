@@ -3,7 +3,6 @@
 use std::collections::BTreeMap;
 
 use crate::block_entity::has_block_entity_for_block;
-use crate::block_metadata::{default_state, representative_state_definition};
 use crate::block_update::{
     plan_chunk_block_updates, BlockChange, BlockPos, BlockUpdateAction, Direction, UpdateFlags,
 };
@@ -174,8 +173,7 @@ impl BlockStateModel {
     }
 
     pub fn default_for(registry_id: &str) -> Option<Self> {
-        let definition = representative_state_definition(registry_id)?;
-        let properties = default_state(&definition)
+        let properties = crate::block_states::default_state_properties(registry_id)?
             .into_iter()
             .map(|(name, value)| (name.to_string(), value.to_string()))
             .collect();
@@ -187,6 +185,24 @@ impl BlockStateModel {
 
     pub fn air() -> Self {
         Self::new("minecraft:air")
+    }
+
+    /// The `block[prop=value,...]` state string accepted by
+    /// [`crate::block_states::network_id_for_block_state`] and
+    /// [`crate::block_properties::state_physics_by_name`] (property order is
+    /// irrelevant to those lookups; missing properties resolve to the default
+    /// state's values).
+    pub fn state_name(&self) -> String {
+        if self.properties.is_empty() {
+            return self.registry_id.clone();
+        }
+        let rendered = self
+            .properties
+            .iter()
+            .map(|(name, value)| format!("{name}={value}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        format!("{}[{rendered}]", self.registry_id)
     }
 
     pub fn as_state(&self) -> &Self {

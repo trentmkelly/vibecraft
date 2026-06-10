@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
 use crate::block_behavior::BlockStateModel;
-use crate::block_metadata::representative_state_definition;
 use crate::block_update::{BlockPos, Direction};
 
 pub const FIRE_TICK_DELAY: i32 = 30;
@@ -168,15 +167,11 @@ pub fn prime_tnt(source: &str) -> FireAction {
 }
 
 pub fn blast_resistance(state: &BlockStateModel) -> f32 {
-    representative_state_definition(&state.registry_id)
-        .map(|definition| definition.physical.explosion_resistance)
-        .unwrap_or_else(|| match state.registry_id.as_str() {
-            "minecraft:obsidian" => 1200.0,
-            "minecraft:bedrock" | "minecraft:end_portal_frame" => 3_600_000.0,
-            "minecraft:tnt" => 0.0,
-            "minecraft:air" => 0.0,
-            _ => 0.5,
-        })
+    // Java `Block.getExplosionResistance()` — block-level constant, exact for
+    // every vanilla block; 0.5 only for names outside the vanilla registry.
+    crate::block_properties::block_physics(&state.registry_id)
+        .map(|physics| physics.explosion_resistance)
+        .unwrap_or(0.5)
 }
 
 /// Legacy single-block explosion check. The production explosion path now uses

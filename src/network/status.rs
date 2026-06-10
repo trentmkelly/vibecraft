@@ -11,7 +11,6 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crate::block_metadata::representative_state_definition;
 use crate::command::{
     debug_biome_at_command_source, execute_builtin_command, LevelBasedPermissionSet,
     PermissionLevel, ServerCommandState,

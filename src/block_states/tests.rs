@@ -164,3 +164,25 @@ fn network_id_reverse_lookup_decodes_owning_block_and_properties() {
         block_state_name_for_network_id((VANILLA_BLOCK_STATE_COUNT_26_1_2 - 1) as i32).is_some()
     );
 }
+
+#[test]
+fn default_state_properties_match_java_default_block_states() {
+    // Java: Blocks.OAK_STAIRS default = north/bottom/straight/dry.
+    assert_eq!(
+        default_state_properties("minecraft:oak_stairs"),
+        Some(vec![
+            ("facing", "north"),
+            ("half", "bottom"),
+            ("shape", "straight"),
+            ("waterlogged", "false"),
+        ])
+    );
+    // Singleton blocks expose an empty property list.
+    assert_eq!(default_state_properties("minecraft:stone"), Some(vec![]));
+    // Java: SnowLayerBlock default LAYERS = 1.
+    assert_eq!(
+        default_state_properties("minecraft:snow"),
+        Some(vec![("layers", "1")])
+    );
+    assert_eq!(default_state_properties("minecraft:not_a_block"), None);
+}

@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use crate::block_behavior::BlockStateModel;
-use crate::block_metadata::{representative_state_definition, ShapeKind};
+
 use crate::block_update::{BlockPos, Direction};
 use crate::scheduled_tick::{SavedTick, ScheduledTick, TickPriority};
 
@@ -180,8 +180,10 @@ pub fn block_item_can_replace(state: &BlockStateModel) -> bool {
     if state.is_air() || fluid_state_for_block(state).is_some() {
         return true;
     }
-    representative_state_definition(state.registry_id.as_str())
-        .map(|definition| definition.physical.destroy_time == 0.0)
+    // Java `BlockState.canBeReplaced()` is the per-state `replaceable` flag
+    // (short grass and snow layers yes, flowers no).
+    crate::block_properties::state_physics_by_name(&state.state_name())
+        .map(|physics| physics.replaceable)
         .unwrap_or(false)
 }
 
@@ -626,9 +628,6 @@ fn can_hold_any_fluid(state: &BlockStateModel) -> bool {
     if block_is_solid(state) {
         return false;
     }
-    if representative_state_definition(state.registry_id.as_str()).is_none() {
-        return false;
-    }
     let id = state.registry_id.as_str();
     !matches!(
         id,
@@ -729,8 +728,9 @@ fn block_is_solid(state: &BlockStateModel) -> bool {
     if state.is_air() || fluid_state_for_block(state).is_some() {
         return false;
     }
-    representative_state_definition(state.registry_id.as_str())
-        .map(|definition| definition.physical.has_collision)
+    // Java `FlowingFluid.canHoldAnyFluid` gates on `state.blocksMotion()`.
+    crate::block_properties::state_physics_by_name(&state.state_name())
+        .map(|physics| physics.blocks_motion)
         .unwrap_or(true)
 }
 
@@ -738,8 +738,10 @@ fn block_is_full_cube(state: &BlockStateModel) -> bool {
     if state.is_air() || fluid_state_for_block(state).is_some() {
         return false;
     }
-    representative_state_definition(state.registry_id.as_str())
-        .map(|definition| definition.collision_shape == ShapeKind::FullCube)
+    // Java `FlowingFluid.canPassThroughWall` rejects when either side's
+    // collision shape is `Shapes.block()`.
+    crate::block_properties::state_physics_by_name(&state.state_name())
+        .map(crate::block_properties::collision_shape_is_full_cube)
         .unwrap_or(true)
 }
 

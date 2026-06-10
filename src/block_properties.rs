@@ -555,6 +555,13 @@ pub fn shape(index: u16) -> &'static [ShapeBox] {
     &TABLES.shapes[index as usize]
 }
 
+/// Whether a state's collision shape is exactly the full unit cube
+/// (`Shapes.block()`), the test Java fluid spreading uses for
+/// `canPassThroughWall`.
+pub fn collision_shape_is_full_cube(state: &StatePhysics) -> bool {
+    shape(state.collision_shape) == [[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]]
+}
+
 /// All Java `SoundType` constants captured by the probe.
 pub fn sound_types() -> &'static [SoundTypeInfo] {
     &TABLES.sound_types
