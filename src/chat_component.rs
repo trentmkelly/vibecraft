@@ -6,6 +6,8 @@ pub mod chat_type;
 pub mod common_components;
 #[path = "filter_mask.rs"]
 pub mod filter_mask;
+#[path = "hover_event.rs"]
+pub mod hover_event;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Component {
@@ -498,7 +500,7 @@ pub enum HoverEvent {
     Item {
         item: String,
         count: u32,
-        components: Vec<String>,
+        components: Option<String>,
     },
     Entity {
         entity_type: String,
@@ -525,17 +527,19 @@ impl HoverEvent {
                 item,
                 count,
                 components,
-            } => format!(
-                "{{\"action\":\"show_item\",\"id\":{},\"count\":{},\"components\":{}}}",
-                json_string(item),
-                count,
-                json_array(
-                    components
-                        .iter()
-                        .map(|component| json_string(component))
-                        .collect()
-                )
-            ),
+            } => {
+                let mut fields = vec![
+                    "\"action\":\"show_item\"".to_string(),
+                    format!("\"id\":{}", json_string(item)),
+                ];
+                if *count != 1 {
+                    fields.push(format!("\"count\":{}", count));
+                }
+                if let Some(components) = components {
+                    fields.push(format!("\"components\":{}", components));
+                }
+                format!("{{{}}}", fields.join(","))
+            }
             Self::Entity {
                 entity_type,
                 uuid,
@@ -1048,7 +1052,7 @@ mod tests {
         let item = HoverEvent::Item {
             item: "minecraft:diamond".to_string(),
             count: 3,
-            components: vec!["minecraft:custom_name".to_string()],
+            components: Some("{\"minecraft:custom_name\":{\"text\":\"Gem\"}}".to_string()),
         };
         let entity = HoverEvent::Entity {
             entity_type: "minecraft:zombie".to_string(),
