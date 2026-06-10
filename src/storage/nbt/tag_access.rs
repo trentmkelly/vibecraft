@@ -208,6 +208,209 @@ impl NbtFieldTree {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct CollectToTagVisitor {
+    container_stack: Vec<ContainerBuilder>,
+}
+
+impl CollectToTagVisitor {
+    pub fn new() -> Self {
+        Self {
+            container_stack: vec![ContainerBuilder::Root { result: None }],
+        }
+    }
+
+    pub fn get_result(&self) -> Option<&Tag> {
+        self.container_stack
+            .first()
+            .and_then(ContainerBuilder::build_ref)
+    }
+
+    pub fn depth(&self) -> usize {
+        self.container_stack.len().saturating_sub(1)
+    }
+
+    fn append_entry(&mut self, tag: Tag) {
+        if let Some(container) = self.container_stack.last_mut() {
+            container.accept_value(tag);
+        }
+    }
+
+    fn enter_container_if_needed(&mut self, tag_type: &NbtTagTypeLookup) {
+        if tag_type_id(tag_type) == Some(9) {
+            self.container_stack
+                .push(ContainerBuilder::List { values: Vec::new() });
+        } else if tag_type_id(tag_type) == Some(10) {
+            self.container_stack.push(ContainerBuilder::Compound {
+                values: Vec::new(),
+                last_id: String::new(),
+            });
+        }
+    }
+}
+
+impl Default for CollectToTagVisitor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl NbtStreamTagVisitor for CollectToTagVisitor {
+    fn visit_end(&mut self) -> StreamValueResult {
+        self.append_entry(Tag::End);
+        StreamValueResult::Continue
+    }
+
+    fn visit_string(&mut self, value: &str) -> StreamValueResult {
+        self.append_entry(Tag::String(value.to_string()));
+        StreamValueResult::Continue
+    }
+
+    fn visit_byte(&mut self, value: i8) -> StreamValueResult {
+        self.append_entry(Tag::Byte(value));
+        StreamValueResult::Continue
+    }
+
+    fn visit_short(&mut self, value: i16) -> StreamValueResult {
+        self.append_entry(Tag::Short(value));
+        StreamValueResult::Continue
+    }
+
+    fn visit_int(&mut self, value: i32) -> StreamValueResult {
+        self.append_entry(Tag::Int(value));
+        StreamValueResult::Continue
+    }
+
+    fn visit_long(&mut self, value: i64) -> StreamValueResult {
+        self.append_entry(Tag::Long(value));
+        StreamValueResult::Continue
+    }
+
+    fn visit_float(&mut self, value: f32) -> StreamValueResult {
+        self.append_entry(Tag::Float(value));
+        StreamValueResult::Continue
+    }
+
+    fn visit_double(&mut self, value: f64) -> StreamValueResult {
+        self.append_entry(Tag::Double(value));
+        StreamValueResult::Continue
+    }
+
+    fn visit_byte_array(&mut self, value: &[i8]) -> StreamValueResult {
+        self.append_entry(Tag::ByteArray(value.to_vec()));
+        StreamValueResult::Continue
+    }
+
+    fn visit_int_array(&mut self, value: &[i32]) -> StreamValueResult {
+        self.append_entry(Tag::IntArray(value.to_vec()));
+        StreamValueResult::Continue
+    }
+
+    fn visit_long_array(&mut self, value: &[i64]) -> StreamValueResult {
+        self.append_entry(Tag::LongArray(value.to_vec()));
+        StreamValueResult::Continue
+    }
+
+    fn visit_list(&mut self, _element_type: NbtTagTypeLookup, _size: usize) -> StreamValueResult {
+        StreamValueResult::Continue
+    }
+
+    fn visit_element(&mut self, tag_type: NbtTagTypeLookup, _index: usize) -> StreamEntryResult {
+        self.enter_container_if_needed(&tag_type);
+        StreamEntryResult::Enter
+    }
+
+    fn visit_entry(&mut self, tag_type: NbtTagTypeLookup) -> StreamEntryResult {
+        self.enter_container_if_needed(&tag_type);
+        StreamEntryResult::Enter
+    }
+
+    fn visit_named_entry(&mut self, tag_type: NbtTagTypeLookup, id: &str) -> StreamEntryResult {
+        if let Some(container) = self.container_stack.last_mut() {
+            container.accept_key(id);
+        }
+        self.enter_container_if_needed(&tag_type);
+        StreamEntryResult::Enter
+    }
+
+    fn visit_container_end(&mut self) -> StreamValueResult {
+        if self.container_stack.len() > 1 {
+            if let Some(container) = self.container_stack.pop() {
+                if let Some(tag) = container.build() {
+                    self.append_entry(tag);
+                }
+            }
+        }
+        StreamValueResult::Continue
+    }
+
+    fn visit_root_entry(&mut self, tag_type: NbtTagTypeLookup) -> StreamValueResult {
+        self.enter_container_if_needed(&tag_type);
+        StreamValueResult::Continue
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum ContainerBuilder {
+    Root {
+        result: Option<Tag>,
+    },
+    List {
+        values: Vec<Tag>,
+    },
+    Compound {
+        values: Vec<(String, Tag)>,
+        last_id: String,
+    },
+}
+
+impl ContainerBuilder {
+    fn accept_key(&mut self, id: &str) {
+        if let Self::Compound { last_id, .. } = self {
+            *last_id = id.to_string();
+        }
+    }
+
+    fn accept_value(&mut self, tag: Tag) {
+        match self {
+            Self::Root { result } => *result = Some(tag),
+            Self::List { values } => values.push(try_unwrap_list_compound(tag)),
+            Self::Compound { values, last_id } => values.push((last_id.clone(), tag)),
+        }
+    }
+
+    fn build(self) -> Option<Tag> {
+        match self {
+            Self::Root { result } => result,
+            Self::List { values } => Some(Tag::List(values)),
+            Self::Compound { values, .. } => Some(Tag::Compound(values)),
+        }
+    }
+
+    fn build_ref(&self) -> Option<&Tag> {
+        match self {
+            Self::Root { result } => result.as_ref(),
+            Self::List { .. } | Self::Compound { .. } => None,
+        }
+    }
+}
+
+fn try_unwrap_list_compound(tag: Tag) -> Tag {
+    match tag {
+        Tag::Compound(mut entries) if entries.len() == 1 && entries[0].0.is_empty() => {
+            entries.remove(0).1
+        }
+        tag => tag,
+    }
+}
+
+fn tag_type_id(tag_type: &NbtTagTypeLookup) -> Option<u8> {
+    match tag_type {
+        NbtTagTypeLookup::Known(info) => Some(info.id),
+        NbtTagTypeLookup::Invalid { .. } => None,
+    }
+}
+
 #[allow(dead_code)]
 impl Tag {
     pub fn tag_type(&self) -> NbtTagTypeLookup {

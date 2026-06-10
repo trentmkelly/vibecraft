@@ -1,13 +1,17 @@
 use super::tag_access::{
-    NbtFieldSelectorSpec, NbtFieldTree, NbtStreamTagVisitor, SkipAllVisitor, StreamEntryResult,
-    StreamValueResult,
+    CollectToTagVisitor, NbtFieldSelectorSpec, NbtFieldTree, NbtStreamTagVisitor, SkipAllVisitor,
+    StreamEntryResult, StreamValueResult,
 };
 use super::tag_metadata::tag_type;
+use super::Tag;
 
 const STREAM_TAG_VISITOR_JAVA: &str =
     include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/StreamTagVisitor.java");
 const SKIP_ALL_JAVA: &str =
     include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/visitors/SkipAll.java");
+const COLLECT_TO_TAG_JAVA: &str = include_str!(
+    "../../../../decompiled-server-26.1.2/net/minecraft/nbt/visitors/CollectToTag.java"
+);
 const FIELD_SELECTOR_JAVA: &str = include_str!(
     "../../../../decompiled-server-26.1.2/net/minecraft/nbt/visitors/FieldSelector.java"
 );
@@ -179,4 +183,116 @@ fn field_selector_and_tree_match_java_path_type_name_contract() {
     let player_frame = data_frame.fields_to_recurse.get("Player").unwrap();
     assert_eq!(player_frame.depth, 3);
     assert!(player_frame.is_selected(&tag_type(1), "OnGround"));
+}
+
+#[test]
+fn collect_to_tag_visitor_matches_java_builder_stack_contract() {
+    for sentinel in [
+        "private final Deque<CollectToTag.ContainerBuilder> containerStack = new ArrayDeque<>();",
+        "this.containerStack.addLast(new CollectToTag.RootBuilder());",
+        "public @Nullable Tag getResult()",
+        "return this.containerStack.size() - 1;",
+        "this.containerStack.getLast().acceptValue(instance);",
+        "this.containerStack.getLast().acceptKey(id);",
+        "this.enterContainerIfNeeded(type);",
+        "if (type == ListTag.TYPE)",
+        "this.containerStack.addLast(new CollectToTag.ListBuilder());",
+        "else if (type == CompoundTag.TYPE)",
+        "this.containerStack.addLast(new CollectToTag.CompoundBuilder());",
+        "CollectToTag.ContainerBuilder container = this.containerStack.removeLast();",
+        "this.containerStack.getLast().acceptValue(tag);",
+        "this.list.addAndUnwrap(tag);",
+    ] {
+        assert!(
+            COLLECT_TO_TAG_JAVA.contains(sentinel),
+            "missing CollectToTag sentinel {sentinel}"
+        );
+    }
+
+    let mut scalar = CollectToTagVisitor::new();
+    assert_eq!(scalar.depth(), 0);
+    assert_eq!(
+        scalar.visit_root_entry(tag_type(3)),
+        StreamValueResult::Continue
+    );
+    assert_eq!(scalar.visit_int(4790), StreamValueResult::Continue);
+    assert_eq!(scalar.get_result(), Some(&Tag::Int(4790)));
+
+    let mut collector = CollectToTagVisitor::new();
+    assert_eq!(
+        collector.visit_root_entry(tag_type(10)),
+        StreamValueResult::Continue
+    );
+    assert_eq!(collector.depth(), 1);
+    assert_eq!(
+        collector.visit_named_entry(tag_type(3), "DataVersion"),
+        StreamEntryResult::Enter
+    );
+    assert_eq!(collector.visit_int(4790), StreamValueResult::Continue);
+    assert_eq!(
+        collector.visit_named_entry(tag_type(9), "Pos"),
+        StreamEntryResult::Enter
+    );
+    assert_eq!(collector.depth(), 2);
+    assert_eq!(
+        collector.visit_list(tag_type(6), 2),
+        StreamValueResult::Continue
+    );
+    assert_eq!(
+        collector.visit_element(tag_type(6), 0),
+        StreamEntryResult::Enter
+    );
+    assert_eq!(collector.visit_double(1.25), StreamValueResult::Continue);
+    assert_eq!(
+        collector.visit_element(tag_type(6), 1),
+        StreamEntryResult::Enter
+    );
+    assert_eq!(collector.visit_double(-2.5), StreamValueResult::Continue);
+    assert_eq!(collector.visit_container_end(), StreamValueResult::Continue);
+    assert_eq!(collector.depth(), 1);
+    assert_eq!(
+        collector.visit_named_entry(tag_type(10), "Inventory"),
+        StreamEntryResult::Enter
+    );
+    assert_eq!(
+        collector.visit_named_entry(tag_type(8), "Slot"),
+        StreamEntryResult::Enter
+    );
+    assert_eq!(
+        collector.visit_string("mainhand"),
+        StreamValueResult::Continue
+    );
+    assert_eq!(collector.visit_container_end(), StreamValueResult::Continue);
+    assert_eq!(collector.visit_container_end(), StreamValueResult::Continue);
+
+    assert_eq!(
+        collector.get_result(),
+        Some(&Tag::Compound(vec![
+            ("DataVersion".to_string(), Tag::Int(4790)),
+            (
+                "Pos".to_string(),
+                Tag::List(vec![Tag::Double(1.25), Tag::Double(-2.5)])
+            ),
+            (
+                "Inventory".to_string(),
+                Tag::Compound(vec![(
+                    "Slot".to_string(),
+                    Tag::String("mainhand".to_string())
+                )])
+            ),
+        ]))
+    );
+
+    let mut list_collector = CollectToTagVisitor::new();
+    list_collector.visit_root_entry(tag_type(9));
+    list_collector.visit_list(tag_type(10), 1);
+    list_collector.visit_element(tag_type(10), 0);
+    list_collector.visit_named_entry(tag_type(1), "");
+    list_collector.visit_byte(7);
+    list_collector.visit_container_end();
+    list_collector.visit_container_end();
+    assert_eq!(
+        list_collector.get_result(),
+        Some(&Tag::List(vec![Tag::Byte(7)]))
+    );
 }
