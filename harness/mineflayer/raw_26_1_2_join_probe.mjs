@@ -11,6 +11,13 @@ const summaryOnly = process.env.VIBECRAFT_RAW_PROBE_OUTPUT === 'summary'
 const expectLoginDisconnect = process.env.VIBECRAFT_EXPECT_LOGIN_DISCONNECT === '1'
 const abortAfter = process.env.VIBECRAFT_RAW_PROBE_ABORT_AFTER ?? ''
 const keepAliveProbeMs = Number(process.env.VIBECRAFT_RAW_PROBE_KEEPALIVE_MS ?? 0)
+// Optional live block-placement probe: after join, set a creative hotbar
+// item, send use_item_on, and capture acks/block updates/entity packets.
+// JSON: { itemId, x, y, z, face, cursorX, cursorY, cursorZ, yaw, pitch,
+//         playerX, playerY, playerZ, captureMs }
+const placementProbe = process.env.VIBECRAFT_PLACEMENT_PROBE
+  ? JSON.parse(process.env.VIBECRAFT_PLACEMENT_PROBE)
+  : null
 const postActionProbeMs = Number(process.env.VIBECRAFT_RAW_PROBE_POST_ACTION_MS ?? 0)
 const firstTickActionRequest = process.env.VIBECRAFT_RAW_PROBE_FIRST_TICK_ACTIONS ?? ''
 const firstTickActions = new Set(firstTickActionRequest === '1'
@@ -54,6 +61,11 @@ const serverboundSelectKnownPacksPacketId = 7
 const serverboundSetCarriedItemPacketId = 53
 const serverboundSwingPacketId = 63
 const serverboundUseItemOnPacketId = 66
+const serverboundSetCreativeModeSlotPacketId = 56
+const clientboundBlockChangedAckPacketId = 4
+const clientboundBlockUpdatePacketId = 8
+const clientboundAddEntityPacketId = 1
+const clientboundRemoveEntitiesPacketId = 77
 const serverboundUseItemPacketId = 67
 const serverboundPlayerLoadedPacketId = 44
 const clientboundKeepAlivePacketId = 44
@@ -1066,6 +1078,11 @@ async function main () {
     joinState.dynamicChunkStreaming = batches.at(-1)
   }
 
+  let placement = null
+  if (placementProbe) {
+    placement = await runPlacementProbe(socket, reader, placementProbe, play)
+  }
+
   let commandSuggestionSeen = false
   if (keepAliveProbeMs > 0) {
     const deadline = Date.now() + keepAliveProbeMs
@@ -1098,7 +1115,7 @@ async function main () {
   }
 
   socket.end()
-  const result = { ok: true, mode: recordOnly ? 'record' : 'strict', host, port, login: login.id, compressionThreshold, config, play, joinState, keepAliveReplies }
+  const result = { ok: true, mode: recordOnly ? 'record' : 'strict', host, port, login: login.id, compressionThreshold, config, play, joinState, keepAliveReplies, placement }
   if (summaryOnly) {
     console.log(JSON.stringify({
       ok: result.ok,
@@ -1423,6 +1440,108 @@ function playerActionPayload () {
   payload.writeBigInt64BE(80n, 1)
   payload[9] = 1
   sequence.copy(payload, 10)
+  return payload
+}
+
+/// Runs the live placement probe: optional reposition, creative hotbar item,
+/// use_item_on, then a capture window decoding acks, block updates, and
+/// falling-block entity packets.
+async function runPlacementProbe (socket, reader, probe, play) {
+  if (probe.playerX !== undefined) {
+    socket.write(encodeClientPacket(reader, serverboundMovePlayerPosRotPacketId, movePlayerPosRotPayload({
+      x: probe.playerX,
+      y: probe.playerY,
+      z: probe.playerZ,
+      yaw: probe.yaw ?? 0,
+      pitch: probe.pitch ?? 0
+    })))
+  }
+  socket.write(encodeClientPacket(reader, serverboundSetCarriedItemPacketId, writeShort(0)))
+  socket.write(encodeClientPacket(reader, serverboundSetCreativeModeSlotPacketId, creativeSlotPayload(36, probe.itemId)))
+  socket.write(encodeClientPacket(reader, serverboundUseItemOnPacketId, placementUseItemOnPayload(probe)))
+
+  const captureMs = probe.captureMs ?? 3000
+  const deadline = Date.now() + captureMs
+  const result = { ackSequences: [], blockUpdates: [], addedEntities: [], removedEntityIds: [] }
+  while (Date.now() < deadline) {
+    const next = await nextPacketWithin(reader, Math.max(1, deadline - Date.now()))
+    if (next.timeout) break
+    const packet = next.packet
+    play.push({ id: packet.id, length: packet.length })
+    if (packet.id === clientboundKeepAlivePacketId) {
+      socket.write(encodeClientPacket(reader, serverboundKeepAlivePacketId, packet.body))
+      continue
+    }
+    if (packet.id === clientboundBlockChangedAckPacketId) {
+      result.ackSequences.push(readVarInt(packet.body, 0).value)
+    } else if (packet.id === clientboundBlockUpdatePacketId) {
+      const packed = packet.body.readBigInt64BE(0)
+      const stateId = readVarInt(packet.body, 8).value
+      result.blockUpdates.push({ ...unpackBlockPos(packed), stateId })
+    } else if (packet.id === clientboundAddEntityPacketId) {
+      const eid = readVarInt(packet.body, 0)
+      let offset = eid.offset + 16
+      const type = readVarInt(packet.body, offset)
+      // position doubles follow; the trailing VarInt is the entity data.
+      result.addedEntities.push({ entityId: eid.value, type: type.value })
+    } else if (packet.id === clientboundRemoveEntitiesPacketId) {
+      const count = readVarInt(packet.body, 0)
+      let offset = count.offset
+      for (let i = 0; i < count.value; i++) {
+        const id = readVarInt(packet.body, offset)
+        result.removedEntityIds.push(id.value)
+        offset = id.offset
+      }
+    }
+  }
+  return result
+}
+
+function unpackBlockPos (packed) {
+  const x = Number(BigInt.asIntN(26, packed >> 38n))
+  const z = Number(BigInt.asIntN(26, packed >> 12n))
+  const y = Number(BigInt.asIntN(12, packed))
+  return { x, y, z }
+}
+
+function packBlockPos (x, y, z) {
+  return ((BigInt(x) & 0x3ffffffn) << 38n)
+    | ((BigInt(z) & 0x3ffffffn) << 12n)
+    | (BigInt(y) & 0xfffn)
+}
+
+/// ServerboundSetCreativeModeSlotPacket: slot short + RawItemStack
+/// (count VarInt, item VarInt, component add/remove counts).
+function creativeSlotPayload (slot, itemId) {
+  const item = writeVarInt(itemId)
+  const payload = Buffer.alloc(2 + 1 + item.length + 2)
+  let offset = 0
+  payload.writeInt16BE(slot, offset)
+  offset += 2
+  payload[offset++] = 1 // count
+  item.copy(payload, offset)
+  offset += item.length
+  payload[offset++] = 0 // components added
+  payload[offset++] = 0 // components removed
+  return payload
+}
+
+/// ServerboundUseItemOnPacket for the placement probe.
+function placementUseItemOnPayload (probe) {
+  const sequence = writeVarInt(probe.sequence ?? 7)
+  const payload = Buffer.alloc(1 + 8 + 1 + 12 + 2 + sequence.length)
+  let offset = 0
+  payload[offset++] = 0 // main hand
+  payload.writeBigInt64BE(packBlockPos(probe.x, probe.y, probe.z), offset)
+  offset += 8
+  payload[offset++] = probe.face ?? 1 // Direction3d ordinal (1 = up)
+  payload.writeFloatBE(probe.cursorX ?? 0.5, offset)
+  payload.writeFloatBE(probe.cursorY ?? 1.0, offset + 4)
+  payload.writeFloatBE(probe.cursorZ ?? 0.5, offset + 8)
+  offset += 12
+  payload[offset++] = 0 // inside
+  payload[offset++] = 0 // world border hit
+  sequence.copy(payload, offset)
   return payload
 }
 
