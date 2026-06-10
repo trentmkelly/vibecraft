@@ -84,6 +84,19 @@ pub(super) fn place_block_item_live<W: Write>(
         write_block_update(stream, compression, *pos, id)?;
     }
 
+    // Java FallingBlock.onPlace: a freshly placed gravity block schedules its
+    // 2-tick fall check immediately.
+    for (pos, placed) in &placements {
+        if crate::gravity::falling_kind(placed).is_some() {
+            context.live_block_ticks.schedule(
+                context.game_time,
+                *pos,
+                &placed.registry_id,
+                crate::gravity::FALLING_BLOCK_TICK_DELAY,
+            );
+        }
+    }
+
     // Java Level.setBlock flag 3 -> updateShapeAtEdge on the six neighbours,
     // cascading through Java's 512-update budget.
     let changed: Vec<BlockPos> = placements.iter().map(|(pos, _)| *pos).collect();
@@ -384,10 +397,30 @@ pub(super) fn process_live_block_ticks<W: Write>(
         if state.registry_id != tick.ty {
             continue;
         }
+        // FallingBlock.tick: spawn a falling entity when the support is gone.
+        if crate::gravity::falling_kind(&state).is_some() {
+            let below = world.state_at(tick.pos.relative(Direction::Down));
+            if crate::gravity::is_free_for_falling(&below)
+                && tick.pos.y >= crate::world::OVERWORLD_MIN_Y
+            {
+                start_block_fall(
+                    writer,
+                    compression,
+                    cache,
+                    layout,
+                    seed,
+                    world_items,
+                    tick.pos,
+                    &state,
+                )?;
+                changed.push(tick.pos);
+            }
+            continue;
+        }
         let Some(outcome) = crate::block_scheduled_ticks::scheduled_tick(&state, tick.pos, &world)
         else {
-            // TODO(live-falling-blocks): FallingBlockEntity-based ticks
-            // (sand/gravel/anvils/scaffolding/dripstone) once entities exist.
+            // TODO(live-scheduled-tick-gaps): scaffolding/dripstone falls,
+            // bubble columns, and creaking hearts stay on their TODO items.
             continue;
         };
         match outcome {
@@ -474,4 +507,256 @@ fn spawn_scheduled_tick_drops<W: Write>(
         lock_status_mutex(world_items).entities.push(item);
     }
     Ok(())
+}
+
+/// Java entity-type registry id for `minecraft:falling_block` (26.1.2).
+const FALLING_BLOCK_ENTITY_TYPE_ID: i32 = 51;
+
+/// Java `FallingBlockEntity.fall(level, pos, state)`: replace the block with
+/// its fluid remnant, spawn the entity, and register it for the tick sim.
+#[allow(clippy::too_many_arguments)]
+fn start_block_fall<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    cache: &GeneratedChunkCache,
+    layout: &WorldLayout,
+    seed: i64,
+    world_items: &std::sync::Arc<std::sync::Mutex<WorldItemEntities>>,
+    pos: BlockPos,
+    state: &BlockStateModel,
+) -> io::Result<()> {
+    // state.getFluidState().createLegacyBlock(): waterlogged gravity blocks
+    // leave water behind; the vanilla set all leave air.
+    let remnant = match state_physics_by_name(&state.state_name())
+        .map_or(StateFluid::Empty, |physics| physics.fluid)
+    {
+        StateFluid::Water { source: true, .. } => "minecraft:water",
+        _ => "minecraft:air",
+    };
+    cache.set_block(layout.root(), seed, pos, remnant);
+    let remnant_id = crate::block_states::network_id_for_block_state(remnant).unwrap_or(0);
+    write_block_update(writer, compression, pos, remnant_id)?;
+
+    let entity_id = lock_status_mutex(world_items).alloc_entity_id();
+    let falling = crate::item_entity::FallingBlockEntity {
+        entity_id,
+        block_state: state.state_name(),
+        x: f64::from(pos.x) + 0.5,
+        y: f64::from(pos.y),
+        z: f64::from(pos.z) + 0.5,
+        vel_y: 0.0,
+        start_y: f64::from(pos.y),
+    };
+    write_falling_block_spawn(writer, compression, &falling)?;
+    lock_status_mutex(world_items).falling_blocks.push(falling);
+    Ok(())
+}
+
+/// `ClientboundAddEntityPacket` for a falling block: the `data` VarInt carries
+/// the block-state network id (Java `Block.getId(blockState)`).
+fn write_falling_block_spawn<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    falling: &crate::item_entity::FallingBlockEntity,
+) -> io::Result<()> {
+    let eid = falling.entity_id;
+    let uuid_hi = (eid as u64).wrapping_mul(0x6C62_272E_07BB_0142);
+    let uuid_lo = (eid as u64).wrapping_mul(0x62B8_2175_6295_C58D);
+    let state_id =
+        crate::block_states::network_id_for_block_state(&falling.block_state).unwrap_or(0);
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        crate::network::play::CLIENTBOUND_ADD_ENTITY_PACKET_ID,
+        |p| {
+            write_var_i32(p, eid)?;
+            p.write_all(&uuid_hi.to_be_bytes())?;
+            p.write_all(&uuid_lo.to_be_bytes())?;
+            write_var_i32(p, FALLING_BLOCK_ENTITY_TYPE_ID)?;
+            p.write_all(&falling.x.to_be_bytes())?;
+            p.write_all(&falling.y.to_be_bytes())?;
+            p.write_all(&falling.z.to_be_bytes())?;
+            write_lp_vec3(p, 0.0, falling.vel_y, 0.0)?;
+            p.write_all(&[0u8, 0u8, 0u8])?; // xRot, yRot, yHeadRot
+            write_var_i32(p, state_id)
+        },
+    )
+}
+
+/// Java `FallingBlockEntity.tick` for every live falling block: gravity with
+/// drag, landing via the gravity catalog (concrete solidification, anvil
+/// damage, break-on-obstruction), and the post-landing shape cascade.
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)] // one coherent entity sim
+pub(super) fn tick_falling_blocks<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    cascade: &mut LiveCascade<'_, '_>,
+    world_items: &std::sync::Arc<std::sync::Mutex<WorldItemEntities>>,
+) -> io::Result<()> {
+    let mut active = {
+        let mut registry = lock_status_mutex(world_items);
+        std::mem::take(&mut registry.falling_blocks)
+    };
+    if active.is_empty() {
+        return Ok(());
+    }
+    let world = LiveBlockWorld {
+        layout: cascade.layout,
+        seed: cascade.seed,
+        cache: cascade.cache,
+    };
+    let mut surviving = Vec::with_capacity(active.len());
+    let mut removed: Vec<i32> = Vec::new();
+    let mut landed: Vec<BlockPos> = Vec::new();
+    for falling in active.drain(..) {
+        let mut falling = falling;
+        // Java: applyGravity (-0.04), move, then scale by 0.98.
+        falling.vel_y -= 0.04;
+        let next_y = falling.y + falling.vel_y;
+        falling.vel_y *= 0.98;
+
+        if next_y < f64::from(crate::world::OVERWORLD_MIN_Y) - 64.0 {
+            // Java: discardः entities falling out of the world vanish.
+            removed.push(falling.entity_id);
+            continue;
+        }
+
+        let cell = BlockPos {
+            x: falling.x.floor() as i32,
+            y: next_y.floor() as i32,
+            z: falling.z.floor() as i32,
+        };
+        let cell_state = world.state_at(cell);
+        if crate::gravity::is_free_for_falling(&cell_state) {
+            falling.y = next_y;
+            write_entity_teleport(writer, compression, &falling, false)?;
+            surviving.push(falling);
+            continue;
+        }
+
+        // Landed: the entity rests in the lowest free cell above the
+        // obstruction (its current cell).
+        let landing_pos = BlockPos {
+            x: cell.x,
+            y: cell.y + 1,
+            z: cell.z,
+        };
+        let replaced = world.state_at(landing_pos);
+        let block_model = parse_state_name(&falling.block_state);
+        let kind = crate::gravity::falling_kind(&block_model)
+            .unwrap_or(crate::gravity::FallingKind::SandLike);
+        let entity_model = crate::gravity::FallingBlockEntityModel {
+            block: block_model,
+            pos: landing_pos,
+            kind,
+            drop_item: true,
+            cancel_drop: false,
+            hurt_entities: matches!(
+                kind,
+                crate::gravity::FallingKind::Anvil | crate::gravity::FallingKind::PointedDripstone
+            ),
+        };
+        let adjacent_to_water =
+            crate::block_placement::connecting::concrete_should_solidify(&world, landing_pos);
+        let fall_distance = (falling.start_y - next_y).max(0.0) as f32;
+        let plan = crate::gravity::land_falling_block(
+            &entity_model,
+            landing_pos,
+            &replaced,
+            adjacent_to_water,
+            fall_distance,
+        );
+        removed.push(falling.entity_id);
+        match plan.action {
+            crate::gravity::GravityAction::Land { state } => {
+                cascade.cache.set_block(
+                    cascade.layout.root(),
+                    cascade.seed,
+                    landing_pos,
+                    &state.state_name(),
+                );
+                let id = crate::block_states::network_id_for_block_state(&state.state_name())
+                    .unwrap_or(0);
+                write_block_update(writer, compression, landing_pos, id)?;
+                landed.push(landing_pos);
+            }
+            crate::gravity::GravityAction::Break { drops } => {
+                for block_name in drops {
+                    spawn_scheduled_tick_drops(
+                        writer,
+                        compression,
+                        world_items,
+                        landing_pos,
+                        &block_name,
+                    )?;
+                }
+            }
+            _ => {}
+        }
+    }
+    if !removed.is_empty() {
+        write_framed_packet_with_compression(
+            writer,
+            compression,
+            CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID,
+            |p| {
+                write_var_i32(p, removed.len() as i32)?;
+                for id in &removed {
+                    write_var_i32(p, *id)?;
+                }
+                Ok(())
+            },
+        )?;
+    }
+    lock_status_mutex(world_items)
+        .falling_blocks
+        .extend(surviving);
+    if !landed.is_empty() {
+        run_live_shape_cascade(writer, compression, cascade, landed)?;
+    }
+    Ok(())
+}
+
+/// `ClientboundTeleportEntityPacket`: entity id, PositionMoveRotation
+/// (position, delta movement, yaw, pitch), empty relatives bitmask, on-ground.
+fn write_entity_teleport<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    falling: &crate::item_entity::FallingBlockEntity,
+    on_ground: bool,
+) -> io::Result<()> {
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        crate::network::play::CLIENTBOUND_TELEPORT_ENTITY_PACKET_ID,
+        |p| {
+            write_var_i32(p, falling.entity_id)?;
+            p.write_all(&falling.x.to_be_bytes())?;
+            p.write_all(&falling.y.to_be_bytes())?;
+            p.write_all(&falling.z.to_be_bytes())?;
+            p.write_all(&0.0_f64.to_be_bytes())?;
+            p.write_all(&falling.vel_y.to_be_bytes())?;
+            p.write_all(&0.0_f64.to_be_bytes())?;
+            p.write_all(&0.0_f32.to_be_bytes())?; // yaw
+            p.write_all(&0.0_f32.to_be_bytes())?; // pitch
+            p.write_all(&0_i32.to_be_bytes())?; // Relative bitmask: absolute
+            p.write_all(&[u8::from(on_ground)])
+        },
+    )
+}
+
+/// Parses a `block[prop=value,...]` string into a model.
+fn parse_state_name(name: &str) -> BlockStateModel {
+    match name.split_once('[') {
+        Some((base, raw_properties)) => {
+            let mut parsed = BlockStateModel::new(base);
+            for pair in raw_properties.trim_end_matches(']').split(',') {
+                if let Some((key, value)) = pair.split_once('=') {
+                    parsed = parsed.with_property(key.trim(), value.trim());
+                }
+            }
+            parsed
+        }
+        None => BlockStateModel::new(name),
+    }
 }

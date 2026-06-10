@@ -42,7 +42,13 @@ pub struct GravityPlan {
 
 pub fn falling_kind(state: &BlockStateModel) -> Option<FallingKind> {
     match state.registry_id.as_str() {
-        "minecraft:sand" | "minecraft:red_sand" | "minecraft:gravel" => Some(FallingKind::SandLike),
+        // BrushableBlock (suspicious sand/gravel) falls exactly like
+        // FallingBlock (its tick calls FallingBlockEntity.fall).
+        "minecraft:sand"
+        | "minecraft:red_sand"
+        | "minecraft:gravel"
+        | "minecraft:suspicious_sand"
+        | "minecraft:suspicious_gravel" => Some(FallingKind::SandLike),
         id if id.ends_with("_concrete_powder") => Some(FallingKind::ConcretePowder),
         "minecraft:anvil" | "minecraft:chipped_anvil" | "minecraft:damaged_anvil" => {
             Some(FallingKind::Anvil)
@@ -54,11 +60,17 @@ pub fn falling_kind(state: &BlockStateModel) -> Option<FallingKind> {
 }
 
 pub fn is_free_for_falling(state: &BlockStateModel) -> bool {
-    state.is_air()
-        || state.registry_id == "minecraft:fire"
-        || state.registry_id == "minecraft:water"
-        || state.registry_id == "minecraft:lava"
-        || state.property("replaceable") == Some("true")
+    // Java FallingBlock.isFree: isAir || is(BlockTags.FIRE) || liquid ||
+    // canBeReplaced. `replaceable` is a per-state flag (not a state
+    // property), so consult the authoritative physics tables.
+    if state.is_air() {
+        return true;
+    }
+    if crate::block_tags::block_tag_contains("fire", &state.registry_id) {
+        return true;
+    }
+    crate::block_properties::state_physics_by_name(&state.state_name())
+        .is_some_and(|physics| physics.liquid || physics.replaceable)
 }
 
 pub fn schedule_gravity_tick(

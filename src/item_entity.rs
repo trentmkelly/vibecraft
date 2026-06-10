@@ -21,6 +21,22 @@ pub const INFINITE_LIFETIME_AGE: i32 = -32768;
 /// `Block.popResource()` for all block drops.
 pub const DEFAULT_PICKUP_DELAY: i32 = 10;
 
+/// A live falling block (Java `FallingBlockEntity`): spawned when a gravity
+/// block's support disappears, lands as the block again (or breaks).
+#[derive(Debug, Clone, PartialEq)]
+pub struct FallingBlockEntity {
+    pub entity_id: i32,
+    /// Full `block[prop=...]` state string being carried.
+    pub block_state: String,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+    /// Java `Entity.deltaMovement.y`; gravity 0.04/tick with 0.98 drag.
+    pub vel_y: f64,
+    /// Spawn Y for Java `fallDistance` (anvil damage thresholds).
+    pub start_y: f64,
+}
+
 /// Server-side state for a single dropped item entity.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DroppedItem {
@@ -69,6 +85,10 @@ impl DroppedItem {
 /// to any individual player connection.
 pub struct WorldItemEntities {
     pub entities: Vec<DroppedItem>,
+    /// Live falling-block entities (Java `FallingBlockEntity`), simulated by
+    /// the play tick next to item entities; this struct doubles as the shared
+    /// world-entity registry because it owns the entity-id counter.
+    pub falling_blocks: Vec<FallingBlockEntity>,
     /// Monotonically-increasing entity ID counter.  Entity ID 1 is always reserved for
     /// the player; item entities start at 2.  Never resets between sessions, preventing
     /// ID collisions when a player reconnects while items are on the ground.
@@ -80,6 +100,7 @@ impl WorldItemEntities {
     pub fn new() -> Self {
         Self {
             entities: Vec::new(),
+            falling_blocks: Vec::new(),
             next_entity_id: 1,
         }
     }
@@ -88,6 +109,7 @@ impl WorldItemEntities {
     /// Java: EntityStorage.loadEntities() — entities and their IDs are preserved from disk.
     pub fn restore(entities: Vec<DroppedItem>, next_entity_id: i32) -> Self {
         Self {
+            falling_blocks: Vec::new(),
             entities,
             next_entity_id,
         }

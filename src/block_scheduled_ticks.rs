@@ -31,15 +31,20 @@ pub enum BlockTickOutcome {
     Destroy { drop: bool },
 }
 
-/// Block types whose scheduled tick is blocked on another subsystem.
+/// Block types whose scheduled tick is not handled by this catalog. The
+/// FallingBlock families are handled by the live engine
+/// (`block_placement_live::process_live_block_ticks` intercepts them and
+/// spawns `FallingBlockEntity` sims before this catalog runs); the rest are
+/// blocked on other subsystems.
 pub const UNPORTED_SCHEDULED_TICKS: &[&str] = &[
-    // FallingBlockEntity (BLOCKS #17 gravity):
+    // FallingBlockEntity spawns happen in the live engine:
     "sand",
     "colored_falling",
     "anvil",
     "dragon_egg",
     "concrete_powder",
     "brushable",
+    // TODO(scaffolding-dripstone-falls): their pre-fall recompute logic:
     "scaffolding",
     "pointed_dripstone",
     // Fluid engine:

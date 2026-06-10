@@ -1471,6 +1471,17 @@ fn tick_player_and_chunk_sender(
         chunk_cache,
         world_items,
     )?;
+    tick_live_falling_blocks(
+        stream,
+        compression,
+        live_fluid_ticks,
+        live_block_ticks,
+        tick_count as i64,
+        world_layout,
+        world_seed,
+        chunk_cache,
+        world_items,
+    )?;
     let fluid_state =
         detect_play_session_fluid_state(play_state, world_root, world_seed, chunk_cache);
     let water_update = tick_play_session_water(play_state, fluid_state);
@@ -2286,6 +2297,31 @@ fn write_block_break_ack_and_air(
             write_var_i32(payload, AIR_BLOCK_STATE_ID)
         },
     )
+}
+
+/// Per-tick falling-block simulation (Java `FallingBlockEntity.tick`).
+#[allow(clippy::too_many_arguments)]
+fn tick_live_falling_blocks(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    live_fluid_ticks: &mut LiveFluidTicks,
+    live_block_ticks: &mut LiveBlockTicks,
+    game_time: i64,
+    world_layout: &WorldLayout,
+    world_seed: i64,
+    chunk_cache: &GeneratedChunkCache,
+    world_items: &Arc<Mutex<WorldItemEntities>>,
+) -> io::Result<()> {
+    let mut cascade = super::block_placement_live::LiveCascade {
+        layout: world_layout,
+        seed: world_seed,
+        cache: chunk_cache,
+        fluid_ticks: live_fluid_ticks,
+        block_ticks: live_block_ticks,
+        game_time,
+        random_roll: (game_time as i32).rem_euclid(40),
+    };
+    super::block_placement_live::tick_falling_blocks(stream, compression, &mut cascade, world_items)
 }
 
 fn spawn_block_break_drops(
