@@ -2176,6 +2176,41 @@ fn handle_player_block_break(
         context.world_seed,
         block_pos,
     );
+    // Java Block.playerWillDestroy (double-block halves) + the
+    // Level.updateNeighborShapes cascade for the cleared position.
+    let broken_state = block_name
+        .as_deref()
+        .map(crate::block_behavior::BlockStateModel::new)
+        .map(|state| {
+            // Reparse name[props] into a model for the counterpart lookup.
+            match block_name.as_deref().and_then(|name| name.split_once('[')) {
+                Some((base, raw_properties)) => {
+                    let mut parsed = crate::block_behavior::BlockStateModel::new(base);
+                    for pair in raw_properties.trim_end_matches(']').split(',') {
+                        if let Some((key, value)) = pair.split_once('=') {
+                            parsed = parsed.with_property(key.trim(), value.trim());
+                        }
+                    }
+                    parsed
+                }
+                None => state,
+            }
+        });
+    let mut cascade = super::block_placement_live::LiveCascade {
+        layout: context.world_layout,
+        seed: context.world_seed,
+        cache: context.chunk_cache,
+        fluid_ticks: context.live_fluid_ticks,
+        game_time: context.play_tick_count as i64,
+        random_roll: ((context.play_tick_count as i32) ^ block_pos.x ^ block_pos.z).rem_euclid(40),
+    };
+    super::block_placement_live::run_block_break_aftermath(
+        stream,
+        compression,
+        &mut cascade,
+        block_pos,
+        broken_state.as_ref(),
+    )?;
     crate::log::log_debug(&format!(
         "block break at ({},{},{}) block={:?} game_mode={:?}",
         fields.x, fields.y, fields.z, block_name, play_state.game_mode

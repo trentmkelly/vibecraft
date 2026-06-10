@@ -87,7 +87,15 @@ pub(super) fn place_block_item_live<W: Write>(
     // Java Level.setBlock flag 3 -> updateShapeAtEdge on the six neighbours,
     // cascading through Java's 512-update budget.
     let changed: Vec<BlockPos> = placements.iter().map(|(pos, _)| *pos).collect();
-    run_live_shape_cascade(stream, compression, context, changed, &place_context)?;
+    let mut cascade = LiveCascade {
+        layout: context.world_layout,
+        seed: context.world_seed,
+        cache: context.chunk_cache,
+        fluid_ticks: context.live_fluid_ticks,
+        game_time: context.game_time,
+        random_roll: place_context.random_age_roll,
+    };
+    run_live_shape_cascade(stream, compression, &mut cascade, changed)?;
     consume_placed_block_item(stream, compression, state, held_slot)
 }
 
@@ -183,19 +191,30 @@ fn second_half_placement(
     }
 }
 
+/// World handles needed by the live shape cascade (shared by the placement
+/// and destruction paths).
+pub(super) struct LiveCascade<'a, 'b> {
+    pub layout: &'a WorldLayout,
+    pub seed: i64,
+    pub cache: &'a GeneratedChunkCache,
+    pub fluid_ticks: &'b mut LiveFluidTicks,
+    pub game_time: i64,
+    /// Pre-rolled randomness for coral die ticks / growing-plant ages.
+    pub random_roll: i32,
+}
+
 /// Applies `updateShape` to the neighbours of every changed position,
 /// cascading like Java's `Level.updateNeighborShapes` under the 512 budget.
-fn run_live_shape_cascade<W: Write>(
+pub(super) fn run_live_shape_cascade<W: Write>(
     writer: &mut W,
     compression: CompressionState,
-    context: &mut UseItemOnContext<'_, '_>,
+    context: &mut LiveCascade<'_, '_>,
     mut worklist: Vec<BlockPos>,
-    place_context: &PlaceContext,
 ) -> io::Result<()> {
     let world = LiveBlockWorld {
-        layout: context.world_layout,
-        seed: context.world_seed,
-        cache: context.chunk_cache,
+        layout: context.layout,
+        seed: context.seed,
+        cache: context.cache,
     };
     let mut budget = 512;
     while let Some(changed_pos) = worklist.pop() {
@@ -222,26 +241,24 @@ fn run_live_shape_cascade<W: Write>(
                 direction.opposite(),
                 changed_pos,
                 &changed_state,
-                place_context.random_age_roll,
+                context.random_roll,
                 &world,
             ) else {
                 continue;
             };
             if update.schedule_fluid_tick {
-                context.live_fluid_ticks.schedule(
-                    context.game_time,
-                    neighbour_pos,
-                    FluidKind::Water,
-                );
+                context
+                    .fluid_ticks
+                    .schedule(context.game_time, neighbour_pos, FluidKind::Water);
             }
             // TODO(live-block-ticks): update.schedule_block_tick needs the
             // scheduled block-tick engine (leaf decay, cactus pop, falling
             // blocks) once it exists.
             if update.state != neighbour_state {
                 budget -= 1;
-                context.chunk_cache.set_block(
-                    context.world_layout.root(),
-                    context.world_seed,
+                context.cache.set_block(
+                    context.layout.root(),
+                    context.seed,
                     neighbour_pos,
                     &update.state.state_name(),
                 );
@@ -273,4 +290,58 @@ fn write_block_update<W: Write>(
             write_var_i32(payload, block_state_id)
         },
     )
+}
+
+/// Java `Block.playerWillDestroy` for double blocks (doors, beds, double
+/// plants): removing one half removes the counterpart, then the neighbour
+/// cascade runs for every cleared position.
+pub(super) fn run_block_break_aftermath<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    context: &mut LiveCascade<'_, '_>,
+    broken_pos: BlockPos,
+    broken_state: Option<&BlockStateModel>,
+) -> io::Result<()> {
+    let mut cleared = vec![broken_pos];
+    if let Some(state) = broken_state {
+        if let Some(counterpart) = double_block_counterpart(state, broken_pos) {
+            context.cache.set_block(
+                context.layout.root(),
+                context.seed,
+                counterpart,
+                "minecraft:air",
+            );
+            write_block_update(writer, compression, counterpart, 0)?;
+            cleared.push(counterpart);
+        }
+    }
+    run_live_shape_cascade(writer, compression, context, cleared)
+}
+
+/// The other half of a two-block structure, if `state` is one.
+fn double_block_counterpart(state: &BlockStateModel, pos: BlockPos) -> Option<BlockPos> {
+    let block_type = crate::block_states::block_state_entry(&state.registry_id)?.block_type;
+    match block_type {
+        "door"
+        | "weathering_copper_door"
+        | "double_plant"
+        | "tall_flower"
+        | "tall_seagrass"
+        | "small_dripleaf"
+        | "pitcher_crop" => match state.property("half") {
+            Some("lower") => Some(pos.relative(Direction::Up)),
+            Some("upper") => Some(pos.relative(Direction::Down)),
+            _ => None,
+        },
+        "bed" => {
+            let facing = state.property("facing").and_then(direction_by_name)?;
+            match state.property("part") {
+                // The head sits along FACING from the foot.
+                Some("foot") => Some(pos.relative(facing)),
+                Some("head") => Some(pos.relative(facing.opposite())),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
 }
