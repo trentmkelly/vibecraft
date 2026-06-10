@@ -1,3 +1,8 @@
+#![cfg_attr(
+    all(test, not(vibecraft_has_decompiled_sources)),
+    allow(dead_code)
+)]
+
 use std::io::{self, Read, Write};
 
 use flate2::read::GzDecoder;
@@ -685,7 +690,7 @@ fn write_len_i32<W: Write>(writer: &mut W, len: usize) -> io::Result<()> {
     writer.write_all(&len.to_be_bytes())
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests_visitors;

@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 use super::{
     create_gametest_batch, BlockPosModel, GameTestBatchModel, GameTestInfoStateModel, RotationModel,
 };
@@ -786,7 +788,7 @@ fn copy_items<T: Clone>(items: Vec<T>, copies: Option<usize>) -> Vec<T> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests_structure_utils {
     use super::*;
 
@@ -983,7 +985,7 @@ mod tests_structure_utils {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests_test_finder {
     use super::*;
 

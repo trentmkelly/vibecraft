@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 const MAX_LINES: usize = 1200;
 const SKIP_ENV_VAR: &str = "VIBECRAFT_SKIP_LINE_CHECK";
+const DECOMPILED_SOURCE_ROOT_RELATIVE: &str = "../decompiled-server-26.1.2";
 const SOUND_EVENTS_SOURCE_RELATIVE: &str =
     "../decompiled-server-26.1.2/net/minecraft/sounds/SoundEvents.java";
 
@@ -27,12 +28,14 @@ fn main() {
     println!("cargo:rerun-if-changed=src");
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed={}", SKIP_ENV_VAR);
+    println!("cargo:rustc-check-cfg=cfg(vibecraft_has_decompiled_sources)");
     println!("cargo:rustc-check-cfg=cfg(vibecraft_has_sound_events_source)");
 
     let manifest_dir = match env::var_os("CARGO_MANIFEST_DIR") {
         Some(dir) => PathBuf::from(dir),
         None => panic!("CARGO_MANIFEST_DIR must be set when running build script"),
     };
+    configure_optional_decompiled_sources(&manifest_dir);
     configure_optional_sound_events_source(&manifest_dir);
 
     if env::var_os(SKIP_ENV_VAR).is_some() {
@@ -71,6 +74,21 @@ fn main() {
     ));
 
     panic!("{}", message);
+}
+
+fn configure_optional_decompiled_sources(manifest_dir: &Path) {
+    let source_root = manifest_dir.join(DECOMPILED_SOURCE_ROOT_RELATIVE);
+    println!("cargo:rerun-if-changed={}", source_root.display());
+
+    if source_root.is_dir() {
+        println!("cargo:rustc-cfg=vibecraft_has_decompiled_sources");
+    } else {
+        println!(
+            "cargo:warning=optional Java decompilation root not found at {}; \
+             source-backed parity test modules will be skipped",
+            source_root.display()
+        );
+    }
 }
 
 fn configure_optional_sound_events_source(manifest_dir: &Path) {

@@ -919,6 +919,7 @@ mod chat_packet_test;
 mod chat_session_update_packet_test;
 mod command_suggestion_packet_test;
 mod configuration_acknowledged_packet_test;
+#[cfg(vibecraft_has_decompiled_sources)]
 mod container_click_packet_test;
 mod container_close_packet_test;
 mod container_set_content_packet_test;

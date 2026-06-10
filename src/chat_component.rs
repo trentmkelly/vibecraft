@@ -811,7 +811,7 @@ fn json_string(value: &str) -> String {
     escaped
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
 

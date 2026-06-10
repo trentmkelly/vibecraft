@@ -77,7 +77,7 @@ fn format_component_list(values: &[String], separator: &str) -> Component {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
     use crate::chat_component::resolution_context::ResolutionSourceModel;

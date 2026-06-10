@@ -617,7 +617,7 @@ fn list_double_or(values: &[Tag], index: usize, default_value: f64) -> f64 {
         .unwrap_or(default_value)
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
 

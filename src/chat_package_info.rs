@@ -27,7 +27,7 @@ pub const CHAT_PACKAGE_INFOS: [JavaPackageInfo; 5] = [
     },
 ];
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
 

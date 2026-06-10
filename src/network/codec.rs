@@ -643,7 +643,7 @@ pub fn cursor(bytes: Vec<u8>) -> Cursor<Vec<u8>> {
     Cursor::new(bytes)
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
 

@@ -187,7 +187,7 @@ fn format_component_list(components: &[Component], separator: Component) -> Comp
     result
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
     use crate::chat_component::{ResolutionContext, TranslationTable};

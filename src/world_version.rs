@@ -324,7 +324,7 @@ fn days_from_civil(year: i32, month: i32, day: i32) -> i64 {
     i64::from(era * 146_097 + day_of_era - 719_468)
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
 

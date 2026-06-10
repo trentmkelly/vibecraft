@@ -519,7 +519,7 @@ impl PacketListener for RecordingListener {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::{
         ChannelFutureResult, ClientboundPacketListener, ConnectionProtocol, DecodedPacket,

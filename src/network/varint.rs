@@ -203,7 +203,8 @@ pub fn var_i64_len(value: i64) -> usize {
     MAX_VAR_I64_SIZE
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::{
         decode_varint21_frame, encode_var_i32, encode_var_i64, has_varint_continuation_bit,

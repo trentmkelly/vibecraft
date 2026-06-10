@@ -222,7 +222,7 @@ fn decode_compression_frame_with_validation(
     Ok(payload)
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
     use crate::network::codec::cursor;

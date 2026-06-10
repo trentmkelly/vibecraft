@@ -165,7 +165,8 @@ impl<'a, L: BandwidthSampleLogger> MonitoredLocalFrameDecoder<'a, L> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::{
         HiddenByteBuf, LocalConnection, LocalFrameDecoder, LocalFrameEncoder, LocalFrameMessage,

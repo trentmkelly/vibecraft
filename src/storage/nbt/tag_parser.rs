@@ -178,7 +178,7 @@ fn find_quoted_end(input: &str, start_index: usize, quote: char) -> Option<usize
     None
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
 

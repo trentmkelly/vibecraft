@@ -1,3 +1,8 @@
+#![cfg_attr(
+    all(test, not(vibecraft_has_decompiled_sources)),
+    allow(dead_code)
+)]
+
 pub const BUNDLE_SIZE_LIMIT: usize = 4096;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -151,7 +156,7 @@ pub fn unpack_bundle<T>(frame: PacketFrame<T>) -> Vec<PacketFrame<T>> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::{
         unpack_bundle, BundleDelimiterPacket, BundlePacker, BundlePacket, PacketBundlePacker,

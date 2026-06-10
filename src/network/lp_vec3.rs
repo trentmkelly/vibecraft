@@ -103,7 +103,7 @@ fn unpack(value: u64) -> f64 {
         - 1.0
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::{encode_lp_vec3, has_continuation_bit, read_lp_vec3, ABS_MAX_VALUE, ABS_MIN_VALUE};
     use crate::base_entity::Vec3;

@@ -1,4 +1,8 @@
 #![allow(dead_code)]
+#![cfg_attr(
+    all(test, not(vibecraft_has_decompiled_sources)),
+    allow(unused_imports)
+)]
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -607,5 +611,5 @@ pub mod feature_flags {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests;

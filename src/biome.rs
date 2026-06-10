@@ -1105,5 +1105,5 @@ fn overworld_biome_parameter_list() -> &'static ClimateParameterList {
 
 mod overworld_builder;
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests;

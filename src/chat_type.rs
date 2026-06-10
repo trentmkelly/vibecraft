@@ -241,7 +241,7 @@ fn gray_italic_style() -> Style {
         .with_italic(true)
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
     use crate::network::status::{chat_type_nbt, ChatTypeDecorationStyle, CHAT_TYPES};

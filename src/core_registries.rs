@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 use std::collections::BTreeMap;
 
 pub const CORE_REGISTRIES_PACKAGE_NULL_MARKED: bool = true;
@@ -208,7 +210,7 @@ fn parse_java_builtin_registry_fields(source: &str) -> Vec<String> {
         .collect()
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
 

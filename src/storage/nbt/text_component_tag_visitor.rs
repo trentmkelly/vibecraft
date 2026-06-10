@@ -443,7 +443,7 @@ fn text_color(name: &str) -> TextColor {
     TextColor::parse(name).unwrap_or_else(|| TextColor::from_rgb(0))
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
 

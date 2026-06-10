@@ -431,7 +431,7 @@ pub fn to_tree_map(entries: &[(Tag, Tag)]) -> BTreeMap<String, Tag> {
     map
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
 

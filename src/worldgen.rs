@@ -1,4 +1,8 @@
 #![allow(dead_code)]
+#![cfg_attr(
+    all(test, not(vibecraft_has_decompiled_sources)),
+    allow(unused_imports)
+)]
 
 use std::borrow::Cow;
 use std::cell::{Cell, RefCell};

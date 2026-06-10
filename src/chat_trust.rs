@@ -635,7 +635,7 @@ pub fn signed_message_payload(
     payload
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
 

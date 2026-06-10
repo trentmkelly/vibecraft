@@ -270,7 +270,7 @@ fn sync_output_file(path: &Path) -> io::Result<fs::File> {
         .open(path)
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use std::io::Cursor;
     use std::time::{SystemTime, UNIX_EPOCH};

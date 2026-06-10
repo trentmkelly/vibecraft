@@ -1,3 +1,8 @@
+#![cfg_attr(
+    not(vibecraft_has_decompiled_sources),
+    allow(unused_imports)
+)]
+
 use super::{
     builtin_density_function, builtin_noise_generator_settings, builtin_noise_router,
     density_function_type, placement_utils_count_extra, placement_utils_create_key,
@@ -52,24 +57,34 @@ mod noise_parity_tests;
 
 mod placement_registry_tests;
 
+#[cfg(vibecraft_has_decompiled_sources)]
 mod placement_registry_aquatic_tests;
 
+#[cfg(vibecraft_has_decompiled_sources)]
 mod placement_registry_cave_tests;
 
+#[cfg(vibecraft_has_decompiled_sources)]
 mod placement_registry_end_tests;
 
+#[cfg(vibecraft_has_decompiled_sources)]
 mod placement_registry_misc_overworld_tests;
 
+#[cfg(vibecraft_has_decompiled_sources)]
 mod placement_registry_nether_tests;
 
+#[cfg(vibecraft_has_decompiled_sources)]
 mod placement_registry_ore_tests;
 
+#[cfg(vibecraft_has_decompiled_sources)]
 mod placement_registry_tree_tests;
 
+#[cfg(vibecraft_has_decompiled_sources)]
 mod placement_registry_vegetation_tests;
 
+#[cfg(vibecraft_has_decompiled_sources)]
 mod placement_registry_village_tests;
 
+#[cfg(vibecraft_has_decompiled_sources)]
 mod placement_utils_tests;
 
 mod world_preset_tests;
@@ -102,6 +117,7 @@ fn unpack_heightmap_column(values: &[i64], index: usize) -> i32 {
 
 mod generator_carver_preview_tests;
 
+#[cfg(vibecraft_has_decompiled_sources)]
 mod noise_density_core_tests;
 
 mod noise_router_surface_tests;
@@ -110,18 +126,25 @@ mod aquifer_ore_tests;
 
 mod configured_carver_tests;
 
+#[cfg(vibecraft_has_decompiled_sources)]
 mod feature_registry_tests;
 
+#[cfg(vibecraft_has_decompiled_sources)]
 mod feature_registry_nether_tests;
 
+#[cfg(vibecraft_has_decompiled_sources)]
 mod feature_registry_ore_tests;
 
+#[cfg(vibecraft_has_decompiled_sources)]
 mod feature_registry_pile_tests;
 
+#[cfg(vibecraft_has_decompiled_sources)]
 mod feature_registry_tree_tests;
 
+#[cfg(vibecraft_has_decompiled_sources)]
 mod feature_registry_vegetation_tests;
 
+#[cfg(vibecraft_has_decompiled_sources)]
 mod worldgen_package_info_tests;
 
 mod biome_generation_basic_tests;

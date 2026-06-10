@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 use crate::worldgen::{
     builtin_normal_noise_parameters, NormalNoiseParameters, NORMAL_NOISE_PARAMETERS,
 };

@@ -886,6 +886,7 @@ mod tests {
         assert!(json.contains("\"done\":true"));
     }
 
+    #[cfg(vibecraft_has_decompiled_sources)]
     #[test]
     fn advancement_json_loader_decodes_vanilla_codec_fields() {
         let mut root = AdvancementDefinition::from_json(

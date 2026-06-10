@@ -28,7 +28,7 @@ pub mod ticker_models;
 pub use ticker_models::*;
 pub mod timeout_models;
 pub use timeout_models::*;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests_gizmos;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1188,13 +1188,13 @@ fn json_bool(
         .ok_or_else(|| format!("missing boolean field {field}"))
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests_generated;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests_instance;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests_multiple_tracker;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests_reporter;

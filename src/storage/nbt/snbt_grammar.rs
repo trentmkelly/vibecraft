@@ -731,7 +731,7 @@ fn invalid_snbt_number(err: impl std::fmt::Display) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, err.to_string())
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
 

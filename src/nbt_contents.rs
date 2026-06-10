@@ -195,7 +195,7 @@ fn join_components(mut components: Vec<Component>, separator: Component) -> Comp
     result
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
     use crate::chat_component::resolution_context::ResolutionSourceModel;

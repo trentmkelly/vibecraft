@@ -1,3 +1,8 @@
+#![cfg_attr(
+    not(vibecraft_has_decompiled_sources),
+    allow(unused_imports)
+)]
+
 use super::*;
 use crate::advancement_system::{
     PlayerAdvancementSet, PlayerRecipeUnlocks, RecipeDefinition as AdvancementRecipeDefinition,
@@ -815,6 +820,7 @@ fn cooking_recipe_experience_and_fuel_interaction_follow_furnace_rules() {
     );
 }
 
+#[cfg(vibecraft_has_decompiled_sources)]
 mod recipe_kind_tests;
 
 #[test]

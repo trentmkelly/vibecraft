@@ -178,7 +178,7 @@ fn byte_index_for_utf16_index(text: &str, target: usize) -> usize {
     text.len()
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
     use crate::chat_component::TextColor;

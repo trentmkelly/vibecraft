@@ -216,7 +216,7 @@ fn bitset_length(bits: &[bool]) -> usize {
         .unwrap_or(0)
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
 

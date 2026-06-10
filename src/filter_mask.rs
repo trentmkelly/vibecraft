@@ -223,7 +223,7 @@ fn utf16_slice_lossy(units: &[u16], start: usize, end: usize) -> String {
     String::from_utf16_lossy(&units[bounded_start..bounded_end])
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
 

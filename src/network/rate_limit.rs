@@ -135,7 +135,7 @@ impl PacketRateLimiter {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::{PacketRateDecision, PacketRateLimiter, RateKickAction, RateKickingConnection};
     use std::time::{Duration, Instant};

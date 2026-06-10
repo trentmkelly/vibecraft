@@ -1,3 +1,8 @@
+#![cfg_attr(
+    all(test, not(vibecraft_has_decompiled_sources)),
+    allow(dead_code)
+)]
+
 use crate::item_stack::ItemStack;
 
 #[cfg(test)]

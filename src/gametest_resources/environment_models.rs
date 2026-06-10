@@ -202,7 +202,7 @@ fn set_pair<T>(pairs: &mut Vec<(String, T)>, key: String, value: T) {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
 
