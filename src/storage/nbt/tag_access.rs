@@ -351,6 +351,123 @@ impl NbtStreamTagVisitor for CollectToTagVisitor {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct SkipFieldsVisitor {
+    collector: CollectToTagVisitor,
+    stack: Vec<NbtFieldTree>,
+}
+
+impl SkipFieldsVisitor {
+    pub fn new(wanted_fields: &[NbtFieldSelectorSpec]) -> Self {
+        let mut root_frame = NbtFieldTree::create_root();
+        for wanted_field in wanted_fields {
+            root_frame.add_entry(wanted_field);
+        }
+        Self {
+            collector: CollectToTagVisitor::new(),
+            stack: vec![root_frame],
+        }
+    }
+
+    pub fn get_result(&self) -> Option<&Tag> {
+        self.collector.get_result()
+    }
+
+    pub fn depth(&self) -> usize {
+        self.collector.depth()
+    }
+}
+
+impl NbtStreamTagVisitor for SkipFieldsVisitor {
+    fn visit_end(&mut self) -> StreamValueResult {
+        self.collector.visit_end()
+    }
+
+    fn visit_string(&mut self, value: &str) -> StreamValueResult {
+        self.collector.visit_string(value)
+    }
+
+    fn visit_byte(&mut self, value: i8) -> StreamValueResult {
+        self.collector.visit_byte(value)
+    }
+
+    fn visit_short(&mut self, value: i16) -> StreamValueResult {
+        self.collector.visit_short(value)
+    }
+
+    fn visit_int(&mut self, value: i32) -> StreamValueResult {
+        self.collector.visit_int(value)
+    }
+
+    fn visit_long(&mut self, value: i64) -> StreamValueResult {
+        self.collector.visit_long(value)
+    }
+
+    fn visit_float(&mut self, value: f32) -> StreamValueResult {
+        self.collector.visit_float(value)
+    }
+
+    fn visit_double(&mut self, value: f64) -> StreamValueResult {
+        self.collector.visit_double(value)
+    }
+
+    fn visit_byte_array(&mut self, value: &[i8]) -> StreamValueResult {
+        self.collector.visit_byte_array(value)
+    }
+
+    fn visit_int_array(&mut self, value: &[i32]) -> StreamValueResult {
+        self.collector.visit_int_array(value)
+    }
+
+    fn visit_long_array(&mut self, value: &[i64]) -> StreamValueResult {
+        self.collector.visit_long_array(value)
+    }
+
+    fn visit_list(&mut self, element_type: NbtTagTypeLookup, size: usize) -> StreamValueResult {
+        self.collector.visit_list(element_type, size)
+    }
+
+    fn visit_entry(&mut self, tag_type: NbtTagTypeLookup) -> StreamEntryResult {
+        self.collector.visit_entry(tag_type)
+    }
+
+    fn visit_named_entry(&mut self, tag_type: NbtTagTypeLookup, id: &str) -> StreamEntryResult {
+        if let Some(current_frame) = self.stack.last() {
+            if current_frame.is_selected(&tag_type, id) {
+                return StreamEntryResult::Skip;
+            }
+
+            if tag_type_id(&tag_type) == Some(10) {
+                if let Some(new_frame) = current_frame.fields_to_recurse.get(id) {
+                    self.stack.push(new_frame.clone());
+                }
+            }
+        }
+
+        self.collector.visit_named_entry(tag_type, id)
+    }
+
+    fn visit_element(&mut self, tag_type: NbtTagTypeLookup, index: usize) -> StreamEntryResult {
+        self.collector.visit_element(tag_type, index)
+    }
+
+    fn visit_container_end(&mut self) -> StreamValueResult {
+        if self
+            .stack
+            .last()
+            .is_some_and(|frame| self.depth() == frame.depth)
+        {
+            self.stack.pop();
+        }
+
+        self.collector.visit_container_end()
+    }
+
+    fn visit_root_entry(&mut self, tag_type: NbtTagTypeLookup) -> StreamValueResult {
+        self.collector.visit_root_entry(tag_type)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 enum ContainerBuilder {
     Root {
         result: Option<Tag>,

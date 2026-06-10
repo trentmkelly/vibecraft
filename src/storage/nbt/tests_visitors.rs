@@ -1,6 +1,6 @@
 use super::tag_access::{
     CollectToTagVisitor, NbtFieldSelectorSpec, NbtFieldTree, NbtStreamTagVisitor, SkipAllVisitor,
-    StreamEntryResult, StreamValueResult,
+    SkipFieldsVisitor, StreamEntryResult, StreamValueResult,
 };
 use super::tag_metadata::tag_type;
 use super::Tag;
@@ -9,6 +9,8 @@ const STREAM_TAG_VISITOR_JAVA: &str =
     include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/StreamTagVisitor.java");
 const SKIP_ALL_JAVA: &str =
     include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/visitors/SkipAll.java");
+const SKIP_FIELDS_JAVA: &str =
+    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/visitors/SkipFields.java");
 const COLLECT_TO_TAG_JAVA: &str = include_str!(
     "../../../../decompiled-server-26.1.2/net/minecraft/nbt/visitors/CollectToTag.java"
 );
@@ -294,5 +296,90 @@ fn collect_to_tag_visitor_matches_java_builder_stack_contract() {
     assert_eq!(
         list_collector.get_result(),
         Some(&Tag::List(vec![Tag::Byte(7)]))
+    );
+}
+
+#[test]
+fn skip_fields_visitor_matches_java_selected_field_filtering() {
+    for sentinel in [
+        "public class SkipFields extends CollectToTag",
+        "private final Deque<FieldTree> stack = new ArrayDeque<>();",
+        "FieldTree rootFrame = FieldTree.createRoot();",
+        "rootFrame.addEntry(wantedField);",
+        "this.stack.push(rootFrame);",
+        "if (currentFrame.isSelected(type, id))",
+        "return StreamTagVisitor.EntryResult.SKIP;",
+        "if (type == CompoundTag.TYPE)",
+        "FieldTree newFrame = currentFrame.fieldsToRecurse().get(id);",
+        "this.stack.push(newFrame);",
+        "if (this.depth() == this.stack.element().depth())",
+        "this.stack.pop();",
+        "return super.visitContainerEnd();",
+    ] {
+        assert!(
+            SKIP_FIELDS_JAVA.contains(sentinel),
+            "missing SkipFields sentinel {sentinel}"
+        );
+    }
+
+    let selectors = [
+        NbtFieldSelectorSpec::root(tag_type(3), "DataVersion"),
+        NbtFieldSelectorSpec::child("Data", tag_type(8), "LevelName"),
+        NbtFieldSelectorSpec::child("Data", tag_type(3), "TypeSensitive"),
+    ];
+    let mut visitor = SkipFieldsVisitor::new(&selectors);
+    assert_eq!(
+        visitor.visit_root_entry(tag_type(10)),
+        StreamValueResult::Continue
+    );
+    assert_eq!(
+        visitor.visit_named_entry(tag_type(3), "DataVersion"),
+        StreamEntryResult::Skip
+    );
+    assert_eq!(
+        visitor.visit_named_entry(tag_type(8), "Name"),
+        StreamEntryResult::Enter
+    );
+    assert_eq!(visitor.visit_string("kept"), StreamValueResult::Continue);
+    assert_eq!(
+        visitor.visit_named_entry(tag_type(10), "Data"),
+        StreamEntryResult::Enter
+    );
+    assert_eq!(visitor.depth(), 2);
+    assert_eq!(
+        visitor.visit_named_entry(tag_type(8), "LevelName"),
+        StreamEntryResult::Skip
+    );
+    assert_eq!(
+        visitor.visit_named_entry(tag_type(8), "TypeSensitive"),
+        StreamEntryResult::Enter
+    );
+    assert_eq!(
+        visitor.visit_string("wrong type is kept"),
+        StreamValueResult::Continue
+    );
+    assert_eq!(
+        visitor.visit_named_entry(tag_type(1), "Flag"),
+        StreamEntryResult::Enter
+    );
+    assert_eq!(visitor.visit_byte(1), StreamValueResult::Continue);
+    assert_eq!(visitor.visit_container_end(), StreamValueResult::Continue);
+    assert_eq!(visitor.visit_container_end(), StreamValueResult::Continue);
+
+    assert_eq!(
+        visitor.get_result(),
+        Some(&Tag::Compound(vec![
+            ("Name".to_string(), Tag::String("kept".to_string())),
+            (
+                "Data".to_string(),
+                Tag::Compound(vec![
+                    (
+                        "TypeSensitive".to_string(),
+                        Tag::String("wrong type is kept".to_string())
+                    ),
+                    ("Flag".to_string(), Tag::Byte(1)),
+                ])
+            )
+        ]))
     );
 }
