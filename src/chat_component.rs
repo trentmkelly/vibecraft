@@ -18,6 +18,8 @@ pub mod hover_event;
 pub mod keybind_contents;
 #[path = "number_format.rs"]
 pub mod number_format;
+#[path = "object_contents.rs"]
+pub mod object_contents;
 #[path = "plain_text_contents.rs"]
 pub mod plain_text_contents;
 #[path = "resolution_context.rs"]
@@ -315,13 +317,41 @@ pub enum ObjectContent {
 }
 
 impl ObjectContent {
-    fn render_plain(&self, context: &ResolutionContext) -> String {
+    pub fn font_description(&self) -> FontDescription {
         match self {
-            Self::AtlasSprite { sprite, .. } => sprite.clone(),
-            Self::PlayerSprite { profile, hat } => context
-                .player_sprite(profile, *hat)
-                .map(ToOwned::to_owned)
-                .unwrap_or_else(|| profile.clone()),
+            Self::AtlasSprite { atlas, sprite } => FontDescription::AtlasSprite {
+                atlas: atlas.clone(),
+                sprite: sprite.clone(),
+            },
+            Self::PlayerSprite { profile, hat } => FontDescription::PlayerSprite {
+                profile: profile.clone(),
+                hat: *hat,
+            },
+        }
+    }
+
+    pub fn default_fallback(&self) -> String {
+        const DEFAULT_ATLAS: &str = "minecraft:blocks";
+
+        match self {
+            Self::AtlasSprite { atlas, sprite } => {
+                let sprite_name = short_identifier_name(sprite);
+                if atlas == DEFAULT_ATLAS {
+                    format!("[{sprite_name}]")
+                } else {
+                    format!("[{sprite_name}@{}]", short_identifier_name(atlas))
+                }
+            }
+            Self::PlayerSprite { profile, .. } if profile.is_empty() => {
+                "[unknown player head]".to_string()
+            }
+            Self::PlayerSprite { profile, .. } => format!("[{profile} head]"),
+        }
+    }
+
+    fn render_plain(&self, _context: &ResolutionContext) -> String {
+        match self {
+            Self::AtlasSprite { .. } | Self::PlayerSprite { .. } => self.default_fallback(),
         }
     }
 
@@ -339,6 +369,13 @@ impl ObjectContent {
             )],
         }
     }
+}
+
+fn short_identifier_name(identifier: &str) -> String {
+    identifier
+        .strip_prefix("minecraft:")
+        .unwrap_or(identifier)
+        .to_string()
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -804,7 +841,7 @@ mod tests {
     }
 
     #[test]
-    fn selector_score_keybind_nbt_and_object_contents_resolve_from_context() {
+    fn dynamic_contents_resolve_from_context_and_object_plain_uses_fallback() {
         let context = ResolutionContext::default()
             .with_selector("@a", vec!["Steve", "Alex"])
             .with_score("Steve", "kills", 7)
@@ -813,8 +850,7 @@ mod tests {
                 NbtSource::Block("0 64 0".to_string()),
                 "Items[0].id",
                 vec!["minecraft:stone", "minecraft:dirt"],
-            )
-            .with_player_sprite("Steve", true, "steve-hat-sprite");
+            );
         let translations = TranslationTable::default();
         assert_eq!(
             Component {
@@ -874,7 +910,7 @@ mod tests {
                 siblings: Vec::new(),
             }
             .render_plain(&translations, &context),
-            "steve-hat-sprite"
+            "[Steve head]"
         );
     }
 
