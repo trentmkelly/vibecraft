@@ -8,8 +8,8 @@ pub mod configuration;
 pub mod cookie;
 pub mod dispatch;
 pub mod encryption;
+pub mod handler_names;
 pub mod handshake;
-#[cfg(test)]
 pub mod local;
 pub mod login;
 pub mod ping;
