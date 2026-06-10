@@ -320,27 +320,34 @@ impl CommandContextModel {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct ChatDecoratorModel {
-    prefix: String,
-    suffix: String,
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum ChatDecoratorModel {
+    #[default]
+    Plain,
+    Wrapping {
+        prefix: String,
+        suffix: String,
+    },
 }
 
 impl ChatDecoratorModel {
     pub fn wrapping(prefix: impl Into<String>, suffix: impl Into<String>) -> Self {
-        Self {
+        Self::Wrapping {
             prefix: prefix.into(),
             suffix: suffix.into(),
         }
     }
 
     fn decorate(&self, component: &Component) -> Component {
-        Component::literal(format!(
-            "{}{}{}",
-            self.prefix,
-            component.render_plain(&TranslationTable::default(), &ResolutionContext::default()),
-            self.suffix
-        ))
+        match self {
+            Self::Plain => component.clone(),
+            Self::Wrapping { prefix, suffix } => Component::literal(format!(
+                "{}{}{}",
+                prefix,
+                component.render_plain(&TranslationTable::default(), &ResolutionContext::default()),
+                suffix
+            )),
+        }
     }
 }
 
@@ -634,6 +641,30 @@ mod tests {
                 unsigned_content: Component::literal("[Hello Alex]"),
                 filtered: true,
             }
+        );
+    }
+
+    #[test]
+    fn chat_decorator_plain_matches_java_identity_decorator() {
+        const CHAT_DECORATOR_JAVA: &str = include_str!(
+            "../../decompiled-server-26.1.2/net/minecraft/network/chat/ChatDecorator.java"
+        );
+
+        for sentinel in [
+            "@FunctionalInterface",
+            "ChatDecorator PLAIN = (player, plain) -> plain;",
+            "Component decorate(@Nullable ServerPlayer player, Component plain);",
+        ] {
+            assert!(
+                CHAT_DECORATOR_JAVA.contains(sentinel),
+                "missing ChatDecorator sentinel {sentinel}"
+            );
+        }
+
+        let component = Component::literal("plain");
+        assert_eq!(
+            ChatDecoratorModel::default().decorate(&component),
+            component
         );
     }
 

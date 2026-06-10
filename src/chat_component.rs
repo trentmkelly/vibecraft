@@ -915,6 +915,35 @@ mod tests {
 
     #[test]
     fn click_event_actions_match_vanilla_server_safety_flags() {
+        const CLICK_EVENT_JAVA: &str = include_str!(
+            "../../decompiled-server-26.1.2/net/minecraft/network/chat/ClickEvent.java"
+        );
+
+        for sentinel in [
+            "OPEN_URL(\"open_url\", true, ClickEvent.OpenUrl.CODEC)",
+            "OPEN_FILE(\"open_file\", false, ClickEvent.OpenFile.CODEC)",
+            "RUN_COMMAND(\"run_command\", true, ClickEvent.RunCommand.CODEC)",
+            "SUGGEST_COMMAND(\"suggest_command\", true, ClickEvent.SuggestCommand.CODEC)",
+            "SHOW_DIALOG(\"show_dialog\", true, ClickEvent.ShowDialog.CODEC)",
+            "CHANGE_PAGE(\"change_page\", true, ClickEvent.ChangePage.CODEC)",
+            "COPY_TO_CLIPBOARD(\"copy_to_clipboard\", true, ClickEvent.CopyToClipboard.CODEC)",
+            "CUSTOM(\"custom\", true, ClickEvent.Custom.CODEC)",
+            "return !action.isAllowedFromServer()",
+            "ExtraCodecs.POSITIVE_INT.fieldOf(\"page\")",
+            "Codec.STRING.fieldOf(\"value\")",
+            "Identifier.CODEC.fieldOf(\"id\")",
+            "ExtraCodecs.NBT.optionalFieldOf(\"payload\")",
+            "Codec.STRING.fieldOf(\"path\")",
+            "ExtraCodecs.UNTRUSTED_URI.fieldOf(\"url\")",
+            "ExtraCodecs.CHAT_STRING.fieldOf(\"command\")",
+            "Dialog.CODEC.fieldOf(\"dialog\")",
+        ] {
+            assert!(
+                CLICK_EVENT_JAVA.contains(sentinel),
+                "missing ClickEvent sentinel {sentinel}"
+            );
+        }
+
         let events = [
             ClickEvent::OpenUrl("https://example.com".to_string()),
             ClickEvent::OpenFile("/tmp/server.log".to_string()),

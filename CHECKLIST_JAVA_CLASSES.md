@@ -821,10 +821,10 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/network/chat`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/ChatDecorator.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/ChatDecorator.java`. Rust `command_message_argument::ChatDecoratorModel::Plain` mirrors Java's functional `ChatDecorator.PLAIN` identity decorator that returns the original component for an optional player plus plain component; wrapping decoration remains an explicit non-plain test helper; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 chat_decorator_plain`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/ChatType.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/ChatTypeDecoration.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/ClickEvent.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/ClickEvent.java`. Rust `chat_component::ClickEvent` mirrors Java's action serialized names, server-allowed flags including unsafe `open_file`, action selection, and record payload field names for URL, file path, run/suggest command, dialog, positive page, clipboard value, and custom id/payload; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 click_event_actions_match_vanilla_server_safety_flags`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/CommonComponents.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/Component.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/ComponentContents.java`.
