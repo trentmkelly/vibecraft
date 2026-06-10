@@ -58,10 +58,11 @@ pub const SOUND_SOURCES: &[SoundSource] = &[
 ];
 
 // Source: decompiled-server-26.1.2/net/minecraft/sounds/SoundEvents.java
-const SOUND_EVENTS_SOURCE: &str = include_str!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../decompiled-server-26.1.2/net/minecraft/sounds/SoundEvents.java"
-));
+#[cfg(vibecraft_has_sound_events_source)]
+const SOUND_EVENTS_SOURCE: Option<&str> = Some(include_str!(env!("VIBECRAFT_SOUND_EVENTS_SOURCE")));
+
+#[cfg(not(vibecraft_has_sound_events_source))]
+const SOUND_EVENTS_SOURCE: Option<&str> = None;
 
 pub const SOUND_EVENTS_COUNT_26_1_2: usize = 1902;
 
@@ -69,10 +70,14 @@ pub static SOUND_EVENTS: LazyLock<&'static [SoundEventDef]> =
     LazyLock::new(|| Box::leak(load_sound_events().into_boxed_slice()));
 
 fn load_sound_events() -> Vec<SoundEventDef> {
+    let Some(source) = SOUND_EVENTS_SOURCE else {
+        return Vec::new();
+    };
+
     let mut events = Vec::with_capacity(SOUND_EVENTS_COUNT_26_1_2);
     let mut seen = HashSet::new();
 
-    for line in SOUND_EVENTS_SOURCE.lines() {
+    for line in source.lines() {
         let line = line.trim_start();
         if line.contains("CAT_SOUNDS = registerCatSoundVariants()") {
             add_cat_sounds(&mut events, &mut seen);
@@ -114,6 +119,10 @@ fn load_sound_events() -> Vec<SoundEventDef> {
     }
 
     events
+}
+
+pub fn sound_events_java_source_available() -> bool {
+    SOUND_EVENTS_SOURCE.is_some()
 }
 
 fn parse_registered_sound_id(line: &str) -> Option<&str> {

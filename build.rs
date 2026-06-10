@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 
 const MAX_LINES: usize = 1200;
 const SKIP_ENV_VAR: &str = "VIBECRAFT_SKIP_LINE_CHECK";
+const SOUND_EVENTS_SOURCE_RELATIVE: &str =
+    "../decompiled-server-26.1.2/net/minecraft/sounds/SoundEvents.java";
 
 // Test files that contain a single very large `#[test]` function whose body
 // shares state across hundreds of assertions. Splitting the function into
@@ -25,6 +27,13 @@ fn main() {
     println!("cargo:rerun-if-changed=src");
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed={}", SKIP_ENV_VAR);
+    println!("cargo:rustc-check-cfg=cfg(vibecraft_has_sound_events_source)");
+
+    let manifest_dir = match env::var_os("CARGO_MANIFEST_DIR") {
+        Some(dir) => PathBuf::from(dir),
+        None => panic!("CARGO_MANIFEST_DIR must be set when running build script"),
+    };
+    configure_optional_sound_events_source(&manifest_dir);
 
     if env::var_os(SKIP_ENV_VAR).is_some() {
         println!(
@@ -34,10 +43,6 @@ fn main() {
         return;
     }
 
-    let manifest_dir = match env::var_os("CARGO_MANIFEST_DIR") {
-        Some(dir) => PathBuf::from(dir),
-        None => panic!("CARGO_MANIFEST_DIR must be set when running build script"),
-    };
     let src_dir = manifest_dir.join("src");
 
     let mut offenders: Vec<(PathBuf, usize)> = Vec::new();
@@ -66,6 +71,25 @@ fn main() {
     ));
 
     panic!("{}", message);
+}
+
+fn configure_optional_sound_events_source(manifest_dir: &Path) {
+    let source = manifest_dir.join(SOUND_EVENTS_SOURCE_RELATIVE);
+    println!("cargo:rerun-if-changed={}", source.display());
+
+    if source.is_file() {
+        println!(
+            "cargo:rustc-env=VIBECRAFT_SOUND_EVENTS_SOURCE={}",
+            source.display()
+        );
+        println!("cargo:rustc-cfg=vibecraft_has_sound_events_source");
+    } else {
+        println!(
+            "cargo:warning=optional Java parity source not found at {}; \
+             sound-event parity checks will be skipped",
+            source.display()
+        );
+    }
 }
 
 fn collect_offenders(root: &Path, dir: &Path, out: &mut Vec<(PathBuf, usize)>) {
