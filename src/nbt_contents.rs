@@ -106,12 +106,44 @@ impl NbtContentsModel {
 }
 
 impl NbtDataSourceModel {
+    pub fn block(coordinates: impl Into<String>) -> Self {
+        Self::Block {
+            coordinates: coordinates.into(),
+        }
+    }
+
+    pub fn entity(selector: impl Into<String>) -> Self {
+        Self::Entity {
+            selector: selector.into(),
+        }
+    }
+
+    pub fn storage(id: impl Into<String>) -> Self {
+        Self::Storage { id: id.into() }
+    }
+
     pub fn codec_field(&self) -> &'static str {
         match self {
             Self::Block { .. } => "block",
             Self::Entity { .. } => "entity",
             Self::Storage { .. } => "storage",
         }
+    }
+
+    pub fn source_codec_field(&self) -> &'static str {
+        "source"
+    }
+
+    pub fn source_value(&self) -> &str {
+        match self {
+            Self::Block { coordinates } => coordinates,
+            Self::Entity { selector } => selector,
+            Self::Storage { id } => id,
+        }
+    }
+
+    pub fn get_data(&self, context: &ResolutionContext, path: &str) -> Vec<String> {
+        context.nbt(&self.as_nbt_source(), path)
     }
 
     pub fn as_nbt_source(&self) -> NbtSource {
@@ -178,13 +210,22 @@ mod tests {
     const DATA_SOURCES_JAVA: &str = include_str!(
         "../../decompiled-server-26.1.2/net/minecraft/network/chat/contents/data/DataSources.java"
     );
+    const BLOCK_DATA_SOURCE_JAVA: &str = include_str!(
+        "../../decompiled-server-26.1.2/net/minecraft/network/chat/contents/data/BlockDataSource.java"
+    );
+    const ENTITY_DATA_SOURCE_JAVA: &str = include_str!(
+        "../../decompiled-server-26.1.2/net/minecraft/network/chat/contents/data/EntityDataSource.java"
+    );
+    const STORAGE_DATA_SOURCE_JAVA: &str = include_str!(
+        "../../decompiled-server-26.1.2/net/minecraft/network/chat/contents/data/StorageDataSource.java"
+    );
 
     fn source_context() -> ResolutionContext {
         ResolutionContext::create(ResolutionSourceModel { entity: None })
     }
 
     fn storage(id: &str) -> NbtDataSourceModel {
-        NbtDataSourceModel::Storage { id: id.to_string() }
+        NbtDataSourceModel::storage(id)
     }
 
     fn valid(result: Result<NbtContentsModel, NbtContentsError>) -> NbtContentsModel {
@@ -240,6 +281,74 @@ mod tests {
             assert!(
                 DATA_SOURCES_JAVA.contains(sentinel),
                 "missing DataSources Java sentinel: {sentinel}"
+            );
+        }
+    }
+
+    #[test]
+    fn nbt_data_sources_java_source_contract_is_tracked() {
+        for sentinel in [
+            "public interface DataSource",
+            "Stream<CompoundTag> getData(final CommandSourceStack sender) throws CommandSyntaxException;",
+            "MapCodec<? extends DataSource> codec();",
+        ] {
+            assert!(
+                DATA_SOURCE_JAVA.contains(sentinel),
+                "missing DataSource Java sentinel: {sentinel}"
+            );
+        }
+
+        for sentinel in [
+            "ComponentSerialization.createLegacyComponentMatcher(ID_MAPPER, DataSource::codec, \"source\")",
+            "ID_MAPPER.put(\"entity\", EntityDataSource.MAP_CODEC);",
+            "ID_MAPPER.put(\"block\", BlockDataSource.MAP_CODEC);",
+            "ID_MAPPER.put(\"storage\", StorageDataSource.MAP_CODEC);",
+        ] {
+            assert!(
+                DATA_SOURCES_JAVA.contains(sentinel),
+                "missing DataSources Java sentinel: {sentinel}"
+            );
+        }
+
+        for sentinel in [
+            "public record BlockDataSource(CompilableString<Coordinates> coordinates) implements DataSource",
+            "BLOCK_POS_CODEC.fieldOf(\"block\").forGetter(BlockDataSource::coordinates)",
+            "BlockPosArgument.blockPos().parse(reader)",
+            "Invalid coordinates path: ",
+            "level.isLoaded(pos)",
+            "entity.saveWithFullMetadata(sender.registryAccess())",
+            "return Stream.empty();",
+            "return MAP_CODEC;",
+        ] {
+            assert!(
+                BLOCK_DATA_SOURCE_JAVA.contains(sentinel),
+                "missing BlockDataSource Java sentinel: {sentinel}"
+            );
+        }
+
+        for sentinel in [
+            "public record EntityDataSource(CompilableString<EntitySelector> selector) implements DataSource",
+            "EntitySelector.COMPILABLE_CODEC.fieldOf(\"entity\").forGetter(EntityDataSource::selector)",
+            "this.selector.compiled().findEntities(sender)",
+            "entities.stream().map(NbtPredicate::getEntityTagToCompare)",
+            "return MAP_CODEC;",
+        ] {
+            assert!(
+                ENTITY_DATA_SOURCE_JAVA.contains(sentinel),
+                "missing EntityDataSource Java sentinel: {sentinel}"
+            );
+        }
+
+        for sentinel in [
+            "public record StorageDataSource(Identifier id) implements DataSource",
+            "Identifier.CODEC.fieldOf(\"storage\").forGetter(StorageDataSource::id)",
+            "sender.getServer().getCommandStorage().get(this.id)",
+            "return Stream.of(tag);",
+            "return \"storage=\" + this.id;",
+        ] {
+            assert!(
+                STORAGE_DATA_SOURCE_JAVA.contains(sentinel),
+                "missing StorageDataSource Java sentinel: {sentinel}"
             );
         }
     }
@@ -327,9 +436,7 @@ mod tests {
             false,
             true,
             Some(Component::literal("; ")),
-            NbtDataSourceModel::Block {
-                coordinates: "~ ~ ~".to_string(),
-            },
+            NbtDataSourceModel::block("~ ~ ~"),
         ));
 
         assert_eq!(
@@ -347,24 +454,63 @@ mod tests {
             contents.separator().map(Component::get_string).as_deref(),
             Some("; ")
         );
-        assert_eq!(
-            contents.data_source(),
-            &NbtDataSourceModel::Block {
-                coordinates: "~ ~ ~".to_string(),
-            }
-        );
+        assert_eq!(contents.data_source(), &NbtDataSourceModel::block("~ ~ ~"));
         assert_eq!(contents.data_source().codec_field(), "block");
+        assert_eq!(contents.data_source().source_codec_field(), "source");
+        assert_eq!(contents.data_source().source_value(), "~ ~ ~");
         assert_eq!(contents.data_source().to_string(), "block=~ ~ ~");
         assert_eq!(
-            NbtDataSourceModel::Entity {
-                selector: "@s".to_string(),
-            }
-            .as_nbt_source(),
+            NbtDataSourceModel::entity("@s").as_nbt_source(),
             NbtSource::Entity("@s".to_string())
         );
         assert_eq!(
             storage("minecraft:test").to_string(),
             "storage=minecraft:test"
+        );
+    }
+
+    #[test]
+    fn nbt_data_sources_get_context_data_by_java_source_kind() {
+        let context = source_context()
+            .with_nbt(
+                NbtSource::Block("0 64 0".to_string()),
+                "Items",
+                vec!["block"],
+            )
+            .with_nbt(
+                NbtSource::Entity("@s".to_string()),
+                "SelectedItem",
+                vec!["entity"],
+            )
+            .with_nbt(
+                NbtSource::Storage("minecraft:test".to_string()),
+                "Root",
+                vec!["storage"],
+            );
+
+        assert_eq!(NbtDataSourceModel::block("0 64 0").codec_field(), "block");
+        assert_eq!(
+            NbtDataSourceModel::block("0 64 0").get_data(&context, "Items"),
+            vec!["block".to_string()]
+        );
+        assert_eq!(NbtDataSourceModel::entity("@s").codec_field(), "entity");
+        assert_eq!(
+            NbtDataSourceModel::entity("@s").get_data(&context, "SelectedItem"),
+            vec!["entity".to_string()]
+        );
+        assert_eq!(
+            NbtDataSourceModel::storage("minecraft:test").codec_field(),
+            "storage"
+        );
+        assert_eq!(
+            NbtDataSourceModel::storage("minecraft:test").get_data(&context, "Root"),
+            vec!["storage".to_string()]
+        );
+        assert!(
+            NbtDataSourceModel::block("1 64 0")
+                .get_data(&context, "Items")
+                .is_empty(),
+            "Java block source returns an empty stream for unloaded/missing block entity data"
         );
     }
 }
