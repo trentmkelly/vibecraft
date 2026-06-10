@@ -9,6 +9,7 @@ use flate2::Compression;
 use crate::network::varint::{read_frame_length, read_var_i32, write_var_i32};
 
 pub const DEFAULT_COMPRESSION_THRESHOLD: i32 = 256;
+pub const MAXIMUM_COMPRESSED_LENGTH: usize = 2 * 1024 * 1024;
 pub const MAX_UNCOMPRESSED_PACKET_SIZE: usize = 8 * 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,6 +60,94 @@ impl CompressionState {
     }
 }
 
+#[derive(Debug)]
+pub struct CompressionDecoder {
+    threshold: i32,
+    validate_decompressed: bool,
+}
+
+impl CompressionDecoder {
+    pub fn new(threshold: i32, validate_decompressed: bool) -> Self {
+        Self {
+            threshold,
+            validate_decompressed,
+        }
+    }
+
+    pub fn decode(&self, frame: &[u8], output: &mut Vec<Vec<u8>>) -> io::Result<()> {
+        output.push(decode_compression_frame_with_validation(
+            self.threshold,
+            self.validate_decompressed,
+            frame,
+        )?);
+        Ok(())
+    }
+
+    pub fn set_threshold(&mut self, threshold: i32, validate_decompressed: bool) {
+        self.threshold = threshold;
+        self.validate_decompressed = validate_decompressed;
+    }
+
+    pub fn threshold(&self) -> i32 {
+        self.threshold
+    }
+
+    pub fn validate_decompressed(&self) -> bool {
+        self.validate_decompressed
+    }
+}
+
+#[derive(Debug)]
+pub struct CompressionEncoder {
+    encode_buf: [u8; 8192],
+    threshold: i32,
+}
+
+impl CompressionEncoder {
+    pub fn new(threshold: i32) -> Self {
+        Self {
+            encode_buf: [0; 8192],
+            threshold,
+        }
+    }
+
+    pub fn encode(&mut self, uncompressed: &[u8], output: &mut Vec<u8>) -> io::Result<()> {
+        if uncompressed.len() > MAX_UNCOMPRESSED_PACKET_SIZE {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "Packet too big (is {}, should be less than {})",
+                    uncompressed.len(),
+                    MAX_UNCOMPRESSED_PACKET_SIZE
+                ),
+            ));
+        }
+
+        if self.threshold >= 0 && uncompressed.len() < self.threshold as usize {
+            write_var_i32(output, 0)?;
+            output.extend_from_slice(uncompressed);
+            return Ok(());
+        }
+
+        write_var_i32(output, uncompressed.len() as i32)?;
+        let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(uncompressed)?;
+        let compressed = encoder.finish()?;
+        for chunk in compressed.chunks(self.encode_buf.len()) {
+            output.extend_from_slice(chunk);
+        }
+        Ok(())
+    }
+
+    pub fn threshold(&self) -> i32 {
+        self.threshold
+    }
+
+    pub fn set_threshold(&mut self, threshold: i32) {
+        self.threshold = threshold;
+    }
+}
+
 fn encode_uncompressed_frame(payload: &[u8]) -> io::Result<Vec<u8>> {
     let mut frame = Vec::new();
     write_var_i32(&mut frame, payload.len() as i32)?;
@@ -87,28 +176,38 @@ fn read_packet_frame<R: Read>(reader: &mut R) -> io::Result<Vec<u8>> {
 }
 
 fn decode_compression_frame(threshold: i32, frame: &[u8]) -> io::Result<Vec<u8>> {
+    decode_compression_frame_with_validation(threshold, true, frame)
+}
+
+fn decode_compression_frame_with_validation(
+    threshold: i32,
+    validate_decompressed: bool,
+    frame: &[u8],
+) -> io::Result<Vec<u8>> {
     let mut input = frame;
     let data_length = read_var_i32(&mut input)?;
-    if data_length < 0 || data_length as usize > MAX_UNCOMPRESSED_PACKET_SIZE {
+    if data_length < 0 {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "invalid uncompressed packet length",
         ));
     }
     if data_length == 0 {
-        if input.len() >= threshold as usize {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "uncompressed packet exceeds compression threshold",
-            ));
-        }
         return Ok(input.to_vec());
     }
-    if data_length < threshold {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "compressed packet below compression threshold",
-        ));
+    if validate_decompressed {
+        if data_length < threshold {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "compressed packet below compression threshold",
+            ));
+        }
+        if data_length as usize > MAX_UNCOMPRESSED_PACKET_SIZE {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "invalid uncompressed packet length",
+            ));
+        }
     }
 
     let mut decoder = ZlibDecoder::new(input);
@@ -167,9 +266,8 @@ mod tests {
         assert_eq!(
             state
                 .decode_packet(&mut cursor(oversized_uncompressed))
-                .unwrap_err()
-                .kind(),
-            io::ErrorKind::InvalidData
+                .unwrap(),
+            vec![1, 2, 3, 4]
         );
 
         let compressed_too_small = encode_compression_frame(2, &[0x78, 0x9c, 0x03, 0x00]).unwrap();
@@ -180,5 +278,82 @@ mod tests {
                 .kind(),
             io::ErrorKind::InvalidData
         );
+    }
+
+    #[test]
+    fn compression_decoder_and_encoder_match_java_handler_rules() {
+        const COMPRESSION_DECODER_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/CompressionDecoder.java"
+        );
+        const COMPRESSION_ENCODER_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/CompressionEncoder.java"
+        );
+
+        for sentinel in [
+            "public static final int MAXIMUM_COMPRESSED_LENGTH = 2097152;",
+            "public static final int MAXIMUM_UNCOMPRESSED_LENGTH = 8388608;",
+            "if (uncompressedLength == 0) {",
+            "out.add(in.readBytes(in.readableBytes()));",
+            "if (uncompressedLength < this.threshold)",
+            "if (actualUncompressedLength != uncompressedLength)",
+            "public void setThreshold(final int threshold, final boolean validateDecompressed)",
+        ] {
+            assert!(
+                COMPRESSION_DECODER_JAVA.contains(sentinel),
+                "missing CompressionDecoder sentinel {sentinel}"
+            );
+        }
+        for sentinel in [
+            "private final byte[] encodeBuf = new byte[8192];",
+            "if (uncompressedLength > 8388608)",
+            "if (uncompressedLength < this.threshold)",
+            "VarInt.write(out, 0);",
+            "this.deflater.finish();",
+            "public int getThreshold()",
+            "public void setThreshold(final int threshold)",
+        ] {
+            assert!(
+                COMPRESSION_ENCODER_JAVA.contains(sentinel),
+                "missing CompressionEncoder sentinel {sentinel}"
+            );
+        }
+
+        assert_eq!(MAXIMUM_COMPRESSED_LENGTH, 2_097_152);
+        assert_eq!(MAX_UNCOMPRESSED_PACKET_SIZE, 8_388_608);
+
+        let mut encoder = CompressionEncoder::new(8);
+        let mut encoded_small = Vec::new();
+        encoder.encode(b"small", &mut encoded_small).unwrap();
+        assert_eq!(encoded_small, vec![0, b's', b'm', b'a', b'l', b'l']);
+
+        let mut decoder = CompressionDecoder::new(8, true);
+        let mut decoded = Vec::new();
+        decoder.decode(&encoded_small, &mut decoded).unwrap();
+        assert_eq!(decoded, vec![b"small".to_vec()]);
+
+        let mut encoded_large = Vec::new();
+        encoder
+            .encode(b"large enough for compression", &mut encoded_large)
+            .unwrap();
+        decoded.clear();
+        decoder.decode(&encoded_large, &mut decoded).unwrap();
+        assert_eq!(decoded, vec![b"large enough for compression".to_vec()]);
+
+        decoder.set_threshold(64, false);
+        assert_eq!(decoder.threshold(), 64);
+        assert!(!decoder.validate_decompressed());
+        decoded.clear();
+        decoder.decode(&encoded_large, &mut decoded).unwrap();
+        assert_eq!(decoded, vec![b"large enough for compression".to_vec()]);
+
+        encoder.set_threshold(64);
+        assert_eq!(encoder.threshold(), 64);
+
+        encoder.set_threshold(-1);
+        let mut encoded_negative_threshold = Vec::new();
+        encoder
+            .encode(b"x", &mut encoded_negative_threshold)
+            .unwrap();
+        assert_ne!(encoded_negative_threshold[0], 0);
     }
 }
