@@ -14,6 +14,8 @@ pub mod filter_mask;
 pub mod formatted_text;
 #[path = "hover_event.rs"]
 pub mod hover_event;
+#[path = "keybind_contents.rs"]
+pub mod keybind_contents;
 #[path = "number_format.rs"]
 pub mod number_format;
 #[path = "plain_text_contents.rs"]
