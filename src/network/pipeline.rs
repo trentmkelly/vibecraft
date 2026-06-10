@@ -3,6 +3,7 @@
 use std::io::{self, Cursor};
 
 use crate::network::compression::CompressionState;
+use crate::network::dispatch::ConnectionProtocol;
 use crate::network::encryption::MinecraftCipher;
 use crate::network::varint::{read_var_i32, write_var_i32};
 
@@ -10,6 +11,196 @@ use crate::network::varint::{read_var_i32, write_var_i32};
 pub struct DecodedPacket {
     pub id: i32,
     pub payload: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProtocolPacketMetadata {
+    pub packet_type: &'static str,
+    pub class_name: &'static str,
+    pub terminal: bool,
+    pub skippable: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DecodedProtocolPacket {
+    pub metadata: ProtocolPacketMetadata,
+    pub payload: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProtocolSwapAction {
+    SetAutoRead(bool),
+    AddBefore {
+        name: &'static str,
+        handler: &'static str,
+    },
+    AddAfter {
+        name: &'static str,
+        handler: &'static str,
+    },
+    RemoveSelf,
+}
+
+pub struct ProtocolSwapHandler;
+
+impl ProtocolSwapHandler {
+    pub fn handle_inbound_terminal_packet(terminal: bool) -> Vec<ProtocolSwapAction> {
+        if terminal {
+            vec![
+                ProtocolSwapAction::SetAutoRead(false),
+                ProtocolSwapAction::AddBefore {
+                    name: "inbound_config",
+                    handler: "UnconfiguredPipelineHandler.Inbound",
+                },
+                ProtocolSwapAction::RemoveSelf,
+            ]
+        } else {
+            Vec::new()
+        }
+    }
+
+    pub fn handle_outbound_terminal_packet(terminal: bool) -> Vec<ProtocolSwapAction> {
+        if terminal {
+            vec![
+                ProtocolSwapAction::AddAfter {
+                    name: "outbound_config",
+                    handler: "UnconfiguredPipelineHandler.Outbound",
+                },
+                ProtocolSwapAction::RemoveSelf,
+            ]
+        } else {
+            Vec::new()
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PacketCodecError {
+    SkipDecoder(String),
+    SkipEncoder(String),
+    Other(String),
+    Io(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PacketDecodeOutcome {
+    pub packet: DecodedProtocolPacket,
+    pub readable_bytes: usize,
+    pub swap_actions: Vec<ProtocolSwapAction>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PacketEncodeOutcome {
+    pub bytes: Vec<u8>,
+    pub written_bytes: usize,
+    pub swap_actions: Vec<ProtocolSwapAction>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PacketEncodeError {
+    pub error: PacketCodecError,
+    pub swap_actions: Vec<ProtocolSwapAction>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PacketDecoderHandler {
+    protocol: ConnectionProtocol,
+}
+
+impl PacketDecoderHandler {
+    pub fn new(protocol: ConnectionProtocol) -> Self {
+        Self { protocol }
+    }
+
+    pub fn decode_with(
+        &self,
+        input: &mut Cursor<Vec<u8>>,
+        decode: impl FnOnce(&mut Cursor<Vec<u8>>) -> Result<DecodedProtocolPacket, PacketCodecError>,
+    ) -> Result<PacketDecodeOutcome, PacketCodecError> {
+        let readable_bytes = input
+            .get_ref()
+            .len()
+            .saturating_sub(input.position() as usize);
+        let packet = match decode(input) {
+            Ok(packet) => packet,
+            Err(error @ PacketCodecError::SkipDecoder(_)) => {
+                input.set_position(input.get_ref().len() as u64);
+                return Err(error);
+            }
+            Err(error) => return Err(error),
+        };
+
+        let remaining = input
+            .get_ref()
+            .len()
+            .saturating_sub(input.position() as usize);
+        if remaining > 0 {
+            return Err(PacketCodecError::Io(format!(
+                "Packet {}/{} ({}) was larger than I expected, found {} bytes extra whilst reading packet {}",
+                self.protocol.id(),
+                packet.metadata.packet_type,
+                packet.metadata.class_name,
+                remaining,
+                packet.metadata.packet_type
+            )));
+        }
+
+        let swap_actions =
+            ProtocolSwapHandler::handle_inbound_terminal_packet(packet.metadata.terminal);
+        Ok(PacketDecodeOutcome {
+            packet,
+            readable_bytes,
+            swap_actions,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PacketEncoderHandler {
+    protocol: ConnectionProtocol,
+}
+
+impl PacketEncoderHandler {
+    pub fn new(protocol: ConnectionProtocol) -> Self {
+        Self { protocol }
+    }
+
+    pub fn encode_with(
+        &self,
+        packet: &DecodedProtocolPacket,
+        encode: impl FnOnce(&mut Vec<u8>, &DecodedProtocolPacket) -> Result<(), PacketCodecError>,
+    ) -> Result<PacketEncodeOutcome, PacketEncodeError> {
+        let mut output = Vec::new();
+        let result = encode(&mut output, packet);
+        let swap_actions =
+            ProtocolSwapHandler::handle_outbound_terminal_packet(packet.metadata.terminal);
+
+        match result {
+            Ok(()) => {
+                let written_bytes = output.len();
+                Ok(PacketEncodeOutcome {
+                    bytes: output,
+                    written_bytes,
+                    swap_actions,
+                })
+            }
+            Err(error) => {
+                let error = if packet.metadata.skippable {
+                    PacketCodecError::SkipEncoder(format!("{error:?}"))
+                } else {
+                    error
+                };
+                Err(PacketEncodeError {
+                    error,
+                    swap_actions,
+                })
+            }
+        }
+    }
+
+    pub fn protocol(&self) -> ConnectionProtocol {
+        self.protocol
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -69,6 +260,19 @@ impl NetworkPipeline {
 mod tests {
     use super::*;
 
+    fn metadata(
+        packet_type: &'static str,
+        terminal: bool,
+        skippable: bool,
+    ) -> ProtocolPacketMetadata {
+        ProtocolPacketMetadata {
+            packet_type,
+            class_name: "TestPacket",
+            terminal,
+            skippable,
+        }
+    }
+
     #[test]
     fn pipeline_round_trips_uncompressed_packet_id_and_payload() {
         let mut encoder = NetworkPipeline::default();
@@ -118,5 +322,188 @@ mod tests {
 
         assert_eq!(decoder.decode_packet(&first).unwrap().payload, b"one");
         assert_eq!(decoder.decode_packet(&second).unwrap().payload, b"two");
+    }
+
+    #[test]
+    fn packet_decoder_handler_matches_java_codec_wrapper_contract() {
+        const PACKET_DECODER_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/PacketDecoder.java"
+        );
+        const PROTOCOL_SWAP_HANDLER_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/ProtocolSwapHandler.java"
+        );
+
+        for sentinel in [
+            "int readableBytes = input.readableBytes();",
+            "packet = this.protocolInfo.codec().decode(input);",
+            "if (e instanceof SkipPacketException)",
+            "input.skipBytes(input.readableBytes());",
+            "JvmProfiler.INSTANCE.onPacketReceived",
+            "if (input.readableBytes() > 0)",
+            "was larger than I expected, found ",
+            "out.add(packet);",
+            "ProtocolSwapHandler.handleInboundTerminalPacket(ctx, packet);",
+        ] {
+            assert!(
+                PACKET_DECODER_JAVA.contains(sentinel),
+                "missing PacketDecoder sentinel {sentinel}"
+            );
+        }
+        for sentinel in [
+            "ctx.channel().config().setAutoRead(false);",
+            "ctx.pipeline().addBefore(ctx.name(), \"inbound_config\", new UnconfiguredPipelineHandler.Inbound());",
+            "ctx.pipeline().remove(ctx.name());",
+        ] {
+            assert!(
+                PROTOCOL_SWAP_HANDLER_JAVA.contains(sentinel),
+                "missing inbound ProtocolSwapHandler sentinel {sentinel}"
+            );
+        }
+
+        let decoder = PacketDecoderHandler::new(ConnectionProtocol::Play);
+        let mut input = Cursor::new(vec![1, 2, 3]);
+        let decoded = decoder
+            .decode_with(&mut input, |input| {
+                let mut payload = vec![0; 3];
+                use std::io::Read;
+                input.read_exact(&mut payload).unwrap();
+                Ok(DecodedProtocolPacket {
+                    metadata: metadata("minecraft:test", true, false),
+                    payload,
+                })
+            })
+            .unwrap();
+        assert_eq!(decoded.readable_bytes, 3);
+        assert_eq!(decoded.packet.payload, vec![1, 2, 3]);
+        assert_eq!(
+            decoded.swap_actions,
+            vec![
+                ProtocolSwapAction::SetAutoRead(false),
+                ProtocolSwapAction::AddBefore {
+                    name: "inbound_config",
+                    handler: "UnconfiguredPipelineHandler.Inbound"
+                },
+                ProtocolSwapAction::RemoveSelf,
+            ]
+        );
+
+        let mut input = Cursor::new(vec![1, 2, 3]);
+        let too_large = decoder.decode_with(&mut input, |input| {
+            input.set_position(1);
+            Ok(DecodedProtocolPacket {
+                metadata: metadata("minecraft:leftover", false, false),
+                payload: vec![1],
+            })
+        });
+        assert_eq!(
+            too_large,
+            Err(PacketCodecError::Io(
+                "Packet play/minecraft:leftover (TestPacket) was larger than I expected, found 2 bytes extra whilst reading packet minecraft:leftover"
+                    .to_string()
+            ))
+        );
+
+        let mut input = Cursor::new(vec![1, 2, 3]);
+        let skipped = decoder.decode_with(&mut input, |_input| {
+            Err(PacketCodecError::SkipDecoder("skip".to_string()))
+        });
+        assert_eq!(
+            skipped,
+            Err(PacketCodecError::SkipDecoder("skip".to_string()))
+        );
+        assert_eq!(input.position(), 3);
+    }
+
+    #[test]
+    fn packet_encoder_handler_matches_java_error_and_terminal_contract() {
+        const PACKET_ENCODER_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/PacketEncoder.java"
+        );
+        const PROTOCOL_SWAP_HANDLER_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/ProtocolSwapHandler.java"
+        );
+
+        for sentinel in [
+            "PacketType<? extends Packet<? super T>> packetId = packet.type();",
+            "this.protocolInfo.codec().encode(output, packet);",
+            "int writtenBytes = output.readableBytes();",
+            "JvmProfiler.INSTANCE.onPacketSent",
+            "LOGGER.error(\"Error sending packet {}\", packetId, t);",
+            "if (packet.isSkippable())",
+            "throw new SkipPacketEncoderException(t);",
+            "ProtocolSwapHandler.handleOutboundTerminalPacket(ctx, packet);",
+        ] {
+            assert!(
+                PACKET_ENCODER_JAVA.contains(sentinel),
+                "missing PacketEncoder sentinel {sentinel}"
+            );
+        }
+        for sentinel in [
+            "ctx.pipeline().addAfter(ctx.name(), \"outbound_config\", new UnconfiguredPipelineHandler.Outbound());",
+            "ctx.pipeline().remove(ctx.name());",
+        ] {
+            assert!(
+                PROTOCOL_SWAP_HANDLER_JAVA.contains(sentinel),
+                "missing outbound ProtocolSwapHandler sentinel {sentinel}"
+            );
+        }
+
+        let encoder = PacketEncoderHandler::new(ConnectionProtocol::Configuration);
+        assert_eq!(encoder.protocol(), ConnectionProtocol::Configuration);
+        let packet = DecodedProtocolPacket {
+            metadata: metadata("minecraft:finish_configuration", true, false),
+            payload: vec![4, 5],
+        };
+        let encoded = encoder
+            .encode_with(&packet, |output, packet| {
+                output.extend_from_slice(&packet.payload);
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(encoded.bytes, vec![4, 5]);
+        assert_eq!(encoded.written_bytes, 2);
+        assert_eq!(
+            encoded.swap_actions,
+            vec![
+                ProtocolSwapAction::AddAfter {
+                    name: "outbound_config",
+                    handler: "UnconfiguredPipelineHandler.Outbound"
+                },
+                ProtocolSwapAction::RemoveSelf,
+            ]
+        );
+
+        let skippable = DecodedProtocolPacket {
+            metadata: metadata("minecraft:skippable", false, true),
+            payload: Vec::new(),
+        };
+        let skipped = encoder
+            .encode_with(&skippable, |_output, _packet| {
+                Err(PacketCodecError::Other("boom".to_string()))
+            })
+            .unwrap_err();
+        assert_eq!(
+            skipped.error,
+            PacketCodecError::SkipEncoder("Other(\"boom\")".to_string())
+        );
+        assert!(skipped.swap_actions.is_empty());
+
+        let fatal = DecodedProtocolPacket {
+            metadata: metadata("minecraft:fatal", true, false),
+            payload: Vec::new(),
+        };
+        let fatal_error = encoder
+            .encode_with(&fatal, |_output, _packet| {
+                Err(PacketCodecError::Other("fatal".to_string()))
+            })
+            .unwrap_err();
+        assert_eq!(
+            fatal_error.error,
+            PacketCodecError::Other("fatal".to_string())
+        );
+        assert_eq!(
+            fatal_error.swap_actions,
+            ProtocolSwapHandler::handle_outbound_terminal_packet(true)
+        );
     }
 }
