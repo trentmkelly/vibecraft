@@ -6,6 +6,8 @@ pub mod chat_type;
 pub mod common_components;
 #[path = "filter_mask.rs"]
 pub mod filter_mask;
+#[path = "formatted_text.rs"]
+pub mod formatted_text;
 #[path = "hover_event.rs"]
 pub mod hover_event;
 
@@ -359,6 +361,34 @@ impl Style {
     pub fn with_font(mut self, font: FontDescription) -> Self {
         self.font = Some(font);
         self
+    }
+
+    pub fn apply_to(&self, other: &Style) -> Style {
+        if *self == Style::empty() {
+            return other.clone();
+        }
+        if *other == Style::empty() {
+            return self.clone();
+        }
+        Style {
+            color: self.color.clone().or_else(|| other.color.clone()),
+            shadow_color: self.shadow_color.or(other.shadow_color),
+            bold: self.bold.or(other.bold),
+            italic: self.italic.or(other.italic),
+            underlined: self.underlined.or(other.underlined),
+            strikethrough: self.strikethrough.or(other.strikethrough),
+            obfuscated: self.obfuscated.or(other.obfuscated),
+            click_event: self
+                .click_event
+                .clone()
+                .or_else(|| other.click_event.clone()),
+            hover_event: self
+                .hover_event
+                .clone()
+                .or_else(|| other.hover_event.clone()),
+            insertion: self.insertion.clone().or_else(|| other.insertion.clone()),
+            font: self.font.clone().or_else(|| other.font.clone()),
+        }
     }
 
     fn json_fields(&self) -> Vec<String> {
