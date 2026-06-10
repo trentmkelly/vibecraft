@@ -773,7 +773,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/visitors/FieldTree.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/visitors/SkipAll.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/visitors/SkipFields.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/visitors/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/nbt/visitors/package-info.java`. Verified the visitors package-info remains the Java `@NullMarked` package annotation for `net.minecraft.nbt.visitors`; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 nbt_visitors_package_info`.
 
 ## `decompiled-server-26.1.2/net/minecraft/network`
 

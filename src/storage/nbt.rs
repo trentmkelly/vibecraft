@@ -1196,3 +1196,5 @@ fn write_len_i32<W: Write>(writer: &mut W, len: usize) -> io::Result<()> {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_visitors;
