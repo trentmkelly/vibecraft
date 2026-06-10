@@ -2,6 +2,8 @@
 
 #[path = "last_seen_tracking.rs"]
 pub mod last_seen_tracking;
+#[path = "signed_message_body.rs"]
+pub mod signed_message_body;
 #[path = "signed_message_link.rs"]
 pub mod signed_message_link;
 
@@ -10,6 +12,7 @@ use std::io::{self, Read, Write};
 
 use crate::network::codec::Uuid;
 use crate::server_properties::ServerProperties;
+pub use signed_message_body::SignedMessageBody;
 pub use signed_message_link::SignedMessageLink;
 
 pub const SIGNATURE_CACHE_SIZE: usize = 20;
@@ -101,14 +104,6 @@ pub struct LastSeenMessagesUpdateModel {
     pub offset: i32,
     pub acknowledged: Vec<bool>,
     pub checksum: u8,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SignedMessageBody {
-    pub content: String,
-    pub timestamp_millis: i64,
-    pub salt: i64,
-    pub last_seen: Vec<MessageSignature>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -234,7 +229,7 @@ impl ChatChain {
         {
             return ChatTrustDecision::Disconnect(CHAT_CHAIN_BROKEN);
         }
-        if !cache.contains_all(&message.body.last_seen) {
+        if !cache.contains_all(&message.body.last_seen.entries) {
             return ChatTrustDecision::Disconnect(CHAT_CHAIN_BROKEN);
         }
 
@@ -305,7 +300,8 @@ impl MessageSignatureCache {
     }
 
     pub fn push_body(&mut self, body: &SignedMessageBody, signature: Option<MessageSignature>) {
-        let mut queue: VecDeque<MessageSignature> = body.last_seen.iter().cloned().collect();
+        let mut queue: VecDeque<MessageSignature> =
+            body.last_seen.entries.iter().cloned().collect();
         if let Some(signature) = signature {
             queue.push_back(signature);
         }
@@ -629,20 +625,12 @@ pub fn signed_message_payload(
 ) -> Vec<u8> {
     let mut payload = Vec::new();
     link.update_signature(&mut payload);
-    payload.extend_from_slice(&body.salt.to_be_bytes());
-    payload.extend_from_slice(&body.timestamp_millis.to_be_bytes());
-    payload.extend_from_slice(&(body.content.len() as i32).to_be_bytes());
-    payload.extend_from_slice(body.content.as_bytes());
+    body.update_signature(&mut payload);
     if let Some(previous) = previous_signature {
         payload.extend_from_slice(&(previous.0.len() as i32).to_be_bytes());
         payload.extend_from_slice(&previous.0);
     } else {
         payload.extend_from_slice(&0_i32.to_be_bytes());
-    }
-    payload.extend_from_slice(&(body.last_seen.len() as i32).to_be_bytes());
-    for signature in &body.last_seen {
-        payload.extend_from_slice(&(signature.0.len() as i32).to_be_bytes());
-        payload.extend_from_slice(&signature.0);
     }
     payload
 }
@@ -665,9 +653,10 @@ mod tests {
     fn body(content: &str) -> SignedMessageBody {
         SignedMessageBody {
             content: content.to_string(),
-            timestamp_millis: 123,
+            epoch_seconds: 123,
+            epoch_millis: 123_000,
             salt: 456,
-            last_seen: Vec::new(),
+            last_seen: LastSeenMessages::empty(),
         }
     }
 
@@ -735,7 +724,7 @@ mod tests {
             index: 0,
         };
         let mut body = body("hello");
-        body.last_seen.push(MessageSignature(vec![7]));
+        body.last_seen.entries.push(MessageSignature(vec![7]));
         assert_eq!(
             chain.validate(
                 SignedMessage {
@@ -1035,9 +1024,12 @@ mod tests {
 
         let body = SignedMessageBody {
             content: "hello".to_string(),
-            timestamp_millis: 1,
+            epoch_seconds: 1,
+            epoch_millis: 1_000,
             salt: 2,
-            last_seen: vec![first.clone(), second.clone()],
+            last_seen: LastSeenMessages {
+                entries: vec![first.clone(), second.clone()],
+            },
         };
         let signature = MessageSignature(vec![9; MessageSignature::BYTES]);
         cache.push_body(&body, Some(signature.clone()));
