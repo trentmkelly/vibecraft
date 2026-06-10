@@ -777,7 +777,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/network`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/BandwidthDebugMonitor.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/BandwidthDebugMonitor.java`. Rust `network::bandwidth::BandwidthDebugMonitor` mirrors Java's `AtomicInteger` received-byte accumulator, `onReceive(int)` additive accounting, and per-tick `LocalSampleLogger.logSample(bytesReceived.getAndSet(0))` reset/log behavior; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 bandwidth_debug_monitor`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/CipherBase.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/CipherDecoder.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/CipherEncoder.java`.

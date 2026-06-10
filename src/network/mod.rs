@@ -1,3 +1,4 @@
+pub mod bandwidth;
 #[cfg(test)]
 pub mod bundle;
 pub mod codec;
