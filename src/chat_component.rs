@@ -22,6 +22,8 @@ pub mod number_format;
 pub mod plain_text_contents;
 #[path = "resolution_context.rs"]
 pub mod resolution_context;
+#[path = "score_contents.rs"]
+pub mod score_contents;
 #[path = "sub_string_source.rs"]
 pub mod sub_string_source;
 #[path = "throwing_component.rs"]
