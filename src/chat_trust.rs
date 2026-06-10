@@ -12,6 +12,48 @@ pub const INVALID_COMMAND_SIGNATURE: &str = "chat.disabled.invalid_signature";
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MessageSignature(pub Vec<u8>);
 
+impl MessageSignature {
+    pub const BYTES: usize = 256;
+
+    pub fn checksum(&self) -> i32 {
+        self.0.iter().fold(1_i32, |result, byte| {
+            result.wrapping_mul(31).wrapping_add(i32::from(*byte as i8))
+        })
+    }
+
+    pub fn pack(&self, cache: &MessageSignatureCache) -> PackedMessageSignatureModel {
+        let packed_id = cache.pack(self);
+        if packed_id != MessageSignatureCache::NOT_FOUND {
+            PackedMessageSignatureModel::Id(packed_id)
+        } else {
+            PackedMessageSignatureModel::Full(self.clone())
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LastSeenMessages {
+    pub entries: Vec<MessageSignature>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackedLastSeenMessages {
+    pub entries: Vec<PackedMessageSignatureModel>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackedMessageSignatureModel {
+    Full(MessageSignature),
+    Id(i32),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LastSeenMessagesUpdateModel {
+    pub offset: i32,
+    pub acknowledged: Vec<bool>,
+    pub checksum: u8,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SignedMessageBody {
     pub content: String,
@@ -171,6 +213,8 @@ impl ChatChain {
 }
 
 impl MessageSignatureCache {
+    pub const NOT_FOUND: i32 = -1;
+
     pub fn new(capacity: usize) -> Self {
         Self {
             signatures: VecDeque::new(),
@@ -196,6 +240,118 @@ impl MessageSignatureCache {
         signatures
             .iter()
             .all(|signature| self.signatures.contains(signature))
+    }
+
+    pub fn pack(&self, signature: &MessageSignature) -> i32 {
+        self.signatures
+            .iter()
+            .position(|entry| entry == signature)
+            .map(|index| index as i32)
+            .unwrap_or(Self::NOT_FOUND)
+    }
+
+    pub fn unpack(&self, id: i32) -> Option<MessageSignature> {
+        usize::try_from(id)
+            .ok()
+            .and_then(|index| self.signatures.get(index))
+            .cloned()
+    }
+
+    pub fn push_body(&mut self, body: &SignedMessageBody, signature: Option<MessageSignature>) {
+        let mut queue: VecDeque<MessageSignature> = body.last_seen.iter().cloned().collect();
+        if let Some(signature) = signature {
+            queue.push_back(signature);
+        }
+        let new_entries: Vec<MessageSignature> = queue.iter().cloned().collect();
+
+        let mut rebuilt = VecDeque::new();
+        while let Some(entry) = queue.pop_back() {
+            if rebuilt.len() < self.capacity {
+                rebuilt.push_back(entry);
+            }
+        }
+        for entry in self.signatures.iter().cloned() {
+            if rebuilt.len() >= self.capacity {
+                break;
+            }
+            if !new_entries.contains(&entry) {
+                rebuilt.push_back(entry);
+            }
+        }
+        self.signatures = rebuilt;
+    }
+}
+
+impl LastSeenMessages {
+    pub const LAST_SEEN_MESSAGES_MAX_LENGTH: usize = 20;
+
+    pub fn empty() -> Self {
+        Self {
+            entries: Vec::new(),
+        }
+    }
+
+    pub fn update_signature_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&(self.entries.len() as i32).to_be_bytes());
+        for entry in &self.entries {
+            bytes.extend_from_slice(&entry.0);
+        }
+        bytes
+    }
+
+    pub fn pack(&self, cache: &MessageSignatureCache) -> PackedLastSeenMessages {
+        PackedLastSeenMessages {
+            entries: self.entries.iter().map(|entry| entry.pack(cache)).collect(),
+        }
+    }
+
+    pub fn compute_checksum(&self) -> u8 {
+        let checksum = self.entries.iter().fold(1_i32, |result, entry| {
+            result.wrapping_mul(31).wrapping_add(entry.checksum())
+        });
+        let checksum_byte = checksum as i8;
+        if checksum_byte == 0 {
+            1
+        } else {
+            checksum_byte as u8
+        }
+    }
+}
+
+impl PackedLastSeenMessages {
+    pub fn empty() -> Self {
+        Self {
+            entries: Vec::new(),
+        }
+    }
+
+    pub fn unpack(&self, cache: &MessageSignatureCache) -> Option<LastSeenMessages> {
+        let mut unpacked = Vec::with_capacity(self.entries.len());
+        for entry in &self.entries {
+            unpacked.push(entry.unpack(cache)?);
+        }
+        Some(LastSeenMessages { entries: unpacked })
+    }
+}
+
+impl PackedMessageSignatureModel {
+    pub const FULL_SIGNATURE: i32 = -1;
+
+    pub fn unpack(&self, cache: &MessageSignatureCache) -> Option<MessageSignature> {
+        match self {
+            Self::Full(signature) => Some(signature.clone()),
+            Self::Id(id) => cache.unpack(*id),
+        }
+    }
+}
+
+impl LastSeenMessagesUpdateModel {
+    pub const ACKNOWLEDGED_BITS: usize = 20;
+    pub const IGNORE_CHECKSUM: u8 = 0;
+
+    pub fn verify_checksum(&self, last_seen: &LastSeenMessages) -> bool {
+        self.checksum == Self::IGNORE_CHECKSUM || self.checksum == last_seen.compute_checksum()
     }
 }
 
@@ -680,5 +836,143 @@ mod tests {
         cache.push(MessageSignature(vec![3]));
         assert!(cache.contains_all(&[MessageSignature(vec![3]), MessageSignature(vec![2])]));
         assert!(!cache.contains_all(&[MessageSignature(vec![1])]));
+    }
+
+    #[test]
+    fn last_seen_messages_match_java_checksum_pack_and_update_contracts() {
+        const LAST_SEEN_MESSAGES_JAVA: &str = include_str!(
+            "../../decompiled-server-26.1.2/net/minecraft/network/chat/LastSeenMessages.java"
+        );
+        const MESSAGE_SIGNATURE_JAVA: &str = include_str!(
+            "../../decompiled-server-26.1.2/net/minecraft/network/chat/MessageSignature.java"
+        );
+        const MESSAGE_SIGNATURE_CACHE_JAVA: &str = include_str!(
+            "../../decompiled-server-26.1.2/net/minecraft/network/chat/MessageSignatureCache.java"
+        );
+
+        for sentinel in [
+            "public static final LastSeenMessages EMPTY = new LastSeenMessages(List.of());",
+            "public static final int LAST_SEEN_MESSAGES_MAX_LENGTH = 20;",
+            "output.update(Ints.toByteArray(this.entries.size()));",
+            "output.update(entry.bytes());",
+            "this.entries.stream().map(entry -> entry.pack(cache)).toList()",
+            "checksum = 31 * checksum + entry.checksum();",
+            "return checksumByte == 0 ? 1 : checksumByte;",
+            "input.readCollection(FriendlyByteBuf.limitValue(ArrayList::new, 20), MessageSignature.Packed::read)",
+            "Optional<MessageSignature> entry = packed.unpack(cache);",
+            "public static final byte IGNORE_CHECKSUM = 0;",
+            "return this.checksum == 0 || this.checksum == lastSeen.computeChecksum();",
+        ] {
+            assert!(
+                LAST_SEEN_MESSAGES_JAVA.contains(sentinel),
+                "missing LastSeenMessages sentinel {sentinel}"
+            );
+        }
+        for sentinel in [
+            "public static final int BYTES = 256;",
+            "Preconditions.checkState(bytes.length == 256, \"Invalid message signature size\");",
+            "return packedId != -1 ? new MessageSignature.Packed(packedId) : new MessageSignature.Packed(this);",
+            "public int checksum()",
+            "return Arrays.hashCode(this.bytes);",
+            "public static final int FULL_SIGNATURE = -1;",
+            "int id = input.readVarInt() - 1;",
+        ] {
+            assert!(
+                MESSAGE_SIGNATURE_JAVA.contains(sentinel),
+                "missing MessageSignature sentinel {sentinel}"
+            );
+        }
+        for sentinel in [
+            "public static final int NOT_FOUND = -1;",
+            "private static final int DEFAULT_CAPACITY = 128;",
+            "return new MessageSignatureCache(128);",
+            "if (signature.equals(this.entries[i]))",
+            "return this.entries[id];",
+            "queue.addAll(lastSeen);",
+            "this.entries[i] = queue.removeLast();",
+        ] {
+            assert!(
+                MESSAGE_SIGNATURE_CACHE_JAVA.contains(sentinel),
+                "missing MessageSignatureCache sentinel {sentinel}"
+            );
+        }
+
+        let first = MessageSignature(vec![1; MessageSignature::BYTES]);
+        let second = MessageSignature(vec![2; MessageSignature::BYTES]);
+        let full = MessageSignature(vec![3; MessageSignature::BYTES]);
+        let last_seen = LastSeenMessages {
+            entries: vec![first.clone(), second.clone()],
+        };
+
+        let mut expected_update_bytes = Vec::new();
+        expected_update_bytes.extend_from_slice(&2_i32.to_be_bytes());
+        expected_update_bytes.extend_from_slice(&first.0);
+        expected_update_bytes.extend_from_slice(&second.0);
+        assert_eq!(last_seen.update_signature_bytes(), expected_update_bytes);
+
+        let checksum = last_seen.compute_checksum();
+        assert_ne!(checksum, 0);
+        assert!(LastSeenMessagesUpdateModel {
+            offset: 4,
+            acknowledged: vec![true, false, true],
+            checksum,
+        }
+        .verify_checksum(&last_seen));
+        assert!(LastSeenMessagesUpdateModel {
+            offset: 4,
+            acknowledged: Vec::new(),
+            checksum: LastSeenMessagesUpdateModel::IGNORE_CHECKSUM,
+        }
+        .verify_checksum(&last_seen));
+        assert!(!LastSeenMessagesUpdateModel {
+            offset: 4,
+            acknowledged: Vec::new(),
+            checksum: checksum.wrapping_add(1),
+        }
+        .verify_checksum(&last_seen));
+
+        let mut cache = MessageSignatureCache::new(3);
+        cache.push(first.clone());
+        cache.push(second.clone());
+        assert_eq!(cache.pack(&second), 0);
+        assert_eq!(cache.pack(&first), 1);
+        assert_eq!(cache.pack(&full), MessageSignatureCache::NOT_FOUND);
+
+        let packed = LastSeenMessages {
+            entries: vec![second.clone(), full.clone()],
+        }
+        .pack(&cache);
+        assert_eq!(
+            packed.entries,
+            vec![
+                PackedMessageSignatureModel::Id(0),
+                PackedMessageSignatureModel::Full(full.clone())
+            ]
+        );
+        assert_eq!(
+            packed.unpack(&cache),
+            Some(LastSeenMessages {
+                entries: vec![second.clone(), full]
+            })
+        );
+        assert_eq!(
+            PackedLastSeenMessages {
+                entries: vec![PackedMessageSignatureModel::Id(99)]
+            }
+            .unpack(&cache),
+            None
+        );
+
+        let body = SignedMessageBody {
+            content: "hello".to_string(),
+            timestamp_millis: 1,
+            salt: 2,
+            last_seen: vec![first.clone(), second.clone()],
+        };
+        let signature = MessageSignature(vec![9; MessageSignature::BYTES]);
+        cache.push_body(&body, Some(signature.clone()));
+        assert_eq!(cache.unpack(0), Some(signature));
+        assert_eq!(cache.unpack(1), Some(second));
+        assert_eq!(cache.unpack(2), Some(first));
     }
 }
