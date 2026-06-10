@@ -619,6 +619,7 @@ pub fn play_session_state_from_nbt(
         carried_item: ItemStack::empty(),
         container_state_id: 0,
         next_container_id: 1,
+        active_block_menu: None,
         recipe_book_settings,
     })
 }

@@ -1,4 +1,7 @@
-use super::block_menu_open::{block_menu_open_for_state, write_open_block_menu};
+use super::block_menu_open::{
+    block_menu_open_for_state, next_open_container_id, write_open_block_menu,
+};
+use super::ActiveBlockMenu;
 use super::*;
 
 pub fn cache_login_profile(
@@ -754,7 +757,19 @@ pub fn handle_use_item_on(
     let clicked_state = read_block_model_at(context.world_layout, context.world_seed, clicked_pos);
     if !suppress_using_block {
         if let Some(menu) = block_menu_open_for_state(&clicked_state) {
-            return write_open_block_menu(stream, compression, state, menu, packet.sequence);
+            let container_id = next_open_container_id(state);
+            let active_menu = ActiveBlockMenu::open(
+                container_id,
+                clicked_pos,
+                menu.live_kind,
+                context.world_layout,
+                context.world_seed,
+                context.chunk_cache,
+            );
+            write_open_block_menu(stream, compression, container_id, menu, packet.sequence)?;
+            active_menu.write_full_content(stream, compression, state)?;
+            state.active_block_menu = Some(active_menu);
+            return Ok(());
         }
     }
     if held_item.is_empty() {

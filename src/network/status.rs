@@ -251,6 +251,8 @@ pub(crate) struct PlaySessionState {
     /// IDs 1..100 for server-opened menus; container ID 0 is always the player
     /// inventory menu.
     next_container_id: i32,
+    /// Server-owned state for the currently open non-player block menu.
+    active_block_menu: Option<ActiveBlockMenu>,
     recipe_book_settings: ClientboundRecipeBookSettingsPacket,
 }
 
@@ -268,6 +270,9 @@ mod chunk_b;
 pub use chunk_b::*;
 
 mod block_menu_open;
+
+mod active_block_menu;
+use active_block_menu::ActiveBlockMenu;
 
 mod play_session_state_updates;
 pub use play_session_state_updates::*;

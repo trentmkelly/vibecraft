@@ -1133,6 +1133,7 @@ pub fn session_state_with_inventory(
         carried_item: ItemStack::empty(),
         container_state_id: 0,
         next_container_id: 1,
+        active_block_menu: None,
         recipe_book_settings: super::super::default_recipe_book_settings(),
     }
 }

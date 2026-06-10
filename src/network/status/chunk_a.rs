@@ -2309,6 +2309,7 @@ fn spawn_block_break_drops(
 struct InventoryPacketContext<'a, 'b> {
     recipe_manager: &'a RecipeManagerModel,
     world_layout: &'b WorldLayout,
+    world_seed: i64,
     chunk_cache: &'a GeneratedChunkCache,
     profile_name: &'a str,
 }
@@ -2328,7 +2329,7 @@ fn try_handle_inventory_packet<R: Read>(
                 compression,
                 input,
                 play_state,
-                context.recipe_manager,
+                context,
             )?;
         }
         SERVERBOUND_PICK_ITEM_FROM_BLOCK_PACKET_ID => {
@@ -2374,14 +2375,32 @@ fn handle_container_click_packet<R: Read>(
     compression: CompressionState,
     input: &mut R,
     play_state: &mut PlaySessionState,
-    recipe_manager: &RecipeManagerModel,
+    context: InventoryPacketContext<'_, '_>,
 ) -> io::Result<()> {
-    // Only handle player inventory (container_id 0) for now.
     // Java: ServerGamePacketListenerImpl.handleContainerClick()
     let Ok(click) = ServerboundContainerClickPacket::read(input) else {
         return Ok(());
     };
     if click.container_id != 0 {
+        let Some(mut active_menu) = play_state.active_block_menu.take() else {
+            return Ok(());
+        };
+        let instructions = active_menu.handle_click(
+            &click,
+            play_state,
+            context.world_layout,
+            context.world_seed,
+            context.chunk_cache,
+        );
+        play_state.active_block_menu = Some(active_menu);
+        for instruction in instructions {
+            write_container_click_instruction(
+                stream,
+                compression,
+                instruction,
+                context.recipe_manager,
+            )?;
+        }
         return Ok(());
     }
     let instructions = handle_container_click(
@@ -2391,7 +2410,7 @@ fn handle_container_click_packet<R: Read>(
         &mut play_state.carried_item,
     );
     for instruction in instructions {
-        write_container_click_instruction(stream, compression, instruction, recipe_manager)?;
+        write_container_click_instruction(stream, compression, instruction, context.recipe_manager)?;
     }
     Ok(())
 }
@@ -2923,6 +2942,7 @@ impl<'a, 'b> DecodedPlayPacketContext<'a, 'b> {
         InventoryPacketContext {
             recipe_manager: self.recipe_manager,
             world_layout: self.world_layout,
+            world_seed: self.world_seed,
             chunk_cache: self.chunk_cache,
             profile_name: &self.profile.name,
         }

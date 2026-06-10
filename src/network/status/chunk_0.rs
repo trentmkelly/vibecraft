@@ -49,6 +49,7 @@ impl Default for PlaySessionState {
             carried_item: ItemStack::empty(),
             container_state_id: 0,
             next_container_id: 1,
+            active_block_menu: None,
             recipe_book_settings: ClientboundRecipeBookSettingsPacket {
                 crafting: RecipeBookTypeSettings::CLOSED_UNFILTERED,
                 furnace: RecipeBookTypeSettings::CLOSED_UNFILTERED,
@@ -325,6 +326,51 @@ impl GeneratedChunkCache {
         prev
     }
 
+    pub fn block_entity_nbt_at(
+        &self,
+        world_root: &Path,
+        world_seed: i64,
+        pos: crate::block_update::BlockPos,
+    ) -> Option<Tag> {
+        let chunk_pos = ChunkPos {
+            x: pos.x.div_euclid(16),
+            z: pos.z.div_euclid(16),
+        };
+        let _ = self.get_or_load(chunk_pos.x, chunk_pos.z, world_root, world_seed);
+        let map = lock_mutex(&self.chunks);
+        let chunk = map.get(&chunk_pos)?;
+        chunk
+            .block_entities
+            .iter()
+            .find(|tag| block_entity_tag_position(tag) == Some(pos))
+            .cloned()
+    }
+
+    pub fn set_block_entity_nbt(
+        &self,
+        world_root: &Path,
+        world_seed: i64,
+        pos: crate::block_update::BlockPos,
+        entity_tag: Tag,
+    ) -> bool {
+        let chunk_pos = ChunkPos {
+            x: pos.x.div_euclid(16),
+            z: pos.z.div_euclid(16),
+        };
+        let _ = self.get_or_load(chunk_pos.x, chunk_pos.z, world_root, world_seed);
+        let updated = {
+            let mut map = lock_mutex(&self.chunks);
+            let Some(arc) = map.get_mut(&chunk_pos) else {
+                return false;
+            };
+            Arc::make_mut(arc).set_block_entity_nbt(entity_tag)
+        };
+        if updated {
+            lock_mutex(&self.dirty).insert(chunk_pos);
+        }
+        updated
+    }
+
     /// Persist every dirty chunk to its region file and clear the dirty
     /// set. Returns the number of chunks written.
     ///
@@ -372,6 +418,27 @@ impl GeneratedChunkCache {
         }
         written
     }
+}
+
+fn block_entity_tag_position(tag: &Tag) -> Option<crate::block_update::BlockPos> {
+    let Tag::Compound(entries) = tag else {
+        return None;
+    };
+    Some(crate::block_update::BlockPos {
+        x: tag_int_field(entries, "x")?,
+        y: tag_int_field(entries, "y")?,
+        z: tag_int_field(entries, "z")?,
+    })
+}
+
+fn tag_int_field(entries: &[(String, Tag)], key: &str) -> Option<i32> {
+    entries
+        .iter()
+        .find(|(name, _)| name == key)
+        .and_then(|(_, tag)| match tag {
+            Tag::Int(value) => Some(*value),
+            _ => None,
+        })
 }
 
 /// Spawn a background thread that periodically flushes dirty chunks from
