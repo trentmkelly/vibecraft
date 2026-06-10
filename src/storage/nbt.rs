@@ -5,6 +5,7 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 
 pub mod accounter;
+pub mod compound_tag;
 pub mod nbt_io;
 pub mod numeric;
 pub mod snbt_operations;
@@ -162,7 +163,7 @@ impl Tag {
                     let name = read_string(reader)?;
                     let payload =
                         Tag::read_payload_at_depth(child_id, reader, depth + 1, max_depth)?;
-                    values.push((name, payload));
+                    compound_tag::put_compound_entry(&mut values, name, payload);
                 }
                 Tag::Compound(values)
             }
