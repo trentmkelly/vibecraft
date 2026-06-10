@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use std::collections::VecDeque;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DecodedPacket {
@@ -23,6 +24,164 @@ pub enum ProtocolState {
 pub enum PacketDirection {
     Serverbound,
     Clientbound,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PacketFlow {
+    Serverbound,
+    Clientbound,
+}
+
+impl PacketFlow {
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::Serverbound => "serverbound",
+            Self::Clientbound => "clientbound",
+        }
+    }
+
+    pub fn get_opposite(self) -> Self {
+        match self {
+            Self::Serverbound => Self::Clientbound,
+            Self::Clientbound => Self::Serverbound,
+        }
+    }
+}
+
+impl std::fmt::Display for PacketFlow {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Serverbound => "SERVERBOUND",
+            Self::Clientbound => "CLIENTBOUND",
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConnectionProtocol {
+    Handshaking,
+    Play,
+    Status,
+    Login,
+    Configuration,
+}
+
+impl ConnectionProtocol {
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::Handshaking => "handshake",
+            Self::Play => "play",
+            Self::Status => "status",
+            Self::Login => "login",
+            Self::Configuration => "configuration",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DisconnectionDetails {
+    pub reason: String,
+    pub report: Option<PathBuf>,
+    pub bug_report_link: Option<String>,
+}
+
+impl DisconnectionDetails {
+    pub fn new(reason: impl Into<String>) -> Self {
+        Self {
+            reason: reason.into(),
+            report: None,
+            bug_report_link: None,
+        }
+    }
+
+    pub fn with_report_and_bug_link(
+        reason: impl Into<String>,
+        report: Option<PathBuf>,
+        bug_report_link: Option<String>,
+    ) -> Self {
+        Self {
+            reason: reason.into(),
+            report,
+            bug_report_link,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PacketErrorReport {
+    pub protocol: &'static str,
+    pub flow: PacketFlow,
+    pub packet_state: ProtocolState,
+    pub packet_id: i32,
+    pub cause: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CrashReportConnectionDetails {
+    pub protocol: &'static str,
+    pub flow: String,
+    pub listener_details: Vec<(String, String)>,
+}
+
+pub trait JavaPacketListener {
+    fn flow(&self) -> PacketFlow;
+    fn protocol(&self) -> ConnectionProtocol;
+    fn on_disconnect(&mut self, details: DisconnectionDetails);
+    fn is_accepting_messages(&self) -> bool;
+
+    fn on_packet_error(
+        &self,
+        packet: &DecodedPacket,
+        cause: impl std::fmt::Display,
+    ) -> PacketErrorReport {
+        PacketErrorReport {
+            protocol: self.protocol().id(),
+            flow: self.flow(),
+            packet_state: packet.state,
+            packet_id: packet.id,
+            cause: cause.to_string(),
+        }
+    }
+
+    fn create_disconnection_info(
+        &self,
+        reason: impl Into<String>,
+        _cause: Option<&str>,
+    ) -> DisconnectionDetails {
+        DisconnectionDetails::new(reason)
+    }
+
+    fn should_handle_message(&self, _packet: &DecodedPacket) -> bool {
+        self.is_accepting_messages()
+    }
+
+    fn fill_crash_report(&self) -> CrashReportConnectionDetails {
+        let mut details = CrashReportConnectionDetails {
+            protocol: self.protocol().id(),
+            flow: self.flow().to_string(),
+            listener_details: Vec::new(),
+        };
+        self.fill_listener_specific_crash_details(&mut details);
+        details
+    }
+
+    fn fill_listener_specific_crash_details(&self, _details: &mut CrashReportConnectionDetails) {}
+}
+
+pub trait ClientboundPacketListener: JavaPacketListener {
+    fn clientbound_flow(&self) -> PacketFlow {
+        PacketFlow::Clientbound
+    }
+}
+
+pub trait ServerboundPacketListener: JavaPacketListener {
+    fn serverbound_flow(&self) -> PacketFlow {
+        PacketFlow::Serverbound
+    }
+}
+
+pub trait TickablePacketListener: JavaPacketListener {
+    fn tick(&mut self);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -140,8 +299,9 @@ impl PacketListener for RecordingListener {
 #[cfg(test)]
 mod tests {
     use super::{
-        DecodedPacket, DispatchOutcome, MainThreadPacketQueue, PacketDirection, ProtocolState,
-        RecordingListener,
+        ClientboundPacketListener, ConnectionProtocol, DecodedPacket, DisconnectionDetails,
+        DispatchOutcome, JavaPacketListener, MainThreadPacketQueue, PacketDirection, PacketFlow,
+        ProtocolState, RecordingListener, ServerboundPacketListener, TickablePacketListener,
     };
 
     fn packet(id: i32) -> DecodedPacket {
@@ -204,5 +364,182 @@ mod tests {
                 super::CloseStep::HandleDisconnection,
             ]
         );
+    }
+
+    #[derive(Debug)]
+    struct TestJavaListener {
+        flow: PacketFlow,
+        protocol: ConnectionProtocol,
+        accepting: bool,
+        disconnected: Option<DisconnectionDetails>,
+        ticks: u32,
+    }
+
+    impl TestJavaListener {
+        fn new(flow: PacketFlow) -> Self {
+            Self {
+                flow,
+                protocol: ConnectionProtocol::Configuration,
+                accepting: true,
+                disconnected: None,
+                ticks: 0,
+            }
+        }
+    }
+
+    impl JavaPacketListener for TestJavaListener {
+        fn flow(&self) -> PacketFlow {
+            self.flow
+        }
+
+        fn protocol(&self) -> ConnectionProtocol {
+            self.protocol
+        }
+
+        fn on_disconnect(&mut self, details: DisconnectionDetails) {
+            self.disconnected = Some(details);
+        }
+
+        fn is_accepting_messages(&self) -> bool {
+            self.accepting
+        }
+    }
+
+    impl ClientboundPacketListener for TestJavaListener {}
+    impl ServerboundPacketListener for TestJavaListener {}
+
+    impl TickablePacketListener for TestJavaListener {
+        fn tick(&mut self) {
+            self.ticks += 1;
+        }
+    }
+
+    #[test]
+    fn packet_flow_and_connection_protocol_match_java_ids() {
+        const PACKET_FLOW_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/PacketFlow.java"
+        );
+        const CONNECTION_PROTOCOL_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/ConnectionProtocol.java"
+        );
+
+        for sentinel in [
+            "SERVERBOUND(\"serverbound\")",
+            "CLIENTBOUND(\"clientbound\")",
+            "return this == CLIENTBOUND ? SERVERBOUND : CLIENTBOUND;",
+            "public String id()",
+        ] {
+            assert!(
+                PACKET_FLOW_JAVA.contains(sentinel),
+                "missing PacketFlow sentinel {sentinel}"
+            );
+        }
+        for sentinel in [
+            "HANDSHAKING(\"handshake\")",
+            "PLAY(\"play\")",
+            "STATUS(\"status\")",
+            "LOGIN(\"login\")",
+            "CONFIGURATION(\"configuration\")",
+            "public String id()",
+        ] {
+            assert!(
+                CONNECTION_PROTOCOL_JAVA.contains(sentinel),
+                "missing ConnectionProtocol sentinel {sentinel}"
+            );
+        }
+
+        assert_eq!(PacketFlow::Serverbound.id(), "serverbound");
+        assert_eq!(PacketFlow::Clientbound.id(), "clientbound");
+        assert_eq!(
+            PacketFlow::Clientbound.get_opposite(),
+            PacketFlow::Serverbound
+        );
+        assert_eq!(
+            PacketFlow::Serverbound.get_opposite(),
+            PacketFlow::Clientbound
+        );
+        assert_eq!(PacketFlow::Clientbound.to_string(), "CLIENTBOUND");
+
+        assert_eq!(ConnectionProtocol::Handshaking.id(), "handshake");
+        assert_eq!(ConnectionProtocol::Play.id(), "play");
+        assert_eq!(ConnectionProtocol::Status.id(), "status");
+        assert_eq!(ConnectionProtocol::Login.id(), "login");
+        assert_eq!(ConnectionProtocol::Configuration.id(), "configuration");
+    }
+
+    #[test]
+    fn java_packet_listener_defaults_match_source_contract() {
+        const PACKET_LISTENER_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/PacketListener.java"
+        );
+        const DISCONNECTION_DETAILS_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/DisconnectionDetails.java"
+        );
+
+        for sentinel in [
+            "PacketFlow flow();",
+            "ConnectionProtocol protocol();",
+            "void onDisconnect(DisconnectionDetails details);",
+            "throw PacketUtils.makeReportedException(cause, packet, this);",
+            "return new DisconnectionDetails(reason);",
+            "return this.isAcceptingMessages();",
+            "connection.setDetail(\"Protocol\", () -> this.protocol().id());",
+            "connection.setDetail(\"Flow\", () -> this.flow().toString());",
+        ] {
+            assert!(
+                PACKET_LISTENER_JAVA.contains(sentinel),
+                "missing PacketListener sentinel {sentinel}"
+            );
+        }
+        assert!(DISCONNECTION_DETAILS_JAVA.contains(
+            "public record DisconnectionDetails(Component reason, Optional<Path> report, Optional<URI> bugReportLink)"
+        ));
+        assert!(DISCONNECTION_DETAILS_JAVA
+            .contains("this(reason, Optional.empty(), Optional.empty());"));
+
+        let packet = packet(7);
+        let mut listener = TestJavaListener::new(PacketFlow::Clientbound);
+        assert!(listener.should_handle_message(&packet));
+        listener.accepting = false;
+        assert!(!listener.should_handle_message(&packet));
+
+        let info = listener.create_disconnection_info("{\"text\":\"bye\"}", Some("ignored"));
+        assert_eq!(info, DisconnectionDetails::new("{\"text\":\"bye\"}"));
+        listener.on_disconnect(info.clone());
+        assert_eq!(listener.disconnected, Some(info));
+
+        let error = listener.on_packet_error(&packet, "boom");
+        assert_eq!(error.protocol, "configuration");
+        assert_eq!(error.flow, PacketFlow::Clientbound);
+        assert_eq!(error.packet_id, 7);
+        assert_eq!(error.cause, "boom");
+
+        let crash = listener.fill_crash_report();
+        assert_eq!(crash.protocol, "configuration");
+        assert_eq!(crash.flow, "CLIENTBOUND");
+        assert!(crash.listener_details.is_empty());
+    }
+
+    #[test]
+    fn clientbound_serverbound_and_tickable_listener_surfaces_match_java() {
+        const CLIENTBOUND_LISTENER_JAVA: &str =
+            include_str!("../../../decompiled-server-26.1.2/net/minecraft/network/ClientboundPacketListener.java");
+        const SERVERBOUND_LISTENER_JAVA: &str =
+            include_str!("../../../decompiled-server-26.1.2/net/minecraft/network/ServerboundPacketListener.java");
+        const TICKABLE_LISTENER_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/TickablePacketListener.java"
+        );
+
+        assert!(CLIENTBOUND_LISTENER_JAVA.contains("return PacketFlow.CLIENTBOUND;"));
+        assert!(SERVERBOUND_LISTENER_JAVA.contains("return PacketFlow.SERVERBOUND;"));
+        assert!(TICKABLE_LISTENER_JAVA.contains("void tick();"));
+
+        let mut listener = TestJavaListener::new(PacketFlow::Clientbound);
+        assert_eq!(listener.clientbound_flow(), PacketFlow::Clientbound);
+        listener.flow = PacketFlow::Serverbound;
+        assert_eq!(listener.serverbound_flow(), PacketFlow::Serverbound);
+        listener.tick();
+        listener.tick();
+        assert_eq!(listener.ticks, 2);
     }
 }
