@@ -1,6 +1,6 @@
 use super::tag_access::{
-    CollectToTagVisitor, NbtFieldSelectorSpec, NbtFieldTree, NbtStreamTagVisitor, SkipAllVisitor,
-    SkipFieldsVisitor, StreamEntryResult, StreamValueResult,
+    CollectFieldsVisitor, CollectToTagVisitor, NbtFieldSelectorSpec, NbtFieldTree,
+    NbtStreamTagVisitor, SkipAllVisitor, SkipFieldsVisitor, StreamEntryResult, StreamValueResult,
 };
 use super::tag_metadata::tag_type;
 use super::Tag;
@@ -13,6 +13,9 @@ const SKIP_FIELDS_JAVA: &str =
     include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/visitors/SkipFields.java");
 const COLLECT_TO_TAG_JAVA: &str = include_str!(
     "../../../../decompiled-server-26.1.2/net/minecraft/nbt/visitors/CollectToTag.java"
+);
+const COLLECT_FIELDS_JAVA: &str = include_str!(
+    "../../../../decompiled-server-26.1.2/net/minecraft/nbt/visitors/CollectFields.java"
 );
 const FIELD_SELECTOR_JAVA: &str = include_str!(
     "../../../../decompiled-server-26.1.2/net/minecraft/nbt/visitors/FieldSelector.java"
@@ -379,6 +382,96 @@ fn skip_fields_visitor_matches_java_selected_field_filtering() {
                     ),
                     ("Flag".to_string(), Tag::Byte(1)),
                 ])
+            )
+        ]))
+    );
+}
+
+#[test]
+fn collect_fields_visitor_matches_java_selected_collection_flow() {
+    for sentinel in [
+        "public class CollectFields extends CollectToTag",
+        "private int fieldsToGetCount;",
+        "private final Set<TagType<?>> wantedTypes;",
+        "private final Deque<FieldTree> stack = new ArrayDeque<>();",
+        "this.fieldsToGetCount = wantedFields.length;",
+        "wantedTypes.add(wantedField.type());",
+        "wantedTypes.add(CompoundTag.TYPE);",
+        "return type != CompoundTag.TYPE ? StreamTagVisitor.ValueResult.HALT : super.visitRootEntry(type);",
+        "if (this.depth() > currentFrame.depth())",
+        "else if (this.fieldsToGetCount <= 0)",
+        "return StreamTagVisitor.EntryResult.BREAK;",
+        "return !this.wantedTypes.contains(type) ? StreamTagVisitor.EntryResult.SKIP : super.visitEntry(type);",
+        "if (currentFrame.selectedFields().remove(id, type))",
+        "this.fieldsToGetCount--;",
+        "FieldTree newFrame = currentFrame.fieldsToRecurse().get(id);",
+        "this.stack.push(newFrame);",
+        "return StreamTagVisitor.EntryResult.SKIP;",
+        "public int getMissingFieldCount()",
+    ] {
+        assert!(
+            COLLECT_FIELDS_JAVA.contains(sentinel),
+            "missing CollectFields sentinel {sentinel}"
+        );
+    }
+
+    let selectors = [
+        NbtFieldSelectorSpec::root(tag_type(3), "DataVersion"),
+        NbtFieldSelectorSpec::child("Data", tag_type(8), "LevelName"),
+    ];
+    let mut non_compound_root = CollectFieldsVisitor::new(&selectors);
+    assert_eq!(
+        non_compound_root.visit_root_entry(tag_type(3)),
+        StreamValueResult::Halt
+    );
+
+    let mut visitor = CollectFieldsVisitor::new(&selectors);
+    assert_eq!(visitor.missing_field_count(), 2);
+    assert_eq!(
+        visitor.visit_root_entry(tag_type(10)),
+        StreamValueResult::Continue
+    );
+    assert_eq!(visitor.visit_entry(tag_type(4)), StreamEntryResult::Skip);
+    assert_eq!(visitor.visit_entry(tag_type(3)), StreamEntryResult::Enter);
+    assert_eq!(
+        visitor.visit_named_entry(tag_type(3), "DataVersion"),
+        StreamEntryResult::Enter
+    );
+    assert_eq!(visitor.visit_int(4790), StreamValueResult::Continue);
+    assert_eq!(visitor.missing_field_count(), 1);
+
+    assert_eq!(visitor.visit_entry(tag_type(10)), StreamEntryResult::Enter);
+    assert_eq!(
+        visitor.visit_named_entry(tag_type(10), "Data"),
+        StreamEntryResult::Enter
+    );
+    assert_eq!(visitor.depth(), 2);
+    assert_eq!(visitor.visit_entry(tag_type(8)), StreamEntryResult::Enter);
+    assert_eq!(
+        visitor.visit_named_entry(tag_type(8), "IgnoredString"),
+        StreamEntryResult::Skip
+    );
+    assert_eq!(visitor.visit_entry(tag_type(8)), StreamEntryResult::Enter);
+    assert_eq!(
+        visitor.visit_named_entry(tag_type(8), "LevelName"),
+        StreamEntryResult::Enter
+    );
+    assert_eq!(visitor.visit_string("world"), StreamValueResult::Continue);
+    assert_eq!(visitor.missing_field_count(), 0);
+    assert_eq!(visitor.visit_entry(tag_type(1)), StreamEntryResult::Break);
+    assert_eq!(visitor.visit_container_end(), StreamValueResult::Continue);
+    assert_eq!(visitor.visit_container_end(), StreamValueResult::Continue);
+
+    assert_eq!(
+        visitor.get_result(),
+        Some(&Tag::Compound(vec![
+            ("DataVersion".to_string(), Tag::Int(4790)),
+            (
+                "Data".to_string(),
+                Tag::Compound(vec![(
+                    "LevelName".to_string(),
+                    Tag::String("world".to_string())
+                )])
             )
         ]))
     );

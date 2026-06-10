@@ -206,6 +206,15 @@ impl NbtFieldTree {
     pub fn is_selected(&self, tag_type: &NbtTagTypeLookup, id: &str) -> bool {
         self.selected_fields.get(id) == Some(tag_type)
     }
+
+    fn remove_selected(&mut self, tag_type: &NbtTagTypeLookup, id: &str) -> bool {
+        if self.is_selected(tag_type, id) {
+            self.selected_fields.remove(id);
+            true
+        } else {
+            false
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -468,6 +477,174 @@ impl NbtStreamTagVisitor for SkipFieldsVisitor {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct CollectFieldsVisitor {
+    collector: CollectToTagVisitor,
+    fields_to_get_count: usize,
+    wanted_type_ids: Vec<u8>,
+    stack: Vec<NbtFieldTree>,
+}
+
+impl CollectFieldsVisitor {
+    pub fn new(wanted_fields: &[NbtFieldSelectorSpec]) -> Self {
+        let mut root_frame = NbtFieldTree::create_root();
+        let mut wanted_type_ids = Vec::new();
+        for wanted_field in wanted_fields {
+            root_frame.add_entry(wanted_field);
+            push_unique_type_id(&mut wanted_type_ids, &wanted_field.tag_type);
+        }
+        push_unique_type_id(&mut wanted_type_ids, &tag_type(10));
+
+        Self {
+            collector: CollectToTagVisitor::new(),
+            fields_to_get_count: wanted_fields.len(),
+            wanted_type_ids,
+            stack: vec![root_frame],
+        }
+    }
+
+    pub fn get_result(&self) -> Option<&Tag> {
+        self.collector.get_result()
+    }
+
+    pub fn depth(&self) -> usize {
+        self.collector.depth()
+    }
+
+    pub fn missing_field_count(&self) -> usize {
+        self.fields_to_get_count
+    }
+
+    fn wants_type(&self, tag_type: &NbtTagTypeLookup) -> bool {
+        tag_type_id(tag_type).is_some_and(|id| self.wanted_type_ids.contains(&id))
+    }
+}
+
+impl NbtStreamTagVisitor for CollectFieldsVisitor {
+    fn visit_end(&mut self) -> StreamValueResult {
+        self.collector.visit_end()
+    }
+
+    fn visit_string(&mut self, value: &str) -> StreamValueResult {
+        self.collector.visit_string(value)
+    }
+
+    fn visit_byte(&mut self, value: i8) -> StreamValueResult {
+        self.collector.visit_byte(value)
+    }
+
+    fn visit_short(&mut self, value: i16) -> StreamValueResult {
+        self.collector.visit_short(value)
+    }
+
+    fn visit_int(&mut self, value: i32) -> StreamValueResult {
+        self.collector.visit_int(value)
+    }
+
+    fn visit_long(&mut self, value: i64) -> StreamValueResult {
+        self.collector.visit_long(value)
+    }
+
+    fn visit_float(&mut self, value: f32) -> StreamValueResult {
+        self.collector.visit_float(value)
+    }
+
+    fn visit_double(&mut self, value: f64) -> StreamValueResult {
+        self.collector.visit_double(value)
+    }
+
+    fn visit_byte_array(&mut self, value: &[i8]) -> StreamValueResult {
+        self.collector.visit_byte_array(value)
+    }
+
+    fn visit_int_array(&mut self, value: &[i32]) -> StreamValueResult {
+        self.collector.visit_int_array(value)
+    }
+
+    fn visit_long_array(&mut self, value: &[i64]) -> StreamValueResult {
+        self.collector.visit_long_array(value)
+    }
+
+    fn visit_list(&mut self, element_type: NbtTagTypeLookup, size: usize) -> StreamValueResult {
+        self.collector.visit_list(element_type, size)
+    }
+
+    fn visit_entry(&mut self, tag_type: NbtTagTypeLookup) -> StreamEntryResult {
+        if self
+            .stack
+            .last()
+            .is_some_and(|current_frame| self.depth() > current_frame.depth)
+        {
+            return StreamEntryResult::Enter;
+        }
+
+        if self.fields_to_get_count == 0 {
+            StreamEntryResult::Break
+        } else if !self.wants_type(&tag_type) {
+            StreamEntryResult::Skip
+        } else {
+            StreamEntryResult::Enter
+        }
+    }
+
+    fn visit_named_entry(&mut self, tag_type: NbtTagTypeLookup, id: &str) -> StreamEntryResult {
+        if self
+            .stack
+            .last()
+            .is_some_and(|current_frame| self.depth() > current_frame.depth)
+        {
+            return self.collector.visit_named_entry(tag_type, id);
+        }
+
+        if self
+            .stack
+            .last_mut()
+            .is_some_and(|current_frame| current_frame.remove_selected(&tag_type, id))
+        {
+            self.fields_to_get_count = self.fields_to_get_count.saturating_sub(1);
+            return self.collector.visit_named_entry(tag_type, id);
+        }
+
+        if tag_type_id(&tag_type) == Some(10) {
+            let new_frame = self
+                .stack
+                .last()
+                .and_then(|current_frame| current_frame.fields_to_recurse.get(id))
+                .cloned();
+            if let Some(new_frame) = new_frame {
+                self.stack.push(new_frame);
+                return self.collector.visit_named_entry(tag_type, id);
+            }
+        }
+
+        StreamEntryResult::Skip
+    }
+
+    fn visit_element(&mut self, tag_type: NbtTagTypeLookup, index: usize) -> StreamEntryResult {
+        self.collector.visit_element(tag_type, index)
+    }
+
+    fn visit_container_end(&mut self) -> StreamValueResult {
+        if self
+            .stack
+            .last()
+            .is_some_and(|frame| self.depth() == frame.depth)
+        {
+            self.stack.pop();
+        }
+
+        self.collector.visit_container_end()
+    }
+
+    fn visit_root_entry(&mut self, tag_type: NbtTagTypeLookup) -> StreamValueResult {
+        if tag_type_id(&tag_type) != Some(10) {
+            StreamValueResult::Halt
+        } else {
+            self.collector.visit_root_entry(tag_type)
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 enum ContainerBuilder {
     Root {
         result: Option<Tag>,
@@ -525,6 +702,14 @@ fn tag_type_id(tag_type: &NbtTagTypeLookup) -> Option<u8> {
     match tag_type {
         NbtTagTypeLookup::Known(info) => Some(info.id),
         NbtTagTypeLookup::Invalid { .. } => None,
+    }
+}
+
+fn push_unique_type_id(ids: &mut Vec<u8>, tag_type: &NbtTagTypeLookup) {
+    if let Some(id) = tag_type_id(tag_type) {
+        if !ids.contains(&id) {
+            ids.push(id);
+        }
     }
 }
 
