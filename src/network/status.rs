@@ -263,6 +263,7 @@ pub use chunk_0_2::*;
 mod chunk_a;
 pub use chunk_a::*;
 
+mod block_placement_live;
 mod chunk_b;
 pub use chunk_b::*;
 

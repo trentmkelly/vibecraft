@@ -1,5 +1,5 @@
-use super::*;
 use super::block_menu_open::{block_menu_open_for_state, write_open_block_menu};
+use super::*;
 
 pub fn cache_login_profile(
     player_access: &Arc<Mutex<PlayerAccess>>,
@@ -510,9 +510,9 @@ pub struct UseItemOnContext<'a, 'b> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct BlockItemPlacementTarget {
-    pos: crate::block_update::BlockPos,
-    existing_state: crate::block_behavior::BlockStateModel,
+pub(super) struct BlockItemPlacementTarget {
+    pub(super) pos: crate::block_update::BlockPos,
+    pub(super) existing_state: crate::block_behavior::BlockStateModel,
 }
 
 pub(super) fn write_block_change_ack<W: Write>(
@@ -538,7 +538,7 @@ fn held_item_slot_for_use_item_on(
     }
 }
 
-fn resolve_block_item_placement_target(
+pub(super) fn resolve_block_item_placement_target(
     world_layout: &WorldLayout,
     world_seed: i64,
     packet: &ServerboundUseItemOnPacket,
@@ -568,7 +568,7 @@ fn resolve_block_item_placement_target(
     }
 }
 
-fn place_block_item_in_world(
+pub(super) fn place_block_item_in_world(
     context: &mut UseItemOnContext<'_, '_>,
     target: crate::block_update::BlockPos,
     item_name: &str,
@@ -638,7 +638,7 @@ fn write_player_inventory_slot_update<W: Write>(
     )
 }
 
-fn consume_placed_block_item<W: Write>(
+pub(super) fn consume_placed_block_item<W: Write>(
     writer: &mut W,
     compression: CompressionState,
     state: &mut PlaySessionState,
@@ -657,26 +657,6 @@ fn consume_placed_block_item<W: Write>(
         compression,
         held_slot,
         raw_stack_for_player_inventory(stack),
-    )
-}
-
-fn write_block_item_placement_packets<W: Write>(
-    writer: &mut W,
-    compression: CompressionState,
-    sequence: i32,
-    target: crate::block_update::BlockPos,
-    block_state_id: i32,
-) -> io::Result<()> {
-    write_block_change_ack(writer, compression, sequence)?;
-    let packed_pos = block_pos_as_long(target.x, target.y, target.z);
-    write_framed_packet_with_compression(
-        writer,
-        compression,
-        CLIENTBOUND_BLOCK_UPDATE_PACKET_ID,
-        |payload| {
-            payload.write_all(&packed_pos.to_be_bytes())?;
-            write_var_i32(payload, block_state_id)
-        },
     )
 }
 
@@ -795,9 +775,9 @@ pub fn handle_use_item_on(
     }
 
     // Java: BlockItem.place() only proceeds for items backed by a Block.
-    let Some(block_state_id) = block_state_name_network_id(item_name) else {
+    if block_state_name_network_id(item_name).is_none() {
         return write_block_change_ack(stream, compression, packet.sequence);
-    };
+    }
 
     let target =
         resolve_block_item_placement_target(context.world_layout, context.world_seed, packet);
@@ -805,15 +785,20 @@ pub fn handle_use_item_on(
         return write_block_change_ack(stream, compression, packet.sequence);
     }
 
-    place_block_item_in_world(&mut context, target.pos, item_name);
-    write_block_item_placement_packets(
+    // Java BlockItem.place: BlockPlaceContext -> getPlacementState ->
+    // canSurvive -> Level.setBlock + neighbour shape updates; the whole
+    // pipeline lives in block_placement_live.
+    super::block_placement_live::place_block_item_live(
         stream,
         compression,
-        packet.sequence,
-        target.pos,
-        block_state_id,
-    )?;
-    consume_placed_block_item(stream, compression, state, held_slot)
+        state,
+        &mut context,
+        packet,
+        item_name,
+        clicked_pos,
+        target,
+        held_slot,
+    )
 }
 
 pub fn bucket_fluid_kind(item_name: &str) -> Option<FluidKind> {
