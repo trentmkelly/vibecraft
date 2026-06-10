@@ -6,6 +6,8 @@ pub mod chat_package_info;
 pub mod chat_type;
 #[path = "common_components.rs"]
 pub mod common_components;
+#[path = "component_contents.rs"]
+pub mod component_contents;
 #[path = "filter_mask.rs"]
 pub mod filter_mask;
 #[path = "formatted_text.rs"]
