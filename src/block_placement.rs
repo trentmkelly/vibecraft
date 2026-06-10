@@ -48,6 +48,9 @@ pub struct PlaceContext {
     pub player_pitch: f32,
     /// `isSecondaryUseActive()` — sneaking.
     pub secondary_use_active: bool,
+    /// A pre-rolled `random.nextInt(25)` for growing-plant head placements
+    /// (kelp, twisting/weeping vines, cave vines sample a random AGE).
+    pub random_age_roll: i32,
 }
 
 impl PlaceContext {
@@ -60,6 +63,16 @@ impl PlaceContext {
     /// Java `BlockPlaceContext.getNearestLookingDirection()`.
     pub fn nearest_looking_direction(&self) -> Direction {
         self.nearest_looking_directions()[0]
+    }
+
+    /// Java `BlockPlaceContext.getNearestLookingVerticalDirection()` =
+    /// `Direction.getFacingAxis(player, Axis.Y)`: DOWN when looking down.
+    pub fn nearest_looking_vertical_direction(&self) -> Direction {
+        if self.player_pitch > 0.0 {
+            Direction::Down
+        } else {
+            Direction::Up
+        }
     }
 
     /// Java `Direction.orderedByNearest(player)` (`BlockPlaceContext
@@ -340,6 +353,43 @@ pub const PORTED_BLOCK_TYPES: &[&str] = &[
     "nylium",
     "mangrove_roots",
     "mossy_carpet",
+    "bamboo_stalk",
+    "base_coral_plant",
+    "base_coral_fan",
+    "coral",
+    "coral_fan",
+    "coral_plant",
+    "base_coral_wall_fan",
+    "coral_wall_fan",
+    "sculk_sensor",
+    "calibrated_sculk_sensor",
+    "sculk_shrieker",
+    "ceiling_hanging_sign",
+    "wall_hanging_sign",
+    "chiseled_book_shelf",
+    "copper_golem_statue",
+    "weathering_copper_golem_statue",
+    "dried_ghast",
+    "chorus_plant",
+    "double_plant",
+    "tall_flower",
+    "tall_seagrass",
+    "multiface",
+    "glow_lichen",
+    "sculk_vein",
+    "vine",
+    "kelp",
+    "twisting_vines",
+    "weeping_vines",
+    "cave_vines",
+    "hanging_roots",
+    "huge_mushroom",
+    "mangrove_propagule",
+    "pitcher_crop",
+    "shelf",
+    "small_dripleaf",
+    "big_dripleaf",
+    "pointed_dripstone",
 ];
 
 /// Java `Block.getStateForPlacement` for `block_id` (the item's block).
@@ -358,7 +408,8 @@ pub fn state_for_placement(
         .or_else(|| sliced_placement(block_type, state.clone(), context, world))
         .or_else(|| attached_placement(block_type, state.clone(), context, world))
         .or_else(|| stacking_placement(block_type, block_id, state.clone(), context, world))
-        .or_else(|| connecting_placement(block_type, block_id, state, context, world))
+        .or_else(|| connecting_placement(block_type, block_id, state.clone(), context, world))
+        .or_else(|| plants::plant_placement(block_type, block_id, state, context, world))
         .or_else(|| unported_or_default(block_type, block_id))
 }
 
@@ -1021,49 +1072,15 @@ fn stacking_placement(
 /// override is not ported yet (`None` -> caller keeps legacy behavior).
 fn unported_or_default(block_type: &str, block_id: &str) -> Option<PlacementOutcome> {
     /// Types with a Java getStateForPlacement override that is NOT yet ported.
+    // Remaining Java overrides blocked on other subsystems:
+    // copper chests (weathering-state pairing), creaking heart
+    // (EnvironmentAttributes), redstone wire (signal graph), and the
+    // GameMaster test blocks.
     const UNPORTED: &[&str] = &[
-        "abstract_skull",
-        "bamboo_stalk",
-        "base_coral_plant",
-        "base_coral_fan",
-        "base_coral_wall_fan",
-        "coral",
-        "coral_fan",
-        "coral_plant",
-        "coral_wall_fan",
-        "big_dripleaf",
-        "calibrated_sculk_sensor",
-        "sculk_sensor",
-        "sculk_shrieker",
-        "ceiling_hanging_sign",
-        "wall_hanging_sign",
-        "chiseled_book_shelf",
-        "chorus_plant",
         "copper_chest",
         "weathering_copper_chest",
-        "copper_golem_statue",
-        "weathering_copper_golem_statue",
         "creaking_heart",
-        "dried_ghast",
-        "double_plant",
-        "tall_flower",
-        "glow_lichen",
-        "multiface",
-        "sculk_vein",
-        "vine",
-        "kelp",
-        "twisting_vines",
-        "weeping_vines",
-        "cave_vines",
-        "hanging_roots",
-        "huge_mushroom",
-        "mangrove_propagule",
-        "pitcher_crop",
-        "pointed_dripstone",
         "redstone_wire",
-        "tall_seagrass",
-        "shelf",
-        "small_dripleaf",
         "test",
         "test_instance",
     ];
@@ -1077,6 +1094,7 @@ fn unported_or_default(block_type: &str, block_id: &str) -> Option<PlacementOutc
 
 mod attached;
 mod connecting;
+mod plants;
 use attached::attached_placement;
 use attached::face_sturdy_at;
 use connecting::connecting_placement;

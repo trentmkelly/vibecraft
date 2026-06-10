@@ -51,6 +51,7 @@ fn context() -> PlaceContext {
         player_yaw: 0.0,
         player_pitch: 45.0,
         secondary_use_active: false,
+        random_age_roll: 0,
     }
 }
 
@@ -358,11 +359,11 @@ fn unported_overrides_yield_none_and_plain_blocks_place_defaults() {
     );
     // Unported overrides yield explicit None (caller keeps legacy).
     assert_eq!(
-        state_for_placement("minecraft:kelp", &context(), &world),
+        state_for_placement("minecraft:redstone_wire", &context(), &world),
         None
     );
     assert_eq!(
-        state_for_placement("minecraft:big_dripleaf", &context(), &world),
+        state_for_placement("minecraft:copper_chest", &context(), &world),
         None
     );
     // Unknown block ids are not placeable.
@@ -534,4 +535,145 @@ fn batch_two_simple_families_match_java() {
         place("minecraft:tripwire", &context(), &hooked).property("south"),
         Some("true")
     );
+}
+
+#[test]
+#[allow(clippy::cognitive_complexity, clippy::too_many_lines)] // sequential family pins
+fn final_batch_plant_families_match_java() {
+    let world = TestWorld::default();
+
+    // Bamboo: rejects without supports_bamboo ground, grows from existing.
+    assert_eq!(
+        state_for_placement("minecraft:bamboo", &context(), &world),
+        Some(PlacementOutcome::Reject)
+    );
+    let sandy = TestWorld::default().with((0, 63, 0), block("minecraft:sand"));
+    assert_eq!(
+        place("minecraft:bamboo", &context(), &sandy).registry_id,
+        "minecraft:bamboo_sapling"
+    );
+    let stalked = TestWorld::default().with(
+        (0, 63, 0),
+        block("minecraft:bamboo").try_set_property("age", "1"),
+    );
+    let placed = place("minecraft:bamboo", &context(), &stalked);
+    assert_eq!(placed.registry_id, "minecraft:bamboo");
+    assert_eq!(placed.property("age"), Some("1"));
+
+    // Corals waterlog only in full water.
+    let dry = place("minecraft:tube_coral", &context(), &world);
+    assert_eq!(dry.property("waterlogged"), Some("false"));
+    let wet = TestWorld::default().with((0, 64, 0), block("minecraft:water"));
+    assert_eq!(
+        place("minecraft:tube_coral", &context(), &wet).property("waterlogged"),
+        Some("true")
+    );
+
+    // Chorus plant connects toward flowers and end stone below.
+    let chorus_world = TestWorld::default()
+        .with((0, 63, 0), block("minecraft:end_stone"))
+        .with((0, 65, 0), block("minecraft:chorus_flower"));
+    let chorus = place("minecraft:chorus_plant", &context(), &chorus_world);
+    assert_eq!(chorus.property("down"), Some("true"));
+    assert_eq!(chorus.property("up"), Some("true"));
+    assert_eq!(chorus.property("north"), Some("false"));
+
+    // Double plants reject when the upper half is blocked.
+    let blocked = TestWorld::default().with((0, 65, 0), block("minecraft:stone"));
+    assert_eq!(
+        state_for_placement("minecraft:sunflower", &context(), &blocked),
+        Some(PlacementOutcome::Reject)
+    );
+    assert_eq!(
+        place("minecraft:sunflower", &context(), &world).property("half"),
+        Some("lower")
+    );
+
+    // Huge mushroom blocks face away from their own kind.
+    let capped = TestWorld::default().with((0, 65, 0), block("minecraft:red_mushroom_block"));
+    let mushroom = place("minecraft:red_mushroom_block", &context(), &capped);
+    assert_eq!(mushroom.property("up"), Some("false"));
+    assert_eq!(mushroom.property("down"), Some("true"));
+
+    // Vines: attach the looked-at face when supported; reject in the open.
+    let walled = TestWorld::default().with((0, 64, 1), block("minecraft:stone"));
+    let vine = place("minecraft:vine", &context(), &walled);
+    assert_eq!(vine.property("south"), Some("true"));
+    assert_eq!(
+        state_for_placement("minecraft:vine", &context(), &world),
+        Some(PlacementOutcome::Reject)
+    );
+
+    // Glow lichen merges new faces into an existing block and waterlogs.
+    let lichen_world = TestWorld::default()
+        .with((0, 64, 1), block("minecraft:stone"))
+        .with(
+            (0, 64, 0),
+            block("minecraft:glow_lichen").try_set_property("down", "true"),
+        );
+    let lichen = place("minecraft:glow_lichen", &context(), &lichen_world);
+    assert_eq!(lichen.property("down"), Some("true"));
+    assert_eq!(lichen.property("south"), Some("true"));
+
+    // Growing-plant heads take the rolled age.
+    let rolled = PlaceContext {
+        random_age_roll: 13,
+        ..context()
+    };
+    assert_eq!(
+        place("minecraft:kelp", &rolled, &world).property("age"),
+        Some("13")
+    );
+
+    // Pointed dripstone: looking down at a ceiling-less floor grows a
+    // stalagmite (tip up); from a ceiling it hangs (tip down).
+    let floor = TestWorld::default().with((0, 63, 0), block("minecraft:stone"));
+    let looking_down = PlaceContext {
+        player_pitch: 60.0,
+        ..context()
+    };
+    let stalagmite = place("minecraft:pointed_dripstone", &looking_down, &floor);
+    assert_eq!(stalagmite.property("vertical_direction"), Some("up"));
+    assert_eq!(stalagmite.property("thickness"), Some("tip"));
+    let ceiling = TestWorld::default().with((0, 65, 0), block("minecraft:stone"));
+    let looking_up = PlaceContext {
+        player_pitch: -60.0,
+        ..context()
+    };
+    let stalactite = place("minecraft:pointed_dripstone", &looking_up, &ceiling);
+    assert_eq!(stalactite.property("vertical_direction"), Some("down"));
+    // Stacking onto an existing stalagmite tip makes the base a frustum chain.
+    let stacked_world = TestWorld::default()
+        .with((0, 63, 0), block("minecraft:stone"))
+        .with(
+            (0, 65, 0),
+            block("minecraft:pointed_dripstone")
+                .try_set_property("vertical_direction", "up")
+                .try_set_property("thickness", "tip"),
+        );
+    let middle = place("minecraft:pointed_dripstone", &looking_down, &stacked_world);
+    assert_eq!(middle.property("thickness"), Some("frustum"));
+
+    // Wall hanging signs need a sturdy bar end perpendicular to the view
+    // (a west-facing sign bar runs north-south).
+    let barred = TestWorld::default().with((0, 64, -1), block("minecraft:stone"));
+    let east_look = PlaceContext {
+        player_yaw: -90.0,
+        clicked_face: Direction::North,
+        ..context()
+    };
+    let sign = place("minecraft:oak_wall_hanging_sign", &east_look, &barred);
+    assert_eq!(sign.property("facing"), Some("west"));
+    assert_eq!(
+        state_for_placement("minecraft:oak_wall_hanging_sign", &east_look, &world),
+        Some(PlacementOutcome::Reject)
+    );
+
+    // Ceiling hanging signs hang attached under narrow ceilings.
+    let chains = TestWorld::default().with((0, 65, 0), block("minecraft:iron_chain"));
+    let hung = place("minecraft:oak_hanging_sign", &context(), &chains);
+    assert_eq!(hung.property("attached"), Some("true"));
+    let slab_ceiling = TestWorld::default().with((0, 65, 0), block("minecraft:stone"));
+    let hung = place("minecraft:oak_hanging_sign", &context(), &slab_ceiling);
+    assert_eq!(hung.property("attached"), Some("false"));
 }
