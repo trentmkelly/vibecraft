@@ -88,3 +88,99 @@ fn serverbound_container_click_packet_maps_unknown_input_to_pickup() {
 
     assert_eq!(packet.container_input, ContainerInput::Pickup);
 }
+
+#[test]
+fn hashed_patch_map_and_stack_match_java_create_and_matches_contracts() {
+    const HASHED_PATCH_MAP_JAVA: &str = include_str!(
+        "../../../../../decompiled-server-26.1.2/net/minecraft/network/HashedPatchMap.java"
+    );
+    const HASHED_STACK_JAVA: &str = include_str!(
+        "../../../../../decompiled-server-26.1.2/net/minecraft/network/HashedStack.java"
+    );
+
+    for sentinel in [
+        "new IdentityHashMap<>(split.added().size())",
+        "setComponentHashes.put(e.type(), hasher.apply((TypedDataComponent<?>)e))",
+        "if (!split.removed().equals(this.removedComponents))",
+        "if (this.addedComponents.size() != split.added().size())",
+        "Integer expectedHash = this.addedComponents.get(typedDataComponent.type())",
+        "if (!actualHash.equals(expectedHash))",
+    ] {
+        assert!(
+            HASHED_PATCH_MAP_JAVA.contains(sentinel),
+            "missing HashedPatchMap sentinel {sentinel}"
+        );
+    }
+    for sentinel in [
+        "HashedStack EMPTY = new HashedStack()",
+        "return stack.isEmpty();",
+        "return itemStack.isEmpty()",
+        "itemStack.typeHolder()",
+        "itemStack.getCount()",
+        "if (this.count != itemStack.getCount())",
+        "this.components.matches(itemStack.getComponentsPatch(), hasher)",
+    ] {
+        assert!(
+            HASHED_STACK_JAVA.contains(sentinel),
+            "missing HashedStack sentinel {sentinel}"
+        );
+    }
+
+    fn hash(component_type_id: i32, payload: &[u8]) -> i32 {
+        component_type_id * 31 + payload.iter().map(|byte| i32::from(*byte)).sum::<i32>()
+    }
+
+    let patch = RawDataComponentPatch {
+        added: vec![(9, vec![1, 2, 3]), (7, vec![4])],
+        removed: vec![12, 10],
+    };
+    let hashed = HashedPatchMap::create(&patch, hash);
+    assert_eq!(
+        hashed.added_component_hashes,
+        vec![(7, hash(7, &[4])), (9, hash(9, &[1, 2, 3]))]
+    );
+    assert_eq!(hashed.removed_components, vec![10, 12]);
+
+    let reordered_removed = RawDataComponentPatch {
+        added: vec![(7, vec![4]), (9, vec![1, 2, 3])],
+        removed: vec![10, 12],
+    };
+    assert!(hashed.matches(&reordered_removed, hash));
+
+    let missing_component = RawDataComponentPatch {
+        added: vec![(7, vec![4])],
+        removed: vec![10, 12],
+    };
+    assert!(!hashed.matches(&missing_component, hash));
+
+    let wrong_hash = RawDataComponentPatch {
+        added: vec![(7, vec![5]), (9, vec![1, 2, 3])],
+        removed: vec![10, 12],
+    };
+    assert!(!hashed.matches(&wrong_hash, hash));
+
+    let stack = RawItemStack {
+        count: 3,
+        item_id: Some(42),
+        components: patch,
+    };
+    let hashed_stack = HashedStack::create_from_raw(&stack, hash);
+    assert_eq!(hashed_stack.item_id, Some(42));
+    assert_eq!(hashed_stack.count, 3);
+    assert!(hashed_stack.matches_raw(&stack, hash));
+
+    let mut wrong_count = stack.clone();
+    wrong_count.count = 4;
+    assert!(!hashed_stack.matches_raw(&wrong_count, hash));
+
+    let mut wrong_item = stack.clone();
+    wrong_item.item_id = Some(43);
+    assert!(!hashed_stack.matches_raw(&wrong_item, hash));
+
+    assert_eq!(
+        HashedStack::create_from_raw(&RawItemStack::empty(), hash),
+        HashedStack::empty()
+    );
+    assert!(HashedStack::empty().matches_raw(&RawItemStack::empty(), hash));
+    assert!(!HashedStack::empty().matches_raw(&stack, hash));
+}

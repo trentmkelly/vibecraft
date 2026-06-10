@@ -469,6 +469,44 @@ impl HashedPatchMap {
         }
     }
 
+    pub fn create(
+        patch: &RawDataComponentPatch,
+        mut hasher: impl FnMut(i32, &[u8]) -> i32,
+    ) -> Self {
+        let mut added = BTreeMap::new();
+        for (component_type_id, payload) in &patch.added {
+            added.insert(*component_type_id, hasher(*component_type_id, payload));
+        }
+        Self {
+            added_component_hashes: added.into_iter().collect(),
+            removed_components: sorted_unique_i32(&patch.removed),
+        }
+    }
+
+    pub fn matches(
+        &self,
+        patch: &RawDataComponentPatch,
+        mut hasher: impl FnMut(i32, &[u8]) -> i32,
+    ) -> bool {
+        if sorted_unique_i32(&self.removed_components) != sorted_unique_i32(&patch.removed) {
+            return false;
+        }
+        if self.added_component_hashes.len() != patch.added.len() {
+            return false;
+        }
+
+        let expected: BTreeMap<_, _> = self.added_component_hashes.iter().copied().collect();
+        for (component_type_id, payload) in &patch.added {
+            let Some(expected_hash) = expected.get(component_type_id) else {
+                return false;
+            };
+            if *expected_hash != hasher(*component_type_id, payload) {
+                return false;
+            }
+        }
+        true
+    }
+
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         let added_len = read_limited_len(
             reader,
@@ -525,6 +563,34 @@ impl HashedStack {
         }
     }
 
+    pub fn create_from_raw(
+        item_stack: &RawItemStack,
+        hasher: impl FnMut(i32, &[u8]) -> i32,
+    ) -> Self {
+        if item_stack.count <= 0 || item_stack.item_id.is_none() {
+            Self::empty()
+        } else {
+            Self {
+                item_id: item_stack.item_id,
+                count: item_stack.count,
+                components: HashedPatchMap::create(&item_stack.components, hasher),
+            }
+        }
+    }
+
+    pub fn matches_raw(
+        &self,
+        item_stack: &RawItemStack,
+        hasher: impl FnMut(i32, &[u8]) -> i32,
+    ) -> bool {
+        if self.item_id.is_none() {
+            return item_stack.count <= 0 || item_stack.item_id.is_none();
+        }
+        self.count == item_stack.count
+            && self.item_id == item_stack.item_id
+            && self.components.matches(&item_stack.components, hasher)
+    }
+
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         if !read_bool(reader)? {
             return Ok(Self::empty());
@@ -547,6 +613,15 @@ impl HashedStack {
             None => write_bool(writer, false),
         }
     }
+}
+
+fn sorted_unique_i32(values: &[i32]) -> Vec<i32> {
+    values
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }
 
 impl ContainerInput {
