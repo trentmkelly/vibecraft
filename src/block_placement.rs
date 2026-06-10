@@ -184,7 +184,7 @@ fn replaced_by_source_water(world: &impl PlacementWorld, pos: BlockPos) -> bool 
     matches!(fluid_at(world, pos), StateFluid::Water { source: true, .. })
 }
 
-fn direction_name(direction: Direction) -> &'static str {
+pub(crate) fn direction_name(direction: Direction) -> &'static str {
     match direction {
         Direction::Down => "down",
         Direction::Up => "up",
@@ -195,7 +195,7 @@ fn direction_name(direction: Direction) -> &'static str {
     }
 }
 
-fn axis_name(direction: Direction) -> &'static str {
+pub(crate) fn axis_name(direction: Direction) -> &'static str {
     match direction {
         Direction::West | Direction::East => "x",
         Direction::Down | Direction::Up => "y",
@@ -203,12 +203,12 @@ fn axis_name(direction: Direction) -> &'static str {
     }
 }
 
-fn is_horizontal(direction: Direction) -> bool {
+pub(crate) fn is_horizontal(direction: Direction) -> bool {
     !matches!(direction, Direction::Up | Direction::Down)
 }
 
 /// Java `Direction.getClockWise()` (Y axis).
-fn clockwise(direction: Direction) -> Direction {
+pub(crate) fn clockwise(direction: Direction) -> Direction {
     match direction {
         Direction::North => Direction::East,
         Direction::East => Direction::South,
@@ -218,20 +218,24 @@ fn clockwise(direction: Direction) -> Direction {
     }
 }
 
-fn counter_clockwise(direction: Direction) -> Direction {
+pub(crate) fn counter_clockwise(direction: Direction) -> Direction {
     clockwise(direction).opposite()
 }
 
-fn default_state(registry_id: &str) -> BlockStateModel {
+pub(crate) fn default_state(registry_id: &str) -> BlockStateModel {
     BlockStateModel::default_for(registry_id)
         .unwrap_or_else(|| BlockStateModel::new(registry_id.to_string()))
 }
 
-fn set(state: BlockStateModel, property: &str, value: impl Into<String>) -> BlockStateModel {
+pub(crate) fn set(
+    state: BlockStateModel,
+    property: &str,
+    value: impl Into<String>,
+) -> BlockStateModel {
     state.try_set_property(property, value)
 }
 
-fn bool_str(value: bool) -> &'static str {
+pub(crate) fn bool_str(value: bool) -> &'static str {
     if value {
         "true"
     } else {
@@ -838,7 +842,7 @@ fn stair_half_is_top(context: &PlaceContext) -> bool {
 }
 
 /// Java `StairBlock.getStairsShape`.
-fn stairs_shape(
+pub(crate) fn stairs_shape(
     state: &BlockStateModel,
     pos: BlockPos,
     world: &impl PlacementWorld,
@@ -902,7 +906,7 @@ fn is_stairs(state: &BlockStateModel) -> bool {
         .is_some_and(|entry| matches!(entry.block_type, "stair" | "weathering_copper_stair"))
 }
 
-fn direction_by_name(name: &str) -> Option<Direction> {
+pub(crate) fn direction_by_name(name: &str) -> Option<Direction> {
     match name {
         "down" => Some(Direction::Down),
         "up" => Some(Direction::Up),
@@ -1092,8 +1096,8 @@ fn unported_or_default(block_type: &str, block_id: &str) -> Option<PlacementOutc
     Some(PlacementOutcome::Place(default_state(block_id)))
 }
 
-mod attached;
-mod connecting;
+pub(crate) mod attached;
+pub(crate) mod connecting;
 mod plants;
 use attached::attached_placement;
 use attached::face_sturdy_at;

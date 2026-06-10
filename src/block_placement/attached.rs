@@ -134,7 +134,7 @@ fn bell_placement(
     PlacementOutcome::Reject
 }
 
-pub(super) fn face_sturdy_at(
+pub(crate) fn face_sturdy_at(
     world: &impl PlacementWorld,
     pos: BlockPos,
     direction: Direction,
@@ -149,7 +149,7 @@ pub(super) fn face_sturdy_at(
     })
 }
 
-pub(super) fn java_ordinal(direction: Direction) -> usize {
+pub(crate) fn java_ordinal(direction: Direction) -> usize {
     match direction {
         Direction::Down => 0,
         Direction::Up => 1,

@@ -368,7 +368,7 @@ pub(super) fn connecting_placement(
 }
 
 /// Java `FenceBlock.connectsTo` + `isSameFence`.
-fn fence_connects_to(
+pub(crate) fn fence_connects_to(
     own_id: &str,
     neighbour: &BlockStateModel,
     direction: Direction,
@@ -384,7 +384,7 @@ fn fence_connects_to(
 }
 
 /// Java `IronBarsBlock.attachsTo`: sturdy face, another pane, or a wall.
-fn pane_attaches_to(neighbour: &BlockStateModel, direction: Direction) -> bool {
+pub(crate) fn pane_attaches_to(neighbour: &BlockStateModel, direction: Direction) -> bool {
     let face_solid = neighbour_face_sturdy(neighbour, direction);
     let pane = is_pane(neighbour);
     let wall = block_tag_contains("walls", &neighbour.registry_id);
@@ -448,7 +448,7 @@ fn is_wall(state: &BlockStateModel) -> bool {
 }
 
 /// Java `TripWireBlock.shouldConnectTo`.
-fn tripwire_connects_to(neighbour: &BlockStateModel, direction: Direction) -> bool {
+pub(crate) fn tripwire_connects_to(neighbour: &BlockStateModel, direction: Direction) -> bool {
     if neighbour.registry_id == "minecraft:tripwire_hook" {
         neighbour.property("facing") == Some(direction_name(direction.opposite()))
     } else {
@@ -462,7 +462,7 @@ fn burns(state: &BlockStateModel) -> bool {
 }
 
 /// Java `LeavesBlock.getDistanceAt`.
-fn leaves_distance_at(state: &BlockStateModel) -> i32 {
+pub(crate) fn leaves_distance_at(state: &BlockStateModel) -> i32 {
     if block_tag_contains("prevents_nearby_leaf_decay", &state.registry_id) {
         return 0;
     }
@@ -474,7 +474,7 @@ fn leaves_distance_at(state: &BlockStateModel) -> i32 {
 
 /// Java `ConcretePowderBlock.shouldSolidify` = canSolidify(replaced) ||
 /// touchesLiquid.
-fn concrete_should_solidify(world: &impl PlacementWorld, pos: BlockPos) -> bool {
+pub(crate) fn concrete_should_solidify(world: &impl PlacementWorld, pos: BlockPos) -> bool {
     let water = |state: &BlockStateModel| {
         matches!(
             state_physics_by_name(&state.state_name())
@@ -560,7 +560,7 @@ fn front_and_top(front: Direction, top: Direction) -> String {
 }
 
 /// Java `MossyCarpetBlock.getUpdatedState(default, level, pos, true)`.
-fn mossy_carpet_placement(
+pub(crate) fn mossy_carpet_placement(
     state: BlockStateModel,
     context: &PlaceContext,
     world: &impl PlacementWorld,
@@ -593,7 +593,7 @@ fn mossy_carpet_placement(
 }
 
 /// Java `WallBlock.getStateForPlacement` + `updateShape`/`updateSides`.
-fn wall_placement(
+pub(crate) fn wall_placement(
     state: BlockStateModel,
     context: &PlaceContext,
     world: &impl PlacementWorld,
