@@ -356,18 +356,182 @@ fn unported_overrides_yield_none_and_plain_blocks_place_defaults() {
         state_for_placement("minecraft:stone", &context(), &world),
         Some(PlacementOutcome::Place(block("minecraft:stone")))
     );
-    // Rails have an unported override: explicit None (caller keeps legacy).
+    // Unported overrides yield explicit None (caller keeps legacy).
     assert_eq!(
-        state_for_placement("minecraft:rail", &context(), &world),
+        state_for_placement("minecraft:kelp", &context(), &world),
         None
     );
     assert_eq!(
-        state_for_placement("minecraft:oak_fence", &context(), &world),
+        state_for_placement("minecraft:big_dripleaf", &context(), &world),
         None
     );
     // Unknown block ids are not placeable.
     assert_eq!(
         state_for_placement("minecraft:not_a_block", &context(), &world),
         None
+    );
+}
+
+#[test]
+fn connection_scanning_families_link_like_java() {
+    // Fence connects to a sturdy face and to fence gates rotated across it.
+    let world = TestWorld::default().with((0, 64, 1), block("minecraft:stone"));
+    let fence = place("minecraft:oak_fence", &context(), &world);
+    assert_eq!(fence.property("south"), Some("true"));
+    assert_eq!(fence.property("north"), Some("false"));
+    // Leaves are connection exceptions.
+    let leafy = TestWorld::default().with((0, 64, 1), block("minecraft:oak_leaves"));
+    let fence = place("minecraft:oak_fence", &context(), &leafy);
+    assert_eq!(fence.property("south"), Some("false"));
+    // Wooden fences do not connect to nether brick fences.
+    let nether = TestWorld::default().with((0, 64, 1), block("minecraft:nether_brick_fence"));
+    let fence = place("minecraft:oak_fence", &context(), &nether);
+    assert_eq!(fence.property("south"), Some("false"));
+
+    // Panes attach to sturdy faces, other panes, and walls.
+    let world = TestWorld::default()
+        .with((0, 64, 1), block("minecraft:glass_pane"))
+        .with((1, 64, 0), block("minecraft:cobblestone_wall"));
+    let pane = place("minecraft:glass_pane", &context(), &world);
+    assert_eq!(pane.property("south"), Some("true"));
+    assert_eq!(pane.property("east"), Some("true"));
+    assert_eq!(pane.property("west"), Some("false"));
+
+    // Walls: a sturdy side gives a LOW arm and a free-standing post stays up.
+    let world = TestWorld::default().with((0, 64, 1), block("minecraft:stone"));
+    let wall = place("minecraft:cobblestone_wall", &context(), &world);
+    assert_eq!(wall.property("south"), Some("low"));
+    assert_eq!(wall.property("north"), Some("none"));
+    assert_eq!(wall.property("up"), Some("true"));
+    // A wall sandwiched between two sides with a full block above raises TALL
+    // arms and drops the post.
+    let world = TestWorld::default()
+        .with((0, 64, 1), block("minecraft:stone"))
+        .with((0, 64, -1), block("minecraft:stone"))
+        .with((0, 65, 0), block("minecraft:stone"));
+    let wall = place("minecraft:cobblestone_wall", &context(), &world);
+    assert_eq!(wall.property("south"), Some("tall"));
+    assert_eq!(wall.property("north"), Some("tall"));
+    assert_eq!(wall.property("up"), Some("false"));
+
+    // Fence gates notice flanking walls.
+    let world = TestWorld::default().with((1, 64, 0), block("minecraft:cobblestone_wall"));
+    let gate = place("minecraft:oak_fence_gate", &context(), &world);
+    assert_eq!(gate.property("in_wall"), Some("true"));
+    assert_eq!(gate.property("facing"), Some("south"));
+}
+
+#[test]
+fn batch_two_simple_families_match_java() {
+    let world = TestWorld::default();
+    // Rails align with the player.
+    assert_eq!(
+        place("minecraft:rail", &context(), &world).property("shape"),
+        Some("north_south")
+    );
+    let east = PlaceContext {
+        player_yaw: 90.0,
+        ..context()
+    };
+    assert_eq!(
+        place("minecraft:rail", &east, &world).property("shape"),
+        Some("east_west")
+    );
+
+    // Skulls use yaw segments without the banner 180-degree flip.
+    assert_eq!(
+        place("minecraft:skeleton_skull", &context(), &world).property("rotation"),
+        Some("0")
+    );
+
+    // Fire over soul sand becomes soul fire; over stone it is plain fire.
+    let soul = TestWorld::default().with((0, 63, 0), block("minecraft:soul_sand"));
+    let placed = place("minecraft:fire", &context(), &soul);
+    assert_eq!(placed.registry_id, "minecraft:soul_fire");
+    let stone = TestWorld::default().with((0, 63, 0), block("minecraft:stone"));
+    assert_eq!(
+        place("minecraft:fire", &context(), &stone).registry_id,
+        "minecraft:fire"
+    );
+    // Floating next to planks: fire keeps side faces toward burnables.
+    let side_fuel = TestWorld::default().with((0, 64, 1), block("minecraft:oak_planks"));
+    let placed = place("minecraft:fire", &context(), &side_fuel);
+    assert_eq!(placed.property("south"), Some("true"));
+    assert_eq!(placed.property("north"), Some("false"));
+
+    // Leaves place persistent with recomputed distance.
+    let lone = place("minecraft:oak_leaves", &context(), &world);
+    assert_eq!(lone.property("persistent"), Some("true"));
+    assert_eq!(lone.property("distance"), Some("7"));
+    let logged = TestWorld::default().with((0, 64, 1), block("minecraft:oak_log"));
+    assert_eq!(
+        place("minecraft:oak_leaves", &context(), &logged).property("distance"),
+        Some("1")
+    );
+
+    // Farmland/dirt path convert to dirt when unsupportable (solid above).
+    let capped = TestWorld::default().with((0, 65, 0), block("minecraft:stone"));
+    assert_eq!(
+        place("minecraft:farmland", &context(), &capped).registry_id,
+        "minecraft:dirt"
+    );
+    assert_eq!(
+        place("minecraft:farmland", &context(), &world).registry_id,
+        "minecraft:farmland"
+    );
+
+    // Concrete powder solidifies in water.
+    let wet = TestWorld::default().with((0, 64, 0), block("minecraft:water"));
+    assert_eq!(
+        place("minecraft:red_concrete_powder", &context(), &wet).registry_id,
+        "minecraft:red_concrete"
+    );
+    assert_eq!(
+        place("minecraft:red_concrete_powder", &context(), &world).registry_id,
+        "minecraft:red_concrete_powder"
+    );
+
+    // Scaffolding distance: grounded is 0, floating defaults to 7+bottom.
+    let grounded = TestWorld::default().with((0, 63, 0), block("minecraft:stone"));
+    let placed = place("minecraft:scaffolding", &context(), &grounded);
+    assert_eq!(placed.property("distance"), Some("0"));
+    assert_eq!(placed.property("bottom"), Some("false"));
+    let floating = place("minecraft:scaffolding", &context(), &world);
+    assert_eq!(floating.property("distance"), Some("7"));
+    assert_eq!(floating.property("bottom"), Some("true"));
+
+    // Grass blocks sample SNOWY from the block above.
+    let snowy = TestWorld::default().with((0, 65, 0), block("minecraft:snow"));
+    assert_eq!(
+        place("minecraft:grass_block", &context(), &snowy).property("snowy"),
+        Some("true")
+    );
+    assert_eq!(
+        place("minecraft:grass_block", &context(), &world).property("snowy"),
+        Some("false")
+    );
+
+    // Crafter orientation from front and top.
+    let steep = PlaceContext {
+        player_pitch: 80.0,
+        ..context()
+    };
+    assert_eq!(
+        place("minecraft:crafter", &steep, &world).property("orientation"),
+        Some("up_south")
+    );
+    assert_eq!(
+        place("minecraft:jigsaw", &context(), &world).property("orientation"),
+        Some("up_north")
+    );
+
+    // Tripwire links to hooks facing back at it.
+    let hooked = TestWorld::default().with(
+        (0, 64, 1),
+        block("minecraft:tripwire_hook").try_set_property("facing", "north"),
+    );
+    assert_eq!(
+        place("minecraft:tripwire", &context(), &hooked).property("south"),
+        Some("true")
     );
 }

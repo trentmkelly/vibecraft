@@ -134,7 +134,11 @@ fn bell_placement(
     PlacementOutcome::Reject
 }
 
-fn face_sturdy_at(world: &impl PlacementWorld, pos: BlockPos, direction: Direction) -> bool {
+pub(super) fn face_sturdy_at(
+    world: &impl PlacementWorld,
+    pos: BlockPos,
+    direction: Direction,
+) -> bool {
     let state = world.state_at(pos);
     state_physics_by_name(&state.state_name()).is_some_and(|physics| {
         crate::block_properties::is_face_sturdy(
@@ -145,7 +149,7 @@ fn face_sturdy_at(world: &impl PlacementWorld, pos: BlockPos, direction: Directi
     })
 }
 
-fn java_ordinal(direction: Direction) -> usize {
+pub(super) fn java_ordinal(direction: Direction) -> usize {
     match direction {
         Direction::Down => 0,
         Direction::Up => 1,
@@ -263,4 +267,3 @@ fn chest_partner_facing(
         None
     }
 }
-

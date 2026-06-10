@@ -210,7 +210,10 @@ fn covers_unit_square(rectangles: &[[f64; 4]]) -> bool {
 /// Java `MultifaceBlock.canAttachTo(level, direction, neighbourPos, state)`:
 /// the neighbour's support shape OR collision shape must present a full face
 /// back toward the attaching block.
-fn multiface_can_attach_to(neighbour: &BlockStateModel, direction_towards: Direction) -> bool {
+pub(crate) fn multiface_can_attach_to(
+    neighbour: &BlockStateModel,
+    direction_towards: Direction,
+) -> bool {
     let Some(neighbour_physics) = physics(neighbour) else {
         return false;
     };
@@ -510,7 +513,7 @@ fn plant_can_survive(
 
         // DoublePlantBlock family: upper halves point at their lower half;
         // lower halves use the vegetation rule.
-        "double_plant" | "tall_flower" | "tall_grass" => {
+        "double_plant" | "tall_flower" => {
             if state.property("half") == Some("upper") {
                 let below_state = below();
                 below_state.registry_id == state.registry_id
@@ -600,7 +603,10 @@ fn plant_can_survive(
         "sugar_cane" => sugar_cane_can_survive(state, pos, world),
 
         // VegetationBlock family: ground must support the plant family.
-        "grass" | "bush" | "flower" | "flower_bed" | "cactus_flower" | "eyeblossom"
+        // NOTE: type `tall_grass` is the SINGLE-block TallGrassBlock
+        // (short_grass/fern); the two-tall plants are type `double_plant`.
+        // GrassBlock (type `grass`) has no canSurvive override.
+        "tall_grass" | "bush" | "flower" | "flower_bed" | "cactus_flower" | "eyeblossom"
         | "firefly_bush" | "sapling" | "azalea" | "lily_pad" | "mangrove_roots"
         | "sweet_berry_bush" | "attached_stem" => {
             if block_type == "lily_pad" && fluid(state) != StateFluid::Empty {

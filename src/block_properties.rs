@@ -582,6 +582,91 @@ pub fn is_face_sturdy(
     state.face_sturdy & (1 << (direction_ordinal * 3 + support_type as usize)) != 0
 }
 
+/// 2D rectangles `[min_a, min_b, max_a, max_b]` of the boxes of a shape that
+/// touch the face plane of a Java `Direction` ordinal, or `None` for an empty
+/// shape. The (a, b) axes are the two axes orthogonal to the face.
+pub fn shape_face_rectangles(shape_index: u16, direction_ordinal: usize) -> Option<Vec<[f64; 4]>> {
+    let boxes = shape(shape_index);
+    if boxes.is_empty() {
+        return None;
+    }
+    // (axis in [min_x..max_z], plane coordinate) per Java Direction ordinal.
+    let (axis, plane) = match direction_ordinal {
+        0 => (1, 0.0), // DOWN
+        1 => (1, 1.0), // UP
+        2 => (2, 0.0), // NORTH
+        3 => (2, 1.0), // SOUTH
+        4 => (0, 0.0), // WEST
+        _ => (0, 1.0), // EAST
+    };
+    let coordinate = |aabb: &ShapeBox| {
+        if plane == 0.0 {
+            aabb[axis]
+        } else {
+            aabb[axis + 3]
+        }
+    };
+    let (a_axis, b_axis) = match axis {
+        0 => (1, 2),
+        1 => (0, 2),
+        _ => (0, 1),
+    };
+    const EPSILON: f64 = 1.0e-7;
+    Some(
+        boxes
+            .iter()
+            .filter(|aabb| (coordinate(aabb) - plane).abs() < EPSILON)
+            .map(|aabb| {
+                [
+                    aabb[a_axis],
+                    aabb[b_axis],
+                    aabb[a_axis + 3],
+                    aabb[b_axis + 3],
+                ]
+            })
+            .collect(),
+    )
+}
+
+/// Whether a union of axis-aligned rectangles covers `region`
+/// `[min_a, min_b, max_a, max_b]`, with Java's 1e-7 fuzz. Exact for
+/// axis-aligned unions via strip sweep (used for `Block.isFaceFull`,
+/// `WallBlock.isCovered`, and similar joins).
+pub fn rectangles_cover_region(rectangles: &[[f64; 4]], region: [f64; 4]) -> bool {
+    const EPSILON: f64 = 1.0e-7;
+    let mut cuts: Vec<f64> = vec![region[0], region[2]];
+    for rectangle in rectangles {
+        cuts.push(rectangle[0].clamp(region[0], region[2]));
+        cuts.push(rectangle[2].clamp(region[0], region[2]));
+    }
+    cuts.sort_by(|left, right| left.total_cmp(right));
+    cuts.dedup();
+    for window in cuts.windows(2) {
+        let (start, end) = (window[0], window[1]);
+        if end - start < EPSILON {
+            continue;
+        }
+        let middle = (start + end) / 2.0;
+        let mut intervals: Vec<(f64, f64)> = rectangles
+            .iter()
+            .filter(|rectangle| rectangle[0] <= middle && middle <= rectangle[2])
+            .map(|rectangle| (rectangle[1], rectangle[3]))
+            .collect();
+        intervals.sort_by(|left, right| left.0.total_cmp(&right.0));
+        let mut covered = region[1];
+        for (low, high) in intervals {
+            if low > covered + EPSILON {
+                return false;
+            }
+            covered = covered.max(high);
+        }
+        if covered < region[3] - EPSILON {
+            return false;
+        }
+    }
+    true
+}
+
 /// Whether a state's collision shape is exactly the full unit cube
 /// (`Shapes.block()`), the test Java fluid spreading uses for
 /// `canPassThroughWall`.

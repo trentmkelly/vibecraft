@@ -243,6 +243,7 @@ pub const PORTED_BLOCK_TYPES: &[&str] = &[
     "campfire",
     "candle",
     "chain",
+    "weathering_copper_chain",
     "chest",
     "trapped_chest",
     "cocoa",
@@ -297,6 +298,48 @@ pub const PORTED_BLOCK_TYPES: &[&str] = &[
     "shulker_box",
     "ender_chest",
     "barrier",
+    "fence",
+    "fence_gate",
+    "iron_bars",
+    "stained_glass_pane",
+    "weathering_copper_bar",
+    "wall",
+    "tripwire",
+    "trip_wire_hook",
+    "rail",
+    "powered_rail",
+    "detector_rail",
+    "skull",
+    "player_head",
+    "wither_skull",
+    "wall_skull",
+    "player_wall_head",
+    "wither_wall_skull",
+    "piglinwallskull",
+    "fire",
+    "soul_fire",
+    "leaves",
+    "mangrove_leaves",
+    "tinted_particle_leaves",
+    "untinted_particle_leaves",
+    "dirt_path",
+    "farmland",
+    "concrete_powder",
+    "conduit",
+    "seagrass",
+    "heavy_core",
+    "decorated_pot",
+    "crafter",
+    "command",
+    "vault",
+    "jigsaw",
+    "scaffolding",
+    "grass",
+    "snowy_dirt",
+    "mycelium",
+    "nylium",
+    "mangrove_roots",
+    "mossy_carpet",
 ];
 
 /// Java `Block.getStateForPlacement` for `block_id` (the item's block).
@@ -314,7 +357,8 @@ pub fn state_for_placement(
     oriented_placement(block_type, state.clone(), context, world)
         .or_else(|| sliced_placement(block_type, state.clone(), context, world))
         .or_else(|| attached_placement(block_type, state.clone(), context, world))
-        .or_else(|| stacking_placement(block_type, block_id, state, context, world))
+        .or_else(|| stacking_placement(block_type, block_id, state.clone(), context, world))
+        .or_else(|| connecting_placement(block_type, block_id, state, context, world))
         .or_else(|| unported_or_default(block_type, block_id))
 }
 
@@ -979,13 +1023,6 @@ fn unported_or_default(block_type: &str, block_id: &str) -> Option<PlacementOutc
     /// Types with a Java getStateForPlacement override that is NOT yet ported.
     const UNPORTED: &[&str] = &[
         "abstract_skull",
-        "skull",
-        "player_head",
-        "wall_skull",
-        "wither_skull",
-        "wither_wall_skull",
-        "piglinwallskull",
-        "player_wall_head",
         "bamboo_stalk",
         "base_coral_plant",
         "base_coral_fan",
@@ -994,11 +1031,6 @@ fn unported_or_default(block_type: &str, block_id: &str) -> Option<PlacementOutc
         "coral_fan",
         "coral_plant",
         "coral_wall_fan",
-        "fire",
-        "soul_fire",
-        "rail",
-        "powered_rail",
-        "detector_rail",
         "big_dripleaf",
         "calibrated_sculk_sensor",
         "sculk_sensor",
@@ -1007,28 +1039,14 @@ fn unported_or_default(block_type: &str, block_id: &str) -> Option<PlacementOutc
         "wall_hanging_sign",
         "chiseled_book_shelf",
         "chorus_plant",
-        "command",
-        "concrete_powder",
-        "conduit",
         "copper_chest",
         "weathering_copper_chest",
         "copper_golem_statue",
         "weathering_copper_golem_statue",
-        "crafter",
         "creaking_heart",
-        "decorated_pot",
-        "dirt_path",
         "dried_ghast",
         "double_plant",
         "tall_flower",
-        "tall_grass",
-        "farmland",
-        "fence",
-        "fence_gate",
-        "iron_bars",
-        "bars",
-        "weathering_copper_bar",
-        "wall",
         "glow_lichen",
         "multiface",
         "sculk_vein",
@@ -1037,32 +1055,17 @@ fn unported_or_default(block_type: &str, block_id: &str) -> Option<PlacementOutc
         "twisting_vines",
         "weeping_vines",
         "cave_vines",
-        "growing_plant",
         "hanging_roots",
-        "heavy_core",
         "huge_mushroom",
-        "jigsaw",
-        "leaves",
-        "mangrove_leaves",
-        "tinted_particle_leaves",
-        "untinted_particle_leaves",
         "mangrove_propagule",
-        "mangrove_roots",
-        "mossy_carpet",
         "pitcher_crop",
         "pointed_dripstone",
         "redstone_wire",
-        "scaffolding",
-        "seagrass",
         "tall_seagrass",
         "shelf",
-        "wooden_shelf",
         "small_dripleaf",
-        "snowy_dirt",
         "test",
-        "tripwire",
-        "trip_wire_hook",
-        "vault",
+        "test_instance",
     ];
     if UNPORTED.contains(&block_type) {
         // TODO(block-placement-coverage): port the remaining Java
@@ -1073,7 +1076,10 @@ fn unported_or_default(block_type: &str, block_id: &str) -> Option<PlacementOutc
 }
 
 mod attached;
+mod connecting;
 use attached::attached_placement;
+use attached::face_sturdy_at;
+use connecting::connecting_placement;
 
 #[cfg(test)]
 mod tests;
