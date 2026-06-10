@@ -184,6 +184,56 @@ pub trait TickablePacketListener: JavaPacketListener {
     fn tick(&mut self);
 }
 
+pub trait SkipPacketException {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SkipPacketFailure {
+    Message(String),
+    Cause(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SkipPacketDecoderException {
+    pub failure: SkipPacketFailure,
+}
+
+impl SkipPacketDecoderException {
+    pub fn message(message: impl Into<String>) -> Self {
+        Self {
+            failure: SkipPacketFailure::Message(message.into()),
+        }
+    }
+
+    pub fn cause(cause: impl Into<String>) -> Self {
+        Self {
+            failure: SkipPacketFailure::Cause(cause.into()),
+        }
+    }
+}
+
+impl SkipPacketException for SkipPacketDecoderException {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SkipPacketEncoderException {
+    pub failure: SkipPacketFailure,
+}
+
+impl SkipPacketEncoderException {
+    pub fn message(message: impl Into<String>) -> Self {
+        Self {
+            failure: SkipPacketFailure::Message(message.into()),
+        }
+    }
+
+    pub fn cause(cause: impl Into<String>) -> Self {
+        Self {
+            failure: SkipPacketFailure::Cause(cause.into()),
+        }
+    }
+}
+
+impl SkipPacketException for SkipPacketEncoderException {}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DispatchOutcome {
     Handled,
@@ -301,7 +351,8 @@ mod tests {
     use super::{
         ClientboundPacketListener, ConnectionProtocol, DecodedPacket, DisconnectionDetails,
         DispatchOutcome, JavaPacketListener, MainThreadPacketQueue, PacketDirection, PacketFlow,
-        ProtocolState, RecordingListener, ServerboundPacketListener, TickablePacketListener,
+        ProtocolState, RecordingListener, ServerboundPacketListener, SkipPacketDecoderException,
+        SkipPacketEncoderException, SkipPacketException, SkipPacketFailure, TickablePacketListener,
     };
 
     fn packet(id: i32) -> DecodedPacket {
@@ -541,5 +592,68 @@ mod tests {
         listener.tick();
         listener.tick();
         assert_eq!(listener.ticks, 2);
+    }
+
+    fn assert_skip_marker<T: SkipPacketException>(_value: &T) {}
+
+    #[test]
+    fn skip_packet_exceptions_match_java_marker_wrappers() {
+        const SKIP_PACKET_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/SkipPacketException.java"
+        );
+        const SKIP_DECODER_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/SkipPacketDecoderException.java"
+        );
+        const SKIP_ENCODER_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/SkipPacketEncoderException.java"
+        );
+
+        assert!(SKIP_PACKET_JAVA.contains("public interface SkipPacketException"));
+        for sentinel in [
+            "extends DecoderException",
+            "implements IdDispatchCodec.DontDecorateException, SkipPacketException",
+            "public SkipPacketDecoderException(final String message)",
+            "public SkipPacketDecoderException(final Throwable cause)",
+        ] {
+            assert!(
+                SKIP_DECODER_JAVA.contains(sentinel),
+                "missing SkipPacketDecoderException sentinel {sentinel}"
+            );
+        }
+        for sentinel in [
+            "extends EncoderException",
+            "implements IdDispatchCodec.DontDecorateException, SkipPacketException",
+            "public SkipPacketEncoderException(final String message)",
+            "public SkipPacketEncoderException(final Throwable cause)",
+        ] {
+            assert!(
+                SKIP_ENCODER_JAVA.contains(sentinel),
+                "missing SkipPacketEncoderException sentinel {sentinel}"
+            );
+        }
+
+        let decoder_message = SkipPacketDecoderException::message("bad decode");
+        let decoder_cause = SkipPacketDecoderException::cause("io");
+        let encoder_message = SkipPacketEncoderException::message("bad encode");
+        let encoder_cause = SkipPacketEncoderException::cause("overflow");
+
+        assert_skip_marker(&decoder_message);
+        assert_skip_marker(&encoder_message);
+        assert_eq!(
+            decoder_message.failure,
+            SkipPacketFailure::Message("bad decode".to_string())
+        );
+        assert_eq!(
+            decoder_cause.failure,
+            SkipPacketFailure::Cause("io".to_string())
+        );
+        assert_eq!(
+            encoder_message.failure,
+            SkipPacketFailure::Message("bad encode".to_string())
+        );
+        assert_eq!(
+            encoder_cause.failure,
+            SkipPacketFailure::Cause("overflow".to_string())
+        );
     }
 }
