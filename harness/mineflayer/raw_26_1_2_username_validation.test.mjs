@@ -6,9 +6,9 @@ import test from 'node:test'
 import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
-const host = process.env.RUSTCRAFT_HOST ?? '127.0.0.1'
-const port = Number(process.env.RUSTCRAFT_PORT ?? 25565)
-const protocolVersion = Number(process.env.RUSTCRAFT_PROTOCOL_VERSION ?? 775)
+const host = process.env.VIBECRAFT_HOST ?? '127.0.0.1'
+const port = Number(process.env.VIBECRAFT_PORT ?? 25565)
+const protocolVersion = Number(process.env.VIBECRAFT_PROTOCOL_VERSION ?? 775)
 
 test('raw 26.1.2 offline username validation follows vanilla login rules', { timeout: 180_000 }, async () => {
   const validNames = [
@@ -57,9 +57,9 @@ async function runJoinProbe (name, options = {}) {
       cwd: new URL('.', import.meta.url),
       env: {
         ...process.env,
-        RUSTCRAFT_USERNAME: name,
-        RUSTCRAFT_RAW_PROBE_OUTPUT: 'summary',
-        RUSTCRAFT_RAW_PROBE_KEEPALIVE_MS: String(options.keepAliveMs ?? 0)
+        VIBECRAFT_USERNAME: name,
+        VIBECRAFT_RAW_PROBE_OUTPUT: 'summary',
+        VIBECRAFT_RAW_PROBE_KEEPALIVE_MS: String(options.keepAliveMs ?? 0)
       },
       timeout: 30_000,
       maxBuffer: 1024 * 1024

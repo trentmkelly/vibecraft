@@ -22,7 +22,7 @@ test('normalizeLoginArtifacts redacts paths, ports, timestamps, and randomized u
 test('normalizeLoginArtifacts preserves UUIDs, packet order, and kicked messages', () => {
   const artifacts = normalizeLoginArtifacts({
     profile: {
-      username: 'RustCraftBot-random',
+      username: 'VibeCraftBot-random',
       uuid: '5627dd98-e6be-3c21-b8a8-e92344183641'
     },
     timeline: [
@@ -40,7 +40,7 @@ test('normalizeLoginArtifacts preserves UUIDs, packet order, and kicked messages
   assert.equal(artifacts.profile.username, '<username>')
 })
 
-test('normalizeLoginDiff normalizes official-vs-RustCraft diffs without changing diff shape', () => {
+test('normalizeLoginDiff normalizes official-vs-VibeCraft diffs without changing diff shape', () => {
   const diff = normalizeLoginDiff([
     {
       path: 'logs',

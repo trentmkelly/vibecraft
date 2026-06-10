@@ -287,7 +287,7 @@ const KNOWN_COMMAND_USAGES: &[(&str, &str)] = &[
         ("ban", "/ban <targets> [reason]"),
         ("ban-ip", "/ban-ip <target> [reason]"),
         ("banlist", "/banlist [ips|players]"),
-        // RustCraft-only debug helper; vanilla 26.1.2 has no `/biome` command.
+        // VibeCraft-only debug helper; vanilla 26.1.2 has no `/biome` command.
         ("biome", "/biome"),
         ("bossbar", "/bossbar <add|remove|list|set|get> ..."),
         ("chase", "/chase <follow|lead|stop> [host|bind_address] [port]"),

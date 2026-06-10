@@ -497,7 +497,7 @@ pub(super) fn fill_biome_command(
     })
 }
 
-/// RustCraft-only debugging command.
+/// VibeCraft-only debugging command.
 ///
 /// Intentional Java parity divergence: vanilla 26.1.2 exposes `/fillbiome` but not
 /// a root `/biome` command. This reports the source player's current biome so we
@@ -512,12 +512,12 @@ pub(super) fn biome_command(
     let _ = debug_biome_at_command_source(state);
     Ok(CommandResult {
         success_count: 1,
-        feedback_key: "commands.rustcraft.debug.biome",
+        feedback_key: "commands.vibecraft.debug.biome",
         broadcast_to_admins: false,
     })
 }
 
-/// Returns the command source's current biome for RustCraft's `/biome` debug command.
+/// Returns the command source's current biome for VibeCraft's `/biome` debug command.
 ///
 /// Intentional Java parity divergence: this function supports a non-vanilla command,
 /// but it still uses Java's biome quart-coordinate convention for the lookup.

@@ -75,7 +75,7 @@ test('overworld fixture manifest covers the explicit seed and coordinate matrix'
 test('manifest serializes bigint seeds and marks pending non-overworld coverage', () => {
   const manifest = fixtureManifest()
 
-  assert.equal(manifest.format, 'rustcraft-vanilla-worldgen-fixtures-v1')
+  assert.equal(manifest.format, 'vibecraft-vanilla-worldgen-fixtures-v1')
   assert.equal(manifest.cases.length, OVERWORLD_FIXTURE_CASES.length + DIMENSION_FIXTURE_CASES.length)
   assert(manifest.cases.every(fixture => typeof fixture.seed === 'string'))
   assert(manifest.cases.some(fixture => fixture.chunks.some(chunk => chunk.dimension === 'the_nether')))
@@ -116,7 +116,7 @@ test('dimension fixture suite can be dependency-injected for deterministic repor
   const report = await runDimensionFixtureSuite({
     cases: [DIMENSION_FIXTURE_CASES[0]],
     root: '/tmp/not-used',
-    output: '/tmp/rustcraft-dimension-fixture-test/report.json',
+    output: '/tmp/vibecraft-dimension-fixture-test/report.json',
     timeoutMs: 1,
     runOracle: async fixture => ({
       ok: true,
@@ -126,7 +126,7 @@ test('dimension fixture suite can be dependency-injected for deterministic repor
     })
   })
 
-  assert.equal(report.format, 'rustcraft-vanilla-worldgen-dimension-fixtures-v1')
+  assert.equal(report.format, 'vibecraft-vanilla-worldgen-dimension-fixtures-v1')
   assert.equal(report.results.length, 1)
   assert.equal(report.results[0].ok, true)
   assert.equal(report.results[0].fixture.chunks[0].dimension, 'the_nether')

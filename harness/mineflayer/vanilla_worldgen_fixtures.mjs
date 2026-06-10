@@ -148,7 +148,7 @@ export function fixtureManifest ({ includePendingDimensions = true } = {}) {
     ? [...OVERWORLD_FIXTURE_CASES, ...DIMENSION_FIXTURE_CASES]
     : [...OVERWORLD_FIXTURE_CASES]
   return {
-    format: 'rustcraft-vanilla-worldgen-fixtures-v1',
+    format: 'vibecraft-vanilla-worldgen-fixtures-v1',
     generatedBy: 'harness/mineflayer/vanilla_worldgen_fixtures.mjs',
     cases: cases.map(serializeFixtureCase)
   }
@@ -210,7 +210,7 @@ export async function runDimensionFixtureSuite ({
     })
   }
   const report = {
-    format: 'rustcraft-vanilla-worldgen-dimension-fixtures-v1',
+    format: 'vibecraft-vanilla-worldgen-dimension-fixtures-v1',
     generatedBy: 'harness/mineflayer/vanilla_worldgen_fixtures.mjs',
     cases: cases.map(serializeFixtureCase),
     results
@@ -237,10 +237,10 @@ function fixtureSeedId (seed) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const root = process.env.RUSTCRAFT_VANILLA_FIXTURE_ROOT ?? path.join(repoRoot, 'target', 'vanilla-worldgen-fixtures')
-  const output = process.env.RUSTCRAFT_VANILLA_FIXTURE_OUTPUT ?? path.join(repoRoot, 'target', 'vanilla-worldgen-fixtures.json')
-  const onlyManifest = process.env.RUSTCRAFT_VANILLA_FIXTURE_MANIFEST_ONLY === '1'
-  const dimensionsOnly = process.env.RUSTCRAFT_VANILLA_FIXTURE_DIMENSIONS === '1'
+  const root = process.env.VIBECRAFT_VANILLA_FIXTURE_ROOT ?? path.join(repoRoot, 'target', 'vanilla-worldgen-fixtures')
+  const output = process.env.VIBECRAFT_VANILLA_FIXTURE_OUTPUT ?? path.join(repoRoot, 'target', 'vanilla-worldgen-fixtures.json')
+  const onlyManifest = process.env.VIBECRAFT_VANILLA_FIXTURE_MANIFEST_ONLY === '1'
+  const dimensionsOnly = process.env.VIBECRAFT_VANILLA_FIXTURE_DIMENSIONS === '1'
   const report = onlyManifest
     ? fixtureManifest()
     : dimensionsOnly

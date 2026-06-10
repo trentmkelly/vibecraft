@@ -7,15 +7,15 @@ const execFileAsync = promisify(execFile)
 
 test('raw 26.1.2 wrong-protocol probe keeps status usable and rejects login', async () => {
   const status = await runProbe('raw_26_1_2_status_probe.mjs', {
-    RUSTCRAFT_PROTOCOL_VERSION: '1'
+    VIBECRAFT_PROTOCOL_VERSION: '1'
   })
   assert.equal(status.ok, true)
   assert.equal(status.status.version.protocol, 775)
 
   const login = await runProbe('raw_26_1_2_join_probe.mjs', {
-    RUSTCRAFT_PROTOCOL_VERSION: '1',
-    RUSTCRAFT_EXPECT_LOGIN_DISCONNECT: '1',
-    RUSTCRAFT_USERNAME: 'WrongProto'
+    VIBECRAFT_PROTOCOL_VERSION: '1',
+    VIBECRAFT_EXPECT_LOGIN_DISCONNECT: '1',
+    VIBECRAFT_USERNAME: 'WrongProto'
   })
   assert.equal(login.ok, true)
   assert.equal(login.disconnected, true)

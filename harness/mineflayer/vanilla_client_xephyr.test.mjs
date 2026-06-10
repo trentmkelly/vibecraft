@@ -10,17 +10,17 @@ test('createVanillaClientXephyrPlan records nested display, isolated gameDir, an
   const plan = createVanillaClientXephyrPlan({
     display: ':7',
     screen: '1024x768',
-    gameDir: '/tmp/rustcraft-client',
-    artifactsDir: '/tmp/rustcraft-artifacts'
+    gameDir: '/tmp/vibecraft-client',
+    artifactsDir: '/tmp/vibecraft-artifacts'
   })
 
   assert.equal(plan.name, 'vanilla-client-xephyr-oracle')
   assert.equal(plan.display, ':7')
   assert.equal(plan.screen, '1024x768')
-  assert.equal(plan.gameDir, '/tmp/rustcraft-client')
-  assert.equal(plan.screenshotPath, '/tmp/rustcraft-artifacts/xephyr-root.png')
-  assert.equal(plan.launchLogPath, '/tmp/rustcraft-artifacts/launch.json')
-  assert.equal(plan.clientLogPath, '/tmp/rustcraft-client/logs/latest.log')
+  assert.equal(plan.gameDir, '/tmp/vibecraft-client')
+  assert.equal(plan.screenshotPath, '/tmp/vibecraft-artifacts/xephyr-root.png')
+  assert.equal(plan.launchLogPath, '/tmp/vibecraft-artifacts/launch.json')
+  assert.equal(plan.clientLogPath, '/tmp/vibecraft-client/logs/latest.log')
   assert.equal(plan.environment.DISPLAY, ':7')
   assert.equal(plan.environment.GLFW_PLATFORM, 'x11')
   assert.equal(plan.environment.XDG_SESSION_TYPE, 'x11')

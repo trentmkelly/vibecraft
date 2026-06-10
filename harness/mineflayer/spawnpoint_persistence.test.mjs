@@ -12,7 +12,7 @@ import {
 test('createSpawnpointPersistencePlan covers all 6 spawnpoint steps', () => {
   const plan = createSpawnpointPersistencePlan()
   assert.equal(plan.name, 'mineflayer-spawnpoint-persistence')
-  assert.deepEqual(plan.compareAgainst, ['vanilla-26.1.2', 'rustcraft'])
+  assert.deepEqual(plan.compareAgainst, ['vanilla-26.1.2', 'vibecraft'])
   assert.equal(plan.steps.length, 6)
   assert.deepEqual(plan.assertions, [
     'bed-spawn-saved-to-playerdata',

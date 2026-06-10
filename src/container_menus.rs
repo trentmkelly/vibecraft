@@ -263,7 +263,7 @@ pub(super) struct AnvilCombineResult {
 
 /// 1:1 port of `AnvilMenu.createResult` (the full repair + enchantment-combine + rename
 /// pipeline). `item_name` is the requested rename (vanilla compares it to
-/// `getHoverName()`; RustCraft has no display-name/translation layer so it compares to
+/// `getHoverName()`; VibeCraft has no display-name/translation layer so it compares to
 /// the item id, matching the existing rename path). `creative` is `hasInfiniteMaterials`.
 #[allow(clippy::cognitive_complexity, clippy::too_many_lines)]
 pub(super) fn anvil_create_result(
@@ -382,7 +382,7 @@ pub(super) fn anvil_create_result(
         }
     }
     // (The "input has a custom name -> remove it" branch is not modelled, since
-    // RustCraft does not attach a CUSTOM_NAME component to inputs.)
+    // VibeCraft does not attach a CUSTOM_NAME component to inputs.)
 
     let final_price = if price <= 0 {
         0
@@ -610,7 +610,7 @@ pub(super) fn is_filled_map(item_id: &str) -> bool {
 }
 
 /// Used by grindstone slots — accepts damageable items or items with any
-/// enchantment. Enchantment data is not yet stored on items in RustCraft, so
+/// enchantment. Enchantment data is not yet stored on items in VibeCraft, so
 /// we approximate via the items that vanilla treats as damageable. The
 /// behaviour is sound (a non-damageable, non-enchanted item will be rejected
 /// here matching vanilla).

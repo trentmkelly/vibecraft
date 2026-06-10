@@ -113,7 +113,7 @@ pub(super) fn fill_from_noise_chunk_inner_sections_timed(
             dimensions: &dimensions,
             settings,
             material_rules: &NoiseMaterialRuleList::new(settings, factories.ore),
-            detailed_timing: std::env::var_os("RUSTCRAFT_WORLDGEN_DETAILED_TIMING").is_some(),
+            detailed_timing: std::env::var_os("VIBECRAFT_WORLDGEN_DETAILED_TIMING").is_some(),
         },
         &mut noise_chunk,
         &mut aquifer,

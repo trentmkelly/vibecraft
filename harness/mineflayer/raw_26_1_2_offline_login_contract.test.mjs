@@ -9,7 +9,7 @@ import { promisify } from 'node:util'
 
 import {
   createTempWorld,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -18,12 +18,12 @@ import {
 const execFileAsync = promisify(execFile)
 const here = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(here, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 const host = '127.0.0.1'
 
 test('raw 26.1.2 offline login reaches play without auth, encryption, or profile-key requirements', { timeout: 45_000 }, async () => {
   const port = await reservePort()
-  const root = await createTempWorld('rustcraft-offline-contract-')
+  const root = await createTempWorld('vibecraft-offline-contract-')
   let server
 
   try {
@@ -35,7 +35,7 @@ test('raw 26.1.2 offline login reaches play without auth, encryption, or profile
         'simulation-distance': '4'
       }
     })
-    server = startRustCraft({ binary, root, port, levelName: 'world' })
+    server = startVibeCraft({ binary, root, port, levelName: 'world' })
     await waitForPort(port, host, 10_000)
 
     const login = await runJoinProbe(port)
@@ -70,9 +70,9 @@ async function runJoinProbe (port) {
       cwd: here,
       env: {
         ...process.env,
-        RUSTCRAFT_HOST: host,
-        RUSTCRAFT_PORT: String(port),
-        RUSTCRAFT_USERNAME: 'OfflineContract'
+        VIBECRAFT_HOST: host,
+        VIBECRAFT_PORT: String(port),
+        VIBECRAFT_USERNAME: 'OfflineContract'
       },
       timeout: 30000,
       maxBuffer: 1024 * 1024

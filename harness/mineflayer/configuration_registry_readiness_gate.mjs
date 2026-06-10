@@ -223,9 +223,9 @@ function summarizeClosureGate (gate) {
 async function runRaw26Probe (options) {
   const env = {
     ...process.env,
-    RUSTCRAFT_HOST: options.host ?? process.env.RUSTCRAFT_HOST ?? '127.0.0.1',
-    RUSTCRAFT_PORT: String(options.port ?? process.env.RUSTCRAFT_PORT ?? 25565),
-    RUSTCRAFT_USERNAME: options.username ?? process.env.RUSTCRAFT_USERNAME ?? 'RustCraftGate'
+    VIBECRAFT_HOST: options.host ?? process.env.VIBECRAFT_HOST ?? '127.0.0.1',
+    VIBECRAFT_PORT: String(options.port ?? process.env.VIBECRAFT_PORT ?? 25565),
+    VIBECRAFT_USERNAME: options.username ?? process.env.VIBECRAFT_USERNAME ?? 'VibeCraftGate'
   }
   const timeoutMs = options.timeoutMs ?? 30_000
 
@@ -281,9 +281,9 @@ function fail (name, message, details) {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const gate = await runConfigurationRegistryReadinessGate({
-    host: process.env.RUSTCRAFT_HOST,
-    port: Number(process.env.RUSTCRAFT_PORT ?? 25565),
-    timeoutMs: Number(process.env.RUSTCRAFT_TIMEOUT_MS ?? 30_000)
+    host: process.env.VIBECRAFT_HOST,
+    port: Number(process.env.VIBECRAFT_PORT ?? 25565),
+    timeoutMs: Number(process.env.VIBECRAFT_TIMEOUT_MS ?? 30_000)
   })
   const report = formatConfigurationRegistryReadinessGateReport(gate)
   if (gate.ok) {

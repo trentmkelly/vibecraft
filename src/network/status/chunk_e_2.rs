@@ -978,7 +978,7 @@ pub fn status_json(
 
     // Java mirror: status `enforcesSecureChat` = `server.enforceSecureProfile()`
     // (MinecraftServer.java:1059) = `enforce-secure-profile && online-mode &&
-    // services.canValidateProfileKeys()` (DedicatedServer.java:654-656). RustCraft
+    // services.canValidateProfileKeys()` (DedicatedServer.java:654-656). VibeCraft
     // has not loaded a Mojang services PROFILE_KEY (no online profile-key
     // validation), so `canValidateProfileKeys()` is false and the whole expression
     // is false — matching vanilla offline behavior. (Previously hard-coded `true`,

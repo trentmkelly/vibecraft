@@ -2,9 +2,9 @@ import { runObservedOfflineLogin } from './login_session.mjs'
 import { forceReconnect, issueCommand, waitForSpawn } from './bot_actions.mjs'
 
 export function createLongRunningSoakPlan(options = {}) {
-  const minutes = Number(options.minutes ?? process.env.RUSTCRAFT_SOAK_MINUTES ?? 30)
-  const reconnectEvery = Number(options.reconnectEvery ?? process.env.RUSTCRAFT_SOAK_RECONNECT_EVERY ?? 5)
-  const movementEvery = Number(options.movementEvery ?? process.env.RUSTCRAFT_SOAK_MOVE_EVERY ?? 1)
+  const minutes = Number(options.minutes ?? process.env.VIBECRAFT_SOAK_MINUTES ?? 30)
+  const reconnectEvery = Number(options.reconnectEvery ?? process.env.VIBECRAFT_SOAK_RECONNECT_EVERY ?? 5)
+  const movementEvery = Number(options.movementEvery ?? process.env.VIBECRAFT_SOAK_MOVE_EVERY ?? 1)
   return {
     name: 'real-client-long-running-soak',
     client: 'mineflayer',
@@ -78,7 +78,7 @@ export async function runLongRunningSoak(options = {}) {
       ...plan.serverProperties,
       ...(options.properties ?? {})
     },
-    username: options.username ?? 'RustCraftSoak',
+    username: options.username ?? 'VibeCraftSoak',
     keepAlive: true
   })
 
@@ -127,11 +127,11 @@ function delay(ms) {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   runLongRunningSoak({
-    binary: process.env.RUSTCRAFT_BIN,
-    port: Number(process.env.RUSTCRAFT_PORT ?? 25565),
+    binary: process.env.VIBECRAFT_BIN,
+    port: Number(process.env.VIBECRAFT_PORT ?? 25565),
     version: process.env.MINEFLAYER_VERSION,
-    timeoutMs: Number(process.env.RUSTCRAFT_TIMEOUT_MS ?? 30_000),
-    keepArtifacts: process.env.RUSTCRAFT_KEEP_ARTIFACTS === '1'
+    timeoutMs: Number(process.env.VIBECRAFT_TIMEOUT_MS ?? 30_000),
+    keepArtifacts: process.env.VIBECRAFT_KEEP_ARTIFACTS === '1'
   }).then(result => {
     console.log(JSON.stringify({ plan: result.plan, health: result.health }, null, 2))
     process.exitCode = result.health.ok ? 0 : 1

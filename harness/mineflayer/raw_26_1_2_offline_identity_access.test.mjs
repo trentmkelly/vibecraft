@@ -11,7 +11,7 @@ import { gunzipSync, gzipSync } from 'node:zlib'
 import {
   createTempWorld,
   offlineUuid,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -20,7 +20,7 @@ import {
 const execFileAsync = promisify(execFile)
 const here = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(here, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 const host = '127.0.0.1'
 
 test('raw 26.1.2 offline identity and access files gate login like vanilla surfaces', { timeout: 120_000 }, async () => {
@@ -66,7 +66,7 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
       'ops.json': JSON.stringify([])
     }
   }, async ({ port, username }) => {
-    const rejected = await runJoinProbe(port, username, { RUSTCRAFT_EXPECT_LOGIN_DISCONNECT: '1' })
+    const rejected = await runJoinProbe(port, username, { VIBECRAFT_EXPECT_LOGIN_DISCONNECT: '1' })
     assert.match(rejected.reason, /multiplayer\.disconnect\.not_whitelisted/)
   })
 
@@ -101,7 +101,7 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
       'banned-players.json': JSON.stringify([{ ...profile('Banned'), created: '2026-05-17 00:00:00 +0000', source: 'Server', expires: 'forever', reason: 'test' }])
     }
   }, async ({ port, username }) => {
-    const rejected = await runJoinProbe(port, username, { RUSTCRAFT_EXPECT_LOGIN_DISCONNECT: '1' })
+    const rejected = await runJoinProbe(port, username, { VIBECRAFT_EXPECT_LOGIN_DISCONNECT: '1' })
     assert.match(rejected.reason, /multiplayer\.disconnect\.banned/)
   })
 
@@ -111,7 +111,7 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
       'banned-ips.json': JSON.stringify([{ ip: host, created: '2026-05-17 00:00:00 +0000', source: 'Server', expires: 'forever', reason: 'test' }])
     }
   }, async ({ port, username }) => {
-    const rejected = await runJoinProbe(port, username, { RUSTCRAFT_EXPECT_LOGIN_DISCONNECT: '1' })
+    const rejected = await runJoinProbe(port, username, { VIBECRAFT_EXPECT_LOGIN_DISCONNECT: '1' })
     assert.match(rejected.reason, /multiplayer\.disconnect\.ip_banned/)
   })
 
@@ -121,7 +121,7 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
       'banned-players.json': JSON.stringify([{ ...profile('Pardoned'), created: '2026-05-17 00:00:00 +0000', source: 'Server', expires: 'forever', reason: 'test' }])
     }
   }, async ({ port, root, username, restart }) => {
-    const rejected = await runJoinProbe(port, username, { RUSTCRAFT_EXPECT_LOGIN_DISCONNECT: '1' })
+    const rejected = await runJoinProbe(port, username, { VIBECRAFT_EXPECT_LOGIN_DISCONNECT: '1' })
     assert.match(rejected.reason, /multiplayer\.disconnect\.banned/)
 
     await writeFile(path.join(root, 'banned-players.json'), '[]\n')
@@ -138,7 +138,7 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
       'banned-ips.json': JSON.stringify([{ ip: host, created: '2026-05-17 00:00:00 +0000', source: 'Server', expires: 'forever', reason: 'test' }])
     }
   }, async ({ port, root, username, restart }) => {
-    const rejected = await runJoinProbe(port, username, { RUSTCRAFT_EXPECT_LOGIN_DISCONNECT: '1' })
+    const rejected = await runJoinProbe(port, username, { VIBECRAFT_EXPECT_LOGIN_DISCONNECT: '1' })
     assert.match(rejected.reason, /multiplayer\.disconnect\.ip_banned/)
 
     await writeFile(path.join(root, 'banned-ips.json'), '[]\n')
@@ -160,7 +160,7 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
     server.child.stdin.write('reload\n')
     await delay(250)
 
-    const rejected = await runJoinProbe(port, username, { RUSTCRAFT_EXPECT_LOGIN_DISCONNECT: '1' })
+    const rejected = await runJoinProbe(port, username, { VIBECRAFT_EXPECT_LOGIN_DISCONNECT: '1' })
     assert.match(rejected.reason, /multiplayer\.disconnect\.banned/)
 
     await writeFile(path.join(root, 'banned-players.json'), '[]\n')
@@ -174,9 +174,9 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
   await withRestartableServer({ username: 'PersistPos' }, async ({ port, username, restart }) => {
     const movedPosition = { x: 4.5, y: 81.0, z: -3.5, yaw: 90, pitch: 12.5 }
     const moved = await runJoinProbe(port, username, {
-      RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'movement',
-      RUSTCRAFT_RAW_PROBE_MOVEMENT_POSITION: JSON.stringify(movedPosition),
-      RUSTCRAFT_RAW_PROBE_ABORT_AFTER: 'first_tick_actions'
+      VIBECRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'movement',
+      VIBECRAFT_RAW_PROBE_MOVEMENT_POSITION: JSON.stringify(movedPosition),
+      VIBECRAFT_RAW_PROBE_ABORT_AFTER: 'first_tick_actions'
     })
     assert.equal(moved.ok, true)
     assert.equal(moved.aborted, true)
@@ -185,7 +185,7 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
     await restart()
 
     const rejoined = await runJoinProbe(port, username, {
-      RUSTCRAFT_EXPECT_JOIN_POSITION: JSON.stringify(movedPosition)
+      VIBECRAFT_EXPECT_JOIN_POSITION: JSON.stringify(movedPosition)
     })
     assert.deepEqual(rejoined.joinState.position, movedPosition)
   })
@@ -193,9 +193,9 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
   await withRestartableServer({ username: 'PersistSlot' }, async ({ port, username, restart }) => {
     const selectedSlot = 6
     const changed = await runJoinProbe(port, username, {
-      RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'held_slot',
-      RUSTCRAFT_RAW_PROBE_HELD_SLOT: String(selectedSlot),
-      RUSTCRAFT_RAW_PROBE_ABORT_AFTER: 'first_tick_actions'
+      VIBECRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'held_slot',
+      VIBECRAFT_RAW_PROBE_HELD_SLOT: String(selectedSlot),
+      VIBECRAFT_RAW_PROBE_ABORT_AFTER: 'first_tick_actions'
     })
     assert.equal(changed.ok, true)
     assert.equal(changed.aborted, true)
@@ -204,16 +204,16 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
     await restart()
 
     const rejoined = await runJoinProbe(port, username, {
-      RUSTCRAFT_EXPECT_HELD_SLOT: String(selectedSlot)
+      VIBECRAFT_EXPECT_HELD_SLOT: String(selectedSlot)
     })
     assert.equal(rejoined.ok, true)
   })
 
   await withRestartableServer({ username: 'BadSlot' }, async ({ port, username, restart }) => {
     const changed = await runJoinProbe(port, username, {
-      RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'held_slot',
-      RUSTCRAFT_RAW_PROBE_HELD_SLOT: '12',
-      RUSTCRAFT_RAW_PROBE_ABORT_AFTER: 'first_tick_actions'
+      VIBECRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'held_slot',
+      VIBECRAFT_RAW_PROBE_HELD_SLOT: '12',
+      VIBECRAFT_RAW_PROBE_ABORT_AFTER: 'first_tick_actions'
     })
     assert.equal(changed.ok, true)
     assert.equal(changed.aborted, true)
@@ -222,7 +222,7 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
     await restart()
 
     const rejoined = await runJoinProbe(port, username, {
-      RUSTCRAFT_EXPECT_HELD_SLOT: '0'
+      VIBECRAFT_EXPECT_HELD_SLOT: '0'
     })
     assert.equal(rejoined.ok, true)
   })
@@ -244,17 +244,17 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
     await writePlayerData(root, uuid, saved)
 
     const joined = await runJoinProbe(port, username, {
-      RUSTCRAFT_EXPECT_JOIN_POSITION: JSON.stringify(saved.position),
-      RUSTCRAFT_EXPECT_HELD_SLOT: String(saved.selectedSlot),
-      RUSTCRAFT_EXPECT_HEALTH: String(saved.health),
-      RUSTCRAFT_EXPECT_FOOD_LEVEL: String(saved.foodLevel),
-      RUSTCRAFT_EXPECT_FOOD_SATURATION: String(saved.foodSaturation),
-      RUSTCRAFT_EXPECT_XP_PROGRESS: String(saved.xpProgress),
-      RUSTCRAFT_EXPECT_XP_LEVEL: String(saved.xpLevel),
-      RUSTCRAFT_EXPECT_XP_TOTAL: String(saved.xpTotal),
-      RUSTCRAFT_EXPECT_GAME_MODE: String(saved.gameMode),
-      RUSTCRAFT_EXPECT_PREVIOUS_GAME_MODE: String(saved.previousGameMode),
-      RUSTCRAFT_EXPECT_ABILITY_FLAGS: '13'
+      VIBECRAFT_EXPECT_JOIN_POSITION: JSON.stringify(saved.position),
+      VIBECRAFT_EXPECT_HELD_SLOT: String(saved.selectedSlot),
+      VIBECRAFT_EXPECT_HEALTH: String(saved.health),
+      VIBECRAFT_EXPECT_FOOD_LEVEL: String(saved.foodLevel),
+      VIBECRAFT_EXPECT_FOOD_SATURATION: String(saved.foodSaturation),
+      VIBECRAFT_EXPECT_XP_PROGRESS: String(saved.xpProgress),
+      VIBECRAFT_EXPECT_XP_LEVEL: String(saved.xpLevel),
+      VIBECRAFT_EXPECT_XP_TOTAL: String(saved.xpTotal),
+      VIBECRAFT_EXPECT_GAME_MODE: String(saved.gameMode),
+      VIBECRAFT_EXPECT_PREVIOUS_GAME_MODE: String(saved.previousGameMode),
+      VIBECRAFT_EXPECT_ABILITY_FLAGS: '13'
     })
     assert.equal(joined.ok, true)
   })
@@ -276,17 +276,17 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
     })
 
     const joined = await runJoinProbe(port, username, {
-      RUSTCRAFT_EXPECT_JOIN_POSITION: JSON.stringify(position),
-      RUSTCRAFT_EXPECT_HEALTH: '20',
-      RUSTCRAFT_EXPECT_FOOD_LEVEL: '20',
-      RUSTCRAFT_EXPECT_FOOD_SATURATION: '20',
-      RUSTCRAFT_EXPECT_XP_PROGRESS: '1',
-      RUSTCRAFT_EXPECT_XP_LEVEL: '0',
-      RUSTCRAFT_EXPECT_XP_TOTAL: '0',
-      RUSTCRAFT_EXPECT_HELD_SLOT: '0',
-      RUSTCRAFT_EXPECT_GAME_MODE: '0',
-      RUSTCRAFT_EXPECT_PREVIOUS_GAME_MODE: '0',
-      RUSTCRAFT_EXPECT_ABILITY_FLAGS: '0'
+      VIBECRAFT_EXPECT_JOIN_POSITION: JSON.stringify(position),
+      VIBECRAFT_EXPECT_HEALTH: '20',
+      VIBECRAFT_EXPECT_FOOD_LEVEL: '20',
+      VIBECRAFT_EXPECT_FOOD_SATURATION: '20',
+      VIBECRAFT_EXPECT_XP_PROGRESS: '1',
+      VIBECRAFT_EXPECT_XP_LEVEL: '0',
+      VIBECRAFT_EXPECT_XP_TOTAL: '0',
+      VIBECRAFT_EXPECT_HELD_SLOT: '0',
+      VIBECRAFT_EXPECT_GAME_MODE: '0',
+      VIBECRAFT_EXPECT_PREVIOUS_GAME_MODE: '0',
+      VIBECRAFT_EXPECT_ABILITY_FLAGS: '0'
     })
     assert.equal(joined.ok, true)
   })
@@ -296,9 +296,9 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
     properties: { gamemode: 'creative' }
   }, async ({ port, username }) => {
     const joined = await runJoinProbe(port, username, {
-      RUSTCRAFT_EXPECT_GAME_MODE: '1',
-      RUSTCRAFT_EXPECT_PREVIOUS_GAME_MODE: '255',
-      RUSTCRAFT_EXPECT_ABILITY_FLAGS: '13'
+      VIBECRAFT_EXPECT_GAME_MODE: '1',
+      VIBECRAFT_EXPECT_PREVIOUS_GAME_MODE: '255',
+      VIBECRAFT_EXPECT_ABILITY_FLAGS: '13'
     })
     assert.equal(joined.ok, true)
   })
@@ -308,9 +308,9 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
     properties: { gamemode: 'not_a_mode' }
   }, async ({ port, username }) => {
     const joined = await runJoinProbe(port, username, {
-      RUSTCRAFT_EXPECT_GAME_MODE: '0',
-      RUSTCRAFT_EXPECT_PREVIOUS_GAME_MODE: '255',
-      RUSTCRAFT_EXPECT_ABILITY_FLAGS: '0'
+      VIBECRAFT_EXPECT_GAME_MODE: '0',
+      VIBECRAFT_EXPECT_PREVIOUS_GAME_MODE: '255',
+      VIBECRAFT_EXPECT_ABILITY_FLAGS: '0'
     })
     assert.equal(joined.ok, true)
   })
@@ -320,9 +320,9 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
     properties: { gamemode: '1' }
   }, async ({ port, username }) => {
     const joined = await runJoinProbe(port, username, {
-      RUSTCRAFT_EXPECT_GAME_MODE: '1',
-      RUSTCRAFT_EXPECT_PREVIOUS_GAME_MODE: '255',
-      RUSTCRAFT_EXPECT_ABILITY_FLAGS: '13'
+      VIBECRAFT_EXPECT_GAME_MODE: '1',
+      VIBECRAFT_EXPECT_PREVIOUS_GAME_MODE: '255',
+      VIBECRAFT_EXPECT_ABILITY_FLAGS: '13'
     })
     assert.equal(joined.ok, true)
   })
@@ -332,9 +332,9 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
     properties: { gamemode: '01' }
   }, async ({ port, username }) => {
     const joined = await runJoinProbe(port, username, {
-      RUSTCRAFT_EXPECT_GAME_MODE: '1',
-      RUSTCRAFT_EXPECT_PREVIOUS_GAME_MODE: '255',
-      RUSTCRAFT_EXPECT_ABILITY_FLAGS: '13'
+      VIBECRAFT_EXPECT_GAME_MODE: '1',
+      VIBECRAFT_EXPECT_PREVIOUS_GAME_MODE: '255',
+      VIBECRAFT_EXPECT_ABILITY_FLAGS: '13'
     })
     assert.equal(joined.ok, true)
   })
@@ -344,9 +344,9 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
     properties: { gamemode: '99' }
   }, async ({ port, username }) => {
     const joined = await runJoinProbe(port, username, {
-      RUSTCRAFT_EXPECT_GAME_MODE: '0',
-      RUSTCRAFT_EXPECT_PREVIOUS_GAME_MODE: '255',
-      RUSTCRAFT_EXPECT_ABILITY_FLAGS: '0'
+      VIBECRAFT_EXPECT_GAME_MODE: '0',
+      VIBECRAFT_EXPECT_PREVIOUS_GAME_MODE: '255',
+      VIBECRAFT_EXPECT_ABILITY_FLAGS: '0'
     })
     assert.equal(joined.ok, true)
   })
@@ -356,9 +356,9 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
     properties: { gamemode: '-1' }
   }, async ({ port, username }) => {
     const joined = await runJoinProbe(port, username, {
-      RUSTCRAFT_EXPECT_GAME_MODE: '0',
-      RUSTCRAFT_EXPECT_PREVIOUS_GAME_MODE: '255',
-      RUSTCRAFT_EXPECT_ABILITY_FLAGS: '0'
+      VIBECRAFT_EXPECT_GAME_MODE: '0',
+      VIBECRAFT_EXPECT_PREVIOUS_GAME_MODE: '255',
+      VIBECRAFT_EXPECT_ABILITY_FLAGS: '0'
     })
     assert.equal(joined.ok, true)
   })
@@ -368,9 +368,9 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
     properties: { gamemode: 'spectator' }
   }, async ({ port, root, username }) => {
     const joined = await runJoinProbe(port, username, {
-      RUSTCRAFT_EXPECT_GAME_MODE: '3',
-      RUSTCRAFT_EXPECT_PREVIOUS_GAME_MODE: '255',
-      RUSTCRAFT_EXPECT_ABILITY_FLAGS: '15'
+      VIBECRAFT_EXPECT_GAME_MODE: '3',
+      VIBECRAFT_EXPECT_PREVIOUS_GAME_MODE: '255',
+      VIBECRAFT_EXPECT_ABILITY_FLAGS: '15'
     })
     assert.equal(joined.ok, true)
     const uuid = offlineUuid(username)
@@ -398,10 +398,10 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
     })
 
     const joined = await runJoinProbe(port, username, {
-      RUSTCRAFT_EXPECT_JOIN_POSITION: JSON.stringify(position),
-      RUSTCRAFT_EXPECT_GAME_MODE: '2',
-      RUSTCRAFT_EXPECT_PREVIOUS_GAME_MODE: '0',
-      RUSTCRAFT_EXPECT_ABILITY_FLAGS: '0'
+      VIBECRAFT_EXPECT_JOIN_POSITION: JSON.stringify(position),
+      VIBECRAFT_EXPECT_GAME_MODE: '2',
+      VIBECRAFT_EXPECT_PREVIOUS_GAME_MODE: '0',
+      VIBECRAFT_EXPECT_ABILITY_FLAGS: '0'
     })
     assert.equal(joined.ok, true)
     assert.equal(await readPlayerDataInt(root, uuid, 'playerGameType'), 2)
@@ -415,7 +415,7 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
     const stats = path.join(root, 'world', 'stats', `${uuid}.json`)
 
     const aborted = await runJoinProbe(port, username, {
-      RUSTCRAFT_RAW_PROBE_ABORT_AFTER: 'login_success'
+      VIBECRAFT_RAW_PROBE_ABORT_AFTER: 'login_success'
     })
     assert.equal(aborted.ok, true)
     assert.equal(aborted.aborted, true)
@@ -441,17 +441,17 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
     const secondPosition = { x: 8.5, y: 82.0, z: -8.5, yaw: 45, pitch: -5 }
 
     await runJoinProbe(port, username, {
-      RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'movement',
-      RUSTCRAFT_RAW_PROBE_MOVEMENT_POSITION: JSON.stringify(firstPosition),
-      RUSTCRAFT_RAW_PROBE_ABORT_AFTER: 'first_tick_actions'
+      VIBECRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'movement',
+      VIBECRAFT_RAW_PROBE_MOVEMENT_POSITION: JSON.stringify(firstPosition),
+      VIBECRAFT_RAW_PROBE_ABORT_AFTER: 'first_tick_actions'
     })
     await delay(250)
 
     await runJoinProbe(port, username, {
-      RUSTCRAFT_EXPECT_JOIN_POSITION: JSON.stringify(firstPosition),
-      RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'movement',
-      RUSTCRAFT_RAW_PROBE_MOVEMENT_POSITION: JSON.stringify(secondPosition),
-      RUSTCRAFT_RAW_PROBE_ABORT_AFTER: 'first_tick_actions'
+      VIBECRAFT_EXPECT_JOIN_POSITION: JSON.stringify(firstPosition),
+      VIBECRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'movement',
+      VIBECRAFT_RAW_PROBE_MOVEMENT_POSITION: JSON.stringify(secondPosition),
+      VIBECRAFT_RAW_PROBE_ABORT_AFTER: 'first_tick_actions'
     })
     await delay(250)
     assert.equal(await exists(playerdataOld), true, 'second save should rotate primary playerdata to .dat_old')
@@ -460,7 +460,7 @@ test('raw 26.1.2 offline identity and access files gate login like vanilla surfa
     await restart()
 
     const recovered = await runJoinProbe(port, username, {
-      RUSTCRAFT_EXPECT_JOIN_POSITION: JSON.stringify(firstPosition)
+      VIBECRAFT_EXPECT_JOIN_POSITION: JSON.stringify(firstPosition)
     })
     assert.deepEqual(recovered.joinState.position, firstPosition)
     const backups = await corruptBackups(root, uuid)
@@ -510,7 +510,7 @@ async function withServer (options, callback) {
 
 async function withRestartableServer (options, callback) {
   const port = await reservePort()
-  const root = await createTempWorld('rustcraft-identity-')
+  const root = await createTempWorld('vibecraft-identity-')
   let server
   try {
     await writeOfflineServerFiles(root, {
@@ -523,7 +523,7 @@ async function withRestartableServer (options, callback) {
     }
     const restart = async () => {
       if (server) await stopServer(server.child)
-      server = startRustCraft({ binary, root, port, levelName: 'world' })
+      server = startVibeCraft({ binary, root, port, levelName: 'world' })
       await waitForPort(port, host, 10_000)
     }
     await restart()
@@ -542,9 +542,9 @@ async function runJoinProbe (port, username, env = {}) {
       cwd: new URL('.', import.meta.url),
       env: {
         ...process.env,
-        RUSTCRAFT_HOST: host,
-        RUSTCRAFT_PORT: String(port),
-        RUSTCRAFT_USERNAME: username,
+        VIBECRAFT_HOST: host,
+        VIBECRAFT_PORT: String(port),
+        VIBECRAFT_USERNAME: username,
         ...env
       },
       timeout: 30_000,

@@ -8,7 +8,7 @@ import { promisify } from 'node:util'
 
 import {
   createTempWorld,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -17,12 +17,12 @@ import {
 const execFileAsync = promisify(execFile)
 const here = new URL('.', import.meta.url)
 const repoRoot = path.resolve(here.pathname, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 const host = '127.0.0.1'
 
 test('raw 26.1.2 command suggestions are available immediately after play entry', { timeout: 45_000 }, async () => {
   const port = await reservePort()
-  const root = await createTempWorld('rustcraft-command-suggestions-')
+  const root = await createTempWorld('vibecraft-command-suggestions-')
   let server
 
   try {
@@ -34,13 +34,13 @@ test('raw 26.1.2 command suggestions are available immediately after play entry'
         'simulation-distance': '4'
       }
     })
-    server = startRustCraft({ binary, root, port, levelName: 'world' })
+    server = startVibeCraft({ binary, root, port, levelName: 'world' })
     await waitForPort(port, host, 10_000)
 
     const joined = await runJoinProbe(port, 'CmdSuggest', {
-      RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'command_suggestion',
-      RUSTCRAFT_RAW_PROBE_KEEPALIVE_MS: '15000',
-      RUSTCRAFT_EXPECT_COMMAND_SUGGESTION: 'list'
+      VIBECRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'command_suggestion',
+      VIBECRAFT_RAW_PROBE_KEEPALIVE_MS: '15000',
+      VIBECRAFT_EXPECT_COMMAND_SUGGESTION: 'list'
     })
 
     assert.equal(joined.ok, true)
@@ -60,9 +60,9 @@ async function runJoinProbe (port, username, env = {}) {
       cwd: here,
       env: {
         ...process.env,
-        RUSTCRAFT_HOST: host,
-        RUSTCRAFT_PORT: String(port),
-        RUSTCRAFT_USERNAME: username,
+        VIBECRAFT_HOST: host,
+        VIBECRAFT_PORT: String(port),
+        VIBECRAFT_USERNAME: username,
         ...env
       },
       timeout: 30_000,

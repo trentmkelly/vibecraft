@@ -40,7 +40,7 @@ export function createConfigurationReplayPlan() {
     auth: 'offline',
     required: [
       'records-official-configuration-transcript',
-      'records-rustcraft-configuration-transcript',
+      'records-vibecraft-configuration-transcript',
       'matches-login-milestones',
       'matches-configuration-milestones',
       'matches-play-entry-milestones',
@@ -103,16 +103,16 @@ export function summarizeConfigurationCustomPayloadEvidence(evidence, plan = cre
 
 export function summarizeConfigurationReplayEvidence(evidence, plan = createConfigurationReplayPlan()) {
   const official = evidence.official ?? {}
-  const rustcraft = evidence.rustcraft ?? {}
+  const vibecraft = evidence.vibecraft ?? {}
   const officialMilestones = official.milestones ?? []
-  const rustcraftMilestones = rustcraft.milestones ?? []
+  const vibecraftMilestones = vibecraft.milestones ?? []
 
   const checks = {
     'records-official-configuration-transcript': Array.isArray(official.configPackets) && official.configPackets.length > 0,
-    'records-rustcraft-configuration-transcript': Array.isArray(rustcraft.configPackets) && rustcraft.configPackets.length > 0,
-    'matches-login-milestones': milestonesContainBoth(officialMilestones, rustcraftMilestones, ['tcp-connect', 'login-success']),
-    'matches-configuration-milestones': milestonesContainBoth(officialMilestones, rustcraftMilestones, ['configuration-start', 'known-packs', 'finish-configuration']),
-    'matches-play-entry-milestones': milestonesContainBoth(officialMilestones, rustcraftMilestones, ['play-login']),
+    'records-vibecraft-configuration-transcript': Array.isArray(vibecraft.configPackets) && vibecraft.configPackets.length > 0,
+    'matches-login-milestones': milestonesContainBoth(officialMilestones, vibecraftMilestones, ['tcp-connect', 'login-success']),
+    'matches-configuration-milestones': milestonesContainBoth(officialMilestones, vibecraftMilestones, ['configuration-start', 'known-packs', 'finish-configuration']),
+    'matches-play-entry-milestones': milestonesContainBoth(officialMilestones, vibecraftMilestones, ['play-login']),
     'no-hidden-sleeps': !(evidence.hiddenSleeps?.length > 0),
     'no-retry-only-success': evidence.retryOnlySuccess !== true
   }
@@ -125,8 +125,8 @@ export function summarizeConfigurationReplayEvidence(evidence, plan = createConf
   }
 }
 
-function milestonesContainBoth(official, rustcraft, milestones) {
-  return milestones.every(milestone => official.includes(milestone) && rustcraft.includes(milestone))
+function milestonesContainBoth(official, vibecraft, milestones) {
+  return milestones.every(milestone => official.includes(milestone) && vibecraft.includes(milestone))
 }
 
 function hasManifestKnownPack(packet, manifest) {

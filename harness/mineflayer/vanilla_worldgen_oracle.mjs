@@ -198,7 +198,7 @@ export async function exportVanillaWorldgenBlockArrayTarget ({
   const oracle = await runOracle({ root, seed, chunks, timeoutMs })
   const chunkArrays = await collectRequestedChunkBlockArrays(root, oracle.plan.regionFiles, oracle.plan.chunks)
   const target = {
-    format: 'rustcraft-vanilla-worldgen-block-array-target-v1',
+    format: 'vibecraft-vanilla-worldgen-block-array-target-v1',
     generatedBy: 'harness/mineflayer/vanilla_worldgen_oracle.mjs',
     seed: oracle.plan.seed,
     dimensions: ['x', 'y', 'z', 'block_state'],
@@ -254,7 +254,7 @@ export function buildVanillaWorldgenTraceReport (oracleResult) {
     .sort((left, right) => left.dimension.localeCompare(right.dimension) || left.chunkX - right.chunkX || left.chunkZ - right.chunkZ)
   const traceCompleteness = buildTraceCompleteness(requestedChunks)
   return {
-    format: 'rustcraft-vanilla-worldgen-trace-v1',
+    format: 'vibecraft-vanilla-worldgen-trace-v1',
     seed: oracleResult.plan?.seed,
     levelName: oracleResult.plan?.levelName,
     commandTrace: oracleResult.plan?.commands ?? [],
@@ -415,16 +415,16 @@ export async function listRegionFiles (root, levelName = 'world') {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const root = process.env.RUSTCRAFT_VANILLA_WORLDGEN_ROOT ?? path.join(repoRoot, 'target', 'vanilla-worldgen-oracle')
-  const seed = BigInt(process.env.RUSTCRAFT_WORLDGEN_SEED ?? '8675309')
-  const chunks = (process.env.RUSTCRAFT_WORLDGEN_CHUNKS ?? '0,0;1,0;-1,-1')
+  const root = process.env.VIBECRAFT_VANILLA_WORLDGEN_ROOT ?? path.join(repoRoot, 'target', 'vanilla-worldgen-oracle')
+  const seed = BigInt(process.env.VIBECRAFT_WORLDGEN_SEED ?? '8675309')
+  const chunks = (process.env.VIBECRAFT_WORLDGEN_CHUNKS ?? '0,0;1,0;-1,-1')
     .split(';')
     .filter(Boolean)
     .map(entry => {
       const [x, z, dimension] = entry.split(',')
       return { x: Number(x), z: Number(z), dimension: dimension ?? 'overworld' }
     })
-  const output = process.env.RUSTCRAFT_WORLDGEN_BLOCK_ARRAY_OUTPUT
+  const output = process.env.VIBECRAFT_WORLDGEN_BLOCK_ARRAY_OUTPUT
   const result = output
     ? await exportVanillaWorldgenBlockArrayTarget({ root, seed, chunks, output })
     : await runVanillaWorldgenOracle({ root, seed, chunks })

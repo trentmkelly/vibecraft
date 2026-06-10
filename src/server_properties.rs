@@ -408,7 +408,7 @@ mod tests {
     fn preserves_unknown_keys_when_saving() {
         let mut path = std::env::temp_dir();
         path.push(format!(
-            "rustcraft-server-properties-{}.properties",
+            "vibecraft-server-properties-{}.properties",
             std::process::id()
         ));
         fs::write(&path, "custom-key=custom-value\nserver-port=25566\n").unwrap();
@@ -426,7 +426,7 @@ mod tests {
     fn exposes_typed_vanilla_properties() {
         let mut path = std::env::temp_dir();
         path.push(format!(
-            "rustcraft-typed-server-properties-{}.properties",
+            "vibecraft-typed-server-properties-{}.properties",
             std::process::id()
         ));
         fs::write(&path, TYPED_SERVER_PROPERTIES_FIXTURE).unwrap();
@@ -457,7 +457,7 @@ generator-settings={\"layers\":[{\"block\":\"minecraft:grass_block\",\"height\":
 level-type=minecraft:flat
 announce-player-achievements=true
 broadcast-console-to-ops=false
-bug-report-link=https://bugs.example.invalid/rustcraft
+bug-report-link=https://bugs.example.invalid/vibecraft
 enable-code-of-conduct=true
 enable-jmx-monitoring=true
 max-chained-neighbor-updates=2048
@@ -499,7 +499,7 @@ resource-pack-prompt={\"text\":\"Use pack?\"}
         assert!(!properties.broadcast_console_to_ops);
         assert_eq!(
             properties.bug_report_link,
-            "https://bugs.example.invalid/rustcraft"
+            "https://bugs.example.invalid/vibecraft"
         );
         assert!(properties.code_of_conduct);
         assert!(properties.enable_jmx_monitoring);
@@ -529,7 +529,7 @@ resource-pack-prompt={\"text\":\"Use pack?\"}
     fn max_world_size_clamps_to_vanilla_property_range() {
         let mut path = std::env::temp_dir();
         path.push(format!(
-            "rustcraft-max-world-size-{}.properties",
+            "vibecraft-max-world-size-{}.properties",
             std::process::id()
         ));
 
@@ -547,7 +547,7 @@ resource-pack-prompt={\"text\":\"Use pack?\"}
     fn mutable_properties_rehydrate_typed_fields_and_save() {
         let mut path = std::env::temp_dir();
         path.push(format!(
-            "rustcraft-mutable-server-properties-{}.properties",
+            "vibecraft-mutable-server-properties-{}.properties",
             std::process::id()
         ));
         let mut properties = ServerProperties::load_or_default(&path).unwrap();
@@ -601,7 +601,7 @@ resource-pack-prompt={\"text\":\"Use pack?\"}
     fn legacy_announce_player_achievements_migrates_to_advancement_gamerule() {
         let mut path = std::env::temp_dir();
         path.push(format!(
-            "rustcraft-legacy-announce-achievements-{}.properties",
+            "vibecraft-legacy-announce-achievements-{}.properties",
             std::process::id()
         ));
         fs::write(&path, "announce-player-achievements=false\n").unwrap();

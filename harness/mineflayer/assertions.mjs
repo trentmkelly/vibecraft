@@ -124,7 +124,7 @@ export function assertParityDiff(diff, options = {}) {
   const allowed = new Set(options.allowedPaths ?? [])
   const unexpected = diff.filter(entry => !allowed.has(entry.path))
   if (unexpected.length > 0) {
-    return failure('parity.diff', 'official and RustCraft artifacts differ', {
+    return failure('parity.diff', 'official and VibeCraft artifacts differ', {
       unexpected,
       allowed: [...allowed]
     })
@@ -133,11 +133,11 @@ export function assertParityDiff(diff, options = {}) {
 }
 
 export function formatParityDiff(diff) {
-  if (diff.length === 0) return 'official and RustCraft artifacts match'
+  if (diff.length === 0) return 'official and VibeCraft artifacts match'
   return diff.map(entry => [
     `path: ${entry.path}`,
     `official: ${stableStringify(entry.left ?? entry.official)}`,
-    `RustCraft: ${stableStringify(entry.right ?? entry.rebuilt)}`
+    `VibeCraft: ${stableStringify(entry.right ?? entry.rebuilt)}`
   ].join('\n')).join('\n\n')
 }
 

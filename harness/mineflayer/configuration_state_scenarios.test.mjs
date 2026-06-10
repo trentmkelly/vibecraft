@@ -94,7 +94,7 @@ test('configuration custom payload evidence requires every diagnostic surface', 
   const complete = {
     packetTrace: [
       { name: 'custom_payload', channel: 'minecraft:brand' },
-      { name: 'custom_payload', channel: 'rustcraft:unknown_probe' },
+      { name: 'custom_payload', channel: 'vibecraft:unknown_probe' },
       { name: 'client_information' },
       { name: 'cookie_request' },
       { name: 'cookie_response' },
@@ -114,13 +114,13 @@ test('configuration custom payload evidence requires every diagnostic surface', 
   assert.ok(summary.missing.includes('records-cookie-request-response'))
 })
 
-test('configuration replay plan requires official and RustCraft transcripts without hidden sleeps', () => {
+test('configuration replay plan requires official and VibeCraft transcripts without hidden sleeps', () => {
   const plan = createConfigurationReplayPlan()
 
   assert.equal(plan.name, 'mineflayer-offline-configuration-replay')
   assert.deepEqual(plan.required, [
     'records-official-configuration-transcript',
-    'records-rustcraft-configuration-transcript',
+    'records-vibecraft-configuration-transcript',
     'matches-login-milestones',
     'matches-configuration-milestones',
     'matches-play-entry-milestones',
@@ -133,7 +133,7 @@ test('configuration replay evidence compares milestones and rejects sleep or ret
   const milestones = ['tcp-connect', 'login-success', 'configuration-start', 'known-packs', 'finish-configuration', 'play-login']
   const complete = {
     official: { configPackets: [{ id: 12 }], milestones },
-    rustcraft: { configPackets: [{ id: 12 }], milestones },
+    vibecraft: { configPackets: [{ id: 12 }], milestones },
     hiddenSleeps: [],
     retryOnlySuccess: false
   }

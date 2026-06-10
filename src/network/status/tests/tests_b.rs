@@ -5,7 +5,7 @@ use super::*;
 pub fn live_spawn_chunk_packet_uses_generated_level_chunk_serialization() {
     let mut payload = Vec::new();
     let world_root = std::env::temp_dir().join(format!(
-        "rustcraft-missing-world-root-{}",
+        "vibecraft-missing-world-root-{}",
         std::process::id()
     ));
 

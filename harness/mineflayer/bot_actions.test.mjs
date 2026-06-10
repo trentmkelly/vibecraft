@@ -93,7 +93,7 @@ test('forceReconnect ends the current bot and appends new login observations', a
   })
   assert.equal(ended, true)
   assert.equal(session.bot.reconnected, true)
-  assert.equal(session.uuid, offlineUuid('RustCraftBot'))
+  assert.equal(session.uuid, offlineUuid('VibeCraftBot'))
   assert.deepEqual(session.packetTrace.map(packet => packet.name), ['success'])
 })
 
@@ -104,21 +104,21 @@ test('captureVanillaComparisonTraces preserves comparable event and packet trace
     timeline: [{ name: 'spawn', at: 1, summary: [] }],
     packetTrace: [{ name: 'login', state: 'play', at: 1, keys: ['entityId'] }]
   })
-  const rustCraft = fakeSession({
+  const vibeCraft = fakeSession({
     profile: { username: 'Bot', expectedUuid: 'a', actualUuid: 'a' },
     uuid: 'a',
     timeline: [{ name: 'spawn', at: 2, summary: [] }],
     packetTrace: [{ name: 'login', state: 'play', at: 2, keys: ['entityId'] }]
   })
-  assert.deepEqual(captureVanillaComparisonTraces(official, rustCraft), {
+  assert.deepEqual(captureVanillaComparisonTraces(official, vibeCraft), {
     official: {
       profile: official.profile,
       uuid: 'a',
       timeline: [{ name: 'spawn', summary: [] }],
       packetTrace: [{ name: 'login', state: 'play', keys: ['entityId'] }]
     },
-    rustCraft: {
-      profile: rustCraft.profile,
+    vibeCraft: {
+      profile: vibeCraft.profile,
       uuid: 'a',
       timeline: [{ name: 'spawn', summary: [] }],
       packetTrace: [{ name: 'login', state: 'play', keys: ['entityId'] }]
@@ -132,11 +132,11 @@ function fakeSession(options = {}) {
     endpoint: options.endpoint ?? { host: '127.0.0.1', port: 25565 },
     bot,
     profile: options.profile ?? {
-      username: 'RustCraftBot',
-      expectedUuid: offlineUuid('RustCraftBot'),
-      actualUuid: offlineUuid('RustCraftBot')
+      username: 'VibeCraftBot',
+      expectedUuid: offlineUuid('VibeCraftBot'),
+      actualUuid: offlineUuid('VibeCraftBot')
     },
-    uuid: options.uuid ?? offlineUuid('RustCraftBot'),
+    uuid: options.uuid ?? offlineUuid('VibeCraftBot'),
     timeline: options.timeline ?? [],
     packetTrace: options.packetTrace ?? []
   }

@@ -12,7 +12,7 @@ use crate::command_tree::{vanilla_like_tree, CommandNodeKind};
 use crate::item_catalog::ITEM_SOURCE_SURFACE;
 use crate::storage::region::ChunkPos;
 use crate::worldgen::generate_overworld_chunk_for_preset;
-use crate::worldgen_comparison::build_rustcraft_worldgen_report;
+use crate::worldgen_comparison::build_vibecraft_worldgen_report;
 
 pub fn generate_reports(root: impl AsRef<Path>) -> Result<PathBuf, String> {
     let report_dir = root.as_ref().join("reports");
@@ -106,7 +106,7 @@ fn worldgen_chunks_report() -> Result<Value, String> {
         generate_overworld_chunk_for_preset(ChunkPos { x: 1, z: 0 }, "flat")?,
         generate_overworld_chunk_for_preset(ChunkPos { x: 0, z: 0 }, "normal")?,
     ];
-    Ok(build_rustcraft_worldgen_report(
+    Ok(build_vibecraft_worldgen_report(
         chunks.iter().map(|chunk| ("overworld", chunk)),
     ))
 }
@@ -154,7 +154,7 @@ mod tests {
     #[test]
     fn report_generator_writes_vanilla_named_outputs() {
         let root = std::env::temp_dir().join(format!(
-            "rustcraft-generated-reports-{}",
+            "vibecraft-generated-reports-{}",
             std::process::id()
         ));
         let _ = std::fs::remove_dir_all(&root);
@@ -202,7 +202,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             worldgen["format"].as_str(),
-            Some("rustcraft-worldgen-signatures-v1")
+            Some("vibecraft-worldgen-signatures-v1")
         );
         assert_eq!(worldgen["chunks"].as_array().unwrap().len(), 3);
 

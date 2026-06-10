@@ -384,26 +384,26 @@ mod tests {
     #[test]
     fn writes_lifecycle_messages_to_latest_log() {
         let mut dir = std::env::temp_dir();
-        dir.push(format!("rustcraft-logs-{}", std::process::id()));
+        dir.push(format!("vibecraft-logs-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
 
         let logger = Logger::open(&dir).unwrap();
-        logger.info("Starting RustCraft").unwrap();
+        logger.info("Starting VibeCraft").unwrap();
         logger.warn("Safe mode active").unwrap();
-        logger.error("Stopping RustCraft").unwrap();
+        logger.error("Stopping VibeCraft").unwrap();
 
         let contents = fs::read_to_string(logger.latest_log()).unwrap();
         let _ = fs::remove_dir_all(&dir);
 
-        assert!(contents.contains("[INFO]: Starting RustCraft"));
+        assert!(contents.contains("[INFO]: Starting VibeCraft"));
         assert!(contents.contains("[WARN]: Safe mode active"));
-        assert!(contents.contains("[ERROR]: Stopping RustCraft"));
+        assert!(contents.contains("[ERROR]: Stopping VibeCraft"));
     }
 
     #[test]
     fn rotates_existing_latest_log_to_numbered_gzip_archive() {
         let mut dir = std::env::temp_dir();
-        dir.push(format!("rustcraft-log-rotation-{}", std::process::id()));
+        dir.push(format!("vibecraft-log-rotation-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join("latest.log"), "old log line\n").unwrap();
@@ -435,7 +435,7 @@ mod tests {
     fn debug_is_filtered_when_level_is_info() {
         let mut dir = std::env::temp_dir();
         dir.push(format!(
-            "rustcraft-logs-debug-filter-{}",
+            "vibecraft-logs-debug-filter-{}",
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&dir);
@@ -458,7 +458,7 @@ mod tests {
     fn trace_is_filtered_when_level_is_debug() {
         let mut dir = std::env::temp_dir();
         dir.push(format!(
-            "rustcraft-logs-trace-filter-{}",
+            "vibecraft-logs-trace-filter-{}",
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&dir);
@@ -482,7 +482,7 @@ mod tests {
     #[test]
     fn packet_send_produces_correct_hex_output() {
         let mut dir = std::env::temp_dir();
-        dir.push(format!("rustcraft-logs-packet-send-{}", std::process::id()));
+        dir.push(format!("vibecraft-logs-packet-send-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
 
         let logger = Logger::open_with_level(&dir, LogLevel::Trace).unwrap();
@@ -506,7 +506,7 @@ mod tests {
     fn packet_send_is_suppressed_below_trace_level() {
         let mut dir = std::env::temp_dir();
         dir.push(format!(
-            "rustcraft-logs-packet-send-filter-{}",
+            "vibecraft-logs-packet-send-filter-{}",
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&dir);

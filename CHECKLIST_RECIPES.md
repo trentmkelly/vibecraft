@@ -21,7 +21,7 @@
 - `decompiled-server-26.1.2/net/minecraft/world/item/crafting/RecipeSerializers.java` — serializer registry
 - `decompiled-server-26.1.2/net/minecraft/world/item/crafting/RecipeBookCategories.java` — book category definitions
 - `decompiled-server-26.1.2/data/minecraft/recipe/` — vanilla recipe JSON files (hundreds)
-- `RustCraft/src/recipe_system.rs` — RustCraft recipe implementation
+- `VibeCraft/src/recipe_system.rs` — VibeCraft recipe implementation
 
 ## Recipe Manager
 

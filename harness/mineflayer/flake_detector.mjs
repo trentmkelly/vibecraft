@@ -70,11 +70,11 @@ function randomPort(base, span) {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const result = await runLoginFlakeDetector({
-    iterations: Number(process.env.RUSTCRAFT_FLAKE_RUNS ?? 5),
-    binary: process.env.RUSTCRAFT_BIN,
-    username: process.env.RUSTCRAFT_BOT ?? 'RustCraftFlake',
+    iterations: Number(process.env.VIBECRAFT_FLAKE_RUNS ?? 5),
+    binary: process.env.VIBECRAFT_BIN,
+    username: process.env.VIBECRAFT_BOT ?? 'VibeCraftFlake',
     version: process.env.MINEFLAYER_VERSION,
-    timeoutMs: Number(process.env.RUSTCRAFT_TIMEOUT_MS ?? 30_000)
+    timeoutMs: Number(process.env.VIBECRAFT_TIMEOUT_MS ?? 30_000)
   })
   if (result.ok) {
     console.log(result.text)

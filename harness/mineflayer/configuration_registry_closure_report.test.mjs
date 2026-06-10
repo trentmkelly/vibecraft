@@ -54,7 +54,7 @@ test('synced registry report entries are tied to manifest and raw-probe validati
   }
 })
 
-test('synced registry report packet source functions exist in RustCraft', async () => {
+test('synced registry report packet source functions exist in VibeCraft', async () => {
   const report = await loadConfigurationRegistryClosureReport()
   const source = await readFile(statusSourcePath, 'utf8')
 

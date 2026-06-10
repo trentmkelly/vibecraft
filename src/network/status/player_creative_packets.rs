@@ -90,7 +90,7 @@ pub(in crate::network::status) fn apply_pick_item_from_entity_packet(
     _state: &mut PlaySessionState,
     _packet: ServerboundPickItemFromEntityPacket,
 ) -> PickItemOutcome {
-    // Java's base Entity.getPickResult returns null. RustCraft does not yet keep
+    // Java's base Entity.getPickResult returns null. VibeCraft does not yet keep
     // a live pickable mob/entity registry in the play loop, so decoded entity
     // pick packets currently match the Java no-entity/null-pick-result path.
     PickItemOutcome::NoItem

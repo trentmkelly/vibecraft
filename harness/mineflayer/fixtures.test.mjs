@@ -38,7 +38,7 @@ test('createScenarioFixture writes eula, seeded properties, paths, and profiles'
     assert.match(files.serverProperties, /^difficulty=hard$/m)
     assert.equal(fixture.paths.world.endsWith('fixture-world'), true)
     assert.equal(fixture.profiles.length, 2)
-    assert.equal(fixture.profiles[0].uuid, deterministicProfile('RustCraftBot').uuid)
+    assert.equal(fixture.profiles[0].uuid, deterministicProfile('VibeCraftBot').uuid)
   } finally {
     await fixture.cleanup()
   }
@@ -62,7 +62,7 @@ test('fixture manifest preserves deterministic scenario metadata', async () => {
     assert.equal(manifest.name, 'manifest-fixture')
     assert.equal(manifest.port, 30124)
     assert.equal(manifest.seed, 8675309)
-    assert.equal(manifest.profiles[0].username, 'RustCraftBot')
+    assert.equal(manifest.profiles[0].username, 'VibeCraftBot')
   } finally {
     await rm(fixture.root, { recursive: true, force: true })
   }

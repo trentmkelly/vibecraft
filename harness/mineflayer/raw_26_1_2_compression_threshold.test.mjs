@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url'
 
 import {
   createTempWorld,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -18,9 +18,9 @@ import {
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(here, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 const host = '127.0.0.1'
-const protocolVersion = Number(process.env.RUSTCRAFT_PROTOCOL_VERSION ?? 775)
+const protocolVersion = Number(process.env.VIBECRAFT_PROTOCOL_VERSION ?? 775)
 
 test('raw 26.1.2 compression thresholds reach play and decode large registry packets', { timeout: 90_000 }, async () => {
   const cases = [
@@ -31,7 +31,7 @@ test('raw 26.1.2 compression thresholds reach play and decode large registry pac
 
   for (const entry of cases) {
     const port = await reservePort()
-    const root = await createTempWorld(`rustcraft-compression-${entry.threshold}-`)
+    const root = await createTempWorld(`vibecraft-compression-${entry.threshold}-`)
     let server
     try {
       await writeOfflineServerFiles(root, {
@@ -39,7 +39,7 @@ test('raw 26.1.2 compression thresholds reach play and decode large registry pac
         levelName: 'world',
         properties: { 'network-compression-threshold': String(entry.threshold) }
       })
-      server = startRustCraft({ binary, root, port, levelName: 'world' })
+      server = startVibeCraft({ binary, root, port, levelName: 'world' })
       await waitForPort(port, host, 10_000)
 
       const result = await rawJoin(port, `Zip${entry.threshold < 0 ? 'Off' : entry.threshold}`)

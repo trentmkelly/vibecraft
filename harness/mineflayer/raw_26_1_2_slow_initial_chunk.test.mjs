@@ -8,7 +8,7 @@ import { promisify } from 'node:util'
 
 import {
   createTempWorld,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -17,12 +17,12 @@ import {
 const execFileAsync = promisify(execFile)
 const here = new URL('.', import.meta.url)
 const repoRoot = path.resolve(here.pathname, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 const host = '127.0.0.1'
 
 test('raw 26.1.2 slow initial chunk path keeps play connection alive until terrain is ready', { timeout: 90_000 }, async () => {
   const port = await reservePort()
-  const root = await createTempWorld('rustcraft-slow-initial-chunk-')
+  const root = await createTempWorld('vibecraft-slow-initial-chunk-')
   let server
 
   try {
@@ -35,19 +35,19 @@ test('raw 26.1.2 slow initial chunk path keeps play connection alive until terra
         'simulation-distance': '4'
       }
     })
-    server = startRustCraft({
+    server = startVibeCraft({
       binary,
       root,
       port,
       levelName: 'world',
       env: {
-        RUSTCRAFT_INITIAL_CHUNK_DELAY_MS: '11000'
+        VIBECRAFT_INITIAL_CHUNK_DELAY_MS: '11000'
       }
     })
     await waitForPort(port, host, 10_000)
 
     const joined = await runJoinProbe(port, 'SlowChunk', {
-      RUSTCRAFT_EXPECT_WORLD_SEED: '424242'
+      VIBECRAFT_EXPECT_WORLD_SEED: '424242'
     })
 
     assert.equal(joined.ok, true)
@@ -69,9 +69,9 @@ async function runJoinProbe (port, username, env = {}) {
       cwd: here,
       env: {
         ...process.env,
-        RUSTCRAFT_HOST: host,
-        RUSTCRAFT_PORT: String(port),
-        RUSTCRAFT_USERNAME: username,
+        VIBECRAFT_HOST: host,
+        VIBECRAFT_PORT: String(port),
+        VIBECRAFT_USERNAME: username,
         ...env
       },
       timeout: 30_000,

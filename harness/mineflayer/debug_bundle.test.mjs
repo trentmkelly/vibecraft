@@ -13,8 +13,8 @@ test('formatLogs preserves stream labels and raw text', () => {
 })
 
 test('writeLoginDebugBundle writes profile, timeline, packets, logs, artifacts, and parity diff', async () => {
-  const root = await createTempWorld('rustcraft-mf-debug-root-')
-  const outputRoot = await createTempWorld('rustcraft-mf-debug-out-')
+  const root = await createTempWorld('vibecraft-mf-debug-root-')
+  const outputRoot = await createTempWorld('vibecraft-mf-debug-out-')
   const world = path.join(root, 'world')
   await mkdir(world, { recursive: true })
   await writeFile(path.join(world, 'level.dat'), 'fake')
@@ -57,7 +57,7 @@ test('writeLoginDebugBundle writes profile, timeline, packets, logs, artifacts, 
     assert.deepEqual(JSON.parse(await readFile(path.join(bundle.bundleDir, 'packet-trace.json'), 'utf8')), session.packetTrace)
     assert.match(await readFile(path.join(bundle.bundleDir, 'server.log'), 'utf8'), /loaded/)
     assert.match(await readFile(path.join(bundle.bundleDir, 'normalized-artifacts.json'), 'utf8'), /<run-dir>/)
-    assert.match(await readFile(path.join(bundle.bundleDir, 'parity-diff.txt'), 'utf8'), /RustCraft/)
+    assert.match(await readFile(path.join(bundle.bundleDir, 'parity-diff.txt'), 'utf8'), /VibeCraft/)
     assert.equal(await readFile(path.join(bundle.bundleDir, 'world', 'level.dat'), 'utf8'), 'fake')
     assert.equal(await readFile(path.join(bundle.bundleDir, 'server.properties'), 'utf8'), 'server-port=25565\n')
   } finally {
@@ -67,7 +67,7 @@ test('writeLoginDebugBundle writes profile, timeline, packets, logs, artifacts, 
 })
 
 test('writeLoginDebugBundle can skip temp world copying for smaller artifacts', async () => {
-  const outputRoot = await createTempWorld('rustcraft-mf-debug-skip-')
+  const outputRoot = await createTempWorld('vibecraft-mf-debug-skip-')
   try {
     const bundle = await writeLoginDebugBundle({
       outputRoot,
@@ -82,7 +82,7 @@ test('writeLoginDebugBundle can skip temp world copying for smaller artifacts', 
     })
     const manifest = JSON.parse(await readFile(bundle.manifest, 'utf8'))
     assert.equal(manifest.profile.username, 'Bot')
-    assert.equal(await readFile(path.join(bundle.bundleDir, 'parity-diff.txt'), 'utf8'), 'official and RustCraft artifacts match\n')
+    assert.equal(await readFile(path.join(bundle.bundleDir, 'parity-diff.txt'), 'utf8'), 'official and VibeCraft artifacts match\n')
   } finally {
     await rm(outputRoot, { recursive: true, force: true })
   }

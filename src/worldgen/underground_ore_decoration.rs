@@ -322,7 +322,7 @@ impl UndergroundOrePlacementStats {
         flush_ms: u128,
         placed: usize,
     ) {
-        if std::env::var_os("RUSTCRAFT_WORLDGEN_ORE_DEBUG").is_none() {
+        if std::env::var_os("VIBECRAFT_WORLDGEN_ORE_DEBUG").is_none() {
             return;
         }
         eprintln!(

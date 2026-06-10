@@ -1,7 +1,7 @@
 import { offlineUuid } from './runner.mjs'
 
 /// Mineflayer scenarios that exercise recipe-book unlocking + crafting against a
-/// live RustCraft server in offline mode: receive the recipe book on join, craft
+/// live VibeCraft server in offline mode: receive the recipe book on join, craft
 /// in the 2×2 player grid and the 3×3 crafting table, open a workstation, and
 /// confirm the result slot + recipe-sync packets match vanilla.
 ///
@@ -107,7 +107,7 @@ function kebab(value) {
 
 async function craftingRecipeProbe() {
   throw new Error(
-    'craftingRecipeProbe requires a live RustCraft server with an in-world crafting table / workstation to interact with; pass an `options.probe` override to drive the scenario manually'
+    'craftingRecipeProbe requires a live VibeCraft server with an in-world crafting table / workstation to interact with; pass an `options.probe` override to drive the scenario manually'
   )
 }
 

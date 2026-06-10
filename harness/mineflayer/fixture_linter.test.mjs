@@ -69,7 +69,7 @@ function validFixture() {
       'enforce-secure-profile': 'false'
     },
     profiles: [{
-      username: 'RustCraftBot',
+      username: 'VibeCraftBot',
       expectedUuid: '1f8d22b6-2bde-3ef7-8a05-0806e106d497'
     }],
     timeoutMs: 30000,

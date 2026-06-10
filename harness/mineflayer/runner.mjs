@@ -14,7 +14,7 @@ export function offlineUuid(username) {
   return formatUuid(bytes)
 }
 
-export async function createTempWorld(prefix = 'rustcraft-mf-') {
+export async function createTempWorld(prefix = 'vibecraft-mf-') {
   const root = await mkdtemp(path.join(tmpdir(), prefix))
   await mkdir(root, { recursive: true })
   return root
@@ -28,7 +28,7 @@ export async function writeOfflineServerFiles(root, options = {}) {
     'level-name': options.levelName ?? 'world',
     'level-seed': String(options.seed ?? 8675309),
     'server-port': String(options.port),
-    'motd': options.motd ?? 'RustCraft Mineflayer harness',
+    'motd': options.motd ?? 'VibeCraft Mineflayer harness',
     ...(options.properties ?? {})
   }
   await writeFile(path.join(root, 'eula.txt'), 'eula=true\n')
@@ -39,7 +39,7 @@ export async function writeOfflineServerFiles(root, options = {}) {
   return properties
 }
 
-export function startRustCraft(options) {
+export function startVibeCraft(options) {
   const args = [
     '--nogui',
     '--universe', options.root,
@@ -127,7 +127,7 @@ export async function runOfflineLoginScenario(options) {
     const session = await connectOfflineBot({
       host: options.host,
       port: options.port,
-      username: options.username ?? 'RustCraftBot',
+      username: options.username ?? 'VibeCraftBot',
       version: options.version,
       timeoutMs: options.timeoutMs
     })
@@ -156,15 +156,15 @@ export async function runParityScenario(options) {
   const basePort = options.port
   const official = await runOfflineLoginScenario({
     ...options,
-    root: options.officialRoot ?? await createTempWorld('rustcraft-mf-official-'),
+    root: options.officialRoot ?? await createTempWorld('vibecraft-mf-official-'),
     serverKind: 'official',
     port: basePort,
     keepArtifacts: true
   })
   const rebuilt = await runOfflineLoginScenario({
     ...options,
-    root: options.rebuiltRoot ?? await createTempWorld('rustcraft-mf-rustcraft-'),
-    serverKind: 'rustcraft',
+    root: options.rebuiltRoot ?? await createTempWorld('vibecraft-mf-vibecraft-'),
+    serverKind: 'vibecraft',
     port: options.rebuiltPort ?? basePort + 1,
     keepArtifacts: true
   })
@@ -211,7 +211,7 @@ function startScenarioServer(options) {
   if (options.serverKind === 'official') {
     return startOfficialServer(options)
   }
-  return startRustCraft(options)
+  return startVibeCraft(options)
 }
 
 export async function stopServer(child) {
@@ -257,7 +257,7 @@ function normalizeVolatileText(text, options = {}) {
   if (options.port) output = output.replaceAll(String(options.port), '<port>')
   return output
     .replace(/\b\d{4}-\d{2}-\d{2}[T ][0-9:.Z+-]+/g, '<timestamp>')
-    .replace(/rustcraft-mf-(official|rustcraft|files|spawn)-[A-Za-z0-9._-]+/g, 'rustcraft-mf-<run>')
+    .replace(/vibecraft-mf-(official|vibecraft|files|spawn)-[A-Za-z0-9._-]+/g, 'vibecraft-mf-<run>')
 }
 
 function compareJson(diffs, path, left, right) {
@@ -391,9 +391,9 @@ function formatUuid(bytes) {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const options = {
-    binary: process.env.RUSTCRAFT_BIN ?? path.resolve('../../target/debug/rustcraft'),
-    port: Number(process.env.RUSTCRAFT_PORT ?? 25565),
-    username: process.env.RUSTCRAFT_BOT ?? 'RustCraftBot',
+    binary: process.env.VIBECRAFT_BIN ?? path.resolve('../../target/debug/vibecraft'),
+    port: Number(process.env.VIBECRAFT_PORT ?? 25565),
+    username: process.env.VIBECRAFT_BOT ?? 'VibeCraftBot',
     version: process.env.MINEFLAYER_VERSION,
     keepArtifacts: process.env.KEEP_ARTIFACTS === '1'
   }

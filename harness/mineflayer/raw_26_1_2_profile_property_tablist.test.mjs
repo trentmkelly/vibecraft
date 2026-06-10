@@ -9,7 +9,7 @@ import { promisify } from 'node:util'
 import {
   createTempWorld,
   offlineUuid,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -18,12 +18,12 @@ import {
 const execFileAsync = promisify(execFile)
 const here = new URL('.', import.meta.url)
 const repoRoot = path.resolve(here.pathname, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 const host = '127.0.0.1'
 
 test('raw 26.1.2 offline tab-list profile has empty properties and no chat session', { timeout: 45_000 }, async () => {
   const port = await reservePort()
-  const root = await createTempWorld('rustcraft-tablist-profile-')
+  const root = await createTempWorld('vibecraft-tablist-profile-')
   const username = 'TabProps'
   let server
 
@@ -36,7 +36,7 @@ test('raw 26.1.2 offline tab-list profile has empty properties and no chat sessi
         'simulation-distance': '4'
       }
     })
-    server = startRustCraft({ binary, root, port, levelName: 'world' })
+    server = startVibeCraft({ binary, root, port, levelName: 'world' })
     await waitForPort(port, host, 10_000)
 
     const joined = await runJoinProbe(port, username)
@@ -61,9 +61,9 @@ async function runJoinProbe (port, username) {
       cwd: here,
       env: {
         ...process.env,
-        RUSTCRAFT_HOST: host,
-        RUSTCRAFT_PORT: String(port),
-        RUSTCRAFT_USERNAME: username
+        VIBECRAFT_HOST: host,
+        VIBECRAFT_PORT: String(port),
+        VIBECRAFT_USERNAME: username
       },
       timeout: 30_000,
       maxBuffer: 1024 * 1024

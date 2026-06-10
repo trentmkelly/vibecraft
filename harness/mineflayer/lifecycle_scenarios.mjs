@@ -7,7 +7,7 @@ export function createLifecycleScenarioPlan(options = {}) {
     name: 'mineflayer-offline-lifecycle',
     mode: 'offline',
     auth: 'offline',
-    username: options.username ?? 'RustCraftLifecycle',
+    username: options.username ?? 'VibeCraftLifecycle',
     scenarios: [
       scenario('shutdown-restart', [
         'join',
@@ -95,7 +95,7 @@ export function summarizeLifecycleEvidence(evidence, plan = createLifecycleScena
 export async function runShutdownRestartScenario(options = {}) {
   const session = await runObservedOfflineLogin({
     ...options,
-    username: options.username ?? 'RustCraftLifecycle',
+    username: options.username ?? 'VibeCraftLifecycle',
     properties: {
       'online-mode': 'false',
       'enforce-secure-profile': 'false',

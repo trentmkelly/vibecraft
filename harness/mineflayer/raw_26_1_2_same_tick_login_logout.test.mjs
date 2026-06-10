@@ -10,7 +10,7 @@ import { promisify } from 'node:util'
 
 import {
   createTempWorld,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -19,13 +19,13 @@ import {
 const execFileAsync = promisify(execFile)
 const here = new URL('.', import.meta.url)
 const repoRoot = path.resolve(here.pathname, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 const host = '127.0.0.1'
-const protocolVersion = Number(process.env.RUSTCRAFT_PROTOCOL_VERSION ?? 775)
+const protocolVersion = Number(process.env.VIBECRAFT_PROTOCOL_VERSION ?? 775)
 
 test('raw 26.1.2 same-tick login/logout cleanup permits immediate same-name rejoins', { timeout: 75_000 }, async () => {
   const port = await reservePort()
-  const root = await createTempWorld('rustcraft-same-tick-login-logout-')
+  const root = await createTempWorld('vibecraft-same-tick-login-logout-')
   let server
 
   try {
@@ -37,7 +37,7 @@ test('raw 26.1.2 same-tick login/logout cleanup permits immediate same-name rejo
         'simulation-distance': '4'
       }
     })
-    server = startRustCraft({ binary, root, port, levelName: 'world' })
+    server = startVibeCraft({ binary, root, port, levelName: 'world' })
     await waitForPort(port, host, 10_000)
 
     const aborts = [
@@ -82,7 +82,7 @@ async function abortAfterLoginStart (port, username) {
 }
 
 async function abortJoinProbe (port, username, abortAfter) {
-  const result = await runJoinProbe(port, username, { RUSTCRAFT_RAW_PROBE_ABORT_AFTER: abortAfter })
+  const result = await runJoinProbe(port, username, { VIBECRAFT_RAW_PROBE_ABORT_AFTER: abortAfter })
   assert.equal(result.ok, true)
   assert.equal(result.aborted, true)
   assert.equal(result.phase, abortAfter)
@@ -97,9 +97,9 @@ async function runJoinProbe (port, username, env = {}) {
       cwd: here,
       env: {
         ...process.env,
-        RUSTCRAFT_HOST: host,
-        RUSTCRAFT_PORT: String(port),
-        RUSTCRAFT_USERNAME: username,
+        VIBECRAFT_HOST: host,
+        VIBECRAFT_PORT: String(port),
+        VIBECRAFT_USERNAME: username,
         ...env
       },
       timeout: 30_000,

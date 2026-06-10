@@ -5,7 +5,7 @@ import test from 'node:test'
 import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
-const username = process.env.RUSTCRAFT_RETURNING_USERNAME ?? `Ret${crypto.randomUUID().replaceAll('-', '').slice(0, 10)}`
+const username = process.env.VIBECRAFT_RETURNING_USERNAME ?? `Ret${crypto.randomUUID().replaceAll('-', '').slice(0, 10)}`
 
 test('raw 26.1.2 returning offline login reuses the same profile identity', { timeout: 45_000 }, async () => {
   const first = await runJoinProbe(username)
@@ -36,7 +36,7 @@ async function runJoinProbe (name) {
       cwd: new URL('.', import.meta.url),
       env: {
         ...process.env,
-        RUSTCRAFT_USERNAME: name
+        VIBECRAFT_USERNAME: name
       },
       timeout: 30_000,
       maxBuffer: 1024 * 1024

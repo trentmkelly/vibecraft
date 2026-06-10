@@ -8,7 +8,7 @@ import { promisify } from 'node:util'
 
 import {
   createTempWorld,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -17,12 +17,12 @@ import {
 const execFileAsync = promisify(execFile)
 const here = new URL('.', import.meta.url)
 const repoRoot = path.resolve(here.pathname, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 const host = '127.0.0.1'
 
 test('raw 26.1.2 initial chunk stream preserves vanilla readiness ordering and distances', { timeout: 90_000 }, async () => {
   const port = await reservePort()
-  const root = await createTempWorld('rustcraft-chunk-stream-')
+  const root = await createTempWorld('vibecraft-chunk-stream-')
   let server
 
   try {
@@ -38,10 +38,10 @@ test('raw 26.1.2 initial chunk stream preserves vanilla readiness ordering and d
     server = await start(root, port)
 
     const joined = await runJoinProbe(port, 'ChunkStream', {
-      RUSTCRAFT_EXPECT_WORLD_SEED: '24680',
-      RUSTCRAFT_EXPECT_IS_FLAT: 'false',
-      RUSTCRAFT_EXPECT_JOIN_POSITION: JSON.stringify({ x: 0.5, y: 112, z: 0.5, yaw: 0, pitch: 0 }),
-      RUSTCRAFT_EXPECT_DEFAULT_SPAWN: JSON.stringify({ x: 0, y: 112, z: 0 })
+      VIBECRAFT_EXPECT_WORLD_SEED: '24680',
+      VIBECRAFT_EXPECT_IS_FLAT: 'false',
+      VIBECRAFT_EXPECT_JOIN_POSITION: JSON.stringify({ x: 0.5, y: 112, z: 0.5, yaw: 0, pitch: 0 }),
+      VIBECRAFT_EXPECT_DEFAULT_SPAWN: JSON.stringify({ x: 0, y: 112, z: 0 })
     })
 
     assert.equal(joined.ok, true)
@@ -81,7 +81,7 @@ test('raw 26.1.2 initial chunk stream preserves vanilla readiness ordering and d
 })
 
 async function start (root, port) {
-  const server = startRustCraft({ binary, root, port, levelName: 'world' })
+  const server = startVibeCraft({ binary, root, port, levelName: 'world' })
   await waitForPort(port, host, 10_000)
   return server
 }
@@ -104,9 +104,9 @@ async function runJoinProbe (port, username, env = {}) {
       cwd: here,
       env: {
         ...process.env,
-        RUSTCRAFT_HOST: host,
-        RUSTCRAFT_PORT: String(port),
-        RUSTCRAFT_USERNAME: username,
+        VIBECRAFT_HOST: host,
+        VIBECRAFT_PORT: String(port),
+        VIBECRAFT_USERNAME: username,
         ...env
       },
       timeout: 30_000,

@@ -26,7 +26,7 @@ test('login order gate rejects play before configuration finish', () => {
   assert.ok(bad.failures.includes('registry-after-known-packs'))
 })
 
-test('login order gate compares RustCraft timeline against official server.jar ordering', () => {
+test('login order gate compares VibeCraft timeline against official server.jar ordering', () => {
   const official = {
     login: 2,
     compressionThreshold: -1,
@@ -72,7 +72,7 @@ test('login order gate compares RustCraft timeline against official server.jar o
 })
 
 test('login order gate captures raw handshake through join-game order against live server', {
-  skip: process.env.RUSTCRAFT_RUN_LIVE_LOGIN_ORDER_TEST !== '1'
+  skip: process.env.VIBECRAFT_RUN_LIVE_LOGIN_ORDER_TEST !== '1'
 }, async () => {
   const { stdout } = await execFileAsync(
     process.execPath,
@@ -81,8 +81,8 @@ test('login order gate captures raw handshake through join-game order against li
       cwd: new URL('.', import.meta.url),
       env: {
         ...process.env,
-        RUSTCRAFT_USERNAME: 'LoginOrder',
-        RUSTCRAFT_RAW_PROBE_MODE: 'record'
+        VIBECRAFT_USERNAME: 'LoginOrder',
+        VIBECRAFT_RAW_PROBE_MODE: 'record'
       },
       timeout: 30000,
       maxBuffer: 1024 * 1024

@@ -123,10 +123,10 @@ export function omittedRegistriesFromTranscript (actual, official) {
 export async function recordServerConfigurationTranscript (options = {}) {
   const env = {
     ...process.env,
-    RUSTCRAFT_RAW_PROBE_MODE: 'record',
-    RUSTCRAFT_HOST: options.host ?? '127.0.0.1',
-    RUSTCRAFT_PORT: String(options.port ?? 25565),
-    RUSTCRAFT_USERNAME: options.username ?? 'TranscriptProbe'
+    VIBECRAFT_RAW_PROBE_MODE: 'record',
+    VIBECRAFT_HOST: options.host ?? '127.0.0.1',
+    VIBECRAFT_PORT: String(options.port ?? 25565),
+    VIBECRAFT_USERNAME: options.username ?? 'TranscriptProbe'
   }
 
   const probe = await runProcess(process.execPath, ['raw_26_1_2_join_probe.mjs'], {
@@ -144,7 +144,7 @@ export async function recordServerConfigurationTranscript (options = {}) {
 
 export async function recordOfficialServerConfigurationTranscript (options = {}) {
   const port = options.port ?? 25566
-  const workdir = await mkdtemp(path.join(os.tmpdir(), 'rustcraft-vanilla-transcript-'))
+  const workdir = await mkdtemp(path.join(os.tmpdir(), 'vibecraft-vanilla-transcript-'))
   let server
   try {
     await writeFile(path.join(workdir, 'eula.txt'), 'eula=true\n')
@@ -252,16 +252,16 @@ function packKey (pack) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const mode = process.argv[2] ?? 'rustcraft'
+  const mode = process.argv[2] ?? 'vibecraft'
   const transcript = mode === 'official'
     ? await recordOfficialServerConfigurationTranscript({
         port: Number(process.env.VANILLA_TRANSCRIPT_PORT ?? 25566),
         jar: process.env.OFFICIAL_SERVER_JAR,
-        keepArtifacts: process.env.RUSTCRAFT_KEEP_ARTIFACTS === '1'
+        keepArtifacts: process.env.VIBECRAFT_KEEP_ARTIFACTS === '1'
       })
     : await recordServerConfigurationTranscript({
-        host: process.env.RUSTCRAFT_HOST,
-        port: Number(process.env.RUSTCRAFT_PORT ?? 25565)
+        host: process.env.VIBECRAFT_HOST,
+        port: Number(process.env.VIBECRAFT_PORT ?? 25565)
       })
   console.log(JSON.stringify(transcript, null, 2))
 }

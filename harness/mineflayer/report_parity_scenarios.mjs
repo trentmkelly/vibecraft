@@ -7,16 +7,16 @@ export function summarizeRegistriesReport(report) {
     }]))
 }
 
-export function compareRegistriesReports(officialReport, rustcraftReport) {
+export function compareRegistriesReports(officialReport, vibecraftReport) {
   const official = summarizeRegistriesReport(officialReport)
-  const rustcraft = summarizeRegistriesReport(rustcraftReport)
-  const registryIds = [...new Set([...Object.keys(official), ...Object.keys(rustcraft)])].sort()
+  const vibecraft = summarizeRegistriesReport(vibecraftReport)
+  const registryIds = [...new Set([...Object.keys(official), ...Object.keys(vibecraft)])].sort()
   const differences = []
   for (const registryId of registryIds) {
     const left = official[registryId]
-    const right = rustcraft[registryId]
+    const right = vibecraft[registryId]
     if (!left) {
-      differences.push({ registryId, kind: 'extra-registry', rustcraftCount: right.count })
+      differences.push({ registryId, kind: 'extra-registry', vibecraftCount: right.count })
       continue
     }
     if (!right) {
@@ -28,7 +28,7 @@ export function compareRegistriesReports(officialReport, rustcraftReport) {
         registryId,
         kind: 'count-mismatch',
         officialCount: left.count,
-        rustcraftCount: right.count
+        vibecraftCount: right.count
       })
     }
     const missingIds = left.ids.filter(id => !right.ids.includes(id))
@@ -48,7 +48,7 @@ export function createReportParityPlan(options = {}) {
   return {
     name: 'report-registry-parity',
     comparedAgainst: 'official-server.jar --report',
-    rustcraftCommand: options.rustcraftCommand ?? 'rustcraft --report',
+    vibecraftCommand: options.vibecraftCommand ?? 'vibecraft --report',
     officialCommand: options.officialCommand ?? 'java -jar server.jar --report',
     reportPath: 'generated/reports/registries.json',
     requiredChecks: [

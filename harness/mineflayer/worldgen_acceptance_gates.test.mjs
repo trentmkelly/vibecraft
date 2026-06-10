@@ -7,9 +7,9 @@ import { promisify } from 'node:util'
 
 import {
   WORLDGEN_ACCEPTANCE_PHASES,
-  compareRustcraftWorldgenReport,
+  compareVibecraftWorldgenReport,
   compareWorldgenFixtureReports,
-  generateRustcraftWorldgenReport,
+  generateVibecraftWorldgenReport,
   loadWorldgenAcceptanceReport,
   validateWorldgenAcceptanceReport
 } from './worldgen_acceptance_gates.mjs'
@@ -39,7 +39,7 @@ test('worldgen acceptance phases are ordered and cover the expected progression'
 test('acceptance report fails closed when required fixture reports are absent', () => {
   const report = validateWorldgenAcceptanceReport()
 
-  assert.equal(report.format, 'rustcraft-worldgen-acceptance-gates-v1')
+  assert.equal(report.format, 'vibecraft-worldgen-acceptance-gates-v1')
   assert.equal(report.completeThrough, 'flat_generator')
   assert.equal(report.phases.find(phase => phase.id === 'noise_terrain').fixtureSourcesPresent, false)
   assert.deepEqual(
@@ -119,7 +119,7 @@ test('acceptance report requires requested chunks for both dimension fixtures', 
 })
 
 test('acceptance report loader reads fixture reports from disk and allows missing reports by default', async () => {
-  const dir = path.join('/tmp', `rustcraft-worldgen-gate-${process.pid}`)
+  const dir = path.join('/tmp', `vibecraft-worldgen-gate-${process.pid}`)
   await rm(dir, { recursive: true, force: true })
   await mkdir(dir, { recursive: true })
   const overworldPath = path.join(dir, 'overworld.json')
@@ -219,17 +219,17 @@ test('fixture stability comparison rejects requested chunks without integer coor
   ])
 })
 
-test('RustCraft worldgen comparison fails closed against vanilla requested chunks', () => {
+test('VibeCraft worldgen comparison fails closed against vanilla requested chunks', () => {
   const vanilla = fixtureReport({
     dimension: 'overworld',
     palette: ['minecraft:stone', 'minecraft:water']
   })
-  const matchingRust = rustcraftReport({
+  const matchingRust = vibecraftReport({
     dimension: 'overworld',
     palette: ['minecraft:water', 'minecraft:stone']
   })
 
-  assert.deepEqual(compareRustcraftWorldgenReport(vanilla, matchingRust), {
+  assert.deepEqual(compareVibecraftWorldgenReport(vanilla, matchingRust), {
     ok: true,
     comparedChunks: 1,
     leftChunks: 1,
@@ -237,28 +237,28 @@ test('RustCraft worldgen comparison fails closed against vanilla requested chunk
     issues: []
   })
 
-  const missingRust = rustcraftReport({
+  const missingRust = vibecraftReport({
     dimension: 'overworld',
     chunkX: 1,
     chunkZ: 0,
     palette: ['minecraft:stone', 'minecraft:water']
   })
-  assert.deepEqual(compareRustcraftWorldgenReport(vanilla, missingRust), {
+  assert.deepEqual(compareVibecraftWorldgenReport(vanilla, missingRust), {
     ok: false,
     comparedChunks: 1,
     leftChunks: 1,
     rightChunks: 1,
     issues: [
-      'missing rustcraft chunk overworld:0,0',
+      'missing vibecraft chunk overworld:0,0',
       'missing vanilla chunk overworld:1,0'
     ]
   })
 
-  const divergentRust = rustcraftReport({
+  const divergentRust = vibecraftReport({
     dimension: 'overworld',
     palette: ['minecraft:stone']
   })
-  assert.deepEqual(compareRustcraftWorldgenReport(vanilla, divergentRust), {
+  assert.deepEqual(compareVibecraftWorldgenReport(vanilla, divergentRust), {
     ok: false,
     comparedChunks: 1,
     leftChunks: 1,
@@ -267,75 +267,75 @@ test('RustCraft worldgen comparison fails closed against vanilla requested chunk
   })
 })
 
-test('RustCraft worldgen comparison rejects chunks without explicit dimensions', () => {
+test('VibeCraft worldgen comparison rejects chunks without explicit dimensions', () => {
   const vanilla = fixtureReport({
     dimension: 'overworld',
     palette: ['minecraft:stone', 'minecraft:water']
   })
-  const missingDimension = rustcraftReport({
+  const missingDimension = vibecraftReport({
     dimension: 'overworld',
     palette: ['minecraft:water', 'minecraft:stone']
   })
   delete missingDimension.chunks[0].dimension
 
-  assert.deepEqual(compareRustcraftWorldgenReport(vanilla, missingDimension), {
+  assert.deepEqual(compareVibecraftWorldgenReport(vanilla, missingDimension), {
     ok: false,
     comparedChunks: 0,
     leftChunks: 1,
     rightChunks: 0,
-    issues: ['RustCraft chunk 0,0 missing dimension']
+    issues: ['VibeCraft chunk 0,0 missing dimension']
   })
 
   missingDimension.chunks[0].dimension = ''
-  assert.deepEqual(compareRustcraftWorldgenReport(vanilla, missingDimension).issues, [
-    'RustCraft chunk 0,0 missing dimension'
+  assert.deepEqual(compareVibecraftWorldgenReport(vanilla, missingDimension).issues, [
+    'VibeCraft chunk 0,0 missing dimension'
   ])
 })
 
-test('RustCraft worldgen comparison rejects chunks without integer coordinates', () => {
+test('VibeCraft worldgen comparison rejects chunks without integer coordinates', () => {
   const vanilla = fixtureReport({
     dimension: 'overworld',
     palette: ['minecraft:stone', 'minecraft:water']
   })
-  const missingCoordinate = rustcraftReport({
+  const missingCoordinate = vibecraftReport({
     dimension: 'overworld',
     palette: ['minecraft:water', 'minecraft:stone']
   })
   delete missingCoordinate.chunks[0].chunkX
 
-  assert.deepEqual(compareRustcraftWorldgenReport(vanilla, missingCoordinate), {
+  assert.deepEqual(compareVibecraftWorldgenReport(vanilla, missingCoordinate), {
     ok: false,
     comparedChunks: 0,
     leftChunks: 1,
     rightChunks: 0,
-    issues: ['RustCraft chunk <missing>,0 missing integer coordinates']
+    issues: ['VibeCraft chunk <missing>,0 missing integer coordinates']
   })
 
   missingCoordinate.chunks[0].x = 0.5
-  assert.deepEqual(compareRustcraftWorldgenReport(vanilla, missingCoordinate).issues, [
-    'RustCraft chunk 0.5,0 missing integer coordinates'
+  assert.deepEqual(compareVibecraftWorldgenReport(vanilla, missingCoordinate).issues, [
+    'VibeCraft chunk 0.5,0 missing integer coordinates'
   ])
 })
 
-test('accepted vanilla snapshot catches RustCraft worldgen drift', async () => {
+test('accepted vanilla snapshot catches VibeCraft worldgen drift', async () => {
   const acceptedPath = path.join(
     path.dirname(new URL(import.meta.url).pathname),
     'fixtures',
     'accepted_worldgen_snapshot.json'
   )
   const accepted = JSON.parse(await readFile(acceptedPath, 'utf8'))
-  const matchingRust = rustcraftReport({
+  const matchingRust = vibecraftReport({
     dimension: 'overworld',
     palette: ['minecraft:water', 'minecraft:stone']
   })
 
-  assert.equal(compareRustcraftWorldgenReport(accepted, matchingRust).ok, true)
+  assert.equal(compareVibecraftWorldgenReport(accepted, matchingRust).ok, true)
 
-  const divergentRust = rustcraftReport({
+  const divergentRust = vibecraftReport({
     dimension: 'overworld',
     palette: ['minecraft:stone']
   })
-  assert.deepEqual(compareRustcraftWorldgenReport(accepted, divergentRust), {
+  assert.deepEqual(compareVibecraftWorldgenReport(accepted, divergentRust), {
     ok: false,
     comparedChunks: 1,
     leftChunks: 1,
@@ -344,26 +344,26 @@ test('accepted vanilla snapshot catches RustCraft worldgen drift', async () => {
   })
 })
 
-test('RustCraft report generation runs configured command and verifies report JSON', async () => {
-  const dir = path.join('/tmp', `rustcraft-worldgen-report-command-${process.pid}`)
+test('VibeCraft report generation runs configured command and verifies report JSON', async () => {
+  const dir = path.join('/tmp', `vibecraft-worldgen-report-command-${process.pid}`)
   await rm(dir, { recursive: true, force: true })
   await mkdir(dir, { recursive: true })
   const reportPath = path.join(dir, 'worldgen_chunks.json')
-  const command = `${JSON.stringify(process.execPath)} -e ${JSON.stringify(`require('node:fs').writeFileSync(${JSON.stringify(reportPath)}, JSON.stringify(${JSON.stringify(rustcraftReport({ dimension: 'overworld' }))}))`)}`
+  const command = `${JSON.stringify(process.execPath)} -e ${JSON.stringify(`require('node:fs').writeFileSync(${JSON.stringify(reportPath)}, JSON.stringify(${JSON.stringify(vibecraftReport({ dimension: 'overworld' }))}))`)}`
 
   assert.equal(
-    await generateRustcraftWorldgenReport({ command, cwd: dir, reportPath }),
+    await generateVibecraftWorldgenReport({ command, cwd: dir, reportPath }),
     reportPath
   )
 })
 
-test('CLI can generate and compare the RustCraft report on demand', async () => {
-  const dir = path.join('/tmp', `rustcraft-worldgen-gate-cli-${process.pid}`)
+test('CLI can generate and compare the VibeCraft report on demand', async () => {
+  const dir = path.join('/tmp', `vibecraft-worldgen-gate-cli-${process.pid}`)
   await rm(dir, { recursive: true, force: true })
   await mkdir(dir, { recursive: true })
   const overworldPath = path.join(dir, 'overworld.json')
   const dimensionPath = path.join(dir, 'dimensions.json')
-  const rustcraftPath = path.join(dir, 'worldgen_chunks.json')
+  const vibecraftPath = path.join(dir, 'worldgen_chunks.json')
   await writeFile(overworldPath, JSON.stringify(fixtureReport({
     dimension: 'overworld',
     palette: ['minecraft:stone', 'minecraft:water']
@@ -375,32 +375,32 @@ test('CLI can generate and compare the RustCraft report on demand', async () => 
       ...fixtureReport({ dimension: 'the_end' }).results
     ]
   }))
-  const rustcraftFixture = {
-    format: 'rustcraft-worldgen-signatures-v1',
+  const vibecraftFixture = {
+    format: 'vibecraft-worldgen-signatures-v1',
     chunks: [
-      ...rustcraftReport({ dimension: 'overworld', palette: ['minecraft:water', 'minecraft:stone'] }).chunks,
-      ...rustcraftReport({ dimension: 'the_nether' }).chunks,
-      ...rustcraftReport({ dimension: 'the_end' }).chunks
+      ...vibecraftReport({ dimension: 'overworld', palette: ['minecraft:water', 'minecraft:stone'] }).chunks,
+      ...vibecraftReport({ dimension: 'the_nether' }).chunks,
+      ...vibecraftReport({ dimension: 'the_end' }).chunks
     ]
   }
-  const command = `${JSON.stringify(process.execPath)} -e ${JSON.stringify(`require('node:fs').writeFileSync(${JSON.stringify(rustcraftPath)}, JSON.stringify(${JSON.stringify(rustcraftFixture)}))`)}`
+  const command = `${JSON.stringify(process.execPath)} -e ${JSON.stringify(`require('node:fs').writeFileSync(${JSON.stringify(vibecraftPath)}, JSON.stringify(${JSON.stringify(vibecraftFixture)}))`)}`
 
   const { stdout } = await execFileAsync(process.execPath, ['worldgen_acceptance_gates.mjs'], {
     cwd: path.dirname(new URL(import.meta.url).pathname),
     env: {
       ...process.env,
-      RUSTCRAFT_OVERWORLD_FIXTURE_REPORT: overworldPath,
-      RUSTCRAFT_DIMENSION_FIXTURE_REPORT: dimensionPath,
-      RUSTCRAFT_GENERATE_RUST_WORLDGEN_REPORT: '1',
-      RUSTCRAFT_RUST_WORLDGEN_REPORT_COMMAND: command,
-      RUSTCRAFT_RUST_WORLDGEN_REPORT_PATH: rustcraftPath
+      VIBECRAFT_OVERWORLD_FIXTURE_REPORT: overworldPath,
+      VIBECRAFT_DIMENSION_FIXTURE_REPORT: dimensionPath,
+      VIBECRAFT_GENERATE_RUST_WORLDGEN_REPORT: '1',
+      VIBECRAFT_RUST_WORLDGEN_REPORT_COMMAND: command,
+      VIBECRAFT_RUST_WORLDGEN_REPORT_PATH: vibecraftPath
     }
   })
   const report = JSON.parse(stdout)
 
-  assert.equal(report.rustcraftReportPath, rustcraftPath)
-  assert.equal(report.rustcraftComparison.ok, true)
-  assert.equal(report.rustcraftComparison.comparedChunks, 3)
+  assert.equal(report.vibecraftReportPath, vibecraftPath)
+  assert.equal(report.vibecraftComparison.ok, true)
+  assert.equal(report.vibecraftComparison.comparedChunks, 3)
 })
 
 function fixtureReport ({
@@ -463,7 +463,7 @@ function dimensionFixtureCases () {
     .map(fixture => ({ id: fixture.id }))
 }
 
-function rustcraftReport ({
+function vibecraftReport ({
   dimension,
   chunkX = 0,
   chunkZ = 0,
@@ -471,7 +471,7 @@ function rustcraftReport ({
   heightmaps = ['WORLD_SURFACE', 'OCEAN_FLOOR', 'MOTION_BLOCKING', 'MOTION_BLOCKING_NO_LEAVES']
 }) {
   return {
-    format: 'rustcraft-worldgen-signatures-v1',
+    format: 'vibecraft-worldgen-signatures-v1',
     chunks: [{
       dimension,
       chunkX,

@@ -51,7 +51,7 @@ test('observeLoginTimeline records first physics milestone and summarizes inject
   let cleaned = false
   let startAt = Date.now()
   const observed = await observeLoginTimeline({
-    label: 'rustcraft',
+    label: 'vibecraft',
     runObservedOfflineLogin: async options => {
       const base = options.timeline[0].at
       startAt = base

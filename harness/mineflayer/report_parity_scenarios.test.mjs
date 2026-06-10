@@ -6,7 +6,7 @@ import {
   summarizeRegistriesReport
 } from './report_parity_scenarios.mjs'
 
-test('createReportParityPlan records official and RustCraft report commands', () => {
+test('createReportParityPlan records official and VibeCraft report commands', () => {
   const plan = createReportParityPlan()
 
   assert.equal(plan.comparedAgainst, 'official-server.jar --report')
@@ -73,7 +73,7 @@ test('compareRegistriesReports reports missing registries, count mismatches, and
       }
     }
   }
-  const rustcraft = {
+  const vibecraft = {
     'minecraft:item': {
       entries: {
         'minecraft:stone': { protocol_id: 1 },
@@ -87,7 +87,7 @@ test('compareRegistriesReports reports missing registries, count mismatches, and
     }
   }
 
-  const diff = compareRegistriesReports(official, rustcraft)
+  const diff = compareRegistriesReports(official, vibecraft)
   assert.equal(diff.ok, false)
   assert.ok(diff.differences.some(entry => entry.kind === 'missing-registry'))
   assert.ok(diff.differences.some(entry => entry.kind === 'extra-registry'))

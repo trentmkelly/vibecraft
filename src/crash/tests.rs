@@ -21,7 +21,7 @@ fn rendered_crash_report_contains_required_sections() {
     };
 
     let rendered = report.render();
-    assert!(rendered.contains("---- RustCraft Crash Report ----"));
+    assert!(rendered.contains("---- VibeCraft Crash Report ----"));
     assert!(rendered.contains("Description: boom"));
     assert!(rendered.contains("-- System Details --"));
     assert!(rendered.contains("World State: not loaded"));
@@ -31,7 +31,7 @@ fn rendered_crash_report_contains_required_sections() {
 #[test]
 fn writes_vanilla_named_server_crash_report_file() {
     let mut dir = std::env::temp_dir();
-    dir.push(format!("rustcraft-crash-report-{}", std::process::id()));
+    dir.push(format!("vibecraft-crash-report-{}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);
 
     let report = CrashReport {
@@ -293,7 +293,7 @@ fn crash_report_save_to_file_matches_java_save_once_contract() {
         SystemReportModel::empty(),
     );
     let dir = std::env::temp_dir().join(format!(
-        "rustcraft-java-crash-report-{}",
+        "vibecraft-java-crash-report-{}",
         std::process::id()
     ));
     let file = dir.join("nested").join("crash.txt");

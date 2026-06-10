@@ -68,8 +68,8 @@ export function planRandomizableContainerCase(container, options = {}) {
   return {
     container,
     lootTable: options.lootTable ?? 'minecraft:chests/simple_dungeon',
-    customName: options.customName ?? `RustCraft ${container}`,
-    lockKey: options.lockKey ?? 'rustcraft_key',
+    customName: options.customName ?? `VibeCraft ${container}`,
+    lockKey: options.lockKey ?? 'vibecraft_key',
     beforeReconnectAction: `randomizable_container.${container}.before_reconnect`,
     afterReconnectAction: `randomizable_container.${container}.after_reconnect`,
     expected: {

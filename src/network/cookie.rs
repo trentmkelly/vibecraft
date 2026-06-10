@@ -189,7 +189,7 @@ mod tests {
     #[test]
     fn round_trips_cookie_request() {
         let packet = ClientboundCookieRequestPacket {
-            key: Identifier::parse("rustcraft:test").unwrap(),
+            key: Identifier::parse("vibecraft:test").unwrap(),
         };
         let mut bytes = Vec::new();
         packet.write(&mut bytes).unwrap();
@@ -203,7 +203,7 @@ mod tests {
     fn round_trips_cookie_response_with_and_without_payload() {
         for payload in [Some(vec![1, 2, 3]), None] {
             let packet = ServerboundCookieResponsePacket {
-                key: Identifier::parse("rustcraft:test").unwrap(),
+                key: Identifier::parse("vibecraft:test").unwrap(),
                 payload,
             };
             let mut bytes = Vec::new();
@@ -218,7 +218,7 @@ mod tests {
     #[test]
     fn rejects_cookie_payloads_larger_than_vanilla_limit() {
         let packet = ServerboundCookieResponsePacket {
-            key: Identifier::parse("rustcraft:test").unwrap(),
+            key: Identifier::parse("vibecraft:test").unwrap(),
             payload: Some(vec![0; MAX_COOKIE_PAYLOAD_SIZE + 1]),
         };
         assert!(packet.write(&mut Vec::new()).is_err());
@@ -227,7 +227,7 @@ mod tests {
     #[test]
     fn round_trips_store_cookie_at_vanilla_limit() {
         let packet = ClientboundStoreCookiePacket {
-            key: Identifier::parse("rustcraft:test").unwrap(),
+            key: Identifier::parse("vibecraft:test").unwrap(),
             payload: vec![7; MAX_COOKIE_PAYLOAD_SIZE],
         };
         let mut bytes = Vec::new();
@@ -241,7 +241,7 @@ mod tests {
     #[test]
     fn rejects_oversized_store_cookie_payloads() {
         let packet = ClientboundStoreCookiePacket {
-            key: Identifier::parse("rustcraft:test").unwrap(),
+            key: Identifier::parse("vibecraft:test").unwrap(),
             payload: vec![0; MAX_COOKIE_PAYLOAD_SIZE + 1],
         };
         assert!(packet.write(&mut Vec::new()).is_err());
@@ -249,7 +249,7 @@ mod tests {
 
     #[test]
     fn cookie_state_correlates_requests_and_responses() {
-        let key = Identifier::parse("rustcraft:test").unwrap();
+        let key = Identifier::parse("vibecraft:test").unwrap();
         let mut state = CookieState::default();
         let request = state.request_cookie(key.clone());
         assert_eq!(request.key, key);
@@ -268,7 +268,7 @@ mod tests {
 
     #[test]
     fn cookie_state_rejects_unexpected_responses() {
-        let key = Identifier::parse("rustcraft:test").unwrap();
+        let key = Identifier::parse("vibecraft:test").unwrap();
         let mut state = CookieState::default();
         let response = ServerboundCookieResponsePacket { key, payload: None };
         assert!(state.handle_response(response).is_err());
@@ -276,7 +276,7 @@ mod tests {
 
     #[test]
     fn cookie_state_stores_and_clears_payloads() {
-        let key = Identifier::parse("rustcraft:test").unwrap();
+        let key = Identifier::parse("vibecraft:test").unwrap();
         let mut state = CookieState::default();
         let packet = state.store_cookie(key.clone(), vec![4, 5, 6]).unwrap();
         assert_eq!(packet.payload, vec![4, 5, 6]);

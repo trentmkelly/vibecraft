@@ -14,7 +14,7 @@ fn clientbound_custom_payload_packet_matches_java_brand_codec() {
     );
 
     let packet = ClientboundCustomPayloadPacket {
-        payload: CustomPayload::Brand("rustcraft".to_string()),
+        payload: CustomPayload::Brand("vibecraft".to_string()),
     };
     let mut payload = Vec::new();
     packet.write(&mut payload).unwrap();
@@ -25,7 +25,7 @@ fn clientbound_custom_payload_packet_matches_java_brand_codec() {
             vec![15],
             b"minecraft:brand".to_vec(),
             vec![9],
-            b"rustcraft".to_vec(),
+            b"vibecraft".to_vec(),
         ]
         .concat()
     );
@@ -39,7 +39,7 @@ fn clientbound_custom_payload_packet_matches_java_brand_codec() {
 fn clientbound_custom_payload_packet_allows_unknown_payloads_up_to_java_limit() {
     let packet = ClientboundCustomPayloadPacket {
         payload: CustomPayload::Unknown {
-            channel: Identifier::parse("rustcraft:debug").unwrap(),
+            channel: Identifier::parse("vibecraft:debug").unwrap(),
             payload: vec![0x5a; MAX_CLIENTBOUND_CUSTOM_PAYLOAD_SIZE],
         },
     };
@@ -56,7 +56,7 @@ fn clientbound_custom_payload_packet_allows_unknown_payloads_up_to_java_limit() 
 fn clientbound_custom_payload_packet_rejects_unknown_payloads_past_java_limit() {
     let packet = ClientboundCustomPayloadPacket {
         payload: CustomPayload::Unknown {
-            channel: Identifier::parse("rustcraft:debug").unwrap(),
+            channel: Identifier::parse("vibecraft:debug").unwrap(),
             payload: vec![0; MAX_CLIENTBOUND_CUSTOM_PAYLOAD_SIZE + 1],
         },
     };

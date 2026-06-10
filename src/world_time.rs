@@ -97,7 +97,7 @@ impl ClockInstance {
 /// Manages all world clocks, tracks absolute server game time, and fires scheduled functions.
 ///
 /// In vanilla Java, game_time is owned by the overworld ServerLevel (`getGameTime()`). In
-/// RustCraft we store it here because the full ServerLevel is not yet implemented.
+/// VibeCraft we store it here because the full ServerLevel is not yet implemented.
 ///
 /// Java: net/minecraft/world/clock/ServerClockManager.java
 pub struct ServerClockManager {

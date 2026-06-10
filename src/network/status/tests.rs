@@ -74,7 +74,7 @@ pub fn bug_report_link_becomes_known_server_link_when_valid() {
 #[test]
 pub fn code_of_conduct_loader_strips_formatting_and_applies_language_fallback() {
     let mut root = std::env::temp_dir();
-    root.push(format!("rustcraft-codeofconduct-{}", std::process::id()));
+    root.push(format!("vibecraft-codeofconduct-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
     fs::create_dir(&root).unwrap();
     let code_dir = root.join("codeofconduct");
@@ -289,13 +289,13 @@ pub fn escapes_status_description() {
 #[test]
 pub fn includes_26_1_2_protocol_in_status_json() {
     let mut properties = test_properties();
-    properties.set("motd", "RustCraft Test");
+    properties.set("motd", "VibeCraft Test");
     let json = status_json(&properties, None, &[]);
     assert!(json.contains("\"name\":\"26.1.2\""));
     assert!(json.contains("\"protocol\":775"));
     assert!(json.contains("\"max\":20"));
     assert!(json.contains("\"players\":{\"max\":20,\"online\":0,\"sample\":[]}"));
-    assert!(json.contains("\"description\":{\"text\":\"RustCraft Test\"}"));
+    assert!(json.contains("\"description\":{\"text\":\"VibeCraft Test\"}"));
 }
 
 #[test]
@@ -771,8 +771,8 @@ pub fn server_icon_loader_rejects_wrong_png_dimensions() {
 #[test]
 pub fn status_icon_prefers_server_icon_falls_back_to_world_icon_and_tolerates_bad_icons() {
     let pid = std::process::id();
-    let server_icon = std::env::temp_dir().join(format!("rustcraft-resolve-{pid}-server-icon.png"));
-    let world_icon = std::env::temp_dir().join(format!("rustcraft-resolve-{pid}-world-icon.png"));
+    let server_icon = std::env::temp_dir().join(format!("vibecraft-resolve-{pid}-server-icon.png"));
+    let world_icon = std::env::temp_dir().join(format!("vibecraft-resolve-{pid}-world-icon.png"));
     let _ = fs::remove_file(&server_icon);
     let _ = fs::remove_file(&world_icon);
 
@@ -807,7 +807,7 @@ pub fn encodes_base64_padding_cases() {
 }
 
 pub fn temp_status_test_path(name: &str) -> PathBuf {
-    std::env::temp_dir().join(format!("rustcraft-status-{}-{name}", std::process::id()))
+    std::env::temp_dir().join(format!("vibecraft-status-{}-{name}", std::process::id()))
 }
 
 pub fn png_header(width: u32, height: u32) -> Vec<u8> {

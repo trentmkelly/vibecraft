@@ -30,7 +30,7 @@ test('waitForItemPickup waits for playerCollect and verifies inventory delta', a
   const session = fakeSession()
   const pickup = waitForItemPickup(session, { name: 'emerald', count: 2 }, { timeoutMs: 100 })
   session.bot.inventory.slots[10] = item('emerald', 2)
-  session.bot.emit('playerCollect', { id: 1, username: 'RustCraftBot' }, { id: 2, name: 'item' })
+  session.bot.emit('playerCollect', { id: 1, username: 'VibeCraftBot' }, { id: 2, name: 'item' })
   const result = await pickup
   assert.equal(result.assertion.ok, true)
   assert.equal(result.assertion.count, 2)

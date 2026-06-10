@@ -12,7 +12,7 @@ use super::Tag;
 pub const SNBT_DATA_TAG: &str = "data";
 
 // TODO(nbt-utils-block-state-registry): Port Java readBlockState/writeBlockState
-// and writeFluidState once RustCraft has a canonical block/fluid registry-backed
+// and writeFluidState once VibeCraft has a canonical block/fluid registry-backed
 // state model equivalent to HolderGetter<Block>, StateDefinition, and
 // BuiltInRegistries.
 // TODO(nbt-utils-dynamic-ops): Port the Dynamic<T>/ValueOutput overloads once

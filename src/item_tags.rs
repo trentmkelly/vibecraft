@@ -1,4 +1,4 @@
-//! Item-tag membership resolution for the tags RustCraft needs at runtime.
+//! Item-tag membership resolution for the tags VibeCraft needs at runtime.
 //!
 //! Mirrors `data/minecraft/tags/item/**.json` for the enchantable-item hierarchy
 //! (used by `Enchantment.canEnchant` / the anvil + enchanting table) plus the base

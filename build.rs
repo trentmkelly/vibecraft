@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 const MAX_LINES: usize = 1200;
-const SKIP_ENV_VAR: &str = "RUSTCRAFT_SKIP_LINE_CHECK";
+const SKIP_ENV_VAR: &str = "VIBECRAFT_SKIP_LINE_CHECK";
 
 // Test files that contain a single very large `#[test]` function whose body
 // shares state across hundreds of assertions. Splitting the function into

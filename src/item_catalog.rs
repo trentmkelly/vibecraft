@@ -375,7 +375,7 @@ pub fn item_protocol_id(registry_id: &str) -> Option<i32> {
 
 /// Maps a numeric item protocol ID back to the canonical static item registry name.
 ///
-/// The table mirrors [`item_protocol_id`] for the runtime item surface RustCraft can
+/// The table mirrors [`item_protocol_id`] for the runtime item surface VibeCraft can
 /// currently materialize as an [`crate::item_stack::ItemStack`].
 pub fn item_static_name_from_protocol_id(protocol_id: i32) -> Option<&'static str> {
     item_catalog_entries()

@@ -9,7 +9,7 @@ import { promisify } from 'node:util'
 import {
   createTempWorld,
   offlineUuid,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -18,11 +18,11 @@ import {
 const execFileAsync = promisify(execFile)
 const here = new URL('.', import.meta.url)
 const repoRoot = path.resolve(here.pathname, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 const host = '127.0.0.1'
 
 test('raw 26.1.2 profile files use vanilla offline UUID and name semantics', { timeout: 90_000 }, async () => {
-  await withServer('rustcraft-profile-file-open-', {}, async ({ port, root }) => {
+  await withServer('vibecraft-profile-file-open-', {}, async ({ port, root }) => {
     const fresh = await runJoinProbe(port, 'ProfileFresh')
     const returning = await runJoinProbe(port, 'ProfileFresh')
     const mixedCase = await runJoinProbe(port, 'ProfileFresh'.toLowerCase())
@@ -36,16 +36,16 @@ test('raw 26.1.2 profile files use vanilla offline UUID and name semantics', { t
     await assertProfileFiles(root, ['ProfileFresh', 'profilefresh'])
   })
 
-  await withServer('rustcraft-profile-file-ban-', {
+  await withServer('vibecraft-profile-file-ban-', {
     files: {
       'banned-players.json': [banEntry('ProfileBanned')]
     }
   }, async ({ port }) => {
-    const banned = await runJoinProbe(port, 'ProfileBanned', { RUSTCRAFT_EXPECT_LOGIN_DISCONNECT: '1' })
+    const banned = await runJoinProbe(port, 'ProfileBanned', { VIBECRAFT_EXPECT_LOGIN_DISCONNECT: '1' })
     assert.match(banned.reason, /multiplayer\.disconnect\.banned/)
   })
 
-  await withServer('rustcraft-profile-file-access-', {
+  await withServer('vibecraft-profile-file-access-', {
     properties: {
       'enforce-whitelist': 'true'
     },
@@ -56,7 +56,7 @@ test('raw 26.1.2 profile files use vanilla offline UUID and name semantics', { t
   }, async ({ port, root }) => {
     const listed = await runJoinProbe(port, 'ProfileListed')
     const op = await runJoinProbe(port, 'ProfileOp')
-    const rejected = await runJoinProbe(port, 'ProfileNoList', { RUSTCRAFT_EXPECT_LOGIN_DISCONNECT: '1' })
+    const rejected = await runJoinProbe(port, 'ProfileNoList', { VIBECRAFT_EXPECT_LOGIN_DISCONNECT: '1' })
 
     assert.equal(listed.ok, true)
     assert.equal(op.ok, true)
@@ -88,7 +88,7 @@ async function withServer (prefix, options, callback) {
       }
     })
     await writeJsonFiles(root, options.files ?? {})
-    server = startRustCraft({ binary, root, port, levelName: 'world' })
+    server = startVibeCraft({ binary, root, port, levelName: 'world' })
     await waitForPort(port, host, 10_000)
     await callback({ port, root, server })
   } finally {
@@ -137,9 +137,9 @@ async function runJoinProbe (port, username, env = {}) {
       cwd: here,
       env: {
         ...process.env,
-        RUSTCRAFT_HOST: host,
-        RUSTCRAFT_PORT: String(port),
-        RUSTCRAFT_USERNAME: username,
+        VIBECRAFT_HOST: host,
+        VIBECRAFT_PORT: String(port),
+        VIBECRAFT_USERNAME: username,
         ...env
       },
       timeout: 30_000,

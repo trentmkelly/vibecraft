@@ -665,7 +665,7 @@ mod tests {
         .expect("Java PRNG fixture must parse");
         assert_eq!(
             fixture["format"].as_str(),
-            Some("rustcraft-java-prng-fixture-v1")
+            Some("vibecraft-java-prng-fixture-v1")
         );
         let seed = fixture["seed"].as_i64().expect("fixture seed must be i64");
         let bound = fixture["bound"]

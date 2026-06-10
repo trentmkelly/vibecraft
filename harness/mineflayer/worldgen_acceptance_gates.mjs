@@ -99,15 +99,15 @@ export function validateWorldgenAcceptanceReport ({ overworldReport, dimensionRe
     fixtureIssues: fixtureIssuesForPhase(phase, { overworldReport, dimensionReport })
   }))
   return {
-    format: 'rustcraft-worldgen-acceptance-gates-v1',
+    format: 'vibecraft-worldgen-acceptance-gates-v1',
     phases,
     completeThrough: completeThrough(phases)
   }
 }
 
 export async function loadWorldgenAcceptanceReport ({
-  overworldPath = process.env.RUSTCRAFT_OVERWORLD_FIXTURE_REPORT ?? path.join(repoRoot, 'target', 'vanilla-worldgen-fixtures.json'),
-  dimensionPath = process.env.RUSTCRAFT_DIMENSION_FIXTURE_REPORT ?? path.join(repoRoot, 'target', 'vanilla-worldgen-dimension-fixtures.json'),
+  overworldPath = process.env.VIBECRAFT_OVERWORLD_FIXTURE_REPORT ?? path.join(repoRoot, 'target', 'vanilla-worldgen-fixtures.json'),
+  dimensionPath = process.env.VIBECRAFT_DIMENSION_FIXTURE_REPORT ?? path.join(repoRoot, 'target', 'vanilla-worldgen-dimension-fixtures.json'),
   requireReports = false
 } = {}) {
   const [overworldReport, dimensionReport] = await Promise.all([
@@ -137,7 +137,7 @@ export function compareWorldgenFixtureReports (left, right) {
   return compareComparableChunkLists(leftComparable.chunks, rightComparable.chunks, { leftLabel: 'left', rightLabel: 'right' })
 }
 
-export function compareRustcraftWorldgenReport (vanillaReports, rustcraftReport) {
+export function compareVibecraftWorldgenReport (vanillaReports, vibecraftReport) {
   const reports = Array.isArray(vanillaReports) ? vanillaReports : [vanillaReports]
   const vanilla = combineComparableResults(reports.map(report => comparableRequestedChunks(report, 'vanilla')))
   if (vanilla.issues.length > 0) {
@@ -150,27 +150,27 @@ export function compareRustcraftWorldgenReport (vanillaReports, rustcraftReport)
     }
   }
   const vanillaChunks = vanilla.chunks
-  const rustcraft = comparableRustcraftChunks(rustcraftReport)
-  if (rustcraft.issues.length > 0) {
+  const vibecraft = comparableVibecraftChunks(vibecraftReport)
+  if (vibecraft.issues.length > 0) {
     return {
       ok: false,
       comparedChunks: 0,
       leftChunks: vanillaChunks.length,
-      rightChunks: rustcraft.chunks.length,
-      issues: rustcraft.issues
+      rightChunks: vibecraft.chunks.length,
+      issues: vibecraft.issues
     }
   }
-  const rustcraftChunks = rustcraft.chunks
-  return compareComparableChunkLists(vanillaChunks, rustcraftChunks, {
+  const vibecraftChunks = vibecraft.chunks
+  return compareComparableChunkLists(vanillaChunks, vibecraftChunks, {
     leftLabel: 'vanilla',
-    rightLabel: 'rustcraft'
+    rightLabel: 'vibecraft'
   })
 }
 
-export async function generateRustcraftWorldgenReport ({
-  command = process.env.RUSTCRAFT_RUST_WORLDGEN_REPORT_COMMAND ?? 'cargo run -q -- --report',
+export async function generateVibecraftWorldgenReport ({
+  command = process.env.VIBECRAFT_RUST_WORLDGEN_REPORT_COMMAND ?? 'cargo run -q -- --report',
   cwd = repoRoot,
-  reportPath = process.env.RUSTCRAFT_RUST_WORLDGEN_REPORT_PATH ?? path.join(repoRoot, 'generated', 'reports', 'worldgen_chunks.json')
+  reportPath = process.env.VIBECRAFT_RUST_WORLDGEN_REPORT_PATH ?? path.join(repoRoot, 'generated', 'reports', 'worldgen_chunks.json')
 } = {}) {
   await runShellCommand(command, cwd)
   await readOptionalJson(reportPath, true)
@@ -338,18 +338,18 @@ function combineComparableResults (results) {
   }
 }
 
-function comparableRustcraftChunks (report) {
+function comparableVibecraftChunks (report) {
   const issues = []
   const chunks = (report?.chunks ?? report?.requestedChunks ?? []).flatMap(chunk => {
     const chunkX = chunk.chunkX ?? chunk.x
     const chunkZ = chunk.chunkZ ?? chunk.z
     const label = `${chunkX ?? '<missing>'},${chunkZ ?? '<missing>'}`
     if (!Number.isInteger(chunkX) || !Number.isInteger(chunkZ)) {
-      issues.push(`RustCraft chunk ${label} missing integer coordinates`)
+      issues.push(`VibeCraft chunk ${label} missing integer coordinates`)
       return []
     }
     if (typeof chunk.dimension !== 'string' || chunk.dimension.length === 0) {
-      issues.push(`RustCraft chunk ${label} missing dimension`)
+      issues.push(`VibeCraft chunk ${label} missing dimension`)
       return []
     }
     const dimension = chunk.dimension
@@ -432,46 +432,46 @@ function runShellCommand (command, cwd) {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const report = await loadWorldgenAcceptanceReport({
-    requireReports: process.env.RUSTCRAFT_REQUIRE_WORLDGEN_REPORTS === '1'
+    requireReports: process.env.VIBECRAFT_REQUIRE_WORLDGEN_REPORTS === '1'
   })
-  if (process.env.RUSTCRAFT_COMPARE_OVERWORLD_FIXTURE_REPORT) {
+  if (process.env.VIBECRAFT_COMPARE_OVERWORLD_FIXTURE_REPORT) {
     report.overworldStability = compareWorldgenFixtureReports(
       await readOptionalJson(report.overworldPath, true),
-      await readOptionalJson(process.env.RUSTCRAFT_COMPARE_OVERWORLD_FIXTURE_REPORT, true)
+      await readOptionalJson(process.env.VIBECRAFT_COMPARE_OVERWORLD_FIXTURE_REPORT, true)
     )
   }
-  if (process.env.RUSTCRAFT_COMPARE_DIMENSION_FIXTURE_REPORT) {
+  if (process.env.VIBECRAFT_COMPARE_DIMENSION_FIXTURE_REPORT) {
     report.dimensionStability = compareWorldgenFixtureReports(
       await readOptionalJson(report.dimensionPath, true),
-      await readOptionalJson(process.env.RUSTCRAFT_COMPARE_DIMENSION_FIXTURE_REPORT, true)
+      await readOptionalJson(process.env.VIBECRAFT_COMPARE_DIMENSION_FIXTURE_REPORT, true)
     )
   }
-  if (process.env.RUSTCRAFT_RUST_WORLDGEN_REPORT) {
-    report.rustcraftComparison = compareRustcraftWorldgenReport(
+  if (process.env.VIBECRAFT_RUST_WORLDGEN_REPORT) {
+    report.vibecraftComparison = compareVibecraftWorldgenReport(
       [
         await readOptionalJson(report.overworldPath, true),
         await readOptionalJson(report.dimensionPath, true)
       ],
-      await readOptionalJson(process.env.RUSTCRAFT_RUST_WORLDGEN_REPORT, true)
+      await readOptionalJson(process.env.VIBECRAFT_RUST_WORLDGEN_REPORT, true)
     )
   }
-  if (process.env.RUSTCRAFT_GENERATE_RUST_WORLDGEN_REPORT === '1') {
-    report.rustcraftReportPath = await generateRustcraftWorldgenReport()
-    report.rustcraftComparison = compareRustcraftWorldgenReport(
+  if (process.env.VIBECRAFT_GENERATE_RUST_WORLDGEN_REPORT === '1') {
+    report.vibecraftReportPath = await generateVibecraftWorldgenReport()
+    report.vibecraftComparison = compareVibecraftWorldgenReport(
       [
         await readOptionalJson(report.overworldPath, true),
         await readOptionalJson(report.dimensionPath, true)
       ],
-      await readOptionalJson(report.rustcraftReportPath, true)
+      await readOptionalJson(report.vibecraftReportPath, true)
     )
   }
   console.log(JSON.stringify(report, null, 2))
-  const target = process.env.RUSTCRAFT_WORLDGEN_ACCEPT_THROUGH
+  const target = process.env.VIBECRAFT_WORLDGEN_ACCEPT_THROUGH
   if (target && report.completeThrough !== target) {
     console.error(`worldgen acceptance stopped at ${report.completeThrough}, expected ${target}`)
     process.exit(1)
   }
   if (report.overworldStability && !report.overworldStability.ok) process.exit(1)
   if (report.dimensionStability && !report.dimensionStability.ok) process.exit(1)
-  if (report.rustcraftComparison && !report.rustcraftComparison.ok) process.exit(1)
+  if (report.vibecraftComparison && !report.vibecraftComparison.ok) process.exit(1)
 }

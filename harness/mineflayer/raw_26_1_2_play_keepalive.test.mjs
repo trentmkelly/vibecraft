@@ -13,7 +13,7 @@ test('raw 26.1.2 play probe survives multiple keepalive intervals', async () => 
       cwd: new URL('.', import.meta.url),
       env: {
         ...process.env,
-        RUSTCRAFT_RAW_PROBE_KEEPALIVE_MS: '22000'
+        VIBECRAFT_RAW_PROBE_KEEPALIVE_MS: '22000'
       },
       timeout: 45000,
       maxBuffer: 1024 * 1024

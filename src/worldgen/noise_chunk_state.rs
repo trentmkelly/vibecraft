@@ -796,7 +796,7 @@ impl NoiseChunk {
                 DensityArrayFillMode::Cell,
             );
         }
-        // RustCraft's current Beardifier is a zero stub; keep this cell cache
+        // VibeCraft's current Beardifier is a zero stub; keep this cell cache
         // on the same final-density-only path until structure density is wired.
         self.full_noise_values = values;
         let elapsed = started.elapsed();

@@ -9,7 +9,7 @@ import { promisify } from 'node:util'
 import {
   createTempWorld,
   offlineUuid,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -18,12 +18,12 @@ import {
 const execFileAsync = promisify(execFile)
 const here = new URL('.', import.meta.url)
 const repoRoot = path.resolve(here.pathname, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 const host = '127.0.0.1'
 
 test('raw 26.1.2 reconnect after ban and pardon preserves stale-session cleanup', { timeout: 60_000 }, async () => {
   const port = await reservePort()
-  const root = await createTempWorld('rustcraft-reconnect-ban-pardon-')
+  const root = await createTempWorld('vibecraft-reconnect-ban-pardon-')
   const username = 'KickFallback'
   let server
 
@@ -36,7 +36,7 @@ test('raw 26.1.2 reconnect after ban and pardon preserves stale-session cleanup'
         'simulation-distance': '4'
       }
     })
-    server = startRustCraft({ binary, root, port, levelName: 'world' })
+    server = startVibeCraft({ binary, root, port, levelName: 'world' })
     await waitForPort(port, host, 10_000)
 
     const first = await runJoinProbe(port, username)
@@ -50,7 +50,7 @@ test('raw 26.1.2 reconnect after ban and pardon preserves stale-session cleanup'
     server.child.stdin.write('reload\n')
     await delay(250)
 
-    const banned = await runJoinProbe(port, username, { RUSTCRAFT_EXPECT_LOGIN_DISCONNECT: '1' })
+    const banned = await runJoinProbe(port, username, { VIBECRAFT_EXPECT_LOGIN_DISCONNECT: '1' })
     assert.match(banned.reason, /multiplayer\.disconnect\.banned/)
 
     await writeFile(path.join(root, 'banned-players.json'), '[]\n')
@@ -58,7 +58,7 @@ test('raw 26.1.2 reconnect after ban and pardon preserves stale-session cleanup'
     await delay(250)
 
     const rejoined = await runJoinProbe(port, username, {
-      RUSTCRAFT_RAW_PROBE_KEEPALIVE_MS: '12000'
+      VIBECRAFT_RAW_PROBE_KEEPALIVE_MS: '12000'
     })
     assert.equal(rejoined.ok, true)
     assert.equal(rejoined.joinState.profile.uuid, offlineUuid(username))
@@ -85,9 +85,9 @@ async function runJoinProbe (port, username, env = {}) {
       cwd: here,
       env: {
         ...process.env,
-        RUSTCRAFT_HOST: host,
-        RUSTCRAFT_PORT: String(port),
-        RUSTCRAFT_USERNAME: username,
+        VIBECRAFT_HOST: host,
+        VIBECRAFT_PORT: String(port),
+        VIBECRAFT_USERNAME: username,
         ...env
       },
       timeout: 30_000,

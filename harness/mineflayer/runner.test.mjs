@@ -9,7 +9,7 @@ import {
   offlineUuid,
   runParityScenario,
   startOfficialServer,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -21,7 +21,7 @@ test('offlineUuid matches vanilla generated UUIDs', () => {
 })
 
 test('writeOfflineServerFiles creates eula and offline-mode properties', async () => {
-  const root = await createTempWorld('rustcraft-mf-files-')
+  const root = await createTempWorld('vibecraft-mf-files-')
   try {
     await writeOfflineServerFiles(root, {
       port: 31234,
@@ -42,13 +42,13 @@ test('writeOfflineServerFiles creates eula and offline-mode properties', async (
   }
 })
 
-test('startRustCraft builds vanilla-compatible CLI arguments and captures logs', async () => {
-  const root = await createTempWorld('rustcraft-mf-spawn-')
+test('startVibeCraft builds vanilla-compatible CLI arguments and captures logs', async () => {
+  const root = await createTempWorld('vibecraft-mf-spawn-')
   const script = path.join(root, 'fake-server.mjs')
   await import('node:fs/promises').then(fs =>
     fs.writeFile(script, "console.log('ready'); setTimeout(() => {}, 5000)\n")
   )
-  const server = startRustCraft({
+  const server = startVibeCraft({
     binary: process.execPath,
     root,
     levelName: 'world',
@@ -69,7 +69,7 @@ test('startRustCraft builds vanilla-compatible CLI arguments and captures logs',
 })
 
 test('startOfficialServer builds java -jar command and captures logs', async () => {
-  const root = await createTempWorld('rustcraft-mf-official-test-')
+  const root = await createTempWorld('vibecraft-mf-official-test-')
   const server = startOfficialServer({
     java: process.execPath,
     jar: '/tmp/server.jar',
@@ -118,8 +118,8 @@ test('diffArtifacts reports observable parity differences by surface', () => {
   assert.equal(diffs[0].path, 'events')
 })
 
-test('runParityScenario runs identical script through official and RustCraft adapters', async () => {
-  const root = await createTempWorld('rustcraft-mf-parity-')
+test('runParityScenario runs identical script through official and VibeCraft adapters', async () => {
+  const root = await createTempWorld('vibecraft-mf-parity-')
   const officialRoot = path.join(root, 'official')
   const rebuiltRoot = path.join(root, 'rebuilt')
   const fake = path.join(root, 'fake-server.mjs')

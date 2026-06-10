@@ -9,7 +9,7 @@ import { promisify } from 'node:util'
 import {
   createTempWorld,
   offlineUuid,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -18,12 +18,12 @@ import {
 const execFileAsync = promisify(execFile)
 const here = new URL('.', import.meta.url)
 const repoRoot = path.resolve(new URL('.', import.meta.url).pathname, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 const host = '127.0.0.1'
 
 test('raw 26.1.2 dirty and abrupt disconnect saves load before reconnect spawn', { timeout: 90_000 }, async () => {
   const port = await reservePort()
-  const root = await createTempWorld('rustcraft-dirty-save-')
+  const root = await createTempWorld('vibecraft-dirty-save-')
   const username = 'DirtySave'
   const uuid = offlineUuid(username)
   const movedPosition = { x: 7.5, y: 82, z: -6.5, yaw: 135, pitch: 18.75 }
@@ -35,10 +35,10 @@ test('raw 26.1.2 dirty and abrupt disconnect saves load before reconnect spawn',
     server = await start(root, port)
 
     const changed = await runJoinProbe(port, username, {
-      RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'movement,held_slot',
-      RUSTCRAFT_RAW_PROBE_MOVEMENT_POSITION: JSON.stringify(movedPosition),
-      RUSTCRAFT_RAW_PROBE_HELD_SLOT: String(selectedSlot),
-      RUSTCRAFT_RAW_PROBE_ABORT_AFTER: 'first_tick_actions'
+      VIBECRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'movement,held_slot',
+      VIBECRAFT_RAW_PROBE_MOVEMENT_POSITION: JSON.stringify(movedPosition),
+      VIBECRAFT_RAW_PROBE_HELD_SLOT: String(selectedSlot),
+      VIBECRAFT_RAW_PROBE_ABORT_AFTER: 'first_tick_actions'
     })
     assert.equal(changed.ok, true)
     assert.equal(changed.aborted, true)
@@ -48,8 +48,8 @@ test('raw 26.1.2 dirty and abrupt disconnect saves load before reconnect spawn',
     server = await start(root, port)
 
     const rejoined = await runJoinProbe(port, username, {
-      RUSTCRAFT_EXPECT_JOIN_POSITION: JSON.stringify(movedPosition),
-      RUSTCRAFT_EXPECT_HELD_SLOT: String(selectedSlot)
+      VIBECRAFT_EXPECT_JOIN_POSITION: JSON.stringify(movedPosition),
+      VIBECRAFT_EXPECT_HELD_SLOT: String(selectedSlot)
     })
     assert.equal(rejoined.ok, true)
     assert.deepEqual(rejoined.joinState.position, movedPosition)
@@ -60,7 +60,7 @@ test('raw 26.1.2 dirty and abrupt disconnect saves load before reconnect spawn',
 })
 
 async function start (root, port) {
-  const server = startRustCraft({ binary, root, port, levelName: 'world' })
+  const server = startVibeCraft({ binary, root, port, levelName: 'world' })
   await waitForPort(port, host, 10_000)
   return server
 }
@@ -73,9 +73,9 @@ async function runJoinProbe (port, username, env = {}) {
       cwd: here,
       env: {
         ...process.env,
-        RUSTCRAFT_HOST: host,
-        RUSTCRAFT_PORT: String(port),
-        RUSTCRAFT_USERNAME: username,
+        VIBECRAFT_HOST: host,
+        VIBECRAFT_PORT: String(port),
+        VIBECRAFT_USERNAME: username,
         ...env
       },
       timeout: 30_000,

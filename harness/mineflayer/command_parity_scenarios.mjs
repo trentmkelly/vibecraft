@@ -75,7 +75,7 @@ export const COMMAND_PARITY_SCENARIOS = {
   ],
   parseTreeValidation: [
     'vanilla-command-dump',
-    'rustcraft-command-dump',
+    'vibecraft-command-dump',
     'parse-tree-diff',
     'scripted-execution-diff'
   ],

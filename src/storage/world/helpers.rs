@@ -316,7 +316,7 @@ pub(super) fn read_gzip_named_tag_file(path: &Path) -> std::io::Result<(String, 
 
 /// Read `level.dat`, auto-detecting the format. Vanilla writes gzip-compressed
 /// NBT (`NbtIo.writeCompressed`, gzip magic `1f 8b`); this also accepts the
-/// legacy uncompressed format RustCraft previously wrote so existing worlds keep
+/// legacy uncompressed format VibeCraft previously wrote so existing worlds keep
 /// loading after the move to vanilla-compatible gzip output.
 pub(super) fn read_level_dat_file(path: &Path) -> std::io::Result<(String, Tag)> {
     let bytes = fs::read(path)?;

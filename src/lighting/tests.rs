@@ -1,5 +1,5 @@
 //! Lighting engine test suite (F1–F19 in
-//! `RustCraft/CHECKLIST_LIGHTING.md`). Each test names the checklist item it
+//! `VibeCraft/CHECKLIST_LIGHTING.md`). Each test names the checklist item it
 //! satisfies and exercises one well-defined invariant; the engines are
 //! covered end-to-end through the public `LevelLightEngine` API and the
 //! `compute_chunk_lighting` chunk-pipeline entry point.
@@ -510,7 +510,7 @@ fn diagnostic_sky_light_bleeds_horizontally_from_shaft_into_cavern() {
 // ---- F11. Sky-light occlusion-shape fallback ----
 #[test]
 fn f11_sky_light_partial_shape_fallback_documented() {
-    // RustCraft does not yet wire voxel shapes through `LightBlockProperties`;
+    // VibeCraft does not yet wire voxel shapes through `LightBlockProperties`;
     // F11 verifies the documented fallback behaviour: a block with
     // `uses_shape_for_light_occlusion = true` but a non-sealed face acts as
     // a transparent block to the lighting engine.

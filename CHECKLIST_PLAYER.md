@@ -15,12 +15,12 @@
 - `decompiled-server-26.1.2/net/minecraft/world/phys/AABB.java` — bounding box (collision, reach)
 - `decompiled-server-26.1.2/net/minecraft/world/entity/Relative.java` — relative flag enum for teleport
 - `decompiled-server-26.1.2/net/minecraft/world/level/storage/PlayerDataStorage.java` — playerdata files
-- `RustCraft/src/player.rs` — RustCraft player
-- `RustCraft/src/player_entity.rs` — RustCraft player entity
-- `RustCraft/src/player_inventory.rs` — RustCraft player inventory
-- `RustCraft/src/movement_validation.rs` — RustCraft movement validation
-- `RustCraft/src/movement_physics.rs` — RustCraft movement physics
-- `RustCraft/src/respawn.rs` — RustCraft respawn logic
+- `VibeCraft/src/player.rs` — VibeCraft player
+- `VibeCraft/src/player_entity.rs` — VibeCraft player entity
+- `VibeCraft/src/player_inventory.rs` — VibeCraft player inventory
+- `VibeCraft/src/movement_validation.rs` — VibeCraft movement validation
+- `VibeCraft/src/movement_physics.rs` — VibeCraft movement physics
+- `VibeCraft/src/respawn.rs` — VibeCraft respawn logic
 
 ## Player State Synchronization Tests
 

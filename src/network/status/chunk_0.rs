@@ -683,7 +683,7 @@ impl LiveFluidTicks {
 
 pub fn live_region_feature_generation_enabled() -> bool {
     matches!(
-        std::env::var("RUSTCRAFT_WORLDGEN_REGION_FEATURES").as_deref(),
+        std::env::var("VIBECRAFT_WORLDGEN_REGION_FEATURES").as_deref(),
         Ok("1") | Ok("true") | Ok("yes")
     )
 }

@@ -9,7 +9,7 @@ import { promisify } from 'node:util'
 import {
   createTempWorld,
   offlineUuid,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -18,12 +18,12 @@ import {
 const execFileAsync = promisify(execFile)
 const here = new URL('.', import.meta.url)
 const repoRoot = path.resolve(here.pathname, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 const host = '127.0.0.1'
 
 test('raw 26.1.2 mixed offline profiles preserve access decisions and duplicate cleanup', { timeout: 90_000 }, async () => {
   const port = await reservePort()
-  const root = await createTempWorld('rustcraft-mixed-profile-')
+  const root = await createTempWorld('vibecraft-mixed-profile-')
   let server
 
   try {
@@ -36,7 +36,7 @@ test('raw 26.1.2 mixed offline profiles preserve access decisions and duplicate 
       }
     })
     await writeAccessFiles(root)
-    server = startRustCraft({ binary, root, port, levelName: 'world' })
+    server = startVibeCraft({ binary, root, port, levelName: 'world' })
     await waitForPort(port, host, 10_000)
 
     const accepted = await Promise.all([
@@ -52,7 +52,7 @@ test('raw 26.1.2 mixed offline profiles preserve access decisions and duplicate 
       assert.equal(joined.joinState.lastReceivedChunk, 8)
     }
 
-    const banned = await runJoinProbe(port, 'MixBanned', { RUSTCRAFT_EXPECT_LOGIN_DISCONNECT: '1' })
+    const banned = await runJoinProbe(port, 'MixBanned', { VIBECRAFT_EXPECT_LOGIN_DISCONNECT: '1' })
     assert.match(banned.reason, /multiplayer\.disconnect\.banned/)
 
     await runDuplicateProbe(port, 'MixDup')
@@ -82,9 +82,9 @@ async function runJoinProbe (port, username, env = {}) {
       cwd: here,
       env: {
         ...process.env,
-        RUSTCRAFT_HOST: host,
-        RUSTCRAFT_PORT: String(port),
-        RUSTCRAFT_USERNAME: username,
+        VIBECRAFT_HOST: host,
+        VIBECRAFT_PORT: String(port),
+        VIBECRAFT_USERNAME: username,
         ...env
       },
       timeout: 30_000,
@@ -103,9 +103,9 @@ async function runDuplicateProbe (port, username) {
       cwd: here,
       env: {
         ...process.env,
-        RUSTCRAFT_HOST: host,
-        RUSTCRAFT_PORT: String(port),
-        RUSTCRAFT_DUPLICATE_USERNAME: username
+        VIBECRAFT_HOST: host,
+        VIBECRAFT_PORT: String(port),
+        VIBECRAFT_DUPLICATE_USERNAME: username
       },
       timeout: 30_000,
       maxBuffer: 1024 * 1024

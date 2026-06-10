@@ -54,7 +54,7 @@ test('compactRegistryDiff reports registry, tag, known pack, and feature differe
     knownPackCount: 1,
     enabledFeatures: ['minecraft:vanilla']
   }]
-  const rustCraft = [{
+  const vibeCraft = [{
     name: 'registry_data',
     registryId: 'minecraft:dimension_type',
     keys: ['registryCodec'],
@@ -63,7 +63,7 @@ test('compactRegistryDiff reports registry, tag, known pack, and feature differe
     enabledFeatures: []
   }]
 
-  assert.deepEqual(compactRegistryDiff(official, rustCraft), [{
+  assert.deepEqual(compactRegistryDiff(official, vibeCraft), [{
     registry: 'minecraft:dimension_type',
     official: {
       keys: ['registryCodec'],
@@ -71,7 +71,7 @@ test('compactRegistryDiff reports registry, tag, known pack, and feature differe
       knownPacks: 1,
       enabledFeatures: ['minecraft:vanilla']
     },
-    rustCraft: {
+    vibeCraft: {
       keys: ['registryCodec'],
       tags: 1,
       knownPacks: 1,
@@ -88,17 +88,17 @@ test('buildRegistrySyncEvidence compares vanilla transcript surfaces required by
     knownPacks: [{ namespace: 'minecraft', id: 'core', version: '26.1.2' }],
     enabledFeatures: ['minecraft:vanilla']
   }
-  const rustCraftTranscript = structuredClone(officialTranscript)
-  rustCraftTranscript.source = 'rustcraft'
+  const vibeCraftTranscript = structuredClone(officialTranscript)
+  vibeCraftTranscript.source = 'vibecraft'
 
   assert.equal(summarizeRegistryEvidence({
-    'registry-sync': buildRegistrySyncEvidence({ officialTranscript, rustCraftTranscript }),
+    'registry-sync': buildRegistrySyncEvidence({ officialTranscript, vibeCraftTranscript }),
     'registry-login-diff': Object.fromEntries(createRegistryScenarioPlan().scenarios[1].required.map(key => [key, true])),
     'registry-size-guard': Object.fromEntries(createRegistryScenarioPlan().scenarios[2].required.map(key => [key, true]))
   }).ok, true)
 
-  rustCraftTranscript.tags[0].tags[0].entries = []
-  assert.equal(buildRegistrySyncEvidence({ officialTranscript, rustCraftTranscript })['compares-tag-contents'], false)
+  vibeCraftTranscript.tags[0].tags[0].entries = []
+  assert.equal(buildRegistrySyncEvidence({ officialTranscript, vibeCraftTranscript })['compares-tag-contents'], false)
 })
 
 test('buildRegistryLoginDiffEvidence requires same bot and emits compact diff on play failure', () => {
@@ -108,7 +108,7 @@ test('buildRegistryLoginDiffEvidence requires same bot and emits compact diff on
     tags: [],
     knownPacks: [{ namespace: 'minecraft', id: 'core', version: '26.1.2' }]
   }
-  const rustCraftTranscript = {
+  const vibeCraftTranscript = {
     username: 'RegistryProbe',
     registries: [{ registry: 'minecraft:damage_type', elementIds: ['minecraft:generic'] }],
     tags: [],
@@ -118,11 +118,11 @@ test('buildRegistryLoginDiffEvidence requires same bot and emits compact diff on
 
   const evidence = buildRegistryLoginDiffEvidence({
     officialTranscript,
-    rustCraftTranscript,
-    rustCraftPlayStateEntered: false
+    vibeCraftTranscript,
+    vibeCraftPlayStateEntered: false
   })
 
-  assert.equal(evidence['same-bot-against-rustcraft-and-official'], true)
+  assert.equal(evidence['same-bot-against-vibecraft-and-official'], true)
   assert.equal(evidence['compact-registry-diff-on-play-state-failure'], true)
   assert.equal(evidence['configuration-diff-on-play-state-failure'], true)
   assert.deepEqual(evidence.diffs.map(diff => diff.registry), ['minecraft:damage_type'])

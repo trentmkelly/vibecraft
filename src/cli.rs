@@ -21,7 +21,7 @@ pub struct CliOptions {
     pub jfr_profile: bool,
     pub pid_file: Option<PathBuf>,
     /// Overrides the default log level.  `None` means fall back to the
-    /// `RUSTCRAFT_LOG` environment variable, then `LogLevel::Info`.
+    /// `VIBECRAFT_LOG` environment variable, then `LogLevel::Info`.
     pub log_level: Option<LogLevel>,
 }
 
@@ -100,7 +100,7 @@ impl CliOptions {
     }
 
     pub fn help() -> &'static str {
-        "Usage: rustcraft [options]\n\
+        "Usage: vibecraft [options]\n\
          \n\
          Options:\n\
            --nogui\n\
@@ -117,9 +117,9 @@ impl CliOptions {
            --world <name>\n\
            --port <port>\n\
            --serverId <id>\n\
-           --jfrProfile (accepted; profiling is not implemented by RustCraft)\n\
+           --jfrProfile (accepted; profiling is not implemented by VibeCraft)\n\
            --pidFile <path>\n\
-           --log-level <info|debug|trace>  (overrides RUSTCRAFT_LOG env var)"
+           --log-level <info|debug|trace>  (overrides VIBECRAFT_LOG env var)"
     }
 }
 
@@ -199,7 +199,7 @@ mod tests {
     #[test]
     fn help_documents_jfr_profile_as_noop() {
         assert!(CliOptions::help()
-            .contains("--jfrProfile (accepted; profiling is not implemented by RustCraft)"));
+            .contains("--jfrProfile (accepted; profiling is not implemented by VibeCraft)"));
     }
 
     #[test]

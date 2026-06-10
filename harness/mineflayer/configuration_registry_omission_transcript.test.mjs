@@ -15,7 +15,7 @@ import {
 
 const documentedOmissions = [...documentedRegistryOmissions.keys()]
 const here = new URL('.', import.meta.url)
-const rustCraftBinary = new URL('../../target/debug/rustcraft', here)
+const vibeCraftBinary = new URL('../../target/debug/vibecraft', here)
 
 test('registry transcript omission helper identifies official-only synchronized registries', () => {
   const actual = normalizeConfigurationTranscript({
@@ -46,11 +46,11 @@ test('registry transcript omission helper identifies official-only synchronized 
 })
 
 test('documented registry omissions match the live official transcript gap', {
-  skip: process.env.RUSTCRAFT_RUN_OFFICIAL_TRANSCRIPT_TEST !== '1'
+  skip: process.env.VIBECRAFT_RUN_OFFICIAL_TRANSCRIPT_TEST !== '1'
 }, async () => {
-  const rustPort = Number(process.env.RUSTCRAFT_TRANSCRIPT_PORT ?? 25567)
+  const rustPort = Number(process.env.VIBECRAFT_TRANSCRIPT_PORT ?? 25567)
   const vanillaPort = Number(process.env.VANILLA_TRANSCRIPT_PORT ?? 25566)
-  const rustServer = await startRustCraftServer({ port: rustPort })
+  const rustServer = await startVibeCraftServer({ port: rustPort })
   try {
     await new Promise(resolve => setTimeout(resolve, 250))
     const actual = await recordServerConfigurationTranscript({
@@ -72,8 +72,8 @@ test('documented registry omissions match the live official transcript gap', {
   }
 })
 
-async function startRustCraftServer ({ port }) {
-  const cwd = await mkdtemp(path.join(os.tmpdir(), 'rustcraft-transcript-'))
+async function startVibeCraftServer ({ port }) {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), 'vibecraft-transcript-'))
   await writeFile(path.join(cwd, 'eula.txt'), 'eula=true\n')
   await writeFile(path.join(cwd, 'server.properties'), [
     'online-mode=false',
@@ -83,7 +83,7 @@ async function startRustCraftServer ({ port }) {
     `server-port=${port}`,
     ''
   ].join('\n'))
-  const child = spawn(rustCraftBinary.pathname, ['--nogui', '--port', String(port)], {
+  const child = spawn(vibeCraftBinary.pathname, ['--nogui', '--port', String(port)], {
     cwd,
     stdio: ['pipe', 'pipe', 'pipe']
   })
@@ -91,7 +91,7 @@ async function startRustCraftServer ({ port }) {
   await new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       child.kill('SIGTERM')
-      reject(new Error(`RustCraft did not bind within 15000ms:\n${output}`))
+      reject(new Error(`VibeCraft did not bind within 15000ms:\n${output}`))
     }, 15000)
     const onData = chunk => {
       output += chunk.toString()
@@ -104,7 +104,7 @@ async function startRustCraftServer ({ port }) {
     child.stderr.on('data', onData)
     child.once('exit', code => {
       clearTimeout(timeout)
-      reject(new Error(`RustCraft exited before readiness with code ${code}:\n${output}`))
+      reject(new Error(`VibeCraft exited before readiness with code ${code}:\n${output}`))
     })
   })
 

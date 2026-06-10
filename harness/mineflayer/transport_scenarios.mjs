@@ -12,7 +12,7 @@ export function createTransportScenarioPlan() {
       scenario('socket-cleanup', ['abort-during-handshake', 'abort-during-login-start', 'abort-during-compression', 'abort-during-configuration', 'abort-during-play-entry', 'no-leaked-slots', 'no-pending-keepalive-tasks']),
       scenario('port-reuse', ['repeated-start-stop-same-port', 'one-login-per-cycle', 'no-stale-listener']),
       scenario('parallel-offline-login', ['same-tick-window', 'isolated-handshake-login-packets', 'no-cross-bot-profile-leakage', 'no-compression-leakage', 'no-keepalive-leakage']),
-      scenario('transport-framing', ['raw-boundaries-handshake', 'raw-boundaries-login-success', 'raw-boundaries-compression', 'raw-boundaries-configuration-entry', 'official-vs-rustcraft-framing-diff']),
+      scenario('transport-framing', ['raw-boundaries-handshake', 'raw-boundaries-login-success', 'raw-boundaries-compression', 'raw-boundaries-configuration-entry', 'official-vs-vibecraft-framing-diff']),
       scenario('half-open-login', ['idle-after-tcp-connect', 'idle-after-handshake', 'idle-after-login-start', 'vanilla-compatible-timeout', 'slot-cleanup', 'later-successful-login']),
       scenario('keepalive', ['multiple-heartbeat-intervals', 'no-false-timeout', 'no-duplicate-response-handling']),
       scenario('malformed-client-behavior', ['unexpected-status-packet', 'unexpected-login-packet', 'unexpected-configuration-packet', 'unexpected-play-packet', 'vanilla-compatible-disconnect-reasons']),

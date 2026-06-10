@@ -30,7 +30,7 @@ pub fn delay_initial_chunk_batch_for_probe(
     stream: &mut TcpStream,
     compression: CompressionState,
 ) -> io::Result<()> {
-    let delay_ms = env::var("RUSTCRAFT_INITIAL_CHUNK_DELAY_MS")
+    let delay_ms = env::var("VIBECRAFT_INITIAL_CHUNK_DELAY_MS")
         .ok()
         .and_then(|value| value.parse::<u64>().ok())
         .unwrap_or(0);
@@ -490,8 +490,8 @@ pub(super) fn command_feedback_text(
         ),
         "commands.gamemode.success.self" => "Set own game mode".to_string(),
         "commands.say.success" => "Message sent".to_string(),
-        // RustCraft-only debug command feedback; vanilla has no `/biome` command.
-        "commands.rustcraft.debug.biome" => {
+        // VibeCraft-only debug command feedback; vanilla has no `/biome` command.
+        "commands.vibecraft.debug.biome" => {
             format!("Biome: {}", debug_biome_at_command_source(state))
         }
         key => format!("{key} ({})", result.success_count),
@@ -847,12 +847,12 @@ fn log_generated_chunk_timings(
 }
 
 pub fn live_chunk_generation_mode() -> LiveChunkGenerationMode {
-    match std::env::var("RUSTCRAFT_WORLDGEN").as_deref() {
+    match std::env::var("VIBECRAFT_WORLDGEN").as_deref() {
         Ok("preview") => LiveChunkGenerationMode::Preview,
         Ok("real-surface") | Ok("surface") | Err(_) => LiveChunkGenerationMode::RealSurface,
         Ok(other) => {
             eprintln!(
-                "unknown RUSTCRAFT_WORLDGEN={other:?}; using real-surface (set preview for scaffold terrain)"
+                "unknown VIBECRAFT_WORLDGEN={other:?}; using real-surface (set preview for scaffold terrain)"
             );
             LiveChunkGenerationMode::RealSurface
         }

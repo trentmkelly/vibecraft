@@ -376,7 +376,7 @@ fn management_settings_state_and_metrics_return_typed_snapshots() {
         settings: ServerSettingsDto {
             online_mode: false,
             max_players: 42,
-            motd: "RustCraft".to_string(),
+            motd: "VibeCraft".to_string(),
         },
         metrics: ServerMetricsDto {
             tick: 99,
@@ -400,7 +400,7 @@ fn management_settings_state_and_metrics_return_typed_snapshots() {
         Ok(JsonRpcResult::ServerSettings(ServerSettingsDto {
             online_mode: false,
             max_players: 42,
-            motd: "RustCraft".to_string(),
+            motd: "VibeCraft".to_string(),
         }))
     );
 

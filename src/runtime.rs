@@ -769,7 +769,7 @@ impl ThreadPool {
 
         for worker_index in 0..worker_count {
             let receiver = Arc::clone(&receiver);
-            let name = format!("rustcraft-{kind:?}-{worker_index}");
+            let name = format!("vibecraft-{kind:?}-{worker_index}");
             workers.push(
                 thread::Builder::new()
                     .name(name)

@@ -121,7 +121,7 @@ export function createPostReconnectSnapshot(session) {
 }
 
 export function createLootEconomyFixture(options = {}) {
-  const profile = options.profile ?? { username: 'RustCraftBot' }
+  const profile = options.profile ?? { username: 'VibeCraftBot' }
   return {
     name: options.name ?? 'loot-economy',
     profile,

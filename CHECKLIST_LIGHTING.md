@@ -1,6 +1,6 @@
 # CHECKLIST_LIGHTING.md
 
-Full port of Minecraft 26.1.2's lighting engine to RustCraft, replacing the current single-section `src/light.rs` stub with a multi-section, cross-chunk propagator that matches Java behavior 1:1.
+Full port of Minecraft 26.1.2's lighting engine to VibeCraft, replacing the current single-section `src/light.rs` stub with a multi-section, cross-chunk propagator that matches Java behavior 1:1.
 
 This checklist is the authoritative scope for the lighting port. Every item must be completed. Do not mark an item complete unless the corresponding Rust code and tests exist and pass.
 
@@ -85,7 +85,7 @@ Consult these continuously. The decomp lives at `/home/trent/Projects/MinecraftS
 - [x] **E3. Delete or migrate the old tests** in `src/light.rs::tests` — equivalent behavior must be covered by the new test suite.
 - [x] **E4. No feature flags, no parallel implementations, no "legacy mode".** One engine, one code path.
 
-## Section F — Tests (sibling `tests.rs` per `project_rustcraft_binary_crate` memory)
+## Section F — Tests (sibling `tests.rs` per `project_vibecraft_binary_crate` memory)
 
 Every test below must exist and pass. Tests live next to the module they exercise (e.g. `src/lighting/tests.rs` or per-file siblings).
 
@@ -115,7 +115,7 @@ Every test below must exist and pass. Tests live next to the module they exercis
 
 ## Section G — Build, lint, integration verification
 
-- [x] **G1. `cargo build` clean** from `RustCraft/` (no warnings).
+- [x] **G1. `cargo build` clean** from `VibeCraft/` (no warnings).
 - [x] **G2. `cargo clippy --all-targets -- -D warnings` clean.**
 - [x] **G3. `cargo test` passes** (no ignored or `#[cfg(off)]` lighting tests).
 - [x] **G4. Worldgen log shows non-zero work.** Either `light=≥1ms` on a typical 16-section overworld chunk, or `light_update_count` field present in the log line with a plausible value (≥1024 nodes for a non-empty chunk). Whichever path is taken, the runtime guard against silent no-op is in place.

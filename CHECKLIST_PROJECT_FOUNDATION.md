@@ -9,20 +9,20 @@ Cross-cutting project rules and compatibility commitments moved out of the top-l
 - [ ] Use black-box tests, public protocol references, vanilla datapacks, generated assets, and observed behavior as validation sources.
 - [x] Track every intentional deviation from vanilla behavior in a compatibility document. — `docs/COMPATIBILITY.md` owns the intentional-deviation list and currently records the unsupported Swing GUI, chase debug server/client, and native-transport implementation decision.
 - [ ] Build a repeatable test harness that can compare the rebuilt server against the official `server.jar`.
-- [x] Add Mineflayer-based black-box smoke tests that can target either RustCraft or the official `server.jar`.
+- [x] Add Mineflayer-based black-box smoke tests that can target either VibeCraft or the official `server.jar`.
 - [ ] Add a Mineflayer fixture that records bot event order, disconnect reasons, kicked messages, and packet-level errors for every black-box scenario.
 - [ ] Add a Mineflayer offline-mode baseline scenario shared by all black-box tests, including deterministic bot names, expected offline UUIDs, seeded temp worlds, fixed ports, and vanilla comparison output.
 - [ ] Add a Mineflayer offline-mode login contract test that every black-box suite can reuse to assert server readiness, EULA acceptance, deterministic profile creation, and successful play-state entry before running scenario-specific assertions.
-- [ ] Add a Mineflayer offline-mode login artifact test that captures `server.properties`, `eula.txt`, `usercache.json`, playerdata paths, bot UUIDs, and normalized vanilla/RustCraft log lines for each baseline run.
-- [ ] Add Mineflayer parity snapshots for the offline-mode happy path that preserve raw bot events, packet names, server log excerpts, and normalized official-vs-RustCraft diffs as test artifacts.
+- [ ] Add a Mineflayer offline-mode login artifact test that captures `server.properties`, `eula.txt`, `usercache.json`, playerdata paths, bot UUIDs, and normalized vanilla/VibeCraft log lines for each baseline run.
+- [ ] Add Mineflayer parity snapshots for the offline-mode happy path that preserve raw bot events, packet names, server log excerpts, and normalized official-vs-VibeCraft diffs as test artifacts.
 - [ ] Add a Mineflayer offline-mode preflight test that fails fast with actionable artifacts when the server never opens the port, never reaches login success, or disconnects before configuration completes.
 - [x] Add a Mineflayer offline-mode version-lock test that verifies the configured Mineflayer/prismarine protocol version matches Minecraft Java Edition 26.1.2 before any black-box scenario runs.
 - [ ] Add a Mineflayer offline-mode login diagnostics contract requiring every black-box failure to include bot username, expected UUID, server PID, port, last packet, last bot event, and normalized disconnect component.
-- [ ] Add a Mineflayer offline-mode baseline comparison test that runs the same generated bot profile against vanilla first, stores the accepted event timeline, then reuses it as the RustCraft assertion envelope.
+- [ ] Add a Mineflayer offline-mode baseline comparison test that runs the same generated bot profile against vanilla first, stores the accepted event timeline, then reuses it as the VibeCraft assertion envelope.
 - [ ] Add a Mineflayer offline-mode matrix owner test that requires every black-box scenario touching login to declare whether it uses fresh profile, returning profile, duplicate profile, op profile, whitelisted profile, or banned profile fixtures.
 - [ ] Add a Mineflayer offline-mode vanilla-oracle freshness test that reruns the official `server.jar` baseline when the Mineflayer/prismarine version, protocol version, server jar, or scenario fixture changes.
-- [ ] Add a Mineflayer offline-mode fixture sanity test that proves each generated bot username maps to the expected UUID before server start, after vanilla login, and after RustCraft login.
-- [ ] Add a Mineflayer offline-mode artifact diff test that compares vanilla and RustCraft login artifacts with volatile ports, timestamps, temp paths, and random seeds normalized out.
+- [ ] Add a Mineflayer offline-mode fixture sanity test that proves each generated bot username maps to the expected UUID before server start, after vanilla login, and after VibeCraft login.
+- [ ] Add a Mineflayer offline-mode artifact diff test that compares vanilla and VibeCraft login artifacts with volatile ports, timestamps, temp paths, and random seeds normalized out.
 - [ ] Treat Mineflayer as the primary automated beacon for regressions whenever its prismarine protocol tables support the target protocol; keep the vanilla 26.1.2 client as the authoritative connectability oracle and use a raw protocol probe to bridge version-support gaps.
 - [ ] Preserve exact client compatibility for unmodified 26.1.2 clients.
 - [ ] Preserve compatibility with vanilla resource/data packs that rely only on official behavior.

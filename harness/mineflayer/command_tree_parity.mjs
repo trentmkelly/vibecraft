@@ -15,14 +15,14 @@ export function flattenCommandTree(tree, prefix = '') {
   return nodes
 }
 
-export function compareCommandTrees(officialTree, rustcraftTree) {
+export function compareCommandTrees(officialTree, vibecraftTree) {
   const official = new Map(flattenCommandTree(officialTree).map(node => [node.path, node]))
-  const rustcraft = new Map(flattenCommandTree(rustcraftTree).map(node => [node.path, node]))
-  const paths = [...new Set([...official.keys(), ...rustcraft.keys()])].sort()
+  const vibecraft = new Map(flattenCommandTree(vibecraftTree).map(node => [node.path, node]))
+  const paths = [...new Set([...official.keys(), ...vibecraft.keys()])].sort()
   const differences = []
   for (const path of paths) {
     const left = official.get(path)
-    const right = rustcraft.get(path)
+    const right = vibecraft.get(path)
     if (!left) {
       differences.push({ path, kind: 'extra-node' })
       continue
@@ -37,7 +37,7 @@ export function compareCommandTrees(officialTree, rustcraftTree) {
           path,
           kind: `${field}-mismatch`,
           official: left[field],
-          rustcraft: right[field]
+          vibecraft: right[field]
         })
       }
     }

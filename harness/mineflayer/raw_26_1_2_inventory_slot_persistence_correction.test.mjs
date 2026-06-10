@@ -8,7 +8,7 @@ import { promisify } from 'node:util'
 
 import {
   createTempWorld,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -17,16 +17,16 @@ import {
 const execFileAsync = promisify(execFile)
 const here = new URL('.', import.meta.url)
 const repoRoot = path.resolve(here.pathname, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 const host = '127.0.0.1'
 
 test('raw 26.1.2 selected inventory slot persists and rejects invalid hotbar slots', { timeout: 75_000 }, async () => {
-  await withServer('rustcraft-slot-persist-', async ({ port, restart }) => {
+  await withServer('vibecraft-slot-persist-', async ({ port, restart }) => {
     const selectedSlot = 6
     const changed = await runJoinProbe(port, 'SlotPersist', {
-      RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'held_slot',
-      RUSTCRAFT_RAW_PROBE_HELD_SLOT: String(selectedSlot),
-      RUSTCRAFT_RAW_PROBE_ABORT_AFTER: 'first_tick_actions'
+      VIBECRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'held_slot',
+      VIBECRAFT_RAW_PROBE_HELD_SLOT: String(selectedSlot),
+      VIBECRAFT_RAW_PROBE_ABORT_AFTER: 'first_tick_actions'
     })
     assert.equal(changed.ok, true)
     assert.equal(changed.aborted, true)
@@ -35,16 +35,16 @@ test('raw 26.1.2 selected inventory slot persists and rejects invalid hotbar slo
     await restart()
 
     const rejoined = await runJoinProbe(port, 'SlotPersist', {
-      RUSTCRAFT_EXPECT_HELD_SLOT: String(selectedSlot)
+      VIBECRAFT_EXPECT_HELD_SLOT: String(selectedSlot)
     })
     assert.equal(rejoined.ok, true)
   })
 
-  await withServer('rustcraft-slot-correct-', async ({ port, restart }) => {
+  await withServer('vibecraft-slot-correct-', async ({ port, restart }) => {
     const invalid = await runJoinProbe(port, 'SlotCorrect', {
-      RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'held_slot',
-      RUSTCRAFT_RAW_PROBE_HELD_SLOT: '12',
-      RUSTCRAFT_RAW_PROBE_ABORT_AFTER: 'first_tick_actions'
+      VIBECRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'held_slot',
+      VIBECRAFT_RAW_PROBE_HELD_SLOT: '12',
+      VIBECRAFT_RAW_PROBE_ABORT_AFTER: 'first_tick_actions'
     })
     assert.equal(invalid.ok, true)
     assert.equal(invalid.aborted, true)
@@ -53,7 +53,7 @@ test('raw 26.1.2 selected inventory slot persists and rejects invalid hotbar slo
     await restart()
 
     const rejoined = await runJoinProbe(port, 'SlotCorrect', {
-      RUSTCRAFT_EXPECT_HELD_SLOT: '0'
+      VIBECRAFT_EXPECT_HELD_SLOT: '0'
     })
     assert.equal(rejoined.ok, true)
   })
@@ -66,7 +66,7 @@ async function withServer (prefix, callback) {
 
   async function restart () {
     if (server) await stopServer(server.child)
-    server = startRustCraft({ binary, root, port, levelName: 'world' })
+    server = startVibeCraft({ binary, root, port, levelName: 'world' })
     await waitForPort(port, host, 10_000)
   }
 
@@ -95,9 +95,9 @@ async function runJoinProbe (port, username, env = {}) {
       cwd: here,
       env: {
         ...process.env,
-        RUSTCRAFT_HOST: host,
-        RUSTCRAFT_PORT: String(port),
-        RUSTCRAFT_USERNAME: username,
+        VIBECRAFT_HOST: host,
+        VIBECRAFT_PORT: String(port),
+        VIBECRAFT_USERNAME: username,
         ...env
       },
       timeout: 30_000,

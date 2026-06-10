@@ -10,14 +10,14 @@ test('raw 26.1.2 play-boundary reconnects recover after forced disconnects', { t
     ['join_game', {}],
     ['first_chunk', {}],
     ['chunk_batch_finished', {}],
-    ['first_tick_actions', { RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: '1' }],
-    ['first_keepalive', { RUSTCRAFT_RAW_PROBE_KEEPALIVE_MS: '15000' }]
+    ['first_tick_actions', { VIBECRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: '1' }],
+    ['first_keepalive', { VIBECRAFT_RAW_PROBE_KEEPALIVE_MS: '15000' }]
   ]
 
   for (const [phase, phaseEnv] of phases) {
     const username = `PRetry${phase.replaceAll('_', '').slice(0, 9)}`
     const failed = await runJoinProbe(username, {
-      RUSTCRAFT_RAW_PROBE_ABORT_AFTER: phase,
+      VIBECRAFT_RAW_PROBE_ABORT_AFTER: phase,
       ...phaseEnv
     })
     assert.equal(failed.ok, true)
@@ -41,7 +41,7 @@ async function runJoinProbe (username, env = {}) {
       cwd: new URL('.', import.meta.url),
       env: {
         ...process.env,
-        RUSTCRAFT_USERNAME: username,
+        VIBECRAFT_USERNAME: username,
         ...env
       },
       timeout: 45_000,

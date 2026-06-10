@@ -113,7 +113,7 @@ function kebab(value) {
 
 async function windowLifecycleProbe() {
   throw new Error(
-    'windowLifecycleProbe requires a live RustCraft server and an in-world block (or villager) to interact with; pass an `options.probe` override to drive the scenario manually'
+    'windowLifecycleProbe requires a live VibeCraft server and an in-world block (or villager) to interact with; pass an `options.probe` override to drive the scenario manually'
   )
 }
 

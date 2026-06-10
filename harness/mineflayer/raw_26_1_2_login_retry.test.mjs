@@ -11,7 +11,7 @@ test('raw 26.1.2 offline login retry recovers immediately after a forced first-a
 
   for (const phase of phases) {
     const username = `Rt${phase.replaceAll('_', '').slice(0, 8)}${crypto.randomUUID().replaceAll('-', '').slice(0, 5)}`
-    const failed = await runJoinProbe(username, { RUSTCRAFT_RAW_PROBE_ABORT_AFTER: phase })
+    const failed = await runJoinProbe(username, { VIBECRAFT_RAW_PROBE_ABORT_AFTER: phase })
     assert.equal(failed.ok, true)
     assert.equal(failed.aborted, true)
     assert.equal(failed.phase, phase)
@@ -34,8 +34,8 @@ async function runJoinProbe (username, env = {}) {
       cwd: new URL('.', import.meta.url),
       env: {
         ...process.env,
-        RUSTCRAFT_USERNAME: username,
-        RUSTCRAFT_RAW_PROBE_OUTPUT: 'summary',
+        VIBECRAFT_USERNAME: username,
+        VIBECRAFT_RAW_PROBE_OUTPUT: 'summary',
         ...env
       },
       timeout: 30_000,

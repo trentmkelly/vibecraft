@@ -386,7 +386,7 @@ mod tests {
     fn nbt_io_file_helpers_match_java_path_behavior() {
         let tag = Tag::Compound(vec![("DataVersion".to_string(), Tag::Int(4790))]);
         let base = std::env::temp_dir().join(format!(
-            "rustcraft-nbt-{}",
+            "vibecraft-nbt-{}",
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()

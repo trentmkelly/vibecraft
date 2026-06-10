@@ -10,7 +10,7 @@ import { gunzipSync } from 'node:zlib'
 import {
   createTempWorld,
   offlineUuid,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -19,12 +19,12 @@ import {
 const execFileAsync = promisify(execFile)
 const here = new URL('.', import.meta.url)
 const repoRoot = path.resolve(here.pathname, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 const host = '127.0.0.1'
 
 test('raw 26.1.2 first login creates only vanilla-compatible profile files at save points', { timeout: 90_000 }, async () => {
   const port = await reservePort()
-  const root = await createTempWorld('rustcraft-first-login-files-')
+  const root = await createTempWorld('vibecraft-first-login-files-')
   const username = 'FirstFiles'
   const uuid = offlineUuid(username)
   let server
@@ -34,7 +34,7 @@ test('raw 26.1.2 first login creates only vanilla-compatible profile files at sa
     server = await start(root, port)
 
     const aborted = await runJoinProbe(port, username, {
-      RUSTCRAFT_RAW_PROBE_ABORT_AFTER: 'login_success'
+      VIBECRAFT_RAW_PROBE_ABORT_AFTER: 'login_success'
     })
     assert.equal(aborted.ok, true)
     assert.equal(await exists(playerDataFile(root, uuid)), false, 'login success alone should not create playerdata')
@@ -91,7 +91,7 @@ async function collectFiles (dir, prefix = '') {
 }
 
 async function start (root, port) {
-  const server = startRustCraft({ binary, root, port, levelName: 'world' })
+  const server = startVibeCraft({ binary, root, port, levelName: 'world' })
   await waitForPort(port, host, 10_000)
   return server
 }
@@ -104,9 +104,9 @@ async function runJoinProbe (port, username, env = {}) {
       cwd: here,
       env: {
         ...process.env,
-        RUSTCRAFT_HOST: host,
-        RUSTCRAFT_PORT: String(port),
-        RUSTCRAFT_USERNAME: username,
+        VIBECRAFT_HOST: host,
+        VIBECRAFT_PORT: String(port),
+        VIBECRAFT_USERNAME: username,
         ...env
       },
       timeout: 30_000,

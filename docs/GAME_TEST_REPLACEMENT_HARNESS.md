@@ -1,6 +1,6 @@
 # Game Test Replacement Harness
 
-RustCraft does not expose vanilla's in-game GameTest runner as the primary parity
+VibeCraft does not expose vanilla's in-game GameTest runner as the primary parity
 mechanism. The replacement harness is the versioned black-box test surface under
 `harness/mineflayer/`, plus the Rust-side parity models in `src/parity_harness.rs`.
 
@@ -36,7 +36,7 @@ one of:
 - a Mineflayer scenario test with an offline-mode bot;
 - a raw 26.1.2 protocol test when Mineflayer does not yet support the target
   packet surface;
-- a fixture/oracle report that compares RustCraft and official `server.jar`.
+- a fixture/oracle report that compares VibeCraft and official `server.jar`.
 
 The checklist should remain open for any subsystem that lacks one of those
 evidence paths, even if a helper or model exists.

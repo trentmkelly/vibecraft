@@ -8,7 +8,7 @@ import { promisify } from 'node:util'
 
 import {
   createTempWorld,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -17,12 +17,12 @@ import {
 const execFileAsync = promisify(execFile)
 const here = new URL('.', import.meta.url)
 const repoRoot = path.resolve(here.pathname, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 const host = '127.0.0.1'
 
 test('raw 26.1.2 movement sequence stays in play and streams final terrain window', { timeout: 90_000 }, async () => {
   const port = await reservePort()
-  const root = await createTempWorld('rustcraft-movement-sequence-')
+  const root = await createTempWorld('vibecraft-movement-sequence-')
   let server
 
   try {
@@ -35,7 +35,7 @@ test('raw 26.1.2 movement sequence stays in play and streams final terrain windo
         'simulation-distance': '4'
       }
     })
-    server = startRustCraft({ binary, root, port, levelName: 'world' })
+    server = startVibeCraft({ binary, root, port, levelName: 'world' })
     await waitForPort(port, host, 10_000)
 
     const movements = [
@@ -45,10 +45,10 @@ test('raw 26.1.2 movement sequence stays in play and streams final terrain windo
       { x: 32.5, y: 80, z: -16.5, yaw: 45, pitch: 5 }
     ]
     const moved = await runJoinProbe(port, 'MoveTrace', {
-      RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'client_information,movement,player_input',
-      RUSTCRAFT_RAW_PROBE_MOVEMENT_POSITION: JSON.stringify({ x: 1.5, y: 80, z: 1.5, yaw: 0, pitch: 0 }),
-      RUSTCRAFT_RAW_PROBE_EXTRA_MOVEMENTS: JSON.stringify(movements),
-      RUSTCRAFT_RAW_PROBE_POST_ACTION_MS: '1000'
+      VIBECRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'client_information,movement,player_input',
+      VIBECRAFT_RAW_PROBE_MOVEMENT_POSITION: JSON.stringify({ x: 1.5, y: 80, z: 1.5, yaw: 0, pitch: 0 }),
+      VIBECRAFT_RAW_PROBE_EXTRA_MOVEMENTS: JSON.stringify(movements),
+      VIBECRAFT_RAW_PROBE_POST_ACTION_MS: '1000'
     })
 
     assert.equal(moved.ok, true)
@@ -70,9 +70,9 @@ async function runJoinProbe (port, username, env = {}) {
       cwd: here,
       env: {
         ...process.env,
-        RUSTCRAFT_HOST: host,
-        RUSTCRAFT_PORT: String(port),
-        RUSTCRAFT_USERNAME: username,
+        VIBECRAFT_HOST: host,
+        VIBECRAFT_PORT: String(port),
+        VIBECRAFT_USERNAME: username,
         ...env
       },
       timeout: 30_000,

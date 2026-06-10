@@ -668,11 +668,11 @@ fn print_fixture_tree_root_support(stats: FixtureTreeRootSupportStats) {
 
 fn tree_root_diagnostic_center() -> ChunkPos {
     ChunkPos {
-        x: std::env::var("RUSTCRAFT_TREE_ROOT_DIAG_CENTER_X")
+        x: std::env::var("VIBECRAFT_TREE_ROOT_DIAG_CENTER_X")
             .ok()
             .and_then(|value| value.parse::<i32>().ok())
             .unwrap_or(0),
-        z: std::env::var("RUSTCRAFT_TREE_ROOT_DIAG_CENTER_Z")
+        z: std::env::var("VIBECRAFT_TREE_ROOT_DIAG_CENTER_Z")
             .ok()
             .and_then(|value| value.parse::<i32>().ok())
             .unwrap_or(0),
@@ -680,7 +680,7 @@ fn tree_root_diagnostic_center() -> ChunkPos {
 }
 
 fn tree_root_diagnostic_radius() -> i32 {
-    std::env::var("RUSTCRAFT_TREE_ROOT_DIAG_RADIUS")
+    std::env::var("VIBECRAFT_TREE_ROOT_DIAG_RADIUS")
         .ok()
         .and_then(|value| value.parse::<i32>().ok())
         .unwrap_or(2)

@@ -9,7 +9,7 @@
 //! callbacks through [`run_light_updates`].
 //!
 //! Java's `lastChunkPos` / `lastChunk` two-entry cache is intentionally
-//! omitted: in RustCraft `LightChunkGetter::light_properties_at` is a hot but
+//! omitted: in VibeCraft `LightChunkGetter::light_properties_at` is a hot but
 //! cheap HashMap lookup, and bringing back the cache requires a borrow-checker
 //! dance that would obscure the engine's intent. The cache is purely a
 //! microoptimisation in Java and does not affect correctness — adding one

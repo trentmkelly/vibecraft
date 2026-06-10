@@ -68,12 +68,12 @@ test('firstFailingMilestone and formatLoginBisectReport expose failure summary',
 })
 
 test('environment helpers parse revisions and feature flags', () => {
-  assert.deepEqual(revisionsFromEnv({ RUSTCRAFT_BISECT_REVISIONS: 'HEAD~2,HEAD~1\nHEAD' }), [
+  assert.deepEqual(revisionsFromEnv({ VIBECRAFT_BISECT_REVISIONS: 'HEAD~2,HEAD~1\nHEAD' }), [
     'HEAD~2',
     'HEAD~1',
     'HEAD'
   ])
-  assert.deepEqual(featureFlagsFromEnv({ RUSTCRAFT_BISECT_FLAGS: 'network=v1;compression=off,network=v2' }), [
+  assert.deepEqual(featureFlagsFromEnv({ VIBECRAFT_BISECT_FLAGS: 'network=v1;compression=off,network=v2' }), [
     { network: 'v1', compression: 'off' },
     { network: 'v2' }
   ])

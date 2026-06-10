@@ -22,10 +22,10 @@ fn write_lp_vec3_round_trips_through_java_decode() {
 }
 
 #[test]
-pub fn rustcraft_debug_commands_packet_exposes_biome_literal() {
-    let packet = rustcraft_debug_commands_packet();
+pub fn vibecraft_debug_commands_packet_exposes_biome_literal() {
+    let packet = vibecraft_debug_commands_packet();
 
-    // Intentional Java parity divergence: `/biome` is a RustCraft debugging
+    // Intentional Java parity divergence: `/biome` is a VibeCraft debugging
     // command, so the live fallback suggestion list must expose it alongside
     // the command tree even though vanilla 26.1.2 has no root `/biome`.
     assert!(PLAY_COMMAND_SUGGESTIONS.contains(&"biome"));
@@ -579,7 +579,7 @@ pub fn chunk_pipeline_coalesces_duplicate_requests_into_one_pending_entry() {
     let cache = super::super::GeneratedChunkCache::default();
     let pipeline = super::super::ChunkPipeline::new(
         cache,
-        std::path::PathBuf::from("/tmp/rustcraft-test-not-used"),
+        std::path::PathBuf::from("/tmp/vibecraft-test-not-used"),
         42,
         0, // no workers — the queue stays put
     );
@@ -601,7 +601,7 @@ pub fn chunk_pipeline_cancel_request_dequeues_pending_jobs() {
     let cache = super::super::GeneratedChunkCache::default();
     let pipeline = super::super::ChunkPipeline::new(
         cache,
-        std::path::PathBuf::from("/tmp/rustcraft-test-not-used"),
+        std::path::PathBuf::from("/tmp/vibecraft-test-not-used"),
         42,
         0,
     );
@@ -630,7 +630,7 @@ pub fn chunk_pipeline_skips_scheduling_when_chunk_already_cached() {
     );
     let pipeline = super::super::ChunkPipeline::new(
         cache,
-        std::path::PathBuf::from("/tmp/rustcraft-test-not-used"),
+        std::path::PathBuf::from("/tmp/vibecraft-test-not-used"),
         42,
         0,
     );
@@ -659,7 +659,7 @@ pub fn cache_set_block_mutates_in_memory_and_marks_dirty_without_disk_write() {
         z: -7 * 16 + 11,
     };
     let prev = cache.set_block(
-        std::path::Path::new("/tmp/rustcraft-test-not-used"),
+        std::path::Path::new("/tmp/vibecraft-test-not-used"),
         42,
         block_pos,
         "minecraft:stone",
@@ -693,7 +693,7 @@ pub fn cache_set_block_clones_via_arc_make_mut_so_in_flight_readers_see_old_snap
 
     let block_pos = crate::block_update::BlockPos { x: 5, y: 60, z: 5 };
     cache.set_block(
-        std::path::Path::new("/tmp/rustcraft-test-not-used"),
+        std::path::Path::new("/tmp/vibecraft-test-not-used"),
         42,
         block_pos,
         "minecraft:dirt",
@@ -726,7 +726,7 @@ pub fn cache_invalidate_refuses_to_drop_dirty_chunks() {
         std::sync::Arc::new(crate::storage::chunk::LevelChunk::empty(pos)),
     );
     cache.set_block(
-        std::path::Path::new("/tmp/rustcraft-test-not-used"),
+        std::path::Path::new("/tmp/vibecraft-test-not-used"),
         42,
         crate::block_update::BlockPos {
             x: 16,
@@ -746,7 +746,7 @@ pub fn cache_invalidate_refuses_to_drop_dirty_chunks() {
 pub fn cache_flush_dirty_uses_configured_region_compression() {
     let mut world_root = std::env::temp_dir();
     world_root.push(format!(
-        "rustcraft-cache-region-compression-{}",
+        "vibecraft-cache-region-compression-{}",
         std::process::id()
     ));
     let _ = std::fs::remove_dir_all(&world_root);
@@ -850,7 +850,7 @@ pub fn login_seeding_does_not_synchronously_generate_view_distance_window() {
     let cache = super::super::GeneratedChunkCache::default();
     let pipeline = super::super::ChunkPipeline::new(
         cache,
-        std::path::PathBuf::from("/tmp/rustcraft-test-not-used"),
+        std::path::PathBuf::from("/tmp/vibecraft-test-not-used"),
         42,
         0,
     );
@@ -892,7 +892,7 @@ pub fn drain_flushes_only_ready_chunks_so_join_progresses_without_full_radius() 
     let cache = super::super::GeneratedChunkCache::default();
     let pipeline = super::super::ChunkPipeline::new(
         cache.clone(),
-        std::path::PathBuf::from("/tmp/rustcraft-test-not-used"),
+        std::path::PathBuf::from("/tmp/vibecraft-test-not-used"),
         42,
         0,
     );
@@ -937,7 +937,7 @@ pub fn apply_chunk_movement_keeps_pending_aligned_with_new_view_window() {
     let cache = super::super::GeneratedChunkCache::default();
     let pipeline = super::super::ChunkPipeline::new(
         cache,
-        std::path::PathBuf::from("/tmp/rustcraft-test-not-used"),
+        std::path::PathBuf::from("/tmp/vibecraft-test-not-used"),
         42,
         0,
     );

@@ -8,7 +8,7 @@ import { promisify } from 'node:util'
 
 import {
   createTempWorld,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -17,7 +17,7 @@ import {
 const execFileAsync = promisify(execFile)
 const here = new URL('.', import.meta.url)
 const repoRoot = path.resolve(here.pathname, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 const host = '127.0.0.1'
 const seeds = [0n, 1n, -1n, 8675309n, 987654321987n]
 
@@ -25,7 +25,7 @@ test('raw 26.1.2 seeded spawn areas are collision-safe and immediately movable',
   for (const [index, seed] of seeds.entries()) {
     const port = await reservePort()
     const seedLabel = seed.toString().replace('-', 'neg')
-    const root = await createTempWorld(`rustcraft-spawn-area-${seedLabel}-`)
+    const root = await createTempWorld(`vibecraft-spawn-area-${seedLabel}-`)
     let server
 
     try {
@@ -41,11 +41,11 @@ test('raw 26.1.2 seeded spawn areas are collision-safe and immediately movable',
       server = await start(root, port)
 
       const joined = await runJoinProbe(port, `Spawn${index}`, {
-        RUSTCRAFT_EXPECT_WORLD_SEED: seed.toString(),
-        RUSTCRAFT_EXPECT_IS_FLAT: 'true',
-        RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'movement',
-        RUSTCRAFT_RAW_PROBE_MOVEMENT_POSITION: JSON.stringify({ x: 0.5, y: 80, z: 0.5, yaw: 0, pitch: 0 }),
-        RUSTCRAFT_RAW_PROBE_ABORT_AFTER: 'first_tick_actions'
+        VIBECRAFT_EXPECT_WORLD_SEED: seed.toString(),
+        VIBECRAFT_EXPECT_IS_FLAT: 'true',
+        VIBECRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'movement',
+        VIBECRAFT_RAW_PROBE_MOVEMENT_POSITION: JSON.stringify({ x: 0.5, y: 80, z: 0.5, yaw: 0, pitch: 0 }),
+        VIBECRAFT_RAW_PROBE_ABORT_AFTER: 'first_tick_actions'
       })
 
       assert.equal(joined.ok, true, `seed ${seed} should join cleanly`)
@@ -66,7 +66,7 @@ test('raw 26.1.2 seeded spawn areas are collision-safe and immediately movable',
 })
 
 async function start (root, port) {
-  const server = startRustCraft({ binary, root, port, levelName: 'world' })
+  const server = startVibeCraft({ binary, root, port, levelName: 'world' })
   await waitForPort(port, host, 10_000)
   return server
 }
@@ -79,9 +79,9 @@ async function runJoinProbe (port, username, env = {}) {
       cwd: here,
       env: {
         ...process.env,
-        RUSTCRAFT_HOST: host,
-        RUSTCRAFT_PORT: String(port),
-        RUSTCRAFT_USERNAME: username,
+        VIBECRAFT_HOST: host,
+        VIBECRAFT_PORT: String(port),
+        VIBECRAFT_USERNAME: username,
         ...env
       },
       timeout: 30_000,

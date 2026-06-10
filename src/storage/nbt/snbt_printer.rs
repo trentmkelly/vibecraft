@@ -314,7 +314,7 @@ mod tests {
             ("z".to_string(), Tag::Int(9)),
             ("palette".to_string(), Tag::List(vec![])),
             ("DataVersion".to_string(), Tag::Int(4790)),
-            ("author".to_string(), Tag::String("rustcraft".to_string())),
+            ("author".to_string(), Tag::String("vibecraft".to_string())),
             ("a".to_string(), Tag::Byte(1)),
             (
                 "true".to_string(),
@@ -324,7 +324,7 @@ mod tests {
 
         assert_eq!(
             to_pretty_snbt(&tag),
-            "{\n    DataVersion: 4790,\n    author: \"rustcraft\",\n    palette: [],\n    a: 1b,\n    true: \"simple key here\",\n    z: 9\n}"
+            "{\n    DataVersion: 4790,\n    author: \"vibecraft\",\n    palette: [],\n    a: 1b,\n    true: \"simple key here\",\n    z: 9\n}"
         );
     }
 

@@ -34,7 +34,7 @@ test('summarizeSoakHealth accepts sessions with spawn, play packets, keepalives,
       { name: 'spawn' },
       { name: 'action', summary: ['soakMovementTick', { iteration: 1 }] },
       { name: 'action', summary: ['issueCommand', { command: '/list' }] },
-      { name: 'action', summary: ['forceReconnect.connected', { username: 'RustCraftSoak' }] }
+      { name: 'action', summary: ['forceReconnect.connected', { username: 'VibeCraftSoak' }] }
     ],
     packetTrace: [
       { name: 'login', state: 'play' },

@@ -356,11 +356,11 @@ fn live_tree_configs_keep_vanilla_decorator_sets() {
 #[test]
 #[ignore = "wall-clock performance guard; run explicitly after worldgen optimization changes"]
 fn real_surface_spawn_chunk_generation_stays_under_debug_budget() {
-    let max_ms = std::env::var("RUSTCRAFT_WORLDGEN_CHUNK_MAX_MS")
+    let max_ms = std::env::var("VIBECRAFT_WORLDGEN_CHUNK_MAX_MS")
         .ok()
         .and_then(|value| value.parse::<u128>().ok())
         .unwrap_or(4);
-    let seed = std::env::var("RUSTCRAFT_WORLDGEN_TEST_SEED")
+    let seed = std::env::var("VIBECRAFT_WORLDGEN_TEST_SEED")
         .ok()
         .and_then(|value| value.parse::<i64>().ok())
         .unwrap_or(0);
@@ -437,11 +437,11 @@ fn real_surface_spawn_chunk_generation_stays_under_debug_budget() {
 #[test]
 #[ignore = "diagnostic for Java-shaped region feature generation throughput"]
 fn real_surface_region_spawn_chunk_generation_diagnostic() {
-    let seed = std::env::var("RUSTCRAFT_WORLDGEN_TEST_SEED")
+    let seed = std::env::var("VIBECRAFT_WORLDGEN_TEST_SEED")
         .ok()
         .and_then(|value| value.parse::<i64>().ok())
         .unwrap_or(0);
-    let radius = std::env::var("RUSTCRAFT_WORLDGEN_REGION_RADIUS")
+    let radius = std::env::var("VIBECRAFT_WORLDGEN_REGION_RADIUS")
         .ok()
         .and_then(|value| value.parse::<i32>().ok())
         .unwrap_or(1);
@@ -476,19 +476,19 @@ fn real_surface_region_spawn_chunk_generation_diagnostic() {
 #[test]
 #[ignore = "diagnostic for live multiplayer terrain reports"]
 fn live_seed_chunk_surface_summary() {
-    let seed = std::env::var("RUSTCRAFT_WORLDGEN_TEST_SEED")
+    let seed = std::env::var("VIBECRAFT_WORLDGEN_TEST_SEED")
         .ok()
         .and_then(|value| value.parse::<i64>().ok())
         .unwrap_or(0);
-    let center_x = std::env::var("RUSTCRAFT_WORLDGEN_TEST_CHUNK_X")
+    let center_x = std::env::var("VIBECRAFT_WORLDGEN_TEST_CHUNK_X")
         .ok()
         .and_then(|value| value.parse::<i32>().ok())
         .unwrap_or(0);
-    let center_z = std::env::var("RUSTCRAFT_WORLDGEN_TEST_CHUNK_Z")
+    let center_z = std::env::var("VIBECRAFT_WORLDGEN_TEST_CHUNK_Z")
         .ok()
         .and_then(|value| value.parse::<i32>().ok())
         .unwrap_or(0);
-    let radius = std::env::var("RUSTCRAFT_WORLDGEN_TEST_RADIUS")
+    let radius = std::env::var("VIBECRAFT_WORLDGEN_TEST_RADIUS")
         .ok()
         .and_then(|value| value.parse::<i32>().ok())
         .unwrap_or(0);
@@ -546,15 +546,15 @@ fn live_seed_chunk_surface_summary() {
 fn real_surface_spawn_area_generation_stays_under_debug_budget() {
     let default_chunk_ms = 4_u128;
     let chunk_count = 9_u128;
-    let max_total_ms = std::env::var("RUSTCRAFT_WORLDGEN_SPAWN_AREA_MAX_MS")
+    let max_total_ms = std::env::var("VIBECRAFT_WORLDGEN_SPAWN_AREA_MAX_MS")
         .ok()
         .and_then(|value| value.parse::<u128>().ok())
         .unwrap_or(default_chunk_ms * chunk_count);
-    let max_chunk_ms = std::env::var("RUSTCRAFT_WORLDGEN_CHUNK_MAX_MS")
+    let max_chunk_ms = std::env::var("VIBECRAFT_WORLDGEN_CHUNK_MAX_MS")
         .ok()
         .and_then(|value| value.parse::<u128>().ok())
         .unwrap_or(default_chunk_ms);
-    let seed = std::env::var("RUSTCRAFT_WORLDGEN_TEST_SEED")
+    let seed = std::env::var("VIBECRAFT_WORLDGEN_TEST_SEED")
         .ok()
         .and_then(|value| value.parse::<i64>().ok())
         .unwrap_or(0);
@@ -621,11 +621,11 @@ fn real_surface_spawn_area_generation_stays_under_debug_budget() {
 #[test]
 #[ignore = "diagnostic; run explicitly when inspecting visible chunk-border terrain artifacts"]
 fn real_surface_adjacent_chunk_border_continuity_diagnostic() {
-    let seed = std::env::var("RUSTCRAFT_WORLDGEN_TEST_SEED")
+    let seed = std::env::var("VIBECRAFT_WORLDGEN_TEST_SEED")
         .ok()
         .and_then(|value| value.parse::<i64>().ok())
         .unwrap_or(0);
-    let radius = std::env::var("RUSTCRAFT_WORLDGEN_BORDER_RADIUS")
+    let radius = std::env::var("VIBECRAFT_WORLDGEN_BORDER_RADIUS")
         .ok()
         .and_then(|value| value.parse::<i32>().ok())
         .unwrap_or(1);

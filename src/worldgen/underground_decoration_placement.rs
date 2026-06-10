@@ -850,7 +850,7 @@ struct OreDetailDebug {
 }
 
 fn log_ore_detail_if_enabled(debug: OreDetailDebug) {
-    if std::env::var_os("RUSTCRAFT_WORLDGEN_ORE_DETAIL_DEBUG").is_none() {
+    if std::env::var_os("VIBECRAFT_WORLDGEN_ORE_DETAIL_DEBUG").is_none() {
         return;
     }
     eprintln!(

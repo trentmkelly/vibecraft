@@ -13,7 +13,7 @@ pub struct ParityHarnessConfig {
     pub port_base: u16,
     pub minecraft_version: String,
     pub official_jar: PathBuf,
-    pub rustcraft_bin: PathBuf,
+    pub vibecraft_bin: PathBuf,
     pub root: PathBuf,
     pub extra_properties: Vec<(String, String)>,
 }
@@ -21,7 +21,7 @@ pub struct ParityHarnessConfig {
 impl ParityHarnessConfig {
     pub fn default_in_workspace(
         workspace: impl AsRef<Path>,
-        rustcraft_bin: impl Into<PathBuf>,
+        vibecraft_bin: impl Into<PathBuf>,
     ) -> Self {
         let workspace = workspace.as_ref();
         Self {
@@ -30,7 +30,7 @@ impl ParityHarnessConfig {
             port_base: 25_565,
             minecraft_version: "26.1.2".to_string(),
             official_jar: workspace.join("server.jar"),
-            rustcraft_bin: rustcraft_bin.into(),
+            vibecraft_bin: vibecraft_bin.into(),
             root: workspace.join("parity-runs"),
             extra_properties: Vec::new(),
         }
@@ -53,7 +53,7 @@ pub struct ParityCase {
 impl ParityCase {
     pub fn prepare(config: &ParityHarnessConfig) -> io::Result<Self> {
         let official_dir = config.root.join(&config.case_name).join("official");
-        let rebuilt_dir = config.root.join(&config.case_name).join("rustcraft");
+        let rebuilt_dir = config.root.join(&config.case_name).join("vibecraft");
         fs::create_dir_all(&official_dir)?;
         fs::create_dir_all(&rebuilt_dir)?;
         let properties = shared_properties(config);
@@ -75,9 +75,9 @@ impl ParityCase {
                 version: config.minecraft_version.clone(),
             },
             rebuilt: ServerLaunch {
-                kind: ServerKind::RustCraft,
+                kind: ServerKind::VibeCraft,
                 work_dir: rebuilt_dir,
-                executable: config.rustcraft_bin.clone(),
+                executable: config.vibecraft_bin.clone(),
                 args: vec!["--nogui".to_string()],
                 port: config.port_base + 1,
                 version: config.minecraft_version.clone(),
@@ -98,7 +98,7 @@ impl ParityCase {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ServerKind {
     OfficialJar,
-    RustCraft,
+    VibeCraft,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -165,7 +165,7 @@ fn shared_properties(config: &ParityHarnessConfig) -> Vec<(String, String)> {
         ("level-name".to_string(), "world".to_string()),
         (
             "motd".to_string(),
-            format!("RustCraft parity {}", config.minecraft_version),
+            format!("VibeCraft parity {}", config.minecraft_version),
         ),
     ];
     for (key, value) in &config.extra_properties {
@@ -212,14 +212,14 @@ mod tests {
 
     #[test]
     fn prepares_official_and_rebuilt_dirs_with_same_seed_and_properties_except_ports() {
-        let root = temp_root("rustcraft-parity-prepare");
+        let root = temp_root("vibecraft-parity-prepare");
         let config = ParityHarnessConfig {
             case_name: "login".to_string(),
             seed: 12345,
             port_base: 31_000,
             minecraft_version: "26.1.2".to_string(),
             official_jar: PathBuf::from("/workspace/server.jar"),
-            rustcraft_bin: PathBuf::from("/workspace/RustCraft/target/debug/rustcraft"),
+            vibecraft_bin: PathBuf::from("/workspace/VibeCraft/target/debug/vibecraft"),
             root: root.clone(),
             extra_properties: vec![("difficulty".to_string(), "hard".to_string())],
         };
@@ -247,11 +247,11 @@ mod tests {
     }
 
     #[test]
-    fn command_lines_launch_java_jar_and_rustcraft_binary_from_separate_workdirs() {
-        let root = temp_root("rustcraft-parity-command");
+    fn command_lines_launch_java_jar_and_vibecraft_binary_from_separate_workdirs() {
+        let root = temp_root("vibecraft-parity-command");
         let config = ParityHarnessConfig::default_in_workspace(
             "/workspace",
-            "/workspace/RustCraft/target/debug/rustcraft",
+            "/workspace/VibeCraft/target/debug/vibecraft",
         );
         let config = ParityHarnessConfig {
             root: root.clone(),
@@ -271,7 +271,7 @@ mod tests {
         );
         assert_eq!(
             case.rebuilt.command_line(),
-            vec!["/workspace/RustCraft/target/debug/rustcraft", "--nogui"]
+            vec!["/workspace/VibeCraft/target/debug/vibecraft", "--nogui"]
         );
         assert_ne!(case.official.work_dir, case.rebuilt.work_dir);
         let _ = fs::remove_dir_all(root);
@@ -279,13 +279,13 @@ mod tests {
 
     #[test]
     fn properties_are_upserted_so_scenarios_can_override_defaults() {
-        let root = temp_root("rustcraft-parity-upsert");
+        let root = temp_root("vibecraft-parity-upsert");
         let config = ParityHarnessConfig {
             root: root.clone(),
             port_base: 32_000,
             ..ParityHarnessConfig::default_in_workspace(
                 "/workspace",
-                "/workspace/RustCraft/target/debug/rustcraft",
+                "/workspace/VibeCraft/target/debug/vibecraft",
             )
             .with_property("level-name", "same-world")
         };
@@ -299,10 +299,10 @@ mod tests {
 
     #[test]
     fn log_normalizer_redacts_run_dir_and_ports_for_diffable_artifacts() {
-        let root = PathBuf::from("/tmp/rustcraft-parity-123");
+        let root = PathBuf::from("/tmp/vibecraft-parity-123");
         assert_eq!(
             normalize_log_line(
-                "[Server thread/INFO]: Starting /tmp/rustcraft-parity-123 on port 25565",
+                "[Server thread/INFO]: Starting /tmp/vibecraft-parity-123 on port 25565",
                 &root,
                 25565,
             ),

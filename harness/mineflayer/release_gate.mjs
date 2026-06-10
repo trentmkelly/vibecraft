@@ -98,16 +98,16 @@ function fail(name, message, details) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const knownRegressions = (process.env.RUSTCRAFT_KNOWN_PARITY_REGRESSIONS ?? '')
+  const knownRegressions = (process.env.VIBECRAFT_KNOWN_PARITY_REGRESSIONS ?? '')
     .split(/\r?\n|,/)
     .map(entry => entry.trim())
     .filter(Boolean)
   const result = await runReleaseGate({
-    binary: process.env.RUSTCRAFT_BIN,
-    port: Number(process.env.RUSTCRAFT_PORT ?? 25565),
+    binary: process.env.VIBECRAFT_BIN,
+    port: Number(process.env.VIBECRAFT_PORT ?? 25565),
     version: process.env.MINEFLAYER_VERSION,
-    timeoutMs: Number(process.env.RUSTCRAFT_TIMEOUT_MS ?? 30_000),
-    keepArtifacts: process.env.RUSTCRAFT_KEEP_ARTIFACTS === '1',
+    timeoutMs: Number(process.env.VIBECRAFT_TIMEOUT_MS ?? 30_000),
+    keepArtifacts: process.env.VIBECRAFT_KEEP_ARTIFACTS === '1',
     knownRegressions
   })
   if (result.ok) {

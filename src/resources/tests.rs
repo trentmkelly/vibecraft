@@ -464,7 +464,7 @@ fn parses_pack_metadata_and_detects_compatibility() {
 #[test]
 fn server_repository_discovers_compatible_directory_world_packs_with_metadata() {
     let temp_dir = std::env::temp_dir().join(format!(
-        "rustcraft-packs-{}",
+        "vibecraft-packs-{}",
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()

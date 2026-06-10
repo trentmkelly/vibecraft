@@ -11,7 +11,7 @@ test('raw 26.1.2 status socket cleanup does not corrupt immediate offline login'
   assert.equal(status.status.version.protocol, 775)
 
   const login = await runJsonProbe('raw_26_1_2_join_probe.mjs', {
-    RUSTCRAFT_USERNAME: 'StatusLogin'
+    VIBECRAFT_USERNAME: 'StatusLogin'
   })
   assert.equal(login.ok, true)
   assert.ok(login.config.some(packet => packet.id === 3), 'expected finish configuration packet')

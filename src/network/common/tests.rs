@@ -95,7 +95,7 @@ fn round_trips_known_brand_custom_payload() {
 #[test]
 fn round_trips_clientbound_brand_custom_payload() {
     let packet = ClientboundCustomPayloadPacket {
-        payload: CustomPayload::Brand("rustcraft".to_string()),
+        payload: CustomPayload::Brand("vibecraft".to_string()),
     };
     let mut bytes = Vec::new();
     packet.write(&mut bytes).unwrap();
@@ -105,7 +105,7 @@ fn round_trips_clientbound_brand_custom_payload() {
             vec![15],
             b"minecraft:brand".to_vec(),
             vec![9],
-            b"rustcraft".to_vec()
+            b"vibecraft".to_vec()
         ]
         .concat()
     );
@@ -119,7 +119,7 @@ fn round_trips_clientbound_brand_custom_payload() {
 fn round_trips_unknown_custom_payload_with_direction_limit() {
     let packet = ClientboundCustomPayloadPacket {
         payload: CustomPayload::Unknown {
-            channel: Identifier::parse("rustcraft:debug").unwrap(),
+            channel: Identifier::parse("vibecraft:debug").unwrap(),
             payload: vec![1, 2, 3],
         },
     };
@@ -135,7 +135,7 @@ fn round_trips_unknown_custom_payload_with_direction_limit() {
 fn rejects_oversized_serverbound_unknown_custom_payload() {
     let packet = ServerboundCustomPayloadPacket {
         payload: CustomPayload::Unknown {
-            channel: Identifier::parse("rustcraft:debug").unwrap(),
+            channel: Identifier::parse("vibecraft:debug").unwrap(),
             payload: vec![0; MAX_SERVERBOUND_CUSTOM_PAYLOAD_SIZE + 1],
         },
     };
@@ -147,7 +147,7 @@ fn read_rejects_oversized_serverbound_unknown_custom_payload() {
     // The decode-side limit is what the live config/play custom-payload handler
     // relies on (Java `DiscardedPayload.codec(id, 32767)` throws on read). Build a
     // wire frame with an unknown channel and a payload one byte over the limit.
-    let channel = Identifier::parse("rustcraft:debug").unwrap();
+    let channel = Identifier::parse("vibecraft:debug").unwrap();
     let mut bytes = Vec::new();
     crate::network::codec::write_identifier(&mut bytes, &channel).unwrap();
     bytes.extend(vec![0u8; MAX_SERVERBOUND_CUSTOM_PAYLOAD_SIZE + 1]);
@@ -258,7 +258,7 @@ fn round_trips_clear_dialog_and_report_details() {
 
     let packet = ClientboundCustomReportDetailsPacket {
         details: vec![
-            ("server".to_string(), "RustCraft".to_string()),
+            ("server".to_string(), "VibeCraft".to_string()),
             ("build".to_string(), "clean-room".to_string()),
         ],
     };
@@ -283,7 +283,7 @@ fn rejects_too_many_report_details() {
 #[test]
 fn round_trips_custom_click_action_payload() {
     let packet = ServerboundCustomClickActionPacket {
-        id: Identifier::parse("rustcraft:inspect").unwrap(),
+        id: Identifier::parse("vibecraft:inspect").unwrap(),
         payload: Some(vec![10, 20, 30]),
     };
     let mut bytes = Vec::new();
@@ -297,7 +297,7 @@ fn round_trips_custom_click_action_payload() {
 #[test]
 fn rejects_oversized_custom_click_action_payload() {
     let packet = ServerboundCustomClickActionPacket {
-        id: Identifier::parse("rustcraft:inspect").unwrap(),
+        id: Identifier::parse("vibecraft:inspect").unwrap(),
         payload: Some(vec![
             0;
             ServerboundCustomClickActionPacket::MAX_LENGTH_PREFIXED_PAYLOAD_SIZE

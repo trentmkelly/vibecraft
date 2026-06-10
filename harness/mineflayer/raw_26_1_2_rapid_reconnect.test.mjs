@@ -9,7 +9,7 @@ import { promisify } from 'node:util'
 import {
   createTempWorld,
   offlineUuid,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -18,12 +18,12 @@ import {
 const execFileAsync = promisify(execFile)
 const here = new URL('.', import.meta.url)
 const repoRoot = path.resolve(here.pathname, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 const host = '127.0.0.1'
 
 test('raw 26.1.2 rapid reconnects do not leak stale session state', { timeout: 75_000 }, async () => {
   const port = await reservePort()
-  const root = await createTempWorld('rustcraft-rapid-reconnect-')
+  const root = await createTempWorld('vibecraft-rapid-reconnect-')
   const username = 'RapidReturn'
   let server
 
@@ -36,12 +36,12 @@ test('raw 26.1.2 rapid reconnects do not leak stale session state', { timeout: 7
         'simulation-distance': '4'
       }
     })
-    server = startRustCraft({ binary, root, port, levelName: 'world' })
+    server = startVibeCraft({ binary, root, port, levelName: 'world' })
     await waitForPort(port, host, 10_000)
 
     for (let attempt = 0; attempt < 3; attempt++) {
       const joined = await runJoinProbe(port, username, {
-        RUSTCRAFT_RAW_PROBE_KEEPALIVE_MS: '15000'
+        VIBECRAFT_RAW_PROBE_KEEPALIVE_MS: '15000'
       })
 
       assert.equal(joined.ok, true, `attempt ${attempt} should join`)
@@ -68,9 +68,9 @@ async function runJoinProbe (port, username, env = {}) {
       cwd: here,
       env: {
         ...process.env,
-        RUSTCRAFT_HOST: host,
-        RUSTCRAFT_PORT: String(port),
-        RUSTCRAFT_USERNAME: username,
+        VIBECRAFT_HOST: host,
+        VIBECRAFT_PORT: String(port),
+        VIBECRAFT_USERNAME: username,
         ...env
       },
       timeout: 30_000,

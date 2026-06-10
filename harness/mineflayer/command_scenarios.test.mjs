@@ -35,12 +35,12 @@ import {
 test('offlineCommandScenarios cover required Mineflayer command surface', () => {
   assert.deepEqual(offlineCommandScenarios().map(scenario => scenario.command), [
     '/list',
-    '/tell RustCraftBot1 hello',
-    '/msg RustCraftBot1 hello',
+    '/tell VibeCraftBot1 hello',
+    '/msg VibeCraftBot1 hello',
     '/me waves',
     '/help list',
     '/seed',
-    '/gamemode creative RustCraftBot',
+    '/gamemode creative VibeCraftBot',
     '/gamemode creative'
   ])
 })

@@ -64,7 +64,7 @@ fn exposes_vanilla_world_paths() {
 #[test]
 fn creates_base_dirs() {
     let mut path = std::env::temp_dir();
-    path.push(format!("rustcraft-world-layout-{}", std::process::id()));
+    path.push(format!("vibecraft-world-layout-{}", std::process::id()));
     let _ = fs::remove_dir_all(&path);
 
     let layout = WorldLayout::new(&path);
@@ -80,7 +80,7 @@ fn creates_base_dirs() {
 #[test]
 fn level_storage_source_enumerates_and_validates_world_folders() {
     let mut path = std::env::temp_dir();
-    path.push(format!("rustcraft-level-source-{}", std::process::id()));
+    path.push(format!("vibecraft-level-source-{}", std::process::id()));
     let _ = fs::remove_dir_all(&path);
 
     let source = LevelStorageSource::new(&path, path.join("../backups")).unwrap();
@@ -125,7 +125,7 @@ fn level_storage_source_enumerates_and_validates_world_folders() {
 #[test]
 fn level_storage_access_locks_saves_renames_backs_up_and_deletes() {
     let mut path = std::env::temp_dir();
-    path.push(format!("rustcraft-level-access-{}", std::process::id()));
+    path.push(format!("vibecraft-level-access-{}", std::process::id()));
     let _ = fs::remove_dir_all(&path);
 
     let source = LevelStorageSource::new(&path, path.join("backups")).unwrap();
@@ -255,7 +255,7 @@ fn dimension_paths_match_26_1_2_identifier_storage_folder() {
 #[test]
 fn session_lock_matches_vanilla_marker_and_enforces_exclusive_lock() {
     let mut path = std::env::temp_dir();
-    path.push(format!("rustcraft-session-lock-{}", std::process::id()));
+    path.push(format!("vibecraft-session-lock-{}", std::process::id()));
     let _ = fs::remove_dir_all(&path);
 
     let layout = WorldLayout::new(&path);
@@ -281,7 +281,7 @@ fn session_lock_matches_vanilla_marker_and_enforces_exclusive_lock() {
 #[test]
 fn saves_level_dat_and_rotates_old_copy() {
     let mut path = std::env::temp_dir();
-    path.push(format!("rustcraft-level-dat-{}", std::process::id()));
+    path.push(format!("vibecraft-level-dat-{}", std::process::id()));
     let _ = fs::remove_dir_all(&path);
 
     let layout = WorldLayout::new(&path);
@@ -306,7 +306,7 @@ fn saves_level_dat_and_rotates_old_copy() {
 #[test]
 fn level_dat_is_gzip_with_empty_root_name_like_vanilla_and_reads_legacy_uncompressed() {
     let mut path = std::env::temp_dir();
-    path.push(format!("rustcraft-level-dat-gzip-{}", std::process::id()));
+    path.push(format!("vibecraft-level-dat-gzip-{}", std::process::id()));
     let _ = fs::remove_dir_all(&path);
     let layout = WorldLayout::new(&path);
 
@@ -339,7 +339,7 @@ fn level_dat_is_gzip_with_empty_root_name_like_vanilla_and_reads_legacy_uncompre
 #[test]
 fn saves_player_data_and_json_sidecars() {
     let mut path = std::env::temp_dir();
-    path.push(format!("rustcraft-player-storage-{}", std::process::id()));
+    path.push(format!("vibecraft-player-storage-{}", std::process::id()));
     let _ = fs::remove_dir_all(&path);
 
     let layout = WorldLayout::new(&path);
@@ -379,7 +379,7 @@ fn saves_player_data_and_json_sidecars() {
 #[test]
 fn json_sidecars_stamp_and_validate_data_versions() {
     let mut path = std::env::temp_dir();
-    path.push(format!("rustcraft-json-version-{}", std::process::id()));
+    path.push(format!("vibecraft-json-version-{}", std::process::id()));
     let _ = fs::remove_dir_all(&path);
 
     let layout = WorldLayout::new(&path);
@@ -423,7 +423,7 @@ fn json_sidecars_stamp_and_validate_data_versions() {
 #[test]
 fn player_data_uses_dat_old_and_corrupt_backup_like_vanilla_storage() {
     let mut path = std::env::temp_dir();
-    path.push(format!("rustcraft-player-corrupt-{}", std::process::id()));
+    path.push(format!("vibecraft-player-corrupt-{}", std::process::id()));
     let _ = fs::remove_dir_all(&path);
 
     let layout = WorldLayout::new(&path);
@@ -477,7 +477,7 @@ fn player_data_uses_dat_old_and_corrupt_backup_like_vanilla_storage() {
 fn player_data_storage_wraps_layout_save_load_backup_paths() {
     let mut path = std::env::temp_dir();
     path.push(format!(
-        "rustcraft-player-data-storage-{}",
+        "vibecraft-player-data-storage-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&path);
@@ -510,7 +510,7 @@ fn player_data_storage_wraps_layout_save_load_backup_paths() {
 #[test]
 fn saved_nbt_loaders_refuse_missing_or_unsupported_data_versions() {
     let mut path = std::env::temp_dir();
-    path.push(format!("rustcraft-saved-version-{}", std::process::id()));
+    path.push(format!("vibecraft-saved-version-{}", std::process::id()));
     let _ = fs::remove_dir_all(&path);
 
     let layout = WorldLayout::new(&path);
@@ -548,7 +548,7 @@ fn saved_nbt_loaders_refuse_missing_or_unsupported_data_versions() {
 #[test]
 fn saves_vanilla_named_data_files() {
     let mut path = std::env::temp_dir();
-    path.push(format!("rustcraft-saved-data-{}", std::process::id()));
+    path.push(format!("vibecraft-saved-data-{}", std::process::id()));
     let _ = fs::remove_dir_all(&path);
 
     let layout = WorldLayout::new(&path);
@@ -582,7 +582,7 @@ fn saves_vanilla_named_data_files() {
 fn saves_entity_and_poi_region_files_separate_from_block_regions() {
     let mut path = std::env::temp_dir();
     path.push(format!(
-        "rustcraft-entity-poi-regions-{}",
+        "vibecraft-entity-poi-regions-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&path);
@@ -621,7 +621,7 @@ fn saves_entity_and_poi_region_files_separate_from_block_regions() {
 #[test]
 fn validates_world_relative_paths_and_rejects_symlinks() {
     let mut path = std::env::temp_dir();
-    path.push(format!("rustcraft-path-safety-{}", std::process::id()));
+    path.push(format!("vibecraft-path-safety-{}", std::process::id()));
     let _ = fs::remove_dir_all(&path);
     fs::create_dir_all(&path).unwrap();
 
@@ -659,7 +659,7 @@ fn validates_world_relative_paths_and_rejects_symlinks() {
 #[test]
 fn falls_back_to_level_dat_old_when_primary_is_corrupt() {
     let mut path = std::env::temp_dir();
-    path.push(format!("rustcraft-level-corrupt-{}", std::process::id()));
+    path.push(format!("vibecraft-level-corrupt-{}", std::process::id()));
     let _ = fs::remove_dir_all(&path);
 
     let layout = WorldLayout::new(&path);
@@ -685,7 +685,7 @@ fn falls_back_to_level_dat_old_when_primary_is_corrupt() {
 fn refuses_world_metadata_when_primary_and_backup_are_corrupt() {
     let mut path = std::env::temp_dir();
     path.push(format!(
-        "rustcraft-level-both-corrupt-{}",
+        "vibecraft-level-both-corrupt-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&path);
@@ -704,7 +704,7 @@ fn refuses_world_metadata_when_primary_and_backup_are_corrupt() {
 #[test]
 fn checked_level_dat_refuses_incompatible_or_missing_data_version() {
     let mut path = std::env::temp_dir();
-    path.push(format!("rustcraft-level-version-{}", std::process::id()));
+    path.push(format!("vibecraft-level-version-{}", std::process::id()));
     let _ = fs::remove_dir_all(&path);
 
     let layout = WorldLayout::new(&path);
@@ -774,7 +774,7 @@ fn primary_level_data_round_trips_vanilla_level_dat_fields() {
                 crate::storage::nbt::Tag::String("minecraft:raid".to_string()),
             )],
         )]),
-        server_brands: vec!["vanilla".to_string(), "rustcraft".to_string()],
+        server_brands: vec!["vanilla".to_string(), "vibecraft".to_string()],
         custom_boss_events: crate::storage::nbt::Tag::Compound(vec![(
             "minecraft:boss".to_string(),
             crate::storage::nbt::Tag::Compound(vec![]),

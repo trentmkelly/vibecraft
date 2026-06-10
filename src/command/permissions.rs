@@ -2,7 +2,7 @@ use super::*;
 
 pub fn command_required_permission(command: &str) -> PermissionLevel {
     match command {
-        // `biome` is a RustCraft-only debug command, not a Java parity command.
+        // `biome` is a VibeCraft-only debug command, not a Java parity command.
         "" | "biome" | "chase" | "help" | "list" | "me" | "msg" | "random" | "teammsg" | "tell"
         | "tm" | "trigger" | "w" | "version" => PermissionLevel::All,
         "ban" | "ban-ip" | "banlist" | "deop" | "debug" | "debugconfig" | "kick" | "op"

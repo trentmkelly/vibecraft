@@ -102,7 +102,7 @@ fn vanilla_worldgen_block_array_parity_score_counts_matching_block_types() {
     blocks[0][0][0] = "minecraft:stone";
     blocks[1][0][0] = "minecraft:grass_block[snowy=false]";
     let fixture = json!({
-        "format": "rustcraft-vanilla-worldgen-block-array-target-v1",
+        "format": "vibecraft-vanilla-worldgen-block-array-target-v1",
         "seed": "0",
         "chunks": [{
             "dimension": "overworld",
@@ -166,7 +166,7 @@ fn vanilla_worldgen_heightmap_parity_score_counts_matching_surface_columns() {
     blocks[1][0][0] = "minecraft:grass_block[snowy=false]";
     blocks[2][0][0] = "minecraft:stone";
     let fixture = json!({
-        "format": "rustcraft-vanilla-worldgen-block-array-target-v1",
+        "format": "vibecraft-vanilla-worldgen-block-array-target-v1",
         "seed": "0",
         "chunks": [{
             "dimension": "overworld",
@@ -257,7 +257,7 @@ fn vanilla_worldgen_biome_grid_parity_score_counts_matching_quart_biomes() {
     let mut biomes = vec![vec![vec!["minecraft:forest"; 4]; 1]; 4];
     biomes[1][0][0] = "minecraft:river";
     let fixture = json!({
-        "format": "rustcraft-vanilla-worldgen-block-array-target-v1",
+        "format": "vibecraft-vanilla-worldgen-block-array-target-v1",
         "seed": "0",
         "chunks": [{
             "dimension": "overworld",
@@ -332,7 +332,7 @@ fn vanilla_worldgen_column_profile_parity_score_counts_matching_full_columns() {
     blocks[0][1][0] = "minecraft:grass_block";
     blocks[1][0][0] = "minecraft:stone";
     let fixture = json!({
-        "format": "rustcraft-vanilla-worldgen-block-array-target-v1",
+        "format": "vibecraft-vanilla-worldgen-block-array-target-v1",
         "seed": "0",
         "chunks": [{
             "dimension": "overworld",

@@ -55,11 +55,11 @@ export function formatLoginBisectReport(result) {
 }
 
 export function revisionsFromEnv(env = process.env) {
-  return splitList(env.RUSTCRAFT_BISECT_REVISIONS)
+  return splitList(env.VIBECRAFT_BISECT_REVISIONS)
 }
 
 export function featureFlagsFromEnv(env = process.env) {
-  return splitList(env.RUSTCRAFT_BISECT_FLAGS).map(entry =>
+  return splitList(env.VIBECRAFT_BISECT_FLAGS).map(entry =>
     Object.fromEntries(entry.split(';').filter(Boolean).map(pair => {
       const [key, value = '1'] = pair.split('=')
       return [key, value]
@@ -95,7 +95,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const result = await runLoginBisect({
     revisions: revisionsFromEnv(),
     featureFlags: featureFlagsFromEnv(),
-    stopOnFirstFailure: process.env.RUSTCRAFT_BISECT_ALL !== '1'
+    stopOnFirstFailure: process.env.VIBECRAFT_BISECT_ALL !== '1'
   })
   const report = formatLoginBisectReport(result)
   if (result.ok) {

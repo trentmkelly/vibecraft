@@ -69,7 +69,7 @@ test('runWindowLifecycleScenario throws when slot count differs from menu defini
 test('default probe rejects until a server fixture wires the menus', async () => {
   await assert.rejects(
     () => runWindowLifecycleScenario('chest'),
-    /requires a live RustCraft server/
+    /requires a live VibeCraft server/
   )
 })
 

@@ -63,7 +63,7 @@ mod tests {
 
     #[test]
     fn killed_process_leaves_last_durable_world_files_recoverable() {
-        let path = temp_root("rustcraft-crash-kill");
+        let path = temp_root("vibecraft-crash-kill");
         let _ = fs::remove_dir_all(&path);
         fs::create_dir_all(&path).unwrap();
 
@@ -99,7 +99,7 @@ mod tests {
 
     #[test]
     fn corrupted_world_inputs_error_or_fallback_without_panics() {
-        let path = temp_root("rustcraft-crash-corrupt");
+        let path = temp_root("vibecraft-crash-corrupt");
         let _ = fs::remove_dir_all(&path);
         fs::create_dir_all(&path).unwrap();
 

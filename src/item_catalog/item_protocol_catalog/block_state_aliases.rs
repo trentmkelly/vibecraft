@@ -1,4 +1,4 @@
-// Intentional aliases for block-state names RustCraft can receive from world data.
+// Intentional aliases for block-state names VibeCraft can receive from world data.
 // They resolve to the canonical item used by Java for inventory/protocol encoding.
 
 use super::super::ItemCatalogEntry;

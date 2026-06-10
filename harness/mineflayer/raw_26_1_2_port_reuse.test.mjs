@@ -9,7 +9,7 @@ import { promisify } from 'node:util'
 
 import {
   createTempWorld,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -18,19 +18,19 @@ import {
 const execFileAsync = promisify(execFile)
 const here = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(here, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 
 test('raw 26.1.2 port reuse starts and stops repeatedly on the same offline-mode port', { timeout: 60_000 }, async () => {
   const port = await reservePort()
   const cycles = []
 
   for (let cycle = 0; cycle < 3; cycle++) {
-    const root = await createTempWorld(`rustcraft-port-reuse-${cycle}-`)
+    const root = await createTempWorld(`vibecraft-port-reuse-${cycle}-`)
     const username = `PortReuse${cycle}`
     let server
     try {
       await writeOfflineServerFiles(root, { port, levelName: 'world' })
-      server = startRustCraft({ binary, root, port, levelName: 'world' })
+      server = startVibeCraft({ binary, root, port, levelName: 'world' })
       await waitForPort(port, '127.0.0.1', 10_000)
 
       const login = await runJoinProbe(port, username)
@@ -56,8 +56,8 @@ async function runJoinProbe(port, username) {
       cwd: here,
       env: {
         ...process.env,
-        RUSTCRAFT_PORT: String(port),
-        RUSTCRAFT_USERNAME: username
+        VIBECRAFT_PORT: String(port),
+        VIBECRAFT_USERNAME: username
       },
       timeout: 30_000,
       maxBuffer: 1024 * 1024

@@ -305,7 +305,7 @@ fn carve_ellipsoid_into_chunk(mut input: CarveEllipsoidChunkInput<'_>) -> usize 
 }
 
 fn carver_trace_matches(pos: BlockPos) -> bool {
-    let Ok(raw) = std::env::var("RUSTCRAFT_WORLDGEN_CARVER_TRACE") else {
+    let Ok(raw) = std::env::var("VIBECRAFT_WORLDGEN_CARVER_TRACE") else {
         return false;
     };
     raw.split(';').any(|entry| {

@@ -9,29 +9,29 @@ import { inflateSync } from 'node:zlib'
 
 import {
   createTempWorld,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
 } from './runner.mjs'
 
-const host = process.env.RUSTCRAFT_HOST ?? '127.0.0.1'
-const protocolVersion = Number(process.env.RUSTCRAFT_PROTOCOL_VERSION ?? 775)
-const username = process.env.RUSTCRAFT_DUPLICATE_USERNAME ?? 'DupLoginProbe'
+const host = process.env.VIBECRAFT_HOST ?? '127.0.0.1'
+const protocolVersion = Number(process.env.VIBECRAFT_PROTOCOL_VERSION ?? 775)
+const username = process.env.VIBECRAFT_DUPLICATE_USERNAME ?? 'DupLoginProbe'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(here, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 
 test('raw 26.1.2 duplicate offline login replaces the first active session', { timeout: 45_000 }, async () => {
-  const externalPort = process.env.RUSTCRAFT_PORT ? Number(process.env.RUSTCRAFT_PORT) : null
-  const root = externalPort == null ? await createTempWorld('rustcraft-duplicate-login-') : null
+  const externalPort = process.env.VIBECRAFT_PORT ? Number(process.env.VIBECRAFT_PORT) : null
+  const root = externalPort == null ? await createTempWorld('vibecraft-duplicate-login-') : null
   let server
   const port = externalPort ?? await reservePort()
 
   try {
     if (root) {
       await writeOfflineServerFiles(root, { port, levelName: 'world' })
-      server = startRustCraft({ binary, root, port, levelName: 'world' })
+      server = startVibeCraft({ binary, root, port, levelName: 'world' })
       await waitForPort(port, host, 10_000)
     }
 

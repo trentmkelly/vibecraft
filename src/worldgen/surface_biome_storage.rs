@@ -5,7 +5,7 @@ pub(super) fn populate_noise_chunk_biomes(
     seed: i64,
     noise_router: NoiseRouter,
 ) {
-    let debug_enabled = std::env::var_os("RUSTCRAFT_WORLDGEN_BIOME_DEBUG").is_some();
+    let debug_enabled = std::env::var_os("VIBECRAFT_WORLDGEN_BIOME_DEBUG").is_some();
     let total_started = debug_enabled.then(Instant::now);
     let climate_started = debug_enabled.then(Instant::now);
     let climate_sampler = ClimateSampler::from_noise_router(&noise_router, seed, *settings);

@@ -352,7 +352,7 @@ pub fn parse_dyn_surface_rule(v: &serde_json::Value) -> Result<DynSurfaceRule, S
 ///
 /// Java constructs this once from `SurfaceSystem.buildSurface`, applies the
 /// rule source to it, then calls `updateXZ` per column and `updateY` per solid
-/// block. RustCraft's dynamic rule tree is still interpreted, but its input
+/// block. VibeCraft's dynamic rule tree is still interpreted, but its input
 /// state now follows that same lifecycle.
 pub(super) struct SurfaceRulesContext {
     pub(super) seed: i64,
@@ -473,7 +473,7 @@ impl SurfaceRulesContext {
             last_update_xz: 0,
             last_update_y: 0,
             condition_cache: std::cell::RefCell::new(std::collections::HashMap::with_capacity(256)),
-            profile: std::env::var_os("RUSTCRAFT_WORLDGEN_SURFACE_DEBUG")
+            profile: std::env::var_os("VIBECRAFT_WORLDGEN_SURFACE_DEBUG")
                 .map(|_| RefCell::new(SurfaceRuleProfile::default())),
             block_x: 0,
             block_z: 0,

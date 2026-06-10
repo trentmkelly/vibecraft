@@ -9,7 +9,7 @@ const execFileAsync = promisify(execFile)
 test('raw 26.1.2 reconnect during configuration cleans stale profile/session state', { timeout: 90_000 }, async () => {
   for (const phase of ['registry_sync', 'known_packs']) {
     const username = `Cfg${phase.replaceAll('_', '').slice(0, 6)}${crypto.randomUUID().replaceAll('-', '').slice(0, 6)}`
-    const dropped = await runJoinProbe(username, { RUSTCRAFT_RAW_PROBE_ABORT_AFTER: phase })
+    const dropped = await runJoinProbe(username, { VIBECRAFT_RAW_PROBE_ABORT_AFTER: phase })
     assert.equal(dropped.ok, true)
     assert.equal(dropped.aborted, true)
     assert.equal(dropped.phase, phase)
@@ -32,8 +32,8 @@ async function runJoinProbe (username, env = {}) {
       cwd: new URL('.', import.meta.url),
       env: {
         ...process.env,
-        RUSTCRAFT_USERNAME: username,
-        RUSTCRAFT_RAW_PROBE_OUTPUT: 'summary',
+        VIBECRAFT_USERNAME: username,
+        VIBECRAFT_RAW_PROBE_OUTPUT: 'summary',
         ...env
       },
       timeout: 30_000,

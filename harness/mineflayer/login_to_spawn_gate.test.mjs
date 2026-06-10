@@ -60,7 +60,7 @@ test('login-to-spawn gate reports stalled spawn diagnostics before first chunk v
 })
 
 test('login-to-spawn gate passes against the live raw 26.1.2 join probe', {
-  skip: process.env.RUSTCRAFT_RUN_LIVE_LOGIN_TO_SPAWN_TEST !== '1'
+  skip: process.env.VIBECRAFT_RUN_LIVE_LOGIN_TO_SPAWN_TEST !== '1'
 }, async () => {
   const { stdout } = await execFileAsync(
     process.execPath,
@@ -69,7 +69,7 @@ test('login-to-spawn gate passes against the live raw 26.1.2 join probe', {
       cwd: new URL('.', import.meta.url),
       env: {
         ...process.env,
-        RUSTCRAFT_USERNAME: 'SpawnGate'
+        VIBECRAFT_USERNAME: 'SpawnGate'
       },
       timeout: 30000,
       maxBuffer: 1024 * 1024

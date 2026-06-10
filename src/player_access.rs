@@ -820,7 +820,7 @@ mod tests {
     #[test]
     fn writes_vanilla_access_control_files() {
         let mut dir = std::env::temp_dir();
-        dir.push(format!("rustcraft-access-{}", std::process::id()));
+        dir.push(format!("vibecraft-access-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
 
         let mut access = PlayerAccess::default();
@@ -849,7 +849,7 @@ mod tests {
     #[test]
     fn loads_vanilla_access_control_files() {
         let mut dir = std::env::temp_dir();
-        dir.push(format!("rustcraft-access-load-{}", std::process::id()));
+        dir.push(format!("vibecraft-access-load-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
 
@@ -901,7 +901,7 @@ mod tests {
     #[test]
     fn reload_from_dir_reflects_hot_edited_operator_whitelist_and_ban_files() {
         let mut dir = std::env::temp_dir();
-        dir.push(format!("rustcraft-access-hot-edit-{}", std::process::id()));
+        dir.push(format!("vibecraft-access-hot-edit-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
 
@@ -955,7 +955,7 @@ mod tests {
     fn usercache_loader_ignores_malformed_missing_and_expired_entries() {
         let mut dir = std::env::temp_dir();
         dir.push(format!(
-            "rustcraft-usercache-corrupt-{}",
+            "vibecraft-usercache-corrupt-{}",
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&dir);

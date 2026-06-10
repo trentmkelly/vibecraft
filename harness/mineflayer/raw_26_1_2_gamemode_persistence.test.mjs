@@ -10,7 +10,7 @@ import { gunzipSync, gzipSync } from 'node:zlib'
 import {
   createTempWorld,
   offlineUuid,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -19,11 +19,11 @@ import {
 const execFileAsync = promisify(execFile)
 const here = new URL('.', import.meta.url)
 const repoRoot = path.resolve(here.pathname, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 const host = '127.0.0.1'
 
 test('raw 26.1.2 loads saved game mode and preserves previous mode', { timeout: 90_000 }, async () => {
-  await withServer('rustcraft-gamemode-saved-', {
+  await withServer('vibecraft-gamemode-saved-', {
     properties: { gamemode: 'survival', 'force-gamemode': 'false' }
   }, async ({ port, root }) => {
     const username = 'SavedCreative'
@@ -32,10 +32,10 @@ test('raw 26.1.2 loads saved game mode and preserves previous mode', { timeout: 
     await writePlayerData(root, uuid, { gameMode: 1, previousGameMode: 0, position })
 
     const joined = await runJoinProbe(port, username, {
-      RUSTCRAFT_EXPECT_JOIN_POSITION: JSON.stringify(position),
-      RUSTCRAFT_EXPECT_GAME_MODE: '1',
-      RUSTCRAFT_EXPECT_PREVIOUS_GAME_MODE: '0',
-      RUSTCRAFT_EXPECT_ABILITY_FLAGS: '13'
+      VIBECRAFT_EXPECT_JOIN_POSITION: JSON.stringify(position),
+      VIBECRAFT_EXPECT_GAME_MODE: '1',
+      VIBECRAFT_EXPECT_PREVIOUS_GAME_MODE: '0',
+      VIBECRAFT_EXPECT_ABILITY_FLAGS: '13'
     })
 
     assert.equal(joined.ok, true)
@@ -45,15 +45,15 @@ test('raw 26.1.2 loads saved game mode and preserves previous mode', { timeout: 
 })
 
 test('raw 26.1.2 applies default spectator game mode to fresh profiles', { timeout: 90_000 }, async () => {
-  await withServer('rustcraft-gamemode-spectator-', {
+  await withServer('vibecraft-gamemode-spectator-', {
     properties: { gamemode: 'spectator' }
   }, async ({ port, root }) => {
     const username = 'FreshSpectator'
     const uuid = offlineUuid(username)
     const joined = await runJoinProbe(port, username, {
-      RUSTCRAFT_EXPECT_GAME_MODE: '3',
-      RUSTCRAFT_EXPECT_PREVIOUS_GAME_MODE: '255',
-      RUSTCRAFT_EXPECT_ABILITY_FLAGS: '15'
+      VIBECRAFT_EXPECT_GAME_MODE: '3',
+      VIBECRAFT_EXPECT_PREVIOUS_GAME_MODE: '255',
+      VIBECRAFT_EXPECT_ABILITY_FLAGS: '15'
     })
 
     assert.equal(joined.ok, true)
@@ -63,7 +63,7 @@ test('raw 26.1.2 applies default spectator game mode to fresh profiles', { timeo
 })
 
 test('raw 26.1.2 force-gamemode overrides saved mode and persists effective mode', { timeout: 90_000 }, async () => {
-  await withServer('rustcraft-gamemode-forced-', {
+  await withServer('vibecraft-gamemode-forced-', {
     properties: { gamemode: 'adventure', 'force-gamemode': 'true' }
   }, async ({ port, root }) => {
     const username = 'ForcedAdventure'
@@ -72,10 +72,10 @@ test('raw 26.1.2 force-gamemode overrides saved mode and persists effective mode
     await writePlayerData(root, uuid, { gameMode: 1, previousGameMode: 0, position })
 
     const joined = await runJoinProbe(port, username, {
-      RUSTCRAFT_EXPECT_JOIN_POSITION: JSON.stringify(position),
-      RUSTCRAFT_EXPECT_GAME_MODE: '2',
-      RUSTCRAFT_EXPECT_PREVIOUS_GAME_MODE: '0',
-      RUSTCRAFT_EXPECT_ABILITY_FLAGS: '0'
+      VIBECRAFT_EXPECT_JOIN_POSITION: JSON.stringify(position),
+      VIBECRAFT_EXPECT_GAME_MODE: '2',
+      VIBECRAFT_EXPECT_PREVIOUS_GAME_MODE: '0',
+      VIBECRAFT_EXPECT_ABILITY_FLAGS: '0'
     })
 
     assert.equal(joined.ok, true)
@@ -99,7 +99,7 @@ async function withServer (prefix, options, callback) {
         ...(options.properties ?? {})
       }
     })
-    server = startRustCraft({ binary, root, port, levelName: 'world' })
+    server = startVibeCraft({ binary, root, port, levelName: 'world' })
     await waitForPort(port, host, 10_000)
     return await callback({ port, root })
   } finally {
@@ -116,9 +116,9 @@ async function runJoinProbe (port, username, env = {}) {
       cwd: here,
       env: {
         ...process.env,
-        RUSTCRAFT_HOST: host,
-        RUSTCRAFT_PORT: String(port),
-        RUSTCRAFT_USERNAME: username,
+        VIBECRAFT_HOST: host,
+        VIBECRAFT_PORT: String(port),
+        VIBECRAFT_USERNAME: username,
         ...env
       },
       timeout: 30_000,

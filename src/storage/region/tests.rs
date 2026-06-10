@@ -31,7 +31,7 @@ fn computes_region_positions_and_local_indexes_like_mca_files() {
 #[test]
 fn creates_header_and_round_trips_location_and_timestamp() {
     let mut dir = std::env::temp_dir();
-    dir.push(format!("rustcraft-region-{}", std::process::id()));
+    dir.push(format!("vibecraft-region-{}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);
 
     let region = RegionFile::open(&dir, RegionPos { x: 0, z: 0 }).unwrap();
@@ -65,7 +65,7 @@ fn creates_header_and_round_trips_location_and_timestamp() {
 fn sync_write_policy_propagates_to_region_storage_and_worker() {
     let mut dir = std::env::temp_dir();
     dir.push(format!(
-        "rustcraft-region-sync-writes-{}",
+        "vibecraft-region-sync-writes-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&dir);
@@ -105,7 +105,7 @@ fn sync_write_policy_propagates_to_region_storage_and_worker() {
 fn region_file_open_sanitizes_invalid_header_locations() {
     let mut dir = std::env::temp_dir();
     dir.push(format!(
-        "rustcraft-region-invalid-header-{}",
+        "vibecraft-region-invalid-header-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&dir);
@@ -141,7 +141,7 @@ fn region_file_open_sanitizes_invalid_header_locations() {
 fn region_io_worker_pending_writes_shadow_disk_and_coalesce() {
     let mut dir = std::env::temp_dir();
     dir.push(format!(
-        "rustcraft-region-worker-pending-{}",
+        "vibecraft-region-worker-pending-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&dir);
@@ -215,7 +215,7 @@ fn region_io_worker_pending_writes_shadow_disk_and_coalesce() {
 fn region_io_worker_pending_clear_shadows_and_deletes_stored_chunk() {
     let mut dir = std::env::temp_dir();
     dir.push(format!(
-        "rustcraft-region-worker-clear-{}",
+        "vibecraft-region-worker-clear-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&dir);
@@ -258,7 +258,7 @@ fn region_io_worker_pending_clear_shadows_and_deletes_stored_chunk() {
 fn region_file_reuses_freed_sectors_for_new_chunk_writes() {
     let mut dir = std::env::temp_dir();
     dir.push(format!(
-        "rustcraft-region-sector-reuse-{}",
+        "vibecraft-region-sector-reuse-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&dir);
@@ -334,7 +334,7 @@ fn region_file_reuses_freed_sectors_for_new_chunk_writes() {
 #[test]
 fn region_file_close_pads_to_full_sector_and_forces_file() {
     let mut dir = std::env::temp_dir();
-    dir.push(format!("rustcraft-region-close-pad-{}", std::process::id()));
+    dir.push(format!("vibecraft-region-close-pad-{}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);
 
     let region = RegionFile::open(&dir, RegionPos { x: 0, z: 0 }).unwrap();
@@ -361,7 +361,7 @@ fn region_file_close_pads_to_full_sector_and_forces_file() {
 fn region_file_storage_caches_regions_with_lru_eviction_flush_and_close() {
     let mut dir = std::env::temp_dir();
     dir.push(format!(
-        "rustcraft-region-file-storage-cache-{}",
+        "vibecraft-region-file-storage-cache-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&dir);
@@ -425,7 +425,7 @@ fn region_file_storage_caches_regions_with_lru_eviction_flush_and_close() {
 fn region_file_storage_close_attempts_all_cached_regions_after_error() {
     let mut dir = std::env::temp_dir();
     dir.push(format!(
-        "rustcraft-region-file-storage-close-errors-{}",
+        "vibecraft-region-file-storage-close-errors-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&dir);
@@ -463,7 +463,7 @@ fn region_file_storage_close_attempts_all_cached_regions_after_error() {
 fn region_io_worker_scan_chunk_nbt_respects_pending_writes_and_deletes() {
     let mut dir = std::env::temp_dir();
     dir.push(format!(
-        "rustcraft-region-worker-scan-{}",
+        "vibecraft-region-worker-scan-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&dir);
@@ -531,7 +531,7 @@ fn region_io_worker_scan_chunk_nbt_respects_pending_writes_and_deletes() {
 fn region_io_worker_synchronize_with_flush_drains_and_forces_regions() {
     let mut dir = std::env::temp_dir();
     dir.push(format!(
-        "rustcraft-region-worker-flush-{}",
+        "vibecraft-region-worker-flush-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&dir);
@@ -581,7 +581,7 @@ fn region_io_worker_synchronize_with_flush_drains_and_forces_regions() {
 fn region_io_worker_close_drains_pending_writes_and_clears_old_chunk_cache() {
     let mut dir = std::env::temp_dir();
     dir.push(format!(
-        "rustcraft-region-worker-close-{}",
+        "vibecraft-region-worker-close-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&dir);
@@ -653,7 +653,7 @@ fn chunk_tag_old_for_blending_matches_ioworker_rule() {
 fn region_io_worker_builds_old_chunk_mask_for_blender_scan() {
     let mut dir = std::env::temp_dir();
     dir.push(format!(
-        "rustcraft-region-worker-old-mask-{}",
+        "vibecraft-region-worker-old-mask-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&dir);
@@ -731,7 +731,7 @@ fn region_io_worker_builds_old_chunk_mask_for_blender_scan() {
 fn region_io_worker_queries_old_chunks_around_across_regions() {
     let mut dir = std::env::temp_dir();
     dir.push(format!(
-        "rustcraft-region-worker-old-around-{}",
+        "vibecraft-region-worker-old-around-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&dir);
@@ -782,7 +782,7 @@ fn region_io_worker_queries_old_chunks_around_across_regions() {
 fn region_io_worker_caches_old_chunk_masks_with_lru_eviction_and_pending_invalidation() {
     let mut dir = std::env::temp_dir();
     dir.push(format!(
-        "rustcraft-region-worker-old-cache-{}",
+        "vibecraft-region-worker-old-cache-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&dir);
@@ -857,7 +857,7 @@ fn region_compression_versions_match_vanilla_ids_and_options() {
 fn configured_region_compression_propagates_to_storage_and_worker_writes() {
     let mut dir = std::env::temp_dir();
     dir.push(format!(
-        "rustcraft-region-configured-compression-{}",
+        "vibecraft-region-configured-compression-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&dir);
@@ -903,7 +903,7 @@ fn configured_region_compression_propagates_to_storage_and_worker_writes() {
 fn region_file_round_trips_zlib_none_and_lz4_payloads() {
     let mut dir = std::env::temp_dir();
     dir.push(format!(
-        "rustcraft-region-compression-{}",
+        "vibecraft-region-compression-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&dir);
@@ -954,7 +954,7 @@ fn region_file_round_trips_zlib_none_and_lz4_payloads() {
 fn region_file_treats_corrupt_stream_headers_as_missing_chunks() {
     let mut dir = std::env::temp_dir();
     dir.push(format!(
-        "rustcraft-region-corrupt-streams-{}",
+        "vibecraft-region-corrupt-streams-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&dir);
@@ -1027,7 +1027,7 @@ fn write_raw_location(path: &std::path::Path, chunk: ChunkPos, sector: u32, coun
 fn region_file_reads_external_chunk_streams() {
     let mut dir = std::env::temp_dir();
     dir.push(format!(
-        "rustcraft-region-external-stream-{}",
+        "vibecraft-region-external-stream-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&dir);
@@ -1077,7 +1077,7 @@ fn region_file_reads_external_chunk_streams() {
 #[test]
 fn region_file_chunk_existence_matches_vanilla_stream_header_checks() {
     let mut dir = std::env::temp_dir();
-    dir.push(format!("rustcraft-region-existence-{}", std::process::id()));
+    dir.push(format!("vibecraft-region-existence-{}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);
 
     let region = RegionFile::open(&dir, RegionPos { x: 0, z: 0 }).unwrap();
@@ -1137,7 +1137,7 @@ fn region_file_chunk_existence_matches_vanilla_stream_header_checks() {
 fn region_file_writes_oversized_chunks_to_external_streams() {
     let mut dir = std::env::temp_dir();
     dir.push(format!(
-        "rustcraft-region-external-write-{}",
+        "vibecraft-region-external-write-{}",
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&dir);

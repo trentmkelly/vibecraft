@@ -3,7 +3,7 @@ fn tree_context_worker_count(context_count: usize) -> usize {
         .map(usize::from)
         .unwrap_or(1);
     let default_workers = available.min(8).min(context_count).max(1);
-    std::env::var("RUSTCRAFT_WORLDGEN_TREE_CONTEXT_THREADS")
+    std::env::var("VIBECRAFT_WORLDGEN_TREE_CONTEXT_THREADS")
         .ok()
         .and_then(|value| value.parse::<usize>().ok())
         .map(|requested| requested.clamp(1, context_count.max(1)))
@@ -11,7 +11,7 @@ fn tree_context_worker_count(context_count: usize) -> usize {
 }
 
 pub(super) fn tree_decoration_source_radius() -> i32 {
-    std::env::var("RUSTCRAFT_WORLDGEN_TREE_SOURCE_RADIUS")
+    std::env::var("VIBECRAFT_WORLDGEN_TREE_SOURCE_RADIUS")
         .ok()
         .and_then(|value| value.parse::<i32>().ok())
         .unwrap_or(1)
@@ -296,7 +296,7 @@ fn print_noise_tree_context_height_debug(
     heightmaps: &NoiseTreeContextHeightmaps,
     stats: &NoiseTreeContextHeightStats,
 ) {
-    if std::env::var_os("RUSTCRAFT_WORLDGEN_TREE_HEIGHT_DEBUG").is_some() {
+    if std::env::var_os("VIBECRAFT_WORLDGEN_TREE_HEIGHT_DEBUG").is_some() {
         eprintln!(
             "[tree-height-debug] chunk=({}, {}) density_samples={} fluid_samples={} y_range={}..{} remaining_world_surface={} remaining_ocean_floor={}",
             pos.x,

@@ -133,7 +133,7 @@ impl AnvilMenu {
     /// `AnvilMenu.createResult` (survival, `hasInfiniteMaterials = false`). Full
     /// repair + enchantment-combine + rename pipeline; see `anvil_create_result`.
     /// One documented model caveat: the rename-cost comparison uses the item id
-    /// instead of the (untranslated) `getHoverName()`, since RustCraft has no
+    /// instead of the (untranslated) `getHoverName()`, since VibeCraft has no
     /// display-name layer — consistent with the previous rename path.
     pub fn set_result_from_inputs(&mut self) {
         self.set_result_from_inputs_with_mode(false);

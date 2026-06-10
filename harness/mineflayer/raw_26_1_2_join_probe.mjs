@@ -2,42 +2,42 @@ import net from 'node:net'
 import crypto from 'node:crypto'
 import { deflateSync, inflateSync } from 'node:zlib'
 
-const host = process.env.RUSTCRAFT_HOST ?? '127.0.0.1'
-const port = Number(process.env.RUSTCRAFT_PORT ?? 25565)
-const username = process.env.RUSTCRAFT_USERNAME ?? 'RustCraftProbe'
-const protocolVersion = Number(process.env.RUSTCRAFT_PROTOCOL_VERSION ?? 775)
-const recordOnly = process.env.RUSTCRAFT_RAW_PROBE_MODE === 'record'
-const summaryOnly = process.env.RUSTCRAFT_RAW_PROBE_OUTPUT === 'summary'
-const expectLoginDisconnect = process.env.RUSTCRAFT_EXPECT_LOGIN_DISCONNECT === '1'
-const abortAfter = process.env.RUSTCRAFT_RAW_PROBE_ABORT_AFTER ?? ''
-const keepAliveProbeMs = Number(process.env.RUSTCRAFT_RAW_PROBE_KEEPALIVE_MS ?? 0)
-const postActionProbeMs = Number(process.env.RUSTCRAFT_RAW_PROBE_POST_ACTION_MS ?? 0)
-const firstTickActionRequest = process.env.RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS ?? ''
+const host = process.env.VIBECRAFT_HOST ?? '127.0.0.1'
+const port = Number(process.env.VIBECRAFT_PORT ?? 25565)
+const username = process.env.VIBECRAFT_USERNAME ?? 'VibeCraftProbe'
+const protocolVersion = Number(process.env.VIBECRAFT_PROTOCOL_VERSION ?? 775)
+const recordOnly = process.env.VIBECRAFT_RAW_PROBE_MODE === 'record'
+const summaryOnly = process.env.VIBECRAFT_RAW_PROBE_OUTPUT === 'summary'
+const expectLoginDisconnect = process.env.VIBECRAFT_EXPECT_LOGIN_DISCONNECT === '1'
+const abortAfter = process.env.VIBECRAFT_RAW_PROBE_ABORT_AFTER ?? ''
+const keepAliveProbeMs = Number(process.env.VIBECRAFT_RAW_PROBE_KEEPALIVE_MS ?? 0)
+const postActionProbeMs = Number(process.env.VIBECRAFT_RAW_PROBE_POST_ACTION_MS ?? 0)
+const firstTickActionRequest = process.env.VIBECRAFT_RAW_PROBE_FIRST_TICK_ACTIONS ?? ''
 const firstTickActions = new Set(firstTickActionRequest === '1'
   ? ['client_information', 'held_slot', 'movement', 'chat', 'command_suggestion', 'inventory_click', 'inventory_close', 'block_action', 'player_input', 'swing', 'use_item_on', 'use_item']
   : firstTickActionRequest.split(',').map(action => action.trim()).filter(Boolean))
-const expectedJoinPosition = parsePositionEnv(process.env.RUSTCRAFT_EXPECT_JOIN_POSITION, null)
-const expectedDefaultSpawn = parseBlockPosEnv(process.env.RUSTCRAFT_EXPECT_DEFAULT_SPAWN, null)
-const movementPosition = parsePositionEnv(process.env.RUSTCRAFT_RAW_PROBE_MOVEMENT_POSITION, { x: 0.5, y: 80, z: 0.5, yaw: 0, pitch: 0 })
-const extraMovementPositions = parsePositionArrayEnv(process.env.RUSTCRAFT_RAW_PROBE_EXTRA_MOVEMENTS)
-const expectedHeldSlot = Number(process.env.RUSTCRAFT_EXPECT_HELD_SLOT ?? 0)
-const carriedItemSlot = Number(process.env.RUSTCRAFT_RAW_PROBE_HELD_SLOT ?? 4)
-const expectedHealth = Number(process.env.RUSTCRAFT_EXPECT_HEALTH ?? 20)
-const expectedFoodLevel = Number(process.env.RUSTCRAFT_EXPECT_FOOD_LEVEL ?? 20)
-const expectedFoodSaturation = Number(process.env.RUSTCRAFT_EXPECT_FOOD_SATURATION ?? 5)
-const expectedXpProgress = Number(process.env.RUSTCRAFT_EXPECT_XP_PROGRESS ?? 0)
-const expectedXpLevel = Number(process.env.RUSTCRAFT_EXPECT_XP_LEVEL ?? 0)
-const expectedXpTotal = Number(process.env.RUSTCRAFT_EXPECT_XP_TOTAL ?? 0)
-const expectedGameMode = Number(process.env.RUSTCRAFT_EXPECT_GAME_MODE ?? 0)
-const expectedPreviousGameMode = Number(process.env.RUSTCRAFT_EXPECT_PREVIOUS_GAME_MODE ?? 255)
-const expectedAbilityFlags = Number(process.env.RUSTCRAFT_EXPECT_ABILITY_FLAGS ?? 0)
-const expectedCommandSuggestion = process.env.RUSTCRAFT_EXPECT_COMMAND_SUGGESTION ?? ''
-const expectedWorldSeed = process.env.RUSTCRAFT_EXPECT_WORLD_SEED == null
+const expectedJoinPosition = parsePositionEnv(process.env.VIBECRAFT_EXPECT_JOIN_POSITION, null)
+const expectedDefaultSpawn = parseBlockPosEnv(process.env.VIBECRAFT_EXPECT_DEFAULT_SPAWN, null)
+const movementPosition = parsePositionEnv(process.env.VIBECRAFT_RAW_PROBE_MOVEMENT_POSITION, { x: 0.5, y: 80, z: 0.5, yaw: 0, pitch: 0 })
+const extraMovementPositions = parsePositionArrayEnv(process.env.VIBECRAFT_RAW_PROBE_EXTRA_MOVEMENTS)
+const expectedHeldSlot = Number(process.env.VIBECRAFT_EXPECT_HELD_SLOT ?? 0)
+const carriedItemSlot = Number(process.env.VIBECRAFT_RAW_PROBE_HELD_SLOT ?? 4)
+const expectedHealth = Number(process.env.VIBECRAFT_EXPECT_HEALTH ?? 20)
+const expectedFoodLevel = Number(process.env.VIBECRAFT_EXPECT_FOOD_LEVEL ?? 20)
+const expectedFoodSaturation = Number(process.env.VIBECRAFT_EXPECT_FOOD_SATURATION ?? 5)
+const expectedXpProgress = Number(process.env.VIBECRAFT_EXPECT_XP_PROGRESS ?? 0)
+const expectedXpLevel = Number(process.env.VIBECRAFT_EXPECT_XP_LEVEL ?? 0)
+const expectedXpTotal = Number(process.env.VIBECRAFT_EXPECT_XP_TOTAL ?? 0)
+const expectedGameMode = Number(process.env.VIBECRAFT_EXPECT_GAME_MODE ?? 0)
+const expectedPreviousGameMode = Number(process.env.VIBECRAFT_EXPECT_PREVIOUS_GAME_MODE ?? 255)
+const expectedAbilityFlags = Number(process.env.VIBECRAFT_EXPECT_ABILITY_FLAGS ?? 0)
+const expectedCommandSuggestion = process.env.VIBECRAFT_EXPECT_COMMAND_SUGGESTION ?? ''
+const expectedWorldSeed = process.env.VIBECRAFT_EXPECT_WORLD_SEED == null
   ? null
-  : BigInt(process.env.RUSTCRAFT_EXPECT_WORLD_SEED)
-const expectedIsFlat = process.env.RUSTCRAFT_EXPECT_IS_FLAT == null
+  : BigInt(process.env.VIBECRAFT_EXPECT_WORLD_SEED)
+const expectedIsFlat = process.env.VIBECRAFT_EXPECT_IS_FLAT == null
   ? null
-  : parseBoolEnv(process.env.RUSTCRAFT_EXPECT_IS_FLAT, true)
+  : parseBoolEnv(process.env.VIBECRAFT_EXPECT_IS_FLAT, true)
 const serverboundAcceptTeleportationPacketId = 0
 const clientboundCommandSuggestionsPacketId = 15
 const serverboundChatPacketId = 9
@@ -1332,7 +1332,7 @@ function parseBlockPosEnv (value, fallback) {
 function parsePositionArrayEnv (value) {
   if (!value) return []
   const parsed = JSON.parse(value)
-  if (!Array.isArray(parsed)) throw new Error('RUSTCRAFT_RAW_PROBE_EXTRA_MOVEMENTS must be a JSON array')
+  if (!Array.isArray(parsed)) throw new Error('VIBECRAFT_RAW_PROBE_EXTRA_MOVEMENTS must be a JSON array')
   return parsed.map(parsePosition)
 }
 

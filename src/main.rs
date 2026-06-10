@@ -60,7 +60,7 @@ fn main() {
 
 fn run(options: CliOptions) -> Result<(), String> {
     let logger = initialize_logger(&options)?;
-    logger.info("Starting RustCraft target server for Minecraft Java Edition 26.1.2")?;
+    logger.info("Starting VibeCraft target server for Minecraft Java Edition 26.1.2")?;
     write_pid_file(&options)?;
 
     if generate_reports_if_requested(&options, &logger)? {
@@ -115,7 +115,7 @@ fn selected_log_level(options: &CliOptions) -> LogLevel {
     options
         .log_level
         .or_else(|| {
-            std::env::var("RUSTCRAFT_LOG")
+            std::env::var("VIBECRAFT_LOG")
                 .ok()
                 .and_then(|val| LogLevel::from_str(&val).ok())
         })
@@ -467,7 +467,7 @@ mod tests {
 
     fn temp_workdir(name: &str) -> PathBuf {
         let mut dir = std::env::temp_dir();
-        dir.push(format!("rustcraft-main-{name}-{}", std::process::id()));
+        dir.push(format!("vibecraft-main-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).expect("create temp workdir");
         dir

@@ -6,7 +6,7 @@ import test from 'node:test'
 import { promisify } from 'node:util'
 import {
   createTempWorld,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -14,7 +14,7 @@ import {
 
 const execFileAsync = promisify(execFile)
 const here = new URL('.', import.meta.url)
-const rustCraftBin = path.resolve(new URL('../..', here).pathname, 'target', 'debug', 'rustcraft')
+const vibeCraftBin = path.resolve(new URL('../..', here).pathname, 'target', 'debug', 'vibecraft')
 
 test('raw 26.1.2 status probe validates MOTD, version, player counts, and ping echo', async () => {
   const { stdout } = await execFileAsync(
@@ -70,8 +70,8 @@ test('raw 26.1.2 status probe covers hidden player counts and disabled status re
           cwd: here,
           env: {
             ...process.env,
-            RUSTCRAFT_PORT: '25666',
-            RUSTCRAFT_TIMEOUT_MS: '500'
+            VIBECRAFT_PORT: '25666',
+            VIBECRAFT_TIMEOUT_MS: '500'
           },
           timeout: 3000,
           maxBuffer: 1024 * 1024
@@ -95,7 +95,7 @@ async function runProbe ({ port }) {
       cwd: here,
       env: {
         ...process.env,
-        RUSTCRAFT_PORT: String(port)
+        VIBECRAFT_PORT: String(port)
       },
       timeout: 8000,
       maxBuffer: 1024 * 1024
@@ -105,14 +105,14 @@ async function runProbe ({ port }) {
 }
 
 async function startFixtureServer (options) {
-  const root = await createTempWorld('rustcraft-status-probe-')
+  const root = await createTempWorld('vibecraft-status-probe-')
   await writeOfflineServerFiles(root, {
     port: options.port,
     properties: options.properties
   })
-  const server = startRustCraft({
+  const server = startVibeCraft({
     root,
-    binary: rustCraftBin,
+    binary: vibeCraftBin,
     port: options.port
   })
   await waitForPort(options.port)

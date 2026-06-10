@@ -9,7 +9,7 @@ import { promisify } from 'node:util'
 import {
   createTempWorld,
   offlineUuid,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -18,7 +18,7 @@ import {
 const execFileAsync = promisify(execFile)
 const here = new URL('.', import.meta.url)
 const repoRoot = path.resolve(here.pathname, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 const host = '127.0.0.1'
 
 test('raw 26.1.2 login storm isolates generated profiles across temp worlds and ports', { timeout: 90_000 }, async () => {
@@ -58,7 +58,7 @@ test('raw 26.1.2 login storm isolates generated profiles across temp worlds and 
 
 async function startWorld (index) {
   const port = await reservePort()
-  const root = await createTempWorld(`rustcraft-login-storm-${index}-`)
+  const root = await createTempWorld(`vibecraft-login-storm-${index}-`)
   await writeOfflineServerFiles(root, {
     port,
     levelName: 'world',
@@ -67,7 +67,7 @@ async function startWorld (index) {
       'simulation-distance': '4'
     }
   })
-  const server = startRustCraft({ binary, root, port, levelName: 'world' })
+  const server = startVibeCraft({ binary, root, port, levelName: 'world' })
   await waitForPort(port, host, 10_000)
   return { port, root, server }
 }
@@ -80,9 +80,9 @@ async function runJoinProbe (port, username) {
       cwd: here,
       env: {
         ...process.env,
-        RUSTCRAFT_HOST: host,
-        RUSTCRAFT_PORT: String(port),
-        RUSTCRAFT_USERNAME: username
+        VIBECRAFT_HOST: host,
+        VIBECRAFT_PORT: String(port),
+        VIBECRAFT_USERNAME: username
       },
       timeout: 30_000,
       maxBuffer: 1024 * 1024

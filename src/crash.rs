@@ -159,7 +159,7 @@ impl CrashReport {
             title: payload,
             details: vec![
                 (
-                    "RustCraft Version".to_string(),
+                    "VibeCraft Version".to_string(),
                     env!("CARGO_PKG_VERSION").to_string(),
                 ),
                 (
@@ -184,13 +184,13 @@ impl CrashReport {
     }
 
     pub fn summary(&self) -> String {
-        format!("RustCraft crashed: {}", self.title)
+        format!("VibeCraft crashed: {}", self.title)
     }
 
     pub fn render(&self) -> String {
         let mut out = String::new();
-        out.push_str("---- RustCraft Crash Report ----\n");
-        out.push_str("// This report is generated when RustCraft panics.\n\n");
+        out.push_str("---- VibeCraft Crash Report ----\n");
+        out.push_str("// This report is generated when VibeCraft panics.\n\n");
         out.push_str("Description: ");
         out.push_str(&self.title);
         out.push_str("\n\n");

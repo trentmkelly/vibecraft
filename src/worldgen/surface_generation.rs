@@ -298,7 +298,7 @@ fn build_surface_for_chunk_timed_with_sections(
         surface_loop.run_columns();
         surface_loop.finish()
     };
-    let flush_started = std::env::var_os("RUSTCRAFT_WORLDGEN_SURFACE_DEBUG")
+    let flush_started = std::env::var_os("VIBECRAFT_WORLDGEN_SURFACE_DEBUG")
         .is_some()
         .then(Instant::now);
     add_client_heightmaps_from_generated_sections(chunk, section_blocks);
@@ -496,7 +496,7 @@ impl<'a, 'b> SurfaceBuildLoop<'a, 'b> {
             air_id,
             water_id,
             lava_id,
-            debug_enabled: std::env::var_os("RUSTCRAFT_WORLDGEN_SURFACE_DEBUG").is_some(),
+            debug_enabled: std::env::var_os("VIBECRAFT_WORLDGEN_SURFACE_DEBUG").is_some(),
             debug: SurfaceDebugCounters::default(),
             timings,
         }

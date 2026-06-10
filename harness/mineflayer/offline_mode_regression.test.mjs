@@ -56,14 +56,14 @@ test('formatOfflineModeRegressionReport emits stable PASS and FAIL lines', () =>
   const result = evaluateOfflineModeRegression(session, { minimumPlayPackets: 2 })
   const report = formatOfflineModeRegressionReport(session, result)
 
-  assert.match(report, /profile: RustCraftOfflineRegression/)
+  assert.match(report, /profile: VibeCraftOfflineRegression/)
   assert.match(report, /PASS loginTimeout/)
   assert.match(report, /PASS playStateStall/)
 })
 
 function completeSession() {
   return {
-    profile: { username: 'RustCraftOfflineRegression' },
+    profile: { username: 'VibeCraftOfflineRegression' },
     uuid: 'offline-uuid',
     timeline: [
       { name: 'login' },

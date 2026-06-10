@@ -124,7 +124,7 @@ test('vanilla worldgen trace report normalizes requested chunk evidence', () => 
     }]
   })
 
-  assert.equal(report.format, 'rustcraft-vanilla-worldgen-trace-v1')
+  assert.equal(report.format, 'vibecraft-vanilla-worldgen-trace-v1')
   assert.deepEqual(report.commandTrace, ['forceload add 0 0', 'save-all flush', 'stop'])
   assert.deepEqual(report.statusTrace, [{
     dimension: 'overworld',

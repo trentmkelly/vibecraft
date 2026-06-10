@@ -434,7 +434,7 @@ mod tests {
 
     fn temp_data_dir(name: &str) -> PathBuf {
         let mut path = std::env::temp_dir();
-        path.push(format!("rustcraft-{name}-{}", std::process::id()));
+        path.push(format!("vibecraft-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&path);
         fs::create_dir_all(&path).unwrap();
         path

@@ -13,7 +13,7 @@ export function createSpawnpointPersistencePlan(options = {}) {
       difficulty: 'normal',
       'spawn-protection': '0'
     },
-    compareAgainst: ['vanilla-26.1.2', 'rustcraft'],
+    compareAgainst: ['vanilla-26.1.2', 'vibecraft'],
     assertions: [
       'bed-spawn-saved-to-playerdata',
       'anchor-spawn-saved-to-playerdata',

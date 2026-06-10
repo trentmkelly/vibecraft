@@ -3,7 +3,7 @@ import { offlineUuid } from './runner.mjs'
 /// Mineflayer scenarios that exercise the `MerchantMenu` protocol surface.
 ///
 /// These are "plan" scenarios — the merchant entity is not yet wired into the
-/// RustCraft server, so the tests describe the expected outcomes for each
+/// VibeCraft server, so the tests describe the expected outcomes for each
 /// step rather than driving a real bot through them. When a real villager
 /// entity becomes available, the scenarios here become the integration
 /// reference: the names and step ordering match the assertions the bot is

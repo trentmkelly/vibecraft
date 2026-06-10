@@ -52,9 +52,9 @@ export async function runTranscriptScenario(options = {}) {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const result = await runTranscriptScenario({
-    host: process.env.RUSTCRAFT_HOST,
-    port: Number(process.env.RUSTCRAFT_PORT ?? 25565),
-    forceRawProbe: process.env.RUSTCRAFT_FORCE_RAW_TRANSCRIPT === '1'
+    host: process.env.VIBECRAFT_HOST,
+    port: Number(process.env.VIBECRAFT_PORT ?? 25565),
+    forceRawProbe: process.env.VIBECRAFT_FORCE_RAW_TRANSCRIPT === '1'
   })
   console.log(JSON.stringify(result, null, 2))
 }

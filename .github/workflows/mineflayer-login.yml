@@ -24,15 +24,15 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: harness/mineflayer/package-lock.json
-      - name: Build RustCraft
-        run: cargo build --bin rustcraft
+      - name: Build VibeCraft
+        run: cargo build --bin vibecraft
       - name: Install Mineflayer harness
         working-directory: harness/mineflayer
         run: npm ci
       - name: Run fast Mineflayer login shard
         working-directory: harness/mineflayer
         env:
-          RUSTCRAFT_BIN: ../../target/debug/rustcraft
-          RUSTCRAFT_PORT: "25565"
-          RUSTCRAFT_TIMEOUT_MS: "30000"
+          VIBECRAFT_BIN: ../../target/debug/vibecraft
+          VIBECRAFT_PORT: "25565"
+          VIBECRAFT_TIMEOUT_MS: "30000"
         run: npm run ci:login

@@ -1,6 +1,6 @@
 # Chunk Generation and Sending Architecture Checklist
 
-Goal: replace RustCraft's blocking full-view-distance chunk batch with a Java-parity asynchronous chunk generation and paced chunk sending pipeline, without reducing view distance or papering over timeouts.
+Goal: replace VibeCraft's blocking full-view-distance chunk batch with a Java-parity asynchronous chunk generation and paced chunk sending pipeline, without reducing view distance or papering over timeouts.
 
 Authoritative Java references:
 
@@ -152,7 +152,7 @@ Authoritative Java references:
 
 ## Validation plan
 
-- [ ] Build with `RUSTCRAFT_SKIP_LINE_CHECK=1` after each major phase.
+- [ ] Build with `VIBECRAFT_SKIP_LINE_CHECK=1` after each major phase.
 - [ ] Run targeted chunk sender unit tests after implementing sender state.
 - [ ] Run targeted generation scheduler tests after implementing async generation.
 - [ ] Preserve current `normal_overworld_generation_keeps_vanilla_block_array_parity_above_threshold` score or improve it; current baseline is `0.995887 (293699/294912)`, and no implementation step may lower this KPI. (Passing as before.)

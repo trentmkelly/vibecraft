@@ -34,14 +34,14 @@ mod tests {
     }
 
     #[test]
-    fn mineflayer_runner_targets_rustcraft_and_official_server() {
+    fn mineflayer_runner_targets_vibecraft_and_official_server() {
         let runner = harness_file("runner.mjs");
 
-        assert!(runner.contains("startRustCraft"));
+        assert!(runner.contains("startVibeCraft"));
         assert!(runner.contains("startOfficialServer"));
         assert!(runner.contains("runParityScenario"));
         assert!(runner.contains("serverKind: 'official'"));
-        assert!(runner.contains("serverKind: 'rustcraft'"));
+        assert!(runner.contains("serverKind: 'vibecraft'"));
         assert!(runner.contains("normalizeArtifacts"));
         assert!(runner.contains("diffArtifacts"));
     }

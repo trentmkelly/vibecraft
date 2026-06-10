@@ -48,7 +48,7 @@ export async function runOfflineModeRegression(options = {}) {
   const session = await (options.runLogin ?? runObservedOfflineLogin)({
     binary: options.binary,
     port: options.port ?? 25565,
-    username: options.username ?? 'RustCraftOfflineRegression',
+    username: options.username ?? 'VibeCraftOfflineRegression',
     version: options.version,
     timeoutMs: options.timeoutMs ?? 30_000,
     keepArtifacts: options.keepArtifacts,
@@ -137,9 +137,9 @@ function fail(name, message, details) {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const result = await runOfflineModeRegression({
-    binary: process.env.RUSTCRAFT_BIN,
-    port: Number(process.env.RUSTCRAFT_PORT ?? 25565),
-    username: process.env.RUSTCRAFT_BOT ?? 'RustCraftOfflineRegression',
+    binary: process.env.VIBECRAFT_BIN,
+    port: Number(process.env.VIBECRAFT_PORT ?? 25565),
+    username: process.env.VIBECRAFT_BOT ?? 'VibeCraftOfflineRegression',
     version: process.env.MINEFLAYER_VERSION,
     changedFiles: changedFilesFromEnv(),
     keepArtifacts: process.env.KEEP_ARTIFACTS === '1'

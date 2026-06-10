@@ -7,10 +7,10 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(here, '..', '..')
 
 export function createVanillaClientXephyrPlan (options = {}) {
-  const display = options.display ?? process.env.RUSTCRAFT_VANILLA_CLIENT_DISPLAY ?? ':2'
-  const screen = options.screen ?? process.env.RUSTCRAFT_VANILLA_CLIENT_SCREEN ?? '1280x720'
-  const gameDir = options.gameDir ?? process.env.RUSTCRAFT_VANILLA_CLIENT_GAME_DIR ?? '/tmp/codex-mc-xephyr'
-  const artifactsDir = options.artifactsDir ?? process.env.RUSTCRAFT_VANILLA_CLIENT_ARTIFACTS ?? path.join(repoRoot, 'artifacts', 'vanilla-client')
+  const display = options.display ?? process.env.VIBECRAFT_VANILLA_CLIENT_DISPLAY ?? ':2'
+  const screen = options.screen ?? process.env.VIBECRAFT_VANILLA_CLIENT_SCREEN ?? '1280x720'
+  const gameDir = options.gameDir ?? process.env.VIBECRAFT_VANILLA_CLIENT_GAME_DIR ?? '/tmp/codex-mc-xephyr'
+  const artifactsDir = options.artifactsDir ?? process.env.VIBECRAFT_VANILLA_CLIENT_ARTIFACTS ?? path.join(repoRoot, 'artifacts', 'vanilla-client')
   return {
     name: 'vanilla-client-xephyr-oracle',
     display,
@@ -113,7 +113,7 @@ export async function runVanillaClientXephyr (options = {}) {
   })
   child.unref()
 
-  await delay(Number(options.launchDelayMs ?? process.env.RUSTCRAFT_VANILLA_CLIENT_LAUNCH_DELAY_MS ?? 5000))
+  await delay(Number(options.launchDelayMs ?? process.env.VIBECRAFT_VANILLA_CLIENT_LAUNCH_DELAY_MS ?? 5000))
   await captureXephyrScreenshot(plan, options)
   await writeFile(plan.launchLogPath, JSON.stringify({
     plan: {
@@ -132,7 +132,7 @@ export async function runVanillaClientXephyr (options = {}) {
 }
 
 async function ensureXephyr (plan, options) {
-  if (options.skipXephyr === true || process.env.RUSTCRAFT_VANILLA_CLIENT_SKIP_XEPHYR === '1') return
+  if (options.skipXephyr === true || process.env.VIBECRAFT_VANILLA_CLIENT_SKIP_XEPHYR === '1') return
   const probe = await runCommand('xdpyinfo', ['-display', plan.display], { allowFailure: true })
   if (probe.code === 0) return
   const child = spawn('Xephyr', [plan.display, '-screen', plan.screen, '-resizeable', '-ac'], {
@@ -144,7 +144,7 @@ async function ensureXephyr (plan, options) {
 }
 
 async function captureXephyrScreenshot (plan, options) {
-  if (options.skipScreenshot === true || process.env.RUSTCRAFT_VANILLA_CLIENT_SKIP_SCREENSHOT === '1') return
+  if (options.skipScreenshot === true || process.env.VIBECRAFT_VANILLA_CLIENT_SKIP_SCREENSHOT === '1') return
   await runCommand('import', ['-window', 'root', plan.screenshotPath], {
     env: {
       ...process.env,

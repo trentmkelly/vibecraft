@@ -20,17 +20,17 @@ export function profileSet(prefix, count) {
 }
 
 export async function createScenarioFixture(options = {}) {
-  const root = options.root ?? await mkdtemp(path.join(tmpdir(), `${options.name ?? 'rustcraft-scenario'}-`))
+  const root = options.root ?? await mkdtemp(path.join(tmpdir(), `${options.name ?? 'vibecraft-scenario'}-`))
   await mkdir(root, { recursive: true })
   const port = options.port ?? 25_565
   const seed = options.seed ?? DEFAULT_FIXTURE_SEED
   const levelName = options.levelName ?? 'world'
-  const profiles = options.profiles ?? profileSet('RustCraftBot', options.botCount ?? 1)
+  const profiles = options.profiles ?? profileSet('VibeCraftBot', options.botCount ?? 1)
   const properties = await writeOfflineServerFiles(root, {
     port,
     seed,
     levelName,
-    motd: options.motd ?? `RustCraft fixture ${options.name ?? 'scenario'}`,
+    motd: options.motd ?? `VibeCraft fixture ${options.name ?? 'scenario'}`,
     properties: options.properties
   })
   const logs = createLogCapture(options.name ?? 'scenario')

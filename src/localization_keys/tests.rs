@@ -26,7 +26,7 @@ const INTENTIONALLY_INTERNAL_LOCALIZATION_KEYS: &[&str] = &[
     "commands.return.fail",
     "commands.return.run",
     "commands.return.success",
-    "commands.rustcraft.debug.biome",
+    "commands.vibecraft.debug.biome",
     "commands.say.success",
     "commands.serverpack.pop",
     "commands.serverpack.push",

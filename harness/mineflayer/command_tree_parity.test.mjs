@@ -75,7 +75,7 @@ test('compareCommandTrees reports root, argument, redirect, and permission misma
       }
     }
   }
-  const rustcraft = {
+  const vibecraft = {
     execute: {
       permission: 4,
       children: {
@@ -89,7 +89,7 @@ test('compareCommandTrees reports root, argument, redirect, and permission misma
     extra: {}
   }
 
-  const diff = compareCommandTrees(official, rustcraft)
+  const diff = compareCommandTrees(official, vibecraft)
   assert.equal(diff.ok, false)
   assert.ok(diff.differences.some(entry => entry.kind === 'permission-mismatch'))
   assert.ok(diff.differences.some(entry => entry.kind === 'parser-mismatch'))

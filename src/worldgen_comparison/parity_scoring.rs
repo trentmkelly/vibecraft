@@ -304,7 +304,7 @@ pub fn vanilla_worldgen_biome_grid_parity_score(
         .get("format")
         .and_then(Value::as_str)
         .ok_or_else(|| "vanilla worldgen block-array fixture is missing format".to_string())?;
-    if format != "rustcraft-vanilla-worldgen-block-array-target-v1" {
+    if format != "vibecraft-vanilla-worldgen-block-array-target-v1" {
         return Err(format!(
             "unsupported vanilla worldgen block-array fixture format: {format}"
         ));
@@ -418,7 +418,7 @@ fn parse_vanilla_worldgen_block_array_fixture(raw: &str) -> Result<Value, String
         .get("format")
         .and_then(Value::as_str)
         .ok_or_else(|| "vanilla worldgen block-array fixture is missing format".to_string())?;
-    if format != "rustcraft-vanilla-worldgen-block-array-target-v1" {
+    if format != "vibecraft-vanilla-worldgen-block-array-target-v1" {
         return Err(format!(
             "unsupported vanilla worldgen block-array fixture format: {format}"
         ));

@@ -23,9 +23,9 @@ test('offlineChatScenarios cover public, private, formatted, death, advancement,
 test('observeChatScenario matches public, private, and formatted chat messages', () => {
   const session = {
     timeline: [
-      { name: 'message', summary: ['RustCraftBot: hello'] },
-      { name: 'message', summary: ['RustCraftBot whispers to you: secret'] },
-      { name: 'message', summary: ['<RustCraftBot> colored text'] }
+      { name: 'message', summary: ['VibeCraftBot: hello'] },
+      { name: 'message', summary: ['VibeCraftBot whispers to you: secret'] },
+      { name: 'message', summary: ['<VibeCraftBot> colored text'] }
     ]
   }
   for (const scenario of offlineChatScenarios().slice(0, 3)) {

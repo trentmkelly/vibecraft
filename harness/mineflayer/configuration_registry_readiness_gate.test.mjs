@@ -112,11 +112,11 @@ test('configuration registry readiness gate fails on missing elements, tag drift
 })
 
 test('configuration registry readiness gate can run against a live server', {
-  skip: process.env.RUSTCRAFT_RUN_LIVE_REGISTRY_READINESS_TEST !== '1'
+  skip: process.env.VIBECRAFT_RUN_LIVE_REGISTRY_READINESS_TEST !== '1'
 }, async () => {
   const gate = await runConfigurationRegistryReadinessGate({
-    host: process.env.RUSTCRAFT_HOST ?? '127.0.0.1',
-    port: Number(process.env.RUSTCRAFT_PORT ?? 25565)
+    host: process.env.VIBECRAFT_HOST ?? '127.0.0.1',
+    port: Number(process.env.VIBECRAFT_PORT ?? 25565)
   })
 
   assert.equal(gate.ok, true, formatConfigurationRegistryReadinessGateReport(gate))

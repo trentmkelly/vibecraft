@@ -24,7 +24,7 @@ use crate::lighting::level_height::LevelHeightAccessor;
 /// - `uses_shape_for_light_occlusion` -> `BlockState.useShapeForLightOcclusion()`.
 /// - `occlusion_shape_occludes_full_face` -> Java looks at the per-face shape;
 ///   we model the "fully sealed" outcome with a single boolean because
-///   RustCraft does not yet expose `VoxelShape` data. Blocks with
+///   VibeCraft does not yet expose `VoxelShape` data. Blocks with
 ///   `uses_shape_for_light_occlusion == false` always have an empty
 ///   occlusion shape (the common case for vanilla solid blocks).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

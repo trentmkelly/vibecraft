@@ -6,9 +6,9 @@ import test from 'node:test'
 import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
-const host = process.env.RUSTCRAFT_HOST ?? '127.0.0.1'
-const port = Number(process.env.RUSTCRAFT_PORT ?? 25565)
-const protocolVersion = Number(process.env.RUSTCRAFT_PROTOCOL_VERSION ?? 775)
+const host = process.env.VIBECRAFT_HOST ?? '127.0.0.1'
+const port = Number(process.env.VIBECRAFT_PORT ?? 25565)
+const protocolVersion = Number(process.env.VIBECRAFT_PROTOCOL_VERSION ?? 775)
 
 test('raw 26.1.2 socket cleanup survives aborts during handshake, login, configuration, and play entry', { timeout: 180_000 }, async () => {
   const phases = [
@@ -25,7 +25,7 @@ test('raw 26.1.2 socket cleanup survives aborts during handshake, login, configu
     const aborted = await abort(phase, username)
     assert.equal(aborted.ok, true, `${phase} abort should complete locally`)
 
-    const retry = await runJoinProbe(username, { RUSTCRAFT_RAW_PROBE_KEEPALIVE_MS: '12000' })
+    const retry = await runJoinProbe(username, { VIBECRAFT_RAW_PROBE_KEEPALIVE_MS: '12000' })
     assert.equal(retry.ok, true, `${phase} retry should reach play`)
     assert.equal(retry.joinState.profile.name, username)
     assert.ok(retry.configPacketCount > 0, `${phase} retry should receive config packets`)
@@ -61,7 +61,7 @@ async function abortJoinProbe (phase, username) {
     configuration: 'registry_sync',
     play_entry: 'first_chunk'
   }[phase]
-  const result = await runJoinProbe(username, { RUSTCRAFT_RAW_PROBE_ABORT_AFTER: abortAfter })
+  const result = await runJoinProbe(username, { VIBECRAFT_RAW_PROBE_ABORT_AFTER: abortAfter })
   assert.equal(result.aborted, true)
   assert.equal(result.phase, abortAfter)
   return { ok: true }
@@ -75,8 +75,8 @@ async function runJoinProbe (username, env = {}) {
       cwd: new URL('.', import.meta.url),
       env: {
         ...process.env,
-        RUSTCRAFT_USERNAME: username,
-        RUSTCRAFT_RAW_PROBE_OUTPUT: 'summary',
+        VIBECRAFT_USERNAME: username,
+        VIBECRAFT_RAW_PROBE_OUTPUT: 'summary',
         ...env
       },
       timeout: 30_000,

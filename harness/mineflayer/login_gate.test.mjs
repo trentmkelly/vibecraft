@@ -19,7 +19,7 @@ test('shouldRunLoginGate matches network, configuration, player, storage, tick, 
 
 test('changedFilesFromEnv accepts comma and newline separated file lists', () => {
   assert.deepEqual(changedFilesFromEnv({
-    RUSTCRAFT_CHANGED_FILES: 'src/network/play.rs,README.md\nsrc/player.rs'
+    VIBECRAFT_CHANGED_FILES: 'src/network/play.rs,README.md\nsrc/player.rs'
   }), ['src/network/play.rs', 'README.md', 'src/player.rs'])
 })
 
@@ -62,7 +62,7 @@ test('formatLoginGateReport includes profile, uuid, events, and smoke details', 
   const session = completeSession()
   const smoke = { checks: [{ ok: true, name: 'offlineLogin', details: { checks: 3 } }] }
   assert.equal(formatLoginGateReport(session, smoke), [
-    'profile: RustCraftGate',
+    'profile: VibeCraftGate',
     'uuid: gate-uuid',
     'events: login,packet,spawn,message,action',
     'PASS offlineLogin: {"checks":3}'
@@ -71,7 +71,7 @@ test('formatLoginGateReport includes profile, uuid, events, and smoke details', 
 
 function completeSession() {
   return {
-    profile: { username: 'RustCraftGate' },
+    profile: { username: 'VibeCraftGate' },
     uuid: 'gate-uuid',
     timeline: [
       { name: 'login', summary: [] },

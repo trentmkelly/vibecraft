@@ -8,7 +8,7 @@ import { promisify } from 'node:util'
 
 import {
   createTempWorld,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -17,26 +17,26 @@ import {
 const execFileAsync = promisify(execFile)
 const here = new URL('.', import.meta.url)
 const repoRoot = path.resolve(here.pathname, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 const host = '127.0.0.1'
 
 test('raw 26.1.2 survival join synchronizes baseline player state packets', { timeout: 90_000 }, async () => {
-  const result = await withServer('rustcraft-player-state-survival-', {
+  const result = await withServer('vibecraft-player-state-survival-', {
     seed: 112233,
     properties: {
       gamemode: 'survival'
     }
   }, port => runJoinProbe(port, 'StateSurvival', {
-    RUSTCRAFT_EXPECT_WORLD_SEED: '112233',
-    RUSTCRAFT_EXPECT_GAME_MODE: '0',
-    RUSTCRAFT_EXPECT_PREVIOUS_GAME_MODE: '255',
-    RUSTCRAFT_EXPECT_ABILITY_FLAGS: '0',
-    RUSTCRAFT_EXPECT_HEALTH: '20',
-    RUSTCRAFT_EXPECT_FOOD_LEVEL: '20',
-    RUSTCRAFT_EXPECT_FOOD_SATURATION: '5',
-    RUSTCRAFT_EXPECT_XP_PROGRESS: '0',
-    RUSTCRAFT_EXPECT_XP_LEVEL: '0',
-    RUSTCRAFT_EXPECT_XP_TOTAL: '0'
+    VIBECRAFT_EXPECT_WORLD_SEED: '112233',
+    VIBECRAFT_EXPECT_GAME_MODE: '0',
+    VIBECRAFT_EXPECT_PREVIOUS_GAME_MODE: '255',
+    VIBECRAFT_EXPECT_ABILITY_FLAGS: '0',
+    VIBECRAFT_EXPECT_HEALTH: '20',
+    VIBECRAFT_EXPECT_FOOD_LEVEL: '20',
+    VIBECRAFT_EXPECT_FOOD_SATURATION: '5',
+    VIBECRAFT_EXPECT_XP_PROGRESS: '0',
+    VIBECRAFT_EXPECT_XP_LEVEL: '0',
+    VIBECRAFT_EXPECT_XP_TOTAL: '0'
   }))
 
   assert.equal(result.ok, true)
@@ -45,23 +45,23 @@ test('raw 26.1.2 survival join synchronizes baseline player state packets', { ti
 })
 
 test('raw 26.1.2 creative join synchronizes gamemode and ability flags', { timeout: 90_000 }, async () => {
-  const result = await withServer('rustcraft-player-state-creative-', {
+  const result = await withServer('vibecraft-player-state-creative-', {
     seed: 445566,
     properties: {
       gamemode: 'creative',
       'force-gamemode': 'true'
     }
   }, port => runJoinProbe(port, 'StateCreative', {
-    RUSTCRAFT_EXPECT_WORLD_SEED: '445566',
-    RUSTCRAFT_EXPECT_GAME_MODE: '1',
-    RUSTCRAFT_EXPECT_PREVIOUS_GAME_MODE: '255',
-    RUSTCRAFT_EXPECT_ABILITY_FLAGS: '13',
-    RUSTCRAFT_EXPECT_HEALTH: '20',
-    RUSTCRAFT_EXPECT_FOOD_LEVEL: '20',
-    RUSTCRAFT_EXPECT_FOOD_SATURATION: '5',
-    RUSTCRAFT_EXPECT_XP_PROGRESS: '0',
-    RUSTCRAFT_EXPECT_XP_LEVEL: '0',
-    RUSTCRAFT_EXPECT_XP_TOTAL: '0'
+    VIBECRAFT_EXPECT_WORLD_SEED: '445566',
+    VIBECRAFT_EXPECT_GAME_MODE: '1',
+    VIBECRAFT_EXPECT_PREVIOUS_GAME_MODE: '255',
+    VIBECRAFT_EXPECT_ABILITY_FLAGS: '13',
+    VIBECRAFT_EXPECT_HEALTH: '20',
+    VIBECRAFT_EXPECT_FOOD_LEVEL: '20',
+    VIBECRAFT_EXPECT_FOOD_SATURATION: '5',
+    VIBECRAFT_EXPECT_XP_PROGRESS: '0',
+    VIBECRAFT_EXPECT_XP_LEVEL: '0',
+    VIBECRAFT_EXPECT_XP_TOTAL: '0'
   }))
 
   assert.equal(result.ok, true)
@@ -84,7 +84,7 @@ async function withServer (prefix, options, callback) {
         ...(options.properties ?? {})
       }
     })
-    server = startRustCraft({ binary, root, port, levelName: 'world' })
+    server = startVibeCraft({ binary, root, port, levelName: 'world' })
     await waitForPort(port, host, 10_000)
     return await callback(port)
   } finally {
@@ -101,9 +101,9 @@ async function runJoinProbe (port, username, env = {}) {
       cwd: here,
       env: {
         ...process.env,
-        RUSTCRAFT_HOST: host,
-        RUSTCRAFT_PORT: String(port),
-        RUSTCRAFT_USERNAME: username,
+        VIBECRAFT_HOST: host,
+        VIBECRAFT_PORT: String(port),
+        VIBECRAFT_USERNAME: username,
         ...env
       },
       timeout: 30_000,

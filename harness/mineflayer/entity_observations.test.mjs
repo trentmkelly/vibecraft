@@ -49,10 +49,10 @@ test('waitForDamageAnimation records entityHurt observations', async () => {
 test('waitForItemPickup records collector and item entity pair', async () => {
   const session = fakeSession()
   const waiter = waitForItemPickup(session, {
-    collector: { name: 'RustCraftBot' },
+    collector: { name: 'VibeCraftBot' },
     collected: { name: 'item' }
   }, { timeoutMs: 100 })
-  session.bot.emit('playerCollect', entity('RustCraftBot', 1), entity('item', 9, { type: 'object' }))
+  session.bot.emit('playerCollect', entity('VibeCraftBot', 1), entity('item', 9, { type: 'object' }))
   const result = await waiter
   assert.equal(result.ok, true)
   assert.equal(result.observed.collected.name, 'item')

@@ -28,11 +28,11 @@ export function createLoginTimelinePlan(options = {}) {
 
 export async function runLoginTimeline(options = {}) {
   const plan = createLoginTimelinePlan(options)
-  const rustcraft = await observeLoginTimeline({
+  const vibecraft = await observeLoginTimeline({
     ...options,
     plan,
-    label: 'rustcraft',
-    serverKind: options.serverKind ?? 'rustcraft'
+    label: 'vibecraft',
+    serverKind: options.serverKind ?? 'vibecraft'
   })
   const oracle = options.skipOracle === true
     ? null
@@ -47,8 +47,8 @@ export async function runLoginTimeline(options = {}) {
       jar: options.jar
     })
 
-  const comparison = compareLoginTimelines(rustcraft.summary, oracle?.summary, plan)
-  return { plan, rustcraft, oracle, comparison }
+  const comparison = compareLoginTimelines(vibecraft.summary, oracle?.summary, plan)
+  return { plan, vibecraft, oracle, comparison }
 }
 
 export async function observeLoginTimeline(options = {}) {
@@ -164,14 +164,14 @@ function onceWithTimeout(emitter, event, timeoutMs) {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   runLoginTimeline({
-    binary: process.env.RUSTCRAFT_BIN,
+    binary: process.env.VIBECRAFT_BIN,
     jar: process.env.VANILLA_SERVER_JAR,
-    port: Number(process.env.RUSTCRAFT_PORT ?? 25565),
+    port: Number(process.env.VIBECRAFT_PORT ?? 25565),
     oraclePort: Number(process.env.VANILLA_ORACLE_PORT ?? 25566),
     version: process.env.MINEFLAYER_VERSION,
-    timeoutMs: Number(process.env.RUSTCRAFT_TIMEOUT_MS ?? 30_000),
+    timeoutMs: Number(process.env.VIBECRAFT_TIMEOUT_MS ?? 30_000),
     skipOracle: process.env.VANILLA_SERVER_JAR == null,
-    keepArtifacts: process.env.RUSTCRAFT_KEEP_ARTIFACTS === '1'
+    keepArtifacts: process.env.VIBECRAFT_KEEP_ARTIFACTS === '1'
   }).then(result => {
     console.log(JSON.stringify({ plan: result.plan, comparison: result.comparison }, null, 2))
     process.exitCode = result.comparison.ok ? 0 : 1

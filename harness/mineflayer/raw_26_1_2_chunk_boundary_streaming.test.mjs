@@ -8,7 +8,7 @@ import { promisify } from 'node:util'
 
 import {
   createTempWorld,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -17,12 +17,12 @@ import {
 const execFileAsync = promisify(execFile)
 const here = new URL('.', import.meta.url)
 const repoRoot = path.resolve(here.pathname, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 const host = '127.0.0.1'
 
 test('raw 26.1.2 movement across a chunk boundary streams terrain around the new center', { timeout: 90_000 }, async () => {
   const port = await reservePort()
-  const root = await createTempWorld('rustcraft-chunk-boundary-')
+  const root = await createTempWorld('vibecraft-chunk-boundary-')
   let server
 
   try {
@@ -35,13 +35,13 @@ test('raw 26.1.2 movement across a chunk boundary streams terrain around the new
         'simulation-distance': '4'
       }
     })
-    server = startRustCraft({ binary, root, port, levelName: 'world' })
+    server = startVibeCraft({ binary, root, port, levelName: 'world' })
     await waitForPort(port, host, 10_000)
 
     const moved = await runJoinProbe(port, 'ChunkWalker', {
-      RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'movement',
-      RUSTCRAFT_RAW_PROBE_MOVEMENT_POSITION: JSON.stringify({ x: 32.5, y: 80, z: -16.5, yaw: 0, pitch: 0 }),
-      RUSTCRAFT_RAW_PROBE_POST_ACTION_MS: '1000'
+      VIBECRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'movement',
+      VIBECRAFT_RAW_PROBE_MOVEMENT_POSITION: JSON.stringify({ x: 32.5, y: 80, z: -16.5, yaw: 0, pitch: 0 }),
+      VIBECRAFT_RAW_PROBE_POST_ACTION_MS: '1000'
     })
 
     assert.equal(moved.ok, true)
@@ -68,9 +68,9 @@ async function runJoinProbe (port, username, env = {}) {
       cwd: here,
       env: {
         ...process.env,
-        RUSTCRAFT_HOST: host,
-        RUSTCRAFT_PORT: String(port),
-        RUSTCRAFT_USERNAME: username,
+        VIBECRAFT_HOST: host,
+        VIBECRAFT_PORT: String(port),
+        VIBECRAFT_USERNAME: username,
         ...env
       },
       timeout: 30_000,

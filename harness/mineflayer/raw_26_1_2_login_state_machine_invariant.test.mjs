@@ -4,9 +4,9 @@ import net from 'node:net'
 import test from 'node:test'
 import { inflateSync } from 'node:zlib'
 
-const host = process.env.RUSTCRAFT_HOST ?? '127.0.0.1'
-const port = Number(process.env.RUSTCRAFT_PORT ?? 25565)
-const protocolVersion = Number(process.env.RUSTCRAFT_PROTOCOL_VERSION ?? 775)
+const host = process.env.VIBECRAFT_HOST ?? '127.0.0.1'
+const port = Number(process.env.VIBECRAFT_PORT ?? 25565)
+const protocolVersion = Number(process.env.VIBECRAFT_PROTOCOL_VERSION ?? 775)
 
 test('raw 26.1.2 login state machine rejects play packets before play entry', { timeout: 30_000 }, async () => {
   const cases = [

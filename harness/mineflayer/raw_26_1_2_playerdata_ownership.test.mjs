@@ -9,7 +9,7 @@ import { promisify } from 'node:util'
 import {
   createTempWorld,
   offlineUuid,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -18,12 +18,12 @@ import {
 const execFileAsync = promisify(execFile)
 const here = new URL('.', import.meta.url)
 const repoRoot = path.resolve(here.pathname, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 const host = '127.0.0.1'
 
 test('raw 26.1.2 playerdata ownership stays bound to offline UUID files', { timeout: 90_000 }, async () => {
   const port = await reservePort()
-  const root = await createTempWorld('rustcraft-playerdata-owner-')
+  const root = await createTempWorld('vibecraft-playerdata-owner-')
   const alpha = { username: 'OwnAlpha', position: { x: 11.5, y: 82, z: 1.5, yaw: 45, pitch: 5 } }
   const beta = { username: 'OwnBeta', position: { x: -12.5, y: 83, z: -2.5, yaw: 180, pitch: -15 } }
   let server
@@ -65,15 +65,15 @@ test('raw 26.1.2 playerdata ownership stays bound to offline UUID files', { time
 
 async function saveMovedProfile (port, profile) {
   const changed = await runJoinProbe(port, profile.username, {
-    RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'movement',
-    RUSTCRAFT_RAW_PROBE_MOVEMENT_POSITION: JSON.stringify(profile.position)
+    VIBECRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'movement',
+    VIBECRAFT_RAW_PROBE_MOVEMENT_POSITION: JSON.stringify(profile.position)
   })
   assert.equal(changed.ok, true)
 }
 
 async function expectPosition (port, username, position) {
   const joined = await runJoinProbe(port, username, {
-    RUSTCRAFT_EXPECT_JOIN_POSITION: JSON.stringify(position)
+    VIBECRAFT_EXPECT_JOIN_POSITION: JSON.stringify(position)
   })
   assert.equal(joined.ok, true)
   assert.deepEqual(joined.joinState.position, position)
@@ -88,7 +88,7 @@ function playerDataOldFile (root, username) {
 }
 
 async function start (root, port) {
-  const server = startRustCraft({ binary, root, port, levelName: 'world' })
+  const server = startVibeCraft({ binary, root, port, levelName: 'world' })
   await waitForPort(port, host, 10_000)
   return server
 }
@@ -101,9 +101,9 @@ async function runJoinProbe (port, username, env = {}) {
       cwd: here,
       env: {
         ...process.env,
-        RUSTCRAFT_HOST: host,
-        RUSTCRAFT_PORT: String(port),
-        RUSTCRAFT_USERNAME: username,
+        VIBECRAFT_HOST: host,
+        VIBECRAFT_PORT: String(port),
+        VIBECRAFT_USERNAME: username,
         ...env
       },
       timeout: 30_000,

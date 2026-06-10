@@ -135,9 +135,9 @@ impl<'a, 'b> LiveTreeDecorationState<'a, 'b> {
         source_started: Instant,
     ) -> Self {
         let trace = LiveTreeTraceOptions {
-            trees: std::env::var_os("RUSTCRAFT_WORLDGEN_TREE_TRACE").is_some(),
-            rejects: std::env::var_os("RUSTCRAFT_WORLDGEN_TREE_TRACE_REJECTS").is_some(),
-            attempts: std::env::var_os("RUSTCRAFT_WORLDGEN_TREE_TRACE_ATTEMPTS").is_some(),
+            trees: std::env::var_os("VIBECRAFT_WORLDGEN_TREE_TRACE").is_some(),
+            rejects: std::env::var_os("VIBECRAFT_WORLDGEN_TREE_TRACE_REJECTS").is_some(),
+            attempts: std::env::var_os("VIBECRAFT_WORLDGEN_TREE_TRACE_ATTEMPTS").is_some(),
         };
         Self {
             input,

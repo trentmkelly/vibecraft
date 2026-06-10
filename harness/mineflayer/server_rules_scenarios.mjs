@@ -3,7 +3,7 @@ export function createServerRulesScenarioPlan(options = {}) {
     name: 'mineflayer-offline-server-rules',
     mode: 'offline',
     auth: 'offline',
-    username: options.username ?? 'RustCraftRules',
+    username: options.username ?? 'VibeCraftRules',
     scenarios: [
       scenario('max-player-enforcement', [
         'fill-available-slots',

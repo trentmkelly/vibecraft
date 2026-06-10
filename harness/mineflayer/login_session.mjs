@@ -7,14 +7,14 @@ import {
   createTempWorld,
   offlineUuid,
   startOfficialServer,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
 } from './runner.mjs'
 
 export async function runObservedOfflineLogin(options = {}) {
-  const root = options.root ?? await createTempWorld('rustcraft-mf-login-')
+  const root = options.root ?? await createTempWorld('vibecraft-mf-login-')
   const paths = loginSessionPaths(root, options.levelName ?? 'world')
   let server
   let bot
@@ -39,7 +39,7 @@ export async function runObservedOfflineLogin(options = {}) {
     const observed = await (options.connectBot ?? connectObservedOfflineBot)({
       host: options.host ?? '127.0.0.1',
       port: options.port,
-      username: options.username ?? 'RustCraftBot',
+      username: options.username ?? 'VibeCraftBot',
       version: options.version,
       timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
       timeline,
@@ -76,8 +76,8 @@ export async function runObservedOfflineLogin(options = {}) {
       timeline,
       packetTrace,
       profile: {
-        username: options.username ?? 'RustCraftBot',
-        expectedUuid: offlineUuid(options.username ?? 'RustCraftBot'),
+        username: options.username ?? 'VibeCraftBot',
+        expectedUuid: offlineUuid(options.username ?? 'VibeCraftBot'),
         actualUuid: null
       },
       serverLogStart,
@@ -176,7 +176,7 @@ function buildSession({ root, paths, endpoint, server, bot, timeline, packetTrac
 function startLoginServer(options) {
   if (options.startServer) return options.startServer(options)
   if (options.serverKind === 'official') return startOfficialServer(options)
-  return startRustCraft(options)
+  return startVibeCraft(options)
 }
 
 function summarizeEventArg(arg) {

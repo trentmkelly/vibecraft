@@ -600,7 +600,7 @@ mod tests {
     fn round_trips_login_custom_query_packets() {
         let query = ClientboundCustomQueryPacket {
             transaction_id: 42,
-            channel: Identifier::parse("rustcraft:query").unwrap(),
+            channel: Identifier::parse("vibecraft:query").unwrap(),
             payload: vec![1, 2, 3, 4],
         };
         let mut bytes = Vec::new();
@@ -649,7 +649,7 @@ mod tests {
     fn rejects_custom_query_payloads_larger_than_vanilla_limit() {
         let query = ClientboundCustomQueryPacket {
             transaction_id: 1,
-            channel: Identifier::parse("rustcraft:query").unwrap(),
+            channel: Identifier::parse("vibecraft:query").unwrap(),
             payload: vec![0; MAX_LOGIN_CUSTOM_QUERY_PAYLOAD_SIZE + 1],
         };
         assert!(query.write(&mut Vec::new()).is_err());
@@ -665,7 +665,7 @@ mod tests {
         let query = session
             .send_custom_query(
                 7,
-                Identifier::parse("rustcraft:login").unwrap(),
+                Identifier::parse("vibecraft:login").unwrap(),
                 vec![1, 2, 3],
             )
             .unwrap();
@@ -700,7 +700,7 @@ mod tests {
             .unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
 
-        let key = Identifier::parse("rustcraft:login").unwrap();
+        let key = Identifier::parse("vibecraft:login").unwrap();
         session.cookies.request_cookie(key.clone());
         let status = session
             .handle_cookie_response(ServerboundCookieResponsePacket {

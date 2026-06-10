@@ -108,7 +108,7 @@ pub fn offers_from_trade_set(
         trade_ids.retain(|id| seen.insert(id.clone()));
     }
     let amount = number_provider_floor_i32(&trade_set.amount)?.max(0) as usize;
-    // Java samples with the trade_set random sequence. RustCraft does not yet
+    // Java samples with the trade_set random sequence. VibeCraft does not yet
     // route RandomSequences into trade selection, so keep vanilla tag order and
     // apply the amount limit deterministically until that subsystem is wired.
     trade_ids.truncate(amount);

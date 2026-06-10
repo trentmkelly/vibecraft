@@ -13,8 +13,8 @@ const repoRoot = path.resolve(here, '..', '..')
 
 export function createVanillaClientConnectionSmokePlan (options = {}) {
   const client = createVanillaClientXephyrPlan(options)
-  const host = options.host ?? process.env.RUSTCRAFT_VANILLA_CLIENT_HOST ?? '127.0.0.1'
-  const port = Number(options.port ?? process.env.RUSTCRAFT_VANILLA_CLIENT_PORT ?? 25565)
+  const host = options.host ?? process.env.VIBECRAFT_VANILLA_CLIENT_HOST ?? '127.0.0.1'
+  const port = Number(options.port ?? process.env.VIBECRAFT_VANILLA_CLIENT_PORT ?? 25565)
   const artifactsDir = options.artifactsDir ?? client.artifactsDir
   return {
     name: 'vanilla-client-xephyr-connection-smoke',

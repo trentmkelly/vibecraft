@@ -1,8 +1,8 @@
 import { issueCommand } from './bot_actions.mjs'
 
 export function offlineCommandScenarios(options = {}) {
-  const primary = options.primary ?? 'RustCraftBot'
-  const secondary = options.secondary ?? 'RustCraftBot1'
+  const primary = options.primary ?? 'VibeCraftBot'
+  const secondary = options.secondary ?? 'VibeCraftBot1'
   return [
     scenario('/list', 'commands.list.players', { minPermission: 0 }),
     scenario(`/tell ${secondary} hello`, 'commands.message.display', { minPermission: 0, target: secondary }),

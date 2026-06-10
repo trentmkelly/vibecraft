@@ -107,7 +107,7 @@ mod tests {
     #[test]
     fn world_chunk_player_advancement_and_stats_round_trip() {
         let root =
-            std::env::temp_dir().join(format!("rustcraft-persistence-{}", std::process::id()));
+            std::env::temp_dir().join(format!("vibecraft-persistence-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         let layout = WorldLayout::new(&root);
         layout.ensure_base_dirs().unwrap();

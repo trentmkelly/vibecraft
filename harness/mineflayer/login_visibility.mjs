@@ -133,11 +133,11 @@ async function verifySelectorVisible(observer, joining, plan) {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   runLoginVisibility({
-    binary: process.env.RUSTCRAFT_BIN,
-    port: Number(process.env.RUSTCRAFT_PORT ?? 25565),
+    binary: process.env.VIBECRAFT_BIN,
+    port: Number(process.env.VIBECRAFT_PORT ?? 25565),
     version: process.env.MINEFLAYER_VERSION,
-    timeoutMs: Number(process.env.RUSTCRAFT_TIMEOUT_MS ?? 30_000),
-    keepArtifacts: process.env.RUSTCRAFT_KEEP_ARTIFACTS === '1'
+    timeoutMs: Number(process.env.VIBECRAFT_TIMEOUT_MS ?? 30_000),
+    keepArtifacts: process.env.VIBECRAFT_KEEP_ARTIFACTS === '1'
   }).then(result => {
     console.log(JSON.stringify({ plan: result.plan, summary: result.summary }, null, 2))
     process.exitCode = result.summary.ok ? 0 : 1

@@ -27,7 +27,7 @@ async function runJoinProbe (username) {
       cwd: new URL('.', import.meta.url),
       env: {
         ...process.env,
-        RUSTCRAFT_USERNAME: username
+        VIBECRAFT_USERNAME: username
       },
       timeout: 30000,
       maxBuffer: 1024 * 1024

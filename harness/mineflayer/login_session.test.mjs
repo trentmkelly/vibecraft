@@ -9,11 +9,11 @@ import {
 } from './login_session.mjs'
 
 test('loginSessionPaths names all temp artifacts used by offline login sessions', () => {
-  assert.deepEqual(loginSessionPaths('/tmp/rustcraft-login', 'login-world'), {
-    root: '/tmp/rustcraft-login',
-    eula: '/tmp/rustcraft-login/eula.txt',
-    serverProperties: '/tmp/rustcraft-login/server.properties',
-    world: '/tmp/rustcraft-login/login-world'
+  assert.deepEqual(loginSessionPaths('/tmp/vibecraft-login', 'login-world'), {
+    root: '/tmp/vibecraft-login',
+    eula: '/tmp/vibecraft-login/eula.txt',
+    serverProperties: '/tmp/vibecraft-login/server.properties',
+    world: '/tmp/vibecraft-login/login-world'
   })
 })
 
@@ -38,7 +38,7 @@ test('captureObservedBotEvents records event timeline and packet trace separatel
 })
 
 test('runObservedOfflineLogin returns profile, UUID, events, packets, paths, logs, and cleanup handles', async () => {
-  const root = await createTempWorld('rustcraft-mf-login-test-')
+  const root = await createTempWorld('vibecraft-mf-login-test-')
   let cleanupCalled = false
   let server
   const session = await runObservedOfflineLogin({

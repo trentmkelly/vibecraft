@@ -6,7 +6,7 @@ This checklist tracks source families from `decompiled-server-26.1.2/net/minecra
 
 - [ ] Maintain a generated inventory of all 4,779 Java source files and reconcile it against this checklist whenever the decompiled source changes.
 - [ ] Keep [CHECKLIST_JAVA_CLASSES.md](CHECKLIST_JAVA_CLASSES.md) synchronized with the decompiled Java tree so every Java source file has an explicit per-class audit/port/parity-test task.
-- [ ] Keep [CHECKLIST_RUST_SOURCE_AUDIT.md](CHECKLIST_RUST_SOURCE_AUDIT.md) synchronized with RustCraft implementation and harness sources so Rust-only work cannot bypass Java parity/checklist review.
+- [ ] Keep [CHECKLIST_RUST_SOURCE_AUDIT.md](CHECKLIST_RUST_SOURCE_AUDIT.md) synchronized with VibeCraft implementation and harness sources so Rust-only work cannot bypass Java parity/checklist review.
 - [ ] Keep [CHECKLIST_VANILLA_DATA_RESOURCES.md](CHECKLIST_VANILLA_DATA_RESOURCES.md) synchronized with bundled vanilla data/assets so data-driven behavior is tracked at resource-file granularity.
 - [ ] Add a class-by-class coverage manifest that maps each Java file to one Rust module, one checklist item, and one parity-test strategy.
 - [ ] Add a CI/lint check that fails when a Java source file is not represented by the coverage manifest.
@@ -39,11 +39,11 @@ This checklist tracks source families from `decompiled-server-26.1.2/net/minecra
 
 - [ ] Complete class-by-class coverage for `data` (10), `data/advancements` (10), `data/info` (8), `data/loot` (22), `data/metadata` (2), `data/recipes` (17), `data/registries` (5), `data/structures` (5), `data/tags` (30), and `data/worldgen` (56).
 - [ ] Add tasks and tests for every data generator provider, including generated reports for blocks, items, commands, registries, packs, structures, tags, recipes, loot, advancements, and worldgen bootstrap data.
-- [ ] Compare generated RustCraft reports against official `server.jar --reports` output for Minecraft 26.1.2.
+- [ ] Compare generated VibeCraft reports against official `server.jar --reports` output for Minecraft 26.1.2.
 
 ## Server Runtime And Operations
 
-- [ ] Complete class-by-class coverage for `server` (27), `server/dedicated` (7), `server/level` (42), `server/network` (28), `server/players` (19), `server/permissions` (12), `server/rcon` (9), `server/bossevents` (3), `server/chase` (3), `server/advancements` (2), `server/notifications` (5), `server/waypoints` (2), and `server/gui` (4, likely deferred for headless RustCraft).
+- [ ] Complete class-by-class coverage for `server` (27), `server/dedicated` (7), `server/level` (42), `server/network` (28), `server/players` (19), `server/permissions` (12), `server/rcon` (9), `server/bossevents` (3), `server/chase` (3), `server/advancements` (2), `server/notifications` (5), `server/waypoints` (2), and `server/gui` (4, likely deferred for headless VibeCraft).
 - [ ] Complete class-by-class coverage for `server/jsonrpc` (64), including management API schemas, internal methods, security, websocket behavior, data providers, notification fanout, request lifecycle, and shutdown semantics.
 - [ ] Complete class-by-class coverage for `server/packs` (55), including repositories, linkfs, metadata, resource-pack discovery, selection, validation, reload behavior, and pack failure handling.
 - [ ] Add integration tests for dedicated server options, RCON/query, player list management, bans/ops/whitelist, permission levels, boss events, notifications, JSON-RPC management, server packs, and waypoint updates.
@@ -83,7 +83,7 @@ This checklist tracks source families from `decompiled-server-26.1.2/net/minecra
 ## GameTest And Debug Tooling
 
 - [ ] Complete class-by-class coverage for `gametest` (2), `gametest/framework` (43), and `gizmos` (15).
-- [ ] Decide which Java GameTest server APIs RustCraft will support directly versus through external parity harnesses, then add tests for structure templates, assertions, batches, listeners, reports, and debug marker/gizmo output.
+- [ ] Decide which Java GameTest server APIs VibeCraft will support directly versus through external parity harnesses, then add tests for structure templates, assertions, batches, listeners, reports, and debug marker/gizmo output.
 
 ## Generated Package Coverage Index
 
@@ -117,9 +117,9 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. Each pack
 - [ ] `net/minecraft/commands/arguments/selector/options` (2 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/commands/execution` (11 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/commands/execution/tasks` (7 Java files): add class-level Rust port tasks and parity tests.
-- [x] `net/minecraft/commands/functions` (7 Java files): class-level Rust port tasks and parity tests are tracked in `CHECKLIST_JAVA_CLASSES.md` and verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 command_function`.
-- [x] `net/minecraft/commands/synchronization` (6 Java files): class-level Rust port tasks and parity tests are tracked in `CHECKLIST_JAVA_CLASSES.md` and verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 command_synchronization`.
-- [x] `net/minecraft/commands/synchronization/brigadier` (6 Java files): class-level Rust port tasks and parity tests are tracked in `CHECKLIST_JAVA_CLASSES.md` and verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 command_synchronization`.
+- [x] `net/minecraft/commands/functions` (7 Java files): class-level Rust port tasks and parity tests are tracked in `CHECKLIST_JAVA_CLASSES.md` and verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 command_function`.
+- [x] `net/minecraft/commands/synchronization` (6 Java files): class-level Rust port tasks and parity tests are tracked in `CHECKLIST_JAVA_CLASSES.md` and verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 command_synchronization`.
+- [x] `net/minecraft/commands/synchronization/brigadier` (6 Java files): class-level Rust port tasks and parity tests are tracked in `CHECKLIST_JAVA_CLASSES.md` and verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 command_synchronization`.
 - [ ] `net/minecraft/core` (38 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/core/cauldron` (3 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/core/component` (12 Java files): add class-level Rust port tasks and parity tests.
@@ -145,8 +145,8 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. Each pack
 - [ ] `net/minecraft/data/worldgen/placement` (11 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/gametest` (2 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/gametest/framework` (43 Java files): add class-level Rust port tasks and parity tests.
-- [x] `net/minecraft/gizmos` (15 Java files): add class-level Rust port tasks and parity tests. — Covered by `src/gametest_resources/gizmo_models.rs` model parity for the full gizmo record/interface set plus `CHECKLIST_JAVA_CLASSES.md` per-file entries; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 gizmo`.
-- [x] `net/minecraft/locale` (3 Java files): add class-level Rust port tasks and parity tests. — Covered by `src/gametest_resources/locale_models.rs` and per-file entries in `CHECKLIST_JAVA_CLASSES.md` for `DeprecatedTranslationsInfo`, `Language`, and package metadata; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 locale`.
+- [x] `net/minecraft/gizmos` (15 Java files): add class-level Rust port tasks and parity tests. — Covered by `src/gametest_resources/gizmo_models.rs` model parity for the full gizmo record/interface set plus `CHECKLIST_JAVA_CLASSES.md` per-file entries; verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 gizmo`.
+- [x] `net/minecraft/locale` (3 Java files): add class-level Rust port tasks and parity tests. — Covered by `src/gametest_resources/locale_models.rs` and per-file entries in `CHECKLIST_JAVA_CLASSES.md` for `DeprecatedTranslationsInfo`, `Language`, and package metadata; verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 locale`.
 - [ ] `net/minecraft/nbt` (36 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/nbt/visitors` (7 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/network` (42 Java files): add class-level Rust port tasks and parity tests.

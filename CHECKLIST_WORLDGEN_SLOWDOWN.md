@@ -10,9 +10,9 @@ recent live logs show roughly 10-13.5 seconds per fresh chunk, with the terrain
 fill loop alone taking roughly 7.6-10.1 seconds and surface rules taking another
 2.1-2.5 seconds.
 
-This file is a methodical inventory of where RustCraft still diverges from the
+This file is a methodical inventory of where VibeCraft still diverges from the
 Java server implementation. The goal is not to apply custom optimizations first.
-The goal is to make the RustCraft generation shape match vanilla Java closely
+The goal is to make the VibeCraft generation shape match vanilla Java closely
 enough that vanilla's known performance characteristics become plausible.
 
 ## Work Checklist
@@ -137,7 +137,7 @@ enough that vanilla's known performance characteristics become plausible.
   equivalent.
 - [ ] Make generated section block writes mutate paletted storage in place
   instead of unpacking and repacking the whole 4096-block section per block.
-  Java's paletted container path is mutable; the old RustCraft path made every
+  Java's paletted container path is mutable; the old VibeCraft path made every
   terrain and surface write scale with an entire section.
 - [ ] Reuse generated `BlockState`/NBT tags for terrain material writes instead
   of constructing a fresh block-state tag for every generated block.
@@ -150,7 +150,7 @@ enough that vanilla's known performance characteristics become plausible.
   Java's quart-resolution biome sampling shape without repeatedly resampling
   identical biome positions during the surface pass.
 - [ ] Revisit chunk scheduling after fresh per-chunk generation cost became
-  close enough to expose scheduling as the next bottleneck. RustCraft now
+  close enough to expose scheduling as the next bottleneck. VibeCraft now
   keeps the configured view-distance radius but streams chunks as worker
   threads finish generation instead of preparing the whole square before
   sending the first chunk.
@@ -188,7 +188,7 @@ Representative fresh-world timings after the first Java-structure pass:
   `fill_full_noise_cache` is only `0-154ms`, so the new full-noise cell cache is
   not the main problem.
 
-RustCraft timing log location:
+VibeCraft timing log location:
 
 - `src/network/status.rs:4064-4095` prints the current detailed worldgen timing
   line.
@@ -218,7 +218,7 @@ Use these decompiled Java sources as the primary reference:
 - `../decompiled-server-26.1.2/net/minecraft/world/level/levelgen/SurfaceSystem.java`
   - `buildSurface`: lines 66-163.
 
-Relevant RustCraft implementation points:
+Relevant VibeCraft implementation points:
 
 - `src/worldgen.rs:39381-39515`: recursive density evaluator
   `eval_density_fn_with_interp`.
@@ -250,9 +250,9 @@ Reference:
 - `NoiseChunk.java:141-143`
 - `NoiseChunk.java:377-407`
 
-**RustCraft behavior**
+**VibeCraft behavior**
 
-RustCraft currently does not build a wrapped runtime graph. Instead it:
+VibeCraft currently does not build a wrapped runtime graph. Instead it:
 
 - Walks static `DensityFunction` enums recursively in
   `eval_density_fn_with_interp`.
@@ -267,7 +267,7 @@ Reference:
 
 **Why this matters**
 
-Java's wrappers carry state and expose `fillArray` behavior. RustCraft's
+Java's wrappers carry state and expose `fillArray` behavior. VibeCraft's
 recursive evaluator behaves more like repeated point sampling. That creates a
 large amount of repeated tree walking and misses Java's array-level cache
 semantics.
@@ -309,9 +309,9 @@ References:
 - `NoiseChunk.java:180-185`
 - `NoiseBasedChunkGenerator.java:427-435`
 
-**RustCraft behavior**
+**VibeCraft behavior**
 
-RustCraft now has a per-cell `full_noise_values` cache, but the surrounding
+VibeCraft now has a per-cell `full_noise_values` cache, but the surrounding
 material rule chain is still manually assembled in the fill loop:
 
 - `noise_chunk.interpolated_density(...)`
@@ -327,7 +327,7 @@ References:
 
 **Why this matters**
 
-The full-noise cache itself is cheap in logs, but RustCraft still populates it
+The full-noise cache itself is cheap in logs, but VibeCraft still populates it
 by recursively walking the static density tree. Java evaluates through wrapped
 objects and uses the `MaterialRuleList` abstraction to keep the block-state
 pipeline tied to that context.
@@ -362,9 +362,9 @@ References:
 - `NoiseChunk.java:235-252`
 - `NoiseChunk.java:254-267`
 
-**RustCraft behavior**
+**VibeCraft behavior**
 
-RustCraft recently changed the active slice fill path to route through
+VibeCraft recently changed the active slice fill path to route through
 `eval_density_fn_with_interp`, but the older `NoiseInterpolatorState::fill_slice`
 method still exists and performs raw `compute_with_noise` point sampling.
 
@@ -375,7 +375,7 @@ References:
 
 **Why this matters**
 
-Even the active RustCraft path still fills arrays by manually looping points and
+Even the active VibeCraft path still fills arrays by manually looping points and
 calling the recursive evaluator. Java lets each wrapped density function decide
 how to fill arrays. That is how `CacheOnce` can clone/copy entire previous
 arrays and how wrappers can share work across repeated calls.
@@ -408,9 +408,9 @@ References:
 - `NoiseChunk.java:573-629`
 - `NoiseChunk.java:269-297`
 
-**RustCraft behavior**
+**VibeCraft behavior**
 
-RustCraft currently stores only the last exact `(x, y, z)` scalar result per
+VibeCraft currently stores only the last exact `(x, y, z)` scalar result per
 cache key.
 
 Reference:
@@ -422,12 +422,12 @@ Reference:
 
 This is likely a major remaining terrain-fill slowdown. CacheOnce is used in
 several density-function subgraphs, especially in cave/entrance/noodle-related
-functions. Java avoids recomputing arrays during slice and cell fills; RustCraft
+functions. Java avoids recomputing arrays during slice and cell fills; VibeCraft
 does not.
 
 **Status**
 
-- Implemented: RustCraft now scans the full aquifer grid every 4 blocks via
+- Implemented: VibeCraft now scans the full aquifer grid every 4 blocks via
   `NoiseChunk::max_preliminary_surface_level`, matching Java's
   `NoiseChunk.maxPreliminarySurfaceLevel(...)` loop shape.
 
@@ -459,9 +459,9 @@ Reference:
 
 - `NoiseChunk.java:631-665`
 
-**RustCraft behavior**
+**VibeCraft behavior**
 
-RustCraft currently treats `FlatCache` as a single-entry cache keyed by
+VibeCraft currently treats `FlatCache` as a single-entry cache keyed by
 quantized X/Z.
 
 Reference:
@@ -472,7 +472,7 @@ Reference:
 **Why this matters**
 
 Flat 2D climate/spline helper functions are sampled repeatedly. Java pays the
-chunk-local setup cost once and then does array indexing. RustCraft can evict
+chunk-local setup cost once and then does array indexing. VibeCraft can evict
 or miss constantly as columns change.
 
 **Status**
@@ -496,9 +496,9 @@ Reference:
 
 - `NoiseChunk.java:382-389`
 
-**RustCraft behavior**
+**VibeCraft behavior**
 
-RustCraft currently uses a generic `cache_2d_values` map, keyed by function
+VibeCraft currently uses a generic `cache_2d_values` map, keyed by function
 identity and `pack_column(x, z)`.
 
 Reference:
@@ -539,9 +539,9 @@ References:
 - `NoiseChunk.java:299-315`
 - `NoiseChunk.java:529-570`
 
-**RustCraft behavior**
+**VibeCraft behavior**
 
-RustCraft collects `CacheAllInCell` marker inputs, then fills values with a
+VibeCraft collects `CacheAllInCell` marker inputs, then fills values with a
 manual nested loop and scalar recursive evaluation.
 
 References:
@@ -586,9 +586,9 @@ References:
 - `NoiseChunk.java:235-315`
 - `NoiseChunk.java:573-629`
 
-**RustCraft behavior**
+**VibeCraft behavior**
 
-RustCraft has position state and `filling_cell_cache`, but does not yet carry
+VibeCraft has position state and `filling_cell_cache`, but does not yet carry
 the full Java counter model.
 
 References:
@@ -626,9 +626,9 @@ References:
 - `Aquifer.java:306-360`
 - `Aquifer.java:449-510`
 
-**RustCraft behavior**
+**VibeCraft behavior**
 
-RustCraft creates `NoiseBasedAquifer` outside `NoiseChunk`, stores raw
+VibeCraft creates `NoiseBasedAquifer` outside `NoiseChunk`, stores raw
 `NoiseRouter`, and uses raw `compute_with_noise` paths inside aquifer helpers.
 
 References:
@@ -669,9 +669,9 @@ References:
 
 - `Aquifer.java:134-138`
 
-**RustCraft behavior**
+**VibeCraft behavior**
 
-RustCraft samples four corners only.
+VibeCraft samples four corners only.
 
 Reference:
 
@@ -709,9 +709,9 @@ Reference:
 
 - `NoiseChunk.java:161-163`
 
-**RustCraft behavior**
+**VibeCraft behavior**
 
-RustCraft evaluates vein functions manually inside the fill loop after aquifer
+VibeCraft evaluates vein functions manually inside the fill loop after aquifer
 logic returns a solid slot.
 
 Reference:
@@ -749,9 +749,9 @@ References:
 
 - `SurfaceSystem.java:66-163`
 
-**RustCraft behavior**
+**VibeCraft behavior**
 
-RustCraft uses a dynamic rule tree evaluator:
+VibeCraft uses a dynamic rule tree evaluator:
 
 - Preloads surface noise.
 - Constructs `BuildSurfaceColumnState`.
@@ -795,9 +795,9 @@ References:
 
 - `SurfaceSystem.java:112-159`
 
-**RustCraft behavior**
+**VibeCraft behavior**
 
-RustCraft hardcodes:
+VibeCraft hardcodes:
 
 - `biome = "minecraft:plains"`
 - `temperature = 0.8`
@@ -834,9 +834,9 @@ Reference:
 
 - `NoiseBasedChunkGenerator.java:349-374`
 
-**RustCraft behavior**
+**VibeCraft behavior**
 
-RustCraft has a generated chunk cache and pre-generation batching in the network
+VibeCraft has a generated chunk cache and pre-generation batching in the network
 path, but chunk generation still appears effectively limited by expensive
 per-chunk synchronous work. The cache helps reuse and some parallel preparation,
 but it cannot hide a 10+ second per-chunk generator.

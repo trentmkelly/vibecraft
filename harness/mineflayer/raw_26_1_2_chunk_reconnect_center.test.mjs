@@ -9,7 +9,7 @@ import { promisify } from 'node:util'
 import {
   createTempWorld,
   offlineUuid,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -18,12 +18,12 @@ import {
 const execFileAsync = promisify(execFile)
 const here = new URL('.', import.meta.url)
 const repoRoot = path.resolve(here.pathname, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 const host = '127.0.0.1'
 
 test('raw 26.1.2 reconnect streams chunks around saved player chunk', { timeout: 90_000 }, async () => {
   const port = await reservePort()
-  const root = await createTempWorld('rustcraft-chunk-reconnect-')
+  const root = await createTempWorld('vibecraft-chunk-reconnect-')
   const username = 'ChunkReturn'
   const uuid = offlineUuid(username)
   const savedPosition = { x: 40.5, y: 80, z: -40.5, yaw: 180, pitch: 0 }
@@ -42,8 +42,8 @@ test('raw 26.1.2 reconnect streams chunks around saved player chunk', { timeout:
     server = await start(root, port)
 
     const moved = await runJoinProbe(port, username, {
-      RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'movement',
-      RUSTCRAFT_RAW_PROBE_MOVEMENT_POSITION: JSON.stringify(savedPosition)
+      VIBECRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: 'movement',
+      VIBECRAFT_RAW_PROBE_MOVEMENT_POSITION: JSON.stringify(savedPosition)
     })
     assert.equal(moved.ok, true)
 
@@ -52,8 +52,8 @@ test('raw 26.1.2 reconnect streams chunks around saved player chunk', { timeout:
     server = await start(root, port)
 
     const rejoined = await runJoinProbe(port, username, {
-      RUSTCRAFT_EXPECT_WORLD_SEED: '13579',
-      RUSTCRAFT_EXPECT_JOIN_POSITION: JSON.stringify(savedPosition)
+      VIBECRAFT_EXPECT_WORLD_SEED: '13579',
+      VIBECRAFT_EXPECT_JOIN_POSITION: JSON.stringify(savedPosition)
     })
     assert.equal(rejoined.ok, true)
     assert.deepEqual(rejoined.joinState.chunkStreaming, {
@@ -82,7 +82,7 @@ test('raw 26.1.2 reconnect streams chunks around saved player chunk', { timeout:
 })
 
 async function start (root, port) {
-  const server = startRustCraft({ binary, root, port, levelName: 'world' })
+  const server = startVibeCraft({ binary, root, port, levelName: 'world' })
   await waitForPort(port, host, 10_000)
   return server
 }
@@ -95,9 +95,9 @@ async function runJoinProbe (port, username, env = {}) {
       cwd: here,
       env: {
         ...process.env,
-        RUSTCRAFT_HOST: host,
-        RUSTCRAFT_PORT: String(port),
-        RUSTCRAFT_USERNAME: username,
+        VIBECRAFT_HOST: host,
+        VIBECRAFT_PORT: String(port),
+        VIBECRAFT_USERNAME: username,
         ...env
       },
       timeout: 30_000,

@@ -3,7 +3,7 @@ import {
   DEFAULT_TIMEOUT_MS,
   createTempWorld,
   offlineUuid,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -11,8 +11,8 @@ import {
 import { connectObservedOfflineBot } from './login_session.mjs'
 
 export function createMultiBotSoakPlan(options = {}) {
-  const botCount = Number(options.botCount ?? process.env.RUSTCRAFT_SOAK_BOTS ?? 4)
-  const cycles = Number(options.cycles ?? process.env.RUSTCRAFT_SOAK_CYCLES ?? 3)
+  const botCount = Number(options.botCount ?? process.env.VIBECRAFT_SOAK_BOTS ?? 4)
+  const cycles = Number(options.cycles ?? process.env.VIBECRAFT_SOAK_CYCLES ?? 3)
   return {
     name: 'mineflayer-multi-bot-offline-soak',
     client: 'mineflayer',
@@ -82,7 +82,7 @@ export function summarizeMultiBotSoak(sessions, plan) {
 
 export async function runMultiBotSoak(options = {}) {
   const plan = createMultiBotSoakPlan(options)
-  const root = options.root ?? await createTempWorld('rustcraft-mf-multibot-')
+  const root = options.root ?? await createTempWorld('vibecraft-mf-multibot-')
   await writeOfflineServerFiles(root, {
     ...options,
     properties: {
@@ -90,7 +90,7 @@ export async function runMultiBotSoak(options = {}) {
       ...(options.properties ?? {})
     }
   })
-  const server = startRustCraft({ ...options, root })
+  const server = startVibeCraft({ ...options, root })
   const sessions = []
   let cleaned = false
 
@@ -170,7 +170,7 @@ async function movementTick(session, cycle) {
 }
 
 function profileForIndex(index) {
-  const username = `RustCraftSoak${index + 1}`
+  const username = `VibeCraftSoak${index + 1}`
   return {
     username,
     expectedUuid: offlineUuid(username)
@@ -183,11 +183,11 @@ function delay(ms) {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   runMultiBotSoak({
-    binary: process.env.RUSTCRAFT_BIN,
-    port: Number(process.env.RUSTCRAFT_PORT ?? 25565),
+    binary: process.env.VIBECRAFT_BIN,
+    port: Number(process.env.VIBECRAFT_PORT ?? 25565),
     version: process.env.MINEFLAYER_VERSION,
-    timeoutMs: Number(process.env.RUSTCRAFT_TIMEOUT_MS ?? 30_000),
-    keepArtifacts: process.env.RUSTCRAFT_KEEP_ARTIFACTS === '1'
+    timeoutMs: Number(process.env.VIBECRAFT_TIMEOUT_MS ?? 30_000),
+    keepArtifacts: process.env.VIBECRAFT_KEEP_ARTIFACTS === '1'
   }).then(result => {
     console.log(JSON.stringify({ plan: result.plan, summary: result.summary }, null, 2))
     process.exitCode = result.summary.ok ? 0 : 1

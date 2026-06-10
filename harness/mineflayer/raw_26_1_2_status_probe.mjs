@@ -1,10 +1,10 @@
 import { createConnection } from 'node:net'
 
-const host = process.env.RUSTCRAFT_HOST ?? '127.0.0.1'
-const port = Number(process.env.RUSTCRAFT_PORT ?? 25565)
-const timeoutMs = Number(process.env.RUSTCRAFT_TIMEOUT_MS ?? 5000)
+const host = process.env.VIBECRAFT_HOST ?? '127.0.0.1'
+const port = Number(process.env.VIBECRAFT_PORT ?? 25565)
+const timeoutMs = Number(process.env.VIBECRAFT_TIMEOUT_MS ?? 5000)
 const targetProtocolVersion = 775
-const protocolVersion = Number(process.env.RUSTCRAFT_PROTOCOL_VERSION ?? 775)
+const protocolVersion = Number(process.env.VIBECRAFT_PROTOCOL_VERSION ?? 775)
 const versionName = '26.1.2'
 
 function writeVarInt (value) {

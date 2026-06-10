@@ -395,7 +395,7 @@ struct SimpleVegetationDecorationStats {
 
 impl SimpleVegetationDecorationStats {
     fn print_debug_report(&self, total_started: Instant, feature_sort_ms: u128, placed: usize) {
-        if std::env::var_os("RUSTCRAFT_WORLDGEN_TREE_DEBUG").is_none() {
+        if std::env::var_os("VIBECRAFT_WORLDGEN_TREE_DEBUG").is_none() {
             return;
         }
         eprintln!(

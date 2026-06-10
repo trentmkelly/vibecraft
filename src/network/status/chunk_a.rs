@@ -347,7 +347,7 @@ impl StatusServerRuntime {
         // pass invoked from tickServer — block updates mutate the in-memory
         // chunk + set the unsaved flag; this thread is what actually pushes
         // the bytes to disk on a coarse interval. We use 30 s (vanilla
-        // default is 5 min / `RustcraftDefault.WORLD_AUTOSAVE_INTERVAL`); a
+        // default is 5 min / `VibecraftDefault.WORLD_AUTOSAVE_INTERVAL`); a
         // shorter window keeps the disconnect-vs-save race tight without
         // making the writes themselves any more expensive.
         spawn_chunk_flush_thread(
@@ -3120,7 +3120,7 @@ mod resource_usage_tests {
 
     #[test]
     fn resident_memory_parser_reads_vmrss_kib() {
-        let status = "Name:\trustcraft\nVmPeak:\t2048 kB\nVmRSS:\t1536 kB\n";
+        let status = "Name:\tvibecraft\nVmPeak:\t2048 kB\nVmRSS:\t1536 kB\n";
 
         assert_eq!(parse_resident_memory_kib(status), Some(1536));
     }

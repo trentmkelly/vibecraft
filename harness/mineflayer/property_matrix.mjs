@@ -1,7 +1,7 @@
 import { offlineUuid } from './runner.mjs'
 
 export function createOfflinePropertyMatrix(options = {}) {
-  const username = options.username ?? 'RustCraftProperty'
+  const username = options.username ?? 'VibeCraftProperty'
   return {
     name: 'mineflayer-offline-property-matrix',
     mode: 'offline',

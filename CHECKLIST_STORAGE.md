@@ -16,12 +16,12 @@
 - `decompiled-server-26.1.2/net/minecraft/util/datafix/` — DataFixer schemas and fixes
 - `decompiled-server-26.1.2/net/minecraft/world/level/chunk/storage/SerializableChunkData.java` — chunk NBT
 - `decompiled-server-26.1.2/net/minecraft/world/level/chunk/storage/RegionFile.java` — region file format
-- `RustCraft/src/storage/` — RustCraft storage modules
-- `RustCraft/src/storage/nbt.rs` — RustCraft NBT
-- `RustCraft/src/storage/region.rs` — RustCraft region file
-- `RustCraft/src/storage/datafix.rs` — RustCraft datafix
-- `RustCraft/src/storage/world.rs` — RustCraft world storage
-- `RustCraft/src/storage/chunk.rs` — RustCraft chunk storage
+- `VibeCraft/src/storage/` — VibeCraft storage modules
+- `VibeCraft/src/storage/nbt.rs` — VibeCraft NBT
+- `VibeCraft/src/storage/region.rs` — VibeCraft region file
+- `VibeCraft/src/storage/datafix.rs` — VibeCraft datafix
+- `VibeCraft/src/storage/world.rs` — VibeCraft world storage
+- `VibeCraft/src/storage/chunk.rs` — VibeCraft chunk storage
 
 ## Level Storage and Session Management
 

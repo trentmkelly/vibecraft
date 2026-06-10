@@ -521,12 +521,12 @@ pub fn diff_chunk_signature_reports(
     diffs
 }
 
-pub fn diff_rustcraft_worldgen_report_files(
+pub fn diff_vibecraft_worldgen_report_files(
     expected_path: impl AsRef<Path>,
     actual_path: impl AsRef<Path>,
 ) -> Result<Vec<WorldgenChunkReportDiff>, String> {
-    let expected = load_rustcraft_worldgen_report(expected_path)?;
-    let actual = load_rustcraft_worldgen_report(actual_path)?;
+    let expected = load_vibecraft_worldgen_report(expected_path)?;
+    let actual = load_vibecraft_worldgen_report(actual_path)?;
     Ok(diff_chunk_signature_reports(&expected, &actual))
 }
 
@@ -578,29 +578,29 @@ pub fn parse_vanilla_fixture_report(raw: &str) -> Result<VanillaFixtureReport, S
     Ok(VanillaFixtureReport { format, chunks })
 }
 
-pub fn load_rustcraft_worldgen_report(
+pub fn load_vibecraft_worldgen_report(
     path: impl AsRef<Path>,
 ) -> Result<Vec<WorldgenChunkSignature>, String> {
-    parse_rustcraft_worldgen_report(&fs::read_to_string(path.as_ref()).map_err(|err| {
+    parse_vibecraft_worldgen_report(&fs::read_to_string(path.as_ref()).map_err(|err| {
         format!(
-            "failed to read RustCraft worldgen report {}: {err}",
+            "failed to read VibeCraft worldgen report {}: {err}",
             path.as_ref().display()
         )
     })?)
 }
 
-pub fn parse_rustcraft_worldgen_report(raw: &str) -> Result<Vec<WorldgenChunkSignature>, String> {
+pub fn parse_vibecraft_worldgen_report(raw: &str) -> Result<Vec<WorldgenChunkSignature>, String> {
     let root: Value =
-        serde_json::from_str(raw).map_err(|err| format!("invalid RustCraft report JSON: {err}"))?;
+        serde_json::from_str(raw).map_err(|err| format!("invalid VibeCraft report JSON: {err}"))?;
     let format = string_field_value(&root, "format").unwrap_or("unknown");
-    if format != "rustcraft-worldgen-signatures-v1" {
+    if format != "vibecraft-worldgen-signatures-v1" {
         return Err(format!(
-            "unsupported RustCraft worldgen report format {format:?}"
+            "unsupported VibeCraft worldgen report format {format:?}"
         ));
     }
     array_field(&root, "chunks")?
         .iter()
-        .map(parse_rustcraft_chunk_signature)
+        .map(parse_vibecraft_chunk_signature)
         .collect()
 }
 
@@ -613,22 +613,22 @@ pub fn fixture_report_signatures(report: &VanillaFixtureReport) -> Vec<WorldgenC
         .collect()
 }
 
-pub fn build_rustcraft_worldgen_report<'a>(
+pub fn build_vibecraft_worldgen_report<'a>(
     chunks: impl IntoIterator<Item = (&'a str, &'a LevelChunk)>,
 ) -> Value {
     let chunks = chunks
         .into_iter()
         .map(|(dimension, chunk)| {
-            rustcraft_chunk_signature_json(dimension, &build_chunk_signature(chunk))
+            vibecraft_chunk_signature_json(dimension, &build_chunk_signature(chunk))
         })
         .collect::<Vec<_>>();
     json!({
-        "format": "rustcraft-worldgen-signatures-v1",
+        "format": "vibecraft-worldgen-signatures-v1",
         "chunks": chunks,
     })
 }
 
-pub fn rustcraft_chunk_signature_json(
+pub fn vibecraft_chunk_signature_json(
     dimension: &str,
     signature: &WorldgenChunkSignature,
 ) -> Value {
@@ -712,22 +712,22 @@ fn parse_fixture_chunk(
     })
 }
 
-fn parse_rustcraft_chunk_signature(value: &Value) -> Result<WorldgenChunkSignature, String> {
+fn parse_vibecraft_chunk_signature(value: &Value) -> Result<WorldgenChunkSignature, String> {
     Ok(WorldgenChunkSignature {
-        dimension: required_non_empty_string(value, "dimension", "RustCraft chunk")?.to_string(),
+        dimension: required_non_empty_string(value, "dimension", "VibeCraft chunk")?.to_string(),
         chunk: ChunkCoord {
             x: i32_field(value, "chunkX")?,
             z: i32_field(value, "chunkZ")?,
         },
         status: string_field_value(value, "status")
-            .ok_or_else(|| "RustCraft chunk missing status".to_string())?
+            .ok_or_else(|| "VibeCraft chunk missing status".to_string())?
             .to_string(),
         section_count: usize_field(value, "sectionCount")?,
         non_empty_section_count: usize_field(value, "nonEmptySectionCount")?,
         heightmaps: parse_heightmaps(
             value
                 .get("heightmaps")
-                .ok_or_else(|| "RustCraft chunk missing heightmaps".to_string())?,
+                .ok_or_else(|| "VibeCraft chunk missing heightmaps".to_string())?,
         )?,
         block_palette: sorted_unique(string_array_field(value, "blockPalette")?),
         biome_palette: sorted_unique(string_array_field(value, "biomePalette")?),
@@ -736,7 +736,7 @@ fn parse_rustcraft_chunk_signature(value: &Value) -> Result<WorldgenChunkSignatu
             let structures = parse_structures(
                 value
                     .get("structures")
-                    .ok_or_else(|| "RustCraft chunk missing structures".to_string())?,
+                    .ok_or_else(|| "VibeCraft chunk missing structures".to_string())?,
             )?;
             WorldgenStructureSignature {
                 start_keys: sorted_unique(structures.start_keys),

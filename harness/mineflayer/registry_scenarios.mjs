@@ -18,7 +18,7 @@ export function createRegistryScenarioPlan() {
       {
         name: 'registry-login-diff',
         required: [
-          'same-bot-against-rustcraft-and-official',
+          'same-bot-against-vibecraft-and-official',
           'compact-registry-diff-on-play-state-failure',
           'configuration-diff-on-play-state-failure'
         ]
@@ -54,38 +54,38 @@ export function summarizeRegistryEvidence(evidence, plan = createRegistryScenari
   }
 }
 
-export function buildRegistrySyncEvidence({ officialTranscript, rustCraftTranscript }) {
+export function buildRegistrySyncEvidence({ officialTranscript, vibeCraftTranscript }) {
   return {
-    'captures-configuration-packets': hasConfigurationPackets(officialTranscript) && hasConfigurationPackets(rustCraftTranscript),
+    'captures-configuration-packets': hasConfigurationPackets(officialTranscript) && hasConfigurationPackets(vibeCraftTranscript),
     'compares-registry-ids': sameJson(
-      rustCraftTranscript.registries?.map(entry => entry.registry),
+      vibeCraftTranscript.registries?.map(entry => entry.registry),
       officialTranscript.registries?.map(entry => entry.registry)
     ),
     'compares-tag-contents': sameJson(
-      tagSummary(rustCraftTranscript.tags),
+      tagSummary(vibeCraftTranscript.tags),
       tagSummary(officialTranscript.tags)
     ),
     'compares-known-packs': sameJson(
-      rustCraftTranscript.knownPacks,
+      vibeCraftTranscript.knownPacks,
       officialTranscript.knownPacks
     ),
     'compares-enabled-feature-order': sameJson(
-      enabledFeatures(rustCraftTranscript),
+      enabledFeatures(vibeCraftTranscript),
       enabledFeatures(officialTranscript)
     ),
     'official-server-oracle': officialTranscript.source === 'official-server.jar' || Boolean(officialTranscript.officialOracle)
   }
 }
 
-export function buildRegistryLoginDiffEvidence({ officialTranscript, rustCraftTranscript, rustCraftPlayStateEntered }) {
+export function buildRegistryLoginDiffEvidence({ officialTranscript, vibeCraftTranscript, vibeCraftPlayStateEntered }) {
   const diffs = compactRegistryDiff(
     transcriptPackets(officialTranscript),
-    transcriptPackets(rustCraftTranscript)
+    transcriptPackets(vibeCraftTranscript)
   )
   return {
-    'same-bot-against-rustcraft-and-official': officialTranscript.username === rustCraftTranscript.username,
-    'compact-registry-diff-on-play-state-failure': rustCraftPlayStateEntered || diffs.length > 0,
-    'configuration-diff-on-play-state-failure': rustCraftPlayStateEntered || Boolean(rustCraftTranscript.disconnectReason || diffs.length > 0),
+    'same-bot-against-vibecraft-and-official': officialTranscript.username === vibeCraftTranscript.username,
+    'compact-registry-diff-on-play-state-failure': vibeCraftPlayStateEntered || diffs.length > 0,
+    'configuration-diff-on-play-state-failure': vibeCraftPlayStateEntered || Boolean(vibeCraftTranscript.disconnectReason || diffs.length > 0),
     diffs
   }
 }
@@ -105,13 +105,13 @@ export function buildRegistrySizeGuardEvidence({ transcript, parserErrors = [], 
   }
 }
 
-export function compactRegistryDiff(officialPackets, rustCraftPackets) {
+export function compactRegistryDiff(officialPackets, vibeCraftPackets) {
   const official = registrySummary(officialPackets)
-  const rustCraft = registrySummary(rustCraftPackets)
+  const vibeCraft = registrySummary(vibeCraftPackets)
   const diffs = []
-  for (const key of new Set([...Object.keys(official), ...Object.keys(rustCraft)])) {
-    if (JSON.stringify(official[key]) !== JSON.stringify(rustCraft[key])) {
-      diffs.push({ registry: key, official: official[key] ?? null, rustCraft: rustCraft[key] ?? null })
+  for (const key of new Set([...Object.keys(official), ...Object.keys(vibeCraft)])) {
+    if (JSON.stringify(official[key]) !== JSON.stringify(vibeCraft[key])) {
+      diffs.push({ registry: key, official: official[key] ?? null, vibeCraft: vibeCraft[key] ?? null })
     }
   }
   return diffs

@@ -20,9 +20,9 @@
 - `decompiled-server-26.1.2/net/minecraft/world/entity/ai/` — goal system, brain, sensors, memories, activities, navigation, gossip
 - `decompiled-server-26.1.2/net/minecraft/world/level/levelgen/PhantomSpawner.java` — phantom spawn logic
 - `decompiled-server-26.1.2/net/minecraft/world/level/levelgen/PatrolSpawner.java` — patrol spawn logic
-- `decompiled-server-26.1.2/src/spawning.rs` — RustCraft spawning
-- `decompiled-server-26.1.2/src/mob_family.rs` — RustCraft mob family stubs
-- `decompiled-server-26.1.2/src/ai_system.rs` — RustCraft AI system
+- `decompiled-server-26.1.2/src/spawning.rs` — VibeCraft spawning
+- `decompiled-server-26.1.2/src/mob_family.rs` — VibeCraft mob family stubs
+- `decompiled-server-26.1.2/src/ai_system.rs` — VibeCraft AI system
 
 ## Boss Families
 

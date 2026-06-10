@@ -191,7 +191,7 @@ pub fn creative_mode_slot_packet_applies_java_slot_and_ability_gates() {
 #[test]
 pub fn fresh_creative_session_accepts_and_persists_creative_picker_items() {
     let mut properties = crate::server_properties::ServerProperties::load_or_default(
-        std::path::Path::new("/tmp/rustcraft-missing-server.properties"),
+        std::path::Path::new("/tmp/vibecraft-missing-server.properties"),
     )
     .unwrap();
     properties.game_mode = "creative".to_string();
@@ -201,7 +201,7 @@ pub fn fresh_creative_session_accepts_and_persists_creative_picker_items() {
         .unwrap()
         .as_nanos();
     let world_root = std::env::temp_dir().join(format!(
-        "rustcraft-creative-session-{unique}-{}",
+        "vibecraft-creative-session-{unique}-{}",
         std::process::id()
     ));
     std::fs::create_dir_all(&world_root).unwrap();
@@ -345,7 +345,7 @@ pub fn pick_item_from_block_selects_existing_or_creative_cloned_block() {
         .unwrap()
         .insert(chunk_pos, std::sync::Arc::new(chunk));
     let world_root =
-        std::env::temp_dir().join(format!("rustcraft-pick-item-block-{}", std::process::id()));
+        std::env::temp_dir().join(format!("vibecraft-pick-item-block-{}", std::process::id()));
     let layout = super::super::WorldLayout::new(&world_root);
 
     let mut state = PlaySessionState {

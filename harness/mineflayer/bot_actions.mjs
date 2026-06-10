@@ -85,10 +85,10 @@ export async function forceReconnect(session, options = {}) {
   })
 }
 
-export function captureVanillaComparisonTraces(officialSession, rustCraftSession) {
+export function captureVanillaComparisonTraces(officialSession, vibeCraftSession) {
   return {
     official: traceSummary(officialSession),
-    rustCraft: traceSummary(rustCraftSession)
+    vibeCraft: traceSummary(vibeCraftSession)
   }
 }
 

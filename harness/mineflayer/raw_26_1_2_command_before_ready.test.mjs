@@ -8,7 +8,7 @@ import { inflateSync } from 'node:zlib'
 
 import {
   createTempWorld,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -16,13 +16,13 @@ import {
 
 const here = new URL('.', import.meta.url)
 const repoRoot = path.resolve(here.pathname, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 const host = '127.0.0.1'
-const protocolVersion = Number(process.env.RUSTCRAFT_PROTOCOL_VERSION ?? 775)
+const protocolVersion = Number(process.env.VIBECRAFT_PROTOCOL_VERSION ?? 775)
 
 test('raw 26.1.2 rejects chat and command packets before play readiness', { timeout: 60_000 }, async () => {
   const port = await reservePort()
-  const root = await createTempWorld('rustcraft-command-before-ready-')
+  const root = await createTempWorld('vibecraft-command-before-ready-')
   let server
 
   try {
@@ -34,7 +34,7 @@ test('raw 26.1.2 rejects chat and command packets before play readiness', { time
         'simulation-distance': '4'
       }
     })
-    server = startRustCraft({ binary, root, port, levelName: 'world' })
+    server = startVibeCraft({ binary, root, port, levelName: 'world' })
     await waitForPort(port, host, 10_000)
 
     const cases = [

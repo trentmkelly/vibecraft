@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Graph RustCraft checklist progress from git history.
+"""Graph VibeCraft checklist progress from git history.
 
 The script treats Markdown task-list rows in CHECKLIST*.md files as the source
 of truth:
@@ -328,13 +328,13 @@ def write_plot(path: Path, snapshots: list[ChecklistSnapshot], title: str) -> No
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Graph CHECKLIST*.md task completion over RustCraft git history.",
+        description="Graph CHECKLIST*.md task completion over VibeCraft git history.",
     )
     parser.add_argument(
         "--repo",
         type=Path,
         default=Path(__file__).resolve().parents[1],
-        help="RustCraft git repository path. Defaults to this script's parent repo.",
+        help="VibeCraft git repository path. Defaults to this script's parent repo.",
     )
     parser.add_argument(
         "--pattern",
@@ -357,7 +357,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--json", type=Path, help="Optional JSON data output.")
     parser.add_argument(
         "--title",
-        default="RustCraft Checklist Progress",
+        default="VibeCraft Checklist Progress",
         help="Plot title.",
     )
     return parser.parse_args()

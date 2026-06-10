@@ -48,7 +48,7 @@ mod tests {
 
     #[test]
     fn reload_discovers_valid_directory_packs_and_skips_invalid_packs() {
-        let root = std::env::temp_dir().join(format!("rustcraft-datapacks-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("vibecraft-datapacks-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         let datapacks = root.join("datapacks");
         fs::create_dir_all(datapacks.join("valid_pack/data/example/tags/item")).unwrap();

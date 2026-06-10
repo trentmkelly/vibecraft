@@ -66,6 +66,6 @@ test('runCraftingRecipeScenario fails closed when the crafted result differs', a
 test('default probe rejects until a server fixture wires the crafting grid', async () => {
   await assert.rejects(
     () => runCraftingRecipeScenario('craftingTable3x3'),
-    /requires a live RustCraft server/
+    /requires a live VibeCraft server/
   )
 })

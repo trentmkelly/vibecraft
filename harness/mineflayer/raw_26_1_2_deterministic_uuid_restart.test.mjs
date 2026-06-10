@@ -10,7 +10,7 @@ import { promisify } from 'node:util'
 import {
   createTempWorld,
   offlineUuid,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -19,11 +19,11 @@ import {
 const execFileAsync = promisify(execFile)
 const here = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(here, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 
 test('raw 26.1.2 offline UUIDs are deterministic across restart and case variants', { timeout: 90_000 }, async () => {
   const port = await reservePort()
-  const root = await createTempWorld('rustcraft-uuid-restart-')
+  const root = await createTempWorld('vibecraft-uuid-restart-')
   const usernames = ['UuidAlpha', 'UuidBravo', 'UuidCase', 'uuidcase']
   let server
 
@@ -60,7 +60,7 @@ test('raw 26.1.2 offline UUIDs are deterministic across restart and case variant
 })
 
 async function startTempServer (root, port) {
-  const server = startRustCraft({ binary, root, port, levelName: 'world' })
+  const server = startVibeCraft({ binary, root, port, levelName: 'world' })
   await waitForPort(port, '127.0.0.1', 10_000)
   return server
 }
@@ -84,12 +84,12 @@ async function runJoinProbe (port, username) {
       cwd: here,
       env: {
         ...process.env,
-        RUSTCRAFT_PORT: String(port),
-        RUSTCRAFT_USERNAME: username,
-        RUSTCRAFT_EXPECT_WORLD_SEED: '8675309',
-        RUSTCRAFT_EXPECT_IS_FLAT: 'false',
-        RUSTCRAFT_EXPECT_JOIN_POSITION: JSON.stringify({ x: 0.5, y: 112, z: 0.5, yaw: 0, pitch: 0 }),
-        RUSTCRAFT_EXPECT_DEFAULT_SPAWN: JSON.stringify({ x: 0, y: 112, z: 0 })
+        VIBECRAFT_PORT: String(port),
+        VIBECRAFT_USERNAME: username,
+        VIBECRAFT_EXPECT_WORLD_SEED: '8675309',
+        VIBECRAFT_EXPECT_IS_FLAT: 'false',
+        VIBECRAFT_EXPECT_JOIN_POSITION: JSON.stringify({ x: 0.5, y: 112, z: 0.5, yaw: 0, pitch: 0 }),
+        VIBECRAFT_EXPECT_DEFAULT_SPAWN: JSON.stringify({ x: 0, y: 112, z: 0 })
       },
       timeout: 30_000,
       maxBuffer: 1024 * 1024

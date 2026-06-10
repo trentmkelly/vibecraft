@@ -500,7 +500,7 @@ pub fn write_minimal_play_join(
 /// Emits the `/biome` debug command tree. Sent late in the join sequence (after
 /// the join-ready state/level prefix) so the live wire order matches the vanilla
 /// join capture, where the command tree arrives after the inventory and
-/// level-info packets. RustCraft exposes `/biome` as an in-game debugging helper
+/// level-info packets. VibeCraft exposes `/biome` as an in-game debugging helper
 /// even though vanilla 26.1.2 has no root `/biome` command — an intentional,
 /// documented Java-parity divergence in the packet *contents* (not its position).
 pub(super) fn write_join_commands_packet(
@@ -511,7 +511,7 @@ pub(super) fn write_join_commands_packet(
         stream,
         compression,
         CLIENTBOUND_COMMANDS_PACKET_ID,
-        |payload| rustcraft_debug_commands_packet().write(payload),
+        |payload| vibecraft_debug_commands_packet().write(payload),
     )
 }
 
@@ -539,7 +539,7 @@ fn write_join_login_and_profile_packets(
         },
         // Java mirror: ClientboundLoginPacket carries `server.enforceSecureProfile()`
         // (PlayerList.java:179) = enforce-secure-profile && online-mode &&
-        // canValidateProfileKeys(). RustCraft has no loaded profile-key validation,
+        // canValidateProfileKeys(). VibeCraft has no loaded profile-key validation,
         // so this is false (matching vanilla offline). See the matching
         // TODO(secure-profile-enforcement) in `status_json` (chunk_e_2.rs).
         enforces_secure_chat: false,
@@ -800,12 +800,12 @@ fn raw_item_stack_for_join_sync(stack: &ItemStack) -> RawItemStack {
     }
 }
 
-/// Builds the RustCraft-only command tree additions required by the vanilla client.
+/// Builds the VibeCraft-only command tree additions required by the vanilla client.
 ///
 /// Intentional Java parity divergence: vanilla 26.1.2 has no root `/biome`
 /// command, but exposing it in the client dispatcher makes the server-side
 /// debug command usable from the normal slash-command UI.
-pub fn rustcraft_debug_commands_packet() -> ClientboundCommandsPacket {
+pub fn vibecraft_debug_commands_packet() -> ClientboundCommandsPacket {
     ClientboundCommandsPacket {
         root_index: 0,
         entries: vec![
@@ -1022,7 +1022,7 @@ pub fn apply_chunk_movement(
 }
 
 /// Periodic per-session pipeline diagnostic, gated on the
-/// `RUSTCRAFT_LOG_CHUNK_PIPELINE` env var (default: on whenever there are
+/// `VIBECRAFT_LOG_CHUNK_PIPELINE` env var (default: on whenever there are
 /// pending chunks, to make a stuck pipeline easy to spot).
 pub fn maybe_log_chunk_pipeline_stats(
     stats: &mut ChunkPipelineSessionStats,

@@ -840,7 +840,7 @@ fn biome_debug_command_reports_quantized_source_biome() {
     let result =
         execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "biome").unwrap();
     assert_eq!(result.success_count, 1);
-    assert_eq!(result.feedback_key, "commands.rustcraft.debug.biome");
+    assert_eq!(result.feedback_key, "commands.vibecraft.debug.biome");
     assert!(!result.broadcast_to_admins);
     assert_eq!(
         execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "biome extra"),

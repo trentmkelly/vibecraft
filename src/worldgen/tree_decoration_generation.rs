@@ -387,7 +387,7 @@ fn tree_block_is_inside_target(bounds: &ChunkDecorationBounds, world_x: i32, wor
 }
 
 fn print_tree_decoration_debug_report(diagnostics: &TreeDecorationDiagnostics) {
-    if std::env::var_os("RUSTCRAFT_WORLDGEN_TREE_DEBUG").is_none() {
+    if std::env::var_os("VIBECRAFT_WORLDGEN_TREE_DEBUG").is_none() {
         return;
     }
     eprintln!(

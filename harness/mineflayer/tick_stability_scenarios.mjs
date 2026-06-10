@@ -3,7 +3,7 @@ export function createTickStabilityPlan(options = {}) {
     name: 'mineflayer-offline-tick-stability',
     mode: 'offline',
     auth: 'offline',
-    username: options.username ?? 'RustCraftTick',
+    username: options.username ?? 'VibeCraftTick',
     transitions: [
       'pause-when-empty',
       'autosave',

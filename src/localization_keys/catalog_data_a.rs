@@ -459,9 +459,9 @@ pub(super) const ENTRIES: &[MessageKeyDef] = &[
         MessageKeyFamily::Command,
         &["seed"],
     ),
-    // RustCraft-only debug command feedback; vanilla 26.1.2 has no `/biome` command.
+    // VibeCraft-only debug command feedback; vanilla 26.1.2 has no `/biome` command.
     key(
-        "commands.rustcraft.debug.biome",
+        "commands.vibecraft.debug.biome",
         MessageKeyFamily::Command,
         &[],
     ),

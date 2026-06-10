@@ -20,7 +20,7 @@ export async function minimizeLoginFailure(scenario, options = {}) {
 }
 
 export function minimizedScenario(scenario) {
-  const profile = (scenario.profiles ?? [scenario.profile ?? { username: 'RustCraftBot' }])[0]
+  const profile = (scenario.profiles ?? [scenario.profile ?? { username: 'VibeCraftBot' }])[0]
   return {
     name: `${scenario.name ?? 'login'}-minimized`,
     version: scenario.version,

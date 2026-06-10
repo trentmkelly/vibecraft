@@ -9,7 +9,7 @@ import { promisify } from 'node:util'
 
 import {
   createTempWorld,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -18,7 +18,7 @@ import {
 const execFileAsync = promisify(execFile)
 const here = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(here, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 
 test('raw 26.1.2 connection refusal covers before readiness, shutdown, and closed port', { timeout: 60_000 }, async () => {
   const port = await reservePort()
@@ -26,11 +26,11 @@ test('raw 26.1.2 connection refusal covers before readiness, shutdown, and close
   const beforeReadiness = await runJoinProbeExpectingRefusal(port, 'BeforeReady')
   assertRefused(beforeReadiness, 'before readiness')
 
-  const root = await createTempWorld('rustcraft-refusal-')
+  const root = await createTempWorld('vibecraft-refusal-')
   let server
   try {
     await writeOfflineServerFiles(root, { port, levelName: 'world' })
-    server = startRustCraft({ binary, root, port, levelName: 'world' })
+    server = startVibeCraft({ binary, root, port, levelName: 'world' })
     await waitForPort(port, '127.0.0.1', 10_000)
 
     server.child.stdin.write('stop\n')
@@ -55,8 +55,8 @@ async function runJoinProbeExpectingRefusal(port, username) {
         cwd: here,
         env: {
           ...process.env,
-          RUSTCRAFT_PORT: String(port),
-          RUSTCRAFT_USERNAME: username
+          VIBECRAFT_PORT: String(port),
+          VIBECRAFT_USERNAME: username
         },
         timeout: 30_000,
         maxBuffer: 1024 * 1024

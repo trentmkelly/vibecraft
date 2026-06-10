@@ -1,12 +1,12 @@
 import { normalizeKickedMessage } from './assertions.mjs'
 
 export function offlineChatScenarios(options = {}) {
-  const sender = options.sender ?? 'RustCraftBot'
-  const target = options.target ?? 'RustCraftBot1'
+  const sender = options.sender ?? 'VibeCraftBot'
+  const target = options.target ?? 'VibeCraftBot1'
   return [
     chatScenario('publicChat', `${sender}: hello`, { sender }),
     chatScenario('privateMessage', `${sender} whispers to you: secret`, { sender, target }),
-    chatScenario('formattedChat', '<RustCraftBot> colored text', { contains: 'colored text' }),
+    chatScenario('formattedChat', '<VibeCraftBot> colored text', { contains: 'colored text' }),
     chatScenario('deathAnnouncement', `${sender} died`, { optional: true }),
     chatScenario('advancementAnnouncement', `${sender} has made the advancement`, { optional: true }),
     chatScenario('malformedDisconnect', 'multiplayer.disconnect.invalid_packet', {
@@ -48,8 +48,8 @@ export function chatScenarioManifest(options = {}) {
 }
 
 export function chatCommandScenario(options = {}) {
-  const sender = options.sender ?? 'RustCraftBot'
-  const target = options.target ?? 'RustCraftBot1'
+  const sender = options.sender ?? 'VibeCraftBot'
+  const target = options.target ?? 'VibeCraftBot1'
   return {
     sender,
     target,

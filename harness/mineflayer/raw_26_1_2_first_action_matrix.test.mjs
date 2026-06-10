@@ -41,10 +41,10 @@ async function runJoinProbe (username, actions) {
       cwd: new URL('.', import.meta.url),
       env: {
         ...process.env,
-        RUSTCRAFT_USERNAME: username,
-        RUSTCRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: actions,
-        RUSTCRAFT_RAW_PROBE_KEEPALIVE_MS: '15000',
-        ...(actionSet.has('command_suggestion') ? { RUSTCRAFT_EXPECT_COMMAND_SUGGESTION: 'list' } : {})
+        VIBECRAFT_USERNAME: username,
+        VIBECRAFT_RAW_PROBE_FIRST_TICK_ACTIONS: actions,
+        VIBECRAFT_RAW_PROBE_KEEPALIVE_MS: '15000',
+        ...(actionSet.has('command_suggestion') ? { VIBECRAFT_EXPECT_COMMAND_SUGGESTION: 'list' } : {})
       },
       timeout: 30_000,
       maxBuffer: 1024 * 1024

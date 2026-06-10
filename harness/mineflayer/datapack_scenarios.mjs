@@ -46,12 +46,12 @@ export function summarizeDatapackEvidence(evidence, plan = createDatapackScenari
 
 export function buildDatapackReloadEvidence({ beforeReload, afterReload, official }) {
   const vanillaSurvives = official.afterReload?.joined === true
-  const rustCraftSurvives = afterReload?.joined === true
+  const vibeCraftSurvives = afterReload?.joined === true
   return {
     'join-before-reload': beforeReload?.joined === true,
     'run-reload-command': afterReload?.reloadCommandSent === true,
     'registry-tag-resync-observed': resyncObserved(beforeReload, afterReload),
-    'bot-survives-where-vanilla-survives': vanillaSurvives ? rustCraftSurvives : true,
+    'bot-survives-where-vanilla-survives': vanillaSurvives ? vibeCraftSurvives : true,
     'disconnect-reason-recorded-when-vanilla-kicks': vanillaSurvives || typeof afterReload?.disconnectReason === 'string',
     disconnectReason: afterReload?.disconnectReason ?? null
   }

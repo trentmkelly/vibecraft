@@ -730,7 +730,7 @@ pub fn write_vanilla_known_packs_packet<W: Write>(writer: &mut W) -> io::Result<
     // version. Because the 26.1.2 client agrees on this pack, it pre-loads every
     // built-in datapack registry from its own copy; any synchronized registry the
     // server does NOT re-send in the registry-data sync keeps that pre-loaded value.
-    // That is why RustCraft can omit `minecraft:test_environment`,
+    // That is why VibeCraft can omit `minecraft:test_environment`,
     // `minecraft:test_instance`, and `minecraft:dialog` (gametest infra + the dialog
     // system, none referenced on the join/play-init path) — the client uses its
     // known-pack copies, and the offline join flow reaches play unaffected.

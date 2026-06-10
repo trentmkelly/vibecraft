@@ -64,11 +64,11 @@ function formatDetail(detail) {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const result = await runMinimalLoginShard({
-    binary: process.env.RUSTCRAFT_BIN,
-    port: Number(process.env.RUSTCRAFT_PORT ?? 25565),
-    username: process.env.RUSTCRAFT_BOT ?? 'RustCraftCI',
+    binary: process.env.VIBECRAFT_BIN,
+    port: Number(process.env.VIBECRAFT_PORT ?? 25565),
+    username: process.env.VIBECRAFT_BOT ?? 'VibeCraftCI',
     version: process.env.MINEFLAYER_VERSION,
-    timeoutMs: Number(process.env.RUSTCRAFT_TIMEOUT_MS ?? 30_000),
+    timeoutMs: Number(process.env.VIBECRAFT_TIMEOUT_MS ?? 30_000),
     keepArtifacts: process.env.KEEP_ARTIFACTS === '1'
   })
   if (result.ok) {

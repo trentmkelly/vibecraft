@@ -5,7 +5,7 @@ import { normalizeArtifacts } from './runner.mjs'
 import { formatParityDiff } from './assertions.mjs'
 
 export async function writeLoginDebugBundle(options = {}) {
-  const outputRoot = options.outputRoot ?? path.join(tmpdir(), 'rustcraft-mineflayer-debug')
+  const outputRoot = options.outputRoot ?? path.join(tmpdir(), 'vibecraft-mineflayer-debug')
   const name = options.name ?? `login-${Date.now()}`
   const bundleDir = path.join(outputRoot, sanitizeName(name))
   await mkdir(bundleDir, { recursive: true })

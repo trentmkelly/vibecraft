@@ -9,7 +9,7 @@ import { promisify } from 'node:util'
 import {
   createTempWorld,
   offlineUuid,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -18,7 +18,7 @@ import {
 const execFileAsync = promisify(execFile)
 const here = new URL('.', import.meta.url)
 const repoRoot = path.resolve(here.pathname, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 const host = '127.0.0.1'
 const expiresOnPattern = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \+0000$/
 
@@ -37,7 +37,7 @@ const cases = [
 
 for (const [label, username, initialUsercache] of cases) {
   test(`raw 26.1.2 repairs ${label} usercache before offline join`, { timeout: 45_000 }, async () => {
-    await withServer(`rustcraft-usercache-${label}-`, initialUsercache, async ({ port, root }) => {
+    await withServer(`vibecraft-usercache-${label}-`, initialUsercache, async ({ port, root }) => {
       const joined = await runJoinProbe(port, username)
       assert.equal(joined.ok, true)
       assert.equal(joined.joinState.profile.uuid, offlineUuid(username))
@@ -73,7 +73,7 @@ async function withServer (prefix, initialUsercache, callback) {
       await writeFile(path.join(root, 'usercache.json'), `${initialUsercache}\n`)
     }
 
-    server = startRustCraft({ binary, root, port, levelName: 'world' })
+    server = startVibeCraft({ binary, root, port, levelName: 'world' })
     await waitForPort(port, host, 10_000)
     return await callback({ port, root })
   } finally {
@@ -90,9 +90,9 @@ async function runJoinProbe (port, username) {
       cwd: here,
       env: {
         ...process.env,
-        RUSTCRAFT_HOST: host,
-        RUSTCRAFT_PORT: String(port),
-        RUSTCRAFT_USERNAME: username
+        VIBECRAFT_HOST: host,
+        VIBECRAFT_PORT: String(port),
+        VIBECRAFT_USERNAME: username
       },
       timeout: 30_000,
       maxBuffer: 1024 * 1024

@@ -29,7 +29,7 @@ export async function runRequiredLoginGate(options = {}) {
   const session = await (options.runLogin ?? runObservedOfflineLogin)({
     binary: options.binary,
     port: options.port ?? 25565,
-    username: options.username ?? 'RustCraftGate',
+    username: options.username ?? 'VibeCraftGate',
     version: options.version,
     timeoutMs: options.timeoutMs ?? 30_000,
     keepArtifacts: options.keepArtifacts,
@@ -65,7 +65,7 @@ export function formatLoginGateReport(session, smoke) {
 }
 
 export function changedFilesFromEnv(env = process.env) {
-  return (env.RUSTCRAFT_CHANGED_FILES ?? '')
+  return (env.VIBECRAFT_CHANGED_FILES ?? '')
     .split(/\r?\n|,/)
     .map(file => file.trim())
     .filter(Boolean)
@@ -77,9 +77,9 @@ function normalizePath(file) {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const result = await runRequiredLoginGate({
-    binary: process.env.RUSTCRAFT_BIN,
-    port: Number(process.env.RUSTCRAFT_PORT ?? 25565),
-    username: process.env.RUSTCRAFT_BOT ?? 'RustCraftGate',
+    binary: process.env.VIBECRAFT_BIN,
+    port: Number(process.env.VIBECRAFT_PORT ?? 25565),
+    username: process.env.VIBECRAFT_BOT ?? 'VibeCraftGate',
     version: process.env.MINEFLAYER_VERSION,
     changedFiles: changedFilesFromEnv(),
     keepArtifacts: process.env.KEEP_ARTIFACTS === '1'

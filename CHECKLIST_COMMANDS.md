@@ -12,11 +12,11 @@
 - `decompiled-server-26.1.2/net/minecraft/world/level/block/entity/CommandBlockEntity.java` — command block
 - `decompiled-server-26.1.2/net/minecraft/world/entity/vehicle/CommandBlockMinecart.java` — command block minecart
 - `decompiled-server-26.1.2/net/minecraft/commands/functions/` — function system (if present in 26.1.2)
-- `RustCraft/src/command.rs` — RustCraft command dispatcher
-- `RustCraft/src/command_execution.rs` — RustCraft command execution
-- `RustCraft/src/command_parity.rs` — RustCraft command parity tests
-- `RustCraft/src/command_feedback.rs` — RustCraft command feedback
-- `RustCraft/src/command_tree.rs` — RustCraft command tree
+- `VibeCraft/src/command.rs` — VibeCraft command dispatcher
+- `VibeCraft/src/command_execution.rs` — VibeCraft command execution
+- `VibeCraft/src/command_parity.rs` — VibeCraft command parity tests
+- `VibeCraft/src/command_feedback.rs` — VibeCraft command feedback
+- `VibeCraft/src/command_tree.rs` — VibeCraft command tree
 
 ## Command Blocks
 
@@ -168,6 +168,6 @@
 - [ ] Implement `/whitelist`.
 - [ ] Implement `/worldborder`.
 - [ ] Implement command blocks, command block minecarts, functions, tags, macro/function arguments, and scheduled functions. — detailed command-block, command-block-minecart, function/tag, macro-argument, and scheduled-function rows above are now implemented and covered by focused parity tests
-- [x] Validate command parse trees and results against vanilla command dumps and scripted execution tests. — `harness/mineflayer/command_parity_scenarios.mjs` `parseTreeValidation` scenario (vanilla-command-dump / rustcraft-command-dump / parse-tree-diff / scripted-execution-diff); `command_parity_scenarios.test.mjs` fail-closed (24 tests pass).
+- [x] Validate command parse trees and results against vanilla command dumps and scripted execution tests. — `harness/mineflayer/command_parity_scenarios.mjs` `parseTreeValidation` scenario (vanilla-command-dump / vibecraft-command-dump / parse-tree-diff / scripted-execution-diff); `command_parity_scenarios.test.mjs` fail-closed (24 tests pass).
 - [x] Add Mineflayer chat and command tests covering signed/unsigned chat fallback, system messages, command feedback, suggestions, and tab completion in offline mode. — `command_parity_scenarios.mjs` `chatCommand` scenario (signed/unsigned-chat-fallback / system-messages / command-feedback / suggestions / tab-completion).
 - [x] Add command-model chat/command fallback coverage for public `/say`, `/me`, private `/tell`, `/teammsg`, `/tellraw`, feedback keys, permission denial, and target routing while full Mineflayer signed/unsigned/system-message coverage remains pending. — Java `SayCommand` and `TellRawCommand` require gamemaster permission, while `EmoteCommands`, `MsgCommand`, and `TeamMsgCommand` are player-accessible; Java returns message target counts and routes private/team/raw messages to selected receivers. `chat_command_model_covers_public_private_team_raw_and_permission_feedback` covers permission denial, feedback keys, success counts, public/private/team/raw target selection, and `/tellraw` payload preservation, with `chat_broadcast_routes_player_filtered_private_team_and_tellraw_messages` covering presentation routing.

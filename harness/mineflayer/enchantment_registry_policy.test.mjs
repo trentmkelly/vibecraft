@@ -125,7 +125,7 @@ test('default item initialization does not reference concrete enchantment holder
 })
 
 test('raw 26.1.2 probe enforces omitted enchantment policy while proving play entry', {
-  skip: process.env.RUSTCRAFT_RUN_LIVE_ENCHANTMENT_POLICY_TEST !== '1'
+  skip: process.env.VIBECRAFT_RUN_LIVE_ENCHANTMENT_POLICY_TEST !== '1'
 }, async () => {
   const { stdout } = await execFileAsync(
     process.execPath,
@@ -134,7 +134,7 @@ test('raw 26.1.2 probe enforces omitted enchantment policy while proving play en
       cwd: here,
       env: {
         ...process.env,
-        RUSTCRAFT_USERNAME: 'EnchantPolicy'
+        VIBECRAFT_USERNAME: 'EnchantPolicy'
       },
       timeout: 30_000,
       maxBuffer: 1024 * 1024

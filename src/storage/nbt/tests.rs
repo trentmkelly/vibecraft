@@ -1015,7 +1015,7 @@ fn exposes_all_vanilla_tag_ids() {
 #[test]
 fn round_trips_named_compound_with_nested_values() {
     let tag = Tag::Compound(vec![
-        ("name".to_string(), Tag::String("RustCraft".to_string())),
+        ("name".to_string(), Tag::String("VibeCraft".to_string())),
         ("health".to_string(), Tag::Float(20.0)),
         (
             "pos".to_string(),

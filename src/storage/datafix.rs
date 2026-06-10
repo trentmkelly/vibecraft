@@ -137,7 +137,7 @@ impl WorldUpgradeReport {
                 found_data_version,
                 target_data_version,
             } => Some(format!(
-                "Unsupported world DataVersion {found_data_version}; RustCraft supports {target_data_version}. Use external DataFixerUpper-compatible tooling before loading this world."
+                "Unsupported world DataVersion {found_data_version}; VibeCraft supports {target_data_version}. Use external DataFixerUpper-compatible tooling before loading this world."
             )),
         }
     }
@@ -161,7 +161,7 @@ pub fn require_current_world_data_version(found_data_version: i32) -> Result<(),
             found_data_version,
             target_data_version,
         } => Err(format!(
-            "Unsupported world DataVersion {found_data_version}; RustCraft currently supports only {target_data_version} and will not perform unsafe migrations"
+            "Unsupported world DataVersion {found_data_version}; VibeCraft currently supports only {target_data_version} and will not perform unsafe migrations"
         )),
     }
 }
@@ -183,7 +183,7 @@ pub fn tag_data_version(tag: &Tag) -> Option<i32> {
 /// which calls `DataFixerUpper.update(type, data, fromVersion, currentVersion)`:
 /// when `fromVersion >= currentVersion` the data is returned UNCHANGED (DFU never
 /// downgrades), so a tag at or newer than [`TARGET_DATA_VERSION`] loads as-is.
-/// Only older tags require datafix upgrades, which RustCraft has not implemented
+/// Only older tags require datafix upgrades, which VibeCraft has not implemented
 /// yet, so those are blocked.
 ///
 /// This differs from [`check_world_data_version`] (exact match), which gates the
@@ -207,7 +207,7 @@ pub fn require_current_tag_data_version(surface: &str, tag: &Tag) -> Result<(), 
             found_data_version,
             target_data_version,
         } => Err(format!(
-            "Unsupported {surface} DataVersion {found_data_version}; RustCraft supports {target_data_version} or newer and will not perform unsafe downgrade migrations"
+            "Unsupported {surface} DataVersion {found_data_version}; VibeCraft supports {target_data_version} or newer and will not perform unsafe downgrade migrations"
         )),
     }
 }
@@ -562,7 +562,7 @@ mod tests {
     #[test]
     fn force_upgrade_rewrites_current_chunk_and_entity_regions() {
         let mut path = std::env::temp_dir();
-        path.push(format!("rustcraft-force-upgrade-{}", std::process::id()));
+        path.push(format!("vibecraft-force-upgrade-{}", std::process::id()));
         let _ = fs::remove_dir_all(&path);
 
         let layout = WorldLayout::new(&path);
@@ -614,7 +614,7 @@ mod tests {
     #[test]
     fn force_upgrade_refuses_unsupported_world_versions_before_rewrite() {
         let layout = WorldLayout::new(std::env::temp_dir().join(format!(
-            "rustcraft-force-upgrade-refuse-{}",
+            "vibecraft-force-upgrade-refuse-{}",
             std::process::id()
         )));
         let err = run_world_upgrade(
@@ -633,7 +633,7 @@ mod tests {
     #[test]
     fn erase_cache_removes_only_cache_directories_without_world_content_loss() {
         let mut path = std::env::temp_dir();
-        path.push(format!("rustcraft-erase-cache-{}", std::process::id()));
+        path.push(format!("vibecraft-erase-cache-{}", std::process::id()));
         let _ = fs::remove_dir_all(&path);
 
         let layout = WorldLayout::new(&path);

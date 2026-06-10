@@ -67,7 +67,7 @@ macro_rules! default_server_command_state {
             incomplete_debug_paths: Vec::new(),
             jfr_recording: false,
             jfr_recordings: Vec::new(),
-            next_jfr_recording_path: "debug/rustcraft.jfr".to_string(),
+            next_jfr_recording_path: "debug/vibecraft.jfr".to_string(),
             known_recipes: Vec::new(),
             player_recipes: Vec::new(),
             advancements: Vec::new(),

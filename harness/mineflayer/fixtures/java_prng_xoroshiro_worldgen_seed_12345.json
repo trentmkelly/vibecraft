@@ -1,5 +1,5 @@
 {
-  "format": "rustcraft-java-prng-fixture-v1",
+  "format": "vibecraft-java-prng-fixture-v1",
   "seed": 12345,
   "bound": 10000,
   "raw_xoroshiro": {

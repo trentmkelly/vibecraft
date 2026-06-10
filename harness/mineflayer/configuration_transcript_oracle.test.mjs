@@ -67,7 +67,7 @@ test('diffConfigurationTranscripts reports first actionable registry and known-p
 })
 
 test('writeOfficialConfigurationTranscriptFixture stores only the normalized fixture shape', async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), 'rustcraft-transcript-fixture-'))
+  const tmp = await mkdtemp(path.join(os.tmpdir(), 'vibecraft-transcript-fixture-'))
   try {
     const fixturePath = path.join(tmp, 'official.json')
     const transcript = normalizeConfigurationTranscript({
@@ -96,12 +96,12 @@ test('writeOfficialConfigurationTranscriptFixture stores only the normalized fix
   }
 })
 
-test('recordServerConfigurationTranscript records the live RustCraft configuration transcript', {
-  skip: process.env.RUSTCRAFT_RUN_LIVE_TRANSCRIPT_TEST !== '1'
+test('recordServerConfigurationTranscript records the live VibeCraft configuration transcript', {
+  skip: process.env.VIBECRAFT_RUN_LIVE_TRANSCRIPT_TEST !== '1'
 }, async () => {
   const transcript = await recordServerConfigurationTranscript({
-    host: process.env.RUSTCRAFT_HOST ?? '127.0.0.1',
-    port: Number(process.env.RUSTCRAFT_PORT ?? 25565)
+    host: process.env.VIBECRAFT_HOST ?? '127.0.0.1',
+    port: Number(process.env.VIBECRAFT_PORT ?? 25565)
   })
 
   assert.equal(transcript.finishConfigurationPacketId, 3)

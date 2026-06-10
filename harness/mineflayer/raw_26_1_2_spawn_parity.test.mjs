@@ -8,7 +8,7 @@ import { promisify } from 'node:util'
 
 import {
   createTempWorld,
-  startRustCraft,
+  startVibeCraft,
   stopServer,
   waitForPort,
   writeOfflineServerFiles
@@ -17,12 +17,12 @@ import {
 const execFileAsync = promisify(execFile)
 const here = new URL('.', import.meta.url)
 const repoRoot = path.resolve(here.pathname, '..', '..')
-const binary = path.join(repoRoot, 'target', 'debug', 'rustcraft')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 const host = '127.0.0.1'
 
 test('raw 26.1.2 first-login spawn packets advertise seed, flatness, spawn, and initial chunks', { timeout: 90_000 }, async () => {
   const port = await reservePort()
-  const root = await createTempWorld('rustcraft-spawn-parity-')
+  const root = await createTempWorld('vibecraft-spawn-parity-')
   const seed = 1234567890123n
   let server
 
@@ -40,9 +40,9 @@ test('raw 26.1.2 first-login spawn packets advertise seed, flatness, spawn, and 
     server = await start(root, port)
 
     const joined = await runJoinProbe(port, 'SpawnParity', {
-      RUSTCRAFT_EXPECT_WORLD_SEED: seed.toString(),
-      RUSTCRAFT_EXPECT_IS_FLAT: 'false',
-      RUSTCRAFT_EXPECT_JOIN_POSITION: JSON.stringify({ x: -32.5, y: 76, z: 10.5, yaw: 0, pitch: 0 })
+      VIBECRAFT_EXPECT_WORLD_SEED: seed.toString(),
+      VIBECRAFT_EXPECT_IS_FLAT: 'false',
+      VIBECRAFT_EXPECT_JOIN_POSITION: JSON.stringify({ x: -32.5, y: 76, z: 10.5, yaw: 0, pitch: 0 })
     })
 
     assert.equal(joined.ok, true)
@@ -64,7 +64,7 @@ test('raw 26.1.2 first-login spawn packets advertise seed, flatness, spawn, and 
 })
 
 async function start (root, port) {
-  const server = startRustCraft({ binary, root, port, levelName: 'world' })
+  const server = startVibeCraft({ binary, root, port, levelName: 'world' })
   await waitForPort(port, host, 10_000)
   return server
 }
@@ -77,9 +77,9 @@ async function runJoinProbe (port, username, env = {}) {
       cwd: here,
       env: {
         ...process.env,
-        RUSTCRAFT_HOST: host,
-        RUSTCRAFT_PORT: String(port),
-        RUSTCRAFT_USERNAME: username,
+        VIBECRAFT_HOST: host,
+        VIBECRAFT_PORT: String(port),
+        VIBECRAFT_USERNAME: username,
         ...env
       },
       timeout: 30_000,

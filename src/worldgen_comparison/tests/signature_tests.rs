@@ -160,17 +160,17 @@ fn chunk_signature_report_diff_keys_chunks_by_dimension_and_coordinate() {
 }
 
 #[test]
-fn rustcraft_worldgen_report_uses_gate_compatible_chunk_shape() {
+fn vibecraft_worldgen_report_uses_gate_compatible_chunk_shape() {
     let chunk = crate::worldgen::generate_overworld_chunk_for_preset(
         crate::storage::region::ChunkPos { x: 0, z: 0 },
         "flat",
     )
     .expect("flat preset should generate a concrete chunk");
 
-    let report = build_rustcraft_worldgen_report([("overworld", &chunk)]);
+    let report = build_vibecraft_worldgen_report([("overworld", &chunk)]);
     assert_eq!(
         report.get("format").and_then(Value::as_str),
-        Some("rustcraft-worldgen-signatures-v1")
+        Some("vibecraft-worldgen-signatures-v1")
     );
     let chunks = report
         .get("chunks")
@@ -225,24 +225,24 @@ fn rustcraft_worldgen_report_uses_gate_compatible_chunk_shape() {
 }
 
 #[test]
-fn rustcraft_worldgen_report_round_trips_to_signatures_for_regression_diffs() {
+fn vibecraft_worldgen_report_round_trips_to_signatures_for_regression_diffs() {
     let chunk = crate::worldgen::generate_overworld_chunk_for_preset(
         crate::storage::region::ChunkPos { x: 0, z: 0 },
         "flat",
     )
     .expect("flat preset should generate a concrete chunk");
     let expected = build_chunk_signature(&chunk);
-    let report = build_rustcraft_worldgen_report([("overworld", &chunk)]);
+    let report = build_vibecraft_worldgen_report([("overworld", &chunk)]);
     let raw = serde_json::to_string(&report).unwrap();
 
-    let parsed = parse_rustcraft_worldgen_report(&raw).unwrap();
+    let parsed = parse_vibecraft_worldgen_report(&raw).unwrap();
 
     assert_eq!(parsed, vec![expected]);
 
     let mut altered = report.clone();
     altered["chunks"][0]["status"] = Value::String("minecraft:noise".to_string());
     let altered_signatures =
-        parse_rustcraft_worldgen_report(&serde_json::to_string(&altered).unwrap()).unwrap();
+        parse_vibecraft_worldgen_report(&serde_json::to_string(&altered).unwrap()).unwrap();
     assert_eq!(
         diff_chunk_signature_reports(&parsed, &altered_signatures),
         vec![WorldgenChunkReportDiff::Field(WorldgenChunkSignatureDiff {
@@ -255,40 +255,40 @@ fn rustcraft_worldgen_report_round_trips_to_signatures_for_regression_diffs() {
 }
 
 #[test]
-fn rustcraft_worldgen_report_requires_explicit_chunk_dimension() {
+fn vibecraft_worldgen_report_requires_explicit_chunk_dimension() {
     let chunk = crate::worldgen::generate_overworld_chunk_for_preset(
         crate::storage::region::ChunkPos { x: 0, z: 0 },
         "flat",
     )
     .expect("flat preset should generate a concrete chunk");
-    let mut report = build_rustcraft_worldgen_report([("overworld", &chunk)]);
+    let mut report = build_vibecraft_worldgen_report([("overworld", &chunk)]);
     report["chunks"][0]
         .as_object_mut()
         .unwrap()
         .remove("dimension");
 
     assert_eq!(
-        parse_rustcraft_worldgen_report(&serde_json::to_string(&report).unwrap()).unwrap_err(),
-        "RustCraft chunk missing dimension"
+        parse_vibecraft_worldgen_report(&serde_json::to_string(&report).unwrap()).unwrap_err(),
+        "VibeCraft chunk missing dimension"
     );
 
     report["chunks"][0]["dimension"] = Value::String(String::new());
     assert_eq!(
-        parse_rustcraft_worldgen_report(&serde_json::to_string(&report).unwrap()).unwrap_err(),
-        "RustCraft chunk has empty dimension"
+        parse_vibecraft_worldgen_report(&serde_json::to_string(&report).unwrap()).unwrap_err(),
+        "VibeCraft chunk has empty dimension"
     );
 }
 
 #[test]
-fn rustcraft_worldgen_report_loads_from_generated_json_file() {
+fn vibecraft_worldgen_report_loads_from_generated_json_file() {
     let chunk = crate::worldgen::generate_overworld_chunk_for_preset(
         crate::storage::region::ChunkPos { x: 0, z: 0 },
         "flat",
     )
     .expect("flat preset should generate a concrete chunk");
-    let report = build_rustcraft_worldgen_report([("overworld", &chunk)]);
+    let report = build_vibecraft_worldgen_report([("overworld", &chunk)]);
     let root = std::env::temp_dir().join(format!(
-        "rustcraft-worldgen-report-load-{}",
+        "vibecraft-worldgen-report-load-{}",
         std::process::id()
     ));
     let _ = std::fs::remove_dir_all(&root);
@@ -296,7 +296,7 @@ fn rustcraft_worldgen_report_loads_from_generated_json_file() {
     let path = root.join("worldgen_chunks.json");
     std::fs::write(&path, serde_json::to_string_pretty(&report).unwrap()).unwrap();
 
-    let loaded = load_rustcraft_worldgen_report(&path).unwrap();
+    let loaded = load_vibecraft_worldgen_report(&path).unwrap();
 
     assert_eq!(loaded, vec![build_chunk_signature(&chunk)]);
 
@@ -304,18 +304,18 @@ fn rustcraft_worldgen_report_loads_from_generated_json_file() {
 }
 
 #[test]
-fn rustcraft_worldgen_report_file_diff_flags_snapshot_drift() {
+fn vibecraft_worldgen_report_file_diff_flags_snapshot_drift() {
     let chunk = crate::worldgen::generate_overworld_chunk_for_preset(
         crate::storage::region::ChunkPos { x: 0, z: 0 },
         "flat",
     )
     .expect("flat preset should generate a concrete chunk");
-    let expected = build_rustcraft_worldgen_report([("overworld", &chunk)]);
+    let expected = build_vibecraft_worldgen_report([("overworld", &chunk)]);
     let mut actual = expected.clone();
     actual["chunks"][0]["status"] = Value::String("minecraft:noise".to_string());
 
     let root = std::env::temp_dir().join(format!(
-        "rustcraft-worldgen-report-diff-{}",
+        "vibecraft-worldgen-report-diff-{}",
         std::process::id()
     ));
     let _ = std::fs::remove_dir_all(&root);
@@ -330,7 +330,7 @@ fn rustcraft_worldgen_report_file_diff_flags_snapshot_drift() {
     std::fs::write(&actual_path, serde_json::to_string_pretty(&actual).unwrap()).unwrap();
 
     assert_eq!(
-        diff_rustcraft_worldgen_report_files(&expected_path, &actual_path).unwrap(),
+        diff_vibecraft_worldgen_report_files(&expected_path, &actual_path).unwrap(),
         vec![WorldgenChunkReportDiff::Field(WorldgenChunkSignatureDiff {
             chunk: ChunkCoord { x: 0, z: 0 },
             field: "status",
@@ -428,7 +428,7 @@ fn vanilla_fixture_summary_normalizes_to_chunk_signature_for_rust_diffs() {
 fn parses_vanilla_fixture_report_json_into_signatures() {
     let report = parse_vanilla_fixture_report(
         r#"{
-          "format": "rustcraft-vanilla-worldgen-fixtures-v1",
+          "format": "vibecraft-vanilla-worldgen-fixtures-v1",
           "results": [{
             "fixture": {
               "chunks": [{ "x": 0, "z": -1, "dimension": "the_nether" }]
@@ -471,7 +471,7 @@ fn parses_vanilla_fixture_report_json_into_signatures() {
     )
     .expect("fixture JSON should parse");
 
-    assert_eq!(report.format, "rustcraft-vanilla-worldgen-fixtures-v1");
+    assert_eq!(report.format, "vibecraft-vanilla-worldgen-fixtures-v1");
     assert_eq!(report.chunks.len(), 1);
     let signatures = fixture_report_signatures(&report);
     assert_eq!(signatures[0].dimension, "the_nether");
@@ -489,7 +489,7 @@ fn parses_vanilla_fixture_report_json_into_signatures() {
 
 #[test]
 fn parses_real_tmp_oracle_fixture_report_when_available() {
-    let path = std::path::Path::new("/tmp/rustcraft-vanilla-fixtures.json");
+    let path = std::path::Path::new("/tmp/vibecraft-vanilla-fixtures.json");
     if !path.exists() {
         return;
     }
