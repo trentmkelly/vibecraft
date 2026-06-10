@@ -846,7 +846,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/PlayerChatMessage.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/RemoteChatSession.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/ResolutionContext.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/SignableCommand.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/SignableCommand.java`. Rust `command_argument_signatures::SignableCommandModel` mirrors Java's `of(ParseResults)` extraction of the original command string, argument-node visitation order, signed-argument filtering, null parsed-argument skipping, same-root child traversal with root-redirect rejection, Java UTF-16 string-range slicing, `hasSignableArguments`, and first-match `getArgument`; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 signable_command`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/SignedMessageBody.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/SignedMessageChain.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/SignedMessageLink.java`.

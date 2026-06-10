@@ -1,4 +1,6 @@
+use std::collections::BTreeMap;
 use std::io::{self, Read, Write};
+use std::ops::Range;
 
 use crate::network::codec::{read_string, write_string};
 use crate::network::varint::{read_var_i32, write_var_i32};
@@ -108,10 +110,131 @@ pub struct SignableCommandModel {
     pub arguments: Vec<SignableArgumentModel>,
 }
 
+impl SignableCommandModel {
+    pub fn of(command: &SignableParsedCommandModel) -> Self {
+        let mut arguments = Vec::new();
+        command.visit_arguments(true, |argument| {
+            if argument.is_signed {
+                if let Some(range) = &argument.value_range {
+                    if let Some(value) = java_string_range(&command.command, range.clone()) {
+                        arguments.push(SignableArgumentModel {
+                            name: argument.name.clone(),
+                            value,
+                        });
+                    }
+                }
+            }
+        });
+        Self { arguments }
+    }
+
+    pub fn has_signable_arguments(command: &SignableParsedCommandModel) -> bool {
+        !Self::of(command).arguments.is_empty()
+    }
+
+    pub fn get_argument(&self, name: &str) -> Option<&SignableArgumentModel> {
+        self.arguments.iter().find(|argument| argument.name == name)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SignableArgumentModel {
     pub name: String,
     pub value: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignableParsedCommandModel {
+    pub command: String,
+    pub root: SignableParseContextModel,
+}
+
+impl SignableParsedCommandModel {
+    fn visit_arguments(
+        &self,
+        reject_root_redirects: bool,
+        mut visitor: impl FnMut(VisitedArgument),
+    ) {
+        let root_id = self.root.root_id;
+        let mut context = &self.root;
+        loop {
+            context.visit_node_arguments(&mut visitor);
+            let Some(child) = &context.child else {
+                break;
+            };
+            if reject_root_redirects && child.root_id != root_id {
+                break;
+            }
+            context = child;
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignableParseContextModel {
+    pub root_id: usize,
+    pub nodes: Vec<ParsedCommandNodeModel>,
+    pub arguments: BTreeMap<String, ParsedArgumentRangeModel>,
+    pub child: Option<Box<SignableParseContextModel>>,
+}
+
+impl SignableParseContextModel {
+    fn visit_node_arguments(&self, visitor: &mut impl FnMut(VisitedArgument)) {
+        for node in &self.nodes {
+            if node.kind == ParsedCommandNodeKind::Argument {
+                visitor(VisitedArgument {
+                    name: node.name.clone(),
+                    is_signed: node.is_signed,
+                    value_range: self
+                        .arguments
+                        .get(&node.name)
+                        .map(|value| value.range.clone()),
+                });
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedCommandNodeModel {
+    pub name: String,
+    pub kind: ParsedCommandNodeKind,
+    pub is_signed: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParsedCommandNodeKind {
+    Literal,
+    Argument,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedArgumentRangeModel {
+    pub range: Range<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct VisitedArgument {
+    name: String,
+    is_signed: bool,
+    value_range: Option<Range<usize>>,
+}
+
+fn java_string_range(command: &str, range: Range<usize>) -> Option<String> {
+    let start = byte_index_for_utf16_index(command, range.start)?;
+    let end = byte_index_for_utf16_index(command, range.end)?;
+    command.get(start..end).map(ToString::to_string)
+}
+
+fn byte_index_for_utf16_index(input: &str, index: usize) -> Option<usize> {
+    let mut utf16_position = 0;
+    for (byte_index, ch) in input.char_indices() {
+        if utf16_position == index {
+            return Some(byte_index);
+        }
+        utf16_position += ch.len_utf16();
+    }
+    (utf16_position == index).then_some(input.len())
 }
 
 #[cfg(test)]
@@ -239,5 +362,136 @@ mod tests {
             signed.entries,
             [entry("first", b'o'), entry("second", b't')]
         );
+    }
+
+    fn argument_node(name: &str, is_signed: bool) -> ParsedCommandNodeModel {
+        ParsedCommandNodeModel {
+            name: name.to_string(),
+            kind: ParsedCommandNodeKind::Argument,
+            is_signed,
+        }
+    }
+
+    fn literal_node(name: &str) -> ParsedCommandNodeModel {
+        ParsedCommandNodeModel {
+            name: name.to_string(),
+            kind: ParsedCommandNodeKind::Literal,
+            is_signed: false,
+        }
+    }
+
+    fn context(
+        root_id: usize,
+        nodes: Vec<ParsedCommandNodeModel>,
+        arguments: impl IntoIterator<Item = (&'static str, Range<usize>)>,
+    ) -> SignableParseContextModel {
+        SignableParseContextModel {
+            root_id,
+            nodes,
+            arguments: arguments
+                .into_iter()
+                .map(|(name, range)| (name.to_string(), ParsedArgumentRangeModel { range }))
+                .collect(),
+            child: None,
+        }
+    }
+
+    #[test]
+    fn signable_command_of_visits_nodes_and_keeps_only_signed_non_null_arguments() {
+        let parsed = SignableParsedCommandModel {
+            command: "msg Steve hello there".to_string(),
+            root: context(
+                1,
+                vec![
+                    literal_node("msg"),
+                    argument_node("target", false),
+                    argument_node("message", true),
+                    argument_node("missing", true),
+                ],
+                [("target", 4..9), ("message", 10..21)],
+            ),
+        };
+
+        let command = SignableCommandModel::of(&parsed);
+
+        assert_eq!(
+            command.arguments,
+            [SignableArgumentModel {
+                name: "message".to_string(),
+                value: "hello there".to_string(),
+            }]
+        );
+        assert!(SignableCommandModel::has_signable_arguments(&parsed));
+        assert_eq!(command.get_argument("message"), command.arguments.first());
+        assert_eq!(command.get_argument("target"), None);
+    }
+
+    #[test]
+    fn signable_command_follows_same_root_children_but_stops_at_root_redirects() {
+        let mut root = context(1, vec![argument_node("first", true)], [("first", 4..7)]);
+        let mut same_root_child =
+            context(1, vec![argument_node("second", true)], [("second", 8..11)]);
+        same_root_child.child = Some(Box::new(context(
+            2,
+            vec![argument_node("redirected", true)],
+            [("redirected", 12..15)],
+        )));
+        root.child = Some(Box::new(same_root_child));
+        let parsed = SignableParsedCommandModel {
+            command: "run one two bad".to_string(),
+            root,
+        };
+
+        let command = SignableCommandModel::of(&parsed);
+
+        assert_eq!(
+            command.arguments,
+            [
+                SignableArgumentModel {
+                    name: "first".to_string(),
+                    value: "one".to_string(),
+                },
+                SignableArgumentModel {
+                    name: "second".to_string(),
+                    value: "two".to_string(),
+                },
+            ]
+        );
+        assert_eq!(command.get_argument("redirected"), None);
+    }
+
+    #[test]
+    fn signable_command_get_argument_returns_the_first_matching_name() {
+        let command = SignableCommandModel {
+            arguments: vec![
+                SignableArgumentModel {
+                    name: "message".to_string(),
+                    value: "first".to_string(),
+                },
+                SignableArgumentModel {
+                    name: "message".to_string(),
+                    value: "second".to_string(),
+                },
+            ],
+        };
+
+        assert_eq!(
+            command
+                .get_argument("message")
+                .map(|argument| argument.value.as_str()),
+            Some("first")
+        );
+    }
+
+    #[test]
+    fn signable_command_ranges_use_java_utf16_positions() {
+        let parsed = SignableParsedCommandModel {
+            command: "say hi 🙂".to_string(),
+            root: context(1, vec![argument_node("message", true)], [("message", 4..9)]),
+        };
+
+        let command = SignableCommandModel::of(&parsed);
+
+        assert_eq!(command.arguments[0].value, "hi 🙂");
     }
 }
