@@ -15,6 +15,36 @@ pub struct ComponentJson(pub String);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RegistryValueId(pub i32);
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RegistryFriendlyByteBuf {
+    source: Vec<u8>,
+    registry_access: String,
+}
+
+impl RegistryFriendlyByteBuf {
+    pub fn new(source: Vec<u8>, registry_access: impl Into<String>) -> Self {
+        Self {
+            source,
+            registry_access: registry_access.into(),
+        }
+    }
+
+    pub fn source(&self) -> &[u8] {
+        &self.source
+    }
+
+    pub fn registry_access(&self) -> &str {
+        &self.registry_access
+    }
+
+    pub fn decorator(
+        registry_access: impl Into<String>,
+    ) -> impl Fn(Vec<u8>) -> RegistryFriendlyByteBuf {
+        let registry_access = registry_access.into();
+        move |source| RegistryFriendlyByteBuf::new(source, registry_access.clone())
+    }
+}
+
 pub fn read_string<R: Read>(reader: &mut R, max_chars: usize) -> io::Result<String> {
     let length = read_var_i32(reader)?;
     if length < 0 || length as usize > utf8_max_bytes(max_chars) {
@@ -395,6 +425,42 @@ mod tests {
         assert_eq!(read_string(&mut input, 16).unwrap(), "hello");
         assert_eq!(read_identifier(&mut input).unwrap(), id);
         assert_eq!(read_uuid(&mut input).unwrap(), uuid);
+    }
+
+    #[test]
+    fn registry_friendly_byte_buf_matches_java_wrapper_contract() {
+        const REGISTRY_FRIENDLY_BYTE_BUF_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/RegistryFriendlyByteBuf.java"
+        );
+
+        for sentinel in [
+            "public class RegistryFriendlyByteBuf extends FriendlyByteBuf",
+            "private final RegistryAccess registryAccess;",
+            "public RegistryFriendlyByteBuf(final ByteBuf source, final RegistryAccess registryAccess)",
+            "super(source);",
+            "this.registryAccess = registryAccess;",
+            "public RegistryAccess registryAccess()",
+            "return this.registryAccess;",
+            "public static Function<ByteBuf, RegistryFriendlyByteBuf> decorator(final RegistryAccess registryAccess)",
+            "return buf -> new RegistryFriendlyByteBuf(buf, registryAccess);",
+        ] {
+            assert!(
+                REGISTRY_FRIENDLY_BYTE_BUF_JAVA.contains(sentinel),
+                "missing RegistryFriendlyByteBuf sentinel {sentinel}"
+            );
+        }
+
+        let wrapped = RegistryFriendlyByteBuf::new(vec![1, 2, 3], "minecraft:registry_access");
+        assert_eq!(wrapped.source(), &[1, 2, 3]);
+        assert_eq!(wrapped.registry_access(), "minecraft:registry_access");
+
+        let decorate = RegistryFriendlyByteBuf::decorator("frozen_access");
+        let first = decorate(vec![4]);
+        let second = decorate(vec![5, 6]);
+        assert_eq!(first.source(), &[4]);
+        assert_eq!(second.source(), &[5, 6]);
+        assert_eq!(first.registry_access(), "frozen_access");
+        assert_eq!(second.registry_access(), "frozen_access");
     }
 
     #[test]
