@@ -373,10 +373,16 @@ impl Style {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Eq)]
 pub struct TextColor {
     value: u32,
     name: Option<&'static str>,
+}
+
+impl PartialEq for TextColor {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value
+    }
 }
 
 impl TextColor {
@@ -385,6 +391,10 @@ impl TextColor {
             value: value & 0xFF_FFFF,
             name: None,
         }
+    }
+
+    pub fn value(&self) -> u32 {
+        self.value
     }
 
     pub fn parse(value: &str) -> Option<Self> {
@@ -881,10 +891,40 @@ mod tests {
 
     #[test]
     fn text_colors_parse_legacy_names_and_hex_values() {
+        const TEXT_COLOR_JAVA: &str = include_str!(
+            "../../decompiled-server-26.1.2/net/minecraft/network/chat/TextColor.java"
+        );
+
+        for sentinel in [
+            "private static final String CUSTOM_COLOR_PREFIX = \"#\";",
+            "Codec.STRING.comapFlatMap(TextColor::parseColor, TextColor::serialize)",
+            "this.value = value & 16777215;",
+            "return this.name != null ? this.name : this.formatValue();",
+            "String.format(Locale.ROOT, \"#%06X\", this.value)",
+            "return this.value == other.value;",
+            "public static @Nullable TextColor fromLegacyFormat",
+            "public static TextColor fromRgb(final int rgb)",
+            "if (color.startsWith(\"#\"))",
+            "Integer.parseInt(color.substring(1), 16)",
+            "value >= 0 && value <= 16777215",
+            "NAMED_COLORS.get(color)",
+        ] {
+            assert!(
+                TEXT_COLOR_JAVA.contains(sentinel),
+                "missing TextColor sentinel {sentinel}"
+            );
+        }
+
         assert_eq!(TextColor::parse("red").unwrap().serialize(), "red");
         assert_eq!(TextColor::parse("#00aB09").unwrap().serialize(), "#00AB09");
         assert!(TextColor::parse("#1000000").is_none());
         assert!(TextColor::parse("not_a_color").is_none());
+        assert_eq!(TextColor::from_rgb(0x1FF_0000).value(), 0xFF_0000);
+        assert_eq!(
+            TextColor::parse("red").unwrap(),
+            TextColor::from_rgb(0xFF_5555)
+        );
+        assert_eq!(TextColor::from_rgb(0x00_AB09).serialize(), "#00AB09");
     }
 
     #[test]
