@@ -898,6 +898,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn last_seen_messages_match_java_checksum_pack_and_update_contracts() {
         const LAST_SEEN_MESSAGES_JAVA: &str = include_str!(
             "../../decompiled-server-26.1.2/net/minecraft/network/chat/LastSeenMessages.java"

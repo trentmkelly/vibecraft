@@ -1,5 +1,4 @@
 use super::super::*;
-use super::*;
 
 #[test]
 fn entity_movement_mount_link_and_animation_packets_capture_vanilla_shapes() {

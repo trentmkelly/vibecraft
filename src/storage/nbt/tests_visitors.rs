@@ -191,6 +191,7 @@ fn field_selector_and_tree_match_java_path_type_name_contract() {
 }
 
 #[test]
+#[allow(clippy::cognitive_complexity, clippy::too_many_lines)]
 fn collect_to_tag_visitor_matches_java_builder_stack_contract() {
     for sentinel in [
         "private final Deque<CollectToTag.ContainerBuilder> containerStack = new ArrayDeque<>();",

@@ -1,5 +1,4 @@
 use super::super::*;
-use super::*;
 
 #[test]
 fn chunk_signature_normalizes_generated_chunk_shape_for_vanilla_fixture_diffs() {

@@ -517,7 +517,7 @@ mod tests {
 
         let three_byte_char = "\u{20AC}";
         assert_eq!(three_byte_char.encode_utf16().count(), 1);
-        assert_eq!(three_byte_char.as_bytes().len(), 3);
+        assert_eq!(three_byte_char.len(), 3);
         let mut bytes = Vec::new();
         write_string(&mut bytes, three_byte_char, 1).unwrap();
         assert_eq!(read_string(&mut cursor(bytes), 1).unwrap(), three_byte_char);

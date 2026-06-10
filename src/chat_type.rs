@@ -248,6 +248,7 @@ mod tests {
     use crate::storage::nbt::Tag;
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn chat_type_and_decoration_match_java_bootstrap_and_parameters() {
         const CHAT_TYPE_JAVA: &str =
             include_str!("../../decompiled-server-26.1.2/net/minecraft/network/chat/ChatType.java");

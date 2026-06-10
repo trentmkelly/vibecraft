@@ -179,7 +179,7 @@ mod tests {
         let mut expected = Vec::new();
         expected.extend_from_slice(&(-7_i64).to_be_bytes());
         expected.extend_from_slice(&42_i64.to_be_bytes());
-        expected.extend_from_slice(&(body.content.as_bytes().len() as i32).to_be_bytes());
+        expected.extend_from_slice(&(body.content.len() as i32).to_be_bytes());
         expected.extend_from_slice(body.content.as_bytes());
         expected.extend_from_slice(&2_i32.to_be_bytes());
         expected.extend_from_slice(first.bytes());

@@ -683,6 +683,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn unconfigured_pipeline_handler_matches_java_inbound_and_outbound_contracts() {
         const UNCONFIGURED_JAVA: &str = include_str!(
             "../../../decompiled-server-26.1.2/net/minecraft/network/UnconfiguredPipelineHandler.java"

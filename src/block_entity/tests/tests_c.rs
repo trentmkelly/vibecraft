@@ -3,7 +3,6 @@ use super::super::decorated_pot_patterns::{
     decorated_pot_pattern_asset_id, decorated_pot_pattern_from_item, DECORATED_POT_PATTERNS,
 };
 use super::super::*;
-use super::*;
 
 const EXPECTED_DECORATED_POT_PATTERNS: &[(&str, &str, &str)] = &[
     ("blank", "decorated_pot_side", "minecraft:brick"),

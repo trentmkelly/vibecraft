@@ -193,6 +193,7 @@ mod tests {
     use crate::chat_component::{ResolutionContext, TranslationTable};
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn common_components_match_java_constants_and_helpers() {
         const COMMON_COMPONENTS_JAVA: &str = include_str!(
             "../../decompiled-server-26.1.2/net/minecraft/network/chat/CommonComponents.java"

@@ -229,6 +229,7 @@ fn nbt_tag_type_registry_metadata_matches_java() {
 }
 
 #[test]
+#[allow(clippy::cognitive_complexity)]
 fn tag_interface_matches_java_ids_types_sizes_and_optional_accessors() {
     for sentinel in [
         "public sealed interface Tag permits CompoundTag, CollectionTag, PrimitiveTag, EndTag",
@@ -327,6 +328,7 @@ fn tag_interface_matches_java_ids_types_sizes_and_optional_accessors() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn tag_visitor_dispatch_matches_java_visit_methods() {
     for sentinel in [
         "void visitString(StringTag tag);",
@@ -463,6 +465,7 @@ fn reported_nbt_exception_is_reported_exception_wrapper_like_java() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn scalar_nbt_tag_classes_match_java_payloads_sizes_and_copy_contracts() {
     for (source, sentinels) in [
         (
@@ -890,6 +893,7 @@ fn list_tag_matches_java_homogeneous_and_wrapper_contracts() {
 }
 
 #[test]
+#[allow(clippy::cognitive_complexity)]
 fn numeric_and_primitive_tag_interface_conversions_match_java() {
     for sentinel in [
         "public sealed interface NumericTag extends PrimitiveTag",
