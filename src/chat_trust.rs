@@ -2,12 +2,15 @@
 
 #[path = "last_seen_tracking.rs"]
 pub mod last_seen_tracking;
+#[path = "signed_message_link.rs"]
+pub mod signed_message_link;
 
 use std::collections::{BTreeMap, VecDeque};
 use std::io::{self, Read, Write};
 
 use crate::network::codec::Uuid;
 use crate::server_properties::ServerProperties;
+pub use signed_message_link::SignedMessageLink;
 
 pub const SIGNATURE_CACHE_SIZE: usize = 20;
 pub const CHAT_CHAIN_BROKEN: &str = "multiplayer.disconnect.chat_validation_failed";
@@ -108,13 +111,6 @@ pub struct SignedMessageBody {
     pub last_seen: Vec<MessageSignature>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SignedMessageLink {
-    pub sender: Uuid,
-    pub session_id: Uuid,
-    pub index: u32,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SignedMessage {
     pub link: SignedMessageLink,
@@ -126,7 +122,7 @@ pub struct SignedMessage {
 pub struct ChatChain {
     sender: Uuid,
     session_id: Uuid,
-    next_index: u32,
+    next_index: i32,
     previous_signature: Option<MessageSignature>,
 }
 
@@ -209,7 +205,7 @@ pub struct PlayerSafetyTextFilterConfig {
 pub struct PlayerReportMetadata {
     pub sender: Uuid,
     pub session_id: Option<Uuid>,
-    pub message_index: Option<u32>,
+    pub message_index: Option<i32>,
     pub signature: Option<MessageSignature>,
     pub signed_body: Option<SignedMessageBody>,
     pub reported_text: String,
@@ -632,9 +628,7 @@ pub fn signed_message_payload(
     previous_signature: Option<&MessageSignature>,
 ) -> Vec<u8> {
     let mut payload = Vec::new();
-    payload.extend_from_slice(&link.sender.0);
-    payload.extend_from_slice(&link.session_id.0);
-    payload.extend_from_slice(&link.index.to_be_bytes());
+    link.update_signature(&mut payload);
     payload.extend_from_slice(&body.salt.to_be_bytes());
     payload.extend_from_slice(&body.timestamp_millis.to_be_bytes());
     payload.extend_from_slice(&(body.content.len() as i32).to_be_bytes());
