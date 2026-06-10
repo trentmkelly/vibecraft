@@ -20,6 +20,8 @@ pub mod number_format;
 pub mod plain_text_contents;
 #[path = "resolution_context.rs"]
 pub mod resolution_context;
+#[path = "sub_string_source.rs"]
+pub mod sub_string_source;
 #[path = "throwing_component.rs"]
 pub mod throwing_component;
 #[path = "translatable_format_exception.rs"]
