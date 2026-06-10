@@ -36,21 +36,45 @@ fn block_level_constants_match_java_blocks_registrations() {
     assert_eq!(stone.jump_factor, 1.0);
 
     // Java: .friction(0.8F) on slime, .friction(0.98F) on ice/packed/blue ice.
-    assert_eq!(block_physics("minecraft:slime_block").expect("slime").friction, 0.8);
+    assert_eq!(
+        block_physics("minecraft:slime_block")
+            .expect("slime")
+            .friction,
+        0.8
+    );
     assert_eq!(block_physics("minecraft:ice").expect("ice").friction, 0.98);
-    assert_eq!(block_physics("minecraft:blue_ice").expect("blue ice").friction, 0.989);
+    assert_eq!(
+        block_physics("minecraft:blue_ice")
+            .expect("blue ice")
+            .friction,
+        0.989
+    );
 
     // Java: .speedFactor(0.4F) soul sand, .jumpFactor(0.5F) honey block.
-    assert_eq!(block_physics("minecraft:soul_sand").expect("soul sand").speed_factor, 0.4);
-    assert_eq!(block_physics("minecraft:honey_block").expect("honey").jump_factor, 0.5);
+    assert_eq!(
+        block_physics("minecraft:soul_sand")
+            .expect("soul sand")
+            .speed_factor,
+        0.4
+    );
+    assert_eq!(
+        block_physics("minecraft:honey_block")
+            .expect("honey")
+            .jump_factor,
+        0.5
+    );
 
     // Java: obsidian .strength(50.0F, 1200.0F), bedrock resistance 3600000.
     assert_eq!(
-        block_physics("minecraft:obsidian").expect("obsidian").explosion_resistance,
+        block_physics("minecraft:obsidian")
+            .expect("obsidian")
+            .explosion_resistance,
         1200.0
     );
     assert_eq!(
-        block_physics("minecraft:bedrock").expect("bedrock").explosion_resistance,
+        block_physics("minecraft:bedrock")
+            .expect("bedrock")
+            .explosion_resistance,
         3_600_000.0
     );
 }
@@ -86,17 +110,26 @@ fn state_physics_match_java_block_state_base_accessors() {
 fn fluid_states_and_light_match_java() {
     assert_eq!(
         physics("minecraft:water").fluid,
-        StateFluid::Water { amount: 8, source: true }
+        StateFluid::Water {
+            amount: 8,
+            source: true
+        }
     );
     assert_eq!(
         physics("minecraft:water[level=2]").fluid,
-        StateFluid::Water { amount: 6, source: false }
+        StateFluid::Water {
+            amount: 6,
+            source: false
+        }
     );
 
     // Waterlogged states carry a water source fluid.
     assert_eq!(
         physics("minecraft:oak_stairs[waterlogged=true]").fluid,
-        StateFluid::Water { amount: 8, source: true }
+        StateFluid::Water {
+            amount: 8,
+            source: true
+        }
     );
 
     // Light dampening: solid block = 15, ice = 1 (translucent), air = 0.
@@ -105,19 +138,40 @@ fn fluid_states_and_light_match_java() {
     assert_eq!(physics("minecraft:air").light_dampening, 0);
 
     // Lit-state-dependent light emission on redstone torches.
-    assert_eq!(physics("minecraft:redstone_torch[lit=true]").light_emission, 7);
-    assert_eq!(physics("minecraft:redstone_torch[lit=false]").light_emission, 0);
+    assert_eq!(
+        physics("minecraft:redstone_torch[lit=true]").light_emission,
+        7
+    );
+    assert_eq!(
+        physics("minecraft:redstone_torch[lit=false]").light_emission,
+        0
+    );
 }
 
 #[test]
 fn push_reactions_and_block_flags_match_java() {
     // Push reactions. Note: obsidian is NORMAL here — Java blocks pushing it via a
     // hardcoded check in PistonBaseBlock.isPushable (line 241), not the property.
-    assert_eq!(physics("minecraft:obsidian").push_reaction, PushReaction::Normal);
-    assert_eq!(physics("minecraft:anvil").push_reaction, PushReaction::Block);
-    assert_eq!(physics("minecraft:piston").push_reaction, PushReaction::Block);
-    assert_eq!(physics("minecraft:stone").push_reaction, PushReaction::Normal);
-    assert_eq!(physics("minecraft:torch").push_reaction, PushReaction::Destroy);
+    assert_eq!(
+        physics("minecraft:obsidian").push_reaction,
+        PushReaction::Normal
+    );
+    assert_eq!(
+        physics("minecraft:anvil").push_reaction,
+        PushReaction::Block
+    );
+    assert_eq!(
+        physics("minecraft:piston").push_reaction,
+        PushReaction::Block
+    );
+    assert_eq!(
+        physics("minecraft:stone").push_reaction,
+        PushReaction::Normal
+    );
+    assert_eq!(
+        physics("minecraft:torch").push_reaction,
+        PushReaction::Destroy
+    );
 
     // Block-entity holders and signal sources.
     assert!(physics("minecraft:chest").has_block_entity);
@@ -131,11 +185,17 @@ fn voxel_shapes_match_java_block_shape_definitions() {
     // Full cube.
     let stone = physics("minecraft:stone");
     assert_eq!(shape(stone.shape), &[[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]]);
-    assert_eq!(shape(stone.collision_shape), &[[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]]);
+    assert_eq!(
+        shape(stone.collision_shape),
+        &[[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]]
+    );
 
     // Java TorchBlock AABB: box(6, 0, 6, 10, 10, 10) / 16.
     let torch = physics("minecraft:torch");
-    assert_eq!(shape(torch.shape), &[[0.375, 0.0, 0.375, 0.625, 0.625, 0.625]]);
+    assert_eq!(
+        shape(torch.shape),
+        &[[0.375, 0.0, 0.375, 0.625, 0.625, 0.625]]
+    );
     assert_eq!(shape(torch.collision_shape), &[] as &[ShapeBox]);
 
     // Java SlabBlock bottom AABB: box(0, 0, 0, 16, 8, 16) / 16.

@@ -20,6 +20,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.world.level.EmptyBlockGetter;
@@ -29,13 +30,19 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.level.pathfinder.PathComputationType;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
 public class BlockPropertyDump {
    private static final Map<String, Integer> SHAPE_INDICES = new LinkedHashMap<>();
    private static final JsonArray SHAPES = new JsonArray();
 
-   public static void main(String[] args) {
+   /// Representative VoxelShape instance per interned occlusion-shape index, used
+   /// to compute the exact light-occlusion matrices with the real Shapes functions.
+   private static final Map<Integer, VoxelShape> OCCLUSION_SHAPE_INSTANCES = new LinkedHashMap<>();
+
+   public static void main(String[] args) throws java.io.IOException {
+      java.nio.file.Path outputDir = java.nio.file.Path.of(args.length > 0 ? args[0] : ".");
       SharedConstants.tryDetectVersion();
       Bootstrap.bootStrap();
 
@@ -62,7 +69,114 @@ public class BlockPropertyDump {
       root.add("shapes", SHAPES);
 
       Gson gson = new GsonBuilder().create();
-      System.out.println(gson.toJson(root));
+      java.nio.file.Files.writeString(
+         outputDir.resolve("block_properties_26_1_2.json"), gson.toJson(root)
+      );
+      java.nio.file.Files.writeString(
+         outputDir.resolve("light_occlusion_26_1_2.json"), gson.toJson(lightOcclusionTables())
+      );
+   }
+
+   /// Exact light-occlusion relationship tables, evaluated by the real Java shape
+   /// code so VibeCraft never has to reimplement VoxelShape boolean joins:
+   ///
+   /// - LightEngine.getLightBlockInto -> Shapes.mergedFaceOccludes(from, to, dir)
+   ///   over full occlusion shapes. Direction folds onto its axis: for the negative
+   ///   direction of an axis, mergedFaceOccludes(a, b, neg) == matrix_axis[b][a].
+   /// - LightEngine.shapeOccludes / ChunkSkyLightSources.isEdgeOccluded ->
+   ///   Shapes.faceShapeOccludes(faceShape(from, dir), faceShape(to, dir.opposite))
+   ///   over per-direction face shapes (BlockStateBase.getFaceOcclusionShape).
+   ///
+   /// All indices into `occlusion_shapes` reference the block-properties report's
+   /// global `shapes` interning; `face_shapes` are interned locally.
+   private static JsonObject lightOcclusionTables() {
+      JsonObject root = new JsonObject();
+      root.addProperty("format", "vibecraft-light-occlusion-v1");
+
+      java.util.List<Integer> occlusionIndices = new java.util.ArrayList<>(
+         OCCLUSION_SHAPE_INSTANCES.keySet()
+      );
+      JsonArray occlusionShapeIndices = new JsonArray();
+      occlusionIndices.forEach(occlusionShapeIndices::add);
+      root.add("occlusion_shapes", occlusionShapeIndices);
+
+      // Face shapes per occlusion shape, in Java Direction ordinal order
+      // (DOWN, UP, NORTH, SOUTH, WEST, EAST). Interned locally.
+      Map<String, Integer> faceShapeIndices = new LinkedHashMap<>();
+      java.util.List<VoxelShape> faceShapes = new java.util.ArrayList<>();
+      JsonArray faceShapeBoxes = new JsonArray();
+      JsonArray facesPerOcclusionShape = new JsonArray();
+      for (Integer occlusionIndex : occlusionIndices) {
+         VoxelShape shape = OCCLUSION_SHAPE_INSTANCES.get(occlusionIndex);
+         JsonArray faces = new JsonArray();
+         for (Direction direction : Direction.values()) {
+            VoxelShape faceShape = shape.getFaceShape(direction);
+            String key = shapeKey(faceShape);
+            Integer index = faceShapeIndices.get(key);
+            if (index == null) {
+               index = faceShapes.size();
+               faceShapeIndices.put(key, index);
+               faceShapes.add(faceShape);
+               faceShapeBoxes.add(shapeBoxes(faceShape));
+            }
+            faces.add(index);
+         }
+         facesPerOcclusionShape.add(faces);
+      }
+      root.add("face_shapes", faceShapeBoxes);
+      root.add("faces_per_occlusion_shape", facesPerOcclusionShape);
+
+      // faceShapeOccludes over every face-shape pair.
+      JsonArray faceOccludes = new JsonArray();
+      for (VoxelShape first : faceShapes) {
+         StringBuilder row = new StringBuilder(faceShapes.size());
+         for (VoxelShape second : faceShapes) {
+            row.append(Shapes.faceShapeOccludes(first, second) ? '1' : '0');
+         }
+         faceOccludes.add(row.toString());
+      }
+      root.add("face_shape_occludes", faceOccludes);
+
+      // mergedFaceOccludes over every occlusion-shape pair, for the positive
+      // direction of each axis (negative direction = transposed lookup).
+      JsonObject merged = new JsonObject();
+      for (Direction direction : new Direction[]{Direction.EAST, Direction.UP, Direction.SOUTH}) {
+         JsonArray matrix = new JsonArray();
+         for (Integer fromIndex : occlusionIndices) {
+            VoxelShape from = OCCLUSION_SHAPE_INSTANCES.get(fromIndex);
+            StringBuilder row = new StringBuilder(occlusionIndices.size());
+            for (Integer toIndex : occlusionIndices) {
+               VoxelShape to = OCCLUSION_SHAPE_INSTANCES.get(toIndex);
+               row.append(Shapes.mergedFaceOccludes(from, to, direction) ? '1' : '0');
+            }
+            matrix.add(row.toString());
+         }
+         merged.add(direction.getAxis().getName(), matrix);
+      }
+      root.add("merged_face_occludes", merged);
+      return root;
+   }
+
+   private static String shapeKey(VoxelShape shape) {
+      StringBuilder key = new StringBuilder();
+      for (AABB box : shape.toAabbs()) {
+         for (double value : new double[]{box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ}) {
+            key.append(value).append(',');
+         }
+      }
+      return key.toString();
+   }
+
+   private static JsonArray shapeBoxes(VoxelShape shape) {
+      JsonArray boxes = new JsonArray();
+      for (AABB box : shape.toAabbs()) {
+         JsonArray coordinates = new JsonArray();
+         for (double value : new double[]{box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ}) {
+            coordinates.add(value);
+         }
+         boxes.add(coordinates);
+      }
+      return boxes;
    }
 
    private static JsonObject dumpState(BlockState state) {
@@ -107,7 +221,11 @@ public class BlockPropertyDump {
       json.addProperty(
          "collision_shape", shapeIndex(() -> state.getCollisionShape(EmptyBlockGetter.INSTANCE, BlockPos.ZERO))
       );
-      json.addProperty("occlusion_shape", shapeIndex(state::getOcclusionShape));
+      Integer occlusionShapeIndex = shapeIndex(state::getOcclusionShape);
+      if (occlusionShapeIndex != null) {
+         OCCLUSION_SHAPE_INSTANCES.putIfAbsent(occlusionShapeIndex, state.getOcclusionShape());
+      }
+      json.addProperty("occlusion_shape", occlusionShapeIndex);
       json.addProperty(
          "interaction_shape", shapeIndex(() -> state.getInteractionShape(EmptyBlockGetter.INSTANCE, BlockPos.ZERO))
       );

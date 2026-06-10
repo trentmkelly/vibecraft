@@ -183,12 +183,7 @@ fn f12_run_light_updates_drains_queues_and_counts_nodes() {
         // Place a torch at (0, 1, 0) inside chunk (0, 0).
         chunk.insert(
             (0, 1, 0),
-            LightBlockProperties {
-                opacity: 0,
-                emission: 14,
-                uses_shape_for_light_occlusion: false,
-                occlusion_shape_occludes_full_face: false,
-            },
+            crate::lighting::block_light_properties::light_properties_for("minecraft:torch"),
         );
     });
     let getter = SimpleChunkGetter::new(level_height_overworld_test(), chunks);
@@ -212,12 +207,7 @@ fn f5_block_light_propagates_from_emission_with_min_opacity() {
         // Torch at (8, 1, 8) in chunk (0, 0).
         chunk.insert(
             (8, 1, 8),
-            LightBlockProperties {
-                opacity: 0,
-                emission: 14,
-                uses_shape_for_light_occlusion: false,
-                occlusion_shape_occludes_full_face: false,
-            },
+            crate::lighting::block_light_properties::light_properties_for("minecraft:torch"),
         );
     });
     let getter = SimpleChunkGetter::new(level_height_overworld_test(), chunks);
@@ -249,12 +239,7 @@ fn f6_block_light_propagates_across_section_boundary() {
         // into y=16 (section y=1) at level 13.
         chunk.insert(
             (0, 15, 0),
-            LightBlockProperties {
-                opacity: 0,
-                emission: 14,
-                uses_shape_for_light_occlusion: false,
-                occlusion_shape_occludes_full_face: false,
-            },
+            crate::lighting::block_light_properties::light_properties_for("minecraft:torch"),
         );
     });
     let getter = SimpleChunkGetter::new(level_height_overworld_test(), chunks);
@@ -281,12 +266,7 @@ fn f7_block_light_propagates_across_chunk_boundary() {
     // Torch at world (15, 4, 8) -> chunk (0, 0) local (15, 4, 8).
     left.insert(
         (15, 4, 8),
-        LightBlockProperties {
-            opacity: 0,
-            emission: 14,
-            uses_shape_for_light_occlusion: false,
-            occlusion_shape_occludes_full_face: false,
-        },
+        crate::lighting::block_light_properties::light_properties_for("minecraft:torch"),
     );
     chunks.insert((0, 0), left);
     chunks.insert((1, 0), TestChunk::default());
@@ -344,12 +324,7 @@ fn f9_sky_light_blocked_column_decays_below_stone() {
     let chunks = single_chunk_with(|chunk| {
         chunk.insert(
             (4, blocker_y, 4),
-            LightBlockProperties {
-                opacity: 15,
-                emission: 0,
-                uses_shape_for_light_occlusion: false,
-                occlusion_shape_occludes_full_face: true,
-            },
+            crate::lighting::block_light_properties::light_properties_for("minecraft:stone"),
         );
     });
     let getter = SimpleChunkGetter::new(level_height_overworld_test(), chunks);
@@ -384,12 +359,9 @@ fn f10_sky_light_cardinal_bleed_under_overhang() {
             for z in 4..=7 {
                 chunk.insert(
                     (x, 80, z),
-                    LightBlockProperties {
-                        opacity: 15,
-                        emission: 0,
-                        uses_shape_for_light_occlusion: false,
-                        occlusion_shape_occludes_full_face: true,
-                    },
+                    crate::lighting::block_light_properties::light_properties_for(
+                        "minecraft:stone",
+                    ),
                 );
             }
         }
@@ -437,7 +409,7 @@ fn diagnostic_modern_decoration_blocks_are_transparent() {
         "minecraft:spore_blossom",
         "minecraft:big_dripleaf",
         "minecraft:small_dripleaf",
-        "minecraft:hanging_moss",
+        "minecraft:pale_hanging_moss",
         "minecraft:crimson_roots",
         "minecraft:warped_roots",
         "minecraft:bamboo",
@@ -445,8 +417,8 @@ fn diagnostic_modern_decoration_blocks_are_transparent() {
         let props = light_properties_for(name);
         assert_eq!(props.opacity, 0, "{name} should be opacity 0");
         assert!(
-            !props.occlusion_shape_occludes_full_face,
-            "{name} should not seal its face below"
+            props.has_empty_occlusion_shape(),
+            "{name} should have an empty light-occlusion shape"
         );
     }
 }
@@ -461,12 +433,8 @@ fn diagnostic_sky_light_bleeds_horizontally_from_shaft_into_cavern() {
     // shaft column). Sky-light has to travel down the shaft, then bleed
     // sideways at y=64 through the cavern, dropping by 1 per block.
     let chunks = single_chunk_with(|chunk| {
-        let stone = LightBlockProperties {
-            opacity: 15,
-            emission: 0,
-            uses_shape_for_light_occlusion: false,
-            occlusion_shape_occludes_full_face: true,
-        };
+        let stone =
+            crate::lighting::block_light_properties::light_properties_for("minecraft:stone");
         for x in 0..16_i32 {
             for z in 0..16_i32 {
                 if x == 8 && z == 8 {
@@ -507,24 +475,22 @@ fn diagnostic_sky_light_bleeds_horizontally_from_shaft_into_cavern() {
     assert_eq!(get_sky_light_at(&engine, 15, 64, 8), 8);
 }
 
-// ---- F11. Sky-light occlusion-shape fallback ----
+// ---- F11. Sky-light through partial occlusion shapes (real slab) ----
 #[test]
-fn f11_sky_light_partial_shape_fallback_documented() {
-    // VibeCraft does not yet wire voxel shapes through `LightBlockProperties`;
-    // F11 verifies the documented fallback behaviour: a block with
-    // `uses_shape_for_light_occlusion = true` but a non-sealed face acts as
-    // a transparent block to the lighting engine.
+fn f11_sky_light_bottom_slab_seals_below_but_lights_its_own_cell() {
+    // A dry bottom slab dampens 0 and uses its real occlusion shape. Java:
+    // - `isEdgeOccluded(air, slab)` is false (the slab's UP face shape at
+    //   y=0.5 does not occlude), so the slab's own cell still counts as a
+    //   direct sky source (level 15);
+    // - `isEdgeOccluded(slab, air)` is true (the slab's DOWN face shape seals
+    //   the full face), so the column below is cut off and only receives
+    //   cardinal bleed from open neighbour columns (level 14).
     let chunks = single_chunk_with(|chunk| {
-        // Half-occluding "slab" stand-in: dampens by 0 (so light passes),
-        // claims to use shape, but its full-face flag is false.
         chunk.insert(
             (3, 50, 3),
-            LightBlockProperties {
-                opacity: 0,
-                emission: 0,
-                uses_shape_for_light_occlusion: true,
-                occlusion_shape_occludes_full_face: false,
-            },
+            crate::lighting::block_light_properties::light_properties_for(
+                "minecraft:oak_slab[type=bottom,waterlogged=false]",
+            ),
         );
     });
     let getter = SimpleChunkGetter::new(level_height_overworld_test(), chunks);
@@ -538,8 +504,8 @@ fn f11_sky_light_partial_shape_fallback_documented() {
     engine.propagate_light_sources(&getter, 0, 0);
     engine.run_light_updates(&getter);
 
-    // With shape declared but face open, sky-light still passes (0 opacity).
-    assert_eq!(get_sky_light_at(&engine, 3, 49, 3), 15);
+    assert_eq!(get_sky_light_at(&engine, 3, 50, 3), 15);
+    assert_eq!(get_sky_light_at(&engine, 3, 49, 3), 14);
 }
 
 // ---- F13. hasDifferentLightProperties ----
@@ -563,11 +529,16 @@ fn f14_opacity_values_match_vanilla_block_metadata() {
     assert_eq!(light_properties_for("minecraft:air").opacity, 0);
     assert_eq!(light_properties_for("minecraft:stone").opacity, 15);
     assert_eq!(light_properties_for("minecraft:water").opacity, 1);
-    assert_eq!(light_properties_for("minecraft:ice").opacity, 2);
+    // 26.1.2 getLightDampening is purely `isSolidRender ? 15 :
+    // propagatesSkylightDown ? 0 : 1` — the legacy per-block lightBlock(2)
+    // override on ice is gone, so ice dampens 1, and lava (a non-propagating
+    // non-solid-render liquid) also dampens 1.
+    assert_eq!(light_properties_for("minecraft:ice").opacity, 1);
     assert_eq!(light_properties_for("minecraft:oak_leaves").opacity, 1);
     assert_eq!(light_properties_for("minecraft:cobweb").opacity, 1);
     assert_eq!(light_properties_for("minecraft:glass").opacity, 0);
-    assert_eq!(light_properties_for("minecraft:lava").opacity, 0);
+    assert_eq!(light_properties_for("minecraft:lava").opacity, 1);
+    assert_eq!(light_properties_for("minecraft:tinted_glass").opacity, 15);
 }
 
 // ---- F15. Emission sourcing ----

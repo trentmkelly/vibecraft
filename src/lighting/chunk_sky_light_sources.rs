@@ -147,10 +147,10 @@ impl ChunkSkyLightSources {
 
 /// Java: `isEdgeOccluded(BlockState top, BlockState bottom)`.
 ///
-/// Vanilla checks `getLightDampening() != 0` first (i.e. opacity > 0), then
-/// falls back to merged occlusion shapes when the bottom has empty opacity
-/// (mostly fluids/leaves edge cases). Without voxel shapes we approximate the
-/// shape merge using the `occlusion_shape_occludes_full_face` flag.
+/// Vanilla checks `bottomState.getLightDampening() != 0` first, then evaluates
+/// `Shapes.faceShapeOccludes(LightEngine.getOcclusionShape(top, DOWN),
+/// LightEngine.getOcclusionShape(bottom, UP))` — exact here via the vendored
+/// face-shape matrices.
 fn is_edge_occluded(
     top: super::light_chunk::LightBlockProperties,
     bottom: super::light_chunk::LightBlockProperties,
@@ -158,9 +158,10 @@ fn is_edge_occluded(
     if bottom.opacity != 0 {
         return true;
     }
-    // Both faces full -> edge sealed.
-    let top_face = !top.has_empty_occlusion_shape() && top.occlusion_shape_occludes_full_face;
-    let bottom_face =
-        !bottom.has_empty_occlusion_shape() && bottom.occlusion_shape_occludes_full_face;
-    top_face && bottom_face
+    crate::block_properties::face_shape_occludes(
+        top.gated_occlusion(),
+        super::direction::Direction::Down.ordinal(),
+        bottom.gated_occlusion(),
+        super::direction::Direction::Up.ordinal(),
+    )
 }

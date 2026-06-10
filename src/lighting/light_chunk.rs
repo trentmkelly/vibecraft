@@ -15,48 +15,66 @@ use crate::lighting::direction::Direction;
 use crate::lighting::level_height::LevelHeightAccessor;
 
 /// The light-relevant subset of a block state. Constructed via
-/// [`crate::lighting::block_light_properties::light_properties_for`] from
-/// real block metadata.
+/// [`crate::lighting::block_light_properties::light_properties_for`] from the
+/// authoritative per-state tables in [`crate::block_properties`].
 ///
 /// Java equivalents:
 /// - `opacity` -> `BlockState.getLightDampening()`.
 /// - `emission` -> `BlockState.getLightEmission()`.
+/// - `can_occlude` -> `BlockState.canOcclude()`.
 /// - `uses_shape_for_light_occlusion` -> `BlockState.useShapeForLightOcclusion()`.
-/// - `occlusion_shape_occludes_full_face` -> Java looks at the per-face shape;
-///   we model the "fully sealed" outcome with a single boolean because
-///   VibeCraft does not yet expose `VoxelShape` data. Blocks with
-///   `uses_shape_for_light_occlusion == false` always have an empty
-///   occlusion shape (the common case for vanilla solid blocks).
+/// - `occlusion` -> the state's full occlusion shape
+///   (`BlockState.getOcclusionShape()`), as a position in the occlusion-shape
+///   universe of [`crate::block_properties`], whose vendored matrices evaluate
+///   `Shapes.mergedFaceOccludes` / `Shapes.faceShapeOccludes` exactly.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LightBlockProperties {
     pub opacity: u8,
     pub emission: u8,
+    pub can_occlude: bool,
     pub uses_shape_for_light_occlusion: bool,
-    pub occlusion_shape_occludes_full_face: bool,
+    pub occlusion: u16,
 }
 
 impl LightBlockProperties {
     /// Java: `Blocks.BEDROCK.defaultBlockState()` — fallback when a chunk
-    /// pointer is null.
+    /// pointer is null. Bedrock is `canOcclude` but not
+    /// `useShapeForLightOcclusion`, so its occlusion shape is empty for the
+    /// light engine; full darkness comes from `opacity == 15`.
     pub const BEDROCK_FALLBACK: Self = Self {
         opacity: MAX_LIGHT_LEVEL,
         emission: 0,
+        can_occlude: true,
         uses_shape_for_light_occlusion: false,
-        occlusion_shape_occludes_full_face: true,
+        occlusion: crate::block_properties::EMPTY_OCCLUSION_POSITION,
     };
 
     /// Pure air.
     pub const AIR: Self = Self {
         opacity: 0,
         emission: 0,
+        can_occlude: false,
         uses_shape_for_light_occlusion: false,
-        occlusion_shape_occludes_full_face: false,
+        occlusion: crate::block_properties::EMPTY_OCCLUSION_POSITION,
     };
 
-    /// Java: `LightEngine.isEmptyShape(BlockState)`.
+    /// Java: `LightEngine.isEmptyShape(BlockState)` —
+    /// `!state.canOcclude() || !state.useShapeForLightOcclusion()`.
     #[inline]
     pub fn has_empty_occlusion_shape(self) -> bool {
-        !self.uses_shape_for_light_occlusion
+        !self.can_occlude || !self.uses_shape_for_light_occlusion
+    }
+
+    /// The occlusion shape `LightEngine.getOcclusionShape(state, ...)` sees:
+    /// the empty shape when [`Self::has_empty_occlusion_shape`], otherwise the
+    /// state's real occlusion shape.
+    #[inline]
+    pub fn gated_occlusion(self) -> u16 {
+        if self.has_empty_occlusion_shape() {
+            crate::block_properties::EMPTY_OCCLUSION_POSITION
+        } else {
+            self.occlusion
+        }
     }
 }
 
@@ -105,6 +123,10 @@ pub trait LightChunkGetter {
 }
 
 /// Java: `LightEngine.getLightBlockInto(BlockState, BlockState, Direction, int)`.
+///
+/// `Shapes.mergedFaceOccludes` is evaluated through the vendored exact matrices
+/// over full occlusion shapes (with the `isEmptyShape` substitution to
+/// `Shapes.empty()` exactly as Java does at lines 57-58).
 pub fn get_light_block_into(
     from: LightBlockProperties,
     to: LightBlockProperties,
@@ -116,30 +138,36 @@ pub fn get_light_block_into(
     if from_empty && to_empty {
         return simple_opacity;
     }
-    if face_merged_occludes(from, to, direction) {
+    let from_shape = if from_empty {
+        crate::block_properties::EMPTY_OCCLUSION_POSITION
+    } else {
+        from.occlusion
+    };
+    let to_shape = if to_empty {
+        crate::block_properties::EMPTY_OCCLUSION_POSITION
+    } else {
+        to.occlusion
+    };
+    if crate::block_properties::merged_face_occludes(from_shape, to_shape, direction.ordinal()) {
         16
     } else {
         simple_opacity
     }
 }
 
-/// Java: `LightEngine.shapeOccludes(BlockState, BlockState, Direction)`.
+/// Java: `LightEngine.shapeOccludes(BlockState, BlockState, Direction)` —
+/// `Shapes.faceShapeOccludes(getOcclusionShape(from, dir),
+/// getOcclusionShape(to, dir.opposite))`, exact via the vendored face-shape
+/// matrices.
 pub fn shape_occludes(
     from: LightBlockProperties,
     to: LightBlockProperties,
-    _direction: Direction,
+    direction: Direction,
 ) -> bool {
-    let from_face = !from.has_empty_occlusion_shape() && from.occlusion_shape_occludes_full_face;
-    let to_face = !to.has_empty_occlusion_shape() && to.occlusion_shape_occludes_full_face;
-    from_face && to_face
-}
-
-fn face_merged_occludes(
-    from: LightBlockProperties,
-    to: LightBlockProperties,
-    _direction: Direction,
-) -> bool {
-    let from_face = !from.has_empty_occlusion_shape() && from.occlusion_shape_occludes_full_face;
-    let to_face = !to.has_empty_occlusion_shape() && to.occlusion_shape_occludes_full_face;
-    from_face && to_face
+    crate::block_properties::face_shape_occludes(
+        from.gated_occlusion(),
+        direction.ordinal(),
+        to.gated_occlusion(),
+        direction.opposite().ordinal(),
+    )
 }

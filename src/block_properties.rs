@@ -130,8 +130,7 @@ static TABLES: LazyLock<PropertyTables> = LazyLock::new(|| {
     flate2::read::GzDecoder::new(raw.as_slice())
         .read_to_string(&mut decoded)
         .unwrap_or_else(|err| panic!("vendored block properties report must be valid gzip: {err}"));
-    let root: Value =
-        serde_json::from_str(&decoded)
+    let root: Value = serde_json::from_str(&decoded)
         .unwrap_or_else(|err| panic!("vendored block properties report must be valid JSON: {err}"));
     assert_eq!(
         root["format"].as_str(),
@@ -165,7 +164,10 @@ fn parse_tables(root: &Value) -> PropertyTables {
 
     let mut sound_types = Vec::new();
     let mut sound_type_indices = HashMap::new();
-    for (name, entry) in root["sound_types"].as_object().unwrap_or_else(|| panic!("sound types")) {
+    for (name, entry) in root["sound_types"]
+        .as_object()
+        .unwrap_or_else(|| panic!("sound types"))
+    {
         sound_type_indices.insert(name.clone(), sound_types.len() as u16);
         sound_types.push(SoundTypeInfo {
             name: name.clone(),
@@ -185,13 +187,18 @@ fn parse_tables(root: &Value) -> PropertyTables {
         .iter()
         .map(|(id, name)| {
             (
-                id.parse::<u8>().unwrap_or_else(|err| panic!("map color id: {err}")),
-                name.as_str().unwrap_or_else(|| panic!("map color name")).to_string(),
+                id.parse::<u8>()
+                    .unwrap_or_else(|err| panic!("map color id: {err}")),
+                name.as_str()
+                    .unwrap_or_else(|| panic!("map color name"))
+                    .to_string(),
             )
         })
         .collect();
 
-    let report_blocks = root["blocks"].as_object().unwrap_or_else(|| panic!("blocks object"));
+    let report_blocks = root["blocks"]
+        .as_object()
+        .unwrap_or_else(|| panic!("blocks object"));
     let mut blocks = Vec::with_capacity(block_state_entries().len());
     let mut states: Vec<Option<StatePhysics>> = vec![None; VANILLA_BLOCK_STATE_COUNT_26_1_2];
     for entry in block_state_entries() {
@@ -204,7 +211,10 @@ fn parse_tables(root: &Value) -> PropertyTables {
             speed_factor: float(block, "speed_factor"),
             jump_factor: float(block, "jump_factor"),
         });
-        for state in block["states"].as_array().unwrap_or_else(|| panic!("states array")) {
+        for state in block["states"]
+            .as_array()
+            .unwrap_or_else(|| panic!("states array"))
+        {
             let id = state["id"].as_i64().unwrap_or_else(|| panic!("state id")) as usize;
             states[id] = Some(parse_state(state, &sound_type_indices));
         }
@@ -225,24 +235,43 @@ fn parse_tables(root: &Value) -> PropertyTables {
 
 fn parse_state(state: &Value, sound_type_indices: &HashMap<String, u16>) -> StatePhysics {
     let fluid = &state["fluid"];
-    let fluid = match fluid["type"].as_str().unwrap_or_else(|| panic!("fluid type")) {
+    let fluid = match fluid["type"]
+        .as_str()
+        .unwrap_or_else(|| panic!("fluid type"))
+    {
         "minecraft:empty" => StateFluid::Empty,
         "minecraft:water" | "minecraft:flowing_water" => StateFluid::Water {
-            amount: fluid["amount"].as_u64().unwrap_or_else(|| panic!("fluid amount")) as u8,
-            source: fluid["source"].as_bool().unwrap_or_else(|| panic!("fluid source")),
+            amount: fluid["amount"]
+                .as_u64()
+                .unwrap_or_else(|| panic!("fluid amount")) as u8,
+            source: fluid["source"]
+                .as_bool()
+                .unwrap_or_else(|| panic!("fluid source")),
         },
         "minecraft:lava" | "minecraft:flowing_lava" => StateFluid::Lava {
-            amount: fluid["amount"].as_u64().unwrap_or_else(|| panic!("fluid amount")) as u8,
-            source: fluid["source"].as_bool().unwrap_or_else(|| panic!("fluid source")),
+            amount: fluid["amount"]
+                .as_u64()
+                .unwrap_or_else(|| panic!("fluid amount")) as u8,
+            source: fluid["source"]
+                .as_bool()
+                .unwrap_or_else(|| panic!("fluid source")),
         },
         other => panic!("unexpected fluid type {other}"),
     };
     StatePhysics {
         destroy_speed: float(state, "destroy_speed"),
-        map_color: state["map_color"].as_u64().unwrap_or_else(|| panic!("map color")) as u8,
-        sound_type: sound_type_indices[state["sound_type"].as_str().unwrap_or_else(|| panic!("sound type"))],
-        light_emission: state["light_emission"].as_u64().unwrap_or_else(|| panic!("light emission")) as u8,
-        light_dampening: state["light_dampening"].as_u64().unwrap_or_else(|| panic!("light dampening")) as u8,
+        map_color: state["map_color"]
+            .as_u64()
+            .unwrap_or_else(|| panic!("map color")) as u8,
+        sound_type: sound_type_indices[state["sound_type"]
+            .as_str()
+            .unwrap_or_else(|| panic!("sound type"))],
+        light_emission: state["light_emission"]
+            .as_u64()
+            .unwrap_or_else(|| panic!("light emission")) as u8,
+        light_dampening: state["light_dampening"]
+            .as_u64()
+            .unwrap_or_else(|| panic!("light dampening")) as u8,
         is_air: boolean(state, "is_air"),
         liquid: boolean(state, "liquid"),
         blocks_motion: boolean(state, "blocks_motion"),
@@ -254,7 +283,10 @@ fn parse_state(state: &Value, sound_type_indices: &HashMap<String, u16>) -> Stat
         large_collision_shape: boolean(state, "large_collision_shape"),
         requires_correct_tool_for_drops: boolean(state, "requires_correct_tool_for_drops"),
         ignited_by_lava: boolean(state, "ignited_by_lava"),
-        push_reaction: match state["push_reaction"].as_str().unwrap_or_else(|| panic!("push reaction")) {
+        push_reaction: match state["push_reaction"]
+            .as_str()
+            .unwrap_or_else(|| panic!("push reaction"))
+        {
             "NORMAL" => PushReaction::Normal,
             "DESTROY" => PushReaction::Destroy,
             "BLOCK" => PushReaction::Block,
@@ -266,8 +298,16 @@ fn parse_state(state: &Value, sound_type_indices: &HashMap<String, u16>) -> Stat
         is_randomly_ticking: boolean(state, "is_randomly_ticking"),
         has_block_entity: boolean(state, "has_block_entity"),
         replaceable: boolean(state, "replaceable"),
-        instrument: intern_constant(state["instrument"].as_str().unwrap_or_else(|| panic!("instrument"))),
-        render_shape: intern_constant(state["render_shape"].as_str().unwrap_or_else(|| panic!("render shape"))),
+        instrument: intern_constant(
+            state["instrument"]
+                .as_str()
+                .unwrap_or_else(|| panic!("instrument")),
+        ),
+        render_shape: intern_constant(
+            state["render_shape"]
+                .as_str()
+                .unwrap_or_else(|| panic!("render shape")),
+        ),
         pathfind_land: boolean(state, "pathfind_land"),
         pathfind_air: boolean(state, "pathfind_air"),
         pathfind_water: boolean(state, "pathfind_water"),
@@ -283,11 +323,15 @@ fn parse_state(state: &Value, sound_type_indices: &HashMap<String, u16>) -> Stat
 }
 
 fn float(value: &Value, key: &str) -> f32 {
-    value[key].as_f64().unwrap_or_else(|| panic!("missing float {key}")) as f32
+    value[key]
+        .as_f64()
+        .unwrap_or_else(|| panic!("missing float {key}")) as f32
 }
 
 fn boolean(value: &Value, key: &str) -> bool {
-    value[key].as_bool().unwrap_or_else(|| panic!("missing bool {key}"))
+    value[key]
+        .as_bool()
+        .unwrap_or_else(|| panic!("missing bool {key}"))
 }
 
 fn string(value: &Value, key: &str) -> String {
@@ -298,7 +342,9 @@ fn string(value: &Value, key: &str) -> String {
 }
 
 fn shape_index(state: &Value, key: &str) -> u16 {
-    state[key].as_u64().unwrap_or_else(|| panic!("missing shape index {key}")) as u16
+    state[key]
+        .as_u64()
+        .unwrap_or_else(|| panic!("missing shape index {key}")) as u16
 }
 
 /// Interns Java enum constant names so [`StatePhysics`] stays `Copy`-friendly and
@@ -307,13 +353,175 @@ fn shape_index(state: &Value, key: &str) -> u16 {
 fn intern_constant(name: &str) -> &'static str {
     static INTERNED: LazyLock<std::sync::Mutex<HashMap<String, &'static str>>> =
         LazyLock::new(|| std::sync::Mutex::new(HashMap::new()));
-    let mut interned = INTERNED.lock().unwrap_or_else(|err| panic!("intern lock poisoned: {err}"));
+    let mut interned = INTERNED
+        .lock()
+        .unwrap_or_else(|err| panic!("intern lock poisoned: {err}"));
     if let Some(existing) = interned.get(name) {
         return existing;
     }
     let leaked: &'static str = Box::leak(name.to_string().into_boxed_str());
     interned.insert(name.to_string(), leaked);
     leaked
+}
+
+/// Exact light-occlusion relationship tables, evaluated by the real Java shape
+/// code in `tools/BlockPropertyDump.java` so VibeCraft never reimplements
+/// `VoxelShape` boolean joins:
+///
+/// - `merged` mirrors `Shapes.mergedFaceOccludes(from, to, direction)` over full
+///   occlusion shapes for the positive direction of each axis; the negative
+///   direction of an axis is the transposed lookup (Java swaps first/second by
+///   `AxisDirection`).
+/// - `face_occludes` mirrors `Shapes.faceShapeOccludes` over the per-direction
+///   face shapes (`BlockStateBase.getFaceOcclusionShape`), with `faces` mapping
+///   each occlusion shape to its six face-shape indices in Java `Direction`
+///   ordinal order (DOWN, UP, NORTH, SOUTH, WEST, EAST).
+///
+/// Positions index the occlusion-shape universe (the distinct occlusion shapes
+/// across all 29873 states); position 0 is always the empty shape, which callers
+/// substitute when `LightEngine.isEmptyShape` gates a state out.
+struct LightOcclusionTables {
+    /// Global interned shape index -> position in the occlusion universe.
+    position_by_shape: HashMap<u16, u16>,
+    /// Occlusion position -> face-shape index per Java Direction ordinal.
+    faces: Vec<[u16; 6]>,
+    /// faceShapeOccludes over face-shape index pairs.
+    face_occludes: Vec<Vec<bool>>,
+    /// mergedFaceOccludes over occlusion positions, per axis (x, y, z), for the
+    /// axis-positive direction.
+    merged: [Vec<Vec<bool>>; 3],
+}
+
+/// The occlusion-universe position of `Shapes.empty()`, asserted at load time.
+pub const EMPTY_OCCLUSION_POSITION: u16 = 0;
+
+static LIGHT_OCCLUSION: LazyLock<LightOcclusionTables> = LazyLock::new(|| {
+    let raw = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/vanilla-data/reports/light_occlusion_26_1_2.json.gz"
+    ));
+    let mut decoded = String::new();
+    flate2::read::GzDecoder::new(raw.as_slice())
+        .read_to_string(&mut decoded)
+        .unwrap_or_else(|err| panic!("vendored light occlusion report must be valid gzip: {err}"));
+    let root: Value = serde_json::from_str(&decoded)
+        .unwrap_or_else(|err| panic!("vendored light occlusion report must be valid JSON: {err}"));
+    assert_eq!(
+        root["format"].as_str(),
+        Some("vibecraft-light-occlusion-v1"),
+        "unexpected light occlusion report format"
+    );
+
+    let shape_indices: Vec<u16> = root["occlusion_shapes"]
+        .as_array()
+        .unwrap_or_else(|| panic!("occlusion shapes array"))
+        .iter()
+        .map(|index| {
+            index
+                .as_u64()
+                .unwrap_or_else(|| panic!("occlusion shape index")) as u16
+        })
+        .collect();
+    // Air is the first registered state, so the empty shape is always position 0.
+    assert!(
+        TABLES.shapes[shape_indices[EMPTY_OCCLUSION_POSITION as usize] as usize].is_empty(),
+        "occlusion universe position 0 must be the empty shape"
+    );
+
+    let faces = root["faces_per_occlusion_shape"]
+        .as_array()
+        .unwrap_or_else(|| panic!("faces per occlusion shape"))
+        .iter()
+        .map(|entry| {
+            let indices = entry
+                .as_array()
+                .unwrap_or_else(|| panic!("face index list"));
+            let mut face_indices = [0_u16; 6];
+            for (slot, index) in face_indices.iter_mut().zip(indices) {
+                *slot = index.as_u64().unwrap_or_else(|| panic!("face shape index")) as u16;
+            }
+            face_indices
+        })
+        .collect();
+
+    let parse_matrix = |value: &Value, what: &str| -> Vec<Vec<bool>> {
+        value
+            .as_array()
+            .unwrap_or_else(|| panic!("{what} matrix"))
+            .iter()
+            .map(|row| {
+                row.as_str()
+                    .unwrap_or_else(|| panic!("{what} row"))
+                    .bytes()
+                    .map(|bit| bit == b'1')
+                    .collect()
+            })
+            .collect()
+    };
+
+    LightOcclusionTables {
+        position_by_shape: shape_indices
+            .iter()
+            .enumerate()
+            .map(|(position, shape)| (*shape, position as u16))
+            .collect(),
+        faces,
+        face_occludes: parse_matrix(&root["face_shape_occludes"], "face shape occludes"),
+        merged: [
+            parse_matrix(&root["merged_face_occludes"]["x"], "merged x"),
+            parse_matrix(&root["merged_face_occludes"]["y"], "merged y"),
+            parse_matrix(&root["merged_face_occludes"]["z"], "merged z"),
+        ],
+    }
+});
+
+/// Occlusion-universe position of a state's full occlusion shape (the
+/// `occlusion_shape` field of [`StatePhysics`]).
+pub fn occlusion_position(occlusion_shape: u16) -> u16 {
+    LIGHT_OCCLUSION
+        .position_by_shape
+        .get(&occlusion_shape)
+        .copied()
+        .unwrap_or_else(|| panic!("shape {occlusion_shape} is not an occlusion shape"))
+}
+
+/// Java Direction ordinal (DOWN..EAST) -> (axis index, axis-positive).
+const fn direction_axis(ordinal: usize) -> (usize, bool) {
+    match ordinal {
+        0 => (1, false), // DOWN  = -Y
+        1 => (1, true),  // UP    = +Y
+        2 => (2, false), // NORTH = -Z
+        3 => (2, true),  // SOUTH = +Z
+        4 => (0, false), // WEST  = -X
+        5 => (0, true),  // EAST  = +X
+        _ => panic!("direction ordinal out of range"),
+    }
+}
+
+/// Java: `Shapes.mergedFaceOccludes(from, to, direction)` over occlusion-universe
+/// positions, with `direction` as a Java `Direction` ordinal.
+pub fn merged_face_occludes(from: u16, to: u16, direction_ordinal: usize) -> bool {
+    let (axis, positive) = direction_axis(direction_ordinal);
+    let matrix = &LIGHT_OCCLUSION.merged[axis];
+    if positive {
+        matrix[from as usize][to as usize]
+    } else {
+        matrix[to as usize][from as usize]
+    }
+}
+
+/// Java: `Shapes.faceShapeOccludes(fromState.getFaceOcclusionShape(dir),
+/// toState.getFaceOcclusionShape(dir.opposite))` over occlusion-universe
+/// positions and Java `Direction` ordinals.
+pub fn face_shape_occludes(
+    from: u16,
+    from_direction_ordinal: usize,
+    to: u16,
+    to_direction_ordinal: usize,
+) -> bool {
+    let from_face = LIGHT_OCCLUSION.faces[from as usize][from_direction_ordinal];
+    let to_face = LIGHT_OCCLUSION.faces[to as usize][to_direction_ordinal];
+    LIGHT_OCCLUSION.face_occludes[from_face as usize][to_face as usize]
 }
 
 /// Block-level physics for the block owning a registry index (protocol order).
@@ -332,7 +540,9 @@ pub fn block_physics(registry_id: &str) -> Option<&'static BlockPhysics> {
 
 /// Per-state physics for a global block-state id.
 pub fn state_physics(state_id: i32) -> Option<&'static StatePhysics> {
-    usize::try_from(state_id).ok().and_then(|id| TABLES.states.get(id))
+    usize::try_from(state_id)
+        .ok()
+        .and_then(|id| TABLES.states.get(id))
 }
 
 /// Per-state physics for a `block[prop=value,...]` state name.
