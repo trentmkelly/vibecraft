@@ -48,7 +48,10 @@ pub(super) fn world_tree_block_to_local(source_pos: ChunkPos, pos: BlockPos) -> 
 
 pub(super) type TreeBlockOverlay = HashMap<(i32, i32, i32), &'static str>;
 
-pub(super) fn local_tree_block_to_world_key(source_pos: ChunkPos, pos: BlockPos) -> (i32, i32, i32) {
+pub(super) fn local_tree_block_to_world_key(
+    source_pos: ChunkPos,
+    pos: BlockPos,
+) -> (i32, i32, i32) {
     (source_pos.x * 16 + pos.x, pos.y, source_pos.z * 16 + pos.z)
 }
 
@@ -121,10 +124,16 @@ pub(super) fn live_straight_blob_tree_placement_plan(
         return Err("live straight tree placement currently requires blob foliage".to_string());
     };
 
-    let leaf_radius =
-        sample_inclusive_i32(input.foliage.radius_min, input.foliage.radius_max, input.rand_a);
-    let foliage_offset =
-        sample_inclusive_i32(input.foliage.offset_min, input.foliage.offset_max, input.rand_b);
+    let leaf_radius = sample_inclusive_i32(
+        input.foliage.radius_min,
+        input.foliage.radius_max,
+        input.rand_a,
+    );
+    let foliage_offset = sample_inclusive_i32(
+        input.foliage.offset_min,
+        input.foliage.offset_max,
+        input.rand_b,
+    );
     let foliage_origin = BlockPos {
         x: input.origin.x,
         y: input.origin.y + input.clipped_tree_height + foliage_offset,

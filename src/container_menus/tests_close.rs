@@ -24,7 +24,10 @@ fn close_while_carrying_returns_work_slots_and_cursor_to_inventory() {
         assert!(carried.is_empty());
         assert!(player.dropped().is_empty(), "close must not drop in-world");
         // Every loaded work item is now somewhere in the player inventory.
-        for id in loaded_items.iter().chain(std::iter::once(&"minecraft:diamond")) {
+        for id in loaded_items
+            .iter()
+            .chain(std::iter::once(&"minecraft:diamond"))
+        {
             assert!(
                 (0..36).any(|i| player.get(i).item_id() == *id),
                 "expected {id} returned to inventory on close"
@@ -54,7 +57,11 @@ fn close_while_carrying_returns_work_slots_and_cursor_to_inventory() {
     assert_close_returns(
         |p| {
             let mut m = SmithingMenu::new(RecipeMap::create(Vec::new()));
-            m.set_slot(0, ItemStack::new("minecraft:netherite_upgrade_smithing_template", 1), p);
+            m.set_slot(
+                0,
+                ItemStack::new("minecraft:netherite_upgrade_smithing_template", 1),
+                p,
+            );
             m.set_slot(1, ItemStack::new("minecraft:diamond_chestplate", 1), p);
             m.set_slot(2, ItemStack::new("minecraft:netherite_ingot", 1), p);
             Box::new(move |p, c| m.removed(p, c, false))
@@ -125,7 +132,9 @@ fn disconnect_while_open_drops_work_slots_and_cursor() {
     // On disconnect, `dropOrPlaceInInventory` drops in-world rather than placing back.
     // Verify every work-area menu drops its work slots + the carried cursor.
     fn assert_disconnect_drops(
-        build: impl FnOnce(&mut PlayerInventory) -> Box<dyn FnOnce(&mut PlayerInventory, &mut ItemStack)>,
+        build: impl FnOnce(
+            &mut PlayerInventory,
+        ) -> Box<dyn FnOnce(&mut PlayerInventory, &mut ItemStack)>,
         dropped_ids: &[&str],
     ) {
         let mut player = PlayerInventory::new();
@@ -133,7 +142,10 @@ fn disconnect_while_open_drops_work_slots_and_cursor() {
         let mut carried = ItemStack::new("minecraft:diamond", 1);
         close(&mut player, &mut carried);
         assert!(carried.is_empty());
-        for id in dropped_ids.iter().chain(std::iter::once(&"minecraft:diamond")) {
+        for id in dropped_ids
+            .iter()
+            .chain(std::iter::once(&"minecraft:diamond"))
+        {
             assert!(
                 player.dropped().iter().any(|s| s.item_id() == *id),
                 "expected {id} dropped in-world on disconnect"
@@ -164,7 +176,11 @@ fn disconnect_while_open_drops_work_slots_and_cursor() {
     // carried cursor follows the normal place-back-on-close path.
     let mut player = PlayerInventory::new();
     let mut menu = BeaconMenu::new();
-    menu.set_slot(0, ItemStack::new("minecraft:netherite_ingot", 1), &mut player);
+    menu.set_slot(
+        0,
+        ItemStack::new("minecraft:netherite_ingot", 1),
+        &mut player,
+    );
     let mut carried = ItemStack::new("minecraft:diamond", 1);
     menu.removed(&mut player, &mut carried, false);
     assert!(carried.is_empty()); // carried placed back on close
@@ -173,7 +189,10 @@ fn disconnect_while_open_drops_work_slots_and_cursor() {
         .iter()
         .any(|s| s.item_id() == "minecraft:netherite_ingot"));
     assert!(
-        !player.dropped().iter().any(|s| s.item_id() == "minecraft:diamond"),
+        !player
+            .dropped()
+            .iter()
+            .any(|s| s.item_id() == "minecraft:diamond"),
         "carried must be placed back, not dropped, on a normal close"
     );
     assert!((0..36).any(|i| player.get(i).item_id() == "minecraft:diamond"));

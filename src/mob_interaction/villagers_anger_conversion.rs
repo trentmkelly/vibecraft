@@ -88,4 +88,3 @@ fn set_flag(flags: &mut u8, flag: u8, value: bool) {
         *flags &= !flag;
     }
 }
-

@@ -146,10 +146,18 @@ mod tests {
             .with_score("Alex", "kills", 3);
 
         let direct = ScoreContentsModel::new(ScoreTargetModel::Name("Alex".to_string()), "kills");
-        assert_eq!(direct.resolve(&context).unwrap_or_else(|_| Component::empty()).get_string(), "3");
+        assert_eq!(
+            direct
+                .resolve(&context)
+                .unwrap_or_else(|_| Component::empty())
+                .get_string(),
+            "3"
+        );
 
-        let wildcard =
-            ScoreContentsModel::new(ScoreTargetModel::Name(WILDCARD_SCORE_HOLDER.to_string()), "kills");
+        let wildcard = ScoreContentsModel::new(
+            ScoreTargetModel::Name(WILDCARD_SCORE_HOLDER.to_string()),
+            "kills",
+        );
         assert_eq!(
             wildcard
                 .resolve(&context)
@@ -192,7 +200,10 @@ mod tests {
             .with_selector("@p", vec!["Alex"])
             .with_score("Alex", "kills", 5);
         assert_eq!(
-            selector.resolve(&one).unwrap_or_else(|_| Component::empty()).get_string(),
+            selector
+                .resolve(&one)
+                .unwrap_or_else(|_| Component::empty())
+                .get_string(),
             "5"
         );
 
@@ -200,7 +211,10 @@ mod tests {
             .with_selector("@p", Vec::new())
             .with_score("@p", "kills", 11);
         assert_eq!(
-            selector.resolve(&empty).unwrap_or_else(|_| Component::empty()).get_string(),
+            selector
+                .resolve(&empty)
+                .unwrap_or_else(|_| Component::empty())
+                .get_string(),
             "11",
             "empty selector results use the selector source as a name-only score holder"
         );
@@ -234,6 +248,9 @@ mod tests {
                 source: "@s".to_string()
             }
         );
-        assert_eq!(score.to_string(), "score{name='Left(@s)', objective='points'}");
+        assert_eq!(
+            score.to_string(),
+            "score{name='Left(@s)', objective='points'}"
+        );
     }
 }

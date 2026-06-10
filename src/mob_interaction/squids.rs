@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SquidState {
     pub movement_vector: (f64, f64, f64),
@@ -140,4 +139,3 @@ pub fn glow_squid_spawn_allowed(
 ) -> bool {
     y <= sea_level - GLOW_SQUID_SPAWN_SEA_LEVEL_OFFSET && raw_brightness == 0 && block_is_water
 }
-

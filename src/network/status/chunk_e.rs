@@ -483,9 +483,12 @@ pub fn write_vanilla_chicken_sound_variant_registry_packet<W: Write>(
     writer: &mut W,
 ) -> io::Result<()> {
     const VARIANTS: &[&str] = &["classic", "picky"];
-    write_variant_registry(writer, "minecraft:chicken_sound_variant", VARIANTS, |variant| {
-        chicken_sound_variant_nbt(variant)
-    })
+    write_variant_registry(
+        writer,
+        "minecraft:chicken_sound_variant",
+        VARIANTS,
+        |variant| chicken_sound_variant_nbt(variant),
+    )
 }
 
 pub fn write_vanilla_cow_sound_variant_registry_packet<W: Write>(writer: &mut W) -> io::Result<()> {
@@ -506,9 +509,12 @@ pub fn write_vanilla_wolf_sound_variant_registry_packet<W: Write>(
     writer: &mut W,
 ) -> io::Result<()> {
     const VARIANTS: &[&str] = &["angry", "big", "classic", "cute", "grumpy", "puglin", "sad"];
-    write_variant_registry(writer, "minecraft:wolf_sound_variant", VARIANTS, |variant| {
-        wolf_sound_variant_nbt(variant)
-    })
+    write_variant_registry(
+        writer,
+        "minecraft:wolf_sound_variant",
+        VARIANTS,
+        |variant| wolf_sound_variant_nbt(variant),
+    )
 }
 
 pub fn write_vanilla_zombie_nautilus_variant_registry_packet<W: Write>(
@@ -783,7 +789,10 @@ pub fn overworld_dimension_type_nbt(has_ceiling: bool) -> Tag {
         (
             "minecraft:audio/background_music".to_string(),
             Tag::Compound(vec![
-                ("default".to_string(), overworld_music_nbt("minecraft:music.game")),
+                (
+                    "default".to_string(),
+                    overworld_music_nbt("minecraft:music.game"),
+                ),
                 (
                     "creative".to_string(),
                     overworld_music_nbt("minecraft:music.creative"),

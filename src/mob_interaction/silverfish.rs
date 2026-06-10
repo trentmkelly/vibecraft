@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SilverfishAttributes {
     pub max_health: f32,
@@ -177,4 +176,3 @@ fn silverfish_java_symmetric_offsets(radius: i32) -> Vec<i32> {
     }
     values
 }
-

@@ -1,10 +1,8 @@
 use super::*;
 
 fn load_vanilla_template_pools() -> crate::worldgen::ParsedTemplatePoolRegistry {
-    load_template_pool_registry(
-        "../decompiled-server-26.1.2/data/minecraft/worldgen/template_pool",
-    )
-    .expect("vanilla template-pool registry should load")
+    load_template_pool_registry("../decompiled-server-26.1.2/data/minecraft/worldgen/template_pool")
+        .expect("vanilla template-pool registry should load")
 }
 
 #[test]
@@ -92,8 +90,10 @@ fn savanna_village_town_street_and_terminator_pools_match_java_bootstrap() {
         terminators.elements[4].element.location.as_deref(),
         Some("minecraft:village/savanna/terminators/terminator_05")
     );
-    let zombie_terminators =
-        parsed_pool(&registry.pools, "minecraft:village/savanna/zombie/terminators");
+    let zombie_terminators = parsed_pool(
+        &registry.pools,
+        "minecraft:village/savanna/zombie/terminators",
+    );
     assert_eq!(zombie_terminators.fallback, "minecraft:empty");
     assert_eq!(
         zombie_terminators.elements[4].element.location.as_deref(),
@@ -186,8 +186,10 @@ fn savanna_village_decor_tree_and_villager_pools_match_java_bootstrap() {
     let villagers = parsed_pool(&registry.pools, "minecraft:village/savanna/villagers");
     assert_eq!(pool_weight_sum(villagers), 12);
     assert_eq!(villagers.elements.len(), 3);
-    let zombie_villagers =
-        parsed_pool(&registry.pools, "minecraft:village/savanna/zombie/villagers");
+    let zombie_villagers = parsed_pool(
+        &registry.pools,
+        "minecraft:village/savanna/zombie/villagers",
+    );
     assert_eq!(pool_weight_sum(zombie_villagers), 11);
     assert_eq!(zombie_villagers.elements.len(), 2);
 }
@@ -248,8 +250,9 @@ fn snowy_village_town_street_and_terminator_pools_match_java_bootstrap() {
     assert_eq!(streets.fallback, "minecraft:village/snowy/terminators");
     assert_eq!(streets.elements.len(), 16);
     assert_eq!(pool_weight_sum(streets), 47);
-    assert!(streets.elements.iter().all(|entry| entry.element.processors
-        == vec!["minecraft:street_snowy_or_taiga".to_string()]));
+    assert!(streets.elements.iter().all(
+        |entry| entry.element.processors == vec!["minecraft:street_snowy_or_taiga".to_string()]
+    ));
     assert!(streets
         .elements
         .iter()
@@ -270,8 +273,9 @@ fn snowy_village_town_street_and_terminator_pools_match_java_bootstrap() {
     let terminators = parsed_pool(&registry.pools, "minecraft:village/snowy/terminators");
     assert_eq!(terminators.fallback, "minecraft:empty");
     assert_eq!(terminators.elements.len(), 4);
-    assert!(terminators.elements.iter().all(|entry| entry.element.processors
-        == vec!["minecraft:street_snowy_or_taiga".to_string()]));
+    assert!(terminators.elements.iter().all(
+        |entry| entry.element.processors == vec!["minecraft:street_snowy_or_taiga".to_string()]
+    ));
 }
 
 #[test]
@@ -360,8 +364,7 @@ fn snowy_village_decor_tree_and_villager_pools_match_java_bootstrap() {
     let villagers = parsed_pool(&registry.pools, "minecraft:village/snowy/villagers");
     assert_eq!(pool_weight_sum(villagers), 12);
     assert_eq!(villagers.elements.len(), 3);
-    let zombie_villagers =
-        parsed_pool(&registry.pools, "minecraft:village/snowy/zombie/villagers");
+    let zombie_villagers = parsed_pool(&registry.pools, "minecraft:village/snowy/zombie/villagers");
     assert_eq!(pool_weight_sum(zombie_villagers), 11);
     assert_eq!(zombie_villagers.elements.len(), 2);
 }
@@ -430,8 +433,9 @@ fn taiga_village_town_street_and_terminator_pools_match_java_bootstrap() {
     assert_eq!(streets.fallback, "minecraft:village/taiga/terminators");
     assert_eq!(streets.elements.len(), 16);
     assert_eq!(pool_weight_sum(streets), 49);
-    assert!(streets.elements.iter().all(|entry| entry.element.processors
-        == vec!["minecraft:street_snowy_or_taiga".to_string()]));
+    assert!(streets.elements.iter().all(
+        |entry| entry.element.processors == vec!["minecraft:street_snowy_or_taiga".to_string()]
+    ));
     assert!(streets
         .elements
         .iter()
@@ -442,15 +446,19 @@ fn taiga_village_town_street_and_terminator_pools_match_java_bootstrap() {
     );
 
     let zombie_streets = parsed_pool(&registry.pools, "minecraft:village/taiga/zombie/streets");
-    assert_eq!(zombie_streets.fallback, "minecraft:village/taiga/terminators");
+    assert_eq!(
+        zombie_streets.fallback,
+        "minecraft:village/taiga/terminators"
+    );
     assert_eq!(zombie_streets.elements.len(), 16);
     assert_eq!(pool_weight_sum(zombie_streets), 49);
 
     let terminators = parsed_pool(&registry.pools, "minecraft:village/taiga/terminators");
     assert_eq!(terminators.fallback, "minecraft:empty");
     assert_eq!(terminators.elements.len(), 4);
-    assert!(terminators.elements.iter().all(|entry| entry.element.processors
-        == vec!["minecraft:street_snowy_or_taiga".to_string()]));
+    assert!(terminators.elements.iter().all(
+        |entry| entry.element.processors == vec!["minecraft:street_snowy_or_taiga".to_string()]
+    ));
 }
 
 #[test]
@@ -466,10 +474,8 @@ fn taiga_village_house_pools_match_java_bootstrap() {
             .processors,
         vec!["minecraft:mossify_10_percent".to_string()]
     );
-    let large_farm = pool_entry_by_location(
-        houses,
-        "minecraft:village/taiga/houses/taiga_large_farm_2",
-    );
+    let large_farm =
+        pool_entry_by_location(houses, "minecraft:village/taiga/houses/taiga_large_farm_2");
     assert_eq!(
         large_farm.element.processors,
         vec!["minecraft:farm_taiga".to_string()]
@@ -478,7 +484,10 @@ fn taiga_village_house_pools_match_java_bootstrap() {
     assert_eq!(houses.elements.last().unwrap().weight, 6);
 
     let zombie_houses = parsed_pool(&registry.pools, "minecraft:village/taiga/zombie/houses");
-    assert_eq!(zombie_houses.fallback, "minecraft:village/taiga/terminators");
+    assert_eq!(
+        zombie_houses.fallback,
+        "minecraft:village/taiga/terminators"
+    );
     assert_eq!(zombie_houses.elements.len(), 27);
     assert_eq!(pool_weight_sum(zombie_houses), 74);
     assert_eq!(
@@ -533,8 +542,7 @@ fn taiga_village_decor_and_villager_pools_match_java_bootstrap() {
     let villagers = parsed_pool(&registry.pools, "minecraft:village/taiga/villagers");
     assert_eq!(pool_weight_sum(villagers), 12);
     assert_eq!(villagers.elements.len(), 3);
-    let zombie_villagers =
-        parsed_pool(&registry.pools, "minecraft:village/taiga/zombie/villagers");
+    let zombie_villagers = parsed_pool(&registry.pools, "minecraft:village/taiga/zombie/villagers");
     assert_eq!(pool_weight_sum(zombie_villagers), 11);
     assert_eq!(zombie_villagers.elements.len(), 2);
 }

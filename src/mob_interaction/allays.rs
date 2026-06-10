@@ -260,4 +260,3 @@ pub fn allay_leash_offset(eye_height: f32, width: f32) -> (f32, f32, f32) {
 pub fn allay_throw_sound_can_play(game_time: i64, random_under_point_nine: bool) -> bool {
     game_time % 7 == 0 && random_under_point_nine
 }
-

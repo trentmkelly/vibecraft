@@ -746,11 +746,15 @@ pub fn wolf_sound_variant_uses_per_variant_adult_and_generic_baby_sounds() {
     let adult = compound_field(&angry, "adult_sounds");
     assert_eq!(
         field_value(adult, "ambient_sound"),
-        Some(&Tag::String("minecraft:entity.wolf_angry.ambient".to_string()))
+        Some(&Tag::String(
+            "minecraft:entity.wolf_angry.ambient".to_string()
+        ))
     );
     assert_eq!(
         field_value(adult, "whine_sound"),
-        Some(&Tag::String("minecraft:entity.wolf_angry.whine".to_string()))
+        Some(&Tag::String(
+            "minecraft:entity.wolf_angry.whine".to_string()
+        ))
     );
     assert_eq!(
         field_value(adult, "step_sound"),
@@ -759,7 +763,9 @@ pub fn wolf_sound_variant_uses_per_variant_adult_and_generic_baby_sounds() {
     let baby = compound_field(&angry, "baby_sounds");
     assert_eq!(
         field_value(baby, "ambient_sound"),
-        Some(&Tag::String("minecraft:entity.baby_wolf.ambient".to_string()))
+        Some(&Tag::String(
+            "minecraft:entity.baby_wolf.ambient".to_string()
+        ))
     );
     assert_eq!(
         field_value(baby, "step_sound"),
@@ -780,7 +786,9 @@ pub fn animal_sound_variants_use_per_variant_prefixes_and_generic_baby_sounds() 
     let moody = cow_sound_variant_nbt("moody");
     assert_eq!(
         field_value(&moody, "ambient_sound"),
-        Some(&Tag::String("minecraft:entity.cow_moody.ambient".to_string()))
+        Some(&Tag::String(
+            "minecraft:entity.cow_moody.ambient".to_string()
+        ))
     );
     assert_eq!(
         field_value(&moody, "step_sound"),
@@ -808,18 +816,24 @@ pub fn animal_sound_variants_use_per_variant_prefixes_and_generic_baby_sounds() 
     let royal = cat_sound_variant_nbt("royal");
     assert_eq!(
         field_value(compound_field(&royal, "adult_sounds"), "purreow_sound"),
-        Some(&Tag::String("minecraft:entity.cat_royal.purreow".to_string()))
+        Some(&Tag::String(
+            "minecraft:entity.cat_royal.purreow".to_string()
+        ))
     );
     assert_eq!(
         field_value(compound_field(&royal, "baby_sounds"), "purreow_sound"),
-        Some(&Tag::String("minecraft:entity.baby_cat.purreow".to_string()))
+        Some(&Tag::String(
+            "minecraft:entity.baby_cat.purreow".to_string()
+        ))
     );
 
     // chicken picky: adult ambient prefixed, step generic, baby generic.
     let picky = chicken_sound_variant_nbt("picky");
     assert_eq!(
         field_value(compound_field(&picky, "adult_sounds"), "ambient_sound"),
-        Some(&Tag::String("minecraft:entity.chicken_picky.ambient".to_string()))
+        Some(&Tag::String(
+            "minecraft:entity.chicken_picky.ambient".to_string()
+        ))
     );
     assert_eq!(
         field_value(compound_field(&picky, "adult_sounds"), "step_sound"),
@@ -827,10 +841,11 @@ pub fn animal_sound_variants_use_per_variant_prefixes_and_generic_baby_sounds() 
     );
     assert_eq!(
         field_value(compound_field(&picky, "baby_sounds"), "ambient_sound"),
-        Some(&Tag::String("minecraft:entity.baby_chicken.ambient".to_string()))
+        Some(&Tag::String(
+            "minecraft:entity.baby_chicken.ambient".to_string()
+        ))
     );
 }
-
 
 /// Parse a registry-data packet into a map of entry id → NBT payload Tag.
 fn registry_entries_with_nbt(
@@ -984,7 +999,10 @@ pub fn damage_type_and_banner_pattern_tags_match_vanilla_set() {
         .unwrap();
     assert_eq!(no_item.len(), 32);
     for excluded in ["base", "bricks", "curly_border"] {
-        assert!(!no_item.contains(&excluded), "{excluded} should be excluded");
+        assert!(
+            !no_item.contains(&excluded),
+            "{excluded} should be excluded"
+        );
     }
     // The 10 pattern_item/* tags are present.
     assert_eq!(BANNER_PATTERN_TAGS.len(), 11);

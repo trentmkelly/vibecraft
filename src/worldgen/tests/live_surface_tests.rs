@@ -28,11 +28,10 @@ fn chunk_biome_storage_is_depth_aware_at_every_quart_position() {
     .expect("real-surface chunk should generate for biome storage check");
 
     let settings = *super::super::builtin_noise_generator_settings("overworld").unwrap();
-    let router = super::super::builtin_noise_router(super::super::noise_router_id_for_settings(
-        settings,
-    ))
-    .expect("normal overworld must have a router")
-    .router;
+    let router =
+        super::super::builtin_noise_router(super::super::noise_router_id_for_settings(settings))
+            .expect("normal overworld must have a router")
+            .router;
     let climate_sampler = super::super::ClimateSampler::from_noise_router(&router, seed, settings);
     let biome_source = super::super::BiomeSourceModel::MultiNoisePreset {
         preset: "minecraft:overworld",

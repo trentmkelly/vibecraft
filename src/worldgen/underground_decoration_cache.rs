@@ -221,7 +221,12 @@ impl OreBlockCache {
         Some(cache)
     }
 
-    pub(super) fn block_state_name(&self, world_x: i32, world_y: i32, world_z: i32) -> Option<&str> {
+    pub(super) fn block_state_name(
+        &self,
+        world_x: i32,
+        world_y: i32,
+        world_z: i32,
+    ) -> Option<&str> {
         let chunk_pos = ChunkPos {
             x: world_x.div_euclid(16),
             z: world_z.div_euclid(16),
@@ -270,7 +275,12 @@ impl OreBlockCache {
             .and_then(|name| name.as_deref())
     }
 
-    pub(super) fn heightmap_value_by_scan(&self, heightmap: HeightmapKind, world_x: i32, world_z: i32) -> i32 {
+    pub(super) fn heightmap_value_by_scan(
+        &self,
+        heightmap: HeightmapKind,
+        world_x: i32,
+        world_z: i32,
+    ) -> i32 {
         let chunk_pos = ChunkPos {
             x: world_x.div_euclid(16),
             z: world_z.div_euclid(16),

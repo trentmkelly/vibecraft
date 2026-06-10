@@ -441,4 +441,3 @@ pub fn fox_stalk_prey_plan(
         })
     }
 }
-

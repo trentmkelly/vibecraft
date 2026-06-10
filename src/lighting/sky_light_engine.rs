@@ -14,9 +14,7 @@
 use crate::lighting::chunk_sky_light_sources::{ChunkSkyLightSources, NEGATIVE_INFINITY};
 use crate::lighting::data_layer::MAX_LIGHT_LEVEL;
 use crate::lighting::direction::{Direction, PROPAGATION_DIRECTIONS};
-use crate::lighting::light_chunk::{
-    shape_occludes, LightBlockProperties, LightChunkGetter,
-};
+use crate::lighting::light_chunk::{shape_occludes, LightBlockProperties, LightChunkGetter};
 use crate::lighting::light_engine::{
     light_engine_get_opacity, neighbour_block_node, run_light_updates, LightEngineBase,
 };
@@ -27,7 +25,7 @@ use crate::lighting::positions::{
 };
 use crate::lighting::queue_entry::{
     decrease_all_directions, decrease_skip_one_direction, get_from_level,
-    increase_only_one_direction, increase_sky_source_in_directions, increase_skip_one_direction,
+    increase_only_one_direction, increase_skip_one_direction, increase_sky_source_in_directions,
     is_from_empty_shape, pull_light_in_entry, should_propagate_in_direction,
 };
 use crate::lighting::storage::LayerLightSectionStorage;
@@ -165,12 +163,7 @@ impl SkyLightEngine {
             {
                 continue;
             }
-            let plan = seed_section_columns(
-                &neighbours,
-                section_y,
-                section_min_x,
-                section_min_z,
-            );
+            let plan = seed_section_columns(&neighbours, section_y, section_min_x, section_min_z);
             if let Some(layer) = self.base.storage.get_data_layer_to_write(section_node) {
                 for (x, ly, z, v) in plan.writes {
                     layer.set(x, ly, z, v as u8);
@@ -205,13 +198,11 @@ impl SkyLightEngine {
         let section_y = block_to_section_coord(y);
         let section_z = block_to_section_coord(z);
         let mut empty_sections_below = 0;
-        while !storage
-            .storing_light_for_section(section_pos_as_long(
-                section_x,
-                section_y - empty_sections_below - 1,
-                section_z,
-            ))
-            && storage.has_light_data_at_or_below(section_y - empty_sections_below - 1)
+        while !storage.storing_light_for_section(section_pos_as_long(
+            section_x,
+            section_y - empty_sections_below - 1,
+            section_z,
+        )) && storage.has_light_data_at_or_below(section_y - empty_sections_below - 1)
         {
             empty_sections_below += 1;
         }
@@ -234,7 +225,14 @@ impl SkyLightEngine {
             i32::MAX
         };
         if lowest_source_y != i32::MAX {
-            Self::update_sources_in_column(base, chunk_source, empty_sources, x, z, lowest_source_y);
+            Self::update_sources_in_column(
+                base,
+                chunk_source,
+                empty_sources,
+                x,
+                z,
+                lowest_source_y,
+            );
         }
         if base.storage.storing_light_for_section(section_node) {
             let is_source = y >= lowest_source_y;
@@ -329,12 +327,32 @@ impl SkyLightEngine {
     ) {
         let section_x = block_to_section_coord(x);
         let section_z = block_to_section_coord(z);
-        let neighbor_lowest_source_y = get_lowest_source_y(chunk_source, empty_sources, x - 1, z, i32::MIN)
-            .max(get_lowest_source_y(chunk_source, empty_sources, x + 1, z, i32::MIN))
-            .max(get_lowest_source_y(chunk_source, empty_sources, x, z - 1, i32::MIN))
-            .max(get_lowest_source_y(chunk_source, empty_sources, x, z + 1, i32::MIN));
+        let neighbor_lowest_source_y =
+            get_lowest_source_y(chunk_source, empty_sources, x - 1, z, i32::MIN)
+                .max(get_lowest_source_y(
+                    chunk_source,
+                    empty_sources,
+                    x + 1,
+                    z,
+                    i32::MIN,
+                ))
+                .max(get_lowest_source_y(
+                    chunk_source,
+                    empty_sources,
+                    x,
+                    z - 1,
+                    i32::MIN,
+                ))
+                .max(get_lowest_source_y(
+                    chunk_source,
+                    empty_sources,
+                    x,
+                    z + 1,
+                    i32::MIN,
+                ));
         let start_y = lowest_source_y.max(world_bottom_y);
-        let mut section_node = section_pos_as_long(section_x, block_to_section_coord(start_y), section_z);
+        let mut section_node =
+            section_pos_as_long(section_x, block_to_section_coord(start_y), section_z);
         while !base.storage.is_above_data(section_node) {
             if base.storage.storing_light_for_section(section_node) {
                 let section_bottom_y = section_to_block_coord(section_pos_y(section_node));
@@ -630,11 +648,7 @@ fn seed_section_columns(
                 let local_y = section_relative(y) as usize;
                 writes.push((x as usize, local_y, z as usize, SOURCE_LEVEL));
                 if y == lowest_source_y || y < neighbor_lowest_source_y {
-                    let block_node = block_pos_as_long(
-                        section_min_x + x,
-                        y,
-                        section_min_z + z,
-                    );
+                    let block_node = block_pos_as_long(section_min_x + x, y, section_min_z + z);
                     enqueues.push((
                         block_node,
                         increase_sky_source_in_directions(
@@ -662,4 +676,3 @@ fn seed_section_columns(
         sources_below,
     }
 }
-

@@ -1,6 +1,5 @@
 use super::*;
 
-
 pub fn block_state_name_network_id(name: &str) -> Option<i32> {
     if let Some(id) = liquid_block_state_name_network_id(name) {
         return Some(id);

@@ -302,7 +302,9 @@ pub enum AllayVibrationAction {
     /// `Allay.VibrationUser.onReceiveVibration` for `NOTE_BLOCK_PLAY`:
     /// `AllayAi.hearNoteblock` remembers the note-block position (the allay returns
     /// to it). The VibrationUser listens within `VIBRATION_EVENT_LISTENER_RANGE` (16).
-    HearNoteblock { radius: i32 },
+    HearNoteblock {
+        radius: i32,
+    },
     Dance,
     StopDancing,
     Ignore,
@@ -615,7 +617,14 @@ mod tests {
         );
         // FIRST projectile (no recent projectile) -> +10 bonus anger.
         assert_eq!(
-            warden_receive_vibration(Some("arrow"), Some("player"), (1, 64, 1), true, false, false,),
+            warden_receive_vibration(
+                Some("arrow"),
+                Some("player"),
+                (1, 64, 1),
+                true,
+                false,
+                false,
+            ),
             vec![
                 WardenVibrationAction::TendrilClick {
                     cooldown_ticks: WARDEN_VIBRATION_COOLDOWN_TICKS

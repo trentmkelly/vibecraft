@@ -47,10 +47,12 @@ fn uniform_int_sample(min: i32, max: i32) -> i32 {
     use std::hash::{BuildHasher, Hasher};
     let state = RandomState::new();
     let mut h = state.build_hasher();
-    h.write_u64(std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos() as u64)
-        .unwrap_or(0));
+    h.write_u64(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos() as u64)
+            .unwrap_or(0),
+    );
     let range = (max - min + 1) as u64;
     min + (h.finish() % range) as i32
 }
@@ -850,7 +852,9 @@ mod tests {
         ));
 
         // hit_block path: trident strikes a lightning rod under open thunder sky.
-        assert!(channeling_trident_strikes_lightning_rod(true, true, true, true));
+        assert!(channeling_trident_strikes_lightning_rod(
+            true, true, true, true
+        ));
         // Each requirement is necessary: no channeling / not thundering / not a
         // lightning rod / no sky view all suppress the strike.
         assert!(!channeling_trident_strikes_lightning_rod(

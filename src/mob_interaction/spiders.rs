@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CaveSpiderAttributes {
     pub max_health: f32,
@@ -145,4 +144,3 @@ pub fn spider_should_roll_special_effect(
 ) -> bool {
     difficulty == "hard" && random_float < SPIDER_SPECIAL_EFFECT_CHANCE * special_multiplier
 }
-

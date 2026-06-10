@@ -482,11 +482,21 @@ fn assert_sculk_shrieker_gates_invalid_shrieks() -> SculkShriekerBlockEntity {
     assert!(shrieker.can_receive_vibration(false, true));
     assert!(!shrieker.can_receive_vibration(false, false));
     assert!(!shrieker.can_receive_vibration(true, true));
-    assert!(SculkShriekerBlockEntity::try_get_player(true, false, false, false));
-    assert!(SculkShriekerBlockEntity::try_get_player(false, true, false, false));
-    assert!(SculkShriekerBlockEntity::try_get_player(false, false, true, false));
-    assert!(SculkShriekerBlockEntity::try_get_player(false, false, false, true));
-    assert!(!SculkShriekerBlockEntity::try_get_player(false, false, false, false));
+    assert!(SculkShriekerBlockEntity::try_get_player(
+        true, false, false, false
+    ));
+    assert!(SculkShriekerBlockEntity::try_get_player(
+        false, true, false, false
+    ));
+    assert!(SculkShriekerBlockEntity::try_get_player(
+        false, false, true, false
+    ));
+    assert!(SculkShriekerBlockEntity::try_get_player(
+        false, false, false, true
+    ));
+    assert!(!SculkShriekerBlockEntity::try_get_player(
+        false, false, false, false
+    ));
     assert_eq!(
         shrieker.try_shriek(false, true, Some(1), false),
         SculkShriekResult::Ignored

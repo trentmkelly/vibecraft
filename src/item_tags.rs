@@ -308,7 +308,10 @@ mod tests {
         assert!(item_in_tag("minecraft:diamond_sword", "#minecraft:swords"));
         assert!(item_in_tag("minecraft:copper_sword", "minecraft:swords"));
         assert!(!item_in_tag("minecraft:diamond_axe", "minecraft:swords"));
-        assert!(item_in_tag("minecraft:turtle_helmet", "#minecraft:head_armor"));
+        assert!(item_in_tag(
+            "minecraft:turtle_helmet",
+            "#minecraft:head_armor"
+        ));
         assert!(item_in_tag("minecraft:dragon_head", "#minecraft:skulls"));
     }
 
@@ -334,7 +337,10 @@ mod tests {
         ));
 
         // weapon = sharp_weapon + mace.
-        assert!(item_in_tag("minecraft:mace", "#minecraft:enchantable/weapon"));
+        assert!(item_in_tag(
+            "minecraft:mace",
+            "#minecraft:enchantable/weapon"
+        ));
         assert!(item_in_tag(
             "minecraft:diamond_axe",
             "#minecraft:enchantable/weapon"
@@ -355,7 +361,10 @@ mod tests {
             "minecraft:netherite_pickaxe",
             "#minecraft:enchantable/mining"
         ));
-        assert!(item_in_tag("minecraft:shears", "#minecraft:enchantable/mining"));
+        assert!(item_in_tag(
+            "minecraft:shears",
+            "#minecraft:enchantable/mining"
+        ));
 
         // vanishing nests durability (deep) plus carved_pumpkin/compass/skulls.
         assert!(item_in_tag(
@@ -374,7 +383,13 @@ mod tests {
 
     #[test]
     fn unknown_tag_or_item_is_not_a_member() {
-        assert!(!item_in_tag("minecraft:apple", "#minecraft:enchantable/weapon"));
-        assert!(!item_in_tag("minecraft:diamond_sword", "#minecraft:nonexistent"));
+        assert!(!item_in_tag(
+            "minecraft:apple",
+            "#minecraft:enchantable/weapon"
+        ));
+        assert!(!item_in_tag(
+            "minecraft:diamond_sword",
+            "#minecraft:nonexistent"
+        ));
     }
 }

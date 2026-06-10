@@ -695,4 +695,3 @@ pub const FLOWER_FOREST_CREATURE_SPAWNS: &[MobSpawnerDataModel] = &[
         max_count: 3,
     },
 ];
-

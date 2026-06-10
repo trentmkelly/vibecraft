@@ -328,9 +328,9 @@ fn trim_materials_and_patterns_expose_bootstrap_assets() {
 #[test]
 fn instruments_and_jukebox_songs_preserve_sound_and_redstone_surfaces() {
     assert_eq!(INSTRUMENTS.len(), 8);
-    assert!(INSTRUMENTS.iter().all(|instrument| {
-        instrument.use_duration_seconds == 7.0 && instrument.range == 256.0
-    }));
+    assert!(INSTRUMENTS
+        .iter()
+        .all(|instrument| { instrument.use_duration_seconds == 7.0 && instrument.range == 256.0 }));
     assert_eq!(JUKEBOX_SONGS.len(), 21);
     let mut jukebox_song_ids: Vec<&str> = JUKEBOX_SONGS.iter().map(|song| song.id).collect();
     jukebox_song_ids.sort_unstable();

@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GiantAttributes {
     pub max_health: f32,
@@ -57,4 +56,3 @@ pub fn giant_entity_type_surface() -> GiantEntityTypeSurface {
 pub fn giant_walk_target_value(pathfinding_cost_from_light_levels: f32) -> f32 {
     pathfinding_cost_from_light_levels
 }
-

@@ -158,15 +158,20 @@ impl RecipeKind {
     /// are optional). Special recipes have no fixed ingredients, so never incomplete.
     pub fn is_incomplete(&self) -> bool {
         match self {
-            RecipeKind::Shaped { pattern, .. } => pattern.iter().flatten().any(IngredientSpec::is_empty),
+            RecipeKind::Shaped { pattern, .. } => {
+                pattern.iter().flatten().any(IngredientSpec::is_empty)
+            }
             RecipeKind::Shapeless { ingredients, .. } => {
                 ingredients.is_empty() || ingredients.iter().any(IngredientSpec::is_empty)
             }
-            RecipeKind::Cooking { ingredient, .. } | RecipeKind::Stonecutting { ingredient, .. } => {
-                ingredient.is_empty()
-            }
-            RecipeKind::Transmute { input, material, .. } => input.is_empty() || material.is_empty(),
-            RecipeKind::Imbue { source, material, .. } => source.is_empty() || material.is_empty(),
+            RecipeKind::Cooking { ingredient, .. }
+            | RecipeKind::Stonecutting { ingredient, .. } => ingredient.is_empty(),
+            RecipeKind::Transmute {
+                input, material, ..
+            } => input.is_empty() || material.is_empty(),
+            RecipeKind::Imbue {
+                source, material, ..
+            } => source.is_empty() || material.is_empty(),
             RecipeKind::SmithingTransform { base, .. } | RecipeKind::SmithingTrim { base, .. } => {
                 base.is_empty()
             }
@@ -288,7 +293,8 @@ impl RecipeKind {
             RecipeKind::Shapeless { ingredients, .. } => {
                 PlacementInfo::create_list(ingredients.clone())
             }
-            RecipeKind::Cooking { ingredient, .. } | RecipeKind::Stonecutting { ingredient, .. } => {
+            RecipeKind::Cooking { ingredient, .. }
+            | RecipeKind::Stonecutting { ingredient, .. } => {
                 PlacementInfo::create(ingredient.clone())
             }
             RecipeKind::Transmute {
@@ -298,10 +304,15 @@ impl RecipeKind {
                 ..
             } => {
                 let mut ingredients = vec![input.clone()];
-                ingredients.extend(std::iter::repeat_n(material.clone(), *max_material_count as usize));
+                ingredients.extend(std::iter::repeat_n(
+                    material.clone(),
+                    *max_material_count as usize,
+                ));
                 PlacementInfo::create_list(ingredients)
             }
-            RecipeKind::Imbue { source, material, .. } => PlacementInfo::create_list(vec![
+            RecipeKind::Imbue {
+                source, material, ..
+            } => PlacementInfo::create_list(vec![
                 material.clone(),
                 material.clone(),
                 material.clone(),
@@ -434,8 +445,11 @@ impl RecipeKind {
                     }
                 }
                 let input_stack = input_stack?;
-                let count =
-                    transmute_result_count(result.count, material_count, *add_material_count_to_result);
+                let count = transmute_result_count(
+                    result.count,
+                    material_count,
+                    *add_material_count_to_result,
+                );
                 Some(input_stack.transmute_copy(result.item, count as i32))
             }
             // `ImbueRecipe.assemble`: a fresh result carrying the centre slot's
@@ -1085,11 +1099,7 @@ impl ShapedMatchInput<'_> {
     }
 }
 
-fn shaped_matches_at(
-    input: &ShapedMatchInput<'_>,
-    x_offset: usize,
-    y_offset: usize,
-) -> bool {
+fn shaped_matches_at(input: &ShapedMatchInput<'_>, x_offset: usize, y_offset: usize) -> bool {
     for y in 0..input.grid_height {
         for x in 0..input.grid_width {
             let grid_item = input.items[y * input.grid_width + x];

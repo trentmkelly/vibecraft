@@ -1,15 +1,15 @@
 use super::{
-    banner_pattern_nbt, build_player_status, bug_report_server_links_packet, cat_sound_variant_nbt,
+    banner_pattern_nbt, bug_report_server_links_packet, build_player_status, cat_sound_variant_nbt,
     chicken_sound_variant_nbt, cow_sound_variant_nbt, encode_base64, escape_json_string,
     function_permission_level_from_properties, handle_legacy_status_connection, instrument_nbt,
     legacy_disconnect_packet, legacy_version0_response, legacy_version1_response,
     load_code_of_conduct_for_language, load_favicon, login_access_disconnect_reason,
-    resolve_status_icon_from,
     login_compression_threshold, login_host_ip, pig_sound_variant_nbt, read_code_of_conducts,
-    read_packet, status_json, strip_minecraft_formatting, trim_material_nbt, trim_pattern_nbt,
-    wolf_sound_variant_nbt, write_legacy_string, write_minimal_biome_registry_packet,
-    write_minimal_damage_type_registry_packet, write_minimal_dimension_type_registry_packet,
-    write_minimal_trim_material_registry_packet, write_status_pong_packet,
+    read_packet, resolve_status_icon_from, status_json, strip_minecraft_formatting,
+    trim_material_nbt, trim_pattern_nbt, wolf_sound_variant_nbt, write_legacy_string,
+    write_minimal_biome_registry_packet, write_minimal_damage_type_registry_packet,
+    write_minimal_dimension_type_registry_packet, write_minimal_trim_material_registry_packet,
+    write_status_pong_packet, write_transfers_disabled_disconnect,
     write_vanilla_banner_pattern_registry_packet, write_vanilla_cat_sound_variant_registry_packet,
     write_vanilla_cat_variant_registry_packet, write_vanilla_chat_type_registry_packet,
     write_vanilla_chicken_sound_variant_registry_packet,
@@ -20,17 +20,16 @@ use super::{
     write_vanilla_pig_sound_variant_registry_packet, write_vanilla_pig_variant_registry_packet,
     write_vanilla_trim_pattern_registry_packet, write_vanilla_wolf_sound_variant_registry_packet,
     write_vanilla_wolf_variant_registry_packet,
-    write_transfers_disabled_disconnect, write_vanilla_zombie_nautilus_variant_registry_packet,
-    write_world_clock_registry_packet, ActiveLoginRegistry, StatusPlayer, INSTRUMENTS,
-    MAX_PACKET_SIZE, MAX_STATUS_PLAYER_SAMPLE, STATUS_ANONYMOUS_NAME, STATUS_ANONYMOUS_UUID,
-    TRIM_MATERIALS,
+    write_vanilla_zombie_nautilus_variant_registry_packet, write_world_clock_registry_packet,
+    ActiveLoginRegistry, StatusPlayer, INSTRUMENTS, MAX_PACKET_SIZE, MAX_STATUS_PLAYER_SAMPLE,
+    STATUS_ANONYMOUS_NAME, STATUS_ANONYMOUS_UUID, TRIM_MATERIALS,
 };
-use crate::random_source::LegacyRandom;
 use crate::command::PermissionLevel;
 use crate::network::common::{ServerLinkLabel, ServerLinkType};
 use crate::network::ping::ServerboundPingRequestPacket;
 use crate::network::play::pack_block_position;
 use crate::network::varint::{read_var_i32, write_var_i32};
+use crate::random_source::LegacyRandom;
 use crate::server_properties::ServerProperties;
 use crate::storage::nbt::Tag;
 use crate::{biome, damage_type, equipment_trim, presentation_data};
@@ -955,7 +954,11 @@ pub fn trim_material_registry_payload_includes_redstone_component_data() {
 pub fn trim_material_registry_payloads_match_vanilla_colors_and_overrides() {
     // (id, description color as serialized by TextColor #%06X, override_armor_assets)
     // Values from data/minecraft/trim_material/*.json and MaterialAssetGroup.
-    type TrimExpectation = (&'static str, &'static str, &'static [(&'static str, &'static str)]);
+    type TrimExpectation = (
+        &'static str,
+        &'static str,
+        &'static [(&'static str, &'static str)],
+    );
     let expected: &[TrimExpectation] = &[
         ("quartz", "#E3D4C4", &[]),
         ("iron", "#ECECEC", &[("minecraft:iron", "iron_darker")]),
@@ -965,7 +968,11 @@ pub fn trim_material_registry_payloads_match_vanilla_colors_and_overrides() {
             &[("minecraft:netherite", "netherite_darker")],
         ),
         ("redstone", "#971607", &[]),
-        ("copper", "#B4684D", &[("minecraft:copper", "copper_darker")]),
+        (
+            "copper",
+            "#B4684D",
+            &[("minecraft:copper", "copper_darker")],
+        ),
         ("gold", "#DEB12D", &[("minecraft:gold", "gold_darker")]),
         ("emerald", "#11A036", &[]),
         (

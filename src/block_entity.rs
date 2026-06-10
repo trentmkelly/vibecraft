@@ -380,10 +380,18 @@ pub struct CommandBlockChainStep {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum JukeboxSongEvent { Started, Stopped, ItemChanged }
+pub enum JukeboxSongEvent {
+    Started,
+    Stopped,
+    ItemChanged,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct JukeboxRemovalEffect { pub popped_item: Option<PotItemStack>, pub game_event: &'static str, pub level_event: i32 }
+pub struct JukeboxRemovalEffect {
+    pub popped_item: Option<PotItemStack>,
+    pub game_event: &'static str,
+    pub level_event: i32,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JukeboxBlockEntity {
@@ -453,7 +461,12 @@ pub struct LecternBlockEntity {
     pub page_count: i32,
 }
 #[derive(Debug, Clone, PartialEq)]
-pub struct LecternBookDrop { pub item: PotItemStack, pub x: f64, pub y: f64, pub z: f64 }
+pub struct LecternBookDrop {
+    pub item: PotItemStack,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HangingSignAttachment {
@@ -1089,21 +1102,21 @@ pub struct CreakingHeartTickContext {
 
 mod shared_models;
 pub use shared_models::*;
-mod test_blocks;
-mod structures;
 mod functional_blocks;
+mod structures;
+mod test_blocks;
 #[cfg(test)]
 use functional_blocks::*;
 mod beacon_signs_brewing;
-mod spawners;
-mod vault_banner_furnace;
-mod decorated_pot_patterns;
+mod beehive_creaking_bell;
 mod container_decorative;
-pub mod shulker_box;
+mod decorated_pot_patterns;
 mod ender_chest;
 mod sculk_conduit_campfire;
-mod beehive_creaking_bell;
+pub mod shulker_box;
 mod skull;
+mod spawners;
+mod vault_banner_furnace;
 pub use beehive_creaking_bell::*;
 
 mod block_entity_types_data;

@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct VexAttributes {
     pub max_health: f32,
@@ -177,4 +176,3 @@ pub fn evoker_vex_summon_plan(
         game_event: "minecraft:entity_place",
     }
 }
-

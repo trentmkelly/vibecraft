@@ -4,11 +4,10 @@ use super::{
     ClientboundDisconnectPacket, ClientboundKeepAlivePacket, ClientboundPingPacket,
     ClientboundResourcePackPopPacket, ClientboundResourcePackPushPacket, CommonSession,
     CustomPayload, DialogState, HumanoidArm, KeepAliveState, KeepAliveTick, ParticleStatus,
-    ResourcePackAction, ResourcePackState, ResourcePackStatus, ServerLinkEntry,
-    ServerLinkLabel, ServerLinkType, ServerboundClientInformationPacket,
-    ServerboundCustomClickActionPacket, ServerboundCustomPayloadPacket,
-    ServerboundKeepAlivePacket, ServerboundPongPacket, ServerboundResourcePackPacket,
-    TagNetworkPayload, MAX_SERVERBOUND_CUSTOM_PAYLOAD_SIZE,
+    ResourcePackAction, ResourcePackState, ResourcePackStatus, ServerLinkEntry, ServerLinkLabel,
+    ServerLinkType, ServerboundClientInformationPacket, ServerboundCustomClickActionPacket,
+    ServerboundCustomPayloadPacket, ServerboundKeepAlivePacket, ServerboundPongPacket,
+    ServerboundResourcePackPacket, TagNetworkPayload, MAX_SERVERBOUND_CUSTOM_PAYLOAD_SIZE,
 };
 use crate::network::codec::{ComponentJson, Uuid};
 use crate::registry::Identifier;
@@ -317,9 +316,7 @@ fn round_trips_server_links_packet() {
                 link: "https://example.invalid/bugs".to_string(),
             },
             ServerLinkEntry {
-                label: ServerLinkLabel::Custom(ComponentJson(
-                    "{\"text\":\"Docs\"}".to_string(),
-                )),
+                label: ServerLinkLabel::Custom(ComponentJson("{\"text\":\"Docs\"}".to_string())),
                 link: "https://example.invalid/docs".to_string(),
             },
         ],
@@ -368,8 +365,7 @@ fn round_trips_show_dialog_as_bounded_context_free_payload() {
     let oversized = super::ClientboundShowDialogPacket {
         payload: vec![
             0;
-            super::ClientboundShowDialogPacket::MAX_CONTEXT_FREE_DIALOG_PAYLOAD_SIZE
-                + 1
+            super::ClientboundShowDialogPacket::MAX_CONTEXT_FREE_DIALOG_PAYLOAD_SIZE + 1
         ],
     };
     assert!(oversized.write(&mut Vec::new()).is_err());
@@ -438,8 +434,7 @@ fn keepalive_state_sends_challenge_and_smooths_latency() {
     };
     assert!(state.is_pending());
 
-    let result =
-        state.handle_response(ServerboundKeepAlivePacket { id: challenge }, 16_200, false);
+    let result = state.handle_response(ServerboundKeepAlivePacket { id: challenge }, 16_200, false);
     assert_eq!(result, KeepAliveTick::Idle);
     assert!(!state.is_pending());
     assert_eq!(state.latency_ms(), 125);

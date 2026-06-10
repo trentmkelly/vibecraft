@@ -5,9 +5,8 @@ use crate::worldgen::{
     BUILTIN_SURFACE_RULE_PRESETS, NETHER_SURFACE_BLOCKS, OVERWORLD_SURFACE_BLOCKS,
 };
 
-const SURFACE_RULE_DATA_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/SurfaceRuleData.java"
-);
+const SURFACE_RULE_DATA_JAVA: &str =
+    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/worldgen/SurfaceRuleData.java");
 const NOISE_SETTINGS_ROOT: &str =
     "../decompiled-server-26.1.2/data/minecraft/worldgen/noise_settings";
 
@@ -30,7 +29,8 @@ fn noise_settings_surface_rule_roots() -> BTreeMap<String, String> {
     for entry in std::fs::read_dir(root)
         .unwrap_or_else(|err| panic!("failed to read noise_settings dir {root:?}: {err}"))
     {
-        let entry = entry.unwrap_or_else(|err| panic!("failed to read noise_settings entry: {err}"));
+        let entry =
+            entry.unwrap_or_else(|err| panic!("failed to read noise_settings entry: {err}"));
         let path = entry.path();
         if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
             continue;
@@ -85,7 +85,10 @@ fn surface_rule_data_java_shape_matches_decompilation() {
             "return SurfaceRules.noiseCondition(Noises.SURFACE, threshold / 8.25, Double.MAX_VALUE);",
         ],
     );
-    assert_eq!(count_occurrences(SURFACE_RULE_DATA_JAVA, "makeStateRule"), 36);
+    assert_eq!(
+        count_occurrences(SURFACE_RULE_DATA_JAVA, "makeStateRule"),
+        36
+    );
     assert_eq!(
         count_occurrences(SURFACE_RULE_DATA_JAVA, "SurfaceRules.sequence"),
         44
@@ -126,7 +129,9 @@ fn rust_surface_rule_presets_match_surface_rule_data_methods() {
     );
 
     assert_eq!(
-        builtin_surface_rule_preset("minecraft:overworld").unwrap().rule,
+        builtin_surface_rule_preset("minecraft:overworld")
+            .unwrap()
+            .rule,
         SurfaceRuleKind::OverworldLike {
             preliminary_surface_check: true,
             bedrock_roof: false,
@@ -144,7 +149,9 @@ fn rust_surface_rule_presets_match_surface_rule_data_methods() {
         }
     );
     assert_eq!(
-        builtin_surface_rule_preset("floating_islands").unwrap().rule,
+        builtin_surface_rule_preset("floating_islands")
+            .unwrap()
+            .rule,
         SurfaceRuleKind::OverworldLike {
             preliminary_surface_check: false,
             bedrock_roof: false,
@@ -180,8 +187,14 @@ fn vanilla_noise_settings_surface_rule_roots_parse_through_rust_codec() {
     assert_eq!(
         roots,
         BTreeMap::from([
-            ("minecraft:amplified".to_string(), "minecraft:sequence".to_string()),
-            ("minecraft:caves".to_string(), "minecraft:sequence".to_string()),
+            (
+                "minecraft:amplified".to_string(),
+                "minecraft:sequence".to_string()
+            ),
+            (
+                "minecraft:caves".to_string(),
+                "minecraft:sequence".to_string()
+            ),
             ("minecraft:end".to_string(), "minecraft:block".to_string()),
             (
                 "minecraft:floating_islands".to_string(),
@@ -191,8 +204,14 @@ fn vanilla_noise_settings_surface_rule_roots_parse_through_rust_codec() {
                 "minecraft:large_biomes".to_string(),
                 "minecraft:sequence".to_string(),
             ),
-            ("minecraft:nether".to_string(), "minecraft:sequence".to_string()),
-            ("minecraft:overworld".to_string(), "minecraft:sequence".to_string()),
+            (
+                "minecraft:nether".to_string(),
+                "minecraft:sequence".to_string()
+            ),
+            (
+                "minecraft:overworld".to_string(),
+                "minecraft:sequence".to_string()
+            ),
         ])
     );
 

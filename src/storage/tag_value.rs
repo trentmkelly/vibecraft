@@ -344,7 +344,6 @@ impl CompoundListOutput {
         self.problems.extend(child.problems);
         self.entries.push(Tag::Compound(child.output));
     }
-
 }
 
 fn tag_type_name(tag: &Tag) -> &'static str {

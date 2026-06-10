@@ -411,4 +411,3 @@ pub fn create_structure_references_for_chunk(
     }
     references
 }
-

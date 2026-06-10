@@ -403,7 +403,10 @@ impl SculkSensorBlockEntity {
         event_pos_is_sensor_pos: bool,
     ) -> bool {
         if event_pos_is_sensor_pos
-            && matches!(event_id, "minecraft:block_destroy" | "minecraft:block_place")
+            && matches!(
+                event_id,
+                "minecraft:block_destroy" | "minecraft:block_place"
+            )
         {
             return false;
         }

@@ -1,12 +1,9 @@
 use super::{
-    default_biomes_container,
-    default_block_states_container, pack_postprocessing_offset,
+    default_biomes_container, default_block_states_container, pack_postprocessing_offset,
     saved_tick_tag, string_field, unpack_postprocessing_offset, BlockStateEntry,
     ChunkInitializeLightPlan, ChunkLightCompletionPlan, ChunkSection, LevelChunk, LightLayer,
-    LightSectionStatusUpdate, QueuedSectionLightData,
-    TickPriority,
-    LIGHT_DATA_LAYER_LENGTH, LIGHT_DATA_LAYER_NIBBLE_COUNT, LIGHT_DATA_LAYER_ROW_SIZE,
-    LIGHT_DATA_LAYER_WIDTH,
+    LightSectionStatusUpdate, QueuedSectionLightData, TickPriority, LIGHT_DATA_LAYER_LENGTH,
+    LIGHT_DATA_LAYER_NIBBLE_COUNT, LIGHT_DATA_LAYER_ROW_SIZE, LIGHT_DATA_LAYER_WIDTH,
 };
 use crate::storage::datafix::TARGET_DATA_VERSION;
 use crate::storage::nbt::Tag;
@@ -402,10 +399,7 @@ fn level_chunk_stores_structure_starts_and_nearby_references() {
             )]
     ));
     assert_eq!(
-        super::chunk_pos_chessboard_distance(
-            ChunkPos { x: 10, z: -10 },
-            ChunkPos { x: 18, z: -2 }
-        ),
+        super::chunk_pos_chessboard_distance(ChunkPos { x: 10, z: -10 }, ChunkPos { x: 18, z: -2 }),
         8
     );
 }
@@ -513,30 +507,9 @@ fn level_chunk_adds_proto_entity_nbt_in_generation_order() {
 fn level_chunk_schedules_block_and_fluid_ticks_for_own_chunk() {
     let mut chunk = LevelChunk::empty(ChunkPos { x: -2, z: 3 });
 
-    assert!(chunk.schedule_block_tick(
-        "minecraft:oak_sapling",
-        -17,
-        65,
-        48,
-        7,
-        TickPriority::High
-    ));
-    assert!(chunk.schedule_fluid_tick(
-        "minecraft:water",
-        -32,
-        -5,
-        63,
-        1,
-        TickPriority::VeryLow
-    ));
-    assert!(!chunk.schedule_block_tick(
-        "minecraft:stone",
-        -33,
-        65,
-        48,
-        0,
-        TickPriority::Normal
-    ));
+    assert!(chunk.schedule_block_tick("minecraft:oak_sapling", -17, 65, 48, 7, TickPriority::High));
+    assert!(chunk.schedule_fluid_tick("minecraft:water", -32, -5, 63, 1, TickPriority::VeryLow));
+    assert!(!chunk.schedule_block_tick("minecraft:stone", -33, 65, 48, 0, TickPriority::Normal));
 
     assert_eq!(
         chunk.block_ticks,
@@ -1000,6 +973,5 @@ fn level_chunk_rejects_empty_status_like_vanilla_parse_null_path() {
 
     assert!(err.contains("Status cannot be empty"));
 }
-
 
 mod generation_tests;

@@ -11,7 +11,9 @@ struct LootPoolModel {
 
 impl LootPoolModel {
     fn new() -> Self {
-        Self { entries: Vec::new() }
+        Self {
+            entries: Vec::new(),
+        }
     }
 
     fn add(mut self, entry: LootEntryModel) -> Self {
@@ -32,19 +34,11 @@ enum LootEntryModel {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum LootConditionModel {
     AnyOf(Vec<LootConditionModel>),
-    EntityOnFire {
-        target: LootEntityTargetModel,
-    },
+    EntityOnFire { target: LootEntityTargetModel },
     DirectAttackerMainhandEnchantmentTag(&'static str),
-    SheepColorAndHasWool {
-        color: DyeColorModel,
-    },
-    DamageSourceEntityType {
-        entity_type: &'static str,
-    },
-    DamageSourceFrogVariant {
-        variant: String,
-    },
+    SheepColorAndHasWool { color: DyeColorModel },
+    DamageSourceEntityType { entity_type: &'static str },
+    DamageSourceFrogVariant { variant: String },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,7 +66,10 @@ impl EntityTypeModel {
     fn living(key: &str) -> Self {
         Self {
             registry_key: key.to_string(),
-            default_loot_table: Some(format!("minecraft:entities/{}", key.replace("minecraft:", ""))),
+            default_loot_table: Some(format!(
+                "minecraft:entities/{}",
+                key.replace("minecraft:", "")
+            )),
             allowed_enabled: true,
             required_enabled: true,
         }
@@ -119,9 +116,7 @@ impl EntityLootSubProviderModel {
         ])
     }
 
-    fn create_sheep_dispatch_pool(
-        table_names: BTreeMap<DyeColorModel, String>,
-    ) -> LootPoolModel {
+    fn create_sheep_dispatch_pool(table_names: BTreeMap<DyeColorModel, String>) -> LootPoolModel {
         let variants = table_names
             .into_iter()
             .map(|(color, table)| LootEntryModel::NestedTable {
@@ -150,7 +145,10 @@ impl EntityLootSubProviderModel {
         builder: LootTableBuilderModel,
     ) -> Result<(), String> {
         let Some(default) = &entity_type.default_loot_table else {
-            return Err(format!("Entity {} has no loot table", entity_type.registry_key));
+            return Err(format!(
+                "Entity {} has no loot table",
+                entity_type.registry_key
+            ));
         };
         self.add(entity_type, default, builder);
         Ok(())
@@ -176,7 +174,10 @@ impl EntityLootSubProviderModel {
         generated_by_subclass(self)?;
         let mut seen = BTreeSet::new();
         let mut output = Vec::new();
-        for entity_type in entity_types.iter().filter(|entity_type| entity_type.allowed_enabled) {
+        for entity_type in entity_types
+            .iter()
+            .filter(|entity_type| entity_type.allowed_enabled)
+        {
             if let Some(default_loot_table) = &entity_type.default_loot_table {
                 let builders = self.map.remove(&entity_type.registry_key);
                 if entity_type.required_enabled
@@ -252,9 +253,18 @@ mod tests {
     #[test]
     fn sheep_dispatch_pool_builds_color_specific_nested_tables() {
         let pool = EntityLootSubProviderModel::create_sheep_dispatch_pool(BTreeMap::from([
-            (DyeColorModel::White, "minecraft:entities/sheep/white".to_string()),
-            (DyeColorModel::Orange, "minecraft:entities/sheep/orange".to_string()),
-            (DyeColorModel::Magenta, "minecraft:entities/sheep/magenta".to_string()),
+            (
+                DyeColorModel::White,
+                "minecraft:entities/sheep/white".to_string(),
+            ),
+            (
+                DyeColorModel::Orange,
+                "minecraft:entities/sheep/orange".to_string(),
+            ),
+            (
+                DyeColorModel::Magenta,
+                "minecraft:entities/sheep/magenta".to_string(),
+            ),
             (
                 DyeColorModel::LightBlue,
                 "minecraft:entities/sheep/light_blue".to_string(),
@@ -299,8 +309,7 @@ mod tests {
         let marker = EntityTypeModel::non_living("minecraft:marker");
         let mut provider = EntityLootSubProviderModel::new();
         must_ok(provider.add_default(&zombie, LootTableBuilderModel("zombie")));
-        assert!(provider.map["minecraft:zombie"]
-            .contains_key("minecraft:entities/zombie"));
+        assert!(provider.map["minecraft:zombie"].contains_key("minecraft:entities/zombie"));
         assert_eq!(
             must_err(provider.add_default(&marker, LootTableBuilderModel("marker"))),
             "Entity minecraft:marker has no loot table"

@@ -1,4 +1,3 @@
-
 pub const NETHER_WASTES_FEATURE_STEPS: &[&[&str]] = &[
     &[],
     &[],
@@ -204,4 +203,3 @@ pub const END_HIGHLANDS_FEATURE_STEPS: &[&[&str]] = &[
 pub const END_MIDLANDS_FEATURE_STEPS: &[&[&str]] = &[];
 pub const SMALL_END_ISLANDS_FEATURE_STEPS: &[&[&str]] = &[&["minecraft:end_island_decorated"]];
 pub const END_BARRENS_FEATURE_STEPS: &[&[&str]] = &[];
-

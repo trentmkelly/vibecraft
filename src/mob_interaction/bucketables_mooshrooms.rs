@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BucketEntityData {
     pub no_ai: bool,
@@ -60,4 +59,3 @@ pub fn mooshroom_interaction(
         MooshroomInteraction::Delegate
     }
 }
-

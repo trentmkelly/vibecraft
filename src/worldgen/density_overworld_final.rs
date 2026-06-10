@@ -242,4 +242,3 @@ pub const OVERWORLD_FINAL_DENSITY_CONST: DensityFunction = DensityFunction::Bina
     argument1: &OVERWORLD_FINAL_POST_PROCESS_DENSITY,
     argument2: &OVERWORLD_CAVES_NOODLE_REFERENCE_DENSITY,
 };
-

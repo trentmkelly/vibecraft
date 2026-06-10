@@ -230,7 +230,7 @@ fn shaped_and_shapeless_recipes_match_vanilla_grid_rules() {
             Some(IngredientSpec::Item("minecraft:oak_planks")),
         ],
         result: ItemAmount::one("minecraft:crafting_table"),
-                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
+        category: crate::recipe_system::CraftingBookCategoryModel::Misc,
     };
     let grid = vec![
         None,
@@ -259,7 +259,7 @@ fn shaped_and_shapeless_recipes_match_vanilla_grid_rules() {
             Some(IngredientSpec::Item("minecraft:coal")),
         ],
         result: ItemAmount::one("minecraft:torch"),
-                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
+        category: crate::recipe_system::CraftingBookCategoryModel::Misc,
     };
     assert!(asymmetric.matches(2, 1, &[Some("minecraft:stick"), Some("minecraft:coal")]));
     // 26.1.2 `ShapedRecipePattern.matches` tries the horizontally-mirrored pattern
@@ -274,7 +274,7 @@ fn shaped_and_shapeless_recipes_match_vanilla_grid_rules() {
             IngredientSpec::AnyOf(vec!["minecraft:red_dye", "minecraft:blue_dye"]),
         ],
         result: ItemAmount::one("minecraft:firework_star"),
-                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
+        category: crate::recipe_system::CraftingBookCategoryModel::Misc,
     };
     assert!(shapeless.matches(
         2,
@@ -307,7 +307,7 @@ fn shaped_and_shapeless_recipes_match_vanilla_grid_rules() {
             IngredientSpec::Item("minecraft:oak_planks"),
         ],
         result: ItemAmount::one("minecraft:stick"),
-                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
+        category: crate::recipe_system::CraftingBookCategoryModel::Misc,
     };
     assert!(overlapping.matches(
         2,
@@ -318,7 +318,10 @@ fn shaped_and_shapeless_recipes_match_vanilla_grid_rules() {
     assert!(!overlapping.matches(
         2,
         1,
-        &[Some("minecraft:birch_planks"), Some("minecraft:birch_planks")]
+        &[
+            Some("minecraft:birch_planks"),
+            Some("minecraft:birch_planks")
+        ]
     ));
 }
 
@@ -818,10 +821,22 @@ mod recipe_kind_tests;
 fn cooking_book_category_drives_recipe_book_group() {
     use crate::recipe_system::CookingBookCategory;
 
-    assert_eq!(CookingBookCategory::from_id(Some("food")), CookingBookCategory::Food);
-    assert_eq!(CookingBookCategory::from_id(Some("blocks")), CookingBookCategory::Blocks);
-    assert_eq!(CookingBookCategory::from_id(Some("misc")), CookingBookCategory::Misc);
-    assert_eq!(CookingBookCategory::from_id(None), CookingBookCategory::Misc);
+    assert_eq!(
+        CookingBookCategory::from_id(Some("food")),
+        CookingBookCategory::Food
+    );
+    assert_eq!(
+        CookingBookCategory::from_id(Some("blocks")),
+        CookingBookCategory::Blocks
+    );
+    assert_eq!(
+        CookingBookCategory::from_id(Some("misc")),
+        CookingBookCategory::Misc
+    );
+    assert_eq!(
+        CookingBookCategory::from_id(None),
+        CookingBookCategory::Misc
+    );
 
     let cooking = |kind, category| RecipeKind::Cooking {
         kind,
@@ -833,15 +848,36 @@ fn cooking_book_category_drives_recipe_book_group() {
     };
 
     // SmeltingRecipe.recipeBookCategory: FOOD/BLOCKS/MISC -> the matching group.
-    assert_eq!(cooking(CookingKind::Smelting, CookingBookCategory::Food).recipe_book_category(), "furnace_food");
-    assert_eq!(cooking(CookingKind::Smelting, CookingBookCategory::Blocks).recipe_book_category(), "furnace_blocks");
-    assert_eq!(cooking(CookingKind::Smelting, CookingBookCategory::Misc).recipe_book_category(), "furnace_misc");
+    assert_eq!(
+        cooking(CookingKind::Smelting, CookingBookCategory::Food).recipe_book_category(),
+        "furnace_food"
+    );
+    assert_eq!(
+        cooking(CookingKind::Smelting, CookingBookCategory::Blocks).recipe_book_category(),
+        "furnace_blocks"
+    );
+    assert_eq!(
+        cooking(CookingKind::Smelting, CookingBookCategory::Misc).recipe_book_category(),
+        "furnace_misc"
+    );
     // BlastingRecipe: BLOCKS -> blocks, FOOD/MISC -> misc.
-    assert_eq!(cooking(CookingKind::Blasting, CookingBookCategory::Blocks).recipe_book_category(), "blast_furnace_blocks");
-    assert_eq!(cooking(CookingKind::Blasting, CookingBookCategory::Food).recipe_book_category(), "blast_furnace_misc");
+    assert_eq!(
+        cooking(CookingKind::Blasting, CookingBookCategory::Blocks).recipe_book_category(),
+        "blast_furnace_blocks"
+    );
+    assert_eq!(
+        cooking(CookingKind::Blasting, CookingBookCategory::Food).recipe_book_category(),
+        "blast_furnace_misc"
+    );
     // Smoker is always food; campfire is always campfire.
-    assert_eq!(cooking(CookingKind::Smoking, CookingBookCategory::Misc).recipe_book_category(), "smoker_food");
-    assert_eq!(cooking(CookingKind::CampfireCooking, CookingBookCategory::Misc).recipe_book_category(), "campfire");
+    assert_eq!(
+        cooking(CookingKind::Smoking, CookingBookCategory::Misc).recipe_book_category(),
+        "smoker_food"
+    );
+    assert_eq!(
+        cooking(CookingKind::CampfireCooking, CookingBookCategory::Misc).recipe_book_category(),
+        "campfire"
+    );
 }
 
 #[test]
@@ -850,15 +886,18 @@ fn recipe_is_incomplete_when_a_required_ingredient_is_empty() {
     let complete = RecipeKind::Shapeless {
         ingredients: vec![IngredientSpec::Item("minecraft:stick")],
         result: ItemAmount::one("minecraft:torch"),
-                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
+        category: crate::recipe_system::CraftingBookCategoryModel::Misc,
     };
     assert!(!complete.is_incomplete());
 
     // An empty ingredient makes it incomplete.
     let incomplete = RecipeKind::Shapeless {
-        ingredients: vec![IngredientSpec::Item("minecraft:stick"), IngredientSpec::Empty],
+        ingredients: vec![
+            IngredientSpec::Item("minecraft:stick"),
+            IngredientSpec::Empty,
+        ],
         result: ItemAmount::one("minecraft:torch"),
-                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
+        category: crate::recipe_system::CraftingBookCategoryModel::Misc,
     };
     assert!(incomplete.is_incomplete());
 
@@ -869,7 +908,10 @@ fn recipe_is_incomplete_when_a_required_ingredient_is_empty() {
         addition: IngredientSpec::Empty,
         pattern: "minecraft:sentry",
     };
-    assert!(!smithing_ok.is_incomplete(), "empty template/addition are allowed");
+    assert!(
+        !smithing_ok.is_incomplete(),
+        "empty template/addition are allowed"
+    );
     let smithing_bad = RecipeKind::SmithingTrim {
         template: IngredientSpec::Item("minecraft:sentry_armor_trim_smithing_template"),
         base: IngredientSpec::Empty,
@@ -895,7 +937,7 @@ fn placement_info_is_built_per_recipe_type_like_java() {
             IngredientSpec::Item("minecraft:coal"),
         ],
         result: ItemAmount::one("minecraft:torch"),
-                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
+        category: crate::recipe_system::CraftingBookCategoryModel::Misc,
     };
     let p = shapeless.placement_info();
     assert_eq!(p.ingredients.len(), 2);
@@ -917,7 +959,10 @@ fn placement_info_is_built_per_recipe_type_like_java() {
     let imbue = RecipeKind::Imbue {
         source: IngredientSpec::Item("minecraft:lingering_potion"),
         material: IngredientSpec::Item("minecraft:arrow"),
-        result: ItemAmount { item: "minecraft:tipped_arrow", count: 8 },
+        result: ItemAmount {
+            item: "minecraft:tipped_arrow",
+            count: 8,
+        },
     };
     assert_eq!(imbue.placement_info().slots_to_ingredient_index.len(), 9);
 
@@ -932,7 +977,7 @@ fn placement_info_is_built_per_recipe_type_like_java() {
     let broken = RecipeKind::Shapeless {
         ingredients: vec![IngredientSpec::Empty],
         result: ItemAmount::one("minecraft:torch"),
-                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
+        category: crate::recipe_system::CraftingBookCategoryModel::Misc,
     };
     assert!(broken.placement_info().is_impossible_to_place());
 }
@@ -952,9 +997,18 @@ fn crafting_book_category_drives_shaped_shapeless_recipe_book_group() {
         result: ItemAmount::one("minecraft:redstone_block"),
         category,
     };
-    assert_eq!(shaped(C::Building).recipe_book_category(), "crafting_building_blocks");
-    assert_eq!(shaped(C::Redstone).recipe_book_category(), "crafting_redstone");
-    assert_eq!(shaped(C::Equipment).recipe_book_category(), "crafting_equipment");
+    assert_eq!(
+        shaped(C::Building).recipe_book_category(),
+        "crafting_building_blocks"
+    );
+    assert_eq!(
+        shaped(C::Redstone).recipe_book_category(),
+        "crafting_redstone"
+    );
+    assert_eq!(
+        shaped(C::Equipment).recipe_book_category(),
+        "crafting_equipment"
+    );
     assert_eq!(shaped(C::Misc).recipe_book_category(), "crafting_misc");
 
     let shapeless = RecipeKind::Shapeless {

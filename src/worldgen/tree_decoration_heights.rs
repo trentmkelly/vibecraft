@@ -15,7 +15,12 @@ pub(super) enum SourceTerrainHeights<'a> {
 }
 
 impl SourceTerrainHeights<'_> {
-    pub(super) fn local_height(self, heightmap: HeightmapKind, local_x: usize, local_z: usize) -> i32 {
+    pub(super) fn local_height(
+        self,
+        heightmap: HeightmapKind,
+        local_x: usize,
+        local_z: usize,
+    ) -> i32 {
         match self {
             SourceTerrainHeights::Full(heights) => {
                 heights.local_height(heightmap, local_x, local_z)
@@ -46,7 +51,12 @@ impl SourceTerrainHeights<'_> {
 }
 
 impl TreeDecorationHeights {
-    pub(super) fn local_height(&self, heightmap: HeightmapKind, local_x: usize, local_z: usize) -> i32 {
+    pub(super) fn local_height(
+        &self,
+        heightmap: HeightmapKind,
+        local_x: usize,
+        local_z: usize,
+    ) -> i32 {
         let index = local_z * 16 + local_x;
         match heightmap {
             HeightmapKind::WorldSurface | HeightmapKind::WorldSurfaceWg => {
@@ -137,4 +147,3 @@ pub(super) fn tree_decoration_terrain_heights(
         motion_blocking_no_leaves,
     }
 }
-

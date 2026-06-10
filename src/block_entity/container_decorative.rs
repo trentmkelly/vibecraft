@@ -616,12 +616,18 @@ impl ContainerBlockEntityModel {
     pub fn collect_implicit_components(&self) -> Tag {
         let mut components = Vec::new();
         if let Some(name) = &self.custom_name {
-            components.push(("minecraft:custom_name".to_string(), Tag::String(name.clone())));
+            components.push((
+                "minecraft:custom_name".to_string(),
+                Tag::String(name.clone()),
+            ));
         }
         if let Some(lock) = &self.lock_key {
             components.push(("minecraft:lock".to_string(), Tag::String(lock.clone())));
         }
-        components.push(("minecraft:container".to_string(), container_items_tag(&self.items)));
+        components.push((
+            "minecraft:container".to_string(),
+            container_items_tag(&self.items),
+        ));
         if let Some(loot_table) = &self.loot_table {
             let mut loot = vec![("loot_table".to_string(), Tag::String(loot_table.clone()))];
             if self.loot_table_seed != 0 {
@@ -660,9 +666,18 @@ impl ContainerBlockEntityModel {
         let Some(entries) = compound_entries(tag) else {
             return tag.clone();
         };
-        Tag::Compound(entries.iter().filter(|(name, _)| {
-            !matches!(name.as_str(), "CustomName" | "lock" | "Items" | "LootTable" | "LootTableSeed")
-        }).cloned().collect())
+        Tag::Compound(
+            entries
+                .iter()
+                .filter(|(name, _)| {
+                    !matches!(
+                        name.as_str(),
+                        "CustomName" | "lock" | "Items" | "LootTable" | "LootTableSeed"
+                    )
+                })
+                .cloned()
+                .collect(),
+        )
     }
 
     pub(super) fn tick_shulker_animation(&mut self) {
@@ -694,7 +709,9 @@ fn load_container_component_items(saved_items: &[Tag], items: &mut [Option<PotIt
             continue;
         };
         let slot = get_byte(item_entries, "Slot").unwrap_or(-1);
-        if (0..items.len() as i8).contains(&slot) { items[slot as usize] = PotItemStack::from_tag(item); }
+        if (0..items.len() as i8).contains(&slot) {
+            items[slot as usize] = PotItemStack::from_tag(item);
+        }
     }
 }
 

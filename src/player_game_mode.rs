@@ -516,7 +516,8 @@ mod tests {
         assert_eq!(buffed, 12.0);
 
         // Mining efficiency adds only when speed > 1.0
-        let with_efficiency = player_tool_speed(8.0, 2.0, None, None, BREAK, false, SUBMERGED, true);
+        let with_efficiency =
+            player_tool_speed(8.0, 2.0, None, None, BREAK, false, SUBMERGED, true);
         assert_eq!(with_efficiency, 10.0);
 
         // Below 1.0 base speed: efficiency not added

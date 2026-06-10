@@ -50,7 +50,12 @@ impl<'a> LevelChunkLightChunkGetter<'a> {
     }
 
     fn chunk_at(&self, chunk_x: i32, chunk_z: i32) -> Option<&LevelChunk> {
-        self.chunks.get(&ChunkPos { x: chunk_x, z: chunk_z }).copied()
+        self.chunks
+            .get(&ChunkPos {
+                x: chunk_x,
+                z: chunk_z,
+            })
+            .copied()
     }
 }
 
@@ -91,8 +96,7 @@ impl<'a> LightChunkGetter for LevelChunkLightChunkGetter<'a> {
                     let world_z = chunk_min_z + local_z;
                     for local_x in 0..16 {
                         let world_x = chunk_min_x + local_x;
-                        let Some(name) =
-                            chunk.get_block_state_name(world_x, world_y, world_z)
+                        let Some(name) = chunk.get_block_state_name(world_x, world_y, world_z)
                         else {
                             continue;
                         };
@@ -107,11 +111,10 @@ impl<'a> LightChunkGetter for LevelChunkLightChunkGetter<'a> {
     }
 
     fn sky_light_sources(&self, chunk_x: i32, chunk_z: i32) -> Option<ChunkSkyLightSources> {
-        if let Some(cached) = self
-            .sky_sources_cache
-            .borrow()
-            .get(&ChunkPos { x: chunk_x, z: chunk_z })
-        {
+        if let Some(cached) = self.sky_sources_cache.borrow().get(&ChunkPos {
+            x: chunk_x,
+            z: chunk_z,
+        }) {
             return Some(cached.clone());
         }
         let chunk = self.chunk_at(chunk_x, chunk_z)?;
@@ -126,13 +129,19 @@ impl<'a> LightChunkGetter for LevelChunkLightChunkGetter<'a> {
             top_block_y,
             bottom_block_y,
             |x, y, z| {
-                let name = chunk.get_block_state_name(x, y, z).unwrap_or("minecraft:air");
+                let name = chunk
+                    .get_block_state_name(x, y, z)
+                    .unwrap_or("minecraft:air");
                 light_properties_for(name)
             },
         );
-        self.sky_sources_cache
-            .borrow_mut()
-            .insert(ChunkPos { x: chunk_x, z: chunk_z }, sources.clone());
+        self.sky_sources_cache.borrow_mut().insert(
+            ChunkPos {
+                x: chunk_x,
+                z: chunk_z,
+            },
+            sources.clone(),
+        );
         Some(sources)
     }
 

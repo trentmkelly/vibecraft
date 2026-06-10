@@ -88,10 +88,7 @@ fn processor_lists_java_bootstrap_shape_matches_decompilation() {
     );
 
     assert_eq!(
-        count_occurrences(
-            PROCESSOR_LISTS_JAVA,
-            "ResourceKey<StructureProcessorList>"
-        ),
+        count_occurrences(PROCESSOR_LISTS_JAVA, "ResourceKey<StructureProcessorList>"),
         42
     );
     assert_eq!(
@@ -105,7 +102,10 @@ fn processor_lists_java_bootstrap_shape_matches_decompilation() {
             .count(),
         40
     );
-    assert_eq!(count_occurrences(PROCESSOR_LISTS_JAVA, "new RuleProcessor"), 36);
+    assert_eq!(
+        count_occurrences(PROCESSOR_LISTS_JAVA, "new RuleProcessor"),
+        36
+    );
     assert_eq!(
         count_occurrences(PROCESSOR_LISTS_JAVA, "new BlockRotProcessor"),
         6
@@ -186,7 +186,10 @@ fn vanilla_processor_list_json_shapes_match_java_bootstrap_families() {
     );
     assert_eq!(
         location_predicates,
-        expected_counts(&[("minecraft:always_true", 154), ("minecraft:block_match", 10)])
+        expected_counts(&[
+            ("minecraft:always_true", 154),
+            ("minecraft:block_match", 10)
+        ])
     );
 }
 
@@ -199,7 +202,10 @@ fn representative_processor_lists_match_java_special_cases() {
 
     let outpost_rot = registry.lists.get("minecraft:outpost_rot").unwrap();
     assert_eq!(outpost_rot.processors.len(), 1);
-    assert_eq!(outpost_rot.processors[0].processor_type, "minecraft:block_rot");
+    assert_eq!(
+        outpost_rot.processors[0].processor_type,
+        "minecraft:block_rot"
+    );
     assert_eq!(outpost_rot.processors[0].integrity.as_deref(), Some("0.05"));
 
     let fossil = registry.lists.get("minecraft:fossil_diamonds").unwrap();
@@ -232,7 +238,10 @@ fn representative_processor_lists_match_java_special_cases() {
         ancient_city.processors[0].rottable_blocks.as_deref(),
         Some("#minecraft:ancient_city_replaceable")
     );
-    assert_eq!(ancient_city.processors[0].integrity.as_deref(), Some("0.95"));
+    assert_eq!(
+        ancient_city.processors[0].integrity.as_deref(),
+        Some("0.95")
+    );
 
     let archaeology = registry
         .lists

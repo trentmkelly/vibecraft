@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EndermiteState {
     pub life: i32,
@@ -89,4 +88,3 @@ pub fn endermite_from_ender_pearl(random_float: f32, level_spawning_monsters: bo
 pub fn enderman_targets_endermite() -> bool {
     ENDERMAN_TARGETS_ENDERMITES
 }
-

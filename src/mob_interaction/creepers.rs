@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CreeperState {
     pub old_swell: i32,
@@ -197,4 +196,3 @@ pub fn creeper_lingering_cloud() -> CreeperLingeringCloud {
         radius_per_tick: -CREEPER_LINGERING_CLOUD_RADIUS / CREEPER_LINGERING_CLOUD_DURATION as f32,
     }
 }
-

@@ -636,7 +636,7 @@ fn core_recipe_interface_methods_match_java_defaults() {
                 Some(IngredientSpec::Item("minecraft:oak_planks")),
             ],
             result: ItemAmount::one("minecraft:crafting_table"),
-                category: crate::recipe_system::CraftingBookCategoryModel::Misc,
+            category: crate::recipe_system::CraftingBookCategoryModel::Misc,
         },
     };
     assert_eq!(holder.get_id(), "minecraft:crafting_table");

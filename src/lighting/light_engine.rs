@@ -140,7 +140,13 @@ where
             effective_level = from_target_level;
         }
         if effective_level == from_target_level {
-            propagate_increase(base, chunk_source, from_node, increase_data, effective_level);
+            propagate_increase(
+                base,
+                chunk_source,
+                from_node,
+                increase_data,
+                effective_level,
+            );
         }
         count += 1;
     }

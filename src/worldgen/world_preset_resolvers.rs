@@ -329,9 +329,7 @@ pub(super) fn static_biome_id(id: &str) -> Option<&'static str> {
     crate::biome::BUILTIN_BIOMES
         .iter()
         .map(|entry| entry.id)
-        .find(|registered| {
-            registered.strip_prefix("minecraft:").unwrap_or(registered) == needle
-        })
+        .find(|registered| registered.strip_prefix("minecraft:").unwrap_or(registered) == needle)
 }
 
 fn static_block_id(id: &str) -> Option<&'static str> {

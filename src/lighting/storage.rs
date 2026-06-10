@@ -382,7 +382,8 @@ impl LayerLightSectionStorage {
                         .get(&neighbour)
                         .copied()
                         .unwrap_or(section_state::EMPTY);
-                    let new_count = section_state::neighbor_count(neighbour_state) + neighbour_increment;
+                    let new_count =
+                        section_state::neighbor_count(neighbour_state) + neighbour_increment;
                     let new_neighbour_state =
                         section_state::with_neighbor_count(neighbour_state, new_count);
                     self.put_section_state(neighbour, new_neighbour_state);
@@ -419,9 +420,12 @@ impl LayerLightSectionStorage {
             for offset_z in -1..=1 {
                 for offset_x in -1..=1 {
                     for offset_y in -1..=1 {
-                        self.sections_affected_by_light_updates.insert(
-                            section_pos_as_long(sx + offset_x, sy + offset_y, sz + offset_z),
-                        );
+                        self.sections_affected_by_light_updates
+                            .insert(section_pos_as_long(
+                                sx + offset_x,
+                                sy + offset_y,
+                                sz + offset_z,
+                            ));
                     }
                 }
             }
@@ -478,7 +482,10 @@ impl LayerLightSectionStorage {
             self.current_lowest_y = y;
         }
         let zero = section_pos_get_zero_node(section_node);
-        let entry = self.top_sections.entry(zero).or_insert(self.current_lowest_y);
+        let entry = self
+            .top_sections
+            .entry(zero)
+            .or_insert(self.current_lowest_y);
         if *entry < y + 1 {
             *entry = y + 1;
         }
@@ -625,7 +632,11 @@ impl LayerLightSectionStorage {
     fn get_sky_light_value(&self, block_node: i64, updating: bool) -> i32 {
         let mut section_node = block_to_section(block_node);
         let mut section_y = section_pos_y(section_node);
-        let map = if updating { &self.updating } else { &self.visible };
+        let map = if updating {
+            &self.updating
+        } else {
+            &self.visible
+        };
         let top_section = self
             .top_sections
             .get(&section_pos_get_zero_node(section_node))
@@ -673,7 +684,6 @@ impl LayerLightSectionStorage {
             LightLayer::Sky => self.get_sky_light_value(block_node, false),
         }
     }
-
 }
 
 /// Java: `SkyLightSectionStorage.repeatFirstLayer(DataLayer)`.
@@ -689,4 +699,3 @@ fn repeat_first_layer(template: &DataLayer) -> DataLayer {
     }
     DataLayer::from_bytes(output)
 }
-

@@ -151,7 +151,10 @@ fn section_has_only_air(section: &crate::storage::chunk::ChunkSection) -> bool {
             Tag::String(s) => s.as_str(),
             _ => "minecraft:air",
         };
-        matches!(name, "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air")
+        matches!(
+            name,
+            "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
+        )
     })
 }
 

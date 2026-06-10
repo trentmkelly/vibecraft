@@ -82,4 +82,3 @@ pub const OVERWORLD_VEIN_RIDGED_DENSITY: DensityFunction = DensityFunction::Bina
     argument1: &OVERWORLD_VEIN_RIDGED_OFFSET_DENSITY,
     argument2: &OVERWORLD_VEIN_MAX_DENSITY,
 };
-

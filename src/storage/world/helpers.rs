@@ -397,9 +397,7 @@ fn retry_io<F: FnMut() -> std::io::Result<()>>(max_retries: u32, mut f: F) -> st
             Err(err) => last_err = Some(err),
         }
     }
-    Err(last_err.unwrap_or_else(|| {
-        std::io::Error::other("retry exhausted with no attempts")
-    }))
+    Err(last_err.unwrap_or_else(|| std::io::Error::other("retry exhausted with no attempts")))
 }
 
 pub(super) fn tag_with_data_version(tag: &Tag) -> Tag {

@@ -63,20 +63,16 @@ impl BlockLightEngine {
         // Java enables light first; this mirrors `setLightEnabled(pos, true)`.
         let zero_node = crate::lighting::positions::section_pos_zero_node(chunk_x, chunk_z);
         self.base.storage.set_light_enabled(zero_node, true);
-        chunk_source.find_block_light_sources(
-            chunk_x,
-            chunk_z,
-            &mut |wx, wy, wz, emission| {
-                if emission == 0 {
-                    return;
-                }
-                let block_node = crate::lighting::positions::block_pos_as_long(wx, wy, wz);
-                let props = chunk_source.light_properties_at(wx, wy, wz);
-                let entry =
-                    increase_light_from_emission(emission as i32, props.has_empty_occlusion_shape());
-                self.base.enqueue_increase(block_node, entry);
-            },
-        );
+        chunk_source.find_block_light_sources(chunk_x, chunk_z, &mut |wx, wy, wz, emission| {
+            if emission == 0 {
+                return;
+            }
+            let block_node = crate::lighting::positions::block_pos_as_long(wx, wy, wz);
+            let props = chunk_source.light_properties_at(wx, wy, wz);
+            let entry =
+                increase_light_from_emission(emission as i32, props.has_empty_occlusion_shape());
+            self.base.enqueue_increase(block_node, entry);
+        });
     }
 
     fn emission_for(

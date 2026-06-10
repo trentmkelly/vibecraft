@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SkeletonEntityTypeSurface {
     pub width: f32,
@@ -240,4 +239,3 @@ pub fn bogged_ready_for_shearing(sheared: bool, alive: bool) -> bool {
 pub fn bogged_shear_sets_sheared(ready_for_shearing: bool) -> bool {
     ready_for_shearing
 }
-

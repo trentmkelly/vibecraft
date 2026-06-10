@@ -1,6 +1,5 @@
 use super::*;
 
-
 impl BedBlockEntity {
     pub fn from_block_state(block_state: &str) -> Option<Self> {
         let color = match block_state.strip_prefix("minecraft:")? {
@@ -590,14 +589,7 @@ impl StructureBlockEntity {
 }
 
 impl StructureRenderableBox {
-    pub fn from_corners(
-        x1: i32,
-        y1: i32,
-        z1: i32,
-        x2: i32,
-        y2: i32,
-        z2: i32,
-    ) -> Self {
+    pub fn from_corners(x1: i32, y1: i32, z1: i32, x2: i32, y2: i32, z2: i32) -> Self {
         Self {
             min: BlockPos {
                 x: x1.min(x2),

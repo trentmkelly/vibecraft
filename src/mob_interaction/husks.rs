@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct HuskEntityTypeSurface {
     pub width: f32,
@@ -124,4 +123,3 @@ pub fn husk_finalize_spawn_outcome(
         equipped_iron_spear: spawned_camel_husk,
     }
 }
-

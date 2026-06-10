@@ -199,4 +199,3 @@ pub fn end_city_rotated_south(rotation: StructureRotation) -> HorizontalDirectio
         StructureRotation::Counterclockwise90 => HorizontalDirection::East,
     }
 }
-

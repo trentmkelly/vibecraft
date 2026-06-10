@@ -238,4 +238,3 @@ pub fn axolotl_play_dead_memory_on_hurt(context: AxolotlHurtContext) -> Option<i
         None
     }
 }
-

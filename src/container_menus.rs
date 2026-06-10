@@ -238,7 +238,6 @@ pub(super) fn anvil_is_valid_repair_item(item: &ItemStack, addition: &ItemStack)
     }
 }
 
-
 fn anvil_repair_cost_of(item: &ItemStack) -> i32 {
     match item.component("minecraft:repair_cost") {
         Some(ItemComponent::RepairCost(cost)) => *cost,
@@ -292,7 +291,9 @@ pub(super) fn anvil_create_result(
     let tax = i64::from(anvil_repair_cost_of(input)) + i64::from(anvil_repair_cost_of(addition));
 
     if !addition.is_empty() {
-        let using_book = addition.component("minecraft:stored_enchantments").is_some();
+        let using_book = addition
+            .component("minecraft:stored_enchantments")
+            .is_some();
         if result.is_damageable_item() && anvil_is_valid_repair_item(input, addition) {
             // Repair with a material item (one durability quarter per item consumed).
             let mut repair_amount = result.damage_value().min(result.max_damage() / 4) as i32;
@@ -309,7 +310,8 @@ pub(super) fn anvil_create_result(
             }
             repair_item_count_cost = count;
         } else {
-            if !using_book && (result.item_id() != addition.item_id() || !result.is_damageable_item())
+            if !using_book
+                && (result.item_id() != addition.item_id() || !result.is_damageable_item())
             {
                 return empty();
             }
@@ -354,8 +356,8 @@ pub(super) fn anvil_create_result(
                     if level > max_level {
                         level = max_level;
                     }
-                    let mut fee = crate::enchantment_system::enchantment(&id)
-                        .map_or(0, |def| def.anvil_cost);
+                    let mut fee =
+                        crate::enchantment_system::enchantment(&id).map_or(0, |def| def.anvil_cost);
                     if using_book {
                         fee = (fee / 2).max(1);
                     }
@@ -441,7 +443,10 @@ pub(super) fn enchantments_for_crafting(stack: &ItemStack) -> BTreeMap<String, i
     }
 }
 
-pub(super) fn set_enchantments_for_crafting(stack: &mut ItemStack, enchantments: BTreeMap<String, i32>) {
+pub(super) fn set_enchantments_for_crafting(
+    stack: &mut ItemStack,
+    enchantments: BTreeMap<String, i32>,
+) {
     let is_book = stack.item_id() == "minecraft:enchanted_book";
     let key = if is_book {
         "minecraft:stored_enchantments"
@@ -480,7 +485,8 @@ pub(super) fn grindstone_experience_on_take(
     additional: &ItemStack,
     random_in_half: i32,
 ) -> i32 {
-    let amount = grindstone_experience_from_item(input) + grindstone_experience_from_item(additional);
+    let amount =
+        grindstone_experience_from_item(input) + grindstone_experience_from_item(additional);
     if amount > 0 {
         (amount + 1) / 2 + random_in_half
     } else {
@@ -741,7 +747,11 @@ pub(super) fn player_slot_for(menu_index: usize, player_start: usize) -> Option<
     }
 }
 
-pub(super) fn read_player_slot(menu_index: usize, player_start: usize, player: &PlayerInventory) -> ItemStack {
+pub(super) fn read_player_slot(
+    menu_index: usize,
+    player_start: usize,
+    player: &PlayerInventory,
+) -> ItemStack {
     player_slot_for(menu_index, player_start)
         .map(|slot| player.get(slot).clone())
         .unwrap_or_else(ItemStack::empty)
@@ -760,39 +770,39 @@ pub(super) fn write_player_slot(
 
 mod menus_brewing;
 mod menus_crafting_and_furnace;
-mod menus_storage;
-mod menus_workstation;
 mod menus_enchantment;
-mod menus_table;
-mod menus_misc;
 mod menus_entity;
+mod menus_misc;
+mod menus_storage;
+mod menus_table;
+mod menus_workstation;
 
 #[cfg(test)]
 use menus_brewing::*;
 #[cfg(test)]
 use menus_crafting_and_furnace::*;
 #[cfg(test)]
-use menus_storage::*;
-#[cfg(test)]
-use menus_workstation::*;
-#[cfg(test)]
 use menus_enchantment::*;
 #[cfg(test)]
-use menus_table::*;
+use menus_entity::*;
 #[cfg(test)]
 use menus_misc::*;
 #[cfg(test)]
-use menus_entity::*;
+use menus_storage::*;
+#[cfg(test)]
+use menus_table::*;
+#[cfg(test)]
+use menus_workstation::*;
 
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod tests_close;
 #[cfg(test)]
-mod tests_table;
-#[cfg(test)]
-mod tests_workstation;
+mod tests_special_crafting;
 #[cfg(test)]
 mod tests_sweep;
 #[cfg(test)]
-mod tests_special_crafting;
+mod tests_table;
+#[cfg(test)]
+mod tests_workstation;

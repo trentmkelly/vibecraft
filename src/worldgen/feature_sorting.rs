@@ -296,4 +296,3 @@ fn feature_sorter_dfs(
     sorted_features.push(feature);
     false
 }
-

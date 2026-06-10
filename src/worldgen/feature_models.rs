@@ -1142,4 +1142,3 @@ pub struct LeaveVineLeafContext {
     pub north_below_air: [bool; 4],
     pub south_below_air: [bool; 4],
 }
-

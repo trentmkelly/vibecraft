@@ -291,4 +291,3 @@ pub fn turtle_egg_placement_eggs(existing_eggs: Option<i32>) -> i32 {
         .map(|eggs| (eggs + 1).min(TURTLE_EGG_MAX_EGGS))
         .unwrap_or(TURTLE_EGG_MIN_EGGS)
 }
-

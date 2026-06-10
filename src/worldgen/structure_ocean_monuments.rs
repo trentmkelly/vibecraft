@@ -136,4 +136,3 @@ pub fn ocean_monument_elder_spawn_pos(
     );
     chunk_bb.is_inside(world_pos).then_some(world_pos)
 }
-

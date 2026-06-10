@@ -12,9 +12,7 @@ use crate::lighting::data_layer::DataLayer;
 use crate::lighting::level_height::LevelHeightAccessor;
 use crate::lighting::light_chunk::LightChunkGetter;
 use crate::lighting::light_layer::LightLayer;
-use crate::lighting::positions::{
-    block_pos_as_long, section_pos_as_long, section_pos_zero_node,
-};
+use crate::lighting::positions::{block_pos_as_long, section_pos_as_long, section_pos_zero_node};
 use crate::lighting::sky_light_engine::SkyLightEngine;
 
 /// Java: `LevelLightEngine.LIGHT_SECTION_PADDING = 1`.
@@ -30,7 +28,11 @@ pub struct LevelLightEngine {
 
 impl LevelLightEngine {
     /// Java: `LevelLightEngine(LightChunkGetter, boolean hasBlockLight, boolean hasSkyLight)`.
-    pub fn new(level_height: LevelHeightAccessor, has_block_light: bool, has_sky_light: bool) -> Self {
+    pub fn new(
+        level_height: LevelHeightAccessor,
+        has_block_light: bool,
+        has_sky_light: bool,
+    ) -> Self {
         Self {
             block_engine: has_block_light.then(BlockLightEngine::new),
             sky_engine: has_sky_light

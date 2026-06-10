@@ -614,7 +614,10 @@ pub(super) fn tag_int_or_zero(tag: &Tag) -> i32 {
     }
 }
 
-pub(super) fn weighted_spawn_data(values: &[SpawnDataModel], roll: usize) -> Option<&SpawnDataModel> {
+pub(super) fn weighted_spawn_data(
+    values: &[SpawnDataModel],
+    roll: usize,
+) -> Option<&SpawnDataModel> {
     if values.is_empty() {
         return None;
     }

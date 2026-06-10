@@ -82,12 +82,8 @@ where
 pub trait LightChunkGetter {
     /// Java: `LightChunk.getBlockState(BlockPos)`. Returns
     /// [`LightBlockProperties::BEDROCK_FALLBACK`] if the chunk is missing.
-    fn light_properties_at(
-        &self,
-        world_x: i32,
-        world_y: i32,
-        world_z: i32,
-    ) -> LightBlockProperties;
+    fn light_properties_at(&self, world_x: i32, world_y: i32, world_z: i32)
+        -> LightBlockProperties;
 
     /// Java: `LightChunk.findBlockLightSources(BiConsumer)` against the chunk
     /// at `(chunk_x, chunk_z)`. Implementations should silently do nothing if

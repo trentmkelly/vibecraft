@@ -1,11 +1,9 @@
 #![allow(dead_code)]
 
 use crate::seed_validation::{build_seed_parity_sample, ChunkCoord, SeedParitySample};
-use crate::storage::chunk::{
-    ChunkSection, LevelChunk, PalettedContainer, BIOME_SECTION_VOLUME,
-};
 #[cfg(test)]
 use crate::storage::chunk::SECTION_VOLUME;
+use crate::storage::chunk::{ChunkSection, LevelChunk, PalettedContainer, BIOME_SECTION_VOLUME};
 use crate::storage::nbt::Tag;
 use crate::worldgen::{
     blending_output_for_old_height, block_predicate_test, carver_is_start_chunk, configured_carver,

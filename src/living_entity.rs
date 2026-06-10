@@ -426,7 +426,9 @@ impl LivingEntityState {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EffectChange {
     Added,
-    Updated { refresh_attributes: bool },
+    Updated {
+        refresh_attributes: bool,
+    },
     #[cfg(test)]
     Removed,
 }

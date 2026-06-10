@@ -16,20 +16,6 @@ pub fn block_loot_table(block_name: &str) -> Option<LootTable> {
         .or_else(|| special_block_loot_table(key, &random_sequence))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn loot_table_lookup_ignores_block_state_properties() {
-        let plain = block_loot_table("minecraft:oak_log").expect("oak log loot table");
-        let state =
-            block_loot_table("minecraft:oak_log[axis=y]").expect("oak log state loot table");
-
-        assert_eq!(plain, state);
-    }
-}
-
 fn terrain_block_loot_table(key: &str, random_sequence: &str) -> Option<LootTable> {
     Some(match key {
         // These drop cobblestone/dirt instead of themselves (silk touch not implemented).
@@ -596,5 +582,19 @@ fn apple_pool(not_shears: LootCondition) -> LootPool {
         functions: Vec::new(),
         rolls: NumberProvider::Constant(1.0),
         bonus_rolls: NumberProvider::Constant(0.0),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn loot_table_lookup_ignores_block_state_properties() {
+        let plain = block_loot_table("minecraft:oak_log").expect("oak log loot table");
+        let state =
+            block_loot_table("minecraft:oak_log[axis=y]").expect("oak log state loot table");
+
+        assert_eq!(plain, state);
     }
 }

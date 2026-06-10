@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GuardianAttributes {
     pub max_health: f32,
@@ -348,4 +347,3 @@ pub fn ravager_attributes() -> RavagerAttributes {
         xp_reward: RAVAGER_XP_REWARD,
     }
 }
-

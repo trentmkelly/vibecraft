@@ -108,12 +108,7 @@ pub struct CombatTracker {
 impl CombatTracker {
     /// `CombatTracker.recordDamage(DamageSource, float)`. `tick_count` is the
     /// owning mob's `tickCount`; `is_alive` is `mob.isAlive()`.
-    pub fn record_damage(
-        &mut self,
-        tick_count: i32,
-        is_alive: bool,
-        entry: CombatEntry,
-    ) {
+    pub fn record_damage(&mut self, tick_count: i32, is_alive: bool, entry: CombatEntry) {
         self.recheck_status(tick_count, is_alive);
         let should_enter = should_enter_combat(&entry.source);
         self.entries.push(entry);
@@ -195,7 +190,8 @@ impl CombatTracker {
                 best_fall = fall_distance;
             }
 
-            if entry.fall_location.is_some() && (alternative.is_none() || entry.damage > alt_damage) {
+            if entry.fall_location.is_some() && (alternative.is_none() || entry.damage > alt_damage)
+            {
                 alternative = Some(i);
                 alt_damage = entry.damage;
             }
@@ -430,7 +426,10 @@ mod tests {
             )
         }
         fn held_item_name(&self, entity: DamageEntityRef) -> Option<Component> {
-            self.held_items.get(&entity.id).cloned().map(Component::literal)
+            self.held_items
+                .get(&entity.id)
+                .cloned()
+                .map(Component::literal)
         }
     }
 
@@ -486,7 +485,10 @@ mod tests {
         // variant carries [victim, killCredit].
         let credited = TestNames::victim("Bob").with_kill_credit("Alice");
         assert_eq!(
-            parts(&localized_death_message(&source("minecraft:drown"), &credited)),
+            parts(&localized_death_message(
+                &source("minecraft:drown"),
+                &credited
+            )),
             (
                 "death.attack.drown.player".to_string(),
                 vec!["Bob".to_string(), "Alice".to_string()]
@@ -507,7 +509,10 @@ mod tests {
         let steve = DamageEntityRef::player(3, false);
         let names = TestNames::victim("Bob").with_entity(3, "Steve");
         assert_eq!(
-            parts(&localized_death_message(&player_attack_source(steve), &names)),
+            parts(&localized_death_message(
+                &player_attack_source(steve),
+                &names
+            )),
             (
                 "death.attack.player".to_string(),
                 vec!["Bob".to_string(), "Steve".to_string()]
@@ -520,7 +525,10 @@ mod tests {
             .with_entity(3, "Steve")
             .with_held_item(3, "Excalibur");
         assert_eq!(
-            parts(&localized_death_message(&player_attack_source(steve), &names)),
+            parts(&localized_death_message(
+                &player_attack_source(steve),
+                &names
+            )),
             (
                 "death.attack.player.item".to_string(),
                 vec![
@@ -582,8 +590,14 @@ mod tests {
 
         // TNT (primed, no living cause): the explosion damage type with [victim].
         assert_eq!(
-            parts(&localized_death_message(&explosion_source(None, None), &victim)),
-            ("death.attack.explosion".to_string(), vec!["Bob".to_string()])
+            parts(&localized_death_message(
+                &explosion_source(None, None),
+                &victim
+            )),
+            (
+                "death.attack.explosion".to_string(),
+                vec!["Bob".to_string()]
+            )
         );
 
         // TNT lit by a player: the player_explosion type (message id
@@ -605,15 +619,27 @@ mod tests {
         let design = bad_respawn_point_source([0.0, 0.0, 0.0]);
         let (key, args) = parts(&intentional_game_design_message(&design, &victim));
         assert_eq!(key, "death.attack.badRespawnPoint.message");
-        assert_eq!(args, vec!["Bob".to_string(), "<chat.square_brackets>".to_string()]);
+        assert_eq!(
+            args,
+            vec!["Bob".to_string(), "<chat.square_brackets>".to_string()]
+        );
     }
 
     fn entry(source: DamageSource, damage: f32) -> CombatEntry {
         CombatEntry::new(source, damage, None, 0.0)
     }
 
-    fn fall_entry(damage: f32, fall_location: Option<FallLocation>, fall_distance: f32) -> CombatEntry {
-        CombatEntry::new(source("minecraft:fall"), damage, fall_location, fall_distance)
+    fn fall_entry(
+        damage: f32,
+        fall_location: Option<FallLocation>,
+        fall_distance: f32,
+    ) -> CombatEntry {
+        CombatEntry::new(
+            source("minecraft:fall"),
+            damage,
+            fall_location,
+            fall_distance,
+        )
     }
 
     #[test]
@@ -741,7 +767,12 @@ mod tests {
         killer.record_damage(
             0,
             true,
-            CombatEntry::new(source("minecraft:drown"), 6.0, Some(FallLocation::Water), 0.0),
+            CombatEntry::new(
+                source("minecraft:drown"),
+                6.0,
+                Some(FallLocation::Water),
+                0.0,
+            ),
         );
         killer.record_damage(1, true, fall_entry(2.0, None, 2.0));
         assert_eq!(

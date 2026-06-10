@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BlazeAttributes {
     pub attack_damage: f32,
@@ -247,4 +246,3 @@ pub fn blaze_loot_roll(
         0
     }
 }
-

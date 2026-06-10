@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct EndermanAttributes {
     pub max_health: f32,
@@ -238,4 +237,3 @@ pub fn enderman_requires_custom_persistence(
 ) -> bool {
     super_requires || carried_block_present
 }
-

@@ -302,4 +302,3 @@ pub const FEATURE_TYPES: &[FeatureType] = &[
         FeatureFamily::Cave,
     ),
 ];
-

@@ -1,4 +1,3 @@
-
 #[test]
 fn pool_element_structure_piece_state_and_junction_y_math_match_vanilla() {
     assert_pool_element_structure_piece_state_matches_vanilla();

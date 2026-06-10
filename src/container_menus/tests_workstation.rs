@@ -4,7 +4,10 @@ use crate::item_properties::ItemComponent;
 use std::collections::BTreeMap;
 
 fn enchants(pairs: &[(&str, i32)]) -> BTreeMap<String, i32> {
-    pairs.iter().map(|(id, l)| ((*id).to_string(), *l)).collect()
+    pairs
+        .iter()
+        .map(|(id, l)| ((*id).to_string(), *l))
+        .collect()
 }
 
 #[test]
@@ -111,20 +114,39 @@ fn anvil_repair_material_and_store_enchantment_helpers_match_java() {
     // isValidRepairItem: a diamond tool (Repairable = #diamond_tool_materials) is
     // repaired by a diamond, not by an iron ingot.
     let mut pick = ItemStack::new("minecraft:diamond_pickaxe", 1);
-    pick.set_component(ItemComponent::Repairable("#minecraft:diamond_tool_materials"));
-    assert!(anvil_is_valid_repair_item(&pick, &ItemStack::new("minecraft:diamond", 1)));
-    assert!(!anvil_is_valid_repair_item(&pick, &ItemStack::new("minecraft:iron_ingot", 1)));
+    pick.set_component(ItemComponent::Repairable(
+        "#minecraft:diamond_tool_materials",
+    ));
+    assert!(anvil_is_valid_repair_item(
+        &pick,
+        &ItemStack::new("minecraft:diamond", 1)
+    ));
+    assert!(!anvil_is_valid_repair_item(
+        &pick,
+        &ItemStack::new("minecraft:iron_ingot", 1)
+    ));
 
     // Wooden tools (Repairable = #wooden_tool_materials -> #planks) accept any plank.
     let mut wpick = ItemStack::new("minecraft:wooden_pickaxe", 1);
-    wpick.set_component(ItemComponent::Repairable("#minecraft:wooden_tool_materials"));
-    assert!(anvil_is_valid_repair_item(&wpick, &ItemStack::new("minecraft:birch_planks", 1)));
-    assert!(!anvil_is_valid_repair_item(&wpick, &ItemStack::new("minecraft:stick", 1)));
+    wpick.set_component(ItemComponent::Repairable(
+        "#minecraft:wooden_tool_materials",
+    ));
+    assert!(anvil_is_valid_repair_item(
+        &wpick,
+        &ItemStack::new("minecraft:birch_planks", 1)
+    ));
+    assert!(!anvil_is_valid_repair_item(
+        &wpick,
+        &ItemStack::new("minecraft:stick", 1)
+    ));
 
     // A literal (non-tag) repair item is matched directly.
     let mut mace = ItemStack::new("minecraft:mace", 1);
     mace.set_component(ItemComponent::Repairable("minecraft:breeze_rod"));
-    assert!(anvil_is_valid_repair_item(&mace, &ItemStack::new("minecraft:breeze_rod", 1)));
+    assert!(anvil_is_valid_repair_item(
+        &mace,
+        &ItemStack::new("minecraft:breeze_rod", 1)
+    ));
 
     // An item with no Repairable component cannot be repaired by material.
     assert!(!anvil_is_valid_repair_item(
@@ -135,9 +157,18 @@ fn anvil_repair_material_and_store_enchantment_helpers_match_java() {
     // canStoreEnchantments: every non-empty item has the default (empty) ENCHANTMENTS
     // component (COMMON_ITEM_COMPONENTS), so all can store — even an apple (you can
     // rename anything in an anvil) — while an empty stack cannot.
-    assert!(can_store_enchantments(&ItemStack::new("minecraft:diamond_sword", 1)));
-    assert!(can_store_enchantments(&ItemStack::new("minecraft:enchanted_book", 1)));
-    assert!(can_store_enchantments(&ItemStack::new("minecraft:apple", 1)));
+    assert!(can_store_enchantments(&ItemStack::new(
+        "minecraft:diamond_sword",
+        1
+    )));
+    assert!(can_store_enchantments(&ItemStack::new(
+        "minecraft:enchanted_book",
+        1
+    )));
+    assert!(can_store_enchantments(&ItemStack::new(
+        "minecraft:apple",
+        1
+    )));
     assert!(!can_store_enchantments(&ItemStack::empty()));
 }
 
@@ -166,14 +197,19 @@ fn anvil_create_result_full_pipeline_matches_java() {
     assert_eq!(r.item_id(), "minecraft:diamond_sword");
     assert_eq!(r.damage_value(), 52);
     assert_eq!(menu.cost, 2); // price += 2 for a durability combine
-    assert_eq!(r.component("minecraft:repair_cost"), Some(&ItemComponent::RepairCost(1)));
+    assert_eq!(
+        r.component("minecraft:repair_cost"),
+        Some(&ItemComponent::RepairCost(1))
+    );
 
     // --- Repair with a material item (a diamond). ---
     let mut menu = AnvilMenu::new();
     let mut pick = ItemStack::new("minecraft:diamond_pickaxe", 1);
     pick.set_component(ItemComponent::MaxDamage(1561));
     pick.set_damage_value(1000);
-    pick.set_component(ItemComponent::Repairable("#minecraft:diamond_tool_materials"));
+    pick.set_component(ItemComponent::Repairable(
+        "#minecraft:diamond_tool_materials",
+    ));
     menu.set_slot(0, pick, &mut player);
     menu.set_slot(1, ItemStack::new("minecraft:diamond", 2), &mut player);
     menu.set_result_from_inputs();
@@ -214,7 +250,11 @@ fn anvil_create_result_full_pipeline_matches_java() {
         )])));
         b
     };
-    menu.set_slot(0, ItemStack::new("minecraft:diamond_pickaxe", 1), &mut player);
+    menu.set_slot(
+        0,
+        ItemStack::new("minecraft:diamond_pickaxe", 1),
+        &mut player,
+    );
     menu.set_slot(1, book, &mut player);
     menu.set_result_from_inputs();
     assert!(menu.get_slot(2, &player).unwrap().is_empty());
@@ -294,7 +334,10 @@ fn enchantment_menu_slots_changed_and_enchant_action_match_java() {
     menu.set_slot(1, ItemStack::new("minecraft:lapis_lazuli", 3), &mut player);
     menu.slots_changed(15);
     assert_eq!(menu.click_button(2, 0, false), EnchantOutcome::Rejected);
-    assert_eq!(menu.click_button(2, 0, true), EnchantOutcome::Enchanted { xp_levels: 3 });
+    assert_eq!(
+        menu.click_button(2, 0, true),
+        EnchantOutcome::Enchanted { xp_levels: 3 }
+    );
 }
 
 /// A minimal recipe set for the smithing tests: the netherite-chestplate transform
@@ -333,19 +376,31 @@ fn smithing_menu_transform_and_trim_match_java() {
     let mut menu = SmithingMenu::new(smithing_test_recipes());
     let mut base = ItemStack::new("minecraft:diamond_chestplate", 1);
     base.set_component(ItemComponent::Enchantments(
-        [("minecraft:protection".to_string(), 4)].into_iter().collect(),
+        [("minecraft:protection".to_string(), 4)]
+            .into_iter()
+            .collect(),
     ));
     base.set_component(ItemComponent::ItemName("Aegis"));
-    menu.set_slot(0, ItemStack::new("minecraft:netherite_upgrade_smithing_template", 1), &mut player);
+    menu.set_slot(
+        0,
+        ItemStack::new("minecraft:netherite_upgrade_smithing_template", 1),
+        &mut player,
+    );
     menu.set_slot(1, base, &mut player);
-    menu.set_slot(2, ItemStack::new("minecraft:netherite_ingot", 1), &mut player);
+    menu.set_slot(
+        2,
+        ItemStack::new("minecraft:netherite_ingot", 1),
+        &mut player,
+    );
     let r = menu.get_slot(3, &player).unwrap();
     assert_eq!(r.item_id(), "minecraft:netherite_chestplate");
     assert_eq!(r.count(), 1);
     assert_eq!(
         r.component("minecraft:enchantments"),
         Some(&ItemComponent::Enchantments(
-            [("minecraft:protection".to_string(), 4)].into_iter().collect()
+            [("minecraft:protection".to_string(), 4)]
+                .into_iter()
+                .collect()
         )),
         "transform preserves enchantments"
     );
@@ -357,35 +412,65 @@ fn smithing_menu_transform_and_trim_match_java() {
 
     // Wrong addition (not a netherite ingot) -> no transform.
     let mut menu = SmithingMenu::new(smithing_test_recipes());
-    menu.set_slot(0, ItemStack::new("minecraft:netherite_upgrade_smithing_template", 1), &mut player);
-    menu.set_slot(1, ItemStack::new("minecraft:diamond_chestplate", 1), &mut player);
+    menu.set_slot(
+        0,
+        ItemStack::new("minecraft:netherite_upgrade_smithing_template", 1),
+        &mut player,
+    );
+    menu.set_slot(
+        1,
+        ItemStack::new("minecraft:diamond_chestplate", 1),
+        &mut player,
+    );
     menu.set_slot(2, ItemStack::new("minecraft:iron_ingot", 1), &mut player);
     assert!(menu.get_slot(3, &player).unwrap().is_empty());
 
     // --- Armour trim: sentry template + trimmable armour + copper ingot -> TRIM. ---
     let mut menu = SmithingMenu::new(smithing_test_recipes());
-    menu.set_slot(0, ItemStack::new("minecraft:sentry_armor_trim_smithing_template", 1), &mut player);
-    menu.set_slot(1, ItemStack::new("minecraft:diamond_chestplate", 1), &mut player);
+    menu.set_slot(
+        0,
+        ItemStack::new("minecraft:sentry_armor_trim_smithing_template", 1),
+        &mut player,
+    );
+    menu.set_slot(
+        1,
+        ItemStack::new("minecraft:diamond_chestplate", 1),
+        &mut player,
+    );
     menu.set_slot(2, ItemStack::new("minecraft:copper_ingot", 1), &mut player);
     let r = menu.get_slot(3, &player).unwrap();
     assert_eq!(r.item_id(), "minecraft:diamond_chestplate");
     assert_eq!(
         r.component("minecraft:trim"),
-        Some(&ItemComponent::ArmorTrim { material: "minecraft:copper", pattern: "minecraft:sentry" })
+        Some(&ItemComponent::ArmorTrim {
+            material: "minecraft:copper",
+            pattern: "minecraft:sentry"
+        })
     );
 
     // A base that already carries that exact trim -> empty result.
     let mut already = ItemStack::new("minecraft:diamond_chestplate", 1);
-    already.set_component(ItemComponent::ArmorTrim { material: "minecraft:copper", pattern: "minecraft:sentry" });
+    already.set_component(ItemComponent::ArmorTrim {
+        material: "minecraft:copper",
+        pattern: "minecraft:sentry",
+    });
     let mut menu = SmithingMenu::new(smithing_test_recipes());
-    menu.set_slot(0, ItemStack::new("minecraft:sentry_armor_trim_smithing_template", 1), &mut player);
+    menu.set_slot(
+        0,
+        ItemStack::new("minecraft:sentry_armor_trim_smithing_template", 1),
+        &mut player,
+    );
     menu.set_slot(1, already, &mut player);
     menu.set_slot(2, ItemStack::new("minecraft:copper_ingot", 1), &mut player);
     assert!(menu.get_slot(3, &player).unwrap().is_empty());
 
     // A non-armour base for a trim template -> empty (not a recipe base match).
     let mut menu = SmithingMenu::new(smithing_test_recipes());
-    menu.set_slot(0, ItemStack::new("minecraft:sentry_armor_trim_smithing_template", 1), &mut player);
+    menu.set_slot(
+        0,
+        ItemStack::new("minecraft:sentry_armor_trim_smithing_template", 1),
+        &mut player,
+    );
     menu.set_slot(1, ItemStack::new("minecraft:diamond_sword", 1), &mut player);
     menu.set_slot(2, ItemStack::new("minecraft:copper_ingot", 1), &mut player);
     assert!(menu.get_slot(3, &player).unwrap().is_empty());

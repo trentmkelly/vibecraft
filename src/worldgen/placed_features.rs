@@ -305,4 +305,3 @@ pub const PLACED_FEATURE_BOOTSTRAP_SOURCES: &[PlacedFeatureSourceEntry] = &[
         ],
     ),
 ];
-

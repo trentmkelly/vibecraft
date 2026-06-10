@@ -348,4 +348,3 @@ impl JigsawPoolAliasLookupModel {
         self.mappings.get(alias).copied().unwrap_or(alias)
     }
 }
-

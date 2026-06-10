@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MobInteractionCoverage {
     pub source: &'static str,
@@ -47,4 +46,3 @@ pub const MOB_INTERACTION_COVERAGE: &[MobInteractionCoverage] = &[
         covered_rules: &["conversion", "transformation"],
     },
 ];
-

@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AbstractFishAttributes {
     pub max_health: f32,
@@ -143,4 +142,3 @@ pub fn fish_bucket_model(entity_type: &str, from_bucket: bool) -> Option<FishBuc
         discard_on_pickup: true,
     })
 }
-

@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShulkerDirection {
     Down,
@@ -254,4 +253,3 @@ pub fn shulker_bullet_on_hit_entity(
 pub fn shulker_bullet_discards_in_peaceful(peaceful_difficulty: bool) -> bool {
     peaceful_difficulty
 }
-

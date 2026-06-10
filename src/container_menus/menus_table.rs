@@ -526,4 +526,3 @@ impl Default for LoomMenu {
         Self::new()
     }
 }
-

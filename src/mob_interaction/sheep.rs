@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DyeColorModel {
     White,
@@ -252,4 +251,3 @@ pub fn sheep_offspring_color(
         second_parent_color
     })
 }
-

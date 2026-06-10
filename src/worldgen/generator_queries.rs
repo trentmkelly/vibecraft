@@ -177,4 +177,3 @@ fn generated_column_static_block_name(block: &str) -> Option<&'static str> {
         _ => None,
     }
 }
-

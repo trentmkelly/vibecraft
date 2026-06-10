@@ -115,7 +115,12 @@ impl EnchantmentMenu {
         }
         for slot in 0..3 {
             if self.costs[slot] > 0 {
-                let list = self.enchantment_list(&mut random, slot as i32, self.costs[slot], enchantability);
+                let list = self.enchantment_list(
+                    &mut random,
+                    slot as i32,
+                    self.costs[slot],
+                    enchantability,
+                );
                 if !list.is_empty() {
                     let pick = list[random.next_i32_bound(list.len() as i32) as usize];
                     self.enchant_clue[slot] = Some(pick.0);
@@ -146,12 +151,19 @@ impl EnchantmentMenu {
         }
         let enchantability = Self::enchantability(&self.item);
         let mut random = crate::random_source::LegacyRandom::new(i64::from(self.enchantment_seed));
-        let list = self.enchantment_list(&mut random, button as i32, self.costs[button], enchantability);
+        let list = self.enchantment_list(
+            &mut random,
+            button as i32,
+            self.costs[button],
+            enchantability,
+        );
         if list.is_empty() {
             return EnchantOutcome::Rejected;
         }
         if self.item.item_id() == "minecraft:book" {
-            self.item = self.item.transmute_copy("minecraft:enchanted_book", self.item.count());
+            self.item = self
+                .item
+                .transmute_copy("minecraft:enchanted_book", self.item.count());
         }
         let mut enchantments = enchantments_for_crafting(&self.item);
         for (id, level) in &list {

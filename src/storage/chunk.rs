@@ -1105,16 +1105,16 @@ pub fn chunk_status_list() -> Vec<&'static str> {
         .collect()
 }
 
-mod level_chunk_impl;
-mod paletted_container;
 mod chunk_generation;
+mod level_chunk_impl;
 mod nbt_helpers;
+mod paletted_container;
 
-pub use level_chunk_impl::*;
-pub use paletted_container::*;
 #[cfg(test)]
 use chunk_generation::*;
+pub use level_chunk_impl::*;
 use nbt_helpers::*;
+pub use paletted_container::*;
 
 #[cfg(test)]
 mod tests;

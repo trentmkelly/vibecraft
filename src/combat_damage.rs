@@ -175,8 +175,7 @@ pub fn plan_player_attack(context: AttackContext, thorns_level: u8) -> AttackPla
         && !critical
         && !knockback_attack
         && context.attacker_on_ground
-        && context.attacker_horizontal_speed_sq
-            < (context.attacker_movement_speed * 2.5).powi(2)
+        && context.attacker_horizontal_speed_sq < (context.attacker_movement_speed * 2.5).powi(2)
         && context.using_sweep_weapon;
     let base = context.base_damage
         * (0.2 + context.attack_strength_scale * context.attack_strength_scale * 0.8);

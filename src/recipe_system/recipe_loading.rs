@@ -304,7 +304,11 @@ fn parse_crafting_special_recipe(
             let result = parse_result(object, id)?;
             special_recipe(SpecialRecipeKind::ShieldDecoration, Some(result))
         }
-        other => return Err(format!("recipe {id} has unsupported type minecraft:{other}")),
+        other => {
+            return Err(format!(
+                "recipe {id} has unsupported type minecraft:{other}"
+            ))
+        }
     };
     Ok(recipe)
 }

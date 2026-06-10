@@ -780,7 +780,6 @@ pub fn enchantment(id: &str) -> Option<&'static EnchantmentDef> {
 mod enchanting;
 pub use enchanting::*;
 
-
 pub fn are_compatible(left: &EnchantmentDef, right: &EnchantmentDef) -> bool {
     left.id != right.id
         && !left

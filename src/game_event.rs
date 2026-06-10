@@ -656,11 +656,11 @@ fn scale_vec(vec: Vec3, scalar: f64) -> Vec3 {
 mod tests {
     use super::{
         builtin_game_events, calculate_exploded_positions, dispatch_game_event,
-        explosion_ray_directions, game_event_by_id,
-        plan_server_explosion, ExplosionBlockCandidate, ExplosionEntityCandidate, GameEventContext,
-        GameEventDeliveryMode, GameEventListener, ServerExplosionInput,
-        DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS, EXPLOSION_GRID_SIZE, EXPLOSION_RAY_STEP,
-        JUKEBOX_NOTIFICATION_RADIUS, MAX_DROPS_PER_COMBINED_STACK, SHRIEK_NOTIFICATION_RADIUS,
+        explosion_ray_directions, game_event_by_id, plan_server_explosion, ExplosionBlockCandidate,
+        ExplosionEntityCandidate, GameEventContext, GameEventDeliveryMode, GameEventListener,
+        ServerExplosionInput, DEFAULT_GAME_EVENT_NOTIFICATION_RADIUS, EXPLOSION_GRID_SIZE,
+        EXPLOSION_RAY_STEP, JUKEBOX_NOTIFICATION_RADIUS, MAX_DROPS_PER_COMBINED_STACK,
+        SHRIEK_NOTIFICATION_RADIUS,
     };
     use crate::block_behavior::BlockStateModel;
     use crate::block_update::BlockPos;
@@ -780,14 +780,8 @@ mod tests {
         };
 
         // All-air world, randoms 0 → each ray starts at radius*0.7 = 2.8 intensity.
-        let air = calculate_exploded_positions(
-            center,
-            4.0,
-            |_| 0.0,
-            |_| true,
-            |_| None,
-            |_, _| true,
-        );
+        let air =
+            calculate_exploded_positions(center, 4.0, |_| 0.0, |_| true, |_| None, |_, _| true);
         // The origin block is always destroyed, and destruction is bounded by the
         // intensity (≈ 2.8 / 0.225 ≈ 12 steps ≈ 3.7 blocks) — far blocks survive.
         assert!(air.contains(&(0, 0, 0)));
@@ -807,14 +801,8 @@ mod tests {
         assert!(walled.is_empty());
 
         // Leaving the world bounds immediately also destroys nothing.
-        let out_of_bounds = calculate_exploded_positions(
-            center,
-            4.0,
-            |_| 0.0,
-            |_| false,
-            |_| None,
-            |_, _| true,
-        );
+        let out_of_bounds =
+            calculate_exploded_positions(center, 4.0, |_| 0.0, |_| false, |_| None, |_, _| true);
         assert!(out_of_bounds.is_empty());
     }
 
@@ -874,12 +862,13 @@ mod tests {
 
     #[test]
     fn explosion_fire_requires_roll_zero_solid_below_and_fire_flag() {
-        let candidate = |fire_random_roll: i32, below_is_solid_render: bool| ExplosionBlockCandidate {
-            pos: pos(2, 64, 2),
-            block: BlockStateModel::new("minecraft:stone"),
-            fire_random_roll,
-            below_is_solid_render,
-        };
+        let candidate =
+            |fire_random_roll: i32, below_is_solid_render: bool| ExplosionBlockCandidate {
+                pos: pos(2, 64, 2),
+                block: BlockStateModel::new("minecraft:stone"),
+                fire_random_roll,
+                below_is_solid_render,
+            };
         let input = |fire: bool, roll: i32, solid: bool| ServerExplosionInput {
             center: Vec3 {
                 x: 2.0,

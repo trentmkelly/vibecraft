@@ -434,10 +434,7 @@ fn firework_star(result_hint: &ItemAmount, grid: &[ItemStack]) -> Option<Special
 
 /// `FireworkStarFadeRecipe` — a firework star + ≥1 dye stamps the dyes' colours as the
 /// star's fade colours.
-fn firework_star_fade(
-    result_hint: &ItemAmount,
-    grid: &[ItemStack],
-) -> Option<SpecialCraftOutcome> {
+fn firework_star_fade(result_hint: &ItemAmount, grid: &[ItemStack]) -> Option<SpecialCraftOutcome> {
     let present = present_indexed(grid);
     if present.len() < 2 {
         return None;
@@ -461,13 +458,14 @@ fn firework_star_fade(
     }
     // createWithOriginalComponents(result, target).update(FIREWORK_EXPLOSION, …).
     let mut result = target.transmute_copy(result_hint.item, 1);
-    let mut explosion = firework_explosion(&result).unwrap_or(crate::item_properties::FireworkExplosion {
-        shape: "small_ball",
-        colors: Vec::new(),
-        fade_colors: Vec::new(),
-        trail: false,
-        twinkle: false,
-    });
+    let mut explosion =
+        firework_explosion(&result).unwrap_or(crate::item_properties::FireworkExplosion {
+            shape: "small_ball",
+            colors: Vec::new(),
+            fade_colors: Vec::new(),
+            trail: false,
+            twinkle: false,
+        });
     explosion.fade_colors = fade_colors;
     result.set_component(ItemComponent::FireworkExplosion(explosion));
     Some(SpecialCraftOutcome {
@@ -510,7 +508,9 @@ fn banner_base_color(item_id: &str) -> Option<&'static str> {
         "red",
         "black",
     ];
-    let name = item_id.strip_prefix("minecraft:")?.strip_suffix("_banner")?;
+    let name = item_id
+        .strip_prefix("minecraft:")?
+        .strip_suffix("_banner")?;
     COLORS.iter().copied().find(|color| *color == name)
 }
 
@@ -533,10 +533,7 @@ fn banner_pattern_count(stack: &ItemStack) -> usize {
 
 /// `ShieldDecorationRecipe` — a banner + a pattern-free shield yields a shield
 /// carrying the banner's pattern layers and base colour.
-fn shield_decoration(
-    result_hint: &ItemAmount,
-    grid: &[ItemStack],
-) -> Option<SpecialCraftOutcome> {
+fn shield_decoration(result_hint: &ItemAmount, grid: &[ItemStack]) -> Option<SpecialCraftOutcome> {
     let present = present_indexed(grid);
     if present.len() != 2 {
         return None;
@@ -585,10 +582,7 @@ fn shield_decoration(
 
 /// `BannerDuplicateRecipe` — a patterned banner + a same-colour blank banner copies
 /// the patterns onto the blank one; the patterned source banner is left behind.
-fn banner_duplicate(
-    result_hint: &ItemAmount,
-    grid: &[ItemStack],
-) -> Option<SpecialCraftOutcome> {
+fn banner_duplicate(result_hint: &ItemAmount, grid: &[ItemStack]) -> Option<SpecialCraftOutcome> {
     // This recipe is colour-specific (one per dye), so the inputs must be the same
     // colour as the configured result banner.
     let recipe_color = banner_base_color(result_hint.item)?;
@@ -801,7 +795,11 @@ fn decorated_pot(result_hint: &ItemAmount, grid: &[ItemStack]) -> Option<Special
     }
     // The four cardinal slots: back=(1,0), left=(0,1), right=(2,1), front=(1,2).
     let present = present_indexed(grid);
-    if present.len() != 4 || present.iter().any(|(index, _)| !matches!(index, 1 | 3 | 5 | 7)) {
+    if present.len() != 4
+        || present
+            .iter()
+            .any(|(index, _)| !matches!(index, 1 | 3 | 5 | 7))
+    {
         return None;
     }
     let face = |index: usize| -> Option<&'static str> {

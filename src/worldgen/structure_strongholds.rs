@@ -198,4 +198,3 @@ pub fn stronghold_attach_portal_room(
     start_piece.portal_room_piece = Some(portal_room);
     start_piece
 }
-

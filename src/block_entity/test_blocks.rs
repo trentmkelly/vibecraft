@@ -333,7 +333,12 @@ impl TestInstanceBlockEntityState {
         }
     }
 
-    pub fn start_corner(&self, origin: BlockPos, resolved_rotation: &str, padding: i32) -> BlockPos {
+    pub fn start_corner(
+        &self,
+        origin: BlockPos,
+        resolved_rotation: &str,
+        padding: i32,
+    ) -> BlockPos {
         let pos = Self::structure_pos(origin, padding);
         match resolved_rotation {
             "clockwise_90" => BlockPos {

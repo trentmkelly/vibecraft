@@ -507,19 +507,19 @@ impl RecipeManagerModel {
         self.property_sets = collect_recipe_property_sets(self.recipes.values());
         #[cfg(test)]
         {
-        self.stonecutter_recipes = self
-            .recipes
-            .values()
-            .iter()
-            .filter_map(|holder| match &holder.recipe {
-                RecipeKind::Stonecutting { ingredient, result } => Some(StonecutterSelection {
-                    recipe_id: holder.id,
-                    input: ingredient.clone(),
-                    result: result.clone(),
-                }),
-                _ => None,
-            })
-            .collect();
+            self.stonecutter_recipes = self
+                .recipes
+                .values()
+                .iter()
+                .filter_map(|holder| match &holder.recipe {
+                    RecipeKind::Stonecutting { ingredient, result } => Some(StonecutterSelection {
+                        recipe_id: holder.id,
+                        input: ingredient.clone(),
+                        result: result.clone(),
+                    }),
+                    _ => None,
+                })
+                .collect();
         }
     }
 
@@ -1132,7 +1132,6 @@ pub struct FuelValues {
 }
 
 mod fuel_values;
-
 
 #[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]

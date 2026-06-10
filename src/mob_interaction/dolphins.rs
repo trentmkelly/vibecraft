@@ -108,4 +108,3 @@ pub fn dolphin_grace_refresh_ticks(player_swimming: bool, random_roll: i32) -> O
     (player_swimming && random_roll.rem_euclid(DOLPHIN_GRACE_REFRESH_RANDOM_BOUND) == 0)
         .then_some(DOLPHIN_GRACE_DURATION_TICKS)
 }
-

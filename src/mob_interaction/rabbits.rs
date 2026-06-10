@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RabbitVariant {
     Brown,
@@ -202,4 +201,3 @@ pub fn rabbit_raid_garden(
         _ => RabbitRaidGardenResult::Noop,
     }
 }
-

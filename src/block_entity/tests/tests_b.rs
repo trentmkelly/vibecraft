@@ -185,7 +185,10 @@ fn assert_jukebox_set_without_playing_path() {
 fn assert_jukebox_removal_effects_and_playable_gate() {
     let mut jukebox = JukeboxBlockEntity::new();
     let disc = stack("minecraft:music_disc_cat", 1);
-    assert_eq!(jukebox.set_the_item(Some(disc.clone())), JukeboxSongEvent::Started);
+    assert_eq!(
+        jukebox.set_the_item(Some(disc.clone())),
+        JukeboxSongEvent::Started
+    );
     let effect = jukebox.set_removed();
     assert_eq!(effect.popped_item, Some(disc));
     assert_eq!(effect.game_event, JukeboxBlockEntity::STOP_GAME_EVENT);
@@ -677,7 +680,6 @@ fn assert_hanging_sign_shape_and_load(loaded: SignBlockEntityModel) {
     assert_eq!(loaded_hanging.attachment, HangingSignAttachment::Ceiling);
     assert_eq!(loaded_hanging.sign.front_text.lines[0].raw, "raw one");
 }
-
 
 #[test]
 fn brewing_stand_ticks_fuel_recipes_sided_slots_and_save_load_like_java() {

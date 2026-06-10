@@ -461,10 +461,11 @@ mod tests {
         // A chunk connection established far out (chunk 20) breaks once the
         // source has moved back into the receiver's view (chunk 2).
         let far_chunk_source = entity("s", 20.0 * 16.0, 0.0);
-        let chunk_conn = active_connection(&receiver, &far_chunk_source, WaypointConnectionKind::Chunk);
+        let chunk_conn =
+            active_connection(&receiver, &far_chunk_source, WaypointConnectionKind::Chunk);
         let near_source = entity("s", 2.0 * 16.0, 0.0); // chunk 2, within view 4
-        // Rebuild the connection's stored chunk to the near position so the
-        // "moved" distance is 0 but it is now chunk-visible.
+                                                        // Rebuild the connection's stored chunk to the near position so the
+                                                        // "moved" distance is 0 but it is now chunk-visible.
         let mut visible_conn = chunk_conn.clone();
         visible_conn.last_chunk_x = near_source.chunk_x;
         visible_conn.last_chunk_z = near_source.chunk_z;
@@ -477,7 +478,8 @@ mod tests {
 
         // An azimuth connection breaks once the source is no longer really far.
         let far_source = entity("s", 400.0, 0.0);
-        let azimuth_conn = active_connection(&receiver, &far_source, WaypointConnectionKind::Azimuth);
+        let azimuth_conn =
+            active_connection(&receiver, &far_source, WaypointConnectionKind::Azimuth);
         assert!(!connection_is_broken(
             &azimuth_conn,
             &receiver,

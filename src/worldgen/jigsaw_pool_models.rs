@@ -195,4 +195,3 @@ impl JigsawTemplatePoolModel {
         Some((raw_index, self.raw_templates[raw_index].element.clone()))
     }
 }
-

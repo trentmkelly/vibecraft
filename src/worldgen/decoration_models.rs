@@ -597,4 +597,3 @@ pub struct FeatureBehaviorModel {
     pub behavior: &'static str,
     pub success_condition: &'static str,
 }
-

@@ -217,4 +217,3 @@ pub fn woodland_mansion_support_column_y_values(
     let stop_y = first_solid_or_liquid_y.unwrap_or(min_y);
     ((stop_y + 1)..y_start).rev().collect()
 }
-

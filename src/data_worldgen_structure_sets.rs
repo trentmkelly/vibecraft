@@ -78,9 +78,7 @@ fn i32_field(object: &serde_json::Map<String, serde_json::Value>, key: &str) -> 
     i32::try_from(value).unwrap_or_else(|_| panic!("integer field {key} overflows i32"))
 }
 
-fn parse_frequency_millionths(
-    object: &serde_json::Map<String, serde_json::Value>,
-) -> Option<i32> {
+fn parse_frequency_millionths(object: &serde_json::Map<String, serde_json::Value>) -> Option<i32> {
     object.get("frequency").map(|value| {
         let number = value
             .as_f64()
@@ -224,7 +222,10 @@ fn structure_sets_java_bootstrap_shape_matches_decompilation() {
             "new RandomSpreadStructurePlacement(34, 12, RandomSpreadType.LINEAR, 94251327)",
         ],
     );
-    assert_eq!(count_occurrences(STRUCTURE_SETS_JAVA, "context.register("), 20);
+    assert_eq!(
+        count_occurrences(STRUCTURE_SETS_JAVA, "context.register("),
+        20
+    );
     assert_eq!(
         count_occurrences(STRUCTURE_SETS_JAVA, "new RandomSpreadStructurePlacement"),
         19
@@ -333,7 +334,10 @@ fn vanilla_structure_set_json_ids_and_rust_static_entries_match() {
                     spread_type: rust_spread_type,
                 },
             ) => {
-                assert_eq!((*spacing, *separation, *salt), (rust_spacing, rust_separation, rust_salt));
+                assert_eq!(
+                    (*spacing, *separation, *salt),
+                    (rust_spacing, rust_separation, rust_salt)
+                );
                 assert_eq!(
                     spread_type.as_str(),
                     match rust_spread_type {
@@ -354,7 +358,10 @@ fn vanilla_structure_set_json_ids_and_rust_static_entries_match() {
                     spread: rust_spread,
                     count: rust_count,
                 },
-            ) => assert_eq!((*distance, *spread, *count), (rust_distance, rust_spread, rust_count)),
+            ) => assert_eq!(
+                (*distance, *spread, *count),
+                (rust_distance, rust_spread, rust_count)
+            ),
             (vanilla, rust) => panic!("placement kind mismatch: {vanilla:?} vs {rust:?}"),
         }
     }

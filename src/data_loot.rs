@@ -871,7 +871,7 @@ mod tests {
         assert!(
             provider.create_beehive_drop("minecraft:beehive").pools[0].entries[0]
                 .otherwise
-            .is_some()
+                .is_some()
         );
     }
     #[test]

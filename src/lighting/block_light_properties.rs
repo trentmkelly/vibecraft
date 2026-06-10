@@ -74,10 +74,7 @@ fn explicit_override(block_name: &str) -> Option<LightBlockProperties> {
     // ---- Fluids and fluid-related blocks ----
     if matches!(
         block_name,
-        "minecraft:water"
-            | "minecraft:bubble_column"
-            | "minecraft:kelp"
-            | "minecraft:kelp_plant"
+        "minecraft:water" | "minecraft:bubble_column" | "minecraft:kelp" | "minecraft:kelp_plant"
     ) {
         return Some(transparent_dampening(1));
     }
@@ -89,10 +86,7 @@ fn explicit_override(block_name: &str) -> Option<LightBlockProperties> {
     // ---- Ice variants (lightBlock(2)) ----
     if matches!(
         block_name,
-        "minecraft:ice"
-            | "minecraft:frosted_ice"
-            | "minecraft:packed_ice"
-            | "minecraft:blue_ice"
+        "minecraft:ice" | "minecraft:frosted_ice" | "minecraft:packed_ice" | "minecraft:blue_ice"
     ) {
         // Packed/blue ice are actually solid render with dampening 15 in
         // vanilla, but ice (clear) is 2. Match per-variant.
@@ -182,7 +176,9 @@ fn is_clear_glass(name: &str) -> bool {
 
 fn light_source(name: &str) -> Option<LightBlockProperties> {
     Some(match name {
-        "minecraft:torch" | "minecraft:wall_torch" | "minecraft:copper_torch"
+        "minecraft:torch"
+        | "minecraft:wall_torch"
+        | "minecraft:copper_torch"
         | "minecraft:copper_wall_torch" => transparent_emission(14),
         "minecraft:soul_torch" | "minecraft:soul_wall_torch" => transparent_emission(10),
         "minecraft:redstone_torch" | "minecraft:redstone_wall_torch" => transparent_emission(7),
@@ -230,10 +226,10 @@ fn light_source(name: &str) -> Option<LightBlockProperties> {
         | "minecraft:ochre_froglight"
         | "minecraft:verdant_froglight"
         | "minecraft:pearlescent_froglight" => occluding_emission(15),
-        "minecraft:copper_bulb" | "minecraft:exposed_copper_bulb"
-        | "minecraft:weathered_copper_bulb" | "minecraft:oxidized_copper_bulb" => {
-            occluding_emission(15)
-        }
+        "minecraft:copper_bulb"
+        | "minecraft:exposed_copper_bulb"
+        | "minecraft:weathered_copper_bulb"
+        | "minecraft:oxidized_copper_bulb" => occluding_emission(15),
         _ => return None,
     })
 }

@@ -121,7 +121,10 @@ fn structures_java_bootstrap_shape_matches_decompilation() {
         ],
     );
     assert_eq!(count_occurrences(STRUCTURES_JAVA, "context.register("), 34);
-    assert_eq!(count_occurrences(STRUCTURES_JAVA, "new JigsawStructure"), 12);
+    assert_eq!(
+        count_occurrences(STRUCTURES_JAVA, "new JigsawStructure"),
+        12
+    );
     assert_eq!(
         count_occurrences(STRUCTURES_JAVA, "new RuinedPortalStructure"),
         16
@@ -190,10 +193,18 @@ fn vanilla_structure_json_ids_types_steps_and_terrain_match_java_surface() {
     let mut terrain = BTreeMap::new();
     for value in registry.values() {
         let object = json_object(value, "structure");
-        *types.entry(string_field(object, "type").to_string()).or_insert(0) += 1;
-        *steps.entry(string_field(object, "step").to_string()).or_insert(0) += 1;
+        *types
+            .entry(string_field(object, "type").to_string())
+            .or_insert(0) += 1;
+        *steps
+            .entry(string_field(object, "step").to_string())
+            .or_insert(0) += 1;
         *terrain
-            .entry(optional_str(object, "terrain_adaptation").unwrap_or("none").to_string())
+            .entry(
+                optional_str(object, "terrain_adaptation")
+                    .unwrap_or("none")
+                    .to_string(),
+            )
             .or_insert(0) += 1;
     }
 
@@ -244,17 +255,29 @@ fn vanilla_structure_json_special_cases_match_java_bootstrap() {
 
     let outpost = structure(&registry, "minecraft:pillager_outpost");
     assert_eq!(string_field(outpost, "type"), "minecraft:jigsaw");
-    assert_eq!(string_field(outpost, "start_pool"), "minecraft:pillager_outpost/base_plates");
+    assert_eq!(
+        string_field(outpost, "start_pool"),
+        "minecraft:pillager_outpost/base_plates"
+    );
     assert_eq!(i64_field(outpost, "size"), 7);
     assert_eq!(i64_field(outpost, "max_distance_from_center"), 80);
-    assert_eq!(optional_str(outpost, "terrain_adaptation"), Some("beard_thin"));
+    assert_eq!(
+        optional_str(outpost, "terrain_adaptation"),
+        Some("beard_thin")
+    );
     let outpost_monster = nested_object(nested_object(outpost, "spawn_overrides"), "monster");
     assert_eq!(string_field(outpost_monster, "bounding_box"), "full");
 
     let snowy = structure(&registry, "minecraft:village_snowy");
-    assert_eq!(string_field(snowy, "start_pool"), "minecraft:village/snowy/town_centers");
+    assert_eq!(
+        string_field(snowy, "start_pool"),
+        "minecraft:village/snowy/town_centers"
+    );
     assert_eq!(i64_field(snowy, "size"), 6);
-    assert_eq!(optional_str(snowy, "project_start_to_heightmap"), Some("WORLD_SURFACE_WG"));
+    assert_eq!(
+        optional_str(snowy, "project_start_to_heightmap"),
+        Some("WORLD_SURFACE_WG")
+    );
     assert_eq!(
         optional_str(snowy, "terrain_adaptation"),
         Some("beard_thin")
@@ -266,28 +289,37 @@ fn vanilla_structure_json_special_cases_match_java_bootstrap() {
         .and_then(serde_json::Value::as_array)
         .unwrap_or_else(|| panic!("ruined portal should have setups"));
     assert_eq!(setups.len(), 2);
-    assert_eq!(string_field(json_object(&setups[0], "setup"), "placement"), "underground");
+    assert_eq!(
+        string_field(json_object(&setups[0], "setup"), "placement"),
+        "underground"
+    );
     assert_eq!(
         string_field(json_object(&setups[1], "setup"), "placement"),
         "on_land_surface"
     );
 
     let ancient_city = structure(&registry, "minecraft:ancient_city");
-    assert_eq!(string_field(ancient_city, "start_pool"), "minecraft:ancient_city/city_center");
+    assert_eq!(
+        string_field(ancient_city, "start_pool"),
+        "minecraft:ancient_city/city_center"
+    );
     assert_eq!(i64_field(ancient_city, "max_distance_from_center"), 116);
     assert_eq!(
         nested_object(ancient_city, "start_height").get("absolute"),
         Some(&serde_json::Value::from(-27))
     );
-    assert_eq!(
-        nested_object(ancient_city, "spawn_overrides").len(),
-        8
-    );
+    assert_eq!(nested_object(ancient_city, "spawn_overrides").len(), 8);
 
     let trial = structure(&registry, "minecraft:trial_chambers");
-    assert_eq!(string_field(trial, "start_pool"), "minecraft:trial_chambers/chamber/end");
+    assert_eq!(
+        string_field(trial, "start_pool"),
+        "minecraft:trial_chambers/chamber/end"
+    );
     assert_eq!(i64_field(trial, "dimension_padding"), 10);
-    assert_eq!(string_field(trial, "liquid_settings"), "ignore_waterlogging");
+    assert_eq!(
+        string_field(trial, "liquid_settings"),
+        "ignore_waterlogging"
+    );
     assert_eq!(i64_field(trial, "size"), 20);
     assert_eq!(i64_field(trial, "max_distance_from_center"), 116);
     assert_eq!(

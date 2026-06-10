@@ -124,7 +124,13 @@ fn f3_queue_entry_round_trips_for_every_constructor() {
     let entry = increase_only_one_direction(3, false, Direction::East);
     assert_eq!(get_from_level(entry), 3);
     assert!(should_propagate_in_direction(entry, Direction::East));
-    for d in [Direction::Down, Direction::Up, Direction::West, Direction::South, Direction::North] {
+    for d in [
+        Direction::Down,
+        Direction::Up,
+        Direction::West,
+        Direction::South,
+        Direction::North,
+    ] {
         assert!(!should_propagate_in_direction(entry, d));
     }
 
@@ -143,7 +149,10 @@ fn f4_section_state_transitions_when_enabling_disabling() {
     use crate::lighting::storage::{LayerLightSectionStorage, SectionType};
     let mut storage = LayerLightSectionStorage::new_block();
     let section_node = section_pos_as_long(0, 0, 0);
-    assert_eq!(storage.get_debug_section_type(section_node), SectionType::Empty);
+    assert_eq!(
+        storage.get_debug_section_type(section_node),
+        SectionType::Empty
+    );
 
     storage.update_section_status(section_node, false);
     assert_eq!(
@@ -156,7 +165,10 @@ fn f4_section_state_transitions_when_enabling_disabling() {
     // includes itself), so its state should fall back to LIGHT_ONLY only if
     // a neighbour is still non-empty. With no neighbours, state returns to
     // EMPTY.
-    assert_eq!(storage.get_debug_section_type(section_node), SectionType::Empty);
+    assert_eq!(
+        storage.get_debug_section_type(section_node),
+        SectionType::Empty
+    );
 
     // `setLightEnabled(zero, true)` adds the column to the source set.
     let zero = section_pos_as_long(0, 0, 0) & !((1i64 << 20) - 1);
@@ -185,7 +197,10 @@ fn f12_run_light_updates_drains_queues_and_counts_nodes() {
     engine.set_light_enabled(&getter, 0, 0, true);
     engine.propagate_light_sources(&getter, 0, 0);
     let count = engine.run_light_updates(&getter);
-    assert!(count > 0, "engine should have drained at least one queued entry");
+    assert!(
+        count > 0,
+        "engine should have drained at least one queued entry"
+    );
     assert!(!engine.has_light_work());
     assert!(engine.block_engine.as_ref().unwrap().last_run_node_count() > 0);
 }
@@ -563,7 +578,10 @@ fn f15_emission_values_match_vanilla_block_metadata() {
     assert_eq!(light_properties_for("minecraft:redstone_torch").emission, 7);
     assert_eq!(light_properties_for("minecraft:glowstone").emission, 15);
     assert_eq!(light_properties_for("minecraft:sea_lantern").emission, 15);
-    assert_eq!(light_properties_for("minecraft:jack_o_lantern").emission, 15);
+    assert_eq!(
+        light_properties_for("minecraft:jack_o_lantern").emission,
+        15
+    );
     assert_eq!(light_properties_for("minecraft:lava").emission, 15);
     assert_eq!(light_properties_for("minecraft:magma_block").emission, 3);
 }
@@ -794,21 +812,11 @@ fn build_test_chunk_with_floor() -> crate::storage::chunk::LevelChunk {
     chunk
 }
 
-fn sky_light_in_chunk(
-    chunk: &crate::storage::chunk::LevelChunk,
-    x: i32,
-    y: i32,
-    z: i32,
-) -> i32 {
+fn sky_light_in_chunk(chunk: &crate::storage::chunk::LevelChunk, x: i32, y: i32, z: i32) -> i32 {
     light_array_get(chunk, LightLayer::Sky, x, y, z)
 }
 
-fn block_light_in_chunk(
-    chunk: &crate::storage::chunk::LevelChunk,
-    x: i32,
-    y: i32,
-    z: i32,
-) -> i32 {
+fn block_light_in_chunk(chunk: &crate::storage::chunk::LevelChunk, x: i32, y: i32, z: i32) -> i32 {
     light_array_get(chunk, LightLayer::Block, x, y, z)
 }
 
@@ -859,4 +867,3 @@ fn light_array_get(
     // Above every stored sky-light section -> default 15.
     15
 }
-

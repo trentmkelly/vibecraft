@@ -587,7 +587,10 @@ fn loom_menu_pattern_filtering_and_result_match_java() {
     menu.set_slot(0, ItemStack::new("minecraft:white_banner", 1), &mut player);
     menu.set_slot(1, ItemStack::new("minecraft:red_dye", 1), &mut player);
     assert_eq!(menu.selectable_patterns().len(), 32);
-    assert_eq!(menu.selectable_patterns()[0], "minecraft:square_bottom_left");
+    assert_eq!(
+        menu.selectable_patterns()[0],
+        "minecraft:square_bottom_left"
+    );
     // No pattern selected yet (>1 selectable and none chosen) -> no result.
     assert!(menu.get_slot(3, &player).unwrap().is_empty());
 
@@ -608,7 +611,11 @@ fn loom_menu_pattern_filtering_and_result_match_java() {
     assert!(!menu.select_pattern(32)); // out of range
 
     // A held loom-pattern item restricts the selectable set to exactly its pattern.
-    menu.set_slot(2, ItemStack::new("minecraft:creeper_banner_pattern", 1), &mut player);
+    menu.set_slot(
+        2,
+        ItemStack::new("minecraft:creeper_banner_pattern", 1),
+        &mut player,
+    );
     assert_eq!(menu.selectable_patterns(), &["minecraft:creeper"]);
     // Size == 1 auto-selects index 0 and sets up the result.
     let result = menu.get_slot(3, &player).unwrap();
@@ -645,7 +652,11 @@ fn loom_menu_appends_to_existing_layers_and_caps_at_six() {
     menu.set_slot(0, banner.clone(), &mut player);
     menu.set_slot(1, ItemStack::new("minecraft:blue_dye", 1), &mut player);
     assert!(menu.select_pattern(13)); // adds "cross"
-    match menu.get_slot(3, &player).unwrap().component("minecraft:banner_patterns") {
+    match menu
+        .get_slot(3, &player)
+        .unwrap()
+        .component("minecraft:banner_patterns")
+    {
         Some(ItemComponent::BannerPatterns(layers)) => assert_eq!(layers.len(), 6),
         other => panic!("expected 6 layers, got {other:?}"),
     }
@@ -662,8 +673,12 @@ fn loom_menu_appends_to_existing_layers_and_caps_at_six() {
     let mut menu = LoomMenu::new();
     menu.set_slot(1, ItemStack::new("minecraft:blue_dye", 1), &mut player);
     menu.set_slot(0, full, &mut player); // single selectable? no -> 32, none selected
-    // Force selection; setup_result still runs but slotsChanged caps at MAX on input change.
-    menu.set_slot(2, ItemStack::new("minecraft:creeper_banner_pattern", 1), &mut player);
+                                         // Force selection; setup_result still runs but slotsChanged caps at MAX on input change.
+    menu.set_slot(
+        2,
+        ItemStack::new("minecraft:creeper_banner_pattern", 1),
+        &mut player,
+    );
     assert!(menu.get_slot(3, &player).unwrap().is_empty());
     assert_eq!(menu.selected_pattern_index, -1);
 }

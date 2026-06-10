@@ -37,9 +37,7 @@ impl SelectorContentsModel {
         let separator = self
             .separator
             .as_ref()
-            .map(|component| {
-                component.render_plain(&TranslationTable::default(), context)
-            })
+            .map(|component| component.render_plain(&TranslationTable::default(), context))
             .unwrap_or_else(|| DEFAULT_SELECTOR_SEPARATOR.to_string());
         format_component_list(&values, &separator)
     }
@@ -155,7 +153,12 @@ mod tests {
     #[test]
     fn selector_contents_source_null_and_missing_selector_resolve_empty() {
         let selector = SelectorContentsModel::new("@s", None);
-        assert_eq!(selector.resolve(&ResolutionContext::default(), 0).get_string(), "");
+        assert_eq!(
+            selector
+                .resolve(&ResolutionContext::default(), 0)
+                .get_string(),
+            ""
+        );
         assert_eq!(selector.resolve(&context_with_source(), 0).get_string(), "");
     }
 

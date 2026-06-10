@@ -1,4 +1,3 @@
-
 pub const PLAINS_FEATURE_STEPS: &[&[&str]] = &[
     &[],
     &[
@@ -849,4 +848,3 @@ pub const DEEP_DARK_FEATURE_STEPS: &[&[&str]] = &[
     DRIPSTONE_CAVES_FEATURE_STEPS[9],
     PLAINS_FEATURE_STEPS[10],
 ];
-

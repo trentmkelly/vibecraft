@@ -97,8 +97,7 @@ pub fn pointed_dripstone_feature_plan(
         input.can_place_above,
         input.can_place_below,
         input.choose_down_when_both,
-    )
-    else {
+    ) else {
         return Ok(PointedDripstoneFeaturePlan {
             tip_direction: None,
             dripstone_blocks: Vec::new(),

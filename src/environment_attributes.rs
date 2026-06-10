@@ -344,11 +344,7 @@ mod tests {
             let expected = (12_600..23_401).contains(&tick);
             assert_eq!(eyeblossom_open(tick), expected, "eyeblossom {tick}");
             assert_eq!(creaking_active(tick), expected, "creaking {tick}");
-            assert_eq!(
-                firefly_bush_sounds_active(tick),
-                expected,
-                "firefly {tick}"
-            );
+            assert_eq!(firefly_bush_sounds_active(tick), expected, "firefly {tick}");
         }
     }
 

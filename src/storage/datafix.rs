@@ -362,9 +362,9 @@ mod tests {
         run_world_upgrade, DataFixDecision, DataFixStrategyAction, WorldUpgradeOptions,
         WorldUpgradeStep, DATAFIX_STRATEGY, TARGET_DATA_VERSION,
     };
-    use crate::storage::nbt::Tag;
     use crate::storage::chunk::LevelChunk;
     use crate::storage::entities::ChunkEntities;
+    use crate::storage::nbt::Tag;
     use crate::storage::region::ChunkPos;
     use crate::storage::world::WorldLayout;
     use std::fs;

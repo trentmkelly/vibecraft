@@ -48,7 +48,10 @@ pub fn is_primary_item(item_id: &str, enchantment_id: &str) -> bool {
     if !crate::item_tags::item_in_tag(item_id, def.supported_items) {
         return false;
     }
-    match def.primary_items.or_else(|| primary_items_override(enchantment_id)) {
+    match def
+        .primary_items
+        .or_else(|| primary_items_override(enchantment_id))
+    {
         Some(primary) => crate::item_tags::item_in_tag(item_id, primary),
         None => true,
     }
@@ -70,7 +73,8 @@ pub fn get_enchantment_cost(
     if bookcases > 15 {
         bookcases = 15;
     }
-    let selected = random.next_i32_bound(8) + 1 + (bookcases >> 1) + random.next_i32_bound(bookcases + 1);
+    let selected =
+        random.next_i32_bound(8) + 1 + (bookcases >> 1) + random.next_i32_bound(bookcases + 1);
     match slot {
         0 => (selected / 3).max(1),
         1 => selected * 2 / 3 + 1,
@@ -131,10 +135,7 @@ fn enchants_compatible_ids(a: &str, b: &str) -> bool {
 /// enchantment that is a primary item for the stack (or the stack is a plain book), at
 /// the highest level whose `[minCost, maxCost]` range contains `value`. Preserves tag
 /// order. Returns `(id, level, weight)`.
-pub fn available_enchantment_results(
-    value: i32,
-    item_id: &str,
-) -> Vec<(&'static str, i32, i32)> {
+pub fn available_enchantment_results(value: i32, item_id: &str) -> Vec<(&'static str, i32, i32)> {
     let is_book = item_id == "minecraft:book";
     let mut results = Vec::new();
     for &id in IN_ENCHANTING_TABLE {

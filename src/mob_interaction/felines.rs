@@ -374,4 +374,3 @@ pub fn ocelot_spawn_obstruction(
 pub fn ocelot_leash_offset(eye_height: f32, width: f32) -> (f32, f32, f32) {
     (0.0, 0.5 * eye_height, 0.4 * width)
 }
-

@@ -1,5 +1,5 @@
-use super::*;
 use super::live_tree_placement::tree_decorator_solid_render;
+use super::*;
 
 #[derive(Debug, Clone, Copy)]
 pub(super) struct LiveTreeFeatureConfig {
@@ -199,7 +199,10 @@ fn live_fancy_oak_leaf_litter_tree_config() -> LiveTreeFeatureConfig {
     }
 }
 
-pub(super) fn live_tree_selector_trace(feature: &str, mut random: RandomSourceKind) -> Option<String> {
+pub(super) fn live_tree_selector_trace(
+    feature: &str,
+    mut random: RandomSourceKind,
+) -> Option<String> {
     let feature = feature.strip_prefix("minecraft:").unwrap_or(feature);
     match feature {
         "trees_birch_and_oak_leaf_litter" => {
@@ -245,7 +248,9 @@ pub(super) fn tree_placement_filter_sapling(feature: &str) -> Option<&'static st
     }
 }
 
-pub(super) fn live_tree_sapling_for_trunk_provider(provider: &BlockStateProviderModel) -> &'static str {
+pub(super) fn live_tree_sapling_for_trunk_provider(
+    provider: &BlockStateProviderModel,
+) -> &'static str {
     match block_state_provider_sample(provider, 0).unwrap_or("minecraft:oak_log") {
         "minecraft:birch_log" => "minecraft:birch_sapling",
         "minecraft:spruce_log" => "minecraft:spruce_sapling",

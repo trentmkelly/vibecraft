@@ -200,4 +200,3 @@ pub fn bucket_pickup_result(held_item: &str, entity_alive: bool) -> BucketPickup
         BucketPickupResult::NotApplicable
     }
 }
-

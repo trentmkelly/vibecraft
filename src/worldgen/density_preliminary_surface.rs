@@ -436,4 +436,3 @@ pub const OVERWORLD_AMPLIFIED_PRELIMINARY_SURFACE_LEVEL_DENSITY: DensityFunction
         lower_bound: -64,
         cell_height: 8,
     };
-

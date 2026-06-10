@@ -350,4 +350,3 @@ pub fn armadillo_ball_up_tick_plan(
 
     ArmadilloBallUpTickPlan::None
 }
-

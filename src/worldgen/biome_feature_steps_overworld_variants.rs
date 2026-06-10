@@ -534,4 +534,3 @@ pub const MANGROVE_SWAMP_FEATURE_STEPS: &[&[&str]] = &[
     ],
     PLAINS_FEATURE_STEPS[10],
 ];
-

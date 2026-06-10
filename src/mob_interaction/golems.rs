@@ -289,4 +289,3 @@ pub fn iron_golem_block_summon_sets_player_created(top_block: &'static str) -> b
         "minecraft:carved_pumpkin" | "minecraft:jack_o_lantern"
     )
 }
-

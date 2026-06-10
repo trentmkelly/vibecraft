@@ -159,9 +159,8 @@ fn is_edge_occluded(
         return true;
     }
     // Both faces full -> edge sealed.
-    let top_face =
-        !top.has_empty_occlusion_shape() && top.occlusion_shape_occludes_full_face;
-    let bottom_face = !bottom.has_empty_occlusion_shape()
-        && bottom.occlusion_shape_occludes_full_face;
+    let top_face = !top.has_empty_occlusion_shape() && top.occlusion_shape_occludes_full_face;
+    let bottom_face =
+        !bottom.has_empty_occlusion_shape() && bottom.occlusion_shape_occludes_full_face;
     top_face && bottom_face
 }

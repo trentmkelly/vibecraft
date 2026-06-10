@@ -493,4 +493,3 @@ pub const CONFIGURED_FEATURES: &[ConfiguredFeatureEntry] = &[
         ConfiguredFeatureSource::Vegetation,
     ),
 ];
-

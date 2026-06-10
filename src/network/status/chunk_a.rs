@@ -292,8 +292,14 @@ pub fn run_status_server(
     console_input: &Receiver<ConsoleInput>,
     active_logins: ActiveLoginRegistry,
 ) -> Result<(), String> {
-    let runtime =
-        StatusServerRuntime::new(bind_ip, port, properties, world_root, world_seed, active_logins)?;
+    let runtime = StatusServerRuntime::new(
+        bind_ip,
+        port,
+        properties,
+        world_root,
+        world_seed,
+        active_logins,
+    )?;
     runtime.start_tick_thread();
     println!("Status listener bound to {}", runtime.address);
     run_status_accept_loop(runtime, properties, world_seed, console_input);
@@ -923,10 +929,11 @@ fn complete_login_handshake(
         })?;
         return Ok(LoginHandshakeOutcome::Closed);
     }
-    let (active_login, replaced_stream) = context
-        .shared
-        .active_logins
-        .register_replacing(&finished.profile.uuid, &finished.profile.name, stream)?;
+    let (active_login, replaced_stream) = context.shared.active_logins.register_replacing(
+        &finished.profile.uuid,
+        &finished.profile.name,
+        stream,
+    )?;
     if let Some(replaced_stream) = replaced_stream {
         let _ = replaced_stream.shutdown(Shutdown::Both);
     }
@@ -3135,7 +3142,10 @@ mod spawn_protection_wiring_tests {
             panic!("expected compound");
         };
         let get = |k: &str| fields.iter().find(|(n, _)| n == k).map(|(_, v)| v);
-        assert_eq!(get("translate"), Some(&Tag::String("build.tooHigh".to_string())));
+        assert_eq!(
+            get("translate"),
+            Some(&Tag::String("build.tooHigh".to_string()))
+        );
         assert_eq!(get("with"), Some(&Tag::List(vec![Tag::Int(319)])));
         assert_eq!(get("color"), Some(&Tag::String("red".to_string())));
 
@@ -3144,7 +3154,10 @@ mod spawn_protection_wiring_tests {
             panic!("expected compound");
         };
         assert_eq!(
-            fields.iter().find(|(n, _)| n == "translate").map(|(_, v)| v),
+            fields
+                .iter()
+                .find(|(n, _)| n == "translate")
+                .map(|(_, v)| v),
             Some(&Tag::String("build.tooLow".to_string()))
         );
     }

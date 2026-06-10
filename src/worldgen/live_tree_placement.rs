@@ -67,8 +67,11 @@ pub(super) fn live_tree_placement_plan(
         FoliagePlacerKind::Fancy { height } => (height, input.config.foliage.offset_min),
         _ => (0, 0),
     };
-    let leaf_radius =
-        sample_inclusive_i32(input.config.foliage.radius_min, input.config.foliage.radius_max, input.rand_a);
+    let leaf_radius = sample_inclusive_i32(
+        input.config.foliage.radius_min,
+        input.config.foliage.radius_max,
+        input.rand_a,
+    );
     for attachment in trunk_plan.attachments {
         for (y_offset, current_radius) in fancy_foliage_rows(
             foliage_offset,
@@ -165,7 +168,10 @@ pub(super) fn append_live_tree_decorators(
     };
     consume_live_beehive_decorator_random(&logs, &leaves, beehive_probability, random);
 
-    if matches!(input.decorators, LiveTreeDecoratorSet::BeesAndLeafLitter { .. }) {
+    if matches!(
+        input.decorators,
+        LiveTreeDecoratorSet::BeesAndLeafLitter { .. }
+    ) {
         append_live_place_on_ground_leaf_litter(
             LiveLeafLitterInput {
                 source_pos: input.source_pos,
@@ -300,8 +306,7 @@ fn append_live_place_on_ground_leaf_litter(
             + feature_random_next_i32_bound(random, max_z - min_z + input.radius * 2 + 1);
         let pos = BlockPos { x, y, z };
         let above = BlockPos { x, y: y + 1, z };
-        let above_state =
-            live_tree_decorator_state(input.block_context, &decorator_blocks, above);
+        let above_state = live_tree_decorator_state(input.block_context, &decorator_blocks, above);
         let pos_state = live_tree_decorator_state(input.block_context, &decorator_blocks, pos);
         if !matches!(
             block_state_id(&above_state),
@@ -367,8 +372,8 @@ fn live_tree_motion_blocking_no_leaves_height(
     // Rare border case: a tree decorator can probe outside its source chunk. Fall
     // back to the level view there because the source heightmap only covers the
     // chunk that owns the feature.
-    for y in (input.settings.noise.min_y..input.settings.noise.min_y + input.settings.noise.height)
-        .rev()
+    for y in
+        (input.settings.noise.min_y..input.settings.noise.min_y + input.settings.noise.height).rev()
     {
         let state = live_tree_decorator_state(
             input.block_context,

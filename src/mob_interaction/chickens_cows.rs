@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ChickenState {
     pub egg_time: i32,
@@ -179,4 +178,3 @@ pub fn mooshroom_offspring_variant(
         partner
     }
 }
-

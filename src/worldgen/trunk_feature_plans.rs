@@ -713,8 +713,7 @@ fn append_fancy_trunk_foliage_row<F>(
         *roll_index += 1;
         let check_start =
             fancy_trunk_foliage_check_start(input.origin, relative_y, tree_shape, roll);
-        let branch_top_y =
-            fancy_trunk_branch_top_y(input.origin, check_start, input.trunk_top_y);
+        let branch_top_y = fancy_trunk_branch_top_y(input.origin, check_start, input.trunk_top_y);
         let check_end = BlockPos {
             x: check_start.x,
             y: check_start.y + 5,

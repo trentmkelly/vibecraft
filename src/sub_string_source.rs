@@ -50,11 +50,7 @@ impl FormattedCharSequenceModel {
     }
 
     pub fn codepoints(&self) -> Vec<u32> {
-        let mut codepoints = self
-            .text
-            .chars()
-            .map(|ch| ch as u32)
-            .collect::<Vec<_>>();
+        let mut codepoints = self.text.chars().map(|ch| ch as u32).collect::<Vec<_>>();
         if self.direction == FormattedCharSequenceDirection::Backward {
             codepoints.reverse();
             if let Some(modifier) = self.reverse_modifier {
@@ -190,8 +186,9 @@ mod tests {
     const SUB_STRING_SOURCE_JAVA: &str = include_str!(
         "../../decompiled-server-26.1.2/net/minecraft/network/chat/SubStringSource.java"
     );
-    const FORMATTED_CHAR_SEQUENCE_JAVA: &str =
-        include_str!("../../decompiled-server-26.1.2/net/minecraft/util/FormattedCharSequence.java");
+    const FORMATTED_CHAR_SEQUENCE_JAVA: &str = include_str!(
+        "../../decompiled-server-26.1.2/net/minecraft/util/FormattedCharSequence.java"
+    );
     const STRING_DECOMPOSER_JAVA: &str =
         include_str!("../../decompiled-server-26.1.2/net/minecraft/util/StringDecomposer.java");
 
@@ -260,7 +257,10 @@ mod tests {
             reversed[0].direction,
             FormattedCharSequenceDirection::Backward
         );
-        assert_eq!(reversed[0].codepoints(), vec!['e' as u32, 'd' as u32, 'c' as u32]);
+        assert_eq!(
+            reversed[0].codepoints(),
+            vec!['e' as u32, 'd' as u32, 'c' as u32]
+        );
         assert_eq!(reversed[1].text, "b");
     }
 

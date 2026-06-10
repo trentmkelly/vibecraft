@@ -492,7 +492,11 @@ mod tests {
                 .unwrap()
                 .executable
         );
-        assert!(tree.parse("function #minecraft:tick", 2).unwrap().executable);
+        assert!(
+            tree.parse("function #minecraft:tick", 2)
+                .unwrap()
+                .executable
+        );
         assert_eq!(
             tree.parse("function Bad", 2),
             Err(ParseError::InvalidArgument("name"))

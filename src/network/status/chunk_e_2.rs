@@ -249,7 +249,10 @@ fn animal_sound_prefix(kind: &str, variant: &str) -> String {
 pub fn cow_sound_variant_nbt(variant: &str) -> Tag {
     let prefix = animal_sound_prefix("cow", variant);
     Tag::Compound(vec![
-        sound_field("ambient_sound", &format!("minecraft:entity.{prefix}.ambient")),
+        sound_field(
+            "ambient_sound",
+            &format!("minecraft:entity.{prefix}.ambient"),
+        ),
         sound_field("hurt_sound", &format!("minecraft:entity.{prefix}.hurt")),
         sound_field("death_sound", &format!("minecraft:entity.{prefix}.death")),
         sound_field("step_sound", &format!("minecraft:entity.{prefix}.step")),
@@ -265,7 +268,10 @@ pub fn chicken_sound_variant_nbt(variant: &str) -> Tag {
         (
             "adult_sounds".to_string(),
             Tag::Compound(vec![
-                sound_field("ambient_sound", &format!("minecraft:entity.{prefix}.ambient")),
+                sound_field(
+                    "ambient_sound",
+                    &format!("minecraft:entity.{prefix}.ambient"),
+                ),
                 sound_field("hurt_sound", &format!("minecraft:entity.{prefix}.hurt")),
                 sound_field("death_sound", &format!("minecraft:entity.{prefix}.death")),
                 sound_field("step_sound", "minecraft:entity.chicken.step"),
@@ -292,7 +298,10 @@ pub fn pig_sound_variant_nbt(variant: &str) -> Tag {
         (
             "adult_sounds".to_string(),
             Tag::Compound(vec![
-                sound_field("ambient_sound", &format!("minecraft:entity.{prefix}.ambient")),
+                sound_field(
+                    "ambient_sound",
+                    &format!("minecraft:entity.{prefix}.ambient"),
+                ),
                 sound_field("hurt_sound", &format!("minecraft:entity.{prefix}.hurt")),
                 sound_field("death_sound", &format!("minecraft:entity.{prefix}.death")),
                 sound_field("step_sound", "minecraft:entity.pig.step"),
@@ -324,7 +333,10 @@ pub fn cat_sound_variant_nbt(variant: &str) -> Tag {
 
 fn cat_sound_set_nbt(prefix: &str) -> Tag {
     Tag::Compound(vec![
-        sound_field("ambient_sound", &format!("minecraft:entity.{prefix}.ambient")),
+        sound_field(
+            "ambient_sound",
+            &format!("minecraft:entity.{prefix}.ambient"),
+        ),
         sound_field(
             "stray_ambient_sound",
             &format!("minecraft:entity.{prefix}.stray_ambient"),
@@ -338,7 +350,10 @@ fn cat_sound_set_nbt(prefix: &str) -> Tag {
             &format!("minecraft:entity.{prefix}.beg_for_food"),
         ),
         sound_field("purr_sound", &format!("minecraft:entity.{prefix}.purr")),
-        sound_field("purreow_sound", &format!("minecraft:entity.{prefix}.purreow")),
+        sound_field(
+            "purreow_sound",
+            &format!("minecraft:entity.{prefix}.purreow"),
+        ),
     ])
 }
 
@@ -370,7 +385,10 @@ fn wolf_sound_prefix(variant: &str) -> String {
 fn wolf_adult_sound_set_nbt(variant: &str) -> Tag {
     let prefix = wolf_sound_prefix(variant);
     Tag::Compound(vec![
-        sound_field("ambient_sound", &format!("minecraft:entity.{prefix}.ambient")),
+        sound_field(
+            "ambient_sound",
+            &format!("minecraft:entity.{prefix}.ambient"),
+        ),
         sound_field("death_sound", &format!("minecraft:entity.{prefix}.death")),
         sound_field("growl_sound", &format!("minecraft:entity.{prefix}.growl")),
         sound_field("hurt_sound", &format!("minecraft:entity.{prefix}.hurt")),

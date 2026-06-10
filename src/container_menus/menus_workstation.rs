@@ -929,4 +929,3 @@ impl Default for GrindstoneMenu {
         Self::new()
     }
 }
-

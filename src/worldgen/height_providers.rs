@@ -154,18 +154,15 @@ pub fn height_provider_sample_with_rolls(
             }
 
             let mut choice = first_roll.rem_euclid(positive_weight_total);
-            let Some(selected) = distribution
-                .iter()
-                .find(|entry| {
-                    let weight = entry.weight.max(0);
-                    if choice < weight {
-                        true
-                    } else {
-                        choice -= weight;
-                        false
-                    }
-                })
-            else {
+            let Some(selected) = distribution.iter().find(|entry| {
+                let weight = entry.weight.max(0);
+                if choice < weight {
+                    true
+                } else {
+                    choice -= weight;
+                    false
+                }
+            }) else {
                 return context.min_y;
             };
             height_provider_sample_with_rolls(

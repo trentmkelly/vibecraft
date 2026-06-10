@@ -230,14 +230,26 @@ fn providers_cover_spawn_raid_and_loot_selection_paths() {
 fn can_enchant_matches_26_1_2_supported_items() {
     use super::can_enchant;
     // Sharpness (enchantable/sharp_weapon = swords + spears + axes) — NOT pickaxes/mace.
-    assert!(can_enchant("minecraft:diamond_sword", "minecraft:sharpness"));
+    assert!(can_enchant(
+        "minecraft:diamond_sword",
+        "minecraft:sharpness"
+    ));
     assert!(can_enchant("minecraft:iron_axe", "minecraft:sharpness"));
-    assert!(can_enchant("minecraft:netherite_spear", "minecraft:sharpness"));
-    assert!(!can_enchant("minecraft:diamond_pickaxe", "minecraft:sharpness"));
+    assert!(can_enchant(
+        "minecraft:netherite_spear",
+        "minecraft:sharpness"
+    ));
+    assert!(!can_enchant(
+        "minecraft:diamond_pickaxe",
+        "minecraft:sharpness"
+    ));
     assert!(!can_enchant("minecraft:mace", "minecraft:sharpness"));
 
     // Knockback (enchantable/melee_weapon = swords + spears) — NOT axes.
-    assert!(can_enchant("minecraft:diamond_sword", "minecraft:knockback"));
+    assert!(can_enchant(
+        "minecraft:diamond_sword",
+        "minecraft:knockback"
+    ));
     assert!(!can_enchant("minecraft:diamond_axe", "minecraft:knockback"));
 
     // Smite (enchantable/weapon = sharp_weapon + mace) — includes mace + axes.
@@ -245,22 +257,37 @@ fn can_enchant_matches_26_1_2_supported_items() {
     assert!(can_enchant("minecraft:diamond_axe", "minecraft:smite"));
 
     // Fortune (enchantable/mining_loot = axes/pickaxes/shovels/hoes) — NOT shears.
-    assert!(can_enchant("minecraft:diamond_pickaxe", "minecraft:fortune"));
+    assert!(can_enchant(
+        "minecraft:diamond_pickaxe",
+        "minecraft:fortune"
+    ));
     assert!(!can_enchant("minecraft:shears", "minecraft:fortune"));
     // Efficiency (enchantable/mining) DOES include shears.
     assert!(can_enchant("minecraft:shears", "minecraft:efficiency"));
 
     // Protection (enchantable/armor) — any armour piece, not weapons.
-    assert!(can_enchant("minecraft:diamond_chestplate", "minecraft:protection"));
-    assert!(can_enchant("minecraft:turtle_helmet", "minecraft:protection"));
-    assert!(!can_enchant("minecraft:diamond_sword", "minecraft:protection"));
+    assert!(can_enchant(
+        "minecraft:diamond_chestplate",
+        "minecraft:protection"
+    ));
+    assert!(can_enchant(
+        "minecraft:turtle_helmet",
+        "minecraft:protection"
+    ));
+    assert!(!can_enchant(
+        "minecraft:diamond_sword",
+        "minecraft:protection"
+    ));
 
     // Unbreaking (enchantable/durability) — broad: tools, armour, elytra, etc.
     assert!(can_enchant("minecraft:elytra", "minecraft:unbreaking"));
     assert!(can_enchant("minecraft:fishing_rod", "minecraft:unbreaking"));
 
     // Unknown enchantment id -> false.
-    assert!(!can_enchant("minecraft:diamond_sword", "minecraft:nonexistent"));
+    assert!(!can_enchant(
+        "minecraft:diamond_sword",
+        "minecraft:nonexistent"
+    ));
 }
 
 #[test]
@@ -268,15 +295,36 @@ fn is_primary_item_respects_primary_vs_supported() {
     use super::is_primary_item;
     // Sharpness: primary = melee_weapon (swords/spears), even though it is SUPPORTED on
     // axes (anvil) — the enchanting table only offers it on the primary items.
-    assert!(is_primary_item("minecraft:diamond_sword", "minecraft:sharpness"));
-    assert!(is_primary_item("minecraft:netherite_spear", "minecraft:sharpness"));
-    assert!(!is_primary_item("minecraft:iron_axe", "minecraft:sharpness"));
+    assert!(is_primary_item(
+        "minecraft:diamond_sword",
+        "minecraft:sharpness"
+    ));
+    assert!(is_primary_item(
+        "minecraft:netherite_spear",
+        "minecraft:sharpness"
+    ));
+    assert!(!is_primary_item(
+        "minecraft:iron_axe",
+        "minecraft:sharpness"
+    ));
     // Thorns: primary = chest_armor (not other armour slots).
-    assert!(is_primary_item("minecraft:diamond_chestplate", "minecraft:thorns"));
-    assert!(!is_primary_item("minecraft:diamond_helmet", "minecraft:thorns"));
+    assert!(is_primary_item(
+        "minecraft:diamond_chestplate",
+        "minecraft:thorns"
+    ));
+    assert!(!is_primary_item(
+        "minecraft:diamond_helmet",
+        "minecraft:thorns"
+    ));
     // Protection: no primary override -> primary == supported (any armour).
-    assert!(is_primary_item("minecraft:diamond_helmet", "minecraft:protection"));
-    assert!(!is_primary_item("minecraft:diamond_sword", "minecraft:protection"));
+    assert!(is_primary_item(
+        "minecraft:diamond_helmet",
+        "minecraft:protection"
+    ));
+    assert!(!is_primary_item(
+        "minecraft:diamond_sword",
+        "minecraft:protection"
+    ));
 }
 
 #[test]
@@ -338,7 +386,10 @@ fn select_enchantment_produces_valid_compatible_offers() {
         let mut r = LegacyRandom::new(seed);
         let offers = select_enchantment(&mut r, "minecraft:diamond_sword", 20, 15);
         for (id, level) in &offers {
-            assert!(is_primary_item("minecraft:diamond_sword", id), "{id} not primary");
+            assert!(
+                is_primary_item("minecraft:diamond_sword", id),
+                "{id} not primary"
+            );
             assert!(IN_ENCHANTING_TABLE.contains(id));
             let def = enchantment(id).unwrap();
             assert!(*level >= 1 && *level <= def.max_level);
@@ -347,7 +398,12 @@ fn select_enchantment_produces_valid_compatible_offers() {
             for j in (i + 1)..offers.len() {
                 let a = enchantment(offers[i].0).unwrap();
                 let b = enchantment(offers[j].0).unwrap();
-                assert!(are_compatible(a, b), "{} incompatible with {}", offers[i].0, offers[j].0);
+                assert!(
+                    are_compatible(a, b),
+                    "{} incompatible with {}",
+                    offers[i].0,
+                    offers[j].0
+                );
             }
         }
     }

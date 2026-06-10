@@ -154,4 +154,3 @@ pub const BUILTIN_NOISE_ROUTERS: &[NoiseRouterEntry] = &[
         router: NONE_NOISE_ROUTER,
     },
 ];
-

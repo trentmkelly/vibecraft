@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct StriderAttributes {
     pub movement_speed: f32,
@@ -229,4 +228,3 @@ pub fn strider_is_sensitive_to_water() -> bool {
 pub fn strider_is_on_fire() -> bool {
     false
 }
-

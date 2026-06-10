@@ -205,18 +205,16 @@ pub(super) fn place_cherry_leaves_row(
     }
     for dx in -input.radius..=input.radius {
         for dz in -input.radius..=input.radius {
-            if cherry_leaves_row_should_skip(
-                CherryLeavesSkipInput {
-                    dx: dx.abs(),
-                    y_offset: input.y_offset,
-                    dz: dz.abs(),
-                    radius: input.radius,
-                    wide_bottom_layer_hole_chance: input.wide_bottom_layer_hole_chance,
-                    corner_hole_chance: input.corner_hole_chance,
-                    rand_a: input.rand_a,
-                    rand_b: input.rand_b,
-                },
-            ) {
+            if cherry_leaves_row_should_skip(CherryLeavesSkipInput {
+                dx: dx.abs(),
+                y_offset: input.y_offset,
+                dz: dz.abs(),
+                radius: input.radius,
+                wide_bottom_layer_hole_chance: input.wide_bottom_layer_hole_chance,
+                corner_hole_chance: input.corner_hole_chance,
+                rand_a: input.rand_a,
+                rand_b: input.rand_b,
+            }) {
                 continue;
             }
             push_tree_block(
@@ -277,7 +275,11 @@ pub(super) fn place_mega_pine_leaves_row(
     }
 }
 
-pub(super) fn pine_foliage_rows(offset: i32, foliage_height: i32, leaf_radius: i32) -> Vec<(i32, i32)> {
+pub(super) fn pine_foliage_rows(
+    offset: i32,
+    foliage_height: i32,
+    leaf_radius: i32,
+) -> Vec<(i32, i32)> {
     let mut rows = Vec::new();
     let mut current_radius = 0;
     for y_offset in (offset - foliage_height..=offset).rev() {
@@ -291,7 +293,11 @@ pub(super) fn pine_foliage_rows(offset: i32, foliage_height: i32, leaf_radius: i
     rows
 }
 
-pub(super) fn fancy_foliage_rows(offset: i32, foliage_height: i32, leaf_radius: i32) -> Vec<(i32, i32)> {
+pub(super) fn fancy_foliage_rows(
+    offset: i32,
+    foliage_height: i32,
+    leaf_radius: i32,
+) -> Vec<(i32, i32)> {
     let mut rows = Vec::new();
     for y_offset in (offset - foliage_height..=offset).rev() {
         let current_radius = leaf_radius
@@ -305,7 +311,11 @@ pub(super) fn fancy_foliage_rows(offset: i32, foliage_height: i32, leaf_radius: 
     rows
 }
 
-pub(super) fn mega_jungle_foliage_rows(offset: i32, leaf_height: i32, leaf_radius: i32) -> Vec<(i32, i32)> {
+pub(super) fn mega_jungle_foliage_rows(
+    offset: i32,
+    leaf_height: i32,
+    leaf_radius: i32,
+) -> Vec<(i32, i32)> {
     let mut rows = Vec::new();
     for y_offset in (offset - leaf_height..=offset).rev() {
         rows.push((y_offset, leaf_radius + 1 - y_offset));

@@ -56,11 +56,7 @@ fn main() {
     ));
     for (path, lines) in &offenders {
         let rel = path.strip_prefix(&manifest_dir).unwrap_or(path);
-        message.push_str(&format!(
-            "  {:>7} lines  {}\n",
-            lines,
-            rel.display()
-        ));
+        message.push_str(&format!("  {:>7} lines  {}\n", lines, rel.display()));
     }
     message.push_str(&format!(
         "\nSplit the offending files into smaller modules. To bypass this \
@@ -81,7 +77,11 @@ fn collect_offenders(root: &Path, dir: &Path, out: &mut Vec<(PathBuf, usize)>) {
     for entry in entries {
         let entry = match entry {
             Ok(entry) => entry,
-            Err(err) => panic!("failed to read directory entry in {}: {}", dir.display(), err),
+            Err(err) => panic!(
+                "failed to read directory entry in {}: {}",
+                dir.display(),
+                err
+            ),
         };
         let path = entry.path();
         let file_type = entry

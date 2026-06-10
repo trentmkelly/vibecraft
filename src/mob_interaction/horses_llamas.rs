@@ -221,4 +221,3 @@ pub fn llama_offspring_variant(
         second_parent
     }
 }
-

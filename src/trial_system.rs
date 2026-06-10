@@ -749,10 +749,7 @@ mod tests {
                         .collect::<Vec<_>>(),
                     vec![
                         ("minecraft:spawners/ominous/trial_chamber/key", 3),
-                        (
-                            "minecraft:spawners/ominous/trial_chamber/consumables",
-                            7
-                        ),
+                        ("minecraft:spawners/ominous/trial_chamber/consumables", 7),
                     ],
                     "{} should use Java's ominous ejection weights",
                     path.display()
@@ -796,17 +793,19 @@ mod tests {
                 .spawn_potentials
                 .iter()
                 .map(|potential| (
-                    potential.entity_data.get("Size").and_then(serde_json::Value::as_i64),
+                    potential
+                        .entity_data
+                        .get("Size")
+                        .and_then(serde_json::Value::as_i64),
                     potential.weight
                 ))
                 .collect::<Vec<_>>(),
             vec![(Some(1), 3), (Some(2), 1)]
         );
 
-        let husk = load_trial_spawner_config_resource(
-            root.join("trial_chamber/melee/husk/ominous.json"),
-        )
-        .unwrap();
+        let husk =
+            load_trial_spawner_config_resource(root.join("trial_chamber/melee/husk/ominous.json"))
+                .unwrap();
         assert_eq!(
             husk.spawn_potentials[0].equipment_loot_table.as_deref(),
             Some("minecraft:equipment/trial_chamber_melee")

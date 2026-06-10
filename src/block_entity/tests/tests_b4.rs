@@ -21,12 +21,28 @@ fn lectern_block_entity_container_contract_and_pre_remove_match_java() {
     assert!(!lectern.still_valid(false, 1.0));
 
     let drop = lectern
-        .pre_remove_side_effects(BlockPos { x: 10, y: 70, z: -4 }, Direction::East, true)
+        .pre_remove_side_effects(
+            BlockPos {
+                x: 10,
+                y: 70,
+                z: -4,
+            },
+            Direction::East,
+            true,
+        )
         .expect("lectern with book drops its book before removal");
     assert_eq!(drop.item, book);
     assert_eq!((drop.x, drop.y, drop.z), (10.75, 71.0, -3.5));
     assert_eq!(
-        lectern.pre_remove_side_effects(BlockPos { x: 10, y: 70, z: -4 }, Direction::East, false),
+        lectern.pre_remove_side_effects(
+            BlockPos {
+                x: 10,
+                y: 70,
+                z: -4
+            },
+            Direction::East,
+            false
+        ),
         None
     );
 
@@ -34,7 +50,10 @@ fn lectern_block_entity_container_contract_and_pre_remove_match_java() {
         lectern.remove_item(0, 2),
         Some(stack("minecraft:written_book", 2))
     );
-    assert_eq!(lectern.get_book(), Some(&stack("minecraft:written_book", 1)));
+    assert_eq!(
+        lectern.get_book(),
+        Some(&stack("minecraft:written_book", 1))
+    );
     assert!(lectern.has_book());
 
     assert_eq!(
@@ -57,7 +76,10 @@ fn randomizable_container_components_and_loot_table_tags_match_java() {
     assert_eq!(
         chest.save_additional(),
         Tag::Compound(vec![
-            ("CustomName".to_string(), Tag::String("Supply Cache".to_string())),
+            (
+                "CustomName".to_string(),
+                Tag::String("Supply Cache".to_string())
+            ),
             ("lock".to_string(), Tag::String("brass_key".to_string())),
             (
                 "LootTable".to_string(),
@@ -113,7 +135,10 @@ fn randomizable_container_components_and_loot_table_tags_match_java() {
 
     assert_eq!(
         ContainerBlockEntityModel::remove_components_from_tag(&Tag::Compound(vec![
-            ("CustomName".to_string(), Tag::String("Supply Cache".to_string())),
+            (
+                "CustomName".to_string(),
+                Tag::String("Supply Cache".to_string())
+            ),
             ("lock".to_string(), Tag::String("brass_key".to_string())),
             ("Items".to_string(), container_items_tag(&loaded.items)),
             (
@@ -148,7 +173,10 @@ fn shelf_block_entity_components_owner_and_change_effects_match_java() {
 
     let mut from_components = ShelfBlockEntity::new();
     from_components.apply_implicit_components(&components);
-    assert_eq!(from_components.get_item(1), Some(&stack("minecraft:book", 1)));
+    assert_eq!(
+        from_components.get_item(1),
+        Some(&stack("minecraft:book", 1))
+    );
     assert!(!from_components.get_align_items_to_bottom());
 
     let saved = shelf.save_additional();
@@ -270,7 +298,10 @@ fn shulker_box_block_entity_progress_collision_and_sided_access_match_java() {
     assert_eq!(shulker.shulker_status, ShulkerBoxAnimationStatus::Opened);
     assert_eq!(shulker.lid_progress, 1.0);
 
-    assert_eq!(shulker.shulker_slots_for_face(), (0..27).collect::<Vec<_>>());
+    assert_eq!(
+        shulker.shulker_slots_for_face(),
+        (0..27).collect::<Vec<_>>()
+    );
     assert!(shulker.shulker_can_take_through_face());
     assert!(!shulker.can_place_through_face(0, "minecraft:white_shulker_box", Direction::Up));
     assert!(shulker.can_place_through_face(0, "minecraft:diamond", Direction::Up));
@@ -303,13 +334,21 @@ fn sign_block_entity_update_text_face_and_update_tag_match_java() {
     let saved = sign.save_additional();
     assert_eq!(sign.get_update_tag(), saved);
     assert!(SignBlockEntityModel::is_facing_front_text(
-        BlockPos { x: 10, y: 64, z: -3 },
+        BlockPos {
+            x: 10,
+            y: 64,
+            z: -3
+        },
         (0.5, 0.5),
         0.0,
         (10.5, -2.5),
     ));
     assert!(!SignBlockEntityModel::is_facing_front_text(
-        BlockPos { x: 10, y: 64, z: -3 },
+        BlockPos {
+            x: 10,
+            y: 64,
+            z: -3
+        },
         (0.5, 0.5),
         0.0,
         (10.5, -3.5),
@@ -334,9 +373,12 @@ fn sign_dispatcher_update_tag_uses_custom_only_nbt_like_java() {
         )])
     );
 
-    let mut hanging =
-        BlockEntity::new(BlockEntityTypeId::HangingSign, pos(), "minecraft:oak_hanging_sign")
-            .unwrap();
+    let mut hanging = BlockEntity::new(
+        BlockEntityTypeId::HangingSign,
+        pos(),
+        "minecraft:oak_hanging_sign",
+    )
+    .unwrap();
     hanging
         .custom_data
         .insert("back_text".to_string(), Tag::String("hi".to_string()));
@@ -475,14 +517,16 @@ fn spawner_block_entity_wrapper_update_tag_and_client_spin_match_java() {
     assert_eq!(spawner.old_spin, 45.0);
     assert!(spawner.spin > 45.0);
 
-    let update_flags =
-        spawner.set_next_spawn_data(SpawnDataModel::new("minecraft:skeleton"), true);
+    let update_flags = spawner.set_next_spawn_data(SpawnDataModel::new("minecraft:skeleton"), true);
     assert_eq!(
         update_flags,
         Some(SpawnerBlockEntity::NEXT_SPAWN_DATA_UPDATE_FLAGS)
     );
     assert_eq!(
-        spawner.next_spawn_data.as_ref().and_then(SpawnDataModel::entity_id),
+        spawner
+            .next_spawn_data
+            .as_ref()
+            .and_then(SpawnDataModel::entity_id),
         Some("minecraft:skeleton")
     );
     assert_eq!(
@@ -508,7 +552,10 @@ fn structure_block_entity_wrapper_surfaces_match_java() {
         StructureBlockEntity::SET_MODE_UPDATE_FLAGS
     );
     assert_eq!(structure.mode, StructureBlockMode::Load);
-    assert_eq!(structure.place_update_flags(), StructureBlockEntity::PLACE_UPDATE_FLAGS);
+    assert_eq!(
+        structure.place_update_flags(),
+        StructureBlockEntity::PLACE_UPDATE_FLAGS
+    );
     structure.strict = true;
     assert_eq!(
         structure.place_update_flags(),
@@ -531,10 +578,7 @@ fn structure_block_entity_wrapper_surfaces_match_java() {
     );
     assert_eq!(
         entity.get_update_tag(),
-        Tag::Compound(vec![(
-            "mode".to_string(),
-            Tag::String("LOAD".to_string())
-        )])
+        Tag::Compound(vec![("mode".to_string(), Tag::String("LOAD".to_string()))])
     );
 }
 
@@ -620,12 +664,27 @@ fn test_instance_block_entity_render_beam_and_update_tag_match_java() {
     );
 
     assert_eq!(
-        TestInstanceBlockEntityState::structure_pos(BlockPos { x: 10, y: 64, z: -2 }, 2),
+        TestInstanceBlockEntityState::structure_pos(
+            BlockPos {
+                x: 10,
+                y: 64,
+                z: -2
+            },
+            2
+        ),
         BlockPos { x: 12, y: 67, z: 1 }
     );
     assert_eq!(state.transformed_size("clockwise_90"), (5, 4, 3));
     assert_eq!(
-        state.start_corner(BlockPos { x: 10, y: 64, z: -2 }, "clockwise_180", 0),
+        state.start_corner(
+            BlockPos {
+                x: 10,
+                y: 64,
+                z: -2
+            },
+            "clockwise_180",
+            0
+        ),
         BlockPos { x: 12, y: 65, z: 3 }
     );
     assert_eq!(
@@ -635,10 +694,7 @@ fn test_instance_block_entity_render_beam_and_update_tag_match_java() {
             max: BlockPos { x: 6, y: 6, z: 5 },
         }
     );
-    assert_eq!(
-        state.get_update_tag(),
-        state.save_additional()
-    );
+    assert_eq!(state.get_update_tag(), state.save_additional());
     assert!(!state.world_operations_supported());
 
     let mut entity = BlockEntity::new(

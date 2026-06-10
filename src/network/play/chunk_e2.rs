@@ -386,7 +386,10 @@ pub(super) fn write_network_tag<W: Write>(writer: &mut W, tag: &Tag) -> io::Resu
     Ok(())
 }
 
-pub(super) fn read_length_prefixed_bytes<R: Read>(reader: &mut R, max_size: usize) -> io::Result<Vec<u8>> {
+pub(super) fn read_length_prefixed_bytes<R: Read>(
+    reader: &mut R,
+    max_size: usize,
+) -> io::Result<Vec<u8>> {
     let length = read_var_i32(reader)?;
     if length < 0 || length as usize > max_size {
         return Err(io::Error::new(

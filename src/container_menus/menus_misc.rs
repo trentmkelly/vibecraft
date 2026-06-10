@@ -563,4 +563,3 @@ impl Default for CrafterMenu {
         Self::new()
     }
 }
-

@@ -160,11 +160,7 @@ impl SpawnerBlockEntity {
         data.entity = Tag::Compound(vec![("id".to_string(), Tag::String(entity_id))]);
     }
 
-    pub fn set_next_spawn_data(
-        &mut self,
-        data: SpawnDataModel,
-        has_level: bool,
-    ) -> Option<i32> {
+    pub fn set_next_spawn_data(&mut self, data: SpawnDataModel, has_level: bool) -> Option<i32> {
         self.next_spawn_data = Some(data);
         has_level.then_some(Self::NEXT_SPAWN_DATA_UPDATE_FLAGS)
     }
@@ -433,9 +429,9 @@ impl TrialSpawnerStateModel {
     pub fn particle_emission(self) -> TrialSpawnerParticleEmission {
         match self {
             Self::Inactive => TrialSpawnerParticleEmission::None,
-            Self::WaitingForPlayers
-            | Self::WaitingForRewardEjection
-            | Self::EjectingReward => TrialSpawnerParticleEmission::SmallFlames,
+            Self::WaitingForPlayers | Self::WaitingForRewardEjection | Self::EjectingReward => {
+                TrialSpawnerParticleEmission::SmallFlames
+            }
             Self::Active => TrialSpawnerParticleEmission::FlamesAndSmoke,
             Self::Cooldown => TrialSpawnerParticleEmission::SmokeInsideAndTopFace,
         }
@@ -749,8 +745,8 @@ impl TrialSpawnerBlockEntity {
         if self.state.has_spinning_mob() {
             let spawn_delay = (self.next_mob_spawns_at - game_time).max(0) as f64;
             self.old_spin = self.spin;
-            self.spin = (self.spin + self.state.spinning_mob_speed() / (spawn_delay + 200.0))
-                % 360.0;
+            self.spin =
+                (self.spin + self.state.spinning_mob_speed() / (spawn_delay + 200.0)) % 360.0;
         }
     }
 

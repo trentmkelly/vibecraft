@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PhantomBlockPos {
     pub x: i32,
@@ -306,4 +305,3 @@ pub fn phantom_membrane_loot_roll(
         0
     }
 }
-

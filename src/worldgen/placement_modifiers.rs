@@ -284,4 +284,3 @@ fn placement_context_height(context: PlacementContextModel, heightmap: Heightmap
         | HeightmapKind::MotionBlockingNoLeaves => context.ocean_floor_height,
     }
 }
-

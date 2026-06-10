@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GoatState {
     pub is_screaming: bool,
@@ -146,4 +145,3 @@ pub fn goat_ram_knockback_force(baby: bool) -> f32 {
         GOAT_ADULT_RAM_KNOCKBACK_FORCE
     }
 }
-

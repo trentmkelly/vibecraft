@@ -397,9 +397,7 @@ fn normal_overworld_generation_keeps_vanilla_heightmap_parity_above_threshold() 
     let score = vanilla_worldgen_heightmap_parity_score_for_normal_overworld(include_str!(
         "../../harness/mineflayer/fixtures/vanilla_worldgen_block_array_target.json"
     ))
-    .expect(
-        "vanilla block-array fixture should score heightmaps against generated Rust chunks",
-    );
+    .expect("vanilla block-array fixture should score heightmaps against generated Rust chunks");
 
     print_vanilla_worldgen_heightmap_mismatch_counts(&score, 30);
 
@@ -417,9 +415,7 @@ fn normal_overworld_generation_keeps_vanilla_biome_grid_parity_above_threshold()
     let score = vanilla_worldgen_biome_grid_parity_score_for_normal_overworld(include_str!(
         "../../harness/mineflayer/fixtures/vanilla_worldgen_block_array_target.json"
     ))
-    .expect(
-        "vanilla block-array fixture should score biome grids against generated Rust chunks",
-    );
+    .expect("vanilla block-array fixture should score biome grids against generated Rust chunks");
 
     print_vanilla_worldgen_biome_grid_mismatch_counts(&score, 30);
 
@@ -455,9 +451,9 @@ fn normal_overworld_generation_keeps_vanilla_column_profile_parity_above_thresho
 #[test]
 #[ignore = "diagnostic for investigating tree decoration density parity"]
 fn normal_overworld_tree_density_diagnostic() {
-    let diagnostic = vanilla_worldgen_tree_density_diagnostic_for_normal_overworld(
-        include_str!("../../harness/mineflayer/fixtures/vanilla_worldgen_block_array_target.json"),
-    )
+    let diagnostic = vanilla_worldgen_tree_density_diagnostic_for_normal_overworld(include_str!(
+        "../../harness/mineflayer/fixtures/vanilla_worldgen_block_array_target.json"
+    ))
     .expect("vanilla block-array fixture should diagnose tree density");
 
     print_vanilla_worldgen_tree_density_diagnostic(&diagnostic);
@@ -872,6 +868,5 @@ fn print_vanilla_worldgen_heightmap_mismatch_counts(
         );
     }
 }
-
 
 mod signature_tests;

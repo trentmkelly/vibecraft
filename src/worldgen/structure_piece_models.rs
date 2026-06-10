@@ -665,4 +665,3 @@ pub struct JigsawStartPoolModel {
     pub source_file: &'static str,
     pub pool: &'static str,
 }
-

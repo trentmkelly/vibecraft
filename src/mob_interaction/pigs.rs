@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PigState {
     pub saddled: bool,
@@ -149,4 +148,3 @@ pub fn pig_offspring_variant<'a>(
         second_parent_variant
     }
 }
-
