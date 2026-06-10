@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+#[path = "chat_package_info.rs"]
+pub mod chat_package_info;
 #[path = "chat_type.rs"]
 pub mod chat_type;
 #[path = "common_components.rs"]

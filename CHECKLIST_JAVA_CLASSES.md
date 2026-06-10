@@ -875,7 +875,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/contents/data/DataSources.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/contents/data/EntityDataSource.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/contents/data/StorageDataSource.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/contents/data/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/contents/data/package-info.java`. Rust `chat_component::chat_package_info` records this package-info as metadata-only `@NullMarked` with package declaration `net.minecraft.network.chat.contents.data` and no runtime behavior to port; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 chat_package_info`.
 
 ## `decompiled-server-26.1.2/net/minecraft/network/chat/contents/objects`
 
@@ -883,11 +883,11 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/contents/objects/ObjectInfo.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/contents/objects/ObjectInfos.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/contents/objects/PlayerSprite.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/contents/objects/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/contents/objects/package-info.java`. Rust `chat_component::chat_package_info` records this package-info as metadata-only `@NullMarked` with package declaration `net.minecraft.network.chat.contents.objects` and no runtime behavior to port; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 chat_package_info`.
 
 ## `decompiled-server-26.1.2/net/minecraft/network/chat/contents`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/contents/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/contents/package-info.java`. Rust `chat_component::chat_package_info` records this package-info as metadata-only `@NullMarked` with package declaration `net.minecraft.network.chat.contents` and no runtime behavior to port; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 chat_package_info`.
 
 ## `decompiled-server-26.1.2/net/minecraft/network/chat/numbers`
 
@@ -897,11 +897,11 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/numbers/NumberFormatType.java`. Rust `chat_component::number_format::NumberFormatTypeModel` mirrors Java's format-type identity for map/stream dispatch through stable type variants and stream registry ids; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 number_format`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/numbers/NumberFormatTypes.java`. Rust `chat_component::number_format::bootstrap_number_format_types` mirrors Java's registry bootstrap order and ids (`blank`, `styled`, `fixed`) and verifies the existing play packet stream ids match that registry order; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 number_format`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/numbers/StyledFormat.java`. Rust `chat_component::number_format::NumberFormatModel::Styled` mirrors Java's integer-to-literal formatting with the stored style plus `NO_STYLE`, red `SIDEBAR_DEFAULT`, and yellow `PLAYER_LIST_DEFAULT` constants; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 number_format`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/numbers/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/numbers/package-info.java`. Rust `chat_component::chat_package_info` records this package-info as metadata-only `@NullMarked` with package declaration `net.minecraft.network.chat.numbers` and no runtime behavior to port; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 chat_package_info`.
 
 ## `decompiled-server-26.1.2/net/minecraft/network/chat`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/package-info.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/package-info.java`. Rust `chat_component::chat_package_info` records this package-info as metadata-only `@NullMarked` with package declaration `net.minecraft.network.chat` and no runtime behavior to port; verified by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 chat_package_info`.
 
 ## `decompiled-server-26.1.2/net/minecraft/network/codec`
 
