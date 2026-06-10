@@ -12,6 +12,7 @@ pub mod handler_names;
 pub mod handshake;
 pub mod local;
 pub mod login;
+pub mod lp_vec3;
 pub mod ping;
 pub mod pipeline;
 pub mod play;
