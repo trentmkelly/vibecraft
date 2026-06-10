@@ -88,6 +88,24 @@ impl<T: 'static> StreamCodec<T> {
     }
 }
 
+type CodecModifierFn<T, C> = dyn Fn(StreamCodec<T>, &C) -> StreamCodec<T>;
+
+pub struct CodecModifier<T, C> {
+    modifier: Box<CodecModifierFn<T, C>>,
+}
+
+impl<T, C> CodecModifier<T, C> {
+    pub fn new(modifier: impl Fn(StreamCodec<T>, &C) -> StreamCodec<T> + 'static) -> Self {
+        Self {
+            modifier: Box::new(modifier),
+        }
+    }
+
+    pub fn apply(&self, original: StreamCodec<T>, context: &C) -> StreamCodec<T> {
+        (self.modifier)(original, context)
+    }
+}
+
 pub struct IdDispatchCodec<V, T> {
     type_getter: Box<dyn Fn(&V) -> T>,
     by_id: Vec<IdDispatchEntry<V, T>>,
@@ -761,6 +779,39 @@ mod tests {
         );
         assert!(unit.encode(&mut Vec::new(), &"minecraft:unit").is_ok());
         assert!(unit.encode(&mut Vec::new(), &"minecraft:other").is_err());
+    }
+
+    #[test]
+    fn codec_modifier_wraps_stream_codec_with_context_like_java() {
+        const CODEC_MODIFIER_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/CodecModifier.java"
+        );
+
+        for sentinel in [
+            "@FunctionalInterface",
+            "public interface CodecModifier<B, V, C>",
+            "StreamCodec<? super B, V> apply(StreamCodec<? super B, V> original, C context);",
+        ] {
+            assert!(
+                CODEC_MODIFIER_JAVA.contains(sentinel),
+                "missing CodecModifier sentinel {sentinel}"
+            );
+        }
+
+        let varint = StreamCodec::of(
+            |output, value: &i32| write_var_i32(output, *value),
+            |input| read_var_i32(input),
+        );
+        let add_context = CodecModifier::new(|original, offset: &i32| {
+            let offset = *offset;
+            original.map(move |value| value + offset, move |value| value - offset)
+        });
+
+        let modified = add_context.apply(varint, &5);
+        let mut bytes = Vec::new();
+        modified.encode(&mut bytes, &15).unwrap();
+        assert_eq!(bytes, vec![10]);
+        assert_eq!(modified.decode(&mut cursor(bytes)).unwrap(), 15);
     }
 
     #[test]
