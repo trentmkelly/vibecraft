@@ -854,7 +854,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/Style.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/SubStringSource.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/TextColor.java`. Rust `chat_component::TextColor` mirrors Java's RGB masking to 24 bits, named legacy-color serialization, uppercase `#%06X` custom serialization, hex and named-color parsing, invalid-name/range rejection, `fromRgb` construction, and value-only equality semantics; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 text_colors_parse_legacy_names_and_hex_values`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/ThrowingComponent.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/ThrowingComponent.java`. Rust `chat_component::throwing_component::ThrowingComponent` mirrors Java's component-backed exception message captured from `component.getString()`, `getComponent` accessor, and optional cause constructor/source preservation; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 throwing_component`.
 
 ## `decompiled-server-26.1.2/net/minecraft/network/chat/contents`
 

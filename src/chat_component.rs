@@ -10,6 +10,8 @@ pub mod filter_mask;
 pub mod formatted_text;
 #[path = "hover_event.rs"]
 pub mod hover_event;
+#[path = "throwing_component.rs"]
+pub mod throwing_component;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Component {
@@ -70,6 +72,10 @@ impl Component {
             output.push_str(&sibling.render_plain(translations, context));
         }
         output
+    }
+
+    pub fn get_string(&self) -> String {
+        self.render_plain(&TranslationTable::default(), &ResolutionContext::default())
     }
 
     pub fn to_json(&self) -> String {
