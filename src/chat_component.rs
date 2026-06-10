@@ -567,6 +567,15 @@ impl FontDescription {
         Self::Resource("minecraft:default".to_string())
     }
 
+    pub fn codec_identifier(&self) -> Result<&str, String> {
+        match self {
+            Self::Resource(id) => Ok(id),
+            Self::AtlasSprite { .. } | Self::PlayerSprite { .. } => {
+                Err(format!("Unsupported font description type: {self:?}"))
+            }
+        }
+    }
+
     pub fn serialize(&self) -> String {
         match self {
             Self::Resource(id) => id.clone(),
@@ -1049,6 +1058,55 @@ mod tests {
         assert!(text.to_json().contains("\"action\":\"show_text\""));
         assert!(item.to_json().contains("\"action\":\"show_item\""));
         assert!(entity.to_json().contains("\"action\":\"show_entity\""));
+    }
+
+    #[test]
+    fn font_description_codec_matches_java_resource_only_contract() {
+        const FONT_DESCRIPTION_JAVA: &str = include_str!(
+            "../../decompiled-server-26.1.2/net/minecraft/network/chat/FontDescription.java"
+        );
+
+        for sentinel in [
+            "Identifier.CODEC",
+            "flatComapMap(",
+            "FontDescription.Resource::new",
+            "fontDescription instanceof FontDescription.Resource resource",
+            "DataResult.error(() -> \"Unsupported font description type: \" + fontDescription)",
+            "FontDescription.Resource DEFAULT = new FontDescription.Resource(Identifier.withDefaultNamespace(\"default\"));",
+            "record AtlasSprite(Identifier atlasId, Identifier spriteId) implements FontDescription",
+            "record PlayerSprite(ResolvableProfile profile, boolean hat) implements FontDescription",
+            "record Resource(Identifier id) implements FontDescription",
+        ] {
+            assert!(
+                FONT_DESCRIPTION_JAVA.contains(sentinel),
+                "missing FontDescription sentinel {sentinel}"
+            );
+        }
+
+        assert_eq!(
+            FontDescription::default_resource(),
+            FontDescription::Resource("minecraft:default".to_string())
+        );
+
+        let resource = FontDescription::Resource("minecraft:uniform".to_string());
+        assert_eq!(resource.codec_identifier(), Ok("minecraft:uniform"));
+        assert_eq!(resource.serialize(), "minecraft:uniform");
+
+        let atlas = FontDescription::AtlasSprite {
+            atlas: "minecraft:blocks".to_string(),
+            sprite: "minecraft:block/stone".to_string(),
+        };
+        assert!(
+            matches!(atlas.codec_identifier(), Err(message) if message.starts_with("Unsupported font description type: "))
+        );
+
+        let player = FontDescription::PlayerSprite {
+            profile: "Notch".to_string(),
+            hat: true,
+        };
+        assert!(
+            matches!(player.codec_identifier(), Err(message) if message.starts_with("Unsupported font description type: "))
+        );
     }
 
     #[test]
