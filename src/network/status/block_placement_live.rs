@@ -92,6 +92,7 @@ pub(super) fn place_block_item_live<W: Write>(
         seed: context.world_seed,
         cache: context.chunk_cache,
         fluid_ticks: context.live_fluid_ticks,
+        block_ticks: context.live_block_ticks,
         game_time: context.game_time,
         random_roll: place_context.random_age_roll,
     };
@@ -198,6 +199,7 @@ pub(super) struct LiveCascade<'a, 'b> {
     pub seed: i64,
     pub cache: &'a GeneratedChunkCache,
     pub fluid_ticks: &'b mut LiveFluidTicks,
+    pub block_ticks: &'b mut LiveBlockTicks,
     pub game_time: i64,
     /// Pre-rolled randomness for coral die ticks / growing-plant ages.
     pub random_roll: i32,
@@ -251,9 +253,14 @@ pub(super) fn run_live_shape_cascade<W: Write>(
                     .fluid_ticks
                     .schedule(context.game_time, neighbour_pos, FluidKind::Water);
             }
-            // TODO(live-block-ticks): update.schedule_block_tick needs the
-            // scheduled block-tick engine (leaf decay, cactus pop, falling
-            // blocks) once it exists.
+            if let Some(delay) = update.schedule_block_tick {
+                context.block_ticks.schedule(
+                    context.game_time,
+                    neighbour_pos,
+                    &neighbour_state.registry_id,
+                    delay,
+                );
+            }
             if update.state != neighbour_state {
                 budget -= 1;
                 context.cache.set_block(
@@ -344,4 +351,127 @@ fn double_block_counterpart(state: &BlockStateModel, pos: BlockPos) -> Option<Bl
         }
         _ => None,
     }
+}
+
+/// Drains the due scheduled block ticks and applies the
+/// `block_scheduled_ticks` catalog: Java `LevelTicks.runCollectedTicks` ->
+/// `BlockState.tick`.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn process_live_block_ticks<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    block_ticks: &mut LiveBlockTicks,
+    game_time: i64,
+    layout: &WorldLayout,
+    seed: i64,
+    cache: &GeneratedChunkCache,
+    world_items: &std::sync::Arc<std::sync::Mutex<WorldItemEntities>>,
+) -> io::Result<()> {
+    let due = block_ticks.tick_due(game_time, 65536);
+    if due.is_empty() {
+        return Ok(());
+    }
+    let world = LiveBlockWorld {
+        layout,
+        seed,
+        cache,
+    };
+    let mut changed: Vec<BlockPos> = Vec::new();
+    for tick in due {
+        let state = world.state_at(tick.pos);
+        // Java: the tick fires against whatever block is there now; a
+        // replaced block's stale tick is ignored by the type check.
+        if state.registry_id != tick.ty {
+            continue;
+        }
+        let Some(outcome) = crate::block_scheduled_ticks::scheduled_tick(&state, tick.pos, &world)
+        else {
+            // TODO(live-falling-blocks): FallingBlockEntity-based ticks
+            // (sand/gravel/anvils/scaffolding/dripstone) once entities exist.
+            continue;
+        };
+        match outcome {
+            crate::block_scheduled_ticks::BlockTickOutcome::None => {}
+            crate::block_scheduled_ticks::BlockTickOutcome::SetState { state, reschedule } => {
+                cache.set_block(layout.root(), seed, tick.pos, &state.state_name());
+                let id = crate::block_states::network_id_for_block_state(&state.state_name())
+                    .unwrap_or(0);
+                write_block_update(writer, compression, tick.pos, id)?;
+                if let Some(delay) = reschedule {
+                    block_ticks.schedule(game_time, tick.pos, &state.registry_id, delay);
+                }
+                changed.push(tick.pos);
+            }
+            crate::block_scheduled_ticks::BlockTickOutcome::Destroy { drop } => {
+                cache.set_block(layout.root(), seed, tick.pos, "minecraft:air");
+                write_block_update(writer, compression, tick.pos, 0)?;
+                if drop {
+                    spawn_scheduled_tick_drops(
+                        writer,
+                        compression,
+                        world_items,
+                        tick.pos,
+                        &state.registry_id,
+                    )?;
+                }
+                changed.push(tick.pos);
+            }
+        }
+    }
+    if !changed.is_empty() {
+        let mut cascade = LiveCascade {
+            layout,
+            seed,
+            cache,
+            fluid_ticks: &mut LiveFluidTicks::new(),
+            block_ticks,
+            game_time,
+            random_roll: (game_time as i32).rem_euclid(40),
+        };
+        // NOTE: fluid ticks raised by this cascade use a throwaway queue; the
+        // neighbouring fluid blocks are already rescheduled by
+        // schedule_neighbor_fluids on the next interaction. TODO(live-tick
+        // -fluid-requeue): thread the real fluid queue once the borrow of the
+        // session's LiveFluidTicks can be split from the block queue.
+        run_live_shape_cascade(writer, compression, &mut cascade, changed)?;
+    }
+    Ok(())
+}
+
+/// Java `Block.dropResources` for scheduled-tick destruction.
+fn spawn_scheduled_tick_drops<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    world_items: &std::sync::Arc<std::sync::Mutex<WorldItemEntities>>,
+    pos: BlockPos,
+    block_name: &str,
+) -> io::Result<()> {
+    let loot_seed = (pos.x as u64).wrapping_mul(0x9E37_79B9)
+        ^ (pos.y as u64).wrapping_mul(0x6C62_272E)
+        ^ (pos.z as u64).wrapping_mul(0x517C_C1B7);
+    let drops = evaluate_block_loot(block_name, loot_seed);
+    for (item_name, count) in drops {
+        let Some(item_pid) = item_protocol_id(item_name) else {
+            continue;
+        };
+        let eid = lock_status_mutex(world_items).alloc_entity_id();
+        // Java: ItemEntity constructor velocity (random*0.2-0.1, 0.2, ...).
+        let item = DroppedItem {
+            entity_id: eid,
+            item: item_name,
+            count,
+            x: f64::from(pos.x) + 0.5,
+            y: f64::from(pos.y) + 0.5,
+            z: f64::from(pos.z) + 0.5,
+            vel_x: f64::from(pseudo_rand_f32(eid, 0)) * 0.2 - 0.1,
+            vel_y: 0.2,
+            vel_z: f64::from(pseudo_rand_f32(eid, 1)) * 0.2 - 0.1,
+            pickup_delay: DEFAULT_PICKUP_DELAY,
+            age: 0,
+            target_uuid: None,
+        };
+        write_item_entity_spawn_packets(writer, compression, &item, item_pid)?;
+        lock_status_mutex(world_items).entities.push(item);
+    }
+    Ok(())
 }

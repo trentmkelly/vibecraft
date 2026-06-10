@@ -246,6 +246,7 @@ struct JoinedPlaySessionStart {
     last_player_tick: Instant,
     play_tick_count: u64,
     live_fluid_ticks: LiveFluidTicks,
+    live_block_ticks: LiveBlockTicks,
 }
 
 const ITEM_TICK_INTERVAL: Duration = Duration::from_millis(50);
@@ -1212,6 +1213,7 @@ fn initialize_joined_play_session(
     send_existing_item_entities(stream, compression, shared.world_items)?;
 
     let mut live_fluid_ticks = LiveFluidTicks::new();
+    let live_block_ticks = LiveBlockTicks::new();
     let play_tick_count = 0_u64;
     let center = shared.chunk_cache.get_or_load(
         current_chunk_x,
@@ -1239,6 +1241,7 @@ fn initialize_joined_play_session(
         last_player_tick: Instant::now(),
         play_tick_count,
         live_fluid_ticks,
+        live_block_ticks,
     })
 }
 
@@ -1406,6 +1409,8 @@ struct PlayerTickContext<'a, 'b> {
     chunk_sender: &'b mut PlayerChunkSender,
     chunk_pipeline_stats: &'b mut ChunkPipelineSessionStats,
     live_fluid_ticks: &'b mut LiveFluidTicks,
+    live_block_ticks: &'b mut LiveBlockTicks,
+    world_items: &'a Arc<Mutex<WorldItemEntities>>,
     world_layout: &'b WorldLayout,
     last_player_tick: &'b mut Instant,
     play_tick_count: &'b mut u64,
@@ -1433,6 +1438,8 @@ fn tick_player_and_chunk_sender(
         chunk_sender,
         chunk_pipeline_stats,
         live_fluid_ticks,
+        live_block_ticks,
+        world_items,
         world_layout,
         last_player_tick,
         play_tick_count,
@@ -1453,6 +1460,16 @@ fn tick_player_and_chunk_sender(
         world_layout,
         world_seed,
         chunk_cache,
+    )?;
+    super::block_placement_live::process_live_block_ticks(
+        stream,
+        compression,
+        live_block_ticks,
+        tick_count as i64,
+        world_layout,
+        world_seed,
+        chunk_cache,
+        world_items,
     )?;
     let fluid_state =
         detect_play_session_fluid_state(play_state, world_root, world_seed, chunk_cache);
@@ -1530,6 +1547,7 @@ struct JoinedPlayLoopTickContext<'a, 'b> {
     last_player_tick: &'b mut Instant,
     play_tick_count: &'b mut u64,
     live_fluid_ticks: &'b mut LiveFluidTicks,
+    live_block_ticks: &'b mut LiveBlockTicks,
     last_sent_rain_level: &'b mut f32,
     last_sent_thunder_level: &'b mut f32,
     join_commands_sent: &'b mut bool,
@@ -1564,6 +1582,7 @@ fn tick_joined_play_session_loop(
         last_player_tick,
         play_tick_count,
         live_fluid_ticks,
+        live_block_ticks,
         last_sent_rain_level,
         last_sent_thunder_level,
         join_commands_sent,
@@ -1594,6 +1613,8 @@ fn tick_joined_play_session_loop(
             chunk_sender,
             chunk_pipeline_stats,
             live_fluid_ticks,
+            live_block_ticks,
+            world_items,
             world_layout,
             last_player_tick,
             play_tick_count,
@@ -1804,6 +1825,7 @@ struct PlayerActionContext<'a, 'b> {
     world_layout: &'b WorldLayout,
     chunk_cache: &'a GeneratedChunkCache,
     live_fluid_ticks: &'b mut LiveFluidTicks,
+    live_block_ticks: &'b mut LiveBlockTicks,
     play_tick_count: u64,
     world_items: &'a Arc<Mutex<WorldItemEntities>>,
     // Spawn-protection inputs (Java ServerLevel.mayInteract ->
@@ -2201,6 +2223,7 @@ fn handle_player_block_break(
         seed: context.world_seed,
         cache: context.chunk_cache,
         fluid_ticks: context.live_fluid_ticks,
+        block_ticks: context.live_block_ticks,
         game_time: context.play_tick_count as i64,
         random_roll: ((context.play_tick_count as i32) ^ block_pos.x ^ block_pos.z).rem_euclid(40),
     };
@@ -2324,13 +2347,7 @@ fn try_handle_inventory_packet<R: Read>(
 ) -> io::Result<bool> {
     match packet_id {
         SERVERBOUND_CONTAINER_CLICK_PACKET_ID => {
-            handle_container_click_packet(
-                stream,
-                compression,
-                input,
-                play_state,
-                context,
-            )?;
+            handle_container_click_packet(stream, compression, input, play_state, context)?;
         }
         SERVERBOUND_PICK_ITEM_FROM_BLOCK_PACKET_ID => {
             handle_pick_item_from_block_packet(stream, compression, input, play_state, &context)?;
@@ -2410,7 +2427,12 @@ fn handle_container_click_packet<R: Read>(
         &mut play_state.carried_item,
     );
     for instruction in instructions {
-        write_container_click_instruction(stream, compression, instruction, context.recipe_manager)?;
+        write_container_click_instruction(
+            stream,
+            compression,
+            instruction,
+            context.recipe_manager,
+        )?;
     }
     Ok(())
 }
@@ -2673,6 +2695,7 @@ struct DecodedPlayPacketContext<'a, 'b> {
     loaded_chunks: &'b mut BTreeSet<(i32, i32)>,
     chunk_sender: &'b mut PlayerChunkSender,
     live_fluid_ticks: &'b mut LiveFluidTicks,
+    live_block_ticks: &'b mut LiveBlockTicks,
     play_tick_count: u64,
     /// The player's registry guard, used to propagate play-phase
     /// `ClientInformation` listing-preference changes to the status sample.
@@ -2706,6 +2729,7 @@ struct JoinedPlayPacketStepContext<'a, 'b> {
     loaded_chunks: &'b mut BTreeSet<(i32, i32)>,
     chunk_sender: &'b mut PlayerChunkSender,
     live_fluid_ticks: &'b mut LiveFluidTicks,
+    live_block_ticks: &'b mut LiveBlockTicks,
     play_tick_count: u64,
     active_login: &'a ActiveLoginGuard,
     keep_alive: &'b mut KeepAliveState,
@@ -2790,16 +2814,7 @@ fn handle_decoded_play_packet(
             stream,
             compression,
             play_state,
-            UseItemOnContext {
-                world_layout: context.world_layout,
-                world_seed: context.world_seed,
-                chunk_cache: context.chunk_cache,
-                live_fluid_ticks: context.live_fluid_ticks,
-                game_time: context.play_tick_count as i64,
-                player_access: context.player_access,
-                profile_uuid: &context.profile.uuid,
-                spawn_protection_radius: context.properties.spawn_protection,
-            },
+            context.use_item_on(),
             &packet,
         )?;
     } else if packet_id == SERVERBOUND_PLAYER_ACTION_PACKET_ID {
@@ -2877,6 +2892,7 @@ impl<'a, 'b> JoinedPlayPacketStepContext<'a, 'b> {
             chunk_pipeline: self.chunk_pipeline,
             world_items: self.world_items,
             weather: self.weather,
+            live_block_ticks: self.live_block_ticks,
             current_chunk_x: self.current_chunk_x,
             current_chunk_z: self.current_chunk_z,
             chunk_batch_radius: self.chunk_batch_radius,
@@ -2923,6 +2939,24 @@ impl<'a, 'b> DecodedPlayPacketContext<'a, 'b> {
         }
     }
 
+    fn use_item_on<'c>(self) -> UseItemOnContext<'c, 'c>
+    where
+        'a: 'c,
+        'b: 'c,
+    {
+        UseItemOnContext {
+            world_layout: self.world_layout,
+            world_seed: self.world_seed,
+            chunk_cache: self.chunk_cache,
+            live_fluid_ticks: self.live_fluid_ticks,
+            live_block_ticks: self.live_block_ticks,
+            game_time: self.play_tick_count as i64,
+            player_access: self.player_access,
+            profile_uuid: &self.profile.uuid,
+            spawn_protection_radius: self.properties.spawn_protection,
+        }
+    }
+
     fn action(self) -> PlayerActionContext<'a, 'b> {
         PlayerActionContext {
             world_root: self.world_root,
@@ -2930,6 +2964,7 @@ impl<'a, 'b> DecodedPlayPacketContext<'a, 'b> {
             world_layout: self.world_layout,
             chunk_cache: self.chunk_cache,
             live_fluid_ticks: self.live_fluid_ticks,
+            live_block_ticks: self.live_block_ticks,
             play_tick_count: self.play_tick_count,
             world_items: self.world_items,
             player_access: self.player_access,
@@ -3057,6 +3092,7 @@ fn run_joined_play_session(
         mut last_sent_rain_level,
         mut last_sent_thunder_level,
         mut last_time_sync,
+        mut live_block_ticks,
         world_layout,
         mut last_item_tick,
         mut last_player_tick,
@@ -3088,6 +3124,7 @@ fn run_joined_play_session(
                 chunk_sender: &mut chunk_sender,
                 chunk_pipeline_stats: &mut chunk_pipeline_stats,
                 live_fluid_ticks: &mut live_fluid_ticks,
+                live_block_ticks: &mut live_block_ticks,
                 world_layout: &world_layout,
                 keep_alive: &mut keep_alive,
                 keep_alive_epoch,
@@ -3127,6 +3164,7 @@ fn run_joined_play_session(
                 loaded_chunks: &mut loaded_chunks,
                 chunk_sender: &mut chunk_sender,
                 live_fluid_ticks: &mut live_fluid_ticks,
+                live_block_ticks: &mut live_block_ticks,
                 play_tick_count,
                 active_login,
                 keep_alive: &mut keep_alive,

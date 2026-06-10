@@ -34,6 +34,7 @@ mod block_placement;
 mod block_properties;
 #[cfg(test)]
 mod block_regression;
+mod block_scheduled_ticks;
 mod block_shape_updates;
 mod block_sounds;
 mod block_states;

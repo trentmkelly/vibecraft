@@ -504,6 +504,7 @@ pub struct UseItemOnContext<'a, 'b> {
     pub world_seed: i64,
     pub chunk_cache: &'a GeneratedChunkCache,
     pub live_fluid_ticks: &'b mut LiveFluidTicks,
+    pub live_block_ticks: &'b mut LiveBlockTicks,
     pub game_time: i64,
     // Spawn-protection inputs (Java handleUseItemOn -> isUnderSpawnProtection),
     // mirroring PlayerActionContext on the block-break path.

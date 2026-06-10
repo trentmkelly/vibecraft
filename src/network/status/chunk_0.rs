@@ -749,6 +749,55 @@ impl LiveFluidTicks {
     }
 }
 
+/// Live scheduled BLOCK ticks (Java `LevelTicks<Block>`): the deferred
+/// reactions the updateShape catalog queues (support pops, leaf distance,
+/// coral death, observer pulses). Java mirror of [`LiveFluidTicks`] with the
+/// block registry id as the tick type.
+pub struct LiveBlockTicks {
+    pub queues: LevelTickQueues,
+}
+
+impl LiveBlockTicks {
+    pub fn new() -> Self {
+        Self {
+            queues: LevelTickQueues::new(),
+        }
+    }
+
+    /// Java `Level.scheduleTick(pos, block, delay)`.
+    pub fn schedule(
+        &mut self,
+        game_time: i64,
+        pos: crate::block_update::BlockPos,
+        block_id: &str,
+        delay: i32,
+    ) {
+        let chunk = ChunkPos {
+            x: pos.x.div_euclid(16),
+            z: pos.z.div_euclid(16),
+        };
+        self.queues.add_container(chunk);
+        let tick = self
+            .queues
+            .create_tick(game_time, pos, block_id, delay, TickPriority::Normal);
+        let _ = self.queues.schedule(tick);
+    }
+
+    pub fn tick_due(
+        &mut self,
+        game_time: i64,
+        max_ticks: usize,
+    ) -> Vec<crate::scheduled_tick::ScheduledTick> {
+        self.queues.tick(game_time, max_ticks, |_| true)
+    }
+}
+
+impl Default for LiveBlockTicks {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub fn live_region_feature_generation_enabled() -> bool {
     matches!(
         std::env::var("VIBECRAFT_WORLDGEN_REGION_FEATURES").as_deref(),
