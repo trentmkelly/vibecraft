@@ -145,7 +145,8 @@ def generate_states(registry, blocks):
         for prop in order:
             intern_values(block_properties[prop])
         list_const = intern_property_list(prop_consts) if prop_consts else "EMPTY"
-        entries.append((name, base, default, list_const))
+        block_type = block["definition"]["type"]
+        entries.append((name, base, default, list_const, block_type))
         total_states += len(block["states"])
 
     shared = [
@@ -175,9 +176,10 @@ def generate_states(registry, blocks):
             "\n",
             "pub(super) const ENTRIES: &[BlockStateEntryData] = &[\n",
         ]
-        for name, base, default, list_const in chunk:
+        for name, base, default, list_const, block_type in chunk:
             lines.append(
                 f'    BlockStateEntryData {{ registry_id: "{name}", '
+                f'block_type: "{block_type}", '
                 f"base_state_id: {base}, default_state_id: {default}, "
                 f"properties: {list_const} }},\n"
             )

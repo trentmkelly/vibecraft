@@ -35,6 +35,7 @@ mod block_properties;
 mod block_regression;
 mod block_sounds;
 mod block_states;
+mod block_tags;
 mod block_update;
 mod boss_fight;
 mod char_predicate;
@@ -98,7 +99,7 @@ mod command_hex_color_argument;
 mod command_identifier_argument;
 #[cfg(test)]
 mod command_item_arguments;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod command_message_argument;
 #[cfg(test)]
 mod command_misc_argument_audits;
@@ -197,7 +198,7 @@ mod core_misc;
 mod core_orientation;
 #[cfg(test)]
 mod core_particles;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod core_registries;
 #[cfg(test)]
 mod core_registry_codecs;
@@ -368,105 +369,105 @@ mod criterion_used_totem;
 #[cfg(test)]
 mod criterion_using_item;
 mod damage_type;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_advancement_packs;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_advancements;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_info;
 #[cfg(test)]
 mod data_loot;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_loot_block;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_loot_chest;
 #[cfg(test)]
 mod data_loot_entity;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_loot_gift;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_loot_packs;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_loot_piglin_barter;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_loot_provider;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_loot_shearing;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_loot_vanilla_entity;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_metadata;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_package;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_recipe_unlock_advancement;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_recipes;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_recipes_package;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_registries;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_shaped_recipe_builder;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_shapeless_recipe_builder;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_simple_cooking_recipe_builder;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_single_item_recipe_builder;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_smithing_transform_recipe_builder;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_smithing_trim_recipe_builder;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_special_recipe_builder;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_structures;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_tags_biomes;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_tags_block_items;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_tags_core;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_tags_entity_types;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_tags_medium_providers;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_tags_registry_providers;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_tags_trade_rebalance_trades;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_tags_vanilla_blocks;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_tags_vanilla_enchantments;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_tags_vanilla_items;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_tags_villager_trades;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_transmute_recipe_builder;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_vanilla_recipe_provider;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_worldgen_biome_defaults;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_worldgen_bootstrap_context;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_worldgen_carvers;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_worldgen_dimension_types;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_worldgen_jigsaw_pools;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_worldgen_noise_data;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_worldgen_processor_lists;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_worldgen_structure_sets;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_worldgen_structures;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_worldgen_surface_rule_data;
 #[cfg(test)]
 mod datapack_reload_tests;
@@ -494,7 +495,7 @@ mod fluid;
 mod fuzz_tests;
 mod game_event;
 mod game_rules;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod gametest_resources;
 mod generated_reports;
 mod gravity;

@@ -42,6 +42,10 @@ pub struct StateProperty {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BlockStateEntryData {
     pub registry_id: &'static str,
+    /// The registered block-type key from the official report's
+    /// `definition.type` (e.g. `minecraft:torch` for every `BaseTorchBlock`),
+    /// identifying which Java block class owns this block's behavior.
+    pub block_type: &'static str,
     pub base_state_id: i32,
     pub default_state_id: i32,
     pub properties: &'static [StateProperty],
@@ -107,7 +111,9 @@ pub fn block_state_entry(registry_id: &str) -> Option<&'static BlockStateEntryDa
         return BY_NAME.get(registry_id).map(|&index| &ENTRIES[index]);
     }
     let namespaced = format!("minecraft:{registry_id}");
-    BY_NAME.get(namespaced.as_str()).map(|&index| &ENTRIES[index])
+    BY_NAME
+        .get(namespaced.as_str())
+        .map(|&index| &ENTRIES[index])
 }
 
 /// The default-state network id for a block, like Java `block.defaultBlockState()`.
@@ -163,9 +169,7 @@ pub fn network_id_for_block_state(name: &str) -> Option<i32> {
 
 /// The default-state property assignments of a block, in definition order.
 /// Java equivalent: reading `block.defaultBlockState().getValues()`.
-pub fn default_state_properties(
-    registry_id: &str,
-) -> Option<Vec<(&'static str, &'static str)>> {
+pub fn default_state_properties(registry_id: &str) -> Option<Vec<(&'static str, &'static str)>> {
     let entry = block_state_entry(registry_id)?;
     let indices = entry.decode(entry.default_state_id);
     Some(
@@ -202,7 +206,9 @@ pub fn block_state_name_for_network_id(state_id: i32) -> Option<String> {
         .properties
         .iter()
         .zip(indices)
-        .map(|(property, value_index)| format!("{}={}", property.name, property.values[value_index]))
+        .map(|(property, value_index)| {
+            format!("{}={}", property.name, property.values[value_index])
+        })
         .collect::<Vec<_>>()
         .join(",");
     Some(format!("{}[{rendered}]", entry.registry_id))
