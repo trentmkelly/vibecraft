@@ -1,5 +1,8 @@
 #![allow(dead_code)]
 
+#[path = "last_seen_tracking.rs"]
+pub mod last_seen_tracking;
+
 use std::collections::{BTreeMap, VecDeque};
 
 use crate::network::codec::Uuid;
