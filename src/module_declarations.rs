@@ -30,6 +30,7 @@ mod block_behaviour_properties;
 mod block_catalog;
 mod block_entity;
 mod block_metadata;
+mod block_properties;
 #[cfg(test)]
 mod block_regression;
 mod block_sounds;
