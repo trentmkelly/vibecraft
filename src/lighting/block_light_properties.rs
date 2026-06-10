@@ -13,7 +13,7 @@
 //! plus per-block overrides for specific opacities (ice = 2, leaves = 1,
 //! water = 1, cobweb = 1, slime/honey = 1). VibeCraft does not yet track
 //! `isSolidRender` / `propagatesSkylightDown` for every block in the
-//! 1144-entry registry, so we curate explicit overrides for:
+//! 1168-entry registry, so we curate explicit overrides for:
 //!
 //! - air-likes
 //! - water/lava and fluid-aware overrides

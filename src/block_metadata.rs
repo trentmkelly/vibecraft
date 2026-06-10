@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-pub const VANILLA_BLOCK_REGISTRY_COUNT: usize = 1144;
+pub const VANILLA_BLOCK_REGISTRY_COUNT: usize = 1168;
 pub const STATE_DEFINITION_NAME_PATTERN: &str = "^[a-z0-9_]+$";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -493,7 +493,7 @@ mod tests {
 
     #[test]
     fn block_registry_order_matches_blocks_static_registration_surface() {
-        assert_eq!(VANILLA_BLOCK_REGISTRY_COUNT, 1144);
+        assert_eq!(VANILLA_BLOCK_REGISTRY_COUNT, 1168);
         assert_eq!(BLOCK_REGISTRY.len(), VANILLA_BLOCK_REGISTRY_COUNT);
         assert_eq!(BLOCK_REGISTRY[0].registry_id, "minecraft:air");
         assert_eq!(BLOCK_REGISTRY[1].registry_id, "minecraft:stone");

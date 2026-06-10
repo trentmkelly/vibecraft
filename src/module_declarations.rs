@@ -33,6 +33,7 @@ mod block_metadata;
 #[cfg(test)]
 mod block_regression;
 mod block_sounds;
+mod block_states;
 mod block_update;
 mod boss_fight;
 mod char_predicate;
