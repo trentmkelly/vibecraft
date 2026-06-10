@@ -4,6 +4,7 @@
 pub mod last_seen_tracking;
 
 use std::collections::{BTreeMap, VecDeque};
+use std::io::{self, Read, Write};
 
 use crate::network::codec::Uuid;
 use crate::server_properties::ServerProperties;
@@ -17,6 +18,48 @@ pub struct MessageSignature(pub Vec<u8>);
 
 impl MessageSignature {
     pub const BYTES: usize = 256;
+
+    pub fn new(bytes: Vec<u8>) -> Result<Self, String> {
+        if bytes.len() == Self::BYTES {
+            Ok(Self(bytes))
+        } else {
+            Err("Invalid message signature size".to_string())
+        }
+    }
+
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let mut bytes = vec![0; Self::BYTES];
+        reader.read_exact(&mut bytes)?;
+        Self::new(bytes).map_err(|message| io::Error::new(io::ErrorKind::InvalidData, message))
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        if self.0.len() != Self::BYTES {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Invalid message signature size",
+            ));
+        }
+        writer.write_all(&self.0)
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.0
+    }
+
+    pub fn as_byte_buffer(&self) -> &[u8] {
+        &self.0
+    }
+
+    pub fn describe(signature: Option<&MessageSignature>) -> String {
+        signature
+            .map(MessageSignature::to_base64)
+            .unwrap_or_else(|| "<no signature>".to_string())
+    }
+
+    pub fn to_base64(&self) -> String {
+        encode_base64(&self.0)
+    }
 
     pub fn checksum(&self) -> i32 {
         self.0.iter().fold(1_i32, |result, byte| {
@@ -217,6 +260,7 @@ impl ChatChain {
 
 impl MessageSignatureCache {
     pub const NOT_FOUND: i32 = -1;
+    pub const DEFAULT_CAPACITY: usize = 128;
 
     pub fn new(capacity: usize) -> Self {
         Self {
@@ -227,6 +271,10 @@ impl MessageSignatureCache {
 
     pub fn vanilla() -> Self {
         Self::new(SIGNATURE_CACHE_SIZE)
+    }
+
+    pub fn create_default() -> Self {
+        Self::new(Self::DEFAULT_CAPACITY)
     }
 
     pub fn push(&mut self, signature: MessageSignature) {
@@ -356,6 +404,31 @@ impl LastSeenMessagesUpdateModel {
     pub fn verify_checksum(&self, last_seen: &LastSeenMessages) -> bool {
         self.checksum == Self::IGNORE_CHECKSUM || self.checksum == last_seen.compute_checksum()
     }
+}
+
+fn encode_base64(bytes: &[u8]) -> String {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut encoded = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let first = chunk[0];
+        let second = *chunk.get(1).unwrap_or(&0);
+        let third = *chunk.get(2).unwrap_or(&0);
+        let triple = (u32::from(first) << 16) | (u32::from(second) << 8) | u32::from(third);
+
+        encoded.push(TABLE[((triple >> 18) & 0x3f) as usize] as char);
+        encoded.push(TABLE[((triple >> 12) & 0x3f) as usize] as char);
+        if chunk.len() > 1 {
+            encoded.push(TABLE[((triple >> 6) & 0x3f) as usize] as char);
+        } else {
+            encoded.push('=');
+        }
+        if chunk.len() > 2 {
+            encoded.push(TABLE[(triple & 0x3f) as usize] as char);
+        } else {
+            encoded.push('=');
+        }
+    }
+    encoded
 }
 
 impl SignedCommandArguments {
@@ -977,5 +1050,112 @@ mod tests {
         assert_eq!(cache.unpack(0), Some(signature));
         assert_eq!(cache.unpack(1), Some(second));
         assert_eq!(cache.unpack(2), Some(first));
+    }
+
+    #[test]
+    fn message_signature_and_cache_match_java_codec_packing_and_default_cache() {
+        const MESSAGE_SIGNATURE_JAVA: &str = include_str!(
+            "../../decompiled-server-26.1.2/net/minecraft/network/chat/MessageSignature.java"
+        );
+        const MESSAGE_SIGNATURE_CACHE_JAVA: &str = include_str!(
+            "../../decompiled-server-26.1.2/net/minecraft/network/chat/MessageSignatureCache.java"
+        );
+
+        for sentinel in [
+            "public static final Codec<MessageSignature> CODEC = ExtraCodecs.BASE64_STRING.xmap(MessageSignature::new, MessageSignature::bytes);",
+            "public static final int BYTES = 256;",
+            "Preconditions.checkState(bytes.length == 256, \"Invalid message signature size\");",
+            "input.readBytes(bytes);",
+            "output.writeBytes(signature.bytes);",
+            "return signature.validate(updater, this.bytes);",
+            "return ByteBuffer.wrap(this.bytes);",
+            "Arrays.equals(this.bytes, that.bytes)",
+            "return Arrays.hashCode(this.bytes);",
+            "return Base64.getEncoder().encodeToString(this.bytes);",
+            "return signature == null ? \"<no signature>\" : signature.toString();",
+            "return packedId != -1 ? new MessageSignature.Packed(packedId) : new MessageSignature.Packed(this);",
+            "int id = input.readVarInt() - 1;",
+            "output.writeVarInt(packed.id() + 1);",
+            "return this.fullSignature != null ? Optional.of(this.fullSignature) : Optional.ofNullable(cache.unpack(this.id));",
+        ] {
+            assert!(
+                MESSAGE_SIGNATURE_JAVA.contains(sentinel),
+                "missing MessageSignature sentinel {sentinel}"
+            );
+        }
+
+        for sentinel in [
+            "public static final int NOT_FOUND = -1;",
+            "private static final int DEFAULT_CAPACITY = 128;",
+            "return new MessageSignatureCache(128);",
+            "private final @Nullable MessageSignature[] entries;",
+            "if (signature.equals(this.entries[i]))",
+            "return this.entries[id];",
+            "queue.addAll(lastSeen);",
+            "this.entries[i] = queue.removeLast();",
+            "if (entry != null && !newEntries.contains(entry))",
+        ] {
+            assert!(
+                MESSAGE_SIGNATURE_CACHE_JAVA.contains(sentinel),
+                "missing MessageSignatureCache sentinel {sentinel}"
+            );
+        }
+
+        assert_eq!(
+            MessageSignature::new(vec![0; MessageSignature::BYTES - 1]),
+            Err("Invalid message signature size".to_string())
+        );
+        let mut bytes = vec![0; MessageSignature::BYTES];
+        bytes[1] = 1;
+        bytes[2] = 2;
+        bytes[255] = 255;
+        let signature = match MessageSignature::new(bytes.clone()) {
+            Ok(signature) => signature,
+            Err(message) => panic!("valid signature rejected: {message}"),
+        };
+        assert_eq!(signature.bytes(), bytes.as_slice());
+        assert_eq!(signature.as_byte_buffer(), bytes.as_slice());
+        assert!(signature.to_base64().starts_with("AAEC"));
+        assert!(signature.to_base64().ends_with("/w=="));
+        assert_eq!(
+            MessageSignature::describe(None),
+            "<no signature>".to_string()
+        );
+        assert_eq!(
+            MessageSignature::describe(Some(&signature)),
+            signature.to_base64()
+        );
+
+        let mut written = Vec::new();
+        signature
+            .write(&mut written)
+            .unwrap_or_else(|err| panic!("write failed: {err}"));
+        assert_eq!(written, bytes);
+        let read = MessageSignature::read(&mut written.as_slice())
+            .unwrap_or_else(|err| panic!("read failed: {err}"));
+        assert_eq!(read, signature);
+
+        let mut default_cache = MessageSignatureCache::create_default();
+        assert_eq!(MessageSignatureCache::DEFAULT_CAPACITY, 128);
+        assert_eq!(
+            default_cache.pack(&signature),
+            MessageSignatureCache::NOT_FOUND
+        );
+        default_cache.push(signature.clone());
+        assert_eq!(default_cache.pack(&signature), 0);
+        assert_eq!(default_cache.unpack(0), Some(signature.clone()));
+        assert_eq!(
+            PackedMessageSignatureModel::Id(0).unpack(&default_cache),
+            Some(signature.clone())
+        );
+        assert_eq!(
+            signature.pack(&default_cache),
+            PackedMessageSignatureModel::Id(0)
+        );
+        let missing = MessageSignature(vec![7; MessageSignature::BYTES]);
+        assert_eq!(
+            missing.pack(&default_cache),
+            PackedMessageSignatureModel::Full(missing)
+        );
     }
 }
