@@ -17,7 +17,7 @@ pub struct RegistryValueId(pub i32);
 
 pub fn read_string<R: Read>(reader: &mut R, max_chars: usize) -> io::Result<String> {
     let length = read_var_i32(reader)?;
-    if length < 0 || length as usize > max_chars * 4 {
+    if length < 0 || length as usize > utf8_max_bytes(max_chars) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "invalid string length",
@@ -42,7 +42,7 @@ pub fn read_string<R: Read>(reader: &mut R, max_chars: usize) -> io::Result<Stri
 
 pub fn write_string<W: Write>(writer: &mut W, value: &str, max_chars: usize) -> io::Result<()> {
     // Java `Utf8String.write`: reject when the UTF-16 length exceeds `maxLength`,
-    // then when the UTF-8 byte length exceeds `maxLength * 4` (`utf8MaxBytes`).
+    // then when the UTF-8 byte length exceeds Netty's `utf8MaxBytes(maxLength)`.
     if value.encode_utf16().count() > max_chars {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -50,7 +50,7 @@ pub fn write_string<W: Write>(writer: &mut W, value: &str, max_chars: usize) -> 
         ));
     }
     let bytes = value.as_bytes();
-    if bytes.len() > max_chars * 4 {
+    if bytes.len() > utf8_max_bytes(max_chars) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             "string too long",
@@ -58,6 +58,10 @@ pub fn write_string<W: Write>(writer: &mut W, value: &str, max_chars: usize) -> 
     }
     write_var_i32(writer, bytes.len() as i32)?;
     writer.write_all(bytes)
+}
+
+fn utf8_max_bytes(char_sequence_length: usize) -> usize {
+    char_sequence_length * 3
 }
 
 pub fn read_identifier<R: Read>(reader: &mut R) -> io::Result<Identifier> {
@@ -407,6 +411,27 @@ mod tests {
 
     #[test]
     fn string_length_limit_counts_utf16_units_like_java() {
+        const UTF8_STRING_JAVA: &str =
+            include_str!("../../../decompiled-server-26.1.2/net/minecraft/network/Utf8String.java");
+
+        for sentinel in [
+            "int maxEncodedLength = ByteBufUtil.utf8MaxBytes(maxLength);",
+            "int bufferLength = VarInt.read(input);",
+            "if (bufferLength > maxEncodedLength)",
+            "if (bufferLength > availableBytes)",
+            "String result = input.toString(input.readerIndex(), bufferLength, StandardCharsets.UTF_8);",
+            "if (result.length() > maxLength)",
+            "if (value.length() > maxLength)",
+            "int bytesWritten = ByteBufUtil.writeUtf8(tmp, value);",
+            "int maxAllowedEncodedLength = ByteBufUtil.utf8MaxBytes(maxLength);",
+            "VarInt.write(output, bytesWritten);",
+        ] {
+            assert!(
+                UTF8_STRING_JAVA.contains(sentinel),
+                "missing Utf8String sentinel {sentinel}"
+            );
+        }
+
         // An astral-plane char (😀, U+1F600) is ONE Rust code point but TWO UTF-16
         // code units — Java `String.length()` counts 2, so a max of 1 must reject it
         // and a max of 2 must accept it (round-tripping the 4 UTF-8 bytes).
@@ -423,6 +448,27 @@ mod tests {
         assert_eq!(read_string(&mut cursor(bytes.clone()), 2).unwrap(), emoji);
         // The same wire bytes must be rejected when the reader's limit is 1.
         assert!(read_string(&mut cursor(bytes), 1).is_err());
+
+        let three_byte_char = "\u{20AC}";
+        assert_eq!(three_byte_char.encode_utf16().count(), 1);
+        assert_eq!(three_byte_char.as_bytes().len(), 3);
+        let mut bytes = Vec::new();
+        write_string(&mut bytes, three_byte_char, 1).unwrap();
+        assert_eq!(read_string(&mut cursor(bytes), 1).unwrap(), three_byte_char);
+
+        let four_ascii_bytes = "abcd";
+        assert_eq!(four_ascii_bytes.encode_utf16().count(), 4);
+        assert!(write_string(&mut Vec::new(), four_ascii_bytes, 1).is_err());
+
+        let mut encoded_too_long = Vec::new();
+        write_var_i32(&mut encoded_too_long, 4).unwrap();
+        encoded_too_long.extend_from_slice(b"abcd");
+        assert!(read_string(&mut cursor(encoded_too_long), 1).is_err());
+
+        let mut truncated = Vec::new();
+        write_var_i32(&mut truncated, 3).unwrap();
+        truncated.extend_from_slice(b"ab");
+        assert!(read_string(&mut cursor(truncated), 1).is_err());
     }
 
     #[test]

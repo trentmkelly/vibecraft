@@ -75,6 +75,181 @@ impl ProtocolSwapHandler {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PipelineAction {
+    FireChannelRead(&'static str),
+    Write(&'static str),
+    Release(&'static str),
+    PromiseSuccess,
+    Replace {
+        name: &'static str,
+        handler: &'static str,
+    },
+    SetAutoRead(bool),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UnconfiguredMessageKind {
+    ByteBuf,
+    Packet,
+    Other(&'static str),
+    InboundConfigurationTask(InboundConfigurationTask),
+    OutboundConfigurationTask(OutboundConfigurationTask),
+}
+
+impl UnconfiguredMessageKind {
+    fn label(&self) -> &'static str {
+        match self {
+            Self::ByteBuf => "ByteBuf",
+            Self::Packet => "Packet",
+            Self::Other(label) => label,
+            Self::InboundConfigurationTask(_) => "InboundConfigurationTask",
+            Self::OutboundConfigurationTask(_) => "OutboundConfigurationTask",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InboundConfigurationTask {
+    actions: Vec<PipelineAction>,
+}
+
+impl InboundConfigurationTask {
+    pub fn setup_protocol() -> Self {
+        Self {
+            actions: vec![
+                PipelineAction::Replace {
+                    name: "decoder",
+                    handler: "PacketDecoder",
+                },
+                PipelineAction::SetAutoRead(true),
+            ],
+        }
+    }
+
+    pub fn and_then(mut self, other: Self) -> Self {
+        self.actions.extend(other.actions);
+        self
+    }
+
+    fn run(self) -> Vec<PipelineAction> {
+        self.actions
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OutboundConfigurationTask {
+    actions: Vec<PipelineAction>,
+}
+
+impl OutboundConfigurationTask {
+    pub fn setup_protocol() -> Self {
+        Self {
+            actions: vec![PipelineAction::Replace {
+                name: "encoder",
+                handler: "PacketEncoder",
+            }],
+        }
+    }
+
+    pub fn and_then(mut self, other: Self) -> Self {
+        self.actions.extend(other.actions);
+        self
+    }
+
+    fn run(self) -> Vec<PipelineAction> {
+        self.actions
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UnconfiguredPipelineError {
+    Decoder {
+        message: String,
+        released: &'static str,
+    },
+    Encoder {
+        message: String,
+        released: &'static str,
+    },
+}
+
+pub struct UnconfiguredPipelineHandler;
+
+impl UnconfiguredPipelineHandler {
+    pub fn setup_inbound_protocol() -> InboundConfigurationTask {
+        InboundConfigurationTask::setup_protocol()
+    }
+
+    pub fn setup_outbound_protocol() -> OutboundConfigurationTask {
+        OutboundConfigurationTask::setup_protocol()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct UnconfiguredInbound;
+
+impl UnconfiguredInbound {
+    pub fn channel_read(
+        &self,
+        msg: UnconfiguredMessageKind,
+    ) -> Result<Vec<PipelineAction>, UnconfiguredPipelineError> {
+        match msg {
+            UnconfiguredMessageKind::ByteBuf | UnconfiguredMessageKind::Packet => {
+                let label = msg.label();
+                Err(UnconfiguredPipelineError::Decoder {
+                    message: format!(
+                        "Pipeline has no inbound protocol configured, can't process packet {label}"
+                    ),
+                    released: label,
+                })
+            }
+            other => Ok(vec![PipelineAction::FireChannelRead(other.label())]),
+        }
+    }
+
+    pub fn write(
+        &self,
+        msg: UnconfiguredMessageKind,
+    ) -> Result<Vec<PipelineAction>, UnconfiguredPipelineError> {
+        match msg {
+            UnconfiguredMessageKind::InboundConfigurationTask(task) => {
+                let mut actions = task.run();
+                actions.push(PipelineAction::Release("InboundConfigurationTask"));
+                actions.push(PipelineAction::PromiseSuccess);
+                Ok(actions)
+            }
+            other => Ok(vec![PipelineAction::Write(other.label())]),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct UnconfiguredOutbound;
+
+impl UnconfiguredOutbound {
+    pub fn write(
+        &self,
+        msg: UnconfiguredMessageKind,
+    ) -> Result<Vec<PipelineAction>, UnconfiguredPipelineError> {
+        match msg {
+            UnconfiguredMessageKind::Packet => Err(UnconfiguredPipelineError::Encoder {
+                message:
+                    "Pipeline has no outbound protocol configured, can't process packet Packet"
+                        .to_string(),
+                released: "Packet",
+            }),
+            UnconfiguredMessageKind::OutboundConfigurationTask(task) => {
+                let mut actions = task.run();
+                actions.push(PipelineAction::Release("OutboundConfigurationTask"));
+                actions.push(PipelineAction::PromiseSuccess);
+                Ok(actions)
+            }
+            other => Ok(vec![PipelineAction::Write(other.label())]),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PacketCodecError {
     SkipDecoder(String),
     SkipEncoder(String),
@@ -504,6 +679,150 @@ mod tests {
         assert_eq!(
             fatal_error.swap_actions,
             ProtocolSwapHandler::handle_outbound_terminal_packet(true)
+        );
+    }
+
+    #[test]
+    fn unconfigured_pipeline_handler_matches_java_inbound_and_outbound_contracts() {
+        const UNCONFIGURED_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/UnconfiguredPipelineHandler.java"
+        );
+
+        for sentinel in [
+            "return setupInboundHandler(new PacketDecoder<T>(protocolInfo));",
+            "ctx.pipeline().replace(ctx.name(), \"decoder\", newHandler);",
+            "ctx.channel().config().setAutoRead(true);",
+            "return setupOutboundHandler(new PacketEncoder<T>(codecData));",
+            "ctx.pipeline().replace(ctx.name(), \"encoder\", newHandler);",
+            "if (!(msg instanceof ByteBuf) && !(msg instanceof Packet))",
+            "ctx.fireChannelRead(msg);",
+            "ReferenceCountUtil.release(msg);",
+            "throw new DecoderException(\"Pipeline has no inbound protocol configured, can't process packet \" + msg);",
+            "if (msg instanceof UnconfiguredPipelineHandler.InboundConfigurationTask configurationTask)",
+            "promise.setSuccess();",
+            "if (msg instanceof Packet)",
+            "throw new EncoderException(\"Pipeline has no outbound protocol configured, can't process packet \" + msg);",
+            "default UnconfiguredPipelineHandler.InboundConfigurationTask andThen",
+            "default UnconfiguredPipelineHandler.OutboundConfigurationTask andThen",
+        ] {
+            assert!(
+                UNCONFIGURED_JAVA.contains(sentinel),
+                "missing UnconfiguredPipelineHandler sentinel {sentinel}"
+            );
+        }
+
+        let inbound = UnconfiguredInbound;
+        assert_eq!(
+            inbound.channel_read(UnconfiguredMessageKind::Other("String")),
+            Ok(vec![PipelineAction::FireChannelRead("String")])
+        );
+        assert_eq!(
+            inbound.channel_read(UnconfiguredMessageKind::ByteBuf),
+            Err(UnconfiguredPipelineError::Decoder {
+                message:
+                    "Pipeline has no inbound protocol configured, can't process packet ByteBuf"
+                        .to_string(),
+                released: "ByteBuf",
+            })
+        );
+        assert_eq!(
+            inbound.channel_read(UnconfiguredMessageKind::Packet),
+            Err(UnconfiguredPipelineError::Decoder {
+                message: "Pipeline has no inbound protocol configured, can't process packet Packet"
+                    .to_string(),
+                released: "Packet",
+            })
+        );
+
+        let inbound_task = UnconfiguredPipelineHandler::setup_inbound_protocol();
+        assert_eq!(
+            inbound.write(UnconfiguredMessageKind::InboundConfigurationTask(
+                inbound_task
+            )),
+            Ok(vec![
+                PipelineAction::Replace {
+                    name: "decoder",
+                    handler: "PacketDecoder",
+                },
+                PipelineAction::SetAutoRead(true),
+                PipelineAction::Release("InboundConfigurationTask"),
+                PipelineAction::PromiseSuccess,
+            ])
+        );
+        assert_eq!(
+            inbound.write(UnconfiguredMessageKind::Other("FlushMarker")),
+            Ok(vec![PipelineAction::Write("FlushMarker")])
+        );
+
+        let outbound = UnconfiguredOutbound;
+        assert_eq!(
+            outbound.write(UnconfiguredMessageKind::Packet),
+            Err(UnconfiguredPipelineError::Encoder {
+                message:
+                    "Pipeline has no outbound protocol configured, can't process packet Packet"
+                        .to_string(),
+                released: "Packet",
+            })
+        );
+        let outbound_task = UnconfiguredPipelineHandler::setup_outbound_protocol();
+        assert_eq!(
+            outbound.write(UnconfiguredMessageKind::OutboundConfigurationTask(
+                outbound_task
+            )),
+            Ok(vec![
+                PipelineAction::Replace {
+                    name: "encoder",
+                    handler: "PacketEncoder",
+                },
+                PipelineAction::Release("OutboundConfigurationTask"),
+                PipelineAction::PromiseSuccess,
+            ])
+        );
+        assert_eq!(
+            outbound.write(UnconfiguredMessageKind::Other("ByteBuf")),
+            Ok(vec![PipelineAction::Write("ByteBuf")])
+        );
+
+        let chained_inbound = InboundConfigurationTask::setup_protocol()
+            .and_then(InboundConfigurationTask::setup_protocol());
+        assert_eq!(
+            inbound.write(UnconfiguredMessageKind::InboundConfigurationTask(
+                chained_inbound
+            )),
+            Ok(vec![
+                PipelineAction::Replace {
+                    name: "decoder",
+                    handler: "PacketDecoder",
+                },
+                PipelineAction::SetAutoRead(true),
+                PipelineAction::Replace {
+                    name: "decoder",
+                    handler: "PacketDecoder",
+                },
+                PipelineAction::SetAutoRead(true),
+                PipelineAction::Release("InboundConfigurationTask"),
+                PipelineAction::PromiseSuccess,
+            ])
+        );
+
+        let chained_outbound = OutboundConfigurationTask::setup_protocol()
+            .and_then(OutboundConfigurationTask::setup_protocol());
+        assert_eq!(
+            outbound.write(UnconfiguredMessageKind::OutboundConfigurationTask(
+                chained_outbound
+            )),
+            Ok(vec![
+                PipelineAction::Replace {
+                    name: "encoder",
+                    handler: "PacketEncoder",
+                },
+                PipelineAction::Replace {
+                    name: "encoder",
+                    handler: "PacketEncoder",
+                },
+                PipelineAction::Release("OutboundConfigurationTask"),
+                PipelineAction::PromiseSuccess,
+            ])
         );
     }
 }
