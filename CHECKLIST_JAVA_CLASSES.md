@@ -830,7 +830,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/ComponentContents.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/ComponentSerialization.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/ComponentUtils.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/FilterMask.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/FilterMask.java`. Rust `chat_component::filter_mask::FilterMask` mirrors Java's pass-through, fully-filtered, and partially-filtered variants, enum ids/serialized names, mutable `setFiltered`, UTF-16-code-unit mask application, formatted filtered runs with dark-gray hover-styled hashes, and empty/fully-filtered predicates; existing play packet `FilterMaskData` preserves Java's enum-plus-BitSet wire shape; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 filter_mask`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/FontDescription.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/FormattedText.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/HoverEvent.java`.

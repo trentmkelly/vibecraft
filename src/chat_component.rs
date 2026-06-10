@@ -4,6 +4,8 @@
 pub mod chat_type;
 #[path = "common_components.rs"]
 pub mod common_components;
+#[path = "filter_mask.rs"]
+pub mod filter_mask;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Component {
