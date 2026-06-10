@@ -39,6 +39,7 @@ mod block_sounds;
 mod block_states;
 mod block_survival;
 mod block_tags;
+mod block_transforms;
 mod block_update;
 mod boss_fight;
 mod char_predicate;
