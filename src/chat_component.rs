@@ -10,8 +10,12 @@ pub mod filter_mask;
 pub mod formatted_text;
 #[path = "hover_event.rs"]
 pub mod hover_event;
+#[path = "resolution_context.rs"]
+pub mod resolution_context;
 #[path = "throwing_component.rs"]
 pub mod throwing_component;
+
+pub use resolution_context::ResolutionContext;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Component {
@@ -641,103 +645,6 @@ impl TranslationTable {
             .iter()
             .find(|(entry, _)| entry == key)
             .map(|(_, value)| value.as_str())
-    }
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct ResolutionContext {
-    selectors: Vec<(String, Vec<String>)>,
-    scores: Vec<(String, String, i32)>,
-    keybinds: Vec<(String, String)>,
-    nbt_values: Vec<(NbtSource, String, Vec<String>)>,
-    player_sprites: Vec<(String, bool, String)>,
-}
-
-impl ResolutionContext {
-    pub fn with_selector(mut self, selector: impl Into<String>, values: Vec<&str>) -> Self {
-        self.selectors.push((
-            selector.into(),
-            values.into_iter().map(ToOwned::to_owned).collect(),
-        ));
-        self
-    }
-
-    pub fn with_score(
-        mut self,
-        name: impl Into<String>,
-        objective: impl Into<String>,
-        value: i32,
-    ) -> Self {
-        self.scores.push((name.into(), objective.into(), value));
-        self
-    }
-
-    pub fn with_keybind(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
-        self.keybinds.push((key.into(), value.into()));
-        self
-    }
-
-    pub fn with_nbt(
-        mut self,
-        source: NbtSource,
-        path: impl Into<String>,
-        values: Vec<&str>,
-    ) -> Self {
-        self.nbt_values.push((
-            source,
-            path.into(),
-            values.into_iter().map(ToOwned::to_owned).collect(),
-        ));
-        self
-    }
-
-    pub fn with_player_sprite(
-        mut self,
-        profile: impl Into<String>,
-        hat: bool,
-        value: impl Into<String>,
-    ) -> Self {
-        self.player_sprites
-            .push((profile.into(), hat, value.into()));
-        self
-    }
-
-    fn selector(&self, selector: &str) -> Option<Vec<String>> {
-        self.selectors
-            .iter()
-            .find(|(key, _)| key == selector)
-            .map(|(_, values)| values.clone())
-    }
-
-    fn score(&self, name: &str, objective: &str) -> Option<i32> {
-        self.scores
-            .iter()
-            .find(|(entry_name, entry_objective, _)| {
-                entry_name == name && entry_objective == objective
-            })
-            .map(|(_, _, value)| *value)
-    }
-
-    fn keybind(&self, key: &str) -> Option<&str> {
-        self.keybinds
-            .iter()
-            .find(|(entry, _)| entry == key)
-            .map(|(_, value)| value.as_str())
-    }
-
-    fn nbt(&self, source: &NbtSource, path: &str) -> Vec<String> {
-        self.nbt_values
-            .iter()
-            .find(|(entry_source, entry_path, _)| entry_source == source && entry_path == path)
-            .map(|(_, _, values)| values.clone())
-            .unwrap_or_default()
-    }
-
-    fn player_sprite(&self, profile: &str, hat: bool) -> Option<&str> {
-        self.player_sprites
-            .iter()
-            .find(|(entry_profile, entry_hat, _)| entry_profile == profile && *entry_hat == hat)
-            .map(|(_, _, value)| value.as_str())
     }
 }
 
