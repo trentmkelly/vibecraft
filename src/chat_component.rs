@@ -1,5 +1,8 @@
 #![allow(dead_code)]
 
+#[path = "common_components.rs"]
+pub mod common_components;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Component {
     pub content: ComponentContent,
@@ -219,6 +222,7 @@ pub enum ComponentArgument {
     Component(Box<Component>),
     String(String),
     Number(i32),
+    Long(i64),
     Boolean(bool),
     Null,
 }
@@ -233,6 +237,7 @@ impl ComponentArgument {
             Self::Component(component) => component.render_plain(translations, context),
             Self::String(value) => value.clone(),
             Self::Number(value) => value.to_string(),
+            Self::Long(value) => value.to_string(),
             Self::Boolean(value) => value.to_string(),
             Self::Null => "null".to_string(),
         }
@@ -243,6 +248,7 @@ impl ComponentArgument {
             Self::Component(component) => component.to_json(),
             Self::String(value) => json_string(value),
             Self::Number(value) => value.to_string(),
+            Self::Long(value) => value.to_string(),
             Self::Boolean(value) => value.to_string(),
             Self::Null => "null".to_string(),
         }
