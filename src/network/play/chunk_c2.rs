@@ -1,7 +1,7 @@
 use super::*;
 
 impl NumberFormat {
-    pub(super) fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    pub(crate) fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         match self {
             Self::Blank => write_var_i32(writer, 0),
             Self::Styled { style } => {

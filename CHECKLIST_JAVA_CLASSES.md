@@ -891,12 +891,12 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/network/chat/numbers`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/numbers/BlankFormat.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/numbers/FixedFormat.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/numbers/NumberFormat.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/numbers/NumberFormatType.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/numbers/NumberFormatTypes.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/numbers/StyledFormat.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/numbers/BlankFormat.java`. Rust `chat_component::number_format::NumberFormatModel::Blank` mirrors Java's singleton blank format by formatting any value as `Component.empty()` and reporting the blank number-format type; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 number_format`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/numbers/FixedFormat.java`. Rust `chat_component::number_format::NumberFormatModel::Fixed` mirrors Java's fixed component format by returning a copy of the stored component, preserving the fixed type, and sharing the existing trusted component payload stream id; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 number_format`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/numbers/NumberFormat.java`. Rust `chat_component::number_format::NumberFormatModel` mirrors Java's `format(int)` and `type()` interface surface across blank, styled, and fixed variants; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 number_format`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/numbers/NumberFormatType.java`. Rust `chat_component::number_format::NumberFormatTypeModel` mirrors Java's format-type identity for map/stream dispatch through stable type variants and stream registry ids; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 number_format`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/numbers/NumberFormatTypes.java`. Rust `chat_component::number_format::bootstrap_number_format_types` mirrors Java's registry bootstrap order and ids (`blank`, `styled`, `fixed`) and verifies the existing play packet stream ids match that registry order; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 number_format`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/numbers/StyledFormat.java`. Rust `chat_component::number_format::NumberFormatModel::Styled` mirrors Java's integer-to-literal formatting with the stored style plus `NO_STYLE`, red `SIDEBAR_DEFAULT`, and yellow `PLAYER_LIST_DEFAULT` constants; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 number_format`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/numbers/package-info.java`.
 
 ## `decompiled-server-26.1.2/net/minecraft/network/chat`

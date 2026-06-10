@@ -10,6 +10,8 @@ pub mod filter_mask;
 pub mod formatted_text;
 #[path = "hover_event.rs"]
 pub mod hover_event;
+#[path = "number_format.rs"]
+pub mod number_format;
 #[path = "resolution_context.rs"]
 pub mod resolution_context;
 #[path = "throwing_component.rs"]
