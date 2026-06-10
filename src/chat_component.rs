@@ -34,6 +34,8 @@ pub mod selector_contents;
 pub mod sub_string_source;
 #[path = "throwing_component.rs"]
 pub mod throwing_component;
+#[path = "translatable_contents.rs"]
+pub mod translatable_contents;
 #[path = "translatable_format_exception.rs"]
 pub mod translatable_format_exception;
 
