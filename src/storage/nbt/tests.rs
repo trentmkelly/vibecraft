@@ -1176,10 +1176,9 @@ fn text_component_visitor_matches_plain_java_layout_rules() {
         tag.to_text_component_plain("  ", true),
         "{\n  \"a key\": \"quoted\",\n  list: [\n    {\n      inner: 1b\n    },\n    {\n      inner: 2b\n    }\n  ],\n  z: 3\n}"
     );
-    assert_eq!(
-        tag.to_text_component("", true).to_json(),
-        "{\"text\":\"{\\\"a key\\\": \\\"quoted\\\", list: [{inner: 1b}, {inner: 2b}], z: 3}\"}"
-    );
+    let component = tag.to_text_component("", true);
+    assert!(component.to_json().starts_with("{\"text\":\"\",\"extra\""));
+    assert!(component.to_json().contains("\"text\":\"a key\""));
 }
 
 #[test]

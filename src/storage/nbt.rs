@@ -13,6 +13,7 @@ pub mod snbt_string;
 pub mod tag_access;
 pub mod tag_metadata;
 pub mod tag_parser;
+pub mod text_component_tag_visitor;
 
 pub const DEFAULT_MAX_NBT_DEPTH: usize = 512;
 
@@ -408,14 +409,12 @@ impl Tag {
         indentation: &str,
         sort_keys: bool,
     ) -> crate::chat_component::Component {
-        crate::chat_component::Component::literal(
-            self.to_text_component_plain(indentation, sort_keys),
-        )
+        text_component_tag_visitor::to_plain_text_component(self, indentation, sort_keys)
     }
 
     #[cfg(test)]
     pub fn to_text_component_plain(&self, indentation: &str, sort_keys: bool) -> String {
-        render_text_component_tag(self, indentation, sort_keys, 0, 0)
+        text_component_tag_visitor::to_plain_text(self, indentation, sort_keys)
     }
 }
 
@@ -530,195 +529,6 @@ pub fn parse_snbt(input: &str) -> io::Result<Tag> {
         ));
     }
     Ok(tag)
-}
-
-#[cfg(test)]
-fn render_text_component_tag(
-    tag: &Tag,
-    indentation: &str,
-    sort_keys: bool,
-    indent_depth: usize,
-    depth: usize,
-) -> String {
-    const INLINE_LIST_THRESHOLD: usize = 8;
-    const MAX_DEPTH: usize = 64;
-    const MAX_LENGTH: usize = 128;
-
-    match tag {
-        Tag::End => String::new(),
-        Tag::Byte(value) => format!("{value}b"),
-        Tag::Short(value) => format!("{value}s"),
-        Tag::Int(value) => value.to_string(),
-        Tag::Long(value) => format!("{value}l"),
-        Tag::Float(value) => format!("{value}f"),
-        Tag::Double(value) => format!("{value}d"),
-        Tag::String(value) => snbt_string::quote_and_escape_snbt_string(value),
-        Tag::ByteArray(values) => render_text_component_array(
-            "B",
-            values.iter().map(|value| format!("{value}b")).collect(),
-            MAX_LENGTH,
-        ),
-        Tag::IntArray(values) => render_text_component_array(
-            "I",
-            values.iter().map(i32::to_string).collect(),
-            MAX_LENGTH,
-        ),
-        Tag::LongArray(values) => render_text_component_array(
-            "L",
-            values.iter().map(|value| format!("{value}l")).collect(),
-            MAX_LENGTH,
-        ),
-        Tag::List(values) => {
-            if values.is_empty() {
-                return "[]".to_string();
-            }
-            if depth >= MAX_DEPTH {
-                return "[<...>]".to_string();
-            }
-
-            let should_wrap = values.len() < INLINE_LIST_THRESHOLD
-                && values.iter().any(|value| {
-                    !matches!(
-                        value,
-                        Tag::Byte(_)
-                            | Tag::Short(_)
-                            | Tag::Int(_)
-                            | Tag::Long(_)
-                            | Tag::Float(_)
-                            | Tag::Double(_)
-                    )
-                });
-            if !should_wrap {
-                let rendered = values
-                    .iter()
-                    .map(|value| {
-                        render_text_component_tag(
-                            value,
-                            indentation,
-                            sort_keys,
-                            indent_depth,
-                            depth + 1,
-                        )
-                    })
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                return format!("[{rendered}]");
-            }
-
-            render_text_component_wrapped_list(values, indentation, sort_keys, indent_depth, depth)
-        }
-        Tag::Compound(values) => {
-            if values.is_empty() {
-                return "{}".to_string();
-            }
-            if depth >= MAX_DEPTH {
-                return "{<...>}".to_string();
-            }
-
-            let mut entries = values.iter().collect::<Vec<_>>();
-            if sort_keys {
-                entries.sort_by(|(left, _), (right, _)| left.cmp(right));
-            }
-            render_text_component_compound(entries, indentation, sort_keys, indent_depth, depth)
-        }
-    }
-}
-
-#[cfg(test)]
-fn render_text_component_array(prefix: &str, values: Vec<String>, max_len: usize) -> String {
-    let mut rendered = format!("[{prefix};");
-    for (index, value) in values.iter().take(max_len).enumerate() {
-        rendered.push(' ');
-        rendered.push_str(value);
-        if index != values.len() - 1 {
-            rendered.push(',');
-        }
-    }
-    if values.len() > max_len {
-        rendered.push_str("<...>");
-    }
-    rendered.push(']');
-    rendered
-}
-
-#[cfg(test)]
-fn render_text_component_wrapped_list(
-    values: &[Tag],
-    indentation: &str,
-    sort_keys: bool,
-    indent_depth: usize,
-    depth: usize,
-) -> String {
-    let mut rendered = "[".to_string();
-    if !indentation.is_empty() {
-        rendered.push('\n');
-    }
-    let entry_indent = indentation.repeat(indent_depth + 1);
-    let element_spacing = if indentation.is_empty() { " " } else { "\n" };
-
-    for (index, value) in values.iter().take(128).enumerate() {
-        rendered.push_str(&entry_indent);
-        rendered.push_str(&render_text_component_tag(
-            value,
-            indentation,
-            sort_keys,
-            indent_depth + 1,
-            depth + 1,
-        ));
-        if index != values.len() - 1 {
-            rendered.push(',');
-            rendered.push_str(element_spacing);
-        }
-    }
-    if values.len() > 128 {
-        rendered.push_str(&entry_indent);
-        rendered.push_str("<...>");
-    }
-    if !indentation.is_empty() {
-        rendered.push('\n');
-        rendered.push_str(&indentation.repeat(indent_depth));
-    }
-    rendered.push(']');
-    rendered
-}
-
-#[cfg(test)]
-fn render_text_component_compound(
-    entries: Vec<&(String, Tag)>,
-    indentation: &str,
-    sort_keys: bool,
-    indent_depth: usize,
-    depth: usize,
-) -> String {
-    let mut rendered = "{".to_string();
-    if !indentation.is_empty() {
-        rendered.push('\n');
-    }
-    let entry_indent = indentation.repeat(indent_depth + 1);
-    let element_spacing = if indentation.is_empty() { " " } else { "\n" };
-
-    for (index, (key, value)) in entries.iter().enumerate() {
-        rendered.push_str(&entry_indent);
-        rendered.push_str(&snbt_string::quote_snbt_key(key));
-        rendered.push_str(": ");
-        rendered.push_str(&render_text_component_tag(
-            value,
-            indentation,
-            sort_keys,
-            indent_depth + 1,
-            depth + 1,
-        ));
-        if index != entries.len() - 1 {
-            rendered.push(',');
-            rendered.push_str(element_spacing);
-        }
-    }
-    if !indentation.is_empty() {
-        rendered.push('\n');
-        rendered.push_str(&indentation.repeat(indent_depth));
-    }
-    rendered.push('}');
-    rendered
 }
 
 struct SnbtParser<'a> {
