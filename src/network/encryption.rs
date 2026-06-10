@@ -48,6 +48,87 @@ impl MinecraftCipher {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct CipherBase {
+    cipher: MinecraftCipher,
+    heap_in: Vec<u8>,
+    heap_out: Vec<u8>,
+}
+
+impl CipherBase {
+    pub fn new(cipher: MinecraftCipher) -> Self {
+        Self {
+            cipher,
+            heap_in: Vec::new(),
+            heap_out: Vec::new(),
+        }
+    }
+
+    fn buf_to_bytes(&mut self, input: &[u8]) -> &[u8] {
+        if self.heap_in.len() < input.len() {
+            self.heap_in.resize(input.len(), 0);
+        }
+        self.heap_in[..input.len()].copy_from_slice(input);
+        &self.heap_in[..input.len()]
+    }
+
+    pub fn decipher(&mut self, input: &[u8]) -> Vec<u8> {
+        let input_len = input.len();
+        self.buf_to_bytes(input);
+        if self.heap_out.len() < input_len {
+            self.heap_out.resize(input_len, 0);
+        }
+        self.heap_out[..input_len].copy_from_slice(&self.heap_in[..input_len]);
+        self.cipher.apply_decrypt(&mut self.heap_out[..input_len]);
+        self.heap_out[..input_len].to_vec()
+    }
+
+    pub fn encipher(&mut self, input: &[u8], output: &mut Vec<u8>) {
+        let input_len = input.len();
+        self.buf_to_bytes(input);
+        if self.heap_out.len() < input_len {
+            self.heap_out.resize(input_len, 0);
+        }
+        self.heap_out[..input_len].copy_from_slice(&self.heap_in[..input_len]);
+        self.cipher.apply_encrypt(&mut self.heap_out[..input_len]);
+        output.extend_from_slice(&self.heap_out[..input_len]);
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CipherDecoder {
+    cipher: CipherBase,
+}
+
+impl CipherDecoder {
+    pub fn new(cipher: MinecraftCipher) -> Self {
+        Self {
+            cipher: CipherBase::new(cipher),
+        }
+    }
+
+    pub fn decode(&mut self, message: &[u8], output: &mut Vec<Vec<u8>>) {
+        output.push(self.cipher.decipher(message));
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CipherEncoder {
+    cipher: CipherBase,
+}
+
+impl CipherEncoder {
+    pub fn new(cipher: MinecraftCipher) -> Self {
+        Self {
+            cipher: CipherBase::new(cipher),
+        }
+    }
+
+    pub fn encode(&mut self, message: &[u8], output: &mut Vec<u8>) {
+        self.cipher.encipher(message, output);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -88,5 +169,47 @@ mod tests {
         decrypt.apply_decrypt(first);
         decrypt.apply_decrypt(second);
         assert_eq!(split, original);
+    }
+
+    #[test]
+    fn cipher_base_decoder_and_encoder_match_java_update_wrappers() {
+        const CIPHER_BASE_JAVA: &str =
+            include_str!("../../../decompiled-server-26.1.2/net/minecraft/network/CipherBase.java");
+        const CIPHER_DECODER_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/CipherDecoder.java"
+        );
+        const CIPHER_ENCODER_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/CipherEncoder.java"
+        );
+
+        for sentinel in [
+            "private byte[] heapIn = new byte[0];",
+            "private byte[] heapOut = new byte[0];",
+            "in.readBytes(this.heapIn, 0, readableBytes);",
+            "heapOut.writerIndex(this.cipher.update(heapIn, 0, readableBytes, heapOut.array(), heapOut.arrayOffset()));",
+            "out.writeBytes(this.heapOut, 0, this.cipher.update(heapIn, 0, readableBytes, this.heapOut));",
+        ] {
+            assert!(
+                CIPHER_BASE_JAVA.contains(sentinel),
+                "missing CipherBase sentinel {sentinel}"
+            );
+        }
+        assert!(CIPHER_DECODER_JAVA.contains("out.add(this.cipher.decipher(ctx, msg));"));
+        assert!(CIPHER_ENCODER_JAVA.contains("this.cipher.encipher(msg, out);"));
+
+        let secret = *b"0123456789abcdef";
+        let mut encoder = CipherEncoder::new(MinecraftCipher::new(secret));
+        let mut decoder = CipherDecoder::new(MinecraftCipher::new(secret));
+        let mut encoded = Vec::new();
+        let mut decoded = Vec::new();
+
+        encoder.encode(b"first", &mut encoded);
+        let first_len = encoded.len();
+        encoder.encode(b"second", &mut encoded);
+
+        decoder.decode(&encoded[..first_len], &mut decoded);
+        decoder.decode(&encoded[first_len..], &mut decoded);
+
+        assert_eq!(decoded, vec![b"first".to_vec(), b"second".to_vec()]);
     }
 }
