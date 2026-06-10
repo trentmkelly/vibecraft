@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub const TAG_END: u8 = 0;
 pub const TAG_BYTE: u8 = 1;
 pub const TAG_SHORT: u8 = 2;

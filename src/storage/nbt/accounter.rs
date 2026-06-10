@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use super::DEFAULT_MAX_NBT_DEPTH;
 
 pub const DEFAULT_NBT_QUOTA: i64 = 2_097_152;

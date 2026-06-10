@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub fn quote_snbt_key(key: &str) -> String {
     if !key.eq_ignore_ascii_case("true")
         && !key.eq_ignore_ascii_case("false")

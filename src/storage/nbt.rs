@@ -4,15 +4,11 @@ use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 
-#[allow(dead_code)]
 pub mod accounter;
-#[allow(dead_code)]
+pub mod nbt_io;
 pub mod numeric;
-#[allow(dead_code)]
 pub mod snbt_string;
-#[allow(dead_code)]
 pub mod tag_access;
-#[allow(dead_code)]
 pub mod tag_metadata;
 
 pub const DEFAULT_MAX_NBT_DEPTH: usize = 512;
