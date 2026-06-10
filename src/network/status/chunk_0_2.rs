@@ -158,8 +158,16 @@ pub struct ChatTypeEntry {
     pub id: &'static str,
     pub chat_translation_key: &'static str,
     pub chat_parameters: &'static [&'static str],
+    pub chat_style: ChatTypeDecorationStyle,
     pub narration_translation_key: &'static str,
     pub narration_parameters: &'static [&'static str],
+    pub narration_style: ChatTypeDecorationStyle,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChatTypeDecorationStyle {
+    Empty,
+    GrayItalic,
 }
 
 // Order matches the official 26.1.2 registry-sync transcript: data-driven
@@ -173,50 +181,64 @@ pub const CHAT_TYPES: &[ChatTypeEntry] = &[
         id: "chat",
         chat_translation_key: "chat.type.text",
         chat_parameters: &["sender", "content"],
+        chat_style: ChatTypeDecorationStyle::Empty,
         narration_translation_key: "chat.type.text.narrate",
         narration_parameters: &["sender", "content"],
+        narration_style: ChatTypeDecorationStyle::Empty,
     },
     ChatTypeEntry {
         id: "emote_command",
         chat_translation_key: "chat.type.emote",
         chat_parameters: &["sender", "content"],
+        chat_style: ChatTypeDecorationStyle::Empty,
         narration_translation_key: "chat.type.emote",
         narration_parameters: &["sender", "content"],
+        narration_style: ChatTypeDecorationStyle::Empty,
     },
     ChatTypeEntry {
         id: "msg_command_incoming",
         chat_translation_key: "commands.message.display.incoming",
         chat_parameters: &["sender", "content"],
+        chat_style: ChatTypeDecorationStyle::GrayItalic,
         narration_translation_key: "chat.type.text.narrate",
         narration_parameters: &["sender", "content"],
+        narration_style: ChatTypeDecorationStyle::Empty,
     },
     ChatTypeEntry {
         id: "msg_command_outgoing",
         chat_translation_key: "commands.message.display.outgoing",
         chat_parameters: &["target", "content"],
+        chat_style: ChatTypeDecorationStyle::GrayItalic,
         narration_translation_key: "chat.type.text.narrate",
         narration_parameters: &["sender", "content"],
+        narration_style: ChatTypeDecorationStyle::Empty,
     },
     ChatTypeEntry {
         id: "say_command",
         chat_translation_key: "chat.type.announcement",
         chat_parameters: &["sender", "content"],
+        chat_style: ChatTypeDecorationStyle::Empty,
         narration_translation_key: "chat.type.text.narrate",
         narration_parameters: &["sender", "content"],
+        narration_style: ChatTypeDecorationStyle::Empty,
     },
     ChatTypeEntry {
         id: "team_msg_command_incoming",
         chat_translation_key: "chat.type.team.text",
         chat_parameters: &["target", "sender", "content"],
+        chat_style: ChatTypeDecorationStyle::Empty,
         narration_translation_key: "chat.type.text.narrate",
         narration_parameters: &["sender", "content"],
+        narration_style: ChatTypeDecorationStyle::Empty,
     },
     ChatTypeEntry {
         id: "team_msg_command_outgoing",
         chat_translation_key: "chat.type.team.sent",
         chat_parameters: &["target", "sender", "content"],
+        chat_style: ChatTypeDecorationStyle::Empty,
         narration_translation_key: "chat.type.text.narrate",
         narration_parameters: &["sender", "content"],
+        narration_style: ChatTypeDecorationStyle::Empty,
     },
 ];
 

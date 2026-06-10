@@ -497,6 +497,12 @@ pub fn chat_type_registry_payloads_include_vanilla_routes() {
         Some(Tag::String(value)) if value == "commands.message.display.outgoing"
     ));
     assert_string_list(field_value(chat, "parameters"), &["target", "content"]);
+    let style = compound_field(chat, "style");
+    assert!(matches!(
+        field_value(style, "color"),
+        Some(Tag::String(value)) if value == "gray"
+    ));
+    assert!(matches!(field_value(style, "italic"), Some(Tag::Byte(1))));
 
     let narration = compound_field(&tag, "narration");
     assert!(matches!(
@@ -504,6 +510,7 @@ pub fn chat_type_registry_payloads_include_vanilla_routes() {
         Some(Tag::String(value)) if value == "chat.type.text.narrate"
     ));
     assert_string_list(field_value(narration, "parameters"), &["sender", "content"]);
+    assert!(field_value(narration, "style").is_none());
 }
 
 #[test]

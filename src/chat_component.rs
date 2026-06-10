@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+#[path = "chat_type.rs"]
+pub mod chat_type;
 #[path = "common_components.rs"]
 pub mod common_components;
 
@@ -332,6 +334,11 @@ impl Style {
 
     pub fn with_bold(mut self, bold: bool) -> Self {
         self.bold = Some(bold);
+        self
+    }
+
+    pub fn with_italic(mut self, italic: bool) -> Self {
+        self.italic = Some(italic);
         self
     }
 

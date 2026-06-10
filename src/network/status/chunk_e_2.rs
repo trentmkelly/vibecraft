@@ -6,20 +6,29 @@ pub fn chat_type_nbt(chat_type: &ChatTypeEntry) -> Tag {
     Tag::Compound(vec![
         (
             "chat".to_string(),
-            chat_decoration_nbt(chat_type.chat_translation_key, chat_type.chat_parameters),
+            chat_decoration_nbt(
+                chat_type.chat_translation_key,
+                chat_type.chat_parameters,
+                chat_type.chat_style,
+            ),
         ),
         (
             "narration".to_string(),
             chat_decoration_nbt(
                 chat_type.narration_translation_key,
                 chat_type.narration_parameters,
+                chat_type.narration_style,
             ),
         ),
     ])
 }
 
-pub fn chat_decoration_nbt(translation_key: &str, parameters: &[&str]) -> Tag {
-    Tag::Compound(vec![
+pub fn chat_decoration_nbt(
+    translation_key: &str,
+    parameters: &[&str],
+    style: ChatTypeDecorationStyle,
+) -> Tag {
+    let mut fields = vec![
         (
             "translation_key".to_string(),
             Tag::String(translation_key.to_string()),
@@ -33,7 +42,21 @@ pub fn chat_decoration_nbt(translation_key: &str, parameters: &[&str]) -> Tag {
                     .collect(),
             ),
         ),
-    ])
+    ];
+    if let Some(style) = chat_decoration_style_nbt(style) {
+        fields.push(("style".to_string(), style));
+    }
+    Tag::Compound(fields)
+}
+
+fn chat_decoration_style_nbt(style: ChatTypeDecorationStyle) -> Option<Tag> {
+    match style {
+        ChatTypeDecorationStyle::Empty => None,
+        ChatTypeDecorationStyle::GrayItalic => Some(Tag::Compound(vec![
+            ("color".to_string(), Tag::String("gray".to_string())),
+            ("italic".to_string(), Tag::Byte(1)),
+        ])),
+    }
 }
 
 pub fn trim_pattern_nbt(pattern: &str) -> Tag {
