@@ -14,6 +14,8 @@ pub mod formatted_text;
 pub mod hover_event;
 #[path = "number_format.rs"]
 pub mod number_format;
+#[path = "plain_text_contents.rs"]
+pub mod plain_text_contents;
 #[path = "resolution_context.rs"]
 pub mod resolution_context;
 #[path = "throwing_component.rs"]

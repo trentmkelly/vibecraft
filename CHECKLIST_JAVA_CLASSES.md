@@ -862,7 +862,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/contents/KeybindResolver.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/contents/NbtContents.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/contents/ObjectContents.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/contents/PlainTextContents.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/contents/PlainTextContents.java`. Rust `chat_component::plain_text_contents::PlainTextContentsModel` mirrors Java's `text` map-codec field, `EMPTY` singleton behavior through `create("")`, literal creation for non-empty text, `text()` accessor, empty-vs-literal `toString`, content and styled visitor forwarding only for literal contents, and mapping into Rust literal component content; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 plain_text_contents`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/contents/ScoreContents.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/contents/SelectorContents.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/chat/contents/TranslatableContents.java`.
