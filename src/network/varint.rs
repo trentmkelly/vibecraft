@@ -12,7 +12,7 @@ pub fn has_varint_continuation_bit(byte: u8) -> bool {
     byte & 0x80 == 0x80
 }
 
-pub fn read_var_i32<R: Read>(reader: &mut R) -> io::Result<i32> {
+pub fn read_var_i32<R: Read + ?Sized>(reader: &mut R) -> io::Result<i32> {
     let mut value = 0i32;
     let mut bytes = 0;
 
@@ -112,7 +112,7 @@ pub fn prepend_varint21_frame(payload: &[u8]) -> io::Result<Vec<u8>> {
     Ok(output)
 }
 
-pub fn write_var_i32<W: Write>(writer: &mut W, mut value: i32) -> io::Result<()> {
+pub fn write_var_i32<W: Write + ?Sized>(writer: &mut W, mut value: i32) -> io::Result<()> {
     loop {
         if (value & !0x7F) == 0 {
             writer.write_all(&[value as u8])?;
@@ -124,7 +124,7 @@ pub fn write_var_i32<W: Write>(writer: &mut W, mut value: i32) -> io::Result<()>
     }
 }
 
-pub fn read_var_i64<R: Read>(reader: &mut R) -> io::Result<i64> {
+pub fn read_var_i64<R: Read + ?Sized>(reader: &mut R) -> io::Result<i64> {
     let mut value = 0i64;
     let mut bytes = 0;
 
@@ -147,7 +147,7 @@ pub fn read_var_i64<R: Read>(reader: &mut R) -> io::Result<i64> {
     }
 }
 
-pub fn write_var_i64<W: Write>(writer: &mut W, mut value: i64) -> io::Result<()> {
+pub fn write_var_i64<W: Write + ?Sized>(writer: &mut W, mut value: i64) -> io::Result<()> {
     loop {
         if (value & !0x7F) == 0 {
             writer.write_all(&[value as u8])?;

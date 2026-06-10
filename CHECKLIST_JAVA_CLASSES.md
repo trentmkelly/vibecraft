@@ -905,12 +905,12 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/network/codec`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/codec/ByteBufCodecs.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/codec/IdDispatchCodec.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/codec/StreamCodec.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/codec/StreamDecoder.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/codec/StreamEncoder.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/codec/StreamMemberEncoder.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/codec/ByteBufCodecs.java`. Rust `network::codec` mirrors Java's shared stream-codec primitives for UTF-8 strings, nullable optionals, count-limited collections with the 65,536 initial allocation cap, and VarInt length/count validation; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 network::codec::tests`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/codec/IdDispatchCodec.java`. Rust `network::codec::IdDispatchCodec` mirrors Java's VarInt id dispatch table, duplicate registration rejection, unknown decode/encode errors, and decorated packet failure messages; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 network::codec::tests`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/codec/StreamCodec.java`. Rust `network::codec::StreamCodec` mirrors Java's reusable encode/decode pair plus `of`, `ofMember`, `unit`, and `map` combinator behavior used by packet codecs; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 network::codec::tests`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/codec/StreamDecoder.java`. Rust `network::codec::StreamCodec` preserves Java's single-method decoder role (`decode(input)`) through its stored decoder closure; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 network::codec::tests`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/codec/StreamEncoder.java`. Rust `network::codec::StreamCodec` preserves Java's encoder role (`encode(output, value)`) through its stored encoder closure; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 network::codec::tests`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/codec/StreamMemberEncoder.java`. Rust `network::codec::StreamCodec::of_member` mirrors Java's member-encoder argument order (`encode(value, output)`) while exposing the normal codec encode order; covered by `RUSTCRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 network::codec::tests`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/codec/package-info.java`. Java 26.1.2 package marker contains only `@NullMarked`, the package declaration, and the `org.jspecify.annotations.NullMarked` import; no Rust runtime behavior or parity test is required beyond preserving nullability expectations in typed Rust APIs.
 
 ## `decompiled-server-26.1.2/net/minecraft/network`

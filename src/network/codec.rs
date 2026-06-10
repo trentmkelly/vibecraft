@@ -1,10 +1,187 @@
 #![allow(dead_code)]
 
+use std::collections::HashMap;
+use std::hash::Hash;
 use std::io::{self, Cursor, Read, Write};
+use std::sync::Arc;
 
 use crate::network::varint::{read_var_i32, write_var_i32};
 use crate::registry::Identifier;
 use crate::storage::nbt::{read_named_tag, write_named_tag, Tag};
+
+pub const MAX_INITIAL_COLLECTION_SIZE: usize = 65_536;
+
+type DecodeFn<T> = dyn Fn(&mut dyn Read) -> io::Result<T>;
+type EncodeFn<T> = dyn Fn(&mut dyn Write, &T) -> io::Result<()>;
+
+pub struct StreamCodec<T> {
+    decoder: Arc<DecodeFn<T>>,
+    encoder: Arc<EncodeFn<T>>,
+}
+
+impl<T> Clone for StreamCodec<T> {
+    fn clone(&self) -> Self {
+        Self {
+            decoder: Arc::clone(&self.decoder),
+            encoder: Arc::clone(&self.encoder),
+        }
+    }
+}
+
+impl<T: 'static> StreamCodec<T> {
+    pub fn of(
+        encoder: impl Fn(&mut dyn Write, &T) -> io::Result<()> + 'static,
+        decoder: impl Fn(&mut dyn Read) -> io::Result<T> + 'static,
+    ) -> Self {
+        Self {
+            decoder: Arc::new(decoder),
+            encoder: Arc::new(encoder),
+        }
+    }
+
+    pub fn of_member(
+        encoder: impl Fn(&T, &mut dyn Write) -> io::Result<()> + 'static,
+        decoder: impl Fn(&mut dyn Read) -> io::Result<T> + 'static,
+    ) -> Self {
+        Self::of(move |output, value| encoder(value, output), decoder)
+    }
+
+    pub fn unit(instance: T) -> Self
+    where
+        T: Clone + Eq + std::fmt::Debug,
+    {
+        let decoded = instance.clone();
+        Self::of(
+            move |_output, value| {
+                if value == &instance {
+                    Ok(())
+                } else {
+                    Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!("Can't encode '{value:?}', expected '{instance:?}'"),
+                    ))
+                }
+            },
+            move |_input| Ok(decoded.clone()),
+        )
+    }
+
+    pub fn decode(&self, input: &mut dyn Read) -> io::Result<T> {
+        (self.decoder)(input)
+    }
+
+    pub fn encode(&self, output: &mut dyn Write, value: &T) -> io::Result<()> {
+        (self.encoder)(output, value)
+    }
+
+    pub fn map<O: 'static>(
+        self,
+        to: impl Fn(T) -> O + 'static,
+        from: impl Fn(&O) -> T + 'static,
+    ) -> StreamCodec<O> {
+        let encoder_codec = self.clone();
+        let decoder_codec = self;
+        StreamCodec::of(
+            move |output, value| encoder_codec.encode(output, &from(value)),
+            move |input| decoder_codec.decode(input).map(&to),
+        )
+    }
+}
+
+pub struct IdDispatchCodec<V, T> {
+    type_getter: Box<dyn Fn(&V) -> T>,
+    by_id: Vec<IdDispatchEntry<V, T>>,
+    to_id: HashMap<T, usize>,
+}
+
+struct IdDispatchEntry<V, T> {
+    serializer: StreamCodec<V>,
+    type_id: T,
+}
+
+impl<V: 'static, T> IdDispatchCodec<V, T>
+where
+    T: Clone + Eq + Hash + std::fmt::Debug + 'static,
+{
+    pub fn builder(type_getter: impl Fn(&V) -> T + 'static) -> IdDispatchCodecBuilder<V, T> {
+        IdDispatchCodecBuilder {
+            entries: Vec::new(),
+            type_getter: Box::new(type_getter),
+        }
+    }
+
+    pub fn decode(&self, input: &mut dyn Read) -> io::Result<V> {
+        let id = read_var_i32(input)?;
+        let Some(entry) = usize::try_from(id).ok().and_then(|id| self.by_id.get(id)) else {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("Received unknown packet id {id}"),
+            ));
+        };
+
+        entry.serializer.decode(input).map_err(|err| {
+            io::Error::new(
+                err.kind(),
+                format!("Failed to decode packet '{:?}': {err}", entry.type_id),
+            )
+        })
+    }
+
+    pub fn encode(&self, output: &mut dyn Write, value: &V) -> io::Result<()> {
+        let type_id = (self.type_getter)(value);
+        let Some(&id) = self.to_id.get(&type_id) else {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("Sending unknown packet '{type_id:?}'"),
+            ));
+        };
+        write_var_i32(output, id as i32)?;
+
+        let entry = &self.by_id[id];
+        entry.serializer.encode(output, value).map_err(|err| {
+            io::Error::new(
+                err.kind(),
+                format!("Failed to encode packet '{type_id:?}': {err}"),
+            )
+        })
+    }
+}
+
+pub struct IdDispatchCodecBuilder<V, T> {
+    entries: Vec<IdDispatchEntry<V, T>>,
+    type_getter: Box<dyn Fn(&V) -> T>,
+}
+
+impl<V: 'static, T> IdDispatchCodecBuilder<V, T>
+where
+    T: Clone + Eq + Hash + std::fmt::Debug + 'static,
+{
+    pub fn add(mut self, type_id: T, serializer: StreamCodec<V>) -> Self {
+        self.entries.push(IdDispatchEntry {
+            serializer,
+            type_id,
+        });
+        self
+    }
+
+    pub fn build(self) -> io::Result<IdDispatchCodec<V, T>> {
+        let mut to_id = HashMap::new();
+        for (id, entry) in self.entries.iter().enumerate() {
+            if to_id.insert(entry.type_id.clone(), id).is_some() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("Duplicate registration for type {:?}", entry.type_id),
+                ));
+            }
+        }
+
+        Ok(IdDispatchCodec {
+            type_getter: self.type_getter,
+            by_id: self.entries,
+            to_id,
+        })
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Uuid(pub [u8; 16]);
@@ -143,31 +320,71 @@ where
     }
 }
 
-pub fn read_collection<R, T, F>(reader: &mut R, mut read: F) -> io::Result<Vec<T>>
+pub fn read_count<R: Read>(reader: &mut R, max_size: usize) -> io::Result<usize> {
+    let count = read_var_i32(reader)?;
+    if count < 0 || count as usize > max_size {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("{count} elements exceeded max size of: {max_size}"),
+        ));
+    }
+    Ok(count as usize)
+}
+
+pub fn write_count<W: Write>(writer: &mut W, count: usize, max_size: usize) -> io::Result<()> {
+    if count > max_size {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("{count} elements exceeded max size of: {max_size}"),
+        ));
+    }
+    write_var_i32(writer, count as i32)
+}
+
+pub fn read_collection<R, T, F>(reader: &mut R, read: F) -> io::Result<Vec<T>>
 where
     R: Read,
     F: FnMut(&mut R) -> io::Result<T>,
 {
-    let len = read_var_i32(reader)?;
-    if len < 0 {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "negative collection length",
-        ));
-    }
-    let mut values = Vec::with_capacity(len as usize);
+    read_collection_limited(reader, usize::MAX, read)
+}
+
+pub fn read_collection_limited<R, T, F>(
+    reader: &mut R,
+    max_size: usize,
+    mut read: F,
+) -> io::Result<Vec<T>>
+where
+    R: Read,
+    F: FnMut(&mut R) -> io::Result<T>,
+{
+    let len = read_count(reader, max_size)?;
+    let mut values = Vec::with_capacity(len.min(MAX_INITIAL_COLLECTION_SIZE));
     for _ in 0..len {
         values.push(read(reader)?);
     }
     Ok(values)
 }
 
-pub fn write_collection<W, T, F>(writer: &mut W, values: &[T], mut write: F) -> io::Result<()>
+pub fn write_collection<W, T, F>(writer: &mut W, values: &[T], write: F) -> io::Result<()>
 where
     W: Write,
     F: FnMut(&mut W, &T) -> io::Result<()>,
 {
-    write_var_i32(writer, values.len() as i32)?;
+    write_collection_limited(writer, values, usize::MAX, write)
+}
+
+pub fn write_collection_limited<W, T, F>(
+    writer: &mut W,
+    values: &[T],
+    max_size: usize,
+    mut write: F,
+) -> io::Result<()>
+where
+    W: Write,
+    F: FnMut(&mut W, &T) -> io::Result<()>,
+{
+    write_count(writer, values.len(), max_size)?;
     for value in values {
         write(writer, value)?;
     }
@@ -476,6 +693,77 @@ mod tests {
     }
 
     #[test]
+    fn stream_codec_model_matches_java_functional_surface() {
+        const STREAM_CODEC_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/codec/StreamCodec.java"
+        );
+        const STREAM_DECODER_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/codec/StreamDecoder.java"
+        );
+        const STREAM_ENCODER_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/codec/StreamEncoder.java"
+        );
+        const STREAM_MEMBER_ENCODER_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/codec/StreamMemberEncoder.java"
+        );
+
+        for sentinel in [
+            "static <B, V> StreamCodec<B, V> of(final StreamEncoder<B, V> encoder, final StreamDecoder<B, V> decoder)",
+            "static <B, V> StreamCodec<B, V> ofMember(final StreamMemberEncoder<B, V> encoder, final StreamDecoder<B, V> decoder)",
+            "static <B, V> StreamCodec<B, V> unit(final V instance)",
+            "if (!value.equals(instance))",
+            "default <O> StreamCodec<B, O> map(final Function<? super V, ? extends O> to, final Function<? super O, ? extends V> from)",
+            "default <U> StreamCodec<B, U> dispatch(",
+            "static <B, C, T1, T2> StreamCodec<B, C> composite(",
+            "static <B, T> StreamCodec<B, T> recursive(final UnaryOperator<StreamCodec<B, T>> factory)",
+            "interface CodecOperation<B, S, T>",
+        ] {
+            assert!(
+                STREAM_CODEC_JAVA.contains(sentinel),
+                "missing StreamCodec sentinel {sentinel}"
+            );
+        }
+        assert!(STREAM_DECODER_JAVA.contains("T decode(I input);"));
+        assert!(STREAM_ENCODER_JAVA.contains("void encode(O output, T value);"));
+        assert!(STREAM_MEMBER_ENCODER_JAVA.contains("void encode(T value, O output);"));
+
+        let byte_codec = StreamCodec::of(
+            |output, value: &u8| output.write_all(&[*value]),
+            |input| {
+                let mut byte = [0];
+                input.read_exact(&mut byte)?;
+                Ok(byte[0])
+            },
+        );
+        let plus_one = byte_codec.map(|value| value + 1, |value| value - 1);
+        let mut bytes = Vec::new();
+        plus_one.encode(&mut bytes, &6).unwrap();
+        assert_eq!(bytes, vec![5]);
+        assert_eq!(plus_one.decode(&mut cursor(bytes)).unwrap(), 6);
+
+        let member = StreamCodec::of_member(
+            |value: &u8, output| output.write_all(&[*value + 1]),
+            |input| {
+                let mut byte = [0];
+                input.read_exact(&mut byte)?;
+                Ok(byte[0] - 1)
+            },
+        );
+        let mut bytes = Vec::new();
+        member.encode(&mut bytes, &8).unwrap();
+        assert_eq!(bytes, vec![9]);
+        assert_eq!(member.decode(&mut cursor(bytes)).unwrap(), 8);
+
+        let unit = StreamCodec::unit("minecraft:unit");
+        assert_eq!(
+            unit.decode(&mut cursor(Vec::new())).unwrap(),
+            "minecraft:unit"
+        );
+        assert!(unit.encode(&mut Vec::new(), &"minecraft:unit").is_ok());
+        assert!(unit.encode(&mut Vec::new(), &"minecraft:other").is_err());
+    }
+
+    #[test]
     fn string_length_limit_counts_utf16_units_like_java() {
         const UTF8_STRING_JAVA: &str =
             include_str!("../../../decompiled-server-26.1.2/net/minecraft/network/Utf8String.java");
@@ -538,6 +826,59 @@ mod tests {
     }
 
     #[test]
+    fn byte_buf_codecs_count_limits_match_java_collections() {
+        const BYTE_BUF_CODECS_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/codec/ByteBufCodecs.java"
+        );
+
+        for sentinel in [
+            "int MAX_INITIAL_COLLECTION_SIZE = 65536;",
+            "static int readCount(final ByteBuf input, final int maxSize)",
+            "if (count > maxSize)",
+            "static void writeCount(final ByteBuf output, final int count, final int maxSize)",
+            "constructor.apply(Math.min(count, 65536))",
+            "StreamCodec.CodecOperation<B, V, List<V>> list(final int maxSize)",
+            "return input.readBoolean() ? Optional.of(original.decode(input)) : Optional.empty();",
+            "return input.readBoolean() ? Either.left(leftCodec.decode(input)) : Either.right(rightCodec.decode(input));",
+            "static <V> StreamCodec.CodecOperation<ByteBuf, V, V> lengthPrefixed(final int maxSize)",
+        ] {
+            assert!(
+                BYTE_BUF_CODECS_JAVA.contains(sentinel),
+                "missing ByteBufCodecs sentinel {sentinel}"
+            );
+        }
+
+        assert_eq!(MAX_INITIAL_COLLECTION_SIZE, 65_536);
+
+        let mut bytes = Vec::new();
+        write_collection_limited(&mut bytes, &[1, 2], 2, |writer, value| {
+            write_var_i32(writer, *value)
+        })
+        .unwrap();
+        assert_eq!(
+            read_collection_limited(&mut cursor(bytes), 2, read_var_i32).unwrap(),
+            vec![1, 2]
+        );
+
+        assert!(
+            write_collection_limited(&mut Vec::new(), &[1, 2, 3], 2, |writer, value| {
+                write_var_i32(writer, *value)
+            })
+            .is_err()
+        );
+
+        let mut too_many = Vec::new();
+        write_var_i32(&mut too_many, 3).unwrap();
+        too_many.extend_from_slice(&[1, 2, 3]);
+        assert!(read_collection_limited(&mut cursor(too_many), 2, |reader| {
+            let mut byte = [0];
+            reader.read_exact(&mut byte)?;
+            Ok(byte[0])
+        })
+        .is_err());
+    }
+
+    #[test]
     fn round_trips_optional_collection_enum_and_bitset() {
         let mut bytes = Vec::new();
         write_optional(&mut bytes, Some(&7), |writer, value| {
@@ -564,6 +905,93 @@ mod tests {
         );
         assert_eq!(read_enum_index(&mut input, 3).unwrap(), 2);
         assert_eq!(read_bitset(&mut input).unwrap(), vec![0xFF, 0xAA]);
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    enum TestPacket {
+        Ping(i32),
+        Pong(i32),
+        Unknown,
+    }
+
+    fn packet_type(packet: &TestPacket) -> &'static str {
+        match packet {
+            TestPacket::Ping(_) => "ping",
+            TestPacket::Pong(_) => "pong",
+            TestPacket::Unknown => "unknown",
+        }
+    }
+
+    fn packet_codec(expected: &'static str) -> StreamCodec<TestPacket> {
+        StreamCodec::of(
+            move |output, packet| {
+                let value = match (expected, packet) {
+                    ("ping", TestPacket::Ping(value)) | ("pong", TestPacket::Pong(value)) => value,
+                    _ => {
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            "wrong packet type",
+                        ));
+                    }
+                };
+                write_var_i32(output, *value)
+            },
+            move |input| {
+                let value = read_var_i32(input)?;
+                match expected {
+                    "ping" => Ok(TestPacket::Ping(value)),
+                    "pong" => Ok(TestPacket::Pong(value)),
+                    _ => unreachable!(),
+                }
+            },
+        )
+    }
+
+    #[test]
+    fn id_dispatch_codec_matches_java_registration_and_error_contracts() {
+        const ID_DISPATCH_CODEC_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/codec/IdDispatchCodec.java"
+        );
+
+        for sentinel in [
+            "private static final int UNKNOWN_TYPE = -1;",
+            "int id = VarInt.read(input);",
+            "throw new DecoderException(\"Received unknown packet id \" + id);",
+            "throw new EncoderException(\"Sending unknown packet '\" + type + \"'\");",
+            "throw new DecoderException(\"Failed to decode packet '\" + entry.type + \"'\", e);",
+            "throw new EncoderException(\"Failed to encode packet '\" + type + \"'\", e);",
+            "toId.defaultReturnValue(-2);",
+            "throw new IllegalStateException(\"Duplicate registration for type \" + entry.type);",
+            "public interface DontDecorateException",
+        ] {
+            assert!(
+                ID_DISPATCH_CODEC_JAVA.contains(sentinel),
+                "missing IdDispatchCodec sentinel {sentinel}"
+            );
+        }
+
+        let codec = IdDispatchCodec::builder(packet_type)
+            .add("ping", packet_codec("ping"))
+            .add("pong", packet_codec("pong"))
+            .build()
+            .unwrap();
+
+        let mut bytes = Vec::new();
+        codec.encode(&mut bytes, &TestPacket::Pong(300)).unwrap();
+        assert_eq!(bytes, vec![1, 0xac, 0x02]);
+        assert_eq!(
+            codec.decode(&mut cursor(vec![0, 42])).unwrap(),
+            TestPacket::Ping(42)
+        );
+
+        assert!(codec.decode(&mut cursor(vec![2])).is_err());
+        assert!(codec.encode(&mut Vec::new(), &TestPacket::Unknown).is_err());
+
+        let duplicate = IdDispatchCodec::builder(packet_type)
+            .add("ping", packet_codec("ping"))
+            .add("ping", packet_codec("ping"))
+            .build();
+        assert!(duplicate.is_err());
     }
 
     #[test]
