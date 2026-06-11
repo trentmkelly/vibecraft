@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use crate::item_swing_animation_component::SwingAnimationComponent;
+use crate::item_tooltip_components::TooltipDisplayComponent;
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -410,6 +411,7 @@ pub enum ItemComponent {
     },
     Enchantable(u32),
     Tooltip(TooltipBehavior),
+    TooltipDisplay(TooltipDisplayComponent),
     UseRemainder(&'static str),
     ItemModel(&'static str),
     ItemName(&'static str),
@@ -501,7 +503,7 @@ impl ItemDefinition {
                 ItemComponent::MaxStackSize(64),
                 ItemComponent::Rarity(Rarity::Common),
                 ItemComponent::UseAnimation(ItemUseAnimation::None),
-                ItemComponent::Tooltip(TooltipBehavior::Normal),
+                ItemComponent::TooltipDisplay(TooltipDisplayComponent::default_component()),
                 ItemComponent::ItemName(registry_id),
                 ItemComponent::ItemModel(registry_id),
             ],
@@ -649,6 +651,7 @@ impl ItemDefinition {
                 ItemComponent::Tooltip(tooltip) => effective.tooltip = tooltip.clone(),
                 ItemComponent::Damage(_)
                 | ItemComponent::SwingAnimation(_)
+                | ItemComponent::TooltipDisplay(_)
                 | ItemComponent::UseRemainder(_)
                 | ItemComponent::ItemModel(_)
                 | ItemComponent::ItemName(_)
@@ -695,7 +698,8 @@ impl ItemComponent {
             Self::Food { .. } => "minecraft:food",
             Self::Equippable { .. } => "minecraft:equippable",
             Self::Enchantable(_) => "minecraft:enchantable",
-            Self::Tooltip(_) => "minecraft:tooltip_display",
+            Self::Tooltip(_) => "minecraft:enchantment_glint_override",
+            Self::TooltipDisplay(_) => "minecraft:tooltip_display",
             Self::UseRemainder(_) => "minecraft:use_remainder",
             Self::ItemModel(_) => "minecraft:item_model",
             Self::ItemName(_) => "minecraft:item_name",
