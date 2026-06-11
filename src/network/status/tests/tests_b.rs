@@ -27,6 +27,26 @@ pub fn live_spawn_chunk_packet_uses_generated_level_chunk_serialization() {
 }
 
 #[test]
+pub fn live_spawn_chunk_is_framed_as_level_chunk_with_light_not_light_update() {
+    let chunk = LevelChunk::empty(ChunkPos { x: 0, z: 0 });
+    let mut framed = Vec::new();
+
+    super::super::write_generated_spawn_chunk_packets_from_chunk(
+        &mut framed,
+        CompressionState::disabled(),
+        &chunk,
+    )
+    .unwrap();
+
+    let mut input = &framed[..];
+    let frame_len = read_var_i32(&mut input).unwrap();
+    assert!(frame_len > 0);
+    let packet_id = read_var_i32(&mut input).unwrap();
+    assert_eq!(packet_id, CLIENTBOUND_PLAY_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID);
+    assert_ne!(packet_id, crate::network::play::CLIENTBOUND_LIGHT_UPDATE_PACKET_ID);
+}
+
+#[test]
 pub fn live_login_writer_reuses_vanilla_common_spawn_codec() {
     let login = ClientboundLoginPacket {
         player_id: 42,
