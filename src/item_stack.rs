@@ -6,6 +6,22 @@ use crate::item_properties::{item_definition, ItemComponent, ItemDefinition};
 
 pub const COMMON_COMPONENT_EMPTY: &str = "";
 
+pub trait ItemInstanceModel {
+    const FIELD_ID: &'static str = "id";
+    const FIELD_COUNT: &'static str = "count";
+    const FIELD_COMPONENTS: &'static str = "components";
+
+    fn count(&self) -> i32;
+    fn component(&self, key: &'static str) -> Option<&ItemComponent>;
+
+    fn get_max_stack_size(&self) -> u32 {
+        match self.component("minecraft:max_stack_size") {
+            Some(ItemComponent::MaxStackSize(max)) => *max,
+            _ => 1,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ItemStack {
     item_id: &'static str,
@@ -289,6 +305,16 @@ impl ItemStack {
     }
 }
 
+impl ItemInstanceModel for ItemStack {
+    fn count(&self) -> i32 {
+        self.count()
+    }
+
+    fn component(&self, key: &'static str) -> Option<&ItemComponent> {
+        self.component(key)
+    }
+}
+
 pub fn air_item_name_from_type_holder(
     components: &BTreeMap<&'static str, ItemComponent>,
 ) -> &'static str {
@@ -305,6 +331,8 @@ mod tests {
 
     const AIR_ITEM_JAVA: &str =
         include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/AirItem.java");
+    const ITEM_INSTANCE_JAVA: &str =
+        include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/ItemInstance.java");
 
     #[test]
     fn empty_stack_rules_match_vanilla_air_or_non_positive_count() {
@@ -381,6 +409,30 @@ mod tests {
         let air_stack = ItemStack::new("minecraft:air", 1);
         assert!(air_stack.is_empty());
         assert!(air_stack.component("minecraft:item_name").is_none());
+    }
+
+    #[test]
+    fn item_instance_field_names_and_max_stack_default_match_java() {
+        assert!(ITEM_INSTANCE_JAVA.contains("String FIELD_ID = \"id\";"));
+        assert!(ITEM_INSTANCE_JAVA.contains("String FIELD_COUNT = \"count\";"));
+        assert!(ITEM_INSTANCE_JAVA.contains("String FIELD_COMPONENTS = \"components\";"));
+        assert!(ITEM_INSTANCE_JAVA.contains("int count();"));
+        assert!(ITEM_INSTANCE_JAVA.contains("return this.getOrDefault(DataComponents.MAX_STACK_SIZE, 1);"));
+
+        assert_eq!(<ItemStack as ItemInstanceModel>::FIELD_ID, "id");
+        assert_eq!(<ItemStack as ItemInstanceModel>::FIELD_COUNT, "count");
+        assert_eq!(
+            <ItemStack as ItemInstanceModel>::FIELD_COMPONENTS,
+            "components"
+        );
+
+        let stick = ItemStack::new("minecraft:stick", 7);
+        assert_eq!(ItemInstanceModel::count(&stick), 7);
+        assert_eq!(ItemInstanceModel::get_max_stack_size(&stick), 64);
+
+        let empty = ItemStack::empty();
+        assert_eq!(ItemInstanceModel::count(&empty), 0);
+        assert_eq!(ItemInstanceModel::get_max_stack_size(&empty), 1);
     }
 
     #[test]
