@@ -9,8 +9,8 @@
 use std::io::{self, Write};
 
 use super::block_placement_live::{
-    direction3d_to_block, place_block_item_in_world, run_live_shape_cascade, write_block_update,
-    LiveBlockWorld, LiveCascade,
+    consume_placed_block_item, direction3d_to_block, place_block_item_in_world,
+    run_live_shape_cascade, write_block_update, LiveBlockWorld, LiveCascade,
 };
 use super::chunk_b::{
     raw_stack_for_player_inventory, write_block_change_ack, write_player_inventory_slot_update,
@@ -18,8 +18,10 @@ use super::chunk_b::{
 };
 use super::chunk_d_2::{pseudo_rand_f32, write_item_entity_spawn_packets};
 use super::*;
+use crate::block_survival::SurvivalWorld;
 use crate::block_update::BlockPos;
 use crate::item_flint_and_steel::FlintAndSteelUse;
+use crate::item_honeycomb::HoneycombUse;
 use crate::item_tool_use::{ToolDrop, ToolUse};
 
 /// Java `FlintAndSteelItem.useOn`: light a campfire/candle/candle cake in
@@ -158,6 +160,63 @@ pub(super) fn use_block_mutation_tool<W: Write>(
     run_live_shape_cascade(stream, compression, &mut cascade, vec![pos])?;
 
     hurt_and_break_held_item(stream, compression, state, held_slot)
+}
+
+/// Java `HoneycombItem.useOn`: wax a copper block state in place, preserving
+/// shared block-state properties, then consume one honeycomb.
+pub(super) fn use_honeycomb<W: Write>(
+    stream: &mut W,
+    compression: CompressionState,
+    state: &mut PlaySessionState,
+    context: &mut UseItemOnContext<'_, '_>,
+    packet: &crate::network::play::ServerboundUseItemOnPacket,
+    held_slot: usize,
+) -> io::Result<()> {
+    let clicked_pos = BlockPos {
+        x: packet.block_hit.x,
+        y: packet.block_hit.y,
+        z: packet.block_hit.z,
+    };
+    let world = LiveBlockWorld {
+        layout: context.world_layout,
+        seed: context.world_seed,
+        cache: context.chunk_cache,
+    };
+    let old_state = world.state_at(clicked_pos);
+    let HoneycombUse::WaxBlock {
+        pos,
+        state: new_state,
+    } = crate::item_honeycomb::use_on(&old_state, clicked_pos)
+    else {
+        return write_block_change_ack(stream, compression, packet.sequence);
+    };
+
+    // Java also triggers ITEM_USED_ON_BLOCK, GameEvent.BLOCK_CHANGE, and
+    // level event 3003 (plus the connected half for double chests). Those
+    // advancement/game-event/effect broadcasters are not live yet.
+    // TODO(live-sign-applicator-use): Java `HoneycombItem` implements
+    // `SignApplicator`, but sign waxing is dispatched by the sign block's
+    // interaction path rather than by `Item.useOn`; route that path through
+    // `item_honeycomb::try_apply_to_sign` when live sign item application is
+    // wired.
+    place_block_item_in_world(context, pos, &new_state.state_name());
+    write_block_change_ack(stream, compression, packet.sequence)?;
+    let id = crate::block_states::network_id_for_block_state(&new_state.state_name()).unwrap_or(0);
+    write_block_update(stream, compression, pos, id)?;
+
+    let mut cascade = LiveCascade {
+        layout: context.world_layout,
+        seed: context.world_seed,
+        cache: context.chunk_cache,
+        fluid_ticks: context.live_fluid_ticks,
+        block_ticks: context.live_block_ticks,
+        game_time: context.game_time,
+        random_roll: ((context.game_time as i32) ^ pos.x ^ pos.z).rem_euclid(25),
+        max_chained_neighbor_updates: context.max_chained_neighbor_updates,
+    };
+    run_live_shape_cascade(stream, compression, &mut cascade, vec![pos])?;
+
+    consume_placed_block_item(stream, compression, state, held_slot)
 }
 
 fn spawn_tool_drop<W: Write>(
@@ -457,6 +516,67 @@ mod tests {
         (placed, held, drops)
     }
 
+    fn run_honeycomb_use(
+        test_name: &str,
+        clicked_state: &str,
+        mode: GameMode,
+    ) -> (crate::block_behavior::BlockStateModel, ItemStack) {
+        let root = temp_world_root(test_name);
+        let layout = WorldLayout::new(&root);
+        let cache = GeneratedChunkCache::default();
+        let packet = use_packet(0, 64, 0, Direction3d::Up);
+        let clicked = BlockPos { x: 0, y: 64, z: 0 };
+        cache.set_block(layout.root(), 42, clicked, clicked_state);
+
+        let mut session = PlaySessionState {
+            game_mode: mode,
+            ..Default::default()
+        };
+        session
+            .inventory_menu
+            .player_inventory_mut()
+            .set(0, ItemStack::new("minecraft:honeycomb", 2));
+
+        let mut fluid_ticks = LiveFluidTicks::new();
+        let mut block_ticks = LiveBlockTicks::new();
+        let world_items = Arc::new(Mutex::new(crate::item_entity::WorldItemEntities::new()));
+        let player_access = Arc::new(Mutex::new(crate::player_access::PlayerAccess::default()));
+        let recipe_manager = crate::recipe_system::RecipeManagerModel::default();
+        let mut context = UseItemOnContext {
+            world_layout: &layout,
+            world_seed: 42,
+            chunk_cache: &cache,
+            world_items: &world_items,
+            recipe_manager: &recipe_manager,
+            live_fluid_ticks: &mut fluid_ticks,
+            live_block_ticks: &mut block_ticks,
+            game_time: 0,
+            max_chained_neighbor_updates: 512,
+            player_access: &player_access,
+            profile_uuid: "test-uuid",
+            spawn_protection_radius: 0,
+        };
+        let mut output = Vec::new();
+        use_honeycomb(
+            &mut output,
+            CompressionState::disabled(),
+            &mut session,
+            &mut context,
+            &packet,
+            0,
+        )
+        .unwrap();
+
+        let placed = LiveBlockWorld {
+            layout: &layout,
+            seed: 42,
+            cache: &cache,
+        }
+        .state_at(clicked);
+        let held = session.inventory_menu.player_inventory().get(0).clone();
+        (placed, held)
+    }
+
     #[test]
     fn axe_tool_strips_and_damages_the_held_item_live() {
         let (placed, held, drops) = run_tool_use(
@@ -536,5 +656,41 @@ mod tests {
         assert_eq!(placed.registry_id, "minecraft:dirt");
         assert_eq!(held.damage_value(), 0);
         assert!(drops.is_empty());
+    }
+
+    #[test]
+    fn honeycomb_waxes_copper_block_preserving_properties_and_consumes_one_item_live() {
+        let (placed, held) = run_honeycomb_use(
+            "honeycomb-wax",
+            "minecraft:weathered_cut_copper_stairs[facing=east,half=top,shape=inner_left,waterlogged=true]",
+            GameMode::Survival,
+        );
+        assert_eq!(placed.registry_id, "minecraft:waxed_weathered_cut_copper_stairs");
+        assert_eq!(placed.property("facing"), Some("east"));
+        assert_eq!(placed.property("half"), Some("top"));
+        assert_eq!(placed.property("shape"), Some("inner_left"));
+        assert_eq!(placed.property("waterlogged"), Some("true"));
+        assert_eq!(held, ItemStack::new("minecraft:honeycomb", 1));
+    }
+
+    #[test]
+    fn honeycomb_passes_for_non_waxable_block_without_consumption_live() {
+        let (placed, held) =
+            run_honeycomb_use("honeycomb-pass", "minecraft:stone", GameMode::Survival);
+        assert_eq!(placed.registry_id, "minecraft:stone");
+        assert_eq!(held, ItemStack::new("minecraft:honeycomb", 2));
+    }
+
+    #[test]
+    fn honeycomb_waxing_does_not_consume_in_creative_live() {
+        let (placed, held) = run_honeycomb_use(
+            "honeycomb-creative",
+            "minecraft:copper_bulb[lit=true,powered=false]",
+            GameMode::Creative,
+        );
+        assert_eq!(placed.registry_id, "minecraft:waxed_copper_bulb");
+        assert_eq!(placed.property("lit"), Some("true"));
+        assert_eq!(placed.property("powered"), Some("false"));
+        assert_eq!(held, ItemStack::new("minecraft:honeycomb", 2));
     }
 }

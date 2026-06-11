@@ -11,9 +11,10 @@
 //     wired live via item_tool_use + network::status::item_use_live. Axe's
 //     offhand blocking-item intent gate remains deferred behind
 //     TODO(live-sneak-tracking) until secondary-use tracking exists.
-//   - BoneMealItem (apply growth), HoneycombItem (wax copper),
-//     GlowInkSacItem / InkSacItem (sign glow toggle), DebugStickItem
-//     (cycle block state).
+//   - BoneMealItem (apply growth), GlowInkSacItem / InkSacItem (sign glow
+//     toggle), DebugStickItem (cycle block state). HoneycombItem copper waxing
+//     is wired live; sign-applicator dispatch remains deferred behind
+//     TODO(live-sign-applicator-use).
 //   - Entity-placement items: EndCrystalItem, ArmorStandItem, ItemFrameItem,
 //     HangingEntityItem / HangingSignItem placement.
 // Implement each here (or in a sibling use-dispatch module) once BLOCKS/ENTITIES

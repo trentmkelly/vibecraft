@@ -640,8 +640,8 @@ fn use_item_on_denied_by_world_gates(
 
 /// Java `ServerPlayerGameMode.useItemOn` second stage: `itemStack.useOn(
 /// context)` dispatches on the item class. Behavioral (non-`BlockItem`) useOn
-/// overrides are wired in `item_use_live`: flint and steel plus the
-/// axe/shovel/hoe block mutations so far (the rest of the family sits on
+/// overrides are wired in `item_use_live`: flint and steel, honeycomb copper
+/// waxing, and the axe/shovel/hoe block mutations so far (the rest sits on
 /// `TODO(item-use-block-and-entity-behaviors)` in `item_family_behavior.rs`).
 /// Returns `None` for items without a behavioral override, which fall through
 /// to `BlockItem.place`.
@@ -657,6 +657,16 @@ fn dispatch_behavioral_item_use_on(
 ) -> Option<io::Result<()>> {
     if item_name == "minecraft:flint_and_steel" {
         return Some(super::item_use_live::use_flint_and_steel(
+            stream,
+            compression,
+            state,
+            context,
+            packet,
+            held_slot,
+        ));
+    }
+    if item_name == "minecraft:honeycomb" {
+        return Some(super::item_use_live::use_honeycomb(
             stream,
             compression,
             state,
