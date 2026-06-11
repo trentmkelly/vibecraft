@@ -373,6 +373,7 @@ mod criterion_used_ender_eye;
 mod criterion_used_totem;
 #[cfg(test)]
 mod criterion_using_item;
+pub mod custom_boss_events;
 mod damage_type;
 #[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod data_advancement_packs;
