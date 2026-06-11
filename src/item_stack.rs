@@ -4,6 +4,8 @@ use std::collections::BTreeMap;
 
 use crate::item_properties::{item_definition, ItemComponent, ItemDefinition};
 
+pub const COMMON_COMPONENT_EMPTY: &str = "";
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ItemStack {
     item_id: &'static str,
@@ -287,10 +289,22 @@ impl ItemStack {
     }
 }
 
+pub fn air_item_name_from_type_holder(
+    components: &BTreeMap<&'static str, ItemComponent>,
+) -> &'static str {
+    match components.get("minecraft:item_name") {
+        Some(ItemComponent::ItemName(name)) => name,
+        _ => COMMON_COMPONENT_EMPTY,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::item_properties::{ItemUseAnimation, Rarity};
+
+    const AIR_ITEM_JAVA: &str =
+        include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/AirItem.java");
 
     #[test]
     fn empty_stack_rules_match_vanilla_air_or_non_positive_count() {
@@ -341,6 +355,32 @@ mod tests {
             ominous.component("minecraft:rarity"),
             Some(&ItemComponent::Rarity(Rarity::Uncommon))
         );
+    }
+
+    #[test]
+    fn air_item_name_uses_type_holder_item_name_or_empty_like_java() {
+        assert!(AIR_ITEM_JAVA.contains("public class AirItem extends Item"));
+        assert!(AIR_ITEM_JAVA.contains("getOrDefault(DataComponents.ITEM_NAME, CommonComponents.EMPTY)"));
+
+        let empty_type_holder = BTreeMap::new();
+        assert_eq!(
+            air_item_name_from_type_holder(&empty_type_holder),
+            COMMON_COMPONENT_EMPTY
+        );
+
+        let mut named_type_holder = BTreeMap::new();
+        named_type_holder.insert(
+            "minecraft:item_name",
+            ItemComponent::ItemName("block.minecraft.cave_air"),
+        );
+        assert_eq!(
+            air_item_name_from_type_holder(&named_type_holder),
+            "block.minecraft.cave_air"
+        );
+
+        let air_stack = ItemStack::new("minecraft:air", 1);
+        assert!(air_stack.is_empty());
+        assert!(air_stack.component("minecraft:item_name").is_none());
     }
 
     #[test]
