@@ -114,7 +114,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. Each pack
 - [ ] `net/minecraft/commands/arguments/coordinates` (11 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/commands/arguments/item` (7 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/commands/arguments/selector` (3 Java files): add class-level Rust port tasks and parity tests.
-- [ ] `net/minecraft/commands/arguments/selector/options` (2 Java files): add class-level Rust port tasks and parity tests.
+- [x] `net/minecraft/commands/arguments/selector/options` (2 Java files): add class-level Rust port tasks and parity tests. — all package rows are covered in `CHECKLIST_JAVA_CLASSES.md`: `EntitySelectorOptions` is modeled in `command_selector` with Java-backed registered option, inversion, validation/error, duplicate/inapplicable-state, sort, player-only narrowing, score/NBT/predicate, and advancement criterion tests, and package-info is audited as the nullability marker. Verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 command_selector`.
 - [ ] `net/minecraft/commands/execution` (11 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/commands/execution/tasks` (7 Java files): add class-level Rust port tasks and parity tests.
 - [x] `net/minecraft/commands/functions` (7 Java files): class-level Rust port tasks and parity tests are tracked in `CHECKLIST_JAVA_CLASSES.md` and verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 command_function`.
