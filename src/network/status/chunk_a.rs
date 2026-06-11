@@ -1085,6 +1085,13 @@ fn run_configuration_handshake(
         CLIENTBOUND_CONFIGURATION_UPDATE_TAGS_PACKET_ID,
         write_minimal_update_tags_packet,
     )?;
+    run_server_resource_pack_configuration_task(
+        stream,
+        properties,
+        compression,
+        rate_limiter,
+        active_login,
+    )?;
     run_known_pack_configuration_exchange(
         stream,
         properties,
@@ -1106,6 +1113,164 @@ fn run_configuration_handshake(
         rate_limiter,
         active_login,
     )
+}
+
+fn run_server_resource_pack_configuration_task(
+    stream: &mut TcpStream,
+    properties: &ServerProperties,
+    compression: CompressionState,
+    rate_limiter: &mut PacketRateLimiter,
+    active_login: &ActiveLoginGuard,
+) -> io::Result<()> {
+    let Some(packet) = server_resource_pack_push_packet(properties) else {
+        return Ok(());
+    };
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_CONFIGURATION_RESOURCE_PACK_PUSH_PACKET_ID,
+        |payload| packet.write(payload),
+    )?;
+    let response = read_expected_configuration_resource_pack_response(
+        stream,
+        compression,
+        rate_limiter,
+        active_login,
+    )?;
+    if packet.required && response.action == ResourcePackAction::Declined {
+        write_configuration_rate_limit_disconnect(
+            stream,
+            compression,
+            "multiplayer.requiredTexturePrompt.disconnect",
+        )?;
+        let _ = stream.shutdown(Shutdown::Both);
+        return Err(io::Error::new(
+            io::ErrorKind::ConnectionAborted,
+            "required resource pack declined",
+        ));
+    }
+    Ok(())
+}
+
+pub fn server_resource_pack_push_packet(
+    properties: &ServerProperties,
+) -> Option<ClientboundResourcePackPushPacket> {
+    if properties.resource_pack.is_empty() {
+        return None;
+    }
+    let hash = if !properties.resource_pack_sha1.is_empty() {
+        properties.resource_pack_sha1.clone()
+    } else {
+        properties.resource_pack_hash.clone().unwrap_or_default()
+    };
+    let prompt = valid_resource_pack_prompt(&properties.resource_pack_prompt)
+        .then(|| ComponentJson(properties.resource_pack_prompt.clone()));
+    Some(ClientboundResourcePackPushPacket {
+        id: resource_pack_id(properties)?,
+        url: properties.resource_pack.clone(),
+        hash,
+        required: properties.require_resource_pack,
+        prompt,
+    })
+}
+
+fn valid_resource_pack_prompt(prompt: &str) -> bool {
+    !prompt.is_empty() && serde_json::from_str::<serde_json::Value>(prompt).is_ok()
+}
+
+fn resource_pack_id(properties: &ServerProperties) -> Option<Uuid> {
+    if properties.resource_pack_id.is_empty() {
+        Some(java_name_uuid_from_bytes(properties.resource_pack.as_bytes()))
+    } else {
+        parse_hyphenated_uuid(&properties.resource_pack_id)
+    }
+}
+
+fn java_name_uuid_from_bytes(bytes: &[u8]) -> Uuid {
+    let mut digest = crate::random_source::md5_digest(bytes);
+    digest[6] = (digest[6] & 0x0f) | 0x30;
+    digest[8] = (digest[8] & 0x3f) | 0x80;
+    Uuid(digest)
+}
+
+fn parse_hyphenated_uuid(value: &str) -> Option<Uuid> {
+    if value.len() != 36 {
+        return None;
+    }
+    for index in [8usize, 13, 18, 23] {
+        if value.as_bytes().get(index).copied() != Some(b'-') {
+            return None;
+        }
+    }
+    let mut bytes = [0u8; 16];
+    let mut out = 0;
+    let mut high = None;
+    for byte in value.bytes().filter(|byte| *byte != b'-') {
+        let nibble = hex_value(byte)?;
+        if let Some(high_nibble) = high.take() {
+            bytes[out] = (high_nibble << 4) | nibble;
+            out += 1;
+        } else {
+            high = Some(nibble);
+        }
+    }
+    (out == 16 && high.is_none()).then_some(Uuid(bytes))
+}
+
+fn hex_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
+pub fn read_expected_configuration_resource_pack_response(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    rate_limiter: &mut PacketRateLimiter,
+    active_login: &ActiveLoginGuard,
+) -> io::Result<ServerboundResourcePackPacket> {
+    for _ in 0..32 {
+        let packet = read_packet_with_rate_limit(stream, compression, rate_limiter)?;
+        let mut input = Cursor::new(packet);
+        let packet_id = read_var_i32(&mut input)?;
+        if packet_id == SERVERBOUND_CONFIGURATION_RESOURCE_PACK_PACKET_ID {
+            let response = ServerboundResourcePackPacket::read(&mut input)?;
+            if input.position() != input.get_ref().len() as u64 {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "trailing bytes in configuration resource pack response",
+                ));
+            }
+            if response.action.is_terminal() {
+                return Ok(response);
+            }
+            continue;
+        }
+        if packet_id == SERVERBOUND_CONFIGURATION_CUSTOM_PAYLOAD_PACKET_ID {
+            let _ = ServerboundCustomPayloadPacket::read(&mut input)?;
+            continue;
+        }
+        if packet_id == SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID {
+            let packet = ServerboundClientInformationPacket::read(&mut input)?;
+            active_login.set_allows_listing(packet.information.allows_listing);
+            active_login.set_language(&packet.information.language);
+            continue;
+        }
+        if is_tolerated_serverbound_configuration_packet(packet_id) {
+            continue;
+        }
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("expected resource pack response, got configuration packet {packet_id}"),
+        ));
+    }
+    Err(io::Error::new(
+        io::ErrorKind::TimedOut,
+        "timed out waiting for resource pack response",
+    ))
 }
 
 fn run_known_pack_configuration_exchange(

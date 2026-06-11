@@ -59,6 +59,7 @@ pub struct ServerProperties {
     pub region_file_compression: String,
     pub require_resource_pack: bool,
     pub resource_pack: String,
+    pub resource_pack_hash: Option<String>,
     pub resource_pack_id: String,
     pub resource_pack_prompt: String,
     pub resource_pack_sha1: String,
@@ -161,6 +162,7 @@ impl ServerProperties {
             region_file_compression: string_key(&raw, "region-file-compression", "deflate"),
             require_resource_pack: bool_key(&raw, "require-resource-pack", false),
             resource_pack: string_key(&raw, "resource-pack", ""),
+            resource_pack_hash: raw.get("resource-pack-hash").cloned(),
             resource_pack_id: string_key(&raw, "resource-pack-id", ""),
             resource_pack_prompt: string_key(&raw, "resource-pack-prompt", ""),
             resource_pack_sha1: string_key(&raw, "resource-pack-sha1", ""),
@@ -476,6 +478,7 @@ use-native-transport=false
 resource-pack-id=00000000-0000-0000-0000-000000000001
 resource-pack=https://example.invalid/pack.zip
 resource-pack-sha1=0123456789abcdef0123456789abcdef01234567
+resource-pack-hash=legacyhash
 require-resource-pack=true
 resource-pack-prompt={\"text\":\"Use pack?\"}
 ";
@@ -543,6 +546,10 @@ resource-pack-prompt={\"text\":\"Use pack?\"}
         assert_eq!(
             properties.resource_pack_sha1,
             "0123456789abcdef0123456789abcdef01234567"
+        );
+        assert_eq!(
+            properties.resource_pack_hash.as_deref(),
+            Some("legacyhash")
         );
         assert!(properties.require_resource_pack);
         assert_eq!(properties.resource_pack_prompt, "{\"text\":\"Use pack?\"}");

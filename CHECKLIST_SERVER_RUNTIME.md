@@ -97,7 +97,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Implement mutable `hide-online-players`.
 - [ ] Implement mutable `entity-broadcast-range-percentage`.
 - [ ] Implement `text-filtering-config` and `text-filtering-version`.
-- [ ] Implement server resource pack fields: id, URL, SHA-1, legacy hash, required flag, prompt component.
+- [x] Implement server resource pack fields: id, URL, SHA-1, legacy hash, required flag, prompt component. — verified against Java 26.1.2 `DedicatedServerProperties.getServerPackInfo` (`resource-pack-id`, URL, SHA-1 vs. legacy `resource-pack-hash`, required flag, prompt parse, blank-id `UUID.nameUUIDFromBytes(url UTF-8)`, invalid explicit UUID rejection), `ServerResourcePackConfigurationTask` push packet construction, and `ServerCommonPacketListenerImpl`/`ServerConfigurationPacketListenerImpl` required-decline + terminal-status handling. Covered by `server_resource_pack_properties_match_java_server_pack_info_rules`, `configuration_resource_pack_wait_finishes_on_terminal_status_like_java`, resource-pack codec tests, and UUID utility tests.
 - [ ] Implement initial datapack enabled/disabled pack lists.
 - [ ] Implement mutable `player-idle-timeout`.
 - [ ] Implement mutable `status-heartbeat-interval`.

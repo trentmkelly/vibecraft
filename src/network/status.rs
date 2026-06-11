@@ -33,9 +33,10 @@ use crate::loot_system::{
 use crate::network::codec::ComponentJson;
 use crate::network::codec::{write_bitset, write_identifier, write_uuid, Uuid};
 use crate::network::common::{
-    ClientboundDisconnectPacket, ClientboundServerLinksPacket, KeepAliveState, KeepAliveTick,
-    ServerLinkEntry, ServerLinkLabel, ServerLinkType, ServerboundClientInformationPacket,
-    ServerboundCustomPayloadPacket, ServerboundKeepAlivePacket,
+    ClientboundDisconnectPacket, ClientboundResourcePackPushPacket, ClientboundServerLinksPacket,
+    KeepAliveState, KeepAliveTick, ResourcePackAction, ServerLinkEntry, ServerLinkLabel,
+    ServerLinkType, ServerboundClientInformationPacket, ServerboundCustomPayloadPacket,
+    ServerboundKeepAlivePacket, ServerboundResourcePackPacket,
 };
 use crate::network::compression::CompressionState;
 use crate::network::configuration::ClientboundCodeOfConductPacket;
@@ -145,6 +146,7 @@ pub(super) const MAX_PACKET_SIZE: usize = 2 * 1024 * 1024;
 pub(super) const CLIENTBOUND_CONFIGURATION_DISCONNECT_PACKET_ID: i32 = 2;
 pub(super) const CLIENTBOUND_CONFIGURATION_FINISH_PACKET_ID: i32 = 3;
 pub(super) const CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID: i32 = 7;
+pub(super) const CLIENTBOUND_CONFIGURATION_RESOURCE_PACK_PUSH_PACKET_ID: i32 = 9;
 pub(super) const CLIENTBOUND_CONFIGURATION_UPDATE_ENABLED_FEATURES_PACKET_ID: i32 = 12;
 pub(super) const CLIENTBOUND_CONFIGURATION_UPDATE_TAGS_PACKET_ID: i32 = 13;
 pub(super) const CLIENTBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID: i32 = 14;

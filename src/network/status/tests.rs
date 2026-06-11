@@ -1168,6 +1168,7 @@ mod tests_a2;
 mod tests_b;
 pub use tests_b::*;
 mod recipe_book_packets;
+mod resource_pack_properties;
 mod tests_c;
 mod tests_d;
 pub use tests_d::*;
