@@ -130,24 +130,6 @@ impl ContainerBlockEntityModel {
             .strip_prefix("minecraft:")
             .unwrap_or(block_id)
             .strip_suffix("_shulker_box")?;
-        match color {
-            "white" => Some(DyeColor::White),
-            "orange" => Some(DyeColor::Orange),
-            "magenta" => Some(DyeColor::Magenta),
-            "light_blue" => Some(DyeColor::LightBlue),
-            "yellow" => Some(DyeColor::Yellow),
-            "lime" => Some(DyeColor::Lime),
-            "pink" => Some(DyeColor::Pink),
-            "gray" => Some(DyeColor::Gray),
-            "light_gray" => Some(DyeColor::LightGray),
-            "cyan" => Some(DyeColor::Cyan),
-            "purple" => Some(DyeColor::Purple),
-            "blue" => Some(DyeColor::Blue),
-            "brown" => Some(DyeColor::Brown),
-            "green" => Some(DyeColor::Green),
-            "red" => Some(DyeColor::Red),
-            "black" => Some(DyeColor::Black),
-            _ => None,
-        }
+        DyeColor::from_vanilla_name(color)
     }
 }

@@ -2,25 +2,8 @@ use super::*;
 
 impl BedBlockEntity {
     pub fn from_block_state(block_state: &str) -> Option<Self> {
-        let color = match block_state.strip_prefix("minecraft:")? {
-            "white_bed" => DyeColor::White,
-            "orange_bed" => DyeColor::Orange,
-            "magenta_bed" => DyeColor::Magenta,
-            "light_blue_bed" => DyeColor::LightBlue,
-            "yellow_bed" => DyeColor::Yellow,
-            "lime_bed" => DyeColor::Lime,
-            "pink_bed" => DyeColor::Pink,
-            "gray_bed" => DyeColor::Gray,
-            "light_gray_bed" => DyeColor::LightGray,
-            "cyan_bed" => DyeColor::Cyan,
-            "purple_bed" => DyeColor::Purple,
-            "blue_bed" => DyeColor::Blue,
-            "brown_bed" => DyeColor::Brown,
-            "green_bed" => DyeColor::Green,
-            "red_bed" => DyeColor::Red,
-            "black_bed" => DyeColor::Black,
-            _ => return None,
-        };
+        let color_name = block_state.strip_prefix("minecraft:")?.strip_suffix("_bed")?;
+        let color = DyeColor::from_vanilla_name(color_name)?;
         Some(Self { color })
     }
 

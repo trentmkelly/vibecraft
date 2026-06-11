@@ -442,51 +442,6 @@ impl VaultBlockEntity {
     }
 }
 
-impl DyeColor {
-    pub(super) fn vanilla_name(self) -> &'static str {
-        match self {
-            DyeColor::White => "white",
-            DyeColor::Orange => "orange",
-            DyeColor::Magenta => "magenta",
-            DyeColor::LightBlue => "light_blue",
-            DyeColor::Yellow => "yellow",
-            DyeColor::Lime => "lime",
-            DyeColor::Pink => "pink",
-            DyeColor::Gray => "gray",
-            DyeColor::LightGray => "light_gray",
-            DyeColor::Cyan => "cyan",
-            DyeColor::Purple => "purple",
-            DyeColor::Blue => "blue",
-            DyeColor::Brown => "brown",
-            DyeColor::Green => "green",
-            DyeColor::Red => "red",
-            DyeColor::Black => "black",
-        }
-    }
-
-    pub(super) fn from_vanilla_name(value: &str) -> Option<Self> {
-        match value {
-            "white" => Some(DyeColor::White),
-            "orange" => Some(DyeColor::Orange),
-            "magenta" => Some(DyeColor::Magenta),
-            "light_blue" => Some(DyeColor::LightBlue),
-            "yellow" => Some(DyeColor::Yellow),
-            "lime" => Some(DyeColor::Lime),
-            "pink" => Some(DyeColor::Pink),
-            "gray" => Some(DyeColor::Gray),
-            "light_gray" => Some(DyeColor::LightGray),
-            "cyan" => Some(DyeColor::Cyan),
-            "purple" => Some(DyeColor::Purple),
-            "blue" => Some(DyeColor::Blue),
-            "brown" => Some(DyeColor::Brown),
-            "green" => Some(DyeColor::Green),
-            "red" => Some(DyeColor::Red),
-            "black" => Some(DyeColor::Black),
-            _ => None,
-        }
-    }
-}
-
 impl BannerPatternLayer {
     pub(super) fn to_tag(&self) -> Tag {
         Tag::Compound(vec![

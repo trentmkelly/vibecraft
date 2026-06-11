@@ -23,6 +23,7 @@ pub enum MapDecorationKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
 pub enum DyeColor {
     White,
     Orange,
@@ -40,6 +41,167 @@ pub enum DyeColor {
     Green,
     Red,
     Black,
+}
+
+impl DyeColor {
+    pub const VALUES: [Self; 16] = [
+        Self::White,
+        Self::Orange,
+        Self::Magenta,
+        Self::LightBlue,
+        Self::Yellow,
+        Self::Lime,
+        Self::Pink,
+        Self::Gray,
+        Self::LightGray,
+        Self::Cyan,
+        Self::Purple,
+        Self::Blue,
+        Self::Brown,
+        Self::Green,
+        Self::Red,
+        Self::Black,
+    ];
+
+    pub fn id(self) -> i32 {
+        self as i32
+    }
+
+    pub fn by_id(id: i32) -> Self {
+        usize::try_from(id)
+            .ok()
+            .and_then(|index| Self::VALUES.get(index).copied())
+            .unwrap_or(Self::White)
+    }
+
+    pub fn vanilla_name(self) -> &'static str {
+        self.metadata().name
+    }
+
+    pub fn serialized_name(self) -> &'static str {
+        self.vanilla_name()
+    }
+
+    pub fn by_name(name: &str, default: Option<Self>) -> Option<Self> {
+        Self::VALUES
+            .iter()
+            .copied()
+            .find(|color| color.vanilla_name() == name)
+            .or(default)
+    }
+
+    pub fn from_vanilla_name(name: &str) -> Option<Self> {
+        Self::by_name(name, None)
+    }
+
+    pub fn texture_diffuse_color(self) -> u32 {
+        opaque(self.texture_diffuse_rgb())
+    }
+
+    pub fn texture_diffuse_rgb(self) -> u32 {
+        self.metadata().texture_diffuse_rgb
+    }
+
+    pub fn map_color_name(self) -> &'static str {
+        self.metadata().map_color_name
+    }
+
+    pub fn firework_color(self) -> u32 {
+        self.metadata().firework_color
+    }
+
+    pub fn by_firework_color(color: u32) -> Option<Self> {
+        Self::VALUES
+            .iter()
+            .copied()
+            .find(|dye| dye.firework_color() == color)
+    }
+
+    pub fn text_color(self) -> u32 {
+        opaque(self.metadata().text_rgb)
+    }
+
+    pub fn mixed_color(recipe_mixed_color: Option<Self>, first: Self, second: Self, choose_first: bool) -> Self {
+        recipe_mixed_color.unwrap_or(if choose_first { first } else { second })
+    }
+
+    fn metadata(self) -> DyeColorMetadata {
+        DYE_COLOR_METADATA[self as usize]
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct DyeColorMetadata {
+    id: i32,
+    name: &'static str,
+    texture_diffuse_rgb: u32,
+    map_color_name: &'static str,
+    firework_color: u32,
+    text_rgb: u32,
+}
+
+impl DyeColorMetadata {
+    const fn new(
+        id: i32,
+        name: &'static str,
+        texture_diffuse_rgb: u32,
+        map_color_name: &'static str,
+        firework_color: u32,
+        text_rgb: u32,
+    ) -> Self {
+        Self {
+            id,
+            name,
+            texture_diffuse_rgb,
+            map_color_name,
+            firework_color,
+            text_rgb,
+        }
+    }
+}
+
+const DYE_COLOR_METADATA: [DyeColorMetadata; 16] = [
+    DyeColorMetadata::new(0, "white", 16383998, "snow", 15790320, 16777215),
+    DyeColorMetadata::new(1, "orange", 16351261, "color_orange", 15435844, 16738335),
+    DyeColorMetadata::new(
+        2,
+        "magenta",
+        13061821,
+        "color_magenta",
+        12801229,
+        16711935,
+    ),
+    DyeColorMetadata::new(
+        3,
+        "light_blue",
+        3847130,
+        "color_light_blue",
+        6719955,
+        10141901,
+    ),
+    DyeColorMetadata::new(4, "yellow", 16701501, "color_yellow", 14602026, 16776960),
+    DyeColorMetadata::new(5, "lime", 8439583, "color_light_green", 4312372, 12582656),
+    DyeColorMetadata::new(6, "pink", 15961002, "color_pink", 14188952, 16738740),
+    DyeColorMetadata::new(7, "gray", 4673362, "color_gray", 4408131, 8421504),
+    DyeColorMetadata::new(
+        8,
+        "light_gray",
+        10329495,
+        "color_light_gray",
+        11250603,
+        13882323,
+    ),
+    DyeColorMetadata::new(9, "cyan", 1481884, "color_cyan", 2651799, 65535),
+    DyeColorMetadata::new(10, "purple", 8991416, "color_purple", 8073150, 10494192),
+    DyeColorMetadata::new(11, "blue", 3949738, "color_blue", 2437522, 255),
+    DyeColorMetadata::new(12, "brown", 8606770, "color_brown", 5320730, 9127187),
+    DyeColorMetadata::new(13, "green", 6192150, "color_green", 3887386, 65280),
+    DyeColorMetadata::new(14, "red", 11546150, "color_red", 11743532, 16711680),
+    DyeColorMetadata::new(15, "black", 1908001, "color_black", 1973019, 0),
+];
+
+const fn opaque(rgb: u32) -> u32 {
+    0xFF00_0000 | rgb
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -481,6 +643,133 @@ fn clamp_map_coordinate(delta: f32) -> i8 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dye_color_metadata_matches_java_enum_table() {
+        let cases = [
+            (DyeColor::White, 0, "white", 16383998, "snow", 15790320, 16777215),
+            (
+                DyeColor::Orange,
+                1,
+                "orange",
+                16351261,
+                "color_orange",
+                15435844,
+                16738335,
+            ),
+            (
+                DyeColor::Magenta,
+                2,
+                "magenta",
+                13061821,
+                "color_magenta",
+                12801229,
+                16711935,
+            ),
+            (
+                DyeColor::LightBlue,
+                3,
+                "light_blue",
+                3847130,
+                "color_light_blue",
+                6719955,
+                10141901,
+            ),
+            (
+                DyeColor::Yellow,
+                4,
+                "yellow",
+                16701501,
+                "color_yellow",
+                14602026,
+                16776960,
+            ),
+            (
+                DyeColor::Lime,
+                5,
+                "lime",
+                8439583,
+                "color_light_green",
+                4312372,
+                12582656,
+            ),
+            (DyeColor::Pink, 6, "pink", 15961002, "color_pink", 14188952, 16738740),
+            (DyeColor::Gray, 7, "gray", 4673362, "color_gray", 4408131, 8421504),
+            (
+                DyeColor::LightGray,
+                8,
+                "light_gray",
+                10329495,
+                "color_light_gray",
+                11250603,
+                13882323,
+            ),
+            (DyeColor::Cyan, 9, "cyan", 1481884, "color_cyan", 2651799, 65535),
+            (
+                DyeColor::Purple,
+                10,
+                "purple",
+                8991416,
+                "color_purple",
+                8073150,
+                10494192,
+            ),
+            (DyeColor::Blue, 11, "blue", 3949738, "color_blue", 2437522, 255),
+            (
+                DyeColor::Brown,
+                12,
+                "brown",
+                8606770,
+                "color_brown",
+                5320730,
+                9127187,
+            ),
+            (DyeColor::Green, 13, "green", 6192150, "color_green", 3887386, 65280),
+            (DyeColor::Red, 14, "red", 11546150, "color_red", 11743532, 16711680),
+            (DyeColor::Black, 15, "black", 1908001, "color_black", 1973019, 0),
+        ];
+
+        assert_eq!(DyeColor::VALUES.len(), 16);
+        for (color, id, name, texture_rgb, map_color, firework, text_rgb) in cases {
+            assert_eq!(DyeColor::VALUES[id as usize], color);
+            assert_eq!(color.id(), id);
+            assert_eq!(color.vanilla_name(), name);
+            assert_eq!(color.serialized_name(), name);
+            assert_eq!(color.texture_diffuse_rgb(), texture_rgb);
+            assert_eq!(color.texture_diffuse_color(), 0xFF00_0000 | texture_rgb);
+            assert_eq!(color.map_color_name(), map_color);
+            assert_eq!(color.firework_color(), firework);
+            assert_eq!(color.text_color(), 0xFF00_0000 | text_rgb);
+            assert_eq!(DyeColor::by_id(id), color);
+            assert_eq!(DyeColor::from_vanilla_name(name), Some(color));
+            assert_eq!(DyeColor::by_firework_color(firework), Some(color));
+        }
+    }
+
+    #[test]
+    fn dye_color_lookup_edges_and_mixed_color_follow_java() {
+        assert_eq!(DyeColor::by_id(-1), DyeColor::White);
+        assert_eq!(DyeColor::by_id(16), DyeColor::White);
+        assert_eq!(DyeColor::by_name("red", None), Some(DyeColor::Red));
+        assert_eq!(
+            DyeColor::by_name("missing", Some(DyeColor::Blue)),
+            Some(DyeColor::Blue)
+        );
+        assert_eq!(DyeColor::by_name("missing", None), None);
+        assert_eq!(DyeColor::by_firework_color(123), None);
+        assert_eq!(
+            DyeColor::mixed_color(Some(DyeColor::Purple), DyeColor::Red, DyeColor::Blue, false),
+            DyeColor::Purple
+        );
+        assert_eq!(
+            DyeColor::mixed_color(None, DyeColor::Red, DyeColor::Blue, true),
+            DyeColor::Red
+        );
+        assert_eq!(
+            DyeColor::mixed_color(None, DyeColor::Red, DyeColor::Blue, false),
+            DyeColor::Blue
+        );
+    }
 
     #[test]
     fn decorations_use_vanilla_coordinate_clamp_rotation_and_off_map_rules() {

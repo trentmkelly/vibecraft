@@ -15,6 +15,7 @@ use super::recipe_results::{RecipeKind, SpecialRecipeKind};
 use super::{ItemAmount, RecipeMap};
 use crate::item_properties::{ItemComponent, MapPostProcessing};
 use crate::item_stack::ItemStack;
+use crate::map_state::DyeColor;
 
 /// The fields of a filled map's `MapItemSavedData` that the map-extending recipe
 /// reads (`MapItem.getSavedData(map, level)` → `scale`, `isExplorationMap()`).
@@ -203,25 +204,8 @@ pub fn special_crafting_result(
 /// `firework` drives `DyeColor.getFireworkColor()`. `None` for non-dye items.
 fn dye_colors(item_id: &str) -> Option<(u32, u32)> {
     let name = item_id.strip_prefix("minecraft:")?.strip_suffix("_dye")?;
-    Some(match name {
-        "white" => (16383998, 15790320),
-        "orange" => (16351261, 15435844),
-        "magenta" => (13061821, 12801229),
-        "light_blue" => (3847130, 6719955),
-        "yellow" => (16701501, 14602026),
-        "lime" => (8439583, 4312372),
-        "pink" => (15961002, 14188952),
-        "gray" => (4673362, 4408131),
-        "light_gray" => (10329495, 11250603),
-        "cyan" => (1481884, 2651799),
-        "purple" => (8991416, 8073150),
-        "blue" => (3949738, 2437522),
-        "brown" => (8606770, 5320730),
-        "green" => (6192150, 3887386),
-        "red" => (11546150, 11743532),
-        "black" => (1908001, 1973019),
-        _ => return None,
-    })
+    let color = DyeColor::from_vanilla_name(name)?;
+    Some((color.texture_diffuse_rgb(), color.firework_color()))
 }
 
 /// `DyedItemColor.applyDyes` — the leather-armour colour blend: the intensity-scaled
