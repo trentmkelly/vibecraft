@@ -162,12 +162,13 @@ impl ActiveBlockMenu {
             return self.handle_crafting_quick_move(packet, state);
         }
 
+        let full_resync_needed = packet.state_id != self.state_id;
         let before_slots = self.flattened_slots(state);
         let before_carried = state.carried_item.clone();
         let mut menu = self.to_flat_menu(state);
         let dry_run = apply_scripted_packet(
             &mut menu.clone(),
-            self.state_id,
+            packet.state_id,
             &ScriptedContainerClickPacket {
                 container_id: packet.container_id,
                 state_id: packet.state_id,
@@ -180,7 +181,7 @@ impl ActiveBlockMenu {
         );
         let result = apply_scripted_packet(
             &mut menu,
-            self.state_id,
+            packet.state_id,
             &ScriptedContainerClickPacket {
                 container_id: packet.container_id,
                 state_id: packet.state_id,
@@ -201,6 +202,12 @@ impl ActiveBlockMenu {
         self.apply_result_slot_take_if_needed(result_slot_changed);
         self.persist_if_needed(world_layout, world_seed, chunk_cache);
 
+        if full_resync_needed {
+            let mut instructions = self.full_slot_resync(state);
+            self.push_recipe_unlocks(&mut instructions);
+            return instructions;
+        }
+
         let mut instructions = Vec::new();
         let after_slots = self.flattened_slots(state);
         for (slot, (before, after)) in before_slots.iter().zip(after_slots.iter()).enumerate() {
@@ -224,12 +231,7 @@ impl ActiveBlockMenu {
                 ));
             }
         }
-        if let ActiveBlockMenuKind::Crafting { menu } = &mut self.kind {
-            let unlocks = menu.drain_recipe_unlock_events();
-            if !unlocks.is_empty() {
-                instructions.push(PlayInstruction::RecipesUnlocked(unlocks));
-            }
-        }
+        self.push_recipe_unlocks(&mut instructions);
         instructions
     }
 
@@ -238,12 +240,10 @@ impl ActiveBlockMenu {
         packet: &ServerboundContainerClickPacket,
         state: &mut PlaySessionState,
     ) -> Vec<PlayInstruction> {
-        if packet.state_id != self.state_id {
-            return self.full_slot_resync(state);
-        }
         let Ok(slot) = usize::try_from(packet.slot_num) else {
             return Vec::new();
         };
+        let full_resync_needed = packet.state_id != self.state_id;
         let before_slots = self.flattened_slots(state);
         let before_carried = state.carried_item.clone();
 
@@ -257,6 +257,12 @@ impl ActiveBlockMenu {
         }
         self.state_id = self.state_id.wrapping_add(1);
 
+        if full_resync_needed {
+            let mut instructions = self.full_slot_resync(state);
+            self.push_recipe_unlocks(&mut instructions);
+            return instructions;
+        }
+
         let mut instructions = Vec::new();
         let after_slots = self.flattened_slots(state);
         for (slot, (before, after)) in before_slots.iter().zip(after_slots.iter()).enumerate() {
@@ -280,12 +286,7 @@ impl ActiveBlockMenu {
                 ));
             }
         }
-        if let ActiveBlockMenuKind::Crafting { menu } = &mut self.kind {
-            let unlocks = menu.drain_recipe_unlock_events();
-            if !unlocks.is_empty() {
-                instructions.push(PlayInstruction::RecipesUnlocked(unlocks));
-            }
-        }
+        self.push_recipe_unlocks(&mut instructions);
         instructions
     }
 
@@ -477,6 +478,15 @@ impl ActiveBlockMenu {
                     }),
             )
             .collect()
+    }
+
+    fn push_recipe_unlocks(&mut self, instructions: &mut Vec<PlayInstruction>) {
+        if let ActiveBlockMenuKind::Crafting { menu } = &mut self.kind {
+            let unlocks = menu.drain_recipe_unlock_events();
+            if !unlocks.is_empty() {
+                instructions.push(PlayInstruction::RecipesUnlocked(unlocks));
+            }
+        }
     }
 
     fn persist_if_needed(
@@ -790,6 +800,76 @@ mod tests {
         for slot in [1_usize, 2, 4, 5] {
             assert!(menu.flattened_slots(&state)[slot].is_empty());
         }
+    }
+
+    #[test]
+    fn active_crafting_table_stale_grid_click_applies_then_full_resyncs_like_java() {
+        let recipes = crafting_table_recipe_map();
+        let mut state = PlaySessionState {
+            inventory_menu: InventoryMenu::new(PlayerInventory::new(), recipes.clone()),
+            ..Default::default()
+        };
+        state
+            .inventory_menu
+            .player_inventory_mut()
+            .set(0, ItemStack::new("minecraft:oak_planks", 4));
+        let mut menu = ActiveBlockMenu::open(
+            9,
+            crate::block_update::BlockPos { x: 0, y: 64, z: 0 },
+            LiveBlockMenuKind::Crafting,
+            &WorldLayout::new(std::env::temp_dir()),
+            0,
+            &GeneratedChunkCache::default(),
+            &recipes,
+        );
+        let layout = WorldLayout::new(std::env::temp_dir());
+        let cache = GeneratedChunkCache::default();
+
+        let pickup = click_packet(
+            9,
+            0,
+            CraftingMenu::HOTBAR_START as i16,
+            0,
+            ContainerInput::Pickup,
+        );
+        menu.handle_click(&pickup, &mut state, &layout, 0, &cache);
+        for (expected_state_id, slot) in [(1, 1_i16), (2, 2), (3, 4)] {
+            let place_one = click_packet(9, expected_state_id, slot, 1, ContainerInput::Pickup);
+            menu.handle_click(&place_one, &mut state, &layout, 0, &cache);
+        }
+
+        let stale_place = click_packet(9, 3, 5, 1, ContainerInput::Pickup);
+        let instructions = menu.handle_click(&stale_place, &mut state, &layout, 0, &cache);
+
+        assert_eq!(menu.state_id(), 5);
+        assert!(state.carried_item.is_empty());
+        assert_eq!(
+            menu.flattened_slots(&state)[CraftingMenu::RESULT_SLOT],
+            ItemStack::new("minecraft:crafting_table", 1)
+        );
+        for slot in [1_usize, 2, 4, 5] {
+            assert_eq!(
+                menu.flattened_slots(&state)[slot],
+                ItemStack::new("minecraft:oak_planks", 1)
+            );
+        }
+        assert!(
+            instructions
+                .iter()
+                .filter(|instruction| matches!(instruction, PlayInstruction::ContainerSetSlot(_)))
+                .count()
+                >= CraftingMenu::SLOT_COUNT,
+            "stale active-menu clicks must broadcast a full post-click state"
+        );
+        assert!(instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                PlayInstruction::ContainerSetSlot(packet)
+                    if packet.state_id == 5
+                        && packet.slot == CraftingMenu::RESULT_SLOT as i16
+                        && packet.item_stack.item_id == item_protocol_id("minecraft:crafting_table")
+            )
+        }));
     }
 
     #[test]
