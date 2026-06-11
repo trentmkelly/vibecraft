@@ -42,6 +42,12 @@ pub enum ItemStackValidationError {
     DamageableAndStackable { max_stack_size: u32 },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ItemStackTemplateError {
+    EmptyItem,
+    EmptyStack,
+}
+
 impl ItemStack {
     pub const EMPTY_ITEM: &'static str = "minecraft:air";
 
@@ -305,6 +311,128 @@ impl ItemStack {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct ItemStackTemplate {
+    item_id: &'static str,
+    count: i32,
+    components: Vec<ComponentPatch>,
+}
+
+impl ItemStackTemplate {
+    pub fn new(item_id: &'static str) -> Result<Self, ItemStackTemplateError> {
+        Self::with_components(item_id, 1, Vec::new())
+    }
+
+    pub fn with_count(item_id: &'static str, count: i32) -> Result<Self, ItemStackTemplateError> {
+        Self::with_components(item_id, count, Vec::new())
+    }
+
+    pub fn with_component_patch(
+        item_id: &'static str,
+        components: Vec<ComponentPatch>,
+    ) -> Result<Self, ItemStackTemplateError> {
+        Self::with_components(item_id, 1, components)
+    }
+
+    pub fn with_components(
+        item_id: &'static str,
+        count: i32,
+        components: Vec<ComponentPatch>,
+    ) -> Result<Self, ItemStackTemplateError> {
+        if count == 0 || item_id == ItemStack::EMPTY_ITEM {
+            return Err(ItemStackTemplateError::EmptyItem);
+        }
+        Ok(Self {
+            item_id,
+            count,
+            components,
+        })
+    }
+
+    pub fn from_non_empty_stack(stack: &ItemStack) -> Result<Self, ItemStackTemplateError> {
+        if stack.is_empty() {
+            return Err(ItemStackTemplateError::EmptyStack);
+        }
+        Ok(Self {
+            item_id: stack.item_id,
+            count: stack.count,
+            components: stack
+                .components_patch()
+                .into_values()
+                .map(ComponentPatch::Set)
+                .collect(),
+        })
+    }
+
+    pub fn item_id(&self) -> &'static str {
+        self.item_id
+    }
+
+    pub fn count(&self) -> i32 {
+        self.count
+    }
+
+    pub fn components(&self) -> &[ComponentPatch] {
+        &self.components
+    }
+
+    pub fn copy_with_count(&self, count: i32) -> Result<Self, ItemStackTemplateError> {
+        if self.count == count {
+            return Ok(self.clone());
+        }
+        Self::with_components(self.item_id, count, self.components.clone())
+    }
+
+    pub fn create(&self) -> ItemStack {
+        self.apply_with_count(self.count, &[])
+    }
+
+    pub fn apply(&self, additional_patch: &[ComponentPatch]) -> ItemStack {
+        self.apply_with_count(self.count, additional_patch)
+    }
+
+    pub fn apply_with_count(&self, count: i32, additional_patch: &[ComponentPatch]) -> ItemStack {
+        let mut result = ItemStack::new(self.item_id, count);
+        result.apply_components(additional_patch);
+        result.apply_components(&self.components);
+        if result.validate_strict().is_err() {
+            ItemStack::empty()
+        } else {
+            result
+        }
+    }
+}
+
+impl ItemInstanceModel for ItemStackTemplate {
+    fn count(&self) -> i32 {
+        self.count
+    }
+
+    fn component(&self, key: &'static str) -> Option<&ItemComponent> {
+        for patch in self.components.iter().rev() {
+            match patch {
+                ComponentPatch::Set(component) if component.key() == key => return Some(component),
+                ComponentPatch::Remove(remove_key) if *remove_key == key => return None,
+                _ => {}
+            }
+        }
+        None
+    }
+
+    fn get_max_stack_size(&self) -> u32 {
+        for patch in self.components.iter().rev() {
+            match patch {
+                ComponentPatch::Set(ItemComponent::MaxStackSize(max)) => return *max,
+                ComponentPatch::Remove("minecraft:max_stack_size") => return 1,
+                _ => {}
+            }
+        }
+        item_definition(self.item_id)
+            .map(|definition| definition.effective().max_stack_size)
+            .unwrap_or(1)
+    }
+}
+
 impl ItemInstanceModel for ItemStack {
     fn count(&self) -> i32 {
         self.count()
@@ -378,6 +506,8 @@ mod tests {
         include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/ItemInstance.java");
     const ITEM_STACK_LINKED_SET_JAVA: &str =
         include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/ItemStackLinkedSet.java");
+    const ITEM_STACK_TEMPLATE_JAVA: &str =
+        include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/ItemStackTemplate.java");
 
     #[test]
     fn empty_stack_rules_match_vanilla_air_or_non_positive_count() {
@@ -512,6 +642,82 @@ mod tests {
         assert!(set.insert(ItemStack::empty()));
         assert!(!set.insert(ItemStack::new("minecraft:air", 5)));
         assert_eq!(set.len(), 4);
+    }
+
+    #[test]
+    fn item_stack_template_construction_create_apply_and_validation_match_java() {
+        for sentinel in [
+            "Item.CODEC.fieldOf(\"id\").forGetter(ItemStackTemplate::item)",
+            "ExtraCodecs.intRange(1, 99).optionalFieldOf(\"count\", 1).forGetter(ItemStackTemplate::count)",
+            "DataComponentPatch.CODEC.optionalFieldOf(\"components\", DataComponentPatch.EMPTY).forGetter(ItemStackTemplate::components)",
+            "if (count != 0 && !item.is(Items.AIR.builtInRegistryHolder()))",
+            "throw new IllegalStateException(\"Item must be non-empty\")",
+            "throw new IllegalStateException(\"Stack must be non-empty\")",
+            "return this.count == count ? this : new ItemStackTemplate(this.item, count, this.components);",
+            "result.applyComponents(this.components);",
+            "return ItemStack.EMPTY;",
+        ] {
+            assert!(
+                ITEM_STACK_TEMPLATE_JAVA.contains(sentinel),
+                "missing ItemStackTemplate sentinel {sentinel}"
+            );
+        }
+
+        assert_eq!(
+            ItemStackTemplate::new("minecraft:air"),
+            Err(ItemStackTemplateError::EmptyItem)
+        );
+        assert_eq!(
+            ItemStackTemplate::with_count("minecraft:stick", 0),
+            Err(ItemStackTemplateError::EmptyItem)
+        );
+        assert_eq!(
+            ItemStackTemplate::from_non_empty_stack(&ItemStack::empty()),
+            Err(ItemStackTemplateError::EmptyStack)
+        );
+
+        let template = ItemStackTemplate::with_count("minecraft:stick", 3).unwrap();
+        assert_eq!(template.item_id(), "minecraft:stick");
+        assert_eq!(template.count(), 3);
+        assert_eq!(ItemInstanceModel::get_max_stack_size(&template), 64);
+        let created = template.create();
+        assert_eq!(created.item_id(), "minecraft:stick");
+        assert_eq!(created.count(), 3);
+
+        let renamed = ItemStackTemplate::with_component_patch(
+            "minecraft:stick",
+            vec![ComponentPatch::Set(ItemComponent::ItemName("template.name"))],
+        )
+        .unwrap();
+        let applied = renamed.apply(&[
+            ComponentPatch::Set(ItemComponent::MaxStackSize(16)),
+            ComponentPatch::Set(ItemComponent::ItemName("additional.name")),
+        ]);
+        assert_eq!(applied.max_stack_size(), 16);
+        assert_eq!(
+            applied.component("minecraft:item_name"),
+            Some(&ItemComponent::ItemName("template.name"))
+        );
+
+        let invalid = ItemStackTemplate::with_component_patch(
+            "minecraft:apple",
+            vec![
+                ComponentPatch::Set(ItemComponent::MaxDamage(5)),
+                ComponentPatch::Set(ItemComponent::Damage(0)),
+            ],
+        )
+        .unwrap();
+        assert!(invalid.create().is_empty());
+
+        let mut stack = ItemStack::new("minecraft:diamond", 2);
+        stack.set_component(ItemComponent::ItemName("diamond.name"));
+        let copied = ItemStackTemplate::from_non_empty_stack(&stack).unwrap();
+        assert_eq!(copied.item_id(), "minecraft:diamond");
+        assert_eq!(copied.count(), 2);
+        assert!(copied
+            .components()
+            .contains(&ComponentPatch::Set(ItemComponent::ItemName("diamond.name"))));
+        assert_eq!(copied.copy_with_count(5).unwrap().count(), 5);
     }
 
     #[test]
