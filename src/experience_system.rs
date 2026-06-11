@@ -281,7 +281,6 @@ pub enum ExperienceRewardSource {
 
 pub fn reward_amount(source: ExperienceRewardSource, base: i32) -> i32 {
     match source {
-        ExperienceRewardSource::ExperienceBottle => base.clamp(3, 11),
         ExperienceRewardSource::Command => base,
         _ => base.max(0),
     }
@@ -293,17 +292,28 @@ pub fn mob_kill_xp(entity_type: &str, killed_by_player: bool) -> i32 {
     }
     match entity_type {
         "minecraft:blaze"
+        | "minecraft:breeze"
         | "minecraft:elder_guardian"
         | "minecraft:evoker"
-        | "minecraft:ravager" => 10,
+        | "minecraft:guardian" => 10,
+        "minecraft:ravager" | "minecraft:piglin_brute" => 20,
         "minecraft:ender_dragon" => 12_000,
         "minecraft:wither" => 50,
+        "minecraft:endermite" | "minecraft:vex" => 3,
         "minecraft:bat"
+        | "minecraft:creaking"
         | "minecraft:iron_golem"
         | "minecraft:snow_golem"
         | "minecraft:villager" => 0,
         _ => 5,
     }
+}
+
+pub fn mob_equipment_xp_bonus(eligible_equipment_rolls_0_to_2: &[i32]) -> i32 {
+    eligible_equipment_rolls_0_to_2
+        .iter()
+        .map(|roll| 1 + (*roll).clamp(0, 2))
+        .sum()
 }
 
 pub fn block_mining_xp(block: &str, silk_touch: bool, fortune_bonus: i32) -> i32 {
@@ -319,6 +329,7 @@ pub fn block_mining_xp(block: &str, silk_touch: bool, fortune_bonus: i32) -> i32
         "minecraft:spawner" => (15, 43),
         "minecraft:sculk" => (1, 1),
         "minecraft:sculk_catalyst" | "minecraft:sculk_shrieker" => (5, 5),
+        "minecraft:creaking_heart" => (20, 24),
         _ => (0, 0),
     };
     if max == min {
@@ -328,22 +339,26 @@ pub fn block_mining_xp(block: &str, silk_touch: bool, fortune_bonus: i32) -> i32
     }
 }
 
-pub fn smelting_xp(recipe_id: &str, times_used: i32, experience_per_use: f32) -> i32 {
+pub fn smelting_xp(times_used: i32, experience_per_use: f32, fraction_roll: f32) -> i32 {
     if times_used <= 0 || experience_per_use <= 0.0 {
         return 0;
     }
     let total = times_used as f32 * experience_per_use;
     let base = total.floor() as i32;
     let fractional = total - base as f32;
-    if fractional > 0.0 && recipe_id.len().is_multiple_of(2) {
+    if fractional > 0.0 && fraction_roll < fractional {
         base + 1
     } else {
         base
     }
 }
 
-pub fn breeding_xp() -> i32 {
-    7
+pub fn breeding_xp(random_0_to_6: i32) -> i32 {
+    1 + random_0_to_6.clamp(0, 6)
+}
+
+pub fn fishing_xp(random_0_to_5: i32) -> i32 {
+    1 + random_0_to_5.clamp(0, 5)
 }
 
 pub fn trading_xp(villager_reward_exp: bool) -> i32 {
@@ -352,6 +367,10 @@ pub fn trading_xp(villager_reward_exp: bool) -> i32 {
     } else {
         0
     }
+}
+
+pub fn experience_bottle_xp(first_random_0_to_4: i32, second_random_0_to_4: i32) -> i32 {
+    3 + first_random_0_to_4.clamp(0, 4) + second_random_0_to_4.clamp(0, 4)
 }
 
 #[cfg(test)]
@@ -448,24 +467,28 @@ mod tests {
     }
 
     #[test]
-    fn reward_sources_clamp_bottles_and_preserve_normal_positive_rewards() {
-        assert_eq!(
-            reward_amount(ExperienceRewardSource::ExperienceBottle, 1),
-            3
-        );
-        assert_eq!(
-            reward_amount(ExperienceRewardSource::ExperienceBottle, 20),
-            11
-        );
+    fn reward_sources_match_java_spawn_amount_rules() {
+        assert_eq!(reward_amount(ExperienceRewardSource::ExperienceBottle, -5), 0);
         assert_eq!(reward_amount(ExperienceRewardSource::Mining, -5), 0);
         assert_eq!(reward_amount(ExperienceRewardSource::Command, -5), -5);
         assert_eq!(mob_kill_xp("minecraft:zombie", true), 5);
         assert_eq!(mob_kill_xp("minecraft:zombie", false), 0);
         assert_eq!(mob_kill_xp("minecraft:ender_dragon", true), 12_000);
+        assert_eq!(mob_kill_xp("minecraft:ravager", true), 20);
+        assert_eq!(mob_kill_xp("minecraft:vex", true), 3);
+        assert_eq!(mob_kill_xp("minecraft:creaking", true), 0);
+        assert_eq!(mob_equipment_xp_bonus(&[0, 2]), 4);
         assert_eq!(block_mining_xp("minecraft:diamond_ore", false, 2), 5);
         assert_eq!(block_mining_xp("minecraft:diamond_ore", true, 2), 0);
-        assert_eq!(smelting_xp("minecraft:iron_ingot", 3, 0.7), 3);
-        assert_eq!(breeding_xp(), 7);
+        assert_eq!(block_mining_xp("minecraft:creaking_heart", false, 3), 23);
+        assert_eq!(smelting_xp(3, 0.7, 0.05), 3);
+        assert_eq!(smelting_xp(3, 0.7, 0.95), 2);
+        assert_eq!(breeding_xp(0), 1);
+        assert_eq!(breeding_xp(6), 7);
+        assert_eq!(fishing_xp(0), 1);
+        assert_eq!(fishing_xp(5), 6);
         assert_eq!(trading_xp(true), 3);
+        assert_eq!(experience_bottle_xp(0, 0), 3);
+        assert_eq!(experience_bottle_xp(4, 4), 11);
     }
 }
