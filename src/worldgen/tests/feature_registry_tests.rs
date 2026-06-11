@@ -15,6 +15,9 @@ const FEATURE_UTILS_JAVA: &str = include_str!(
 const MISC_OVERWORLD_FEATURES_JAVA: &str = include_str!(
     "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/features/MiscOverworldFeatures.java"
 );
+const DESERT_WELL_FEATURE_JAVA: &str = include_str!(
+    "../../../../decompiled-server-26.1.2/net/minecraft/world/level/levelgen/feature/DesertWellFeature.java"
+);
 fn count_occurrences(source: &str, needle: &str) -> usize {
     source.match_indices(needle).count()
 }
@@ -723,6 +726,44 @@ fn misc_overworld_features_keys_and_types_match_vanilla_json() {
     ] {
         assert_eq!(configured_feature_json(id)["type"], feature_type, "{id}");
     }
+}
+
+#[test]
+fn desert_well_suspicious_sand_assigns_archaeology_loot_like_java() {
+    for sentinel in [
+        "List.of(waterCenter, waterCenter.east(), waterCenter.south(), waterCenter.west(), waterCenter.north())",
+        "placeSusSand(level, Util.getRandom(waterPositions, random).below(1));",
+        "placeSusSand(level, Util.getRandom(waterPositions, random).below(2));",
+        "Blocks.SUSPICIOUS_SAND.defaultBlockState()",
+        "e.setLootTable(BuiltInLootTables.DESERT_WELL_ARCHAEOLOGY, pos.asLong())",
+    ] {
+        assert!(
+            DESERT_WELL_FEATURE_JAVA.contains(sentinel),
+            "missing DesertWellFeature sentinel {sentinel}"
+        );
+    }
+
+    let origin = BlockPos { x: 10, y: 64, z: -3 };
+    let placements = super::super::desert_well_suspicious_sand_placements(origin, 1, 4);
+
+    assert_eq!(
+        placements[0],
+        super::super::DesertWellSuspiciousSandPlacement {
+            pos: BlockPos { x: 11, y: 63, z: -3 },
+            state: "minecraft:suspicious_sand",
+            loot_table: "minecraft:archaeology/desert_well",
+            loot_seed: crate::lighting::positions::block_pos_as_long(11, 63, -3),
+        }
+    );
+    assert_eq!(
+        placements[1],
+        super::super::DesertWellSuspiciousSandPlacement {
+            pos: BlockPos { x: 10, y: 62, z: -4 },
+            state: "minecraft:suspicious_sand",
+            loot_table: "minecraft:archaeology/desert_well",
+            loot_seed: crate::lighting::positions::block_pos_as_long(10, 62, -4),
+        }
+    );
 }
 
 #[test]

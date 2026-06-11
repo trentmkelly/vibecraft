@@ -448,6 +448,14 @@ pub struct FeaturePlacementBlock {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DesertWellSuspiciousSandPlacement {
+    pub pos: BlockPos,
+    pub state: &'static str,
+    pub loot_table: &'static str,
+    pub loot_seed: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChorusPlantPlacementKind {
     Plant,
     Flower,

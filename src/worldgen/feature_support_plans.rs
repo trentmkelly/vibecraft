@@ -20,6 +20,52 @@ pub fn spring_feature_can_place(input: SpringCanPlaceInput) -> bool {
         && input.adjacent_hole_count == input.required_hole_count
 }
 
+pub fn desert_well_suspicious_sand_placements(
+    origin: BlockPos,
+    first_choice: i32,
+    second_choice: i32,
+) -> [DesertWellSuspiciousSandPlacement; 2] {
+    let water_positions = [
+        origin,
+        BlockPos {
+            x: origin.x + 1,
+            ..origin
+        },
+        BlockPos {
+            z: origin.z + 1,
+            ..origin
+        },
+        BlockPos {
+            x: origin.x - 1,
+            ..origin
+        },
+        BlockPos {
+            z: origin.z - 1,
+            ..origin
+        },
+    ];
+    [
+        desert_well_suspicious_sand_placement(water_positions[first_choice.rem_euclid(5) as usize], 1),
+        desert_well_suspicious_sand_placement(water_positions[second_choice.rem_euclid(5) as usize], 2),
+    ]
+}
+
+fn desert_well_suspicious_sand_placement(
+    water_pos: BlockPos,
+    below: i32,
+) -> DesertWellSuspiciousSandPlacement {
+    let pos = BlockPos {
+        y: water_pos.y - below,
+        ..water_pos
+    };
+    DesertWellSuspiciousSandPlacement {
+        pos,
+        state: "minecraft:suspicious_sand",
+        loot_table: "minecraft:archaeology/desert_well",
+        loot_seed: crate::lighting::positions::block_pos_as_long(pos.x, pos.y, pos.z),
+    }
+}
+
 pub fn spring_placement_plan(
     config: &SpringConfigurationModel,
     context: SpringPlacementContext,
