@@ -184,6 +184,35 @@ fn horse_inventory_layout_matches_equipment_and_chest_slots() {
 
 #[test]
 fn merchant_offer_applies_special_price_demand_stock_and_payment_consumption() {
+    let java_source = include_str!(
+        "../../../decompiled-server-26.1.2/net/minecraft/world/item/trading/MerchantOffer.java"
+    );
+    for sentinel in [
+        "ItemCost.CODEC.fieldOf(\"buy\")",
+        "ItemCost.CODEC.lenientOptionalFieldOf(\"buyB\")",
+        "ItemStack.CODEC.fieldOf(\"sell\")",
+        "Codec.INT.lenientOptionalFieldOf(\"uses\", 0)",
+        "Codec.INT.lenientOptionalFieldOf(\"maxUses\", 4)",
+        "Codec.BOOL.lenientOptionalFieldOf(\"rewardExp\", true)",
+        "Codec.INT.lenientOptionalFieldOf(\"specialPrice\", 0)",
+        "Codec.INT.lenientOptionalFieldOf(\"demand\", 0)",
+        "Codec.FLOAT.lenientOptionalFieldOf(\"priceMultiplier\", 0.0F)",
+        "Codec.INT.lenientOptionalFieldOf(\"xp\", 1)",
+        "public boolean shouldRewardExp()",
+        "output.writeInt(offer.getSpecialPriceDiff())",
+        "output.writeFloat(offer.getPriceMultiplier())",
+        "output.writeInt(offer.getDemand())",
+    ] {
+        assert!(
+            java_source.contains(sentinel),
+            "missing MerchantOffer Java sentinel {sentinel}"
+        );
+    }
+    assert!(
+        !java_source.contains("ignoreDiscount"),
+        "Java 26.1.2 MerchantOffer does not define an ignoreDiscount codec field"
+    );
+
     let mut offer = MerchantOffer::new(
         ItemCost::new("minecraft:emerald", 5),
         Some(ItemCost::new("minecraft:book", 1)),
