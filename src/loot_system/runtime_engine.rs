@@ -719,13 +719,20 @@ pub enum LootCondition {
     TimeCheck {
         min: i64,
         max: i64,
+        period: Option<i64>,
     },
     ValueCheck {
         provider: NumberProvider,
         min: f32,
         max: f32,
     },
-    EnchantmentActiveCheck,
+    EnchantmentActiveCheck {
+        active: bool,
+    },
+    EnvironmentAttributeCheck {
+        attribute: String,
+        value: f32,
+    },
     TableBonus {
         chances: Vec<f32>,
     },
@@ -800,12 +807,21 @@ impl LootCondition {
                 raining.is_none_or(|expected| context.weather_raining == expected)
                     && thundering.is_none_or(|expected| context.weather_thundering == expected)
             }
-            Self::TimeCheck { min, max } => context.game_time >= *min && context.game_time <= *max,
+            Self::TimeCheck { min, max, period } => {
+                let time = period
+                    .filter(|period| *period > 0)
+                    .map_or(context.game_time, |period| context.game_time.rem_euclid(period));
+                time >= *min && time <= *max
+            }
             Self::ValueCheck { provider, min, max } => {
                 let value = provider.float(context);
                 value >= *min && value <= *max
             }
-            Self::EnchantmentActiveCheck => context.enchantment_active,
+            Self::EnchantmentActiveCheck { active } => context.enchantment_active == *active,
+            Self::EnvironmentAttributeCheck { attribute, value } => context
+                .environment_attributes
+                .get(attribute)
+                .is_some_and(|actual| (*actual - *value).abs() <= f32::EPSILON),
             Self::TableBonus { chances } => {
                 let index = context.enchantment_level.max(0) as usize;
                 let chance = chances

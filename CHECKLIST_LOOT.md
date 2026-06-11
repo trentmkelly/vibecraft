@@ -78,24 +78,24 @@
 
 ## Loot Predicates
 
-- [ ] Implement all loot predicates: `LootCondition` covers logical combinators, random gates, explosion survival, block/tool/entity/score/damage-source/location/weather/time/value checks, references, enchantment-active checks, and table-bonus chances; covered by `loot_predicates_cover_java_condition_surface` and `cargo test -q loot_system`.
-  - [ ] `AllOfCondition`, `AnyOfCondition`, `InvertedCondition` — logical combinators
-  - [ ] `RandomChance`, `RandomChanceWithEnchantedBonus` — probability gates
-  - [ ] `SurvivesExplosion` — drops cancel proportional to explosion radius
-  - [ ] `BlockStatePropertyCondition` — match block state properties
-  - [ ] `MatchTool` — match harvesting tool against item predicate
-  - [ ] `EntityPropertiesCondition` — match entity against entity predicate
-  - [ ] `EntityScoresCondition` — match entity scoreboard values
-  - [ ] `KilledByPlayerCondition` — last damage source was a player
-  - [ ] `LootingRandomChance` — scaled chance per looting level
-  - [ ] `DamageSourcePropertiesCondition` — match damage source tags
-  - [ ] `LocationCheckCondition` — match world location predicate
-  - [ ] `ValueCheckCondition` — compare number provider to range
-  - [ ] `WeatherCheckCondition` — match raining/thundering
-  - [ ] `TimeCheckCondition` — match game time modulo period
-  - [ ] `ReferenceCondition` — delegate to named predicate resource
-  - [ ] `EnchantmentActiveCheck` — context enchantment active flag
-  - [ ] `TableBonusCondition` — per-enchantment-level probability table
+- [x] Implement all loot predicates: `LootCondition` covers the Java 26.1.2 `LootItemConditions.bootstrap` registry surface: logical combinators, random gates, explosion survival, block/tool/entity/score/damage-source/location/weather/time/value/environment-attribute checks, references, enchantment-active checks, and table-bonus chances; covered by `loot_predicates_cover_java_condition_surface`, `conditions_cover_random_player_explosion_time_tool_score_and_combinators`, and `cargo test -q loot_system`.
+  - [x] `AllOfCondition`, `AnyOfCondition`, `InvertedCondition` — logical combinators
+  - [x] `RandomChance`, `RandomChanceWithEnchantedBonus` — probability gates
+  - [x] `SurvivesExplosion` — drops cancel proportional to explosion radius
+  - [x] `BlockStatePropertyCondition` — match block state properties
+  - [x] `MatchTool` — match harvesting tool against item predicate
+  - [x] `EntityPropertiesCondition` — match entity against entity predicate
+  - [x] `EntityScoresCondition` — match entity scoreboard values
+  - [x] `KilledByPlayerCondition` — last damage source was a player
+  - [x] `DamageSourcePropertiesCondition` — match damage source tags
+  - [x] `LocationCheckCondition` — match world location predicate
+  - [x] `ValueCheckCondition` — compare number provider to range
+  - [x] `WeatherCheckCondition` — match raining/thundering
+  - [x] `TimeCheckCondition` — match game time and optional modulo period
+  - [x] `ReferenceCondition` — delegate to named predicate resource
+  - [x] `EnchantmentActiveCheck` — context enchantment active flag
+  - [x] `EnvironmentAttributeCheck` — compare context environment attributes
+  - [x] `TableBonusCondition` — per-enchantment-level probability table
 
 ## Number and Score Providers
 

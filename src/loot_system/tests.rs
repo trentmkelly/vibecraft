@@ -377,7 +377,10 @@ fn java_condition_surface_context() -> LootContext {
         .insert("dimension".to_string(), "minecraft:overworld".to_string());
     context.weather_raining = true;
     context.weather_thundering = false;
-    context.game_time = 12_000;
+    context.game_time = 36_000;
+    context
+        .environment_attributes
+        .insert("minecraft:temperature".to_string(), 0.8);
     context
         .condition_references
         .insert("minecraft:ok".to_string());
@@ -450,9 +453,14 @@ fn java_condition_surface_condition() -> LootCondition {
         LootCondition::TimeCheck {
             min: 0,
             max: 24_000,
+            period: Some(24_000),
         },
         LootCondition::Reference("minecraft:ok".to_string()),
-        LootCondition::EnchantmentActiveCheck,
+        LootCondition::EnchantmentActiveCheck { active: true },
+        LootCondition::EnvironmentAttributeCheck {
+            attribute: "minecraft:temperature".to_string(),
+            value: 0.8,
+        },
         LootCondition::TableBonus {
             chances: vec![0.0, 0.0, 1.0],
         },
@@ -530,7 +538,11 @@ fn conditions_cover_random_player_explosion_time_tool_score_and_combinators() {
     let condition = LootCondition::AllOf(vec![
         LootCondition::KilledByPlayer,
         LootCondition::SurvivesExplosion,
-        LootCondition::TimeCheck { min: 10, max: 30 },
+        LootCondition::TimeCheck {
+            min: 10,
+            max: 30,
+            period: None,
+        },
         LootCondition::MatchTool {
             item: "minecraft:diamond_pickaxe".to_string(),
         },
