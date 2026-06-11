@@ -33,7 +33,7 @@ This top-level file is now an index. Mark a subsystem row only after every item 
 
 ## Milestone Plan
 
-- [ ] Remove unconditional compile-time dependencies on local `decompiled-server-26.1.2` files from tests and representative parity probes. Java source should remain the authoritative optional parity oracle: warn and skip a source-specific check when the local decomp is absent, and fail hard when the source is present but the Rust behavior diverges.
+- [x] Remove unconditional compile-time dependencies on local `decompiled-server-26.1.2` files from tests and representative parity probes. Java source should remain the authoritative optional parity oracle: warn and skip a source-specific check when the local decomp is absent, and fail hard when the source is present but the Rust behavior diverges. — verified by temporarily moving the local decompilation tree aside: `cargo check` and `cargo test --no-run` both compile successfully, with `build.rs` warning that optional Java source-backed parity modules and sound-event parity checks are skipped when the source tree is absent.
 - [x] Milestone 1: status ping server with correct MOTD/version/player sample response.
 - [x] Milestone 2: offline-mode login through configuration into a void world.
 - [ ] Milestone 3: chunk serialization and static flat terrain visible to vanilla client.
