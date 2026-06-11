@@ -351,7 +351,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. Each pack
 - [ ] `net/minecraft/world/level/block/entity/vault` (7 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/world/level/block/grower` (2 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/world/level/block/piston` (7 Java files): add class-level Rust port tasks and parity tests.
-- [ ] `net/minecraft/world/level/block/sounds` (2 Java files): add class-level Rust port tasks and parity tests.
+- [x] `net/minecraft/world/level/block/sounds` (2 Java files): add class-level Rust port tasks and parity tests. — all package rows are covered in `CHECKLIST_JAVA_CLASSES.md`: `AmbientDesertBlockSoundsPlayer` is modeled in `block_sounds` with Java-backed random-gate, sound-id, dry-vegetation/sand tag, support-check, horizontal-column scan, vertical-scan, badlands skip, and planned-emission tests, and package-info is audited as the nullability marker. Verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 block_sounds`.
 - [ ] `net/minecraft/world/level/block/state` (5 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/world/level/block/state/pattern` (4 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/world/level/block/state/predicate` (3 Java files): add class-level Rust port tasks and parity tests.
