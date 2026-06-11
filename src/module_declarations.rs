@@ -522,6 +522,7 @@ mod item_sign_applicator;
 mod item_stack;
 mod item_tags;
 mod item_tool_use;
+mod item_weapon_component;
 mod lighting;
 mod living_entity;
 mod localization_keys;
