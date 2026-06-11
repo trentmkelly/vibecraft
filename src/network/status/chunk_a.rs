@@ -1584,7 +1584,7 @@ fn tick_live_world_systems(
         context.chunk_cache,
         context.world_items,
     )?;
-    super::live_mobs::tick_live_mobs_for_client(
+    let live_mob_health_changed = super::live_mobs::tick_live_mobs_for_client(
         stream,
         compression,
         super::live_mobs::LiveMobClientTickContext {
@@ -1597,6 +1597,9 @@ fn tick_live_world_systems(
             tick_count,
         },
     )?;
+    if live_mob_health_changed {
+        write_play_state_health_packet(stream, compression, play_state)?;
+    }
     tick_live_block_destroy_progress(
         stream,
         compression,

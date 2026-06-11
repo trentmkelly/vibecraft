@@ -1,13 +1,17 @@
 use super::*;
 
 const DEFAULT_MOB_HEALTH: f32 = 20.0;
-const PLAYER_ATTACK_DAMAGE: f32 = 1.0;
+const PLAYER_BASE_ATTACK_DAMAGE: f32 = 1.0;
 const PLAYER_ENTITY_INTERACTION_RANGE: f64 = 3.0;
 const PLAYER_ATTACK_VERIFICATION_BUFFER: f64 = 3.0;
 const PLAYER_EYE_HEIGHT: f64 = 1.62;
+const PLAYER_WIDTH: f64 = 0.6;
+const PLAYER_HEIGHT: f64 = 1.8;
 const HOSTILE_FOLLOW_RANGE: f64 = 16.0;
 const HOSTILE_STEP_PER_TICK: f64 = 0.115;
 const PASSIVE_WANDER_STEP_PER_TICK: f64 = 0.035;
+const MOB_DEFAULT_ATTACK_REACH: f64 = 0.828_285_694_955_484_2;
+const MOB_MELEE_ATTACK_INTERVAL_TICKS: i32 = 20;
 const MOVE_PACKET_SCALE: f64 = 4096.0;
 const MAX_RELATIVE_MOVE_DELTA: i16 = 32_767;
 
@@ -25,6 +29,7 @@ pub struct LiveMobEntity {
     pub pitch: f32,
     pub health: f32,
     pub tick_count: u64,
+    pub attack_cooldown_ticks: i32,
 }
 
 #[derive(Debug, Default)]
@@ -40,11 +45,12 @@ pub enum MobAttackResult {
     Killed { entity_id: i32 },
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct LiveMobTickStats {
     pub synced_chunks: usize,
     pub total_mobs: usize,
     pub moved_mobs: usize,
+    pub player_damage: f32,
 }
 
 impl LiveMobStore {
@@ -94,10 +100,17 @@ impl LiveMobStore {
         }
     }
 
-    pub fn tick_ai(&mut self, tick_count: u64, player_position: Vec3) -> LiveMobTickStats {
+    pub fn tick_ai(&mut self, tick_count: u64, play_state: &mut PlaySessionState) -> LiveMobTickStats {
         let mut moved_mobs = 0;
+        let mut player_damage = 0.0;
+        let player_position = Vec3 {
+            x: play_state.x,
+            y: play_state.y,
+            z: play_state.z,
+        };
         for mob in self.mobs.values_mut() {
             mob.tick_count = mob.tick_count.wrapping_add(1);
+            mob.attack_cooldown_ticks = (mob.attack_cooldown_ticks - 1).max(0);
             mob.previous_x = mob.x;
             mob.previous_y = mob.y;
             mob.previous_z = mob.z;
@@ -107,6 +120,12 @@ impl LiveMobStore {
                 if step_toward_player(mob, player_position, full_goal_tick) {
                     moved_mobs += 1;
                 }
+                if mob_can_melee_player(mob, player_position) && mob.attack_cooldown_ticks <= 0 {
+                    let damage = live_mob_attack_damage(&mob.entity_type);
+                    play_state.health = (play_state.health - damage).max(0.0);
+                    mob.attack_cooldown_ticks = MOB_MELEE_ATTACK_INTERVAL_TICKS;
+                    player_damage += damage;
+                }
             } else if full_goal_tick && wander_passive_mob(mob, tick_count) {
                 moved_mobs += 1;
             }
@@ -115,6 +134,7 @@ impl LiveMobStore {
             synced_chunks: self.synced_chunks.len(),
             total_mobs: self.mobs.len(),
             moved_mobs,
+            player_damage,
         }
     }
 
@@ -137,7 +157,8 @@ pub fn handle_live_mob_attack<W: Write>(
         y: play_state.y,
         z: play_state.z,
     };
-    let result = lock_status_mutex(store).attack(packet.entity_id, player_position, PLAYER_ATTACK_DAMAGE);
+    let result =
+        lock_status_mutex(store).attack(packet.entity_id, player_position, player_attack_damage(play_state));
     match result {
         MobAttackResult::Miss => {}
         MobAttackResult::Hurt { entity_id } => {
@@ -181,7 +202,7 @@ pub fn tick_live_mobs_for_client<W: Write>(
     writer: &mut W,
     compression: CompressionState,
     context: LiveMobClientTickContext<'_>,
-) -> io::Result<()> {
+) -> io::Result<bool> {
     let LiveMobClientTickContext {
         store,
         loaded_chunks,
@@ -198,14 +219,7 @@ pub fn tick_live_mobs_for_client<W: Write>(
         mobs.sync_loaded_chunks(loaded_chunks, chunk_cache, world_root, world_seed);
         let sync_ms = sync_started.elapsed().as_micros();
         let ai_started = Instant::now();
-        let stats = mobs.tick_ai(
-            tick_count,
-            Vec3 {
-                x: play_state.x,
-                y: play_state.y,
-                z: play_state.z,
-            },
-        );
+        let stats = mobs.tick_ai(tick_count, play_state);
         let ai_us = ai_started.elapsed().as_micros();
         let moves: Vec<ClientboundMoveEntityPacket> = mobs
             .moved_mobs()
@@ -232,7 +246,7 @@ pub fn tick_live_mobs_for_client<W: Write>(
         write_started.elapsed().as_micros(),
         stats.moved_mobs
     );
-    Ok(())
+    Ok(stats.player_damage > 0.0)
 }
 
 pub struct LiveMobClientTickContext<'a> {
@@ -241,7 +255,7 @@ pub struct LiveMobClientTickContext<'a> {
     pub chunk_cache: &'a GeneratedChunkCache,
     pub world_root: &'a Path,
     pub world_seed: i64,
-    pub play_state: &'a PlaySessionState,
+    pub play_state: &'a mut PlaySessionState,
     pub tick_count: u64,
 }
 
@@ -269,6 +283,7 @@ fn live_mob_from_chunk_entity(
         pitch,
         health: DEFAULT_MOB_HEALTH,
         tick_count: 0,
+        attack_cooldown_ticks: 0,
     })
 }
 
@@ -319,6 +334,109 @@ fn axis_distance_to_interval(point: f64, min: f64, max: f64) -> f64 {
         point - max
     } else {
         0.0
+    }
+}
+
+fn player_attack_damage(play_state: &PlaySessionState) -> f32 {
+    // Java 26.1.2 `Player.attack` reads the player's ATTACK_DAMAGE attribute.
+    // The base value is 1.0, and tool/weapon item components add the material
+    // modifier from `ToolMaterial.createToolAttributes/createSwordAttributes`.
+    selected_main_hand_item(play_state).map_or(PLAYER_BASE_ATTACK_DAMAGE, |stack| {
+        attack_damage_for_item(stack.item_id())
+    })
+}
+
+fn selected_main_hand_item(state: &PlaySessionState) -> Option<&ItemStack> {
+    let slot = usize::try_from(state.selected_slot).ok()?;
+    (slot < HOTBAR_SIZE).then(|| state.inventory_menu.player_inventory().get(slot))
+}
+
+fn attack_damage_for_item(item_id: &str) -> f32 {
+    match item_id {
+        "minecraft:wooden_sword" | "minecraft:golden_sword" => 4.0,
+        "minecraft:stone_sword" | "minecraft:copper_sword" => 5.0,
+        "minecraft:iron_sword" => 6.0,
+        "minecraft:diamond_sword" => 7.0,
+        "minecraft:netherite_sword" => 8.0,
+        "minecraft:wooden_axe" | "minecraft:golden_axe" => 7.0,
+        "minecraft:copper_axe" | "minecraft:stone_axe" | "minecraft:iron_axe"
+        | "minecraft:diamond_axe" => 9.0,
+        "minecraft:netherite_axe" => 10.0,
+        "minecraft:wooden_pickaxe" | "minecraft:golden_pickaxe" => 2.0,
+        "minecraft:stone_pickaxe" | "minecraft:copper_pickaxe" => 3.0,
+        "minecraft:iron_pickaxe" => 4.0,
+        "minecraft:diamond_pickaxe" => 5.0,
+        "minecraft:netherite_pickaxe" => 6.0,
+        "minecraft:wooden_shovel" | "minecraft:golden_shovel" => 2.5,
+        "minecraft:stone_shovel" | "minecraft:copper_shovel" => 3.5,
+        "minecraft:iron_shovel" => 4.5,
+        "minecraft:diamond_shovel" => 5.5,
+        "minecraft:netherite_shovel" => 6.5,
+        "minecraft:mace" => 6.0,
+        "minecraft:trident" => 9.0,
+        _ => PLAYER_BASE_ATTACK_DAMAGE,
+    }
+}
+
+fn mob_can_melee_player(mob: &LiveMobEntity, player_position: Vec3) -> bool {
+    let (mob_width, mob_height) = entity_dimensions(&mob.entity_type);
+    let mob_half = mob_width / 2.0 + MOB_DEFAULT_ATTACK_REACH;
+    let player_half = PLAYER_WIDTH / 2.0;
+    aabb_intersects(
+        Aabb {
+            min_x: mob.x - mob_half,
+            max_x: mob.x + mob_half,
+            min_y: mob.y,
+            max_y: mob.y + mob_height,
+            min_z: mob.z - mob_half,
+            max_z: mob.z + mob_half,
+        },
+        Aabb {
+            min_x: player_position.x - player_half,
+            max_x: player_position.x + player_half,
+            min_y: player_position.y,
+            max_y: player_position.y + PLAYER_HEIGHT,
+            min_z: player_position.z - player_half,
+            max_z: player_position.z + player_half,
+        },
+    )
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Aabb {
+    min_x: f64,
+    max_x: f64,
+    min_y: f64,
+    max_y: f64,
+    min_z: f64,
+    max_z: f64,
+}
+
+fn aabb_intersects(a: Aabb, b: Aabb) -> bool {
+    a.max_x > b.min_x
+        && a.min_x < b.max_x
+        && a.max_y > b.min_y
+        && a.min_y < b.max_y
+        && a.max_z > b.min_z
+        && a.min_z < b.max_z
+}
+
+fn live_mob_attack_damage(entity_type: &str) -> f32 {
+    match entity_type {
+        "minecraft:zombie" | "minecraft:husk" | "minecraft:drowned" => {
+            crate::mob_interaction::zombie_attributes().attack_damage
+        }
+        "minecraft:zombified_piglin" => crate::mob_interaction::zombified_piglin_attributes().attack_damage,
+        "minecraft:ravager" => crate::mob_interaction::ravager_attributes().attack_damage,
+        "minecraft:enderman" => 7.0,
+        "minecraft:blaze" => 6.0,
+        "minecraft:zoglin" | "minecraft:hoglin" => 6.0,
+        "minecraft:piglin_brute" => 7.0,
+        "minecraft:cave_spider" => 2.0,
+        "minecraft:silverfish" => 1.0,
+        "minecraft:spider" | "minecraft:vex" => 4.0,
+        "minecraft:slime" | "minecraft:magma_cube" => 2.0,
+        _ => 2.0,
     }
 }
 
@@ -492,6 +610,7 @@ mod tests {
             pitch: 0.0,
             health: DEFAULT_MOB_HEALTH,
             tick_count: 0,
+            attack_cooldown_ticks: 0,
         }
     }
 
@@ -601,38 +720,24 @@ mod tests {
     fn hostile_mob_ai_uses_id_based_half_rate_goal_tick_and_moves_toward_player() {
         let mut store = LiveMobStore::default();
         store.mobs.insert(43, zombie(43, 4.0, 0.0));
+        let mut play_state = PlaySessionState {
+            x: 0.0,
+            y: 64.0,
+            z: 0.0,
+            ..PlaySessionState::default()
+        };
 
-        let first = store.tick_ai(
-            1,
-            Vec3 {
-                x: 0.0,
-                y: 64.0,
-                z: 0.0,
-            },
-        );
+        let first = store.tick_ai(1, &mut play_state);
         assert_eq!(first.moved_mobs, 1);
+        assert_eq!(first.player_damage, 0.0);
         let after_first = store.mobs.get(&43).unwrap().x;
         assert!(after_first < 4.0);
 
-        let second = store.tick_ai(
-            2,
-            Vec3 {
-                x: 0.0,
-                y: 64.0,
-                z: 0.0,
-            },
-        );
+        let second = store.tick_ai(2, &mut play_state);
         assert_eq!(second.moved_mobs, 0);
         assert_eq!(store.mobs.get(&43).unwrap().x, after_first);
 
-        let third = store.tick_ai(
-            3,
-            Vec3 {
-                x: 0.0,
-                y: 64.0,
-                z: 0.0,
-            },
-        );
+        let third = store.tick_ai(3, &mut play_state);
         assert_eq!(third.moved_mobs, 1);
         assert!(store.mobs.get(&43).unwrap().x < after_first);
 
@@ -640,6 +745,50 @@ mod tests {
         assert_eq!(packet.id, 43);
         assert!(packet.delta[0] < 0);
         assert_eq!(packet.delta[1], 0);
+    }
+
+    #[test]
+    fn hostile_mob_melee_uses_java_attack_range_cooldown_and_attribute_damage() {
+        let mut store = LiveMobStore::default();
+        store.mobs.insert(47, zombie(47, 0.9, 0.0));
+        let mut play_state = PlaySessionState {
+            x: 0.0,
+            y: 64.0,
+            z: 0.0,
+            health: 20.0,
+            ..PlaySessionState::default()
+        };
+
+        let first = store.tick_ai(1, &mut play_state);
+        assert_eq!(first.player_damage, crate::mob_interaction::ZOMBIE_ATTACK_DAMAGE);
+        assert_eq!(play_state.health, 17.0);
+        assert_eq!(
+            store.mobs.get(&47).unwrap().attack_cooldown_ticks,
+            MOB_MELEE_ATTACK_INTERVAL_TICKS
+        );
+
+        let second = store.tick_ai(2, &mut play_state);
+        assert_eq!(second.player_damage, 0.0);
+        assert_eq!(play_state.health, 17.0);
+    }
+
+    #[test]
+    fn player_attack_damage_uses_java_tool_attribute_values() {
+        let mut state = PlaySessionState::default();
+        state.selected_slot = 0;
+        assert_eq!(player_attack_damage(&state), PLAYER_BASE_ATTACK_DAMAGE);
+
+        state
+            .inventory_menu
+            .player_inventory_mut()
+            .set(0, ItemStack::new("minecraft:diamond_sword", 1));
+        assert_eq!(player_attack_damage(&state), 7.0);
+
+        state
+            .inventory_menu
+            .player_inventory_mut()
+            .set(0, ItemStack::new("minecraft:netherite_axe", 1));
+        assert_eq!(player_attack_damage(&state), 10.0);
     }
 
     #[test]
