@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use crate::item_consumable_components::UseEffectsComponent;
 use crate::item_custom_model_data_component::CustomModelData;
 use crate::item_swing_animation_component::SwingAnimationComponent;
 use crate::item_tooltip_components::TooltipDisplayComponent;
@@ -399,6 +400,7 @@ pub enum ItemComponent {
     Repairable(&'static str),
     UseAnimation(ItemUseAnimation),
     SwingAnimation(SwingAnimationComponent),
+    UseEffects(UseEffectsComponent),
     UseCooldown(UseCooldown),
     Food {
         nutrition: i32,
@@ -653,6 +655,7 @@ impl ItemDefinition {
                 ItemComponent::Tooltip(tooltip) => effective.tooltip = tooltip.clone(),
                 ItemComponent::Damage(_)
                 | ItemComponent::SwingAnimation(_)
+                | ItemComponent::UseEffects(_)
                 | ItemComponent::TooltipDisplay(_)
                 | ItemComponent::CustomModelData(_)
                 | ItemComponent::UseRemainder(_)
@@ -697,6 +700,7 @@ impl ItemComponent {
             Self::Repairable(_) => "minecraft:repairable",
             Self::UseAnimation(_) => "minecraft:use_animation",
             Self::SwingAnimation(_) => "minecraft:swing_animation",
+            Self::UseEffects(_) => "minecraft:use_effects",
             Self::UseCooldown(_) => "minecraft:use_cooldown",
             Self::Food { .. } => "minecraft:food",
             Self::Equippable { .. } => "minecraft:equippable",
