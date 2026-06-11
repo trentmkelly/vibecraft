@@ -511,6 +511,7 @@ mod inventory;
 mod inventory_transactions;
 mod item_catalog;
 mod item_consumable_components;
+mod item_consume_effects;
 mod item_custom_model_data_component;
 mod item_death_protection_component;
 mod item_disc_fragment;

@@ -1,21 +1,10 @@
 #![allow(dead_code)]
 
+use crate::item_consume_effects::{ConsumeEffectModel, StatusEffectInstanceModel};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeathProtectionComponent {
     pub death_effects: Vec<ConsumeEffectModel>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ConsumeEffectModel {
-    ClearAllStatusEffects,
-    ApplyStatusEffects(Vec<StatusEffectInstanceModel>),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StatusEffectInstanceModel {
-    pub effect: &'static str,
-    pub duration_ticks: i32,
-    pub amplifier: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,7 +27,7 @@ impl DeathProtectionComponent {
     pub fn totem_of_undying() -> Self {
         Self::new(vec![
             ConsumeEffectModel::ClearAllStatusEffects,
-            ConsumeEffectModel::ApplyStatusEffects(vec![
+            ConsumeEffectModel::apply_status_effects(vec![
                 StatusEffectInstanceModel::new("minecraft:regeneration", 900, 1),
                 StatusEffectInstanceModel::new("minecraft:absorption", 100, 1),
                 StatusEffectInstanceModel::new("minecraft:fire_resistance", 800, 0),
@@ -55,16 +44,6 @@ impl DeathProtectionComponent {
                 effect,
             })
             .collect()
-    }
-}
-
-impl StatusEffectInstanceModel {
-    pub fn new(effect: &'static str, duration_ticks: i32, amplifier: i32) -> Self {
-        Self {
-            effect,
-            duration_ticks,
-            amplifier,
-        }
     }
 }
 
@@ -99,7 +78,7 @@ mod tests {
             DeathProtectionComponent::totem_of_undying(),
             DeathProtectionComponent::new(vec![
                 ConsumeEffectModel::ClearAllStatusEffects,
-                ConsumeEffectModel::ApplyStatusEffects(vec![
+                ConsumeEffectModel::apply_status_effects(vec![
                     StatusEffectInstanceModel::new("minecraft:regeneration", 900, 1),
                     StatusEffectInstanceModel::new("minecraft:absorption", 100, 1),
                     StatusEffectInstanceModel::new("minecraft:fire_resistance", 800, 0),
@@ -122,7 +101,7 @@ mod tests {
         assert_eq!(applied[0].effect, ConsumeEffectModel::ClearAllStatusEffects);
         assert!(matches!(
             applied[1].effect,
-            ConsumeEffectModel::ApplyStatusEffects(_)
+            ConsumeEffectModel::ApplyStatusEffects { .. }
         ));
     }
 
