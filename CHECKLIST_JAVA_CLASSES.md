@@ -1123,7 +1123,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundUpdateAdvancementsPacket.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundUpdateAttributesPacket.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundUpdateMobEffectPacket.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundUpdateRecipesPacket.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundUpdateRecipesPacket.java`. — Ported Java's synchronized recipe update payload: map of `ResourceKey<RecipePropertySet>` to `RecipePropertySet` followed by `SelectableRecipe.SingleInputSet<StonecutterRecipe>` using `noRecipeCodec`; live join sends it immediately after held-slot like `PlayerList.placeNewPlayer`. Verified by `update_recipes_packet_writes_property_sets_and_stonecutter_entries` and `live_join_sends_update_recipes_after_held_slot_like_java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/game/CommonPlayerSpawnInfo.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/game/DebugEntityNameGenerator.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/game/GamePacketTypes.java`.
@@ -1160,7 +1160,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundPaddleBoatPacket.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundPickItemFromBlockPacket.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundPickItemFromEntityPacket.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundPlaceRecipePacket.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundPlaceRecipePacket.java`. — Ported Java codec fields (`containerId` via `CONTAINER_ID`, `RecipeDisplayId` VarInt, `useMaxItems` bool) and server dispatch/application semantics for inventory and active crafting-table menus. Verified by focused place-recipe packet application tests for accepted placement, wrong-container rejection, locked-recipe rejection, and crafting-table active-menu placement.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundPlayerAbilitiesPacket.java`. — Ported byte flag codec and Java `mayfly` gate for serverbound flying updates.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundPlayerActionPacket.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundPlayerCommandPacket.java`.
@@ -4092,12 +4092,12 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/RecipeInput.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/RecipeManager.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/RecipeMap.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/RecipePropertySet.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/RecipePropertySet.java`. — Ported the seven vanilla recipe property-set keys and Java `create(Collection<Ingredient>)` union behavior through `collect_recipe_property_sets`, with packet sync using the Java `Item.STREAM_CODEC.apply(ByteBufCodecs.list())` item-id list shape. Verified by `recipe_manager_reload_replaces_indexes_and_recipe_access_sets` and `update_recipes_packet_writes_property_sets_and_stonecutter_entries`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/RecipeSerializer.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/RecipeSerializers.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/RecipeType.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/RepairItemRecipe.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/SelectableRecipe.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/SelectableRecipe.java`. — Ported single-input stonecutter selection data, input filtering, empty/size behavior, and the Java `noRecipeCodec` synchronized form (ingredient holder set plus display-only result, no recipe id). Verified by `stonecutter_selectable_recipes_filter_all_outputs_for_input`, `StonecutterMenu` recipe-index tests, and `update_recipes_packet_writes_property_sets_and_stonecutter_entries`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/ShapedRecipe.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/ShapedRecipePattern.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/ShapelessRecipe.java`.

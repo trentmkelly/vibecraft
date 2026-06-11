@@ -1143,6 +1143,19 @@ fn assert_recipe_book_packets(session: &mut PlaySession) {
         DispatchOutcome::Handled
     );
     assert_eq!(session.last_recipe_book_seen_recipe, Some(seen_recipe));
+
+    let place_recipe = ServerboundPlaceRecipePacket {
+        container_id: 3,
+        recipe_index: 128,
+        use_max_items: true,
+    };
+    let mut place_recipe_payload = Vec::new();
+    place_recipe.write(&mut place_recipe_payload).unwrap();
+    assert_eq!(place_recipe_payload, vec![3, 0x80, 0x01, 1]);
+    assert_eq!(
+        ServerboundPlaceRecipePacket::read(&mut cursor(place_recipe_payload)).unwrap(),
+        place_recipe
+    );
 }
 
 fn assert_clientbound_player_world_packets() {
