@@ -1035,11 +1035,11 @@ impl WorldLayout {
     }
 
     pub fn save_forced_chunks(&self, tag: &Tag) -> std::io::Result<()> {
-        self.save_saved_data("forcedchunks", tag)
+        self.save_saved_data("chunk_tickets", tag)
     }
 
     pub fn load_forced_chunks(&self) -> std::io::Result<Tag> {
-        self.load_saved_data("forcedchunks")
+        self.load_saved_data("chunk_tickets")
     }
 
     pub fn save_command_storage(&self, namespace: &str, tag: &Tag) -> std::io::Result<()> {

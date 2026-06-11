@@ -2,7 +2,11 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::storage::region::ChunkPos;
+use crate::storage::{
+    chunk::unpack_chunk_pos_from_long,
+    nbt::Tag,
+    region::ChunkPos,
+};
 
 pub const FLAG_PERSIST: u8 = 1;
 pub const FLAG_LOADING: u8 = 2;
@@ -263,6 +267,69 @@ impl TicketStore {
             .flatten()
             .any(|ticket| ticket.ticket_type.should_keep_dimension_active())
     }
+
+    pub fn update_chunk_forced(&mut self, pos: ChunkPos, forced: bool) -> bool {
+        let Some(ticket_type) = ticket_type_by_id("minecraft:forced") else {
+            return false;
+        };
+        let ticket = Ticket::new(ticket_type, ENTITY_TICKING_LEVEL);
+        if forced {
+            self.add_ticket(pos, ticket)
+        } else {
+            self.remove_ticket(pos, ticket)
+        }
+    }
+
+    pub fn force_loaded_chunks(&self) -> BTreeSet<ChunkPos> {
+        self.tickets
+            .iter()
+            .filter_map(|(pos, tickets)| {
+                tickets
+                    .iter()
+                    .any(|ticket| ticket.ticket_type.id == "minecraft:forced")
+                    .then_some(*pos)
+            })
+            .collect()
+    }
+
+    pub fn to_ticket_storage_tag(&self) -> Tag {
+        let tickets = self
+            .tickets
+            .iter()
+            .flat_map(|(pos, tickets)| {
+                tickets
+                    .iter()
+                    .filter(|ticket| ticket.ticket_type.persist())
+                    .map(|ticket| ticket_entry_to_tag(*pos, *ticket))
+            })
+            .collect();
+        Tag::Compound(vec![("tickets".to_string(), Tag::List(tickets))])
+    }
+
+    pub fn from_ticket_storage_tag(tag: &Tag) -> Self {
+        let Tag::Compound(fields) = tag else {
+            return Self::default();
+        };
+        let tickets = fields
+            .iter()
+            .find_map(|(name, tag)| (name == "tickets").then_some(tag))
+            .and_then(|tag| match tag {
+                Tag::List(tickets) => Some(tickets.as_slice()),
+                _ => None,
+            })
+            .unwrap_or_default();
+        let mut store = Self::default();
+        // Java `TicketStorage.fromPacked` initially loads persisted tickets into
+        // deactivatedTickets; `MinecraftServer.prepareLevels` activates them after
+        // chunk listeners are installed. VibeCraft has no listener/deactivation split
+        // yet, so persisted tickets are made active immediately.
+        for tag in tickets {
+            if let Some((pos, ticket)) = ticket_entry_from_tag(tag) {
+                store.add_ticket(pos, ticket);
+            }
+        }
+        store
+    }
 }
 
 impl ChunkTrackingView {
@@ -470,6 +537,79 @@ fn same_type_and_level(a: Ticket, b: Ticket) -> bool {
     a.ticket_type.id == b.ticket_type.id && a.level == b.level
 }
 
+fn ticket_entry_to_tag(pos: ChunkPos, ticket: Ticket) -> Tag {
+    let mut fields = vec![
+        (
+            "chunk_pos".to_string(),
+            Tag::List(vec![Tag::Int(pos.x), Tag::Int(pos.z)]),
+        ),
+        (
+            "type".to_string(),
+            Tag::String(ticket.ticket_type.id.to_string()),
+        ),
+        ("level".to_string(), Tag::Int(ticket.level)),
+    ];
+    if ticket.ticks_left != 0 {
+        fields.push(("ticks_left".to_string(), Tag::Long(ticket.ticks_left)));
+    }
+    Tag::Compound(fields)
+}
+
+fn ticket_entry_from_tag(tag: &Tag) -> Option<(ChunkPos, Ticket)> {
+    let Tag::Compound(fields) = tag else {
+        return None;
+    };
+    let pos = chunk_pos_field(fields, "chunk_pos")?;
+    let ticket_type = string_field(fields, "type").and_then(ticket_type_by_id)?;
+    let level = int_field(fields, "level")?;
+    if level < 0 {
+        return None;
+    }
+    let ticks_left = long_field(fields, "ticks_left").unwrap_or(0);
+    Some((
+        pos,
+        Ticket {
+            ticket_type,
+            level,
+            ticks_left,
+        },
+    ))
+}
+
+fn chunk_pos_field(fields: &[(String, Tag)], name: &str) -> Option<ChunkPos> {
+    match &fields.iter().find(|(field, _)| field == name)?.1 {
+        Tag::List(values) if values.len() == 2 => {
+            let [Tag::Int(x), Tag::Int(z)] = values.as_slice() else {
+                return None;
+            };
+            Some(ChunkPos { x: *x, z: *z })
+        }
+        Tag::Long(value) => Some(unpack_chunk_pos_from_long(*value)),
+        _ => None,
+    }
+}
+
+fn int_field(fields: &[(String, Tag)], name: &str) -> Option<i32> {
+    match fields.iter().find(|(field, _)| field == name)?.1 {
+        Tag::Int(value) => Some(value),
+        _ => None,
+    }
+}
+
+fn long_field(fields: &[(String, Tag)], name: &str) -> Option<i64> {
+    match fields.iter().find(|(field, _)| field == name)?.1 {
+        Tag::Long(value) => Some(value),
+        _ => None,
+    }
+}
+
+fn string_field<'a>(fields: &'a [(String, Tag)], name: &str) -> Option<&'a str> {
+    match fields.iter().find(|(field, _)| field == name)?.1 {
+        Tag::String(ref value) => Some(value),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -477,6 +617,8 @@ mod tests {
         ChunkTrackingView, FullChunkStatus, PlayerChunkTracker, Ticket, TicketStore,
         BLOCK_TICKING_LEVEL, ENTITY_TICKING_LEVEL, FULL_CHUNK_LEVEL, TICKET_TYPES,
     };
+    use crate::storage::chunk::{pack_chunk_pos_as_long, unpack_chunk_pos_from_long};
+    use crate::storage::nbt::Tag;
     use crate::storage::region::ChunkPos;
     use std::collections::BTreeSet;
 
@@ -525,6 +667,83 @@ mod tests {
         assert!(store.keeps_dimension_active());
         assert!(store.remove_ticket(pos, Ticket::new(forced, FULL_CHUNK_LEVEL - 2)));
         assert!(!store.keeps_dimension_active());
+    }
+
+    #[test]
+    fn forced_chunk_ticket_storage_tag_matches_java_codec_shape() {
+        let mut store = TicketStore::default();
+        let forced = ticket_type_by_id("minecraft:forced").unwrap();
+        let portal = ticket_type_by_id("minecraft:portal").unwrap();
+        let spawn_search = ticket_type_by_id("minecraft:spawn_search").unwrap();
+        assert!(store.update_chunk_forced(ChunkPos { x: 2, z: -3 }, true));
+        assert!(!store.update_chunk_forced(ChunkPos { x: 2, z: -3 }, true));
+        store.add_ticket(ChunkPos { x: -1, z: 4 }, Ticket::new(portal, 30));
+        store.add_ticket(ChunkPos { x: 9, z: 9 }, Ticket::new(spawn_search, 33));
+
+        let Tag::Compound(fields) = store.to_ticket_storage_tag() else {
+            panic!("ticket storage should encode as compound");
+        };
+        let ticket_field = fields
+            .iter()
+            .find(|(name, _)| name == "tickets")
+            .map(|(_, tag)| tag);
+        let Some(Tag::List(tickets)) = ticket_field
+        else {
+            panic!("tickets should encode as list");
+        };
+        assert_eq!(tickets.len(), 2, "only persistent ticket types are saved");
+        assert!(tickets.contains(&Tag::Compound(vec![
+            (
+                "chunk_pos".to_string(),
+                Tag::List(vec![Tag::Int(2), Tag::Int(-3)])
+            ),
+            ("type".to_string(), Tag::String(forced.id.to_string())),
+            ("level".to_string(), Tag::Int(ENTITY_TICKING_LEVEL)),
+        ])));
+    }
+
+    #[test]
+    fn ticket_storage_decodes_forced_chunks_and_optional_ticks_left() {
+        let packed = Tag::Compound(vec![(
+            "tickets".to_string(),
+            Tag::List(vec![
+                Tag::Compound(vec![
+                    (
+                        "chunk_pos".to_string(),
+                        Tag::List(vec![Tag::Int(5), Tag::Int(-7)]),
+                    ),
+                    (
+                        "type".to_string(),
+                        Tag::String("minecraft:forced".to_string()),
+                    ),
+                    ("level".to_string(), Tag::Int(ENTITY_TICKING_LEVEL)),
+                ]),
+                Tag::Compound(vec![
+                    (
+                        "chunk_pos".to_string(),
+                        Tag::Long(pack_chunk_pos_as_long(ChunkPos { x: -9, z: 11 })),
+                    ),
+                    (
+                        "type".to_string(),
+                        Tag::String("minecraft:portal".to_string()),
+                    ),
+                    ("level".to_string(), Tag::Int(30)),
+                    ("ticks_left".to_string(), Tag::Long(17)),
+                ]),
+            ]),
+        )]);
+
+        let store = TicketStore::from_ticket_storage_tag(&packed);
+        assert_eq!(
+            store.force_loaded_chunks(),
+            BTreeSet::from([ChunkPos { x: 5, z: -7 }])
+        );
+        assert_eq!(store.tickets(ChunkPos { x: 5, z: -7 })[0].ticks_left, 0);
+        let portal_pos = unpack_chunk_pos_from_long(pack_chunk_pos_as_long(ChunkPos {
+            x: -9,
+            z: 11,
+        }));
+        assert_eq!(store.tickets(portal_pos)[0].ticks_left, 17);
     }
 
     #[test]

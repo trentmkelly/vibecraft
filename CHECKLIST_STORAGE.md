@@ -151,7 +151,7 @@
 - [ ] Implement scoreboard save data.
 - [ ] Implement raids save data.
 - [ ] Implement map item save data.
-- [ ] Implement forced chunks save data.
+- [x] Implement forced chunks save data. — Java 26.1.2 stores forced chunks through `TicketStorage.TYPE` at `data/chunk_tickets.dat`, not legacy `forcedchunks.dat`; Rust `WorldLayout::save_forced_chunks/load_forced_chunks` now targets `chunk_tickets`, and `chunk_ticket::TicketStore` encodes/decodes the Java `TicketStorage.CODEC` persisted-ticket shape (`tickets[]` entries with `chunk_pos`, `type`, `level`, and optional `ticks_left`) while preserving only `TicketType.persist()` tickets on save. Covered by `forced_chunk_ticket_storage_tag_matches_java_codec_shape`, `ticket_storage_decodes_forced_chunks_and_optional_ticks_left`, and `saves_vanilla_named_data_files`.
 - [ ] Implement command storage.
 - [ ] Implement custom bossbar save data.
 - [x] Implement random sequences save data. — Java 26.1.2 `RandomSequences` is a `SavedData` object stored at `data/random_sequences.dat` with `salt`, `include_world_seed`, `include_sequence_id`, and a map of `RandomSequence` `source` long-array states; Rust `WorldLayout` reads/writes the named saved-data file and `random_sequences` models the Java codec shape, create/reset/clear behavior, MD5 sequence-id seeding, Xoroshiro source state, and dirty marking on random-source use. Covered by `random_sequences_saved_data_codec_shape_matches_java`, `random_sequences_create_reset_clear_and_dirty_like_java_saved_data`, `random_sequence_seed_for_key_matches_known_java_md5_fixture`, and `saves_vanilla_named_data_files`.
