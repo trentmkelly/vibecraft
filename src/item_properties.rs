@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use crate::item_custom_model_data_component::CustomModelData;
 use crate::item_swing_animation_component::SwingAnimationComponent;
 use crate::item_tooltip_components::TooltipDisplayComponent;
 use std::collections::BTreeMap;
@@ -412,6 +413,7 @@ pub enum ItemComponent {
     Enchantable(u32),
     Tooltip(TooltipBehavior),
     TooltipDisplay(TooltipDisplayComponent),
+    CustomModelData(CustomModelData),
     UseRemainder(&'static str),
     ItemModel(&'static str),
     ItemName(&'static str),
@@ -652,6 +654,7 @@ impl ItemDefinition {
                 ItemComponent::Damage(_)
                 | ItemComponent::SwingAnimation(_)
                 | ItemComponent::TooltipDisplay(_)
+                | ItemComponent::CustomModelData(_)
                 | ItemComponent::UseRemainder(_)
                 | ItemComponent::ItemModel(_)
                 | ItemComponent::ItemName(_)
@@ -700,6 +703,7 @@ impl ItemComponent {
             Self::Enchantable(_) => "minecraft:enchantable",
             Self::Tooltip(_) => "minecraft:enchantment_glint_override",
             Self::TooltipDisplay(_) => "minecraft:tooltip_display",
+            Self::CustomModelData(_) => "minecraft:custom_model_data",
             Self::UseRemainder(_) => "minecraft:use_remainder",
             Self::ItemModel(_) => "minecraft:item_model",
             Self::ItemName(_) => "minecraft:item_name",

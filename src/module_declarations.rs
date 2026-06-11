@@ -510,6 +510,7 @@ mod inhabited_time;
 mod inventory;
 mod inventory_transactions;
 mod item_catalog;
+mod item_custom_model_data_component;
 mod item_disc_fragment;
 mod item_dyed_color_component;
 mod item_dye;
