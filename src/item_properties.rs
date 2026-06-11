@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use crate::item_swing_animation_component::SwingAnimationComponent;
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -395,6 +396,7 @@ pub enum ItemComponent {
     Rarity(Rarity),
     Repairable(&'static str),
     UseAnimation(ItemUseAnimation),
+    SwingAnimation(SwingAnimationComponent),
     UseCooldown(UseCooldown),
     Food {
         nutrition: i32,
@@ -646,6 +648,7 @@ impl ItemDefinition {
                 ItemComponent::Enchantable(value) => effective.enchantability = Some(*value),
                 ItemComponent::Tooltip(tooltip) => effective.tooltip = tooltip.clone(),
                 ItemComponent::Damage(_)
+                | ItemComponent::SwingAnimation(_)
                 | ItemComponent::UseRemainder(_)
                 | ItemComponent::ItemModel(_)
                 | ItemComponent::ItemName(_)
@@ -687,6 +690,7 @@ impl ItemComponent {
             Self::Rarity(_) => "minecraft:rarity",
             Self::Repairable(_) => "minecraft:repairable",
             Self::UseAnimation(_) => "minecraft:use_animation",
+            Self::SwingAnimation(_) => "minecraft:swing_animation",
             Self::UseCooldown(_) => "minecraft:use_cooldown",
             Self::Food { .. } => "minecraft:food",
             Self::Equippable { .. } => "minecraft:equippable",

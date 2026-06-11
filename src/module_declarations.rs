@@ -523,6 +523,7 @@ mod item_ominous_bottle_component;
 mod item_properties;
 mod item_sign_applicator;
 mod item_stack;
+mod item_swing_animation_component;
 mod item_tags;
 mod item_tool_use;
 mod item_weapon_component;
