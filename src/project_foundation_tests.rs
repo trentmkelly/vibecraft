@@ -33,6 +33,17 @@ mod tests {
         }
     }
 
+    fn repo_file(parts: &[&str]) -> String {
+        let path = parts
+            .iter()
+            .fold(Path::new(env!("CARGO_MANIFEST_DIR")).to_path_buf(), |path, part| {
+                path.join(part)
+            });
+        fs::read_to_string(&path).unwrap_or_else(|err| {
+            panic!("failed to read {}: {err}", path.display());
+        })
+    }
+
     #[test]
     fn mineflayer_runner_targets_vibecraft_and_official_server() {
         let runner = harness_file("runner.mjs");
@@ -44,6 +55,45 @@ mod tests {
         assert!(runner.contains("serverKind: 'vibecraft'"));
         assert!(runner.contains("normalizeArtifacts"));
         assert!(runner.contains("diffArtifacts"));
+    }
+
+    #[test]
+    fn validation_sources_policy_names_each_allowed_evidence_family() {
+        let policy = doc_file("VALIDATION_SOURCES.md");
+        let package_lock = harness_file("package-lock.json");
+        let protocol_manifest = harness_file("protocol_packet_manifest.mjs");
+        let runner = harness_file("runner.mjs");
+        let datapack = harness_file("datapack_scenarios.mjs");
+        let raw_probe = harness_file("raw_26_1_2_join_probe.mjs");
+        let generated_reports = repo_file(&["src", "generated_reports.rs"]);
+        let vanilla_recipe = repo_file(&[
+            "vanilla-data",
+            "data",
+            "minecraft",
+            "recipe",
+            "stick.json",
+        ]);
+
+        assert_contains_all(
+            &policy,
+            &[
+                "Black-box tests",
+                "Public protocol references",
+                "Vanilla datapacks and resources",
+                "Generated assets",
+                "Observed behavior",
+                "official `server.jar`",
+            ],
+        );
+        assert!(runner.contains("runParityScenario"));
+        assert!(package_lock.contains("node_modules/minecraft-data"));
+        assert!(package_lock.contains("node_modules/prismarine-registry"));
+        assert!(protocol_manifest.contains("createClientboundGoldenCoverage"));
+        assert!(datapack.contains("datapack-reload"));
+        assert!(raw_probe.contains("protocolVersion"));
+        assert!(generated_reports.contains("registries.json"));
+        assert!(generated_reports.contains("worldgen_chunks.json"));
+        assert!(vanilla_recipe.contains("\"minecraft:stick\""));
     }
 
     #[test]
