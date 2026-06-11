@@ -110,7 +110,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. Each pack
 - [ ] `net/minecraft/advancements/criterion` (83 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/commands` (14 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/commands/arguments` (41 Java files): add class-level Rust port tasks and parity tests.
-- [ ] `net/minecraft/commands/arguments/blocks` (5 Java files): add class-level Rust port tasks and parity tests.
+- [x] `net/minecraft/commands/arguments/blocks` (5 Java files): add class-level Rust port tasks and parity tests. — all package rows are covered in `CHECKLIST_JAVA_CLASSES.md`: `BlockInput`, `BlockPredicateArgument`, `BlockStateArgument`, and `BlockStateParser` are modeled in `command_block_arguments` with Java-backed block-state/property/NBT matching, placement/update, block and tag predicate parsing, vague-property validation, parser errors/cursor resets, serialization, suggestion, and package-info tests. Verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 block_arguments`.
 - [ ] `net/minecraft/commands/arguments/coordinates` (11 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/commands/arguments/item` (7 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/commands/arguments/selector` (3 Java files): add class-level Rust port tasks and parity tests.
