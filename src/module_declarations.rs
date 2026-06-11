@@ -510,6 +510,7 @@ mod inhabited_time;
 mod inventory;
 mod inventory_transactions;
 mod item_catalog;
+mod item_disc_fragment;
 mod item_dye;
 mod item_entity;
 #[cfg(test)]
