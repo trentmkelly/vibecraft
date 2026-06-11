@@ -3934,7 +3934,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/Instruments.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/Item.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/ItemCooldowns.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/ItemDisplayContext.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/ItemDisplayContext.java`. — Java 26.1.2 is a ten-value `StringRepresentable` enum with ids 0-9, `ByIdMap.OutOfBoundsStrategy.ZERO`, serialized names, and `firstPerson` / `leftHand` helpers. Rust `item_properties::ItemDisplayContext` carries the same order, ids, names, zero fallback, name lookup, and helper predicates. Covered by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 item_display_context`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/ItemFrameItem.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/ItemInstance.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/ItemStack.java`.
@@ -3960,7 +3960,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/PotionItem.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/ProjectileItem.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/ProjectileWeaponItem.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/Rarity.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/Rarity.java`. — Java 26.1.2 is a four-value `StringRepresentable` enum with ids 0-3, `ByIdMap.OutOfBoundsStrategy.ZERO`, serialized names, stream-codec id mapping, and `ChatFormatting` colors WHITE/YELLOW/AQUA/LIGHT_PURPLE. Rust `item_properties::Rarity` now exposes the same ids, zero fallback, names, name lookup, and colors while retaining existing item-component use. Covered by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 rarity`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/ScaffoldingBlockItem.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/ServerItemCooldowns.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/ShearsItem.java`.
@@ -3976,7 +3976,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/SplashPotionItem.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/SpyglassItem.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/StandingAndWallBlockItem.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/SwingAnimationType.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/SwingAnimationType.java`. — Java 26.1.2 is a three-value `StringRepresentable` enum (`NONE`, `WHACK`, `STAB`) with ids 0-2, `ByIdMap.OutOfBoundsStrategy.ZERO`, serialized names, and a stream-codec id mapper. Rust `item_properties::SwingAnimationType` mirrors those ids, names, zero fallback, and name lookup. Covered by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 swing_animation_type`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/ThrowablePotionItem.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/TippedArrowItem.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/ToolMaterial.java`.

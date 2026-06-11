@@ -10,6 +10,180 @@ pub enum Rarity {
     Epic,
 }
 
+impl Rarity {
+    pub const VALUES: [Self; 4] = [Self::Common, Self::Uncommon, Self::Rare, Self::Epic];
+
+    pub fn id(self) -> i32 {
+        match self {
+            Self::Common => 0,
+            Self::Uncommon => 1,
+            Self::Rare => 2,
+            Self::Epic => 3,
+        }
+    }
+
+    pub fn by_id(id: i32) -> Self {
+        Self::VALUES
+            .iter()
+            .copied()
+            .find(|rarity| rarity.id() == id)
+            .unwrap_or(Self::Common)
+    }
+
+    pub fn serialized_name(self) -> &'static str {
+        match self {
+            Self::Common => "common",
+            Self::Uncommon => "uncommon",
+            Self::Rare => "rare",
+            Self::Epic => "epic",
+        }
+    }
+
+    pub fn by_serialized_name(name: &str) -> Option<Self> {
+        Self::VALUES
+            .iter()
+            .copied()
+            .find(|rarity| rarity.serialized_name() == name)
+    }
+
+    pub fn color(self) -> crate::chat_formatting::ChatFormatting {
+        match self {
+            Self::Common => crate::chat_formatting::ChatFormatting::White,
+            Self::Uncommon => crate::chat_formatting::ChatFormatting::Yellow,
+            Self::Rare => crate::chat_formatting::ChatFormatting::Aqua,
+            Self::Epic => crate::chat_formatting::ChatFormatting::LightPurple,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ItemDisplayContext {
+    None,
+    ThirdPersonLeftHand,
+    ThirdPersonRightHand,
+    FirstPersonLeftHand,
+    FirstPersonRightHand,
+    Head,
+    Gui,
+    Ground,
+    Fixed,
+    OnShelf,
+}
+
+impl ItemDisplayContext {
+    pub const VALUES: [Self; 10] = [
+        Self::None,
+        Self::ThirdPersonLeftHand,
+        Self::ThirdPersonRightHand,
+        Self::FirstPersonLeftHand,
+        Self::FirstPersonRightHand,
+        Self::Head,
+        Self::Gui,
+        Self::Ground,
+        Self::Fixed,
+        Self::OnShelf,
+    ];
+
+    pub fn id(self) -> u8 {
+        match self {
+            Self::None => 0,
+            Self::ThirdPersonLeftHand => 1,
+            Self::ThirdPersonRightHand => 2,
+            Self::FirstPersonLeftHand => 3,
+            Self::FirstPersonRightHand => 4,
+            Self::Head => 5,
+            Self::Gui => 6,
+            Self::Ground => 7,
+            Self::Fixed => 8,
+            Self::OnShelf => 9,
+        }
+    }
+
+    pub fn by_id(id: i32) -> Self {
+        if id < 0 {
+            return Self::None;
+        }
+        let id = id as u8;
+        Self::VALUES
+            .iter()
+            .copied()
+            .find(|context| context.id() == id)
+            .unwrap_or(Self::None)
+    }
+
+    pub fn serialized_name(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::ThirdPersonLeftHand => "thirdperson_lefthand",
+            Self::ThirdPersonRightHand => "thirdperson_righthand",
+            Self::FirstPersonLeftHand => "firstperson_lefthand",
+            Self::FirstPersonRightHand => "firstperson_righthand",
+            Self::Head => "head",
+            Self::Gui => "gui",
+            Self::Ground => "ground",
+            Self::Fixed => "fixed",
+            Self::OnShelf => "on_shelf",
+        }
+    }
+
+    pub fn by_serialized_name(name: &str) -> Option<Self> {
+        Self::VALUES
+            .iter()
+            .copied()
+            .find(|context| context.serialized_name() == name)
+    }
+
+    pub fn first_person(self) -> bool {
+        matches!(self, Self::FirstPersonLeftHand | Self::FirstPersonRightHand)
+    }
+
+    pub fn left_hand(self) -> bool {
+        matches!(self, Self::FirstPersonLeftHand | Self::ThirdPersonLeftHand)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SwingAnimationType {
+    None,
+    Whack,
+    Stab,
+}
+
+impl SwingAnimationType {
+    pub const VALUES: [Self; 3] = [Self::None, Self::Whack, Self::Stab];
+
+    pub fn id(self) -> i32 {
+        match self {
+            Self::None => 0,
+            Self::Whack => 1,
+            Self::Stab => 2,
+        }
+    }
+
+    pub fn by_id(id: i32) -> Self {
+        Self::VALUES
+            .iter()
+            .copied()
+            .find(|animation| animation.id() == id)
+            .unwrap_or(Self::None)
+    }
+
+    pub fn serialized_name(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Whack => "whack",
+            Self::Stab => "stab",
+        }
+    }
+
+    pub fn by_serialized_name(name: &str) -> Option<Self> {
+        Self::VALUES
+            .iter()
+            .copied()
+            .find(|animation| animation.serialized_name() == name)
+    }
+}
+
 /// `net.minecraft.world.item.component.MapPostProcessing` — marks a cartography-table
 /// result map for post-processing when the player takes it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -515,6 +689,114 @@ pub fn item_definition(registry_id: &str) -> Option<ItemDefinition> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const ITEM_DISPLAY_CONTEXT_JAVA: &str =
+        include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/ItemDisplayContext.java");
+    const RARITY_JAVA: &str =
+        include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/Rarity.java");
+    const SWING_ANIMATION_TYPE_JAVA: &str =
+        include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/SwingAnimationType.java");
+
+    #[test]
+    fn item_display_context_matches_java_ids_names_and_hand_helpers() {
+        assert!(ITEM_DISPLAY_CONTEXT_JAVA.contains("NONE(0, \"none\")"));
+        assert!(
+            ITEM_DISPLAY_CONTEXT_JAVA.contains("ON_SHELF(9, \"on_shelf\")")
+        );
+        assert!(ITEM_DISPLAY_CONTEXT_JAVA
+            .contains("ByIdMap.OutOfBoundsStrategy.ZERO"));
+        assert!(ITEM_DISPLAY_CONTEXT_JAVA.contains(
+            "return this == FIRST_PERSON_LEFT_HAND || this == FIRST_PERSON_RIGHT_HAND;"
+        ));
+        assert!(ITEM_DISPLAY_CONTEXT_JAVA
+            .contains("return this == FIRST_PERSON_LEFT_HAND || this == THIRD_PERSON_LEFT_HAND;"));
+
+        let names: Vec<_> = ItemDisplayContext::VALUES
+            .iter()
+            .map(|context| context.serialized_name())
+            .collect();
+        assert_eq!(
+            names,
+            vec![
+                "none",
+                "thirdperson_lefthand",
+                "thirdperson_righthand",
+                "firstperson_lefthand",
+                "firstperson_righthand",
+                "head",
+                "gui",
+                "ground",
+                "fixed",
+                "on_shelf",
+            ]
+        );
+        assert_eq!(ItemDisplayContext::None.id(), 0);
+        assert_eq!(ItemDisplayContext::OnShelf.id(), 9);
+        assert_eq!(ItemDisplayContext::by_id(-1), ItemDisplayContext::None);
+        assert_eq!(ItemDisplayContext::by_id(99), ItemDisplayContext::None);
+        assert_eq!(
+            ItemDisplayContext::by_serialized_name("firstperson_lefthand"),
+            Some(ItemDisplayContext::FirstPersonLeftHand)
+        );
+        assert!(ItemDisplayContext::FirstPersonLeftHand.first_person());
+        assert!(ItemDisplayContext::FirstPersonRightHand.first_person());
+        assert!(!ItemDisplayContext::ThirdPersonRightHand.first_person());
+        assert!(ItemDisplayContext::FirstPersonLeftHand.left_hand());
+        assert!(ItemDisplayContext::ThirdPersonLeftHand.left_hand());
+        assert!(!ItemDisplayContext::FirstPersonRightHand.left_hand());
+    }
+
+    #[test]
+    fn rarity_matches_java_ids_names_colors_and_zero_fallback() {
+        assert!(RARITY_JAVA.contains("COMMON(0, \"common\", ChatFormatting.WHITE)"));
+        assert!(RARITY_JAVA.contains("EPIC(3, \"epic\", ChatFormatting.LIGHT_PURPLE)"));
+        assert!(RARITY_JAVA.contains("ByIdMap.OutOfBoundsStrategy.ZERO"));
+        assert!(RARITY_JAVA.contains("public ChatFormatting color()"));
+
+        assert_eq!(Rarity::VALUES.len(), 4);
+        assert_eq!(Rarity::Common.id(), 0);
+        assert_eq!(Rarity::Epic.id(), 3);
+        assert_eq!(Rarity::by_id(-1), Rarity::Common);
+        assert_eq!(Rarity::by_id(99), Rarity::Common);
+        assert_eq!(Rarity::Uncommon.serialized_name(), "uncommon");
+        assert_eq!(Rarity::by_serialized_name("rare"), Some(Rarity::Rare));
+        assert_eq!(
+            Rarity::Common.color(),
+            crate::chat_formatting::ChatFormatting::White
+        );
+        assert_eq!(
+            Rarity::Uncommon.color(),
+            crate::chat_formatting::ChatFormatting::Yellow
+        );
+        assert_eq!(
+            Rarity::Rare.color(),
+            crate::chat_formatting::ChatFormatting::Aqua
+        );
+        assert_eq!(
+            Rarity::Epic.color(),
+            crate::chat_formatting::ChatFormatting::LightPurple
+        );
+    }
+
+    #[test]
+    fn swing_animation_type_matches_java_ids_names_and_zero_fallback() {
+        assert!(SWING_ANIMATION_TYPE_JAVA.contains("NONE(0, \"none\")"));
+        assert!(SWING_ANIMATION_TYPE_JAVA.contains("STAB(2, \"stab\")"));
+        assert!(SWING_ANIMATION_TYPE_JAVA.contains("ByIdMap.OutOfBoundsStrategy.ZERO"));
+        assert!(SWING_ANIMATION_TYPE_JAVA.contains("StreamCodec<ByteBuf, SwingAnimationType>"));
+
+        assert_eq!(SwingAnimationType::VALUES.len(), 3);
+        assert_eq!(SwingAnimationType::None.id(), 0);
+        assert_eq!(SwingAnimationType::Whack.id(), 1);
+        assert_eq!(SwingAnimationType::Stab.id(), 2);
+        assert_eq!(SwingAnimationType::by_id(-1), SwingAnimationType::None);
+        assert_eq!(SwingAnimationType::by_id(99), SwingAnimationType::None);
+        assert_eq!(SwingAnimationType::Whack.serialized_name(), "whack");
+        assert_eq!(
+            SwingAnimationType::by_serialized_name("stab"),
+            Some(SwingAnimationType::Stab)
+        );
+    }
 
     #[test]
     fn durability_sets_damage_zero_and_unstackable_like_item_properties() {
