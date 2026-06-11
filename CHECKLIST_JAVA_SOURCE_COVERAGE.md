@@ -225,7 +225,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. Each pack
 - [ ] `net/minecraft/util/filefix/virtualfilesystem` (9 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/util/filefix/virtualfilesystem/exception` (9 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/util/monitoring/jmx` (2 Java files): add class-level Rust port tasks and parity tests.
-- [ ] `net/minecraft/util/parsing` (1 Java files): add class-level Rust port tasks and parity tests.
+- [x] `net/minecraft/util/parsing` (1 Java files): add class-level Rust port tasks and parity tests. — the package contains only `package-info.java`; its class row in `CHECKLIST_JAVA_CLASSES.md` is audited as a `@NullMarked` package marker with no runtime Rust behavior or parity test required.
 - [ ] `net/minecraft/util/parsing/packrat` (14 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/util/parsing/packrat/commands` (14 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/util/profiling` (15 Java files): add class-level Rust port tasks and parity tests.
