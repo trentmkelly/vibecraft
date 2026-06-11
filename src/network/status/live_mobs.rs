@@ -643,6 +643,42 @@ mod tests {
     }
 
     #[test]
+    fn live_mob_client_tick_emits_movement_health_and_timing_path() {
+        let store = Arc::new(Mutex::new(LiveMobStore::default()));
+        lock_status_mutex(&store).mobs.insert(49, zombie(49, 0.9, 0.0));
+        let mut play_state = PlaySessionState {
+            x: 0.0,
+            y: 64.0,
+            z: 0.0,
+            health: 20.0,
+            ..PlaySessionState::default()
+        };
+        let loaded_chunks = BTreeSet::new();
+        let chunk_cache = GeneratedChunkCache::default();
+        let mut output = Vec::new();
+
+        let health_changed = tick_live_mobs_for_client(
+            &mut output,
+            CompressionState::disabled(),
+            LiveMobClientTickContext {
+                store: &store,
+                loaded_chunks: &loaded_chunks,
+                chunk_cache: &chunk_cache,
+                world_root: Path::new("."),
+                world_seed: 0,
+                play_state: &mut play_state,
+                tick_count: 1,
+            },
+        )
+        .unwrap();
+
+        assert!(health_changed);
+        assert_eq!(play_state.health, 17.0);
+        assert_eq!(framed_packet_ids(&output), vec![CLIENTBOUND_MOVE_ENTITY_POS_PACKET_ID]);
+        assert!(lock_status_mutex(&store).mobs.get(&49).unwrap().x < 0.9);
+    }
+
+    #[test]
     fn live_mob_attack_handler_emits_hurt_and_remove_packets() {
         let store = Arc::new(Mutex::new(LiveMobStore::default()));
         lock_status_mutex(&store).mobs.insert(51, zombie(51, 1.0, 0.0));
