@@ -87,9 +87,7 @@ async function runJoinProbe (port, username) {
         VIBECRAFT_PORT: String(port),
         VIBECRAFT_USERNAME: username,
         VIBECRAFT_EXPECT_WORLD_SEED: '8675309',
-        VIBECRAFT_EXPECT_IS_FLAT: 'false',
-        VIBECRAFT_EXPECT_JOIN_POSITION: JSON.stringify({ x: 0.5, y: 112, z: 0.5, yaw: 0, pitch: 0 }),
-        VIBECRAFT_EXPECT_DEFAULT_SPAWN: JSON.stringify({ x: 0, y: 112, z: 0 })
+        VIBECRAFT_EXPECT_IS_FLAT: 'false'
       },
       timeout: 30_000,
       maxBuffer: 1024 * 1024
