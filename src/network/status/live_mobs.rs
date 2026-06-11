@@ -2,7 +2,9 @@ use super::*;
 
 const DEFAULT_MOB_HEALTH: f32 = 20.0;
 const PLAYER_ATTACK_DAMAGE: f32 = 1.0;
-const PLAYER_ATTACK_RANGE: f64 = 3.0;
+const PLAYER_ENTITY_INTERACTION_RANGE: f64 = 3.0;
+const PLAYER_ATTACK_VERIFICATION_BUFFER: f64 = 3.0;
+const PLAYER_EYE_HEIGHT: f64 = 1.62;
 const HOSTILE_FOLLOW_RANGE: f64 = 16.0;
 const HOSTILE_STEP_PER_TICK: f64 = 0.115;
 const PASSIVE_WANDER_STEP_PER_TICK: f64 = 0.035;
@@ -80,9 +82,7 @@ impl LiveMobStore {
         let Some(mob) = self.mobs.get_mut(&entity_id) else {
             return MobAttackResult::Miss;
         };
-        if distance_squared((mob.x, mob.y, mob.z), (player_position.x, player_position.y, player_position.z))
-            > PLAYER_ATTACK_RANGE * PLAYER_ATTACK_RANGE
-        {
+        if !player_can_reach_mob_attack(mob, player_position) {
             return MobAttackResult::Miss;
         }
         mob.health -= damage;
@@ -288,6 +288,113 @@ fn relative_delta(delta: f64) -> i16 {
         as i16
 }
 
+fn player_can_reach_mob_attack(mob: &LiveMobEntity, player_position: Vec3) -> bool {
+    // Java `ServerGamePacketListenerImpl.handleAttack` calls
+    // `Player.isWithinAttackRange(mainHandItem, targetBounds, 3.0)`. Empty-hand
+    // attacks use `AttackRange.defaultFor(player)`: max reach is the player's
+    // entity_interaction_range (3.0 in survival/adventure), plus the listener's
+    // 3.0 verification buffer. Distance is eye-to-target-AABB, not center-to-center.
+    let max_range = PLAYER_ENTITY_INTERACTION_RANGE + PLAYER_ATTACK_VERIFICATION_BUFFER;
+    let eye = Vec3 {
+        x: player_position.x,
+        y: player_position.y + PLAYER_EYE_HEIGHT,
+        z: player_position.z,
+    };
+    mob_aabb_distance_squared(mob, eye) <= max_range * max_range
+}
+
+fn mob_aabb_distance_squared(mob: &LiveMobEntity, point: Vec3) -> f64 {
+    let (width, height) = entity_dimensions(&mob.entity_type);
+    let half_width = width / 2.0;
+    let dx = axis_distance_to_interval(point.x, mob.x - half_width, mob.x + half_width);
+    let dy = axis_distance_to_interval(point.y, mob.y, mob.y + height);
+    let dz = axis_distance_to_interval(point.z, mob.z - half_width, mob.z + half_width);
+    dx * dx + dy * dy + dz * dz
+}
+
+fn axis_distance_to_interval(point: f64, min: f64, max: f64) -> f64 {
+    if point < min {
+        min - point
+    } else if point > max {
+        point - max
+    } else {
+        0.0
+    }
+}
+
+fn entity_dimensions(entity_type: &str) -> (f64, f64) {
+    // Java 26.1.2 `EntityType` builder `.sized(width, height)` values for the
+    // mob families currently emitted by VibeCraft chunk generation. Unknown
+    // live mobs fall back to the player-sized default instead of center reach.
+    match entity_type {
+        "minecraft:allay" => (0.35, 0.6),
+        "minecraft:armadillo" => (0.7, 0.65),
+        "minecraft:axolotl" => (0.75, 0.42),
+        "minecraft:bat" => (0.5, 0.9),
+        "minecraft:bee" => (0.7, 0.6),
+        "minecraft:blaze" => (0.6, 1.8),
+        "minecraft:bogged" | "minecraft:parched" | "minecraft:skeleton" | "minecraft:stray" => {
+            (0.6, 1.99)
+        }
+        "minecraft:breeze" => (0.6, 1.77),
+        "minecraft:camel" | "minecraft:camel_husk" => (1.7, 2.375),
+        "minecraft:cat" | "minecraft:ocelot" => (0.6, 0.7),
+        "minecraft:cave_spider" => (0.7, 0.5),
+        "minecraft:chicken" => (0.4, 0.7),
+        "minecraft:cod" | "minecraft:tropical_fish" => (0.5, 0.4),
+        "minecraft:cow" | "minecraft:mooshroom" => (0.9, 1.4),
+        "minecraft:creaking" => (0.9, 2.7),
+        "minecraft:creeper" => (0.6, 1.7),
+        "minecraft:dolphin" => (0.9, 0.6),
+        "minecraft:donkey" | "minecraft:mule" => (1.3964844, 1.5),
+        "minecraft:drowned" | "minecraft:husk" | "minecraft:piglin" | "minecraft:piglin_brute"
+        | "minecraft:villager" | "minecraft:vindicator" | "minecraft:wandering_trader"
+        | "minecraft:witch" | "minecraft:zombie" | "minecraft:zombie_villager"
+        | "minecraft:zombified_piglin" => (0.6, 1.95),
+        "minecraft:elder_guardian" => (1.9975, 1.9975),
+        "minecraft:enderman" | "minecraft:warden" => (0.6, 2.9),
+        "minecraft:endermite" | "minecraft:silverfish" => (0.4, 0.3),
+        "minecraft:evoker" | "minecraft:illusioner" | "minecraft:pillager" => (0.6, 1.95),
+        "minecraft:fox" => (0.6, 0.7),
+        "minecraft:frog" => (0.5, 0.5),
+        "minecraft:ghast" | "minecraft:happy_ghast" => (4.0, 4.0),
+        "minecraft:giant" => (3.6, 12.0),
+        "minecraft:glow_squid" | "minecraft:squid" => (0.8, 0.8),
+        "minecraft:goat" => (0.9, 1.3),
+        "minecraft:guardian" => (0.85, 0.85),
+        "minecraft:hoglin" | "minecraft:zoglin" => (1.3964844, 1.4),
+        "minecraft:horse" | "minecraft:skeleton_horse" | "minecraft:zombie_horse" => {
+            (1.3964844, 1.6)
+        }
+        "minecraft:iron_golem" => (1.4, 2.7),
+        "minecraft:llama" | "minecraft:trader_llama" => (0.9, 1.87),
+        "minecraft:magma_cube" | "minecraft:slime" => (0.52, 0.52),
+        "minecraft:panda" => (1.3, 1.25),
+        "minecraft:parrot" => (0.5, 0.9),
+        "minecraft:phantom" => (0.9, 0.5),
+        "minecraft:pig" => (0.9, 0.9),
+        "minecraft:polar_bear" => (1.4, 1.4),
+        "minecraft:pufferfish" => (0.7, 0.7),
+        "minecraft:rabbit" => (0.49, 0.6),
+        "minecraft:ravager" => (1.95, 2.2),
+        "minecraft:salmon" => (0.7, 0.4),
+        "minecraft:sheep" => (0.9, 1.3),
+        "minecraft:shulker" => (1.0, 1.0),
+        "minecraft:sniffer" => (1.9, 1.75),
+        "minecraft:snow_golem" => (0.7, 1.9),
+        "minecraft:spider" => (1.4, 0.9),
+        "minecraft:strider" => (0.9, 1.7),
+        "minecraft:tadpole" => (0.4, 0.3),
+        "minecraft:turtle" => (1.2, 0.4),
+        "minecraft:vex" => (0.4, 0.8),
+        "minecraft:wither" => (0.9, 3.5),
+        "minecraft:wither_skeleton" => (0.7, 2.4),
+        "minecraft:wolf" => (0.6, 0.85),
+        "minecraft:zombie_nautilus" => (0.875, 0.95),
+        _ => (0.6, 1.8),
+    }
+}
+
 fn step_toward_player(mob: &mut LiveMobEntity, player_position: Vec3, full_goal_tick: bool) -> bool {
     if !full_goal_tick {
         return false;
@@ -335,13 +442,6 @@ fn hostile_mob(entity_type: &str) -> bool {
             | "minecraft:zoglin"
             | "minecraft:zombie_nautilus"
     )
-}
-
-fn distance_squared(a: (f64, f64, f64), b: (f64, f64, f64)) -> f64 {
-    let dx = a.0 - b.0;
-    let dy = a.1 - b.1;
-    let dz = a.2 - b.2;
-    dx * dx + dy * dy + dz * dz
 }
 
 fn tag_double_triplet_field(fields: &[(String, Tag)], name: &str) -> Option<[f64; 3]> {
@@ -441,6 +541,60 @@ mod tests {
             MobAttackResult::Killed { entity_id: 42 }
         );
         assert!(!store.mobs.contains_key(&42));
+    }
+
+    #[test]
+    fn live_mob_attack_reach_uses_java_eye_to_aabb_distance() {
+        let mut store = LiveMobStore::default();
+        store.mobs.insert(44, zombie(44, 6.29, 0.0));
+
+        assert_eq!(
+            store.attack(
+                44,
+                Vec3 {
+                    x: 0.0,
+                    y: 64.0,
+                    z: 0.0
+                },
+                1.0
+            ),
+            MobAttackResult::Hurt { entity_id: 44 }
+        );
+
+        store.mobs.insert(45, zombie(45, 6.31, 0.0));
+        assert_eq!(
+            store.attack(
+                45,
+                Vec3 {
+                    x: 0.0,
+                    y: 64.0,
+                    z: 0.0
+                },
+                1.0
+            ),
+            MobAttackResult::Miss
+        );
+    }
+
+    #[test]
+    fn live_mob_attack_reach_counts_large_entity_hitbox_like_java() {
+        let mut store = LiveMobStore::default();
+        let mut ghast = zombie(46, 7.9, 0.0);
+        ghast.entity_type = "minecraft:ghast".to_string();
+        store.mobs.insert(46, ghast);
+
+        assert_eq!(
+            store.attack(
+                46,
+                Vec3 {
+                    x: 0.0,
+                    y: 64.0,
+                    z: 0.0
+                },
+                1.0
+            ),
+            MobAttackResult::Hurt { entity_id: 46 }
+        );
     }
 
     #[test]
