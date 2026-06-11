@@ -21,7 +21,7 @@ const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
 const host = '127.0.0.1'
 
 const expectedInitialPlayPrefixIds = [
-  49, 70, 10, 64, 105, 103, 104, 76, 18, 96, 113, 94, 95, 72, 43, 97,
+  49, 70, 10, 64, 105, 133, 103, 104, 76, 18, 96, 113, 94, 95, 72, 43, 97,
   38, 38, 38, 38, 12
 ]
 

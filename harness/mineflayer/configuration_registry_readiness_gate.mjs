@@ -145,7 +145,7 @@ function finishConfigurationCheck (manifest, rawProbe) {
 
 function playEntryCheck (rawProbe) {
   const actual = rawProbe.play?.map(packet => packet.id) ?? []
-  const expectedPrefix = [49, 70, 10, 64, 105, 103, 104, 18, 96, 113, 72, 43, 97, 94, 95, 38, 38, 38, 38, 12]
+  const expectedPrefix = [49, 70, 10, 64, 105, 133, 103, 104, 18, 96, 113, 72, 43, 97, 94, 95, 38, 38, 38, 38, 12]
   const loginPacket = rawProbe.play?.find(packet => packet.id === 49)
   const positionPacket = rawProbe.play?.find(packet => packet.id === 72)
   const firstChunkIndex = actual.indexOf(45)

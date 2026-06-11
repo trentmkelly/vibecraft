@@ -16,7 +16,7 @@ export function diagnoseSpawnTimeout (evidence) {
 
 export function forceSlowInitialChunkEvidence () {
   return {
-    play: [49, 70, 10, 64, 105, 103, 104, 18, 96, 113, 72, 43, 97, 94, 95].map(id => ({ id })),
+    play: [49, 70, 10, 64, 105, 133, 103, 104, 18, 96, 113, 72, 43, 97, 94, 95].map(id => ({ id })),
     joinState: {
       entityId: 1,
       dimension: 'minecraft:overworld',

@@ -39,6 +39,7 @@ function passingRawProbe () {
       { id: 10, length: 3 },
       { id: 64, length: 10 },
       { id: 105, length: 2 },
+      { id: 133, length: 1 },
       { id: 103, length: 7 },
       { id: 104, length: 10 },
       { id: 18, length: 51 },
