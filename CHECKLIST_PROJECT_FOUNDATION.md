@@ -5,7 +5,7 @@ Cross-cutting project rules and compatibility commitments moved out of the top-l
 ## Migrated From Main Checklist: Ground Rules
 
 - [x] Define the target as Minecraft Java Edition 26.1.2 protocol and server behavior.
-- [ ] Keep the new implementation independent of Mojang source code licensing constraints.
+- [x] Keep the new implementation independent of Mojang source code licensing constraints. — `docs/COMPATIBILITY.md` documents the no-copying boundary, `build.rs` treats the local Java decompilation tree as an optional parity oracle (`vibecraft_has_decompiled_sources` / `vibecraft_has_sound_events_source`) instead of a required build input, and hidden-source verification passes: temporarily moving `../decompiled-server-26.1.2` aside allows `cargo check` and `cargo test --no-run` to compile successfully with only optional-source warnings.
 - [ ] Use black-box tests, public protocol references, vanilla datapacks, generated assets, and observed behavior as validation sources.
 - [x] Track every intentional deviation from vanilla behavior in a compatibility document. — `docs/COMPATIBILITY.md` owns the intentional-deviation list and currently records the unsupported Swing GUI, chase debug server/client, and native-transport implementation decision.
 - [ ] Build a repeatable test harness that can compare the rebuilt server against the official `server.jar`.
