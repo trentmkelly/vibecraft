@@ -516,6 +516,7 @@ mod item_family_behavior;
 mod item_flint_and_steel;
 mod item_honeycomb;
 mod item_properties;
+mod item_sign_applicator;
 mod item_stack;
 mod item_tags;
 mod item_tool_use;
