@@ -11,5 +11,5 @@ Top-level completion requirements and release gates moved out of the top-level c
 - [ ] All protocol states and packet types used by vanilla clients are implemented.
 - [ ] All commands parse and execute with vanilla-compatible permissions, errors, output, and side effects.
 - [ ] All blocks, items, entities, recipes, loot tables, advancements, stats, scoreboards, dimensions, and datapack resources have parity tests or documented coverage.
-- [ ] The parity harness can run the same scenario against official and rebuilt servers and report behavioral differences.
+- [x] The parity harness can run the same scenario against official and rebuilt servers and report behavioral differences. — `harness/mineflayer/runner.mjs::runParityScenario` executes the same offline scenario through `startOfficialServer` and `startVibeCraft`, normalizes volatile roots/ports/timestamps, and reports observable diffs through `diffArtifacts`; `runner.test.mjs` verifies adapter execution and diff reporting (8 tests), and `project_foundation_tests::mineflayer_runner_targets_vibecraft_and_official_server` guards the foundation wiring.
 - [ ] Known differences are documented, intentional, and accepted by project maintainers.
