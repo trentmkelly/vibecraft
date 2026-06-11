@@ -313,16 +313,11 @@ impl ActiveBlockMenu {
         let ActiveBlockMenuKind::Crafting { menu } = &mut self.kind else {
             return false;
         };
-        if menu.place_recipe_from_inventory(
+        menu.place_recipe_from_inventory(
             holder.id,
             packet.use_max_items,
             state.inventory_menu.player_inventory_mut(),
-        ) {
-            self.increment_state_id();
-            true
-        } else {
-            false
-        }
+        )
     }
 
     #[cfg(test)]
@@ -1106,7 +1101,11 @@ mod tests {
             &recipes,
         ));
 
-        assert_eq!(menu.state_id(), 1);
+        assert_eq!(
+            menu.state_id(),
+            0,
+            "ServerboundPlaceRecipe mutates the CraftingMenu; the subsequent content broadcast owns the state increment like Java CraftingMenu.finishPlacingRecipe"
+        );
         assert_eq!(
             menu.flattened_slots(&state)[CraftingMenu::RESULT_SLOT],
             ItemStack::new("minecraft:crafting_table", 1)
@@ -1118,6 +1117,59 @@ mod tests {
             );
         }
         assert!(state.inventory_menu.player_inventory().get(0).is_empty());
+    }
+
+    #[test]
+    fn active_crafting_table_recipe_book_full_sync_uses_single_java_state_increment() {
+        let recipes = crafting_table_recipe_map();
+        let mut state = PlaySessionState {
+            inventory_menu: InventoryMenu::new(PlayerInventory::new(), recipes.clone()),
+            ..Default::default()
+        };
+        state
+            .inventory_menu
+            .player_inventory_mut()
+            .set(0, ItemStack::new("minecraft:oak_planks", 4));
+        assert!(state.inventory_menu.unlock_recipe("minecraft:crafting_table"));
+        let mut menu = ActiveBlockMenu::open(
+            9,
+            crate::block_update::BlockPos { x: 0, y: 64, z: 0 },
+            LiveBlockMenuKind::Crafting,
+            &WorldLayout::new(std::env::temp_dir()),
+            0,
+            &GeneratedChunkCache::default(),
+            &recipes,
+        );
+
+        let mut initial_sync = Vec::new();
+        menu.write_full_content(&mut initial_sync, CompressionState::disabled(), &state)
+            .unwrap();
+        assert_eq!(menu.state_id(), 1);
+
+        assert!(menu.handle_place_recipe(
+            &ServerboundPlaceRecipePacket {
+                container_id: 9,
+                recipe_index: 0,
+                use_max_items: false,
+            },
+            &mut state,
+            &recipes,
+        ));
+        assert_eq!(
+            menu.state_id(),
+            1,
+            "placing the recipe must not skip the next menu state id before broadcasting"
+        );
+
+        let mut placement_sync = Vec::new();
+        menu.write_full_content(&mut placement_sync, CompressionState::disabled(), &state)
+            .unwrap();
+        assert_eq!(menu.state_id(), 2);
+        assert!(!placement_sync.is_empty());
+        assert_eq!(
+            menu.flattened_slots(&state)[CraftingMenu::RESULT_SLOT],
+            ItemStack::new("minecraft:crafting_table", 1)
+        );
     }
 
     #[test]
