@@ -1042,14 +1042,6 @@ impl WorldLayout {
         self.load_saved_data("chunk_tickets")
     }
 
-    pub fn save_command_storage(&self, namespace: &str, tag: &Tag) -> std::io::Result<()> {
-        self.save_saved_data(&format!("command_storage_{namespace}"), tag)
-    }
-
-    pub fn load_command_storage(&self, namespace: &str) -> std::io::Result<Tag> {
-        self.load_saved_data(&format!("command_storage_{namespace}"))
-    }
-
     pub fn save_custom_bossbars(&self, tag: &Tag) -> std::io::Result<()> {
         self.save_saved_data("custom_boss_events", tag)
     }
@@ -1195,6 +1187,8 @@ impl Drop for SessionLock {
 
 mod helpers;
 use helpers::*;
+
+mod command_storage;
 
 #[cfg(test)]
 mod tests;

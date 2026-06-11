@@ -5583,7 +5583,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/world/level/storage`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/storage/CommandStorage.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/storage/CommandStorage.java`. — Ported in `src/storage/saved_data.rs` and `src/storage/world.rs`: Java's `CommandStorage` namespace cache, `Container` saved-data type id `<namespace>:command_storage`, `contents` map codec, empty-compound removal, missing-entry empty compound, key listing, and `/data storage` merge/get behavior are represented. Covered by `command_storage_uses_namespaced_saved_data_and_removes_empty_compounds`, `command_storage_data_merge_then_get_matches_java_storage_accessor`, and `saves_vanilla_named_data_files`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/storage/DataVersion.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/storage/DerivedLevelData.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/storage/FileNameDateFormatter.java`.

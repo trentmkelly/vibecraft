@@ -574,6 +574,8 @@ fn saves_vanilla_named_data_files() {
     assert_eq!(layout.load_random_sequences().unwrap(), tag);
     assert!(layout.saved_data_file("scoreboard").is_file());
     assert!(layout.saved_data_file("chunk_tickets").is_file());
+    assert!(layout.command_storage_file("minecraft").is_file());
+    assert!(!layout.saved_data_file("command_storage_minecraft").is_file());
     assert!(layout.map_data_file(0).is_file());
 
     let _ = fs::remove_dir_all(&path);
