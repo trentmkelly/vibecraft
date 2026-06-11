@@ -285,6 +285,67 @@ fn shaped_recipe_book_entry() -> RecipeBookAddEntry {
     )
 }
 
+#[test]
+fn update_recipes_packet_writes_property_sets_and_stonecutter_entries() {
+    let raw_iron_id = item_protocol_id("minecraft:raw_iron").unwrap();
+    let stone_id = item_protocol_id("minecraft:stone").unwrap();
+    let stone_slab_id = item_protocol_id("minecraft:stone_slab").unwrap();
+    let manager = crate::recipe_system::RecipeManagerModel::new(vec![
+        crate::recipe_system::RecipeHolder {
+            id: "minecraft:iron_ingot_from_smelting_raw_iron",
+            recipe: crate::recipe_system::RecipeKind::Cooking {
+                kind: crate::recipe_system::CookingKind::Smelting,
+                category: crate::recipe_system::CookingBookCategory::Misc,
+                ingredient: crate::recipe_system::IngredientSpec::Item("minecraft:raw_iron"),
+                result: crate::recipe_system::ItemAmount {
+                    item: "minecraft:iron_ingot",
+                    count: 1,
+                },
+                experience_millis: 700,
+                cooking_time: Some(200),
+            },
+        },
+        crate::recipe_system::RecipeHolder {
+            id: "minecraft:stone_slab_from_stone_stonecutting",
+            recipe: crate::recipe_system::RecipeKind::Stonecutting {
+                ingredient: crate::recipe_system::IngredientSpec::Item("minecraft:stone"),
+                result: crate::recipe_system::ItemAmount {
+                    item: "minecraft:stone_slab",
+                    count: 2,
+                },
+            },
+        },
+    ]);
+
+    let mut bytes = Vec::new();
+    write_clientbound_update_recipes_packet(&mut bytes, &manager).unwrap();
+    let mut input = cursor(bytes);
+
+    let property_set_count = read_var_i32(&mut input).unwrap();
+    assert_eq!(property_set_count, 7);
+    let mut saw_furnace_raw_iron = false;
+    for _ in 0..property_set_count {
+        let key = read_identifier(&mut input).unwrap();
+        let item_count = read_var_i32(&mut input).unwrap();
+        let items = (0..item_count)
+            .map(|_| read_var_i32(&mut input).unwrap())
+            .collect::<Vec<_>>();
+        if key.to_string() == "minecraft:furnace_input" {
+            saw_furnace_raw_iron = items == vec![raw_iron_id];
+        }
+    }
+    assert!(saw_furnace_raw_iron);
+
+    assert_eq!(read_var_i32(&mut input).unwrap(), 1);
+    assert_eq!(read_var_i32(&mut input).unwrap(), 2);
+    assert_eq!(read_var_i32(&mut input).unwrap(), stone_id);
+    assert_eq!(read_var_i32(&mut input).unwrap(), 5);
+    assert_eq!(read_var_i32(&mut input).unwrap(), stone_slab_id);
+    assert_eq!(read_var_i32(&mut input).unwrap(), 2);
+    assert_eq!(read_var_i32(&mut input).unwrap(), 0);
+    assert_eq!(read_var_i32(&mut input).unwrap(), 0);
+}
+
 fn furnace_recipe_book_entry() -> RecipeBookAddEntry {
     RecipeBookAddEntry::new(
         RecipeDisplayEntryData {

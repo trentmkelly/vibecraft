@@ -495,7 +495,6 @@ pub struct RecipeManagerModel {
     recipes: RecipeMap,
     acquisition_unlocks: Vec<RecipeAcquisitionUnlock>,
     property_sets: Vec<RecipePropertySet>,
-    #[cfg(test)]
     stonecutter_recipes: Vec<StonecutterSelection>,
 }
 
@@ -510,22 +509,19 @@ impl RecipeManagerModel {
         self.recipes = RecipeMap::create(recipes);
         // `RecipeManager` recomputes the per-`RecipeType` property sets on reload.
         self.property_sets = collect_recipe_property_sets(self.recipes.values());
-        #[cfg(test)]
-        {
-            self.stonecutter_recipes = self
-                .recipes
-                .values()
-                .iter()
-                .filter_map(|holder| match &holder.recipe {
-                    RecipeKind::Stonecutting { ingredient, result } => Some(StonecutterSelection {
-                        recipe_id: holder.id,
-                        input: ingredient.clone(),
-                        result: result.clone(),
-                    }),
-                    _ => None,
-                })
-                .collect();
-        }
+        self.stonecutter_recipes = self
+            .recipes
+            .values()
+            .iter()
+            .filter_map(|holder| match &holder.recipe {
+                RecipeKind::Stonecutting { ingredient, result } => Some(StonecutterSelection {
+                    recipe_id: holder.id,
+                    input: ingredient.clone(),
+                    result: result.clone(),
+                }),
+                _ => None,
+            })
+            .collect();
     }
 
     pub fn recipe_map(&self) -> &RecipeMap {
@@ -544,6 +540,10 @@ impl RecipeManagerModel {
             .collect()
     }
 
+    pub fn property_sets(&self) -> &[RecipePropertySet] {
+        &self.property_sets
+    }
+
     #[cfg(test)]
     pub fn property_set(&self, key: &str) -> RecipePropertySet {
         self.property_sets
@@ -556,7 +556,6 @@ impl RecipeManagerModel {
             })
     }
 
-    #[cfg(test)]
     pub fn stonecutter_recipes(&self) -> &[StonecutterSelection] {
         &self.stonecutter_recipes
     }
@@ -976,6 +975,14 @@ impl IngredientSpec {
             // parameter (so non-static furnace inputs can match) needs `any`.
             #[allow(clippy::manual_contains)]
             IngredientSpec::AnyOf(items) => items.iter().any(|candidate| *candidate == item),
+        }
+    }
+
+    pub fn items(&self) -> Vec<&'static str> {
+        match self {
+            IngredientSpec::Empty => Vec::new(),
+            IngredientSpec::Item(item) => vec![*item],
+            IngredientSpec::AnyOf(items) => items.clone(),
         }
     }
 

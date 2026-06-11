@@ -17,12 +17,15 @@ fn oak_planks_recipe_map() -> RecipeMap {
     }])
 }
 
-#[test]
-pub fn picking_up_oak_log_unlocks_and_sends_oak_planks_recipe() {
+fn vanilla_recipe_manager() -> RecipeManagerModel {
     let recipe_dir =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("vanilla-data/data/minecraft/recipe");
-    let recipe_manager =
-        load_recipe_directory(&recipe_dir).expect("vanilla recipe directory should load");
+    load_recipe_directory(&recipe_dir).expect("vanilla recipe directory should load")
+}
+
+#[test]
+pub fn picking_up_oak_log_unlocks_and_sends_oak_planks_recipe() {
+    let recipe_manager = vanilla_recipe_manager();
     let recipes = recipe_manager.recipe_map().clone();
     let mut state = session_state_with_inventory(&[]);
     state.inventory_menu = InventoryMenu::new(PlayerInventory::new(), recipes);
@@ -80,6 +83,66 @@ pub fn picking_up_oak_log_unlocks_and_sends_oak_planks_recipe() {
     assert!(
         packet_ids.contains(&CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID),
         "oak log pickup should send recipe_book_add for oak_planks; saw {packet_ids:?}"
+    );
+}
+
+#[test]
+pub fn live_join_sends_update_recipes_after_held_slot_like_java() {
+    let recipe_manager = vanilla_recipe_manager();
+    let recipes = recipe_manager.recipe_map().clone();
+    let mut state = session_state_with_inventory(&[]);
+    state.inventory_menu = InventoryMenu::new(PlayerInventory::new(), recipes);
+    let properties = test_properties();
+    let profile = crate::player_access::NameAndId {
+        uuid: "00000000-0000-0000-0000-000000000123".to_string(),
+        name: "RecipeJoinBot".to_string(),
+    };
+    let world_root = std::env::temp_dir().join("vibecraft-recipe-join-test");
+    let (mut server, mut client) = loopback_pair();
+
+    write_minimal_play_join(
+        &mut server,
+        CompressionState::disabled(),
+        MinimalPlayJoinContext {
+            properties: &properties,
+            world_seed: 0,
+            profile: &profile,
+            play_state: &state,
+            recipe_manager: &recipe_manager,
+            world_root: &world_root,
+            clock_game_time: 0,
+            clock_data: &[],
+            rain_level: 0.0,
+            thunder_level: 0.0,
+        },
+    )
+    .expect("join writer should emit play packets");
+    drop(server);
+
+    client
+        .set_read_timeout(Some(std::time::Duration::from_millis(50)))
+        .unwrap();
+    let mut packet_ids = Vec::new();
+    while let Ok(frame) = read_packet(&mut client) {
+        let mut payload = &frame[..];
+        packet_ids.push(read_var_i32(&mut payload).unwrap());
+    }
+
+    let held_slot = packet_ids
+        .iter()
+        .position(|id| *id == CLIENTBOUND_SET_HELD_SLOT_PACKET_ID)
+        .expect("join should send held-slot packet");
+    assert_eq!(
+        packet_ids.get(held_slot + 1),
+        Some(&crate::network::play::CLIENTBOUND_UPDATE_RECIPES_PACKET_ID),
+        "Java PlayerList sends update_recipes immediately after held-slot; saw {packet_ids:?}"
+    );
+    assert!(
+        packet_ids
+            .iter()
+            .position(|id| *id == CLIENTBOUND_RECIPE_BOOK_SETTINGS_PACKET_ID)
+            .is_some_and(|settings| settings > held_slot + 1),
+        "recipe-book settings must follow update_recipes; saw {packet_ids:?}"
     );
 }
 

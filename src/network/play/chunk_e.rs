@@ -825,6 +825,62 @@ pub fn build_recipe_book_add_with_flags(
     (!entries.is_empty()).then_some(ClientboundRecipeBookAddPacket { entries, replace })
 }
 
+/// Java `ClientboundUpdateRecipesPacket`: a map of synchronized
+/// `RecipePropertySet`s followed by the display-only stonecutter recipe set.
+/// Recipe placement packets later refer to the same recipe-display ids used by
+/// the recipe-book packets, so the live client needs this sync before it can
+/// drive recipe-book placement for crafting tables and workstations.
+pub fn write_clientbound_update_recipes_packet<W: Write>(
+    writer: &mut W,
+    recipe_manager: &crate::recipe_system::RecipeManagerModel,
+) -> io::Result<()> {
+    write_var_i32(writer, recipe_manager.property_sets().len() as i32)?;
+    for set in recipe_manager.property_sets() {
+        write_identifier(writer, &Identifier::parse(set.key).map_err(|err| {
+            io::Error::new(io::ErrorKind::InvalidInput, format!("recipe property key: {err}"))
+        })?)?;
+        write_item_id_list(writer, &set.accepted_items)?;
+    }
+
+    write_var_i32(writer, recipe_manager.stonecutter_recipes().len() as i32)?;
+    for recipe in recipe_manager.stonecutter_recipes() {
+        write_ingredient_holder_set(writer, &recipe.input)?;
+        // Java `SelectableRecipe.noRecipeCodec`: option display only, no recipe id.
+        item_amount_to_slot(recipe.result.item, recipe.result.count).write(writer)?;
+    }
+    Ok(())
+}
+
+fn write_item_id_list<W: Write>(writer: &mut W, items: &[&str]) -> io::Result<()> {
+    let item_ids = items
+        .iter()
+        .filter_map(|item| crate::item_catalog::item_protocol_id(item))
+        .collect::<Vec<_>>();
+    write_var_i32(writer, item_ids.len() as i32)?;
+    for item_id in item_ids {
+        write_var_i32(writer, item_id)?;
+    }
+    Ok(())
+}
+
+fn write_ingredient_holder_set<W: Write>(
+    writer: &mut W,
+    ingredient: &crate::recipe_system::IngredientSpec,
+) -> io::Result<()> {
+    let item_ids = ingredient
+        .items()
+        .into_iter()
+        .filter_map(crate::item_catalog::item_protocol_id)
+        .collect::<Vec<_>>();
+    // Java `ByteBufCodecs.holderSet`: direct holder sets encode size + 1,
+    // followed by raw registry holder ids. Zero is reserved for named tag sets.
+    write_var_i32(writer, item_ids.len() as i32 + 1)?;
+    for item_id in item_ids {
+        write_var_i32(writer, item_id)?;
+    }
+    Ok(())
+}
+
 struct RecipeBookDisplayBuild {
     display: RecipeDisplayData,
     crafting_requirements: Option<Vec<RecipeIngredientData>>,

@@ -1,4 +1,7 @@
 use super::*;
+use crate::network::play::{
+    write_clientbound_update_recipes_packet, CLIENTBOUND_UPDATE_RECIPES_PACKET_ID,
+};
 
 pub fn default_recipe_book_settings() -> ClientboundRecipeBookSettingsPacket {
     ClientboundRecipeBookSettingsPacket {
@@ -599,6 +602,17 @@ fn write_join_player_state_packets(
         compression,
         CLIENTBOUND_SET_HELD_SLOT_PACKET_ID,
         |payload| write_var_i32(payload, context.play_state.selected_slot),
+    )?;
+    // Java `PlayerList.placeNewPlayer` sends `ClientboundUpdateRecipesPacket`
+    // immediately after `ClientboundSetHeldSlotPacket`, before permission level
+    // and initial recipe-book packets. The client needs these synchronized
+    // display/property records before it can drive recipe-book placement for
+    // crafting tables and workstations.
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_UPDATE_RECIPES_PACKET_ID,
+        |payload| write_clientbound_update_recipes_packet(payload, context.recipe_manager),
     )?;
     write_framed_packet_with_compression(
         stream,
