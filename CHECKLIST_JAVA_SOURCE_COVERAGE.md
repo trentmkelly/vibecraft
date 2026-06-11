@@ -128,7 +128,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. Each pack
 - [ ] `net/minecraft/core/particles` (19 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/core/registries` (4 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/data` (10 Java files): add class-level Rust port tasks and parity tests.
-- [ ] `net/minecraft/data/advancements` (3 Java files): add class-level Rust port tasks and parity tests.
+- [x] `net/minecraft/data/advancements` (3 Java files): add class-level Rust port tasks and parity tests. — all package rows are covered in `CHECKLIST_JAVA_CLASSES.md`: `AdvancementProvider` and `AdvancementSubProvider` are modeled in `data_advancements` with Java-backed registry path, registry-future, subprovider, duplicate-id, stable-save, placeholder-factory, provider-name, and source-sentinel tests, and package-info is audited as the nullability marker. Verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_advancements`.
 - [ ] `net/minecraft/data/advancements/packs` (7 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/data/info` (8 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/data/loot` (5 Java files): add class-level Rust port tasks and parity tests.
