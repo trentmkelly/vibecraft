@@ -122,11 +122,12 @@ impl ActiveBlockMenu {
     }
 
     pub(in crate::network::status) fn write_full_content<W: Write>(
-        &self,
+        &mut self,
         writer: &mut W,
         compression: CompressionState,
         state: &PlaySessionState,
     ) -> io::Result<()> {
+        self.increment_state_id();
         let packet = ClientboundContainerPacket {
             container_id: self.container_id,
             state_id: self.state_id,
@@ -197,7 +198,7 @@ impl ActiveBlockMenu {
         }
 
         let result_slot_changed = self.result_slot_changed_after_click(&menu);
-        self.state_id = self.state_id.wrapping_add(1);
+        self.increment_state_id();
         self.apply_flat_menu(menu, state);
         self.apply_result_slot_take_if_needed(result_slot_changed);
         self.persist_if_needed(world_layout, world_seed, chunk_cache);
@@ -255,7 +256,7 @@ impl ActiveBlockMenu {
             // crafting-grid cells.
             menu.quick_move(slot, state.inventory_menu.player_inventory_mut());
         }
-        self.state_id = self.state_id.wrapping_add(1);
+        self.increment_state_id();
 
         if full_resync_needed {
             let mut instructions = self.full_slot_resync(state);
@@ -317,7 +318,7 @@ impl ActiveBlockMenu {
             packet.use_max_items,
             state.inventory_menu.player_inventory_mut(),
         ) {
-            self.state_id = self.state_id.wrapping_add(1);
+            self.increment_state_id();
             true
         } else {
             false
@@ -478,6 +479,11 @@ impl ActiveBlockMenu {
                     }),
             )
             .collect()
+    }
+
+    fn increment_state_id(&mut self) {
+        // Java `AbstractContainerMenu.incrementStateId`: `(stateId + 1) & 32767`.
+        self.state_id = (self.state_id + 1) & 0x7fff;
     }
 
     fn push_recipe_unlocks(&mut self, instructions: &mut Vec<PlayInstruction>) {
@@ -738,6 +744,31 @@ mod tests {
             state.inventory_menu.player_inventory().get(0).count(),
             4
         );
+    }
+
+    #[test]
+    fn active_crafting_table_initial_sync_increments_state_id_like_java() {
+        let recipes = vanilla_recipe_map();
+        let state = PlaySessionState {
+            inventory_menu: InventoryMenu::new(PlayerInventory::new(), recipes.clone()),
+            ..Default::default()
+        };
+        let mut menu = ActiveBlockMenu::open(
+            9,
+            crate::block_update::BlockPos { x: 0, y: 64, z: 0 },
+            LiveBlockMenuKind::Crafting,
+            &WorldLayout::new(std::env::temp_dir()),
+            0,
+            &GeneratedChunkCache::default(),
+            &recipes,
+        );
+        let mut bytes = Vec::new();
+
+        menu.write_full_content(&mut bytes, CompressionState::disabled(), &state)
+            .unwrap();
+
+        assert_eq!(menu.state_id(), 1);
+        assert!(!bytes.is_empty());
     }
 
     #[test]
@@ -1017,8 +1048,11 @@ mod tests {
         );
         let layout = WorldLayout::new(std::env::temp_dir());
         let cache = GeneratedChunkCache::default();
+        let mut bytes = Vec::new();
+        menu.write_full_content(&mut bytes, CompressionState::disabled(), &state)
+            .unwrap();
 
-        let mut state_id = 0;
+        let mut state_id = menu.state_id();
         let pickup_planks = click_packet(
             9,
             state_id,
@@ -1042,9 +1076,10 @@ mod tests {
         );
         menu.handle_click(&pickup_sticks, &mut state, &layout, 0, &cache);
         state_id += 1;
+        let mut last_instructions = Vec::new();
         for slot in [5_i16, 8] {
             let place_one = click_packet(9, state_id, slot, 1, ContainerInput::Pickup);
-            menu.handle_click(&place_one, &mut state, &layout, 0, &cache);
+            last_instructions = menu.handle_click(&place_one, &mut state, &layout, 0, &cache);
             state_id += 1;
         }
 
@@ -1052,6 +1087,15 @@ mod tests {
             menu.flattened_slots(&state)[CraftingMenu::RESULT_SLOT],
             ItemStack::new("minecraft:wooden_pickaxe", 1)
         );
+        assert!(last_instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                PlayInstruction::ContainerSetSlot(packet)
+                    if packet.slot == CraftingMenu::RESULT_SLOT as i16
+                        && packet.item_stack.item_id == item_protocol_id("minecraft:wooden_pickaxe")
+                        && packet.item_stack.count == 1
+            )
+        }));
         let take_result = click_packet(
             9,
             state_id,

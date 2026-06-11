@@ -736,7 +736,7 @@ pub fn handle_use_item_on(
     if !suppress_using_block {
         if let Some(menu) = block_menu_open_for_state(&clicked_state) {
             let container_id = next_open_container_id(state);
-            let active_menu = ActiveBlockMenu::open(
+            let mut active_menu = ActiveBlockMenu::open(
                 container_id,
                 clicked_pos,
                 menu.live_kind,
