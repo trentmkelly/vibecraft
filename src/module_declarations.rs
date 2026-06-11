@@ -511,6 +511,7 @@ mod inventory;
 mod inventory_transactions;
 mod item_catalog;
 mod item_disc_fragment;
+mod item_dyed_color_component;
 mod item_dye;
 mod item_entity;
 #[cfg(test)]
