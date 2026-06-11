@@ -2,6 +2,21 @@ use super::super::*;
 use crate::item_properties::ItemComponent;
 
 #[test]
+pub fn mob_combat_packets_do_not_fall_through_to_unexpected_disconnect() {
+    // Java 26.1.2 `GamePacketTypes` registers attack as packet 1 and interact
+    // as packet 26. Both are live play packets; packet 1 drives combat and
+    // packet 26 validates/right-clicks entity interactions.
+    assert_eq!(SERVERBOUND_ATTACK_PACKET_ID, 1);
+    assert_eq!(SERVERBOUND_INTERACT_PACKET_ID, 26);
+    assert!(play_packet_has_live_status_handler(
+        SERVERBOUND_ATTACK_PACKET_ID
+    ));
+    assert!(play_packet_has_live_status_handler(
+        SERVERBOUND_INTERACT_PACKET_ID
+    ));
+}
+
+#[test]
 pub fn edit_book_packet_live_handler_matches_java_slot_and_component_gates() {
     assert_eq!(SERVERBOUND_EDIT_BOOK_PACKET_ID, 24);
     assert!(play_packet_has_live_status_handler(

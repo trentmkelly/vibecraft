@@ -3331,14 +3331,9 @@ fn handle_decoded_play_packet(
             context.action(),
         )?;
     } else if packet_id == SERVERBOUND_ATTACK_PACKET_ID {
-        let packet = ServerboundAttackPacket::read(&mut input)?;
-        super::live_mobs::handle_live_mob_attack(
-            stream,
-            compression,
-            context.world_mobs,
-            packet,
-            play_state,
-        )?;
+        handle_live_mob_attack_packet(stream, compression, &mut input, context.world_mobs, play_state)?;
+    } else if packet_id == SERVERBOUND_INTERACT_PACKET_ID {
+        handle_live_mob_interact_packet(&mut input)?;
     } else if try_handle_inventory_packet(
         stream,
         compression,
@@ -3390,6 +3385,25 @@ fn handle_decoded_play_packet(
         return Ok(PlayPacketDispatchOutcome::EndSession);
     }
     Ok(PlayPacketDispatchOutcome::Continue)
+}
+
+fn handle_live_mob_attack_packet<R: Read, W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    input: &mut R,
+    world_mobs: &Arc<Mutex<LiveMobStore>>,
+    play_state: &PlaySessionState,
+) -> io::Result<()> {
+    let packet = ServerboundAttackPacket::read(input)?;
+    super::live_mobs::handle_live_mob_attack(writer, compression, world_mobs, packet, play_state)?;
+    Ok(())
+}
+
+fn handle_live_mob_interact_packet<R: Read>(input: &mut R) -> io::Result<()> {
+    // Java validates the flat interact codec, then no-ops unless the target has
+    // custom interaction behavior. VibeCraft does not model those callbacks yet.
+    let _ = ServerboundInteractPacket::read(input)?;
+    Ok(())
 }
 
 impl<'a, 'b> JoinedPlayPacketStepContext<'a, 'b> {
