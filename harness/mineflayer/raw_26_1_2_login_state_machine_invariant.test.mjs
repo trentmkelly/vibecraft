@@ -1,53 +1,95 @@
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
-import net from 'node:net'
+import { createConnection, createServer } from 'node:net'
+import { rm } from 'node:fs/promises'
+import path from 'node:path'
 import test from 'node:test'
 import { inflateSync } from 'node:zlib'
 
-const host = process.env.VIBECRAFT_HOST ?? '127.0.0.1'
-const port = Number(process.env.VIBECRAFT_PORT ?? 25565)
-const protocolVersion = Number(process.env.VIBECRAFT_PROTOCOL_VERSION ?? 775)
+import {
+  createTempWorld,
+  startVibeCraft,
+  stopServer,
+  waitForPort,
+  writeOfflineServerFiles
+} from './runner.mjs'
+
+const here = new URL('.', import.meta.url)
+const repoRoot = path.resolve(here.pathname, '..', '..')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
+const host = '127.0.0.1'
+const protocolVersion = 775
+let port = 0
 
 test('raw 26.1.2 login state machine rejects play packets before play entry', { timeout: 30_000 }, async () => {
-  const cases = [
-    {
-      name: 'chat command cannot alias selected-known-packs',
-      username: 'PrePlayCmd',
-      run: async (socket, reader) => {
-        await enterConfiguration(socket, reader, 'PrePlayCmd')
-        socket.write(encodeClientPacket(reader.compressionThreshold, 7, writeString('say should-not-run')))
-        const observed = await nextEvent(socket, reader, 2_000)
-        assert.notEqual(observed.packet?.packetId, 3, 'play chat command was accepted as selected-known-packs')
-        return observed
-      }
-    },
-    {
-      name: 'bundle selection cannot alias finish configuration',
-      username: 'PrePlayInv',
-      run: async (socket, reader) => {
-        await enterConfiguration(socket, reader, 'PrePlayInv')
-        socket.write(encodeClientPacket(reader.compressionThreshold, 7, writeVarInt(0)))
-        await waitForPacket(reader, 3)
-        socket.write(encodeClientPacket(reader.compressionThreshold, 3, writeVarInt(0)))
-        const observed = await nextEvent(socket, reader, 2_000)
-        assert.notEqual(observed.packet?.packetId, 49, 'play inventory packet was accepted as finish-configuration')
-        return observed
-      }
-    }
-  ]
+  port = await reservePort()
+  const root = await createTempWorld('vibecraft-state-machine-')
+  let server
 
-  for (const scenario of cases) {
-    const socket = await connect()
-    const reader = new FrameReader(socket)
-    try {
-      const observed = await scenario.run(socket, reader)
-      assert.ok(
-        ['close', 'reset', 'timeout'].includes(observed.kind),
-        `${scenario.name} should close, reset, or stop progressing after rejection`
-      )
-    } finally {
-      socket.destroy()
+  try {
+    await writeOfflineServerFiles(root, {
+      port,
+      levelName: 'world',
+      properties: {
+        'view-distance': '4',
+        'simulation-distance': '4'
+      }
+    })
+    server = startVibeCraft({ binary, root, port, levelName: 'world' })
+    await waitForPort(port, host, 10_000)
+
+    const cases = [
+      {
+        name: 'play chat command cannot alias selected-known-packs',
+        username: uniqueUsername('Cmd'),
+        setup: enterConfiguration,
+        packetId: 7,
+        payload: chatCommandPayload('say should-not-run')
+      },
+      {
+        name: 'play chat message is rejected during configuration',
+        username: uniqueUsername('Chat'),
+        setup: enterConfiguration,
+        packetId: 9,
+        payload: chatPayload('should-not-run')
+      },
+      {
+        name: 'play command suggestion is rejected during configuration',
+        username: uniqueUsername('Suggest'),
+        setup: enterConfiguration,
+        packetId: 15,
+        payload: commandSuggestionPayload('/list')
+      },
+      {
+        name: 'play movement is rejected during configuration',
+        username: uniqueUsername('Move'),
+        setup: enterConfiguration,
+        packetId: 31,
+        payload: movePlayerPosRotPayload()
+      },
+      {
+        name: 'play inventory click is rejected during configuration',
+        username: uniqueUsername('Inv'),
+        setup: enterConfiguration,
+        packetId: 18,
+        payload: containerClickPayload()
+      },
+      {
+        name: 'early finish-configuration cannot enter play before server finish',
+        username: uniqueUsername('Fin'),
+        setup: enterConfiguration,
+        packetId: 3,
+        payload: Buffer.alloc(0)
+      }
+    ]
+
+    for (const scenario of cases) {
+      const observed = await runRejectedPrePlayScenario(scenario)
+      assertPrePlayRejected(scenario, observed)
     }
+  } finally {
+    if (server) await stopServer(server.child)
+    await rm(root, { recursive: true, force: true })
   }
 })
 
@@ -64,6 +106,27 @@ async function enterConfiguration (socket, reader, username) {
   assert.equal(loginSuccess.packetId, 2)
   socket.write(encodeClientPacket(reader.compressionThreshold, 3))
   await waitForPacket(reader, 14)
+}
+
+async function runRejectedPrePlayScenario (scenario) {
+  const socket = await connect()
+  const reader = new FrameReader(socket)
+  try {
+    await scenario.setup(socket, reader, scenario.username)
+    socket.write(encodeClientPacket(reader.compressionThreshold, scenario.packetId, scenario.payload))
+    return await nextEvent(socket, reader, 2_000)
+  } finally {
+    socket.destroy()
+  }
+}
+
+function assertPrePlayRejected (scenario, observed) {
+  assert.notEqual(observed.packet?.packetId, 49, `${scenario.name} reached play login`)
+  assert.notEqual(observed.packet?.packetId, 11, `${scenario.name} reached play chunk-batch finish`)
+  assert.ok(
+    ['close', 'reset', 'timeout'].includes(observed.kind),
+    `${scenario.name} should close, reset, or stop progressing after rejection; got ${JSON.stringify(observed)}`
+  )
 }
 
 async function waitForPacket (reader, packetId) {
@@ -146,7 +209,7 @@ function tryDecodeFrame (buffer, compressionThreshold = null) {
 }
 
 async function connect () {
-  const socket = net.createConnection({ host, port })
+  const socket = createConnection({ host, port })
   socket.setMaxListeners(64)
   await Promise.race([
     once(socket, 'connect'),
@@ -193,6 +256,79 @@ function writeVarInt (value) {
   return Buffer.from(bytes)
 }
 
+function writeShort (value) {
+  const payload = Buffer.alloc(2)
+  payload.writeInt16BE(value)
+  return payload
+}
+
+function writeByte (value) {
+  const payload = Buffer.alloc(1)
+  payload.writeInt8(value)
+  return payload
+}
+
+function writeLong (value) {
+  const payload = Buffer.alloc(8)
+  payload.writeBigInt64BE(BigInt(value))
+  return payload
+}
+
+function writeDouble (value) {
+  const payload = Buffer.alloc(8)
+  payload.writeDoubleBE(value)
+  return payload
+}
+
+function writeFloat (value) {
+  const payload = Buffer.alloc(4)
+  payload.writeFloatBE(value)
+  return payload
+}
+
+function commandSuggestionPayload (command) {
+  return Buffer.concat([writeVarInt(1), writeString(command)])
+}
+
+function chatCommandPayload (command) {
+  return writeString(command)
+}
+
+function chatPayload (message) {
+  return Buffer.concat([
+    writeString(message),
+    writeLong(0),
+    writeLong(0),
+    Buffer.from([0]), // no signature
+    writeVarInt(0), // last-seen offset
+    Buffer.from([0, 0, 0]), // acknowledged bitset
+    Buffer.from([0]) // checksum
+  ])
+}
+
+function movePlayerPosRotPayload () {
+  return Buffer.concat([
+    writeDouble(0.5),
+    writeDouble(112),
+    writeDouble(0.5),
+    writeFloat(0),
+    writeFloat(0),
+    Buffer.from([1])
+  ])
+}
+
+function containerClickPayload () {
+  return Buffer.concat([
+    writeVarInt(0), // container id
+    writeVarInt(0), // state id
+    writeShort(0), // slot
+    writeByte(0), // button
+    writeVarInt(0), // pickup
+    writeVarInt(0), // changed slots
+    Buffer.from([0]) // empty carried HashedStack
+  ])
+}
+
 function readVarInt (buffer, offset = 0) {
   let value = 0
   let shift = 0
@@ -217,4 +353,19 @@ function once (emitter, event) {
 
 function delay (ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+async function reservePort () {
+  const server = createServer()
+  await new Promise((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, host, resolve)
+  })
+  const { port } = server.address()
+  await new Promise(resolve => server.close(resolve))
+  return port
+}
+
+function uniqueUsername (prefix) {
+  return `Sm${prefix}${crypto.randomUUID().replaceAll('-', '').slice(0, 8)}`.slice(0, 16)
 }
