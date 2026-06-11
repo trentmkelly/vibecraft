@@ -131,6 +131,14 @@ fn known_vanilla_state_ids_resolve_like_java() {
 }
 
 #[test]
+fn block_registry_network_ids_match_vanilla_block_registry_order() {
+    assert_eq!(block_registry_network_id("minecraft:air"), Some(0));
+    assert_eq!(block_registry_network_id("minecraft:stone"), Some(1));
+    assert_eq!(block_registry_network_id("minecraft:diamond_ore"), Some(203));
+    assert_eq!(block_registry_network_id("stone"), Some(1));
+}
+
+#[test]
 fn name_parsing_matches_nbt_utils_read_block_state_leniency() {
     let default = network_id_for_block_state("minecraft:oak_stairs").expect("default");
 

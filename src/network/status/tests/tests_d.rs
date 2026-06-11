@@ -488,15 +488,36 @@ pub fn update_tags_packet_includes_timeline_group_with_correct_ids() {
     let mut cursor = Cursor::new(payload);
 
     let group_count = read_var_i32(&mut cursor).unwrap();
-    assert_eq!(group_count, 3, "tags packet must have 3 registry groups");
+    assert_eq!(group_count, 4, "tags packet must have 4 registry groups");
 
     let mut found_timeline = false;
+    let mut found_pickaxe_tag = false;
     for _ in 0..group_count {
         let registry_id = crate::network::codec::read_identifier(&mut cursor)
             .unwrap()
             .to_string();
         let tag_count = read_var_i32(&mut cursor).unwrap();
-        if registry_id == "minecraft:timeline" {
+        if registry_id == "minecraft:block" {
+            for _ in 0..tag_count {
+                let tag_id = crate::network::codec::read_identifier(&mut cursor)
+                    .unwrap()
+                    .to_string();
+                let entry_count = read_var_i32(&mut cursor).unwrap();
+                let ids: Vec<i32> = (0..entry_count)
+                    .map(|_| read_var_i32(&mut cursor).unwrap())
+                    .collect();
+                if tag_id == "minecraft:mineable/pickaxe" {
+                    found_pickaxe_tag = true;
+                    assert!(
+                        ids.contains(
+                            &crate::block_states::block_registry_network_id("minecraft:stone")
+                                .unwrap()
+                        ),
+                        "client needs #mineable/pickaxe to animate pickaxes at tool speed"
+                    );
+                }
+            }
+        } else if registry_id == "minecraft:timeline" {
             found_timeline = true;
             assert_eq!(tag_count, 2);
 
@@ -535,6 +556,10 @@ pub fn update_tags_packet_includes_timeline_group_with_correct_ids() {
     assert!(
         found_timeline,
         "tags packet must include minecraft:timeline group"
+    );
+    assert!(
+        found_pickaxe_tag,
+        "tags packet must include minecraft:block #mineable/pickaxe"
     );
 }
 
@@ -674,6 +699,97 @@ pub fn cache_set_block_mutates_in_memory_and_marks_dirty_without_disk_write() {
             .as_deref(),
         Some("minecraft:stone")
     );
+}
+
+#[test]
+pub fn live_block_model_reads_unflushed_cache_state_for_gameplay() {
+    // Java mirror: Level.getBlockState reads the live LevelChunk, not the
+    // persisted region file. A block placed this tick must be visible to the
+    // next interaction before the dirty chunk is flushed.
+    let cache = super::super::GeneratedChunkCache::default();
+    let chunk_pos = crate::storage::region::ChunkPos { x: 0, z: 0 };
+    cache.chunks.lock().unwrap().insert(
+        chunk_pos,
+        std::sync::Arc::new(crate::storage::chunk::LevelChunk::empty(chunk_pos)),
+    );
+    let world_root = std::env::temp_dir().join(format!(
+        "vibecraft-live-block-read-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&world_root);
+    let layout = super::super::WorldLayout::new(&world_root);
+    let block_pos = crate::block_update::BlockPos {
+        x: 2,
+        y: 250,
+        z: 3,
+    };
+
+    cache.set_block(&world_root, 42, block_pos, "minecraft:chest[facing=east,type=single]");
+
+    let live = super::super::read_live_block_model_at(&cache, &layout, 42, block_pos);
+    assert_eq!(live.registry_id, "minecraft:chest");
+    assert_eq!(live.property("facing"), Some("east"));
+    assert_eq!(live.property("type"), Some("single"));
+
+    let snapshot = super::super::read_block_model_at(&layout, 42, block_pos);
+    assert_eq!(
+        snapshot.registry_id, "minecraft:air",
+        "disk/worldgen snapshot must not be used as live gameplay state"
+    );
+    let _ = std::fs::remove_dir_all(world_root);
+}
+
+#[test]
+pub fn placement_target_resolution_uses_unflushed_live_cache_state() {
+    // Regression for immediate place-after-place/break behavior: if the clicked
+    // block was changed in-memory but not flushed, Java's BlockPlaceContext sees
+    // that live state and targets the adjacent position.
+    let cache = super::super::GeneratedChunkCache::default();
+    let chunk_pos = crate::storage::region::ChunkPos { x: 0, z: 0 };
+    cache.chunks.lock().unwrap().insert(
+        chunk_pos,
+        std::sync::Arc::new(crate::storage::chunk::LevelChunk::empty(chunk_pos)),
+    );
+    let world_root = std::env::temp_dir().join(format!(
+        "vibecraft-live-placement-target-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&world_root);
+    let layout = super::super::WorldLayout::new(&world_root);
+    let clicked = crate::block_update::BlockPos {
+        x: 4,
+        y: 100,
+        z: 4,
+    };
+    cache.set_block(&world_root, 42, clicked, "minecraft:stone");
+
+    let packet = crate::network::play::ServerboundUseItemOnPacket {
+        hand: crate::network::play::ServerboundSwingHand::MainHand,
+        block_hit: crate::network::play::BlockHitResultPacketData {
+            x: clicked.x,
+            y: clicked.y,
+            z: clicked.z,
+            direction: crate::network::play::Direction3d::Up,
+            click_x: 0.5,
+            click_y: 1.0,
+            click_z: 0.5,
+            inside: false,
+            world_border_hit: false,
+        },
+        sequence: 7,
+    };
+
+    let target = super::super::resolve_block_item_placement_target(&layout, 42, &cache, &packet);
+    assert_eq!(
+        target.pos,
+        crate::block_update::BlockPos {
+            x: clicked.x,
+            y: clicked.y + 1,
+            z: clicked.z
+        }
+    );
+    assert_eq!(target.existing_state.registry_id, "minecraft:air");
+    let _ = std::fs::remove_dir_all(world_root);
 }
 
 #[test]

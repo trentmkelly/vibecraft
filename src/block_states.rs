@@ -145,6 +145,19 @@ pub fn block_state_entry(registry_id: &str) -> Option<&'static BlockStateEntryDa
         .map(|&index| &ENTRIES[index])
 }
 
+/// The vanilla block-registry protocol id for a block.
+///
+/// Java's block tags packet encodes entries as ids from `BuiltInRegistries.BLOCK`,
+/// not global block-state ids. The generated entries are in that block registry
+/// order, so their index is the wire id used in `ClientboundUpdateTagsPacket`.
+pub fn block_registry_network_id(registry_id: &str) -> Option<i32> {
+    if registry_id.contains(':') {
+        return BY_NAME.get(registry_id).map(|&index| index as i32);
+    }
+    let namespaced = format!("minecraft:{registry_id}");
+    BY_NAME.get(namespaced.as_str()).map(|&index| index as i32)
+}
+
 /// The default-state network id for a block, like Java `block.defaultBlockState()`.
 pub fn default_state_network_id(registry_id: &str) -> Option<i32> {
     block_state_entry(registry_id).map(|entry| entry.default_state_id)

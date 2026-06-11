@@ -1452,35 +1452,19 @@ fn tick_player_and_chunk_sender(
     *last_player_tick = Instant::now();
     *play_tick_count = (*play_tick_count).wrapping_add(1);
     let tick_count = *play_tick_count;
-    process_live_fluid_ticks(
+    tick_live_world_systems(
         stream,
         compression,
-        live_fluid_ticks,
-        tick_count as i64,
-        world_layout,
-        world_seed,
-        chunk_cache,
-    )?;
-    super::block_placement_live::process_live_block_ticks(
-        stream,
-        compression,
-        live_block_ticks,
-        tick_count as i64,
-        world_layout,
-        world_seed,
-        chunk_cache,
-        world_items,
-    )?;
-    tick_live_falling_blocks(
-        stream,
-        compression,
-        live_fluid_ticks,
-        live_block_ticks,
-        tick_count as i64,
-        world_layout,
-        world_seed,
-        chunk_cache,
-        world_items,
+        play_state,
+        LiveWorldTickContext {
+            tick_count,
+            live_fluid_ticks,
+            live_block_ticks,
+            world_layout,
+            world_seed,
+            chunk_cache,
+            world_items,
+        },
     )?;
     let fluid_state =
         detect_play_session_fluid_state(play_state, world_root, world_seed, chunk_cache);
@@ -1535,6 +1519,241 @@ fn tick_player_and_chunk_sender(
         tick_count,
     );
     Ok(())
+}
+
+struct LiveWorldTickContext<'a, 'b> {
+    tick_count: u64,
+    live_fluid_ticks: &'b mut LiveFluidTicks,
+    live_block_ticks: &'b mut LiveBlockTicks,
+    world_layout: &'b WorldLayout,
+    world_seed: i64,
+    chunk_cache: &'a GeneratedChunkCache,
+    world_items: &'a Arc<Mutex<WorldItemEntities>>,
+}
+
+fn tick_live_world_systems(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    play_state: &mut PlaySessionState,
+    context: LiveWorldTickContext<'_, '_>,
+) -> io::Result<()> {
+    let tick_count = context.tick_count;
+    process_live_fluid_ticks(
+        stream,
+        compression,
+        context.live_fluid_ticks,
+        tick_count as i64,
+        context.world_layout,
+        context.world_seed,
+        context.chunk_cache,
+    )?;
+    super::block_placement_live::process_live_block_ticks(
+        stream,
+        compression,
+        context.live_block_ticks,
+        tick_count as i64,
+        context.world_layout,
+        context.world_seed,
+        context.chunk_cache,
+        context.world_items,
+    )?;
+    tick_live_falling_blocks(
+        stream,
+        compression,
+        context.live_fluid_ticks,
+        context.live_block_ticks,
+        tick_count as i64,
+        context.world_layout,
+        context.world_seed,
+        context.chunk_cache,
+        context.world_items,
+    )?;
+    tick_live_block_destroy_progress(
+        stream,
+        compression,
+        play_state,
+        LiveDestroyTickContext {
+            tick_count,
+            live_fluid_ticks: context.live_fluid_ticks,
+            live_block_ticks: context.live_block_ticks,
+            world_layout: context.world_layout,
+            world_seed: context.world_seed,
+            chunk_cache: context.chunk_cache,
+            world_items: context.world_items,
+        },
+    )
+}
+
+struct LiveDestroyTickContext<'a, 'b> {
+    tick_count: u64,
+    live_fluid_ticks: &'b mut LiveFluidTicks,
+    live_block_ticks: &'b mut LiveBlockTicks,
+    world_layout: &'b WorldLayout,
+    world_seed: i64,
+    chunk_cache: &'a GeneratedChunkCache,
+    world_items: &'a Arc<Mutex<WorldItemEntities>>,
+}
+
+struct LiveDestroyContext<'a, 'b> {
+    game_time: i64,
+    live_fluid_ticks: &'b mut LiveFluidTicks,
+    live_block_ticks: &'b mut LiveBlockTicks,
+    world_layout: &'b WorldLayout,
+    world_seed: i64,
+    chunk_cache: &'a GeneratedChunkCache,
+    world_items: &'a Arc<Mutex<WorldItemEntities>>,
+}
+
+fn tick_live_block_destroy_progress(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    play_state: &mut PlaySessionState,
+    context: LiveDestroyTickContext<'_, '_>,
+) -> io::Result<()> {
+    play_state.block_break_state.game_ticks = context.tick_count as i32;
+
+    if play_state.block_break_state.has_delayed_destroy {
+        let pos = play_state.block_break_state.delayed_destroy_pos;
+        let block_state = read_live_block_model_at(
+            context.chunk_cache,
+            context.world_layout,
+            context.world_seed,
+            pos,
+        );
+        let state_name = block_state.state_name();
+        let physics = crate::block_properties::state_physics_by_name(&state_name);
+        if physics.is_none_or(|state| state.is_air) {
+            play_state.block_break_state.has_delayed_destroy = false;
+            play_state.block_break_state.last_sent_state = -1;
+            return write_block_destruction(stream, compression, pos, -1);
+        }
+
+        let (tool_speed, has_correct_tool) = live_block_destroy_tool_inputs(play_state, &state_name);
+        let Some(progress) = block_destroy_progress_state(
+            &play_state.block_break_state,
+            physics,
+            tool_speed,
+            has_correct_tool,
+            play_state.block_break_state.delayed_tick_start,
+        ) else {
+            return Ok(());
+        };
+        if progress >= 10 {
+            play_state.block_break_state.has_delayed_destroy = false;
+            return destroy_live_block_at(
+                stream,
+                compression,
+                play_state,
+                LiveDestroyContext {
+                    game_time: context.tick_count as i64,
+                    live_fluid_ticks: context.live_fluid_ticks,
+                    live_block_ticks: context.live_block_ticks,
+                    world_layout: context.world_layout,
+                    world_seed: context.world_seed,
+                    chunk_cache: context.chunk_cache,
+                    world_items: context.world_items,
+                },
+                pos,
+                true,
+            );
+        }
+        return write_block_destroy_progress_if_changed(
+            stream,
+            compression,
+            &mut play_state.block_break_state,
+            pos,
+            progress,
+        );
+    }
+
+    if !play_state.block_break_state.is_destroying {
+        return Ok(());
+    }
+
+    let pos = play_state.block_break_state.destroy_pos;
+    let block_state = read_live_block_model_at(
+        context.chunk_cache,
+        context.world_layout,
+        context.world_seed,
+        pos,
+    );
+    let state_name = block_state.state_name();
+    let physics = crate::block_properties::state_physics_by_name(&state_name);
+    if physics.is_none_or(|state| state.is_air) {
+        play_state.block_break_state.is_destroying = false;
+        play_state.block_break_state.last_sent_state = -1;
+        return write_block_destruction(stream, compression, pos, -1);
+    }
+
+    let (tool_speed, has_correct_tool) = live_block_destroy_tool_inputs(play_state, &state_name);
+    let Some(progress) = block_destroy_progress_state(
+        &play_state.block_break_state,
+        physics,
+        tool_speed,
+        has_correct_tool,
+        play_state.block_break_state.destroy_progress_start,
+    ) else {
+        return Ok(());
+    };
+    write_block_destroy_progress_if_changed(
+        stream,
+        compression,
+        &mut play_state.block_break_state,
+        pos,
+        progress,
+    )
+}
+
+fn live_block_destroy_tool_inputs(play_state: &PlaySessionState, state_name: &str) -> (f32, bool) {
+    let physics = crate::block_properties::state_physics_by_name(state_name);
+    let held_item = selected_main_hand_item(play_state);
+    let held_item_id = held_item
+        .filter(|stack| !stack.is_empty())
+        .map(crate::item_stack::ItemStack::item_id);
+    let tool_speed = held_item_id.map_or(1.0, |item_id| {
+        crate::player_game_mode::item_destroy_speed_for_block(item_id, state_name)
+    });
+    let has_correct_tool = physics.is_some_and(|state| {
+        held_item_id.is_some_and(|item_id| {
+            crate::player_game_mode::item_has_correct_tool_for_drops(
+                item_id,
+                state_name,
+                state.requires_correct_tool_for_drops,
+            )
+        }) || !state.requires_correct_tool_for_drops
+    });
+    (tool_speed, has_correct_tool)
+}
+
+fn block_destroy_progress_state(
+    state: &crate::player_game_mode::BlockBreakState,
+    physics: Option<&crate::block_properties::StatePhysics>,
+    tool_speed: f32,
+    has_correct_tool: bool,
+    destroy_start_tick: i32,
+) -> Option<i32> {
+    let physics = physics?;
+    let ticks_spent = state.game_ticks - destroy_start_tick;
+    let progress = crate::player_game_mode::compute_destroy_progress(
+        physics.destroy_speed,
+        tool_speed,
+        has_correct_tool,
+    ) * (ticks_spent + 1) as f32;
+    Some((progress * 10.0) as i32)
+}
+
+fn write_block_destroy_progress_if_changed<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    state: &mut crate::player_game_mode::BlockBreakState,
+    pos: crate::block_update::BlockPos,
+    progress: i32,
+) -> io::Result<()> {
+    if progress == state.last_sent_state {
+        return Ok(());
+    }
+    state.last_sent_state = progress;
+    write_block_destruction(writer, compression, pos, progress)
 }
 
 struct JoinedPlayLoopTickContext<'a, 'b> {
@@ -1856,7 +2075,7 @@ fn handle_player_action_packet<R: Read>(
 ) -> io::Result<()> {
     let fields = read_player_action_fields(input)?;
     log_player_action_debug(&fields, play_state.game_mode, &context);
-    if should_break_for_player_action(&fields, play_state.game_mode, &context) {
+    if is_block_break_action(fields.action) {
         let block_pos = crate::block_update::BlockPos {
             x: fields.x,
             y: fields.y,
@@ -1868,17 +2087,19 @@ fn handle_player_action_packet<R: Read>(
         {
             // Out of reach: Java logs "too far" and does NOT break or correct the
             // client (the client never predicts an out-of-range break). Ignore it.
+            write_block_change_ack(stream, compression, fields.sequence)?;
         } else if block_break_above_build_height(fields.y) {
             // Above the world ceiling (Java handleBlockBreakAction "too high"):
             // never break — there is no block to remove and set_block must not run
             // outside the world's vertical bounds.
+            write_block_change_ack(stream, compression, fields.sequence)?;
         } else if block_break_is_spawn_protected(&fields, &context) {
             // Non-op breaking inside the spawn-protection radius is denied: the
             // server does NOT change the block and re-sends the real state so the
             // client reverts its predicted break.
             write_block_break_denied(stream, compression, &fields, &context)?;
         } else {
-            handle_player_block_break(stream, compression, play_state, &fields, &mut context)?;
+            handle_player_block_action(stream, compression, play_state, &fields, &mut context)?;
         }
     }
     // Java: ServerboundPlayerActionPacket.Action.DROP_ALL_ITEMS = 3,
@@ -2136,77 +2357,229 @@ fn block_break_above_build_height(y: i32) -> bool {
     y > crate::world::OVERWORLD_MIN_Y + crate::world::OVERWORLD_LEVEL_HEIGHT - 1
 }
 
-fn should_break_for_player_action(
+fn is_block_break_action(action: i32) -> bool {
+    matches!(action, 0..=2)
+}
+
+fn handle_player_block_action(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    play_state: &mut PlaySessionState,
     fields: &PlayerActionFields,
-    game_mode: GameMode,
-    context: &PlayerActionContext<'_, '_>,
-) -> bool {
-    if spectator_cannot_break(game_mode) {
-        return false;
+    context: &mut PlayerActionContext<'_, '_>,
+) -> io::Result<()> {
+    if spectator_cannot_break(play_state.game_mode) {
+        return write_block_change_ack(stream, compression, fields.sequence);
     }
-    let is_instabreak = fields.action == 0 && game_mode != GameMode::Creative && {
-        let chunk_pos = ChunkPos {
-            x: fields.x.div_euclid(16),
-            z: fields.z.div_euclid(16),
-        };
-        read_block_at(
-            context.world_layout,
-            context.world_seed,
-            chunk_pos,
-            fields.x,
-            fields.y,
-            fields.z,
-        )
-        .as_deref()
-        .and_then(crate::block_properties::state_physics_by_name)
-        .is_some_and(|physics| physics.destroy_speed == 0.0)
+    let Some(action) = player_block_break_action(fields.action) else {
+        return Ok(());
     };
-    fields.action == 2 || (fields.action == 0 && game_mode == GameMode::Creative) || is_instabreak
+    let block_pos = crate::block_update::BlockPos {
+        x: fields.x,
+        y: fields.y,
+        z: fields.z,
+    };
+    let block_state = read_live_block_model_at(
+        context.chunk_cache,
+        context.world_layout,
+        context.world_seed,
+        block_pos,
+    );
+    let state_name = block_state.state_name();
+    let physics = crate::block_properties::state_physics_by_name(&state_name);
+    let block_is_air = physics.is_none_or(|state| state.is_air);
+    let block_hardness = physics.map_or(0.0, |state| state.destroy_speed);
+    let held_item = selected_main_hand_item(play_state);
+    let held_item_id = held_item
+        .filter(|stack| !stack.is_empty())
+        .map(crate::item_stack::ItemStack::item_id);
+    let tool_speed = held_item_id.map_or(1.0, |item_id| {
+        crate::player_game_mode::item_destroy_speed_for_block(item_id, &state_name)
+    });
+    let has_correct_tool = physics.is_some_and(|state| {
+        held_item_id.is_some_and(|item_id| {
+            crate::player_game_mode::item_has_correct_tool_for_drops(
+                item_id,
+                &state_name,
+                state.requires_correct_tool_for_drops,
+            )
+        }) || !state.requires_correct_tool_for_drops
+    });
+    play_state.block_break_state.game_ticks = context.play_tick_count as i32;
+    let outcome = crate::player_game_mode::handle_block_break_action(
+        &mut play_state.block_break_state,
+        &crate::player_game_mode::BlockBreakInputContext {
+            pos: block_pos,
+            action,
+            max_y: crate::world::OVERWORLD_MIN_Y + crate::world::OVERWORLD_LEVEL_HEIGHT - 1,
+            sequence: fields.sequence,
+            game_mode: player_game_mode(play_state.game_mode),
+            within_reach: true,
+            spawn_protected: false,
+            may_interact: true,
+            block_action_restricted: false,
+            block_hardness,
+            tool_speed,
+            has_correct_tool,
+            block_is_air,
+        },
+    );
+    match outcome {
+        crate::player_game_mode::BlockBreakOutcome::InstantBreak
+        | crate::player_game_mode::BlockBreakOutcome::Destroy => {
+            handle_player_block_break(stream, compression, play_state, fields, context)
+        }
+        crate::player_game_mode::BlockBreakOutcome::Progress(progress) => {
+            write_block_change_ack(stream, compression, fields.sequence)?;
+            write_block_destruction(stream, compression, block_pos, progress)
+        }
+        crate::player_game_mode::BlockBreakOutcome::ProgressReset
+        | crate::player_game_mode::BlockBreakOutcome::Aborted => {
+            write_block_change_ack(stream, compression, fields.sequence)?;
+            write_block_destruction(stream, compression, block_pos, -1)
+        }
+        crate::player_game_mode::BlockBreakOutcome::Denied(_) => {
+            write_block_break_denied(stream, compression, fields, context)
+        }
+    }
+}
+
+fn player_block_break_action(action: i32) -> Option<crate::player_game_mode::BlockBreakAction> {
+    match action {
+        0 => Some(crate::player_game_mode::BlockBreakAction::Start),
+        1 => Some(crate::player_game_mode::BlockBreakAction::Abort),
+        2 => Some(crate::player_game_mode::BlockBreakAction::Stop),
+        _ => None,
+    }
+}
+
+fn player_game_mode(game_mode: GameMode) -> crate::player_game_mode::PlayerGameMode {
+    match game_mode {
+        GameMode::Survival => crate::player_game_mode::PlayerGameMode::Survival,
+        GameMode::Creative => crate::player_game_mode::PlayerGameMode::Creative,
+        GameMode::Adventure => crate::player_game_mode::PlayerGameMode::Adventure,
+        GameMode::Spectator => crate::player_game_mode::PlayerGameMode::Spectator,
+    }
+}
+
+fn selected_main_hand_item(state: &PlaySessionState) -> Option<&ItemStack> {
+    let slot = usize::try_from(state.selected_slot).ok()?;
+    if slot >= HOTBAR_SIZE {
+        return None;
+    }
+    Some(state.inventory_menu.player_inventory().get(slot))
+}
+
+fn write_block_destruction<W: Write>(
+    _writer: &mut W,
+    _compression: CompressionState,
+    _pos: crate::block_update::BlockPos,
+    _progress: i32,
+) -> io::Result<()> {
+    // Java `ServerLevel.destroyBlockProgress` broadcasts cracking overlays to
+    // nearby players except the player whose entity id owns the destroy action.
+    // VibeCraft currently has a single live player stream, so echoing the packet
+    // here fights the client's local mining animation and causes crack resets.
+    Ok(())
+}
+
+fn write_block_update_at<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    pos: crate::block_update::BlockPos,
+    state_id: i32,
+) -> io::Result<()> {
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        CLIENTBOUND_BLOCK_UPDATE_PACKET_ID,
+        |payload| {
+            payload.write_all(&block_pos_as_long(pos.x, pos.y, pos.z).to_be_bytes())?;
+            write_var_i32(payload, state_id)
+        },
+    )
+}
+
+fn should_drop_block_loot<'a>(
+    block_name: &str,
+    held_item: Option<&'a ItemStack>,
+) -> (bool, Option<&'a str>) {
+    let held_item_id = held_item
+        .filter(|stack| !stack.is_empty())
+        .map(crate::item_stack::ItemStack::item_id);
+    let Some(physics) = crate::block_properties::state_physics_by_name(block_name) else {
+        return (true, held_item_id);
+    };
+    let correct = held_item_id.is_some_and(|item_id| {
+        crate::player_game_mode::item_has_correct_tool_for_drops(
+            item_id,
+            block_name,
+            physics.requires_correct_tool_for_drops,
+        )
+    }) || !physics.requires_correct_tool_for_drops;
+    (correct, held_item_id)
 }
 
 fn handle_player_block_break(
     stream: &mut TcpStream,
     compression: CompressionState,
-    play_state: &PlaySessionState,
+    play_state: &mut PlaySessionState,
     fields: &PlayerActionFields,
     context: &mut PlayerActionContext<'_, '_>,
 ) -> io::Result<()> {
-    // Reach, spawn protection, and spectator-no-break ARE now enforced before
-    // this handler runs (handle_player_action_packet: is_within_block_interaction_range
-    // + block_break_is_spawn_protected; should_break_for_player_action:
-    // spectator_cannot_break — all 1:1 with Java
-    // ServerPlayerGameMode.handleBlockBreakAction / Player.blockActionRestricted).
-    //
-    // TODO(live-block-break-uses-game-mode-logic): this handler still bypasses
-    // the rest of the comprehensive, Java-1:1, fully-tested ServerPlayerGameMode
-    // logic in player_game_mode.rs (handle_block_break_action). It breaks any
-    // block on StopDestroy/creative/instamine WITHOUT enforcing the adventure-mode
-    // CanDestroy restriction (needs held-item CanDestroy component support) or
-    // per-tool break-speed timing (needs per-player server-side destroy-progress
-    // tracking across ticks). Those paths exist + pass unit tests but are dead
-    // code here. Wiring them in is what completes PLAYER #43 (ServerPlayerGameMode).
-    // PLAYER #34 (reach) additionally needs entity attack-range (3.0), blocked on
-    // the live entity/combat system (MOBS).
+    // Reach, spawn protection, spectator-no-break, and Java destroy-progress
+    // timing are enforced before this handler runs. Adventure-mode CanDestroy
+    // remains deferred until item components are modelled for that path.
     write_block_break_ack_and_air(stream, compression, fields, play_state.game_mode)?;
     let block_pos = crate::block_update::BlockPos {
         x: fields.x,
         y: fields.y,
         z: fields.z,
     };
+    destroy_live_block_at(
+        stream,
+        compression,
+        play_state,
+        LiveDestroyContext {
+            game_time: context.play_tick_count as i64,
+            live_fluid_ticks: context.live_fluid_ticks,
+            live_block_ticks: context.live_block_ticks,
+            world_layout: context.world_layout,
+            world_seed: context.world_seed,
+            chunk_cache: context.chunk_cache,
+            world_items: context.world_items,
+        },
+        block_pos,
+        false,
+    )
+}
+
+fn destroy_live_block_at(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    play_state: &mut PlaySessionState,
+    context: LiveDestroyContext<'_, '_>,
+    block_pos: crate::block_update::BlockPos,
+    send_air_update: bool,
+) -> io::Result<()> {
+    if send_air_update {
+        write_block_update_at(stream, compression, block_pos, AIR_BLOCK_STATE_ID)?;
+    }
     // Java mirror: ServerLevel.removeBlock -> LevelChunk.setBlockState.
     // Mutates the in-memory chunk and marks it unsaved; persistence happens
     // later via the periodic flush thread.
     let block_name = context.chunk_cache.set_block(
-        context.world_root,
+        context.world_layout.root(),
         context.world_seed,
         block_pos,
         "minecraft:air",
     );
     schedule_neighbor_fluids(
         context.live_fluid_ticks,
-        context.play_tick_count as i64,
+        context.game_time,
         context.world_layout,
         context.world_seed,
+        context.chunk_cache,
         block_pos,
     );
     // Java Block.playerWillDestroy (double-block halves) + the
@@ -2235,8 +2608,8 @@ fn handle_player_block_break(
         cache: context.chunk_cache,
         fluid_ticks: context.live_fluid_ticks,
         block_ticks: context.live_block_ticks,
-        game_time: context.play_tick_count as i64,
-        random_roll: ((context.play_tick_count as i32) ^ block_pos.x ^ block_pos.z).rem_euclid(40),
+        game_time: context.game_time,
+        random_roll: ((context.game_time as i32) ^ block_pos.x ^ block_pos.z).rem_euclid(40),
     };
     super::block_placement_live::run_block_break_aftermath(
         stream,
@@ -2247,12 +2620,62 @@ fn handle_player_block_break(
     )?;
     crate::log::log_debug(&format!(
         "block break at ({},{},{}) block={:?} game_mode={:?}",
-        fields.x, fields.y, fields.z, block_name, play_state.game_mode
+        block_pos.x, block_pos.y, block_pos.z, block_name, play_state.game_mode
     ));
     if play_state.game_mode != GameMode::Creative {
-        spawn_block_break_drops(stream, compression, context.world_items, fields, block_name)?;
+        if damage_main_hand_tool_after_block_break(play_state, block_name.as_deref()) {
+            write_inventory_menu_full_sync(stream, compression, play_state)?;
+        }
+        spawn_block_break_drops(
+            stream,
+            compression,
+            context.world_items,
+            play_state,
+            block_pos,
+            block_name,
+        )?;
     }
     Ok(())
+}
+
+fn damage_main_hand_tool_after_block_break(
+    play_state: &mut PlaySessionState,
+    block_name: Option<&str>,
+) -> bool {
+    let Some(block_name) = block_name else {
+        return false;
+    };
+    if crate::block_properties::state_physics_by_name(block_name)
+        .is_none_or(|physics| physics.destroy_speed == 0.0)
+    {
+        return false;
+    }
+    let Ok(slot) = usize::try_from(play_state.selected_slot) else {
+        return false;
+    };
+    if slot >= HOTBAR_SIZE {
+        return false;
+    }
+    let mut stack = play_state.inventory_menu.player_inventory().get(slot).clone();
+    if stack.is_empty() || !stack.is_damageable_item() {
+        return false;
+    }
+    let Some(damage) = crate::player_game_mode::item_tool_damage_per_block(stack.item_id()) else {
+        return false;
+    };
+    if damage == 0 {
+        return false;
+    }
+
+    stack.set_damage_value(stack.damage_value().saturating_add(damage));
+    if stack.is_broken() {
+        stack = ItemStack::empty();
+    }
+    play_state
+        .inventory_menu
+        .player_inventory_mut()
+        .set(slot, stack);
+    true
 }
 
 fn write_block_break_ack_and_air(
@@ -2328,15 +2751,24 @@ fn spawn_block_break_drops(
     stream: &mut TcpStream,
     compression: CompressionState,
     world_items: &Arc<Mutex<WorldItemEntities>>,
-    fields: &PlayerActionFields,
+    play_state: &PlaySessionState,
+    block_pos: crate::block_update::BlockPos,
     block_name: Option<String>,
 ) -> io::Result<()> {
-    let loot_seed = (fields.x as u64).wrapping_mul(0x9E37_79B9)
-        ^ (fields.y as u64).wrapping_mul(0x6C62_272E)
-        ^ (fields.z as u64).wrapping_mul(0x517C_C1B7);
+    let loot_seed = (block_pos.x as u64).wrapping_mul(0x9E37_79B9)
+        ^ (block_pos.y as u64).wrapping_mul(0x6C62_272E)
+        ^ (block_pos.z as u64).wrapping_mul(0x517C_C1B7);
+    let held_item = selected_main_hand_item(play_state);
     let drops = block_name
         .as_deref()
-        .map(|name| evaluate_block_loot(name, loot_seed))
+        .map(|name| {
+            let (correct_tool, tool) = should_drop_block_loot(name, held_item);
+            if !correct_tool {
+                Vec::new()
+            } else {
+                evaluate_block_loot_with_tool(name, loot_seed, tool, correct_tool)
+            }
+        })
         .unwrap_or_default();
     for (item_name, count) in drops {
         let Some(item_pid) = item_protocol_id(item_name) else {
@@ -2349,9 +2781,9 @@ fn spawn_block_break_drops(
             entity_id: eid,
             item: item_name,
             count,
-            x: fields.x as f64 + 0.5,
-            y: fields.y as f64 + 0.5,
-            z: fields.z as f64 + 0.5,
+            x: block_pos.x as f64 + 0.5,
+            y: block_pos.y as f64 + 0.5,
+            z: block_pos.z as f64 + 0.5,
             vel_x: pseudo_rand_f32(eid, 0) as f64 * 0.2 - 0.1,
             vel_y: 0.2,
             vel_z: pseudo_rand_f32(eid, 1) as f64 * 0.2 - 0.1,
@@ -3310,6 +3742,115 @@ mod spawn_protection_wiring_tests {
         assert!(!block_break_above_build_height(-64));
         assert!(block_break_above_build_height(320));
         assert!(block_break_above_build_height(1000));
+    }
+
+    #[test]
+    fn live_block_break_drop_gate_uses_held_tool_like_java() {
+        let hand = ItemStack::empty();
+        assert_eq!(should_drop_block_loot("minecraft:stone", Some(&hand)).0, false);
+
+        let wooden_pick = ItemStack::new("minecraft:wooden_pickaxe", 1);
+        assert!(should_drop_block_loot("minecraft:stone", Some(&wooden_pick)).0);
+        assert!(!should_drop_block_loot("minecraft:iron_ore", Some(&wooden_pick)).0);
+
+        let diamond_pick = ItemStack::new("minecraft:diamond_pickaxe", 1);
+        assert!(should_drop_block_loot("minecraft:iron_ore", Some(&diamond_pick)).0);
+
+        let apple = ItemStack::new("minecraft:apple", 1);
+        assert!(should_drop_block_loot("minecraft:dirt", Some(&apple)).0);
+    }
+
+    #[test]
+    fn survival_block_break_damages_main_hand_tool_like_java_mine_block() {
+        let mut state = PlaySessionState::default();
+        state.selected_slot = 0;
+        state
+            .inventory_menu
+            .player_inventory_mut()
+            .set(0, ItemStack::new("minecraft:diamond_sword", 1));
+
+        assert!(damage_main_hand_tool_after_block_break(
+            &mut state,
+            Some("minecraft:cobweb")
+        ));
+        assert_eq!(
+            state
+                .inventory_menu
+                .player_inventory()
+                .get(0)
+                .damage_value(),
+            2
+        );
+        assert!(!damage_main_hand_tool_after_block_break(
+            &mut state,
+            Some("minecraft:short_grass")
+        ));
+        assert_eq!(
+            state
+                .inventory_menu
+                .player_inventory()
+                .get(0)
+                .damage_value(),
+            2
+        );
+    }
+
+    #[test]
+    fn live_destroy_tick_uses_selected_tool_speed_for_progress() {
+        let physics = crate::block_properties::state_physics_by_name("minecraft:stone");
+        let mut state = PlaySessionState::default();
+        state.selected_slot = 0;
+        state.block_break_state.is_destroying = true;
+        state.block_break_state.destroy_progress_start = 0;
+        state.block_break_state.game_ticks = 5;
+
+        let (hand_speed, hand_correct_tool) =
+            live_block_destroy_tool_inputs(&state, "minecraft:stone");
+        assert_eq!(
+            block_destroy_progress_state(
+                &state.block_break_state,
+                physics,
+                hand_speed,
+                hand_correct_tool,
+                0
+            ),
+            Some(0)
+        );
+
+        state
+            .inventory_menu
+            .player_inventory_mut()
+            .set(0, ItemStack::new("minecraft:diamond_pickaxe", 1));
+        let (pick_speed, pick_correct_tool) =
+            live_block_destroy_tool_inputs(&state, "minecraft:stone");
+        assert_eq!(pick_speed, 8.0);
+        assert!(pick_correct_tool);
+        assert_eq!(
+            block_destroy_progress_state(
+                &state.block_break_state,
+                physics,
+                pick_speed,
+                pick_correct_tool,
+                0
+            ),
+            Some(10)
+        );
+    }
+
+    #[test]
+    fn block_destruction_progress_is_not_echoed_to_breaking_player() {
+        let mut bytes = Vec::new();
+        write_block_destruction(
+            &mut bytes,
+            CompressionState::disabled(),
+            crate::block_update::BlockPos { x: 1, y: 64, z: 1 },
+            5,
+        )
+        .unwrap();
+        assert!(
+            bytes.is_empty(),
+            "Java ServerLevel.destroyBlockProgress excludes the breaking player's own connection"
+        );
     }
 
     /// The spawn-protection overlay component must match Java

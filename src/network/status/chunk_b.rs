@@ -545,6 +545,7 @@ fn held_item_slot_for_use_item_on(
 pub(super) fn resolve_block_item_placement_target(
     world_layout: &WorldLayout,
     world_seed: i64,
+    chunk_cache: &GeneratedChunkCache,
     packet: &ServerboundUseItemOnPacket,
 ) -> BlockItemPlacementTarget {
     let clicked_pos = crate::block_update::BlockPos {
@@ -552,7 +553,7 @@ pub(super) fn resolve_block_item_placement_target(
         y: packet.block_hit.y,
         z: packet.block_hit.z,
     };
-    let clicked_state = read_block_model_at(world_layout, world_seed, clicked_pos);
+    let clicked_state = read_live_block_model_at(chunk_cache, world_layout, world_seed, clicked_pos);
     if block_item_can_replace(&clicked_state) {
         return BlockItemPlacementTarget {
             pos: clicked_pos,
@@ -568,7 +569,7 @@ pub(super) fn resolve_block_item_placement_target(
     };
     BlockItemPlacementTarget {
         pos,
-        existing_state: read_block_model_at(world_layout, world_seed, pos),
+        existing_state: read_live_block_model_at(chunk_cache, world_layout, world_seed, pos),
     }
 }
 
@@ -590,6 +591,7 @@ pub(super) fn place_block_item_in_world(
         context.game_time,
         context.world_layout,
         context.world_seed,
+        context.chunk_cache,
         target,
     );
     if item_name == "minecraft:water" || item_name == "minecraft:lava" {
@@ -606,6 +608,7 @@ pub(super) fn place_block_item_in_world(
             context.game_time,
             context.world_layout,
             context.world_seed,
+            context.chunk_cache,
             target,
         );
     }
@@ -755,7 +758,12 @@ pub fn handle_use_item_on(
         .get(held_slot)
         .clone();
     let suppress_using_block = state.input_shift && !held_item.is_empty();
-    let clicked_state = read_block_model_at(context.world_layout, context.world_seed, clicked_pos);
+    let clicked_state = read_live_block_model_at(
+        context.chunk_cache,
+        context.world_layout,
+        context.world_seed,
+        clicked_pos,
+    );
     if !suppress_using_block {
         if let Some(menu) = block_menu_open_for_state(&clicked_state) {
             let container_id = next_open_container_id(state);
@@ -795,8 +803,12 @@ pub fn handle_use_item_on(
         return write_block_change_ack(stream, compression, packet.sequence);
     }
 
-    let target =
-        resolve_block_item_placement_target(context.world_layout, context.world_seed, packet);
+    let target = resolve_block_item_placement_target(
+        context.world_layout,
+        context.world_seed,
+        context.chunk_cache,
+        packet,
+    );
     if !block_item_can_replace(&target.existing_state) {
         return write_block_change_ack(stream, compression, packet.sequence);
     }
@@ -845,7 +857,12 @@ pub fn handle_bucket_place_fluid(
         y: clicked.y + dy,
         z: clicked.z + dz,
     };
-    let clicked_state = read_block_model_at(context.world_layout, context.world_seed, clicked);
+    let clicked_state = read_live_block_model_at(
+        context.chunk_cache,
+        context.world_layout,
+        context.world_seed,
+        clicked,
+    );
     let target = if kind == FluidKind::Water && clicked_state.property("waterlogged").is_some() {
         clicked
     } else {
@@ -854,7 +871,12 @@ pub fn handle_bucket_place_fluid(
     let existing = if target == clicked {
         clicked_state
     } else {
-        read_block_model_at(context.world_layout, context.world_seed, target)
+        read_live_block_model_at(
+            context.chunk_cache,
+            context.world_layout,
+            context.world_seed,
+            target,
+        )
     };
     let placed = match place_liquid(&existing, kind) {
         LiquidPlaceResult::Rejected(_) => None,
@@ -879,6 +901,7 @@ pub fn handle_bucket_place_fluid(
         context.game_time,
         context.world_layout,
         context.world_seed,
+        context.chunk_cache,
         target,
     );
 
@@ -908,11 +931,13 @@ pub fn schedule_neighbor_fluids(
     game_time: i64,
     world_layout: &WorldLayout,
     world_seed: i64,
+    chunk_cache: &GeneratedChunkCache,
     pos: crate::block_update::BlockPos,
 ) {
     for direction in crate::fluid::fluid_neighbor_order() {
         let neighbor = pos.relative(direction);
-        if let Some(fluid) = crate::fluid::fluid_state_for_block(&read_block_model_at(
+        if let Some(fluid) = crate::fluid::fluid_state_for_block(&read_live_block_model_at(
+            chunk_cache,
             world_layout,
             world_seed,
             neighbor,

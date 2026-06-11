@@ -50,6 +50,7 @@ impl Default for PlaySessionState {
             container_state_id: 0,
             next_container_id: 1,
             active_block_menu: None,
+            block_break_state: crate::player_game_mode::BlockBreakState::default(),
             recipe_book_settings: ClientboundRecipeBookSettingsPacket {
                 crafting: RecipeBookTypeSettings::CLOSED_UNFILTERED,
                 furnace: RecipeBookTypeSettings::CLOSED_UNFILTERED,

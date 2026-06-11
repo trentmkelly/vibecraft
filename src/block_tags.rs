@@ -130,6 +130,23 @@ pub fn block_tag_count() -> usize {
     BLOCK_TAGS.len()
 }
 
+/// All resolved block tags in stable id order, with members sorted by vanilla
+/// block-registry id. This is the shape needed by Java's update-tags sync.
+pub fn all_block_tags_sorted() -> Vec<(String, Vec<String>)> {
+    let mut tags: Vec<_> = BLOCK_TAGS
+        .iter()
+        .map(|(tag, members)| {
+            let mut members: Vec<_> = members.iter().cloned().collect::<Vec<_>>();
+            members.sort_by_key(|block| {
+                crate::block_states::block_registry_network_id(block).unwrap_or(i32::MAX)
+            });
+            (tag.clone(), members)
+        })
+        .collect();
+    tags.sort_by(|(left, _), (right, _)| left.cmp(right));
+    tags
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -147,6 +164,12 @@ mod tests {
         // Unknown tags and blocks are simply absent.
         assert!(!block_tag_contains("not_a_tag", "minecraft:stone"));
         assert!(block_tag_members("minecraft:not_a_tag").is_none());
+        assert!(
+            all_block_tags_sorted()
+                .iter()
+                .any(|(tag, members)| tag == "minecraft:mineable/pickaxe"
+                    && members.iter().any(|block| block == "minecraft:stone"))
+        );
 
         // Spot checks against vanilla data used by canSurvive rules.
         assert!(block_tag_contains(

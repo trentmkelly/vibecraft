@@ -1134,6 +1134,7 @@ pub fn session_state_with_inventory(
         container_state_id: 0,
         next_container_id: 1,
         active_block_menu: None,
+        block_break_state: crate::player_game_mode::BlockBreakState::default(),
         recipe_book_settings: super::super::default_recipe_book_settings(),
     }
 }

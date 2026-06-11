@@ -253,6 +253,9 @@ pub(crate) struct PlaySessionState {
     next_container_id: i32,
     /// Server-owned state for the currently open non-player block menu.
     active_block_menu: Option<ActiveBlockMenu>,
+    /// Transient Java `ServerPlayerGameMode` destroy-progress state. This is not
+    /// persisted; logout cancels in-progress block breaking.
+    block_break_state: crate::player_game_mode::BlockBreakState,
     recipe_book_settings: ClientboundRecipeBookSettingsPacket,
 }
 

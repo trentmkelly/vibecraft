@@ -1,10 +1,31 @@
 use super::*;
 
 pub fn evaluate_block_loot(block_name: &str, seed: u64) -> Vec<(&'static str, i32)> {
+    evaluate_block_loot_with_tool(block_name, seed, None, true)
+}
+
+pub fn evaluate_block_loot_with_tool(
+    block_name: &str,
+    seed: u64,
+    tool: Option<&str>,
+    correct_tool: bool,
+) -> Vec<(&'static str, i32)> {
     let Some(table) = block_loot_table(block_name) else {
         return Vec::new();
     };
     let mut context = LootContext::new(LootParamSet::Block, seed);
+    context.block = Some(
+        block_name
+            .split_once('[')
+            .map_or(block_name, |(id, _)| id)
+            .to_string(),
+    );
+    context
+        .entity_properties
+        .insert("correct_tool".to_string(), correct_tool.to_string());
+    if let Some(tool) = tool {
+        context.tool = Some(tool.to_string());
+    }
     table
         .evaluate(&mut context)
         .into_iter()
@@ -91,6 +112,34 @@ pub fn try_read_block_model_at(
     Some(state)
 }
 
+/// Live block-state lookup for gameplay paths.
+///
+/// Java `Level.getBlockState(pos)` reads from the live `LevelChunk` and sees
+/// unsaved `LevelChunk.setBlockState` mutations immediately. Use this for
+/// packet-driven gameplay decisions; `read_block_model_at` below is a
+/// disk/worldgen snapshot helper and is not authoritative for live edits.
+pub fn read_live_block_model_at(
+    cache: &GeneratedChunkCache,
+    layout: &WorldLayout,
+    world_seed: i64,
+    pos: crate::block_update::BlockPos,
+) -> crate::block_behavior::BlockStateModel {
+    let chunk_pos = ChunkPos {
+        x: pos.x.div_euclid(16),
+        z: pos.z.div_euclid(16),
+    };
+    let chunk = cache.get_or_load(chunk_pos.x, chunk_pos.z, layout.root(), world_seed);
+    if let Some(entry) = chunk.get_block_state_model(pos.x, pos.y, pos.z) {
+        let mut state = crate::block_behavior::BlockStateModel::new(entry.name);
+        for (key, value) in entry.properties {
+            state = state.with_property(&key, value);
+        }
+        state
+    } else {
+        crate::block_behavior::BlockStateModel::air()
+    }
+}
+
 pub fn read_block_at(
     layout: &WorldLayout,
     world_seed: i64,
@@ -104,6 +153,7 @@ pub fn read_block_at(
         .filter(|n| n != "minecraft:air")
 }
 
+#[cfg(test)]
 pub fn read_block_model_at(
     layout: &WorldLayout,
     world_seed: i64,
@@ -670,7 +720,23 @@ pub fn write_minimal_damage_type_registry_packet<W: Write>(writer: &mut W) -> io
 }
 
 pub fn write_minimal_update_tags_packet<W: Write>(writer: &mut W) -> io::Result<()> {
-    write_var_i32(writer, 3)?;
+    write_var_i32(writer, 4)?;
+    write_parsed_identifier(writer, "minecraft:block")?;
+    let block_tags = crate::block_tags::all_block_tags_sorted();
+    write_var_i32(writer, block_tags.len() as i32)?;
+    for (tag, entries) in block_tags {
+        write_parsed_identifier(writer, &tag)?;
+        write_var_i32(writer, entries.len() as i32)?;
+        for entry in entries {
+            let id = crate::block_states::block_registry_network_id(&entry).ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("unknown block tag entry {entry}"),
+                )
+            })?;
+            write_var_i32(writer, id)?;
+        }
+    }
     write_parsed_identifier(writer, "minecraft:damage_type")?;
     write_var_i32(writer, DAMAGE_TYPE_TAGS.len() as i32)?;
     for (tag, entries) in DAMAGE_TYPE_TAGS {

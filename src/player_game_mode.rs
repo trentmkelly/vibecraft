@@ -296,6 +296,218 @@ pub fn ticks_to_break(destroy_progress_per_tick: f32) -> i32 {
     (1.0 / destroy_progress_per_tick).ceil() as i32
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct ToolProfile {
+    family: ToolFamily,
+    material: Option<ToolMaterial>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ToolFamily {
+    Pickaxe,
+    Axe,
+    Shovel,
+    Hoe,
+    Sword,
+    Shears,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum ToolMaterial {
+    Wood,
+    Stone,
+    Copper,
+    Iron,
+    Diamond,
+    Gold,
+    Netherite,
+}
+
+impl ToolMaterial {
+    fn speed(self) -> f32 {
+        match self {
+            Self::Wood => 2.0,
+            Self::Stone => 4.0,
+            Self::Copper => 5.0,
+            Self::Iron => 6.0,
+            Self::Diamond => 8.0,
+            Self::Gold => 12.0,
+            Self::Netherite => 9.0,
+        }
+    }
+
+    fn incorrect_for_drops_tag(self) -> &'static str {
+        match self {
+            Self::Wood => "incorrect_for_wooden_tool",
+            Self::Stone => "incorrect_for_stone_tool",
+            Self::Copper => "incorrect_for_copper_tool",
+            Self::Iron => "incorrect_for_iron_tool",
+            Self::Diamond => "incorrect_for_diamond_tool",
+            Self::Gold => "incorrect_for_gold_tool",
+            Self::Netherite => "incorrect_for_netherite_tool",
+        }
+    }
+}
+
+impl ToolFamily {
+    fn mineable_tag(self) -> Option<&'static str> {
+        match self {
+            Self::Pickaxe => Some("mineable/pickaxe"),
+            Self::Axe => Some("mineable/axe"),
+            Self::Shovel => Some("mineable/shovel"),
+            Self::Hoe => Some("mineable/hoe"),
+            Self::Sword | Self::Shears => None,
+        }
+    }
+}
+
+/// Java `Item.getDestroySpeed`: the selected item's `minecraft:tool` component
+/// walks its rules in order and returns the first matching speed, falling back
+/// to the component default speed of 1.0.
+pub fn item_destroy_speed_for_block(item_id: &str, block_id: &str) -> f32 {
+    let block_id = block_id.split_once('[').map_or(block_id, |(id, _)| id);
+    let Some(profile) = tool_profile(item_id) else {
+        return 1.0;
+    };
+    match profile.family {
+        ToolFamily::Pickaxe | ToolFamily::Axe | ToolFamily::Shovel | ToolFamily::Hoe => {
+            let Some(material) = profile.material else {
+                return 1.0;
+            };
+            if profile
+                .family
+                .mineable_tag()
+                .is_some_and(|tag| crate::block_tags::block_tag_contains(tag, block_id))
+            {
+                material.speed()
+            } else {
+                1.0
+            }
+        }
+        ToolFamily::Sword => sword_destroy_speed_for_block(block_id),
+        ToolFamily::Shears => shears_destroy_speed_for_block(block_id),
+    }
+}
+
+/// Java `Player.hasCorrectToolForDrops`: blocks that do not require a correct
+/// tool are always harvestable; otherwise the selected item's `Tool` rules must
+/// say `correct_for_drops=true`.
+pub fn item_has_correct_tool_for_drops(
+    item_id: &str,
+    block_id: &str,
+    requires_correct_tool_for_drops: bool,
+) -> bool {
+    if !requires_correct_tool_for_drops {
+        return true;
+    }
+    let block_id = block_id.split_once('[').map_or(block_id, |(id, _)| id);
+    let Some(profile) = tool_profile(item_id) else {
+        return false;
+    };
+    match profile.family {
+        ToolFamily::Pickaxe | ToolFamily::Axe | ToolFamily::Shovel | ToolFamily::Hoe => {
+            let Some(material) = profile.material else {
+                return false;
+            };
+            if crate::block_tags::block_tag_contains(material.incorrect_for_drops_tag(), block_id) {
+                return false;
+            }
+            profile
+                .family
+                .mineable_tag()
+                .is_some_and(|tag| crate::block_tags::block_tag_contains(tag, block_id))
+        }
+        ToolFamily::Sword | ToolFamily::Shears => block_id == "minecraft:cobweb",
+    }
+}
+
+/// Java `ItemStack.mineBlock` delegates to the selected item's `Tool`
+/// component. Vanilla hand tools damage once per mined block; swords damage
+/// twice.
+pub fn item_tool_damage_per_block(item_id: &str) -> Option<u32> {
+    let profile = tool_profile(item_id)?;
+    Some(match profile.family {
+        ToolFamily::Sword => 2,
+        ToolFamily::Pickaxe
+        | ToolFamily::Axe
+        | ToolFamily::Shovel
+        | ToolFamily::Hoe
+        | ToolFamily::Shears => 1,
+    })
+}
+
+fn tool_profile(item_id: &str) -> Option<ToolProfile> {
+    if item_id == "minecraft:shears" {
+        return Some(ToolProfile {
+            family: ToolFamily::Shears,
+            material: None,
+        });
+    }
+    let family = if item_id.ends_with("_pickaxe") {
+        ToolFamily::Pickaxe
+    } else if item_id.ends_with("_axe") {
+        ToolFamily::Axe
+    } else if item_id.ends_with("_shovel") {
+        ToolFamily::Shovel
+    } else if item_id.ends_with("_hoe") {
+        ToolFamily::Hoe
+    } else if item_id.ends_with("_sword") {
+        ToolFamily::Sword
+    } else {
+        return None;
+    };
+    Some(ToolProfile {
+        family,
+        material: tool_material(item_id),
+    })
+}
+
+fn tool_material(item_id: &str) -> Option<ToolMaterial> {
+    let local = item_id.strip_prefix("minecraft:").unwrap_or(item_id);
+    if local.starts_with("wooden_") {
+        Some(ToolMaterial::Wood)
+    } else if local.starts_with("stone_") {
+        Some(ToolMaterial::Stone)
+    } else if local.starts_with("copper_") {
+        Some(ToolMaterial::Copper)
+    } else if local.starts_with("iron_") {
+        Some(ToolMaterial::Iron)
+    } else if local.starts_with("diamond_") {
+        Some(ToolMaterial::Diamond)
+    } else if local.starts_with("golden_") {
+        Some(ToolMaterial::Gold)
+    } else if local.starts_with("netherite_") {
+        Some(ToolMaterial::Netherite)
+    } else {
+        None
+    }
+}
+
+fn sword_destroy_speed_for_block(block_id: &str) -> f32 {
+    if block_id == "minecraft:cobweb" {
+        15.0
+    } else if crate::block_tags::block_tag_contains("sword_instantly_mines", block_id) {
+        f32::MAX
+    } else if crate::block_tags::block_tag_contains("sword_efficient", block_id) {
+        1.5
+    } else {
+        1.0
+    }
+}
+
+fn shears_destroy_speed_for_block(block_id: &str) -> f32 {
+    if block_id == "minecraft:cobweb" || crate::block_tags::block_tag_contains("leaves", block_id)
+    {
+        15.0
+    } else if crate::block_tags::block_tag_contains("wool", block_id) {
+        5.0
+    } else if matches!(block_id, "minecraft:vine" | "minecraft:glow_lichen") {
+        2.0
+    } else {
+        1.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -476,6 +688,49 @@ mod tests {
             obsidian_ticks, 188,
             "diamond pick on obsidian should take 188 ticks"
         );
+    }
+
+    #[test]
+    fn vanilla_tool_profiles_use_material_speed_and_correct_drop_tags() {
+        assert_eq!(
+            item_destroy_speed_for_block("minecraft:diamond_pickaxe", "minecraft:stone"),
+            8.0
+        );
+        assert_eq!(
+            item_destroy_speed_for_block("minecraft:diamond_pickaxe", "minecraft:dirt"),
+            1.0
+        );
+        assert!(item_has_correct_tool_for_drops(
+            "minecraft:diamond_pickaxe",
+            "minecraft:stone",
+            true
+        ));
+        assert!(item_has_correct_tool_for_drops(
+            "minecraft:wooden_pickaxe",
+            "minecraft:stone",
+            true
+        ));
+        assert!(!item_has_correct_tool_for_drops(
+            "minecraft:wooden_pickaxe",
+            "minecraft:iron_ore",
+            true
+        ));
+        assert!(item_has_correct_tool_for_drops(
+            "minecraft:apple",
+            "minecraft:dirt",
+            false
+        ));
+        assert!(!item_has_correct_tool_for_drops(
+            "minecraft:apple",
+            "minecraft:stone",
+            true
+        ));
+        assert_eq!(
+            item_tool_damage_per_block("minecraft:diamond_pickaxe"),
+            Some(1)
+        );
+        assert_eq!(item_tool_damage_per_block("minecraft:diamond_sword"), Some(2));
+        assert_eq!(item_tool_damage_per_block("minecraft:apple"), None);
     }
 
     #[test]
