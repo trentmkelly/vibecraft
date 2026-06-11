@@ -1,4 +1,175 @@
-use super::{inherited_metadata_fields, metadata_class};
+use super::{inherited_metadata_fields, metadata_class, ENTITY_METADATA_CLASSES};
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct JavaMetadataAccessor {
+    accessor: String,
+    serializer: String,
+}
+
+fn decompiled_entity_source_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../decompiled-server-26.1.2/net/minecraft/world/entity")
+}
+
+fn collect_java_sources(root: &Path, paths: &mut Vec<PathBuf>) {
+    let Ok(entries) = fs::read_dir(root) else {
+        return;
+    };
+
+    for entry in entries {
+        let path = entry.expect("failed to read decompiled entity source entry").path();
+        if path.is_dir() {
+            collect_java_sources(&path, paths);
+        } else if path.extension().and_then(|ext| ext.to_str()) == Some("java") {
+            paths.push(path);
+        }
+    }
+}
+
+fn extract_java_metadata_accessors(source: &str) -> Vec<(String, JavaMetadataAccessor)> {
+    let mut accessors = Vec::new();
+    let mut statement = String::new();
+
+    for line in source.lines() {
+        if statement.is_empty() && !line.contains("EntityDataAccessor") {
+            continue;
+        }
+
+        statement.push_str(line.trim());
+        statement.push(' ');
+
+        if !statement.contains(';') {
+            continue;
+        }
+
+        if statement.contains("SynchedEntityData.defineId") {
+            let before_equals = statement
+                .split_once('=')
+                .expect("metadata accessor declaration should contain '='")
+                .0;
+            let accessor = before_equals
+                .split_whitespace()
+                .last()
+                .expect("metadata accessor declaration should name an accessor")
+                .to_string();
+            let define_id_args = statement
+                .split_once("defineId(")
+                .expect("metadata accessor declaration should call defineId")
+                .1;
+            let class_part = define_id_args
+                .split_once(".class")
+                .expect("defineId first argument should be a class literal")
+                .0
+                .trim();
+            let class_name = class_part
+                .rsplit('.')
+                .next()
+                .expect("class literal should have a final class segment")
+                .to_string();
+            let serializer = define_id_args
+                .split_once("EntityDataSerializers.")
+                .expect("defineId second argument should be an entity data serializer")
+                .1
+                .chars()
+                .take_while(|ch| ch.is_ascii_alphanumeric() || *ch == '_')
+                .collect::<String>();
+
+            accessors.push((
+                class_name,
+                JavaMetadataAccessor {
+                    accessor,
+                    serializer,
+                },
+            ));
+        }
+
+        statement.clear();
+    }
+
+    accessors
+}
+
+fn java_metadata_accessors_by_class(
+    root: &Path,
+) -> Option<BTreeMap<String, Vec<JavaMetadataAccessor>>> {
+    if !root.exists() {
+        eprintln!(
+            "warning: skipping Java entity metadata index parity check; missing {}",
+            root.display()
+        );
+        return None;
+    }
+
+    let mut paths = Vec::new();
+    collect_java_sources(root, &mut paths);
+
+    let mut by_class: BTreeMap<String, Vec<JavaMetadataAccessor>> = BTreeMap::new();
+    for path in paths {
+        let source = fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+        for (class_name, accessor) in extract_java_metadata_accessors(&source) {
+            by_class.entry(class_name).or_default().push(accessor);
+        }
+    }
+
+    Some(by_class)
+}
+
+#[test]
+fn metadata_index_catalog_matches_java_define_id_order_when_decomp_is_available() {
+    let Some(java_by_class) = java_metadata_accessors_by_class(&decompiled_entity_source_root())
+    else {
+        return;
+    };
+
+    let rust_field_count = ENTITY_METADATA_CLASSES
+        .iter()
+        .map(|class| class.fields.len())
+        .sum::<usize>();
+    let java_field_count = java_by_class
+        .values()
+        .map(std::vec::Vec::len)
+        .sum::<usize>();
+    assert_eq!(rust_field_count, java_field_count);
+
+    for (class_name, java_fields) in java_by_class {
+        let rust_class = metadata_class(&class_name)
+            .unwrap_or_else(|| panic!("missing Rust metadata class for Java {class_name}"));
+        assert_eq!(
+            rust_class.fields.len(),
+            java_fields.len(),
+            "own metadata field count mismatch for {class_name}"
+        );
+
+        let parent_field_count = rust_class
+            .parent
+            .map(|parent| {
+                inherited_metadata_fields(parent)
+                    .unwrap_or_else(|| panic!("missing inherited metadata for {parent}"))
+                    .len()
+            })
+            .unwrap_or(0);
+
+        for (offset, (rust_field, java_field)) in rust_class
+            .fields
+            .iter()
+            .zip(java_fields.iter())
+            .enumerate()
+        {
+            assert_eq!(rust_field.accessor, java_field.accessor, "{class_name}");
+            assert_eq!(rust_field.serializer, java_field.serializer, "{class_name}");
+            assert_eq!(
+                usize::from(rust_field.index),
+                parent_field_count + offset,
+                "{class_name} {} index",
+                rust_field.accessor
+            );
+        }
+    }
+}
 
 #[test]
 fn root_entity_metadata_indexes_match_java_define_id_order() {
