@@ -2,7 +2,7 @@
 //! play session: the Java `BlockItem.place` pipeline (placement state ->
 //! canSurvive -> setBlock), second-half placement (doors, beds, double
 //! plants), and the `Level.updateNeighborShapes` cascade with Java's
-//! 512-update budget.
+//! configured chained-neighbor-update budget.
 
 use std::io::{self, Write};
 
@@ -98,7 +98,7 @@ pub(super) fn place_block_item_live<W: Write>(
     }
 
     // Java Level.setBlock flag 3 -> updateShapeAtEdge on the six neighbours,
-    // cascading through Java's 512-update budget.
+    // cascading through the configured CollectingNeighborUpdater budget.
     let changed: Vec<BlockPos> = placements.iter().map(|(pos, _)| *pos).collect();
     let mut cascade = LiveCascade {
         layout: context.world_layout,
@@ -108,6 +108,7 @@ pub(super) fn place_block_item_live<W: Write>(
         block_ticks: context.live_block_ticks,
         game_time: context.game_time,
         random_roll: place_context.random_age_roll,
+        max_chained_neighbor_updates: context.max_chained_neighbor_updates,
     };
     run_live_shape_cascade(stream, compression, &mut cascade, changed)?;
     consume_placed_block_item(stream, compression, state, held_slot)
@@ -216,10 +217,14 @@ pub(super) struct LiveCascade<'a, 'b> {
     pub game_time: i64,
     /// Pre-rolled randomness for coral die ticks / growing-plant ages.
     pub random_roll: i32,
+    /// Java `DedicatedServerProperties.maxChainedNeighborUpdates`, forwarded
+    /// through `Level` into `CollectingNeighborUpdater`.
+    pub max_chained_neighbor_updates: i32,
 }
 
 /// Applies `updateShape` to the neighbours of every changed position,
-/// cascading like Java's `Level.updateNeighborShapes` under the 512 budget.
+/// cascading like Java's `Level.updateNeighborShapes` under the configured
+/// `CollectingNeighborUpdater` budget.
 pub(super) fn run_live_shape_cascade<W: Write>(
     writer: &mut W,
     compression: CompressionState,
@@ -231,7 +236,8 @@ pub(super) fn run_live_shape_cascade<W: Write>(
         seed: context.seed,
         cache: context.cache,
     };
-    let mut budget = 512;
+    let mut queued_updates = 0_i32;
+    let mut skipped_first_pos = None;
     while let Some(changed_pos) = worklist.pop() {
         for direction in [
             Direction::West,
@@ -241,10 +247,14 @@ pub(super) fn run_live_shape_cascade<W: Write>(
             Direction::North,
             Direction::South,
         ] {
-            if budget == 0 {
-                return Ok(());
-            }
             let neighbour_pos = changed_pos.relative(direction);
+            if context.max_chained_neighbor_updates >= 0
+                && queued_updates >= context.max_chained_neighbor_updates
+            {
+                skipped_first_pos.get_or_insert(neighbour_pos);
+                continue;
+            }
+            queued_updates = queued_updates.saturating_add(1);
             let neighbour_state = world.state_at(neighbour_pos);
             if neighbour_state.is_air() {
                 continue;
@@ -275,7 +285,6 @@ pub(super) fn run_live_shape_cascade<W: Write>(
                 );
             }
             if update.state != neighbour_state {
-                budget -= 1;
                 context.cache.set_block(
                     context.layout.root(),
                     context.seed,
@@ -289,6 +298,12 @@ pub(super) fn run_live_shape_cascade<W: Write>(
                 worklist.push(neighbour_pos);
             }
         }
+    }
+    if let Some(pos) = skipped_first_pos {
+        eprintln!(
+            "Too many chained neighbor updates. Skipping the rest. First skipped position: {},{},{}",
+            pos.x, pos.y, pos.z
+        );
     }
     Ok(())
 }
@@ -379,6 +394,7 @@ pub(super) fn process_live_block_ticks<W: Write>(
     seed: i64,
     cache: &GeneratedChunkCache,
     world_items: &std::sync::Arc<std::sync::Mutex<WorldItemEntities>>,
+    max_chained_neighbor_updates: i32,
 ) -> io::Result<()> {
     let due = block_ticks.tick_due(game_time, 65536);
     if due.is_empty() {
@@ -460,6 +476,7 @@ pub(super) fn process_live_block_ticks<W: Write>(
             block_ticks,
             game_time,
             random_roll: (game_time as i32).rem_euclid(40),
+            max_chained_neighbor_updates,
         };
         // NOTE: fluid ticks raised by this cascade use a throwaway queue; the
         // neighbouring fluid blocks are already rescheduled by
@@ -758,5 +775,75 @@ fn parse_state_name(name: &str) -> BlockStateModel {
             parsed
         }
         None => BlockStateModel::new(name),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_world_root(test_name: &str) -> std::path::PathBuf {
+        let root = std::env::temp_dir().join(format!(
+            "vibecraft-live-cascade-{test_name}-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        root
+    }
+
+    fn run_torch_support_cascade(max_chained_neighbor_updates: i32) -> BlockStateModel {
+        let root = temp_world_root(&format!("limit-{max_chained_neighbor_updates}"));
+        let layout = WorldLayout::new(&root);
+        let cache = GeneratedChunkCache::default();
+        let support = BlockPos { x: 0, y: 64, z: 0 };
+        let torch = BlockPos { x: 0, y: 65, z: 0 };
+        cache.set_block(layout.root(), 42, support, "minecraft:stone");
+        cache.set_block(layout.root(), 42, torch, "minecraft:torch");
+        cache.set_block(layout.root(), 42, support, "minecraft:air");
+
+        let mut fluid_ticks = LiveFluidTicks::new();
+        let mut block_ticks = LiveBlockTicks::new();
+        let mut cascade = LiveCascade {
+            layout: &layout,
+            seed: 42,
+            cache: &cache,
+            fluid_ticks: &mut fluid_ticks,
+            block_ticks: &mut block_ticks,
+            game_time: 0,
+            random_roll: 0,
+            max_chained_neighbor_updates,
+        };
+        let mut output = Vec::new();
+        run_live_shape_cascade(
+            &mut output,
+            CompressionState::disabled(),
+            &mut cascade,
+            vec![support],
+        )
+        .unwrap();
+
+        LiveBlockWorld {
+            layout: &layout,
+            seed: 42,
+            cache: &cache,
+        }
+        .state_at(torch)
+    }
+
+    #[test]
+    fn live_shape_cascade_honors_zero_chained_neighbor_update_limit() {
+        let state = run_torch_support_cascade(0);
+
+        assert_eq!(state.registry_id, "minecraft:torch");
+    }
+
+    #[test]
+    fn live_shape_cascade_counts_queued_neighbor_updates_like_java() {
+        let skipped_before_up = run_torch_support_cascade(3);
+        assert_eq!(skipped_before_up.registry_id, "minecraft:torch");
+
+        let reached_up_neighbor = run_torch_support_cascade(4);
+        assert!(reached_up_neighbor.is_air());
     }
 }

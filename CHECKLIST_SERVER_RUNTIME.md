@@ -80,7 +80,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Implement mutable `op-permission-level`.
 - [x] Implement `function-permission-level`. — `ServerProperties` parses Java's signed permission id default, the play command state uses it when queuing `/function` calls, and tests cover Java-style permission id clamping plus queued functions retaining the configured execution permission.
 - [ ] Implement `max-tick-time`.
-- [ ] Implement `max-chained-neighbor-updates`.
+- [x] Implement `max-chained-neighbor-updates`. — verified against Java 26.1.2 `DedicatedServerProperties.maxChainedNeighborUpdates`, `DedicatedServer.getMaxChainedNeighborUpdates`, `Level` construction, and `CollectingNeighborUpdater.addAndRun`: VibeCraft parses the property, threads it into live placement, breaking, scheduled block ticks, and falling-block landing shape cascades, clamps the Rust `u32` to Java's signed `int` range, and applies the cap to queued neighbour updates before execution. Covered by existing `block_update` queue-limit tests plus `live_shape_cascade_honors_zero_chained_neighbor_update_limit` and `live_shape_cascade_counts_queued_neighbor_updates_like_java`.
 - [x] Implement `rate-limit`. — `ServerProperties` parses Java's default, `PacketRateLimiter` mirrors `RateKickingConnection`'s smoothed per-second received-packet average and `disconnect.exceeded_packet_rate` key, the status TCP path carries one limiter across handshake, status, login, configuration, and play, and focused tests cover disabled limits, Java-style smoothing, reset behavior, and configuration-phase rate disconnect propagation.
 - [ ] Implement mutable `view-distance`.
 - [ ] Implement mutable `simulation-distance`.

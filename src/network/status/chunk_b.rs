@@ -506,6 +506,7 @@ pub struct UseItemOnContext<'a, 'b> {
     pub live_fluid_ticks: &'b mut LiveFluidTicks,
     pub live_block_ticks: &'b mut LiveBlockTicks,
     pub game_time: i64,
+    pub max_chained_neighbor_updates: i32,
     // Spawn-protection inputs (Java handleUseItemOn -> isUnderSpawnProtection),
     // mirroring PlayerActionContext on the block-break path.
     pub player_access: &'a Arc<Mutex<PlayerAccess>>,

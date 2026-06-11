@@ -1633,6 +1633,7 @@ fn tick_player_and_chunk_sender(
         play_state,
         LiveWorldTickContext {
             tick_count,
+            max_chained_neighbor_updates: max_chained_neighbor_updates_limit(properties),
             live_fluid_ticks,
             live_block_ticks,
             world_layout,
@@ -1701,6 +1702,7 @@ fn tick_player_and_chunk_sender(
 
 struct LiveWorldTickContext<'a, 'b> {
     tick_count: u64,
+    max_chained_neighbor_updates: i32,
     live_fluid_ticks: &'b mut LiveFluidTicks,
     live_block_ticks: &'b mut LiveBlockTicks,
     world_layout: &'b WorldLayout,
@@ -1737,6 +1739,7 @@ fn tick_live_world_systems(
         context.world_seed,
         context.chunk_cache,
         context.world_items,
+        context.max_chained_neighbor_updates,
     )?;
     tick_live_falling_blocks(
         stream,
@@ -1748,6 +1751,7 @@ fn tick_live_world_systems(
         context.world_seed,
         context.chunk_cache,
         context.world_items,
+        context.max_chained_neighbor_updates,
     )?;
     let live_mob_health_changed = super::live_mobs::tick_live_mobs_for_client(
         stream,
@@ -1771,6 +1775,7 @@ fn tick_live_world_systems(
         play_state,
         LiveDestroyTickContext {
             tick_count,
+            max_chained_neighbor_updates: context.max_chained_neighbor_updates,
             live_fluid_ticks: context.live_fluid_ticks,
             live_block_ticks: context.live_block_ticks,
             world_layout: context.world_layout,
@@ -1781,8 +1786,13 @@ fn tick_live_world_systems(
     )
 }
 
+fn max_chained_neighbor_updates_limit(properties: &ServerProperties) -> i32 {
+    i32::try_from(properties.max_chained_neighbor_updates).unwrap_or(i32::MAX)
+}
+
 struct LiveDestroyTickContext<'a, 'b> {
     tick_count: u64,
+    max_chained_neighbor_updates: i32,
     live_fluid_ticks: &'b mut LiveFluidTicks,
     live_block_ticks: &'b mut LiveBlockTicks,
     world_layout: &'b WorldLayout,
@@ -1793,6 +1803,7 @@ struct LiveDestroyTickContext<'a, 'b> {
 
 struct LiveDestroyContext<'a, 'b> {
     game_time: i64,
+    max_chained_neighbor_updates: i32,
     live_fluid_ticks: &'b mut LiveFluidTicks,
     live_block_ticks: &'b mut LiveBlockTicks,
     world_layout: &'b WorldLayout,
@@ -1849,6 +1860,7 @@ fn tick_live_block_destroy_progress(
                     world_seed: context.world_seed,
                     chunk_cache: context.chunk_cache,
                     world_items: context.world_items,
+                    max_chained_neighbor_updates: context.max_chained_neighbor_updates,
                 },
                 pos,
                 true,
@@ -2260,6 +2272,7 @@ struct PlayerActionContext<'a, 'b> {
     live_fluid_ticks: &'b mut LiveFluidTicks,
     live_block_ticks: &'b mut LiveBlockTicks,
     play_tick_count: u64,
+    max_chained_neighbor_updates: i32,
     world_items: &'a Arc<Mutex<WorldItemEntities>>,
     // Spawn-protection inputs (Java ServerLevel.mayInteract ->
     // DedicatedServer.isUnderSpawnProtection): the player access registry (op
@@ -2745,6 +2758,7 @@ fn handle_player_block_break(
         play_state,
         LiveDestroyContext {
             game_time: context.play_tick_count as i64,
+            max_chained_neighbor_updates: context.max_chained_neighbor_updates,
             live_fluid_ticks: context.live_fluid_ticks,
             live_block_ticks: context.live_block_ticks,
             world_layout: context.world_layout,
@@ -2813,6 +2827,7 @@ fn destroy_live_block_at(
         block_ticks: context.live_block_ticks,
         game_time: context.game_time,
         random_roll: ((context.game_time as i32) ^ block_pos.x ^ block_pos.z).rem_euclid(40),
+        max_chained_neighbor_updates: context.max_chained_neighbor_updates,
     };
     super::block_placement_live::run_block_break_aftermath(
         stream,
@@ -2937,6 +2952,7 @@ fn tick_live_falling_blocks(
     world_seed: i64,
     chunk_cache: &GeneratedChunkCache,
     world_items: &Arc<Mutex<WorldItemEntities>>,
+    max_chained_neighbor_updates: i32,
 ) -> io::Result<()> {
     let mut cascade = super::block_placement_live::LiveCascade {
         layout: world_layout,
@@ -2946,6 +2962,7 @@ fn tick_live_falling_blocks(
         block_ticks: live_block_ticks,
         game_time,
         random_roll: (game_time as i32).rem_euclid(40),
+        max_chained_neighbor_updates,
     };
     super::block_placement_live::tick_falling_blocks(stream, compression, &mut cascade, world_items)
 }
@@ -3648,6 +3665,7 @@ impl<'a, 'b> DecodedPlayPacketContext<'a, 'b> {
             live_fluid_ticks: self.live_fluid_ticks,
             live_block_ticks: self.live_block_ticks,
             game_time: self.play_tick_count as i64,
+            max_chained_neighbor_updates: max_chained_neighbor_updates_limit(self.properties),
             player_access: self.player_access,
             profile_uuid: &self.profile.uuid,
             spawn_protection_radius: self.properties.spawn_protection,
@@ -3663,6 +3681,7 @@ impl<'a, 'b> DecodedPlayPacketContext<'a, 'b> {
             live_fluid_ticks: self.live_fluid_ticks,
             live_block_ticks: self.live_block_ticks,
             play_tick_count: self.play_tick_count,
+            max_chained_neighbor_updates: max_chained_neighbor_updates_limit(self.properties),
             world_items: self.world_items,
             player_access: self.player_access,
             profile_uuid: &self.profile.uuid,

@@ -8,7 +8,8 @@
 //! property recomputed) and may schedule fluid/block ticks through
 //! `ScheduledTickAccess`. [`ShapeUpdate`] carries all three effects; callers
 //! apply the state change (recursively re-running neighbour updates, capped by
-//! Java's 512 chain limit in `block_update`) and schedule the requested ticks.
+//! Java's configured chained-neighbour-update limit) and schedule the requested
+//! ticks.
 //!
 //! Coverage mirrors the other catalogs: [`update_shape`] returns `None` for
 //! the few overrides blocked on other subsystems (`UNPORTED_SHAPE_UPDATES`),
