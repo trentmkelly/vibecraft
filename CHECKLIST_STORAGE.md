@@ -154,7 +154,7 @@
 - [ ] Implement forced chunks save data.
 - [ ] Implement command storage.
 - [ ] Implement custom bossbar save data.
-- [ ] Implement random sequences save data.
+- [x] Implement random sequences save data. — Java 26.1.2 `RandomSequences` is a `SavedData` object stored at `data/random_sequences.dat` with `salt`, `include_world_seed`, `include_sequence_id`, and a map of `RandomSequence` `source` long-array states; Rust `WorldLayout` reads/writes the named saved-data file and `random_sequences` models the Java codec shape, create/reset/clear behavior, MD5 sequence-id seeding, Xoroshiro source state, and dirty marking on random-source use. Covered by `random_sequences_saved_data_codec_shape_matches_java`, `random_sequences_create_reset_clear_and_dirty_like_java_saved_data`, `random_sequence_seed_for_key_matches_known_java_md5_fixture`, and `saves_vanilla_named_data_files`.
 - [ ] Implement POI storage.
 - [ ] Implement entity region/storage behavior.
 - [x] Implement durable write, temp-file, backup, and corruption handling semantics. — `durable_write_with_backup` writes to `.tmp`, renames old to backup, renames tmp to target with retry/rollback matching Java `Util.safeReplaceFile`; `corruption_backup_stamp` generates `yyyy-MM-dd_HH-mm-ss` timestamps matching Java `FileNameDateFormatter`; load paths fall back to `.dat_old` backups.
