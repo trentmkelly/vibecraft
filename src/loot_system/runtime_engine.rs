@@ -844,6 +844,7 @@ pub enum LootFunction {
     },
     ApplyBonus(LootBonusFormula),
     SetItem(String),
+    SetEnchantments(HashMap<String, i32>),
     SetDamage(NumberProvider),
     SetNbt(HashMap<String, String>),
     EnchantWithLevels {
@@ -860,6 +861,7 @@ pub enum LootFunction {
         target: String,
     },
     SetContents(Vec<LootStack>),
+    ModifyContents(Vec<LootFunction>),
     ExplorationMap {
         destination: String,
         decoration: String,
@@ -878,15 +880,26 @@ pub enum LootFunction {
     SetLore(Vec<String>),
     SetName(String),
     SetPotion(String),
+    SetRandomPotion(Vec<String>),
     SetStewEffects(Vec<String>),
+    SetRandomDyes(Vec<String>),
     SetWrittenBookPages(Vec<String>),
+    SetWritableBookPages(Vec<String>),
+    SetBookCover {
+        title: String,
+        author: String,
+    },
     ToggleTooltips(Vec<String>),
     SetFireworkExplosions(Vec<String>),
     SetFireworks {
         flight_duration: i32,
         explosions: Vec<String>,
     },
+    SetOminousBottleAmplifier(NumberProvider),
+    SetCustomModelData(String),
+    SetLootTable(String),
     Reference(String),
+    Discard,
     ApplyExplosionDecay,
     Filtered {
         condition: LootCondition,

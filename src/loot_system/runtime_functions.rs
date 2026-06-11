@@ -7,17 +7,22 @@ impl LootFunction {
             | Self::LimitCount { .. }
             | Self::AddLootingBonus { .. }
             | Self::ApplyFortuneBonus { .. }
-            | Self::ApplyBonus(_) => self.apply_count_function(stack, context),
+            | Self::ApplyBonus(_)
+            | Self::SetOminousBottleAmplifier(_) => self.apply_count_function(stack, context),
             Self::SetItem(_)
+            | Self::SetEnchantments(_)
             | Self::SetDamage(_)
             | Self::SetNbt(_)
             | Self::SetComponents(_)
             | Self::EnchantWithLevels { .. }
             | Self::EnchantRandomly(_)
-            | Self::SmeltItem => self.apply_item_function(stack, context),
+            | Self::SmeltItem
+            | Self::SetRandomPotion(_)
+            | Self::SetRandomDyes(_) => self.apply_item_function(stack, context),
             Self::CopyName { .. }
             | Self::CopyNbt { .. }
             | Self::SetContents(_)
+            | Self::ModifyContents(_)
             | Self::ExplorationMap { .. }
             | Self::FillPlayerHead
             | Self::CopyState(_)
@@ -30,10 +35,15 @@ impl LootFunction {
             | Self::SetPotion(_)
             | Self::SetStewEffects(_)
             | Self::SetWrittenBookPages(_)
+            | Self::SetWritableBookPages(_)
+            | Self::SetBookCover { .. }
             | Self::ToggleTooltips(_)
             | Self::SetFireworkExplosions(_)
-            | Self::SetFireworks { .. } => self.apply_text_component_function(stack),
+            | Self::SetFireworks { .. }
+            | Self::SetCustomModelData(_)
+            | Self::SetLootTable(_) => self.apply_text_component_function(stack),
             Self::Reference(_)
+            | Self::Discard
             | Self::ApplyExplosionDecay
             | Self::Filtered { .. }
             | Self::Sequence(_) => self.apply_control_function(stack, context),
@@ -61,6 +71,12 @@ impl LootFunction {
                 }
             }
             Self::ApplyBonus(formula) => stack.count = formula.apply(stack.count, context),
+            Self::SetOminousBottleAmplifier(provider) => {
+                stack.components.insert(
+                    "minecraft:ominous_bottle_amplifier".to_string(),
+                    provider.int(context).clamp(0, 4).to_string(),
+                );
+            }
             _ => unreachable!("non-count loot function routed to count handler"),
         }
         Some(stack)
@@ -73,6 +89,16 @@ impl LootFunction {
     ) -> Option<LootStack> {
         match self {
             Self::SetItem(item) => stack.item.clone_from(item),
+            Self::SetEnchantments(enchantments) => {
+                stack.components.insert(
+                    "minecraft:enchantments".to_string(),
+                    enchantments
+                        .iter()
+                        .map(|(id, level)| format!("{id}:{level}"))
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            }
             Self::SetDamage(provider) => {
                 stack.components.insert(
                     "minecraft:damage_fraction".to_string(),
@@ -96,6 +122,20 @@ impl LootFunction {
                     }
                 }
             }
+            Self::SetRandomPotion(potions) => {
+                if let Some(potion) = choose_random_text(potions, context) {
+                    stack
+                        .components
+                        .insert("minecraft:potion_contents".to_string(), potion);
+                }
+            }
+            Self::SetRandomDyes(dyes) => {
+                if let Some(dye) = choose_random_text(dyes, context) {
+                    stack
+                        .components
+                        .insert("minecraft:dyed_color".to_string(), dye);
+                }
+            }
             _ => unreachable!("non-item loot function routed to item handler"),
         }
         Some(stack)
@@ -114,6 +154,20 @@ impl LootFunction {
                 }
             }
             Self::SetContents(contents) => set_container_component(&mut stack, contents),
+            Self::ModifyContents(functions) => {
+                if let Some(container) = stack.components.get("minecraft:container").cloned() {
+                    let modified = container
+                        .split(',')
+                        .filter_map(parse_container_entry)
+                        .filter_map(|item| apply_function_sequence(functions, item, context))
+                        .map(|item| format!("{}:{}", item.item, item.count))
+                        .collect::<Vec<_>>()
+                        .join(",");
+                    stack
+                        .components
+                        .insert("minecraft:container".to_string(), modified);
+                }
+            }
             Self::ExplorationMap {
                 destination,
                 decoration,
@@ -170,7 +224,18 @@ impl LootFunction {
                 );
             }
             Self::SetWrittenBookPages(pages) => {
+                insert_joined_component(&mut stack, "minecraft:written_book_pages", pages, "\n");
+            }
+            Self::SetWritableBookPages(pages) => {
                 insert_joined_component(&mut stack, "minecraft:writable_book_pages", pages, "\n");
+            }
+            Self::SetBookCover { title, author } => {
+                stack
+                    .components
+                    .insert("minecraft:written_book_title".to_string(), title.clone());
+                stack
+                    .components
+                    .insert("minecraft:written_book_author".to_string(), author.clone());
             }
             Self::ToggleTooltips(components) => {
                 insert_joined_component(&mut stack, "minecraft:tooltip_hidden", components, ",");
@@ -192,6 +257,16 @@ impl LootFunction {
                     format!("{flight_duration}:{}", explosions.join(",")),
                 );
             }
+            Self::SetCustomModelData(model_data) => {
+                stack
+                    .components
+                    .insert("minecraft:custom_model_data".to_string(), model_data.clone());
+            }
+            Self::SetLootTable(table) => {
+                stack
+                    .components
+                    .insert("minecraft:container_loot_table".to_string(), table.clone());
+            }
             _ => unreachable!("non-text loot function routed to text component handler"),
         }
         Some(stack)
@@ -204,6 +279,7 @@ impl LootFunction {
     ) -> Option<LootStack> {
         match self {
             Self::Reference(name) => apply_referenced_functions(name, stack, context),
+            Self::Discard => None,
             Self::ApplyExplosionDecay => {
                 apply_explosion_decay(&mut stack, context);
                 (!stack.is_empty()).then_some(stack)
@@ -354,4 +430,20 @@ fn apply_function_sequence(
         next = function.apply(next?, context);
     }
     next
+}
+
+fn parse_container_entry(value: &str) -> Option<LootStack> {
+    let (item, count) = value.rsplit_once(':')?;
+    count
+        .parse::<i32>()
+        .ok()
+        .map(|count| LootStack::new(item.to_string(), count))
+}
+
+fn choose_random_text(values: &[String], context: &mut LootContext) -> Option<String> {
+    if values.is_empty() {
+        return None;
+    }
+    let index = context.random.next_i32(values.len() as i32) as usize;
+    values.get(index).cloned()
 }

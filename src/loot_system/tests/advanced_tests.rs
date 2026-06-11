@@ -305,6 +305,10 @@ fn java_item_modifier_sequence() -> LootFunction {
             levels: NumberProvider::Constant(3.0),
             options: vec!["minecraft:fortune".to_string()],
         },
+        LootFunction::SetEnchantments(HashMap::from([(
+            "minecraft:sharpness".to_string(),
+            2,
+        )])),
         LootFunction::CopyName {
             source: "block_entity_name".to_string(),
         },
@@ -316,6 +320,7 @@ fn java_item_modifier_sequence() -> LootFunction {
             target: "minecraft:copied_name".to_string(),
         },
         LootFunction::SetContents(vec![LootStack::new("minecraft:apple", 2)]),
+        LootFunction::ModifyContents(vec![LootFunction::SetCount(NumberProvider::Constant(3.0))]),
         LootFunction::ExplorationMap {
             destination: "minecraft:village".to_string(),
             decoration: "red_x".to_string(),
@@ -337,14 +342,24 @@ fn java_item_modifier_sequence() -> LootFunction {
         LootFunction::SetLore(vec!["Lore".to_string()]),
         LootFunction::SetName("Named".to_string()),
         LootFunction::SetPotion("minecraft:healing".to_string()),
+        LootFunction::SetRandomPotion(vec!["minecraft:swiftness".to_string()]),
         LootFunction::SetStewEffects(vec!["minecraft:night_vision:160".to_string()]),
+        LootFunction::SetRandomDyes(vec!["minecraft:red".to_string()]),
         LootFunction::SetWrittenBookPages(vec!["Draft".to_string()]),
+        LootFunction::SetWritableBookPages(vec!["Writable".to_string()]),
+        LootFunction::SetBookCover {
+            title: "Cover".to_string(),
+            author: "Sam".to_string(),
+        },
         LootFunction::ToggleTooltips(vec!["minecraft:enchantments".to_string()]),
         LootFunction::SetFireworkExplosions(vec!["small_ball:red".to_string()]),
         LootFunction::SetFireworks {
             flight_duration: 2,
             explosions: vec!["small_ball:red".to_string()],
         },
+        LootFunction::SetOminousBottleAmplifier(NumberProvider::Constant(3.0)),
+        LootFunction::SetCustomModelData("model:17".to_string()),
+        LootFunction::SetLootTable("minecraft:chests/simple_dungeon".to_string()),
         LootFunction::Reference("minecraft:set_marker".to_string()),
     ])
 }
@@ -355,11 +370,11 @@ fn assert_java_item_modifier_components(stack: &LootStack) {
     assert_eq!(stack.components["minecraft:custom_data"], "1b");
     assert_eq!(
         stack.components["minecraft:enchantments"],
-        "minecraft:fortune:3"
+        "minecraft:sharpness:2"
     );
     assert_eq!(stack.components["minecraft:custom_name"], "Named");
     assert_eq!(stack.components["minecraft:copied_name"], "Dinnerbone");
-    assert_eq!(stack.components["minecraft:container"], "minecraft:apple:2");
+    assert_eq!(stack.components["minecraft:container"], "minecraft:apple:3");
     assert_eq!(stack.components["minecraft:profile"], "Steve");
     assert_eq!(stack.components["minecraft:block_state.facing"], "north");
     assert_eq!(
@@ -370,7 +385,8 @@ fn assert_java_item_modifier_components(stack: &LootStack) {
         stack.components["minecraft:banner_patterns"],
         "minecraft:stripe_bottom"
     );
-    assert_eq!(stack.components["minecraft:written_book_title"], "Guide");
+    assert_eq!(stack.components["minecraft:written_book_title"], "Cover");
+    assert_eq!(stack.components["minecraft:written_book_author"], "Sam");
     assert_eq!(stack.components["minecraft:rarity"], "rare");
     assert_eq!(
         stack.components["minecraft:instrument"],
@@ -379,13 +395,15 @@ fn assert_java_item_modifier_components(stack: &LootStack) {
     assert_eq!(stack.components["minecraft:lore"], "Lore");
     assert_eq!(
         stack.components["minecraft:potion_contents"],
-        "minecraft:healing"
+        "minecraft:swiftness"
     );
     assert_eq!(
         stack.components["minecraft:suspicious_stew_effects"],
         "minecraft:night_vision:160"
     );
-    assert_eq!(stack.components["minecraft:writable_book_pages"], "Draft");
+    assert_eq!(stack.components["minecraft:dyed_color"], "minecraft:red");
+    assert_eq!(stack.components["minecraft:written_book_pages"], "Draft");
+    assert_eq!(stack.components["minecraft:writable_book_pages"], "Writable");
     assert_eq!(
         stack.components["minecraft:tooltip_hidden"],
         "minecraft:enchantments"
@@ -395,7 +413,22 @@ fn assert_java_item_modifier_components(stack: &LootStack) {
         "small_ball:red"
     );
     assert_eq!(stack.components["minecraft:fireworks"], "2:small_ball:red");
+    assert_eq!(stack.components["minecraft:ominous_bottle_amplifier"], "3");
+    assert_eq!(stack.components["minecraft:custom_model_data"], "model:17");
+    assert_eq!(
+        stack.components["minecraft:container_loot_table"],
+        "minecraft:chests/simple_dungeon"
+    );
     assert_eq!(stack.components["minecraft:marker"], "referenced");
+}
+
+#[test]
+fn discard_function_removes_stack_like_java_discard_item() {
+    let mut context = LootContext::new(LootParamSet::AllParams, 9);
+    assert_eq!(
+        LootFunction::Discard.apply(LootStack::new("minecraft:stick", 1), &mut context),
+        None
+    );
 }
 
 fn assert_copy_name_reads_block_entity_name(context: &mut LootContext) {
