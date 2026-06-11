@@ -133,7 +133,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. Each pack
 - [ ] `net/minecraft/data/info` (8 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/data/loot` (5 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/data/loot/packs` (17 Java files): add class-level Rust port tasks and parity tests.
-- [ ] `net/minecraft/data/metadata` (2 Java files): add class-level Rust port tasks and parity tests.
+- [x] `net/minecraft/data/metadata` (2 Java files): add class-level Rust port tasks and parity tests. — all package rows are covered in `CHECKLIST_JAVA_CLASSES.md`: `PackMetadataGenerator` is modeled in `data_metadata` with Java-backed metadata-section, duplicate-key overwrite, `pack.mcmeta` output, provider-name, built-in pack-version, and feature-flag tests, and package-info is audited as the nullability marker. Verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 data_metadata`.
 - [ ] `net/minecraft/data/recipes` (15 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/data/recipes/packs` (2 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/data/registries` (5 Java files): add class-level Rust port tasks and parity tests.
