@@ -2,6 +2,16 @@ use std::collections::HashMap;
 
 use super::*;
 
+const USE_ON_CONTEXT_JAVA: &str = include_str!(
+    "../../../decompiled-server-26.1.2/net/minecraft/world/item/context/UseOnContext.java"
+);
+const BLOCK_PLACE_CONTEXT_JAVA: &str = include_str!(
+    "../../../decompiled-server-26.1.2/net/minecraft/world/item/context/BlockPlaceContext.java"
+);
+const DIRECTIONAL_PLACE_CONTEXT_JAVA: &str = include_str!(
+    "../../../decompiled-server-26.1.2/net/minecraft/world/item/context/DirectionalPlaceContext.java"
+);
+
 #[derive(Default)]
 struct TestWorld {
     blocks: HashMap<(i32, i32, i32), BlockStateModel>,
@@ -64,6 +74,156 @@ fn place(id: &str, ctx: &PlaceContext, world: &TestWorld) -> BlockStateModel {
         Some(PlacementOutcome::Place(state)) => state,
         other => panic!("{id}: expected placement, got {other:?}"),
     }
+}
+
+#[test]
+fn item_context_construction_and_relocation_match_java() {
+    for sentinel in [
+        "public BlockPos getClickedPos()",
+        "public Direction getClickedFace()",
+        "public Vec3 getClickLocation()",
+        "public boolean isInside()",
+        "public Direction getHorizontalDirection()",
+        "public boolean isSecondaryUseActive()",
+        "public float getRotation()",
+    ] {
+        assert!(
+            USE_ON_CONTEXT_JAVA.contains(sentinel),
+            "missing UseOnContext sentinel {sentinel}"
+        );
+    }
+    for sentinel in [
+        "this.relativePos = hitResult.getBlockPos().relative(hitResult.getDirection());",
+        "this.replaceClicked = level.getBlockState(hitResult.getBlockPos()).canBeReplaced(this);",
+        "return this.replaceClicked ? super.getClickedPos() : this.relativePos;",
+        "return this.replaceClicked || this.getLevel().getBlockState(this.getClickedPos()).canBeReplaced(this);",
+        "System.arraycopy(directions, 0, directions, 1, index);",
+        "directions[0] = clickedFace.getOpposite();",
+    ] {
+        assert!(
+            BLOCK_PLACE_CONTEXT_JAVA.contains(sentinel),
+            "missing BlockPlaceContext sentinel {sentinel}"
+        );
+    }
+
+    let world = TestWorld::default().with((0, 64, 0), block("minecraft:stone"));
+    let context = PlaceContext::from_use_on(
+        &world,
+        POS,
+        Direction::Up,
+        [0.25, 64.75, 0.25],
+        90.0,
+        10.0,
+        true,
+        7,
+    );
+    assert_eq!(context.clicked_pos, POS.relative(Direction::Up));
+    assert_eq!(context.clicked_face, Direction::Up);
+    assert_eq!(context.click_location, [0.25, 64.75, 0.25]);
+    assert!(!context.replacing_clicked_on_block);
+    assert_eq!(context.horizontal_direction(), Direction::West);
+    assert!(context.secondary_use_active);
+    assert_eq!(context.player_yaw, 90.0);
+
+    let replaceable = PlaceContext::from_use_on(
+        &TestWorld::default(),
+        POS,
+        Direction::North,
+        [0.5, 64.5, 0.0],
+        0.0,
+        0.0,
+        false,
+        0,
+    );
+    assert_eq!(replaceable.clicked_pos, POS);
+    assert!(replaceable.replacing_clicked_on_block);
+
+    let redirected_world = TestWorld::default().with((4, 70, -2), block("minecraft:stone"));
+    let redirected = context.at(
+        &redirected_world,
+        BlockPos { x: 4, y: 70, z: -2 },
+        Direction::East,
+    );
+    assert_eq!(redirected.click_location, [5.0, 70.5, -1.5]);
+    assert_eq!(redirected.clicked_pos, BlockPos { x: 5, y: 70, z: -2 });
+}
+
+#[test]
+fn block_place_context_direction_orders_match_java_non_replace_branch() {
+    let context = PlaceContext {
+        clicked_face: Direction::North,
+        replacing_clicked_on_block: false,
+        player_pitch: 0.0,
+        player_yaw: 0.0,
+        ..context()
+    };
+    assert_eq!(
+        context.block_place_nearest_looking_directions()[0],
+        Direction::South,
+        "clicked face opposite must move to the front when clicked block is not replaced"
+    );
+
+    let replace = PlaceContext {
+        replacing_clicked_on_block: true,
+        ..context
+    };
+    assert_eq!(
+        replace.block_place_nearest_looking_directions(),
+        replace.nearest_looking_directions()
+    );
+}
+
+#[test]
+fn directional_place_context_orders_rotation_and_flags_match_java() {
+    for sentinel in [
+        "new BlockHitResult(Vec3.atBottomCenterOf(pos), clickedFace, pos, false)",
+        "return this.getHitResult().getBlockPos();",
+        "return this.getLevel().getBlockState(this.getHitResult().getBlockPos()).canBeReplaced(this);",
+        "return Direction.DOWN;",
+        "return new Direction[]{Direction.DOWN, Direction.EAST, Direction.SOUTH, Direction.UP, Direction.NORTH, Direction.WEST};",
+        "return this.direction.getAxis() == Direction.Axis.Y ? Direction.NORTH : this.direction;",
+        "return false;",
+        "return this.direction.get2DDataValue() * 90;",
+    ] {
+        assert!(
+            DIRECTIONAL_PLACE_CONTEXT_JAVA.contains(sentinel),
+            "missing DirectionalPlaceContext sentinel {sentinel}"
+        );
+    }
+
+    assert_eq!(
+        PlaceContext::directional_nearest_looking_directions(Direction::East),
+        [
+            Direction::Down,
+            Direction::East,
+            Direction::South,
+            Direction::Up,
+            Direction::North,
+            Direction::West,
+        ]
+    );
+    assert_eq!(
+        PlaceContext::directional_nearest_looking_directions(Direction::Up),
+        [
+            Direction::Down,
+            Direction::Up,
+            Direction::North,
+            Direction::East,
+            Direction::South,
+            Direction::West,
+        ]
+    );
+
+    let context = PlaceContext::directional(&TestWorld::default(), POS, Direction::East, Direction::Up);
+    assert_eq!(context.clicked_pos, POS);
+    assert_eq!(context.click_location, [0.5, 64.0, 0.5]);
+    assert!(context.replacing_clicked_on_block);
+    assert_eq!(context.horizontal_direction(), Direction::East);
+    assert!(!context.secondary_use_active);
+    assert_eq!(context.player_yaw, 270.0);
+
+    let vertical = PlaceContext::directional(&TestWorld::default(), POS, Direction::Up, Direction::North);
+    assert_eq!(vertical.horizontal_direction(), Direction::North);
 }
 
 #[test]

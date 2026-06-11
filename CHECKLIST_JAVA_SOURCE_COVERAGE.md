@@ -333,7 +333,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. Each pack
 - [ ] `net/minecraft/world/item/alchemy` (5 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/world/item/component` (45 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/world/item/consume_effects` (7 Java files): add class-level Rust port tasks and parity tests.
-- [ ] `net/minecraft/world/item/context` (4 Java files): add class-level Rust port tasks and parity tests.
+- [x] `net/minecraft/world/item/context` (4 Java files): add class-level Rust port tasks and parity tests. — all package rows are covered in `CHECKLIST_JAVA_CLASSES.md`: `UseOnContext`, `BlockPlaceContext`, and `DirectionalPlaceContext` are modeled in `block_placement::PlaceContext` with Java relocation, direction ordering, dispenser directional placement, and source-backed tests; package-info is audited as the nullability marker. Verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 block_placement`.
 - [ ] `net/minecraft/world/item/crafting` (52 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/world/item/crafting/display` (14 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/world/item/enchantment` (14 Java files): add class-level Rust port tasks and parity tests.

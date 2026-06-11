@@ -57,7 +57,7 @@ pub(super) fn plant_placement(
         "base_coral_wall_fan" | "coral_wall_fan" => {
             let full_water = matches!(fluid_at(world, pos), StateFluid::Water { amount: 8, .. });
             let base = set(state, "waterlogged", bool_str(full_water));
-            for direction in context.nearest_looking_directions() {
+            for direction in context.block_place_nearest_looking_directions() {
                 if is_horizontal(direction) {
                     let placed = set(base.clone(), "facing", direction_name(direction.opposite()));
                     if can_survive(&placed, pos, world) {
@@ -172,7 +172,7 @@ pub(super) fn plant_placement(
         "multiface" | "glow_lichen" | "sculk_vein" => {
             let existing = world.state_at(pos);
             let merging = existing.registry_id == block_id;
-            for direction in context.nearest_looking_directions() {
+            for direction in context.block_place_nearest_looking_directions() {
                 let face = direction_name(direction);
                 if merging && existing.property(face) == Some("true") {
                     continue;
@@ -198,7 +198,7 @@ pub(super) fn plant_placement(
             let existing = world.state_at(pos);
             let merging = existing.registry_id == block_id;
             let base = if merging { existing.clone() } else { state };
-            for direction in context.nearest_looking_directions() {
+            for direction in context.block_place_nearest_looking_directions() {
                 if direction == Direction::Down {
                     continue;
                 }
@@ -410,7 +410,7 @@ fn wall_hanging_sign_placement(
     world: &impl PlacementWorld,
 ) -> PlacementOutcome {
     let pos = context.clicked_pos;
-    for direction in context.nearest_looking_directions() {
+    for direction in context.block_place_nearest_looking_directions() {
         if is_horizontal(direction) && axis_name(direction) != axis_name(context.clicked_face) {
             let facing = direction.opposite();
             let placed = set(state.clone(), "facing", direction_name(facing));

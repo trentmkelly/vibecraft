@@ -144,7 +144,7 @@ pub(super) fn connecting_placement(
         // backing block is NOT replaceable.
         "wall_skull" | "player_wall_head" | "wither_wall_skull" | "piglinwallskull" => {
             let powered = world.has_neighbor_signal(pos);
-            for direction in context.nearest_looking_directions() {
+            for direction in context.block_place_nearest_looking_directions() {
                 if is_horizontal(direction) {
                     let placed = set(
                         set(
@@ -323,7 +323,7 @@ pub(super) fn connecting_placement(
         ),
         "trip_wire_hook" => {
             let base = set(set(state, "powered", "false"), "attached", "false");
-            for direction in context.nearest_looking_directions() {
+            for direction in context.block_place_nearest_looking_directions() {
                 if is_horizontal(direction) {
                     let placed = set(base.clone(), "facing", direction_name(direction.opposite()));
                     if can_survive(&placed, pos, world) {

@@ -22,6 +22,7 @@ use crate::block_properties::{state_physics_by_name, StateFluid};
 use crate::block_states::block_state_entry;
 use crate::block_survival::{can_survive, SurvivalWorld};
 use crate::block_update::{BlockPos, Direction};
+use crate::fluid::block_item_can_replace;
 
 /// World access for placement decisions. Extends the survival view with the
 /// redstone-signal query some placements sample (doors, trapdoors, skulls).
@@ -54,6 +55,142 @@ pub struct PlaceContext {
 }
 
 impl PlaceContext {
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "constructor mirrors Java UseOnContext/BlockPlaceContext fields"
+    )]
+    pub fn from_use_on(
+        world: &impl PlacementWorld,
+        clicked_pos: BlockPos,
+        clicked_face: Direction,
+        click_location: [f64; 3],
+        player_yaw: f32,
+        player_pitch: f32,
+        secondary_use_active: bool,
+        random_age_roll: i32,
+    ) -> Self {
+        let replace_clicked = block_item_can_replace(&world.state_at(clicked_pos));
+        Self {
+            clicked_pos: if replace_clicked {
+                clicked_pos
+            } else {
+                clicked_pos.relative(clicked_face)
+            },
+            clicked_face,
+            click_location,
+            replacing_clicked_on_block: replace_clicked,
+            player_yaw,
+            player_pitch,
+            secondary_use_active,
+            random_age_roll,
+        }
+    }
+
+    pub fn at(&self, world: &impl PlacementWorld, pos: BlockPos, direction: Direction) -> Self {
+        Self::from_use_on(
+            world,
+            pos,
+            direction,
+            [
+                f64::from(pos.x) + 0.5 + direction_step(direction).0 * 0.5,
+                f64::from(pos.y) + 0.5 + direction_step(direction).1 * 0.5,
+                f64::from(pos.z) + 0.5 + direction_step(direction).2 * 0.5,
+            ],
+            self.player_yaw,
+            self.player_pitch,
+            self.secondary_use_active,
+            self.random_age_roll,
+        )
+    }
+
+    pub fn directional(
+        world: &impl PlacementWorld,
+        pos: BlockPos,
+        direction: Direction,
+        clicked_face: Direction,
+    ) -> Self {
+        let replace_clicked = block_item_can_replace(&world.state_at(pos));
+        Self {
+            clicked_pos: pos,
+            clicked_face,
+            click_location: [f64::from(pos.x) + 0.5, f64::from(pos.y), f64::from(pos.z) + 0.5],
+            replacing_clicked_on_block: replace_clicked,
+            player_yaw: directional_rotation(direction),
+            player_pitch: 0.0,
+            secondary_use_active: false,
+            random_age_roll: 0,
+        }
+    }
+
+    pub fn directional_nearest_looking_directions(direction: Direction) -> [Direction; 6] {
+        match direction {
+            Direction::Down => [
+                Direction::Down,
+                Direction::North,
+                Direction::East,
+                Direction::South,
+                Direction::West,
+                Direction::Up,
+            ],
+            Direction::Up => [
+                Direction::Down,
+                Direction::Up,
+                Direction::North,
+                Direction::East,
+                Direction::South,
+                Direction::West,
+            ],
+            Direction::North => [
+                Direction::Down,
+                Direction::North,
+                Direction::East,
+                Direction::West,
+                Direction::Up,
+                Direction::South,
+            ],
+            Direction::South => [
+                Direction::Down,
+                Direction::South,
+                Direction::East,
+                Direction::West,
+                Direction::Up,
+                Direction::North,
+            ],
+            Direction::West => [
+                Direction::Down,
+                Direction::West,
+                Direction::South,
+                Direction::Up,
+                Direction::North,
+                Direction::East,
+            ],
+            Direction::East => [
+                Direction::Down,
+                Direction::East,
+                Direction::South,
+                Direction::Up,
+                Direction::North,
+                Direction::West,
+            ],
+        }
+    }
+
+    pub fn block_place_nearest_looking_directions(&self) -> [Direction; 6] {
+        let mut directions = self.nearest_looking_directions();
+        if self.replacing_clicked_on_block {
+            return directions;
+        }
+        let opposite_clicked = self.clicked_face.opposite();
+        let Some(index) = directions
+            .iter()
+            .position(|direction| *direction == opposite_clicked)
+        else {
+            return directions;
+        };
+        directions[..=index].rotate_right(1);
+        directions
+    }
+
     /// Java `UseOnContext.getHorizontalDirection()` =
     /// `Direction.fromYRot(player.getYRot())`.
     pub fn horizontal_direction(&self) -> Direction {
@@ -90,6 +227,26 @@ impl PlaceContext {
             _ => self.clicked_pos.z,
         };
         self.click_location[axis] - f64::from(base)
+    }
+}
+
+fn direction_step(direction: Direction) -> (f64, f64, f64) {
+    match direction {
+        Direction::West => (-1.0, 0.0, 0.0),
+        Direction::East => (1.0, 0.0, 0.0),
+        Direction::Down => (0.0, -1.0, 0.0),
+        Direction::Up => (0.0, 1.0, 0.0),
+        Direction::North => (0.0, 0.0, -1.0),
+        Direction::South => (0.0, 0.0, 1.0),
+    }
+}
+
+fn directional_rotation(direction: Direction) -> f32 {
+    match direction {
+        Direction::South => 0.0,
+        Direction::West => 90.0,
+        Direction::North | Direction::Up | Direction::Down => 180.0,
+        Direction::East => 270.0,
     }
 }
 
@@ -635,7 +792,7 @@ fn ladder_placement(
     if !context.replacing_clicked_on_block && is_horizontal(context.clicked_face) {
         candidates.push(context.clicked_face);
     } else {
-        for direction in context.nearest_looking_directions() {
+        for direction in context.block_place_nearest_looking_directions() {
             if is_horizontal(direction) {
                 candidates.push(direction.opposite());
             }
@@ -661,7 +818,7 @@ fn wall_facing_placement(
     context: &PlaceContext,
     world: &impl PlacementWorld,
 ) -> PlacementOutcome {
-    for direction in context.nearest_looking_directions() {
+    for direction in context.block_place_nearest_looking_directions() {
         if is_horizontal(direction) {
             let placed = set(
                 state.clone(),
@@ -683,7 +840,7 @@ fn wall_sign_placement(
     context: &PlaceContext,
     world: &impl PlacementWorld,
 ) -> PlacementOutcome {
-    for direction in context.nearest_looking_directions() {
+    for direction in context.block_place_nearest_looking_directions() {
         if is_horizontal(direction) {
             let facing = direction.opposite();
             let mut placed = set(state.clone(), "facing", direction_name(facing));

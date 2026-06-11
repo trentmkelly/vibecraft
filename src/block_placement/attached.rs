@@ -42,7 +42,7 @@ pub(super) fn attached_placement(
 
         // CocoaBlock: first horizontal looking direction that survives.
         "cocoa" => {
-            for direction in context.nearest_looking_directions() {
+            for direction in context.block_place_nearest_looking_directions() {
                 if is_horizontal(direction) {
                     let placed = set(state.clone(), "facing", direction_name(direction));
                     if can_survive(&placed, context.clicked_pos, world) {
@@ -59,7 +59,7 @@ pub(super) fn attached_placement(
         // LanternBlock: hanging when clicked face/looking suggests ceiling.
         "lantern" | "weathering_lantern" => {
             let waterlogged = replaced_by_source_water(world, context.clicked_pos);
-            for direction in context.nearest_looking_directions() {
+            for direction in context.block_place_nearest_looking_directions() {
                 if !is_horizontal(direction) {
                     let hanging = direction == Direction::Up;
                     let placed = set(
@@ -166,7 +166,7 @@ fn face_attached_placement(
     context: &PlaceContext,
     world: &impl PlacementWorld,
 ) -> PlacementOutcome {
-    for direction in context.nearest_looking_directions() {
+    for direction in context.block_place_nearest_looking_directions() {
         let placed = if !is_horizontal(direction) {
             set(
                 set(
