@@ -156,6 +156,11 @@ impl ActiveBlockMenu {
         if packet.container_id != self.container_id || !self.valid_slot(packet.slot_num) {
             return Vec::new();
         }
+        if matches!(self.kind, ActiveBlockMenuKind::Crafting { .. })
+            && packet.container_input == ContainerInput::QuickMove
+        {
+            return self.handle_crafting_quick_move(packet, state);
+        }
 
         let before_slots = self.flattened_slots(state);
         let before_carried = state.carried_item.clone();
@@ -195,6 +200,62 @@ impl ActiveBlockMenu {
         self.apply_flat_menu(menu, state);
         self.apply_result_slot_take_if_needed(result_slot_changed);
         self.persist_if_needed(world_layout, world_seed, chunk_cache);
+
+        let mut instructions = Vec::new();
+        let after_slots = self.flattened_slots(state);
+        for (slot, (before, after)) in before_slots.iter().zip(after_slots.iter()).enumerate() {
+            if before != after {
+                if let Ok(item_stack) = raw_item_stack_from_item_stack(after) {
+                    instructions.push(PlayInstruction::ContainerSetSlot(
+                        ClientboundContainerSetSlotPacket {
+                            container_id: self.container_id,
+                            state_id: self.state_id,
+                            slot: slot as i16,
+                            item_stack,
+                        },
+                    ));
+                }
+            }
+        }
+        if state.carried_item != before_carried {
+            if let Ok(item_stack) = raw_item_stack_from_item_stack(&state.carried_item) {
+                instructions.push(PlayInstruction::SetCursorItem(
+                    ClientboundSetCursorItemPacket { item_stack },
+                ));
+            }
+        }
+        if let ActiveBlockMenuKind::Crafting { menu } = &mut self.kind {
+            let unlocks = menu.drain_recipe_unlock_events();
+            if !unlocks.is_empty() {
+                instructions.push(PlayInstruction::RecipesUnlocked(unlocks));
+            }
+        }
+        instructions
+    }
+
+    fn handle_crafting_quick_move(
+        &mut self,
+        packet: &ServerboundContainerClickPacket,
+        state: &mut PlaySessionState,
+    ) -> Vec<PlayInstruction> {
+        if packet.state_id != self.state_id {
+            return self.full_slot_resync(state);
+        }
+        let Ok(slot) = usize::try_from(packet.slot_num) else {
+            return Vec::new();
+        };
+        let before_slots = self.flattened_slots(state);
+        let before_carried = state.carried_item.clone();
+
+        if let ActiveBlockMenuKind::Crafting { menu } = &mut self.kind {
+            // Java `CraftingMenu.quickMoveStack` handles the result slot specially:
+            // the crafted item moves to player inventory and `ResultSlot.onTake`
+            // consumes/remainders the 3x3 grid. The generic slot bridge would try
+            // to insert the result into the first accepting slot, including empty
+            // crafting-grid cells.
+            menu.quick_move(slot, state.inventory_menu.player_inventory_mut());
+        }
+        self.state_id = self.state_id.wrapping_add(1);
 
         let mut instructions = Vec::new();
         let after_slots = self.flattened_slots(state);
@@ -729,6 +790,79 @@ mod tests {
         for slot in [1_usize, 2, 4, 5] {
             assert!(menu.flattened_slots(&state)[slot].is_empty());
         }
+    }
+
+    #[test]
+    fn active_crafting_table_shift_click_result_uses_java_quick_move_semantics() {
+        let recipes = crafting_table_recipe_map();
+        let mut state = PlaySessionState {
+            inventory_menu: InventoryMenu::new(PlayerInventory::new(), recipes.clone()),
+            ..Default::default()
+        };
+        state
+            .inventory_menu
+            .player_inventory_mut()
+            .set(0, ItemStack::new("minecraft:oak_planks", 4));
+        let mut menu = ActiveBlockMenu::open(
+            9,
+            crate::block_update::BlockPos { x: 0, y: 64, z: 0 },
+            LiveBlockMenuKind::Crafting,
+            &WorldLayout::new(std::env::temp_dir()),
+            0,
+            &GeneratedChunkCache::default(),
+            &recipes,
+        );
+        let layout = WorldLayout::new(std::env::temp_dir());
+        let cache = GeneratedChunkCache::default();
+
+        let mut state_id = 0;
+        let pickup = click_packet(
+            9,
+            state_id,
+            CraftingMenu::HOTBAR_START as i16,
+            0,
+            ContainerInput::Pickup,
+        );
+        menu.handle_click(&pickup, &mut state, &layout, 0, &cache);
+        state_id += 1;
+        for slot in [1_i16, 2, 4, 5] {
+            let place_one = click_packet(9, state_id, slot, 1, ContainerInput::Pickup);
+            menu.handle_click(&place_one, &mut state, &layout, 0, &cache);
+            state_id += 1;
+        }
+        assert_eq!(
+            menu.flattened_slots(&state)[CraftingMenu::RESULT_SLOT],
+            ItemStack::new("minecraft:crafting_table", 1)
+        );
+
+        let quick_move_result = click_packet(
+            9,
+            state_id,
+            CraftingMenu::RESULT_SLOT as i16,
+            0,
+            ContainerInput::QuickMove,
+        );
+        let instructions = menu.handle_click(&quick_move_result, &mut state, &layout, 0, &cache);
+
+        assert!(state.carried_item.is_empty());
+        assert!(menu.flattened_slots(&state)[CraftingMenu::RESULT_SLOT].is_empty());
+        for slot in CraftingMenu::GRID_START..CraftingMenu::GRID_END {
+            assert!(
+                menu.flattened_slots(&state)[slot].is_empty(),
+                "crafted result must not be inserted into crafting-grid slot {slot}"
+            );
+        }
+        assert_eq!(
+            state.inventory_menu.player_inventory().get(8),
+            &ItemStack::new("minecraft:crafting_table", 1)
+        );
+        assert!(instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                PlayInstruction::RecipesUnlocked(ids)
+                    if ids == &vec!["minecraft:crafting_table"]
+            )
+        }));
     }
 
     #[test]
