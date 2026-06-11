@@ -449,6 +449,13 @@ hide-online-players=true
 max-world-size=999999999
 entity-broadcast-range-percentage=5
 management-server-port=24454
+management-server-enabled=true
+management-server-host=127.0.0.1
+management-server-secret=0123456789abcdefghijklmnopqrstuvwxyzABCD
+management-server-tls-enabled=false
+management-server-tls-keystore=management.p12
+management-server-tls-keystore-password=secret-pass
+management-server-allowed-origins=https://admin.example
 rcon.port=24455
 query.port=24456
 level-seed=8675309
@@ -482,7 +489,23 @@ resource-pack-prompt={\"text\":\"Use pack?\"}
         assert!(properties.hide_online_players);
         assert_eq!(properties.max_world_size, 29_999_984);
         assert_eq!(properties.entity_broadcast_range_percentage, 10);
+        assert!(properties.management_server_enabled);
+        assert_eq!(properties.management_server_host, "127.0.0.1");
         assert_eq!(properties.management_server_port, 24454);
+        assert_eq!(
+            properties.management_server_secret,
+            "0123456789abcdefghijklmnopqrstuvwxyzABCD"
+        );
+        assert!(!properties.management_server_tls_enabled);
+        assert_eq!(properties.management_server_tls_keystore, "management.p12");
+        assert_eq!(
+            properties.management_server_tls_keystore_password,
+            "secret-pass"
+        );
+        assert_eq!(
+            properties.management_server_allowed_origins,
+            "https://admin.example"
+        );
         assert_eq!(properties.rcon_port, 24455);
         assert_eq!(properties.query_port, 24456);
         assert_eq!(properties.level_seed, "8675309");

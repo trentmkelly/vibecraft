@@ -78,7 +78,8 @@ fn origins_parse_exact_wildcard_and_empty_policy() {
     assert!(exact.accepts(None));
     assert!(exact.accepts(Some("https://b.example")));
     assert!(!exact.accepts(Some("https://c.example")));
-    assert!(AllowedOrigins::parse("*").accepts(Some("https://anything.example")));
+    assert!(AllowedOrigins::parse("*").accepts(Some("*")));
+    assert!(!AllowedOrigins::parse("*").accepts(Some("https://anything.example")));
     assert!(!AllowedOrigins::parse("").accepts(Some("https://a.example")));
 }
 

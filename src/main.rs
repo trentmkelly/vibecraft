@@ -7,6 +7,8 @@ use std::process;
 use cli::CliOptions;
 use eula::Eula;
 use log::{LogLevel, Logger};
+use management_security::TLS_PASSWORD_ENV;
+use management_server::{startup_plan, ManagementServerConfig, ManagementStartupPlan};
 use network::query::{spawn_query_server, QueryServerInfo};
 use network::rcon::spawn_rcon_server;
 use network::status::{read_code_of_conducts, run_status_server, ActiveLoginRegistry};
@@ -73,6 +75,7 @@ fn run(options: CliOptions) -> Result<(), String> {
     }
 
     validate_code_of_conduct_configuration(&startup.properties)?;
+    validate_management_server_configuration(&logger, &startup.properties)?;
 
     let watchdog = runtime::Watchdog::from_max_tick_time_millis(startup.properties.max_tick_time);
     let runtime = runtime_selection(&options, &startup.properties);
@@ -401,6 +404,37 @@ fn start_network_listeners(
     )
 }
 
+fn validate_management_server_configuration(
+    logger: &Logger,
+    properties: &ServerProperties,
+) -> Result<ManagementStartupPlan, String> {
+    let config = ManagementServerConfig::from_properties(properties);
+    let env_password = env::var(TLS_PASSWORD_ENV).ok();
+    let plan = startup_plan(&config, env_password.as_deref(), None);
+    match &plan {
+        ManagementStartupPlan::Disabled => {
+            logger.info("Management JSON-RPC server disabled")?;
+        }
+        ManagementStartupPlan::Listen {
+            host,
+            port,
+            tls,
+            allowed_origins,
+        } => {
+            logger.info(&format!(
+                "Starting json RPC server on {host}:{port} ({}, allowed_origins={allowed_origins:?})",
+                if tls.is_some() { "tls" } else { "plain" }
+            ))?;
+        }
+        ManagementStartupPlan::Refused(decision) => {
+            return Err(format!(
+                "Failed to configure management server: {decision:?}"
+            ));
+        }
+    }
+    Ok(plan)
+}
+
 fn runtime_selection(options: &CliOptions, properties: &ServerProperties) -> RuntimeSelection {
     RuntimeSelection {
         world_name: options
@@ -438,8 +472,10 @@ fn validate_code_of_conduct_configuration(properties: &ServerProperties) -> Resu
 mod tests {
     use super::{
         listener_bind_ip, run, runtime_selection, validate_code_of_conduct_configuration,
-        CliOptions,
+        validate_management_server_configuration, CliOptions, LogLevel, Logger,
+        ManagementStartupPlan,
     };
+    use crate::management_server::AllowedOrigins;
     use crate::server_properties::ServerProperties;
     use std::fs;
     use std::path::{Path, PathBuf};
@@ -578,6 +614,53 @@ mod tests {
             .expect("write explicit server.properties");
         let explicit = ServerProperties::load_or_default(Path::new("server.properties")).unwrap();
         assert_eq!(listener_bind_ip(&explicit), "127.0.0.1");
+    }
+
+    #[test]
+    fn management_server_startup_settings_match_java_fail_fast_gates() {
+        let _lock = CWD_LOCK.lock().unwrap();
+        let dir = temp_workdir("management-startup");
+        let _guard = CurrentDirGuard::enter(&dir);
+        fs::create_dir_all("logs").expect("logs dir");
+        let logger = Logger::open_with_level(Path::new("logs"), LogLevel::Info).expect("logger");
+
+        fs::write("server.properties", "management-server-enabled=false\n")
+            .expect("write disabled properties");
+        let disabled = ServerProperties::load_or_default(Path::new("server.properties")).unwrap();
+        assert_eq!(
+            validate_management_server_configuration(&logger, &disabled).unwrap(),
+            ManagementStartupPlan::Disabled
+        );
+
+        fs::write(
+            "server.properties",
+            "management-server-enabled=true\n\
+management-server-host=127.0.0.1\n\
+management-server-port=24454\n\
+management-server-secret=0123456789abcdefghijklmnopqrstuvwxyzABCD\n\
+management-server-tls-enabled=false\n\
+management-server-allowed-origins=https://admin.example\n",
+        )
+        .expect("write plain properties");
+        let plain = ServerProperties::load_or_default(Path::new("server.properties")).unwrap();
+        assert_eq!(
+            validate_management_server_configuration(&logger, &plain).unwrap(),
+            ManagementStartupPlan::Listen {
+                host: "127.0.0.1".to_string(),
+                port: 24454,
+                tls: None,
+                allowed_origins: AllowedOrigins::parse("https://admin.example"),
+            }
+        );
+
+        fs::write(
+            "server.properties",
+            "management-server-enabled=true\nmanagement-server-secret=bad\n",
+        )
+        .expect("write invalid properties");
+        let invalid = ServerProperties::load_or_default(Path::new("server.properties")).unwrap();
+        let err = validate_management_server_configuration(&logger, &invalid).unwrap_err();
+        assert!(err.contains("DisabledInvalidSecret"));
     }
 
     #[test]

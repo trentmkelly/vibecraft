@@ -156,7 +156,6 @@ pub fn jmx_monitoring_plan(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AllowedOrigins {
     Empty,
-    Any,
     Exact(Vec<String>),
 }
 
@@ -170,8 +169,6 @@ impl AllowedOrigins {
             .collect();
         if entries.is_empty() {
             Self::Empty
-        } else if entries.iter().any(|entry| entry == "*") {
-            Self::Any
         } else {
             Self::Exact(entries)
         }
@@ -180,7 +177,6 @@ impl AllowedOrigins {
     pub fn accepts(&self, origin_header: Option<&str>) -> bool {
         match (self, origin_header) {
             (_, None) => true,
-            (Self::Any, Some(_)) => true,
             (Self::Exact(allowed), Some(origin)) => allowed.iter().any(|entry| entry == origin),
             (Self::Empty, Some(_)) => false,
         }
