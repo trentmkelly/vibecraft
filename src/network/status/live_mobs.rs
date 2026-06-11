@@ -893,8 +893,10 @@ mod tests {
 
     #[test]
     fn player_attack_damage_uses_java_tool_attribute_values() {
-        let mut state = PlaySessionState::default();
-        state.selected_slot = 0;
+        let mut state = PlaySessionState {
+            selected_slot: 0,
+            ..Default::default()
+        };
         assert_eq!(player_attack_damage(&state), PLAYER_BASE_ATTACK_DAMAGE);
 
         state

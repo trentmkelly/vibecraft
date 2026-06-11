@@ -4033,7 +4033,7 @@ mod spawn_protection_wiring_tests {
     #[test]
     fn live_block_break_drop_gate_uses_held_tool_like_java() {
         let hand = ItemStack::empty();
-        assert_eq!(should_drop_block_loot("minecraft:stone", Some(&hand)).0, false);
+        assert!(!should_drop_block_loot("minecraft:stone", Some(&hand)).0);
 
         let wooden_pick = ItemStack::new("minecraft:wooden_pickaxe", 1);
         assert!(should_drop_block_loot("minecraft:stone", Some(&wooden_pick)).0);
@@ -4048,8 +4048,10 @@ mod spawn_protection_wiring_tests {
 
     #[test]
     fn survival_block_break_damages_main_hand_tool_like_java_mine_block() {
-        let mut state = PlaySessionState::default();
-        state.selected_slot = 0;
+        let mut state = PlaySessionState {
+            selected_slot: 0,
+            ..Default::default()
+        };
         state
             .inventory_menu
             .player_inventory_mut()
@@ -4084,8 +4086,10 @@ mod spawn_protection_wiring_tests {
     #[test]
     fn live_destroy_tick_uses_selected_tool_speed_for_progress() {
         let physics = crate::block_properties::state_physics_by_name("minecraft:stone");
-        let mut state = PlaySessionState::default();
-        state.selected_slot = 0;
+        let mut state = PlaySessionState {
+            selected_slot: 0,
+            ..Default::default()
+        };
         state.block_break_state.is_destroying = true;
         state.block_break_state.destroy_progress_start = 0;
         state.block_break_state.game_ticks = 5;

@@ -366,60 +366,38 @@ fn java_item_modifier_sequence() -> LootFunction {
 
 fn assert_java_item_modifier_components(stack: &LootStack) {
     assert_eq!(stack.item, "minecraft:filled_map");
-    assert_eq!(stack.components["minecraft:damage_fraction"], "0.25");
-    assert_eq!(stack.components["minecraft:custom_data"], "1b");
-    assert_eq!(
-        stack.components["minecraft:enchantments"],
-        "minecraft:sharpness:2"
-    );
-    assert_eq!(stack.components["minecraft:custom_name"], "Named");
-    assert_eq!(stack.components["minecraft:copied_name"], "Dinnerbone");
-    assert_eq!(stack.components["minecraft:container"], "minecraft:apple:3");
-    assert_eq!(stack.components["minecraft:profile"], "Steve");
-    assert_eq!(stack.components["minecraft:block_state.facing"], "north");
-    assert_eq!(
-        stack.components["minecraft:attribute_modifiers"],
-        "generic.attack_damage:+1"
-    );
-    assert_eq!(
-        stack.components["minecraft:banner_patterns"],
-        "minecraft:stripe_bottom"
-    );
-    assert_eq!(stack.components["minecraft:written_book_title"], "Cover");
-    assert_eq!(stack.components["minecraft:written_book_author"], "Sam");
-    assert_eq!(stack.components["minecraft:rarity"], "rare");
-    assert_eq!(
-        stack.components["minecraft:instrument"],
-        "minecraft:ponder_goat_horn"
-    );
-    assert_eq!(stack.components["minecraft:lore"], "Lore");
-    assert_eq!(
-        stack.components["minecraft:potion_contents"],
-        "minecraft:swiftness"
-    );
-    assert_eq!(
-        stack.components["minecraft:suspicious_stew_effects"],
-        "minecraft:night_vision:160"
-    );
-    assert_eq!(stack.components["minecraft:dyed_color"], "minecraft:red");
-    assert_eq!(stack.components["minecraft:written_book_pages"], "Draft");
-    assert_eq!(stack.components["minecraft:writable_book_pages"], "Writable");
-    assert_eq!(
-        stack.components["minecraft:tooltip_hidden"],
-        "minecraft:enchantments"
-    );
-    assert_eq!(
-        stack.components["minecraft:firework_explosion"],
-        "small_ball:red"
-    );
-    assert_eq!(stack.components["minecraft:fireworks"], "2:small_ball:red");
-    assert_eq!(stack.components["minecraft:ominous_bottle_amplifier"], "3");
-    assert_eq!(stack.components["minecraft:custom_model_data"], "model:17");
-    assert_eq!(
-        stack.components["minecraft:container_loot_table"],
-        "minecraft:chests/simple_dungeon"
-    );
-    assert_eq!(stack.components["minecraft:marker"], "referenced");
+    let expected = [
+        ("minecraft:damage_fraction", "0.25"),
+        ("minecraft:custom_data", "1b"),
+        ("minecraft:enchantments", "minecraft:sharpness:2"),
+        ("minecraft:custom_name", "Named"),
+        ("minecraft:copied_name", "Dinnerbone"),
+        ("minecraft:container", "minecraft:apple:3"),
+        ("minecraft:profile", "Steve"),
+        ("minecraft:block_state.facing", "north"),
+        ("minecraft:attribute_modifiers", "generic.attack_damage:+1"),
+        ("minecraft:banner_patterns", "minecraft:stripe_bottom"),
+        ("minecraft:written_book_title", "Cover"),
+        ("minecraft:written_book_author", "Sam"),
+        ("minecraft:rarity", "rare"),
+        ("minecraft:instrument", "minecraft:ponder_goat_horn"),
+        ("minecraft:lore", "Lore"),
+        ("minecraft:potion_contents", "minecraft:swiftness"),
+        ("minecraft:suspicious_stew_effects", "minecraft:night_vision:160"),
+        ("minecraft:dyed_color", "minecraft:red"),
+        ("minecraft:written_book_pages", "Draft"),
+        ("minecraft:writable_book_pages", "Writable"),
+        ("minecraft:tooltip_hidden", "minecraft:enchantments"),
+        ("minecraft:firework_explosion", "small_ball:red"),
+        ("minecraft:fireworks", "2:small_ball:red"),
+        ("minecraft:ominous_bottle_amplifier", "3"),
+        ("minecraft:custom_model_data", "model:17"),
+        ("minecraft:container_loot_table", "minecraft:chests/simple_dungeon"),
+        ("minecraft:marker", "referenced"),
+    ];
+    for (key, value) in expected {
+        assert_eq!(stack.components[key], value, "component {key}");
+    }
 }
 
 #[test]

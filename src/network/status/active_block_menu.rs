@@ -672,8 +672,10 @@ mod tests {
     #[test]
     fn active_crafting_table_clicks_update_result_consume_inputs_and_unlock_recipe() {
         let recipes = crafting_table_recipe_map();
-        let mut state = PlaySessionState::default();
-        state.inventory_menu = InventoryMenu::new(PlayerInventory::new(), recipes.clone());
+        let mut state = PlaySessionState {
+            inventory_menu: InventoryMenu::new(PlayerInventory::new(), recipes.clone()),
+            ..Default::default()
+        };
         state
             .inventory_menu
             .player_inventory_mut()
@@ -732,8 +734,10 @@ mod tests {
     #[test]
     fn active_crafting_table_recipe_book_places_known_recipe_into_grid() {
         let recipes = crafting_table_recipe_map();
-        let mut state = PlaySessionState::default();
-        state.inventory_menu = InventoryMenu::new(PlayerInventory::new(), recipes.clone());
+        let mut state = PlaySessionState {
+            inventory_menu: InventoryMenu::new(PlayerInventory::new(), recipes.clone()),
+            ..Default::default()
+        };
         state
             .inventory_menu
             .player_inventory_mut()
