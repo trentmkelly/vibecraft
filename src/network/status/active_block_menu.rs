@@ -205,7 +205,7 @@ impl ActiveBlockMenu {
 
         if full_resync_needed {
             let mut instructions = self.full_slot_resync(state);
-            self.push_recipe_unlocks(&mut instructions);
+            self.push_recipe_unlocks(&mut instructions, state);
             return instructions;
         }
 
@@ -232,7 +232,7 @@ impl ActiveBlockMenu {
                 ));
             }
         }
-        self.push_recipe_unlocks(&mut instructions);
+        self.push_recipe_unlocks(&mut instructions, state);
         instructions
     }
 
@@ -260,7 +260,7 @@ impl ActiveBlockMenu {
 
         if full_resync_needed {
             let mut instructions = self.full_slot_resync(state);
-            self.push_recipe_unlocks(&mut instructions);
+            self.push_recipe_unlocks(&mut instructions, state);
             return instructions;
         }
 
@@ -287,7 +287,7 @@ impl ActiveBlockMenu {
                 ));
             }
         }
-        self.push_recipe_unlocks(&mut instructions);
+        self.push_recipe_unlocks(&mut instructions, state);
         instructions
     }
 
@@ -486,9 +486,17 @@ impl ActiveBlockMenu {
         self.state_id = (self.state_id + 1) & 0x7fff;
     }
 
-    fn push_recipe_unlocks(&mut self, instructions: &mut Vec<PlayInstruction>) {
+    fn push_recipe_unlocks(
+        &mut self,
+        instructions: &mut Vec<PlayInstruction>,
+        state: &mut PlaySessionState,
+    ) {
         if let ActiveBlockMenuKind::Crafting { menu } = &mut self.kind {
-            let unlocks = menu.drain_recipe_unlock_events();
+            let unlocks = menu
+                .drain_recipe_unlock_events()
+                .into_iter()
+                .filter(|recipe_id| state.inventory_menu.unlock_recipe(recipe_id))
+                .collect::<Vec<_>>();
             if !unlocks.is_empty() {
                 instructions.push(PlayInstruction::RecipesUnlocked(unlocks));
             }
@@ -827,10 +835,94 @@ mod tests {
                     if ids == &vec!["minecraft:crafting_table"]
             )
         }));
+        assert!(
+            state
+                .inventory_menu
+                .recipe_book_known_recipes()
+                .contains(&"minecraft:crafting_table"),
+            "crafting-table ResultSlot awards recipe knowledge to the player recipe book"
+        );
         assert!(menu.flattened_slots(&state)[CraftingMenu::RESULT_SLOT].is_empty());
         for slot in [1_usize, 2, 4, 5] {
             assert!(menu.flattened_slots(&state)[slot].is_empty());
         }
+    }
+
+    #[test]
+    fn active_crafting_table_known_recipe_take_does_not_resend_recipe_unlock() {
+        let recipes = crafting_table_recipe_map();
+        let mut state = PlaySessionState {
+            inventory_menu: InventoryMenu::new(PlayerInventory::new(), recipes.clone()),
+            ..Default::default()
+        };
+        assert!(state.inventory_menu.unlock_recipe("minecraft:crafting_table"));
+        let _ = state.inventory_menu.drain_recipe_unlock_events();
+        state
+            .inventory_menu
+            .player_inventory_mut()
+            .set(0, ItemStack::new("minecraft:oak_planks", 4));
+        let mut menu = ActiveBlockMenu::open(
+            9,
+            crate::block_update::BlockPos { x: 0, y: 64, z: 0 },
+            LiveBlockMenuKind::Crafting,
+            &WorldLayout::new(std::env::temp_dir()),
+            0,
+            &GeneratedChunkCache::default(),
+            &recipes,
+        );
+        let layout = WorldLayout::new(std::env::temp_dir());
+        let cache = GeneratedChunkCache::default();
+
+        let mut state_id = 0;
+        menu.handle_click(
+            &click_packet(
+                9,
+                state_id,
+                CraftingMenu::HOTBAR_START as i16,
+                0,
+                ContainerInput::Pickup,
+            ),
+            &mut state,
+            &layout,
+            0,
+            &cache,
+        );
+        state_id += 1;
+        for slot in [1_i16, 2, 4, 5] {
+            menu.handle_click(
+                &click_packet(9, state_id, slot, 1, ContainerInput::Pickup),
+                &mut state,
+                &layout,
+                0,
+                &cache,
+            );
+            state_id += 1;
+        }
+
+        let instructions = menu.handle_click(
+            &click_packet(
+                9,
+                state_id,
+                CraftingMenu::RESULT_SLOT as i16,
+                0,
+                ContainerInput::Pickup,
+            ),
+            &mut state,
+            &layout,
+            0,
+            &cache,
+        );
+
+        assert_eq!(
+            state.inventory_menu.recipe_book_known_recipes(),
+            vec!["minecraft:crafting_table"]
+        );
+        assert!(
+            instructions
+                .iter()
+                .all(|instruction| !matches!(instruction, PlayInstruction::RecipesUnlocked(_))),
+            "Java ServerRecipeBook.add only sends newly-known recipes"
+        );
     }
 
     #[test]
@@ -974,6 +1066,12 @@ mod tests {
                     if ids == &vec!["minecraft:crafting_table"]
             )
         }));
+        assert!(
+            state
+                .inventory_menu
+                .recipe_book_known_recipes()
+                .contains(&"minecraft:crafting_table")
+        );
     }
 
     #[test]
