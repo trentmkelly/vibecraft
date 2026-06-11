@@ -1,37 +1,70 @@
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import crypto from 'node:crypto'
+import { rm } from 'node:fs/promises'
 import net from 'node:net'
+import path from 'node:path'
 import test from 'node:test'
 import { promisify } from 'node:util'
 import { inflateSync } from 'node:zlib'
 
+import {
+  createTempWorld,
+  startVibeCraft,
+  stopServer,
+  waitForPort,
+  writeOfflineServerFiles
+} from './runner.mjs'
+
 const execFileAsync = promisify(execFile)
-const host = process.env.VIBECRAFT_HOST ?? '127.0.0.1'
-const port = Number(process.env.VIBECRAFT_PORT ?? 25565)
-const protocolVersion = Number(process.env.VIBECRAFT_PROTOCOL_VERSION ?? 775)
+const here = new URL('.', import.meta.url)
+const repoRoot = path.resolve(here.pathname, '..', '..')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
+const host = '127.0.0.1'
+const protocolVersion = 775
+let port = 0
 
 test('raw 26.1.2 half-open login sockets time out and leave later login usable', { timeout: 240_000 }, async () => {
-  const phases = [
-    ['tcp_connect', openIdleTcpConnect],
-    ['handshake', openIdleAfterHandshake],
-    ['login_start', openIdleAfterLoginStart],
-    ['login_acknowledged', openIdleAfterLoginAcknowledged],
-    ['configuration_known_packs', openIdleAfterKnownPacksRequest]
-  ]
+  port = await reservePort()
+  const root = await createTempWorld('vibecraft-half-open-login-')
+  let server
 
-  for (const [phase, open] of phases) {
-    const username = `Ho${phase.replaceAll('_', '').slice(0, 8)}${crypto.randomUUID().replaceAll('-', '').slice(0, 5)}`
-    const idle = await open(username)
-    assert.equal(idle.closed, true, `${phase} socket should be closed by server timeout`)
-    assert.ok(idle.elapsedMs >= 25_000, `${phase} timeout should not be an immediate refusal`)
-    assert.ok(idle.elapsedMs < 45_000, `${phase} timeout should stay near the configured 30s read timeout`)
+  try {
+    await writeOfflineServerFiles(root, {
+      port,
+      levelName: 'world',
+      properties: {
+        'view-distance': '4',
+        'simulation-distance': '4'
+      }
+    })
+    server = startVibeCraft({ binary, root, port, levelName: 'world' })
+    await waitForPort(port, host, 10_000)
 
-    const retry = await runJoinProbe(username)
-    assert.equal(retry.ok, true, `${phase} retry should reach play after half-open cleanup`)
-    assert.equal(retry.joinState.profile.name, username)
-    assert.ok(retry.playPacketCount > 0, `${phase} retry should receive play packets`)
-    assert.ok(retry.joinState.initialChunkCount > 0, `${phase} retry should receive initial chunks`)
+    const phases = [
+      ['tcp_connect', openIdleTcpConnect],
+      ['handshake', openIdleAfterHandshake],
+      ['login_start', openIdleAfterLoginStart],
+      ['login_acknowledged', openIdleAfterLoginAcknowledged],
+      ['configuration_known_packs', openIdleAfterKnownPacksRequest]
+    ]
+
+    for (const [phase, open] of phases) {
+      const username = `Ho${phase.replaceAll('_', '').slice(0, 8)}${crypto.randomUUID().replaceAll('-', '').slice(0, 5)}`
+      const idle = await open(username)
+      assert.equal(idle.closed, true, `${phase} socket should be closed by server timeout`)
+      assert.ok(idle.elapsedMs >= 25_000, `${phase} timeout should not be an immediate refusal`)
+      assert.ok(idle.elapsedMs < 45_000, `${phase} timeout should stay near the configured 30s read timeout`)
+
+      const retry = await runJoinProbe(username)
+      assert.equal(retry.ok, true, `${phase} retry should reach play after half-open cleanup`)
+      assert.equal(retry.joinState.profile.name, username)
+      assert.ok(retry.playPacketCount > 0, `${phase} retry should receive play packets`)
+      assert.ok(retry.joinState.initialChunkCount > 0, `${phase} retry should receive initial chunks`)
+    }
+  } finally {
+    if (server) await stopServer(server.child)
+    await rm(root, { recursive: true, force: true })
   }
 })
 
@@ -104,6 +137,8 @@ async function runJoinProbe (username) {
       cwd: new URL('.', import.meta.url),
       env: {
         ...process.env,
+        VIBECRAFT_HOST: host,
+        VIBECRAFT_PORT: String(port),
         VIBECRAFT_USERNAME: username,
         VIBECRAFT_RAW_PROBE_OUTPUT: 'summary'
       },
@@ -122,6 +157,17 @@ async function connect () {
     socket.once('error', reject)
   })
   return socket
+}
+
+async function reservePort () {
+  const server = net.createServer()
+  await new Promise((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, host, resolve)
+  })
+  const { port } = server.address()
+  await new Promise(resolve => server.close(resolve))
+  return port
 }
 
 async function readLoginSuccess (reader) {
