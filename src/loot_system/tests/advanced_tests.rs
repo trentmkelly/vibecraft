@@ -622,6 +622,28 @@ fn assert_ominous_vault_unlock_sequence(
 
 #[test]
 fn mob_gift_loot_covers_cat_villager_and_wandering_trader_surfaces() {
+    let living_entity_source = include_str!(
+        "../../../../decompiled-server-26.1.2/net/minecraft/world/entity/LivingEntity.java"
+    );
+    let cat_source = include_str!(
+        "../../../../decompiled-server-26.1.2/net/minecraft/world/entity/animal/feline/Cat.java"
+    );
+    let gift_to_hero_source = include_str!(
+        "../../../../decompiled-server-26.1.2/net/minecraft/world/entity/ai/behavior/GiveGiftToHero.java"
+    );
+    let wandering_trader_source = include_str!(
+        "../../../../decompiled-server-26.1.2/net/minecraft/world/entity/npc/wanderingtrader/WanderingTrader.java"
+    );
+    assert!(living_entity_source.contains("create(LootContextParamSets.GIFT)"));
+    assert!(living_entity_source.contains("withParameter(LootContextParams.ORIGIN, this.position())"));
+    assert!(living_entity_source.contains("withParameter(LootContextParams.THIS_ENTITY, this)"));
+    assert!(cat_source.contains("BuiltInLootTables.CAT_MORNING_GIFT"));
+    assert!(gift_to_hero_source.contains("BuiltInLootTables.BABY_VILLAGER_GIFT"));
+    assert!(gift_to_hero_source.contains("GIFTS.getOrDefault(profession.get(), BuiltInLootTables.UNEMPLOYED_GIFT)"));
+    assert!(wandering_trader_source.contains("this.addOffersFromTradeSet(level, offers, TradeSets.WANDERING_TRADER_BUYING)"));
+    assert!(wandering_trader_source.contains("this.addOffersFromTradeSet(level, offers, TradeSets.WANDERING_TRADER_UNCOMMON)"));
+    assert!(wandering_trader_source.contains("this.addOffersFromTradeSet(level, offers, TradeSets.WANDERING_TRADER_COMMON)"));
+
     let mut engine = LootBehaviorEngine::new();
     engine.insert_table(
         "minecraft:gameplay/cat_morning_gift",
