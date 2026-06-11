@@ -2,6 +2,7 @@
 
 use crate::item_consumable_components::UseEffectsComponent;
 use crate::item_custom_model_data_component::CustomModelData;
+use crate::item_instrument_component::InstrumentComponent;
 use crate::item_lore_component::ItemLoreComponent;
 use crate::item_swing_animation_component::SwingAnimationComponent;
 use crate::item_tooltip_components::TooltipDisplayComponent;
@@ -418,6 +419,7 @@ pub enum ItemComponent {
     TooltipDisplay(TooltipDisplayComponent),
     ItemLore(ItemLoreComponent),
     CustomModelData(CustomModelData),
+    Instrument(InstrumentComponent),
     UseRemainder(&'static str),
     ItemModel(&'static str),
     ItemName(&'static str),
@@ -662,6 +664,7 @@ impl ItemDefinition {
                 | ItemComponent::TooltipDisplay(_)
                 | ItemComponent::ItemLore(_)
                 | ItemComponent::CustomModelData(_)
+                | ItemComponent::Instrument(_)
                 | ItemComponent::UseRemainder(_)
                 | ItemComponent::ItemModel(_)
                 | ItemComponent::ItemName(_)
@@ -713,6 +716,7 @@ impl ItemComponent {
             Self::TooltipDisplay(_) => "minecraft:tooltip_display",
             Self::ItemLore(_) => "minecraft:lore",
             Self::CustomModelData(_) => "minecraft:custom_model_data",
+            Self::Instrument(_) => "minecraft:instrument",
             Self::UseRemainder(_) => "minecraft:use_remainder",
             Self::ItemModel(_) => "minecraft:item_model",
             Self::ItemName(_) => "minecraft:item_name",
@@ -1178,6 +1182,13 @@ mod tests {
         assert_eq!(
             ItemComponent::ItemLore(crate::item_lore_component::ItemLoreComponent::empty()).key(),
             "minecraft:lore"
+        );
+        assert_eq!(
+            ItemComponent::Instrument(crate::item_instrument_component::InstrumentComponent::new(
+                "minecraft:ponder_goat_horn"
+            ))
+            .key(),
+            "minecraft:instrument"
         );
     }
 }
