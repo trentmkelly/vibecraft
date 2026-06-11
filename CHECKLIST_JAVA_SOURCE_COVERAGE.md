@@ -121,7 +121,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. Each pack
 - [x] `net/minecraft/commands/synchronization` (6 Java files): class-level Rust port tasks and parity tests are tracked in `CHECKLIST_JAVA_CLASSES.md` and verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 command_synchronization`.
 - [x] `net/minecraft/commands/synchronization/brigadier` (6 Java files): class-level Rust port tasks and parity tests are tracked in `CHECKLIST_JAVA_CLASSES.md` and verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 command_synchronization`.
 - [ ] `net/minecraft/core` (38 Java files): add class-level Rust port tasks and parity tests.
-- [ ] `net/minecraft/core/cauldron` (3 Java files): add class-level Rust port tasks and parity tests.
+- [x] `net/minecraft/core/cauldron` (3 Java files): add class-level Rust port tasks and parity tests. — all package rows are covered in `CHECKLIST_JAVA_CLASSES.md`: `CauldronInteraction` and `CauldronInteractions` are modeled in `dispenser_cauldron` with Java-backed dispatcher, lookup, bucket, potion, bottle, cleaning, sound/stat/game-event, and side-effect tests, and package-info is audited as the nullability marker. Verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 cauldron_`.
 - [ ] `net/minecraft/core/component` (12 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/core/component/predicates` (18 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/core/dispenser` (12 Java files): add class-level Rust port tasks and parity tests.
