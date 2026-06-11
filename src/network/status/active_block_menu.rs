@@ -3,8 +3,9 @@ use super::*;
 use crate::container_menus::CraftingMenu;
 use crate::inventory::{Menu, Slot};
 use crate::inventory_transactions::{apply_scripted_packet, ScriptedContainerClickPacket};
+use crate::item_catalog::item_static_name_from_protocol_id;
 use crate::network::play::{
-    ClientboundContainerPacket, ClientboundSetCursorItemPacket, ContainerInput,
+    ClientboundContainerPacket, ClientboundSetCursorItemPacket, ContainerInput, HashedStack,
     CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID,
 };
 use crate::recipe_system::RecipeMap;
@@ -167,35 +168,12 @@ impl ActiveBlockMenu {
         let before_slots = self.flattened_slots(state);
         let before_carried = state.carried_item.clone();
         let mut menu = self.to_flat_menu(state);
-        let dry_run = apply_scripted_packet(
-            &mut menu.clone(),
-            packet.state_id,
-            &ScriptedContainerClickPacket {
-                container_id: packet.container_id,
-                state_id: packet.state_id,
-                slot: packet.slot_num as i32,
-                button: packet.button_num as i32,
-                mode: container_input_to_inventory(packet.container_input),
-                changed_slots: Vec::new(),
-                carried: ItemStack::empty(),
-            },
-        );
-        let result = apply_scripted_packet(
+        let scripted_packet = scripted_click_packet(packet);
+        apply_scripted_packet(
             &mut menu,
             packet.state_id,
-            &ScriptedContainerClickPacket {
-                container_id: packet.container_id,
-                state_id: packet.state_id,
-                slot: packet.slot_num as i32,
-                button: packet.button_num as i32,
-                mode: container_input_to_inventory(packet.container_input),
-                changed_slots: Vec::new(),
-                carried: dry_run.carried,
-            },
+            &scripted_packet,
         );
-        if !result.accepted {
-            return self.full_slot_resync(state);
-        }
 
         let result_slot_changed = self.result_slot_changed_after_click(&menu);
         self.increment_state_id();
@@ -560,6 +538,32 @@ fn container_input_to_inventory(input: ContainerInput) -> crate::inventory::Cont
     }
 }
 
+fn scripted_click_packet(packet: &ServerboundContainerClickPacket) -> ScriptedContainerClickPacket {
+    ScriptedContainerClickPacket {
+        container_id: packet.container_id,
+        state_id: packet.state_id,
+        slot: packet.slot_num as i32,
+        button: packet.button_num as i32,
+        mode: container_input_to_inventory(packet.container_input),
+        changed_slots: packet
+            .changed_slots
+            .iter()
+            .map(|(slot, stack)| (*slot, item_stack_from_hashed_stack(stack)))
+            .collect(),
+        carried: item_stack_from_hashed_stack(&packet.carried_item),
+    }
+}
+
+fn item_stack_from_hashed_stack(stack: &HashedStack) -> ItemStack {
+    let Some(item_id) = stack.item_id else {
+        return ItemStack::empty();
+    };
+    let Some(item_name) = item_static_name_from_protocol_id(item_id) else {
+        return ItemStack::empty();
+    };
+    ItemStack::new(item_name, stack.count)
+}
+
 fn load_items_from_block_entity_tag(tag: &Tag, slots: &mut [ItemStack]) {
     let Some(entries) = compound_entries(tag) else {
         return;
@@ -841,6 +845,85 @@ mod tests {
         for slot in [1_usize, 2, 4, 5] {
             assert!(menu.flattened_slots(&state)[slot].is_empty());
         }
+    }
+
+    #[test]
+    fn active_crafting_table_live_client_slot_shadows_update_three_by_three_result() {
+        let recipes = crafting_table_recipe_map();
+        let mut state = PlaySessionState {
+            inventory_menu: InventoryMenu::new(PlayerInventory::new(), recipes.clone()),
+            carried_item: ItemStack::new("minecraft:oak_planks", 4),
+            ..Default::default()
+        };
+        let mut menu = ActiveBlockMenu::open(
+            9,
+            crate::block_update::BlockPos { x: 0, y: 64, z: 0 },
+            LiveBlockMenuKind::Crafting,
+            &WorldLayout::new(std::env::temp_dir()),
+            0,
+            &GeneratedChunkCache::default(),
+            &recipes,
+        );
+        let layout = WorldLayout::new(std::env::temp_dir());
+        let cache = GeneratedChunkCache::default();
+
+        let mut instructions = Vec::new();
+        for (state_id, slot, carried_count) in [(0, 1, 3), (1, 2, 2), (2, 4, 1), (3, 5, 0)] {
+            let mut packet = click_packet(9, state_id, slot, 1, ContainerInput::Pickup);
+            packet.changed_slots.insert(
+                slot as i32,
+                hashed_stack("minecraft:oak_planks", 1),
+            );
+            packet.carried_item = hashed_stack("minecraft:oak_planks", carried_count);
+            instructions = menu.handle_click(&packet, &mut state, &layout, 0, &cache);
+        }
+
+        assert!(state.carried_item.is_empty());
+        assert!(instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                PlayInstruction::ContainerSetSlot(packet)
+                    if packet.slot == CraftingMenu::RESULT_SLOT as i16
+                        && packet.item_stack.item_id == item_protocol_id("minecraft:crafting_table")
+                        && packet.item_stack.count == 1
+            )
+        }));
+    }
+
+    #[test]
+    fn active_menu_click_applies_before_correcting_mismatched_client_shadows_like_java() {
+        let pos = crate::block_update::BlockPos { x: 1, y: 64, z: 2 };
+        let mut state = PlaySessionState::default();
+        state.carried_item = ItemStack::new("minecraft:stone", 16);
+        let mut menu = ActiveBlockMenu {
+            container_id: 7,
+            state_id: 0,
+            pos,
+            kind: ActiveBlockMenuKind::Persistent {
+                block_entity_id: "minecraft:chest",
+                result_slot: None,
+            },
+            slots: vec![ItemStack::empty(); 27],
+        };
+        let layout = WorldLayout::new(std::env::temp_dir());
+        let cache = GeneratedChunkCache::default();
+        let mut packet = click_packet(7, 0, 0, 0, ContainerInput::Pickup);
+        packet.changed_slots.insert(0, hashed_stack("minecraft:apple", 1));
+        packet.carried_item = hashed_stack("minecraft:stone", 16);
+
+        let instructions = menu.handle_click(&packet, &mut state, &layout, 0, &cache);
+
+        assert_eq!(menu.slots[0], ItemStack::new("minecraft:stone", 16));
+        assert!(state.carried_item.is_empty());
+        assert!(instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                PlayInstruction::ContainerSetSlot(packet)
+                    if packet.slot == 0
+                        && packet.item_stack.item_id == item_protocol_id("minecraft:stone")
+                        && packet.item_stack.count == 16
+            )
+        }));
     }
 
     #[test]
@@ -1339,6 +1422,17 @@ mod tests {
             container_input,
             changed_slots: BTreeMap::new(),
             carried_item: crate::network::play::HashedStack::empty(),
+        }
+    }
+
+    fn hashed_stack(item: &str, count: i32) -> crate::network::play::HashedStack {
+        if count <= 0 {
+            return crate::network::play::HashedStack::empty();
+        }
+        crate::network::play::HashedStack {
+            item_id: item_protocol_id(item),
+            count,
+            components: crate::network::play::HashedPatchMap::empty(),
         }
     }
 }
