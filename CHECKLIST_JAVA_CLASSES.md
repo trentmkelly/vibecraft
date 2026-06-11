@@ -4022,8 +4022,8 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/component/KineticWeapon.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/component/LodestoneTracker.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/component/MapDecorations.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/component/MapItemColor.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/component/MapPostProcessing.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/component/MapItemColor.java`. — Java 26.1.2 is a one-field `MapItemColor(int rgb)` component with int codec/stream codec and default `new MapItemColor(4603950)`. Rust `item_map_components::MapItemColor` mirrors the RGB field and default value. Covered by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 map_item_color`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/component/MapPostProcessing.java`. — Java 26.1.2 is a two-value enum `LOCK(0)` / `SCALE(1)` with `ByIdMap.OutOfBoundsStrategy.ZERO` and an id-mapper stream codec. Rust `item_properties::MapPostProcessing` carries the same ids and now exposes `by_id` with zero fallback for out-of-range ids. Covered by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 map_post_processing`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/component/OminousBottleAmplifier.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/component/PiercingWeapon.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/component/ProvidesTrimMaterial.java`.

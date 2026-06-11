@@ -262,6 +262,13 @@ impl MapPostProcessing {
             Self::Scale => 1,
         }
     }
+
+    pub fn by_id(id: i32) -> Self {
+        match id {
+            1 => Self::Scale,
+            _ => Self::Lock,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
