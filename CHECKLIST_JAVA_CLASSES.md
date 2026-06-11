@@ -3940,7 +3940,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/ItemStack.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/ItemStackLinkedSet.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/ItemStackTemplate.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/ItemUseAnimation.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/ItemUseAnimation.java`. — Java 26.1.2 is a twelve-value `StringRepresentable` enum with ids 0-11, `ByIdMap.OutOfBoundsStrategy.ZERO`, serialized names (`none` through `spear`), stream-codec id mapping, and `hasCustomArmTransform` true only for `EAT`, `DRINK`, and `SPEAR`. Rust `item_properties::ItemUseAnimation` now carries the same order, ids, names, zero fallback, name lookup, and custom-arm-transform predicate. Covered by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 item_use_animation`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/ItemUtils.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/Items.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/JukeboxPlayable.java`.

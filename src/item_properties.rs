@@ -245,11 +245,83 @@ pub enum ItemUseAnimation {
     Drink,
     Block,
     Bow,
-    Spear,
+    Trident,
     Crossbow,
     Spyglass,
+    TootHorn,
     Brush,
     Bundle,
+    Spear,
+}
+
+impl ItemUseAnimation {
+    pub const VALUES: [Self; 12] = [
+        Self::None,
+        Self::Eat,
+        Self::Drink,
+        Self::Block,
+        Self::Bow,
+        Self::Trident,
+        Self::Crossbow,
+        Self::Spyglass,
+        Self::TootHorn,
+        Self::Brush,
+        Self::Bundle,
+        Self::Spear,
+    ];
+
+    pub fn id(self) -> i32 {
+        match self {
+            Self::None => 0,
+            Self::Eat => 1,
+            Self::Drink => 2,
+            Self::Block => 3,
+            Self::Bow => 4,
+            Self::Trident => 5,
+            Self::Crossbow => 6,
+            Self::Spyglass => 7,
+            Self::TootHorn => 8,
+            Self::Brush => 9,
+            Self::Bundle => 10,
+            Self::Spear => 11,
+        }
+    }
+
+    pub fn by_id(id: i32) -> Self {
+        Self::VALUES
+            .iter()
+            .copied()
+            .find(|animation| animation.id() == id)
+            .unwrap_or(Self::None)
+    }
+
+    pub fn serialized_name(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Eat => "eat",
+            Self::Drink => "drink",
+            Self::Block => "block",
+            Self::Bow => "bow",
+            Self::Trident => "trident",
+            Self::Crossbow => "crossbow",
+            Self::Spyglass => "spyglass",
+            Self::TootHorn => "toot_horn",
+            Self::Brush => "brush",
+            Self::Bundle => "bundle",
+            Self::Spear => "spear",
+        }
+    }
+
+    pub fn by_serialized_name(name: &str) -> Option<Self> {
+        Self::VALUES
+            .iter()
+            .copied()
+            .find(|animation| animation.serialized_name() == name)
+    }
+
+    pub fn has_custom_arm_transform(self) -> bool {
+        matches!(self, Self::Eat | Self::Drink | Self::Spear)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -728,6 +800,8 @@ mod tests {
 
     const ITEM_DISPLAY_CONTEXT_JAVA: &str =
         include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/ItemDisplayContext.java");
+    const ITEM_USE_ANIMATION_JAVA: &str =
+        include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/ItemUseAnimation.java");
     const RARITY_JAVA: &str =
         include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/Rarity.java");
     const SWING_ANIMATION_TYPE_JAVA: &str =
@@ -782,6 +856,50 @@ mod tests {
         assert!(ItemDisplayContext::FirstPersonLeftHand.left_hand());
         assert!(ItemDisplayContext::ThirdPersonLeftHand.left_hand());
         assert!(!ItemDisplayContext::FirstPersonRightHand.left_hand());
+    }
+
+    #[test]
+    fn item_use_animation_matches_java_ids_names_and_custom_arm_transform() {
+        assert!(ITEM_USE_ANIMATION_JAVA.contains("NONE(0, \"none\")"));
+        assert!(ITEM_USE_ANIMATION_JAVA.contains("TOOT_HORN(8, \"toot_horn\")"));
+        assert!(ITEM_USE_ANIMATION_JAVA.contains("SPEAR(11, \"spear\", true)"));
+        assert!(ITEM_USE_ANIMATION_JAVA.contains("ByIdMap.OutOfBoundsStrategy.ZERO"));
+        assert!(ITEM_USE_ANIMATION_JAVA.contains("hasCustomArmTransform"));
+
+        let names: Vec<_> = ItemUseAnimation::VALUES
+            .iter()
+            .map(|animation| animation.serialized_name())
+            .collect();
+        assert_eq!(
+            names,
+            vec![
+                "none",
+                "eat",
+                "drink",
+                "block",
+                "bow",
+                "trident",
+                "crossbow",
+                "spyglass",
+                "toot_horn",
+                "brush",
+                "bundle",
+                "spear",
+            ]
+        );
+        assert_eq!(ItemUseAnimation::None.id(), 0);
+        assert_eq!(ItemUseAnimation::Spear.id(), 11);
+        assert_eq!(ItemUseAnimation::by_id(-1), ItemUseAnimation::None);
+        assert_eq!(ItemUseAnimation::by_id(99), ItemUseAnimation::None);
+        assert_eq!(
+            ItemUseAnimation::by_serialized_name("toot_horn"),
+            Some(ItemUseAnimation::TootHorn)
+        );
+        assert!(ItemUseAnimation::Eat.has_custom_arm_transform());
+        assert!(ItemUseAnimation::Drink.has_custom_arm_transform());
+        assert!(ItemUseAnimation::Spear.has_custom_arm_transform());
+        assert!(!ItemUseAnimation::Bow.has_custom_arm_transform());
+        assert!(!ItemUseAnimation::Trident.has_custom_arm_transform());
     }
 
     #[test]
