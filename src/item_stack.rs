@@ -315,6 +315,49 @@ impl ItemInstanceModel for ItemStack {
     }
 }
 
+pub fn item_stack_type_and_components_equal(a: &ItemStack, b: &ItemStack) -> bool {
+    a.is_empty() == b.is_empty()
+        && ((a.is_empty() && b.is_empty())
+            || (a.item_id() == b.item_id() && a.components_patch() == b.components_patch()))
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ItemStackLinkedSet {
+    entries: Vec<ItemStack>,
+}
+
+impl ItemStackLinkedSet {
+    pub fn create_type_and_components_set() -> Self {
+        Self {
+            entries: Vec::new(),
+        }
+    }
+
+    pub fn insert(&mut self, stack: ItemStack) -> bool {
+        if self
+            .entries
+            .iter()
+            .any(|entry| item_stack_type_and_components_equal(entry, &stack))
+        {
+            return false;
+        }
+        self.entries.push(stack);
+        true
+    }
+
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &ItemStack> {
+        self.entries.iter()
+    }
+}
+
 pub fn air_item_name_from_type_holder(
     components: &BTreeMap<&'static str, ItemComponent>,
 ) -> &'static str {
@@ -333,6 +376,8 @@ mod tests {
         include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/AirItem.java");
     const ITEM_INSTANCE_JAVA: &str =
         include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/ItemInstance.java");
+    const ITEM_STACK_LINKED_SET_JAVA: &str =
+        include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/ItemStackLinkedSet.java");
 
     #[test]
     fn empty_stack_rules_match_vanilla_air_or_non_positive_count() {
@@ -433,6 +478,40 @@ mod tests {
         let empty = ItemStack::empty();
         assert_eq!(ItemInstanceModel::count(&empty), 0);
         assert_eq!(ItemInstanceModel::get_max_stack_size(&empty), 1);
+    }
+
+    #[test]
+    fn item_stack_linked_set_uses_type_and_components_in_insertion_order_like_java() {
+        assert!(ITEM_STACK_LINKED_SET_JAVA.contains("ObjectLinkedOpenCustomHashSet(TYPE_AND_TAG)"));
+        assert!(ITEM_STACK_LINKED_SET_JAVA.contains("ItemStack.hashItemAndComponents(item)"));
+        assert!(ITEM_STACK_LINKED_SET_JAVA.contains(
+            "a.isEmpty() == b.isEmpty() && ItemStack.isSameItemSameComponents(a, b)"
+        ));
+
+        let mut set = ItemStackLinkedSet::create_type_and_components_set();
+        assert!(set.is_empty());
+
+        let stick_1 = ItemStack::new("minecraft:stick", 1);
+        let stick_64 = ItemStack::new("minecraft:stick", 64);
+        let mut named_stick = ItemStack::new("minecraft:stick", 1);
+        named_stick.set_component(ItemComponent::ItemName("custom.stick"));
+        let diamond = ItemStack::new("minecraft:diamond", 1);
+
+        assert!(set.insert(stick_1));
+        assert!(!set.insert(stick_64));
+        assert!(set.insert(named_stick));
+        assert!(set.insert(diamond));
+        assert_eq!(set.len(), 3);
+
+        let ids: Vec<_> = set.iter().map(ItemStack::item_id).collect();
+        assert_eq!(
+            ids,
+            vec!["minecraft:stick", "minecraft:stick", "minecraft:diamond"]
+        );
+
+        assert!(set.insert(ItemStack::empty()));
+        assert!(!set.insert(ItemStack::new("minecraft:air", 5)));
+        assert_eq!(set.len(), 4);
     }
 
     #[test]
