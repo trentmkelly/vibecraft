@@ -135,6 +135,16 @@ export function captureObservedBotEvents(bot, timeline, packetTrace) {
     packetTrace.push(entry)
     timeline.push({ name: 'packet', at: entry.at, summary: [entry.name, entry.state].filter(Boolean) })
   })
+  bot._client?.on('error', error => {
+    const entry = {
+      name: 'client_error',
+      state: bot._client?.state,
+      at: Date.now(),
+      message: error?.message ?? String(error)
+    }
+    packetTrace.push(entry)
+    timeline.push({ name: 'packet_error', at: entry.at, summary: [entry.message] })
+  })
 }
 
 export function loginSessionPaths(root, levelName = 'world') {

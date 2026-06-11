@@ -20,21 +20,33 @@ test('loginSessionPaths names all temp artifacts used by offline login sessions'
 test('captureObservedBotEvents records event timeline and packet trace separately', () => {
   const bot = new EventEmitter()
   bot._client = new EventEmitter()
+  bot._client.state = 'play'
   const timeline = []
   const packetTrace = []
   captureObservedBotEvents(bot, timeline, packetTrace)
 
   bot.emit('login')
   bot._client.emit('packet', { entityId: 1, gameMode: 1 }, { name: 'login', state: 'play' })
+  bot._client.emit('error', new Error('Bad packet id 1'))
+  bot.emit('kicked', '{"text":"unexpected play packet 1"}')
   bot.emit('spawn')
 
-  assert.deepEqual(timeline.map(event => event.name), ['login', 'packet', 'spawn'])
-  assert.deepEqual(packetTrace, [{
-    name: 'login',
-    state: 'play',
-    at: packetTrace[0].at,
-    keys: ['entityId', 'gameMode']
-  }])
+  assert.deepEqual(timeline.map(event => event.name), ['login', 'packet', 'packet_error', 'kicked', 'spawn'])
+  assert.deepEqual(packetTrace, [
+    {
+      name: 'login',
+      state: 'play',
+      at: packetTrace[0].at,
+      keys: ['entityId', 'gameMode']
+    },
+    {
+      name: 'client_error',
+      state: 'play',
+      at: packetTrace[1].at,
+      message: 'Bad packet id 1'
+    }
+  ])
+  assert.deepEqual(timeline[3].summary, ['{"text":"unexpected play packet 1"}'])
 })
 
 test('runObservedOfflineLogin returns profile, UUID, events, packets, paths, logs, and cleanup handles', async () => {
