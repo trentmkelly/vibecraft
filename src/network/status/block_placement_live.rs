@@ -7,8 +7,8 @@
 use std::io::{self, Write};
 
 use super::chunk_b::{
-    consume_placed_block_item, place_block_item_in_world, write_block_change_ack,
-    BlockItemPlacementTarget, UseItemOnContext,
+    raw_stack_for_player_inventory, write_block_change_ack, write_player_inventory_slot_update,
+    UseItemOnContext,
 };
 use super::*;
 use crate::block_behavior::BlockStateModel;
@@ -114,6 +114,111 @@ pub(super) fn place_block_item_live<W: Write>(
     consume_placed_block_item(stream, compression, state, held_slot)
 }
 
+/// The position a block item writes to: the clicked cell when its current
+/// state is replaceable, else the cell adjacent to the clicked face (Java
+/// `BlockPlaceContext` / `UseOnContext.getClickedPos` relocation).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct BlockItemPlacementTarget {
+    pub(super) pos: crate::block_update::BlockPos,
+    pub(super) existing_state: crate::block_behavior::BlockStateModel,
+}
+
+pub(super) fn resolve_block_item_placement_target(
+    world_layout: &WorldLayout,
+    world_seed: i64,
+    chunk_cache: &GeneratedChunkCache,
+    packet: &crate::network::play::ServerboundUseItemOnPacket,
+) -> BlockItemPlacementTarget {
+    let clicked_pos = crate::block_update::BlockPos {
+        x: packet.block_hit.x,
+        y: packet.block_hit.y,
+        z: packet.block_hit.z,
+    };
+    let clicked_state = read_live_block_model_at(chunk_cache, world_layout, world_seed, clicked_pos);
+    if block_item_can_replace(&clicked_state) {
+        return BlockItemPlacementTarget {
+            pos: clicked_pos,
+            existing_state: clicked_state,
+        };
+    }
+
+    let (dx, dy, dz) = direction_offset(packet.block_hit.direction);
+    let pos = crate::block_update::BlockPos {
+        x: packet.block_hit.x + dx,
+        y: packet.block_hit.y + dy,
+        z: packet.block_hit.z + dz,
+    };
+    BlockItemPlacementTarget {
+        pos,
+        existing_state: read_live_block_model_at(chunk_cache, world_layout, world_seed, pos),
+    }
+}
+
+pub(super) fn place_block_item_in_world(
+    context: &mut UseItemOnContext<'_, '_>,
+    target: crate::block_update::BlockPos,
+    item_name: &str,
+) {
+    // Java mirror: Level.setBlock(pos, state, flags) -> LevelChunk.setBlockState:
+    // mutate in-memory and mark unsaved; the periodic chunk-flush thread persists.
+    context.chunk_cache.set_block(
+        context.world_layout.root(),
+        context.world_seed,
+        target,
+        item_name,
+    );
+    schedule_neighbor_fluids(
+        context.live_fluid_ticks,
+        context.game_time,
+        context.world_layout,
+        context.world_seed,
+        context.chunk_cache,
+        target,
+    );
+    if item_name == "minecraft:water" || item_name == "minecraft:lava" {
+        let kind = if item_name == "minecraft:water" {
+            FluidKind::Water
+        } else {
+            FluidKind::Lava
+        };
+        context
+            .live_fluid_ticks
+            .schedule(context.game_time, target, kind);
+        schedule_neighbor_fluids(
+            context.live_fluid_ticks,
+            context.game_time,
+            context.world_layout,
+            context.world_seed,
+            context.chunk_cache,
+            target,
+        );
+    }
+}
+
+/// Java post-place consumption: survival removes one item from the used
+/// stack and resyncs the slot; creative leaves the stack untouched.
+pub(super) fn consume_placed_block_item<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    state: &mut PlaySessionState,
+    held_slot: usize,
+) -> io::Result<()> {
+    if state.game_mode == GameMode::Creative {
+        return Ok(());
+    }
+    state
+        .inventory_menu
+        .player_inventory_mut()
+        .remove(held_slot, 1);
+    let stack = state.inventory_menu.player_inventory().get(held_slot);
+    write_player_inventory_slot_update(
+        writer,
+        compression,
+        held_slot,
+        raw_stack_for_player_inventory(stack),
+    )
+}
+
 /// Live world view over the generated-chunk cache for the placement,
 /// survival, and shape-update catalogs.
 pub(crate) struct LiveBlockWorld<'a> {
@@ -156,7 +261,7 @@ impl PlacementWorld for LiveBlockWorld<'_> {
     }
 }
 
-fn direction3d_to_block(direction: Direction3d) -> Direction {
+pub(super) fn direction3d_to_block(direction: Direction3d) -> Direction {
     match direction {
         Direction3d::Down => Direction::Down,
         Direction3d::Up => Direction::Up,
@@ -309,7 +414,7 @@ pub(super) fn run_live_shape_cascade<W: Write>(
 }
 
 /// One `ClientboundBlockUpdatePacket`.
-fn write_block_update<W: Write>(
+pub(super) fn write_block_update<W: Write>(
     writer: &mut W,
     compression: CompressionState,
     pos: BlockPos,

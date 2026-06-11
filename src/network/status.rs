@@ -277,6 +277,7 @@ pub use chunk_a::*;
 mod block_placement_live;
 mod chunk_b;
 pub use chunk_b::*;
+mod item_use_live;
 
 mod block_menu_open;
 

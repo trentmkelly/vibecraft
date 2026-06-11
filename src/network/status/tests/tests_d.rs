@@ -779,7 +779,9 @@ pub fn placement_target_resolution_uses_unflushed_live_cache_state() {
         sequence: 7,
     };
 
-    let target = super::super::resolve_block_item_placement_target(&layout, 42, &cache, &packet);
+    let target = super::super::block_placement_live::resolve_block_item_placement_target(
+        &layout, 42, &cache, &packet,
+    );
     assert_eq!(
         target.pos,
         crate::block_update::BlockPos {

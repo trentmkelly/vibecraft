@@ -459,6 +459,9 @@ pub fn representative_item_definitions() -> Vec<ItemDefinition> {
         ItemDefinition::new("minecraft:brush")
             .durability(64)
             .use_animation(ItemUseAnimation::Brush),
+        // Items.java: FLINT_AND_STEEL = registerItem("flint_and_steel",
+        // FlintAndSteelItem::new, new Item.Properties().durability(64)).
+        ItemDefinition::new("minecraft:flint_and_steel").durability(64),
         ItemDefinition::new("minecraft:bundle")
             .stacks_to(1)
             .use_animation(ItemUseAnimation::Bundle)

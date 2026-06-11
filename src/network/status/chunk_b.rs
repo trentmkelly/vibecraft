@@ -515,12 +515,6 @@ pub struct UseItemOnContext<'a, 'b> {
     pub spawn_protection_radius: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct BlockItemPlacementTarget {
-    pub(super) pos: crate::block_update::BlockPos,
-    pub(super) existing_state: crate::block_behavior::BlockStateModel,
-}
-
 pub(super) fn write_block_change_ack<W: Write>(
     writer: &mut W,
     compression: CompressionState,
@@ -544,79 +538,7 @@ fn held_item_slot_for_use_item_on(
     }
 }
 
-pub(super) fn resolve_block_item_placement_target(
-    world_layout: &WorldLayout,
-    world_seed: i64,
-    chunk_cache: &GeneratedChunkCache,
-    packet: &ServerboundUseItemOnPacket,
-) -> BlockItemPlacementTarget {
-    let clicked_pos = crate::block_update::BlockPos {
-        x: packet.block_hit.x,
-        y: packet.block_hit.y,
-        z: packet.block_hit.z,
-    };
-    let clicked_state = read_live_block_model_at(chunk_cache, world_layout, world_seed, clicked_pos);
-    if block_item_can_replace(&clicked_state) {
-        return BlockItemPlacementTarget {
-            pos: clicked_pos,
-            existing_state: clicked_state,
-        };
-    }
-
-    let (dx, dy, dz) = direction_offset(packet.block_hit.direction);
-    let pos = crate::block_update::BlockPos {
-        x: packet.block_hit.x + dx,
-        y: packet.block_hit.y + dy,
-        z: packet.block_hit.z + dz,
-    };
-    BlockItemPlacementTarget {
-        pos,
-        existing_state: read_live_block_model_at(chunk_cache, world_layout, world_seed, pos),
-    }
-}
-
-pub(super) fn place_block_item_in_world(
-    context: &mut UseItemOnContext<'_, '_>,
-    target: crate::block_update::BlockPos,
-    item_name: &str,
-) {
-    // Java mirror: Level.setBlock(pos, state, flags) -> LevelChunk.setBlockState:
-    // mutate in-memory and mark unsaved; the periodic chunk-flush thread persists.
-    context.chunk_cache.set_block(
-        context.world_layout.root(),
-        context.world_seed,
-        target,
-        item_name,
-    );
-    schedule_neighbor_fluids(
-        context.live_fluid_ticks,
-        context.game_time,
-        context.world_layout,
-        context.world_seed,
-        context.chunk_cache,
-        target,
-    );
-    if item_name == "minecraft:water" || item_name == "minecraft:lava" {
-        let kind = if item_name == "minecraft:water" {
-            FluidKind::Water
-        } else {
-            FluidKind::Lava
-        };
-        context
-            .live_fluid_ticks
-            .schedule(context.game_time, target, kind);
-        schedule_neighbor_fluids(
-            context.live_fluid_ticks,
-            context.game_time,
-            context.world_layout,
-            context.world_seed,
-            context.chunk_cache,
-            target,
-        );
-    }
-}
-
-fn raw_stack_for_player_inventory(stack: &ItemStack) -> RawItemStack {
+pub(super) fn raw_stack_for_player_inventory(stack: &ItemStack) -> RawItemStack {
     if stack.is_empty() {
         return RawItemStack::empty();
     }
@@ -627,7 +549,7 @@ fn raw_stack_for_player_inventory(stack: &ItemStack) -> RawItemStack {
     })
 }
 
-fn write_player_inventory_slot_update<W: Write>(
+pub(super) fn write_player_inventory_slot_update<W: Write>(
     writer: &mut W,
     compression: CompressionState,
     slot: usize,
@@ -644,28 +566,6 @@ fn write_player_inventory_slot_update<W: Write>(
             }
             .write(payload)
         },
-    )
-}
-
-pub(super) fn consume_placed_block_item<W: Write>(
-    writer: &mut W,
-    compression: CompressionState,
-    state: &mut PlaySessionState,
-    held_slot: usize,
-) -> io::Result<()> {
-    if state.game_mode == GameMode::Creative {
-        return Ok(());
-    }
-    state
-        .inventory_menu
-        .player_inventory_mut()
-        .remove(held_slot, 1);
-    let stack = state.inventory_menu.player_inventory().get(held_slot);
-    write_player_inventory_slot_update(
-        writer,
-        compression,
-        held_slot,
-        raw_stack_for_player_inventory(stack),
     )
 }
 
@@ -704,6 +604,39 @@ fn use_item_on_spawn_protected(
     )
 }
 
+/// Java `handleUseItemOn` build-height check (lines 1351-1357,
+/// sendBuildLimitMessage + skip) and spawn protection (line 1358,
+/// sendSpawnProtectionMessage): writes the denial message and returns whether
+/// the interaction is rejected (the caller acks the sequence).
+fn use_item_on_denied_by_world_gates(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    context: &UseItemOnContext<'_, '_>,
+    clicked_pos: crate::block_update::BlockPos,
+) -> io::Result<bool> {
+    let max_y = crate::world::OVERWORLD_MIN_Y + crate::world::OVERWORLD_LEVEL_HEIGHT - 1;
+    let min_y = crate::world::OVERWORLD_MIN_Y;
+    if clicked_pos.y > max_y {
+        write_build_limit_message(stream, compression, true, max_y)?;
+        return Ok(true);
+    }
+    if clicked_pos.y < min_y {
+        write_build_limit_message(stream, compression, false, min_y)?;
+        return Ok(true);
+    }
+    if use_item_on_spawn_protected(context, clicked_pos) {
+        write_spawn_protection_message(
+            stream,
+            compression,
+            clicked_pos.x,
+            clicked_pos.y,
+            clicked_pos.z,
+        )?;
+        return Ok(true);
+    }
+    Ok(false)
+}
+
 pub fn handle_use_item_on(
     stream: &mut TcpStream,
     compression: CompressionState,
@@ -727,28 +660,7 @@ pub fn handle_use_item_on(
     if !super::player_creative_packets::is_within_block_interaction_range(state, clicked_pos) {
         return write_block_change_ack(stream, compression, packet.sequence);
     }
-    // Java handleUseItemOn build-height check (lines 1351-1357): reject placement
-    // when the clicked pos is outside [minY, maxY] (sendBuildLimitMessage + skip).
-    let max_y = crate::world::OVERWORLD_MIN_Y + crate::world::OVERWORLD_LEVEL_HEIGHT - 1;
-    let min_y = crate::world::OVERWORLD_MIN_Y;
-    if clicked_pos.y > max_y {
-        write_build_limit_message(stream, compression, true, max_y)?;
-        return write_block_change_ack(stream, compression, packet.sequence);
-    }
-    if clicked_pos.y < min_y {
-        write_build_limit_message(stream, compression, false, min_y)?;
-        return write_block_change_ack(stream, compression, packet.sequence);
-    }
-    // Java handleUseItemOn spawn protection (line 1358): a non-op interacting in
-    // the spawn-protection radius is denied with sendSpawnProtectionMessage.
-    if use_item_on_spawn_protected(&context, clicked_pos) {
-        write_spawn_protection_message(
-            stream,
-            compression,
-            clicked_pos.x,
-            clicked_pos.y,
-            clicked_pos.z,
-        )?;
+    if use_item_on_denied_by_world_gates(stream, compression, &context, clicked_pos)? {
         return write_block_change_ack(stream, compression, packet.sequence);
     }
 
@@ -801,12 +713,28 @@ pub fn handle_use_item_on(
         );
     }
 
+    // Java ServerPlayerGameMode.useItemOn second stage: itemStack.useOn(
+    // context) dispatches on the item class. Behavioral (non-BlockItem)
+    // useOn overrides are wired in item_use_live; flint and steel is the
+    // first member (the rest of the family sits on
+    // TODO(item-use-block-and-entity-behaviors) in item_family_behavior.rs).
+    if item_name == "minecraft:flint_and_steel" {
+        return super::item_use_live::use_flint_and_steel(
+            stream,
+            compression,
+            state,
+            &mut context,
+            packet,
+            held_slot,
+        );
+    }
+
     // Java: BlockItem.place() only proceeds for items backed by a Block.
     if block_state_name_network_id(item_name).is_none() {
         return write_block_change_ack(stream, compression, packet.sequence);
     }
 
-    let target = resolve_block_item_placement_target(
+    let target = super::block_placement_live::resolve_block_item_placement_target(
         context.world_layout,
         context.world_seed,
         context.chunk_cache,

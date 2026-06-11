@@ -513,6 +513,7 @@ mod item_catalog;
 mod item_entity;
 #[cfg(test)]
 mod item_family_behavior;
+mod item_flint_and_steel;
 mod item_properties;
 mod item_stack;
 mod item_tags;

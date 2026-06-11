@@ -238,6 +238,32 @@ impl ItemStack {
         self.is_damageable_item() && self.damage_value() > 0
     }
 
+    /// Java `ItemStack.hurtAndBreak` server path: apply `amount` durability
+    /// damage, shrinking the stack away once broken. Returns whether the item
+    /// broke. Callers gate the creative/`hasInfiniteMaterials` skip
+    /// (`processDurabilityChange` returns 0 there) and non-damageable stacks
+    /// are a no-op like Java.
+    ///
+    /// TODO(enchantment-durability): Java routes positive damage through
+    /// `EnchantmentHelper.processDurabilityChange` (Unbreaking's random skip,
+    /// `enchantment_system::unbreaking_durability_skip_chance`); live stacks
+    /// don't carry parsed enchantments yet.
+    pub fn hurt_and_break(&mut self, amount: u32) -> bool {
+        if !self.is_damageable_item() {
+            return false;
+        }
+        // Java applyDamage: setDamageValue(damage + amount), then break when
+        // the new damage reaches maxDamage. ITEM_DURABILITY_CHANGED criterion
+        // is not wired (advancement triggers are not live).
+        self.set_damage_value(self.damage_value() + amount);
+        if self.is_broken() {
+            self.shrink(1);
+            true
+        } else {
+            false
+        }
+    }
+
     pub fn is_broken(&self) -> bool {
         self.is_damageable_item() && self.damage_value() >= self.max_damage()
     }
@@ -315,6 +341,28 @@ mod tests {
             ominous.component("minecraft:rarity"),
             Some(&ItemComponent::Rarity(Rarity::Uncommon))
         );
+    }
+
+    #[test]
+    fn hurt_and_break_damages_until_the_item_breaks_like_java() {
+        // Items.java registers flint and steel with durability(64).
+        let mut flint = ItemStack::new("minecraft:flint_and_steel", 1);
+        assert!(flint.is_damageable_item());
+        assert_eq!(flint.max_damage(), 64);
+
+        for use_count in 1..64 {
+            assert!(!flint.hurt_and_break(1));
+            assert_eq!(flint.damage_value(), use_count);
+        }
+        // The 64th damage point reaches maxDamage: applyDamage shrinks the
+        // stack away (the break).
+        assert!(flint.hurt_and_break(1));
+        assert!(flint.is_empty());
+
+        // Non-damageable stacks are a no-op (processDurabilityChange = 0).
+        let mut stick = ItemStack::new("minecraft:stick", 4);
+        assert!(!stick.hurt_and_break(1));
+        assert_eq!(stick.count(), 4);
     }
 
     #[test]

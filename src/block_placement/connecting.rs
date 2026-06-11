@@ -168,32 +168,7 @@ pub(super) fn connecting_placement(
 
         // BaseFireBlock.getState: soul fire over soul-fire bases, else fire
         // with per-direction faces when the ground cannot hold it.
-        "fire" | "soul_fire" => {
-            let below = world.state_at(pos.relative(Direction::Down));
-            if block_tag_contains("soul_fire_base_blocks", &below.registry_id) {
-                return Some(PlacementOutcome::Place(default_state(
-                    "minecraft:soul_fire",
-                )));
-            }
-            let fire = default_state("minecraft:fire");
-            let below_burns = burns(&below);
-            let below_sturdy = face_sturdy_at(world, pos.relative(Direction::Down), Direction::Up);
-            if below_burns || below_sturdy {
-                return Some(PlacementOutcome::Place(fire));
-            }
-            let mut placed = fire;
-            for (face_name, direction) in [
-                ("up", Direction::Up),
-                ("north", Direction::North),
-                ("south", Direction::South),
-                ("west", Direction::West),
-                ("east", Direction::East),
-            ] {
-                let neighbour = world.state_at(pos.relative(direction));
-                placed = set(placed, face_name, bool_str(burns(&neighbour)));
-            }
-            placed
-        }
+        "fire" | "soul_fire" => base_fire_state(world, pos),
 
         // LeavesBlock: placed persistent, distance recomputed from neighbors.
         "leaves" | "mangrove_leaves" | "tinted_particle_leaves" | "untinted_particle_leaves" => {
@@ -459,6 +434,36 @@ pub(crate) fn tripwire_connects_to(neighbour: &BlockStateModel, direction: Direc
 /// Java `FireBlock.canBurn` via the flammability registry model.
 fn burns(state: &BlockStateModel) -> bool {
     crate::fire::flammability(state).is_some_and(|flammable| flammable.ignite_odds > 0)
+}
+
+/// Java `BaseFireBlock.getState`: soul fire over `#soul_fire_base_blocks`,
+/// otherwise `FireBlock.getStateForPlacement` — the default fire state when
+/// the ground burns or is face-sturdy up, else fire with one boolean face per
+/// direction whose neighbour can burn. Shared by fire block placement and
+/// `FlintAndSteelItem.useOn` (`item_flint_and_steel`).
+pub(crate) fn base_fire_state(world: &impl PlacementWorld, pos: BlockPos) -> BlockStateModel {
+    let below = world.state_at(pos.relative(Direction::Down));
+    if block_tag_contains("soul_fire_base_blocks", &below.registry_id) {
+        return default_state("minecraft:soul_fire");
+    }
+    let fire = default_state("minecraft:fire");
+    let below_burns = burns(&below);
+    let below_sturdy = face_sturdy_at(world, pos.relative(Direction::Down), Direction::Up);
+    if below_burns || below_sturdy {
+        return fire;
+    }
+    let mut placed = fire;
+    for (face_name, direction) in [
+        ("up", Direction::Up),
+        ("north", Direction::North),
+        ("south", Direction::South),
+        ("west", Direction::West),
+        ("east", Direction::East),
+    ] {
+        let neighbour = world.state_at(pos.relative(direction));
+        placed = set(placed, face_name, bool_str(burns(&neighbour)));
+    }
+    placed
 }
 
 /// Java `LeavesBlock.getDistanceAt`.
