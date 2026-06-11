@@ -859,6 +859,36 @@ fn write_login_rate_limit_disconnect(
     )
 }
 
+fn is_invalid_login_hello_error(err: &io::Error) -> bool {
+    err.kind() == io::ErrorKind::InvalidData
+        && matches!(
+            err.to_string().as_str(),
+            "invalid characters in username" | "invalid string length" | "string too long"
+        )
+}
+
+fn write_invalid_login_hello_disconnect(stream: &mut TcpStream, err: &io::Error) -> io::Result<()> {
+    // Java `Connection.exceptionCaught`: username validation and login-string
+    // codec failures are sent as a login-state generic-disconnect component.
+    let internal = if err.to_string() == "invalid characters in username" {
+        "java.lang.IllegalStateException: Invalid characters in username"
+    } else {
+        "io.netty.handler.codec.DecoderException: The received string length is longer than maximum allowed"
+    };
+    write_framed_packet(
+        stream,
+        CLIENTBOUND_LOGIN_DISCONNECT_PACKET_ID,
+        |payload| {
+            ClientboundLoginDisconnectPacket {
+                reason: ComponentJson(format!(
+                    "{{\"translate\":\"disconnect.genericReason\",\"with\":[\"Internal Exception: {internal}\"]}}"
+                )),
+            }
+            .write(payload)
+        },
+    )
+}
+
 fn write_configuration_rate_limit_disconnect(
     stream: &mut TcpStream,
     compression: CompressionState,
@@ -939,6 +969,10 @@ fn complete_login_handshake(
                 &err.to_string(),
             )
             .map(|()| LoginHandshakeOutcome::Closed);
+        }
+        Err(err) if is_invalid_login_hello_error(&err) => {
+            write_invalid_login_hello_disconnect(stream, &err)?;
+            return Ok(LoginHandshakeOutcome::Closed);
         }
         Err(err) => return Err(err),
     };
