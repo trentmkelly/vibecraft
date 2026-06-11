@@ -517,6 +517,7 @@ mod item_flint_and_steel;
 mod item_properties;
 mod item_stack;
 mod item_tags;
+mod item_tool_use;
 mod lighting;
 mod living_entity;
 mod localization_keys;

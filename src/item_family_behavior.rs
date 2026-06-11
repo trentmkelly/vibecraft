@@ -7,11 +7,13 @@
 //     WindChargeItem / FireChargeItem. The projectile ENTITIES already exist
 //     (projectile_entity::ThrowableKind / HurtingProjectileKind) but no item-use
 //     spawns them into the world.
-//   - Tool-on-block: AxeItem (strip log -> stripped), HoeItem (till dirt -> farmland),
-//     ShovelItem (path grass -> dirt_path), each a Block.useItemOn state change.
-//   - FlintAndSteelItem (set fire / ignite), BoneMealItem (apply growth),
-//     HoneycombItem (wax copper), GlowInkSacItem / InkSacItem (sign glow toggle),
-//     DebugStickItem (cycle block state).
+//   - Tool-on-block: AxeItem / HoeItem / ShovelItem block mutations are now
+//     wired live via item_tool_use + network::status::item_use_live. Axe's
+//     offhand blocking-item intent gate remains deferred behind
+//     TODO(live-sneak-tracking) until secondary-use tracking exists.
+//   - BoneMealItem (apply growth), HoneycombItem (wax copper),
+//     GlowInkSacItem / InkSacItem (sign glow toggle), DebugStickItem
+//     (cycle block state).
 //   - Entity-placement items: EndCrystalItem, ArmorStandItem, ItemFrameItem,
 //     HangingEntityItem / HangingSignItem placement.
 // Implement each here (or in a sibling use-dispatch module) once BLOCKS/ENTITIES

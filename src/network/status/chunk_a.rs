@@ -3694,6 +3694,7 @@ impl<'a, 'b> DecodedPlayPacketContext<'a, 'b> {
             world_layout: self.world_layout,
             world_seed: self.world_seed,
             chunk_cache: self.chunk_cache,
+            world_items: self.world_items,
             recipe_manager: self.recipe_manager,
             live_fluid_ticks: self.live_fluid_ticks,
             live_block_ticks: self.live_block_ticks,

@@ -388,7 +388,7 @@ impl ItemComponent {
 }
 
 pub fn representative_item_definitions() -> Vec<ItemDefinition> {
-    vec![
+    let mut definitions = vec![
         ItemDefinition::new("minecraft:stick"),
         ItemDefinition::new("minecraft:apple").food(4, 2.4, false),
         ItemDefinition::new("minecraft:bow")
@@ -471,6 +471,38 @@ pub fn representative_item_definitions() -> Vec<ItemDefinition> {
             .drink()
             .custom("minecraft:ominous_bottle_amplifier"),
         ItemDefinition::new("minecraft:trial_key"),
+    ];
+    definitions.extend(tool_material_item_definitions());
+    definitions
+}
+
+/// Items.java registers AxeItem/ShovelItem/HoeItem through
+/// `ToolMaterial.applyToolProperties`, whose common path applies the material
+/// durability (WOOD 59, STONE 131, COPPER 190, IRON 250, GOLD 32,
+/// DIAMOND 1561, NETHERITE 2031).
+fn tool_material_item_definitions() -> Vec<ItemDefinition> {
+    vec![
+        ItemDefinition::new("minecraft:wooden_axe").durability(59),
+        ItemDefinition::new("minecraft:stone_axe").durability(131),
+        ItemDefinition::new("minecraft:copper_axe").durability(190),
+        ItemDefinition::new("minecraft:iron_axe").durability(250),
+        ItemDefinition::new("minecraft:golden_axe").durability(32),
+        ItemDefinition::new("minecraft:diamond_axe").durability(1561),
+        ItemDefinition::new("minecraft:netherite_axe").durability(2031),
+        ItemDefinition::new("minecraft:wooden_shovel").durability(59),
+        ItemDefinition::new("minecraft:stone_shovel").durability(131),
+        ItemDefinition::new("minecraft:copper_shovel").durability(190),
+        ItemDefinition::new("minecraft:iron_shovel").durability(250),
+        ItemDefinition::new("minecraft:golden_shovel").durability(32),
+        ItemDefinition::new("minecraft:diamond_shovel").durability(1561),
+        ItemDefinition::new("minecraft:netherite_shovel").durability(2031),
+        ItemDefinition::new("minecraft:wooden_hoe").durability(59),
+        ItemDefinition::new("minecraft:stone_hoe").durability(131),
+        ItemDefinition::new("minecraft:copper_hoe").durability(190),
+        ItemDefinition::new("minecraft:iron_hoe").durability(250),
+        ItemDefinition::new("minecraft:golden_hoe").durability(32),
+        ItemDefinition::new("minecraft:diamond_hoe").durability(1561),
+        ItemDefinition::new("minecraft:netherite_hoe").durability(2031),
     ]
 }
 

@@ -503,6 +503,7 @@ pub struct UseItemOnContext<'a, 'b> {
     pub world_layout: &'a WorldLayout,
     pub world_seed: i64,
     pub chunk_cache: &'a GeneratedChunkCache,
+    pub world_items: &'a Arc<Mutex<WorldItemEntities>>,
     pub recipe_manager: &'a RecipeManagerModel,
     pub live_fluid_ticks: &'b mut LiveFluidTicks,
     pub live_block_ticks: &'b mut LiveBlockTicks,
@@ -637,6 +638,50 @@ fn use_item_on_denied_by_world_gates(
     Ok(false)
 }
 
+/// Java `ServerPlayerGameMode.useItemOn` second stage: `itemStack.useOn(
+/// context)` dispatches on the item class. Behavioral (non-`BlockItem`) useOn
+/// overrides are wired in `item_use_live`: flint and steel plus the
+/// axe/shovel/hoe block mutations so far (the rest of the family sits on
+/// `TODO(item-use-block-and-entity-behaviors)` in `item_family_behavior.rs`).
+/// Returns `None` for items without a behavioral override, which fall through
+/// to `BlockItem.place`.
+#[allow(clippy::too_many_arguments)]
+fn dispatch_behavioral_item_use_on(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    state: &mut PlaySessionState,
+    context: &mut UseItemOnContext<'_, '_>,
+    packet: &ServerboundUseItemOnPacket,
+    held_slot: usize,
+    item_name: &str,
+) -> Option<io::Result<()>> {
+    if item_name == "minecraft:flint_and_steel" {
+        return Some(super::item_use_live::use_flint_and_steel(
+            stream,
+            compression,
+            state,
+            context,
+            packet,
+            held_slot,
+        ));
+    }
+    if crate::item_tool_use::is_axe(item_name)
+        || crate::item_tool_use::is_shovel(item_name)
+        || crate::item_tool_use::is_hoe(item_name)
+    {
+        return Some(super::item_use_live::use_block_mutation_tool(
+            stream,
+            compression,
+            state,
+            context,
+            packet,
+            held_slot,
+            item_name,
+        ));
+    }
+    None
+}
+
 pub fn handle_use_item_on(
     stream: &mut TcpStream,
     compression: CompressionState,
@@ -713,20 +758,16 @@ pub fn handle_use_item_on(
         );
     }
 
-    // Java ServerPlayerGameMode.useItemOn second stage: itemStack.useOn(
-    // context) dispatches on the item class. Behavioral (non-BlockItem)
-    // useOn overrides are wired in item_use_live; flint and steel is the
-    // first member (the rest of the family sits on
-    // TODO(item-use-block-and-entity-behaviors) in item_family_behavior.rs).
-    if item_name == "minecraft:flint_and_steel" {
-        return super::item_use_live::use_flint_and_steel(
-            stream,
-            compression,
-            state,
-            &mut context,
-            packet,
-            held_slot,
-        );
+    if let Some(handled) = dispatch_behavioral_item_use_on(
+        stream,
+        compression,
+        state,
+        &mut context,
+        packet,
+        held_slot,
+        item_name,
+    ) {
+        return handled;
     }
 
     // Java: BlockItem.place() only proceeds for items backed by a Block.
