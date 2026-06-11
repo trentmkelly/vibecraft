@@ -806,12 +806,7 @@ fn all_known_features_26_1_2() -> FeatureFlagSet {
 }
 
 fn split_pack_list(value: &str) -> Vec<String> {
-    value
-        .split(',')
-        .map(str::trim)
-        .filter(|entry| !entry.is_empty())
-        .map(str::to_string)
-        .collect()
+    value.split(',').map(|entry| entry.trim().to_string()).collect()
 }
 
 pub fn load_world_data_packs(datapack_dir: &Path) -> Result<Vec<WorldDataPack>, String> {

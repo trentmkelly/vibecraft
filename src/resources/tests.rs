@@ -311,6 +311,52 @@ fn forced_features_enable_matching_feature_pack() {
 }
 
 #[test]
+fn datapack_config_from_server_properties_matches_java_comma_splitter() {
+    // Java DedicatedServerProperties uses Guava
+    // Splitter.on(',').trimResults().splitToList: whitespace is trimmed but
+    // empty tokens are preserved.
+    assert_eq!(
+        DataPackConfig::from_properties("vanilla,file/a,, file/b ", ""),
+        DataPackConfig {
+            enabled: vec![
+                "vanilla".to_string(),
+                "file/a".to_string(),
+                String::new(),
+                "file/b".to_string()
+            ],
+            disabled: vec![String::new()],
+        }
+    );
+}
+
+#[test]
+fn initial_datapack_property_lists_configure_repository_selection() {
+    let mut repository = DataPackRepository::new([
+        DataPack::new(VANILLA_PACK_ID, PackSource::BuiltIn)
+            .with_features(feature_flags::default_flags_26_1_2()),
+        DataPack::new("file/world", PackSource::World),
+        DataPack::new("file/disabled", PackSource::World),
+    ]);
+    let initial = WorldDataConfiguration {
+        data_packs: DataPackConfig::from_properties("vanilla,file/world", "file/disabled"),
+        enabled_features: feature_flags::default_flags_26_1_2(),
+    };
+
+    let configured = configure_pack_repository(
+        &mut repository,
+        &initial,
+        PackConfigureOptions {
+            init_mode: false,
+            safe_mode: false,
+        },
+    );
+
+    assert_eq!(configured.data_packs.enabled, vec![VANILLA_PACK_ID, "file/world"]);
+    assert_eq!(configured.data_packs.disabled, vec!["file/disabled"]);
+    assert_eq!(repository.selected_ids(), vec![VANILLA_PACK_ID, "file/world"]);
+}
+
+#[test]
 fn pack_priority_enable_disable_and_reload_rollback_match_repository_rules() {
     let mut repository = DataPackRepository::new([
         DataPack::new(VANILLA_PACK_ID, PackSource::BuiltIn)

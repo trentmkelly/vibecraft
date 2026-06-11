@@ -475,6 +475,8 @@ text-filtering-config=text-filter.json
 text-filtering-version=2
 function-permission-level=3
 use-native-transport=false
+initial-enabled-packs=vanilla,file/world
+initial-disabled-packs=file/disabled
 resource-pack-id=00000000-0000-0000-0000-000000000001
 resource-pack=https://example.invalid/pack.zip
 resource-pack-sha1=0123456789abcdef0123456789abcdef01234567
@@ -535,6 +537,8 @@ resource-pack-prompt={\"text\":\"Use pack?\"}
         assert_eq!(properties.text_filtering_version, 2);
         assert_eq!(properties.function_permission_level, 3);
         assert!(!properties.use_native_transport);
+        assert_eq!(properties.initial_enabled_packs, "vanilla,file/world");
+        assert_eq!(properties.initial_disabled_packs, "file/disabled");
     }
 
     fn assert_resource_pack_typed_properties(properties: &ServerProperties) {
