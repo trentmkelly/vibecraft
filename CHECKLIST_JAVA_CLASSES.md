@@ -3980,7 +3980,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/ThrowablePotionItem.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/TippedArrowItem.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/ToolMaterial.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/TooltipFlag.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/TooltipFlag.java`. — Java 26.1.2 defines a `TooltipFlag` interface with `NORMAL = Default(false, false)`, `ADVANCED = Default(true, false)`, `isAdvanced`, `isCreative`, and `Default.asCreative()` preserving `advanced` while setting `creative=true`. Rust `item_properties::TooltipFlag` mirrors those constants, accessors, constructor, and creative-copy behavior. Covered by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 tooltip_flag`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/TridentItem.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/WeatheringCopperItems.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/WindChargeItem.java`.

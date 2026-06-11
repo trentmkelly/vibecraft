@@ -184,6 +184,42 @@ impl SwingAnimationType {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TooltipFlag {
+    advanced: bool,
+    creative: bool,
+}
+
+impl TooltipFlag {
+    pub const NORMAL: Self = Self {
+        advanced: false,
+        creative: false,
+    };
+    pub const ADVANCED: Self = Self {
+        advanced: true,
+        creative: false,
+    };
+
+    pub fn new(advanced: bool, creative: bool) -> Self {
+        Self { advanced, creative }
+    }
+
+    pub fn is_advanced(self) -> bool {
+        self.advanced
+    }
+
+    pub fn is_creative(self) -> bool {
+        self.creative
+    }
+
+    pub fn as_creative(self) -> Self {
+        Self {
+            advanced: self.advanced,
+            creative: true,
+        }
+    }
+}
+
 /// `net.minecraft.world.item.component.MapPostProcessing` — marks a cartography-table
 /// result map for post-processing when the player takes it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -696,6 +732,8 @@ mod tests {
         include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/Rarity.java");
     const SWING_ANIMATION_TYPE_JAVA: &str =
         include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/SwingAnimationType.java");
+    const TOOLTIP_FLAG_JAVA: &str =
+        include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/TooltipFlag.java");
 
     #[test]
     fn item_display_context_matches_java_ids_names_and_hand_helpers() {
@@ -795,6 +833,32 @@ mod tests {
         assert_eq!(
             SwingAnimationType::by_serialized_name("stab"),
             Some(SwingAnimationType::Stab)
+        );
+    }
+
+    #[test]
+    fn tooltip_flag_defaults_and_creative_copy_match_java() {
+        assert!(TOOLTIP_FLAG_JAVA
+            .contains("TooltipFlag.Default NORMAL = new TooltipFlag.Default(false, false);"));
+        assert!(TOOLTIP_FLAG_JAVA
+            .contains("TooltipFlag.Default ADVANCED = new TooltipFlag.Default(true, false);"));
+        assert!(TOOLTIP_FLAG_JAVA.contains("return new TooltipFlag.Default(this.advanced, true);"));
+
+        assert!(!TooltipFlag::NORMAL.is_advanced());
+        assert!(!TooltipFlag::NORMAL.is_creative());
+        assert!(TooltipFlag::ADVANCED.is_advanced());
+        assert!(!TooltipFlag::ADVANCED.is_creative());
+
+        let creative_normal = TooltipFlag::NORMAL.as_creative();
+        assert!(!creative_normal.is_advanced());
+        assert!(creative_normal.is_creative());
+
+        let creative_advanced = TooltipFlag::ADVANCED.as_creative();
+        assert!(creative_advanced.is_advanced());
+        assert!(creative_advanced.is_creative());
+        assert_eq!(
+            TooltipFlag::new(true, true),
+            TooltipFlag::ADVANCED.as_creative()
         );
     }
 
