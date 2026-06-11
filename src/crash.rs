@@ -155,30 +155,12 @@ impl CrashReport {
             .map(str::to_string)
             .unwrap_or_else(|| "unnamed".to_string());
 
+        let mut details = base_crash_details(thread, Some(location));
+        details.extend(runtime_world_state_details(Path::new(".")));
+
         Self {
             title: payload,
-            details: vec![
-                (
-                    "VibeCraft Version".to_string(),
-                    env!("CARGO_PKG_VERSION").to_string(),
-                ),
-                (
-                    "Minecraft Target".to_string(),
-                    "Java Edition 26.1.2".to_string(),
-                ),
-                ("Process ID".to_string(), std::process::id().to_string()),
-                ("Thread".to_string(), thread),
-                ("Location".to_string(), location),
-                ("OS".to_string(), std::env::consts::OS.to_string()),
-                (
-                    "Architecture".to_string(),
-                    std::env::consts::ARCH.to_string(),
-                ),
-                (
-                    "World State".to_string(),
-                    "runtime world loading not implemented".to_string(),
-                ),
-            ],
+            details,
             backtrace: Backtrace::force_capture().to_string(),
         }
     }
@@ -189,34 +171,20 @@ impl CrashReport {
         max_tick_time: Duration,
         world_root: &Path,
     ) -> Self {
+        let mut details = base_crash_details("Server Watchdog".to_string(), None);
+        details.push((
+            "Performance stats".to_string(),
+            format!(
+                "tick={tick_count}, elapsed={}ms, maxTickTime={}ms",
+                tick_elapsed.as_millis(),
+                max_tick_time.as_millis()
+            ),
+        ));
+        details.extend(runtime_world_state_details(world_root));
+
         Self {
             title: "Watching Server".to_string(),
-            details: vec![
-                (
-                    "VibeCraft Version".to_string(),
-                    env!("CARGO_PKG_VERSION").to_string(),
-                ),
-                (
-                    "Minecraft Target".to_string(),
-                    "Java Edition 26.1.2".to_string(),
-                ),
-                ("Process ID".to_string(), std::process::id().to_string()),
-                ("Thread".to_string(), "Server Watchdog".to_string()),
-                (
-                    "Performance stats".to_string(),
-                    format!(
-                        "tick={tick_count}, elapsed={}ms, maxTickTime={}ms",
-                        tick_elapsed.as_millis(),
-                        max_tick_time.as_millis()
-                    ),
-                ),
-                ("World Root".to_string(), world_root.display().to_string()),
-                ("OS".to_string(), std::env::consts::OS.to_string()),
-                (
-                    "Architecture".to_string(),
-                    std::env::consts::ARCH.to_string(),
-                ),
-            ],
+            details,
             backtrace: Backtrace::force_capture().to_string(),
         }
     }
@@ -250,6 +218,115 @@ impl CrashReport {
         fs::write(&path, self.render())?;
         Ok(path)
     }
+}
+
+fn base_crash_details(thread: String, location: Option<String>) -> Vec<(String, String)> {
+    let mut details = vec![
+        (
+            "VibeCraft Version".to_string(),
+            env!("CARGO_PKG_VERSION").to_string(),
+        ),
+        (
+            "Minecraft Target".to_string(),
+            "Java Edition 26.1.2".to_string(),
+        ),
+        ("Process ID".to_string(), std::process::id().to_string()),
+        ("Thread".to_string(), thread),
+    ];
+    if let Some(location) = location {
+        details.push(("Location".to_string(), location));
+    }
+    details.extend([
+        (
+            "Current Directory".to_string(),
+            std::env::current_dir()
+                .map(|path| path.display().to_string())
+                .unwrap_or_else(|err| format!("ERR: {err}")),
+        ),
+        ("Command Line".to_string(), std::env::args().collect::<Vec<_>>().join(" ")),
+        ("OS".to_string(), std::env::consts::OS.to_string()),
+        (
+            "Architecture".to_string(),
+            std::env::consts::ARCH.to_string(),
+        ),
+        (
+            "Available Parallelism".to_string(),
+            thread::available_parallelism()
+                .map(|count| count.get().to_string())
+                .unwrap_or_else(|err| format!("ERR: {err}")),
+        ),
+        (
+            "Environment".to_string(),
+            crash_environment_summary(),
+        ),
+    ]);
+    details
+}
+
+fn runtime_world_state_details(world_root: &Path) -> Vec<(String, String)> {
+    vec![
+        ("World Root".to_string(), world_root.display().to_string()),
+        (
+            "Configured Level Name".to_string(),
+            configured_level_name(Path::new("server.properties")).unwrap_or_else(|| "world".to_string()),
+        ),
+        (
+            "World State".to_string(),
+            world_artifact_summary(world_root),
+        ),
+    ]
+}
+
+fn configured_level_name(properties_path: &Path) -> Option<String> {
+    let text = fs::read_to_string(properties_path).ok()?;
+    text.lines().find_map(|line| {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with('!') {
+            return None;
+        }
+        let (key, value) = trimmed.split_once('=')?;
+        (key.trim() == "level-name").then(|| value.trim().to_string())
+    })
+}
+
+fn world_artifact_summary(world_root: &Path) -> String {
+    let artifacts = [
+        ("level.dat", world_root.join("level.dat")),
+        ("level.dat_old", world_root.join("level.dat_old")),
+        ("region", world_root.join("region")),
+        ("entities", world_root.join("entities")),
+        ("poi", world_root.join("poi")),
+        ("playerdata", world_root.join("playerdata")),
+        ("advancements", world_root.join("advancements")),
+        ("stats", world_root.join("stats")),
+    ];
+    artifacts
+        .into_iter()
+        .map(|(name, path)| format!("{name}={}", artifact_state(&path)))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn artifact_state(path: &Path) -> &'static str {
+    match fs::metadata(path) {
+        Ok(metadata) if metadata.is_dir() => "dir",
+        Ok(metadata) if metadata.is_file() => "file",
+        Ok(_) => "other",
+        Err(_) => "missing",
+    }
+}
+
+fn crash_environment_summary() -> String {
+    ["RUST_BACKTRACE", "VIBECRAFT_LOG", "VIBECRAFT_WORLDGEN"]
+        .into_iter()
+        .map(|key| {
+            format!(
+                "{key}={}",
+                std::env::var(key).unwrap_or_else(|_| "<unset>".to_string())
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn timestamp() -> u64 {

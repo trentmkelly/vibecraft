@@ -53,6 +53,35 @@ fn writes_vanilla_named_server_crash_report_file() {
 }
 
 #[test]
+fn crash_report_world_artifact_summary_reports_loaded_state() {
+    let dir = std::env::temp_dir().join(format!(
+        "vibecraft-crash-world-state-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(dir.join("region")).unwrap();
+    fs::create_dir_all(dir.join("playerdata")).unwrap();
+    fs::write(dir.join("level.dat"), b"nbt").unwrap();
+
+    let report = CrashReport::from_watchdog_tick(
+        7,
+        Duration::from_millis(2),
+        Duration::from_millis(1),
+        &dir,
+    );
+    let rendered = report.render();
+
+    assert!(rendered.contains(&format!("World Root: {}", dir.display())));
+    assert!(rendered.contains("World State: level.dat=file"));
+    assert!(rendered.contains("region=dir"));
+    assert!(rendered.contains("playerdata=dir"));
+    assert!(rendered.contains("entities=missing"));
+    assert!(!rendered.contains("runtime world loading not implemented"));
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn watchdog_crash_report_contains_java_watchdog_context() {
     let world_root = std::env::temp_dir().join("vibecraft-watchdog-report-world");
     let report = CrashReport::from_watchdog_tick(
