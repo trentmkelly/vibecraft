@@ -224,7 +224,7 @@ pub fn tick_live_mobs_for_client<W: Write>(
     let (stats, moves) = {
         let mut mobs = lock_status_mutex(store);
         let registered_mobs = mobs.sync_loaded_chunks(loaded_chunks, chunk_cache, world_root, world_seed);
-        let sync_ms = sync_started.elapsed().as_micros();
+        let sync_us = sync_started.elapsed().as_micros();
         let ai_started = Instant::now();
         // Java `GoalSelector.tick()` is split into cleanup, goal selection, and
         // running-goal ticks; this lightweight live path keeps one measured AI
@@ -236,15 +236,7 @@ pub fn tick_live_mobs_for_client<W: Write>(
             .moved_mobs()
             .map(relative_move_packet)
             .collect();
-        eprintln!(
-            "[mob-ai-timing] tick={tick_count} mobs={} registered={} moved={} synced_chunks={} sync={}us ai={}us",
-            stats.total_mobs,
-            stats.registered_mobs,
-            stats.moved_mobs,
-            stats.synced_chunks,
-            sync_ms,
-            ai_us
-        );
+        eprintln!("{}", format_live_mob_ai_timing(tick_count, stats, sync_us, ai_us));
         (stats, moves)
     };
     let write_started = Instant::now();
@@ -263,6 +255,23 @@ pub fn tick_live_mobs_for_client<W: Write>(
         stats.moved_mobs
     );
     Ok(stats.player_damage > 0.0)
+}
+
+fn format_live_mob_ai_timing(
+    tick_count: u64,
+    stats: LiveMobTickStats,
+    sync_us: u128,
+    ai_us: u128,
+) -> String {
+    format!(
+        "[mob-ai-timing] tick={tick_count} mobs={} registered={} moved={} synced_chunks={} sync={}us ai={}us",
+        stats.total_mobs,
+        stats.registered_mobs,
+        stats.moved_mobs,
+        stats.synced_chunks,
+        sync_us,
+        ai_us
+    )
 }
 
 pub struct LiveMobClientTickContext<'a> {
@@ -899,6 +908,27 @@ mod tests {
             .player_inventory_mut()
             .set(0, ItemStack::new("minecraft:netherite_axe", 1));
         assert_eq!(player_attack_damage(&state), 10.0);
+    }
+
+    #[test]
+    fn live_mob_ai_timing_line_reports_counts_and_phase_durations() {
+        let line = format_live_mob_ai_timing(
+            37,
+            LiveMobTickStats {
+                synced_chunks: 4,
+                registered_mobs: 2,
+                total_mobs: 9,
+                moved_mobs: 3,
+                player_damage: 0.0,
+            },
+            11,
+            23,
+        );
+
+        assert_eq!(
+            line,
+            "[mob-ai-timing] tick=37 mobs=9 registered=2 moved=3 synced_chunks=4 sync=11us ai=23us"
+        );
     }
 
     #[test]
