@@ -15,6 +15,7 @@ impl PlaySession {
             last_chat_command: None,
             last_signed_chat_command: None,
             last_chat_session_update: None,
+            last_attack: None,
             last_player_command: None,
             last_player_action: None,
             last_use_item: None,
@@ -232,6 +233,12 @@ impl PlaySession {
                     Err(outcome) => outcome,
                 }
             }
+            SERVERBOUND_ATTACK_PACKET_ID => self.decode_and_store(
+                payload,
+                "attack packet",
+                |input| ServerboundAttackPacket::read(input),
+                |session, attack| session.last_attack = Some(attack),
+            ),
             SERVERBOUND_CHANGE_DIFFICULTY_PACKET_ID => {
                 self.decode_ignored(payload, "change difficulty packet", |input| {
                     ServerboundChangeDifficultyPacket::read(input)

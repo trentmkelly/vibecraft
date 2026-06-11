@@ -802,6 +802,20 @@ impl ServerboundInteractionHand {
     }
 }
 
+impl ServerboundAttackPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let packet = Self {
+            entity_id: read_var_i32(reader)?,
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.entity_id)
+    }
+}
+
 impl ServerboundInteractPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         let packet = Self {

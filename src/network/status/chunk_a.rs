@@ -184,6 +184,7 @@ struct StatusServerRuntime {
     weather: Arc<Mutex<WeatherCycle>>,
     recipe_manager: Arc<RecipeManagerModel>,
     world_items: Arc<Mutex<WorldItemEntities>>,
+    world_mobs: Arc<Mutex<LiveMobStore>>,
     max_tick_time: Duration,
 }
 
@@ -201,6 +202,7 @@ struct ConnectionSharedContext<'a> {
     weather: &'a Arc<Mutex<WeatherCycle>>,
     recipe_manager: &'a RecipeManagerModel,
     world_items: &'a Arc<Mutex<WorldItemEntities>>,
+    world_mobs: &'a Arc<Mutex<LiveMobStore>>,
 }
 
 struct StatusConnectionContext<'a> {
@@ -378,6 +380,7 @@ impl StatusServerRuntime {
         // Java: ServerLevel.entityStorage — entity lists belong to the world, not any connection.
         let world_items: Arc<Mutex<WorldItemEntities>> =
             Arc::new(Mutex::new(load_world_item_entities(&world_root)));
+        let world_mobs: Arc<Mutex<LiveMobStore>> = Arc::new(Mutex::new(LiveMobStore::default()));
 
         // Load vanilla recipes once at startup and share via Arc.
         // Java: MinecraftServer.loadDataPacks() → RecipeManager.apply()
@@ -408,6 +411,7 @@ impl StatusServerRuntime {
             weather,
             recipe_manager,
             world_items,
+            world_mobs,
             max_tick_time,
         })
     }
@@ -584,6 +588,7 @@ fn run_status_accept_loop(
                 let weather = Arc::clone(&runtime.weather);
                 let recipe_manager = Arc::clone(&runtime.recipe_manager);
                 let world_items = Arc::clone(&runtime.world_items);
+                let world_mobs = Arc::clone(&runtime.world_mobs);
                 let remote_ip = peer_addr.ip().to_string();
                 let remote_address = peer_addr.to_string();
                 let remote_for_log = loggable_remote_address(properties.log_ips, &remote_address);
@@ -602,6 +607,7 @@ fn run_status_accept_loop(
                             weather: &weather,
                             recipe_manager: &recipe_manager,
                             world_items: &world_items,
+                            world_mobs: &world_mobs,
                         },
                         remote_address: &remote_address,
                         remote_ip: &remote_ip,
@@ -1411,6 +1417,8 @@ struct PlayerTickContext<'a, 'b> {
     live_fluid_ticks: &'b mut LiveFluidTicks,
     live_block_ticks: &'b mut LiveBlockTicks,
     world_items: &'a Arc<Mutex<WorldItemEntities>>,
+    world_mobs: &'a Arc<Mutex<LiveMobStore>>,
+    loaded_chunks: &'a BTreeSet<(i32, i32)>,
     world_layout: &'b WorldLayout,
     last_player_tick: &'b mut Instant,
     play_tick_count: &'b mut u64,
@@ -1440,6 +1448,8 @@ fn tick_player_and_chunk_sender(
         live_fluid_ticks,
         live_block_ticks,
         world_items,
+        world_mobs,
+        loaded_chunks,
         world_layout,
         last_player_tick,
         play_tick_count,
@@ -1464,6 +1474,9 @@ fn tick_player_and_chunk_sender(
             world_seed,
             chunk_cache,
             world_items,
+            world_mobs,
+            loaded_chunks,
+            world_root,
         },
     )?;
     let fluid_state =
@@ -1529,6 +1542,9 @@ struct LiveWorldTickContext<'a, 'b> {
     world_seed: i64,
     chunk_cache: &'a GeneratedChunkCache,
     world_items: &'a Arc<Mutex<WorldItemEntities>>,
+    world_mobs: &'a Arc<Mutex<LiveMobStore>>,
+    loaded_chunks: &'a BTreeSet<(i32, i32)>,
+    world_root: &'a Path,
 }
 
 fn tick_live_world_systems(
@@ -1567,6 +1583,19 @@ fn tick_live_world_systems(
         context.world_seed,
         context.chunk_cache,
         context.world_items,
+    )?;
+    super::live_mobs::tick_live_mobs_for_client(
+        stream,
+        compression,
+        super::live_mobs::LiveMobClientTickContext {
+            store: context.world_mobs,
+            loaded_chunks: context.loaded_chunks,
+            chunk_cache: context.chunk_cache,
+            world_root: context.world_root,
+            world_seed: context.world_seed,
+            play_state,
+            tick_count,
+        },
     )?;
     tick_live_block_destroy_progress(
         stream,
@@ -1763,10 +1792,12 @@ struct JoinedPlayLoopTickContext<'a, 'b> {
     clock: &'a Arc<Mutex<ServerClockManager>>,
     weather: &'a Arc<Mutex<WeatherCycle>>,
     world_items: &'a Arc<Mutex<WorldItemEntities>>,
+    world_mobs: &'a Arc<Mutex<LiveMobStore>>,
     chunk_cache: &'a GeneratedChunkCache,
     chunk_pipeline: &'a ChunkPipeline,
     current_chunk_x: i32,
     current_chunk_z: i32,
+    loaded_chunks: &'a BTreeSet<(i32, i32)>,
     chunk_sender: &'b mut PlayerChunkSender,
     chunk_pipeline_stats: &'b mut ChunkPipelineSessionStats,
     world_layout: &'b WorldLayout,
@@ -1798,10 +1829,12 @@ fn tick_joined_play_session_loop(
         clock,
         weather,
         world_items,
+        world_mobs,
         chunk_cache,
         chunk_pipeline,
         current_chunk_x,
         current_chunk_z,
+        loaded_chunks,
         chunk_sender,
         chunk_pipeline_stats,
         world_layout,
@@ -1845,6 +1878,8 @@ fn tick_joined_play_session_loop(
             live_fluid_ticks,
             live_block_ticks,
             world_items,
+            world_mobs,
+            loaded_chunks,
             world_layout,
             last_player_tick,
             play_tick_count,
@@ -3156,6 +3191,7 @@ struct DecodedPlayPacketContext<'a, 'b> {
     chunk_cache: &'a GeneratedChunkCache,
     chunk_pipeline: &'a ChunkPipeline,
     world_items: &'a Arc<Mutex<WorldItemEntities>>,
+    world_mobs: &'a Arc<Mutex<LiveMobStore>>,
     weather: &'a Arc<Mutex<WeatherCycle>>,
     current_chunk_x: &'b mut i32,
     current_chunk_z: &'b mut i32,
@@ -3190,6 +3226,7 @@ struct JoinedPlayPacketStepContext<'a, 'b> {
     chunk_cache: &'a GeneratedChunkCache,
     chunk_pipeline: &'a ChunkPipeline,
     world_items: &'a Arc<Mutex<WorldItemEntities>>,
+    world_mobs: &'a Arc<Mutex<LiveMobStore>>,
     weather: &'a Arc<Mutex<WeatherCycle>>,
     current_chunk_x: &'b mut i32,
     current_chunk_z: &'b mut i32,
@@ -3293,6 +3330,15 @@ fn handle_decoded_play_packet(
             play_state,
             context.action(),
         )?;
+    } else if packet_id == SERVERBOUND_ATTACK_PACKET_ID {
+        let packet = ServerboundAttackPacket::read(&mut input)?;
+        super::live_mobs::handle_live_mob_attack(
+            stream,
+            compression,
+            context.world_mobs,
+            packet,
+            play_state,
+        )?;
     } else if try_handle_inventory_packet(
         stream,
         compression,
@@ -3359,6 +3405,7 @@ impl<'a, 'b> JoinedPlayPacketStepContext<'a, 'b> {
             chunk_cache: self.chunk_cache,
             chunk_pipeline: self.chunk_pipeline,
             world_items: self.world_items,
+            world_mobs: self.world_mobs,
             weather: self.weather,
             live_block_ticks: self.live_block_ticks,
             current_chunk_x: self.current_chunk_x,
@@ -3545,6 +3592,7 @@ fn run_joined_play_session(
         weather,
         recipe_manager,
         world_items,
+        world_mobs,
         ..
     } = shared;
     let JoinedPlaySessionStart {
@@ -3585,10 +3633,12 @@ fn run_joined_play_session(
                 clock,
                 weather,
                 world_items,
+                world_mobs,
                 chunk_cache,
                 chunk_pipeline,
                 current_chunk_x,
                 current_chunk_z,
+                loaded_chunks: &loaded_chunks,
                 chunk_sender: &mut chunk_sender,
                 chunk_pipeline_stats: &mut chunk_pipeline_stats,
                 live_fluid_ticks: &mut live_fluid_ticks,
@@ -3625,6 +3675,7 @@ fn run_joined_play_session(
                 chunk_cache,
                 chunk_pipeline,
                 world_items,
+                world_mobs,
                 weather,
                 current_chunk_x: &mut current_chunk_x,
                 current_chunk_z: &mut current_chunk_z,

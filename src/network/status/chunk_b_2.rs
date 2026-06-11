@@ -24,7 +24,8 @@ pub fn player_login_log_message(
 pub fn play_packet_is_handled_after_state_update(packet_id: i32) -> bool {
     matches!(
         packet_id,
-        SERVERBOUND_KEEP_ALIVE_PACKET_ID
+        SERVERBOUND_ATTACK_PACKET_ID
+            | SERVERBOUND_KEEP_ALIVE_PACKET_ID
             | SERVERBOUND_ACCEPT_TELEPORTATION_PACKET_ID
             | SERVERBOUND_CHAT_ACK_PACKET_ID
             | SERVERBOUND_CLIENT_COMMAND_PACKET_ID

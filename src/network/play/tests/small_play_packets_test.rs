@@ -631,6 +631,20 @@ fn assert_book_interact_and_chat_ack_packets(session: &mut PlaySession) {
     .write(&mut Vec::new())
     .is_err());
 
+    let attack = ServerboundAttackPacket { entity_id: 128 };
+    let mut attack_payload = Vec::new();
+    attack.write(&mut attack_payload).unwrap();
+    assert_eq!(attack_payload, vec![0x80, 0x01]);
+    assert_eq!(
+        ServerboundAttackPacket::read(&mut cursor(attack_payload.clone())).unwrap(),
+        attack
+    );
+    assert_eq!(
+        session.handle_decoded(decoded(SERVERBOUND_ATTACK_PACKET_ID, attack_payload)),
+        DispatchOutcome::Handled
+    );
+    assert_eq!(session.last_attack, Some(attack));
+
     let interact = ServerboundInteractPacket {
         entity_id: 128,
         hand: ServerboundInteractionHand::OffHand,

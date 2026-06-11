@@ -487,6 +487,11 @@ pub struct ServerboundEditBookPacket {
     pub title: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundAttackPacket {
+    pub entity_id: i32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ServerboundInteractPacket {
     pub entity_id: i32,

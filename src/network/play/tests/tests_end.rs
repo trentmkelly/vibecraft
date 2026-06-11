@@ -842,6 +842,21 @@ fn serverbound_player_command_packet_uses_vanilla_field_order() {
 }
 
 #[test]
+fn serverbound_attack_packet_uses_java_entity_id_varint_only() {
+    let packet = ServerboundAttackPacket { entity_id: 128 };
+
+    let mut payload = Vec::new();
+    packet.write(&mut payload).unwrap();
+    assert_eq!(payload, vec![0x80, 0x01]);
+    assert_eq!(
+        ServerboundAttackPacket::read(&mut cursor(payload)).unwrap(),
+        packet
+    );
+    assert!(ServerboundAttackPacket::read(&mut cursor(Vec::<u8>::new())).is_err());
+    assert!(ServerboundAttackPacket::read(&mut cursor(vec![1, 0])).is_err());
+}
+
+#[test]
 fn serverbound_interact_packet_uses_vanilla_flat_stream_codec_order() {
     let packet = ServerboundInteractPacket {
         entity_id: 128,
