@@ -48,6 +48,7 @@ pub enum MobAttackResult {
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct LiveMobTickStats {
     pub synced_chunks: usize,
+    pub registered_mobs: usize,
     pub total_mobs: usize,
     pub moved_mobs: usize,
     pub player_damage: f32,
@@ -100,7 +101,12 @@ impl LiveMobStore {
         }
     }
 
-    pub fn tick_ai(&mut self, tick_count: u64, play_state: &mut PlaySessionState) -> LiveMobTickStats {
+    pub fn tick_ai(
+        &mut self,
+        tick_count: u64,
+        play_state: &mut PlaySessionState,
+        registered_mobs: usize,
+    ) -> LiveMobTickStats {
         let mut moved_mobs = 0;
         let mut player_damage = 0.0;
         let player_position = Vec3 {
@@ -132,6 +138,7 @@ impl LiveMobStore {
         }
         LiveMobTickStats {
             synced_chunks: self.synced_chunks.len(),
+            registered_mobs,
             total_mobs: self.mobs.len(),
             moved_mobs,
             player_damage,
@@ -216,18 +223,27 @@ pub fn tick_live_mobs_for_client<W: Write>(
     let sync_started = Instant::now();
     let (stats, moves) = {
         let mut mobs = lock_status_mutex(store);
-        mobs.sync_loaded_chunks(loaded_chunks, chunk_cache, world_root, world_seed);
+        let registered_mobs = mobs.sync_loaded_chunks(loaded_chunks, chunk_cache, world_root, world_seed);
         let sync_ms = sync_started.elapsed().as_micros();
         let ai_started = Instant::now();
-        let stats = mobs.tick_ai(tick_count, play_state);
+        // Java `GoalSelector.tick()` is split into cleanup, goal selection, and
+        // running-goal ticks; this lightweight live path keeps one measured AI
+        // phase but preserves the same "goal work happens during the entity tick"
+        // placement in the server tick.
+        let stats = mobs.tick_ai(tick_count, play_state, registered_mobs);
         let ai_us = ai_started.elapsed().as_micros();
         let moves: Vec<ClientboundMoveEntityPacket> = mobs
             .moved_mobs()
             .map(relative_move_packet)
             .collect();
         eprintln!(
-            "[mob-ai-timing] tick={tick_count} mobs={} moved={} synced_chunks={} sync={}us ai={}us",
-            stats.total_mobs, stats.moved_mobs, stats.synced_chunks, sync_ms, ai_us
+            "[mob-ai-timing] tick={tick_count} mobs={} registered={} moved={} synced_chunks={} sync={}us ai={}us",
+            stats.total_mobs,
+            stats.registered_mobs,
+            stats.moved_mobs,
+            stats.synced_chunks,
+            sync_ms,
+            ai_us
         );
         (stats, moves)
     };
@@ -614,6 +630,63 @@ mod tests {
         }
     }
 
+    fn framed_packet_ids(output: &[u8]) -> Vec<i32> {
+        let mut ids = Vec::new();
+        let mut input = Cursor::new(output);
+        while input.position() < output.len() as u64 {
+            let frame_len = read_var_i32(&mut input).unwrap() as usize;
+            let mut frame = vec![0; frame_len];
+            input.read_exact(&mut frame).unwrap();
+            ids.push(read_var_i32(&mut Cursor::new(frame)).unwrap());
+        }
+        ids
+    }
+
+    #[test]
+    fn live_mob_attack_handler_emits_hurt_and_remove_packets() {
+        let store = Arc::new(Mutex::new(LiveMobStore::default()));
+        lock_status_mutex(&store).mobs.insert(51, zombie(51, 1.0, 0.0));
+        let mut play_state = PlaySessionState {
+            x: 0.0,
+            y: 64.0,
+            z: 0.0,
+            selected_slot: 0,
+            ..PlaySessionState::default()
+        };
+        play_state
+            .inventory_menu
+            .player_inventory_mut()
+            .set(0, ItemStack::new("minecraft:diamond_sword", 1));
+
+        let mut hurt_output = Vec::new();
+        let hurt = handle_live_mob_attack(
+            &mut hurt_output,
+            CompressionState::disabled(),
+            &store,
+            ServerboundAttackPacket { entity_id: 51 },
+            &play_state,
+        )
+        .unwrap();
+        assert_eq!(hurt, MobAttackResult::Hurt { entity_id: 51 });
+        assert_eq!(framed_packet_ids(&hurt_output), vec![CLIENTBOUND_ENTITY_EVENT_PACKET_ID]);
+
+        lock_status_mutex(&store).mobs.get_mut(&51).unwrap().health = 1.0;
+        let mut kill_output = Vec::new();
+        let kill = handle_live_mob_attack(
+            &mut kill_output,
+            CompressionState::disabled(),
+            &store,
+            ServerboundAttackPacket { entity_id: 51 },
+            &play_state,
+        )
+        .unwrap();
+        assert_eq!(kill, MobAttackResult::Killed { entity_id: 51 });
+        assert_eq!(
+            framed_packet_ids(&kill_output),
+            vec![CLIENTBOUND_ENTITY_EVENT_PACKET_ID, CLIENTBOUND_REMOVE_ENTITIES_PACKET_ID]
+        );
+    }
+
     #[test]
     fn live_mob_attack_applies_range_and_removes_dead_target() {
         let mut store = LiveMobStore::default();
@@ -727,17 +800,18 @@ mod tests {
             ..PlaySessionState::default()
         };
 
-        let first = store.tick_ai(1, &mut play_state);
+        let first = store.tick_ai(1, &mut play_state, 0);
         assert_eq!(first.moved_mobs, 1);
+        assert_eq!(first.registered_mobs, 0);
         assert_eq!(first.player_damage, 0.0);
         let after_first = store.mobs.get(&43).unwrap().x;
         assert!(after_first < 4.0);
 
-        let second = store.tick_ai(2, &mut play_state);
+        let second = store.tick_ai(2, &mut play_state, 0);
         assert_eq!(second.moved_mobs, 0);
         assert_eq!(store.mobs.get(&43).unwrap().x, after_first);
 
-        let third = store.tick_ai(3, &mut play_state);
+        let third = store.tick_ai(3, &mut play_state, 0);
         assert_eq!(third.moved_mobs, 1);
         assert!(store.mobs.get(&43).unwrap().x < after_first);
 
@@ -759,7 +833,7 @@ mod tests {
             ..PlaySessionState::default()
         };
 
-        let first = store.tick_ai(1, &mut play_state);
+        let first = store.tick_ai(1, &mut play_state, 0);
         assert_eq!(first.player_damage, crate::mob_interaction::ZOMBIE_ATTACK_DAMAGE);
         assert_eq!(play_state.health, 17.0);
         assert_eq!(
@@ -767,7 +841,7 @@ mod tests {
             MOB_MELEE_ATTACK_INTERVAL_TICKS
         );
 
-        let second = store.tick_ai(2, &mut play_state);
+        let second = store.tick_ai(2, &mut play_state, 0);
         assert_eq!(second.player_damage, 0.0);
         assert_eq!(play_state.health, 17.0);
     }
