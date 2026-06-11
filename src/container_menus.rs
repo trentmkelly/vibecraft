@@ -85,36 +85,10 @@ pub(super) fn is_potion_or_bottle(item_id: &str) -> bool {
     )
 }
 
-/// Heuristic for `PotionBrewing.isIngredient`. The exhaustive recipe set is
-/// data-driven in vanilla; we accept the well-known base ingredients used by
-/// vanilla brewing recipes.
+/// `PotionBrewing.isIngredient`: container-conversion ingredients or potion
+/// ingredients from Java's `PotionBrewing.addVanillaMixes`.
 pub(super) fn is_brewing_ingredient(item_id: &str) -> bool {
-    matches!(
-        item_id,
-        "minecraft:nether_wart"
-            | "minecraft:redstone"
-            | "minecraft:glowstone_dust"
-            | "minecraft:gunpowder"
-            | "minecraft:dragon_breath"
-            | "minecraft:fermented_spider_eye"
-            | "minecraft:sugar"
-            | "minecraft:rabbit_foot"
-            | "minecraft:glistering_melon_slice"
-            | "minecraft:spider_eye"
-            | "minecraft:magma_cream"
-            | "minecraft:blaze_powder"
-            | "minecraft:ghast_tear"
-            | "minecraft:turtle_helmet"
-            | "minecraft:phantom_membrane"
-            | "minecraft:golden_carrot"
-            | "minecraft:pufferfish"
-            | "minecraft:slime_block"
-            | "minecraft:wind_charge"
-            | "minecraft:breeze_rod"
-            | "minecraft:stone"
-            | "minecraft:cobweb"
-            | "minecraft:resin_clump"
-    )
+    crate::item_alchemy::is_brewing_ingredient(item_id)
 }
 
 /// `LoomMenu.isDyeItem` — items tagged `loom_dyes` carrying a `DYE` component.

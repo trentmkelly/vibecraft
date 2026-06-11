@@ -330,7 +330,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. Each pack
 - [ ] `net/minecraft/world/inventory` (61 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/world/inventory/tooltip` (3 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/world/item` (101 Java files): add class-level Rust port tasks and parity tests.
-- [ ] `net/minecraft/world/item/alchemy` (5 Java files): add class-level Rust port tasks and parity tests.
+- [x] `net/minecraft/world/item/alchemy` (5 Java files): add class-level Rust port tasks and parity tests. — all package rows are covered in `CHECKLIST_JAVA_CLASSES.md`: `Potion`, `Potions`, `PotionContents`, and `PotionBrewing` are modeled in `item_alchemy` with source-backed registry/effect/color/brewing graph tests, and package-info is audited as the nullability marker. Verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 item_alchemy -- --nocapture`.
 - [ ] `net/minecraft/world/item/component` (45 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/world/item/consume_effects` (7 Java files): add class-level Rust port tasks and parity tests.
 - [x] `net/minecraft/world/item/context` (4 Java files): add class-level Rust port tasks and parity tests. — all package rows are covered in `CHECKLIST_JAVA_CLASSES.md`: `UseOnContext`, `BlockPlaceContext`, and `DirectionalPlaceContext` are modeled in `block_placement::PlaceContext` with Java relocation, direction ordering, dispenser directional placement, and source-backed tests; package-info is audited as the nullability marker. Verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 block_placement`.

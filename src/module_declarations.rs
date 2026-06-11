@@ -509,6 +509,7 @@ mod identifier_exception;
 mod inhabited_time;
 mod inventory;
 mod inventory_transactions;
+mod item_alchemy;
 mod item_catalog;
 mod item_consumable_components;
 mod item_consume_effects;
