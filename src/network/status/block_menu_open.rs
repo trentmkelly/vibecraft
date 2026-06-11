@@ -12,6 +12,7 @@ pub(in crate::network::status) struct BlockMenuOpen {
 pub(in crate::network::status) enum LiveBlockMenuKind {
     Generic9x3 { block_entity_id: &'static str },
     Furnace { block_entity_id: &'static str },
+    Crafting,
     Ephemeral {
         slot_count: usize,
         result_slot: Option<usize>,
@@ -121,10 +122,7 @@ fn block_menu_open_for_block_id(block_id: &str) -> Option<BlockMenuOpen> {
         "minecraft:crafting_table" => (
             12,
             "container.crafting",
-            LiveBlockMenuKind::Ephemeral {
-                slot_count: 10,
-                result_slot: Some(0),
-            },
+            LiveBlockMenuKind::Crafting,
         ),
         "minecraft:enchanting_table" => (
             13,

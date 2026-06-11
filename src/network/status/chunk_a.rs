@@ -3287,6 +3287,14 @@ fn handle_place_recipe_packet<R: Read>(
         && apply_place_recipe_packet(play_state, packet, recipe_manager.recipe_map())
     {
         write_inventory_menu_full_sync(stream, compression, play_state)?;
+    } else if packet.container_id != 0 {
+        let Some(mut active_menu) = play_state.active_block_menu.take() else {
+            return Ok(());
+        };
+        if active_menu.handle_place_recipe(&packet, play_state, recipe_manager.recipe_map()) {
+            active_menu.write_full_content(stream, compression, play_state)?;
+        }
+        play_state.active_block_menu = Some(active_menu);
     }
     Ok(())
 }
@@ -3686,6 +3694,7 @@ impl<'a, 'b> DecodedPlayPacketContext<'a, 'b> {
             world_layout: self.world_layout,
             world_seed: self.world_seed,
             chunk_cache: self.chunk_cache,
+            recipe_manager: self.recipe_manager,
             live_fluid_ticks: self.live_fluid_ticks,
             live_block_ticks: self.live_block_ticks,
             game_time: self.play_tick_count as i64,

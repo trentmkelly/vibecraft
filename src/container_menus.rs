@@ -777,6 +777,8 @@ mod menus_storage;
 mod menus_table;
 mod menus_workstation;
 
+pub(crate) use menus_crafting_and_furnace::CraftingMenu;
+
 #[cfg(test)]
 use menus_brewing::*;
 #[cfg(test)]

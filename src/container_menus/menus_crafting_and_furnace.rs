@@ -1,4 +1,7 @@
 use super::*;
+use crate::player_inventory::{
+    biggest_placeable_craft_count, crafting_recipe_placement, find_player_slot_matching,
+};
 
 // ============================================================================
 // CraftingMenu (3x3 crafting table)
@@ -106,6 +109,57 @@ impl CraftingMenu {
 
     pub fn recipe_book_type(&self) -> RecipeBookType {
         RecipeBookType::Crafting
+    }
+
+    pub fn place_recipe_from_inventory(
+        &mut self,
+        recipe_id: &str,
+        use_max_items: bool,
+        player: &mut PlayerInventory,
+    ) -> bool {
+        let Some(holder) = self.recipes.by_key(recipe_id) else {
+            return false;
+        };
+        let Some(placement) = crafting_recipe_placement(&holder.recipe, 3, 3) else {
+            return false;
+        };
+
+        let mut next_menu = self.clone();
+        let mut next_player = player.clone();
+        for slot in &mut next_menu.grid {
+            next_player.place_item_back_in_inventory(std::mem::replace(slot, ItemStack::empty()));
+        }
+        next_menu.slots_changed();
+
+        let amount = if use_max_items {
+            biggest_placeable_craft_count(&next_player, &placement).min(64)
+        } else {
+            1
+        };
+        if amount <= 0 {
+            return false;
+        }
+
+        let mut placed = vec![ItemStack::empty(); placement.len()];
+        for (grid_index, ingredient) in placement.iter().enumerate() {
+            let Some(ingredient) = ingredient else {
+                continue;
+            };
+            let Some((player_slot, item_id)) =
+                find_player_slot_matching(&next_player, ingredient, amount)
+            else {
+                return false;
+            };
+            next_player.remove(player_slot, amount);
+            placed[grid_index] = ItemStack::new(item_id, amount);
+        }
+        for (grid_index, stack) in placed.into_iter().enumerate() {
+            next_menu.grid[grid_index] = stack;
+        }
+        next_menu.slots_changed();
+        *self = next_menu;
+        *player = next_player;
+        true
     }
 
     pub fn slots_changed(&mut self) {

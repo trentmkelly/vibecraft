@@ -989,7 +989,7 @@ impl InventoryMenu {
     }
 }
 
-fn crafting_recipe_placement(
+pub(crate) fn crafting_recipe_placement(
     recipe: &RecipeKind,
     grid_width: usize,
     grid_height: usize,
@@ -1037,7 +1037,7 @@ fn centered_recipe_offset(grid_size: usize, recipe_size: usize) -> usize {
     }
 }
 
-fn biggest_placeable_craft_count(
+pub(crate) fn biggest_placeable_craft_count(
     inventory: &PlayerInventory,
     placement: &[Option<IngredientSpec>],
 ) -> i32 {
@@ -1076,7 +1076,7 @@ fn can_satisfy_placement(
     true
 }
 
-fn find_player_slot_matching(
+pub(crate) fn find_player_slot_matching(
     inventory: &PlayerInventory,
     ingredient: &IngredientSpec,
     amount: i32,

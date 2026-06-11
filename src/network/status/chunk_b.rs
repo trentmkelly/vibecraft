@@ -503,6 +503,7 @@ pub struct UseItemOnContext<'a, 'b> {
     pub world_layout: &'a WorldLayout,
     pub world_seed: i64,
     pub chunk_cache: &'a GeneratedChunkCache,
+    pub recipe_manager: &'a RecipeManagerModel,
     pub live_fluid_ticks: &'b mut LiveFluidTicks,
     pub live_block_ticks: &'b mut LiveBlockTicks,
     pub game_time: i64,
@@ -775,6 +776,7 @@ pub fn handle_use_item_on(
                 context.world_layout,
                 context.world_seed,
                 context.chunk_cache,
+                context.recipe_manager.recipe_map(),
             );
             write_open_block_menu(stream, compression, container_id, menu, packet.sequence)?;
             active_menu.write_full_content(stream, compression, state)?;
