@@ -433,6 +433,43 @@ impl ItemInstanceModel for ItemStackTemplate {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct UseRemainder {
+    convert_into: ItemStackTemplate,
+}
+
+impl UseRemainder {
+    pub fn new(convert_into: ItemStackTemplate) -> Self {
+        Self { convert_into }
+    }
+
+    pub fn convert_into(&self) -> &ItemStackTemplate {
+        &self.convert_into
+    }
+
+    pub fn convert_into_remainder(
+        &self,
+        used_stack: ItemStack,
+        stack_count_before_using: i32,
+        has_infinite_materials: bool,
+    ) -> (ItemStack, Option<ItemStack>) {
+        if has_infinite_materials {
+            return (used_stack, None);
+        }
+
+        if used_stack.count() >= stack_count_before_using {
+            return (used_stack, None);
+        }
+
+        let remainder_stack = self.convert_into.create();
+        if used_stack.is_empty() {
+            return (remainder_stack, None);
+        }
+
+        (used_stack, Some(remainder_stack))
+    }
+}
+
 impl ItemInstanceModel for ItemStack {
     fn count(&self) -> i32 {
         self.count()
@@ -659,6 +696,9 @@ mod tests {
         include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/ItemStackLinkedSet.java");
     const ITEM_STACK_TEMPLATE_JAVA: &str =
         include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/ItemStackTemplate.java");
+    const USE_REMAINDER_JAVA: &str = include_str!(
+        "../../decompiled-server-26.1.2/net/minecraft/world/item/component/UseRemainder.java"
+    );
 
     #[test]
     fn empty_stack_rules_match_vanilla_air_or_non_positive_count() {
@@ -869,6 +909,49 @@ mod tests {
             .components()
             .contains(&ComponentPatch::Set(ItemComponent::ItemName("diamond.name"))));
         assert_eq!(copied.copy_with_count(5).unwrap().count(), 5);
+    }
+
+    #[test]
+    fn use_remainder_conversion_branches_match_java() {
+        for sentinel in [
+            "public record UseRemainder(ItemStackTemplate convertInto)",
+            "ItemStackTemplate.CODEC.xmap(UseRemainder::new, UseRemainder::convertInto)",
+            "if (hasInfiniteMaterials)",
+            "if (usedStack.getCount() >= stackCountBeforeUsing)",
+            "ItemStack remainderStack = this.convertInto.create();",
+            "if (usedStack.isEmpty())",
+            "onExtraCreatedRemainder.apply(remainderStack);",
+        ] {
+            assert!(
+                USE_REMAINDER_JAVA.contains(sentinel),
+                "missing UseRemainder sentinel {sentinel}"
+            );
+        }
+
+        let remainder = UseRemainder::new(ItemStackTemplate::new("minecraft:glass_bottle").unwrap());
+        assert_eq!(remainder.convert_into().item_id(), "minecraft:glass_bottle");
+
+        let (stack, extra) =
+            remainder.convert_into_remainder(ItemStack::new("minecraft:potion", 1), 1, true);
+        assert_eq!(stack.item_id(), "minecraft:potion");
+        assert_eq!(stack.count(), 1);
+        assert!(extra.is_none());
+
+        let (stack, extra) =
+            remainder.convert_into_remainder(ItemStack::new("minecraft:potion", 1), 1, false);
+        assert_eq!(stack.item_id(), "minecraft:potion");
+        assert!(extra.is_none());
+
+        let (stack, extra) = remainder.convert_into_remainder(ItemStack::empty(), 1, false);
+        assert_eq!(stack.item_id(), "minecraft:glass_bottle");
+        assert_eq!(stack.count(), 1);
+        assert!(extra.is_none());
+
+        let (stack, extra) =
+            remainder.convert_into_remainder(ItemStack::new("minecraft:potion", 1), 2, false);
+        assert_eq!(stack.item_id(), "minecraft:potion");
+        assert_eq!(stack.count(), 1);
+        assert_eq!(extra.unwrap().item_id(), "minecraft:glass_bottle");
     }
 
     #[test]
