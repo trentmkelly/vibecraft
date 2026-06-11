@@ -18,7 +18,8 @@ use resources::{
 };
 use server_properties::ServerProperties;
 use storage::datafix::{run_world_upgrade, WorldUpgradeOptions};
-use storage::world::{LevelVersion, WorldLayout};
+use storage::nbt::Tag;
+use storage::world::{LevelVersion, PrimaryLevelData, WorldLayout};
 use world::WorldOptions;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -82,6 +83,7 @@ fn run(options: CliOptions) -> Result<(), String> {
     log_runtime_selection(&logger, &options, &runtime, &watchdog)?;
     run_configured_world_upgrade(&logger, &options, &runtime)?;
     check_world_version_compatibility(&logger, &runtime)?;
+    migrate_legacy_announce_player_achievements(&startup.properties, &runtime)?;
 
     // Acquire exclusive session lock to prevent concurrent world access.
     // Matches Java LevelStorageSource.LevelStorageAccess constructor.
@@ -287,6 +289,49 @@ fn check_world_version_compatibility(
     Ok(())
 }
 
+fn migrate_legacy_announce_player_achievements(
+    properties: &ServerProperties,
+    runtime: &RuntimeSelection,
+) -> Result<(), String> {
+    let Some(enabled) = properties.announce_player_achievements else {
+        return Ok(());
+    };
+
+    let layout = WorldLayout::new(runtime.universe.join(&runtime.world_name));
+    if !layout.level_dat().is_file() && !layout.level_dat_old().is_file() {
+        return Ok(());
+    }
+
+    let tag = layout
+        .load_level_dat_with_backup()
+        .map_err(|err| format!("Failed to read level.dat for legacy gamerule migration: {err}"))?;
+    let mut level = PrimaryLevelData::from_level_dat(&tag)
+        .ok_or_else(|| "level.dat exists but has no parseable level data".to_string())?;
+    upsert_game_rule_string(
+        &mut level.game_rules,
+        "show_advancement_messages",
+        enabled.to_string(),
+    );
+    layout
+        .save_level_dat(&level.to_level_dat())
+        .map_err(|err| format!("Failed to write level.dat for legacy gamerule migration: {err}"))
+}
+
+fn upsert_game_rule_string(game_rules: &mut Tag, name: &str, value: String) {
+    let Tag::Compound(entries) = game_rules else {
+        *game_rules = Tag::Compound(vec![(name.to_string(), Tag::String(value))]);
+        return;
+    };
+    if let Some((_, existing)) = entries
+        .iter_mut()
+        .find(|(entry_name, _)| entry_name == name)
+    {
+        *existing = Tag::String(value);
+    } else {
+        entries.push((name.to_string(), Tag::String(value)));
+    }
+}
+
 fn configure_initial_data_packs(
     logger: &Logger,
     options: &CliOptions,
@@ -471,12 +516,17 @@ fn validate_code_of_conduct_configuration(properties: &ServerProperties) -> Resu
 #[cfg(test)]
 mod tests {
     use super::{
-        listener_bind_ip, run, runtime_selection, validate_code_of_conduct_configuration,
-        validate_management_server_configuration, CliOptions, LogLevel, Logger,
-        ManagementStartupPlan,
+        listener_bind_ip, migrate_legacy_announce_player_achievements, run, runtime_selection,
+        validate_code_of_conduct_configuration, validate_management_server_configuration,
+        CliOptions, LogLevel, Logger, ManagementStartupPlan, RuntimeSelection,
     };
     use crate::management_server::AllowedOrigins;
     use crate::server_properties::ServerProperties;
+    use crate::storage::nbt::Tag;
+    use crate::storage::world::{
+        DataPackSelection, LevelDifficulty, LevelGameType, LevelSpawnData, LevelVersionInfo,
+        PrimaryLevelData, WorldLayout,
+    };
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::sync::Mutex;
@@ -507,6 +557,46 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).expect("create temp workdir");
         dir
+    }
+
+    fn minimal_level_data(game_rules: Tag) -> PrimaryLevelData {
+        PrimaryLevelData {
+            data_version: crate::storage::datafix::TARGET_DATA_VERSION,
+            level_data_version: 19133,
+            version: LevelVersionInfo {
+                id: crate::storage::datafix::TARGET_DATA_VERSION,
+                name: "26.1.2".to_string(),
+                series: "main".to_string(),
+                snapshot: false,
+            },
+            level_name: "world".to_string(),
+            spawn: LevelSpawnData {
+                x: 0,
+                y: 64,
+                z: 0,
+                angle: 0.0,
+            },
+            game_type: LevelGameType::Survival,
+            difficulty: LevelDifficulty::Easy,
+            day_time: 0,
+            time: 0,
+            generator_name: "default".to_string(),
+            generator_settings: Tag::Compound(vec![]),
+            allow_commands: false,
+            hardcore: false,
+            initialized: true,
+            was_modded: false,
+            data_packs: DataPackSelection {
+                enabled: vec!["vanilla".to_string()],
+                disabled: Vec::new(),
+            },
+            scheduled_events: Tag::List(vec![]),
+            server_brands: Vec::new(),
+            custom_boss_events: Tag::Compound(vec![]),
+            dragon_fight: Tag::Compound(vec![]),
+            scoreboard: Tag::Compound(vec![]),
+            game_rules,
+        }
     }
 
     #[test]
@@ -661,6 +751,76 @@ management-server-allowed-origins=https://admin.example\n",
         let invalid = ServerProperties::load_or_default(Path::new("server.properties")).unwrap();
         let err = validate_management_server_configuration(&logger, &invalid).unwrap_err();
         assert!(err.contains("DisabledInvalidSecret"));
+    }
+
+    #[test]
+    fn legacy_announce_player_achievements_updates_persisted_gamerule_like_java() {
+        let _lock = CWD_LOCK.lock().unwrap();
+        let dir = temp_workdir("legacy-announce");
+        let world = dir.join("world");
+        let layout = WorldLayout::new(&world);
+        let data = minimal_level_data(Tag::Compound(vec![(
+            "show_advancement_messages".to_string(),
+            Tag::String("true".to_string()),
+        )]));
+        layout
+            .save_level_dat(&data.to_level_dat())
+            .expect("save level.dat");
+        let properties_path = dir.join("server.properties");
+        fs::write(&properties_path, "announce-player-achievements=false\n")
+            .expect("write properties");
+        let properties = ServerProperties::load_or_default(&properties_path).unwrap();
+        let runtime = RuntimeSelection {
+            world_name: "world".to_string(),
+            universe: dir.clone(),
+            port: 25565,
+            server_id: None,
+        };
+
+        migrate_legacy_announce_player_achievements(&properties, &runtime).unwrap();
+
+        let migrated = PrimaryLevelData::from_level_dat(&layout.load_level_dat().unwrap()).unwrap();
+        let Tag::Compound(rules) = migrated.game_rules else {
+            panic!("expected GameRules compound");
+        };
+        assert_eq!(
+            rules
+                .iter()
+                .find(|(name, _)| name == "show_advancement_messages")
+                .map(|(_, value)| value),
+            Some(&Tag::String("false".to_string()))
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn absent_legacy_announce_player_achievements_leaves_level_dat_unchanged() {
+        let _lock = CWD_LOCK.lock().unwrap();
+        let dir = temp_workdir("legacy-announce-absent");
+        let world = dir.join("world");
+        let layout = WorldLayout::new(&world);
+        let data = minimal_level_data(Tag::Compound(vec![(
+            "show_advancement_messages".to_string(),
+            Tag::String("true".to_string()),
+        )]));
+        layout
+            .save_level_dat(&data.to_level_dat())
+            .expect("save level.dat");
+        let before = layout.load_level_dat().unwrap();
+        let properties_path = dir.join("server.properties");
+        fs::write(&properties_path, "").expect("write properties");
+        let properties = ServerProperties::load_or_default(&properties_path).unwrap();
+        let runtime = RuntimeSelection {
+            world_name: "world".to_string(),
+            universe: dir.clone(),
+            port: 25565,
+            server_id: None,
+        };
+
+        migrate_legacy_announce_player_achievements(&properties, &runtime).unwrap();
+
+        assert_eq!(layout.load_level_dat().unwrap(), before);
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
