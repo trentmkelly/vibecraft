@@ -522,10 +522,21 @@ impl ItemCooldowns {
     }
 
     pub fn tick(&mut self) {
+        self.tick_and_collect_ended();
+    }
+
+    fn tick_and_collect_ended(&mut self) -> Vec<&'static str> {
         self.tick_count += 1;
         let tick_count = self.tick_count;
-        self.cooldowns
-            .retain(|_, cooldown| cooldown.end_time > tick_count);
+        let ended: Vec<_> = self
+            .cooldowns
+            .iter()
+            .filter_map(|(group, cooldown)| (cooldown.end_time <= tick_count).then_some(*group))
+            .collect();
+        for group in &ended {
+            self.cooldowns.remove(group);
+        }
+        ended
     }
 
     pub fn get_cooldown_group(&self, item: &ItemStack) -> &'static str {
@@ -557,6 +568,71 @@ impl ItemCooldowns {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CooldownPacketIntent {
+    pub cooldown_group: &'static str,
+    pub duration: i32,
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ServerItemCooldowns {
+    base: ItemCooldowns,
+    sent_packets: Vec<CooldownPacketIntent>,
+}
+
+impl ServerItemCooldowns {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn tick(&mut self) {
+        for group in self.base.tick_and_collect_ended() {
+            self.on_cooldown_ended(group);
+        }
+    }
+
+    pub fn add_cooldown(&mut self, item: &ItemStack, time: i32) {
+        let group = self.base.get_cooldown_group(item);
+        self.add_cooldown_group(group, time);
+    }
+
+    pub fn add_cooldown_group(&mut self, cooldown_group: &'static str, time: i32) {
+        self.base.add_cooldown_group(cooldown_group, time);
+        self.on_cooldown_started(cooldown_group, time);
+    }
+
+    pub fn remove_cooldown(&mut self, cooldown_group: &'static str) {
+        self.base.remove_cooldown(cooldown_group);
+        self.on_cooldown_ended(cooldown_group);
+    }
+
+    pub fn is_on_cooldown(&self, item: &ItemStack) -> bool {
+        self.base.is_on_cooldown(item)
+    }
+
+    pub fn get_cooldown_percent(&self, item: &ItemStack, partial_tick: f32) -> f32 {
+        self.base.get_cooldown_percent(item, partial_tick)
+    }
+
+    pub fn sent_packets(&self) -> &[CooldownPacketIntent] {
+        &self.sent_packets
+    }
+
+    fn on_cooldown_started(&mut self, cooldown_group: &'static str, duration: i32) {
+        self.sent_packets.push(CooldownPacketIntent {
+            cooldown_group,
+            duration,
+        });
+    }
+
+    fn on_cooldown_ended(&mut self, cooldown_group: &'static str) {
+        self.sent_packets.push(CooldownPacketIntent {
+            cooldown_group,
+            duration: 0,
+        });
+    }
+}
+
 pub fn air_item_name_from_type_holder(
     components: &BTreeMap<&'static str, ItemComponent>,
 ) -> &'static str {
@@ -577,6 +653,8 @@ mod tests {
         include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/ItemCooldowns.java");
     const ITEM_INSTANCE_JAVA: &str =
         include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/ItemInstance.java");
+    const SERVER_ITEM_COOLDOWNS_JAVA: &str =
+        include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/ServerItemCooldowns.java");
     const ITEM_STACK_LINKED_SET_JAVA: &str =
         include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/ItemStackLinkedSet.java");
     const ITEM_STACK_TEMPLATE_JAVA: &str =
@@ -856,6 +934,63 @@ mod tests {
         )));
         assert!(cooldowns.is_on_cooldown(&same_group));
         assert_eq!(UseCooldown::new(1.25).ticks(), 25);
+    }
+
+    #[test]
+    fn server_item_cooldowns_emit_cooldown_packets_like_java() {
+        for sentinel in [
+            "public class ServerItemCooldowns extends ItemCooldowns",
+            "protected void onCooldownStarted(final Identifier cooldownGroup, final int duration)",
+            "this.player.connection.send(new ClientboundCooldownPacket(cooldownGroup, duration));",
+            "protected void onCooldownEnded(final Identifier cooldownGroup)",
+            "this.player.connection.send(new ClientboundCooldownPacket(cooldownGroup, 0));",
+        ] {
+            assert!(
+                SERVER_ITEM_COOLDOWNS_JAVA.contains(sentinel),
+                "missing ServerItemCooldowns sentinel {sentinel}"
+            );
+        }
+
+        let pearl = ItemStack::new("minecraft:ender_pearl", 1);
+        let mut cooldowns = ServerItemCooldowns::new();
+        cooldowns.add_cooldown(&pearl, 2);
+        assert_eq!(
+            cooldowns.sent_packets(),
+            &[CooldownPacketIntent {
+                cooldown_group: "minecraft:ender_pearl",
+                duration: 2
+            }]
+        );
+        assert!(cooldowns.is_on_cooldown(&pearl));
+        assert_eq!(cooldowns.get_cooldown_percent(&pearl, 1.0), 0.5);
+
+        cooldowns.tick();
+        assert_eq!(cooldowns.sent_packets().len(), 1);
+        cooldowns.tick();
+        assert_eq!(
+            cooldowns.sent_packets(),
+            &[
+                CooldownPacketIntent {
+                    cooldown_group: "minecraft:ender_pearl",
+                    duration: 2
+                },
+                CooldownPacketIntent {
+                    cooldown_group: "minecraft:ender_pearl",
+                    duration: 0
+                }
+            ]
+        );
+        assert!(!cooldowns.is_on_cooldown(&pearl));
+
+        cooldowns.add_cooldown_group("minecraft:shield", 5);
+        cooldowns.remove_cooldown("minecraft:shield");
+        assert_eq!(
+            cooldowns.sent_packets().last(),
+            Some(&CooldownPacketIntent {
+                cooldown_group: "minecraft:shield",
+                duration: 0
+            })
+        );
     }
 
     #[test]
