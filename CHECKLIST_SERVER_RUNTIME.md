@@ -39,7 +39,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [x] Detect incompatible world versions before loading. — `check_world_version_compatibility` runs during startup before network listeners, checks `LevelVersion.minecraft_version.series != "main"` matching Java `DataVersion.isCompatible(other)` series check at `Main.java` line 144, plus numeric DataVersion validation via `require_current_world_data_version`; covered by `incompatible_world_series_refuses_startup`.
 - [x] Provide safe-mode datapack loading. — `configure_pack_repository()` mirrors Java `Main`'s safe-mode pack config by selecting only `vanilla`, and `safe_mode_selects_only_vanilla_and_does_not_disable_world_packs` covers the behavior without persisting world-pack disables.
 - [ ] Support world data upgrade and region recreation workflow.
-- [ ] Implement server watchdog behavior controlled by `max-tick-time`.
+- [x] Implement server watchdog behavior controlled by `max-tick-time`. — verified against Java 26.1.2 `DedicatedServerProperties.maxTickTime`, `DedicatedServer.getMaxTickLength`, and `ServerWatchdog`: VibeCraft parses the millisecond property, disables the watchdog when zero, and the live status tick thread now uses `runtime::Watchdog` to write a watchdog crash report and exit with status 1 when a tick exceeds the configured limit. Covered by `watchdog_crashes_when_tick_exceeds_max_tick_time`, `watchdog_uses_server_property_milliseconds`, and `watchdog_crash_report_contains_java_watchdog_context`.
 
 ## Migrated From Main Checklist: Dedicated Server Configuration
 
@@ -79,7 +79,7 @@ Bootstrap, process lifecycle, configuration, runtime scheduling, and operator-fa
 - [ ] Implement mutable `spawn-protection`.
 - [ ] Implement mutable `op-permission-level`.
 - [x] Implement `function-permission-level`. — `ServerProperties` parses Java's signed permission id default, the play command state uses it when queuing `/function` calls, and tests cover Java-style permission id clamping plus queued functions retaining the configured execution permission.
-- [ ] Implement `max-tick-time`.
+- [x] Implement `max-tick-time`. — the parsed `server.properties` value is logged at startup, converted to the live status runtime watchdog duration, and enforced with the Java-style crash-report/forced-exit path described above.
 - [x] Implement `max-chained-neighbor-updates`. — verified against Java 26.1.2 `DedicatedServerProperties.maxChainedNeighborUpdates`, `DedicatedServer.getMaxChainedNeighborUpdates`, `Level` construction, and `CollectingNeighborUpdater.addAndRun`: VibeCraft parses the property, threads it into live placement, breaking, scheduled block ticks, and falling-block landing shape cascades, clamps the Rust `u32` to Java's signed `int` range, and applies the cap to queued neighbour updates before execution. Covered by existing `block_update` queue-limit tests plus `live_shape_cascade_honors_zero_chained_neighbor_update_limit` and `live_shape_cascade_counts_queued_neighbor_updates_like_java`.
 - [x] Implement `rate-limit`. — `ServerProperties` parses Java's default, `PacketRateLimiter` mirrors `RateKickingConnection`'s smoothed per-second received-packet average and `disconnect.exceeded_packet_rate` key, the status TCP path carries one limiter across handshake, status, login, configuration, and play, and focused tests cover disabled limits, Java-style smoothing, reset behavior, and configuration-phase rate disconnect propagation.
 - [ ] Implement mutable `view-distance`.

@@ -8,6 +8,7 @@ use crate::block_update::BlockPos;
 use crate::report_type::REPORT_TYPE_TEST;
 use crate::system_report::SystemReportModel;
 use std::fs;
+use std::time::Duration;
 
 #[test]
 fn rendered_crash_report_contains_required_sections() {
@@ -49,6 +50,23 @@ fn writes_vanilla_named_server_crash_report_file() {
         .contains("Description: boom"));
 
     let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn watchdog_crash_report_contains_java_watchdog_context() {
+    let world_root = std::env::temp_dir().join("vibecraft-watchdog-report-world");
+    let report = CrashReport::from_watchdog_tick(
+        42,
+        Duration::from_millis(61_500),
+        Duration::from_millis(60_000),
+        &world_root,
+    );
+
+    let rendered = report.render();
+    assert!(rendered.contains("Description: Watching Server"));
+    assert!(rendered.contains("Thread: Server Watchdog"));
+    assert!(rendered.contains("Performance stats: tick=42, elapsed=61500ms, maxTickTime=60000ms"));
+    assert!(rendered.contains(&format!("World Root: {}", world_root.display())));
 }
 
 #[test]

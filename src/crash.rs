@@ -6,7 +6,7 @@ use std::fs;
 use std::panic;
 use std::path::{Path, PathBuf};
 use std::thread;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::block_update::BlockPos;
 use crate::report_type::ReportTypeModel;
@@ -177,6 +177,44 @@ impl CrashReport {
                 (
                     "World State".to_string(),
                     "runtime world loading not implemented".to_string(),
+                ),
+            ],
+            backtrace: Backtrace::force_capture().to_string(),
+        }
+    }
+
+    pub fn from_watchdog_tick(
+        tick_count: u64,
+        tick_elapsed: Duration,
+        max_tick_time: Duration,
+        world_root: &Path,
+    ) -> Self {
+        Self {
+            title: "Watching Server".to_string(),
+            details: vec![
+                (
+                    "VibeCraft Version".to_string(),
+                    env!("CARGO_PKG_VERSION").to_string(),
+                ),
+                (
+                    "Minecraft Target".to_string(),
+                    "Java Edition 26.1.2".to_string(),
+                ),
+                ("Process ID".to_string(), std::process::id().to_string()),
+                ("Thread".to_string(), "Server Watchdog".to_string()),
+                (
+                    "Performance stats".to_string(),
+                    format!(
+                        "tick={tick_count}, elapsed={}ms, maxTickTime={}ms",
+                        tick_elapsed.as_millis(),
+                        max_tick_time.as_millis()
+                    ),
+                ),
+                ("World Root".to_string(), world_root.display().to_string()),
+                ("OS".to_string(), std::env::consts::OS.to_string()),
+                (
+                    "Architecture".to_string(),
+                    std::env::consts::ARCH.to_string(),
                 ),
             ],
             backtrace: Backtrace::force_capture().to_string(),

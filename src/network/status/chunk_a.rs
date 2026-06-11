@@ -1,4 +1,5 @@
 use super::*;
+use crate::runtime::{Watchdog, WatchdogDecision};
 
 const RESOURCE_USAGE_LOG_INTERVAL_TICKS: u64 = 100;
 
@@ -423,6 +424,7 @@ impl StatusServerRuntime {
         let world_items_t = Arc::clone(&self.world_items);
         let max_tick_time = self.max_tick_time;
         thread::spawn(move || {
+            let watchdog = Watchdog::new(max_tick_time);
             let mut scheduled = ScheduledTimeChanges::default();
             let mut next_tick = Instant::now() + SERVER_TICK_DURATION;
             let mut tick_count: u64 = 0;
@@ -454,18 +456,14 @@ impl StatusServerRuntime {
                     save_world_item_entities(&world_root_t, &lock_status_mutex(&world_items_t));
                 }
 
-                // Watchdog: warn if tick exceeded max-tick-time.
-                // Java ServerWatchdog crashes the server; we log a warning
-                // (crash behavior requires a dedicated watchdog thread).
-                if !max_tick_time.is_zero() {
-                    let tick_elapsed = tick_start.elapsed();
-                    if tick_elapsed > max_tick_time {
-                        log_info(&format!(
-                            "Server tick #{tick_count} took {}ms (max-tick-time={}ms)",
-                            tick_elapsed.as_millis(),
-                            max_tick_time.as_millis()
-                        ));
-                    }
+                if let WatchdogDecision::Crash { .. } = watchdog.check_tick(tick_start.elapsed())
+                {
+                    handle_status_watchdog_crash(
+                        tick_count,
+                        tick_start.elapsed(),
+                        max_tick_time,
+                        &world_root_t,
+                    );
                 }
             }
         });
@@ -476,6 +474,32 @@ impl StatusServerRuntime {
         save_server_weather_state(&self.world_root, &lock_status_mutex(&self.weather));
         save_world_item_entities(&self.world_root, &lock_status_mutex(&self.world_items));
     }
+}
+
+fn handle_status_watchdog_crash(
+    tick_count: u64,
+    tick_elapsed: Duration,
+    max_tick_time: Duration,
+    world_root: &Path,
+) -> ! {
+    eprintln!(
+        "A single server tick took {:.2} seconds (should be max {:.2})",
+        tick_elapsed.as_secs_f64(),
+        max_tick_time.as_secs_f64()
+    );
+    eprintln!("Considering it to be crashed, server will forcibly shutdown.");
+    let report = crate::crash::CrashReport::from_watchdog_tick(
+        tick_count,
+        tick_elapsed,
+        max_tick_time,
+        world_root,
+    );
+    eprintln!("Crash report:\n{}", report.render());
+    match report.write_to_dir(Path::new("crash-reports")) {
+        Ok(path) => eprintln!("This crash report has been saved to: {}", path.display()),
+        Err(err) => eprintln!("We were unable to save this crash report to disk: {err}"),
+    }
+    std::process::exit(1);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
