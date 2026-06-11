@@ -486,6 +486,77 @@ impl ItemStackLinkedSet {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CooldownInstance {
+    start_time: i32,
+    end_time: i32,
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ItemCooldowns {
+    cooldowns: BTreeMap<&'static str, CooldownInstance>,
+    tick_count: i32,
+}
+
+impl ItemCooldowns {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn tick_count(&self) -> i32 {
+        self.tick_count
+    }
+
+    pub fn is_on_cooldown(&self, item: &ItemStack) -> bool {
+        self.get_cooldown_percent(item, 0.0) > 0.0
+    }
+
+    pub fn get_cooldown_percent(&self, item: &ItemStack, partial_tick: f32) -> f32 {
+        let group = self.get_cooldown_group(item);
+        let Some(cooldown) = self.cooldowns.get(group) else {
+            return 0.0;
+        };
+        let duration = (cooldown.end_time - cooldown.start_time) as f32;
+        let remaining = cooldown.end_time as f32 - (self.tick_count as f32 + partial_tick);
+        (remaining / duration).clamp(0.0, 1.0)
+    }
+
+    pub fn tick(&mut self) {
+        self.tick_count += 1;
+        let tick_count = self.tick_count;
+        self.cooldowns
+            .retain(|_, cooldown| cooldown.end_time > tick_count);
+    }
+
+    pub fn get_cooldown_group(&self, item: &ItemStack) -> &'static str {
+        match item.component("minecraft:use_cooldown") {
+            Some(ItemComponent::UseCooldown(cooldown)) => {
+                cooldown.cooldown_group.unwrap_or_else(|| item.item_id())
+            }
+            _ => item.item_id(),
+        }
+    }
+
+    pub fn add_cooldown(&mut self, item: &ItemStack, time: i32) {
+        let group = self.get_cooldown_group(item);
+        self.add_cooldown_group(group, time);
+    }
+
+    pub fn add_cooldown_group(&mut self, cooldown_group: &'static str, time: i32) {
+        self.cooldowns.insert(
+            cooldown_group,
+            CooldownInstance {
+                start_time: self.tick_count,
+                end_time: self.tick_count + time,
+            },
+        );
+    }
+
+    pub fn remove_cooldown(&mut self, cooldown_group: &str) {
+        self.cooldowns.remove(cooldown_group);
+    }
+}
+
 pub fn air_item_name_from_type_holder(
     components: &BTreeMap<&'static str, ItemComponent>,
 ) -> &'static str {
@@ -498,10 +569,12 @@ pub fn air_item_name_from_type_holder(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::item_properties::{ItemUseAnimation, Rarity};
+    use crate::item_properties::{ItemUseAnimation, Rarity, UseCooldown};
 
     const AIR_ITEM_JAVA: &str =
         include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/AirItem.java");
+    const ITEM_COOLDOWNS_JAVA: &str =
+        include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/ItemCooldowns.java");
     const ITEM_INSTANCE_JAVA: &str =
         include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/ItemInstance.java");
     const ITEM_STACK_LINKED_SET_JAVA: &str =
@@ -718,6 +791,71 @@ mod tests {
             .components()
             .contains(&ComponentPatch::Set(ItemComponent::ItemName("diamond.name"))));
         assert_eq!(copied.copy_with_count(5).unwrap().count(), 5);
+    }
+
+    #[test]
+    fn item_cooldowns_group_percent_tick_and_removal_match_java() {
+        for sentinel in [
+            "private final Map<Identifier, ItemCooldowns.CooldownInstance> cooldowns = Maps.newHashMap();",
+            "return this.getCooldownPercent(item, 0.0F) > 0.0F;",
+            "float duration = cooldown.endTime - cooldown.startTime;",
+            "float remaining = cooldown.endTime - (this.tickCount + a);",
+            "return Mth.clamp(remaining / duration, 0.0F, 1.0F);",
+            "if (entry.getValue().endTime <= this.tickCount)",
+            "useCooldown.cooldownGroup().orElse(defaultItemGroup)",
+            "new ItemCooldowns.CooldownInstance(this.tickCount, this.tickCount + time)",
+            "this.cooldowns.remove(cooldownGroup);",
+        ] {
+            assert!(
+                ITEM_COOLDOWNS_JAVA.contains(sentinel),
+                "missing ItemCooldowns sentinel {sentinel}"
+            );
+        }
+
+        let pearl = ItemStack::new("minecraft:ender_pearl", 1);
+        let mut cooldowns = ItemCooldowns::new();
+        assert_eq!(
+            cooldowns.get_cooldown_group(&pearl),
+            "minecraft:ender_pearl"
+        );
+        assert!(!cooldowns.is_on_cooldown(&pearl));
+
+        cooldowns.add_cooldown(&pearl, 20);
+        assert_eq!(cooldowns.tick_count(), 0);
+        assert!(cooldowns.is_on_cooldown(&pearl));
+        assert_eq!(cooldowns.get_cooldown_percent(&pearl, 0.0), 1.0);
+        assert_eq!(cooldowns.get_cooldown_percent(&pearl, 10.0), 0.5);
+
+        for _ in 0..19 {
+            cooldowns.tick();
+        }
+        assert_eq!(cooldowns.tick_count(), 19);
+        assert!(cooldowns.is_on_cooldown(&pearl));
+        assert_eq!(cooldowns.get_cooldown_percent(&pearl, 0.0), 0.05);
+        cooldowns.tick();
+        assert_eq!(cooldowns.tick_count(), 20);
+        assert!(!cooldowns.is_on_cooldown(&pearl));
+        assert_eq!(cooldowns.get_cooldown_percent(&pearl, 0.0), 0.0);
+
+        cooldowns.add_cooldown_group("minecraft:shield", 5);
+        assert_eq!(cooldowns.get_cooldown_percent(&pearl, 0.0), 0.0);
+        cooldowns.remove_cooldown("minecraft:shield");
+
+        let mut grouped = ItemStack::new("minecraft:ender_pearl", 1);
+        grouped.set_component(ItemComponent::UseCooldown(UseCooldown::with_group(
+            1.0,
+            "minecraft:throwables",
+        )));
+        assert_eq!(cooldowns.get_cooldown_group(&grouped), "minecraft:throwables");
+        cooldowns.add_cooldown(&grouped, 10);
+
+        let mut same_group = ItemStack::new("minecraft:snowball", 1);
+        same_group.set_component(ItemComponent::UseCooldown(UseCooldown::with_group(
+            0.5,
+            "minecraft:throwables",
+        )));
+        assert!(cooldowns.is_on_cooldown(&same_group));
+        assert_eq!(UseCooldown::new(1.25).ticks(), 25);
     }
 
     #[test]

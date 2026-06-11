@@ -220,6 +220,32 @@ impl TooltipFlag {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct UseCooldown {
+    pub seconds: f32,
+    pub cooldown_group: Option<&'static str>,
+}
+
+impl UseCooldown {
+    pub fn new(seconds: f32) -> Self {
+        Self {
+            seconds,
+            cooldown_group: None,
+        }
+    }
+
+    pub fn with_group(seconds: f32, cooldown_group: &'static str) -> Self {
+        Self {
+            seconds,
+            cooldown_group: Some(cooldown_group),
+        }
+    }
+
+    pub fn ticks(self) -> i32 {
+        (self.seconds * 20.0) as i32
+    }
+}
+
 /// `net.minecraft.world.item.component.MapPostProcessing` — marks a cartography-table
 /// result map for post-processing when the player takes it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -362,7 +388,7 @@ pub enum ItemComponent {
     Rarity(Rarity),
     Repairable(&'static str),
     UseAnimation(ItemUseAnimation),
-    UseCooldown(f32),
+    UseCooldown(UseCooldown),
     Food {
         nutrition: i32,
         saturation: f32,
@@ -449,6 +475,7 @@ pub struct EffectiveItemProperties {
     pub repairable: Option<&'static str>,
     pub use_animation: ItemUseAnimation,
     pub cooldown_seconds: Option<f32>,
+    pub cooldown_group: Option<&'static str>,
     pub food: Option<(i32, f32, bool)>,
     pub equipment_slot: Option<EquipmentSlot>,
     pub equippable_swappable: bool,
@@ -500,7 +527,15 @@ impl ItemDefinition {
     }
 
     pub fn use_cooldown(mut self, seconds: f32) -> Self {
-        self.set(ItemComponent::UseCooldown(seconds));
+        self.set(ItemComponent::UseCooldown(UseCooldown::new(seconds)));
+        self
+    }
+
+    pub fn use_cooldown_group(mut self, seconds: f32, cooldown_group: &'static str) -> Self {
+        self.set(ItemComponent::UseCooldown(UseCooldown::with_group(
+            seconds,
+            cooldown_group,
+        )));
         self
     }
 
@@ -567,6 +602,7 @@ impl ItemDefinition {
             repairable: None,
             use_animation: ItemUseAnimation::None,
             cooldown_seconds: None,
+            cooldown_group: None,
             food: None,
             equipment_slot: None,
             equippable_swappable: true,
@@ -585,7 +621,10 @@ impl ItemDefinition {
                 ItemComponent::Rarity(rarity) => effective.rarity = *rarity,
                 ItemComponent::Repairable(ingredient) => effective.repairable = Some(*ingredient),
                 ItemComponent::UseAnimation(animation) => effective.use_animation = *animation,
-                ItemComponent::UseCooldown(seconds) => effective.cooldown_seconds = Some(*seconds),
+                ItemComponent::UseCooldown(cooldown) => {
+                    effective.cooldown_seconds = Some(cooldown.seconds);
+                    effective.cooldown_group = cooldown.cooldown_group;
+                }
                 ItemComponent::Food {
                     nutrition,
                     saturation,
@@ -808,6 +847,9 @@ mod tests {
         include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/SwingAnimationType.java");
     const TOOLTIP_FLAG_JAVA: &str =
         include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/TooltipFlag.java");
+    const USE_COOLDOWN_JAVA: &str = include_str!(
+        "../../decompiled-server-26.1.2/net/minecraft/world/item/component/UseCooldown.java"
+    );
 
     #[test]
     fn item_display_context_matches_java_ids_names_and_hand_helpers() {
@@ -978,6 +1020,37 @@ mod tests {
             TooltipFlag::new(true, true),
             TooltipFlag::ADVANCED.as_creative()
         );
+    }
+
+    #[test]
+    fn use_cooldown_seconds_group_and_ticks_match_java() {
+        for sentinel in [
+            "public record UseCooldown(float seconds, Optional<Identifier> cooldownGroup)",
+            "ExtraCodecs.POSITIVE_FLOAT.fieldOf(\"seconds\").forGetter(UseCooldown::seconds)",
+            "Identifier.CODEC.optionalFieldOf(\"cooldown_group\").forGetter(UseCooldown::cooldownGroup)",
+            "public UseCooldown(final float seconds)",
+            "return (int)(this.seconds * 20.0F);",
+            "player.getCooldowns().addCooldown(stack, this.ticks());",
+        ] {
+            assert!(
+                USE_COOLDOWN_JAVA.contains(sentinel),
+                "missing UseCooldown sentinel {sentinel}"
+            );
+        }
+
+        let default = UseCooldown::new(1.25);
+        assert_eq!(default.seconds, 1.25);
+        assert_eq!(default.cooldown_group, None);
+        assert_eq!(default.ticks(), 25);
+
+        let grouped = UseCooldown::with_group(0.5, "minecraft:throwables");
+        assert_eq!(grouped.seconds, 0.5);
+        assert_eq!(grouped.cooldown_group, Some("minecraft:throwables"));
+        assert_eq!(grouped.ticks(), 10);
+
+        let pearl = item_definition("minecraft:ender_pearl").unwrap().effective();
+        assert_eq!(pearl.cooldown_seconds, Some(1.0));
+        assert_eq!(pearl.cooldown_group, None);
     }
 
     #[test]
