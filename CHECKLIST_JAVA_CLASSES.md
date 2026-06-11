@@ -3910,7 +3910,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/DispensibleContainerItem.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/DoubleHighBlockItem.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/DyeColor.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/DyeItem.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/DyeItem.java`. — `interactLivingEntity` and `tryApplyToSign` audited against Java 26.1.2 and modeled in `src/item_dye.rs`: vanilla `DataComponents.DYE` item mapping includes the 16 dye items plus legacy component carriers (`bone_meal`, `lapis_lazuli`, `cocoa_beans`, `ink_sac`), sheep interaction succeeds only for alive unsheared sheep with a different color and consumes one item, and sign application recolors only the targeted face through `SignBlockEntityModel::update_text`, playing `DYE_USE` only on change. Live entity/sign item dispatch is explicitly deferred behind `TODO(live-dye-sheep-interaction)` and `TODO(live-sign-applicator-use)`. Covered by `item_dye::tests::*`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/EggItem.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/EmptyMapItem.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/EndCrystalItem.java`.

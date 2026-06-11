@@ -12,9 +12,11 @@
 //     offhand blocking-item intent gate remains deferred behind
 //     TODO(live-sneak-tracking) until secondary-use tracking exists.
 //   - BoneMealItem (apply growth), DebugStickItem (cycle block state).
-//     HoneycombItem copper waxing is wired live; HoneycombItem/GlowInkSacItem/
-//     InkSacItem sign-applicator models are implemented, but live sign block
-//     dispatch remains deferred behind TODO(live-sign-applicator-use).
+//     HoneycombItem copper waxing is wired live. DyeItem sheep/sign models and
+//     HoneycombItem/GlowInkSacItem/InkSacItem sign-applicator models are
+//     implemented, but live sign block dispatch and live sheep interaction
+//     remain deferred behind TODO(live-sign-applicator-use) and
+//     TODO(live-dye-sheep-interaction).
 //   - Entity-placement items: EndCrystalItem, ArmorStandItem, ItemFrameItem,
 //     HangingEntityItem / HangingSignItem placement.
 // Implement each here (or in a sibling use-dispatch module) once BLOCKS/ENTITIES

@@ -390,8 +390,7 @@ mod rabbits;
 use rabbits::*;
 
 mod sheep;
-#[cfg(test)]
-use sheep::*;
+pub use sheep::*;
 
 mod squids;
 #[cfg(test)]
