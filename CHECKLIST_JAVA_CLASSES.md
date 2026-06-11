@@ -4018,7 +4018,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/component/InstrumentComponent.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/component/ItemAttributeModifiers.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/component/ItemContainerContents.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/component/ItemLore.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/component/ItemLore.java`. — Java 26.1.2 stores raw lore `lines`, derives `styledLines` by `ComponentUtils.mergeStyles(component, DARK_PURPLE + italic)`, rejects more than 256 lines, appends with `withLineAdded`, and emits styled lines from `addToTooltip`. Rust `item_lore_component::ItemLoreComponent` mirrors the raw/styled line split, Java style-merge precedence, 256-line limit, append helper, tooltip emission, and `minecraft:lore` item component default/key. Covered by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 item_lore`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/component/KineticWeapon.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/component/LodestoneTracker.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/component/MapDecorations.java`.

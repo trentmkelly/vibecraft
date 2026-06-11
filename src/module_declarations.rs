@@ -520,6 +520,7 @@ mod item_entity;
 mod item_family_behavior;
 mod item_flint_and_steel;
 mod item_honeycomb;
+mod item_lore_component;
 mod item_map_components;
 mod item_misc_components;
 mod item_ominous_bottle_component;

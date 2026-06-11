@@ -2,6 +2,7 @@
 
 use crate::item_consumable_components::UseEffectsComponent;
 use crate::item_custom_model_data_component::CustomModelData;
+use crate::item_lore_component::ItemLoreComponent;
 use crate::item_swing_animation_component::SwingAnimationComponent;
 use crate::item_tooltip_components::TooltipDisplayComponent;
 use std::collections::BTreeMap;
@@ -415,6 +416,7 @@ pub enum ItemComponent {
     Enchantable(u32),
     Tooltip(TooltipBehavior),
     TooltipDisplay(TooltipDisplayComponent),
+    ItemLore(ItemLoreComponent),
     CustomModelData(CustomModelData),
     UseRemainder(&'static str),
     ItemModel(&'static str),
@@ -508,6 +510,7 @@ impl ItemDefinition {
                 ItemComponent::Rarity(Rarity::Common),
                 ItemComponent::UseAnimation(ItemUseAnimation::None),
                 ItemComponent::TooltipDisplay(TooltipDisplayComponent::default_component()),
+                ItemComponent::ItemLore(ItemLoreComponent::empty()),
                 ItemComponent::ItemName(registry_id),
                 ItemComponent::ItemModel(registry_id),
             ],
@@ -657,6 +660,7 @@ impl ItemDefinition {
                 | ItemComponent::SwingAnimation(_)
                 | ItemComponent::UseEffects(_)
                 | ItemComponent::TooltipDisplay(_)
+                | ItemComponent::ItemLore(_)
                 | ItemComponent::CustomModelData(_)
                 | ItemComponent::UseRemainder(_)
                 | ItemComponent::ItemModel(_)
@@ -707,6 +711,7 @@ impl ItemComponent {
             Self::Enchantable(_) => "minecraft:enchantable",
             Self::Tooltip(_) => "minecraft:enchantment_glint_override",
             Self::TooltipDisplay(_) => "minecraft:tooltip_display",
+            Self::ItemLore(_) => "minecraft:lore",
             Self::CustomModelData(_) => "minecraft:custom_model_data",
             Self::UseRemainder(_) => "minecraft:use_remainder",
             Self::ItemModel(_) => "minecraft:item_model",
@@ -1151,6 +1156,7 @@ mod tests {
             .effective();
         assert_eq!(book.max_stack_size, 16);
         assert_eq!(book.tooltip, TooltipBehavior::GlintOverride(true));
+        assert!(book.components.contains_key("minecraft:lore"));
     }
 
     #[test]
@@ -1168,6 +1174,10 @@ mod tests {
             }
             .key(),
             "minecraft:equippable"
+        );
+        assert_eq!(
+            ItemComponent::ItemLore(crate::item_lore_component::ItemLoreComponent::empty()).key(),
+            "minecraft:lore"
         );
     }
 }
