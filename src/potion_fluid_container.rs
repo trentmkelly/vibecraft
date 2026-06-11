@@ -34,6 +34,47 @@ pub enum ItemUseOutcome {
     },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DispensibleContainerExtraContent {
+    pub effects: Vec<&'static str>,
+}
+
+impl DispensibleContainerExtraContent {
+    pub fn none() -> Self {
+        Self {
+            effects: Vec::new(),
+        }
+    }
+}
+
+pub trait DispensibleContainerItemModel {
+    fn check_extra_content(&self) -> DispensibleContainerExtraContent {
+        DispensibleContainerExtraContent::none()
+    }
+
+    fn empty_contents(&self, hit: HitKind, infinite_materials: bool) -> bool;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BucketDispensibleContainer {
+    pub content: FluidKind,
+}
+
+impl DispensibleContainerItemModel for BucketDispensibleContainer {
+    fn empty_contents(&self, hit: HitKind, infinite_materials: bool) -> bool {
+        if self.content == FluidKind::Empty {
+            return false;
+        }
+        matches!(
+            bucket_use(self.content, hit, infinite_materials),
+            ItemUseOutcome::Success {
+                game_event: "fluid_place",
+                ..
+            }
+        )
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BlockKind {
     Air,
@@ -318,6 +359,11 @@ pub fn arrow_defaults(item: &'static str) -> Option<ArrowDefaults> {
 mod tests {
     use super::*;
 
+    const DISPENSIBLE_CONTAINER_ITEM_JAVA: &str =
+        include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/DispensibleContainerItem.java");
+    const DISPENSE_ITEM_BEHAVIOR_JAVA: &str =
+        include_str!("../../decompiled-server-26.1.2/net/minecraft/core/dispenser/DispenseItemBehavior.java");
+
     fn block_hit(block: BlockKind) -> HitKind {
         HitKind::Block {
             block,
@@ -327,6 +373,30 @@ mod tests {
             water_evaporates: false,
             user_shift_down: false,
         }
+    }
+
+    #[test]
+    fn dispensible_container_interface_default_and_bucket_adapter_match_java() {
+        assert!(DISPENSIBLE_CONTAINER_ITEM_JAVA.contains("default void checkExtraContent"));
+        assert!(DISPENSIBLE_CONTAINER_ITEM_JAVA.contains("boolean emptyContents"));
+        assert!(DISPENSE_ITEM_BEHAVIOR_JAVA.contains("if (bucket.emptyContents(null, level, target, null))"));
+        assert!(DISPENSE_ITEM_BEHAVIOR_JAVA
+            .contains("bucket.checkExtraContent(null, level, dispensed, target);"));
+
+        let water = BucketDispensibleContainer {
+            content: FluidKind::Water,
+        };
+        assert_eq!(
+            water.check_extra_content(),
+            DispensibleContainerExtraContent::none()
+        );
+        assert!(water.empty_contents(block_hit(BlockKind::Air), false));
+        assert!(!water.empty_contents(block_hit(BlockKind::Solid), false));
+
+        let empty = BucketDispensibleContainer {
+            content: FluidKind::Empty,
+        };
+        assert!(!empty.empty_contents(block_hit(BlockKind::WaterSource), false));
     }
 
     #[test]
