@@ -354,6 +354,12 @@ pub struct ClientboundSelectAdvancementsTabPacket {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundServerDataPacket {
+    pub motd: ComponentJson,
+    pub icon_bytes: Option<Vec<u8>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientboundPlayerInfoUpdatePacket {
     pub actions: Vec<PlayerInfoUpdateAction>,
     pub entries: Vec<PlayerInfoUpdateEntry>,

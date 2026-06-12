@@ -157,6 +157,42 @@ impl ClientboundSelectAdvancementsTabPacket {
     }
 }
 
+impl ClientboundServerDataPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let packet = Self {
+            motd: read_trusted_component(reader)?,
+            icon_bytes: read_optional(reader, read_byte_array)?,
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_trusted_component(writer, &self.motd)?;
+        write_optional(writer, self.icon_bytes.as_ref(), |writer, bytes| {
+            write_byte_array(writer, bytes)
+        })
+    }
+}
+
+fn read_byte_array<R: Read>(reader: &mut R) -> io::Result<Vec<u8>> {
+    let length = read_var_i32(reader)?;
+    if length < 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "negative byte array length",
+        ));
+    }
+    let mut bytes = vec![0; length as usize];
+    reader.read_exact(&mut bytes)?;
+    Ok(bytes)
+}
+
+fn write_byte_array<W: Write>(writer: &mut W, bytes: &[u8]) -> io::Result<()> {
+    write_var_i32(writer, bytes.len() as i32)?;
+    writer.write_all(bytes)
+}
+
 impl ClientboundPlayerInfoUpdatePacket {
     pub fn player_initializing(entries: Vec<PlayerInfoUpdateEntry>) -> Self {
         Self {
