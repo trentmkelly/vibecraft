@@ -539,9 +539,37 @@ fn assert_zoglin_attributes_and_constants() {
     assert_eq!(ZOGLIN_LOOK_INTERVAL_MAX_TICKS, 60);
     assert_eq!(ZOGLIN_DO_NOTHING_MIN_TICKS, 30);
     assert_eq!(ZOGLIN_DO_NOTHING_MAX_TICKS, 60);
+    assert_eq!(
+        zoglin_class_surface(),
+        ZoglinClassSurface {
+            baby_data_default: false,
+            sensors: &["nearest_living_entities", "nearest_players"],
+            core_activity_priority: 0,
+            idle_activity_priority: 10,
+            fight_activity_priority: 10,
+            look_at_target_yaw: 45,
+            look_at_target_pitch: 90,
+            can_be_leashed: true,
+            hurt_sound: "minecraft:entity.zoglin.hurt",
+            death_sound: "minecraft:entity.zoglin.death",
+            step_sound: "minecraft:entity.zoglin.step",
+            step_sound_volume: 0.15,
+            step_sound_pitch: 1.0,
+        }
+    );
 }
 
 fn assert_zoglin_targeting_and_attack_rules() {
+    assert_zoglin_target_filtering_and_sounds();
+    assert_zoglin_attack_event_and_retarget_rules();
+    assert_zoglin_baby_save_and_activity_rules();
+    assert!(zoglin_is_immune_to_regular_zombification());
+    assert_eq!(ZOGLIN_HURT_RETARGET_DISTANCE_MARGIN, 4.0);
+    assert_eq!(ZOGLIN_STEP_SOUND_VOLUME, 0.15);
+    assert_eq!(ZOGLIN_STEP_SOUND_PITCH, 1.0);
+}
+
+fn assert_zoglin_target_filtering_and_sounds() {
     assert!(zoglin_valid_attack_target("minecraft:player", true));
     assert!(!zoglin_valid_attack_target("minecraft:zoglin", true));
     assert!(!zoglin_valid_attack_target("minecraft:creeper", true));
@@ -555,6 +583,9 @@ fn assert_zoglin_targeting_and_attack_rules() {
         Some("minecraft:entity.zoglin.angry")
     );
     assert_eq!(zoglin_ambient_sound(true, true), None);
+}
+
+fn assert_zoglin_attack_event_and_retarget_rules() {
     assert!(zoglin_on_hurt_should_retarget(true, true, true, false));
     assert!(!zoglin_on_hurt_should_retarget(true, true, true, true));
     assert_eq!(
@@ -562,15 +593,57 @@ fn assert_zoglin_targeting_and_attack_rules() {
         Some(ZOGLIN_ATTACK_ANIMATION_DURATION_TICKS)
     );
     assert_eq!(zoglin_event_attack_animation_ticks(3), None);
+    assert_eq!(
+        zoglin_do_hurt_target(true),
+        Some(ZoglinAttackOutcome {
+            attack_animation_ticks: 10,
+            broadcast_event: 4,
+            attack_sound: "minecraft:entity.zoglin.attack",
+            hurt_and_throw_target: true,
+            attack_target_memory_ticks: 200,
+        })
+    );
+    assert_eq!(zoglin_do_hurt_target(false), None);
     assert_eq!(zoglin_next_attack_animation_ticks(10), 9);
     assert_eq!(zoglin_next_attack_animation_ticks(0), 0);
     assert!(zoglin_blocked_by_item_throws_target(false));
     assert!(!zoglin_blocked_by_item_throws_target(true));
+}
+
+fn assert_zoglin_baby_save_and_activity_rules() {
     assert_eq!(zoglin_save_is_baby_key(), "IsBaby");
-    assert!(zoglin_is_immune_to_regular_zombification());
-    assert_eq!(ZOGLIN_HURT_RETARGET_DISTANCE_MARGIN, 4.0);
-    assert_eq!(ZOGLIN_STEP_SOUND_VOLUME, 0.15);
-    assert_eq!(ZOGLIN_STEP_SOUND_PITCH, 1.0);
+    assert!(zoglin_read_is_baby(Some(true)));
+    assert!(!zoglin_read_is_baby(None));
+    assert_eq!(
+        zoglin_set_baby(true, false),
+        ZoglinSetBabyOutcome {
+            baby: true,
+            refresh_dimensions: true,
+            attack_damage_base_value: Some(0.5),
+        }
+    );
+    assert_eq!(
+        zoglin_set_baby(true, true),
+        ZoglinSetBabyOutcome {
+            baby: true,
+            refresh_dimensions: true,
+            attack_damage_base_value: None,
+        }
+    );
+    assert_eq!(
+        zoglin_update_activity(false, true, true),
+        ZoglinActivityUpdate {
+            play_angry_sound: true,
+            aggressive: true,
+        }
+    );
+    assert_eq!(
+        zoglin_update_activity(true, true, false),
+        ZoglinActivityUpdate {
+            play_angry_sound: false,
+            aggressive: false,
+        }
+    );
 }
 
 fn assert_hoglin_attributes_and_spawn_rules() {

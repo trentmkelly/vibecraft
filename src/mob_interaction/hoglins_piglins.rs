@@ -41,6 +41,45 @@ pub const HOGLIN_DO_NOTHING_MAX_TICKS: i32 = 60;
 pub const HOGLIN_STEP_SOUND_VOLUME: f32 = 0.15;
 pub const HOGLIN_STEP_SOUND_PITCH: f32 = 1.0;
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ZoglinClassSurface {
+    pub baby_data_default: bool,
+    pub sensors: &'static [&'static str],
+    pub core_activity_priority: i32,
+    pub idle_activity_priority: i32,
+    pub fight_activity_priority: i32,
+    pub look_at_target_yaw: i32,
+    pub look_at_target_pitch: i32,
+    pub can_be_leashed: bool,
+    pub hurt_sound: &'static str,
+    pub death_sound: &'static str,
+    pub step_sound: &'static str,
+    pub step_sound_volume: f32,
+    pub step_sound_pitch: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ZoglinAttackOutcome {
+    pub attack_animation_ticks: i32,
+    pub broadcast_event: u8,
+    pub attack_sound: &'static str,
+    pub hurt_and_throw_target: bool,
+    pub attack_target_memory_ticks: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ZoglinSetBabyOutcome {
+    pub baby: bool,
+    pub refresh_dimensions: bool,
+    pub attack_damage_base_value: Option<f32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ZoglinActivityUpdate {
+    pub play_angry_sound: bool,
+    pub aggressive: bool,
+}
+
 pub fn zoglin_attributes() -> ZoglinAttributes {
     ZoglinAttributes {
         max_health: ZOGLIN_MAX_HEALTH,
@@ -49,6 +88,24 @@ pub fn zoglin_attributes() -> ZoglinAttributes {
         attack_knockback: ZOGLIN_ATTACK_KNOCKBACK,
         attack_damage: ZOGLIN_ATTACK_DAMAGE,
         xp_reward: ZOGLIN_XP_REWARD,
+    }
+}
+
+pub fn zoglin_class_surface() -> ZoglinClassSurface {
+    ZoglinClassSurface {
+        baby_data_default: ZOGLIN_DEFAULT_BABY,
+        sensors: &["nearest_living_entities", "nearest_players"],
+        core_activity_priority: ZOGLIN_CORE_ACTIVITY_PRIORITY,
+        idle_activity_priority: ZOGLIN_IDLE_ACTIVITY_PRIORITY,
+        fight_activity_priority: ZOGLIN_FIGHT_ACTIVITY_PRIORITY,
+        look_at_target_yaw: 45,
+        look_at_target_pitch: 90,
+        can_be_leashed: true,
+        hurt_sound: ZOGLIN_HURT_SOUND,
+        death_sound: ZOGLIN_DEATH_SOUND,
+        step_sound: ZOGLIN_STEP_SOUND,
+        step_sound_volume: ZOGLIN_STEP_SOUND_VOLUME,
+        step_sound_pitch: ZOGLIN_STEP_SOUND_PITCH,
     }
 }
 
@@ -104,6 +161,16 @@ pub fn zoglin_event_attack_animation_ticks(event_id: u8) -> Option<i32> {
     (event_id == ZOGLIN_ATTACK_EVENT_ID).then_some(ZOGLIN_ATTACK_ANIMATION_DURATION_TICKS)
 }
 
+pub fn zoglin_do_hurt_target(target_is_living: bool) -> Option<ZoglinAttackOutcome> {
+    target_is_living.then_some(ZoglinAttackOutcome {
+        attack_animation_ticks: ZOGLIN_ATTACK_ANIMATION_DURATION_TICKS,
+        broadcast_event: ZOGLIN_ATTACK_EVENT_ID,
+        attack_sound: ZOGLIN_ATTACK_SOUND,
+        hurt_and_throw_target: true,
+        attack_target_memory_ticks: ZOGLIN_ATTACK_TARGET_MEMORY_TICKS,
+    })
+}
+
 pub fn zoglin_next_attack_animation_ticks(current_ticks: i32) -> i32 {
     (current_ticks - 1).max(0)
 }
@@ -114,6 +181,33 @@ pub fn zoglin_blocked_by_item_throws_target(baby: bool) -> bool {
 
 pub fn zoglin_save_is_baby_key() -> &'static str {
     "IsBaby"
+}
+
+pub fn zoglin_read_is_baby(saved_value: Option<bool>) -> bool {
+    saved_value.unwrap_or(ZOGLIN_DEFAULT_BABY)
+}
+
+pub fn zoglin_set_baby(baby: bool, client_side: bool) -> ZoglinSetBabyOutcome {
+    ZoglinSetBabyOutcome {
+        baby,
+        refresh_dimensions: true,
+        attack_damage_base_value: if !client_side && baby {
+            Some(ZOGLIN_BABY_ATTACK_DAMAGE)
+        } else {
+            None
+        },
+    }
+}
+
+pub fn zoglin_update_activity(
+    old_activity_was_fight: bool,
+    new_activity_is_fight: bool,
+    has_attack_target: bool,
+) -> ZoglinActivityUpdate {
+    ZoglinActivityUpdate {
+        play_angry_sound: new_activity_is_fight && !old_activity_was_fight,
+        aggressive: has_attack_target,
+    }
 }
 
 pub fn zoglin_is_immune_to_regular_zombification() -> bool {
