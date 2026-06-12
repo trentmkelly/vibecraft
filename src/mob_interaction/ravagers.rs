@@ -11,6 +11,32 @@ pub fn ravager_entity_type_surface() -> RavagerEntityTypeSurface {
     }
 }
 
+pub fn ravager_class_surface() -> RavagerClassSurface {
+    RavagerClassSurface {
+        default_attack_tick: RAVAGER_DEFAULT_ATTACK_TICK,
+        default_stun_tick: RAVAGER_DEFAULT_STUN_TICK,
+        default_roar_tick: RAVAGER_DEFAULT_ROAR_TICK,
+        goal_priorities: RAVAGER_GOAL_PRIORITIES,
+        target_priorities: RAVAGER_TARGET_PRIORITIES,
+        ambient_sound: RAVAGER_AMBIENT_SOUND,
+        hurt_sound: RAVAGER_HURT_SOUND,
+        death_sound: RAVAGER_DEATH_SOUND,
+        celebrate_sound: RAVAGER_CELEBRATE_SOUND,
+        attack_sound: RAVAGER_ATTACK_SOUND,
+        stunned_sound: RAVAGER_STUNNED_SOUND,
+        roar_sound: RAVAGER_ROAR_SOUND,
+        step_sound: RAVAGER_STEP_SOUND,
+        step_sound_volume: RAVAGER_STEP_SOUND_VOLUME,
+        step_sound_pitch: RAVAGER_STEP_SOUND_PITCH,
+        stun_particle: RAVAGER_STUN_PARTICLE,
+        stun_particle_rgb: RAVAGER_STUN_PARTICLE_RGB,
+        roar_particle: RAVAGER_ROAR_PARTICLE,
+        roar_particle_count: RAVAGER_ROAR_PARTICLE_COUNT,
+        raid_buffs_applied: RAVAGER_RAID_BUFFS_APPLIED,
+        can_be_raid_leader: RAVAGER_CAN_BE_RAID_LEADER,
+    }
+}
+
 pub fn ravager_target_selector_matches(entity_type: &'static str, is_baby: bool) -> bool {
     matches!(entity_type, "minecraft:player" | "minecraft:iron_golem")
         || (entity_type == "minecraft:villager" && !is_baby)
@@ -160,5 +186,17 @@ pub fn ravager_can_spawn_without_obstruction(contains_liquid_in_bounding_box: bo
 }
 
 pub fn ravager_can_be_raid_leader() -> bool {
-    false
+    RAVAGER_CAN_BE_RAID_LEADER
+}
+
+pub fn ravager_apply_raid_buffs() -> bool {
+    RAVAGER_RAID_BUFFS_APPLIED
+}
+
+pub fn ravager_step_sound() -> (&'static str, f32, f32) {
+    (
+        RAVAGER_STEP_SOUND,
+        RAVAGER_STEP_SOUND_VOLUME,
+        RAVAGER_STEP_SOUND_PITCH,
+    )
 }

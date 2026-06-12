@@ -36,6 +36,43 @@ fn assert_ravager_attributes_targeting_and_controls() {
     assert_eq!(RAVAGER_RANDOM_STROLL_SPEED, 0.4);
     assert_eq!(RAVAGER_LOOK_AT_PLAYER_RANGE, 6.0);
     assert_eq!(RAVAGER_LOOK_AT_MOB_RANGE, 8.0);
+    assert_eq!(
+        ravager_class_surface(),
+        RavagerClassSurface {
+            default_attack_tick: 0,
+            default_stun_tick: 0,
+            default_roar_tick: 0,
+            goal_priorities: &[
+                (0, "FloatGoal"),
+                (4, "MeleeAttackGoal"),
+                (5, "WaterAvoidingRandomStrollGoal"),
+                (6, "LookAtPlayerGoal<Player>"),
+                (10, "LookAtPlayerGoal<Mob>"),
+            ],
+            target_priorities: &[
+                (2, "HurtByTargetGoal<Raider>"),
+                (3, "NearestAttackableTargetGoal<Player>"),
+                (4, "NearestAttackableTargetGoal<AbstractVillager>"),
+                (4, "NearestAttackableTargetGoal<IronGolem>"),
+            ],
+            ambient_sound: "minecraft:entity.ravager.ambient",
+            hurt_sound: "minecraft:entity.ravager.hurt",
+            death_sound: "minecraft:entity.ravager.death",
+            celebrate_sound: "minecraft:entity.ravager.celebrate",
+            attack_sound: "minecraft:entity.ravager.attack",
+            stunned_sound: "minecraft:entity.ravager.stunned",
+            roar_sound: "minecraft:entity.ravager.roar",
+            step_sound: "minecraft:entity.ravager.step",
+            step_sound_volume: 0.15,
+            step_sound_pitch: 1.0,
+            stun_particle: "minecraft:entity_effect",
+            stun_particle_rgb: (0.49803922, 0.5137255, 0.57254905),
+            roar_particle: "minecraft:poof",
+            roar_particle_count: 40,
+            raid_buffs_applied: false,
+            can_be_raid_leader: false,
+        }
+    );
 
     assert!(ravager_target_selector_matches("minecraft:player", false));
     assert!(ravager_target_selector_matches("minecraft:villager", false));
@@ -204,9 +241,14 @@ fn assert_ravager_blocking_roar_and_spawn_rules() {
         ravager_do_hurt_target_event(),
         (RAVAGER_ATTACK_DURATION, RAVAGER_ATTACK_EVENT_ID)
     );
+    assert_eq!(
+        ravager_step_sound(),
+        ("minecraft:entity.ravager.step", 0.15, 1.0)
+    );
     assert!(ravager_can_spawn_without_obstruction(false));
     assert!(!ravager_can_spawn_without_obstruction(true));
     assert!(!ravager_can_be_raid_leader());
+    assert!(!ravager_apply_raid_buffs());
 }
 
 #[test]

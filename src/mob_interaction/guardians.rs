@@ -278,6 +278,31 @@ pub struct RavagerEntityTypeSurface {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RavagerClassSurface {
+    pub default_attack_tick: i32,
+    pub default_stun_tick: i32,
+    pub default_roar_tick: i32,
+    pub goal_priorities: &'static [(i32, &'static str)],
+    pub target_priorities: &'static [(i32, &'static str)],
+    pub ambient_sound: &'static str,
+    pub hurt_sound: &'static str,
+    pub death_sound: &'static str,
+    pub celebrate_sound: &'static str,
+    pub attack_sound: &'static str,
+    pub stunned_sound: &'static str,
+    pub roar_sound: &'static str,
+    pub step_sound: &'static str,
+    pub step_sound_volume: f32,
+    pub step_sound_pitch: f32,
+    pub stun_particle: &'static str,
+    pub stun_particle_rgb: (f32, f32, f32),
+    pub roar_particle: &'static str,
+    pub roar_particle_count: i32,
+    pub raid_buffs_applied: bool,
+    pub can_be_raid_leader: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RavagerAiStep {
     pub movement_speed: f32,
     pub attack_tick: i32,
@@ -334,6 +359,38 @@ pub const RAVAGER_ATTACK_BB_DEFLATE_XZ: f64 = 0.05;
 pub const RAVAGER_RANDOM_STROLL_SPEED: f32 = 0.4;
 pub const RAVAGER_LOOK_AT_PLAYER_RANGE: f32 = 6.0;
 pub const RAVAGER_LOOK_AT_MOB_RANGE: f32 = 8.0;
+pub const RAVAGER_DEFAULT_ATTACK_TICK: i32 = 0;
+pub const RAVAGER_DEFAULT_STUN_TICK: i32 = 0;
+pub const RAVAGER_DEFAULT_ROAR_TICK: i32 = 0;
+pub const RAVAGER_AMBIENT_SOUND: &str = "minecraft:entity.ravager.ambient";
+pub const RAVAGER_HURT_SOUND: &str = "minecraft:entity.ravager.hurt";
+pub const RAVAGER_DEATH_SOUND: &str = "minecraft:entity.ravager.death";
+pub const RAVAGER_CELEBRATE_SOUND: &str = "minecraft:entity.ravager.celebrate";
+pub const RAVAGER_ATTACK_SOUND: &str = "minecraft:entity.ravager.attack";
+pub const RAVAGER_STUNNED_SOUND: &str = "minecraft:entity.ravager.stunned";
+pub const RAVAGER_ROAR_SOUND: &str = "minecraft:entity.ravager.roar";
+pub const RAVAGER_STEP_SOUND: &str = "minecraft:entity.ravager.step";
+pub const RAVAGER_STEP_SOUND_VOLUME: f32 = 0.15;
+pub const RAVAGER_STEP_SOUND_PITCH: f32 = 1.0;
+pub const RAVAGER_STUN_PARTICLE: &str = "minecraft:entity_effect";
+pub const RAVAGER_STUN_PARTICLE_RGB: (f32, f32, f32) = (0.49803922, 0.5137255, 0.57254905);
+pub const RAVAGER_ROAR_PARTICLE: &str = "minecraft:poof";
+pub const RAVAGER_ROAR_PARTICLE_COUNT: i32 = 40;
+pub const RAVAGER_RAID_BUFFS_APPLIED: bool = false;
+pub const RAVAGER_CAN_BE_RAID_LEADER: bool = false;
+pub const RAVAGER_GOAL_PRIORITIES: &[(i32, &str)] = &[
+    (0, "FloatGoal"),
+    (4, "MeleeAttackGoal"),
+    (5, "WaterAvoidingRandomStrollGoal"),
+    (6, "LookAtPlayerGoal<Player>"),
+    (10, "LookAtPlayerGoal<Mob>"),
+];
+pub const RAVAGER_TARGET_PRIORITIES: &[(i32, &str)] = &[
+    (2, "HurtByTargetGoal<Raider>"),
+    (3, "NearestAttackableTargetGoal<Player>"),
+    (4, "NearestAttackableTargetGoal<AbstractVillager>"),
+    (4, "NearestAttackableTargetGoal<IronGolem>"),
+];
 
 pub fn ravager_attributes() -> RavagerAttributes {
     RavagerAttributes {
