@@ -2,51 +2,6 @@ use super::super::*;
 use super::*;
 
 #[test]
-pub fn live_spawn_chunk_packet_uses_generated_level_chunk_serialization() {
-    let mut payload = Vec::new();
-    let world_root = std::env::temp_dir().join(format!(
-        "vibecraft-missing-world-root-{}",
-        std::process::id()
-    ));
-
-    super::super::write_generated_spawn_chunk_packet(&mut payload, 0, 0, &world_root, 0)
-        .expect("missing region files should fall back to generated terrain");
-
-    let mut input = &payload[..];
-    let mut chunk_x = [0_u8; 4];
-    let mut chunk_z = [0_u8; 4];
-    input.read_exact(&mut chunk_x).unwrap();
-    input.read_exact(&mut chunk_z).unwrap();
-    assert_eq!(i32::from_be_bytes(chunk_x), 0);
-    assert_eq!(i32::from_be_bytes(chunk_z), 0);
-    let heightmap_count = read_var_i32(&mut input).unwrap();
-    assert!(
-        heightmap_count >= 3,
-        "live chunk packets should serialize generated LevelChunk heightmaps, not the legacy zero-heightmap superflat packet"
-    );
-}
-
-#[test]
-pub fn live_spawn_chunk_is_framed_as_level_chunk_with_light_not_light_update() {
-    let chunk = LevelChunk::empty(ChunkPos { x: 0, z: 0 });
-    let mut framed = Vec::new();
-
-    super::super::write_generated_spawn_chunk_packets_from_chunk(
-        &mut framed,
-        CompressionState::disabled(),
-        &chunk,
-    )
-    .unwrap();
-
-    let mut input = &framed[..];
-    let frame_len = read_var_i32(&mut input).unwrap();
-    assert!(frame_len > 0);
-    let packet_id = read_var_i32(&mut input).unwrap();
-    assert_eq!(packet_id, CLIENTBOUND_PLAY_LEVEL_CHUNK_WITH_LIGHT_PACKET_ID);
-    assert_ne!(packet_id, crate::network::play::CLIENTBOUND_LIGHT_UPDATE_PACKET_ID);
-}
-
-#[test]
 pub fn live_login_writer_reuses_vanilla_common_spawn_codec() {
     let login = ClientboundLoginPacket {
         player_id: 42,

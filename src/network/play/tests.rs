@@ -1035,6 +1035,7 @@ mod system_chat_packet_test;
 mod tab_list_packet_test;
 mod tests_middle;
 mod tests_middle2;
+mod tests_middle3;
 mod update_advancements_packet_test;
 mod update_mob_effect_packet_test;
 pub use tests_middle2::*;
