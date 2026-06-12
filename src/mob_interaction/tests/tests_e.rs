@@ -3,6 +3,7 @@ use crate::mob_interaction::*;
 #[test]
 fn breeze_util_and_shoot_when_stuck_match_java_rules() {
     assert_breeze_util_random_point_and_los_rules();
+    assert_breeze_shoot_rules();
     assert_breeze_shoot_when_stuck_memory_rules();
     assert_breeze_slide_rules();
 }
@@ -92,6 +93,115 @@ fn assert_breeze_shoot_when_stuck_memory_rules() {
             can_still_use: false,
             shoot_memory_expiry_ticks: None,
         }
+    );
+}
+
+fn assert_breeze_shoot_rules() {
+    assert_breeze_shoot_constants_and_memory_requirements();
+    assert_breeze_shoot_start_stop_gates();
+    assert_breeze_shoot_tick_and_projectile();
+}
+
+fn assert_breeze_shoot_constants_and_memory_requirements() {
+    assert_eq!(
+        BREEZE_SHOOT_MEMORY_REQUIREMENTS,
+        [
+            ("attack_target", "value_present"),
+            ("breeze_shoot_cooldown", "value_absent"),
+            ("breeze_shoot_charging", "value_absent"),
+            ("breeze_shoot_recovering", "value_absent"),
+            ("breeze_shoot", "value_present"),
+            ("walk_target", "value_absent"),
+            ("breeze_jump_target", "value_absent"),
+        ]
+    );
+    assert_eq!(BREEZE_SHOOT_ATTACK_RANGE_MAX_SQR, 256.0);
+    assert_eq!(BREEZE_SHOOT_UNCERTAINTY_BASE, 5);
+    assert_eq!(BREEZE_SHOOT_UNCERTAINTY_MULTIPLIER, 4);
+    assert_eq!(BREEZE_SHOOT_PROJECTILE_MOVEMENT_SCALE, 0.7);
+    assert_eq!(BREEZE_SHOOT_INITIAL_DELAY_TICKS, 15);
+    assert_eq!(BREEZE_SHOOT_RECOVER_DELAY_TICKS, 4);
+    assert_eq!(BREEZE_SHOOT_COOLDOWN_TICKS, 10);
+    assert_eq!(BREEZE_SHOOT_BEHAVIOR_DURATION_TICKS, 20);
+    assert_eq!(
+        BREEZE_SHOOT_INHALE_SOUND,
+        ("minecraft:entity.breeze.inhale", 1.0, 1.0)
+    );
+    assert_eq!(
+        BREEZE_SHOOT_SOUND,
+        ("minecraft:entity.breeze.shoot", 1.5, 1.0)
+    );
+    assert_eq!(BREEZE_SHOOT_PROJECTILE_KIND, "minecraft:breeze_wind_charge");
+}
+
+fn assert_breeze_shoot_start_stop_gates() {
+    assert_eq!(
+        breeze_shoot_check_start("standing", true, 255.99),
+        BreezeShootStartCheck {
+            can_start: true,
+            erase_shoot_memory: false,
+        }
+    );
+    assert_eq!(
+        breeze_shoot_check_start("standing", true, 256.0),
+        BreezeShootStartCheck {
+            can_start: false,
+            erase_shoot_memory: true,
+        }
+    );
+    assert!(!breeze_shoot_check_start("shooting", true, 10.0).can_start);
+    assert!(!breeze_shoot_check_start("standing", false, 10.0).can_start);
+    assert!(breeze_shoot_can_still_use(true, true));
+    assert!(!breeze_shoot_can_still_use(false, true));
+    assert_eq!(
+        breeze_shoot_start(true),
+        BreezeShootStartStep {
+            pose: Some("shooting"),
+            charging_memory_expiry_ticks: 15,
+            sound: ("minecraft:entity.breeze.inhale", 1.0, 1.0),
+        }
+    );
+    assert_eq!(
+        breeze_shoot_stop("shooting"),
+        BreezeShootStopStep {
+            pose: Some("standing"),
+            cooldown_memory_expiry_ticks: 10,
+            erase_shoot_memory: true,
+        }
+    );
+    assert_eq!(breeze_shoot_stop("standing").pose, None);
+}
+
+fn assert_breeze_shoot_tick_and_projectile() {
+    let base_input = BreezeShootTickInput {
+        breeze_position: BreezeVec3::new(1.0, 64.0, 2.0),
+        breeze_firing_y: 65.2,
+        target_position: BreezeVec3::new(5.0, 64.0, -1.0),
+        target_height: 1.8,
+        target_passenger: false,
+        target_present: true,
+        charging_memory_present: false,
+        recovering_memory_present: false,
+        difficulty_id: 2,
+    };
+    let tick = breeze_shoot_tick(base_input);
+    assert!(tick.look_at_target_eyes);
+    assert_eq!(tick.recovering_memory_expiry_ticks, Some(4));
+    assert_eq!(tick.sound, Some(("minecraft:entity.breeze.shoot", 1.5, 1.0)));
+    let projectile = tick.projectile.expect("shoot tick should spawn projectile");
+    assert_eq!(projectile.kind, "minecraft:breeze_wind_charge");
+    assert_eq!(projectile.movement_scale, 0.7);
+    assert_eq!(projectile.uncertainty, -3);
+    assert_vec3_close(projectile.direction, BreezeVec3::new(4.0, -0.66, -3.0));
+    assert_eq!(
+        breeze_shoot_tick(BreezeShootTickInput {
+            charging_memory_present: true,
+            target_passenger: true,
+            difficulty_id: 1,
+            ..base_input
+        })
+        .projectile,
+        None
     );
 }
 

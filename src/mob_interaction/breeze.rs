@@ -13,6 +13,55 @@ pub struct BreezeShootWhenStuckStep {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BreezeShootStartCheck {
+    pub can_start: bool,
+    pub erase_shoot_memory: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BreezeShootStartStep {
+    pub pose: Option<&'static str>,
+    pub charging_memory_expiry_ticks: i64,
+    pub sound: (&'static str, f32, f32),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BreezeShootStopStep {
+    pub pose: Option<&'static str>,
+    pub cooldown_memory_expiry_ticks: i64,
+    pub erase_shoot_memory: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BreezeShootTickInput {
+    pub breeze_position: BreezeVec3,
+    pub breeze_firing_y: f64,
+    pub target_position: BreezeVec3,
+    pub target_height: f64,
+    pub target_passenger: bool,
+    pub target_present: bool,
+    pub charging_memory_present: bool,
+    pub recovering_memory_present: bool,
+    pub difficulty_id: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BreezeShootProjectile {
+    pub kind: &'static str,
+    pub direction: BreezeVec3,
+    pub movement_scale: f32,
+    pub uncertainty: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BreezeShootTickStep {
+    pub look_at_target_eyes: bool,
+    pub recovering_memory_expiry_ticks: Option<i64>,
+    pub projectile: Option<BreezeShootProjectile>,
+    pub sound: Option<(&'static str, f32, f32)>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BreezeSlideStartInput {
     pub breeze_position: BreezeVec3,
     pub enemy_position: BreezeVec3,
@@ -39,6 +88,19 @@ pub const BREEZE_UTIL_BEHIND_TARGET_BASE_DEGREES: f64 = 180.0;
 pub const BREEZE_UTIL_BEHIND_TARGET_SPREAD_DEGREES: f64 = 90.0;
 pub const BREEZE_UTIL_BEHIND_TARGET_MIN_DISTANCE: f64 = 4.0;
 pub const BREEZE_UTIL_BEHIND_TARGET_MAX_DISTANCE: f64 = 8.0;
+pub const BREEZE_SHOOT_ATTACK_RANGE_MAX_SQR: f64 = 256.0;
+pub const BREEZE_SHOOT_UNCERTAINTY_BASE: i32 = 5;
+pub const BREEZE_SHOOT_UNCERTAINTY_MULTIPLIER: i32 = 4;
+pub const BREEZE_SHOOT_PROJECTILE_MOVEMENT_SCALE: f32 = 0.7;
+pub const BREEZE_SHOOT_INITIAL_DELAY_TICKS: i64 = 15;
+pub const BREEZE_SHOOT_RECOVER_DELAY_TICKS: i64 = 4;
+pub const BREEZE_SHOOT_COOLDOWN_TICKS: i64 = 10;
+pub const BREEZE_SHOOT_BEHAVIOR_DURATION_TICKS: i64 =
+    BREEZE_SHOOT_INITIAL_DELAY_TICKS + 1 + BREEZE_SHOOT_RECOVER_DELAY_TICKS;
+pub const BREEZE_SHOOT_INHALE_SOUND: (&str, f32, f32) =
+    ("minecraft:entity.breeze.inhale", 1.0, 1.0);
+pub const BREEZE_SHOOT_SOUND: (&str, f32, f32) = ("minecraft:entity.breeze.shoot", 1.5, 1.0);
+pub const BREEZE_SHOOT_PROJECTILE_KIND: &str = "minecraft:breeze_wind_charge";
 pub const BREEZE_SHOOT_WHEN_STUCK_MEMORY_EXPIRY_TICKS: i64 = 60;
 pub const BREEZE_SLIDE_AWAY_HORIZONTAL_RANGE: i32 = 5;
 pub const BREEZE_SLIDE_AWAY_VERTICAL_RANGE: i32 = 5;
@@ -53,6 +115,16 @@ pub const BREEZE_SHOOT_WHEN_STUCK_MEMORY_REQUIREMENTS: [(&str, &str); 5] = [
     ("breeze_jump_target", "value_absent"),
     ("walk_target", "value_absent"),
     ("breeze_shoot", "value_absent"),
+];
+
+pub const BREEZE_SHOOT_MEMORY_REQUIREMENTS: [(&str, &str); 7] = [
+    ("attack_target", "value_present"),
+    ("breeze_shoot_cooldown", "value_absent"),
+    ("breeze_shoot_charging", "value_absent"),
+    ("breeze_shoot_recovering", "value_absent"),
+    ("breeze_shoot", "value_present"),
+    ("walk_target", "value_absent"),
+    ("breeze_jump_target", "value_absent"),
 ];
 
 pub const BREEZE_SLIDE_MEMORY_REQUIREMENTS: [(&str, &str); 4] = [
@@ -151,6 +223,82 @@ pub fn breeze_shoot_when_stuck_step(
         can_start,
         can_still_use: false,
         shoot_memory_expiry_ticks: can_start.then_some(BREEZE_SHOOT_WHEN_STUCK_MEMORY_EXPIRY_TICKS),
+    }
+}
+
+pub fn breeze_shoot_check_start(
+    pose: &str,
+    target_present: bool,
+    target_distance_sqr: f64,
+) -> BreezeShootStartCheck {
+    if pose != "standing" || !target_present {
+        return BreezeShootStartCheck {
+            can_start: false,
+            erase_shoot_memory: false,
+        };
+    }
+    let can_start = target_distance_sqr < BREEZE_SHOOT_ATTACK_RANGE_MAX_SQR;
+    BreezeShootStartCheck {
+        can_start,
+        erase_shoot_memory: !can_start,
+    }
+}
+
+pub fn breeze_shoot_can_still_use(attack_target_present: bool, shoot_memory_present: bool) -> bool {
+    attack_target_present && shoot_memory_present
+}
+
+pub fn breeze_shoot_start(target_present: bool) -> BreezeShootStartStep {
+    BreezeShootStartStep {
+        pose: target_present.then_some("shooting"),
+        charging_memory_expiry_ticks: BREEZE_SHOOT_INITIAL_DELAY_TICKS,
+        sound: BREEZE_SHOOT_INHALE_SOUND,
+    }
+}
+
+pub fn breeze_shoot_stop(current_pose: &str) -> BreezeShootStopStep {
+    BreezeShootStopStep {
+        pose: (current_pose == "shooting").then_some("standing"),
+        cooldown_memory_expiry_ticks: BREEZE_SHOOT_COOLDOWN_TICKS,
+        erase_shoot_memory: true,
+    }
+}
+
+pub fn breeze_shoot_tick(input: BreezeShootTickInput) -> BreezeShootTickStep {
+    if !input.target_present {
+        return BreezeShootTickStep {
+            look_at_target_eyes: false,
+            recovering_memory_expiry_ticks: None,
+            projectile: None,
+            sound: None,
+        };
+    }
+    if input.charging_memory_present || input.recovering_memory_present {
+        return BreezeShootTickStep {
+            look_at_target_eyes: true,
+            recovering_memory_expiry_ticks: None,
+            projectile: None,
+            sound: None,
+        };
+    }
+
+    let target_y_scale = if input.target_passenger { 0.8 } else { 0.3 };
+    BreezeShootTickStep {
+        look_at_target_eyes: true,
+        recovering_memory_expiry_ticks: Some(BREEZE_SHOOT_RECOVER_DELAY_TICKS),
+        projectile: Some(BreezeShootProjectile {
+            kind: BREEZE_SHOOT_PROJECTILE_KIND,
+            direction: BreezeVec3::new(
+                input.target_position.x - input.breeze_position.x,
+                input.target_position.y + input.target_height * target_y_scale
+                    - input.breeze_firing_y,
+                input.target_position.z - input.breeze_position.z,
+            ),
+            movement_scale: BREEZE_SHOOT_PROJECTILE_MOVEMENT_SCALE,
+            uncertainty: BREEZE_SHOOT_UNCERTAINTY_BASE
+                - input.difficulty_id * BREEZE_SHOOT_UNCERTAINTY_MULTIPLIER,
+        }),
+        sound: Some(BREEZE_SHOOT_SOUND),
     }
 }
 
