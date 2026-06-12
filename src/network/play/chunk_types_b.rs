@@ -182,6 +182,11 @@ pub struct ClientboundSetBorderWarningDistancePacket {
     pub warning_blocks: i32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundSetCameraPacket {
+    pub camera_id: i32,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct EntitySpawnBundle {
     pub spawn: ClientboundAddEntityPacket,

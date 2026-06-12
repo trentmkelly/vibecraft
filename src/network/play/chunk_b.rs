@@ -793,6 +793,20 @@ impl ClientboundSetBorderWarningDistancePacket {
     }
 }
 
+impl ClientboundSetCameraPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let packet = Self {
+            camera_id: read_var_i32(reader)?,
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.camera_id)
+    }
+}
+
 impl ClientboundClearTitlesPacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_bool(writer, self.reset_times)
