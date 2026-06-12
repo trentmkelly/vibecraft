@@ -127,6 +127,22 @@ impl ClientboundGameRuleValuesPacket {
     }
 }
 
+impl ClientboundHurtAnimationPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let packet = Self {
+            id: read_var_i32(reader)?,
+            yaw: read_f32(reader)?,
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.id)?;
+        write_f32(writer, self.yaw)
+    }
+}
+
 impl ClientboundBossEventPacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_uuid(writer, self.event_id)?;

@@ -479,6 +479,19 @@ pub struct ClientboundDisguisedChatPacket {
     pub chat_type: ChatTypeBound,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundCustomChatCompletionsPacket {
+    pub action: CustomChatCompletionsAction,
+    pub entries: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CustomChatCompletionsAction {
+    Add,
+    Remove,
+    Set,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ChatTypeBound {
     pub chat_type_id: i32,
@@ -937,6 +950,11 @@ pub struct ClientboundLevelChunkWithLightPacket {
     pub pos: ChunkPos,
     pub chunk_data: Option<ClientboundLevelChunkPacketData>,
     pub light_data: Option<ClientboundLightUpdatePacketData>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundForgetLevelChunkPacket {
+    pub pos: ChunkPos,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -661,6 +661,50 @@ impl ClientboundDisguisedChatPacket {
     }
 }
 
+impl ClientboundCustomChatCompletionsPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let action = CustomChatCompletionsAction::from_index(read_enum_index(reader, 3)?)?;
+        let entry_count = read_limited_len(reader, 65_536, "custom chat completion entry count")?;
+        let mut entries = Vec::with_capacity(entry_count);
+        for _ in 0..entry_count {
+            entries.push(read_string(reader, 32767)?);
+        }
+        expect_empty_payload(reader)?;
+        Ok(Self { action, entries })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_enum_index(writer, self.action.index(), 3)?;
+        write_var_i32(writer, self.entries.len() as i32)?;
+        for entry in &self.entries {
+            write_string(writer, entry, 32767)?;
+        }
+        Ok(())
+    }
+}
+
+impl CustomChatCompletionsAction {
+    fn from_index(index: usize) -> io::Result<Self> {
+        match index {
+            0 => Ok(Self::Add),
+            1 => Ok(Self::Remove),
+            2 => Ok(Self::Set),
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "invalid custom chat completion action",
+            )),
+        }
+    }
+
+    fn index(self) -> usize {
+        match self {
+            Self::Add => 0,
+            Self::Remove => 1,
+            Self::Set => 2,
+        }
+    }
+}
+
 impl ChatTypeBound {
     pub(super) fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.chat_type_id + 1)?;

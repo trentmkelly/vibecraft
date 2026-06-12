@@ -998,6 +998,7 @@ mod initialize_border_packet_test;
 mod inventory_packet_item_stack_test;
 mod level_particles_packet_test;
 mod merchant_offers_packet_test;
+mod mid_clientbound_game_packets_test;
 mod mount_screen_open_packet_test;
 mod named_sound_effect_absence_test;
 mod open_screen_packet_test;

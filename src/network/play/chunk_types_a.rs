@@ -746,6 +746,12 @@ pub struct ClientboundGameEventPacket {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClientboundHurtAnimationPacket {
+    pub id: i32,
+    pub yaw: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ClientboundSetSimulationDistancePacket {
     pub simulation_distance: i32,
 }

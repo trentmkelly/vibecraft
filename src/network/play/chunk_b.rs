@@ -33,6 +33,31 @@ impl ClientboundLevelChunkWithLightPacket {
     }
 }
 
+impl ClientboundForgetLevelChunkPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let packet = Self {
+            pos: unpack_chunk_pos(read_i64(reader)?),
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_i64(writer, pack_chunk_pos(self.pos))
+    }
+}
+
+fn pack_chunk_pos(pos: ChunkPos) -> i64 {
+    (i64::from(pos.x) & 0xffff_ffff) | ((i64::from(pos.z) & 0xffff_ffff) << 32)
+}
+
+fn unpack_chunk_pos(packed: i64) -> ChunkPos {
+    ChunkPos {
+        x: packed as i32,
+        z: (packed >> 32) as i32,
+    }
+}
+
 impl ClientboundLightUpdatePacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.pos.x)?;

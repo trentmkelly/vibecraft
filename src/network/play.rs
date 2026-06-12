@@ -13,9 +13,9 @@ use crate::item_catalog::item_protocol_id;
 use crate::item_properties::ItemComponent;
 use crate::item_stack::ItemStack;
 use crate::network::codec::{
-    read_identifier, read_string, read_uuid, write_bitset, write_collection, write_enum_index,
-    write_identifier, write_optional, write_string, write_trusted_component, write_uuid,
-    ComponentJson, Uuid,
+    read_enum_index, read_identifier, read_string, read_uuid, write_bitset, write_collection,
+    write_enum_index, write_identifier, write_optional, write_string, write_trusted_component,
+    write_uuid, ComponentJson, Uuid,
 };
 use crate::network::common::ServerboundResourcePackPacket;
 use crate::network::dispatch::{DecodedPacket, DispatchOutcome, PacketDirection, ProtocolState};
@@ -109,6 +109,7 @@ pub const CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID: i32 = 18;
 pub const CLIENTBOUND_CONTAINER_SET_DATA_PACKET_ID: i32 = 19;
 pub const CLIENTBOUND_CONTAINER_SET_SLOT_PACKET_ID: i32 = 20;
 pub const CLIENTBOUND_COOLDOWN_PACKET_ID: i32 = 22;
+pub const CLIENTBOUND_CUSTOM_CHAT_COMPLETIONS_PACKET_ID: i32 = 23;
 pub const CLIENTBOUND_CUSTOM_PAYLOAD_PACKET_ID: i32 = 24;
 pub const CLIENTBOUND_DEBUG_BLOCK_VALUE_PACKET_ID: i32 = 26;
 pub const CLIENTBOUND_DEBUG_CHUNK_VALUE_PACKET_ID: i32 = 27;
@@ -117,8 +118,10 @@ pub const CLIENTBOUND_DEBUG_EVENT_PACKET_ID: i32 = 29;
 pub const CLIENTBOUND_DEBUG_SAMPLE_PACKET_ID: i32 = 30;
 pub const CLIENTBOUND_DELETE_CHAT_PACKET_ID: i32 = 31;
 pub const CLIENTBOUND_ENTITY_EVENT_PACKET_ID: i32 = 34;
+pub const CLIENTBOUND_FORGET_LEVEL_CHUNK_PACKET_ID: i32 = 37;
 pub const CLIENTBOUND_GAME_RULE_VALUES_PACKET_ID: i32 = 39;
 pub const CLIENTBOUND_GAME_EVENT_PACKET_ID: i32 = 38;
+pub const CLIENTBOUND_HURT_ANIMATION_PACKET_ID: i32 = 42;
 pub const CLIENTBOUND_MOUNT_SCREEN_OPEN_PACKET_ID: i32 = 41;
 pub const CLIENTBOUND_INITIALIZE_BORDER_PACKET_ID: i32 = 43;
 pub const CLIENTBOUND_KEEP_ALIVE_PACKET_ID: i32 = 44;
