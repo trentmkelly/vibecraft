@@ -26,6 +26,64 @@ pub struct PhantomAttributes {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PhantomGoalSurface {
+    pub goal_priorities: &'static [(i32, &'static str)],
+    pub target_priorities: &'static [(i32, &'static str)],
+    pub move_control: &'static str,
+    pub look_control: &'static str,
+    pub body_control: &'static str,
+    pub sound_source: &'static str,
+    pub ambient_sound: &'static str,
+    pub hurt_sound: &'static str,
+    pub death_sound: &'static str,
+    pub should_render_at_any_distance: bool,
+    pub on_climbable: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PhantomClientTickSurface {
+    pub flap_sound: &'static str,
+    pub flap_sound_volume_min: f32,
+    pub flap_sound_volume_random_span: f32,
+    pub flap_sound_pitch_min: f32,
+    pub flap_sound_pitch_random_span: f32,
+    pub particle: &'static str,
+    pub particle_count: i32,
+    pub particle_width_multiplier: f32,
+    pub particle_height_base: f32,
+    pub particle_height_anim_multiplier: f32,
+    pub particle_height_scale: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PhantomCircleStart {
+    pub distance: f32,
+    pub height: f32,
+    pub clockwise: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PhantomBodyRotation {
+    pub y_head_rot: f32,
+    pub y_body_rot: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PhantomMoveControlSurface {
+    pub initial_speed: f32,
+    pub horizontal_collision_yaw_flip: f32,
+    pub turn_step_degrees: f32,
+    pub fast_speed: f32,
+    pub slow_speed: f32,
+    pub fast_turn_threshold_degrees: f32,
+    pub fast_approach_base: f32,
+    pub slow_approach: f32,
+    pub delta_movement_approach: f32,
+    pub y_relative_scale: f32,
+    pub horizontal_distance_epsilon: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PhantomAttackStrategy {
     pub attack_phase: PhantomAttackPhase,
     pub next_sweep_tick: i32,
@@ -65,6 +123,32 @@ pub const PHANTOM_TARGET_SCAN_RESET_TICKS: i32 = 60;
 pub const PHANTOM_TARGET_RANGE: f32 = 64.0;
 pub const PHANTOM_TARGET_BOX_INFLATE_XZ: f32 = 16.0;
 pub const PHANTOM_TARGET_BOX_INFLATE_Y: f32 = 64.0;
+pub const PHANTOM_TRAVEL_FLYING_FRICTION: f32 = 0.2;
+pub const PHANTOM_GOAL_PRIORITIES: &[(i32, &str)] = &[
+    (1, "PhantomAttackStrategyGoal"),
+    (2, "PhantomSweepAttackGoal"),
+    (3, "PhantomCircleAroundAnchorGoal"),
+];
+pub const PHANTOM_TARGET_PRIORITIES: &[(i32, &str)] = &[(1, "PhantomAttackPlayerTargetGoal")];
+pub const PHANTOM_FLAP_SOUND: &str = "minecraft:entity.phantom.flap";
+pub const PHANTOM_FLAP_SOUND_VOLUME_MIN: f32 = 0.95;
+pub const PHANTOM_FLAP_SOUND_VOLUME_RANDOM_SPAN: f32 = 0.05;
+pub const PHANTOM_FLAP_SOUND_PITCH_MIN: f32 = 0.95;
+pub const PHANTOM_FLAP_SOUND_PITCH_RANDOM_SPAN: f32 = 0.05;
+pub const PHANTOM_PARTICLE: &str = "minecraft:mycelium";
+pub const PHANTOM_PARTICLE_COUNT: i32 = 2;
+pub const PHANTOM_PARTICLE_WIDTH_MULTIPLIER: f32 = 1.48;
+pub const PHANTOM_PARTICLE_HEIGHT_BASE: f32 = 0.3;
+pub const PHANTOM_PARTICLE_HEIGHT_ANIM_MULTIPLIER: f32 = 0.45;
+pub const PHANTOM_PARTICLE_HEIGHT_SCALE: f32 = 2.5;
+pub const PHANTOM_SOUND_SOURCE: &str = "hostile";
+pub const PHANTOM_AMBIENT_SOUND: &str = "minecraft:entity.phantom.ambient";
+pub const PHANTOM_HURT_SOUND: &str = "minecraft:entity.phantom.hurt";
+pub const PHANTOM_DEATH_SOUND: &str = "minecraft:entity.phantom.death";
+pub const PHANTOM_SWOOP_SOUND: &str = "minecraft:entity.phantom.swoop";
+pub const PHANTOM_SWOOP_SOUND_VOLUME: f32 = 10.0;
+pub const PHANTOM_SWOOP_SOUND_PITCH_MIN: f32 = 0.95;
+pub const PHANTOM_SWOOP_SOUND_PITCH_RANDOM_SPAN: f32 = 0.1;
 pub const PHANTOM_ATTACK_STRATEGY_START_SWEEP_TICKS: i32 = 10;
 pub const PHANTOM_SWEEP_DELAY_BASE_SECONDS: i32 = 8;
 pub const PHANTOM_SWEEP_DELAY_RANDOM_SECONDS_BOUND: i32 = 4;
@@ -78,7 +162,23 @@ pub const PHANTOM_CIRCLE_DISTANCE_MAX: f32 = 15.0;
 pub const PHANTOM_CIRCLE_HEIGHT_BASE: f32 = -4.0;
 pub const PHANTOM_CIRCLE_HEIGHT_RANDOM_SPAN: f32 = 9.0;
 pub const PHANTOM_CIRCLE_ANGLE_STEP_DEGREES: f32 = 15.0;
+pub const PHANTOM_CIRCLE_HEIGHT_RESELECT_TICKS: i32 = 350;
+pub const PHANTOM_CIRCLE_DISTANCE_RESELECT_TICKS: i32 = 250;
+pub const PHANTOM_CIRCLE_ANGLE_RESELECT_TICKS: i32 = 450;
+pub const PHANTOM_CIRCLE_BLOCKED_BELOW_MIN_HEIGHT: f32 = 1.0;
+pub const PHANTOM_CIRCLE_BLOCKED_ABOVE_MAX_HEIGHT: f32 = -1.0;
 pub const PHANTOM_TOUCHING_TARGET_DISTANCE_SQUARED: f64 = 4.0;
+pub const PHANTOM_MOVE_CONTROL_INITIAL_SPEED: f32 = 0.1;
+pub const PHANTOM_MOVE_CONTROL_COLLISION_YAW_FLIP: f32 = 180.0;
+pub const PHANTOM_MOVE_CONTROL_TURN_STEP_DEGREES: f32 = 4.0;
+pub const PHANTOM_MOVE_CONTROL_FAST_SPEED: f32 = 1.8;
+pub const PHANTOM_MOVE_CONTROL_SLOW_SPEED: f32 = 0.2;
+pub const PHANTOM_MOVE_CONTROL_FAST_TURN_THRESHOLD_DEGREES: f32 = 3.0;
+pub const PHANTOM_MOVE_CONTROL_FAST_APPROACH_BASE: f32 = 0.005;
+pub const PHANTOM_MOVE_CONTROL_SLOW_APPROACH: f32 = 0.025;
+pub const PHANTOM_MOVE_CONTROL_DELTA_MOVEMENT_APPROACH: f32 = 0.2;
+pub const PHANTOM_MOVE_CONTROL_Y_RELATIVE_SCALE: f32 = 0.7;
+pub const PHANTOM_MOVE_CONTROL_HORIZONTAL_DISTANCE_EPSILON: f64 = 1.0E-5;
 pub const PHANTOM_SWEEP_CAT_SEARCH_TICK_DELAY: i32 = 20;
 pub const PHANTOM_CAT_AVOID_INFLATE: f32 = 16.0;
 pub const PHANTOM_SWEEP_HIT_INFLATE: f32 = 0.2;
@@ -150,6 +250,38 @@ pub fn clamp_phantom_size(size: i32) -> i32 {
 
 pub fn phantom_unique_flap_tick_offset(entity_id: i32) -> i32 {
     entity_id * PHANTOM_UNIQUE_FLAP_TICK_OFFSET_MULTIPLIER
+}
+
+pub fn phantom_goal_surface() -> PhantomGoalSurface {
+    PhantomGoalSurface {
+        goal_priorities: PHANTOM_GOAL_PRIORITIES,
+        target_priorities: PHANTOM_TARGET_PRIORITIES,
+        move_control: "PhantomMoveControl",
+        look_control: "PhantomLookControl",
+        body_control: "PhantomBodyRotationControl",
+        sound_source: PHANTOM_SOUND_SOURCE,
+        ambient_sound: PHANTOM_AMBIENT_SOUND,
+        hurt_sound: PHANTOM_HURT_SOUND,
+        death_sound: PHANTOM_DEATH_SOUND,
+        should_render_at_any_distance: true,
+        on_climbable: false,
+    }
+}
+
+pub fn phantom_client_tick_surface() -> PhantomClientTickSurface {
+    PhantomClientTickSurface {
+        flap_sound: PHANTOM_FLAP_SOUND,
+        flap_sound_volume_min: PHANTOM_FLAP_SOUND_VOLUME_MIN,
+        flap_sound_volume_random_span: PHANTOM_FLAP_SOUND_VOLUME_RANDOM_SPAN,
+        flap_sound_pitch_min: PHANTOM_FLAP_SOUND_PITCH_MIN,
+        flap_sound_pitch_random_span: PHANTOM_FLAP_SOUND_PITCH_RANDOM_SPAN,
+        particle: PHANTOM_PARTICLE,
+        particle_count: PHANTOM_PARTICLE_COUNT,
+        particle_width_multiplier: PHANTOM_PARTICLE_WIDTH_MULTIPLIER,
+        particle_height_base: PHANTOM_PARTICLE_HEIGHT_BASE,
+        particle_height_anim_multiplier: PHANTOM_PARTICLE_HEIGHT_ANIM_MULTIPLIER,
+        particle_height_scale: PHANTOM_PARTICLE_HEIGHT_SCALE,
+    }
 }
 
 pub fn phantom_target_scan_tick(next_scan_tick: i32) -> Option<i32> {
@@ -266,6 +398,73 @@ pub fn phantom_stop_anchor_after_heightmap(
             + PHANTOM_STOP_ANCHOR_ABOVE_HEIGHTMAP_MIN
             + random_0_to_19.rem_euclid(PHANTOM_STOP_ANCHOR_ABOVE_HEIGHTMAP_RANDOM_BOUND),
         z: anchor_z,
+    }
+}
+
+pub fn phantom_circle_start(
+    distance_random_0_to_1: f32,
+    height_random_0_to_1: f32,
+    clockwise_random_bool: bool,
+) -> PhantomCircleStart {
+    PhantomCircleStart {
+        distance: PHANTOM_CIRCLE_DISTANCE_MIN
+            + distance_random_0_to_1.clamp(0.0, 1.0) * PHANTOM_CIRCLE_DISTANCE_RANDOM_SPAN,
+        height: PHANTOM_CIRCLE_HEIGHT_BASE
+            + height_random_0_to_1.clamp(0.0, 1.0) * PHANTOM_CIRCLE_HEIGHT_RANDOM_SPAN,
+        clockwise: if clockwise_random_bool { 1.0 } else { -1.0 },
+    }
+}
+
+pub fn phantom_circle_distance_tick(distance: f32, clockwise: f32) -> (f32, f32) {
+    let next_distance = distance + 1.0;
+    if next_distance > PHANTOM_CIRCLE_DISTANCE_MAX {
+        (PHANTOM_CIRCLE_DISTANCE_MIN, -clockwise)
+    } else {
+        (next_distance, clockwise)
+    }
+}
+
+pub fn phantom_circle_height_after_block_check(
+    height: f32,
+    target_below_phantom: bool,
+    blocked_below: bool,
+    target_above_phantom: bool,
+    blocked_above: bool,
+) -> f32 {
+    let mut height = height;
+    if target_below_phantom && blocked_below {
+        height = height.max(PHANTOM_CIRCLE_BLOCKED_BELOW_MIN_HEIGHT);
+    }
+    if target_above_phantom && blocked_above {
+        height = height.min(PHANTOM_CIRCLE_BLOCKED_ABOVE_MAX_HEIGHT);
+    }
+    height
+}
+
+pub fn phantom_circle_touching_target(distance_squared: f64) -> bool {
+    distance_squared < PHANTOM_TOUCHING_TARGET_DISTANCE_SQUARED
+}
+
+pub fn phantom_body_rotation_client_tick(y_body_rot: f32, y_rot: f32) -> PhantomBodyRotation {
+    PhantomBodyRotation {
+        y_head_rot: y_body_rot,
+        y_body_rot: y_rot,
+    }
+}
+
+pub fn phantom_move_control_surface() -> PhantomMoveControlSurface {
+    PhantomMoveControlSurface {
+        initial_speed: PHANTOM_MOVE_CONTROL_INITIAL_SPEED,
+        horizontal_collision_yaw_flip: PHANTOM_MOVE_CONTROL_COLLISION_YAW_FLIP,
+        turn_step_degrees: PHANTOM_MOVE_CONTROL_TURN_STEP_DEGREES,
+        fast_speed: PHANTOM_MOVE_CONTROL_FAST_SPEED,
+        slow_speed: PHANTOM_MOVE_CONTROL_SLOW_SPEED,
+        fast_turn_threshold_degrees: PHANTOM_MOVE_CONTROL_FAST_TURN_THRESHOLD_DEGREES,
+        fast_approach_base: PHANTOM_MOVE_CONTROL_FAST_APPROACH_BASE,
+        slow_approach: PHANTOM_MOVE_CONTROL_SLOW_APPROACH,
+        delta_movement_approach: PHANTOM_MOVE_CONTROL_DELTA_MOVEMENT_APPROACH,
+        y_relative_scale: PHANTOM_MOVE_CONTROL_Y_RELATIVE_SCALE,
+        horizontal_distance_epsilon: PHANTOM_MOVE_CONTROL_HORIZONTAL_DISTANCE_EPSILON,
     }
 }
 

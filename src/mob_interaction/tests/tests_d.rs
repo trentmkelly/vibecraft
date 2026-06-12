@@ -501,9 +501,58 @@ fn assert_magma_cube_attributes_jump_and_spawn_rules() {
 
 #[test]
 fn phantom_size_anchor_swoop_and_cat_gates_match_java_rules() {
+    assert_phantom_class_client_and_control_surface();
     assert_phantom_size_anchor_and_flap_rules();
     assert_phantom_target_anchor_and_strategy_rules();
+    assert_phantom_circle_and_move_control_rules();
     assert_phantom_swoop_cat_and_loot_rules();
+}
+
+fn assert_phantom_class_client_and_control_surface() {
+    assert_eq!(
+        phantom_goal_surface(),
+        PhantomGoalSurface {
+            goal_priorities: &[
+                (1, "PhantomAttackStrategyGoal"),
+                (2, "PhantomSweepAttackGoal"),
+                (3, "PhantomCircleAroundAnchorGoal"),
+            ],
+            target_priorities: &[(1, "PhantomAttackPlayerTargetGoal")],
+            move_control: "PhantomMoveControl",
+            look_control: "PhantomLookControl",
+            body_control: "PhantomBodyRotationControl",
+            sound_source: "hostile",
+            ambient_sound: "minecraft:entity.phantom.ambient",
+            hurt_sound: "minecraft:entity.phantom.hurt",
+            death_sound: "minecraft:entity.phantom.death",
+            should_render_at_any_distance: true,
+            on_climbable: false,
+        }
+    );
+    assert_eq!(
+        phantom_client_tick_surface(),
+        PhantomClientTickSurface {
+            flap_sound: "minecraft:entity.phantom.flap",
+            flap_sound_volume_min: 0.95,
+            flap_sound_volume_random_span: 0.05,
+            flap_sound_pitch_min: 0.95,
+            flap_sound_pitch_random_span: 0.05,
+            particle: "minecraft:mycelium",
+            particle_count: 2,
+            particle_width_multiplier: 1.48,
+            particle_height_base: 0.3,
+            particle_height_anim_multiplier: 0.45,
+            particle_height_scale: 2.5,
+        }
+    );
+    assert_eq!(
+        phantom_body_rotation_client_tick(45.0, 90.0),
+        PhantomBodyRotation {
+            y_head_rot: 45.0,
+            y_body_rot: 90.0,
+        }
+    );
+    assert_eq!(PHANTOM_TRAVEL_FLYING_FRICTION, 0.2);
 }
 
 fn assert_phantom_size_anchor_and_flap_rules() {
@@ -581,6 +630,62 @@ fn assert_phantom_target_anchor_and_strategy_rules() {
     assert_eq!(swoop.attack_phase, PhantomAttackPhase::Swoop);
     assert_eq!(swoop.next_sweep_tick, 220);
     assert!(swoop.played_swoop_sound);
+    assert_eq!(PHANTOM_SWOOP_SOUND, "minecraft:entity.phantom.swoop");
+    assert_eq!(PHANTOM_SWOOP_SOUND_VOLUME, 10.0);
+    assert_eq!(PHANTOM_SWOOP_SOUND_PITCH_MIN, 0.95);
+    assert_eq!(PHANTOM_SWOOP_SOUND_PITCH_RANDOM_SPAN, 0.1);
+}
+
+fn assert_phantom_circle_and_move_control_rules() {
+    assert_eq!(
+        phantom_circle_start(1.0, 0.0, true),
+        PhantomCircleStart {
+            distance: 15.0,
+            height: -4.0,
+            clockwise: 1.0,
+        }
+    );
+    assert_eq!(
+        phantom_circle_start(0.0, 1.0, false),
+        PhantomCircleStart {
+            distance: 5.0,
+            height: 5.0,
+            clockwise: -1.0,
+        }
+    );
+    assert_eq!(phantom_circle_distance_tick(15.0, 1.0), (5.0, -1.0));
+    assert_eq!(phantom_circle_distance_tick(6.0, -1.0), (7.0, -1.0));
+    assert_eq!(
+        phantom_circle_height_after_block_check(-2.0, true, true, false, false),
+        1.0
+    );
+    assert_eq!(
+        phantom_circle_height_after_block_check(2.0, false, false, true, true),
+        -1.0
+    );
+    assert!(phantom_circle_touching_target(3.999));
+    assert!(!phantom_circle_touching_target(4.0));
+    assert_eq!(PHANTOM_CIRCLE_HEIGHT_RESELECT_TICKS, 350);
+    assert_eq!(PHANTOM_CIRCLE_DISTANCE_RESELECT_TICKS, 250);
+    assert_eq!(PHANTOM_CIRCLE_ANGLE_RESELECT_TICKS, 450);
+    assert_eq!(PHANTOM_CIRCLE_ANGLE_STEP_DEGREES, 15.0);
+
+    assert_eq!(
+        phantom_move_control_surface(),
+        PhantomMoveControlSurface {
+            initial_speed: 0.1,
+            horizontal_collision_yaw_flip: 180.0,
+            turn_step_degrees: 4.0,
+            fast_speed: 1.8,
+            slow_speed: 0.2,
+            fast_turn_threshold_degrees: 3.0,
+            fast_approach_base: 0.005,
+            slow_approach: 0.025,
+            delta_movement_approach: 0.2,
+            y_relative_scale: 0.7,
+            horizontal_distance_epsilon: 1.0E-5,
+        }
+    );
 }
 
 fn assert_phantom_swoop_cat_and_loot_rules() {
