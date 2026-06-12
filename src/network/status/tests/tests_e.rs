@@ -18,6 +18,27 @@ pub fn mob_combat_packets_do_not_fall_through_to_unexpected_disconnect() {
 
 #[test]
 pub fn edit_book_packet_live_handler_matches_java_slot_and_component_gates() {
+    const SERVERBOUND_EDIT_BOOK_PACKET_JAVA: &str = include_str!(
+        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundEditBookPacket.java"
+    );
+    for sentinel in [
+        "public record ServerboundEditBookPacket(int slot, List<String> pages, Optional<String> title)",
+        "ByteBufCodecs.VAR_INT",
+        "ServerboundEditBookPacket::slot",
+        "ByteBufCodecs.stringUtf8(1024).apply(ByteBufCodecs.list(100))",
+        "ServerboundEditBookPacket::pages",
+        "ByteBufCodecs.stringUtf8(32).apply(ByteBufCodecs::optional)",
+        "ServerboundEditBookPacket::title",
+        "pages = List.copyOf(pages);",
+        "return GamePacketTypes.SERVERBOUND_EDIT_BOOK;",
+        "listener.handleEditBook(this);",
+    ] {
+        assert!(
+            SERVERBOUND_EDIT_BOOK_PACKET_JAVA.contains(sentinel),
+            "missing ServerboundEditBookPacket sentinel {sentinel}"
+        );
+    }
+
     assert_eq!(SERVERBOUND_EDIT_BOOK_PACKET_ID, 24);
     assert!(play_packet_has_live_status_handler(
         SERVERBOUND_EDIT_BOOK_PACKET_ID
