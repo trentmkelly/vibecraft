@@ -572,11 +572,33 @@ pub struct ClientboundSetPlayerTeamPacket {
     pub method: TeamPacketMethod,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundLowDiskSpaceWarningPacket;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundOpenBookPacket {
+    pub hand: ClientboundInteractionHand,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClientboundInteractionHand {
+    MainHand,
+    OffHand,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClientboundOpenScreenPacket {
     pub container_id: i32,
     pub menu_type_id: i32,
     pub title: Tag,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundOpenSignEditorPacket {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+    pub is_front_text: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -45,11 +45,76 @@ impl ClientboundSetPlayerTeamPacket {
     }
 }
 
+impl ClientboundLowDiskSpaceWarningPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        expect_empty_payload(reader)?;
+        Ok(Self)
+    }
+
+    pub fn write<W: Write>(&self, _writer: &mut W) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+impl ClientboundInteractionHand {
+    const VARIANT_COUNT: usize = 2;
+
+    fn from_index(index: usize) -> Self {
+        match index {
+            1 => Self::OffHand,
+            _ => Self::MainHand,
+        }
+    }
+
+    fn index(self) -> usize {
+        match self {
+            Self::MainHand => 0,
+            Self::OffHand => 1,
+        }
+    }
+}
+
+impl ClientboundOpenBookPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            hand: ClientboundInteractionHand::from_index(read_enum_index(
+                reader,
+                ClientboundInteractionHand::VARIANT_COUNT,
+            )?),
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_enum_index(
+            writer,
+            self.hand.index(),
+            ClientboundInteractionHand::VARIANT_COUNT,
+        )
+    }
+}
+
 impl ClientboundOpenScreenPacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.container_id)?;
         write_var_i32(writer, self.menu_type_id)?;
         write_network_tag(writer, &self.title)
+    }
+}
+
+impl ClientboundOpenSignEditorPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let (x, y, z) = read_block_position(reader)?;
+        Ok(Self {
+            x,
+            y,
+            z,
+            is_front_text: read_bool(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_block_position(writer, self.x, self.y, self.z)?;
+        write_bool(writer, self.is_front_text)
     }
 }
 
