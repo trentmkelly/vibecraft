@@ -1030,6 +1030,7 @@ mod set_score_packet_test;
 mod set_subtitle_text_packet_test;
 mod set_title_text_packet_test;
 mod set_titles_animation_packet_test;
+mod serverbound_simple_packets_test;
 mod simple_clientbound_game_packets_test;
 mod small_play_packets_test;
 mod sound_entity_packet_test;
