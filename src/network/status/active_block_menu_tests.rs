@@ -905,6 +905,120 @@
         }));
     }
 
+    #[test]
+    fn stale_active_crafting_table_clicks_apply_then_full_resync_like_java() {
+        let recipes = vanilla_recipe_map();
+        let mut state = PlaySessionState {
+            inventory_menu: InventoryMenu::new(PlayerInventory::new(), recipes.clone()),
+            ..Default::default()
+        };
+        state
+            .inventory_menu
+            .player_inventory_mut()
+            .set(0, ItemStack::new("minecraft:oak_planks", 4));
+        let mut menu = ActiveBlockMenu::open(
+            9,
+            crate::block_update::BlockPos { x: 0, y: 64, z: 0 },
+            LiveBlockMenuKind::Crafting,
+            &WorldLayout::new(std::env::temp_dir()),
+            0,
+            &GeneratedChunkCache::default(),
+            &recipes,
+        );
+        let layout = WorldLayout::new(std::env::temp_dir());
+        let cache = GeneratedChunkCache::default();
+        menu.write_full_content(&mut Vec::new(), CompressionState::disabled(), &state)
+            .unwrap();
+        assert_eq!(menu.state_id(), 1);
+
+        let stale_state_id = 0;
+        let pickup = click_packet(
+            9,
+            stale_state_id,
+            CraftingMenu::HOTBAR_START as i16,
+            0,
+            ContainerInput::Pickup,
+        );
+        let pickup_sync = menu.handle_click(&pickup, &mut state, &layout, 0, &cache);
+        assert!(matches!(
+            pickup_sync.as_slice(),
+            [PlayInstruction::Container(packet)] if packet.container_id == 9
+        ));
+        assert_eq!(state.carried_item, ItemStack::new("minecraft:oak_planks", 4));
+
+        let mut last_sync = Vec::new();
+        for slot in [1_i16, 2, 4, 5] {
+            let place_one = click_packet(9, stale_state_id, slot, 1, ContainerInput::Pickup);
+            last_sync = menu.handle_click(&place_one, &mut state, &layout, 0, &cache);
+        }
+
+        assert!(matches!(
+            last_sync.as_slice(),
+            [PlayInstruction::Container(packet)] if packet.container_id == 9
+        ));
+        assert!(state.carried_item.is_empty());
+        assert_eq!(
+            menu.flattened_slots(&state)[CraftingMenu::RESULT_SLOT],
+            ItemStack::new("minecraft:crafting_table", 1)
+        );
+    }
+
+    #[test]
+    fn stale_active_crafting_table_result_pickup_consumes_grid_before_resync() {
+        let recipes = crafting_table_recipe_map();
+        let mut state = PlaySessionState {
+            inventory_menu: InventoryMenu::new(PlayerInventory::new(), recipes.clone()),
+            ..Default::default()
+        };
+        let mut menu = ActiveBlockMenu::open(
+            9,
+            crate::block_update::BlockPos { x: 0, y: 64, z: 0 },
+            LiveBlockMenuKind::Crafting,
+            &WorldLayout::new(std::env::temp_dir()),
+            0,
+            &GeneratedChunkCache::default(),
+            &recipes,
+        );
+        let ActiveBlockMenuKind::Crafting { menu: crafting } = &mut menu.kind else {
+            panic!("expected crafting menu");
+        };
+        let player = state.inventory_menu.player_inventory_mut();
+        for slot in [1_usize, 2, 4, 5] {
+            assert!(crafting.set_slot(slot, ItemStack::new("minecraft:oak_planks", 1), player));
+        }
+        menu.write_full_content(&mut Vec::new(), CompressionState::disabled(), &state)
+            .unwrap();
+
+        let take_result = click_packet(
+            9,
+            0,
+            CraftingMenu::RESULT_SLOT as i16,
+            0,
+            ContainerInput::Pickup,
+        );
+        let instructions = menu.handle_click(
+            &take_result,
+            &mut state,
+            &WorldLayout::new(std::env::temp_dir()),
+            0,
+            &GeneratedChunkCache::default(),
+        );
+
+        assert!(matches!(
+            instructions.as_slice(),
+            [PlayInstruction::Container(packet), PlayInstruction::RecipesUnlocked(ids)]
+                if packet.container_id == 9 && ids == &vec!["minecraft:crafting_table"]
+        ));
+        assert_eq!(
+            state.carried_item,
+            ItemStack::new("minecraft:crafting_table", 1)
+        );
+        assert!(menu.flattened_slots(&state)[CraftingMenu::RESULT_SLOT].is_empty());
+        for slot in CraftingMenu::GRID_START..CraftingMenu::GRID_END {
+            assert!(menu.flattened_slots(&state)[slot].is_empty());
+        }
+    }
+
     fn vanilla_recipe_map() -> RecipeMap {
         let recipe_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("vanilla-data")

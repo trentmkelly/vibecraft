@@ -173,17 +173,17 @@ impl ActiveBlockMenu {
         let before_slots = self.flattened_slots(state);
         let before_carried = state.carried_item.clone();
         let mut menu = self.to_flat_menu(state);
-        let dry_run = apply_scripted_packet(
-            &mut menu.clone(),
-            packet.state_id,
-            &scripted_click_packet(packet, Vec::new(), ItemStack::empty()),
-        );
-        let scripted_packet = scripted_click_packet(packet, Vec::new(), dry_run.carried);
-        apply_scripted_packet(
-            &mut menu,
-            packet.state_id,
-            &scripted_packet,
-        );
+        // Java `ServerGamePacketListenerImpl.handleContainerClick` computes
+        // `fullResyncNeeded` from the packet state, but still calls
+        // `containerMenu.clicked(...)` before broadcasting the full state. Apply
+        // the click against the current server state here, then resync below if
+        // the client's state id lagged behind.
+        let mut dry_run_packet = scripted_click_packet(packet, Vec::new(), ItemStack::empty());
+        dry_run_packet.state_id = self.state_id;
+        let dry_run = apply_scripted_packet(&mut menu.clone(), self.state_id, &dry_run_packet);
+        let mut scripted_packet = scripted_click_packet(packet, Vec::new(), dry_run.carried);
+        scripted_packet.state_id = self.state_id;
+        apply_scripted_packet(&mut menu, self.state_id, &scripted_packet);
 
         let result_slot_changed = self.result_slot_changed_after_click(&menu);
         self.increment_state_id();
@@ -233,18 +233,18 @@ impl ActiveBlockMenu {
         let before_slots = self.flattened_slots(state);
         let before_carried = state.carried_item.clone();
 
-        if !full_resync_needed {
-            if let ActiveBlockMenuKind::Crafting { menu } = &mut self.kind {
-                // Java `ResultSlot` is fake: taking from it calls `onTake`, consumes
-                // the craft grid, and never treats slot 0 as a normal mutable slot.
-                let result = menu.result().clone();
-                if can_carry_crafting_result(&state.carried_item, &result) {
-                    let taken = menu.take_result();
-                    if state.carried_item.is_empty() {
-                        state.carried_item = taken;
-                    } else {
-                        state.carried_item.grow(taken.count());
-                    }
+        if let ActiveBlockMenuKind::Crafting { menu } = &mut self.kind {
+            // Java `ResultSlot` is fake: taking from it calls `onTake`, consumes
+            // the craft grid, and never treats slot 0 as a normal mutable slot.
+            // Stale-state result clicks are still applied by Java before the full
+            // resync, same as ordinary slot clicks.
+            let result = menu.result().clone();
+            if can_carry_crafting_result(&state.carried_item, &result) {
+                let taken = menu.take_result();
+                if state.carried_item.is_empty() {
+                    state.carried_item = taken;
+                } else {
+                    state.carried_item.grow(taken.count());
                 }
             }
         }
