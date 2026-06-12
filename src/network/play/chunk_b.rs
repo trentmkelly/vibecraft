@@ -595,6 +595,20 @@ impl ClientboundMoveEntityPacket {
 }
 
 impl ClientboundMoveVehiclePacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let packet = Self {
+            position: Vec3 {
+                x: read_f64(reader)?,
+                y: read_f64(reader)?,
+                z: read_f64(reader)?,
+            },
+            y_rot: read_f32(reader)?,
+            x_rot: read_f32(reader)?,
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
+    }
+
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_vec3(writer, self.position)?;
         write_f32(writer, self.y_rot)?;
