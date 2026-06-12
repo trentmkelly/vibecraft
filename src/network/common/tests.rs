@@ -311,6 +311,19 @@ fn round_trips_clear_dialog_and_report_details() {
     };
     let mut bytes = Vec::new();
     packet.write(&mut bytes).unwrap();
+    let expected = [
+        &[2][..],
+        &[6],
+        b"server",
+        &[9],
+        b"VibeCraft",
+        &[5],
+        b"build",
+        &[10],
+        b"clean-room",
+    ]
+    .concat();
+    assert_eq!(bytes, expected);
     assert_eq!(
         ClientboundCustomReportDetailsPacket::read(&mut Cursor::new(bytes)).unwrap(),
         packet
@@ -370,6 +383,17 @@ fn round_trips_server_links_packet() {
     };
     let mut bytes = Vec::new();
     packet.write(&mut bytes).unwrap();
+    let mut expected = Vec::new();
+    expected.push(2);
+    expected.extend_from_slice(&[1, 0]);
+    expected.push("https://example.invalid/bugs".len() as u8);
+    expected.extend_from_slice(b"https://example.invalid/bugs");
+    expected.push(0);
+    expected.push("{\"text\":\"Docs\"}".len() as u8);
+    expected.extend_from_slice(b"{\"text\":\"Docs\"}");
+    expected.push("https://example.invalid/docs".len() as u8);
+    expected.extend_from_slice(b"https://example.invalid/docs");
+    assert_eq!(bytes, expected);
     assert_eq!(
         super::ClientboundServerLinksPacket::read(&mut Cursor::new(bytes)).unwrap(),
         packet
@@ -391,6 +415,15 @@ fn round_trips_update_tags_packet() {
     };
     let mut bytes = Vec::new();
     packet.write(&mut bytes).unwrap();
+    let mut expected = Vec::new();
+    expected.push(1);
+    expected.push("minecraft:block".len() as u8);
+    expected.extend_from_slice(b"minecraft:block");
+    expected.push(1);
+    expected.push("minecraft:mineable/pickaxe".len() as u8);
+    expected.extend_from_slice(b"minecraft:mineable/pickaxe");
+    expected.extend_from_slice(&[3, 1, 2, 3]);
+    assert_eq!(bytes, expected);
     assert_eq!(
         super::ClientboundUpdateTagsPacket::read(&mut Cursor::new(bytes)).unwrap(),
         packet

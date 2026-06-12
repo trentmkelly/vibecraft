@@ -36,6 +36,11 @@ mod tests {
         };
         let mut bytes = Vec::new();
         packet.write(&mut bytes).unwrap();
+        let mut expected = Vec::new();
+        expected.push("example.org".len() as u8);
+        expected.extend_from_slice(b"example.org");
+        expected.extend_from_slice(&[0xdd, 0xc7, 0x01]);
+        assert_eq!(bytes, expected);
         assert_eq!(
             ClientboundTransferPacket::read(&mut Cursor::new(bytes)).unwrap(),
             packet
