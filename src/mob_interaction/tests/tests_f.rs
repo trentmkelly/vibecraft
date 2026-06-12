@@ -1,6 +1,129 @@
 use crate::mob_interaction::*;
 
 #[test]
+fn creaking_ai_activity_and_target_gates_match_java_rules() {
+    assert_creaking_ai_activity_surfaces();
+    assert_creaking_ai_target_and_update_gates();
+}
+
+fn assert_creaking_ai_activity_surfaces() {
+    assert_eq!(CREAKING_AI_CORE_SWIM_SPEED, 0.8);
+    assert_eq!(CREAKING_AI_LOOK_MIN_Y_ROT, 45);
+    assert_eq!(CREAKING_AI_LOOK_MAX_X_ROT, 90);
+    assert_eq!(CREAKING_AI_IDLE_PRIORITY, 10);
+    assert_eq!(CREAKING_AI_FIGHT_PRIORITY, 10);
+    assert_eq!(CREAKING_AI_LOOK_TARGET_RANGE, 8.0);
+    assert_eq!(CREAKING_AI_LOOK_INTERVAL_MIN, 30);
+    assert_eq!(CREAKING_AI_LOOK_INTERVAL_MAX, 60);
+    assert_eq!(CREAKING_AI_RANDOM_STROLL_SPEED, 0.3);
+    assert_eq!(CREAKING_AI_SET_WALK_FROM_LOOK_SPEED, 0.3);
+    assert_eq!(CREAKING_AI_SET_WALK_FROM_LOOK_CLOSE_ENOUGH, 3);
+    assert_eq!(CREAKING_AI_DO_NOTHING_MIN_TICKS, 30);
+    assert_eq!(CREAKING_AI_DO_NOTHING_MAX_TICKS, 60);
+    assert_eq!(CREAKING_AI_RANDOM_STROLL_WEIGHT, 2);
+    assert_eq!(CREAKING_AI_WALK_FROM_LOOK_WEIGHT, 2);
+    assert_eq!(CREAKING_AI_DO_NOTHING_WEIGHT, 1);
+    assert_eq!(CREAKING_AI_ATTACK_WALK_SPEED, 1.0);
+    assert_eq!(CREAKING_AI_MELEE_COOLDOWN_TICKS, 40);
+    assert_eq!(CREAKING_AI_ACTIVITY_ORDER, ["core", "idle", "fight"]);
+    assert_eq!(
+        CREAKING_AI_CORE_ACTIVITY,
+        [
+            CreakingAiActivityStep {
+                activity: "core",
+                priority: 0,
+                behavior: "swim_if_can_move",
+            },
+            CreakingAiActivityStep {
+                activity: "core",
+                priority: 0,
+                behavior: "look_at_target_sink",
+            },
+            CreakingAiActivityStep {
+                activity: "core",
+                priority: 0,
+                behavior: "move_to_target_sink",
+            },
+        ]
+    );
+    assert_eq!(
+        CREAKING_AI_IDLE_ACTIVITY,
+        [
+            CreakingAiActivityStep {
+                activity: "idle",
+                priority: 0,
+                behavior: "start_attacking_nearest_visible_attackable_player_when_active",
+            },
+            CreakingAiActivityStep {
+                activity: "idle",
+                priority: 1,
+                behavior: "set_entity_look_target_sometimes",
+            },
+            CreakingAiActivityStep {
+                activity: "idle",
+                priority: 2,
+                behavior: "random_stroll",
+            },
+            CreakingAiActivityStep {
+                activity: "idle",
+                priority: 2,
+                behavior: "set_walk_target_from_look_target",
+            },
+        ]
+    );
+    assert_eq!(
+        CREAKING_AI_FIGHT_ACTIVITY,
+        [
+            CreakingAiActivityStep {
+                activity: "fight",
+                priority: 0,
+                behavior: "set_walk_target_from_attack_target_if_out_of_reach",
+            },
+            CreakingAiActivityStep {
+                activity: "fight",
+                priority: 0,
+                behavior: "melee_attack_if_can_move",
+            },
+            CreakingAiActivityStep {
+                activity: "fight",
+                priority: 0,
+                behavior: "stop_attacking_if_target_invalid",
+            },
+        ]
+    );
+}
+
+fn assert_creaking_ai_target_and_update_gates() {
+    assert!(creaking_ai_swim_can_start(true, true));
+    assert!(!creaking_ai_swim_can_start(false, true));
+    assert!(creaking_ai_idle_start_target(true, true));
+    assert!(!creaking_ai_idle_start_target(false, true));
+    assert!(creaking_ai_melee_can_start(true));
+    assert!(!creaking_ai_melee_can_start(false));
+    assert!(creaking_ai_attack_target_still_reachable(true, true, true));
+    assert!(!creaking_ai_attack_target_still_reachable(false, true, true));
+    assert!(!creaking_ai_attack_target_still_reachable(true, false, true));
+    assert_eq!(
+        CREAKING_AI_FIGHT_REQUIREMENTS,
+        [("attack_target", "value_present")]
+    );
+    assert_eq!(
+        creaking_ai_update_activity(false),
+        CreakingAiActivityUpdate {
+            use_default_activity: true,
+            first_valid_order: None,
+        }
+    );
+    assert_eq!(
+        creaking_ai_update_activity(true),
+        CreakingAiActivityUpdate {
+            use_default_activity: false,
+            first_valid_order: Some(["fight", "idle"]),
+        }
+    );
+}
+
+#[test]
 fn zombified_piglin_anger_alert_spawn_and_portal_gates_match_java_rules() {
     assert_zombified_piglin_attributes_and_anger_setup();
     assert_zombified_piglin_ai_alert_and_spawn_rules();

@@ -292,6 +292,10 @@ mod breeze;
 #[cfg(test)]
 use breeze::*;
 
+mod creaking;
+#[cfg(test)]
+use creaking::*;
+
 mod phantoms;
 #[cfg(test)]
 use phantoms::*;

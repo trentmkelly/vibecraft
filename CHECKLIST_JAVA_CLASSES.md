@@ -3560,7 +3560,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 ## `decompiled-server-26.1.2/net/minecraft/world/entity/monster/creaking`
 
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/creaking/Creaking.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/creaking/CreakingAi.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/creaking/CreakingAi.java`. — Verified against Java 26.1.2 `CreakingAi.java`: core/idle/fight activity priorities, swim `canMove()` gate, look/move target sinks, idle attack target supplier for active creakings, look-target interval/range, random-stroll/walk-from-look/do-nothing weights and timings, fight walk speed, melee `canMove()` gate/cooldown, attack-target reachability against visible attackable players, fight memory requirements, and activity update default-vs-fight/idle order are represented in `src/mob_interaction/creaking.rs` and covered by `creaking_ai_activity_and_target_gates_match_java_rules`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/creaking/package-info.java`. Java 26.1.2 package marker contains only `@NullMarked`, the package declaration, and the `org.jspecify.annotations.NullMarked` import; no Rust runtime behavior or parity test is required beyond preserving nullability expectations in typed Rust APIs.
 
 ## `decompiled-server-26.1.2/net/minecraft/world/entity/monster/hoglin`
