@@ -174,6 +174,60 @@
     }
 
     #[test]
+    fn active_crafting_table_result_slot_is_fake_like_java_for_secondary_pickup() {
+        let recipes = vanilla_recipe_map();
+        let mut state = PlaySessionState {
+            inventory_menu: InventoryMenu::new(PlayerInventory::new(), recipes.clone()),
+            ..Default::default()
+        };
+        let mut menu = ActiveBlockMenu::open(
+            9,
+            crate::block_update::BlockPos { x: 0, y: 64, z: 0 },
+            LiveBlockMenuKind::Crafting,
+            &WorldLayout::new(std::env::temp_dir()),
+            0,
+            &GeneratedChunkCache::default(),
+            &recipes,
+        );
+        let ActiveBlockMenuKind::Crafting { menu: crafting } = &mut menu.kind else {
+            panic!("expected crafting menu");
+        };
+        crafting.set_slot(
+            1,
+            ItemStack::new("minecraft:oak_log", 1),
+            state.inventory_menu.player_inventory_mut(),
+        );
+        assert_eq!(
+            menu.flattened_slots(&state)[CraftingMenu::RESULT_SLOT],
+            ItemStack::new("minecraft:oak_planks", 4)
+        );
+
+        let instructions = menu.handle_click(
+            &click_packet(
+                9,
+                0,
+                CraftingMenu::RESULT_SLOT as i16,
+                1,
+                ContainerInput::Pickup,
+            ),
+            &mut state,
+            &WorldLayout::new(std::env::temp_dir()),
+            0,
+            &GeneratedChunkCache::default(),
+        );
+
+        assert_eq!(state.carried_item, ItemStack::new("minecraft:oak_planks", 4));
+        assert!(menu.flattened_slots(&state)[CraftingMenu::RESULT_SLOT].is_empty());
+        assert!(menu.flattened_slots(&state)[CraftingMenu::GRID_START].is_empty());
+        assert!(instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                PlayInstruction::RecipesUnlocked(ids) if ids == &vec!["minecraft:oak_planks"]
+            )
+        }));
+    }
+
+    #[test]
     fn active_crafting_table_live_client_slot_shadows_update_three_by_three_result() {
         let recipes = crafting_table_recipe_map();
         let mut state = PlaySessionState {

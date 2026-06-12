@@ -159,6 +159,12 @@ impl ActiveBlockMenu {
             return Vec::new();
         }
         if matches!(self.kind, ActiveBlockMenuKind::Crafting { .. })
+            && packet.container_input == ContainerInput::Pickup
+            && packet.slot_num == CraftingMenu::RESULT_SLOT as i16
+        {
+            return self.handle_crafting_result_pickup(packet, state);
+        }
+        if matches!(self.kind, ActiveBlockMenuKind::Crafting { .. })
             && packet.container_input == ContainerInput::QuickMove
         {
             return self.handle_crafting_quick_move(packet, state);
@@ -180,6 +186,65 @@ impl ActiveBlockMenu {
         self.apply_flat_menu(menu, state);
         self.apply_result_slot_take_if_needed(result_slot_changed);
         self.persist_if_needed(world_layout, world_seed, chunk_cache);
+
+        if full_resync_needed {
+            let mut instructions = self.full_slot_resync(state);
+            self.push_recipe_unlocks(&mut instructions, state);
+            return instructions;
+        }
+
+        let mut instructions = Vec::new();
+        let after_slots = self.flattened_slots(state);
+        for (slot, (before, after)) in before_slots.iter().zip(after_slots.iter()).enumerate() {
+            if before != after {
+                if let Ok(item_stack) = raw_item_stack_from_item_stack(after) {
+                    instructions.push(PlayInstruction::ContainerSetSlot(
+                        ClientboundContainerSetSlotPacket {
+                            container_id: self.container_id,
+                            state_id: self.state_id,
+                            slot: slot as i16,
+                            item_stack,
+                        },
+                    ));
+                }
+            }
+        }
+        if state.carried_item != before_carried {
+            if let Ok(item_stack) = raw_item_stack_from_item_stack(&state.carried_item) {
+                instructions.push(PlayInstruction::SetCursorItem(
+                    ClientboundSetCursorItemPacket { item_stack },
+                ));
+            }
+        }
+        self.push_recipe_unlocks(&mut instructions, state);
+        instructions
+    }
+
+    fn handle_crafting_result_pickup(
+        &mut self,
+        packet: &ServerboundContainerClickPacket,
+        state: &mut PlaySessionState,
+    ) -> Vec<PlayInstruction> {
+        let full_resync_needed = packet.state_id != self.state_id;
+        let before_slots = self.flattened_slots(state);
+        let before_carried = state.carried_item.clone();
+
+        if !full_resync_needed {
+            if let ActiveBlockMenuKind::Crafting { menu } = &mut self.kind {
+                // Java `ResultSlot` is fake: taking from it calls `onTake`, consumes
+                // the craft grid, and never treats slot 0 as a normal mutable slot.
+                let result = menu.result().clone();
+                if can_carry_crafting_result(&state.carried_item, &result) {
+                    let taken = menu.take_result();
+                    if state.carried_item.is_empty() {
+                        state.carried_item = taken;
+                    } else {
+                        state.carried_item.grow(taken.count());
+                    }
+                }
+            }
+        }
+        self.increment_state_id();
 
         if full_resync_needed {
             let mut instructions = self.full_slot_resync(state);
@@ -524,6 +589,15 @@ fn player_slot_for(menu_index: usize, player_start: usize) -> Option<usize> {
     } else {
         None
     }
+}
+
+fn can_carry_crafting_result(carried: &ItemStack, result: &ItemStack) -> bool {
+    if result.is_empty() {
+        return false;
+    }
+    carried.is_empty()
+        || (same_item_same_components(carried, result)
+            && carried.count() + result.count() <= carried.max_stack_size() as i32)
 }
 
 fn container_input_to_inventory(input: ContainerInput) -> crate::inventory::ContainerInput {
