@@ -123,6 +123,10 @@ fn round_trips_known_brand_custom_payload() {
     let mut bytes = Vec::new();
     packet.write(&mut bytes).unwrap();
     assert_eq!(
+        bytes,
+        [vec![15], b"minecraft:brand".to_vec(), vec![7], b"vanilla".to_vec()].concat()
+    );
+    assert_eq!(
         ServerboundCustomPayloadPacket::read(&mut Cursor::new(bytes)).unwrap(),
         packet
     );
@@ -203,6 +207,7 @@ fn round_trips_client_information_with_vanilla_defaults() {
     };
     let mut bytes = Vec::new();
     packet.write(&mut bytes).unwrap();
+    assert_eq!(bytes, vec![5, b'e', b'n', b'_', b'u', b's', 2, 0, 1, 0, 1, 0, 0, 0]);
     assert_eq!(
         ServerboundClientInformationPacket::read(&mut Cursor::new(bytes)).unwrap(),
         packet
