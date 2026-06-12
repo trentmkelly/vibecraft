@@ -16,6 +16,7 @@ pub mod lp_vec3;
 pub mod ping;
 pub mod pipeline;
 pub mod play;
+pub mod protocol_core;
 pub mod protocol_coverage;
 pub mod query;
 pub mod rate_limit;
