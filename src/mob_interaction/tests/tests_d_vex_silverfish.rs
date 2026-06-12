@@ -306,6 +306,50 @@ fn assert_silverfish_attributes_spawn_and_infested_mappings() {
     assert_eq!(SILVERFISH_NEAR_PLAYER_SPAWN_BLOCK_RANGE, 5.0);
     assert_eq!(SILVERFISH_STEP_SOUND_VOLUME, 0.15);
     assert_eq!(SILVERFISH_STEP_SOUND_PITCH, 1.0);
+    assert_eq!(
+        silverfish_class_surface(),
+        SilverfishClassSurface {
+            movement_emission: "events",
+            ambient_sound: "minecraft:entity.silverfish.ambient",
+            hurt_sound: "minecraft:entity.silverfish.hurt",
+            death_sound: "minecraft:entity.silverfish.death",
+            step_sound: "minecraft:entity.silverfish.step",
+            step_sound_volume: 0.15,
+            step_sound_pitch: 1.0,
+        }
+    );
+    assert_eq!(
+        silverfish_goal_surface(),
+        SilverfishGoalSurface {
+            float_goal_priority: 1,
+            powder_snow_goal_priority: 1,
+            wake_friends_priority: 3,
+            melee_attack_priority: 4,
+            melee_attack_speed: 1.0,
+            melee_attack_follow_even_if_not_seen: false,
+            merge_with_stone_priority: 5,
+            merge_with_stone_speed: 1.0,
+            merge_with_stone_interval: 10,
+            hurt_by_target_priority: 1,
+            hurt_by_alerts_others: true,
+            nearest_player_target_priority: 2,
+            nearest_player_must_see: true,
+        }
+    );
+    assert_eq!(
+        silverfish_tick_rotation(25.0),
+        SilverfishRotationTick {
+            y_rot: 25.0,
+            y_body_rot: 25.0,
+        }
+    );
+    assert_eq!(
+        silverfish_set_y_body_rot(10.0, 70.0),
+        SilverfishRotationTick {
+            y_rot: 70.0,
+            y_body_rot: 70.0,
+        }
+    );
 
     assert_eq!(
         silverfish_infested_block_for_host("minecraft:stone"),

@@ -5,6 +5,40 @@ pub struct SilverfishAttributes {
     pub attack_damage: f32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SilverfishClassSurface {
+    pub movement_emission: &'static str,
+    pub ambient_sound: &'static str,
+    pub hurt_sound: &'static str,
+    pub death_sound: &'static str,
+    pub step_sound: &'static str,
+    pub step_sound_volume: f32,
+    pub step_sound_pitch: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SilverfishGoalSurface {
+    pub float_goal_priority: i32,
+    pub powder_snow_goal_priority: i32,
+    pub wake_friends_priority: i32,
+    pub melee_attack_priority: i32,
+    pub melee_attack_speed: f32,
+    pub melee_attack_follow_even_if_not_seen: bool,
+    pub merge_with_stone_priority: i32,
+    pub merge_with_stone_speed: f32,
+    pub merge_with_stone_interval: i32,
+    pub hurt_by_target_priority: i32,
+    pub hurt_by_alerts_others: bool,
+    pub nearest_player_target_priority: i32,
+    pub nearest_player_must_see: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SilverfishRotationTick {
+    pub y_rot: f32,
+    pub y_body_rot: f32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SilverfishWakeStep {
     pub offset: (i32, i32, i32),
@@ -28,14 +62,74 @@ pub const SILVERFISH_MERGE_SPEED: f32 = 1.0;
 pub const SILVERFISH_MERGE_INTERVAL_TICKS: i32 = 10;
 pub const SILVERFISH_WALK_TARGET_HOST_VALUE: f32 = 10.0;
 pub const SILVERFISH_NEAR_PLAYER_SPAWN_BLOCK_RANGE: f64 = 5.0;
+pub const SILVERFISH_MOVEMENT_EMISSION: &str = "events";
+pub const SILVERFISH_AMBIENT_SOUND: &str = "minecraft:entity.silverfish.ambient";
+pub const SILVERFISH_HURT_SOUND: &str = "minecraft:entity.silverfish.hurt";
+pub const SILVERFISH_DEATH_SOUND: &str = "minecraft:entity.silverfish.death";
+pub const SILVERFISH_STEP_SOUND: &str = "minecraft:entity.silverfish.step";
 pub const SILVERFISH_STEP_SOUND_VOLUME: f32 = 0.15;
 pub const SILVERFISH_STEP_SOUND_PITCH: f32 = 1.0;
+pub const SILVERFISH_FLOAT_GOAL_PRIORITY: i32 = 1;
+pub const SILVERFISH_POWDER_SNOW_GOAL_PRIORITY: i32 = 1;
+pub const SILVERFISH_WAKE_FRIENDS_GOAL_PRIORITY: i32 = 3;
+pub const SILVERFISH_MELEE_ATTACK_GOAL_PRIORITY: i32 = 4;
+pub const SILVERFISH_MELEE_ATTACK_SPEED: f32 = 1.0;
+pub const SILVERFISH_MERGE_WITH_STONE_GOAL_PRIORITY: i32 = 5;
+pub const SILVERFISH_HURT_BY_TARGET_GOAL_PRIORITY: i32 = 1;
+pub const SILVERFISH_NEAREST_PLAYER_TARGET_GOAL_PRIORITY: i32 = 2;
 
 pub fn silverfish_attributes() -> SilverfishAttributes {
     SilverfishAttributes {
         max_health: SILVERFISH_MAX_HEALTH,
         movement_speed: SILVERFISH_MOVEMENT_SPEED,
         attack_damage: SILVERFISH_ATTACK_DAMAGE,
+    }
+}
+
+pub fn silverfish_class_surface() -> SilverfishClassSurface {
+    SilverfishClassSurface {
+        movement_emission: SILVERFISH_MOVEMENT_EMISSION,
+        ambient_sound: SILVERFISH_AMBIENT_SOUND,
+        hurt_sound: SILVERFISH_HURT_SOUND,
+        death_sound: SILVERFISH_DEATH_SOUND,
+        step_sound: SILVERFISH_STEP_SOUND,
+        step_sound_volume: SILVERFISH_STEP_SOUND_VOLUME,
+        step_sound_pitch: SILVERFISH_STEP_SOUND_PITCH,
+    }
+}
+
+pub fn silverfish_goal_surface() -> SilverfishGoalSurface {
+    SilverfishGoalSurface {
+        float_goal_priority: SILVERFISH_FLOAT_GOAL_PRIORITY,
+        powder_snow_goal_priority: SILVERFISH_POWDER_SNOW_GOAL_PRIORITY,
+        wake_friends_priority: SILVERFISH_WAKE_FRIENDS_GOAL_PRIORITY,
+        melee_attack_priority: SILVERFISH_MELEE_ATTACK_GOAL_PRIORITY,
+        melee_attack_speed: SILVERFISH_MELEE_ATTACK_SPEED,
+        melee_attack_follow_even_if_not_seen: false,
+        merge_with_stone_priority: SILVERFISH_MERGE_WITH_STONE_GOAL_PRIORITY,
+        merge_with_stone_speed: SILVERFISH_MERGE_SPEED,
+        merge_with_stone_interval: SILVERFISH_MERGE_INTERVAL_TICKS,
+        hurt_by_target_priority: SILVERFISH_HURT_BY_TARGET_GOAL_PRIORITY,
+        hurt_by_alerts_others: true,
+        nearest_player_target_priority: SILVERFISH_NEAREST_PLAYER_TARGET_GOAL_PRIORITY,
+        nearest_player_must_see: true,
+    }
+}
+
+pub fn silverfish_tick_rotation(y_rot: f32) -> SilverfishRotationTick {
+    SilverfishRotationTick {
+        y_rot,
+        y_body_rot: y_rot,
+    }
+}
+
+pub fn silverfish_set_y_body_rot(
+    _current_y_rot: f32,
+    requested_y_body_rot: f32,
+) -> SilverfishRotationTick {
+    SilverfishRotationTick {
+        y_rot: requested_y_body_rot,
+        y_body_rot: requested_y_body_rot,
     }
 }
 
