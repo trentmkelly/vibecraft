@@ -1031,6 +1031,7 @@ mod set_subtitle_text_packet_test;
 mod set_title_text_packet_test;
 mod set_titles_animation_packet_test;
 mod serverbound_advancement_misc_packets_source_test;
+mod serverbound_block_edit_packets_source_test;
 mod serverbound_simple_packets_test;
 mod serverbound_container_misc_packets_test;
 mod serverbound_hand_item_packets_source_test;

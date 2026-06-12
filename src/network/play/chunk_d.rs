@@ -644,7 +644,7 @@ impl ServerboundSignUpdatePacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         let (x, y, z) = read_block_position(reader)?;
         let is_front_text = read_bool(reader)?;
-        Ok(Self {
+        let packet = Self {
             x,
             y,
             z,
@@ -655,7 +655,9 @@ impl ServerboundSignUpdatePacket {
                 read_string(reader, 384)?,
                 read_string(reader, 384)?,
             ],
-        })
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
@@ -700,10 +702,12 @@ impl ServerboundSetBeaconPacket {
     }
 
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
-        Ok(Self {
+        let packet = Self {
             primary_effect_id: Self::read_optional_mob_effect(reader)?,
             secondary_effect_id: Self::read_optional_mob_effect(reader)?,
-        })
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {

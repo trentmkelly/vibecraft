@@ -6,7 +6,7 @@ impl ServerboundSetCommandBlockPacket {
         let command = read_string(reader, 32767)?;
         let mode = CommandBlockMode::from_id(read_var_i32(reader)?)?;
         let flags = read_u8(reader)?;
-        Ok(Self {
+        let packet = Self {
             x,
             y,
             z,
@@ -15,7 +15,9 @@ impl ServerboundSetCommandBlockPacket {
             track_output: flags & 1 != 0,
             conditional: flags & 2 != 0,
             automatic: flags & 4 != 0,
-        })
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
@@ -31,11 +33,13 @@ impl ServerboundSetCommandBlockPacket {
 
 impl ServerboundSetCommandMinecartPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
-        Ok(Self {
+        let packet = Self {
             entity_id: read_var_i32(reader)?,
             command: read_string(reader, 32767)?,
             track_output: read_bool(reader)?,
-        })
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
@@ -149,7 +153,7 @@ impl ServerboundSetStructureBlockPacket {
         let integrity = read_f32(reader)?.clamp(0.0, 1.0);
         let seed = read_var_i64(reader)?;
         let flags = read_u8(reader)?;
-        Ok(Self {
+        let packet = Self {
             x,
             y,
             z,
@@ -167,7 +171,9 @@ impl ServerboundSetStructureBlockPacket {
             strict: flags & 8 != 0,
             show_air: flags & 2 != 0,
             show_bounding_box: flags & 4 != 0,
-        })
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
