@@ -600,6 +600,42 @@ fn movement_packets_decode_flags_position_and_rotation_by_shape() {
 
 #[test]
 fn move_player_packet_shapes_match_vanilla_field_layouts() {
+    const SERVERBOUND_MOVE_PLAYER_PACKET_JAVA: &str = include_str!(
+        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundMovePlayerPacket.java"
+    );
+    for sentinel in [
+        "private static final int FLAG_ON_GROUND = 1;",
+        "private static final int FLAG_HORIZONTAL_COLLISION = 2;",
+        "flags |= 1;",
+        "flags |= 2;",
+        "return (flags & 1) != 0;",
+        "return (flags & 2) != 0;",
+        "listener.handleMovePlayer(this);",
+        "public static class Pos extends ServerboundMovePlayerPacket",
+        "double x = input.readDouble();",
+        "double y = input.readDouble();",
+        "double z = input.readDouble();",
+        "output.writeDouble(this.x);",
+        "output.writeDouble(this.y);",
+        "output.writeDouble(this.z);",
+        "return GamePacketTypes.SERVERBOUND_MOVE_PLAYER_POS;",
+        "public static class PosRot extends ServerboundMovePlayerPacket",
+        "float yRot = input.readFloat();",
+        "float xRot = input.readFloat();",
+        "output.writeFloat(this.yRot);",
+        "output.writeFloat(this.xRot);",
+        "return GamePacketTypes.SERVERBOUND_MOVE_PLAYER_POS_ROT;",
+        "public static class Rot extends ServerboundMovePlayerPacket",
+        "return GamePacketTypes.SERVERBOUND_MOVE_PLAYER_ROT;",
+        "public static class StatusOnly extends ServerboundMovePlayerPacket",
+        "return GamePacketTypes.SERVERBOUND_MOVE_PLAYER_STATUS_ONLY;",
+    ] {
+        assert!(
+            SERVERBOUND_MOVE_PLAYER_PACKET_JAVA.contains(sentinel),
+            "missing ServerboundMovePlayerPacket sentinel {sentinel}"
+        );
+    }
+
     let movement = movement_shape_fixture();
     assert_move_player_pos_shape(&movement);
     assert_move_player_pos_rot_shape(&movement);
