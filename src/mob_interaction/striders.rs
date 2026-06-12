@@ -12,6 +12,29 @@ pub struct StriderEntityTypeSurface {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub struct StriderClassSurface {
+    pub blocks_building: bool,
+    pub boost_time_default: i32,
+    pub suffocating_default: bool,
+    pub can_dispenser_equip_saddle: bool,
+    pub saddle_equip_sound: &'static str,
+    pub goal_priorities: &'static [(i32, &'static str)],
+    pub ambient_sound: &'static str,
+    pub hurt_sound: &'static str,
+    pub death_sound: &'static str,
+    pub happy_sound: &'static str,
+    pub retreat_sound: &'static str,
+    pub eat_sound: &'static str,
+    pub step_sound: &'static str,
+    pub lava_step_sound: &'static str,
+    pub leash_offset_y_eye_height_multiplier: f32,
+    pub leash_offset_z_width_multiplier: f32,
+    pub ridden_input: (f64, f64, f64),
+    pub ridden_pitch_multiplier: f32,
+    pub passengers_inherit_malus: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct StriderSuffocationState {
     pub suffocating: bool,
     pub movement_speed_modifier: Option<f32>,
@@ -37,6 +60,9 @@ pub const STRIDER_MOVEMENT_SPEED: f32 = 0.175;
 pub const STRIDER_WIDTH: f32 = 0.9;
 pub const STRIDER_HEIGHT: f32 = 1.7;
 pub const STRIDER_CLIENT_TRACKING_RANGE: i32 = 10;
+pub const STRIDER_BLOCKS_BUILDING: bool = true;
+pub const STRIDER_BOOST_TIME_DEFAULT: i32 = 0;
+pub const STRIDER_SUFFOCATING_DEFAULT: bool = false;
 pub const STRIDER_WATER_PATHFINDING_MALUS: f32 = -1.0;
 pub const STRIDER_LAVA_PATHFINDING_MALUS: f32 = 0.0;
 pub const STRIDER_FIRE_PATHFINDING_MALUS: f32 = 0.0;
@@ -64,6 +90,31 @@ pub const STRIDER_ZOMBIFIED_PIGLIN_JOCKEY_RANDOM_BOUND: i32 = 30;
 pub const STRIDER_BABY_JOCKEY_RANDOM_BOUND: i32 = 10;
 pub const STRIDER_BABY_JOCKEY_AGE: i32 = -24000;
 pub const STRIDER_GROUP_BABY_CHANCE_PERCENT: i32 = 50;
+pub const STRIDER_SADDLE_EQUIP_SOUND: &str = "minecraft:entity.strider.saddle";
+pub const STRIDER_AMBIENT_SOUND: &str = "minecraft:entity.strider.ambient";
+pub const STRIDER_HURT_SOUND: &str = "minecraft:entity.strider.hurt";
+pub const STRIDER_DEATH_SOUND: &str = "minecraft:entity.strider.death";
+pub const STRIDER_HAPPY_SOUND: &str = "minecraft:entity.strider.happy";
+pub const STRIDER_RETREAT_SOUND: &str = "minecraft:entity.strider.retreat";
+pub const STRIDER_EAT_SOUND: &str = "minecraft:entity.strider.eat";
+pub const STRIDER_STEP_SOUND: &str = "minecraft:entity.strider.step";
+pub const STRIDER_STEP_LAVA_SOUND: &str = "minecraft:entity.strider.step_lava";
+pub const STRIDER_GOAL_PRIORITIES: &[(i32, &str)] = &[
+    (1, "PanicGoal"),
+    (2, "BreedGoal"),
+    (3, "TemptGoal"),
+    (4, "StriderGoToLavaGoal"),
+    (5, "FollowParentGoal"),
+    (7, "RandomStrollGoal"),
+    (8, "LookAtPlayerGoal<Player>"),
+    (8, "RandomLookAroundGoal"),
+    (9, "LookAtPlayerGoal<Strider>"),
+];
+pub const STRIDER_LEASH_OFFSET_Y_EYE_HEIGHT_MULTIPLIER: f32 = 0.6;
+pub const STRIDER_LEASH_OFFSET_Z_WIDTH_MULTIPLIER: f32 = 0.4;
+pub const STRIDER_RIDDEN_INPUT: (f64, f64, f64) = (0.0, 0.0, 1.0);
+pub const STRIDER_RIDDEN_PITCH_MULTIPLIER: f32 = 0.5;
+pub const STRIDER_PASSENGERS_INHERIT_MALUS: bool = true;
 
 pub fn strider_attributes() -> StriderAttributes {
     StriderAttributes {
@@ -77,6 +128,30 @@ pub fn strider_entity_type_surface() -> StriderEntityTypeSurface {
         height: STRIDER_HEIGHT,
         client_tracking_range: STRIDER_CLIENT_TRACKING_RANGE,
         fire_immune: true,
+    }
+}
+
+pub fn strider_class_surface() -> StriderClassSurface {
+    StriderClassSurface {
+        blocks_building: STRIDER_BLOCKS_BUILDING,
+        boost_time_default: STRIDER_BOOST_TIME_DEFAULT,
+        suffocating_default: STRIDER_SUFFOCATING_DEFAULT,
+        can_dispenser_equip_saddle: true,
+        saddle_equip_sound: STRIDER_SADDLE_EQUIP_SOUND,
+        goal_priorities: STRIDER_GOAL_PRIORITIES,
+        ambient_sound: STRIDER_AMBIENT_SOUND,
+        hurt_sound: STRIDER_HURT_SOUND,
+        death_sound: STRIDER_DEATH_SOUND,
+        happy_sound: STRIDER_HAPPY_SOUND,
+        retreat_sound: STRIDER_RETREAT_SOUND,
+        eat_sound: STRIDER_EAT_SOUND,
+        step_sound: STRIDER_STEP_SOUND,
+        lava_step_sound: STRIDER_STEP_LAVA_SOUND,
+        leash_offset_y_eye_height_multiplier: STRIDER_LEASH_OFFSET_Y_EYE_HEIGHT_MULTIPLIER,
+        leash_offset_z_width_multiplier: STRIDER_LEASH_OFFSET_Z_WIDTH_MULTIPLIER,
+        ridden_input: STRIDER_RIDDEN_INPUT,
+        ridden_pitch_multiplier: STRIDER_RIDDEN_PITCH_MULTIPLIER,
+        passengers_inherit_malus: STRIDER_PASSENGERS_INHERIT_MALUS,
     }
 }
 
@@ -149,6 +224,26 @@ pub fn strider_interaction_starts_riding(
     player_secondary_use_active: bool,
 ) -> bool {
     !has_food_in_hand && saddled && !already_vehicle && !player_secondary_use_active
+}
+
+pub fn strider_ambient_sound(panicking: bool, being_tempted: bool) -> Option<&'static str> {
+    (!panicking && !being_tempted).then_some(STRIDER_AMBIENT_SOUND)
+}
+
+pub fn strider_step_sound(in_lava: bool) -> &'static str {
+    if in_lava {
+        STRIDER_STEP_LAVA_SOUND
+    } else {
+        STRIDER_STEP_SOUND
+    }
+}
+
+pub fn strider_eat_sound_on_food_interaction(has_food: bool, silent: bool) -> Option<&'static str> {
+    (has_food && !silent).then_some(STRIDER_EAT_SOUND)
+}
+
+pub fn strider_fall_damage_resets_in_lava(in_lava: bool) -> bool {
+    in_lava
 }
 
 pub fn strider_float_in_lava(

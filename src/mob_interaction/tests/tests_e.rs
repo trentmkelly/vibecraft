@@ -150,6 +150,40 @@ fn assert_strider_attributes_spawn_and_pathing() {
             fire_immune: true,
         }
     );
+    assert_eq!(
+        strider_class_surface(),
+        StriderClassSurface {
+            blocks_building: true,
+            boost_time_default: 0,
+            suffocating_default: false,
+            can_dispenser_equip_saddle: true,
+            saddle_equip_sound: "minecraft:entity.strider.saddle",
+            goal_priorities: &[
+                (1, "PanicGoal"),
+                (2, "BreedGoal"),
+                (3, "TemptGoal"),
+                (4, "StriderGoToLavaGoal"),
+                (5, "FollowParentGoal"),
+                (7, "RandomStrollGoal"),
+                (8, "LookAtPlayerGoal<Player>"),
+                (8, "RandomLookAroundGoal"),
+                (9, "LookAtPlayerGoal<Strider>"),
+            ],
+            ambient_sound: "minecraft:entity.strider.ambient",
+            hurt_sound: "minecraft:entity.strider.hurt",
+            death_sound: "minecraft:entity.strider.death",
+            happy_sound: "minecraft:entity.strider.happy",
+            retreat_sound: "minecraft:entity.strider.retreat",
+            eat_sound: "minecraft:entity.strider.eat",
+            step_sound: "minecraft:entity.strider.step",
+            lava_step_sound: "minecraft:entity.strider.step_lava",
+            leash_offset_y_eye_height_multiplier: 0.6,
+            leash_offset_z_width_multiplier: 0.4,
+            ridden_input: (0.0, 0.0, 1.0),
+            ridden_pitch_multiplier: 0.5,
+            passengers_inherit_malus: true,
+        }
+    );
     assert_eq!(STRIDER_WATER_PATHFINDING_MALUS, -1.0);
     assert_eq!(STRIDER_LAVA_PATHFINDING_MALUS, 0.0);
     assert_eq!(STRIDER_FIRE_PATHFINDING_MALUS, 0.0);
@@ -205,12 +239,39 @@ fn assert_strider_saddle_riding_and_suffocation() {
 }
 
 fn assert_strider_lava_float_navigation_and_sounds() {
+    assert_strider_sounds_and_fall_hooks();
+    assert_strider_lava_float_rules();
+    assert_strider_lava_goal_and_navigation_rules();
+}
+
+fn assert_strider_sounds_and_fall_hooks() {
     assert_eq!(STRIDER_HAPPY_SOUND_RANDOM_BOUND, 140);
     assert_eq!(STRIDER_RETREAT_SOUND_RANDOM_BOUND, 60);
     assert_eq!(STRIDER_STEP_DISTANCE_INCREMENT, 0.6);
     assert_eq!(STRIDER_STEP_SOUND_VOLUME, 1.0);
     assert_eq!(STRIDER_STEP_SOUND_PITCH, 1.0);
     assert_eq!(STRIDER_LIQUID_COLLISION_HEIGHT, 8.0);
+    assert_eq!(
+        strider_ambient_sound(false, false),
+        Some("minecraft:entity.strider.ambient")
+    );
+    assert_eq!(strider_ambient_sound(true, false), None);
+    assert_eq!(strider_ambient_sound(false, true), None);
+    assert_eq!(strider_step_sound(false), "minecraft:entity.strider.step");
+    assert_eq!(
+        strider_step_sound(true),
+        "minecraft:entity.strider.step_lava"
+    );
+    assert_eq!(
+        strider_eat_sound_on_food_interaction(true, false),
+        Some("minecraft:entity.strider.eat")
+    );
+    assert_eq!(strider_eat_sound_on_food_interaction(true, true), None);
+    assert!(strider_fall_damage_resets_in_lava(true));
+    assert!(!strider_fall_damage_resets_in_lava(false));
+}
+
+fn assert_strider_lava_float_rules() {
     assert_eq!(
         strider_float_in_lava(true, true, false, (0.2, -0.1, 0.4)),
         (true, (0.2, -0.1, 0.4))
@@ -223,7 +284,9 @@ fn assert_strider_lava_float_navigation_and_sounds() {
         strider_float_in_lava(false, false, false, (0.2, -0.1, 0.4)),
         (false, (0.2, -0.1, 0.4))
     );
+}
 
+fn assert_strider_lava_goal_and_navigation_rules() {
     assert!(strider_go_to_lava_can_use(false, true));
     assert!(!strider_go_to_lava_can_use(true, true));
     assert!(strider_go_to_lava_can_continue(false, true));
