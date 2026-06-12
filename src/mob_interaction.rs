@@ -1,5 +1,11 @@
 #![allow(dead_code)]
 
+pub const ENEMY_XP_REWARD_NONE: i32 = 0;
+pub const ENEMY_XP_REWARD_SMALL: i32 = 3;
+pub const ENEMY_XP_REWARD_MEDIUM: i32 = 5;
+pub const ENEMY_XP_REWARD_LARGE: i32 = 10;
+pub const ENEMY_XP_REWARD_HUGE: i32 = 20;
+pub const ENEMY_XP_REWARD_BOSS: i32 = 50;
 pub const BABY_START_AGE: i32 = -24_000;
 pub const AGE_LOCK_COOLDOWN_TICKS: i32 = 40;
 pub const FORCED_AGE_PARTICLE_TICKS: i32 = 40;

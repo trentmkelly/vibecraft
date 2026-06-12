@@ -1,6 +1,16 @@
 use crate::mob_interaction::*;
 
 #[test]
+fn enemy_xp_reward_constants_match_java_interface() {
+    assert_eq!(ENEMY_XP_REWARD_NONE, 0);
+    assert_eq!(ENEMY_XP_REWARD_SMALL, 3);
+    assert_eq!(ENEMY_XP_REWARD_MEDIUM, 5);
+    assert_eq!(ENEMY_XP_REWARD_LARGE, 10);
+    assert_eq!(ENEMY_XP_REWARD_HUGE, 20);
+    assert_eq!(ENEMY_XP_REWARD_BOSS, 50);
+}
+
+#[test]
 fn ageable_mobs_tick_feed_and_age_lock_like_vanilla() {
     let baby = AgeState::baby();
     assert!(baby.is_baby());
