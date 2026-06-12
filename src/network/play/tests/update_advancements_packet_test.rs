@@ -1,7 +1,25 @@
 use super::*;
 
+const CLIENTBOUND_UPDATE_ADVANCEMENTS_JAVA: &str = include_str!(
+    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundUpdateAdvancementsPacket.java"
+);
+
 #[test]
 fn clientbound_update_advancements_packet_matches_java_codec() {
+    for sentinel in [
+        "this.reset = input.readBoolean();",
+        "this.added = AdvancementHolder.LIST_STREAM_CODEC.decode(input);",
+        "this.removed = input.readCollection(Sets::newLinkedHashSetWithExpectedSize, FriendlyByteBuf::readIdentifier);",
+        "this.progress = input.readMap(FriendlyByteBuf::readIdentifier, AdvancementProgress::fromNetwork);",
+        "this.showAdvancements = input.readBoolean();",
+        "listener.handleUpdateAdvancementsPacket(this);",
+    ] {
+        assert!(
+            CLIENTBOUND_UPDATE_ADVANCEMENTS_JAVA.contains(sentinel),
+            "Java source missing sentinel: {sentinel}"
+        );
+    }
+
     assert_eq!(CLIENTBOUND_UPDATE_ADVANCEMENTS_PACKET_ID, 130);
     let registry = PlayProtocolRegistry::new();
     assert_eq!(

@@ -1,7 +1,25 @@
 use super::*;
 
+const CLIENTBOUND_SOUND_ENTITY_JAVA: &str = include_str!(
+    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSoundEntityPacket.java"
+);
+
 #[test]
 fn clientbound_sound_entity_packet_matches_java_codec() {
+    for sentinel in [
+        "this.sound = SoundEvent.STREAM_CODEC.decode(input);",
+        "this.source = input.readEnum(SoundSource.class);",
+        "this.id = input.readVarInt();",
+        "this.volume = input.readFloat();",
+        "this.seed = input.readLong();",
+        "listener.handleSoundEntityEvent(this);",
+    ] {
+        assert!(
+            CLIENTBOUND_SOUND_ENTITY_JAVA.contains(sentinel),
+            "Java source missing sentinel: {sentinel}"
+        );
+    }
+
     assert_eq!(CLIENTBOUND_SOUND_ENTITY_PACKET_ID, 116);
     let registry = PlayProtocolRegistry::new();
     assert_eq!(
