@@ -228,6 +228,10 @@ fn lerp(part: f32, start: f32, end: f32) -> f32 {
     start + part * (end - start)
 }
 
+mod monsters;
+#[cfg(test)]
+use monsters::*;
+
 mod golems;
 #[cfg(test)]
 use golems::*;

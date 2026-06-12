@@ -11,6 +11,94 @@ fn enemy_xp_reward_constants_match_java_interface() {
 }
 
 #[test]
+fn monster_base_class_rules_match_java_methods() {
+    assert_eq!(
+        monster_base_surface(),
+        MonsterBaseSurface {
+            xp_reward: 5,
+            sound_source: "hostile",
+            swim_sound: "minecraft:entity.hostile.swim",
+            swim_splash_sound: "minecraft:entity.hostile.splash",
+            hurt_sound: "minecraft:entity.hostile.hurt",
+            death_sound: "minecraft:entity.hostile.death",
+            small_fall_sound: "minecraft:entity.hostile.small_fall",
+            big_fall_sound: "minecraft:entity.hostile.big_fall",
+            attack_damage_attribute_present: true,
+            should_drop_experience: true,
+            prevents_player_rest: true,
+        }
+    );
+
+    assert_eq!(monster_update_no_action_time(7, 0.5), 7);
+    assert_eq!(monster_update_no_action_time(7, 0.51), 9);
+    assert_eq!(monster_walk_target_value(0.42), -0.42);
+    assert!(monster_should_drop_loot(true));
+    assert!(!monster_should_drop_loot(false));
+}
+
+#[test]
+fn monster_spawn_and_projectile_rules_match_java_methods() {
+    let dark_input = MonsterSpawnLightInput {
+        sky_brightness: 4,
+        random_sky_gate: 4,
+        block_light_limit: 7,
+        block_brightness: 7,
+        thundering: false,
+        max_local_raw_brightness: 3,
+        max_local_raw_brightness_thunder: 10,
+        sampled_monster_spawn_light_test: 3,
+    };
+    assert!(monster_is_dark_enough_to_spawn(dark_input));
+    assert!(!monster_is_dark_enough_to_spawn(MonsterSpawnLightInput {
+        sky_brightness: 5,
+        ..dark_input
+    }));
+    assert!(!monster_is_dark_enough_to_spawn(MonsterSpawnLightInput {
+        block_brightness: 8,
+        ..dark_input
+    }));
+    assert!(!monster_is_dark_enough_to_spawn(MonsterSpawnLightInput {
+        thundering: true,
+        ..dark_input
+    }));
+
+    assert!(monster_spawn_rules(MonsterSpawnRuleInput {
+        peaceful_difficulty: false,
+        spawn_reason_ignores_light: false,
+        dark_enough_to_spawn: true,
+        mob_spawn_rules_pass: true,
+    }));
+    assert!(monster_spawn_rules(MonsterSpawnRuleInput {
+        dark_enough_to_spawn: false,
+        spawn_reason_ignores_light: true,
+        ..MonsterSpawnRuleInput {
+            peaceful_difficulty: false,
+            spawn_reason_ignores_light: false,
+            dark_enough_to_spawn: true,
+            mob_spawn_rules_pass: true,
+        }
+    }));
+    assert!(!monster_spawn_rules(MonsterSpawnRuleInput {
+        peaceful_difficulty: true,
+        spawn_reason_ignores_light: true,
+        dark_enough_to_spawn: true,
+        mob_spawn_rules_pass: true,
+    }));
+    assert!(monster_any_light_spawn_rules(false, true));
+    assert!(!monster_any_light_spawn_rules(true, true));
+    assert!(monster_surface_spawn_rules(true, false, true));
+    assert!(monster_surface_spawn_rules(true, true, false));
+    assert!(!monster_surface_spawn_rules(true, false, false));
+
+    assert_eq!(monster_projectile(false, Some("minecraft:arrow")), None);
+    assert_eq!(
+        monster_projectile(true, Some("minecraft:spectral_arrow")),
+        Some("minecraft:spectral_arrow")
+    );
+    assert_eq!(monster_projectile(true, None), Some("minecraft:arrow"));
+}
+
+#[test]
 fn ageable_mobs_tick_feed_and_age_lock_like_vanilla() {
     let baby = AgeState::baby();
     assert!(baby.is_baby());
