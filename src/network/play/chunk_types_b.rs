@@ -7,6 +7,12 @@ pub struct ServerboundEntityTagQueryPacket {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundBlockEntityTagQueryPacket {
+    pub transaction_id: i32,
+    pub pos: crate::block_update::BlockPos,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClientboundRotateHeadPacket {
     pub id: i32,
     pub y_head_rot: u8,

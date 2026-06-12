@@ -31,6 +31,7 @@ impl PlaySession {
             last_rename_item: None,
             last_command_suggestion: None,
             last_edit_book: None,
+            last_block_entity_tag_query: None,
             last_entity_tag_query: None,
             last_interact: None,
             last_resource_pack_response: None,
@@ -319,6 +320,12 @@ impl PlaySession {
         payload: &[u8],
     ) -> Option<DispatchOutcome> {
         Some(match packet_id {
+            SERVERBOUND_BLOCK_ENTITY_TAG_QUERY_PACKET_ID => self.decode_and_store(
+                payload,
+                "block entity tag query packet",
+                |input| ServerboundBlockEntityTagQueryPacket::read(input),
+                |session, query| session.last_block_entity_tag_query = Some(query),
+            ),
             SERVERBOUND_CONTAINER_BUTTON_CLICK_PACKET_ID => self.decode_and_store(
                 payload,
                 "container button click packet",

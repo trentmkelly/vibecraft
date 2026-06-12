@@ -3109,6 +3109,12 @@ fn try_handle_inventory_packet<R: Read>(
             // `handleEntityTagQuery`; VibeCraft does not answer entity NBT queries yet.
             let _ = ServerboundEntityTagQueryPacket::read(input)?;
         }
+        SERVERBOUND_BLOCK_ENTITY_TAG_QUERY_PACKET_ID => {
+            // Java validates the VarInt transaction id and BlockPos before dispatching
+            // `handleBlockEntityTagQuery`; VibeCraft does not answer block-entity NBT
+            // queries yet.
+            let _ = ServerboundBlockEntityTagQueryPacket::read(input)?;
+        }
         SERVERBOUND_SET_CREATIVE_MODE_SLOT_PACKET_ID => {
             handle_set_creative_mode_slot_packet(stream, compression, input, play_state)?;
         }

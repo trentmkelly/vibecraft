@@ -806,6 +806,23 @@ impl ServerboundEntityTagQueryPacket {
     }
 }
 
+impl ServerboundBlockEntityTagQueryPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let transaction_id = read_var_i32(reader)?;
+        let (x, y, z) = read_block_position(reader)?;
+        expect_empty_payload(reader)?;
+        Ok(Self {
+            transaction_id,
+            pos: crate::block_update::BlockPos { x, y, z },
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.transaction_id)?;
+        write_block_position(writer, self.pos.x, self.pos.y, self.pos.z)
+    }
+}
+
 impl ServerboundInteractionHand {
     pub(super) fn from_id(id: i32) -> Self {
         match id {

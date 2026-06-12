@@ -1032,6 +1032,7 @@ mod set_title_text_packet_test;
 mod set_titles_animation_packet_test;
 mod serverbound_advancement_misc_packets_source_test;
 mod serverbound_block_edit_packets_source_test;
+mod serverbound_block_entity_tag_query_packet_test;
 mod serverbound_simple_packets_test;
 mod serverbound_container_misc_packets_test;
 mod serverbound_entity_tag_query_packet_test;
