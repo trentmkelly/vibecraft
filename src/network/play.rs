@@ -258,6 +258,8 @@ use chunk_d2::*;
 mod chunk_e;
 pub use chunk_e::*;
 
+mod chunk_set_default_spawn_position;
+
 mod chunk_e2;
 mod chunk_e3;
 use chunk_e2::*;

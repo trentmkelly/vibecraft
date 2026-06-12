@@ -1032,6 +1032,7 @@ mod section_blocks_update_packet_test;
 mod set_action_bar_text_packet_test;
 mod set_beacon_packet_test;
 mod set_border_center_packet_test;
+mod set_default_spawn_position_packet_test;
 mod set_border_lerp_size_packet_test;
 mod set_border_size_packet_test;
 mod set_border_warning_delay_packet_test;

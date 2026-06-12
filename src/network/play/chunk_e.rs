@@ -169,35 +169,6 @@ impl ClientboundSetChunkCacheRadiusPacket {
     }
 }
 
-impl ClientboundSetDefaultSpawnPositionPacket {
-    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
-        let dimension = read_identifier(reader)?;
-        let (x, y, z) = read_block_position(reader)?;
-        Ok(Self {
-            respawn_data: ClientboundSetDefaultSpawnPositionData {
-                dimension,
-                x,
-                y,
-                z,
-                yaw: read_f32(reader)?,
-                pitch: read_f32(reader)?,
-            },
-        })
-    }
-
-    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-        write_identifier(writer, &self.respawn_data.dimension)?;
-        write_block_position(
-            writer,
-            self.respawn_data.x,
-            self.respawn_data.y,
-            self.respawn_data.z,
-        )?;
-        writer.write_all(&self.respawn_data.yaw.to_be_bytes())?;
-        writer.write_all(&self.respawn_data.pitch.to_be_bytes())
-    }
-}
-
 impl ClientboundSetExperiencePacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         Ok(Self {
