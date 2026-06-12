@@ -112,6 +112,177 @@ fn ranged_attack_mob_interface_surface_matches_java_contract() {
 }
 
 #[test]
+fn patrolling_monster_state_spawn_and_save_rules_match_java_methods() {
+    assert_eq!(
+        patrolling_monster_default_state(),
+        PatrollingMonsterState {
+            patrol_target: None,
+            patrol_leader: false,
+            patrolling: false,
+        }
+    );
+    assert_eq!(PATROLLING_MONSTER_PATROL_GOAL_PRIORITY, 4);
+    assert_eq!(PATROLLING_MONSTER_PATROL_SPEED, 0.7);
+    assert_eq!(PATROLLING_MONSTER_LEADER_PATROL_SPEED, 0.595);
+
+    assert_eq!(
+        patrolling_monster_finalize_spawn(PatrollingMonsterFinalizeInput {
+            spawn_reason: PatrolSpawnReason::Other,
+            random_float: 5,
+            can_be_leader: true,
+            already_patrol_leader: false,
+        }),
+        PatrollingMonsterFinalize {
+            patrol_leader: true,
+            patrolling: false,
+            equip_ominous_banner: true,
+            head_drop_chance_percent: 200,
+        }
+    );
+    assert!(
+        !patrolling_monster_finalize_spawn(PatrollingMonsterFinalizeInput {
+            spawn_reason: PatrolSpawnReason::Other,
+            random_float: 6,
+            can_be_leader: true,
+            already_patrol_leader: false,
+        })
+        .patrol_leader
+    );
+    assert_eq!(
+        patrolling_monster_finalize_spawn(PatrollingMonsterFinalizeInput {
+            spawn_reason: PatrolSpawnReason::Patrol,
+            random_float: 0,
+            can_be_leader: true,
+            already_patrol_leader: false,
+        }),
+        PatrollingMonsterFinalize {
+            patrol_leader: false,
+            patrolling: true,
+            equip_ominous_banner: false,
+            head_drop_chance_percent: 0,
+        }
+    );
+    assert!(
+        !patrolling_monster_spawn_rules(PatrollingMonsterSpawnRuleInput {
+            block_brightness: 9,
+            peaceful_difficulty: false,
+            mob_spawn_rules_pass: true,
+        })
+    );
+    assert!(patrolling_monster_spawn_rules(
+        PatrollingMonsterSpawnRuleInput {
+            block_brightness: 8,
+            peaceful_difficulty: false,
+            mob_spawn_rules_pass: true,
+        }
+    ));
+    assert!(patrolling_monster_remove_when_far_away(false, 0.0));
+    assert!(!patrolling_monster_remove_when_far_away(true, 16_384.0));
+    assert!(patrolling_monster_remove_when_far_away(true, 16_384.1));
+}
+
+#[test]
+fn patrolling_monster_target_and_long_distance_goal_match_java_methods() {
+    let target = PatrolBlockPos { x: 10, y: 64, z: -4 };
+    assert_eq!(
+        patrolling_monster_set_patrol_target(patrolling_monster_default_state(), target),
+        PatrollingMonsterState {
+            patrol_target: Some(target),
+            patrol_leader: false,
+            patrolling: true,
+        }
+    );
+    assert_eq!(
+        patrolling_monster_set_patrol_leader(patrolling_monster_default_state(), true),
+        PatrollingMonsterState {
+            patrol_target: None,
+            patrol_leader: true,
+            patrolling: true,
+        }
+    );
+    assert_eq!(
+        patrolling_monster_find_patrol_target(PatrolBlockPos { x: 100, y: 70, z: -30 }, 123, 999),
+        PatrollingMonsterState {
+            patrol_target: Some(PatrolBlockPos {
+                x: -277,
+                y: 70,
+                z: 469,
+            }),
+            patrol_leader: false,
+            patrolling: true,
+        }
+    );
+
+    assert!(long_distance_patrol_can_use(LongDistancePatrolCanUseInput {
+        patrolling: true,
+        target_present: false,
+        controlling_passenger: false,
+        patrol_target_present: true,
+        game_time: 200,
+        cooldown_until: 200,
+    }));
+    assert!(!long_distance_patrol_can_use(LongDistancePatrolCanUseInput {
+        game_time: 199,
+        ..LongDistancePatrolCanUseInput {
+            patrolling: true,
+            target_present: false,
+            controlling_passenger: false,
+            patrol_target_present: true,
+            game_time: 200,
+            cooldown_until: 200,
+        }
+    }));
+
+    let tick = LongDistancePatrolTickInput {
+        navigation_done: true,
+        patrolling: true,
+        companion_count: 1,
+        patrol_leader: false,
+        close_to_patrol_target: false,
+        navigation_move_succeeds: true,
+        game_time: 700,
+        self_position: PatrolVec3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        patrol_target: PatrolBlockPos { x: 10, y: 0, z: 0 },
+    };
+    assert_eq!(
+        long_distance_patrol_tick(tick),
+        LongDistancePatrolTick::MoveTo {
+            path_target: PatrolBlockPos { x: 9, y: 0, z: 4 },
+            speed_modifier: 0.7,
+            share_target_with_companions: false,
+        }
+    );
+    assert_eq!(
+        long_distance_patrol_tick(LongDistancePatrolTickInput {
+            companion_count: 0,
+            ..tick
+        }),
+        LongDistancePatrolTick::StopPatrolling
+    );
+    assert_eq!(
+        long_distance_patrol_tick(LongDistancePatrolTickInput {
+            patrol_leader: true,
+            close_to_patrol_target: true,
+            ..tick
+        }),
+        LongDistancePatrolTick::FindNewPatrolTarget
+    );
+    assert_eq!(
+        long_distance_patrol_tick(LongDistancePatrolTickInput {
+            navigation_move_succeeds: false,
+            ..tick
+        }),
+        LongDistancePatrolTick::MoveRandomly {
+            cooldown_until: 900,
+        }
+    );
+}
+
+#[test]
 fn ageable_mobs_tick_feed_and_age_lock_like_vanilla() {
     let baby = AgeState::baby();
     assert!(baby.is_baby());
