@@ -3550,10 +3550,10 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/breeze/Breeze.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/breeze/BreezeAi.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/breeze/BreezeUtil.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/breeze/BreezeUtil.java`. — Verified against Java 26.1.2 `BreezeUtil.java`: random point behind target uses target head yaw + 180 degrees + Gaussian spread/2, 4–8 block lerped radius, Java `Vec3.directionFromRotation(0, yaw)` convention, and line-of-sight rejects targets beyond `max(50, follow_range)` before requiring a collider clip miss. Represented in `src/mob_interaction/breeze.rs` and covered by `breeze_util_and_shoot_when_stuck_match_java_rules`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/breeze/LongJump.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/breeze/Shoot.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/breeze/ShootWhenStuck.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/breeze/ShootWhenStuck.java`. — Verified against Java 26.1.2 `ShootWhenStuck.java`: required memory statuses, extra start gates for passenger/water/levitation, immediate `canStillUse == false`, and `BREEZE_SHOOT` memory expiry of 60 ticks are represented in `src/mob_interaction/breeze.rs` and covered by `breeze_util_and_shoot_when_stuck_match_java_rules`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/breeze/Slide.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/breeze/package-info.java`. Java 26.1.2 package marker contains only `@NullMarked`, the package declaration, and the `org.jspecify.annotations.NullMarked` import; no Rust runtime behavior or parity test is required beyond preserving nullability expectations in typed Rust APIs.
 

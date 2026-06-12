@@ -1,6 +1,106 @@
 use crate::mob_interaction::*;
 
 #[test]
+fn breeze_util_and_shoot_when_stuck_match_java_rules() {
+    assert_breeze_util_random_point_and_los_rules();
+    assert_breeze_shoot_when_stuck_memory_rules();
+}
+
+fn assert_breeze_util_random_point_and_los_rules() {
+    assert_eq!(BREEZE_UTIL_MAX_LINE_OF_SIGHT_TEST_RANGE, 50.0);
+    assert_eq!(BREEZE_UTIL_BEHIND_TARGET_BASE_DEGREES, 180.0);
+    assert_eq!(BREEZE_UTIL_BEHIND_TARGET_SPREAD_DEGREES, 90.0);
+    assert_eq!(BREEZE_UTIL_BEHIND_TARGET_MIN_DISTANCE, 4.0);
+    assert_eq!(BREEZE_UTIL_BEHIND_TARGET_MAX_DISTANCE, 8.0);
+
+    let target = BreezeVec3::new(10.0, 64.0, -2.0);
+    assert_vec3_close(
+        breeze_random_point_behind_target(target, 0.0, 0.0, 0.0),
+        BreezeVec3::new(10.0, 64.0, 2.0),
+    );
+    assert_vec3_close(
+        breeze_random_point_behind_target(target, 90.0, 0.0, 1.0),
+        BreezeVec3::new(2.0, 64.0, -2.0),
+    );
+    assert!(breeze_has_line_of_sight(
+        BreezeVec3::new(0.0, 64.0, 0.0),
+        BreezeVec3::new(50.0, 64.0, 0.0),
+        16.0,
+        true,
+    ));
+    assert!(!breeze_has_line_of_sight(
+        BreezeVec3::new(0.0, 64.0, 0.0),
+        BreezeVec3::new(50.1, 64.0, 0.0),
+        16.0,
+        true,
+    ));
+    assert!(breeze_has_line_of_sight(
+        BreezeVec3::new(0.0, 64.0, 0.0),
+        BreezeVec3::new(60.0, 64.0, 0.0),
+        64.0,
+        true,
+    ));
+    assert!(!breeze_has_line_of_sight(
+        BreezeVec3::new(0.0, 64.0, 0.0),
+        BreezeVec3::new(40.0, 64.0, 0.0),
+        64.0,
+        false,
+    ));
+}
+
+fn assert_breeze_shoot_when_stuck_memory_rules() {
+    assert_eq!(
+        BREEZE_SHOOT_WHEN_STUCK_MEMORY_REQUIREMENTS,
+        [
+            ("attack_target", "value_present"),
+            ("breeze_jump_inhaling", "value_absent"),
+            ("breeze_jump_target", "value_absent"),
+            ("walk_target", "value_absent"),
+            ("breeze_shoot", "value_absent"),
+        ]
+    );
+    assert_eq!(BREEZE_SHOOT_WHEN_STUCK_MEMORY_EXPIRY_TICKS, 60);
+    assert_eq!(
+        breeze_shoot_when_stuck_step(true, false, false),
+        BreezeShootWhenStuckStep {
+            can_start: true,
+            can_still_use: false,
+            shoot_memory_expiry_ticks: Some(60),
+        }
+    );
+    assert_eq!(
+        breeze_shoot_when_stuck_step(false, true, false),
+        BreezeShootWhenStuckStep {
+            can_start: true,
+            can_still_use: false,
+            shoot_memory_expiry_ticks: Some(60),
+        }
+    );
+    assert_eq!(
+        breeze_shoot_when_stuck_step(false, false, true),
+        BreezeShootWhenStuckStep {
+            can_start: true,
+            can_still_use: false,
+            shoot_memory_expiry_ticks: Some(60),
+        }
+    );
+    assert_eq!(
+        breeze_shoot_when_stuck_step(false, false, false),
+        BreezeShootWhenStuckStep {
+            can_start: false,
+            can_still_use: false,
+            shoot_memory_expiry_ticks: None,
+        }
+    );
+}
+
+fn assert_vec3_close(actual: BreezeVec3, expected: BreezeVec3) {
+    assert!((actual.x - expected.x).abs() < 1.0e-6, "{actual:?}");
+    assert!((actual.y - expected.y).abs() < 1.0e-6, "{actual:?}");
+    assert!((actual.z - expected.z).abs() < 1.0e-6, "{actual:?}");
+}
+
+#[test]
 fn ghast_fireball_spawn_and_movement_gates_match_java_rules() {
     assert_ghast_attributes_spawn_and_targeting();
     assert_ghast_reflected_fireball_damage_rules();

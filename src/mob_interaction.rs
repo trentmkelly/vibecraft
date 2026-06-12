@@ -288,6 +288,10 @@ mod slimes;
 #[cfg(test)]
 use slimes::*;
 
+mod breeze;
+#[cfg(test)]
+use breeze::*;
+
 mod phantoms;
 #[cfg(test)]
 use phantoms::*;
