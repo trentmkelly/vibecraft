@@ -389,8 +389,180 @@ mod tests {
     use crate::storage::nbt::Tag;
     use std::io::Cursor;
 
+    fn assert_contains_all(source: &str, name: &str, sentinels: &[&str]) {
+        for sentinel in sentinels {
+            assert!(
+                source.contains(sentinel),
+                "missing {name} sentinel {sentinel}"
+            );
+        }
+    }
+
+    #[test]
+    fn configuration_listener_and_packet_type_surfaces_match_java() {
+        const CLIENT_LISTENER_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/configuration/ClientConfigurationPacketListener.java"
+        );
+        assert_contains_all(
+            CLIENT_LISTENER_JAVA,
+            "ClientConfigurationPacketListener",
+            &[
+                "public interface ClientConfigurationPacketListener extends ClientCommonPacketListener",
+                "return ConnectionProtocol.CONFIGURATION;",
+                "void handleCodeOfConduct(ClientboundCodeOfConductPacket packet);",
+                "void handleConfigurationFinished(ClientboundFinishConfigurationPacket packet);",
+                "void handleRegistryData(ClientboundRegistryDataPacket packet);",
+                "void handleEnabledFeatures(ClientboundUpdateEnabledFeaturesPacket packet);",
+                "void handleSelectKnownPacks(ClientboundSelectKnownPacks packet);",
+                "void handleResetChat(ClientboundResetChatPacket packet);",
+            ],
+        );
+
+        const SERVER_LISTENER_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/configuration/ServerConfigurationPacketListener.java"
+        );
+        assert_contains_all(
+            SERVER_LISTENER_JAVA,
+            "ServerConfigurationPacketListener",
+            &[
+                "public interface ServerConfigurationPacketListener extends ServerCommonPacketListener",
+                "return ConnectionProtocol.CONFIGURATION;",
+                "void handleConfigurationFinished(ServerboundFinishConfigurationPacket packet);",
+                "void handleSelectKnownPacks(ServerboundSelectKnownPacks packet);",
+                "void handleAcceptCodeOfConduct(ServerboundAcceptCodeOfConductPacket packet);",
+            ],
+        );
+
+        const PACKET_TYPES_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/configuration/ConfigurationPacketTypes.java"
+        );
+        assert_contains_all(
+            PACKET_TYPES_JAVA,
+            "ConfigurationPacketTypes",
+            &[
+                "CLIENTBOUND_CODE_OF_CONDUCT = createClientbound(\"code_of_conduct\")",
+                "CLIENTBOUND_FINISH_CONFIGURATION = createClientbound(\"finish_configuration\")",
+                "CLIENTBOUND_REGISTRY_DATA = createClientbound(\"registry_data\")",
+                "CLIENTBOUND_RESET_CHAT = createClientbound(\"reset_chat\")",
+                "CLIENTBOUND_SELECT_KNOWN_PACKS = createClientbound(\"select_known_packs\")",
+                "CLIENTBOUND_UPDATE_ENABLED_FEATURES = createClientbound(\"update_enabled_features\")",
+                "SERVERBOUND_ACCEPT_CODE_OF_CONDUCT = createServerbound(\"accept_code_of_conduct\")",
+                "SERVERBOUND_FINISH_CONFIGURATION = createServerbound(\"finish_configuration\")",
+                "SERVERBOUND_SELECT_KNOWN_PACKS = createServerbound(\"select_known_packs\")",
+                "PacketFlow.CLIENTBOUND",
+                "PacketFlow.SERVERBOUND",
+                "Identifier.withDefaultNamespace(id)",
+            ],
+        );
+    }
+
+    #[test]
+    fn configuration_protocol_registration_order_matches_java() {
+        const PROTOCOLS_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/configuration/ConfigurationProtocols.java"
+        );
+        assert_contains_all(
+            PROTOCOLS_JAVA,
+            "ConfigurationProtocols",
+            &[
+                "ConnectionProtocol.CONFIGURATION",
+                "builder -> builder.addPacket(CommonPacketTypes.SERVERBOUND_CLIENT_INFORMATION, ServerboundClientInformationPacket.STREAM_CODEC)",
+                ".addPacket(CookiePacketTypes.SERVERBOUND_COOKIE_RESPONSE, ServerboundCookieResponsePacket.STREAM_CODEC)",
+                ".addPacket(CommonPacketTypes.SERVERBOUND_CUSTOM_PAYLOAD, ServerboundCustomPayloadPacket.STREAM_CODEC)",
+                ".addPacket(ConfigurationPacketTypes.SERVERBOUND_FINISH_CONFIGURATION, ServerboundFinishConfigurationPacket.STREAM_CODEC)",
+                ".addPacket(CommonPacketTypes.SERVERBOUND_KEEP_ALIVE, ServerboundKeepAlivePacket.STREAM_CODEC)",
+                ".addPacket(CommonPacketTypes.SERVERBOUND_PONG, ServerboundPongPacket.STREAM_CODEC)",
+                ".addPacket(CommonPacketTypes.SERVERBOUND_RESOURCE_PACK, ServerboundResourcePackPacket.STREAM_CODEC)",
+                ".addPacket(ConfigurationPacketTypes.SERVERBOUND_SELECT_KNOWN_PACKS, ServerboundSelectKnownPacks.STREAM_CODEC)",
+                ".addPacket(CommonPacketTypes.SERVERBOUND_CUSTOM_CLICK_ACTION, ServerboundCustomClickActionPacket.STREAM_CODEC)",
+                ".addPacket(ConfigurationPacketTypes.SERVERBOUND_ACCEPT_CODE_OF_CONDUCT, ServerboundAcceptCodeOfConductPacket.STREAM_CODEC)",
+                "builder -> builder.addPacket(CookiePacketTypes.CLIENTBOUND_COOKIE_REQUEST, ClientboundCookieRequestPacket.STREAM_CODEC)",
+                ".addPacket(CommonPacketTypes.CLIENTBOUND_CUSTOM_PAYLOAD, ClientboundCustomPayloadPacket.CONFIG_STREAM_CODEC)",
+                ".addPacket(CommonPacketTypes.CLIENTBOUND_DISCONNECT, ClientboundDisconnectPacket.STREAM_CODEC)",
+                ".addPacket(ConfigurationPacketTypes.CLIENTBOUND_FINISH_CONFIGURATION, ClientboundFinishConfigurationPacket.STREAM_CODEC)",
+                ".addPacket(CommonPacketTypes.CLIENTBOUND_KEEP_ALIVE, ClientboundKeepAlivePacket.STREAM_CODEC)",
+                ".addPacket(CommonPacketTypes.CLIENTBOUND_PING, ClientboundPingPacket.STREAM_CODEC)",
+                ".addPacket(ConfigurationPacketTypes.CLIENTBOUND_RESET_CHAT, ClientboundResetChatPacket.STREAM_CODEC)",
+                ".addPacket(ConfigurationPacketTypes.CLIENTBOUND_REGISTRY_DATA, ClientboundRegistryDataPacket.STREAM_CODEC)",
+                ".addPacket(CommonPacketTypes.CLIENTBOUND_RESOURCE_PACK_POP, ClientboundResourcePackPopPacket.STREAM_CODEC)",
+                ".addPacket(CommonPacketTypes.CLIENTBOUND_RESOURCE_PACK_PUSH, ClientboundResourcePackPushPacket.STREAM_CODEC)",
+                ".addPacket(CommonPacketTypes.CLIENTBOUND_STORE_COOKIE, ClientboundStoreCookiePacket.STREAM_CODEC)",
+                ".addPacket(CommonPacketTypes.CLIENTBOUND_TRANSFER, ClientboundTransferPacket.STREAM_CODEC)",
+                ".addPacket(ConfigurationPacketTypes.CLIENTBOUND_UPDATE_ENABLED_FEATURES, ClientboundUpdateEnabledFeaturesPacket.STREAM_CODEC)",
+                ".addPacket(CommonPacketTypes.CLIENTBOUND_UPDATE_TAGS, ClientboundUpdateTagsPacket.STREAM_CODEC)",
+                ".addPacket(ConfigurationPacketTypes.CLIENTBOUND_SELECT_KNOWN_PACKS, ClientboundSelectKnownPacks.STREAM_CODEC)",
+                ".addPacket(CommonPacketTypes.CLIENTBOUND_CUSTOM_REPORT_DETAILS, ClientboundCustomReportDetailsPacket.STREAM_CODEC)",
+                ".addPacket(CommonPacketTypes.CLIENTBOUND_SERVER_LINKS, ClientboundServerLinksPacket.STREAM_CODEC)",
+                ".addPacket(CommonPacketTypes.CLIENTBOUND_CLEAR_DIALOG, ClientboundClearDialogPacket.STREAM_CODEC)",
+                ".addPacket(CommonPacketTypes.CLIENTBOUND_SHOW_DIALOG, ClientboundShowDialogPacket.CONTEXT_FREE_STREAM_CODEC)",
+                ".addPacket(ConfigurationPacketTypes.CLIENTBOUND_CODE_OF_CONDUCT, ClientboundCodeOfConductPacket.STREAM_CODEC)",
+            ],
+        );
+    }
+
     #[test]
     fn unit_configuration_packets_are_empty() {
+        const CLIENTBOUND_FINISH_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/configuration/ClientboundFinishConfigurationPacket.java"
+        );
+        assert_contains_all(
+            CLIENTBOUND_FINISH_JAVA,
+            "ClientboundFinishConfigurationPacket",
+            &[
+                "public static final ClientboundFinishConfigurationPacket INSTANCE",
+                "StreamCodec.unit(INSTANCE)",
+                "ConfigurationPacketTypes.CLIENTBOUND_FINISH_CONFIGURATION",
+                "listener.handleConfigurationFinished(this);",
+                "public boolean isTerminal()",
+                "return true;",
+            ],
+        );
+
+        const SERVERBOUND_FINISH_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/configuration/ServerboundFinishConfigurationPacket.java"
+        );
+        assert_contains_all(
+            SERVERBOUND_FINISH_JAVA,
+            "ServerboundFinishConfigurationPacket",
+            &[
+                "public static final ServerboundFinishConfigurationPacket INSTANCE",
+                "StreamCodec.unit(INSTANCE)",
+                "ConfigurationPacketTypes.SERVERBOUND_FINISH_CONFIGURATION",
+                "listener.handleConfigurationFinished(this);",
+                "public boolean isTerminal()",
+                "return true;",
+            ],
+        );
+
+        const CLIENTBOUND_RESET_CHAT_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/configuration/ClientboundResetChatPacket.java"
+        );
+        assert_contains_all(
+            CLIENTBOUND_RESET_CHAT_JAVA,
+            "ClientboundResetChatPacket",
+            &[
+                "public static final ClientboundResetChatPacket INSTANCE",
+                "StreamCodec.unit(INSTANCE)",
+                "ConfigurationPacketTypes.CLIENTBOUND_RESET_CHAT",
+                "listener.handleResetChat(this);",
+            ],
+        );
+
+        const SERVERBOUND_ACCEPT_CODE_OF_CONDUCT_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/configuration/ServerboundAcceptCodeOfConductPacket.java"
+        );
+        assert_contains_all(
+            SERVERBOUND_ACCEPT_CODE_OF_CONDUCT_JAVA,
+            "ServerboundAcceptCodeOfConductPacket",
+            &[
+                "public record ServerboundAcceptCodeOfConductPacket() implements Packet<ServerConfigurationPacketListener>",
+                "public static final ServerboundAcceptCodeOfConductPacket INSTANCE",
+                "StreamCodec.unit(INSTANCE)",
+                "ConfigurationPacketTypes.SERVERBOUND_ACCEPT_CODE_OF_CONDUCT",
+                "listener.handleAcceptCodeOfConduct(this);",
+            ],
+        );
+
         let mut bytes = Vec::new();
         ClientboundFinishConfigurationPacket
             .write(&mut bytes)
@@ -411,6 +583,36 @@ mod tests {
 
     #[test]
     fn round_trips_code_of_conduct_and_enabled_features() {
+        const CLIENTBOUND_CODE_OF_CONDUCT_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/configuration/ClientboundCodeOfConductPacket.java"
+        );
+        assert_contains_all(
+            CLIENTBOUND_CODE_OF_CONDUCT_JAVA,
+            "ClientboundCodeOfConductPacket",
+            &[
+                "public record ClientboundCodeOfConductPacket(String codeOfConduct)",
+                "ByteBufCodecs.STRING_UTF8",
+                "ClientboundCodeOfConductPacket::codeOfConduct",
+                "ConfigurationPacketTypes.CLIENTBOUND_CODE_OF_CONDUCT",
+                "listener.handleCodeOfConduct(this);",
+            ],
+        );
+
+        const CLIENTBOUND_UPDATE_ENABLED_FEATURES_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/configuration/ClientboundUpdateEnabledFeaturesPacket.java"
+        );
+        assert_contains_all(
+            CLIENTBOUND_UPDATE_ENABLED_FEATURES_JAVA,
+            "ClientboundUpdateEnabledFeaturesPacket",
+            &[
+                "public record ClientboundUpdateEnabledFeaturesPacket(Set<Identifier> features)",
+                "this(input.readCollection(HashSet::new, FriendlyByteBuf::readIdentifier));",
+                "output.writeCollection(this.features, FriendlyByteBuf::writeIdentifier);",
+                "ConfigurationPacketTypes.CLIENTBOUND_UPDATE_ENABLED_FEATURES",
+                "listener.handleEnabledFeatures(this);",
+            ],
+        );
+
         let conduct = ClientboundCodeOfConductPacket {
             code_of_conduct: "Be excellent.".to_string(),
         };
@@ -434,6 +636,51 @@ mod tests {
 
     #[test]
     fn round_trips_known_pack_selection_and_enforces_serverbound_limit() {
+        const KNOWN_PACK_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/server/packs/repository/KnownPack.java"
+        );
+        assert_contains_all(
+            KNOWN_PACK_JAVA,
+            "KnownPack",
+            &[
+                "public record KnownPack(String namespace, String id, String version)",
+                "ByteBufCodecs.STRING_UTF8, KnownPack::namespace",
+                "ByteBufCodecs.STRING_UTF8, KnownPack::id",
+                "ByteBufCodecs.STRING_UTF8, KnownPack::version",
+                "public static final String VANILLA_NAMESPACE = \"minecraft\";",
+                "return new KnownPack(\"minecraft\", id, SharedConstants.getCurrentVersion().id());",
+                "return this.namespace.equals(\"minecraft\");",
+            ],
+        );
+
+        const CLIENTBOUND_SELECT_KNOWN_PACKS_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/configuration/ClientboundSelectKnownPacks.java"
+        );
+        assert_contains_all(
+            CLIENTBOUND_SELECT_KNOWN_PACKS_JAVA,
+            "ClientboundSelectKnownPacks",
+            &[
+                "public record ClientboundSelectKnownPacks(List<KnownPack> knownPacks)",
+                "KnownPack.STREAM_CODEC.apply(ByteBufCodecs.list())",
+                "ConfigurationPacketTypes.CLIENTBOUND_SELECT_KNOWN_PACKS",
+                "listener.handleSelectKnownPacks(this);",
+            ],
+        );
+
+        const SERVERBOUND_SELECT_KNOWN_PACKS_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/configuration/ServerboundSelectKnownPacks.java"
+        );
+        assert_contains_all(
+            SERVERBOUND_SELECT_KNOWN_PACKS_JAVA,
+            "ServerboundSelectKnownPacks",
+            &[
+                "public record ServerboundSelectKnownPacks(List<KnownPack> knownPacks)",
+                "KnownPack.STREAM_CODEC.apply(ByteBufCodecs.list(64))",
+                "ConfigurationPacketTypes.SERVERBOUND_SELECT_KNOWN_PACKS",
+                "listener.handleSelectKnownPacks(this);",
+            ],
+        );
+
         let pack = KnownPack::vanilla("core", "26.1.2");
         assert!(pack.is_vanilla());
 
@@ -455,6 +702,22 @@ mod tests {
 
     #[test]
     fn round_trips_registry_data_entries_with_optional_nbt() {
+        const CLIENTBOUND_REGISTRY_DATA_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/configuration/ClientboundRegistryDataPacket.java"
+        );
+        assert_contains_all(
+            CLIENTBOUND_REGISTRY_DATA_JAVA,
+            "ClientboundRegistryDataPacket",
+            &[
+                "public record ClientboundRegistryDataPacket(ResourceKey<? extends Registry<?>> registry, List<RegistrySynchronization.PackedRegistryEntry> entries)",
+                "Identifier.STREAM_CODEC",
+                ".map(ResourceKey::createRegistryKey, ResourceKey::identifier)",
+                "RegistrySynchronization.PackedRegistryEntry.STREAM_CODEC.apply(ByteBufCodecs.list())",
+                "ConfigurationPacketTypes.CLIENTBOUND_REGISTRY_DATA",
+                "listener.handleRegistryData(this);",
+            ],
+        );
+
         let packet = ClientboundRegistryDataPacket {
             registry: Identifier::parse("minecraft:damage_type").unwrap(),
             entries: vec![PackedRegistryEntry {
