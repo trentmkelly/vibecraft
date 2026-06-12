@@ -63,11 +63,61 @@ pub struct SlimeMoveControlStep {
     pub zero_strafe: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SlimeGoalRegistration {
+    pub selector: SlimeGoalSelector,
+    pub priority: i32,
+    pub goal: SlimeGoalKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SlimeGoalSelector {
+    Goal,
+    Target,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SlimeGoalKind {
+    Float,
+    Attack,
+    RandomDirection,
+    KeepOnJumping,
+    NearestPlayer,
+    NearestIronGolem,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SlimeSoundSet {
+    pub hurt: &'static str,
+    pub death: &'static str,
+    pub squish: &'static str,
+    pub jump: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SlimeSyncedSizeUpdate {
+    pub refresh_dimensions: bool,
+    pub y_rot_from_head: bool,
+    pub body_rot_from_head: bool,
+    pub water_splash: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SlimeAttackGoalStep {
+    pub can_use: bool,
+    pub can_continue: bool,
+    pub next_grow_tired_timer: i32,
+    pub look_at_target: bool,
+    pub set_direction: bool,
+    pub aggressive: bool,
+}
+
 pub const SLIME_MIN_SIZE: i32 = 1;
 pub const SLIME_MAX_SIZE: i32 = 127;
 pub const SLIME_MAX_NATURAL_SIZE: i32 = 4;
 pub const SLIME_DEFAULT_SERIALIZED_SIZE: i32 = 0;
 pub const SLIME_DEFAULT_WAS_ON_GROUND: bool = false;
+pub const SLIME_DEFAULT_SIZE: i32 = 1;
 pub const SLIME_BASE_MOVEMENT_SPEED: f32 = 0.2;
 pub const SLIME_MOVEMENT_SPEED_PER_SIZE: f32 = 0.1;
 pub const SLIME_FLOAT_WANTED_MOVEMENT: f32 = 1.2;
@@ -89,6 +139,15 @@ pub const SLIME_LANDING_TARGET_SQUISH: f32 = -0.5;
 pub const SLIME_AIRBORNE_TARGET_SQUISH: f32 = 1.0;
 pub const SLIME_SQUISH_INTERPOLATION: f32 = 0.5;
 pub const SLIME_DECREASE_SQUISH_FACTOR: f32 = 0.6;
+pub const SLIME_SOUND_SOURCE: &str = "hostile";
+pub const SLIME_PARTICLE_TYPE: &str = "minecraft:item_slime";
+pub const SLIME_SPLIT_CONVERSION_TYPE: &str = "split_on_death";
+pub const SLIME_SPLIT_SPAWN_REASON: &str = "triggered";
+pub const SLIME_SYNCED_SIZE_WATER_SPLASH_RANDOM_BOUND: i32 = 20;
+pub const SLIME_MAX_HEAD_X_ROT: i32 = 0;
+pub const SLIME_ATTACK_SOUND: &str = "minecraft:entity.slime.attack";
+pub const SLIME_ATTACK_SOUND_VOLUME: f32 = 1.0;
+pub const SLIME_MOVE_CONTROL_ROT_LERP_DEGREES: f32 = 90.0;
 pub const MAGMA_CUBE_CREATE_ATTRIBUTES_MOVEMENT_SPEED: f32 = 0.2;
 pub const MAGMA_CUBE_IS_ON_FIRE: bool = false;
 pub const MAGMA_CUBE_ARMOR_PER_SIZE: f32 = 3.0;
@@ -239,6 +298,36 @@ impl SlimeFamilyState {
             && has_slime_move_control
     }
 
+    pub fn random_direction_next_time(self, random_0_to_59: i32) -> i32 {
+        SLIME_RANDOM_DIRECTION_MIN_TICKS
+            + random_0_to_59.rem_euclid(SLIME_RANDOM_DIRECTION_RANDOM_BOUND)
+    }
+
+    pub fn attack_goal_start_timer(self) -> i32 {
+        SLIME_ATTACK_GROW_TIRED_TICKS
+    }
+
+    pub fn attack_goal_step(
+        self,
+        target_present: bool,
+        can_attack_target: bool,
+        has_slime_move_control: bool,
+        grow_tired_timer: i32,
+        effective_ai: bool,
+    ) -> SlimeAttackGoalStep {
+        let can_use = target_present && can_attack_target && has_slime_move_control;
+        let next_grow_tired_timer = grow_tired_timer - 1;
+        let can_continue = target_present && can_attack_target && next_grow_tired_timer > 0;
+        SlimeAttackGoalStep {
+            can_use,
+            can_continue,
+            next_grow_tired_timer,
+            look_at_target: target_present,
+            set_direction: target_present && has_slime_move_control,
+            aggressive: self.deals_damage(effective_ai),
+        }
+    }
+
     pub fn move_control_step(self, input: SlimeMoveControlInput) -> SlimeMoveControlStep {
         if !input.operation_move_to {
             return SlimeMoveControlStep {
@@ -289,6 +378,44 @@ impl SlimeFamilyState {
         dimensions_height - SLIME_PASSENGER_ATTACHMENT_SIZE_OFFSET * self.size as f32 * scale
     }
 
+    pub fn default_dimension_scale(self, base_width: f32, base_height: f32) -> (f32, f32) {
+        (base_width * self.size as f32, base_height * self.size as f32)
+    }
+
+    pub fn sound_set(self) -> SlimeSoundSet {
+        let tiny = self.is_tiny();
+        SlimeSoundSet {
+            hurt: if tiny {
+                "minecraft:entity.slime.hurt_small"
+            } else {
+                "minecraft:entity.slime.hurt"
+            },
+            death: if tiny {
+                "minecraft:entity.slime.death_small"
+            } else {
+                "minecraft:entity.slime.death"
+            },
+            squish: if tiny {
+                "minecraft:entity.slime.squish_small"
+            } else {
+                "minecraft:entity.slime.squish"
+            },
+            jump: if tiny {
+                "minecraft:entity.slime.jump_small"
+            } else {
+                "minecraft:entity.slime.jump"
+            },
+        }
+    }
+
+    pub fn sound_pitch_multiplier(self) -> f32 {
+        if self.is_tiny() {
+            1.4
+        } else {
+            0.8
+        }
+    }
+
     pub fn split_children(self, split_random_0_to_2: i32) -> Vec<SlimeSplitChild> {
         if self.size <= 1 {
             return Vec::new();
@@ -307,6 +434,39 @@ impl SlimeFamilyState {
             .collect()
     }
 }
+
+pub const SLIME_GOALS: [SlimeGoalRegistration; 6] = [
+    SlimeGoalRegistration {
+        selector: SlimeGoalSelector::Goal,
+        priority: 1,
+        goal: SlimeGoalKind::Float,
+    },
+    SlimeGoalRegistration {
+        selector: SlimeGoalSelector::Goal,
+        priority: 2,
+        goal: SlimeGoalKind::Attack,
+    },
+    SlimeGoalRegistration {
+        selector: SlimeGoalSelector::Goal,
+        priority: 3,
+        goal: SlimeGoalKind::RandomDirection,
+    },
+    SlimeGoalRegistration {
+        selector: SlimeGoalSelector::Goal,
+        priority: 5,
+        goal: SlimeGoalKind::KeepOnJumping,
+    },
+    SlimeGoalRegistration {
+        selector: SlimeGoalSelector::Target,
+        priority: 1,
+        goal: SlimeGoalKind::NearestPlayer,
+    },
+    SlimeGoalRegistration {
+        selector: SlimeGoalSelector::Target,
+        priority: 3,
+        goal: SlimeGoalKind::NearestIronGolem,
+    },
+];
 
 pub fn clamp_slime_size(size: i32) -> i32 {
     size.clamp(SLIME_MIN_SIZE, SLIME_MAX_SIZE)
@@ -355,6 +515,20 @@ pub fn slime_spawn_allowed(input: SlimeSpawnRuleInput) -> bool {
         && input.slime_chunk
         && input.y < 40
         && input.mob_spawn_rules_pass
+}
+
+pub fn slime_target_player_allowed(slime_y: f64, target_y: f64) -> bool {
+    (target_y - slime_y).abs() <= SLIME_ATTACK_TARGET_VERTICAL_RANGE
+}
+
+pub fn slime_synced_size_update(in_water: bool, random_0_to_19: i32) -> SlimeSyncedSizeUpdate {
+    SlimeSyncedSizeUpdate {
+        refresh_dimensions: true,
+        y_rot_from_head: true,
+        body_rot_from_head: true,
+        water_splash: in_water
+            && random_0_to_19.rem_euclid(SLIME_SYNCED_SIZE_WATER_SPLASH_RANDOM_BOUND) == 0,
+    }
 }
 
 pub fn magma_cube_spawn_allowed(peaceful: bool) -> bool {

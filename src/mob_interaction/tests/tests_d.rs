@@ -308,12 +308,15 @@ fn assert_creeper_powered_loot_and_target_rules() {
 #[test]
 fn slime_and_magma_cube_size_split_spawn_and_jump_match_java_rules() {
     assert_slime_constants_size_and_basic_state();
+    assert_slime_goal_and_sound_surfaces();
+    assert_slime_synced_size_and_attack_surfaces();
     assert_slime_jump_move_control_and_split_rules();
     assert_slime_spawn_rules();
     assert_magma_cube_attributes_jump_and_spawn_rules();
 }
 
 fn assert_slime_constants_size_and_basic_state() {
+    assert_eq!(SLIME_DEFAULT_SIZE, 1);
     assert_eq!(clamp_slime_size(0), 1);
     assert_eq!(clamp_slime_size(200), 127);
     assert_eq!(SLIME_MAX_NATURAL_SIZE, 4);
@@ -345,10 +348,125 @@ fn assert_slime_constants_size_and_basic_state() {
     assert!(!SlimeFamilyState::new(SlimeFamilyKind::Slime, 1).deals_damage(true));
 }
 
+fn assert_slime_goal_and_sound_surfaces() {
+    assert_eq!(
+        SLIME_GOALS,
+        [
+            SlimeGoalRegistration {
+                selector: SlimeGoalSelector::Goal,
+                priority: 1,
+                goal: SlimeGoalKind::Float,
+            },
+            SlimeGoalRegistration {
+                selector: SlimeGoalSelector::Goal,
+                priority: 2,
+                goal: SlimeGoalKind::Attack,
+            },
+            SlimeGoalRegistration {
+                selector: SlimeGoalSelector::Goal,
+                priority: 3,
+                goal: SlimeGoalKind::RandomDirection,
+            },
+            SlimeGoalRegistration {
+                selector: SlimeGoalSelector::Goal,
+                priority: 5,
+                goal: SlimeGoalKind::KeepOnJumping,
+            },
+            SlimeGoalRegistration {
+                selector: SlimeGoalSelector::Target,
+                priority: 1,
+                goal: SlimeGoalKind::NearestPlayer,
+            },
+            SlimeGoalRegistration {
+                selector: SlimeGoalSelector::Target,
+                priority: 3,
+                goal: SlimeGoalKind::NearestIronGolem,
+            },
+        ]
+    );
+    assert_eq!(SLIME_SOUND_SOURCE, "hostile");
+    assert_eq!(SLIME_PARTICLE_TYPE, "minecraft:item_slime");
+    assert_eq!(SLIME_MAX_HEAD_X_ROT, 0);
+    assert_eq!(SLIME_ATTACK_SOUND, "minecraft:entity.slime.attack");
+    assert_eq!(SLIME_ATTACK_SOUND_VOLUME, 1.0);
+    assert_eq!(SLIME_MOVE_CONTROL_ROT_LERP_DEGREES, 90.0);
+    assert_eq!(SLIME_SPLIT_CONVERSION_TYPE, "split_on_death");
+    assert_eq!(SLIME_SPLIT_SPAWN_REASON, "triggered");
+
+    let big = SlimeFamilyState::new(SlimeFamilyKind::Slime, 4);
+    assert_eq!(
+        big.sound_set(),
+        SlimeSoundSet {
+            hurt: "minecraft:entity.slime.hurt",
+            death: "minecraft:entity.slime.death",
+            squish: "minecraft:entity.slime.squish",
+            jump: "minecraft:entity.slime.jump",
+        }
+    );
+    assert_eq!(
+        SlimeFamilyState::new(SlimeFamilyKind::Slime, 1).sound_set(),
+        SlimeSoundSet {
+            hurt: "minecraft:entity.slime.hurt_small",
+            death: "minecraft:entity.slime.death_small",
+            squish: "minecraft:entity.slime.squish_small",
+            jump: "minecraft:entity.slime.jump_small",
+        }
+    );
+    assert_eq!(big.sound_pitch_multiplier(), 0.8);
+    assert_eq!(
+        SlimeFamilyState::new(SlimeFamilyKind::Slime, 1).sound_pitch_multiplier(),
+        1.4
+    );
+}
+
+fn assert_slime_synced_size_and_attack_surfaces() {
+    let big = SlimeFamilyState::new(SlimeFamilyKind::Slime, 4);
+    assert_eq!(big.default_dimension_scale(0.52, 0.52), (2.08, 2.08));
+    assert_eq!(
+        slime_synced_size_update(true, 0),
+        SlimeSyncedSizeUpdate {
+            refresh_dimensions: true,
+            y_rot_from_head: true,
+            body_rot_from_head: true,
+            water_splash: true,
+        }
+    );
+    assert!(!slime_synced_size_update(true, 1).water_splash);
+    assert!(!slime_synced_size_update(false, 0).water_splash);
+    assert!(slime_target_player_allowed(64.0, 68.0));
+    assert!(!slime_target_player_allowed(64.0, 68.01));
+
+    assert_eq!(big.attack_goal_start_timer(), 300);
+    assert_eq!(
+        big.attack_goal_step(true, true, true, 300, true),
+        SlimeAttackGoalStep {
+            can_use: true,
+            can_continue: true,
+            next_grow_tired_timer: 299,
+            look_at_target: true,
+            set_direction: true,
+            aggressive: true,
+        }
+    );
+    assert_eq!(
+        big.attack_goal_step(true, true, true, 1, true),
+        SlimeAttackGoalStep {
+            can_use: true,
+            can_continue: false,
+            next_grow_tired_timer: 0,
+            look_at_target: true,
+            set_direction: true,
+            aggressive: true,
+        }
+    );
+    assert!(!big.attack_goal_step(false, true, true, 300, true).can_use);
+}
+
 fn assert_slime_jump_move_control_and_split_rules() {
     let slime = SlimeFamilyState::new(SlimeFamilyKind::Slime, 4);
     assert_eq!(slime.jump_delay(19, false), 29);
     assert_eq!(slime.jump_delay(19, true), 9);
+    assert_eq!(slime.random_direction_next_time(59), 99);
     assert_eq!(
         slime.float_goal_step(true, false, true, 0.79),
         SlimeFloatGoalStep {
