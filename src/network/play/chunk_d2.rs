@@ -852,6 +852,41 @@ impl ClientboundTagQueryPacket {
     }
 }
 
+impl ClientboundGameTestHighlightPosPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let (absolute_x, absolute_y, absolute_z) = read_block_position(reader)?;
+        let (relative_x, relative_y, relative_z) = read_block_position(reader)?;
+        expect_empty_payload(reader)?;
+        Ok(Self {
+            absolute_pos: crate::block_update::BlockPos {
+                x: absolute_x,
+                y: absolute_y,
+                z: absolute_z,
+            },
+            relative_pos: crate::block_update::BlockPos {
+                x: relative_x,
+                y: relative_y,
+                z: relative_z,
+            },
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_block_position(
+            writer,
+            self.absolute_pos.x,
+            self.absolute_pos.y,
+            self.absolute_pos.z,
+        )?;
+        write_block_position(
+            writer,
+            self.relative_pos.x,
+            self.relative_pos.y,
+            self.relative_pos.z,
+        )
+    }
+}
+
 impl GameMode {
     pub(super) fn from_wire_id(id: i32) -> Self {
         match id {

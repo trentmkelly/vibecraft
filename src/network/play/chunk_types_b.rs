@@ -29,6 +29,12 @@ pub struct ClientboundTagQueryPacket {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundGameTestHighlightPosPacket {
+    pub absolute_pos: crate::block_update::BlockPos,
+    pub relative_pos: crate::block_update::BlockPos,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClientboundRotateHeadPacket {
     pub id: i32,
     pub y_head_rot: u8,

@@ -979,6 +979,7 @@ mod chat_command_signed_packet_test;
 mod chat_packet_test;
 mod chat_session_update_packet_test;
 mod clientbound_tag_query_packet_test;
+mod clientbound_game_test_highlight_pos_packet_test;
 mod clientbound_tracked_waypoint_packet_test;
 mod command_suggestion_packet_test;
 mod configuration_acknowledged_packet_test;
