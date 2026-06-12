@@ -723,6 +723,33 @@ fn storage_palette_network_bits_match_packed_storage_width() {
 }
 
 #[test]
+fn indirect_paletted_container_writes_fixed_long_array_without_length_prefix() {
+    let palette = (0..17).map(Tag::Int).collect::<Vec<_>>();
+    let container = PalettedContainer {
+        palette,
+        data: Some(vec![16]),
+        expected_entries: 4096,
+    };
+    let network = NetworkPalettedContainer::from_storage_container(
+        &container.to_nbt(),
+        PaletteKind::BlockState,
+    );
+    let mut bytes = Vec::new();
+
+    network.write(&mut bytes).unwrap();
+
+    let data_start = 1 + 1 + 17;
+    let mut expected_prefix = vec![5, 17];
+    expected_prefix.extend(0_u8..17);
+    assert_eq!(bytes[..data_start], expected_prefix);
+    assert_eq!(&bytes[data_start..], &16_i64.to_be_bytes());
+    assert_ne!(
+        bytes[data_start], 1,
+        "PalettedContainer.Data.write uses writeFixedSizeLongArray, so the storage starts immediately with the first long instead of a VarInt array length"
+    );
+}
+
+#[test]
 fn large_block_palettes_use_global_palette_without_indirect_list() {
     let palette = (0..300).map(Tag::Int).collect::<Vec<_>>();
     let indices = vec![299_u64; 4096];
