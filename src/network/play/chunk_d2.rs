@@ -850,6 +850,51 @@ impl ServerboundChangeGameModePacket {
     }
 }
 
+impl ServerboundDebugSubscriptionRequestPacket {
+    pub const DEBUG_SUBSCRIPTION_COUNT: i32 = 16;
+
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let count = read_limited_len(
+            reader,
+            Self::DEBUG_SUBSCRIPTION_COUNT as usize,
+            "debug subscription count",
+        )?;
+        let mut subscriptions = BTreeSet::new();
+        for _ in 0..count {
+            let id = read_var_i32(reader)?;
+            if !(0..Self::DEBUG_SUBSCRIPTION_COUNT).contains(&id) {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "invalid debug subscription id",
+                ));
+            }
+            subscriptions.insert(id);
+        }
+        expect_empty_payload(reader)?;
+        Ok(Self { subscriptions })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        if self.subscriptions.len() > Self::DEBUG_SUBSCRIPTION_COUNT as usize {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "too many debug subscriptions",
+            ));
+        }
+        write_var_i32(writer, self.subscriptions.len() as i32)?;
+        for id in &self.subscriptions {
+            if !(0..Self::DEBUG_SUBSCRIPTION_COUNT).contains(id) {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "invalid debug subscription id",
+                ));
+            }
+            write_var_i32(writer, *id)?;
+        }
+        Ok(())
+    }
+}
+
 impl ServerboundInteractionHand {
     pub(super) fn from_id(id: i32) -> Self {
         match id {

@@ -33,6 +33,7 @@ impl PlaySession {
             last_command_suggestion: None,
             last_edit_book: None,
             last_block_entity_tag_query: None,
+            last_debug_subscription_request: None,
             last_entity_tag_query: None,
             last_interact: None,
             last_resource_pack_response: None,
@@ -356,6 +357,12 @@ impl PlaySession {
                 "container slot state changed packet",
                 |input| ServerboundContainerSlotStateChangedPacket::read(input),
                 |session, pkt| session.last_container_slot_state_changed = Some(pkt),
+            ),
+            SERVERBOUND_DEBUG_SUBSCRIPTION_REQUEST_PACKET_ID => self.decode_and_store(
+                payload,
+                "debug subscription request packet",
+                |input| ServerboundDebugSubscriptionRequestPacket::read(input),
+                |session, packet| session.last_debug_subscription_request = Some(packet),
             ),
             SERVERBOUND_EDIT_BOOK_PACKET_ID => self.decode_and_store(
                 payload,

@@ -174,6 +174,7 @@ pub struct PlaySession {
     pub last_command_suggestion: Option<ServerboundCommandSuggestionPacket>,
     pub last_edit_book: Option<ServerboundEditBookPacket>,
     pub last_block_entity_tag_query: Option<ServerboundBlockEntityTagQueryPacket>,
+    pub last_debug_subscription_request: Option<ServerboundDebugSubscriptionRequestPacket>,
     pub last_entity_tag_query: Option<ServerboundEntityTagQueryPacket>,
     pub last_interact: Option<ServerboundInteractPacket>,
     pub last_resource_pack_response: Option<ServerboundResourcePackPacket>,

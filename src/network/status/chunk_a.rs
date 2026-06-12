@@ -3635,6 +3635,15 @@ fn handle_decoded_play_packet(
         // value is the decode-side validation, so a malformed/oversized payload
         // closes the connection (the read errors) rather than reaching a handler.
         let _ = ServerboundCustomPayloadPacket::read(&mut input)?;
+    } else if packet_id == SERVERBOUND_DEBUG_SUBSCRIPTION_REQUEST_PACKET_ID {
+        // Java stores the requested debug subscription set on the player, but
+        // exposes it only when ServerDebugSubscribers.hasRequiredPermissions passes.
+        // VibeCraft does not model that debug-permission system yet, so validate
+        // the registry-id set and ignore it.
+        // TODO(debug-subscriptions): persist requested subscriptions and gate them
+        // through ServerDebugSubscribers.hasRequiredPermissions before broadcasting
+        // debug samples/values.
+        let _ = ServerboundDebugSubscriptionRequestPacket::read(&mut input)?;
     } else if packet_id == SERVERBOUND_KEEP_ALIVE_PACKET_ID {
         // Validate the keepalive response against the pending challenge (Java
         // `ServerCommonPacketListenerImpl.handleKeepAlive`): a matching id clears the

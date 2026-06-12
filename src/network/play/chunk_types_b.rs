@@ -5,6 +5,11 @@ pub struct ServerboundChangeGameModePacket {
     pub mode: GameMode,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerboundDebugSubscriptionRequestPacket {
+    pub subscriptions: BTreeSet<i32>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ServerboundEntityTagQueryPacket {
     pub transaction_id: i32,

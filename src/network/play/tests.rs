@@ -1034,6 +1034,7 @@ mod serverbound_advancement_misc_packets_source_test;
 mod serverbound_block_edit_packets_source_test;
 mod serverbound_block_entity_tag_query_packet_test;
 mod serverbound_change_game_mode_packet_test;
+mod serverbound_debug_subscription_request_packet_test;
 mod serverbound_simple_packets_test;
 mod serverbound_container_misc_packets_test;
 mod serverbound_entity_tag_query_packet_test;
