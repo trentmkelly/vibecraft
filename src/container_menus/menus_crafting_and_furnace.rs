@@ -1,6 +1,7 @@
 use super::*;
 use crate::player_inventory::{
-    biggest_placeable_craft_count, crafting_recipe_placement, find_player_slot_matching,
+    biggest_placeable_craft_count, can_clear_grid_to_inventory, crafting_recipe_placement,
+    find_player_slot_matching, grid_can_grow_one_more, recipe_book_place_amount,
 };
 
 // ============================================================================
@@ -124,6 +125,11 @@ impl CraftingMenu {
             return false;
         };
 
+        let recipe_matches_placed = self.recipe_id == Some(holder.id);
+        let current_grid = self.grid.to_vec();
+        if !can_clear_grid_to_inventory(player, &current_grid) {
+            return false;
+        }
         let mut next_menu = self.clone();
         let mut next_player = player.clone();
         for slot in &mut next_menu.grid {
@@ -131,11 +137,12 @@ impl CraftingMenu {
         }
         next_menu.slots_changed();
 
-        let amount = if use_max_items {
-            biggest_placeable_craft_count(&next_player, &placement).min(64)
-        } else {
-            1
-        };
+        let biggest = biggest_placeable_craft_count(&next_player, &placement).min(64);
+        if recipe_matches_placed && !grid_can_grow_one_more(&current_grid, biggest) {
+            return false;
+        }
+        let amount =
+            recipe_book_place_amount(use_max_items, recipe_matches_placed, biggest, &current_grid);
         if amount <= 0 {
             return false;
         }

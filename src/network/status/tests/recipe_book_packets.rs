@@ -36,6 +36,43 @@ fn vanilla_recipe_manager() -> RecipeManagerModel {
 }
 
 #[test]
+pub fn recipebook_java_source_sentinels_cover_place_recipe_parity_rules() {
+    const PLACE_RECIPE_HELPER_JAVA: &str = include_str!(
+        "../../../../../decompiled-server-26.1.2/net/minecraft/recipebook/PlaceRecipeHelper.java"
+    );
+    const SERVER_PLACE_RECIPE_JAVA: &str = include_str!(
+        "../../../../../decompiled-server-26.1.2/net/minecraft/recipebook/ServerPlaceRecipe.java"
+    );
+
+    for sentinel in [
+        "placeRecipe(gridWidth, gridHeight, shapedRecipe.getWidth(), shapedRecipe.getHeight(), entries, output);",
+        "boolean shouldCenterRecipe = recipeHeight < gridHeight / 2.0F;",
+        "int startPosCenterRecipe = Mth.floor(gridHeight / 2.0F - recipeHeight / 2.0F);",
+        "void addItemToSlot(T item, int gridIndex, int gridXPos, int gridYPos);",
+    ] {
+        assert!(
+            PLACE_RECIPE_HELPER_JAVA.contains(sentinel),
+            "missing Java PlaceRecipeHelper sentinel {sentinel}"
+        );
+    }
+    for sentinel in [
+        "if (!allowDroppingItemsToClear && !placer.testClearGrid())",
+        "boolean recipeMatchesPlaced = this.menu.recipeMatches(recipe);",
+        "int amountToCraft = this.calculateAmountToCraft(biggestCraftableStack, recipeMatchesPlaced);",
+        "smallestStackSize++;",
+        "this.clearGrid();",
+        "this.inventory.placeItemBackInInventory(itemStackCopy, false);",
+        "PlaceRecipeHelper.placeRecipe(",
+        "this.inventory.findSlotMatchingCraftingIngredient(itemInInventory, itemInTargetSlot);",
+    ] {
+        assert!(
+            SERVER_PLACE_RECIPE_JAVA.contains(sentinel),
+            "missing Java ServerPlaceRecipe sentinel {sentinel}"
+        );
+    }
+}
+
+#[test]
 pub fn picking_up_oak_log_unlocks_and_sends_oak_planks_recipe() {
     let recipe_manager = vanilla_recipe_manager();
     let recipes = recipe_manager.recipe_map().clone();
@@ -271,6 +308,115 @@ pub fn place_recipe_packet_moves_unlocked_recipe_ingredients_into_inventory_grid
         state.inventory_menu.player_inventory().get(0),
         &ItemStack::new("minecraft:oak_log", 2)
     );
+}
+
+#[test]
+pub fn place_recipe_packet_increments_matching_grid_like_java_server_place_recipe() {
+    let recipes = oak_planks_recipe_map();
+    let mut inventory = PlayerInventory::new();
+    inventory.load_items(&[(0, ItemStack::new("minecraft:oak_log", 2))]);
+    let mut state = session_state_with_inventory(&[]);
+    state.inventory_menu = InventoryMenu::new(inventory, recipes.clone());
+    state
+        .inventory_menu
+        .load_recipe_book(["minecraft:oak_planks"], []);
+    assert!(state
+        .inventory_menu
+        .set_slot(1, ItemStack::new("minecraft:oak_log", 1)));
+
+    let changed = super::super::apply_place_recipe_packet(
+        &mut state,
+        crate::network::play::ServerboundPlaceRecipePacket {
+            container_id: 0,
+            recipe_index: 0,
+            use_max_items: false,
+        },
+        &recipes,
+    );
+
+    assert!(changed);
+    assert_eq!(
+        state.inventory_menu.get_slot(1),
+        Some(ItemStack::new("minecraft:oak_log", 2)),
+        "Java ServerPlaceRecipe increments an already-matching grid by one craft"
+    );
+    let remaining_log = state.inventory_menu.player_inventory().get(0);
+    assert_eq!(remaining_log.item_id(), "minecraft:oak_log");
+    assert_eq!(remaining_log.count(), 1);
+}
+
+#[test]
+pub fn place_recipe_packet_refuses_matching_grid_that_cannot_grow_like_java() {
+    let recipes = oak_planks_recipe_map();
+    let mut inventory = PlayerInventory::new();
+    inventory.load_items(&[(0, ItemStack::new("minecraft:oak_log", 64))]);
+    let mut state = session_state_with_inventory(&[]);
+    state.inventory_menu = InventoryMenu::new(inventory, recipes.clone());
+    state
+        .inventory_menu
+        .load_recipe_book(["minecraft:oak_planks"], []);
+    assert!(state
+        .inventory_menu
+        .set_slot(1, ItemStack::new("minecraft:oak_log", 64)));
+
+    let changed = super::super::apply_place_recipe_packet(
+        &mut state,
+        crate::network::play::ServerboundPlaceRecipePacket {
+            container_id: 0,
+            recipe_index: 0,
+            use_max_items: false,
+        },
+        &recipes,
+    );
+
+    assert!(!changed);
+    assert_eq!(
+        state.inventory_menu.get_slot(1),
+        Some(ItemStack::new("minecraft:oak_log", 64))
+    );
+    assert_eq!(
+        state.inventory_menu.player_inventory().get(0),
+        &ItemStack::new("minecraft:oak_log", 64)
+    );
+}
+
+#[test]
+pub fn place_recipe_packet_refuses_to_clear_grid_when_inventory_is_full_like_java() {
+    let recipes = oak_planks_recipe_map();
+    let mut inventory = PlayerInventory::new();
+    for slot in 0..INVENTORY_SIZE {
+        inventory.set(slot, ItemStack::new("minecraft:cobblestone", 64));
+    }
+    let mut state = session_state_with_inventory(&[]);
+    state.inventory_menu = InventoryMenu::new(inventory, recipes.clone());
+    state
+        .inventory_menu
+        .load_recipe_book(["minecraft:oak_planks"], []);
+    assert!(state
+        .inventory_menu
+        .set_slot(1, ItemStack::new("minecraft:oak_log", 1)));
+
+    let changed = super::super::apply_place_recipe_packet(
+        &mut state,
+        crate::network::play::ServerboundPlaceRecipePacket {
+            container_id: 0,
+            recipe_index: 0,
+            use_max_items: false,
+        },
+        &recipes,
+    );
+
+    assert!(!changed);
+    assert_eq!(state.container_state_id, 0);
+    assert_eq!(
+        state.inventory_menu.get_slot(1),
+        Some(ItemStack::new("minecraft:oak_log", 1))
+    );
+    assert_eq!(
+        state.inventory_menu.player_inventory().get(0),
+        &ItemStack::new("minecraft:cobblestone", 64)
+    );
+    assert!(state.inventory_menu.player_inventory().dropped().is_empty());
 }
 
 #[test]

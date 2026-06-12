@@ -773,6 +773,8 @@ use menus_workstation::*;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
+mod tests_crafting_menu;
+#[cfg(test)]
 mod tests_close;
 #[cfg(test)]
 mod tests_special_crafting;

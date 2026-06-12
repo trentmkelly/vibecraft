@@ -812,13 +812,26 @@ impl InventoryMenu {
             return false;
         };
 
+        let recipe_matches_placed = self.crafting.recipe_id() == Some(holder.id);
+        let current_grid = (0..self.crafting.width * self.crafting.height)
+            .map(|index| {
+                self.crafting
+                    .input(index)
+                    .cloned()
+                    .unwrap_or_else(ItemStack::empty)
+            })
+            .collect::<Vec<_>>();
+        if !can_clear_grid_to_inventory(&self.player, &current_grid) {
+            return false;
+        }
         let mut next = self.clone();
         next.clear_crafting_to_inventory();
-        let amount = if use_max_items {
-            biggest_placeable_craft_count(&next.player, &placement).min(64)
-        } else {
-            1
-        };
+        let biggest = biggest_placeable_craft_count(&next.player, &placement).min(64);
+        if recipe_matches_placed && !grid_can_grow_one_more(&current_grid, biggest) {
+            return false;
+        }
+        let amount =
+            recipe_book_place_amount(use_max_items, recipe_matches_placed, biggest, &current_grid);
         if amount <= 0 {
             return false;
         }
@@ -1050,6 +1063,40 @@ pub(crate) fn biggest_placeable_craft_count(
         }
     }
     trial
+}
+
+pub(crate) fn recipe_book_place_amount(
+    use_max_items: bool,
+    recipe_matches_placed: bool,
+    biggest_craftable_stack: i32,
+    grid: &[ItemStack],
+) -> i32 {
+    if use_max_items {
+        return biggest_craftable_stack;
+    }
+    if recipe_matches_placed {
+        grid.iter()
+            .filter(|stack| !stack.is_empty())
+            .map(ItemStack::count)
+            .min()
+            .map_or(1, |smallest| smallest + 1)
+    } else {
+        1
+    }
+}
+
+pub(crate) fn grid_can_grow_one_more(grid: &[ItemStack], biggest_craftable_stack: i32) -> bool {
+    grid.iter().filter(|stack| !stack.is_empty()).all(|stack| {
+        biggest_craftable_stack.min(stack.max_stack_size() as i32) > stack.count()
+    })
+}
+
+pub(crate) fn can_clear_grid_to_inventory(inventory: &PlayerInventory, grid: &[ItemStack]) -> bool {
+    let mut trial = inventory.clone();
+    grid.iter()
+        .filter(|stack| !stack.is_empty())
+        .cloned()
+        .all(|stack| trial.add(stack) == InventoryAddResult::FullyAdded)
 }
 
 fn can_satisfy_placement(
