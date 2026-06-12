@@ -446,3 +446,23 @@ fn placement_info_empty_ingredients_are_not_placeable_like_java() {
         }
     );
 }
+
+#[test]
+fn normal_crafting_recipe_common_and_book_info_match_java_accessors() {
+    let placement = PlacementInfo::create_from_optionals(vec![
+        Some(IngredientSpec::Item("minecraft:oak_planks")),
+        Some(IngredientSpec::Item("minecraft:oak_planks")),
+    ]);
+    let normal = NormalCraftingRecipeModel {
+        category: CraftingBookCategoryModel::Building,
+        group: "minecraft:wooden_buttons",
+        show_notification: false,
+        placement_info: placement.clone(),
+    };
+
+    assert_eq!(normal.group, "minecraft:wooden_buttons");
+    assert_eq!(normal.recipe_book_category(), "crafting_building_blocks");
+    assert!(!normal.show_notification);
+    assert_eq!(normal.placement_info, placement);
+    assert!(!normal.is_incomplete());
+}
