@@ -1038,6 +1038,7 @@ mod start_configuration_packet_test;
 mod stop_sound_packet_test;
 mod system_chat_packet_test;
 mod tab_list_packet_test;
+mod ticking_packets_test;
 mod tests_middle;
 mod tests_middle2;
 mod tests_middle3;
