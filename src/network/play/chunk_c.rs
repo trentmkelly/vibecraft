@@ -772,6 +772,29 @@ impl ClientboundUpdateMobEffectPacket {
 }
 
 impl ClientboundPlayerLookAtPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let from_anchor = EntityAnchor::from_index(read_enum_index(reader, EntityAnchor::COUNT)?)?;
+        let x = read_f64(reader)?;
+        let y = read_f64(reader)?;
+        let z = read_f64(reader)?;
+        let target_entity = if read_bool(reader)? {
+            Some((
+                read_var_i32(reader)?,
+                EntityAnchor::from_index(read_enum_index(reader, EntityAnchor::COUNT)?)?,
+            ))
+        } else {
+            None
+        };
+        expect_empty_payload(reader)?;
+        Ok(Self {
+            from_anchor,
+            x,
+            y,
+            z,
+            target_entity,
+        })
+    }
+
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_enum_index(writer, self.from_anchor as usize, EntityAnchor::COUNT)?;
         write_f64(writer, self.x)?;
@@ -883,6 +906,14 @@ impl ClientboundTabListPacket {
 
 impl EntityAnchor {
     const COUNT: usize = 2;
+
+    fn from_index(index: usize) -> io::Result<Self> {
+        match index {
+            0 => Ok(Self::Feet),
+            1 => Ok(Self::Eyes),
+            _ => Err(invalid_data("invalid entity anchor")),
+        }
+    }
 }
 
 impl ClientboundResetScorePacket {
