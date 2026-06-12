@@ -3984,7 +3984,9 @@ pub(super) fn read_expected_login_hello_packet<R: Read>(
             "expected login hello",
         ));
     }
-    ServerboundHelloPacket::read(&mut input)
+    let packet = ServerboundHelloPacket::read(&mut input)?;
+    crate::network::login::validate_serverbound_hello_name(&packet.name)?;
+    Ok(packet)
 }
 
 #[cfg(test)]

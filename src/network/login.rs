@@ -112,22 +112,26 @@ impl Default for LoginSession {
 
 impl ServerboundHelloPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
-        let packet = Self {
+        Ok(Self {
             name: read_string(reader, 16)?,
             profile_id: read_uuid(reader)?,
-        };
-        if !is_valid_player_name(&packet.name) {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "invalid characters in username",
-            ));
-        }
-        Ok(packet)
+        })
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_string(writer, &self.name, 16)?;
         write_uuid(writer, self.profile_id)
+    }
+}
+
+pub fn validate_serverbound_hello_name(name: &str) -> io::Result<()> {
+    if is_valid_player_name(name) {
+        Ok(())
+    } else {
+        Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "invalid characters in username",
+        ))
     }
 }
 
@@ -169,10 +173,13 @@ impl ServerboundKeyPacket {
 
 impl ClientboundCustomQueryPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let transaction_id = read_var_i32(reader)?;
+        let channel = read_identifier(reader)?;
+        let _discarded_payload = read_remaining_limited(reader, MAX_LOGIN_CUSTOM_QUERY_PAYLOAD_SIZE)?;
         Ok(Self {
-            transaction_id: read_var_i32(reader)?,
-            channel: read_identifier(reader)?,
-            payload: read_remaining_limited(reader, MAX_LOGIN_CUSTOM_QUERY_PAYLOAD_SIZE)?,
+            transaction_id,
+            channel,
+            payload: Vec::new(),
         })
     }
 
@@ -185,11 +192,11 @@ impl ClientboundCustomQueryPacket {
 
 impl ServerboundCustomQueryAnswerPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let transaction_id = read_var_i32(reader)?;
+        let _discarded_payload = read_remaining_limited(reader, MAX_LOGIN_CUSTOM_QUERY_PAYLOAD_SIZE)?;
         Ok(Self {
-            transaction_id: read_var_i32(reader)?,
-            payload: read_optional(reader, |reader| {
-                read_remaining_limited(reader, MAX_LOGIN_CUSTOM_QUERY_PAYLOAD_SIZE)
-            })?,
+            transaction_id,
+            payload: Some(Vec::new()),
         })
     }
 
@@ -463,8 +470,61 @@ mod tests {
     };
     use crate::network::codec::{ComponentJson, Uuid};
     use crate::network::cookie::ServerboundCookieResponsePacket;
+    use crate::network::varint::write_var_i32;
     use crate::registry::Identifier;
     use std::io::{self, Cursor};
+
+    const CLIENT_LOGIN_PACKET_LISTENER_JAVA: &str = include_str!(
+        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/ClientLoginPacketListener.java"
+    );
+    const CLIENTBOUND_CUSTOM_QUERY_PACKET_JAVA: &str = include_str!(
+        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/ClientboundCustomQueryPacket.java"
+    );
+    const CLIENTBOUND_HELLO_PACKET_JAVA: &str = include_str!(
+        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/ClientboundHelloPacket.java"
+    );
+    const CLIENTBOUND_LOGIN_COMPRESSION_PACKET_JAVA: &str = include_str!(
+        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/ClientboundLoginCompressionPacket.java"
+    );
+    const CLIENTBOUND_LOGIN_DISCONNECT_PACKET_JAVA: &str = include_str!(
+        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/ClientboundLoginDisconnectPacket.java"
+    );
+    const CLIENTBOUND_LOGIN_FINISHED_PACKET_JAVA: &str = include_str!(
+        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/ClientboundLoginFinishedPacket.java"
+    );
+    const LOGIN_PACKET_TYPES_JAVA: &str = include_str!(
+        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/LoginPacketTypes.java"
+    );
+    const LOGIN_PROTOCOLS_JAVA: &str = include_str!(
+        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/LoginProtocols.java"
+    );
+    const SERVER_LOGIN_PACKET_LISTENER_JAVA: &str = include_str!(
+        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/ServerLoginPacketListener.java"
+    );
+    const SERVERBOUND_CUSTOM_QUERY_ANSWER_PACKET_JAVA: &str = include_str!(
+        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/ServerboundCustomQueryAnswerPacket.java"
+    );
+    const SERVERBOUND_HELLO_PACKET_JAVA: &str = include_str!(
+        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/ServerboundHelloPacket.java"
+    );
+    const SERVERBOUND_KEY_PACKET_JAVA: &str = include_str!(
+        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/ServerboundKeyPacket.java"
+    );
+    const SERVERBOUND_LOGIN_ACKNOWLEDGED_PACKET_JAVA: &str = include_str!(
+        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/ServerboundLoginAcknowledgedPacket.java"
+    );
+    const CUSTOM_QUERY_ANSWER_PAYLOAD_JAVA: &str = include_str!(
+        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/custom/CustomQueryAnswerPayload.java"
+    );
+    const CUSTOM_QUERY_PAYLOAD_JAVA: &str = include_str!(
+        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/custom/CustomQueryPayload.java"
+    );
+    const DISCARDED_QUERY_ANSWER_PAYLOAD_JAVA: &str = include_str!(
+        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/custom/DiscardedQueryAnswerPayload.java"
+    );
+    const DISCARDED_QUERY_PAYLOAD_JAVA: &str = include_str!(
+        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/custom/DiscardedQueryPayload.java"
+    );
 
     #[test]
     fn reads_and_writes_serverbound_hello() {
@@ -481,7 +541,17 @@ mod tests {
     }
 
     #[test]
-    fn validates_serverbound_hello_names_like_vanilla() {
+    fn serverbound_hello_codec_matches_java_and_server_validates_names() {
+        assert_java_contains(
+            SERVERBOUND_HELLO_PACKET_JAVA,
+            &[
+                "this(input.readUtf(16), input.readUUID());",
+                "output.writeUtf(this.name, 16);",
+                "output.writeUUID(this.profileId);",
+                "return LoginPacketTypes.SERVERBOUND_HELLO;",
+                "listener.handleHello(this);",
+            ],
+        );
         for name in [
             "Steve",
             "abcdefghijklmnop",
@@ -502,21 +572,27 @@ mod tests {
                     .name,
                 name
             );
+            super::validate_serverbound_hello_name(name).unwrap();
         }
 
         for name in [
             "has space",
             "newline\nname",
-            "seventeen_chars__",
             "nonasciié",
             "delete\u{7f}name",
         ] {
             let mut bytes = Vec::new();
             crate::network::codec::write_string(&mut bytes, name, 32).unwrap();
             crate::network::codec::write_uuid(&mut bytes, Uuid([1; 16])).unwrap();
-            let err = ServerboundHelloPacket::read(&mut Cursor::new(bytes)).unwrap_err();
+            let packet = ServerboundHelloPacket::read(&mut Cursor::new(bytes)).unwrap();
+            let err = super::validate_serverbound_hello_name(&packet.name).unwrap_err();
             assert_eq!(err.kind(), io::ErrorKind::InvalidData);
         }
+
+        let mut too_long = Vec::new();
+        crate::network::codec::write_string(&mut too_long, "seventeen_chars__", 32).unwrap();
+        crate::network::codec::write_uuid(&mut too_long, Uuid([1; 16])).unwrap();
+        assert!(ServerboundHelloPacket::read(&mut Cursor::new(too_long)).is_err());
     }
 
     #[test]
@@ -556,6 +632,39 @@ mod tests {
 
     #[test]
     fn login_packet_ids_match_vanilla_protocol_order() {
+        assert_java_contains(
+            LOGIN_PACKET_TYPES_JAVA,
+            &[
+                "CLIENTBOUND_CUSTOM_QUERY = createClientbound(\"custom_query\")",
+                "CLIENTBOUND_LOGIN_FINISHED = createClientbound(\"login_finished\")",
+                "CLIENTBOUND_HELLO = createClientbound(\"hello\")",
+                "CLIENTBOUND_LOGIN_COMPRESSION = createClientbound(\"login_compression\")",
+                "CLIENTBOUND_LOGIN_DISCONNECT = createClientbound(\"login_disconnect\")",
+                "SERVERBOUND_CUSTOM_QUERY_ANSWER = createServerbound(\"custom_query_answer\")",
+                "SERVERBOUND_HELLO = createServerbound(\"hello\")",
+                "SERVERBOUND_KEY = createServerbound(\"key\")",
+                "SERVERBOUND_LOGIN_ACKNOWLEDGED = createServerbound(\"login_acknowledged\")",
+                "new PacketType<>(PacketFlow.CLIENTBOUND, Identifier.withDefaultNamespace(id))",
+                "new PacketType<>(PacketFlow.SERVERBOUND, Identifier.withDefaultNamespace(id))",
+            ],
+        );
+        assert_java_contains(
+            LOGIN_PROTOCOLS_JAVA,
+            &[
+                "ConnectionProtocol.LOGIN",
+                "builder -> builder.addPacket(LoginPacketTypes.SERVERBOUND_HELLO, ServerboundHelloPacket.STREAM_CODEC)",
+                ".addPacket(LoginPacketTypes.SERVERBOUND_KEY, ServerboundKeyPacket.STREAM_CODEC)",
+                ".addPacket(LoginPacketTypes.SERVERBOUND_CUSTOM_QUERY_ANSWER, ServerboundCustomQueryAnswerPacket.STREAM_CODEC)",
+                ".addPacket(LoginPacketTypes.SERVERBOUND_LOGIN_ACKNOWLEDGED, ServerboundLoginAcknowledgedPacket.STREAM_CODEC)",
+                ".addPacket(CookiePacketTypes.SERVERBOUND_COOKIE_RESPONSE, ServerboundCookieResponsePacket.STREAM_CODEC)",
+                "builder -> builder.addPacket(LoginPacketTypes.CLIENTBOUND_LOGIN_DISCONNECT, ClientboundLoginDisconnectPacket.STREAM_CODEC)",
+                ".addPacket(LoginPacketTypes.CLIENTBOUND_HELLO, ClientboundHelloPacket.STREAM_CODEC)",
+                ".addPacket(LoginPacketTypes.CLIENTBOUND_LOGIN_FINISHED, ClientboundLoginFinishedPacket.STREAM_CODEC)",
+                ".addPacket(LoginPacketTypes.CLIENTBOUND_LOGIN_COMPRESSION, ClientboundLoginCompressionPacket.STREAM_CODEC)",
+                ".addPacket(LoginPacketTypes.CLIENTBOUND_CUSTOM_QUERY, ClientboundCustomQueryPacket.STREAM_CODEC)",
+                ".addPacket(CookiePacketTypes.CLIENTBOUND_COOKIE_REQUEST, ClientboundCookieRequestPacket.STREAM_CODEC)",
+            ],
+        );
         assert_eq!(SERVERBOUND_HELLO_PACKET_ID, 0);
         assert_eq!(SERVERBOUND_KEY_PACKET_ID, 1);
         assert_eq!(SERVERBOUND_CUSTOM_QUERY_ANSWER_PACKET_ID, 2);
@@ -571,6 +680,32 @@ mod tests {
 
     #[test]
     fn round_trips_login_encryption_packets() {
+        assert_java_contains(
+            CLIENTBOUND_HELLO_PACKET_JAVA,
+            &[
+                "this.serverId = input.readUtf(20);",
+                "this.publicKey = input.readByteArray();",
+                "this.challenge = input.readByteArray();",
+                "this.shouldAuthenticate = input.readBoolean();",
+                "output.writeUtf(this.serverId);",
+                "output.writeByteArray(this.publicKey);",
+                "output.writeByteArray(this.challenge);",
+                "output.writeBoolean(this.shouldAuthenticate);",
+                "return LoginPacketTypes.CLIENTBOUND_HELLO;",
+                "listener.handleHello(this);",
+            ],
+        );
+        assert_java_contains(
+            SERVERBOUND_KEY_PACKET_JAVA,
+            &[
+                "this.keybytes = input.readByteArray();",
+                "this.encryptedChallenge = input.readByteArray();",
+                "output.writeByteArray(this.keybytes);",
+                "output.writeByteArray(this.encryptedChallenge);",
+                "return LoginPacketTypes.SERVERBOUND_KEY;",
+                "listener.handleKey(this);",
+            ],
+        );
         let hello = ClientboundHelloPacket {
             server_id: "".to_string(),
             public_key: vec![1, 2, 3],
@@ -598,6 +733,37 @@ mod tests {
 
     #[test]
     fn round_trips_login_custom_query_packets() {
+        assert_java_contains(
+            CLIENTBOUND_CUSTOM_QUERY_PACKET_JAVA,
+            &[
+                "private static final int MAX_PAYLOAD_SIZE = 1048576;",
+                "this(input.readVarInt(), readPayload(input.readIdentifier(), input));",
+                "return readUnknownPayload(identifier, input);",
+                "input.skipBytes(length);",
+                "return new DiscardedQueryPayload(identifier);",
+                "Payload may not be larger than 1048576 bytes",
+                "output.writeVarInt(this.transactionId);",
+                "output.writeIdentifier(this.payload.id());",
+                "this.payload.write(output);",
+                "return LoginPacketTypes.CLIENTBOUND_CUSTOM_QUERY;",
+                "listener.handleCustomQuery(this);",
+            ],
+        );
+        assert_java_contains(
+            SERVERBOUND_CUSTOM_QUERY_ANSWER_PACKET_JAVA,
+            &[
+                "private static final int MAX_PAYLOAD_SIZE = 1048576;",
+                "int transactionId = input.readVarInt();",
+                "return new ServerboundCustomQueryAnswerPacket(transactionId, readPayload(transactionId, input));",
+                "return readUnknownPayload(input);",
+                "input.skipBytes(length);",
+                "return DiscardedQueryAnswerPayload.INSTANCE;",
+                "output.writeVarInt(this.transactionId);",
+                "output.writeNullable(this.payload, (buf, data) -> data.write(buf));",
+                "return LoginPacketTypes.SERVERBOUND_CUSTOM_QUERY_ANSWER;",
+                "listener.handleCustomQueryPacket(this);",
+            ],
+        );
         let query = ClientboundCustomQueryPacket {
             transaction_id: 42,
             channel: Identifier::parse("vibecraft:query").unwrap(),
@@ -605,10 +771,10 @@ mod tests {
         };
         let mut bytes = Vec::new();
         query.write(&mut bytes).unwrap();
-        assert_eq!(
-            ClientboundCustomQueryPacket::read(&mut Cursor::new(bytes)).unwrap(),
-            query
-        );
+        let decoded_query = ClientboundCustomQueryPacket::read(&mut Cursor::new(bytes)).unwrap();
+        assert_eq!(decoded_query.transaction_id, query.transaction_id);
+        assert_eq!(decoded_query.channel, query.channel);
+        assert!(decoded_query.payload.is_empty());
 
         let answer = ServerboundCustomQueryAnswerPacket {
             transaction_id: 42,
@@ -616,14 +782,24 @@ mod tests {
         };
         let mut bytes = Vec::new();
         answer.write(&mut bytes).unwrap();
-        assert_eq!(
-            ServerboundCustomQueryAnswerPacket::read(&mut Cursor::new(bytes)).unwrap(),
-            answer
-        );
+        let decoded_answer =
+            ServerboundCustomQueryAnswerPacket::read(&mut Cursor::new(bytes)).unwrap();
+        assert_eq!(decoded_answer.transaction_id, answer.transaction_id);
+        assert_eq!(decoded_answer.payload, Some(Vec::new()));
     }
 
     #[test]
     fn round_trips_login_compression_and_disconnect_packets() {
+        assert_java_contains(
+            CLIENTBOUND_LOGIN_COMPRESSION_PACKET_JAVA,
+            &[
+                "this.compressionThreshold = input.readVarInt();",
+                "output.writeVarInt(this.compressionThreshold);",
+                "return LoginPacketTypes.CLIENTBOUND_LOGIN_COMPRESSION;",
+                "listener.handleCompression(this);",
+                "return this.compressionThreshold;",
+            ],
+        );
         let compression = ClientboundLoginCompressionPacket {
             compression_threshold: 256,
         };
@@ -634,6 +810,15 @@ mod tests {
             compression
         );
 
+        assert_java_contains(
+            CLIENTBOUND_LOGIN_DISCONNECT_PACKET_JAVA,
+            &[
+                "ByteBufCodecs.lenientJson(262144)",
+                "ComponentSerialization.CODEC",
+                "return LoginPacketTypes.CLIENTBOUND_LOGIN_DISCONNECT;",
+                "listener.handleDisconnect(this);",
+            ],
+        );
         let disconnect = ClientboundLoginDisconnectPacket {
             reason: ComponentJson("{\"text\":\"bye\"}".to_string()),
         };
@@ -653,6 +838,92 @@ mod tests {
             payload: vec![0; MAX_LOGIN_CUSTOM_QUERY_PAYLOAD_SIZE + 1],
         };
         assert!(query.write(&mut Vec::new()).is_err());
+
+        let mut oversized_query = Vec::new();
+        write_var_i32(&mut oversized_query, 1).unwrap();
+        crate::network::codec::write_identifier(
+            &mut oversized_query,
+            &Identifier::parse("vibecraft:query").unwrap(),
+        )
+        .unwrap();
+        oversized_query.extend(std::iter::repeat_n(0, MAX_LOGIN_CUSTOM_QUERY_PAYLOAD_SIZE + 1));
+        assert!(ClientboundCustomQueryPacket::read(&mut Cursor::new(oversized_query)).is_err());
+
+        let mut oversized_answer = Vec::new();
+        write_var_i32(&mut oversized_answer, 1).unwrap();
+        oversized_answer.extend(std::iter::repeat_n(0, MAX_LOGIN_CUSTOM_QUERY_PAYLOAD_SIZE + 1));
+        assert!(
+            ServerboundCustomQueryAnswerPacket::read(&mut Cursor::new(oversized_answer)).is_err()
+        );
+    }
+
+    #[test]
+    fn login_finished_acknowledgement_listeners_and_custom_payload_sources_match_java() {
+        assert_java_contains(
+            CLIENTBOUND_LOGIN_FINISHED_PACKET_JAVA,
+            &[
+                "ByteBufCodecs.GAME_PROFILE",
+                "return LoginPacketTypes.CLIENTBOUND_LOGIN_FINISHED;",
+                "listener.handleLoginFinished(this);",
+                "return true;",
+            ],
+        );
+        assert_java_contains(
+            SERVERBOUND_LOGIN_ACKNOWLEDGED_PACKET_JAVA,
+            &[
+                "public static final ServerboundLoginAcknowledgedPacket INSTANCE",
+                "StreamCodec.unit(INSTANCE)",
+                "return LoginPacketTypes.SERVERBOUND_LOGIN_ACKNOWLEDGED;",
+                "listener.handleLoginAcknowledgement(this);",
+                "return true;",
+            ],
+        );
+        assert_java_contains(
+            CLIENT_LOGIN_PACKET_LISTENER_JAVA,
+            &[
+                "extends ClientCookiePacketListener",
+                "return ConnectionProtocol.LOGIN;",
+                "void handleHello(ClientboundHelloPacket packet);",
+                "void handleLoginFinished(ClientboundLoginFinishedPacket packet);",
+                "void handleDisconnect(ClientboundLoginDisconnectPacket packet);",
+                "void handleCompression(ClientboundLoginCompressionPacket packet);",
+                "void handleCustomQuery(ClientboundCustomQueryPacket packet);",
+            ],
+        );
+        assert_java_contains(
+            SERVER_LOGIN_PACKET_LISTENER_JAVA,
+            &[
+                "extends ServerCookiePacketListener",
+                "return ConnectionProtocol.LOGIN;",
+                "void handleHello(ServerboundHelloPacket packet);",
+                "void handleKey(ServerboundKeyPacket packet);",
+                "void handleCustomQueryPacket(ServerboundCustomQueryAnswerPacket packet);",
+                "void handleLoginAcknowledgement(ServerboundLoginAcknowledgedPacket packet);",
+            ],
+        );
+        assert_java_contains(
+            CUSTOM_QUERY_PAYLOAD_JAVA,
+            &["Identifier id();", "void write(FriendlyByteBuf output);"],
+        );
+        assert_java_contains(
+            CUSTOM_QUERY_ANSWER_PAYLOAD_JAVA,
+            &["void write(FriendlyByteBuf output);"],
+        );
+        assert_java_contains(
+            DISCARDED_QUERY_PAYLOAD_JAVA,
+            &[
+                "public record DiscardedQueryPayload(Identifier id) implements CustomQueryPayload",
+                "public void write(final FriendlyByteBuf output)",
+            ],
+        );
+        assert_java_contains(
+            DISCARDED_QUERY_ANSWER_PAYLOAD_JAVA,
+            &[
+                "public record DiscardedQueryAnswerPayload() implements CustomQueryAnswerPayload",
+                "public static final DiscardedQueryAnswerPayload INSTANCE",
+                "public void write(final FriendlyByteBuf output)",
+            ],
+        );
     }
 
     #[test]
@@ -713,5 +984,14 @@ mod tests {
             crate::network::cookie::CookieResponseStatus::Stored(vec![1, 2, 3])
         );
         assert_eq!(session.cookies.get(&key), Some([1, 2, 3].as_slice()));
+    }
+
+    fn assert_java_contains(source: &str, sentinels: &[&str]) {
+        for sentinel in sentinels {
+            assert!(
+                source.contains(sentinel),
+                "missing Java source sentinel {sentinel}"
+            );
+        }
     }
 }
