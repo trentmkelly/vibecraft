@@ -297,6 +297,29 @@ fn assert_witch_attributes_and_goal_gates() {
     ));
     assert!(witch_attack_players_enabled(0));
     assert!(!witch_attack_players_enabled(1));
+    assert_eq!(
+        witch_class_surface(),
+        WitchClassSurface {
+            using_item_default: false,
+            ambient_sound: "minecraft:entity.witch.ambient",
+            hurt_sound: "minecraft:entity.witch.hurt",
+            death_sound: "minecraft:entity.witch.death",
+            celebrate_sound: "minecraft:entity.witch.celebrate",
+            goal_priorities: &[
+                (1, "FloatGoal"),
+                (2, "RangedAttackGoal"),
+                (2, "WaterAvoidingRandomStrollGoal"),
+                (3, "LookAtPlayerGoal"),
+                (3, "RandomLookAroundGoal"),
+            ],
+            target_priorities: &[
+                (1, "HurtByTargetGoal"),
+                (2, "NearestHealableRaiderTargetGoal"),
+                (3, "NearestAttackableWitchTargetGoal"),
+            ],
+            particle_type: "minecraft:witch",
+        }
+    );
 }
 
 fn assert_witch_drink_potion_selection_and_finish() {
@@ -367,6 +390,7 @@ fn assert_witch_drink_potion_selection_and_finish() {
         witch_start_drinking(Some("minecraft:healing"), false),
         Some(WitchDrinkStart {
             potion: "minecraft:healing",
+            using_time_from_main_hand_use_duration: true,
             using_item: true,
             speed_modifier: -0.25,
             drink_sound: Some("minecraft:entity.witch.drink"),

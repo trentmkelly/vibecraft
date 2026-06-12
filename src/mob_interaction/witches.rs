@@ -5,6 +5,18 @@ pub struct WitchAttributes {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub struct WitchClassSurface {
+    pub using_item_default: bool,
+    pub ambient_sound: &'static str,
+    pub hurt_sound: &'static str,
+    pub death_sound: &'static str,
+    pub celebrate_sound: &'static str,
+    pub goal_priorities: &'static [(i32, &'static str)],
+    pub target_priorities: &'static [(i32, &'static str)],
+    pub particle_type: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct WitchRangedAttack {
     pub potion: &'static str,
     pub clear_target: bool,
@@ -16,6 +28,7 @@ pub struct WitchRangedAttack {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct WitchDrinkStart {
     pub potion: &'static str,
+    pub using_time_from_main_hand_use_duration: bool,
     pub using_item: bool,
     pub speed_modifier: f32,
     pub drink_sound: Option<&'static str>,
@@ -32,6 +45,7 @@ pub struct WitchDrinkFinish {
 
 pub const WITCH_MAX_HEALTH: f32 = 26.0;
 pub const WITCH_MOVEMENT_SPEED: f32 = 0.25;
+pub const WITCH_USING_ITEM_DEFAULT: bool = false;
 pub const WITCH_DRINKING_SPEED_MODIFIER: f32 = -0.25;
 pub const WITCH_RANGED_ATTACK_SPEED: f32 = 1.0;
 pub const WITCH_RANGED_ATTACK_INTERVAL_TICKS: i32 = 60;
@@ -60,11 +74,41 @@ pub const WITCH_PARTICLE_RANDOM_BOUND: i32 = 35;
 pub const WITCH_RESISTANT_DAMAGE_SCALE: f32 = 0.15;
 pub const WITCH_CAN_BE_RAID_LEADER: bool = false;
 pub const WITCH_RAID_BUFFS_APPLIED: bool = false;
+pub const WITCH_AMBIENT_SOUND: &str = "minecraft:entity.witch.ambient";
+pub const WITCH_HURT_SOUND: &str = "minecraft:entity.witch.hurt";
+pub const WITCH_DEATH_SOUND: &str = "minecraft:entity.witch.death";
+pub const WITCH_CELEBRATE_SOUND: &str = "minecraft:entity.witch.celebrate";
+pub const WITCH_PARTICLE_TYPE: &str = "minecraft:witch";
+pub const WITCH_GOAL_PRIORITIES: &[(i32, &str)] = &[
+    (1, "FloatGoal"),
+    (2, "RangedAttackGoal"),
+    (2, "WaterAvoidingRandomStrollGoal"),
+    (3, "LookAtPlayerGoal"),
+    (3, "RandomLookAroundGoal"),
+];
+pub const WITCH_TARGET_PRIORITIES: &[(i32, &str)] = &[
+    (1, "HurtByTargetGoal"),
+    (2, "NearestHealableRaiderTargetGoal"),
+    (3, "NearestAttackableWitchTargetGoal"),
+];
 
 pub fn witch_attributes() -> WitchAttributes {
     WitchAttributes {
         max_health: WITCH_MAX_HEALTH,
         movement_speed: WITCH_MOVEMENT_SPEED,
+    }
+}
+
+pub fn witch_class_surface() -> WitchClassSurface {
+    WitchClassSurface {
+        using_item_default: WITCH_USING_ITEM_DEFAULT,
+        ambient_sound: WITCH_AMBIENT_SOUND,
+        hurt_sound: WITCH_HURT_SOUND,
+        death_sound: WITCH_DEATH_SOUND,
+        celebrate_sound: WITCH_CELEBRATE_SOUND,
+        goal_priorities: WITCH_GOAL_PRIORITIES,
+        target_priorities: WITCH_TARGET_PRIORITIES,
+        particle_type: WITCH_PARTICLE_TYPE,
     }
 }
 
@@ -123,6 +167,7 @@ pub fn witch_select_drink_potion(input: WitchDrinkPotionInput) -> Option<&'stati
 pub fn witch_start_drinking(potion: Option<&'static str>, silent: bool) -> Option<WitchDrinkStart> {
     potion.map(|potion| WitchDrinkStart {
         potion,
+        using_time_from_main_hand_use_duration: true,
         using_item: true,
         speed_modifier: WITCH_DRINKING_SPEED_MODIFIER,
         drink_sound: (!silent).then_some("minecraft:entity.witch.drink"),
