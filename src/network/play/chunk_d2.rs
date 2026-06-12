@@ -940,6 +940,26 @@ impl ClientboundProjectilePowerPacket {
     }
 }
 
+impl ClientboundPlayerRotationPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let packet = Self {
+            y_rot: read_f32(reader)?,
+            relative_y: read_bool(reader)?,
+            x_rot: read_f32(reader)?,
+            relative_x: read_bool(reader)?,
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_f32(writer, self.y_rot)?;
+        write_bool(writer, self.relative_y)?;
+        write_f32(writer, self.x_rot)?;
+        write_bool(writer, self.relative_x)
+    }
+}
+
 impl GameMode {
     pub(super) fn from_wire_id(id: i32) -> Self {
         match id {

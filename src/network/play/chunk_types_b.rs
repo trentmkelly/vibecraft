@@ -1125,6 +1125,14 @@ pub struct ClientboundProjectilePowerPacket {
     pub acceleration_power: f64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClientboundPlayerRotationPacket {
+    pub y_rot: f32,
+    pub relative_y: bool,
+    pub x_rot: f32,
+    pub relative_x: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RespawnReason {
     Death,
