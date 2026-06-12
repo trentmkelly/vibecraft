@@ -516,7 +516,7 @@ impl RecipeManagerModel {
         &self.property_sets
     }
 
-    #[cfg(test)]
+    #[allow(dead_code)]
     pub fn property_set(&self, key: &str) -> RecipePropertySet {
         self.property_sets
             .iter()

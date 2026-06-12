@@ -376,3 +376,41 @@ fn single_recipe_input_matching_requires_exactly_one_item() {
         assert!(!recipe.matches(1, 2, &[Some("minecraft:raw_iron"), Some("minecraft:stone")]));
     }
 }
+
+#[test]
+fn recipe_access_exposes_property_sets_and_stonecutter_recipes_like_java() {
+    let manager = RecipeManagerModel::new(vec![
+        RecipeHolder {
+            id: "minecraft:iron_ingot_from_smelting_raw_iron",
+            recipe: RecipeKind::Cooking {
+                kind: CookingKind::Smelting,
+                ingredient: IngredientSpec::Item("minecraft:raw_iron"),
+                result: ItemAmount::one("minecraft:iron_ingot"),
+                experience_millis: 700,
+                cooking_time: None,
+                category: CookingBookCategory::Misc,
+            },
+        },
+        RecipeHolder {
+            id: "minecraft:stone_button_from_stone_stonecutting",
+            recipe: RecipeKind::Stonecutting {
+                ingredient: IngredientSpec::Item("minecraft:stone"),
+                result: ItemAmount::one("minecraft:stone_button"),
+            },
+        },
+    ]);
+
+    assert_eq!(
+        manager.property_set("minecraft:furnace_input").accepted_items,
+        vec!["minecraft:raw_iron"]
+    );
+    assert!(manager
+        .property_set("minecraft:unknown_property_set")
+        .accepted_items
+        .is_empty());
+    assert_eq!(manager.stonecutter_recipes().len(), 1);
+    assert_eq!(
+        manager.stonecutter_recipes()[0].recipe_id,
+        "minecraft:stone_button_from_stone_stonecutting"
+    );
+}
