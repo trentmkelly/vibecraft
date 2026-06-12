@@ -139,6 +139,41 @@ pub struct BreezeSlideToTargetSinkStep {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BreezeAttributes {
+    pub movement_speed: f32,
+    pub max_health: f32,
+    pub follow_range: f32,
+    pub attack_damage: f32,
+    pub xp_reward: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BreezePoseAnimationStep {
+    pub reset_animations: bool,
+    pub start_animation: Option<&'static str>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BreezeTickStep {
+    pub ground_particles: i32,
+    pub jump_trail_particles: i32,
+    pub reset_jump_trail: bool,
+    pub start_idle: bool,
+    pub start_long_jump: bool,
+    pub start_slide_back: bool,
+    pub stop_slide: bool,
+    pub next_sound_tick: i32,
+    pub play_whirl_sound: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BreezeWhirlSound {
+    pub sound: &'static str,
+    pub volume: f32,
+    pub pitch: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BreezeSlideStartInput {
     pub breeze_position: BreezeVec3,
     pub enemy_position: BreezeVec3,
@@ -165,6 +200,40 @@ pub const BREEZE_UTIL_BEHIND_TARGET_BASE_DEGREES: f64 = 180.0;
 pub const BREEZE_UTIL_BEHIND_TARGET_SPREAD_DEGREES: f64 = 90.0;
 pub const BREEZE_UTIL_BEHIND_TARGET_MIN_DISTANCE: f64 = 4.0;
 pub const BREEZE_UTIL_BEHIND_TARGET_MAX_DISTANCE: f64 = 8.0;
+pub const BREEZE_SLIDE_PARTICLES_AMOUNT: i32 = 20;
+pub const BREEZE_IDLE_PARTICLES_AMOUNT: i32 = 1;
+pub const BREEZE_JUMP_TRAIL_PARTICLES_AMOUNT: i32 = 3;
+pub const BREEZE_JUMP_TRAIL_DURATION_TICKS: i32 = 5;
+pub const BREEZE_JUMP_CIRCLE_DISTANCE_Y: f64 = 10.0;
+pub const BREEZE_FALL_DISTANCE_SOUND_TRIGGER_THRESHOLD: f64 = 3.0;
+pub const BREEZE_WHIRL_SOUND_FREQUENCY_MIN: i32 = 1;
+pub const BREEZE_WHIRL_SOUND_FREQUENCY_MAX: i32 = 80;
+pub const BREEZE_MOVEMENT_SPEED: f32 = 0.63;
+pub const BREEZE_MAX_HEALTH: f32 = 30.0;
+pub const BREEZE_FOLLOW_RANGE: f32 = 24.0;
+pub const BREEZE_ATTACK_DAMAGE: f32 = 3.0;
+pub const BREEZE_XP_REWARD: i32 = 10;
+pub const BREEZE_PATHFINDING_MALUS_ON_TRAPDOOR: f32 = -1.0;
+pub const BREEZE_PATHFINDING_MALUS_FIRE: f32 = -1.0;
+pub const BREEZE_DEFLECT_SOUND: (&str, f32, f32) = ("minecraft:entity.breeze.deflect", 1.0, 1.0);
+pub const BREEZE_DEATH_SOUND: &str = "minecraft:entity.breeze.death";
+pub const BREEZE_HURT_SOUND: &str = "minecraft:entity.breeze.hurt";
+pub const BREEZE_IDLE_GROUND_SOUND: &str = "minecraft:entity.breeze.idle_ground";
+pub const BREEZE_IDLE_AIR_SOUND: &str = "minecraft:entity.breeze.idle_air";
+pub const BREEZE_WHIRL_SOUND: &str = "minecraft:entity.breeze.whirl";
+pub const BREEZE_LAND_SOUND: (&str, f32, f32) = ("minecraft:entity.breeze.land", 1.0, 1.0);
+pub const BREEZE_MAX_HEAD_Y_ROT: i32 = 30;
+pub const BREEZE_HEAD_ROT_SPEED: i32 = 25;
+pub const BREEZE_FIRING_Y_OFFSET: f64 = 0.3;
+pub const BREEZE_MOVEMENT_EMISSION: &str = "events";
+
+pub const BREEZE_BRAIN_SENSORS: [&str; 4] = [
+    "nearest_living_entities",
+    "hurt_by",
+    "nearest_players",
+    "breeze_attack_entity_sensor",
+];
+
 pub const BREEZE_AI_SPEED_MULTIPLIER_WHEN_SLIDING: f32 = 0.6;
 pub const BREEZE_AI_JUMP_CIRCLE_INNER_RADIUS: f32 = 4.0;
 pub const BREEZE_AI_JUMP_CIRCLE_MIDDLE_RADIUS: f32 = 8.0;
@@ -416,6 +485,156 @@ pub fn breeze_shoot_when_stuck_step(
         can_still_use: false,
         shoot_memory_expiry_ticks: can_start.then_some(BREEZE_SHOOT_WHEN_STUCK_MEMORY_EXPIRY_TICKS),
     }
+}
+
+pub fn breeze_attributes() -> BreezeAttributes {
+    BreezeAttributes {
+        movement_speed: BREEZE_MOVEMENT_SPEED,
+        max_health: BREEZE_MAX_HEALTH,
+        follow_range: BREEZE_FOLLOW_RANGE,
+        attack_damage: BREEZE_ATTACK_DAMAGE,
+        xp_reward: BREEZE_XP_REWARD,
+    }
+}
+
+pub fn breeze_make_brain_default_activity() -> (&'static str, bool) {
+    ("fight", true)
+}
+
+pub fn breeze_pose_animation_update(client_side: bool, accessor: &str, pose: &str) -> BreezePoseAnimationStep {
+    if !client_side || accessor != "data_pose" {
+        return BreezePoseAnimationStep {
+            reset_animations: false,
+            start_animation: None,
+        };
+    }
+    BreezePoseAnimationStep {
+        reset_animations: true,
+        start_animation: match pose {
+            "shooting" => Some("shoot"),
+            "inhaling" => Some("inhale"),
+            "sliding" => Some("slide"),
+            _ => None,
+        },
+    }
+}
+
+pub fn breeze_reset_animation_stops() -> [&'static str; 4] {
+    ["shoot", "idle", "inhale", "long_jump"]
+}
+
+pub fn breeze_tick_step(
+    pose: &str,
+    slide_animation_started: bool,
+    jump_trail_started_tick: i32,
+    sound_tick: i32,
+    random_sound_tick_1_to_80: i32,
+) -> BreezeTickStep {
+    let mut step = BreezeTickStep {
+        ground_particles: 0,
+        jump_trail_particles: 0,
+        reset_jump_trail: false,
+        start_idle: true,
+        start_long_jump: false,
+        start_slide_back: false,
+        stop_slide: false,
+        next_sound_tick: if sound_tick == 0 {
+            random_sound_tick_1_to_80
+        } else {
+            sound_tick - 1
+        },
+        play_whirl_sound: sound_tick == 1,
+    };
+    match pose {
+        "shooting" | "inhaling" | "standing" => {
+            step.reset_jump_trail = true;
+            step.ground_particles = BREEZE_IDLE_PARTICLES_AMOUNT;
+        }
+        "sliding" => step.ground_particles = BREEZE_SLIDE_PARTICLES_AMOUNT,
+        "long_jumping" => {
+            step.start_long_jump = true;
+            step.jump_trail_particles = if jump_trail_started_tick < BREEZE_JUMP_TRAIL_DURATION_TICKS {
+                BREEZE_JUMP_TRAIL_PARTICLES_AMOUNT
+            } else {
+                0
+            };
+        }
+        _ => {}
+    }
+    if pose != "sliding" && slide_animation_started {
+        step.start_slide_back = true;
+        step.stop_slide = true;
+    }
+    step
+}
+
+pub fn breeze_emit_ground_particles(passenger: bool, invisible_ground: bool, amount: i32) -> i32 {
+    if passenger || invisible_ground {
+        0
+    } else {
+        amount
+    }
+}
+
+pub fn breeze_play_ambient_sound(target_present: bool, on_ground: bool) -> bool {
+    !target_present || !on_ground
+}
+
+pub fn breeze_ambient_sound(on_ground: bool) -> &'static str {
+    if on_ground {
+        BREEZE_IDLE_GROUND_SOUND
+    } else {
+        BREEZE_IDLE_AIR_SOUND
+    }
+}
+
+pub fn breeze_whirl_sound(random_pitch_float: f32, random_volume_float: f32) -> BreezeWhirlSound {
+    BreezeWhirlSound {
+        sound: BREEZE_WHIRL_SOUND,
+        pitch: 0.7 + 0.4 * random_pitch_float,
+        volume: 0.8 + 0.2 * random_volume_float,
+    }
+}
+
+pub fn breeze_projectile_deflection(projectile_type: &str, deflects_projectiles_tag: bool) -> (&'static str, bool) {
+    if matches!(
+        projectile_type,
+        "minecraft:breeze_wind_charge" | "minecraft:wind_charge"
+    ) {
+        return ("none", false);
+    }
+    if deflects_projectiles_tag {
+        ("reverse", true)
+    } else {
+        ("none", false)
+    }
+}
+
+pub fn breeze_within_inner_circle_range(
+    breeze_block_center: BreezeVec3,
+    target: BreezeVec3,
+) -> bool {
+    let dx = target.x - breeze_block_center.x;
+    let dz = target.z - breeze_block_center.z;
+    let dy = (target.y - breeze_block_center.y).abs();
+    dx * dx + dz * dz < (BREEZE_AI_JUMP_CIRCLE_INNER_RADIUS as f64).powi(2)
+        && dy < BREEZE_JUMP_CIRCLE_DISTANCE_Y
+}
+
+pub fn breeze_can_attack(target_type: &str, super_can_attack: bool) -> bool {
+    matches!(target_type, "minecraft:player" | "minecraft:iron_golem") && super_can_attack
+}
+
+pub fn breeze_firing_y_position(y: f64, bb_height: f64) -> f64 {
+    y + bb_height / 2.0 + BREEZE_FIRING_Y_OFFSET
+}
+
+pub fn breeze_invulnerable_to(source_entity_type: Option<&str>, super_invulnerable: bool) -> bool {
+    source_entity_type == Some("minecraft:breeze") || super_invulnerable
+}
+
+pub fn breeze_fall_damage_sound(fall_distance: f64) -> Option<(&'static str, f32, f32)> {
+    (fall_distance > BREEZE_FALL_DISTANCE_SOUND_TRIGGER_THRESHOLD).then_some(BREEZE_LAND_SOUND)
 }
 
 pub fn breeze_ai_update_activity() -> [&'static str; 2] {

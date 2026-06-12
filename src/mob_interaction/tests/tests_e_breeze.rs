@@ -1,11 +1,146 @@
 #[test]
 fn breeze_util_and_shoot_when_stuck_match_java_rules() {
+    assert_breeze_entity_rules();
     assert_breeze_ai_rules();
     assert_breeze_util_random_point_and_los_rules();
     assert_breeze_long_jump_rules();
     assert_breeze_shoot_rules();
     assert_breeze_shoot_when_stuck_memory_rules();
     assert_breeze_slide_rules();
+}
+
+fn assert_breeze_entity_rules() {
+    assert_breeze_entity_attributes_brain_and_animation();
+    assert_breeze_entity_tick_particles_and_sounds();
+    assert_breeze_entity_deflection_attack_and_geometry();
+}
+
+fn assert_breeze_entity_attributes_brain_and_animation() {
+    assert_eq!(
+        breeze_attributes(),
+        BreezeAttributes {
+            movement_speed: 0.63,
+            max_health: 30.0,
+            follow_range: 24.0,
+            attack_damage: 3.0,
+            xp_reward: 10,
+        }
+    );
+    assert_eq!(BREEZE_PATHFINDING_MALUS_ON_TRAPDOOR, -1.0);
+    assert_eq!(BREEZE_PATHFINDING_MALUS_FIRE, -1.0);
+    assert_eq!(
+        BREEZE_BRAIN_SENSORS,
+        [
+            "nearest_living_entities",
+            "hurt_by",
+            "nearest_players",
+            "breeze_attack_entity_sensor",
+        ]
+    );
+    assert_eq!(breeze_make_brain_default_activity(), ("fight", true));
+    assert_eq!(
+        breeze_pose_animation_update(true, "data_pose", "shooting"),
+        BreezePoseAnimationStep {
+            reset_animations: true,
+            start_animation: Some("shoot"),
+        }
+    );
+    assert_eq!(
+        breeze_pose_animation_update(true, "data_pose", "standing"),
+        BreezePoseAnimationStep {
+            reset_animations: true,
+            start_animation: None,
+        }
+    );
+    assert!(!breeze_pose_animation_update(false, "data_pose", "sliding").reset_animations);
+    assert_eq!(breeze_reset_animation_stops(), ["shoot", "idle", "inhale", "long_jump"]);
+}
+
+fn assert_breeze_entity_tick_particles_and_sounds() {
+    assert_eq!(BREEZE_SLIDE_PARTICLES_AMOUNT, 20);
+    assert_eq!(BREEZE_IDLE_PARTICLES_AMOUNT, 1);
+    assert_eq!(BREEZE_JUMP_TRAIL_PARTICLES_AMOUNT, 3);
+    assert_eq!(BREEZE_JUMP_TRAIL_DURATION_TICKS, 5);
+    assert_eq!(BREEZE_WHIRL_SOUND_FREQUENCY_MIN, 1);
+    assert_eq!(BREEZE_WHIRL_SOUND_FREQUENCY_MAX, 80);
+    assert_eq!(
+        breeze_tick_step("standing", true, 0, 1, 42),
+        BreezeTickStep {
+            ground_particles: 1,
+            jump_trail_particles: 0,
+            reset_jump_trail: true,
+            start_idle: true,
+            start_long_jump: false,
+            start_slide_back: true,
+            stop_slide: true,
+            next_sound_tick: 0,
+            play_whirl_sound: true,
+        }
+    );
+    assert_eq!(breeze_tick_step("sliding", false, 0, 0, 42).ground_particles, 20);
+    assert_eq!(
+        breeze_tick_step("long_jumping", false, 4, 2, 42).jump_trail_particles,
+        3
+    );
+    assert_eq!(
+        breeze_tick_step("long_jumping", false, 5, 2, 42).jump_trail_particles,
+        0
+    );
+    assert_eq!(breeze_emit_ground_particles(false, false, 20), 20);
+    assert_eq!(breeze_emit_ground_particles(true, false, 20), 0);
+    assert_eq!(breeze_emit_ground_particles(false, true, 20), 0);
+    assert!(breeze_play_ambient_sound(false, true));
+    assert!(breeze_play_ambient_sound(true, false));
+    assert!(!breeze_play_ambient_sound(true, true));
+    assert_eq!(breeze_ambient_sound(true), "minecraft:entity.breeze.idle_ground");
+    assert_eq!(breeze_ambient_sound(false), "minecraft:entity.breeze.idle_air");
+    assert_eq!(
+        breeze_whirl_sound(0.5, 0.25),
+        BreezeWhirlSound {
+            sound: "minecraft:entity.breeze.whirl",
+            volume: 0.85,
+            pitch: 0.9,
+        }
+    );
+}
+
+fn assert_breeze_entity_deflection_attack_and_geometry() {
+    assert_eq!(
+        BREEZE_DEFLECT_SOUND,
+        ("minecraft:entity.breeze.deflect", 1.0, 1.0)
+    );
+    assert_eq!(BREEZE_DEATH_SOUND, "minecraft:entity.breeze.death");
+    assert_eq!(BREEZE_HURT_SOUND, "minecraft:entity.breeze.hurt");
+    assert_eq!(
+        breeze_projectile_deflection("minecraft:arrow", true),
+        ("reverse", true)
+    );
+    assert_eq!(
+        breeze_projectile_deflection("minecraft:breeze_wind_charge", true),
+        ("none", false)
+    );
+    assert_eq!(BREEZE_MAX_HEAD_Y_ROT, 30);
+    assert_eq!(BREEZE_HEAD_ROT_SPEED, 25);
+    assert_eq!(BREEZE_MOVEMENT_EMISSION, "events");
+    assert!(breeze_can_attack("minecraft:player", true));
+    assert!(breeze_can_attack("minecraft:iron_golem", true));
+    assert!(!breeze_can_attack("minecraft:zombie", true));
+    assert!(breeze_within_inner_circle_range(
+        BreezeVec3::new(0.5, 64.5, 0.5),
+        BreezeVec3::new(4.49, 74.49, 0.5),
+    ));
+    assert!(!breeze_within_inner_circle_range(
+        BreezeVec3::new(0.5, 64.5, 0.5),
+        BreezeVec3::new(4.5, 74.5, 0.5),
+    ));
+    assert_eq!(breeze_firing_y_position(64.0, 1.77), 65.185);
+    assert!(breeze_invulnerable_to(Some("minecraft:breeze"), false));
+    assert!(breeze_invulnerable_to(None, true));
+    assert_eq!(
+        breeze_fall_damage_sound(3.01),
+        Some(("minecraft:entity.breeze.land", 1.0, 1.0))
+    );
+    assert_eq!(breeze_fall_damage_sound(3.0), None);
 }
 
 fn assert_breeze_ai_rules() {
