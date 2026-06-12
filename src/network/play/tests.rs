@@ -1001,6 +1001,7 @@ mod container_set_slot_packet_test;
 mod container_slot_state_changed_packet_test;
 mod cooldown_packet_test;
 mod custom_payload_packet_test;
+mod damage_event_packet_test;
 mod delete_chat_packet_test;
 mod disguised_chat_packet_test;
 mod entity_inventory_clientbound_packets_test;

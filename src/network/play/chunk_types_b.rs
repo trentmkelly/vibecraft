@@ -223,6 +223,15 @@ pub struct ClientboundRecipePacket {
     pub recipes: Vec<Identifier>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClientboundDamageEventPacket {
+    pub entity_id: i32,
+    pub source_type_id: i32,
+    pub source_cause_id: i32,
+    pub source_direct_id: i32,
+    pub source_position: Option<Vec3>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientboundPlaceGhostRecipePacket {
     pub container_id: i32,

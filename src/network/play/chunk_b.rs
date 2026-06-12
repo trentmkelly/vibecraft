@@ -1013,6 +1013,36 @@ impl ClientboundRecipeBookAddPacket {
     }
 }
 
+impl ClientboundDamageEventPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let packet = Self {
+            entity_id: read_var_i32(reader)?,
+            source_type_id: read_var_i32(reader)?,
+            source_cause_id: read_var_i32(reader)? - 1,
+            source_direct_id: read_var_i32(reader)? - 1,
+            source_position: read_optional(reader, |reader| {
+                Ok(Vec3 {
+                    x: read_f64(reader)?,
+                    y: read_f64(reader)?,
+                    z: read_f64(reader)?,
+                })
+            })?,
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.entity_id)?;
+        write_var_i32(writer, self.source_type_id)?;
+        write_var_i32(writer, self.source_cause_id + 1)?;
+        write_var_i32(writer, self.source_direct_id + 1)?;
+        write_optional(writer, self.source_position.as_ref(), |writer, position| {
+            write_vec3(writer, *position)
+        })
+    }
+}
+
 impl ClientboundPlaceGhostRecipePacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.container_id)?;
