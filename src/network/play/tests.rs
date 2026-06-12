@@ -978,6 +978,7 @@ mod chat_command_packet_test;
 mod chat_command_signed_packet_test;
 mod chat_packet_test;
 mod chat_session_update_packet_test;
+mod clientbound_tracked_waypoint_packet_test;
 mod command_suggestion_packet_test;
 mod configuration_acknowledged_packet_test;
 #[cfg(vibecraft_has_decompiled_sources)]

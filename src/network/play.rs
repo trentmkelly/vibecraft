@@ -215,6 +215,7 @@ pub const CLIENTBOUND_UPDATE_ADVANCEMENTS_PACKET_ID: i32 = 130;
 pub const CLIENTBOUND_UPDATE_ATTRIBUTES_PACKET_ID: i32 = 131;
 pub const CLIENTBOUND_UPDATE_MOB_EFFECT_PACKET_ID: i32 = 132;
 pub const CLIENTBOUND_UPDATE_RECIPES_PACKET_ID: i32 = 133;
+pub const CLIENTBOUND_WAYPOINT_PACKET_ID: i32 = 138;
 
 mod chunk_types_a;
 pub use chunk_types_a::*;
@@ -248,6 +249,8 @@ pub use chunk_e::*;
 mod chunk_e2;
 mod chunk_e3;
 use chunk_e2::*;
+
+mod chunk_waypoint;
 
 #[cfg(test)]
 mod tests;
