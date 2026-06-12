@@ -99,6 +99,19 @@ fn monster_spawn_and_projectile_rules_match_java_methods() {
 }
 
 #[test]
+fn ranged_attack_mob_interface_surface_matches_java_contract() {
+    assert_eq!(
+        ranged_attack_mob_method_surface(),
+        RangedAttackMobMethodSurface {
+            method_name: "performRangedAttack",
+            target_parameter_type: "LivingEntity",
+            power_parameter_type: "float",
+            return_type: "void",
+        }
+    );
+}
+
+#[test]
 fn ageable_mobs_tick_feed_and_age_lock_like_vanilla() {
     let baby = AgeState::baby();
     assert!(baby.is_baby());

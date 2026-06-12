@@ -232,6 +232,10 @@ mod monsters;
 #[cfg(test)]
 use monsters::*;
 
+mod ranged_attack_mobs;
+#[cfg(test)]
+use ranged_attack_mobs::*;
+
 mod golems;
 #[cfg(test)]
 use golems::*;
