@@ -4,6 +4,7 @@ use crate::mob_interaction::*;
 fn breeze_util_and_shoot_when_stuck_match_java_rules() {
     assert_breeze_util_random_point_and_los_rules();
     assert_breeze_shoot_when_stuck_memory_rules();
+    assert_breeze_slide_rules();
 }
 
 fn assert_breeze_util_random_point_and_los_rules() {
@@ -91,6 +92,76 @@ fn assert_breeze_shoot_when_stuck_memory_rules() {
             can_still_use: false,
             shoot_memory_expiry_ticks: None,
         }
+    );
+}
+
+fn assert_breeze_slide_rules() {
+    assert_eq!(
+        BREEZE_SLIDE_MEMORY_REQUIREMENTS,
+        [
+            ("attack_target", "value_present"),
+            ("walk_target", "value_absent"),
+            ("breeze_jump_cooldown", "value_absent"),
+            ("breeze_shoot", "value_absent"),
+        ]
+    );
+    assert_eq!(BREEZE_SLIDE_AWAY_HORIZONTAL_RANGE, 5);
+    assert_eq!(BREEZE_SLIDE_AWAY_VERTICAL_RANGE, 5);
+    assert_eq!(BREEZE_SLIDE_MIDDLE_MIN_DISTANCE, 4.0);
+    assert_eq!(BREEZE_SLIDE_MIDDLE_MAX_DISTANCE, 8.0);
+    assert_eq!(BREEZE_SLIDE_WALK_TARGET_SPEED, 0.6);
+    assert_eq!(BREEZE_SLIDE_WALK_TARGET_CLOSE_ENOUGH_DIST, 1);
+    assert!(breeze_slide_can_start(true, false, "standing"));
+    assert!(!breeze_slide_can_start(false, false, "standing"));
+    assert!(!breeze_slide_can_start(true, true, "standing"));
+    assert!(!breeze_slide_can_start(true, false, "shooting"));
+
+    let input = BreezeSlideStartInput {
+        breeze_position: BreezeVec3::new(0.0, 64.0, 0.0),
+        enemy_position: BreezeVec3::new(10.0, 64.0, 0.0),
+        within_inner_ring: true,
+        away_candidate: Some(BreezeVec3::new(-6.25, 65.0, 0.5)),
+        away_candidate_has_line_of_sight: true,
+        random_next_boolean: true,
+        behind_target_head_y_rot_degrees: 0.0,
+        behind_target_gaussian: 0.0,
+        behind_target_random_float: 0.0,
+        middle_circle_random_double: 0.0,
+    };
+    assert_eq!(
+        breeze_slide_start(input),
+        BreezeSlideWalkTarget {
+            position: BreezeVec3::new(-6.25, 65.0, 0.5),
+            block_pos: (-7, 65, 0),
+            speed_modifier: 0.6,
+            close_enough_dist: 1,
+        }
+    );
+    assert_vec3_close(
+        breeze_slide_start(BreezeSlideStartInput {
+            away_candidate_has_line_of_sight: false,
+            ..input
+        })
+        .position,
+        BreezeVec3::new(10.0, 64.0, 4.0),
+    );
+    assert_vec3_close(
+        breeze_slide_random_point_in_middle_circle(
+            BreezeVec3::new(0.0, 64.0, 0.0),
+            BreezeVec3::new(10.0, 64.0, 0.0),
+            0.0,
+        ),
+        BreezeVec3::new(2.0, 64.0, 0.0),
+    );
+    assert_vec3_close(
+        breeze_slide_start(BreezeSlideStartInput {
+            away_candidate: None,
+            random_next_boolean: false,
+            middle_circle_random_double: 1.0,
+            ..input
+        })
+        .position,
+        BreezeVec3::new(6.0, 64.0, 0.0),
     );
 }
 
