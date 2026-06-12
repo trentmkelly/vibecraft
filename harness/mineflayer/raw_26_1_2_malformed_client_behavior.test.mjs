@@ -1,63 +1,121 @@
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
+import { createServer } from 'node:net'
+import { rm } from 'node:fs/promises'
 import net from 'node:net'
+import path from 'node:path'
 import test from 'node:test'
 import { inflateSync } from 'node:zlib'
 
-const host = process.env.VIBECRAFT_HOST ?? '127.0.0.1'
-const port = Number(process.env.VIBECRAFT_PORT ?? 25565)
+import {
+  createTempWorld,
+  startVibeCraft,
+  stopServer,
+  waitForPort,
+  writeOfflineServerFiles
+} from './runner.mjs'
+
+const here = new URL('.', import.meta.url)
+const repoRoot = path.resolve(here.pathname, '..', '..')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
+const host = '127.0.0.1'
 const protocolVersion = Number(process.env.VIBECRAFT_PROTOCOL_VERSION ?? 775)
+let port = 0
 
 test('raw 26.1.2 malformed client packets are rejected at status, login, configuration, and play boundaries', { timeout: 45_000 }, async () => {
-  const cases = [
-    {
-      name: 'status',
-      run: async () => {
-        const socket = await connect()
-        const reader = new FrameReader(socket)
-        socket.write(frame(0, handshakePayload(1)))
-        socket.write(frame(99))
-        return observeRejection(socket, reader, { allowedDisconnectIds: [0] })
+  await withServer(async () => {
+    const cases = [
+      {
+        name: 'status',
+        run: async () => {
+          const socket = await connect()
+          const reader = new FrameReader(socket)
+          socket.write(frame(0, handshakePayload(1)))
+          socket.write(frame(99))
+          return observeRejection(socket, reader, { allowedDisconnectIds: [0] })
+        }
+      },
+      {
+        name: 'login',
+        run: async () => {
+          const socket = await connect()
+          const reader = new FrameReader(socket)
+          socket.write(frame(0, handshakePayload(2)))
+          socket.write(frame(2, writeVarInt(1), Buffer.from([0])))
+          return observeRejection(socket, reader, {
+            allowedDisconnectIds: [0],
+            expectedReason: /disconnect\.genericReason|Internal Exception/i
+          })
+        }
+      },
+      {
+        name: 'configuration',
+        run: async () => {
+          const socket = await connect()
+          const reader = new FrameReader(socket)
+          await enterConfiguration(socket, reader, 'BadConfig')
+          socket.write(encodeClientPacket(reader.compressionThreshold, 99))
+          return observeRejection(socket, reader, { allowedDisconnectIds: [2] })
+        }
+      },
+      {
+        name: 'play',
+        run: async () => {
+          const socket = await connect()
+          const reader = new FrameReader(socket)
+          await enterPlay(socket, reader, 'BadPlay')
+          socket.write(encodeClientPacket(reader.compressionThreshold, 999))
+          return observeRejection(socket, reader, {
+            allowedDisconnectIds: [32],
+            expectedReason: /unexpected play packet 999/i
+          })
+        }
       }
-    },
-    {
-      name: 'login',
-      run: async () => {
-        const socket = await connect()
-        const reader = new FrameReader(socket)
-        socket.write(frame(0, handshakePayload(2)))
-        socket.write(frame(2, writeVarInt(1), Buffer.from([0])))
-        return observeRejection(socket, reader, { allowedDisconnectIds: [0] })
-      }
-    },
-    {
-      name: 'configuration',
-      run: async () => {
-        const socket = await connect()
-        const reader = new FrameReader(socket)
-        await enterConfiguration(socket, reader, 'BadConfig')
-        socket.write(encodeClientPacket(reader.compressionThreshold, 99))
-        return observeRejection(socket, reader, { allowedDisconnectIds: [2] })
-      }
-    },
-    {
-      name: 'play',
-      run: async () => {
-        const socket = await connect()
-        const reader = new FrameReader(socket)
-        await enterPlay(socket, reader, 'BadPlay')
-        socket.write(encodeClientPacket(reader.compressionThreshold, 999))
-        return observeRejection(socket, reader, { allowedDisconnectIds: [32] })
+    ]
+
+    for (const malformed of cases) {
+      const result = await malformed.run()
+      assert.equal(result.rejected, true, `${malformed.name} malformed packet should be rejected`)
+      assert.ok(['disconnect', 'close', 'reset'].includes(result.kind), `${malformed.name} rejection should close or disconnect`)
+      if (result.expectedReason) {
+        assert.match(
+          result.reasonText,
+          result.expectedReason,
+          `${malformed.name} disconnect reason should match ${result.expectedReason}`
+        )
       }
     }
-  ]
-
-  for (const malformed of cases) {
-    const result = await malformed.run()
-    assert.equal(result.rejected, true, `${malformed.name} malformed packet should be rejected`)
-    assert.ok(['disconnect', 'close', 'reset'].includes(result.kind), `${malformed.name} rejection should close or disconnect`)
-  }
+  })
 })
+
+async function withServer (run) {
+  port = await reservePort()
+  const root = await createTempWorld('vibecraft-malformed-client-')
+  let server
+
+  try {
+    await writeOfflineServerFiles(root, { port, levelName: 'world' })
+    server = startVibeCraft({ binary, root, port, levelName: 'world' })
+    await waitForPort(port, host, 10_000)
+    await run()
+  } finally {
+    if (server) await stopServer(server.child)
+    await rm(root, { recursive: true, force: true })
+  }
+}
+
+async function reservePort () {
+  const server = createServer()
+  await new Promise((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, host, resolve)
+  })
+  const { port } = server.address()
+  await new Promise((resolve, reject) => {
+    server.close(error => error ? reject(error) : resolve())
+  })
+  return port
+}
 
 async function enterConfiguration (socket, reader, username) {
   socket.write(frame(0, handshakePayload(2)))
@@ -96,7 +154,7 @@ async function enterPlay (socket, reader, username) {
   }
 }
 
-async function observeRejection (socket, reader, { allowedDisconnectIds }) {
+async function observeRejection (socket, reader, { allowedDisconnectIds, expectedReason = null }) {
   try {
     const deadline = Date.now() + 5_000
     while (Date.now() < deadline) {
@@ -115,7 +173,9 @@ async function observeRejection (socket, reader, { allowedDisconnectIds }) {
           return {
             rejected: true,
             kind: 'disconnect',
-            packetId: observed.packet.packetId
+            packetId: observed.packet.packetId,
+            reasonText: observed.packet.body.toString('utf8'),
+            expectedReason
           }
         }
         continue
