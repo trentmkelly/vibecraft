@@ -718,6 +718,15 @@ impl ClientboundInitializeBorderPacket {
 }
 
 impl ClientboundSetBorderCenterPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let packet = Self {
+            new_center_x: read_f64(reader)?,
+            new_center_z: read_f64(reader)?,
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
+    }
+
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_f64(writer, self.new_center_x)?;
         write_f64(writer, self.new_center_z)
@@ -725,6 +734,16 @@ impl ClientboundSetBorderCenterPacket {
 }
 
 impl ClientboundSetBorderLerpSizePacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let packet = Self {
+            old_size: read_f64(reader)?,
+            new_size: read_f64(reader)?,
+            lerp_time: read_var_i64(reader)?,
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
+    }
+
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_f64(writer, self.old_size)?;
         write_f64(writer, self.new_size)?;
@@ -733,18 +752,42 @@ impl ClientboundSetBorderLerpSizePacket {
 }
 
 impl ClientboundSetBorderSizePacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let packet = Self {
+            size: read_f64(reader)?,
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
+    }
+
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_f64(writer, self.size)
     }
 }
 
 impl ClientboundSetBorderWarningDelayPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let packet = Self {
+            warning_delay: read_var_i32(reader)?,
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
+    }
+
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.warning_delay)
     }
 }
 
 impl ClientboundSetBorderWarningDistancePacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let packet = Self {
+            warning_blocks: read_var_i32(reader)?,
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
+    }
+
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.warning_blocks)
     }
