@@ -21,10 +21,61 @@ fn assert_vex_attributes_lifetime_and_charging_flags() {
     assert_eq!(VEX_DEFAULT_MAINHAND_ITEM, "minecraft:iron_sword");
     assert_eq!(VEX_MAINHAND_DROP_CHANCE, 0.0);
     assert_eq!(VEX_LIGHT_LEVEL_MAGIC_VALUE, 1.0);
+    assert_eq!(
+        vex_class_surface(),
+        VexClassSurface {
+            data_flags_default: 0,
+            ambient_sound: "minecraft:entity.vex.ambient",
+            death_sound: "minecraft:entity.vex.death",
+            hurt_sound: "minecraft:entity.vex.hurt",
+            light_level_magic_value: 1.0,
+            default_mainhand_item: "minecraft:iron_sword",
+            mainhand_drop_chance: 0.0,
+        }
+    );
+    assert_eq!(
+        vex_goal_surface(),
+        VexGoalSurface {
+            float_goal_priority: 0,
+            charge_attack_priority: 4,
+            random_move_priority: 8,
+            look_at_player_priority: 9,
+            look_at_player_range: 3.0,
+            look_at_player_probability: 1.0,
+            look_at_mob_priority: 10,
+            look_at_mob_range: 8.0,
+            hurt_by_target_priority: 1,
+            hurt_by_excluded_class: "Raider",
+            hurt_by_alerts_others: true,
+            copy_owner_target_priority: 2,
+            nearest_player_target_priority: 3,
+            nearest_player_must_see: true,
+        }
+    );
+    assert!(vex_is_affected_by_blocks(false));
+    assert!(!vex_is_affected_by_blocks(true));
 
     let flags = vex_set_charging(0, true);
     assert!(vex_is_charging(flags));
     assert!(!vex_is_charging(vex_set_charging(flags, false)));
+    assert_eq!(
+        vex_save_state(true, true, 77, true),
+        VexSaveState {
+            bound_origin_present: true,
+            life_ticks_written: Some(77),
+            owner_present: true,
+        }
+    );
+    assert_eq!(
+        vex_save_state(false, false, 77, false),
+        VexSaveState {
+            bound_origin_present: false,
+            life_ticks_written: None,
+            owner_present: false,
+        }
+    );
+    assert!(vex_restore_owner(true, true));
+    assert!(!vex_restore_owner(false, true));
     assert_eq!(
         vex_tick(true, 2),
         VexTickOutcome {
@@ -47,6 +98,13 @@ fn assert_vex_attributes_lifetime_and_charging_flags() {
 }
 
 fn assert_vex_charge_copy_target_and_random_move_rules() {
+    assert_vex_charge_attack_rules();
+    assert_vex_copy_owner_target_rules();
+    assert_vex_move_control_rules();
+    assert_vex_random_move_rules();
+}
+
+fn assert_vex_charge_attack_rules() {
     assert!(vex_charge_attack_can_use(true, true, false, 0, 4.1));
     assert!(!vex_charge_attack_can_use(true, true, false, 1, 4.1));
     assert!(!vex_charge_attack_can_use(true, true, true, 0, 4.1));
@@ -56,9 +114,106 @@ fn assert_vex_charge_copy_target_and_random_move_rules() {
     assert_eq!(vex_charge_attack_tick(true, 16.0), (true, false));
     assert_eq!(vex_charge_attack_tick(false, 8.9), (false, true));
     assert_eq!(vex_charge_attack_tick(false, 9.0), (false, false));
+    assert_eq!(
+        vex_charge_attack_start(Some(VexVec3 {
+            x: 1.0,
+            y: 65.0,
+            z: -2.0,
+        })),
+        (
+            Some(VexVec3 {
+                x: 1.0,
+                y: 65.0,
+                z: -2.0,
+            }),
+            true,
+            "minecraft:entity.vex.charge",
+        )
+    );
+}
 
+fn assert_vex_copy_owner_target_rules() {
     assert!(vex_copy_owner_target_can_use(true, true, true));
     assert!(!vex_copy_owner_target_can_use(true, false, true));
+    assert_eq!(VEX_OWNER_TARGET_RANGE, 16.0);
+}
+
+fn assert_vex_move_control_rules() {
+    assert_eq!(VEX_MOVE_ACCELERATION, 0.05);
+    assert_eq!(VEX_MOVE_CLOSE_DAMPING, 0.5);
+    assert_eq!(
+        vex_move_control_tick(VexMoveControlInput {
+            move_to_operation: true,
+            wanted: VexVec3 {
+                x: 0.2,
+                y: 0.0,
+                z: 0.0,
+            },
+            position: VexVec3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            delta_movement: VexVec3 {
+                x: 0.4,
+                y: 0.0,
+                z: 0.0,
+            },
+            speed_modifier: 1.0,
+            bounding_box_size: 0.4,
+            target_position: None,
+        }),
+        VexMoveControlTick {
+            wait_operation: true,
+            delta_movement: VexVec3 {
+                x: 0.2,
+                y: 0.0,
+                z: 0.0,
+            },
+            y_rot: None,
+            y_body_rot: None,
+        }
+    );
+    assert_eq!(
+        vex_move_control_tick(VexMoveControlInput {
+            move_to_operation: true,
+            wanted: VexVec3 {
+                x: 0.0,
+                y: 0.0,
+                z: 10.0,
+            },
+            position: VexVec3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            delta_movement: VexVec3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            speed_modifier: 1.0,
+            bounding_box_size: 0.4,
+            target_position: Some(VexVec3 {
+                x: 10.0,
+                y: 0.0,
+                z: 0.0,
+            }),
+        }),
+        VexMoveControlTick {
+            wait_operation: false,
+            delta_movement: VexVec3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.05,
+            },
+            y_rot: Some(-90.0),
+            y_body_rot: Some(-90.0),
+        }
+    );
+}
+
+fn assert_vex_random_move_rules() {
     assert!(vex_random_move_can_use(false, 0));
     assert!(!vex_random_move_can_use(false, 1));
     assert_eq!(VEX_RANDOM_MOVE_ATTEMPTS, 3);
@@ -67,9 +222,43 @@ fn assert_vex_charge_copy_target_and_random_move_rules() {
     assert_eq!(VEX_RANDOM_MOVE_XZ_OFFSET, 7);
     assert_eq!(VEX_RANDOM_MOVE_Y_OFFSET, 5);
     assert_eq!(VEX_RANDOM_MOVE_SPEED, 0.25);
-    assert_eq!(VEX_MOVE_ACCELERATION, 0.05);
-    assert_eq!(VEX_MOVE_CLOSE_DAMPING, 0.5);
-    assert_eq!(VEX_OWNER_TARGET_RANGE, 16.0);
+    assert_eq!(
+        vex_random_move_candidate(
+            Some(VexBlockPos { x: 10, y: 64, z: -3 }),
+            VexBlockPos { x: 0, y: 70, z: 0 },
+            14,
+            10,
+            0,
+            true,
+            false,
+        ),
+        VexRandomMoveCandidate {
+            wanted_position: Some(VexVec3 {
+                x: 17.5,
+                y: 69.5,
+                z: -9.5,
+            }),
+            look_at: Some(VexVec3 {
+                x: 17.5,
+                y: 69.5,
+                z: -9.5,
+            }),
+            speed: 0.25,
+        }
+    );
+    assert_eq!(
+        vex_random_move_candidate(
+            None,
+            VexBlockPos { x: 0, y: 70, z: 0 },
+            7,
+            5,
+            7,
+            false,
+            true,
+        )
+        .wanted_position,
+        None
+    );
 }
 
 fn assert_evoker_vex_summon_rules() {

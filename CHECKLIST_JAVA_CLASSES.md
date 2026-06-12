@@ -3542,7 +3542,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/Silverfish.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/Slime.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/Strider.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/Vex.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/Vex.java`. — Verified against Java 26.1.2 `Vex.java`: attributes/XP, flapping cadence, metadata charging flag/default, no-physics/no-gravity tick behavior, limited-life starvation, goal priorities, sounds/light value, save/restore owner/bound/life fields, default iron-sword equipment/drop chance, charge attack, owner-target copy, move-control math, and random-move candidate behavior are represented in `src/mob_interaction/vexes.rs` and covered by `vex_lifetime_charge_and_evoker_summon_gates_match_java_rules`. Evoker-driven vex summoning remains tracked by the broader mob/evoker checklist rows.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/Witch.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/Zoglin.java`.
 
