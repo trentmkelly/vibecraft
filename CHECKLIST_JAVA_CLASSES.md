@@ -1166,8 +1166,8 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundPlayerCommandPacket.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundPlayerInputPacket.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundPlayerLoadedPacket.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundRecipeBookChangeSettingsPacket.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundRecipeBookSeenRecipePacket.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundRecipeBookChangeSettingsPacket.java`. — Ported Java `RecipeBookType` enum ordinal + `isOpen`/`isFiltering` bool codec and dispatch application into persisted recipe-book settings. Verified by `small_play_packets_round_trip_vanilla_codecs` read/write/invalid-enum/dispatch coverage and `play_session_state_nbt_round_trip_preserves_recipe_book_state`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundRecipeBookSeenRecipePacket.java`. — Ported Java single-field `RecipeDisplayId.STREAM_CODEC` packet as a raw VarInt display id plus dispatch/application semantics that clear recipe-book highlights only for valid display ids. Verified by `small_play_packets_round_trip_vanilla_codecs` read/write/dispatch coverage and `recipe_book_seen_recipe_packet_clears_highlight_for_display_id`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundRenameItemPacket.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundSeenAdvancementsPacket.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundSelectBundleItemPacket.java`.
@@ -3860,7 +3860,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/inventory/NonInteractiveResultSlot.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/inventory/PlayerEnderChestContainer.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/inventory/RecipeBookMenu.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/inventory/RecipeBookType.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/inventory/RecipeBookType.java`. — Ported Java enum order `CRAFTING`, `FURNACE`, `BLAST_FURNACE`, `SMOKER` for serverbound settings, recipe-book settings persistence, and menu recipe-book type reporting. Verified by `small_play_packets_round_trip_vanilla_codecs`, `play_session_state_nbt_round_trip_preserves_recipe_book_state`, and `furnace_wrappers_use_vanilla_recipe_book_types`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/inventory/RecipeCraftingHolder.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/inventory/RemoteSlot.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/inventory/ResultContainer.java`.
@@ -4120,7 +4120,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/display/FurnaceRecipeDisplay.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/display/RecipeDisplay.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/display/RecipeDisplayEntry.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/display/RecipeDisplayId.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/display/RecipeDisplayId.java`. — Ported Java raw VarInt `index` codec and Java `RecipeManager` display-id lookup semantics: outbound recipe-book entries and inbound seen/place-recipe packets use compact synchronized display-table ids, not raw recipe-map indexes. Verified by `small_play_packets_round_trip_vanilla_codecs`, `recipe_book_seen_recipe_packet_clears_highlight_for_display_id`, `place_recipe_packet_uses_java_display_id_not_raw_recipe_index`, and `active_crafting_table_place_recipe_uses_java_display_id_not_raw_recipe_index`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/display/RecipeDisplays.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/display/ShapedCraftingRecipeDisplay.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/display/ShapelessCraftingRecipeDisplay.java`.
