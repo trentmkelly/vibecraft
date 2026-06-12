@@ -1,0 +1,488 @@
+#[test]
+fn breeze_util_and_shoot_when_stuck_match_java_rules() {
+    assert_breeze_util_random_point_and_los_rules();
+    assert_breeze_long_jump_rules();
+    assert_breeze_shoot_rules();
+    assert_breeze_shoot_when_stuck_memory_rules();
+    assert_breeze_slide_rules();
+}
+
+fn assert_breeze_util_random_point_and_los_rules() {
+    assert_eq!(BREEZE_UTIL_MAX_LINE_OF_SIGHT_TEST_RANGE, 50.0);
+    assert_eq!(BREEZE_UTIL_BEHIND_TARGET_BASE_DEGREES, 180.0);
+    assert_eq!(BREEZE_UTIL_BEHIND_TARGET_SPREAD_DEGREES, 90.0);
+    assert_eq!(BREEZE_UTIL_BEHIND_TARGET_MIN_DISTANCE, 4.0);
+    assert_eq!(BREEZE_UTIL_BEHIND_TARGET_MAX_DISTANCE, 8.0);
+
+    let target = BreezeVec3::new(10.0, 64.0, -2.0);
+    assert_vec3_close(
+        breeze_random_point_behind_target(target, 0.0, 0.0, 0.0),
+        BreezeVec3::new(10.0, 64.0, 2.0),
+    );
+    assert_vec3_close(
+        breeze_random_point_behind_target(target, 90.0, 0.0, 1.0),
+        BreezeVec3::new(2.0, 64.0, -2.0),
+    );
+    assert!(breeze_has_line_of_sight(
+        BreezeVec3::new(0.0, 64.0, 0.0),
+        BreezeVec3::new(50.0, 64.0, 0.0),
+        16.0,
+        true,
+    ));
+    assert!(!breeze_has_line_of_sight(
+        BreezeVec3::new(0.0, 64.0, 0.0),
+        BreezeVec3::new(50.1, 64.0, 0.0),
+        16.0,
+        true,
+    ));
+    assert!(breeze_has_line_of_sight(
+        BreezeVec3::new(0.0, 64.0, 0.0),
+        BreezeVec3::new(60.0, 64.0, 0.0),
+        64.0,
+        true,
+    ));
+    assert!(!breeze_has_line_of_sight(
+        BreezeVec3::new(0.0, 64.0, 0.0),
+        BreezeVec3::new(40.0, 64.0, 0.0),
+        64.0,
+        false,
+    ));
+}
+
+fn assert_breeze_shoot_when_stuck_memory_rules() {
+    assert_eq!(
+        BREEZE_SHOOT_WHEN_STUCK_MEMORY_REQUIREMENTS,
+        [
+            ("attack_target", "value_present"),
+            ("breeze_jump_inhaling", "value_absent"),
+            ("breeze_jump_target", "value_absent"),
+            ("walk_target", "value_absent"),
+            ("breeze_shoot", "value_absent"),
+        ]
+    );
+    assert_eq!(BREEZE_SHOOT_WHEN_STUCK_MEMORY_EXPIRY_TICKS, 60);
+    assert_eq!(
+        breeze_shoot_when_stuck_step(true, false, false),
+        BreezeShootWhenStuckStep {
+            can_start: true,
+            can_still_use: false,
+            shoot_memory_expiry_ticks: Some(60),
+        }
+    );
+    assert_eq!(
+        breeze_shoot_when_stuck_step(false, true, false),
+        BreezeShootWhenStuckStep {
+            can_start: true,
+            can_still_use: false,
+            shoot_memory_expiry_ticks: Some(60),
+        }
+    );
+    assert_eq!(
+        breeze_shoot_when_stuck_step(false, false, true),
+        BreezeShootWhenStuckStep {
+            can_start: true,
+            can_still_use: false,
+            shoot_memory_expiry_ticks: Some(60),
+        }
+    );
+    assert_eq!(
+        breeze_shoot_when_stuck_step(false, false, false),
+        BreezeShootWhenStuckStep {
+            can_start: false,
+            can_still_use: false,
+            shoot_memory_expiry_ticks: None,
+        }
+    );
+}
+
+fn assert_breeze_long_jump_rules() {
+    assert_breeze_long_jump_constants_and_memory_requirements();
+    assert_breeze_long_jump_can_run_and_position_gates();
+    assert_breeze_long_jump_vector_start_and_stop_rules();
+    assert_breeze_long_jump_tick_rules();
+}
+
+fn assert_breeze_long_jump_constants_and_memory_requirements() {
+    assert_eq!(
+        BREEZE_LONG_JUMP_MEMORY_REQUIREMENTS,
+        [
+            ("attack_target", "value_present"),
+            ("breeze_jump_cooldown", "value_absent"),
+            ("breeze_jump_inhaling", "registered"),
+            ("breeze_jump_target", "registered"),
+            ("breeze_shoot", "value_absent"),
+            ("walk_target", "value_absent"),
+            ("breeze_leaving_water", "registered"),
+        ]
+    );
+    assert_eq!(BREEZE_LONG_JUMP_REQUIRED_AIR_BLOCKS_ABOVE, 4);
+    assert_eq!(BREEZE_LONG_JUMP_COOLDOWN_TICKS, 10);
+    assert_eq!(BREEZE_LONG_JUMP_COOLDOWN_WHEN_HURT_TICKS, 2);
+    assert_eq!(BREEZE_LONG_JUMP_INHALING_DURATION_TICKS, 10);
+    assert_eq!(BREEZE_LONG_JUMP_DEFAULT_FOLLOW_RANGE, 24.0);
+    assert_eq!(BREEZE_LONG_JUMP_DEFAULT_MAX_JUMP_VELOCITY, 1.4);
+    assert_eq!(BREEZE_LONG_JUMP_MAX_VELOCITY_MULTIPLIER, 0.058333334);
+    assert_eq!(BREEZE_LONG_JUMP_BEHAVIOR_DURATION_TICKS, 200);
+    assert_eq!(BREEZE_LONG_JUMP_SNAP_TRACE_DISTANCE, 10.0);
+    assert_eq!(BREEZE_LONG_JUMP_MIN_ATTACK_TARGET_DISTANCE, 4.0);
+    assert_eq!(BREEZE_LONG_JUMP_SHOOT_MEMORY_EXPIRY_TICKS, 100);
+    assert_eq!(BREEZE_LONG_JUMP_ALLOWED_ANGLES, [40, 55, 60, 75, 80]);
+    assert_eq!(
+        BREEZE_LONG_JUMP_CHARGE_SOUND,
+        ("minecraft:entity.breeze.charge", "hostile", 1.0, 1.0)
+    );
+    assert_eq!(
+        BREEZE_LONG_JUMP_JUMP_SOUND,
+        ("minecraft:entity.breeze.jump", 1.0, 1.0)
+    );
+    assert_eq!(
+        BREEZE_LONG_JUMP_LAND_SOUND,
+        ("minecraft:entity.breeze.land", 1.0, 1.0)
+    );
+}
+
+fn assert_breeze_long_jump_can_run_and_position_gates() {
+    let runnable = BreezeLongJumpCanRunInput {
+        on_ground: true,
+        in_water: false,
+        should_swim: false,
+        jump_target_present: false,
+        attack_target_present: true,
+        out_of_aggro_range: false,
+        too_close_for_jump: false,
+        can_jump_from_current_position: true,
+        snapped_target: Some((4, 65, -2)),
+        target_below_dangerous: false,
+        line_of_sight_to_target_center: false,
+        line_of_sight_to_target_above_four: true,
+    };
+    assert_eq!(
+        breeze_long_jump_can_run(runnable),
+        BreezeLongJumpCanRunStep {
+            can_run: true,
+            erase_attack_target: false,
+            set_jump_target: Some((4, 65, -2)),
+        }
+    );
+    assert!(breeze_long_jump_can_run(BreezeLongJumpCanRunInput {
+        jump_target_present: true,
+        attack_target_present: false,
+        ..runnable
+    })
+    .can_run);
+    assert!(breeze_long_jump_can_run(BreezeLongJumpCanRunInput {
+        out_of_aggro_range: true,
+        ..runnable
+    })
+    .erase_attack_target);
+    assert!(!breeze_long_jump_can_run(BreezeLongJumpCanRunInput {
+        on_ground: false,
+        in_water: false,
+        ..runnable
+    })
+    .can_run);
+    assert!(breeze_long_jump_out_of_aggro_range(24.0, 24.0));
+    assert!(!breeze_long_jump_out_of_aggro_range(23.99, 24.0));
+    assert!(breeze_long_jump_too_close_for_jump(4.0));
+    assert!(!breeze_long_jump_too_close_for_jump(4.01));
+    assert!(breeze_long_jump_can_jump_from_current_position(
+        false,
+        [true, true, true, true],
+    ));
+    assert!(!breeze_long_jump_can_jump_from_current_position(
+        true,
+        [true, true, true, true],
+    ));
+    assert!(!breeze_long_jump_can_jump_from_current_position(
+        false,
+        [true, false, true, true],
+    ));
+}
+
+fn assert_breeze_long_jump_vector_start_and_stop_rules() {
+    assert_eq!(breeze_long_jump_max_jump_velocity(24.0), 1.4);
+    assert_eq!(
+        breeze_long_jump_select_vector(
+            &[
+                (75, None),
+                (40, Some(BreezeVec3::new(0.0, 1.2, 0.9))),
+                (55, Some(BreezeVec3::new(1.0, 1.0, 0.0))),
+            ],
+            None,
+        ),
+        Some(BreezeVec3::new(0.0, 1.2, 0.9))
+    );
+    assert_vec3_close(
+        breeze_long_jump_select_vector(
+            &[(40, Some(BreezeVec3::new(0.0, 3.0, 4.0)))],
+            Some(0.5),
+        )
+        .expect("jump boost should preserve selected vector"),
+        BreezeVec3::new(0.0, 3.3, 4.0),
+    );
+    assert_eq!(
+        breeze_long_jump_start(true, true),
+        BreezeLongJumpStartStep {
+            inhaling_memory_expiry_ticks: Some(10),
+            pose: "inhaling",
+            sound: ("minecraft:entity.breeze.charge", "hostile", 1.0, 1.0),
+            look_at_jump_target: true,
+        }
+    );
+    assert!(breeze_long_jump_can_still_use("inhaling", false));
+    assert!(!breeze_long_jump_can_still_use("standing", false));
+    assert_eq!(
+        breeze_long_jump_stop("long_jumping"),
+        BreezeLongJumpStopStep {
+            pose: Some("standing"),
+            erase_jump_target: true,
+            erase_inhaling: true,
+            erase_leaving_water: true,
+        }
+    );
+}
+
+fn assert_breeze_long_jump_tick_rules() {
+    assert_eq!(
+        breeze_long_jump_tick(BreezeLongJumpTickInput {
+            pose: "inhaling",
+            in_water: true,
+            on_ground: false,
+            leaving_water_memory_present: false,
+            inhaling_memory_present: false,
+            optimal_jump_vector: Some(BreezeVec3::new(0.2, 1.0, -0.4)),
+            hurt_by_memory_present: false,
+        }),
+        BreezeLongJumpTickStep {
+            erase_leaving_water_memory: false,
+            set_leaving_water_memory: true,
+            pose: Some("long_jumping"),
+            sound: Some(("minecraft:entity.breeze.jump", 1.0, 1.0)),
+            discard_friction: Some(true),
+            delta_movement: Some(BreezeVec3::new(0.2, 1.0, -0.4)),
+            y_rot_from_body: true,
+            jump_cooldown_expiry_ticks: None,
+            shoot_memory_expiry_ticks: None,
+        }
+    );
+    assert_eq!(
+        breeze_long_jump_tick(BreezeLongJumpTickInput {
+            pose: "inhaling",
+            in_water: false,
+            on_ground: false,
+            leaving_water_memory_present: true,
+            inhaling_memory_present: false,
+            optimal_jump_vector: None,
+            hurt_by_memory_present: false,
+        })
+        .pose,
+        Some("standing")
+    );
+    assert_eq!(
+        breeze_long_jump_tick(BreezeLongJumpTickInput {
+            pose: "long_jumping",
+            in_water: false,
+            on_ground: true,
+            leaving_water_memory_present: false,
+            inhaling_memory_present: false,
+            optimal_jump_vector: None,
+            hurt_by_memory_present: true,
+        }),
+        BreezeLongJumpTickStep {
+            erase_leaving_water_memory: false,
+            set_leaving_water_memory: false,
+            pose: Some("standing"),
+            sound: Some(("minecraft:entity.breeze.land", 1.0, 1.0)),
+            discard_friction: Some(false),
+            delta_movement: None,
+            y_rot_from_body: false,
+            jump_cooldown_expiry_ticks: Some(2),
+            shoot_memory_expiry_ticks: Some(100),
+        }
+    );
+}
+
+fn assert_breeze_shoot_rules() {
+    assert_breeze_shoot_constants_and_memory_requirements();
+    assert_breeze_shoot_start_stop_gates();
+    assert_breeze_shoot_tick_and_projectile();
+}
+
+fn assert_breeze_shoot_constants_and_memory_requirements() {
+    assert_eq!(
+        BREEZE_SHOOT_MEMORY_REQUIREMENTS,
+        [
+            ("attack_target", "value_present"),
+            ("breeze_shoot_cooldown", "value_absent"),
+            ("breeze_shoot_charging", "value_absent"),
+            ("breeze_shoot_recovering", "value_absent"),
+            ("breeze_shoot", "value_present"),
+            ("walk_target", "value_absent"),
+            ("breeze_jump_target", "value_absent"),
+        ]
+    );
+    assert_eq!(BREEZE_SHOOT_ATTACK_RANGE_MAX_SQR, 256.0);
+    assert_eq!(BREEZE_SHOOT_UNCERTAINTY_BASE, 5);
+    assert_eq!(BREEZE_SHOOT_UNCERTAINTY_MULTIPLIER, 4);
+    assert_eq!(BREEZE_SHOOT_PROJECTILE_MOVEMENT_SCALE, 0.7);
+    assert_eq!(BREEZE_SHOOT_INITIAL_DELAY_TICKS, 15);
+    assert_eq!(BREEZE_SHOOT_RECOVER_DELAY_TICKS, 4);
+    assert_eq!(BREEZE_SHOOT_COOLDOWN_TICKS, 10);
+    assert_eq!(BREEZE_SHOOT_BEHAVIOR_DURATION_TICKS, 20);
+    assert_eq!(
+        BREEZE_SHOOT_INHALE_SOUND,
+        ("minecraft:entity.breeze.inhale", 1.0, 1.0)
+    );
+    assert_eq!(
+        BREEZE_SHOOT_SOUND,
+        ("minecraft:entity.breeze.shoot", 1.5, 1.0)
+    );
+    assert_eq!(BREEZE_SHOOT_PROJECTILE_KIND, "minecraft:breeze_wind_charge");
+}
+
+fn assert_breeze_shoot_start_stop_gates() {
+    assert_eq!(
+        breeze_shoot_check_start("standing", true, 255.99),
+        BreezeShootStartCheck {
+            can_start: true,
+            erase_shoot_memory: false,
+        }
+    );
+    assert_eq!(
+        breeze_shoot_check_start("standing", true, 256.0),
+        BreezeShootStartCheck {
+            can_start: false,
+            erase_shoot_memory: true,
+        }
+    );
+    assert!(!breeze_shoot_check_start("shooting", true, 10.0).can_start);
+    assert!(!breeze_shoot_check_start("standing", false, 10.0).can_start);
+    assert!(breeze_shoot_can_still_use(true, true));
+    assert!(!breeze_shoot_can_still_use(false, true));
+    assert_eq!(
+        breeze_shoot_start(true),
+        BreezeShootStartStep {
+            pose: Some("shooting"),
+            charging_memory_expiry_ticks: 15,
+            sound: ("minecraft:entity.breeze.inhale", 1.0, 1.0),
+        }
+    );
+    assert_eq!(
+        breeze_shoot_stop("shooting"),
+        BreezeShootStopStep {
+            pose: Some("standing"),
+            cooldown_memory_expiry_ticks: 10,
+            erase_shoot_memory: true,
+        }
+    );
+    assert_eq!(breeze_shoot_stop("standing").pose, None);
+}
+
+fn assert_breeze_shoot_tick_and_projectile() {
+    let base_input = BreezeShootTickInput {
+        breeze_position: BreezeVec3::new(1.0, 64.0, 2.0),
+        breeze_firing_y: 65.2,
+        target_position: BreezeVec3::new(5.0, 64.0, -1.0),
+        target_height: 1.8,
+        target_passenger: false,
+        target_present: true,
+        charging_memory_present: false,
+        recovering_memory_present: false,
+        difficulty_id: 2,
+    };
+    let tick = breeze_shoot_tick(base_input);
+    assert!(tick.look_at_target_eyes);
+    assert_eq!(tick.recovering_memory_expiry_ticks, Some(4));
+    assert_eq!(tick.sound, Some(("minecraft:entity.breeze.shoot", 1.5, 1.0)));
+    let projectile = tick.projectile.expect("shoot tick should spawn projectile");
+    assert_eq!(projectile.kind, "minecraft:breeze_wind_charge");
+    assert_eq!(projectile.movement_scale, 0.7);
+    assert_eq!(projectile.uncertainty, -3);
+    assert_vec3_close(projectile.direction, BreezeVec3::new(4.0, -0.66, -3.0));
+    assert_eq!(
+        breeze_shoot_tick(BreezeShootTickInput {
+            charging_memory_present: true,
+            target_passenger: true,
+            difficulty_id: 1,
+            ..base_input
+        })
+        .projectile,
+        None
+    );
+}
+
+fn assert_breeze_slide_rules() {
+    assert_eq!(
+        BREEZE_SLIDE_MEMORY_REQUIREMENTS,
+        [
+            ("attack_target", "value_present"),
+            ("walk_target", "value_absent"),
+            ("breeze_jump_cooldown", "value_absent"),
+            ("breeze_shoot", "value_absent"),
+        ]
+    );
+    assert_eq!(BREEZE_SLIDE_AWAY_HORIZONTAL_RANGE, 5);
+    assert_eq!(BREEZE_SLIDE_AWAY_VERTICAL_RANGE, 5);
+    assert_eq!(BREEZE_SLIDE_MIDDLE_MIN_DISTANCE, 4.0);
+    assert_eq!(BREEZE_SLIDE_MIDDLE_MAX_DISTANCE, 8.0);
+    assert_eq!(BREEZE_SLIDE_WALK_TARGET_SPEED, 0.6);
+    assert_eq!(BREEZE_SLIDE_WALK_TARGET_CLOSE_ENOUGH_DIST, 1);
+    assert!(breeze_slide_can_start(true, false, "standing"));
+    assert!(!breeze_slide_can_start(false, false, "standing"));
+    assert!(!breeze_slide_can_start(true, true, "standing"));
+    assert!(!breeze_slide_can_start(true, false, "shooting"));
+
+    let input = BreezeSlideStartInput {
+        breeze_position: BreezeVec3::new(0.0, 64.0, 0.0),
+        enemy_position: BreezeVec3::new(10.0, 64.0, 0.0),
+        within_inner_ring: true,
+        away_candidate: Some(BreezeVec3::new(-6.25, 65.0, 0.5)),
+        away_candidate_has_line_of_sight: true,
+        random_next_boolean: true,
+        behind_target_head_y_rot_degrees: 0.0,
+        behind_target_gaussian: 0.0,
+        behind_target_random_float: 0.0,
+        middle_circle_random_double: 0.0,
+    };
+    assert_eq!(
+        breeze_slide_start(input),
+        BreezeSlideWalkTarget {
+            position: BreezeVec3::new(-6.25, 65.0, 0.5),
+            block_pos: (-7, 65, 0),
+            speed_modifier: 0.6,
+            close_enough_dist: 1,
+        }
+    );
+    assert_vec3_close(
+        breeze_slide_start(BreezeSlideStartInput {
+            away_candidate_has_line_of_sight: false,
+            ..input
+        })
+        .position,
+        BreezeVec3::new(10.0, 64.0, 4.0),
+    );
+    assert_vec3_close(
+        breeze_slide_random_point_in_middle_circle(
+            BreezeVec3::new(0.0, 64.0, 0.0),
+            BreezeVec3::new(10.0, 64.0, 0.0),
+            0.0,
+        ),
+        BreezeVec3::new(2.0, 64.0, 0.0),
+    );
+    assert_vec3_close(
+        breeze_slide_start(BreezeSlideStartInput {
+            away_candidate: None,
+            random_next_boolean: false,
+            middle_circle_random_double: 1.0,
+            ..input
+        })
+        .position,
+        BreezeVec3::new(6.0, 64.0, 0.0),
+    );
+}
+
+fn assert_vec3_close(actual: BreezeVec3, expected: BreezeVec3) {
+    assert!((actual.x - expected.x).abs() < 1.0e-6, "{actual:?}");
+    assert!((actual.y - expected.y).abs() < 1.0e-6, "{actual:?}");
+    assert!((actual.z - expected.z).abs() < 1.0e-6, "{actual:?}");
+}

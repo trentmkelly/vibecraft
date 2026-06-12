@@ -62,6 +62,69 @@ pub struct BreezeShootTickStep {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BreezeLongJumpCanRunInput {
+    pub on_ground: bool,
+    pub in_water: bool,
+    pub should_swim: bool,
+    pub jump_target_present: bool,
+    pub attack_target_present: bool,
+    pub out_of_aggro_range: bool,
+    pub too_close_for_jump: bool,
+    pub can_jump_from_current_position: bool,
+    pub snapped_target: Option<(i32, i32, i32)>,
+    pub target_below_dangerous: bool,
+    pub line_of_sight_to_target_center: bool,
+    pub line_of_sight_to_target_above_four: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BreezeLongJumpCanRunStep {
+    pub can_run: bool,
+    pub erase_attack_target: bool,
+    pub set_jump_target: Option<(i32, i32, i32)>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BreezeLongJumpStartStep {
+    pub inhaling_memory_expiry_ticks: Option<i64>,
+    pub pose: &'static str,
+    pub sound: (&'static str, &'static str, f32, f32),
+    pub look_at_jump_target: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BreezeLongJumpTickInput {
+    pub pose: &'static str,
+    pub in_water: bool,
+    pub on_ground: bool,
+    pub leaving_water_memory_present: bool,
+    pub inhaling_memory_present: bool,
+    pub optimal_jump_vector: Option<BreezeVec3>,
+    pub hurt_by_memory_present: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BreezeLongJumpTickStep {
+    pub erase_leaving_water_memory: bool,
+    pub set_leaving_water_memory: bool,
+    pub pose: Option<&'static str>,
+    pub sound: Option<(&'static str, f32, f32)>,
+    pub discard_friction: Option<bool>,
+    pub delta_movement: Option<BreezeVec3>,
+    pub y_rot_from_body: bool,
+    pub jump_cooldown_expiry_ticks: Option<i64>,
+    pub shoot_memory_expiry_ticks: Option<i64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BreezeLongJumpStopStep {
+    pub pose: Option<&'static str>,
+    pub erase_jump_target: bool,
+    pub erase_inhaling: bool,
+    pub erase_leaving_water: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BreezeSlideStartInput {
     pub breeze_position: BreezeVec3,
     pub enemy_position: BreezeVec3,
@@ -88,6 +151,24 @@ pub const BREEZE_UTIL_BEHIND_TARGET_BASE_DEGREES: f64 = 180.0;
 pub const BREEZE_UTIL_BEHIND_TARGET_SPREAD_DEGREES: f64 = 90.0;
 pub const BREEZE_UTIL_BEHIND_TARGET_MIN_DISTANCE: f64 = 4.0;
 pub const BREEZE_UTIL_BEHIND_TARGET_MAX_DISTANCE: f64 = 8.0;
+pub const BREEZE_LONG_JUMP_REQUIRED_AIR_BLOCKS_ABOVE: i32 = 4;
+pub const BREEZE_LONG_JUMP_COOLDOWN_TICKS: i64 = 10;
+pub const BREEZE_LONG_JUMP_COOLDOWN_WHEN_HURT_TICKS: i64 = 2;
+pub const BREEZE_LONG_JUMP_INHALING_DURATION_TICKS: i64 = 10;
+pub const BREEZE_LONG_JUMP_DEFAULT_FOLLOW_RANGE: f32 = 24.0;
+pub const BREEZE_LONG_JUMP_DEFAULT_MAX_JUMP_VELOCITY: f32 = 1.4;
+pub const BREEZE_LONG_JUMP_MAX_VELOCITY_MULTIPLIER: f32 = 0.058333334;
+pub const BREEZE_LONG_JUMP_BEHAVIOR_DURATION_TICKS: i64 = 200;
+pub const BREEZE_LONG_JUMP_SNAP_TRACE_DISTANCE: f64 = 10.0;
+pub const BREEZE_LONG_JUMP_MIN_ATTACK_TARGET_DISTANCE: f64 = 4.0;
+pub const BREEZE_LONG_JUMP_SHOOT_MEMORY_EXPIRY_TICKS: i64 = 100;
+pub const BREEZE_LONG_JUMP_CHARGE_SOUND: (&str, &str, f32, f32) =
+    ("minecraft:entity.breeze.charge", "hostile", 1.0, 1.0);
+pub const BREEZE_LONG_JUMP_JUMP_SOUND: (&str, f32, f32) =
+    ("minecraft:entity.breeze.jump", 1.0, 1.0);
+pub const BREEZE_LONG_JUMP_LAND_SOUND: (&str, f32, f32) =
+    ("minecraft:entity.breeze.land", 1.0, 1.0);
+pub const BREEZE_LONG_JUMP_ALLOWED_ANGLES: [i32; 5] = [40, 55, 60, 75, 80];
 pub const BREEZE_SHOOT_ATTACK_RANGE_MAX_SQR: f64 = 256.0;
 pub const BREEZE_SHOOT_UNCERTAINTY_BASE: i32 = 5;
 pub const BREEZE_SHOOT_UNCERTAINTY_MULTIPLIER: i32 = 4;
@@ -125,6 +206,16 @@ pub const BREEZE_SHOOT_MEMORY_REQUIREMENTS: [(&str, &str); 7] = [
     ("breeze_shoot", "value_present"),
     ("walk_target", "value_absent"),
     ("breeze_jump_target", "value_absent"),
+];
+
+pub const BREEZE_LONG_JUMP_MEMORY_REQUIREMENTS: [(&str, &str); 7] = [
+    ("attack_target", "value_present"),
+    ("breeze_jump_cooldown", "value_absent"),
+    ("breeze_jump_inhaling", "registered"),
+    ("breeze_jump_target", "registered"),
+    ("breeze_shoot", "value_absent"),
+    ("walk_target", "value_absent"),
+    ("breeze_leaving_water", "registered"),
 ];
 
 pub const BREEZE_SLIDE_MEMORY_REQUIREMENTS: [(&str, &str); 4] = [
@@ -226,6 +317,163 @@ pub fn breeze_shoot_when_stuck_step(
     }
 }
 
+pub fn breeze_long_jump_can_run(input: BreezeLongJumpCanRunInput) -> BreezeLongJumpCanRunStep {
+    if !input.on_ground && !input.in_water {
+        return BreezeLongJumpCanRunStep::blocked();
+    }
+    if input.should_swim {
+        return BreezeLongJumpCanRunStep::blocked();
+    }
+    if input.jump_target_present {
+        return BreezeLongJumpCanRunStep {
+            can_run: true,
+            erase_attack_target: false,
+            set_jump_target: None,
+        };
+    }
+    if !input.attack_target_present {
+        return BreezeLongJumpCanRunStep::blocked();
+    }
+    if input.out_of_aggro_range {
+        return BreezeLongJumpCanRunStep {
+            can_run: false,
+            erase_attack_target: true,
+            set_jump_target: None,
+        };
+    }
+    if input.too_close_for_jump
+        || !input.can_jump_from_current_position
+        || input.target_below_dangerous
+    {
+        return BreezeLongJumpCanRunStep::blocked();
+    }
+    let Some(target) = input.snapped_target else {
+        return BreezeLongJumpCanRunStep::blocked();
+    };
+    if !input.line_of_sight_to_target_center && !input.line_of_sight_to_target_above_four {
+        return BreezeLongJumpCanRunStep::blocked();
+    }
+    BreezeLongJumpCanRunStep {
+        can_run: true,
+        erase_attack_target: false,
+        set_jump_target: Some(target),
+    }
+}
+
+pub fn breeze_long_jump_out_of_aggro_range(distance: f64, follow_range: f64) -> bool {
+    distance >= follow_range
+}
+
+pub fn breeze_long_jump_too_close_for_jump(distance: f64) -> bool {
+    distance - BREEZE_LONG_JUMP_MIN_ATTACK_TARGET_DISTANCE <= 0.0
+}
+
+pub fn breeze_long_jump_can_jump_from_current_position(
+    standing_on_honey: bool,
+    four_blocks_above_air_or_water: [bool; 4],
+) -> bool {
+    !standing_on_honey && four_blocks_above_air_or_water.into_iter().all(|open| open)
+}
+
+pub fn breeze_long_jump_max_jump_velocity(follow_range: f32) -> f32 {
+    BREEZE_LONG_JUMP_MAX_VELOCITY_MULTIPLIER * follow_range
+}
+
+pub fn breeze_long_jump_select_vector(
+    shuffled_angle_candidates: &[(i32, Option<BreezeVec3>)],
+    jump_boost_power: Option<f64>,
+) -> Option<BreezeVec3> {
+    shuffled_angle_candidates
+        .iter()
+        .find_map(|(_, vector)| *vector)
+        .map(|vector| {
+            if let Some(jump_boost_power) = jump_boost_power {
+                vector.add(BreezeVec3::new(
+                    0.0,
+                    vector.normalize().y * jump_boost_power,
+                    0.0,
+                ))
+            } else {
+                vector
+            }
+        })
+}
+
+pub fn breeze_long_jump_start(
+    inhaling_memory_absent: bool,
+    jump_target_present: bool,
+) -> BreezeLongJumpStartStep {
+    BreezeLongJumpStartStep {
+        inhaling_memory_expiry_ticks: inhaling_memory_absent
+            .then_some(BREEZE_LONG_JUMP_INHALING_DURATION_TICKS),
+        pose: "inhaling",
+        sound: BREEZE_LONG_JUMP_CHARGE_SOUND,
+        look_at_jump_target: jump_target_present,
+    }
+}
+
+pub fn breeze_long_jump_can_still_use(pose: &str, jump_cooldown_present: bool) -> bool {
+    pose != "standing" && !jump_cooldown_present
+}
+
+pub fn breeze_long_jump_tick(input: BreezeLongJumpTickInput) -> BreezeLongJumpTickStep {
+    let erase_leaving_water_memory = !input.in_water && input.leaving_water_memory_present;
+    if input.pose == "inhaling" && !input.inhaling_memory_present {
+        let Some(velocity) = input.optimal_jump_vector else {
+            return BreezeLongJumpTickStep {
+                erase_leaving_water_memory,
+                pose: Some("standing"),
+                ..BreezeLongJumpTickStep::empty()
+            };
+        };
+        return BreezeLongJumpTickStep {
+            erase_leaving_water_memory,
+            set_leaving_water_memory: input.in_water,
+            pose: Some("long_jumping"),
+            sound: Some(BREEZE_LONG_JUMP_JUMP_SOUND),
+            discard_friction: Some(true),
+            delta_movement: Some(velocity),
+            y_rot_from_body: true,
+            jump_cooldown_expiry_ticks: None,
+            shoot_memory_expiry_ticks: None,
+        };
+    }
+
+    let finished_jumping = input.pose == "long_jumping"
+        && (input.on_ground || (input.in_water && !input.leaving_water_memory_present));
+    if finished_jumping {
+        return BreezeLongJumpTickStep {
+            erase_leaving_water_memory,
+            pose: Some("standing"),
+            sound: Some(BREEZE_LONG_JUMP_LAND_SOUND),
+            discard_friction: Some(false),
+            delta_movement: None,
+            y_rot_from_body: false,
+            set_leaving_water_memory: false,
+            jump_cooldown_expiry_ticks: Some(if input.hurt_by_memory_present {
+                BREEZE_LONG_JUMP_COOLDOWN_WHEN_HURT_TICKS
+            } else {
+                BREEZE_LONG_JUMP_COOLDOWN_TICKS
+            }),
+            shoot_memory_expiry_ticks: Some(BREEZE_LONG_JUMP_SHOOT_MEMORY_EXPIRY_TICKS),
+        };
+    }
+
+    BreezeLongJumpTickStep {
+        erase_leaving_water_memory,
+        ..BreezeLongJumpTickStep::empty()
+    }
+}
+
+pub fn breeze_long_jump_stop(pose: &str) -> BreezeLongJumpStopStep {
+    BreezeLongJumpStopStep {
+        pose: matches!(pose, "long_jumping" | "inhaling").then_some("standing"),
+        erase_jump_target: true,
+        erase_inhaling: true,
+        erase_leaving_water: true,
+    }
+}
+
 pub fn breeze_shoot_check_start(
     pose: &str,
     target_present: bool,
@@ -299,6 +547,32 @@ pub fn breeze_shoot_tick(input: BreezeShootTickInput) -> BreezeShootTickStep {
                 - input.difficulty_id * BREEZE_SHOOT_UNCERTAINTY_MULTIPLIER,
         }),
         sound: Some(BREEZE_SHOOT_SOUND),
+    }
+}
+
+impl BreezeLongJumpCanRunStep {
+    fn blocked() -> Self {
+        Self {
+            can_run: false,
+            erase_attack_target: false,
+            set_jump_target: None,
+        }
+    }
+}
+
+impl BreezeLongJumpTickStep {
+    fn empty() -> Self {
+        Self {
+            erase_leaving_water_memory: false,
+            set_leaving_water_memory: false,
+            pose: None,
+            sound: None,
+            discard_friction: None,
+            delta_movement: None,
+            y_rot_from_body: false,
+            jump_cooldown_expiry_ticks: None,
+            shoot_memory_expiry_ticks: None,
+        }
     }
 }
 
