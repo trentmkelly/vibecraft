@@ -236,6 +236,10 @@ mod ranged_attack_mobs;
 #[cfg(test)]
 use ranged_attack_mobs::*;
 
+mod crossbow_attack_mobs;
+#[cfg(test)]
+use crossbow_attack_mobs::*;
+
 mod patrolling_monsters;
 #[cfg(test)]
 use patrolling_monsters::*;

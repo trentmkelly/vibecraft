@@ -112,6 +112,62 @@ fn ranged_attack_mob_interface_surface_matches_java_contract() {
 }
 
 #[test]
+fn crossbow_attack_mob_default_attack_matches_java_contract() {
+    assert_eq!(
+        crossbow_attack_mob_perform_crossbow_attack(CrossbowAttackInput {
+            main_hand_crossbow: true,
+            off_hand_crossbow: true,
+            crossbow_power: 1.6,
+            difficulty_id: 3,
+            target_present: true,
+        }),
+        CrossbowAttackPlan {
+            selected_hand: CrossbowAttackHand::MainHand,
+            perform_shooting: Some(CrossbowShootingPlan {
+                hand: CrossbowAttackHand::MainHand,
+                power: 1.6,
+                inaccuracy: 2,
+                target_present: true,
+            }),
+            on_attack_performed: true,
+        }
+    );
+    assert_eq!(
+        crossbow_attack_mob_perform_crossbow_attack(CrossbowAttackInput {
+            main_hand_crossbow: false,
+            off_hand_crossbow: true,
+            crossbow_power: 1.0,
+            difficulty_id: 0,
+            target_present: false,
+        }),
+        CrossbowAttackPlan {
+            selected_hand: CrossbowAttackHand::OffHand,
+            perform_shooting: Some(CrossbowShootingPlan {
+                hand: CrossbowAttackHand::OffHand,
+                power: 1.0,
+                inaccuracy: 14,
+                target_present: false,
+            }),
+            on_attack_performed: true,
+        }
+    );
+    assert_eq!(
+        crossbow_attack_mob_perform_crossbow_attack(CrossbowAttackInput {
+            main_hand_crossbow: false,
+            off_hand_crossbow: false,
+            crossbow_power: 1.0,
+            difficulty_id: 2,
+            target_present: true,
+        }),
+        CrossbowAttackPlan {
+            selected_hand: CrossbowAttackHand::OffHand,
+            perform_shooting: None,
+            on_attack_performed: true,
+        }
+    );
+}
+
+#[test]
 fn patrolling_monster_state_spawn_and_save_rules_match_java_methods() {
     assert_eq!(
         patrolling_monster_default_state(),

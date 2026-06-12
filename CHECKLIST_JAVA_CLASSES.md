@@ -3524,7 +3524,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/Blaze.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/Creeper.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/CrossbowAttackMob.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/CrossbowAttackMob.java`. — Verified against Java 26.1.2 `CrossbowAttackMob.java` and `ProjectileUtil.getWeaponHoldingHand`: charging/target/attack-complete contract plus the default `performCrossbowAttack` hand selection, crossbow-only shooting gate, `14 - difficultyId * 4` inaccuracy, target passthrough, and unconditional `onCrossbowAttackPerformed` hook are represented in `src/mob_interaction/crossbow_attack_mobs.rs` and covered by `crossbow_attack_mob_default_attack_matches_java_contract`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/ElderGuardian.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/EnderMan.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/Endermite.java`.
