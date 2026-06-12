@@ -40,7 +40,22 @@ fn recipe_registries_match_vanilla_bootstrap_order() {
             "smithing"
         ]
     );
-    assert_eq!(SLOT_DISPLAY_TYPES.len(), 11);
+    assert_eq!(
+        ids(SLOT_DISPLAY_TYPES),
+        vec![
+            "empty",
+            "any_fuel",
+            "with_any_potion",
+            "only_with_component",
+            "item",
+            "item_stack",
+            "tag",
+            "dyed",
+            "smithing_trim",
+            "with_remainder",
+            "composite"
+        ]
+    );
     assert_eq!(RECIPE_BOOK_CATEGORIES.len(), 13);
     assert_eq!(RECIPE_BOOK_CATEGORIES.last().unwrap().id, "campfire");
 }
