@@ -704,6 +704,30 @@ fn generated_terrain_block_state_names_use_current_protocol_state_ids() {
 }
 
 #[test]
+fn default_flat_chunk_section_uses_vanilla_bedrock_dirt_grass_local_palette() {
+    let settings = crate::worldgen::default_flat_generator_settings().unwrap();
+    let chunk = crate::worldgen::materialize_flat_chunk(ChunkPos { x: 0, z: 0 }, &settings);
+    let section = NetworkChunkSection::from_storage_section(&chunk.sections[0]);
+
+    assert_eq!(section.non_empty_block_count, 1024);
+    assert_eq!(section.fluid_count, 0);
+    assert_eq!(section.block_states.bits_per_entry, 4);
+    assert!(!section.block_states.uses_global_palette);
+    assert_eq!(section.block_states.palette_ids, vec![85, 10, 9, 0]);
+    assert_eq!(section.block_states.data.len(), 256);
+
+    let indices = crate::storage::chunk::unpack_palette_indices(
+        &section.block_states.data,
+        section.block_states.bits_per_entry as usize,
+        4096,
+    );
+    assert!(indices[0..256].iter().all(|index| *index == 0));
+    assert!(indices[256..768].iter().all(|index| *index == 1));
+    assert!(indices[768..1024].iter().all(|index| *index == 2));
+    assert!(indices[1024..].iter().all(|index| *index == 3));
+}
+
+#[test]
 fn storage_palette_network_bits_match_packed_storage_width() {
     let palette = (0..17).map(Tag::Int).collect::<Vec<_>>();
     let container = PalettedContainer {
