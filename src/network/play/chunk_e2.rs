@@ -21,6 +21,29 @@ impl ClientboundCooldownPacket {
     }
 }
 
+impl ClientboundChunkBatchStartPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        expect_empty_payload(reader)?;
+        Ok(Self)
+    }
+
+    pub fn write<W: Write>(&self, _writer: &mut W) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+impl ClientboundBlockChangedAckPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            sequence: read_var_i32(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.sequence)
+    }
+}
+
 impl ClientboundPlayerAbilitiesPacket {
     pub fn flags(&self) -> u8 {
         (if self.invulnerable { 1 } else { 0 })

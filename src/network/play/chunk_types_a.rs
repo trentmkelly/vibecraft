@@ -652,6 +652,11 @@ pub struct ClientboundBlockUpdatePacket {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundBlockChangedAckPacket {
+    pub sequence: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClientboundLevelEventPacket {
     pub event_type: i32,
     pub x: i32,
@@ -765,6 +770,9 @@ pub struct ServerboundChunkBatchReceivedPacket {
 pub struct ClientboundChunkBatchFinishedPacket {
     pub batch_size: i32,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundChunkBatchStartPacket;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Vec3 {
