@@ -293,3 +293,50 @@ fn recipe_holder_identity_matches_java_resource_key_semantics() {
     holders.insert(different_id);
     assert_eq!(holders.len(), 2);
 }
+
+#[test]
+fn recipe_map_values_and_type_filters_keep_java_builder_order() {
+    let recipes = RecipeMap::create(vec![
+        RecipeHolder {
+            id: "minecraft:crafting_table",
+            recipe: RecipeKind::Shaped {
+                width: 1,
+                height: 1,
+                pattern: vec![Some(IngredientSpec::Item("minecraft:oak_planks"))],
+                result: ItemAmount::one("minecraft:crafting_table"),
+                category: CraftingBookCategoryModel::Misc,
+            },
+        },
+        RecipeHolder {
+            id: "minecraft:iron_ingot_from_smelting_raw_iron",
+            recipe: RecipeKind::Cooking {
+                kind: CookingKind::Smelting,
+                ingredient: IngredientSpec::Item("minecraft:raw_iron"),
+                result: ItemAmount::one("minecraft:iron_ingot"),
+                experience_millis: 700,
+                cooking_time: None,
+                category: CookingBookCategory::Misc,
+            },
+        },
+    ]);
+
+    assert_eq!(
+        recipes
+            .values()
+            .iter()
+            .map(|holder| holder.id)
+            .collect::<Vec<_>>(),
+        vec![
+            "minecraft:crafting_table",
+            "minecraft:iron_ingot_from_smelting_raw_iron"
+        ]
+    );
+    assert_eq!(
+        recipes
+            .by_type("crafting")
+            .iter()
+            .map(|holder| holder.id)
+            .collect::<Vec<_>>(),
+        vec!["minecraft:crafting_table"]
+    );
+}
