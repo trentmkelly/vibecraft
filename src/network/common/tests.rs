@@ -18,6 +18,7 @@ fn round_trips_keepalive_ping_pong_and_disconnect() {
     let keepalive = ClientboundKeepAlivePacket { id: 123456789 };
     let mut bytes = Vec::new();
     keepalive.write(&mut bytes).unwrap();
+    assert_eq!(bytes, 123456789_i64.to_be_bytes());
     assert_eq!(
         ClientboundKeepAlivePacket::read(&mut Cursor::new(bytes.clone())).unwrap(),
         keepalive
@@ -30,6 +31,7 @@ fn round_trips_keepalive_ping_pong_and_disconnect() {
     let ping = ClientboundPingPacket { id: -7 };
     let mut bytes = Vec::new();
     ping.write(&mut bytes).unwrap();
+    assert_eq!(bytes, (-7_i32).to_be_bytes());
     assert_eq!(
         ClientboundPingPacket::read(&mut Cursor::new(bytes.clone())).unwrap(),
         ping
@@ -53,6 +55,40 @@ fn round_trips_keepalive_ping_pong_and_disconnect() {
         ClientboundDisconnectPacket::read(&mut Cursor::new(bytes)).unwrap(),
         disconnect
     );
+}
+
+#[test]
+fn common_packet_types_match_java_common_registry_names() {
+    const COMMON_PACKET_TYPES_JAVA: &str = include_str!(
+        "../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/common/CommonPacketTypes.java"
+    );
+
+    for expected in [
+        "CLIENTBOUND_CLEAR_DIALOG = createClientbound(\"clear_dialog\")",
+        "CLIENTBOUND_CUSTOM_PAYLOAD = createClientbound(\"custom_payload\")",
+        "CLIENTBOUND_CUSTOM_REPORT_DETAILS = createClientbound(\"custom_report_details\")",
+        "CLIENTBOUND_DISCONNECT = createClientbound(\"disconnect\")",
+        "CLIENTBOUND_KEEP_ALIVE = createClientbound(\"keep_alive\")",
+        "CLIENTBOUND_PING = createClientbound(\"ping\")",
+        "CLIENTBOUND_RESOURCE_PACK_POP = createClientbound(\"resource_pack_pop\")",
+        "CLIENTBOUND_RESOURCE_PACK_PUSH = createClientbound(\"resource_pack_push\")",
+        "CLIENTBOUND_SERVER_LINKS = createClientbound(\"server_links\")",
+        "CLIENTBOUND_SHOW_DIALOG = createClientbound(\"show_dialog\")",
+        "CLIENTBOUND_STORE_COOKIE = createClientbound(\"store_cookie\")",
+        "CLIENTBOUND_TRANSFER = createClientbound(\"transfer\")",
+        "CLIENTBOUND_UPDATE_TAGS = createClientbound(\"update_tags\")",
+        "SERVERBOUND_CLIENT_INFORMATION = createServerbound(\"client_information\")",
+        "SERVERBOUND_CUSTOM_PAYLOAD = createServerbound(\"custom_payload\")",
+        "SERVERBOUND_KEEP_ALIVE = createServerbound(\"keep_alive\")",
+        "SERVERBOUND_PONG = createServerbound(\"pong\")",
+        "SERVERBOUND_RESOURCE_PACK = createServerbound(\"resource_pack\")",
+        "SERVERBOUND_CUSTOM_CLICK_ACTION = createServerbound(\"custom_click_action\")",
+    ] {
+        assert!(
+            COMMON_PACKET_TYPES_JAVA.contains(expected),
+            "missing CommonPacketTypes declaration: {expected}"
+        );
+    }
 }
 
 #[test]
