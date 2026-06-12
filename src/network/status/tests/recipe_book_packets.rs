@@ -17,6 +17,18 @@ fn oak_planks_recipe_map() -> RecipeMap {
     }])
 }
 
+fn display_shifted_oak_planks_recipe_map() -> RecipeMap {
+    let mut recipes = vec![crate::recipe_system::RecipeHolder {
+        id: "minecraft:repair_item",
+        recipe: crate::recipe_system::RecipeKind::Special {
+            kind: crate::recipe_system::SpecialRecipeKind::RepairItem,
+            result_hint: None,
+        },
+    }];
+    recipes.extend(oak_planks_recipe_map().values().iter().cloned());
+    RecipeMap::create(recipes)
+}
+
 fn vanilla_recipe_manager() -> RecipeManagerModel {
     let recipe_dir =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("vanilla-data/data/minecraft/recipe");
@@ -316,5 +328,36 @@ pub fn place_recipe_packet_rejects_locked_recipe_without_mutating_inventory() {
     assert_eq!(
         state.inventory_menu.player_inventory().get(0),
         &ItemStack::new("minecraft:oak_log", 3)
+    );
+}
+
+#[test]
+pub fn place_recipe_packet_uses_java_display_id_not_raw_recipe_index() {
+    let recipes = display_shifted_oak_planks_recipe_map();
+    let mut inventory = PlayerInventory::new();
+    inventory.load_items(&[(0, ItemStack::new("minecraft:oak_log", 3))]);
+    let mut state = session_state_with_inventory(&[]);
+    state.inventory_menu = InventoryMenu::new(inventory, recipes.clone());
+    state.inventory_menu.load_recipe_book(["minecraft:oak_planks"], []);
+
+    let changed = super::super::apply_place_recipe_packet(
+        &mut state,
+        crate::network::play::ServerboundPlaceRecipePacket {
+            container_id: 0,
+            recipe_index: 0,
+            use_max_items: false,
+        },
+        &recipes,
+    );
+
+    assert!(changed);
+    assert_eq!(
+        state.inventory_menu.get_slot(0),
+        Some(ItemStack::new("minecraft:oak_planks", 4)),
+        "Java RecipeManager display ids are compact over synchronized recipe displays"
+    );
+    assert_eq!(
+        state.inventory_menu.get_slot(1),
+        Some(ItemStack::new("minecraft:oak_log", 1))
     );
 }

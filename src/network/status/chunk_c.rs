@@ -93,7 +93,7 @@ pub fn apply_recipe_book_seen_recipe_packet(
     if packet.recipe_index < 0 {
         return;
     }
-    if let Some(holder) = recipes.values().get(packet.recipe_index as usize) {
+    if let Some(holder) = recipes.holder_for_display_index(packet.recipe_index) {
         state.inventory_menu.mark_recipe_seen(holder.id);
     }
 }
@@ -109,7 +109,7 @@ pub fn apply_place_recipe_packet(
     if packet.recipe_index < 0 {
         return false;
     }
-    let Some(holder) = recipes.values().get(packet.recipe_index as usize) else {
+    let Some(holder) = recipes.holder_for_display_index(packet.recipe_index) else {
         return false;
     };
     if state

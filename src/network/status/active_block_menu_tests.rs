@@ -585,6 +585,45 @@
     }
 
     #[test]
+    fn active_crafting_table_place_recipe_uses_java_display_id_not_raw_recipe_index() {
+        let recipes = display_shifted_crafting_table_recipe_map();
+        let mut state = PlaySessionState {
+            inventory_menu: InventoryMenu::new(PlayerInventory::new(), recipes.clone()),
+            ..Default::default()
+        };
+        state
+            .inventory_menu
+            .player_inventory_mut()
+            .set(0, ItemStack::new("minecraft:oak_planks", 4));
+        assert!(state.inventory_menu.unlock_recipe("minecraft:crafting_table"));
+        let mut menu = ActiveBlockMenu::open(
+            9,
+            crate::block_update::BlockPos { x: 0, y: 64, z: 0 },
+            LiveBlockMenuKind::Crafting,
+            &WorldLayout::new(std::env::temp_dir()),
+            0,
+            &GeneratedChunkCache::default(),
+            &recipes,
+        );
+
+        assert!(menu.handle_place_recipe(
+            &ServerboundPlaceRecipePacket {
+                container_id: 9,
+                recipe_index: 0,
+                use_max_items: false,
+            },
+            &mut state,
+            &recipes,
+        ));
+
+        assert_eq!(
+            menu.flattened_slots(&state)[CraftingMenu::RESULT_SLOT],
+            ItemStack::new("minecraft:crafting_table", 1),
+            "Java RecipeManager indexes ServerboundPlaceRecipe by display table; special recipes without synchronized displays do not consume ids"
+        );
+    }
+
+    #[test]
     fn active_crafting_table_recipe_book_full_sync_uses_single_java_state_increment() {
         let recipes = crafting_table_recipe_map();
         let mut state = PlaySessionState {
@@ -845,6 +884,18 @@
                 category: CraftingBookCategoryModel::Misc,
             },
         }])
+    }
+
+    fn display_shifted_crafting_table_recipe_map() -> RecipeMap {
+        let mut recipes = vec![RecipeHolder {
+            id: "minecraft:repair_item",
+            recipe: RecipeKind::Special {
+                kind: crate::recipe_system::SpecialRecipeKind::RepairItem,
+                result_hint: None,
+            },
+        }];
+        recipes.extend(crafting_table_recipe_map().values().iter().cloned());
+        RecipeMap::create(recipes)
     }
 
     fn click_packet(

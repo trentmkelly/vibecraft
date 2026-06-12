@@ -1171,6 +1171,7 @@ pub fn furnace_experience_to_award(usage: &FurnaceRecipeUsage, fraction_roll: f3
 
 mod recipe_results;
 pub use recipe_results::*;
+mod recipe_display_ids;
 mod special_crafting;
 pub use special_crafting::*;
 

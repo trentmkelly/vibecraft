@@ -896,8 +896,8 @@ fn recipe_book_add_entry(
     highlighted_recipe_ids: Option<&[&str]>,
 ) -> Option<RecipeBookAddEntry> {
     let holder = recipe_map.by_key(recipe_id)?;
-    let display_id = recipe_display_id(holder, all_holders);
     let display = recipe_book_display(holder)?;
+    let display_id = recipe_display_id(holder, recipe_map, all_holders)?;
     let entry_highlight = highlighted_recipe_ids
         .map(|ids| ids.contains(&recipe_id))
         .unwrap_or(highlight);
@@ -916,12 +916,20 @@ fn recipe_book_add_entry(
 
 fn recipe_display_id(
     holder: &crate::recipe_system::RecipeHolder,
+    recipe_map: &crate::recipe_system::RecipeMap,
     all_holders: &[crate::recipe_system::RecipeHolder],
-) -> i32 {
-    all_holders
-        .iter()
-        .position(|candidate| candidate.id == holder.id)
-        .unwrap_or(0) as i32
+) -> Option<i32> {
+    let display_id = recipe_map.display_index_for_recipe(holder.id)?;
+    debug_assert_eq!(
+        all_holders
+            .iter()
+            .filter(|candidate| recipe_book_display(candidate).is_some())
+            .position(|candidate| candidate.id == holder.id)
+            .map(|index| index as i32),
+        Some(display_id),
+        "RecipeMap display ids and packet display serialization must stay in lockstep"
+    );
+    Some(display_id)
 }
 
 fn recipe_book_display(

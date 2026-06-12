@@ -343,7 +343,7 @@ impl ActiveBlockMenu {
         if packet.container_id != self.container_id || packet.recipe_index < 0 {
             return false;
         }
-        let Some(holder) = recipes.values().get(packet.recipe_index as usize) else {
+        let Some(holder) = recipes.holder_for_display_index(packet.recipe_index) else {
             return false;
         };
         if !state
