@@ -823,6 +823,35 @@ impl ServerboundBlockEntityTagQueryPacket {
     }
 }
 
+impl ClientboundTagQueryPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let transaction_id = read_var_i32(reader)?;
+        let tag = match crate::storage::nbt::nbt_io::read_any_tag(reader)? {
+            Tag::End => None,
+            compound @ Tag::Compound(_) => Some(compound),
+            other => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("Not a compound tag: {other:?}"),
+                ));
+            }
+        };
+        expect_empty_payload(reader)?;
+        Ok(Self {
+            transaction_id,
+            tag,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.transaction_id)?;
+        crate::storage::nbt::nbt_io::write_any_tag(
+            self.tag.as_ref().unwrap_or(&Tag::End),
+            writer,
+        )
+    }
+}
+
 impl GameMode {
     pub(super) fn from_wire_id(id: i32) -> Self {
         match id {
