@@ -1,6 +1,12 @@
 use super::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundEntityTagQueryPacket {
+    pub transaction_id: i32,
+    pub entity_id: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClientboundRotateHeadPacket {
     pub id: i32,
     pub y_head_rot: u8,

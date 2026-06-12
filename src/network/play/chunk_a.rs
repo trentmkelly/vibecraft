@@ -31,6 +31,7 @@ impl PlaySession {
             last_rename_item: None,
             last_command_suggestion: None,
             last_edit_book: None,
+            last_entity_tag_query: None,
             last_interact: None,
             last_resource_pack_response: None,
             last_container_close: None,
@@ -347,6 +348,12 @@ impl PlaySession {
                 "edit book packet",
                 |input| ServerboundEditBookPacket::read(input),
                 |session, book| session.last_edit_book = Some(book),
+            ),
+            SERVERBOUND_ENTITY_TAG_QUERY_PACKET_ID => self.decode_and_store(
+                payload,
+                "entity tag query packet",
+                |input| ServerboundEntityTagQueryPacket::read(input),
+                |session, query| session.last_entity_tag_query = Some(query),
             ),
             _ => return None,
         })

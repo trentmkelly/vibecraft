@@ -792,6 +792,20 @@ impl ServerboundEditBookPacket {
     }
 }
 
+impl ServerboundEntityTagQueryPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            transaction_id: read_var_i32(reader)?,
+            entity_id: read_var_i32(reader)?,
+        })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.transaction_id)?;
+        write_var_i32(writer, self.entity_id)
+    }
+}
+
 impl ServerboundInteractionHand {
     pub(super) fn from_id(id: i32) -> Self {
         match id {

@@ -3104,6 +3104,11 @@ fn try_handle_inventory_packet<R: Read>(
         SERVERBOUND_EDIT_BOOK_PACKET_ID => {
             handle_edit_book_packet(stream, compression, input, play_state, context.profile_name)?;
         }
+        SERVERBOUND_ENTITY_TAG_QUERY_PACKET_ID => {
+            // Java validates the VarInt transaction/entity ids before dispatching
+            // `handleEntityTagQuery`; VibeCraft does not answer entity NBT queries yet.
+            let _ = ServerboundEntityTagQueryPacket::read(input)?;
+        }
         SERVERBOUND_SET_CREATIVE_MODE_SLOT_PACKET_ID => {
             handle_set_creative_mode_slot_packet(stream, compression, input, play_state)?;
         }
