@@ -982,6 +982,7 @@ mod clientbound_tag_query_packet_test;
 mod clientbound_game_test_highlight_pos_packet_test;
 mod clientbound_move_vehicle_packet_test;
 mod clientbound_player_combat_packets_test;
+mod clientbound_set_chunk_cache_packets_test;
 mod clientbound_tracked_waypoint_packet_test;
 mod command_suggestion_packet_test;
 mod configuration_acknowledged_packet_test;
