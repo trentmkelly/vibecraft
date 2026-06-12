@@ -13,9 +13,10 @@ use crate::item_catalog::item_protocol_id;
 use crate::item_properties::ItemComponent;
 use crate::item_stack::ItemStack;
 use crate::network::codec::{
-    read_collection, read_enum_index, read_identifier, read_string, read_uuid, write_bitset,
-    write_collection, write_enum_index, write_identifier, write_optional, write_string,
-    write_trusted_component, write_uuid, ComponentJson, Uuid,
+    read_collection, read_enum_index, read_identifier, read_optional, read_string,
+    read_trusted_component, read_uuid, write_bitset, write_collection, write_enum_index,
+    write_identifier, write_optional, write_string, write_trusted_component, write_uuid,
+    ComponentJson, Uuid,
 };
 use crate::network::common::ServerboundResourcePackPacket;
 use crate::network::dispatch::{DecodedPacket, DispatchOutcome, PacketDirection, ProtocolState};
@@ -86,11 +87,14 @@ pub const SERVERBOUND_SET_COMMAND_BLOCK_PACKET_ID: i32 = 54;
 pub const SERVERBOUND_SET_COMMAND_MINECART_PACKET_ID: i32 = 55;
 pub const SERVERBOUND_SET_CREATIVE_MODE_SLOT_PACKET_ID: i32 = 56;
 pub const SERVERBOUND_SET_GAME_RULE_PACKET_ID: i32 = 57;
+pub const SERVERBOUND_SET_JIGSAW_BLOCK_PACKET_ID: i32 = 58;
 pub const SERVERBOUND_SET_STRUCTURE_BLOCK_PACKET_ID: i32 = 59;
+pub const SERVERBOUND_SET_TEST_BLOCK_PACKET_ID: i32 = 60;
 pub const SERVERBOUND_SIGN_UPDATE_PACKET_ID: i32 = 61;
 pub const SERVERBOUND_SPECTATE_ENTITY_PACKET_ID: i32 = 62;
 pub const SERVERBOUND_SWING_PACKET_ID: i32 = 63;
 pub const SERVERBOUND_TELEPORT_TO_ENTITY_PACKET_ID: i32 = 64;
+pub const SERVERBOUND_TEST_INSTANCE_BLOCK_ACTION_PACKET_ID: i32 = 65;
 pub const SERVERBOUND_USE_ITEM_ON_PACKET_ID: i32 = 66;
 pub const SERVERBOUND_USE_ITEM_PACKET_ID: i32 = 67;
 

@@ -577,6 +577,43 @@ pub struct ServerboundSetGameRuleEntry {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JigsawJointType {
+    Rollable,
+    Aligned,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerboundSetJigsawBlockPacket {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+    pub name: Identifier,
+    pub target: Identifier,
+    pub pool: Identifier,
+    pub final_state: String,
+    pub joint: JigsawJointType,
+    pub selection_priority: i32,
+    pub placement_priority: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TestBlockMode {
+    Start,
+    Log,
+    Fail,
+    Accept,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerboundSetTestBlockPacket {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+    pub mode: TestBlockMode,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ServerboundSpectateEntityPacket {
     pub entity_id: i32,
 }
@@ -584,6 +621,43 @@ pub struct ServerboundSpectateEntityPacket {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ServerboundTeleportToEntityPacket {
     pub uuid: Uuid,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TestInstanceBlockAction {
+    Init,
+    Query,
+    Set,
+    Reset,
+    Save,
+    Export,
+    Run,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TestInstanceBlockStatus {
+    Cleared,
+    Running,
+    Finished,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TestInstanceBlockData {
+    pub test: Option<Identifier>,
+    pub size: [i32; 3],
+    pub rotation: StructureRotation,
+    pub ignore_entities: bool,
+    pub status: TestInstanceBlockStatus,
+    pub error_message: Option<ComponentJson>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerboundTestInstanceBlockActionPacket {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+    pub action: TestInstanceBlockAction,
+    pub data: TestInstanceBlockData,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

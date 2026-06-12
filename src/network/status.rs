@@ -70,8 +70,9 @@ use crate::network::play::{
     ServerboundRecipeBookChangeSettingsPacket, ServerboundRecipeBookSeenRecipePacket,
     ServerboundSeenAdvancementsPacket, ServerboundSelectBundleItemPacket,
     ServerboundSetCreativeModeSlotPacket, ServerboundSetGameRulePacket,
+    ServerboundSetJigsawBlockPacket, ServerboundSetTestBlockPacket,
     ServerboundSpectateEntityPacket, ServerboundSwingHand, ServerboundTeleportToEntityPacket,
-    ServerboundUseItemOnPacket, Vec3,
+    ServerboundTestInstanceBlockActionPacket, ServerboundUseItemOnPacket, Vec3,
     CLIENTBOUND_ADD_ENTITY_PACKET_ID, CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
     CLIENTBOUND_BLOCK_UPDATE_PACKET_ID, CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID,
     CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID, CLIENTBOUND_COMMANDS_PACKET_ID,
@@ -108,9 +109,10 @@ use crate::network::play::{
     SERVERBOUND_RECIPE_BOOK_SEEN_RECIPE_PACKET_ID, SERVERBOUND_SEEN_ADVANCEMENTS_PACKET_ID,
     SERVERBOUND_SELECT_BUNDLE_ITEM_PACKET_ID, SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID,
     SERVERBOUND_SET_CREATIVE_MODE_SLOT_PACKET_ID, SERVERBOUND_SET_GAME_RULE_PACKET_ID,
+    SERVERBOUND_SET_JIGSAW_BLOCK_PACKET_ID, SERVERBOUND_SET_TEST_BLOCK_PACKET_ID,
     SERVERBOUND_SPECTATE_ENTITY_PACKET_ID, SERVERBOUND_SWING_PACKET_ID,
-    SERVERBOUND_TELEPORT_TO_ENTITY_PACKET_ID, SERVERBOUND_USE_ITEM_ON_PACKET_ID,
-    SERVERBOUND_USE_ITEM_PACKET_ID,
+    SERVERBOUND_TELEPORT_TO_ENTITY_PACKET_ID, SERVERBOUND_TEST_INSTANCE_BLOCK_ACTION_PACKET_ID,
+    SERVERBOUND_USE_ITEM_ON_PACKET_ID, SERVERBOUND_USE_ITEM_PACKET_ID,
 };
 use crate::network::rate_limit::{PacketRateDecision, PacketRateLimiter};
 use crate::network::varint::{read_var_i32, write_var_i32, write_var_i64};

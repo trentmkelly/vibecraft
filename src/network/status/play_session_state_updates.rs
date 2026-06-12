@@ -32,12 +32,24 @@ pub fn update_play_session_state<R: Read>(
             let _ = ServerboundSetGameRulePacket::read(input)?;
             Ok(PlaySessionUpdate::default())
         }
+        SERVERBOUND_SET_JIGSAW_BLOCK_PACKET_ID => {
+            let _ = ServerboundSetJigsawBlockPacket::read(input)?;
+            Ok(PlaySessionUpdate::default())
+        }
+        SERVERBOUND_SET_TEST_BLOCK_PACKET_ID => {
+            let _ = ServerboundSetTestBlockPacket::read(input)?;
+            Ok(PlaySessionUpdate::default())
+        }
         SERVERBOUND_SPECTATE_ENTITY_PACKET_ID => {
             let _ = ServerboundSpectateEntityPacket::read(input)?;
             Ok(PlaySessionUpdate::default())
         }
         SERVERBOUND_TELEPORT_TO_ENTITY_PACKET_ID => {
             let _ = ServerboundTeleportToEntityPacket::read(input)?;
+            Ok(PlaySessionUpdate::default())
+        }
+        SERVERBOUND_TEST_INSTANCE_BLOCK_ACTION_PACKET_ID => {
+            let _ = ServerboundTestInstanceBlockActionPacket::read(input)?;
             Ok(PlaySessionUpdate::default())
         }
         SERVERBOUND_CONTAINER_CLOSE_PACKET_ID => {
