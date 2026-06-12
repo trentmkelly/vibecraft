@@ -23,6 +23,8 @@ const host = '127.0.0.1'
 // Item protocol ids (official 26.1.2 registries.json).
 const OAK_STAIRS_ITEM_ID = 442
 const SAND_ITEM_ID = 59
+const OAK_PLANKS_ITEM_ID = 36
+const CRAFTING_TABLE_ITEM_ID = 333
 // Block-state network ids (official 26.1.2 blocks.json, vendored at
 // vanilla-data/reports/blocks_26_1_2.json).
 const OAK_STAIRS_EAST_BOTTOM_STRAIGHT_DRY = 3978
@@ -161,6 +163,74 @@ test('raw 26.1.2 placed sand falls as a falling-block entity and lands', { timeo
       update => update.stateId === SAND_STATE_ID && update.y < 118
     )
     assert.ok(landed, `sand never landed below: ${JSON.stringify(placement.blockUpdates)}`)
+  } finally {
+    if (server) await stopServer(server.child)
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('raw 26.1.2 crafting table opens and updates the 3x3 result slot', { timeout: 60_000 }, async () => {
+  const port = await reservePort()
+  const root = await createTempWorld('vibecraft-crafting-table-live-')
+  let server
+
+  try {
+    await writeOfflineServerFiles(root, {
+      port,
+      levelName: 'world',
+      properties: {
+        gamemode: 'creative',
+        'spawn-protection': '0',
+        'view-distance': '4',
+        'simulation-distance': '4'
+      }
+    })
+    server = startVibeCraft({ binary, root, port, levelName: 'world' })
+    await waitForPort(port, host, 10_000)
+
+    const joined = await runJoinProbe(port, 'CraftBot', {
+      VIBECRAFT_EXPECT_GAME_MODE: '1',
+      VIBECRAFT_EXPECT_ABILITY_FLAGS: '13',
+      VIBECRAFT_CRAFTING_TABLE_PROBE: JSON.stringify({
+        craftingTableItemId: CRAFTING_TABLE_ITEM_ID,
+        oakPlanksItemId: OAK_PLANKS_ITEM_ID,
+        oakPlanksCount: 4,
+        resultItemId: CRAFTING_TABLE_ITEM_ID,
+        playerX: 0.5,
+        playerY: 120,
+        playerZ: 0.5,
+        yaw: 0,
+        pitch: 45,
+        x: 0,
+        y: 118,
+        z: 0,
+        placeSequence: 21,
+        openSequence: 22,
+        afterPlaceMs: 1000,
+        clickCaptureMs: 1000
+      })
+    })
+
+    assert.equal(joined.ok, true)
+    const crafting = joined.craftingTable
+    assert.ok(crafting, 'crafting-table probe results missing')
+    assert.ok(crafting.ackSequences.includes(21), 'placement block_changed_ack missing')
+    assert.ok(crafting.ackSequences.includes(22), 'open block_changed_ack missing')
+    assert.equal(crafting.containerId, 1)
+    assert.ok(
+      crafting.blockUpdates.some(update => update.x === 0 && update.y === 118 && update.z === 0),
+      `crafting table placement update missing: ${JSON.stringify(crafting.blockUpdates)}`
+    )
+    assert.equal(crafting.resultSlotItemId, CRAFTING_TABLE_ITEM_ID)
+    assert.ok(
+      crafting.slotUpdates.some(update =>
+        update.containerId === crafting.containerId &&
+        update.slot === 0 &&
+        update.itemId === CRAFTING_TABLE_ITEM_ID &&
+        update.count === 1
+      ),
+      `result slot did not update to crafting_table: ${JSON.stringify(crafting.slotUpdates)}`
+    )
   } finally {
     if (server) await stopServer(server.child)
     await rm(root, { recursive: true, force: true })

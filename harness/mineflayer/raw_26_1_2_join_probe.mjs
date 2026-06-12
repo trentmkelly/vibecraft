@@ -233,10 +233,32 @@ class PacketReader {
 }
 
 function nextPacketWithin (reader, timeoutMs) {
-  return Promise.race([
-    reader.nextPacket().then(packet => ({ packet })),
-    new Promise(resolve => setTimeout(() => resolve({ timeout: true }), timeoutMs))
-  ])
+  return new Promise((resolve, reject) => {
+    let settled = false
+    const waiter = {
+      resolve: packet => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        resolve({ packet })
+      },
+      reject: error => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        reject(error)
+      }
+    }
+    const timer = setTimeout(() => {
+      if (settled) return
+      settled = true
+      const index = reader.waiters.indexOf(waiter)
+      if (index !== -1) reader.waiters.splice(index, 1)
+      resolve({ timeout: true })
+    }, timeoutMs)
+    reader.waiters.push(waiter)
+    reader.pump()
+  })
 }
 
 function expectPacket (packet, id, state) {
@@ -1553,7 +1575,7 @@ async function runCraftingTableProbe (socket, reader, probe, play) {
   })))
   await drainCraftingProbePackets(socket, reader, play, probe.afterPlaceMs ?? 250, result)
 
-  socket.write(encodeClientPacket(reader, serverboundSetCreativeModeSlotPacketId, creativeSlotPayload(36, oakPlanksItemId)))
+  socket.write(encodeClientPacket(reader, serverboundSetCreativeModeSlotPacketId, creativeSlotPayload(36, oakPlanksItemId, probe.oakPlanksCount ?? 4)))
   socket.write(encodeClientPacket(reader, serverboundUseItemOnPacketId, placementUseItemOnPayload({
     ...target,
     face: probe.openFace ?? 1,
@@ -1562,7 +1584,10 @@ async function runCraftingTableProbe (socket, reader, probe, play) {
 
   const openDeadline = Date.now() + (probe.openTimeoutMs ?? 2500)
   let stateId = 0
-  while (Date.now() < openDeadline && result.containerId == null) {
+  while (
+    Date.now() < openDeadline &&
+    (result.containerId == null || result.contentStateIds.length === 0)
+  ) {
     const next = await nextPacketWithin(reader, Math.max(1, openDeadline - Date.now()))
     if (next.timeout) break
     const packet = next.packet
@@ -1580,8 +1605,10 @@ async function runCraftingTableProbe (socket, reader, probe, play) {
       result.containerId = container.value
     } else if (packet.id === clientboundContainerSetContentPacketId) {
       const content = decodeContainerSetContentHeader(packet.body)
-      result.contentStateIds.push(content.stateId)
-      stateId = content.stateId
+      if (result.containerId == null || content.containerId === result.containerId) {
+        result.contentStateIds.push(content.stateId)
+        stateId = content.stateId
+      }
     }
   }
   if (result.containerId == null) return result
@@ -1694,13 +1721,15 @@ function packBlockPos (x, y, z) {
 
 /// ServerboundSetCreativeModeSlotPacket: slot short + RawItemStack
 /// (count VarInt, item VarInt, component add/remove counts).
-function creativeSlotPayload (slot, itemId) {
+function creativeSlotPayload (slot, itemId, count = 1) {
+  const itemCount = writeVarInt(count)
   const item = writeVarInt(itemId)
-  const payload = Buffer.alloc(2 + 1 + item.length + 2)
+  const payload = Buffer.alloc(2 + itemCount.length + item.length + 2)
   let offset = 0
   payload.writeInt16BE(slot, offset)
   offset += 2
-  payload[offset++] = 1 // count
+  itemCount.copy(payload, offset)
+  offset += itemCount.length
   item.copy(payload, offset)
   offset += item.length
   payload[offset++] = 0 // components added
