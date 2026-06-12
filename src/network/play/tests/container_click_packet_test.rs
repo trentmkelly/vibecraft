@@ -2,6 +2,37 @@ use super::*;
 
 #[test]
 fn serverbound_container_click_packet_matches_java_codec_order() {
+    const SERVERBOUND_CONTAINER_CLICK_PACKET_JAVA: &str = include_str!(
+        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundContainerClickPacket.java"
+    );
+    for sentinel in [
+        "int containerId, int stateId, short slotNum, byte buttonNum, ContainerInput containerInput, Int2ObjectMap<HashedStack> changedSlots, HashedStack carriedItem",
+        "private static final int MAX_SLOT_COUNT = 128;",
+        "Int2ObjectOpenHashMap::new, ByteBufCodecs.SHORT.map(Short::intValue, Integer::shortValue), HashedStack.STREAM_CODEC, 128",
+        "ByteBufCodecs.CONTAINER_ID",
+        "ServerboundContainerClickPacket::containerId",
+        "ByteBufCodecs.VAR_INT",
+        "ServerboundContainerClickPacket::stateId",
+        "ByteBufCodecs.SHORT",
+        "ServerboundContainerClickPacket::slotNum",
+        "ByteBufCodecs.BYTE",
+        "ServerboundContainerClickPacket::buttonNum",
+        "ContainerInput.STREAM_CODEC",
+        "ServerboundContainerClickPacket::containerInput",
+        "SLOTS_STREAM_CODEC",
+        "ServerboundContainerClickPacket::changedSlots",
+        "HashedStack.STREAM_CODEC",
+        "ServerboundContainerClickPacket::carriedItem",
+        "changedSlots = Int2ObjectMaps.unmodifiable(changedSlots);",
+        "return GamePacketTypes.SERVERBOUND_CONTAINER_CLICK;",
+        "listener.handleContainerClick(this);",
+    ] {
+        assert!(
+            SERVERBOUND_CONTAINER_CLICK_PACKET_JAVA.contains(sentinel),
+            "missing ServerboundContainerClickPacket sentinel {sentinel}"
+        );
+    }
+
     assert_eq!(SERVERBOUND_CONTAINER_CLICK_PACKET_ID, 18);
     let registry = PlayProtocolRegistry::new();
     assert_eq!(
