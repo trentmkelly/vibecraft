@@ -244,10 +244,18 @@ fn round_trips_resource_pack_packets() {
     let pop = ClientboundResourcePackPopPacket { id: Some(id) };
     let mut bytes = Vec::new();
     pop.write(&mut bytes).unwrap();
+    let mut expected = vec![1];
+    expected.extend_from_slice(&id.0);
+    assert_eq!(bytes, expected);
     assert_eq!(
         ClientboundResourcePackPopPacket::read(&mut Cursor::new(bytes)).unwrap(),
         pop
     );
+    let mut bytes = Vec::new();
+    ClientboundResourcePackPopPacket { id: None }
+        .write(&mut bytes)
+        .unwrap();
+    assert_eq!(bytes, vec![0]);
 
     let response = ServerboundResourcePackPacket {
         id,
@@ -255,6 +263,9 @@ fn round_trips_resource_pack_packets() {
     };
     let mut bytes = Vec::new();
     response.write(&mut bytes).unwrap();
+    let mut expected = id.0.to_vec();
+    expected.push(4);
+    assert_eq!(bytes, expected);
     assert_eq!(
         ServerboundResourcePackPacket::read(&mut Cursor::new(bytes)).unwrap(),
         response
