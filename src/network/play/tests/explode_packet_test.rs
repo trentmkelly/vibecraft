@@ -1,7 +1,22 @@
 use super::*;
 
+const CLIENTBOUND_EXPLODE_JAVA: &str = include_str!(
+    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundExplodePacket.java"
+);
+const EXPLOSION_PARTICLE_INFO_JAVA: &str =
+    include_str!("../../../../../decompiled-server-26.1.2/net/minecraft/core/particles/ExplosionParticleInfo.java");
+const WEIGHTED_JAVA: &str =
+    include_str!("../../../../../decompiled-server-26.1.2/net/minecraft/util/random/Weighted.java");
+const WEIGHTED_LIST_JAVA: &str =
+    include_str!("../../../../../decompiled-server-26.1.2/net/minecraft/util/random/WeightedList.java");
+const SOUND_EVENT_JAVA: &str =
+    include_str!("../../../../../decompiled-server-26.1.2/net/minecraft/sounds/SoundEvent.java");
+const BYTE_BUF_CODECS_JAVA: &str =
+    include_str!("../../../../../decompiled-server-26.1.2/net/minecraft/network/codec/ByteBufCodecs.java");
+
 #[test]
 fn clientbound_explode_packet_matches_java_codec_with_knockback_and_weighted_particles() {
+    assert_explode_java_sentinels();
     assert_eq!(CLIENTBOUND_EXPLODE_PACKET_ID, 36);
     let registry = PlayProtocolRegistry::new();
     assert_eq!(
@@ -85,6 +100,66 @@ fn clientbound_explode_packet_matches_java_codec_with_knockback_and_weighted_par
     .concat();
 
     assert_eq!(payload, expected);
+}
+
+fn assert_explode_java_sentinels() {
+    for sentinel in [
+        "Vec3.STREAM_CODEC",
+        "ByteBufCodecs.FLOAT",
+        "ByteBufCodecs.INT",
+        "Vec3.STREAM_CODEC.apply(ByteBufCodecs::optional)",
+        "ParticleTypes.STREAM_CODEC",
+        "SoundEvent.STREAM_CODEC",
+        "WeightedList.streamCodec(ExplosionParticleInfo.STREAM_CODEC)",
+        "return GamePacketTypes.CLIENTBOUND_EXPLODE;",
+        "listener.handleExplosion(this);",
+    ] {
+        assert!(
+            CLIENTBOUND_EXPLODE_JAVA.contains(sentinel),
+            "missing ClientboundExplodePacket sentinel {sentinel}"
+        );
+    }
+    for sentinel in [
+        "ParticleTypes.STREAM_CODEC",
+        "ExplosionParticleInfo::particle",
+        "ByteBufCodecs.FLOAT",
+        "ExplosionParticleInfo::scaling",
+        "ExplosionParticleInfo::speed",
+    ] {
+        assert!(
+            EXPLOSION_PARTICLE_INFO_JAVA.contains(sentinel),
+            "missing ExplosionParticleInfo sentinel {sentinel}"
+        );
+    }
+    assert!(
+        WEIGHTED_LIST_JAVA.contains(
+            "Weighted.streamCodec(elementCodec).apply(ByteBufCodecs.list()).map(WeightedList::of, WeightedList::unwrap)"
+        ),
+        "missing WeightedList stream codec sentinel"
+    );
+    assert!(
+        WEIGHTED_JAVA.contains(
+            "StreamCodec.composite(valueCodec, Weighted::value, ByteBufCodecs.VAR_INT, Weighted::weight, Weighted::new)"
+        ),
+        "missing Weighted stream codec sentinel"
+    );
+    assert!(
+        SOUND_EVENT_JAVA.contains(
+            "public static final StreamCodec<RegistryFriendlyByteBuf, Holder<SoundEvent>> STREAM_CODEC = ByteBufCodecs.holder(Registries.SOUND_EVENT, DIRECT_STREAM_CODEC);"
+        ),
+        "missing SoundEvent holder codec sentinel"
+    );
+    for sentinel in [
+        "private static final int DIRECT_HOLDER_ID = 0;",
+        "id == 0 ? Holder.direct(directCodec.decode(input))",
+        "VarInt.write(output, id + 1);",
+        "VarInt.write(output, 0);",
+    ] {
+        assert!(
+            BYTE_BUF_CODECS_JAVA.contains(sentinel),
+            "missing ByteBufCodecs holder sentinel {sentinel}"
+        );
+    }
 }
 
 #[test]
