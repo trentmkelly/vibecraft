@@ -12,10 +12,45 @@ pub struct EndermiteAttributes {
     pub xp_reward: i32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct EndermiteClassSurface {
+    pub movement_emission: &'static str,
+    pub ambient_sound: &'static str,
+    pub hurt_sound: &'static str,
+    pub death_sound: &'static str,
+    pub step_sound: &'static str,
+    pub step_sound_volume: f32,
+    pub step_sound_pitch: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct EndermiteGoalSurface {
+    pub float_goal_priority: i32,
+    pub powder_snow_goal_priority: i32,
+    pub melee_attack_priority: i32,
+    pub melee_attack_speed: f32,
+    pub melee_attack_follow_even_if_not_seen: bool,
+    pub random_stroll_priority: i32,
+    pub random_stroll_speed: f32,
+    pub look_at_player_priority: i32,
+    pub look_at_player_range: f32,
+    pub random_look_priority: i32,
+    pub hurt_by_target_priority: i32,
+    pub hurt_by_alerts_others: bool,
+    pub nearest_player_target_priority: i32,
+    pub nearest_player_must_see: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EndermiteTickOutcome {
     pub life: i32,
     pub discard: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct EndermiteRotationTick {
+    pub y_rot: f32,
+    pub y_body_rot: f32,
 }
 
 pub const ENDERMITE_MAX_LIFE_TICKS: i32 = 2_400;
@@ -28,8 +63,23 @@ pub const ENDERMITE_ENDER_PEARL_SPAWN_CHANCE: f32 = 0.05;
 pub const ENDERMITE_NEAREST_PLAYER_SPAWN_REJECTION_RANGE: f64 = 5.0;
 pub const ENDERMITE_LOOK_AT_PLAYER_RANGE: f32 = 8.0;
 pub const ENDERMITE_CLIENT_PORTAL_PARTICLES_PER_TICK: i32 = 2;
+pub const ENDERMITE_MOVEMENT_EMISSION: &str = "events";
+pub const ENDERMITE_AMBIENT_SOUND: &str = "minecraft:entity.endermite.ambient";
+pub const ENDERMITE_HURT_SOUND: &str = "minecraft:entity.endermite.hurt";
+pub const ENDERMITE_DEATH_SOUND: &str = "minecraft:entity.endermite.death";
+pub const ENDERMITE_STEP_SOUND: &str = "minecraft:entity.endermite.step";
 pub const ENDERMITE_STEP_SOUND_VOLUME: f32 = 0.15;
 pub const ENDERMITE_STEP_SOUND_PITCH: f32 = 1.0;
+pub const ENDERMITE_FLOAT_GOAL_PRIORITY: i32 = 1;
+pub const ENDERMITE_POWDER_SNOW_GOAL_PRIORITY: i32 = 1;
+pub const ENDERMITE_MELEE_ATTACK_PRIORITY: i32 = 2;
+pub const ENDERMITE_MELEE_ATTACK_SPEED: f32 = 1.0;
+pub const ENDERMITE_RANDOM_STROLL_PRIORITY: i32 = 3;
+pub const ENDERMITE_RANDOM_STROLL_SPEED: f32 = 1.0;
+pub const ENDERMITE_LOOK_AT_PLAYER_PRIORITY: i32 = 7;
+pub const ENDERMITE_RANDOM_LOOK_PRIORITY: i32 = 8;
+pub const ENDERMITE_HURT_BY_TARGET_PRIORITY: i32 = 1;
+pub const ENDERMITE_NEAREST_PLAYER_TARGET_PRIORITY: i32 = 2;
 pub const ENDERMAN_TARGETS_ENDERMITES: bool = true;
 
 impl EndermiteState {
@@ -70,6 +120,51 @@ pub fn endermite_attributes() -> EndermiteAttributes {
         movement_speed: ENDERMITE_MOVEMENT_SPEED,
         attack_damage: ENDERMITE_ATTACK_DAMAGE,
         xp_reward: ENDERMITE_XP_REWARD,
+    }
+}
+
+pub fn endermite_class_surface() -> EndermiteClassSurface {
+    EndermiteClassSurface {
+        movement_emission: ENDERMITE_MOVEMENT_EMISSION,
+        ambient_sound: ENDERMITE_AMBIENT_SOUND,
+        hurt_sound: ENDERMITE_HURT_SOUND,
+        death_sound: ENDERMITE_DEATH_SOUND,
+        step_sound: ENDERMITE_STEP_SOUND,
+        step_sound_volume: ENDERMITE_STEP_SOUND_VOLUME,
+        step_sound_pitch: ENDERMITE_STEP_SOUND_PITCH,
+    }
+}
+
+pub fn endermite_goal_surface() -> EndermiteGoalSurface {
+    EndermiteGoalSurface {
+        float_goal_priority: ENDERMITE_FLOAT_GOAL_PRIORITY,
+        powder_snow_goal_priority: ENDERMITE_POWDER_SNOW_GOAL_PRIORITY,
+        melee_attack_priority: ENDERMITE_MELEE_ATTACK_PRIORITY,
+        melee_attack_speed: ENDERMITE_MELEE_ATTACK_SPEED,
+        melee_attack_follow_even_if_not_seen: false,
+        random_stroll_priority: ENDERMITE_RANDOM_STROLL_PRIORITY,
+        random_stroll_speed: ENDERMITE_RANDOM_STROLL_SPEED,
+        look_at_player_priority: ENDERMITE_LOOK_AT_PLAYER_PRIORITY,
+        look_at_player_range: ENDERMITE_LOOK_AT_PLAYER_RANGE,
+        random_look_priority: ENDERMITE_RANDOM_LOOK_PRIORITY,
+        hurt_by_target_priority: ENDERMITE_HURT_BY_TARGET_PRIORITY,
+        hurt_by_alerts_others: true,
+        nearest_player_target_priority: ENDERMITE_NEAREST_PLAYER_TARGET_PRIORITY,
+        nearest_player_must_see: true,
+    }
+}
+
+pub fn endermite_tick_rotation(y_rot: f32) -> EndermiteRotationTick {
+    EndermiteRotationTick {
+        y_rot,
+        y_body_rot: y_rot,
+    }
+}
+
+pub fn endermite_set_y_body_rot(_current_y_rot: f32, requested_y_body_rot: f32) -> EndermiteRotationTick {
+    EndermiteRotationTick {
+        y_rot: requested_y_body_rot,
+        y_body_rot: requested_y_body_rot,
     }
 }
 

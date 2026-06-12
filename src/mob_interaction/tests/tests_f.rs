@@ -553,6 +553,51 @@ fn endermite_lifetime_spawn_and_pearl_gates_match_java_rules() {
     assert_eq!(ENDERMITE_LOOK_AT_PLAYER_RANGE, 8.0);
     assert_eq!(ENDERMITE_STEP_SOUND_VOLUME, 0.15);
     assert_eq!(ENDERMITE_STEP_SOUND_PITCH, 1.0);
+    assert_eq!(
+        endermite_class_surface(),
+        EndermiteClassSurface {
+            movement_emission: "events",
+            ambient_sound: "minecraft:entity.endermite.ambient",
+            hurt_sound: "minecraft:entity.endermite.hurt",
+            death_sound: "minecraft:entity.endermite.death",
+            step_sound: "minecraft:entity.endermite.step",
+            step_sound_volume: 0.15,
+            step_sound_pitch: 1.0,
+        }
+    );
+    assert_eq!(
+        endermite_goal_surface(),
+        EndermiteGoalSurface {
+            float_goal_priority: 1,
+            powder_snow_goal_priority: 1,
+            melee_attack_priority: 2,
+            melee_attack_speed: 1.0,
+            melee_attack_follow_even_if_not_seen: false,
+            random_stroll_priority: 3,
+            random_stroll_speed: 1.0,
+            look_at_player_priority: 7,
+            look_at_player_range: 8.0,
+            random_look_priority: 8,
+            hurt_by_target_priority: 1,
+            hurt_by_alerts_others: true,
+            nearest_player_target_priority: 2,
+            nearest_player_must_see: true,
+        }
+    );
+    assert_eq!(
+        endermite_tick_rotation(35.0),
+        EndermiteRotationTick {
+            y_rot: 35.0,
+            y_body_rot: 35.0,
+        }
+    );
+    assert_eq!(
+        endermite_set_y_body_rot(10.0, 70.0),
+        EndermiteRotationTick {
+            y_rot: 70.0,
+            y_body_rot: 70.0,
+        }
+    );
 
     let mut mite = EndermiteState::read_save_data(Some(2399), false);
     assert_eq!(
