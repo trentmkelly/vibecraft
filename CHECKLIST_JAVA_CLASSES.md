@@ -4074,7 +4074,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/CustomRecipe.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/DecoratedPotRecipe.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/DyeRecipe.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/ExtendedRecipeBookCategory.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/ExtendedRecipeBookCategory.java`. — Java's interface is an empty marker implemented by `RecipeBookCategory`; VibeCraft's server-visible behavior is the recipe-book category registry ids and recipe-to-category mapping. Verified by `recipe_registries_match_vanilla_bootstrap_order`, `cooking_book_category_drives_recipe_book_group`, and `crafting_book_category_drives_shaped_shapeless_recipe_book_group`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/FireworkRocketRecipe.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/FireworkStarFadeRecipe.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/item/crafting/FireworkStarRecipe.java`.
