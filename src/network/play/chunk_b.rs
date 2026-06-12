@@ -1013,6 +1013,13 @@ impl ClientboundRecipeBookAddPacket {
     }
 }
 
+impl ClientboundPlaceGhostRecipePacket {
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.container_id)?;
+        self.recipe_display.write(writer)
+    }
+}
+
 impl RecipeBookAddEntry {
     pub const FLAG_NOTIFICATION: u8 = 1;
     pub const FLAG_HIGHLIGHT: u8 = 2;

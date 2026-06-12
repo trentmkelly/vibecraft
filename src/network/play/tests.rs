@@ -1015,6 +1015,7 @@ mod mid_clientbound_game_packets_test;
 mod mount_screen_open_packet_test;
 mod named_sound_effect_absence_test;
 mod open_screen_packet_test;
+mod place_ghost_recipe_packet_test;
 mod player_chat_packet_test;
 mod player_info_remove_packet_test;
 mod player_info_update_packet_test;

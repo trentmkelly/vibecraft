@@ -224,6 +224,12 @@ pub struct ClientboundRecipePacket {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundPlaceGhostRecipePacket {
+    pub container_id: i32,
+    pub recipe_display: RecipeDisplayData,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientboundRecipeBookAddPacket {
     pub entries: Vec<RecipeBookAddEntry>,
     pub replace: bool,
