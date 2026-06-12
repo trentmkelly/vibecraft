@@ -769,6 +769,21 @@ mod tests {
             })
             .unwrap();
         assert_eq!(keep_alive.id, CLIENTBOUND_KEEP_ALIVE_PACKET_ID);
+        assert_eq!(keep_alive.id, 44);
+        assert_eq!(
+            registry.clientbound_name(CLIENTBOUND_KEEP_ALIVE_PACKET_ID),
+            Some("keep_alive")
+        );
+
+        let set_time = specs
+            .iter()
+            .find(|entry| {
+                entry.direction == PacketDirection::Clientbound && entry.wire_name == "set_time"
+            })
+            .unwrap();
+        assert_eq!(set_time.id, 113);
+        assert_eq!(registry.clientbound_name(113), Some("set_time"));
+        assert_ne!(CLIENTBOUND_KEEP_ALIVE_PACKET_ID, set_time.id);
 
         let level_chunk = specs
             .iter()
