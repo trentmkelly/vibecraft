@@ -226,6 +226,26 @@ mod tests {
 
     #[test]
     fn round_trips_store_cookie_at_vanilla_limit() {
+        const CLIENTBOUND_STORE_COOKIE_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/common/ClientboundStoreCookiePacket.java"
+        );
+        for sentinel in [
+            "public record ClientboundStoreCookiePacket(Identifier key, byte[] payload)",
+            "ClientboundStoreCookiePacket::write, ClientboundStoreCookiePacket::new",
+            "private static final int MAX_PAYLOAD_SIZE = 5120;",
+            "ByteBufCodecs.byteArray(5120)",
+            "this(input.readIdentifier(), PAYLOAD_STREAM_CODEC.decode(input));",
+            "output.writeIdentifier(this.key);",
+            "PAYLOAD_STREAM_CODEC.encode(output, this.payload);",
+            "CommonPacketTypes.CLIENTBOUND_STORE_COOKIE",
+            "listener.handleStoreCookie(this);",
+        ] {
+            assert!(
+                CLIENTBOUND_STORE_COOKIE_JAVA.contains(sentinel),
+                "missing ClientboundStoreCookiePacket sentinel {sentinel}"
+            );
+        }
+
         let packet = ClientboundStoreCookiePacket {
             key: Identifier::parse("vibecraft:test").unwrap(),
             payload: vec![7; MAX_COOKIE_PAYLOAD_SIZE],

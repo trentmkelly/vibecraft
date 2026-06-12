@@ -92,6 +92,52 @@ fn common_packet_types_match_java_common_registry_names() {
 }
 
 #[test]
+fn common_packet_listener_surfaces_match_java_interfaces() {
+    const CLIENT_COMMON_LISTENER_JAVA: &str = include_str!(
+        "../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/common/ClientCommonPacketListener.java"
+    );
+    const SERVER_COMMON_LISTENER_JAVA: &str = include_str!(
+        "../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/common/ServerCommonPacketListener.java"
+    );
+
+    for sentinel in [
+        "public interface ClientCommonPacketListener extends ClientCookiePacketListener",
+        "void handleKeepAlive(ClientboundKeepAlivePacket packet);",
+        "void handlePing(ClientboundPingPacket packet);",
+        "void handleCustomPayload(ClientboundCustomPayloadPacket packet);",
+        "void handleDisconnect(ClientboundDisconnectPacket packet);",
+        "void handleResourcePackPush(ClientboundResourcePackPushPacket packet);",
+        "void handleResourcePackPop(ClientboundResourcePackPopPacket packet);",
+        "void handleUpdateTags(ClientboundUpdateTagsPacket packet);",
+        "void handleStoreCookie(ClientboundStoreCookiePacket packet);",
+        "void handleTransfer(ClientboundTransferPacket packet);",
+        "void handleCustomReportDetails(ClientboundCustomReportDetailsPacket packet);",
+        "void handleServerLinks(ClientboundServerLinksPacket packet);",
+        "void handleClearDialog(ClientboundClearDialogPacket packet);",
+        "void handleShowDialog(ClientboundShowDialogPacket packet);",
+    ] {
+        assert!(
+            CLIENT_COMMON_LISTENER_JAVA.contains(sentinel),
+            "missing ClientCommonPacketListener sentinel {sentinel}"
+        );
+    }
+    for sentinel in [
+        "public interface ServerCommonPacketListener extends ServerCookiePacketListener",
+        "void handleKeepAlive(ServerboundKeepAlivePacket packet);",
+        "void handlePong(ServerboundPongPacket serverboundPongPacket);",
+        "void handleCustomPayload(ServerboundCustomPayloadPacket packet);",
+        "void handleResourcePackResponse(ServerboundResourcePackPacket packet);",
+        "void handleClientInformation(ServerboundClientInformationPacket packet);",
+        "void handleCustomClickAction(ServerboundCustomClickActionPacket packet);",
+    ] {
+        assert!(
+            SERVER_COMMON_LISTENER_JAVA.contains(sentinel),
+            "missing ServerCommonPacketListener sentinel {sentinel}"
+        );
+    }
+}
+
+#[test]
 fn common_disconnect_uses_trusted_component_nbt_not_login_json() {
     let disconnect = ClientboundDisconnectPacket {
         reason: ComponentJson(
@@ -347,6 +393,23 @@ fn rejects_too_many_report_details() {
 
 #[test]
 fn round_trips_custom_click_action_payload() {
+    const SERVERBOUND_CUSTOM_CLICK_ACTION_JAVA: &str = include_str!(
+        "../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/common/ServerboundCustomClickActionPacket.java"
+    );
+    for sentinel in [
+        "public record ServerboundCustomClickActionPacket(Identifier id, Optional<Tag> payload)",
+        "new NbtAccounter(32768L, 16)",
+        "ByteBufCodecs.lengthPrefixed(65536)",
+        "Identifier.STREAM_CODEC",
+        "CommonPacketTypes.SERVERBOUND_CUSTOM_CLICK_ACTION",
+        "listener.handleCustomClickAction(this);",
+    ] {
+        assert!(
+            SERVERBOUND_CUSTOM_CLICK_ACTION_JAVA.contains(sentinel),
+            "missing ServerboundCustomClickActionPacket sentinel {sentinel}"
+        );
+    }
+
     let packet = ServerboundCustomClickActionPacket {
         id: Identifier::parse("vibecraft:inspect").unwrap(),
         payload: Some(vec![10, 20, 30]),
@@ -437,6 +500,22 @@ fn round_trips_update_tags_packet() {
 
 #[test]
 fn round_trips_show_dialog_as_bounded_context_free_payload() {
+    const CLIENTBOUND_SHOW_DIALOG_JAVA: &str = include_str!(
+        "../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/common/ClientboundShowDialogPacket.java"
+    );
+    for sentinel in [
+        "public record ClientboundShowDialogPacket(Holder<Dialog> dialog)",
+        "Dialog.STREAM_CODEC, ClientboundShowDialogPacket::dialog, ClientboundShowDialogPacket::new",
+        "Dialog.CONTEXT_FREE_STREAM_CODEC.map(Holder::direct, Holder::value)",
+        "CommonPacketTypes.CLIENTBOUND_SHOW_DIALOG",
+        "listener.handleShowDialog(this);",
+    ] {
+        assert!(
+            CLIENTBOUND_SHOW_DIALOG_JAVA.contains(sentinel),
+            "missing ClientboundShowDialogPacket sentinel {sentinel}"
+        );
+    }
+
     let packet = super::ClientboundShowDialogPacket {
         payload: vec![1, 2, 3, 4],
     };
