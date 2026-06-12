@@ -765,6 +765,30 @@ fn assert_move_player_status_only_shape(movement: &ServerboundMovePlayerPacket) 
 
 #[test]
 fn move_vehicle_packet_matches_vanilla_field_layout() {
+    const SERVERBOUND_MOVE_VEHICLE_PACKET_JAVA: &str = include_str!(
+        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundMoveVehiclePacket.java"
+    );
+    for sentinel in [
+        "public record ServerboundMoveVehiclePacket(Vec3 position, float yRot, float xRot, boolean onGround)",
+        "Vec3.STREAM_CODEC",
+        "ServerboundMoveVehiclePacket::position",
+        "ByteBufCodecs.FLOAT",
+        "ServerboundMoveVehiclePacket::yRot",
+        "ServerboundMoveVehiclePacket::xRot",
+        "ByteBufCodecs.BOOL",
+        "ServerboundMoveVehiclePacket::onGround",
+        "entity.isInterpolating()",
+        "entity.getInterpolation().position()",
+        "entity.position()",
+        "return GamePacketTypes.SERVERBOUND_MOVE_VEHICLE;",
+        "listener.handleMoveVehicle(this);",
+    ] {
+        assert!(
+            SERVERBOUND_MOVE_VEHICLE_PACKET_JAVA.contains(sentinel),
+            "missing ServerboundMoveVehiclePacket sentinel {sentinel}"
+        );
+    }
+
     let vehicle = ServerboundMoveVehiclePacket {
         position: Vec3 {
             x: 1.25,
