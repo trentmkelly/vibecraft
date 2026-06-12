@@ -1,8 +1,26 @@
 use super::super::*;
 use super::*;
 
+const SERVERBOUND_CONTAINER_SLOT_STATE_CHANGED_JAVA: &str = include_str!(
+    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundContainerSlotStateChangedPacket.java"
+);
+
 #[test]
 fn serverbound_container_slot_state_changed_packet_matches_java_codec() {
+    for sentinel in [
+        "this(input.readVarInt(), input.readContainerId(), input.readBoolean());",
+        "output.writeVarInt(this.slotId);",
+        "output.writeContainerId(this.containerId);",
+        "output.writeBoolean(this.newState);",
+        "return GamePacketTypes.SERVERBOUND_CONTAINER_SLOT_STATE_CHANGED;",
+        "listener.handleContainerSlotStateChanged(this);",
+    ] {
+        assert!(
+            SERVERBOUND_CONTAINER_SLOT_STATE_CHANGED_JAVA.contains(sentinel),
+            "Java source missing sentinel: {sentinel}"
+        );
+    }
+
     assert_eq!(SERVERBOUND_CONTAINER_SLOT_STATE_CHANGED_PACKET_ID, 20);
     let registry = PlayProtocolRegistry::new();
     assert_eq!(
