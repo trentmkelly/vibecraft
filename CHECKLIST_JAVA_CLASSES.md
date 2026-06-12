@@ -3530,7 +3530,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/Endermite.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/Enemy.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/Ghast.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/Giant.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/Giant.java`. — Verified against Java 26.1.2 `Giant.java`, `EntityType.java`, and `SpawnPlacements.java`: attributes, dimensions, peaceful exclusion, spawn-placement surface, no custom AI goals, and walk-target light-cost behavior are represented in `src/mob_interaction/giants.rs` and covered by `giant_attributes_dimensions_and_spawn_surface_match_java_rules`. Full live `/summon` registry gating remains tracked by `CHECKLIST_MOBS.md`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/Guardian.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/MagmaCube.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/monster/Monster.java`.
