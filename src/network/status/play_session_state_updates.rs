@@ -112,9 +112,9 @@ fn update_carried_item_packet<R: Read>(
     input: &mut R,
     state: &mut PlaySessionState,
 ) -> io::Result<PlaySessionUpdate> {
-    let slot = i32::from(read_i16(input)?);
-    if (0..9).contains(&slot) {
-        state.selected_slot = slot;
+    let packet = crate::network::play::ServerboundSetCarriedItemPacket::read(input)?;
+    if (0..9).contains(&packet.slot) {
+        state.selected_slot = i32::from(packet.slot);
     }
     Ok(PlaySessionUpdate::default())
 }

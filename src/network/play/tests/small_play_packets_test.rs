@@ -43,6 +43,7 @@ fn assert_slot_difficulty_and_control_packets() {
         ServerboundSetCarriedItemPacket::read(&mut cursor(carried)).unwrap(),
         ServerboundSetCarriedItemPacket { slot: 5 }
     );
+    assert!(ServerboundSetCarriedItemPacket::read(&mut cursor(vec![0, 5, 0])).is_err());
 
     let mut server_command = Vec::new();
     ServerboundChangeDifficultyPacket {

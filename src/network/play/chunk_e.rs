@@ -403,9 +403,11 @@ impl ServerboundSetCarriedItemPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         let mut bytes = [0u8; 2];
         reader.read_exact(&mut bytes)?;
-        Ok(Self {
+        let packet = Self {
             slot: i16::from_be_bytes(bytes),
-        })
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {

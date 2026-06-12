@@ -474,12 +474,6 @@ pub fn read_f32<R: Read>(reader: &mut R) -> io::Result<f32> {
     Ok(f32::from_be_bytes(bytes))
 }
 
-pub fn read_i16<R: Read>(reader: &mut R) -> io::Result<i16> {
-    let mut bytes = [0u8; 2];
-    reader.read_exact(&mut bytes)?;
-    Ok(i16::from_be_bytes(bytes))
-}
-
 pub fn read_u8<R: Read>(reader: &mut R) -> io::Result<u8> {
     let mut bytes = [0u8; 1];
     reader.read_exact(&mut bytes)?;

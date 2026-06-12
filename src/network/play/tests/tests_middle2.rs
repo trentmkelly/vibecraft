@@ -837,6 +837,14 @@ fn teleport_ack_and_held_slot_follow_play_state_validation() {
         DispatchOutcome::Handled
     );
     assert_eq!(session.selected_slot, 8);
+    assert!(matches!(
+        session.handle_decoded(decoded(
+            SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID,
+            vec![0, 1, 0]
+        )),
+        DispatchOutcome::Disconnect(reason) if reason == "bad carried item packet: expected empty payload"
+    ));
+    assert_eq!(session.selected_slot, 8);
 }
 
 #[test]

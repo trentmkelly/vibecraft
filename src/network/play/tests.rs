@@ -1032,6 +1032,7 @@ mod set_title_text_packet_test;
 mod set_titles_animation_packet_test;
 mod serverbound_simple_packets_test;
 mod serverbound_container_misc_packets_test;
+mod serverbound_hand_item_packets_source_test;
 mod serverbound_pick_rename_trade_packets_source_test;
 mod serverbound_player_action_source_test;
 mod serverbound_player_loaded_packet_test;
