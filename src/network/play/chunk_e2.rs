@@ -45,6 +45,21 @@ impl ClientboundBlockChangedAckPacket {
 }
 
 impl ClientboundPlayerAbilitiesPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let mut flags = [0u8; 1];
+        reader.read_exact(&mut flags)?;
+        let packet = Self {
+            invulnerable: flags[0] & 1 != 0,
+            flying: flags[0] & 2 != 0,
+            can_fly: flags[0] & 4 != 0,
+            instant_build: flags[0] & 8 != 0,
+            flying_speed: read_f32(reader)?,
+            walking_speed: read_f32(reader)?,
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
+    }
+
     pub fn flags(&self) -> u8 {
         (if self.invulnerable { 1 } else { 0 })
             | (if self.flying { 2 } else { 0 })
