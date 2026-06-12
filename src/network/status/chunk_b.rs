@@ -455,12 +455,33 @@ pub fn write_play_state_health_packet<W: Write>(
 pub fn play_state_air_supply_metadata_packet(
     state: &PlaySessionState,
 ) -> io::Result<ClientboundSetEntityDataPacket> {
+    let flags_accessor = crate::entity_syncher::EntityDataAccessor::new(
+        0,
+        EntityMetadataValue::Byte(0).serializer_id(),
+    )
+    .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
+    let air_supply_accessor = crate::entity_syncher::EntityDataAccessor::new(
+        1,
+        EntityMetadataValue::VarInt(0).serializer_id(),
+    )
+    .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
+
+    let mut default_air_supply = Vec::new();
+    EntityMetadataValue::VarInt(300).write_payload(&mut default_air_supply)?;
+    let mut current_air_supply = Vec::new();
+    EntityMetadataValue::VarInt(state.air_supply).write_payload(&mut current_air_supply)?;
+    let mut synched_data = crate::entity_syncher::SynchedEntityData::builder(2)
+        .define(flags_accessor, vec![0])
+        .and_then(|builder| builder.define(air_supply_accessor, default_air_supply))
+        .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?
+        .build()
+        .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
+    synched_data
+        .set(air_supply_accessor, current_air_supply, true)
+        .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
     Ok(ClientboundSetEntityDataPacket {
         id: PLAYER_ENTITY_ID,
-        packed_items: vec![EntityDataValue::typed(
-            1,
-            EntityMetadataValue::VarInt(state.air_supply),
-        )?],
+        packed_items: synched_data.pack_dirty().unwrap_or_default(),
     })
 }
 

@@ -487,6 +487,7 @@ mod entity_category;
 #[cfg(test)]
 mod entity_metadata;
 mod entity_physics;
+mod entity_syncher;
 mod entity_validation;
 #[cfg(test)]
 mod entity_variants;

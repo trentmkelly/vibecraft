@@ -174,7 +174,7 @@ impl EntityDataValue {
 }
 
 impl EntityMetadataValue {
-    pub(super) fn serializer_id(&self) -> i32 {
+    pub(crate) fn serializer_id(&self) -> i32 {
         match self {
             Self::Byte(_) => 0,
             Self::VarInt(_) => 1,
@@ -223,7 +223,7 @@ impl EntityMetadataValue {
         }
     }
 
-    pub(super) fn write_payload<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+    pub(crate) fn write_payload<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         match self {
             Self::Byte(value) => write_i8(writer, *value),
             Self::VarInt(value) => write_var_i32(writer, *value),
