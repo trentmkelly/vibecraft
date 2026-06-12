@@ -858,6 +858,42 @@ fn serverbound_attack_packet_uses_java_entity_id_varint_only() {
 
 #[test]
 fn serverbound_interact_packet_uses_vanilla_flat_stream_codec_order() {
+    const SERVERBOUND_INTERACT_PACKET_JAVA: &str = include_str!(
+        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundInteractPacket.java"
+    );
+    const INTERACTION_HAND_JAVA: &str = include_str!(
+        "../../../../../decompiled-server-26.1.2/net/minecraft/world/InteractionHand.java"
+    );
+    for sentinel in [
+        "public record ServerboundInteractPacket(int entityId, InteractionHand hand, Vec3 location, boolean usingSecondaryAction)",
+        "ByteBufCodecs.VAR_INT",
+        "ServerboundInteractPacket::entityId",
+        "InteractionHand.STREAM_CODEC",
+        "ServerboundInteractPacket::hand",
+        "Vec3.LP_STREAM_CODEC",
+        "ServerboundInteractPacket::location",
+        "ByteBufCodecs.BOOL",
+        "ServerboundInteractPacket::usingSecondaryAction",
+        "return GamePacketTypes.SERVERBOUND_INTERACT;",
+        "listener.handleInteract(this);",
+    ] {
+        assert!(
+            SERVERBOUND_INTERACT_PACKET_JAVA.contains(sentinel),
+            "missing ServerboundInteractPacket sentinel {sentinel}"
+        );
+    }
+    for sentinel in [
+        "MAIN_HAND(0)",
+        "OFF_HAND(1)",
+        "ByIdMap.OutOfBoundsStrategy.ZERO",
+        "ByteBufCodecs.idMapper(BY_ID, h -> h.id)",
+    ] {
+        assert!(
+            INTERACTION_HAND_JAVA.contains(sentinel),
+            "missing InteractionHand sentinel {sentinel}"
+        );
+    }
+
     let packet = ServerboundInteractPacket {
         entity_id: 128,
         hand: ServerboundInteractionHand::OffHand,
