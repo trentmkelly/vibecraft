@@ -573,7 +573,15 @@ where
     writer.write_all(&frame)
 }
 
+pub const MAX_STATUS_RESPONSE_JSON_CHARS: usize = 32767;
+
 pub fn write_status_response_packet<W: Write>(writer: &mut W, json: &str) -> io::Result<()> {
+    if json.chars().count() > MAX_STATUS_RESPONSE_JSON_CHARS {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "status response JSON too long",
+        ));
+    }
     let mut payload = Vec::new();
     write_var_i32(&mut payload, 0)?;
     write_string(&mut payload, json)?;
