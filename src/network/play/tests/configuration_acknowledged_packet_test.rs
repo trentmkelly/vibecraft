@@ -1,7 +1,25 @@
 use super::*;
 
+const SERVERBOUND_CONFIGURATION_ACKNOWLEDGED_JAVA: &str = include_str!(
+    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundConfigurationAcknowledgedPacket.java"
+);
+
 #[test]
 fn serverbound_configuration_acknowledged_packet_matches_java_unit_codec() {
+    for sentinel in [
+        "public static final ServerboundConfigurationAcknowledgedPacket INSTANCE",
+        "StreamCodec.unit(INSTANCE)",
+        "return GamePacketTypes.SERVERBOUND_CONFIGURATION_ACKNOWLEDGED;",
+        "listener.handleConfigurationAcknowledged(this);",
+        "public boolean isTerminal()",
+        "return true;",
+    ] {
+        assert!(
+            SERVERBOUND_CONFIGURATION_ACKNOWLEDGED_JAVA.contains(sentinel),
+            "Java source missing sentinel: {sentinel}"
+        );
+    }
+
     assert_eq!(SERVERBOUND_CONFIGURATION_ACKNOWLEDGED_PACKET_ID, 16);
     let registry = PlayProtocolRegistry::new();
     assert_eq!(

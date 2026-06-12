@@ -1,5 +1,9 @@
 use super::*;
 
+const SERVERBOUND_CHAT_SESSION_UPDATE_JAVA: &str = include_str!(
+    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundChatSessionUpdatePacket.java"
+);
+
 fn chat_session_prefix(session_id: Uuid, expires_at_epoch_millis: i64) -> Vec<u8> {
     let mut payload = Vec::new();
     write_uuid(&mut payload, session_id).unwrap();
@@ -9,6 +13,18 @@ fn chat_session_prefix(session_id: Uuid, expires_at_epoch_millis: i64) -> Vec<u8
 
 #[test]
 fn serverbound_chat_session_update_packet_matches_java_remote_chat_session_data_codec() {
+    for sentinel in [
+        "this(RemoteChatSession.Data.read(input));",
+        "RemoteChatSession.Data.write(output, this.chatSession);",
+        "return GamePacketTypes.SERVERBOUND_CHAT_SESSION_UPDATE;",
+        "listener.handleChatSessionUpdate(this);",
+    ] {
+        assert!(
+            SERVERBOUND_CHAT_SESSION_UPDATE_JAVA.contains(sentinel),
+            "Java source missing sentinel: {sentinel}"
+        );
+    }
+
     assert_eq!(SERVERBOUND_CHAT_SESSION_UPDATE_PACKET_ID, 10);
     let registry = PlayProtocolRegistry::new();
     assert_eq!(

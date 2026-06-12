@@ -1,5 +1,9 @@
 use super::*;
 
+const SERVERBOUND_CHAT_JAVA: &str = include_str!(
+    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundChatPacket.java"
+);
+
 fn chat_prefix(message: &str, timestamp_epoch_millis: i64, salt: i64) -> Vec<u8> {
     let mut payload = Vec::new();
     write_string(
@@ -15,6 +19,22 @@ fn chat_prefix(message: &str, timestamp_epoch_millis: i64, salt: i64) -> Vec<u8>
 
 #[test]
 fn serverbound_chat_packet_matches_java_codec() {
+    for sentinel in [
+        "this(input.readUtf(256), input.readInstant(), input.readLong(), input.readNullable(MessageSignature::read), new LastSeenMessages.Update(input));",
+        "output.writeUtf(this.message, 256);",
+        "output.writeInstant(this.timeStamp);",
+        "output.writeLong(this.salt);",
+        "output.writeNullable(this.signature, MessageSignature::write);",
+        "this.lastSeenMessages.write(output);",
+        "return GamePacketTypes.SERVERBOUND_CHAT;",
+        "listener.handleChat(this);",
+    ] {
+        assert!(
+            SERVERBOUND_CHAT_JAVA.contains(sentinel),
+            "Java source missing sentinel: {sentinel}"
+        );
+    }
+
     assert_eq!(SERVERBOUND_CHAT_PACKET_ID, 9);
     let registry = PlayProtocolRegistry::new();
     assert_eq!(

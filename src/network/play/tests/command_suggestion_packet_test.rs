@@ -1,5 +1,9 @@
 use super::*;
 
+const SERVERBOUND_COMMAND_SUGGESTION_JAVA: &str = include_str!(
+    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundCommandSuggestionPacket.java"
+);
+
 #[test]
 fn clientbound_command_suggestions_packet_matches_java_entry_codec() {
     assert_eq!(CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID, 15);
@@ -42,6 +46,20 @@ fn clientbound_command_suggestions_packet_matches_java_entry_codec() {
 
 #[test]
 fn serverbound_command_suggestion_packet_matches_java_utf_bound() {
+    for sentinel in [
+        "this.id = input.readVarInt();",
+        "this.command = input.readUtf(32500);",
+        "output.writeVarInt(this.id);",
+        "output.writeUtf(this.command, 32500);",
+        "return GamePacketTypes.SERVERBOUND_COMMAND_SUGGESTION;",
+        "listener.handleCustomCommandSuggestions(this);",
+    ] {
+        assert!(
+            SERVERBOUND_COMMAND_SUGGESTION_JAVA.contains(sentinel),
+            "Java source missing sentinel: {sentinel}"
+        );
+    }
+
     assert_eq!(SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID, 15);
     let registry = PlayProtocolRegistry::new();
     assert_eq!(
