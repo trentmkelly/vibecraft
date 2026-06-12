@@ -18,6 +18,11 @@ const keepAliveProbeMs = Number(process.env.VIBECRAFT_RAW_PROBE_KEEPALIVE_MS ?? 
 const placementProbe = process.env.VIBECRAFT_PLACEMENT_PROBE
   ? JSON.parse(process.env.VIBECRAFT_PLACEMENT_PROBE)
   : null
+// Optional live crafting-table probe: place/open a crafting table, move four
+// oak planks into the 3x3 grid, and capture the server result-slot update.
+const craftingTableProbe = process.env.VIBECRAFT_CRAFTING_TABLE_PROBE
+  ? JSON.parse(process.env.VIBECRAFT_CRAFTING_TABLE_PROBE)
+  : null
 const postActionProbeMs = Number(process.env.VIBECRAFT_RAW_PROBE_POST_ACTION_MS ?? 0)
 const firstTickActionRequest = process.env.VIBECRAFT_RAW_PROBE_FIRST_TICK_ACTIONS ?? ''
 const firstTickActions = new Set(firstTickActionRequest === '1'
@@ -64,7 +69,10 @@ const serverboundUseItemOnPacketId = 66
 const serverboundSetCreativeModeSlotPacketId = 56
 const clientboundBlockChangedAckPacketId = 4
 const clientboundBlockUpdatePacketId = 8
+const clientboundContainerSetContentPacketId = 18
+const clientboundContainerSetSlotPacketId = 20
 const clientboundAddEntityPacketId = 1
+const clientboundOpenScreenPacketId = 59
 const clientboundRemoveEntitiesPacketId = 77
 const serverboundUseItemPacketId = 67
 const serverboundPlayerLoadedPacketId = 44
@@ -995,7 +1003,7 @@ async function main () {
         x: packet.body.readInt32BE(0),
         z: packet.body.readInt32BE(4)
       })),
-      chunkBiomePalettes: (packetById.get(45) ?? []).map(packet => decodeLevelChunkBiomePalette(packet, registryPackets))
+      chunkBiomePalettes: (packetById.get(45) ?? []).map(packet => safeDecodeLevelChunkBiomePalette(packet, registryPackets))
     }
   }
   if (recordOnly) {
@@ -1024,7 +1032,7 @@ async function main () {
           x: packet.body.readInt32BE(0),
           z: packet.body.readInt32BE(4)
         })),
-        chunkBiomePalettes: (packetById.get(45) ?? []).map(packet => decodeLevelChunkBiomePalette(packet, registryPackets))
+        chunkBiomePalettes: (packetById.get(45) ?? []).map(packet => safeDecodeLevelChunkBiomePalette(packet, registryPackets))
       }
     }
   }
@@ -1082,6 +1090,10 @@ async function main () {
   if (placementProbe) {
     placement = await runPlacementProbe(socket, reader, placementProbe, play)
   }
+  let craftingTable = null
+  if (craftingTableProbe) {
+    craftingTable = await runCraftingTableProbe(socket, reader, craftingTableProbe, play)
+  }
 
   let commandSuggestionSeen = false
   if (keepAliveProbeMs > 0) {
@@ -1115,7 +1127,7 @@ async function main () {
   }
 
   socket.end()
-  const result = { ok: true, mode: recordOnly ? 'record' : 'strict', host, port, login: login.id, compressionThreshold, config, play, joinState, keepAliveReplies, placement }
+  const result = { ok: true, mode: recordOnly ? 'record' : 'strict', host, port, login: login.id, compressionThreshold, config, play, joinState, keepAliveReplies, placement, craftingTable }
   if (summaryOnly) {
     console.log(JSON.stringify({
       ok: result.ok,
@@ -1251,6 +1263,14 @@ function decodeLevelChunkBiomePalette (packet, registryPackets) {
     biomePalette: [...biomePaletteIds]
       .sort((left, right) => left - right)
       .map(id => biomeRegistry[id] ?? `unknown:${id}`)
+  }
+}
+
+function safeDecodeLevelChunkBiomePalette (packet, registryPackets) {
+  try {
+    return decodeLevelChunkBiomePalette(packet, registryPackets)
+  } catch (error) {
+    return { error: error.message }
   }
 }
 
@@ -1495,6 +1515,168 @@ async function runPlacementProbe (socket, reader, probe, play) {
     }
   }
   return result
+}
+
+async function runCraftingTableProbe (socket, reader, probe, play) {
+  const craftingTableItemId = probe.craftingTableItemId ?? 333
+  const oakPlanksItemId = probe.oakPlanksItemId ?? 36
+  const resultItemId = probe.resultItemId ?? 333
+  const target = {
+    x: probe.x ?? 1,
+    y: probe.y ?? 118,
+    z: probe.z ?? 0
+  }
+  if (probe.playerX !== undefined) {
+    socket.write(encodeClientPacket(reader, serverboundMovePlayerPosRotPacketId, movePlayerPosRotPayload({
+      x: probe.playerX,
+      y: probe.playerY,
+      z: probe.playerZ,
+      yaw: probe.yaw ?? 0,
+      pitch: probe.pitch ?? 45
+    })))
+  }
+
+  const result = {
+    containerId: null,
+    ackSequences: [],
+    blockUpdates: [],
+    contentStateIds: [],
+    slotUpdates: [],
+    resultSlotItemId: null
+  }
+  socket.write(encodeClientPacket(reader, serverboundSetCarriedItemPacketId, writeShort(0)))
+  socket.write(encodeClientPacket(reader, serverboundSetCreativeModeSlotPacketId, creativeSlotPayload(36, craftingTableItemId)))
+  socket.write(encodeClientPacket(reader, serverboundUseItemOnPacketId, placementUseItemOnPayload({
+    ...target,
+    face: probe.placeFace ?? 1,
+    sequence: probe.placeSequence ?? 21
+  })))
+  await drainCraftingProbePackets(socket, reader, play, probe.afterPlaceMs ?? 250, result)
+
+  socket.write(encodeClientPacket(reader, serverboundSetCreativeModeSlotPacketId, creativeSlotPayload(36, oakPlanksItemId)))
+  socket.write(encodeClientPacket(reader, serverboundUseItemOnPacketId, placementUseItemOnPayload({
+    ...target,
+    face: probe.openFace ?? 1,
+    sequence: probe.openSequence ?? 22
+  })))
+
+  const openDeadline = Date.now() + (probe.openTimeoutMs ?? 2500)
+  let stateId = 0
+  while (Date.now() < openDeadline && result.containerId == null) {
+    const next = await nextPacketWithin(reader, Math.max(1, openDeadline - Date.now()))
+    if (next.timeout) break
+    const packet = next.packet
+    play.push({ id: packet.id, length: packet.length })
+    if (packet.id === clientboundKeepAlivePacketId) {
+      socket.write(encodeClientPacket(reader, serverboundKeepAlivePacketId, packet.body))
+    } else if (packet.id === clientboundBlockChangedAckPacketId) {
+      result.ackSequences.push(readVarInt(packet.body, 0).value)
+    } else if (packet.id === clientboundBlockUpdatePacketId) {
+      const packed = packet.body.readBigInt64BE(0)
+      const stateId = readVarInt(packet.body, 8).value
+      result.blockUpdates.push({ ...unpackBlockPos(packed), stateId })
+    } else if (packet.id === clientboundOpenScreenPacketId) {
+      const container = readVarInt(packet.body, 0)
+      result.containerId = container.value
+    } else if (packet.id === clientboundContainerSetContentPacketId) {
+      const content = decodeContainerSetContentHeader(packet.body)
+      result.contentStateIds.push(content.stateId)
+      stateId = content.stateId
+    }
+  }
+  if (result.containerId == null) return result
+
+  for (const [slot, button] of [[37, 0], [1, 1], [2, 1], [4, 1], [5, 1]]) {
+    socket.write(encodeClientPacket(
+      reader,
+      serverboundContainerClickPacketId,
+      containerClickPayloadFor(result.containerId, stateId, slot, button)
+    ))
+    const updates = await captureCraftingClickUpdates(socket, reader, play, probe.clickCaptureMs ?? 500)
+    for (const update of updates) {
+      result.slotUpdates.push(update)
+      stateId = update.stateId
+      if (update.slot === 0 && update.itemId === resultItemId) {
+        result.resultSlotItemId = update.itemId
+      }
+    }
+  }
+  return result
+}
+
+async function drainCraftingProbePackets (socket, reader, play, durationMs, result = null) {
+  const deadline = Date.now() + durationMs
+  while (Date.now() < deadline) {
+    const next = await nextPacketWithin(reader, Math.max(1, deadline - Date.now()))
+    if (next.timeout) break
+    const packet = next.packet
+    play.push({ id: packet.id, length: packet.length })
+    if (packet.id === clientboundKeepAlivePacketId) {
+      socket.write(encodeClientPacket(reader, serverboundKeepAlivePacketId, packet.body))
+    } else if (result && packet.id === clientboundBlockChangedAckPacketId) {
+      result.ackSequences.push(readVarInt(packet.body, 0).value)
+    } else if (result && packet.id === clientboundBlockUpdatePacketId) {
+      const packed = packet.body.readBigInt64BE(0)
+      const stateId = readVarInt(packet.body, 8).value
+      result.blockUpdates.push({ ...unpackBlockPos(packed), stateId })
+    }
+  }
+}
+
+async function captureCraftingClickUpdates (socket, reader, play, durationMs) {
+  const deadline = Date.now() + durationMs
+  const updates = []
+  while (Date.now() < deadline) {
+    const next = await nextPacketWithin(reader, Math.max(1, deadline - Date.now()))
+    if (next.timeout) break
+    const packet = next.packet
+    play.push({ id: packet.id, length: packet.length })
+    if (packet.id === clientboundKeepAlivePacketId) {
+      socket.write(encodeClientPacket(reader, serverboundKeepAlivePacketId, packet.body))
+    } else if (packet.id === clientboundContainerSetSlotPacketId) {
+      updates.push(decodeContainerSetSlot(packet.body))
+    }
+  }
+  return updates
+}
+
+function containerClickPayloadFor (containerId, stateId, slot, button) {
+  return Buffer.concat([
+    writeVarInt(containerId),
+    writeVarInt(stateId),
+    writeShort(slot),
+    Buffer.from([button]),
+    writeVarInt(0),
+    writeVarInt(0),
+    Buffer.from([0])
+  ])
+}
+
+function decodeContainerSetContentHeader (body) {
+  const container = readVarInt(body, 0)
+  const state = readVarInt(body, container.offset)
+  return { containerId: container.value, stateId: state.value }
+}
+
+function decodeContainerSetSlot (body) {
+  const container = readVarInt(body, 0)
+  const state = readVarInt(body, container.offset)
+  const slot = body.readInt16BE(state.offset)
+  const stack = decodeRawItemStack(body, state.offset + 2)
+  return {
+    containerId: container.value,
+    stateId: state.value,
+    slot,
+    itemId: stack.itemId,
+    count: stack.count
+  }
+}
+
+function decodeRawItemStack (body, offset) {
+  const count = readVarInt(body, offset)
+  if (!count || count.value === 0) return { count: 0, itemId: null, offset: count?.offset ?? offset }
+  const item = readVarInt(body, count.offset)
+  return { count: count.value, itemId: item.value, offset: item.offset }
 }
 
 function unpackBlockPos (packed) {

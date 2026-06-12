@@ -517,6 +517,10 @@ fn unported_overrides_yield_none_and_plain_blocks_place_defaults() {
         state_for_placement("minecraft:stone", &context(), &world),
         Some(PlacementOutcome::Place(block("minecraft:stone")))
     );
+    assert_eq!(
+        state_for_placement("minecraft:crafting_table", &context(), &world),
+        Some(PlacementOutcome::Place(block("minecraft:crafting_table")))
+    );
     // Unported overrides yield explicit None (caller keeps legacy).
     assert_eq!(
         state_for_placement("minecraft:redstone_wire", &context(), &world),
