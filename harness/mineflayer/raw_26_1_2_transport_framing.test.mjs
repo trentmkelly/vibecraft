@@ -1,74 +1,121 @@
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
+import { createServer } from 'node:net'
+import { rm } from 'node:fs/promises'
 import net from 'node:net'
+import path from 'node:path'
 import test from 'node:test'
 import { inflateSync } from 'node:zlib'
 
-const host = process.env.VIBECRAFT_HOST ?? '127.0.0.1'
-const port = Number(process.env.VIBECRAFT_PORT ?? 25565)
+import {
+  createTempWorld,
+  startVibeCraft,
+  stopServer,
+  waitForPort,
+  writeOfflineServerFiles
+} from './runner.mjs'
+
+const here = new URL('.', import.meta.url)
+const repoRoot = path.resolve(here.pathname, '..', '..')
+const binary = path.join(repoRoot, 'target', 'debug', 'vibecraft')
+const host = '127.0.0.1'
 const protocolVersion = Number(process.env.VIBECRAFT_PROTOCOL_VERSION ?? 775)
 
 test('raw 26.1.2 login transport framing preserves packet boundaries through configuration entry', async () => {
-  const username = 'FrameProbe'
-  const socket = await connect()
-  const reader = new FrameReader(socket)
+  await withServer(async port => {
+    const username = 'FrameProbe'
+    const socket = await connect(port)
+    const reader = new FrameReader(socket)
 
-  const handshakeFrame = frame(0, handshakePayload())
-  const loginStartFrame = frame(0, writeString(username), randomUuidBytes())
-  assert.deepEqual(decodeFrame(handshakeFrame).packetId, 0)
-  assert.deepEqual(decodeFrame(loginStartFrame).packetId, 0)
-  socket.write(handshakeFrame)
-  socket.write(loginStartFrame)
+    const handshakeFrame = frame(0, handshakePayload(port))
+    const loginStartFrame = frame(0, writeString(username), randomUuidBytes())
+    assert.deepEqual(decodeFrame(handshakeFrame).packetId, 0)
+    assert.deepEqual(decodeFrame(loginStartFrame).packetId, 0)
+    socket.write(handshakeFrame)
+    socket.write(loginStartFrame)
 
-  let compressionThreshold = null
-  let loginSuccess = await reader.nextFrame()
-  if (loginSuccess.packetId === 3) {
-    const threshold = readVarInt(loginSuccess.body, 0)
+    const compression = await reader.nextFrame()
+    assert.equal(compression.packetId, 3)
+    const threshold = readVarInt(compression.body, 0)
     assert.ok(threshold)
-    compressionThreshold = threshold.value
+    assert.equal(threshold.value, 256)
+    assert.equal(threshold.offset, compression.body.length)
+    const compressionThreshold = threshold.value
     reader.setCompression(compressionThreshold)
-    loginSuccess = await reader.nextFrame()
-  }
-  assert.equal(loginSuccess.packetId, 2)
-  assert.equal(loginSuccess.body.length, 16 + 1 + username.length + 1)
-  assert.equal(readUuid(loginSuccess.body, 0), offlineUuid(username))
-  const name = readString(loginSuccess.body, 16)
-  assert.equal(name.value, username)
-  const properties = readVarInt(loginSuccess.body, name.offset)
-  assert.equal(properties.value, 0)
-  assert.equal(properties.offset, loginSuccess.body.length)
 
-  socket.write(encodeClientPacket(compressionThreshold, 3))
-  const firstConfig = await reader.nextFrame()
-  assert.equal(firstConfig.packetId, 12)
-  const featureCount = readVarInt(firstConfig.body, 0)
-  assert.equal(featureCount.value, 1)
-  const feature = readString(firstConfig.body, featureCount.offset)
-  assert.equal(feature.value, 'minecraft:vanilla')
-  assert.equal(feature.offset, firstConfig.body.length)
+    let loginSuccess = await reader.nextFrame()
+    assert.equal(loginSuccess.packetId, 2)
+    assert.equal(loginSuccess.body.length, 16 + 1 + username.length + 1)
+    assert.equal(readUuid(loginSuccess.body, 0), offlineUuid(username))
+    const name = readString(loginSuccess.body, 16)
+    assert.equal(name.value, username)
+    const properties = readVarInt(loginSuccess.body, name.offset)
+    assert.equal(properties.value, 0)
+    assert.equal(properties.offset, loginSuccess.body.length)
 
-  const firstRegistry = await reader.nextFrame()
-  assert.equal(firstRegistry.packetId, 7)
-  assert.equal(readString(firstRegistry.body, 0).value, 'minecraft:worldgen/biome')
+    socket.write(encodeClientPacket(compressionThreshold, 3))
+    const firstConfig = await reader.nextFrame()
+    assert.equal(firstConfig.packetId, 12)
+    const featureCount = readVarInt(firstConfig.body, 0)
+    assert.equal(featureCount.value, 1)
+    const feature = readString(firstConfig.body, featureCount.offset)
+    assert.equal(feature.value, 'minecraft:vanilla')
+    assert.equal(feature.offset, firstConfig.body.length)
 
-  socket.destroy()
+    const firstRegistry = await reader.nextFrame()
+    assert.equal(firstRegistry.packetId, 7)
+    assert.equal(readString(firstRegistry.body, 0).value, 'minecraft:worldgen/biome')
+
+    socket.destroy()
+  })
 })
 
 test('raw 26.1.2 login transport framing preserves unsupported-protocol disconnect boundary', async () => {
-  const username = 'FrameReject'
-  const socket = await connect()
-  const reader = new FrameReader(socket)
+  await withServer(async port => {
+    const username = 'FrameReject'
+    const socket = await connect(port)
+    const reader = new FrameReader(socket)
 
-  socket.write(frame(0, handshakePayload({ protocol: 1 })))
-  socket.write(frame(0, writeString(username), randomUuidBytes()))
+    socket.write(frame(0, handshakePayload(port, { protocol: 1 })))
+    socket.write(frame(0, writeString(username), randomUuidBytes()))
 
-  const disconnect = await reader.nextFrame()
-  assert.equal(disconnect.packetId, 0)
-  assert.equal(disconnect.payload.length, disconnect.length)
-  assert.ok(disconnect.body.length > 0)
-  assert.equal(reader.buffer.length, 0)
-  socket.destroy()
+    const disconnect = await reader.nextFrame()
+    assert.equal(disconnect.packetId, 0)
+    assert.equal(disconnect.payload.length, disconnect.length)
+    assert.ok(disconnect.body.length > 0)
+    assert.equal(reader.buffer.length, 0)
+    socket.destroy()
+  })
 })
+
+async function withServer (run) {
+  const port = await reservePort()
+  const root = await createTempWorld('vibecraft-transport-framing-')
+  let server
+
+  try {
+    await writeOfflineServerFiles(root, { port, levelName: 'world' })
+    server = startVibeCraft({ binary, root, port, levelName: 'world' })
+    await waitForPort(port, host, 10_000)
+    await run(port)
+  } finally {
+    if (server) await stopServer(server.child)
+    await rm(root, { recursive: true, force: true })
+  }
+}
+
+async function reservePort () {
+  const server = createServer()
+  await new Promise((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, host, resolve)
+  })
+  const { port } = server.address()
+  await new Promise((resolve, reject) => {
+    server.close(error => error ? reject(error) : resolve())
+  })
+  return port
+}
 
 class FrameReader {
   constructor (socket) {
@@ -109,7 +156,7 @@ class FrameReader {
   }
 }
 
-async function connect () {
+async function connect (port) {
   const socket = net.createConnection({ host, port })
   await new Promise((resolve, reject) => {
     socket.once('connect', resolve)
@@ -153,7 +200,7 @@ function decodeFrame (buffer) {
   return decoded.frame
 }
 
-function handshakePayload ({ protocol = protocolVersion } = {}) {
+function handshakePayload (port, { protocol = protocolVersion } = {}) {
   return Buffer.concat([
     writeVarInt(protocol),
     writeString(host),
