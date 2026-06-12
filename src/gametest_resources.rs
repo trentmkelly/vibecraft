@@ -28,6 +28,8 @@ pub mod ticker_models;
 pub use ticker_models::*;
 pub mod timeout_models;
 pub use timeout_models::*;
+pub mod test_command_models;
+pub use test_command_models::*;
 #[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests_gizmos;
 
@@ -1129,7 +1131,6 @@ fn json_str<'a>(
         .and_then(serde_json::Value::as_str)
         .ok_or_else(|| format!("missing string field {field}"))
 }
-
 fn optional_string(
     object: &serde_json::Map<String, serde_json::Value>,
     field: &str,
@@ -1144,7 +1145,6 @@ fn optional_string(
         })
         .transpose()
 }
-
 fn optional_string_array(
     object: &serde_json::Map<String, serde_json::Value>,
     field: &str,
@@ -1166,7 +1166,6 @@ fn optional_string_array(
         })
         .unwrap_or_else(|| Ok(Vec::new()))
 }
-
 fn json_i32(
     object: &serde_json::Map<String, serde_json::Value>,
     field: &str,
@@ -1177,7 +1176,6 @@ fn json_i32(
         .ok_or_else(|| format!("missing integer field {field}"))?;
     i32::try_from(value).map_err(|_| format!("field {field} is outside i32 range"))
 }
-
 fn json_bool(
     object: &serde_json::Map<String, serde_json::Value>,
     field: &str,
@@ -1198,3 +1196,5 @@ mod tests_instance;
 mod tests_multiple_tracker;
 #[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests_reporter;
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
+mod tests_test_command;

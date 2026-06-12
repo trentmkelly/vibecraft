@@ -82,7 +82,7 @@ This checklist tracks source families from `decompiled-server-26.1.2/net/minecra
 
 ## GameTest And Debug Tooling
 
-- [ ] Complete class-by-class coverage for `gametest` (2), `gametest/framework` (43), and `gizmos` (15).
+- [x] Complete class-by-class coverage for `gametest` (2), `gametest/framework` (43), and `gizmos` (15). — Covered by `CHECKLIST_JAVA_CLASSES.md` per-file entries plus `gametest_resources` models for the launcher, framework lifecycle/runner/reporter/command surfaces, and gizmos; live server/world mutation surfaces are explicitly deferred with searchable `TODO(gametest-...)` tags. Verified by `cargo test test_command -- --nocapture` and the existing `gametest_*`/`gizmo` parity tests listed on the per-file entries.
 - [ ] Decide which Java GameTest server APIs VibeCraft will support directly versus through external parity harnesses, then add tests for structure templates, assertions, batches, listeners, reports, and debug marker/gizmo output.
 
 ## Generated Package Coverage Index
@@ -143,8 +143,8 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. Each pack
 - [ ] `net/minecraft/data/worldgen/biome` (5 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/data/worldgen/features` (11 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/data/worldgen/placement` (11 Java files): add class-level Rust port tasks and parity tests.
-- [ ] `net/minecraft/gametest` (2 Java files): add class-level Rust port tasks and parity tests.
-- [ ] `net/minecraft/gametest/framework` (43 Java files): add class-level Rust port tasks and parity tests.
+- [x] `net/minecraft/gametest` (2 Java files): add class-level Rust port tasks and parity tests. — `Main.java` and package metadata are represented in `CHECKLIST_JAVA_CLASSES.md`; verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 gametest_main_entrypoint` and `gametest_package_info`.
+- [x] `net/minecraft/gametest/framework` (43 Java files): add class-level Rust port tasks and parity tests. — Every framework Java file now has a checked per-class entry in `CHECKLIST_JAVA_CLASSES.md`; `TestCommand.java` was the final missing class and is covered by `gametest_resources::test_command_models` plus `cargo test test_command -- --nocapture`.
 - [x] `net/minecraft/gizmos` (15 Java files): add class-level Rust port tasks and parity tests. — Covered by `src/gametest_resources/gizmo_models.rs` model parity for the full gizmo record/interface set plus `CHECKLIST_JAVA_CLASSES.md` per-file entries; verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 gizmo`.
 - [x] `net/minecraft/locale` (3 Java files): add class-level Rust port tasks and parity tests. — Covered by `src/gametest_resources/locale_models.rs` and per-file entries in `CHECKLIST_JAVA_CLASSES.md` for `DeprecatedTranslationsInfo`, `Language`, and package metadata; verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 locale`.
 - [ ] `net/minecraft/nbt` (36 Java files): add class-level Rust port tasks and parity tests.
