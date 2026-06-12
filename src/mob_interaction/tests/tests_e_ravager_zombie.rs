@@ -255,6 +255,7 @@ fn assert_ravager_blocking_roar_and_spawn_rules() {
 fn shulker_attach_peek_teleport_and_bullet_rules_match_java() {
     assert_shulker_surfaces_and_constants();
     assert_shulker_peek_color_and_scale_rules();
+    assert_shulker_position_riding_and_peek_goal_rules();
     assert_shulker_hurt_teleport_and_spawn_split_rules();
     assert_shulker_attack_and_bullet_rules();
 }
@@ -289,6 +290,32 @@ fn assert_shulker_surfaces_and_constants() {
             no_physics: true,
         }
     );
+    assert_eq!(
+        shulker_class_surface(),
+        ShulkerClassSurface {
+            goal_priorities: &[
+                (1, "LookAtPlayerGoal(Player,8.0,0.02,true)"),
+                (4, "ShulkerAttackGoal"),
+                (7, "ShulkerPeekGoal"),
+                (8, "RandomLookAroundGoal"),
+            ],
+            target_priorities: &[
+                (1, "HurtByTargetGoal(alert_others_same_class)"),
+                (2, "ShulkerNearestAttackGoal"),
+                (3, "ShulkerDefenseAttackGoal"),
+            ],
+            movement_emission: "none",
+            sound_source: "hostile",
+            ambient_sound: "minecraft:entity.shulker.ambient",
+            death_sound: "minecraft:entity.shulker.death",
+            hurt_sound_open: "minecraft:entity.shulker.hurt",
+            hurt_sound_closed: "minecraft:entity.shulker.hurt_closed",
+            look_control: "ShulkerLookControl",
+            body_control: "ShulkerBodyRotationControl",
+            interpolation: None,
+            push_entities: false,
+        }
+    );
     assert_eq!(SHULKER_DEFAULT_ATTACH_FACE, ShulkerDirection::Down);
     assert_eq!(SHULKER_DEFAULT_PEEK, 0);
     assert_eq!(SHULKER_DEFAULT_COLOR, 16);
@@ -302,6 +329,11 @@ fn assert_shulker_surfaces_and_constants() {
     assert_eq!(SHULKER_MAX_HEAD_X_ROT, 180);
     assert_eq!(SHULKER_MAX_HEAD_Y_ROT, 180);
     assert_eq!(SHULKER_RENDER_DISTANCE_SQR, 16384.0);
+    assert_eq!(SHULKER_TELEPORT_SOUND, "minecraft:entity.shulker.teleport");
+    assert_eq!(SHULKER_SHOOT_SOUND, "minecraft:entity.shulker.shoot");
+    assert_eq!(SHULKER_GAME_EVENT_TELEPORT, "minecraft:teleport");
+    assert_eq!(SHULKER_TELEPORT_MIN_OFFSET, -8);
+    assert_eq!(SHULKER_TELEPORT_MAX_OFFSET, 8);
 }
 
 fn assert_shulker_peek_color_and_scale_rules() {
@@ -310,12 +342,74 @@ fn assert_shulker_peek_color_and_scale_rules() {
     assert_eq!(shulker_update_peek_amount(1.0, 100), 1.0);
     assert_eq!(shulker_raw_peek_armor_bonus(0), Some(20.0));
     assert_eq!(shulker_raw_peek_armor_bonus(1), None);
+    assert_eq!(
+        shulker_raw_peek_side_effects(0),
+        ShulkerRawPeekSideEffects {
+            armor_bonus: Some(20),
+            sound: "minecraft:entity.shulker.close",
+            game_event: "minecraft:container_close",
+        }
+    );
+    assert_eq!(
+        shulker_raw_peek_side_effects(30),
+        ShulkerRawPeekSideEffects {
+            armor_bonus: None,
+            sound: "minecraft:entity.shulker.open",
+            game_event: "minecraft:container_open",
+        }
+    );
     assert_eq!(shulker_color_from_data(0), Some(0));
     assert_eq!(shulker_color_from_data(15), Some(15));
     assert_eq!(shulker_color_from_data(16), None);
     assert_eq!(shulker_color_from_data(99), None);
     assert_eq!(shulker_sanitized_scale(2.5), 2.5);
     assert_eq!(shulker_sanitized_scale(4.0), 3.0);
+}
+
+fn assert_shulker_position_riding_and_peek_goal_rules() {
+    assert_shulker_collision_and_position_rules();
+    assert_shulker_riding_move_and_blocking_rules();
+    assert_shulker_peek_goal_rules();
+}
+
+fn assert_shulker_collision_and_position_rules() {
+    assert!(shulker_can_be_collided_with(true));
+    assert!(!shulker_can_be_collided_with(false));
+    assert!(!shulker_play_ambient_sound(true));
+    assert!(shulker_play_ambient_sound(false));
+    assert_eq!(
+        shulker_set_pos_centered(10.2, 64.1, -3.8, false),
+        (10.5, 64.5, -3.5)
+    );
+    assert_eq!(
+        shulker_set_pos_centered(10.2, 64.1, -3.8, true),
+        (10.2, 64.1, -3.8)
+    );
+    assert!(shulker_set_pos_resets_peek((1, 2, 3), (1, 2, 4), 1));
+    assert!(!shulker_set_pos_resets_peek((1, 2, 3), (1, 2, 4), 0));
+}
+
+fn assert_shulker_riding_move_and_blocking_rules() {
+    assert_eq!(shulker_start_riding_attach_face(), ShulkerDirection::Down);
+    assert_eq!(shulker_finalize_spawn_rotations(), (0.0, 0.0));
+    assert!(shulker_move_triggers_teleport("shulker_box"));
+    assert!(!shulker_move_triggers_teleport("self"));
+    assert!(shulker_position_blocked("minecraft:stone", false));
+    assert!(!shulker_position_blocked("minecraft:air", false));
+    assert!(!shulker_position_blocked("minecraft:moving_piston", true));
+    assert!(shulker_position_blocked("minecraft:moving_piston", false));
+}
+
+fn assert_shulker_peek_goal_rules() {
+    assert!(shulker_peek_goal_can_use(false, 0, true));
+    assert!(!shulker_peek_goal_can_use(true, 0, true));
+    assert!(!shulker_peek_goal_can_use(false, 1, true));
+    assert!(!shulker_peek_goal_can_use(false, 0, false));
+    assert_eq!(shulker_peek_goal_start_ticks(0), 20);
+    assert_eq!(shulker_peek_goal_start_ticks(2), 60);
+    assert!(shulker_peek_goal_can_continue(false, 1));
+    assert!(!shulker_peek_goal_can_continue(false, 0));
+    assert!(!shulker_peek_goal_can_continue(true, 1));
 }
 
 fn assert_shulker_hurt_teleport_and_spawn_split_rules() {

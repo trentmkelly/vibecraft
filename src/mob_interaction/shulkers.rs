@@ -51,6 +51,29 @@ pub struct ShulkerBulletSurface {
     pub no_physics: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ShulkerClassSurface {
+    pub goal_priorities: &'static [(i32, &'static str)],
+    pub target_priorities: &'static [(i32, &'static str)],
+    pub movement_emission: &'static str,
+    pub sound_source: &'static str,
+    pub ambient_sound: &'static str,
+    pub death_sound: &'static str,
+    pub hurt_sound_open: &'static str,
+    pub hurt_sound_closed: &'static str,
+    pub look_control: &'static str,
+    pub body_control: &'static str,
+    pub interpolation: Option<&'static str>,
+    pub push_entities: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ShulkerRawPeekSideEffects {
+    pub armor_bonus: Option<i32>,
+    pub sound: &'static str,
+    pub game_event: &'static str,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ShulkerAttackTick {
     pub attack_time: i32,
@@ -104,6 +127,35 @@ pub const SHULKER_BULLET_CLIENT_TRACKING_RANGE: i32 = 8;
 pub const SHULKER_MAX_HEAD_X_ROT: i32 = 180;
 pub const SHULKER_MAX_HEAD_Y_ROT: i32 = 180;
 pub const SHULKER_RENDER_DISTANCE_SQR: f32 = 16384.0;
+pub const SHULKER_GOAL_PRIORITIES: &[(i32, &str)] = &[
+    (1, "LookAtPlayerGoal(Player,8.0,0.02,true)"),
+    (4, "ShulkerAttackGoal"),
+    (7, "ShulkerPeekGoal"),
+    (8, "RandomLookAroundGoal"),
+];
+pub const SHULKER_TARGET_PRIORITIES: &[(i32, &str)] = &[
+    (1, "HurtByTargetGoal(alert_others_same_class)"),
+    (2, "ShulkerNearestAttackGoal"),
+    (3, "ShulkerDefenseAttackGoal"),
+];
+pub const SHULKER_MOVEMENT_EMISSION: &str = "none";
+pub const SHULKER_SOUND_SOURCE: &str = "hostile";
+pub const SHULKER_AMBIENT_SOUND: &str = "minecraft:entity.shulker.ambient";
+pub const SHULKER_DEATH_SOUND: &str = "minecraft:entity.shulker.death";
+pub const SHULKER_HURT_SOUND: &str = "minecraft:entity.shulker.hurt";
+pub const SHULKER_HURT_CLOSED_SOUND: &str = "minecraft:entity.shulker.hurt_closed";
+pub const SHULKER_OPEN_SOUND: &str = "minecraft:entity.shulker.open";
+pub const SHULKER_CLOSE_SOUND: &str = "minecraft:entity.shulker.close";
+pub const SHULKER_TELEPORT_SOUND: &str = "minecraft:entity.shulker.teleport";
+pub const SHULKER_SHOOT_SOUND: &str = "minecraft:entity.shulker.shoot";
+pub const SHULKER_GAME_EVENT_OPEN: &str = "minecraft:container_open";
+pub const SHULKER_GAME_EVENT_CLOSE: &str = "minecraft:container_close";
+pub const SHULKER_GAME_EVENT_TELEPORT: &str = "minecraft:teleport";
+pub const SHULKER_PEEK_GOAL_MIN_TICKS: i32 = 20;
+pub const SHULKER_PEEK_GOAL_RANDOM_BOUND: i32 = 3;
+pub const SHULKER_TELEPORT_MIN_OFFSET: i32 = -8;
+pub const SHULKER_TELEPORT_MAX_OFFSET: i32 = 8;
+pub const SHULKER_MOVING_PISTON_BLOCK: &str = "minecraft:moving_piston";
 
 pub fn shulker_attributes() -> ShulkerAttributes {
     ShulkerAttributes {
@@ -134,6 +186,23 @@ pub fn shulker_bullet_surface() -> ShulkerBulletSurface {
     }
 }
 
+pub fn shulker_class_surface() -> ShulkerClassSurface {
+    ShulkerClassSurface {
+        goal_priorities: SHULKER_GOAL_PRIORITIES,
+        target_priorities: SHULKER_TARGET_PRIORITIES,
+        movement_emission: SHULKER_MOVEMENT_EMISSION,
+        sound_source: SHULKER_SOUND_SOURCE,
+        ambient_sound: SHULKER_AMBIENT_SOUND,
+        death_sound: SHULKER_DEATH_SOUND,
+        hurt_sound_open: SHULKER_HURT_SOUND,
+        hurt_sound_closed: SHULKER_HURT_CLOSED_SOUND,
+        look_control: "ShulkerLookControl",
+        body_control: "ShulkerBodyRotationControl",
+        interpolation: None,
+        push_entities: false,
+    }
+}
+
 pub fn shulker_update_peek_amount(current: f32, raw_peek: i32) -> f32 {
     let target = raw_peek as f32 * 0.01;
     if current > target {
@@ -147,6 +216,22 @@ pub fn shulker_update_peek_amount(current: f32, raw_peek: i32) -> f32 {
 
 pub fn shulker_raw_peek_armor_bonus(raw_peek: i32) -> Option<f32> {
     (raw_peek == 0).then_some(SHULKER_COVERED_ARMOR_BONUS)
+}
+
+pub fn shulker_raw_peek_side_effects(raw_peek: i32) -> ShulkerRawPeekSideEffects {
+    if raw_peek == 0 {
+        ShulkerRawPeekSideEffects {
+            armor_bonus: Some(SHULKER_COVERED_ARMOR_BONUS as i32),
+            sound: SHULKER_CLOSE_SOUND,
+            game_event: SHULKER_GAME_EVENT_CLOSE,
+        }
+    } else {
+        ShulkerRawPeekSideEffects {
+            armor_bonus: None,
+            sound: SHULKER_OPEN_SOUND,
+            game_event: SHULKER_GAME_EVENT_OPEN,
+        }
+    }
 }
 
 pub fn shulker_color_from_data(color: i32) -> Option<i32> {
@@ -182,6 +267,58 @@ pub fn shulker_hit_by_bullet(
             && random_float_0_to_1 >= failure_chance,
         failure_chance,
     }
+}
+
+pub fn shulker_can_be_collided_with(is_alive: bool) -> bool {
+    is_alive
+}
+
+pub fn shulker_play_ambient_sound(is_closed: bool) -> bool {
+    !is_closed
+}
+
+pub fn shulker_set_pos_centered(x: f64, y: f64, z: f64, is_passenger: bool) -> (f64, f64, f64) {
+    if is_passenger {
+        (x, y, z)
+    } else {
+        (x.floor() + 0.5, (y + 0.5).floor() + 0.5, z.floor() + 0.5)
+    }
+}
+
+pub fn shulker_set_pos_resets_peek(old_pos: (i32, i32, i32), new_pos: (i32, i32, i32), tick_count: i32) -> bool {
+    tick_count != 0 && old_pos != new_pos
+}
+
+pub fn shulker_start_riding_attach_face() -> ShulkerDirection {
+    ShulkerDirection::Down
+}
+
+pub fn shulker_finalize_spawn_rotations() -> (f32, f32) {
+    (0.0, 0.0)
+}
+
+pub fn shulker_move_triggers_teleport(mover_type: &'static str) -> bool {
+    mover_type == "shulker_box"
+}
+
+pub fn shulker_position_blocked(block: &'static str, target_is_current_position: bool) -> bool {
+    block != "minecraft:air" && !(block == SHULKER_MOVING_PISTON_BLOCK && target_is_current_position)
+}
+
+pub fn shulker_peek_goal_can_use(
+    has_target: bool,
+    random_0_to_39: i32,
+    can_stay_at_attachment: bool,
+) -> bool {
+    !has_target && random_0_to_39.rem_euclid(SHULKER_PEEK_GOAL_ROLL) == 0 && can_stay_at_attachment
+}
+
+pub fn shulker_peek_goal_start_ticks(random_0_to_2: i32) -> i32 {
+    SHULKER_PEEK_BASE_SECONDS * (1 + random_0_to_2.rem_euclid(SHULKER_PEEK_GOAL_RANDOM_BOUND))
+}
+
+pub fn shulker_peek_goal_can_continue(has_target: bool, peek_time: i32) -> bool {
+    !has_target && peek_time > 0
 }
 
 pub fn shulker_attack_can_use(target_alive: bool, peaceful_difficulty: bool) -> bool {
