@@ -634,6 +634,60 @@
     }
 
     #[test]
+    fn active_crafting_table_recipe_book_places_tick_unlocked_vanilla_recipe() {
+        let recipe_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("vanilla-data")
+            .join("data")
+            .join("minecraft")
+            .join("recipe");
+        let manager = crate::recipe_system::load_recipe_directory(&recipe_dir)
+            .unwrap_or_else(|err| panic!("failed to load vanilla recipes: {err}"));
+        let recipes = manager.recipe_map().clone();
+        let mut state = PlaySessionState {
+            inventory_menu: InventoryMenu::new(PlayerInventory::new(), recipes.clone()),
+            ..Default::default()
+        };
+        state
+            .inventory_menu
+            .grant_initial_recipes(manager.initially_unlocked_recipes().iter().copied());
+        state
+            .inventory_menu
+            .player_inventory_mut()
+            .set(0, ItemStack::new("minecraft:oak_planks", 4));
+        let mut menu = ActiveBlockMenu::open(
+            9,
+            crate::block_update::BlockPos { x: 0, y: 64, z: 0 },
+            LiveBlockMenuKind::Crafting,
+            &WorldLayout::new(std::env::temp_dir()),
+            0,
+            &GeneratedChunkCache::default(),
+            &recipes,
+        );
+        let recipe_index = recipes
+            .display_index_for_recipe("minecraft:crafting_table")
+            .expect("vanilla crafting_table recipe should have a synchronized display id");
+
+        assert!(menu.handle_place_recipe(
+            &ServerboundPlaceRecipePacket {
+                container_id: 9,
+                recipe_index,
+                use_max_items: false,
+            },
+            &mut state,
+            &recipes,
+        ));
+
+        assert_eq!(
+            menu.flattened_slots(&state)[CraftingMenu::RESULT_SLOT],
+            ItemStack::new("minecraft:crafting_table", 1)
+        );
+        assert_eq!(
+            menu.flattened_slots(&state)[CraftingMenu::GRID_START],
+            ItemStack::new("minecraft:oak_planks", 1)
+        );
+    }
+
+    #[test]
     fn active_crafting_table_place_recipe_uses_java_display_id_not_raw_recipe_index() {
         let recipes = display_shifted_crafting_table_recipe_map();
         let mut state = PlaySessionState {

@@ -1385,13 +1385,16 @@ fn initialize_joined_play_session(
     shared: ConnectionSharedContext<'_>,
     remote_address: &str,
 ) -> io::Result<JoinedPlaySessionStart> {
-    let play_state = load_play_session_state(
+    let mut play_state = load_play_session_state(
         shared.world_root,
         &finished.profile.uuid,
         shared.properties,
         shared.recipe_manager.recipe_map(),
         shared.world_seed,
     );
+    play_state
+        .inventory_menu
+        .grant_initial_recipes(shared.recipe_manager.initially_unlocked_recipes().iter().copied());
 
     // Snapshot current clock and weather state for the join packet.
     // Java: ServerClockManager.createFullSyncPacket() on player join, ServerLevel.sendLevelInfo()

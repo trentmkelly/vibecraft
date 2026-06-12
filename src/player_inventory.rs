@@ -778,6 +778,15 @@ impl InventoryMenu {
         }
     }
 
+    pub fn grant_initial_recipes(&mut self, recipes: impl IntoIterator<Item = &'static str>) {
+        for recipe_id in recipes {
+            if self.recipes.by_key(recipe_id).is_some() {
+                self.unlocked_recipes.insert(recipe_id);
+                self.highlighted_recipes.insert(recipe_id);
+            }
+        }
+    }
+
     pub fn mark_recipe_seen(&mut self, recipe_id: &str) {
         self.highlighted_recipes.remove(recipe_id);
     }

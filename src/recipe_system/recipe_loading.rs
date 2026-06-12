@@ -356,17 +356,25 @@ pub fn load_recipe_directory(recipe_dir: &std::path::Path) -> Result<RecipeManag
         recipes.push(load_recipe_json(recipe_id, &raw, &tags)?);
     }
 
+    let recipe_unlocks = load_recipe_unlocks(recipe_dir, &tags)?;
     let mut manager = RecipeManagerModel::new(recipes);
-    manager.set_acquisition_unlocks(load_recipe_acquisition_unlocks(recipe_dir, &tags)?);
+    manager.set_acquisition_unlocks(recipe_unlocks.acquisition);
+    manager.set_initial_unlocks(recipe_unlocks.initial);
     Ok(manager)
 }
 
-fn load_recipe_acquisition_unlocks(
+#[derive(Debug, Default)]
+struct LoadedRecipeUnlocks {
+    acquisition: Vec<RecipeAcquisitionUnlock>,
+    initial: Vec<&'static str>,
+}
+
+fn load_recipe_unlocks(
     recipe_dir: &std::path::Path,
     tags: &ItemTagMap,
-) -> Result<Vec<RecipeAcquisitionUnlock>, String> {
+) -> Result<LoadedRecipeUnlocks, String> {
     let Some(namespace_dir) = recipe_dir.parent() else {
-        return Ok(Vec::new());
+        return Ok(LoadedRecipeUnlocks::default());
     };
     let mut paths = advancement_paths(&namespace_dir.join("advancement").join("recipes"))?;
     if paths.is_empty() {
@@ -374,7 +382,7 @@ fn load_recipe_acquisition_unlocks(
     }
     paths.sort();
 
-    let mut unlocks = Vec::new();
+    let mut unlocks = LoadedRecipeUnlocks::default();
     for path in paths {
         let raw = std::fs::read_to_string(&path).map_err(|err| {
             format!(
@@ -388,7 +396,7 @@ fn load_recipe_acquisition_unlocks(
                 path.display()
             )
         })?;
-        collect_recipe_acquisition_unlocks(&value, tags, &mut unlocks)?;
+        collect_recipe_unlocks(&value, tags, &mut unlocks)?;
     }
     Ok(unlocks)
 }
@@ -434,10 +442,10 @@ fn advancement_paths(dir: &std::path::Path) -> Result<Vec<std::path::PathBuf>, S
     Ok(paths)
 }
 
-fn collect_recipe_acquisition_unlocks(
+fn collect_recipe_unlocks(
     value: &serde_json::Value,
     tags: &ItemTagMap,
-    unlocks: &mut Vec<RecipeAcquisitionUnlock>,
+    unlocks: &mut LoadedRecipeUnlocks,
 ) -> Result<(), String> {
     let Some(reward_recipes) = value
         .get("rewards")
@@ -447,19 +455,67 @@ fn collect_recipe_acquisition_unlocks(
         return Ok(());
     };
     let ingredients = inventory_changed_criteria_ingredients(value, tags)?;
+    let unlocked_by_tick = requirements_are_satisfied_by_trigger(value, "minecraft:tick");
     if ingredients.is_empty() {
+        if unlocked_by_tick {
+            for recipe_id in reward_recipes {
+                let Some(recipe_id) = recipe_id.as_str() else {
+                    continue;
+                };
+                push_unique(&mut unlocks.initial, Box::leak(recipe_id.to_string().into_boxed_str()));
+            }
+        }
         return Ok(());
     }
     for recipe_id in reward_recipes {
         let Some(recipe_id) = recipe_id.as_str() else {
             continue;
         };
-        unlocks.push(RecipeAcquisitionUnlock::new(
-            Box::leak(recipe_id.to_string().into_boxed_str()),
+        let recipe_id = Box::leak(recipe_id.to_string().into_boxed_str());
+        unlocks.acquisition.push(RecipeAcquisitionUnlock::new(
+            recipe_id,
             ingredients.clone(),
         ));
+        if unlocked_by_tick {
+            push_unique(&mut unlocks.initial, recipe_id);
+        }
     }
     Ok(())
+}
+
+fn requirements_are_satisfied_by_trigger(value: &serde_json::Value, trigger: &str) -> bool {
+    let Some(criteria) = value.get("criteria").and_then(serde_json::Value::as_object) else {
+        return false;
+    };
+    let satisfied = criteria
+        .iter()
+        .filter_map(|(name, criterion)| {
+            (criterion.get("trigger").and_then(serde_json::Value::as_str) == Some(trigger))
+                .then_some(name.as_str())
+        })
+        .collect::<Vec<_>>();
+    if satisfied.is_empty() {
+        return false;
+    }
+
+    let Some(requirements) = value
+        .get("requirements")
+        .and_then(serde_json::Value::as_array)
+    else {
+        return criteria
+            .keys()
+            .all(|name| satisfied.iter().any(|criterion| criterion == name));
+    };
+
+    requirements.iter().all(|group| {
+        group
+            .as_array()
+            .is_some_and(|group| group.iter().any(|criterion| {
+                criterion
+                    .as_str()
+                    .is_some_and(|name| satisfied.iter().any(|satisfied| satisfied == &name))
+            }))
+    })
 }
 
 fn inventory_changed_criteria_ingredients(

@@ -466,6 +466,7 @@ impl RecipeMap {
 pub struct RecipeManagerModel {
     recipes: RecipeMap,
     acquisition_unlocks: Vec<RecipeAcquisitionUnlock>,
+    initial_unlocks: Vec<&'static str>,
     property_sets: Vec<RecipePropertySet>,
     stonecutter_recipes: Vec<StonecutterSelection>,
 }
@@ -504,12 +505,20 @@ impl RecipeManagerModel {
         self.acquisition_unlocks = unlocks;
     }
 
+    pub fn set_initial_unlocks(&mut self, unlocks: Vec<&'static str>) {
+        self.initial_unlocks = unlocks;
+    }
+
     pub fn recipes_unlocked_by_item(&self, item: &str) -> Vec<&'static str> {
         self.acquisition_unlocks
             .iter()
             .filter(|unlock| unlock.matches(item))
             .map(|unlock| unlock.recipe_id)
             .collect()
+    }
+
+    pub fn initially_unlocked_recipes(&self) -> &[&'static str] {
+        &self.initial_unlocks
     }
 
     pub fn property_sets(&self) -> &[RecipePropertySet] {

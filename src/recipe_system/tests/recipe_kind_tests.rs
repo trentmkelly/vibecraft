@@ -890,6 +890,13 @@ fn recipe_manager_loads_vanilla_inventory_recipe_unlocks_from_advancements() {
             .contains(&"minecraft:oak_planks"),
         "non-log items must not unlock oak planks"
     );
+
+    assert!(
+        manager
+            .initially_unlocked_recipes()
+            .contains(&"minecraft:crafting_table"),
+        "minecraft:crafting_table is unlocked by the Java recipe advancement's minecraft:tick criterion"
+    );
 }
 
 #[test]
