@@ -486,23 +486,22 @@
                 ItemStack::new("minecraft:oak_planks", 1)
             );
         }
-        assert!(
-            instructions
-                .iter()
-                .filter(|instruction| matches!(instruction, PlayInstruction::ContainerSetSlot(_)))
-                .count()
-                >= CraftingMenu::SLOT_COUNT,
-            "stale active-menu clicks must broadcast a full post-click state"
+        let full_sync = instructions
+            .iter()
+            .find_map(|instruction| match instruction {
+                PlayInstruction::Container(packet) => Some(packet),
+                _ => None,
+            })
+            .expect("Java broadcastFullState sends one ContainerSetContent packet");
+        assert_eq!(full_sync.container_id, 9);
+        assert_eq!(full_sync.state_id, 5);
+        assert_eq!(full_sync.slots.len(), CraftingMenu::SLOT_COUNT);
+        assert_eq!(
+            full_sync.slots[CraftingMenu::RESULT_SLOT].item_id,
+            item_protocol_id("minecraft:crafting_table")
         );
-        assert!(instructions.iter().any(|instruction| {
-            matches!(
-                instruction,
-                PlayInstruction::ContainerSetSlot(packet)
-                    if packet.state_id == 5
-                        && packet.slot == CraftingMenu::RESULT_SLOT as i16
-                        && packet.item_stack.item_id == item_protocol_id("minecraft:crafting_table")
-            )
-        }));
+        assert_eq!(full_sync.slots[CraftingMenu::RESULT_SLOT].count, 1);
+        assert!(full_sync.carried_item.item_id.is_none());
     }
 
     #[test]

@@ -3190,6 +3190,12 @@ fn write_container_click_instruction(
     recipe_manager: &RecipeManagerModel,
 ) -> io::Result<()> {
     match instruction {
+        PlayInstruction::Container(packet) => write_framed_packet_with_compression(
+            stream,
+            compression,
+            CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID,
+            |payload| packet.write(payload),
+        ),
         PlayInstruction::ContainerSetSlot(packet) => write_framed_packet_with_compression(
             stream,
             compression,

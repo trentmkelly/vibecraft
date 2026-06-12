@@ -192,7 +192,7 @@ impl ActiveBlockMenu {
         self.persist_if_needed(world_layout, world_seed, chunk_cache);
 
         if full_resync_needed {
-            let mut instructions = self.full_slot_resync(state);
+            let mut instructions = self.full_content_resync(state);
             self.push_recipe_unlocks(&mut instructions, state);
             return instructions;
         }
@@ -251,7 +251,7 @@ impl ActiveBlockMenu {
         self.increment_state_id();
 
         if full_resync_needed {
-            let mut instructions = self.full_slot_resync(state);
+            let mut instructions = self.full_content_resync(state);
             self.push_recipe_unlocks(&mut instructions, state);
             return instructions;
         }
@@ -306,7 +306,7 @@ impl ActiveBlockMenu {
         self.increment_state_id();
 
         if full_resync_needed {
-            let mut instructions = self.full_slot_resync(state);
+            let mut instructions = self.full_content_resync(state);
             self.push_recipe_unlocks(&mut instructions, state);
             return instructions;
         }
@@ -497,30 +497,24 @@ impl ActiveBlockMenu {
         }
     }
 
-    fn full_slot_resync(&self, state: &PlaySessionState) -> Vec<PlayInstruction> {
-        self.flattened_slots(state)
-            .into_iter()
-            .enumerate()
-            .filter_map(|(slot, stack)| {
-                Some(PlayInstruction::ContainerSetSlot(
-                    ClientboundContainerSetSlotPacket {
-                        container_id: self.container_id,
-                        state_id: self.state_id,
-                        slot: slot as i16,
-                        item_stack: raw_item_stack_from_item_stack(&stack).ok()?,
-                    },
-                ))
-            })
-            .chain(
-                raw_item_stack_from_item_stack(&state.carried_item)
-                    .ok()
-                    .map(|item_stack| {
-                        PlayInstruction::SetCursorItem(ClientboundSetCursorItemPacket {
-                            item_stack,
-                        })
-                    }),
-            )
-            .collect()
+    fn full_content_resync(&self, state: &PlaySessionState) -> Vec<PlayInstruction> {
+        let Ok(slots) = self
+            .flattened_slots(state)
+            .iter()
+            .map(raw_item_stack_from_item_stack)
+            .collect::<io::Result<Vec<_>>>()
+        else {
+            return Vec::new();
+        };
+        let Ok(carried_item) = raw_item_stack_from_item_stack(&state.carried_item) else {
+            return Vec::new();
+        };
+        vec![PlayInstruction::Container(ClientboundContainerPacket {
+            container_id: self.container_id,
+            state_id: self.state_id,
+            slots,
+            carried_item,
+        })]
     }
 
     fn increment_state_id(&mut self) {
