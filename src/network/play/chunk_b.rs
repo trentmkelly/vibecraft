@@ -629,11 +629,32 @@ pub(super) fn write_position_move_rotation<W: Write>(
     write_f32(writer, x_rot)
 }
 
+pub(super) fn read_position_move_rotation<R: Read>(
+    reader: &mut R,
+) -> io::Result<(Vec3, Vec3, f32, f32)> {
+    Ok((
+        Vec3 {
+            x: read_f64(reader)?,
+            y: read_f64(reader)?,
+            z: read_f64(reader)?,
+        },
+        Vec3 {
+            x: read_f64(reader)?,
+            y: read_f64(reader)?,
+            z: read_f64(reader)?,
+        },
+        read_f32(reader)?,
+        read_f32(reader)?,
+    ))
+}
+
+const RELATIVE_FLAGS_MASK: u32 = 0x1ff;
+
 impl ClientboundTeleportEntityPacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.id)?;
         write_position_move_rotation(writer, self.position, self.movement, self.y_rot, self.x_rot)?;
-        write_i32(writer, self.relative_flags as i32)?;
+        write_i32(writer, (self.relative_flags & RELATIVE_FLAGS_MASK) as i32)?;
         write_bool(writer, self.on_ground)
     }
 }
@@ -647,10 +668,25 @@ impl ClientboundEntityPositionSyncPacket {
 }
 
 impl ClientboundPlayerPositionPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let id = read_var_i32(reader)?;
+        let (position, movement, y_rot, x_rot) = read_position_move_rotation(reader)?;
+        let relative_flags = read_i32(reader)? as u32 & RELATIVE_FLAGS_MASK;
+        expect_empty_payload(reader)?;
+        Ok(Self {
+            id,
+            position,
+            movement,
+            y_rot,
+            x_rot,
+            relative_flags,
+        })
+    }
+
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.id)?;
         write_position_move_rotation(writer, self.position, self.movement, self.y_rot, self.x_rot)?;
-        write_i32(writer, self.relative_flags as i32)
+        write_i32(writer, (self.relative_flags & RELATIVE_FLAGS_MASK) as i32)
     }
 }
 
