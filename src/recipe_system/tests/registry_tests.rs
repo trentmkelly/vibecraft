@@ -340,3 +340,39 @@ fn recipe_map_values_and_type_filters_keep_java_builder_order() {
         vec!["minecraft:crafting_table"]
     );
 }
+
+#[test]
+fn recipe_input_empty_contract_matches_java_default_method() {
+    let empty_input: [Option<&'static str>; 4] = [None, None, None, None];
+    let occupied_input = [None, Some("minecraft:stick"), None, None];
+
+    assert_eq!(empty_input.len(), 4);
+    assert!(empty_input.iter().all(Option::is_none));
+    assert!(!occupied_input.iter().all(Option::is_none));
+    assert_eq!(occupied_input[1], Some("minecraft:stick"));
+}
+
+#[test]
+fn single_recipe_input_matching_requires_exactly_one_item() {
+    let smelting = RecipeKind::Cooking {
+        kind: CookingKind::Smelting,
+        ingredient: IngredientSpec::Item("minecraft:raw_iron"),
+        result: ItemAmount::one("minecraft:iron_ingot"),
+        experience_millis: 700,
+        cooking_time: None,
+        category: CookingBookCategory::Misc,
+    };
+    let stonecutting = RecipeKind::Stonecutting {
+        ingredient: IngredientSpec::Item("minecraft:stone"),
+        result: ItemAmount::one("minecraft:stone_button"),
+    };
+
+    for (recipe, item) in [
+        (smelting, "minecraft:raw_iron"),
+        (stonecutting, "minecraft:stone"),
+    ] {
+        assert!(recipe.matches(1, 1, &[Some(item)]));
+        assert!(!recipe.matches(1, 1, &[None]));
+        assert!(!recipe.matches(1, 2, &[Some("minecraft:raw_iron"), Some("minecraft:stone")]));
+    }
+}
