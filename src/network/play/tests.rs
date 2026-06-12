@@ -1009,6 +1009,7 @@ mod player_info_update_packet_test;
 mod player_position_packet_test;
 mod recipe_book_remove_packet_test;
 mod recipe_book_settings_packet_test;
+mod scoreboard_display_clientbound_packets_test;
 mod ui_world_clientbound_packets_test;
 mod reset_score_packet_test;
 mod resource_pack_packet_test;
