@@ -3,6 +3,28 @@ use std::io;
 
 #[test]
 fn clientbound_block_entity_data_packet_matches_java_codec() {
+    const CLIENTBOUND_BLOCK_ENTITY_DATA_JAVA: &str = include_str!(
+        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundBlockEntityDataPacket.java"
+    );
+    for sentinel in [
+        "public class ClientboundBlockEntityDataPacket implements Packet<ClientGamePacketListener>",
+        "BlockPos.STREAM_CODEC",
+        "ClientboundBlockEntityDataPacket::getPos",
+        "ByteBufCodecs.registry(Registries.BLOCK_ENTITY_TYPE)",
+        "ClientboundBlockEntityDataPacket::getType",
+        "ByteBufCodecs.TRUSTED_COMPOUND_TAG",
+        "ClientboundBlockEntityDataPacket::getTag",
+        "ClientboundBlockEntityDataPacket::new",
+        "BlockEntity::getUpdateTag",
+        "GamePacketTypes.CLIENTBOUND_BLOCK_ENTITY_DATA",
+        "listener.handleBlockEntityData(this);",
+    ] {
+        assert!(
+            CLIENTBOUND_BLOCK_ENTITY_DATA_JAVA.contains(sentinel),
+            "missing ClientboundBlockEntityDataPacket sentinel {sentinel}"
+        );
+    }
+
     assert_eq!(CLIENTBOUND_BLOCK_ENTITY_DATA_PACKET_ID, 6);
     let registry = PlayProtocolRegistry::new();
     assert_eq!(

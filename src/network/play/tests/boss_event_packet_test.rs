@@ -22,8 +22,44 @@ fn boss_prefix(event_id: Uuid, operation: i32) -> Vec<u8> {
     payload
 }
 
+fn assert_clientbound_boss_event_java_source() {
+    const CLIENTBOUND_BOSS_EVENT_JAVA: &str = include_str!(
+        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundBossEventPacket.java"
+    );
+    for sentinel in [
+        "public class ClientboundBossEventPacket implements Packet<ClientGamePacketListener>",
+        "private static final int FLAG_DARKEN = 1;",
+        "private static final int FLAG_MUSIC = 2;",
+        "private static final int FLAG_FOG = 4;",
+        "this.id = input.readUUID();",
+        "input.readEnum(ClientboundBossEventPacket.OperationType.class)",
+        "output.writeUUID(this.id);",
+        "output.writeEnum(this.operation.getType());",
+        "this.operation.write(output);",
+        "GamePacketTypes.CLIENTBOUND_BOSS_EVENT",
+        "listener.handleBossUpdate(this);",
+        "ComponentSerialization.TRUSTED_STREAM_CODEC.encode(output, this.name);",
+        "output.writeFloat(this.progress);",
+        "output.writeEnum(this.color);",
+        "output.writeEnum(this.overlay);",
+        "output.writeByte(ClientboundBossEventPacket.encodeProperties(this.darkenScreen, this.playMusic, this.createWorldFog));",
+        "ADD(ClientboundBossEventPacket.AddOperation::new)",
+        "REMOVE(input -> ClientboundBossEventPacket.REMOVE_OPERATION)",
+        "UPDATE_PROGRESS(ClientboundBossEventPacket.UpdateProgressOperation::new)",
+        "UPDATE_NAME(ClientboundBossEventPacket.UpdateNameOperation::new)",
+        "UPDATE_STYLE(ClientboundBossEventPacket.UpdateStyleOperation::new)",
+        "UPDATE_PROPERTIES(ClientboundBossEventPacket.UpdatePropertiesOperation::new)",
+    ] {
+        assert!(
+            CLIENTBOUND_BOSS_EVENT_JAVA.contains(sentinel),
+            "missing ClientboundBossEventPacket sentinel {sentinel}"
+        );
+    }
+}
+
 #[test]
 fn clientbound_boss_event_packet_matches_java_operation_codecs() {
+    assert_clientbound_boss_event_java_source();
     assert_eq!(CLIENTBOUND_BOSS_EVENT_PACKET_ID, 9);
     let registry = PlayProtocolRegistry::new();
     assert_eq!(

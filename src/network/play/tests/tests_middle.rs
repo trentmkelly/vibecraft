@@ -206,6 +206,29 @@ fn rotate_head_packet_uses_java_entity_id_then_packed_head_yaw() {
 
 #[test]
 fn animate_packet_uses_java_entity_id_then_unsigned_action_byte() {
+    const CLIENTBOUND_ANIMATE_JAVA: &str = include_str!(
+        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundAnimatePacket.java"
+    );
+    for sentinel in [
+        "public class ClientboundAnimatePacket implements Packet<ClientGamePacketListener>",
+        "public static final int SWING_MAIN_HAND = 0;",
+        "public static final int WAKE_UP = 2;",
+        "public static final int SWING_OFF_HAND = 3;",
+        "public static final int CRITICAL_HIT = 4;",
+        "public static final int MAGIC_CRITICAL_HIT = 5;",
+        "this.id = input.readVarInt();",
+        "this.action = input.readUnsignedByte();",
+        "output.writeVarInt(this.id);",
+        "output.writeByte(this.action);",
+        "GamePacketTypes.CLIENTBOUND_ANIMATE",
+        "listener.handleAnimate(this);",
+    ] {
+        assert!(
+            CLIENTBOUND_ANIMATE_JAVA.contains(sentinel),
+            "missing ClientboundAnimatePacket sentinel {sentinel}"
+        );
+    }
+
     let registry = PlayProtocolRegistry::new();
     assert_eq!(CLIENTBOUND_ANIMATE_PACKET_ID, 2);
     assert_eq!(

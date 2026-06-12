@@ -292,6 +292,12 @@ mod tests {
         const BUNDLE_DELIMITER_PACKET_JAVA: &str = include_str!(
             "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/BundleDelimiterPacket.java"
         );
+        const CLIENTBOUND_BUNDLE_PACKET_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundBundlePacket.java"
+        );
+        const CLIENTBOUND_BUNDLE_DELIMITER_PACKET_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundBundleDelimiterPacket.java"
+        );
 
         for sentinel in [
             "this.bundlerInfo.unbundlePacket(msg, out::add);",
@@ -320,6 +326,26 @@ mod tests {
         );
         assert!(BUNDLE_DELIMITER_PACKET_JAVA
             .contains("throw new AssertionError(\"This packet should be handled by pipeline\")"));
+        for sentinel in [
+            "public class ClientboundBundlePacket extends BundlePacket<ClientGamePacketListener>",
+            "public ClientboundBundlePacket(final Iterable<Packet<? super ClientGamePacketListener>> packets)",
+            "GamePacketTypes.CLIENTBOUND_BUNDLE",
+            "listener.handleBundlePacket(this);",
+        ] {
+            assert!(
+                CLIENTBOUND_BUNDLE_PACKET_JAVA.contains(sentinel),
+                "missing ClientboundBundlePacket sentinel {sentinel}"
+            );
+        }
+        for sentinel in [
+            "public class ClientboundBundleDelimiterPacket extends BundleDelimiterPacket<ClientGamePacketListener>",
+            "GamePacketTypes.CLIENTBOUND_BUNDLE_DELIMITER",
+        ] {
+            assert!(
+                CLIENTBOUND_BUNDLE_DELIMITER_PACKET_JAVA.contains(sentinel),
+                "missing ClientboundBundleDelimiterPacket sentinel {sentinel}"
+            );
+        }
 
         let packet = BundlePacket::new([1, 2, 3]);
         assert_eq!(packet.sub_packets(), &[1, 2, 3]);

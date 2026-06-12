@@ -2,6 +2,35 @@ use super::*;
 
 #[test]
 fn clientbound_add_entity_packet_matches_java_codec_order() {
+    const CLIENTBOUND_ADD_ENTITY_JAVA: &str = include_str!(
+        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundAddEntityPacket.java"
+    );
+    for sentinel in [
+        "public class ClientboundAddEntityPacket implements Packet<ClientGamePacketListener>",
+        "this.id = input.readVarInt();",
+        "this.uuid = input.readUUID();",
+        "ByteBufCodecs.registry(Registries.ENTITY_TYPE).decode(input);",
+        "this.x = input.readDouble();",
+        "this.y = input.readDouble();",
+        "this.z = input.readDouble();",
+        "this.movement = Vec3.LP_STREAM_CODEC.decode(input);",
+        "this.xRot = input.readByte();",
+        "this.yRot = input.readByte();",
+        "this.yHeadRot = input.readByte();",
+        "this.data = input.readVarInt();",
+        "Vec3.LP_STREAM_CODEC.encode(output, this.movement);",
+        "GamePacketTypes.CLIENTBOUND_ADD_ENTITY",
+        "listener.handleAddEntity(this);",
+        "this.xRot = Mth.packDegrees(xRot);",
+        "this.yRot = Mth.packDegrees(yRot);",
+        "this.yHeadRot = Mth.packDegrees((float)yHeadRot);",
+    ] {
+        assert!(
+            CLIENTBOUND_ADD_ENTITY_JAVA.contains(sentinel),
+            "missing ClientboundAddEntityPacket sentinel {sentinel}"
+        );
+    }
+
     assert_eq!(CLIENTBOUND_ADD_ENTITY_PACKET_ID, 1);
     let registry = PlayProtocolRegistry::new();
     assert_eq!(

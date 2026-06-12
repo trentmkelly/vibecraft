@@ -334,7 +334,68 @@ fn assert_container_cooldown_ability_packets() {
     assert_eq!(&abilities_payload[5..9], &0.1_f32.to_be_bytes());
 }
 
+fn assert_block_packet_java_sources() {
+    const CLIENTBOUND_BLOCK_DESTRUCTION_JAVA: &str = include_str!(
+        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundBlockDestructionPacket.java"
+    );
+    for sentinel in [
+        "public class ClientboundBlockDestructionPacket implements Packet<ClientGamePacketListener>",
+        "this.id = input.readVarInt();",
+        "this.pos = input.readBlockPos();",
+        "this.progress = input.readUnsignedByte();",
+        "output.writeVarInt(this.id);",
+        "output.writeBlockPos(this.pos);",
+        "output.writeByte(this.progress);",
+        "GamePacketTypes.CLIENTBOUND_BLOCK_DESTRUCTION",
+        "listener.handleBlockDestruction(this);",
+    ] {
+        assert!(
+            CLIENTBOUND_BLOCK_DESTRUCTION_JAVA.contains(sentinel),
+            "missing ClientboundBlockDestructionPacket sentinel {sentinel}"
+        );
+    }
+    const CLIENTBOUND_BLOCK_EVENT_JAVA: &str = include_str!(
+        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundBlockEventPacket.java"
+    );
+    for sentinel in [
+        "public class ClientboundBlockEventPacket implements Packet<ClientGamePacketListener>",
+        "this.pos = input.readBlockPos();",
+        "this.b0 = input.readUnsignedByte();",
+        "this.b1 = input.readUnsignedByte();",
+        "this.block = ByteBufCodecs.registry(Registries.BLOCK).decode(input);",
+        "output.writeBlockPos(this.pos);",
+        "output.writeByte(this.b0);",
+        "output.writeByte(this.b1);",
+        "ByteBufCodecs.registry(Registries.BLOCK).encode(output, this.block);",
+        "GamePacketTypes.CLIENTBOUND_BLOCK_EVENT",
+        "listener.handleBlockEvent(this);",
+    ] {
+        assert!(
+            CLIENTBOUND_BLOCK_EVENT_JAVA.contains(sentinel),
+            "missing ClientboundBlockEventPacket sentinel {sentinel}"
+        );
+    }
+    const CLIENTBOUND_BLOCK_UPDATE_JAVA: &str = include_str!(
+        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundBlockUpdatePacket.java"
+    );
+    for sentinel in [
+        "public class ClientboundBlockUpdatePacket implements Packet<ClientGamePacketListener>",
+        "BlockPos.STREAM_CODEC",
+        "ClientboundBlockUpdatePacket::getPos",
+        "ByteBufCodecs.idMapper(Block.BLOCK_STATE_REGISTRY)",
+        "ClientboundBlockUpdatePacket::getBlockState",
+        "GamePacketTypes.CLIENTBOUND_BLOCK_UPDATE",
+        "listener.handleBlockUpdate(this);",
+    ] {
+        assert!(
+            CLIENTBOUND_BLOCK_UPDATE_JAVA.contains(sentinel),
+            "missing ClientboundBlockUpdatePacket sentinel {sentinel}"
+        );
+    }
+}
+
 fn assert_block_and_level_event_packets() {
+    assert_block_packet_java_sources();
     let mut block_destruction = Vec::new();
     ClientboundBlockDestructionPacket {
         id: 99,
@@ -817,6 +878,26 @@ fn assert_effect_stat_and_attribute_packets() {
     assert_eq!(update_effect, vec![0x81, 0x01, 5, 2, 0xd8, 0x04, 0x0d]);
 
     let mut award_stats = Vec::new();
+    const CLIENTBOUND_AWARD_STATS_JAVA: &str = include_str!(
+        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundAwardStatsPacket.java"
+    );
+    for sentinel in [
+        "public record ClientboundAwardStatsPacket(Object2IntMap<Stat<?>> stats)",
+        "Object2IntOpenHashMap::new",
+        "Stat.STREAM_CODEC",
+        "ByteBufCodecs.VAR_INT",
+        "STAT_VALUES_STREAM_CODEC.map(",
+        "ClientboundAwardStatsPacket::new",
+        "ClientboundAwardStatsPacket::stats",
+        "GamePacketTypes.CLIENTBOUND_AWARD_STATS",
+        "listener.handleAwardStats(this);",
+    ] {
+        assert!(
+            CLIENTBOUND_AWARD_STATS_JAVA.contains(sentinel),
+            "missing ClientboundAwardStatsPacket sentinel {sentinel}"
+        );
+    }
+
     ClientboundAwardStatsPacket {
         stats: vec![AwardedStat {
             stat_type_id: 8,
