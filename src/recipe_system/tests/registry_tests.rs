@@ -414,3 +414,15 @@ fn recipe_access_exposes_property_sets_and_stonecutter_recipes_like_java() {
         "minecraft:stone_button_from_stone_stonecutting"
     );
 }
+
+#[test]
+fn recipe_serializer_json_dispatch_rejects_unknown_serializer_id() {
+    let error = load_recipe_json(
+        "minecraft:bad_serializer",
+        r#"{"type":"minecraft:not_a_vanilla_recipe_serializer"}"#,
+        &ItemTagMap::default(),
+    )
+    .expect_err("unknown recipe serializer ids must be rejected");
+
+    assert!(error.contains("unsupported type minecraft:not_a_vanilla_recipe_serializer"));
+}
