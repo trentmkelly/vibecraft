@@ -426,3 +426,23 @@ fn recipe_serializer_json_dispatch_rejects_unknown_serializer_id() {
 
     assert!(error.contains("unsupported type minecraft:not_a_vanilla_recipe_serializer"));
 }
+
+#[test]
+fn placement_info_empty_ingredients_are_not_placeable_like_java() {
+    assert!(PlacementInfo::create(IngredientSpec::Empty).is_impossible_to_place());
+
+    let optional = PlacementInfo::create_from_optionals(vec![
+        None,
+        Some(IngredientSpec::Empty),
+        Some(IngredientSpec::Item("minecraft:stick")),
+    ]);
+    assert!(optional.is_impossible_to_place());
+
+    assert_eq!(
+        PlacementInfo::not_placeable(),
+        PlacementInfo {
+            ingredients: Vec::new(),
+            slots_to_ingredient_index: Vec::new(),
+        }
+    );
+}
