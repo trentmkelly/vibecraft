@@ -271,6 +271,56 @@
     }
 
     #[test]
+    fn active_crafting_table_uses_authoritative_stacks_not_client_hash_shadows() {
+        let recipes = crafting_table_recipe_map();
+        let mut state = PlaySessionState {
+            inventory_menu: InventoryMenu::new(PlayerInventory::new(), recipes.clone()),
+            carried_item: ItemStack::new("minecraft:oak_planks", 4),
+            ..Default::default()
+        };
+        let mut menu = ActiveBlockMenu::open(
+            9,
+            crate::block_update::BlockPos { x: 0, y: 64, z: 0 },
+            LiveBlockMenuKind::Crafting,
+            &WorldLayout::new(std::env::temp_dir()),
+            0,
+            &GeneratedChunkCache::default(),
+            &recipes,
+        );
+        let layout = WorldLayout::new(std::env::temp_dir());
+        let cache = GeneratedChunkCache::default();
+
+        let mut instructions = Vec::new();
+        for (state_id, slot) in [(0, 1_i16), (1, 2), (2, 4), (3, 5)] {
+            let mut packet = click_packet(9, state_id, slot, 1, ContainerInput::Pickup);
+            // Java stores these as remote HashedStack shadows after applying the
+            // authoritative click; they must not become the real menu contents.
+            packet
+                .changed_slots
+                .insert(slot as i32, hashed_stack("minecraft:apple", 64));
+            packet.carried_item = hashed_stack("minecraft:diamond", 64);
+            instructions = menu.handle_click(&packet, &mut state, &layout, 0, &cache);
+        }
+
+        assert!(state.carried_item.is_empty());
+        for slot in [1_usize, 2, 4, 5] {
+            assert_eq!(
+                menu.flattened_slots(&state)[slot],
+                ItemStack::new("minecraft:oak_planks", 1)
+            );
+        }
+        assert!(instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                PlayInstruction::ContainerSetSlot(packet)
+                    if packet.slot == CraftingMenu::RESULT_SLOT as i16
+                        && packet.item_stack.item_id == item_protocol_id("minecraft:crafting_table")
+                        && packet.item_stack.count == 1
+            )
+        }));
+    }
+
+    #[test]
     fn active_menu_click_applies_before_correcting_mismatched_client_shadows_like_java() {
         let pos = crate::block_update::BlockPos { x: 1, y: 64, z: 2 };
         let mut state = PlaySessionState {

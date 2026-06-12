@@ -3,9 +3,8 @@ use super::*;
 use crate::container_menus::CraftingMenu;
 use crate::inventory::{Menu, Slot};
 use crate::inventory_transactions::{apply_scripted_packet, ScriptedContainerClickPacket};
-use crate::item_catalog::item_static_name_from_protocol_id;
 use crate::network::play::{
-    ClientboundContainerPacket, ClientboundSetCursorItemPacket, ContainerInput, HashedStack,
+    ClientboundContainerPacket, ClientboundSetCursorItemPacket, ContainerInput,
     CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID,
 };
 use crate::recipe_system::RecipeMap;
@@ -174,7 +173,12 @@ impl ActiveBlockMenu {
         let before_slots = self.flattened_slots(state);
         let before_carried = state.carried_item.clone();
         let mut menu = self.to_flat_menu(state);
-        let scripted_packet = scripted_click_packet(packet);
+        let dry_run = apply_scripted_packet(
+            &mut menu.clone(),
+            packet.state_id,
+            &scripted_click_packet(packet, Vec::new(), ItemStack::empty()),
+        );
+        let scripted_packet = scripted_click_packet(packet, Vec::new(), dry_run.carried);
         apply_scripted_packet(
             &mut menu,
             packet.state_id,
@@ -612,30 +616,20 @@ fn container_input_to_inventory(input: ContainerInput) -> crate::inventory::Cont
     }
 }
 
-fn scripted_click_packet(packet: &ServerboundContainerClickPacket) -> ScriptedContainerClickPacket {
+fn scripted_click_packet(
+    packet: &ServerboundContainerClickPacket,
+    changed_slots: Vec<(i32, ItemStack)>,
+    carried: ItemStack,
+) -> ScriptedContainerClickPacket {
     ScriptedContainerClickPacket {
         container_id: packet.container_id,
         state_id: packet.state_id,
         slot: packet.slot_num as i32,
         button: packet.button_num as i32,
         mode: container_input_to_inventory(packet.container_input),
-        changed_slots: packet
-            .changed_slots
-            .iter()
-            .map(|(slot, stack)| (*slot, item_stack_from_hashed_stack(stack)))
-            .collect(),
-        carried: item_stack_from_hashed_stack(&packet.carried_item),
+        changed_slots,
+        carried,
     }
-}
-
-fn item_stack_from_hashed_stack(stack: &HashedStack) -> ItemStack {
-    let Some(item_id) = stack.item_id else {
-        return ItemStack::empty();
-    };
-    let Some(item_name) = item_static_name_from_protocol_id(item_id) else {
-        return ItemStack::empty();
-    };
-    ItemStack::new(item_name, stack.count)
 }
 
 fn load_items_from_block_entity_tag(tag: &Tag, slots: &mut [ItemStack]) {
