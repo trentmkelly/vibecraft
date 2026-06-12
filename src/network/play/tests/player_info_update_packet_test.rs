@@ -1,5 +1,9 @@
 use super::*;
 
+const CLIENTBOUND_PLAYER_INFO_UPDATE_JAVA: &str = include_str!(
+    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundPlayerInfoUpdatePacket.java"
+);
+
 fn text_component_bytes(text: &[u8]) -> Vec<u8> {
     [
         vec![10, 8, 0, 4],
@@ -21,6 +25,23 @@ fn profile_property(index: usize) -> GameProfileProperty {
 
 #[test]
 fn clientbound_player_info_update_packet_matches_java_action_set_order() {
+    for sentinel in [
+        "this.actions = input.readEnumSet(ClientboundPlayerInfoUpdatePacket.Action.class);",
+        "this.entries = input.readList(buf ->",
+        "output.writeEnumSet(this.actions, ClientboundPlayerInfoUpdatePacket.Action.class);",
+        "output.writeCollection(this.entries, (buf, entry) ->",
+        "return GamePacketTypes.CLIENTBOUND_PLAYER_INFO_UPDATE;",
+        "listener.handlePlayerInfoUpdate(this);",
+        "ADD_PLAYER((entry, input) ->",
+        "UPDATE_LIST_ORDER((entry, input) -> entry.listOrder = input.readVarInt()",
+        "UPDATE_HAT((entry, input) -> entry.showHat = input.readBoolean()",
+    ] {
+        assert!(
+            CLIENTBOUND_PLAYER_INFO_UPDATE_JAVA.contains(sentinel),
+            "missing ClientboundPlayerInfoUpdatePacket sentinel {sentinel}"
+        );
+    }
+
     assert_eq!(CLIENTBOUND_PLAYER_INFO_UPDATE_PACKET_ID, 70);
     let registry = PlayProtocolRegistry::new();
     assert_eq!(
@@ -68,12 +89,34 @@ fn clientbound_player_info_update_packet_matches_java_action_set_order() {
             vec![0xb2, 1], // fixed 8-bit action set, one entry
             vec![1; 16],
             vec![1],
-            chat_session_payload,
+            chat_session_payload.clone(),
             vec![0x7f, 1],
             display_name,
             vec![0],
         ]
         .concat()
+    );
+    assert_eq!(
+        ClientboundPlayerInfoUpdatePacket::read(&mut cursor(payload)).unwrap(),
+        ClientboundPlayerInfoUpdatePacket {
+            actions: vec![
+                PlayerInfoUpdateAction::InitializeChat,
+                PlayerInfoUpdateAction::UpdateLatency,
+                PlayerInfoUpdateAction::UpdateDisplayName,
+                PlayerInfoUpdateAction::UpdateHat,
+            ],
+            entries: vec![PlayerInfoUpdateEntry {
+                profile_id: Uuid([1; 16]),
+                profile: None,
+                chat_session_payload: Some(chat_session_payload),
+                game_mode: 0,
+                listed: false,
+                latency: 127,
+                display_name_payload: Some(vec![8, 0, 3, b'T', b'a', b'b']),
+                list_order: 0,
+                show_hat: false,
+            }],
+        }
     );
 }
 
@@ -118,6 +161,27 @@ fn clientbound_player_info_update_initializing_uses_java_action_surface() {
         ]
         .concat()
     );
+    assert_eq!(
+        ClientboundPlayerInfoUpdatePacket::read(&mut cursor(payload)).unwrap(),
+        ClientboundPlayerInfoUpdatePacket::player_initializing(vec![PlayerInfoUpdateEntry {
+            profile_id: Uuid([7; 16]),
+            profile: Some(PlayerInfoProfile {
+                name: "Steve".to_string(),
+                properties: vec![GameProfileProperty {
+                    name: "textures".to_string(),
+                    value: "abc".to_string(),
+                    signature: Some("sig".to_string()),
+                }],
+            }),
+            chat_session_payload: None,
+            game_mode: 1,
+            listed: true,
+            latency: 20,
+            display_name_payload: None,
+            list_order: 3,
+            show_hat: true,
+        }])
+    );
 }
 
 #[test]
@@ -160,4 +224,26 @@ fn clientbound_player_info_update_rejects_missing_or_oversized_profile_data() {
     .write(&mut Vec::new())
     .unwrap_err();
     assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+
+    assert!(ClientboundPlayerInfoUpdatePacket::read(&mut cursor(vec![1, 1, 0])).is_err());
+
+    let mut payload = Vec::new();
+    ClientboundPlayerInfoUpdatePacket {
+        actions: vec![PlayerInfoUpdateAction::UpdateLatency],
+        entries: vec![PlayerInfoUpdateEntry {
+            profile_id: Uuid([9; 16]),
+            profile: None,
+            chat_session_payload: None,
+            game_mode: 0,
+            listed: false,
+            latency: 42,
+            display_name_payload: None,
+            list_order: 0,
+            show_hat: false,
+        }],
+    }
+    .write(&mut payload)
+    .unwrap();
+    payload.push(0);
+    assert!(ClientboundPlayerInfoUpdatePacket::read(&mut cursor(payload)).is_err());
 }

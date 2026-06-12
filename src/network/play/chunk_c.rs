@@ -210,6 +210,30 @@ impl ClientboundPlayerInfoUpdatePacket {
         }
     }
 
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let mask = read_u8(reader)?;
+        let actions = player_info_actions_from_mask(mask);
+        let entries = read_collection(reader, |reader| {
+            let mut entry = PlayerInfoUpdateEntry {
+                profile_id: read_uuid(reader)?,
+                profile: None,
+                chat_session_payload: None,
+                game_mode: 0,
+                listed: false,
+                latency: 0,
+                display_name_payload: None,
+                list_order: 0,
+                show_hat: false,
+            };
+            for action in &actions {
+                action.read_entry(reader, &mut entry)?;
+            }
+            Ok(entry)
+        })?;
+        expect_empty_payload(reader)?;
+        Ok(Self { actions, entries })
+    }
+
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_all(&[player_info_action_mask(&self.actions)?])?;
         let actions = player_info_actions_in_java_order(&self.actions);
@@ -317,6 +341,43 @@ impl PlayerInfoUpdateAction {
         }
     }
 
+    pub(super) fn from_ordinal(ordinal: u8) -> Self {
+        match ordinal {
+            0 => Self::AddPlayer,
+            1 => Self::InitializeChat,
+            2 => Self::UpdateGameMode,
+            3 => Self::UpdateListed,
+            4 => Self::UpdateLatency,
+            5 => Self::UpdateDisplayName,
+            6 => Self::UpdateListOrder,
+            7 => Self::UpdateHat,
+            _ => unreachable!("player-info action mask only exposes 8 bits"),
+        }
+    }
+
+    pub(super) fn read_entry<R: Read>(
+        &self,
+        reader: &mut R,
+        entry: &mut PlayerInfoUpdateEntry,
+    ) -> io::Result<()> {
+        match self {
+            Self::AddPlayer => entry.profile = Some(PlayerInfoProfile::read(reader)?),
+            Self::InitializeChat => {
+                entry.chat_session_payload = read_optional(reader, read_chat_session_data_payload)?
+            }
+            Self::UpdateGameMode => entry.game_mode = read_var_i32(reader)?,
+            Self::UpdateListed => entry.listed = read_bool(reader)?,
+            Self::UpdateLatency => entry.latency = read_var_i32(reader)?,
+            Self::UpdateDisplayName => {
+                entry.display_name_payload =
+                    read_optional(reader, read_trusted_component_payload)?
+            }
+            Self::UpdateListOrder => entry.list_order = read_var_i32(reader)?,
+            Self::UpdateHat => entry.show_hat = read_bool(reader)?,
+        }
+        Ok(())
+    }
+
     pub(super) fn write_entry<W: Write>(
         &self,
         writer: &mut W,
@@ -353,6 +414,19 @@ impl PlayerInfoUpdateAction {
 }
 
 impl PlayerInfoProfile {
+    pub(super) fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let name = read_string(reader, 16)?;
+        let properties = read_limited_len(reader, 16, "game profile property count")?;
+        let mut parsed = Vec::with_capacity(properties);
+        for _ in 0..properties {
+            parsed.push(GameProfileProperty::read(reader)?);
+        }
+        Ok(Self {
+            name,
+            properties: parsed,
+        })
+    }
+
     pub(super) fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_string(writer, &self.name, 16)?;
         if self.properties.len() > 16 {
@@ -370,6 +444,14 @@ impl PlayerInfoProfile {
 }
 
 impl GameProfileProperty {
+    pub(super) fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            name: read_string(reader, 64)?,
+            value: read_string(reader, 32767)?,
+            signature: read_optional(reader, |reader| read_string(reader, 1024))?,
+        })
+    }
+
     pub(super) fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_string(writer, &self.name, 64)?;
         write_string(writer, &self.value, 32767)?;
@@ -393,6 +475,13 @@ pub(super) fn player_info_action_mask(actions: &[PlayerInfoUpdateAction]) -> io:
     Ok(mask)
 }
 
+pub(super) fn player_info_actions_from_mask(mask: u8) -> Vec<PlayerInfoUpdateAction> {
+    (0..8)
+        .filter(|ordinal| mask & (1 << ordinal) != 0)
+        .map(PlayerInfoUpdateAction::from_ordinal)
+        .collect()
+}
+
 pub(super) fn player_info_actions_in_java_order(
     actions: &[PlayerInfoUpdateAction],
 ) -> Vec<PlayerInfoUpdateAction> {
@@ -411,6 +500,26 @@ pub(super) fn player_info_actions_in_java_order(
         .copied()
         .filter(|action| actions.contains(action))
         .collect()
+}
+
+fn read_chat_session_data_payload<R: Read>(reader: &mut R) -> io::Result<Vec<u8>> {
+    let session_id = read_uuid(reader)?;
+    let expires_at = read_i64(reader)?;
+    let public_key = read_byte_array(reader)?;
+    let key_signature = read_byte_array(reader)?;
+    let mut payload = Vec::new();
+    write_uuid(&mut payload, session_id)?;
+    write_i64(&mut payload, expires_at)?;
+    write_byte_array(&mut payload, &public_key)?;
+    write_byte_array(&mut payload, &key_signature)?;
+    Ok(payload)
+}
+
+fn read_trusted_component_payload<R: Read>(reader: &mut R) -> io::Result<Vec<u8>> {
+    let component = read_trusted_component(reader)?;
+    let mut payload = Vec::new();
+    write_trusted_component(&mut payload, &component)?;
+    Ok(payload)
 }
 
 impl AdvancementHolderData {
