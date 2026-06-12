@@ -15,6 +15,7 @@ impl PlaySession {
             last_chat_command: None,
             last_signed_chat_command: None,
             last_chat_session_update: None,
+            last_change_game_mode: None,
             last_attack: None,
             last_player_command: None,
             last_player_action: None,
@@ -246,6 +247,12 @@ impl PlaySession {
                     ServerboundChangeDifficultyPacket::read(input)
                 })
             }
+            SERVERBOUND_CHANGE_GAME_MODE_PACKET_ID => self.decode_and_store(
+                payload,
+                "change game mode packet",
+                |input| ServerboundChangeGameModePacket::read(input),
+                |session, packet| session.last_change_game_mode = Some(packet),
+            ),
             SERVERBOUND_CHAT_ACK_PACKET_ID => self.decode_and_store(
                 payload,
                 "chat ack packet",

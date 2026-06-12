@@ -3602,6 +3602,13 @@ fn handle_decoded_play_packet(
         handle_live_mob_attack_packet(stream, compression, &mut input, context.world_mobs, play_state)?;
     } else if packet_id == SERVERBOUND_INTERACT_PACKET_ID {
         handle_live_mob_interact_packet(&mut input)?;
+    } else if packet_id == SERVERBOUND_CHANGE_GAME_MODE_PACKET_ID {
+        // Java validates `GameType.STREAM_CODEC` first, then applies the change only
+        // when the player passes `GameModeCommand.PERMISSION_CHECK`. VibeCraft does
+        // not model that permission gate here yet, so decode for parity and ignore.
+        // TODO(permission-gates): apply GameModeCommand.PERMISSION_CHECK and then
+        // ServerPlayer.setGameMode once command permissions are represented here.
+        let _ = ServerboundChangeGameModePacket::read(&mut input)?;
     } else if try_handle_inventory_packet(
         stream,
         compression,

@@ -156,6 +156,7 @@ pub struct PlaySession {
     pub last_chat_command: Option<ServerboundChatCommandPacket>,
     pub last_signed_chat_command: Option<ServerboundChatCommandSignedPacket>,
     pub last_chat_session_update: Option<ServerboundChatSessionUpdatePacket>,
+    pub last_change_game_mode: Option<ServerboundChangeGameModePacket>,
     pub last_attack: Option<ServerboundAttackPacket>,
     pub last_player_command: Option<ServerboundPlayerCommandPacket>,
     pub last_player_action: Option<ServerboundPlayerActionPacket>,

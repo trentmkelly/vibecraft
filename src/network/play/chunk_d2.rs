@@ -823,6 +823,33 @@ impl ServerboundBlockEntityTagQueryPacket {
     }
 }
 
+impl GameMode {
+    pub(super) fn from_wire_id(id: i32) -> Self {
+        match id {
+            1 => Self::Creative,
+            2 => Self::Adventure,
+            3 => Self::Spectator,
+            _ => Self::Survival,
+        }
+    }
+
+    pub(super) fn wire_id(self) -> i32 {
+        self as i32
+    }
+}
+
+impl ServerboundChangeGameModePacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let mode = GameMode::from_wire_id(read_var_i32(reader)?);
+        expect_empty_payload(reader)?;
+        Ok(Self { mode })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.mode.wire_id())
+    }
+}
+
 impl ServerboundInteractionHand {
     pub(super) fn from_id(id: i32) -> Self {
         match id {
