@@ -789,6 +789,11 @@ impl ClientboundSetEntityLinkPacket {
             dest_id: dest_id.unwrap_or(0),
         }
     }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_i32(writer, self.source_id)?;
+        write_i32(writer, self.dest_id)
+    }
 }
 
 impl ClientboundSetEquipmentPacket {

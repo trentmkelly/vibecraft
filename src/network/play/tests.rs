@@ -991,6 +991,7 @@ mod cooldown_packet_test;
 mod custom_payload_packet_test;
 mod delete_chat_packet_test;
 mod disguised_chat_packet_test;
+mod entity_inventory_clientbound_packets_test;
 mod entity_movement_test;
 mod entity_position_sync_packet_test;
 mod explode_packet_test;
