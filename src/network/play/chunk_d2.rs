@@ -924,6 +924,22 @@ impl ClientboundPlayerCombatKillPacket {
     }
 }
 
+impl ClientboundProjectilePowerPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let packet = Self {
+            id: read_var_i32(reader)?,
+            acceleration_power: read_f64(reader)?,
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.id)?;
+        write_f64(writer, self.acceleration_power)
+    }
+}
+
 impl GameMode {
     pub(super) fn from_wire_id(id: i32) -> Self {
         match id {

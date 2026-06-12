@@ -1119,6 +1119,12 @@ pub struct ClientboundPlayerCombatKillPacket {
     pub message: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClientboundProjectilePowerPacket {
+    pub id: i32,
+    pub acceleration_power: f64,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RespawnReason {
     Death,
