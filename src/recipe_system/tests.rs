@@ -9,56 +9,7 @@ use crate::advancement_system::{
     RecipeUnlockedCriterion,
 };
 
-fn ids(entries: &[RegistryEntry]) -> Vec<&'static str> {
-    entries.iter().map(|entry| entry.id).collect()
-}
-
-#[test]
-fn recipe_registries_match_vanilla_bootstrap_order() {
-    assert_eq!(
-        ids(RECIPE_TYPES),
-        vec![
-            "crafting",
-            "smelting",
-            "blasting",
-            "smoking",
-            "campfire_cooking",
-            "stonecutting",
-            "smithing"
-        ]
-    );
-    assert_eq!(RECIPE_SERIALIZERS.len(), 21);
-    assert_eq!(RECIPE_SERIALIZERS.first().unwrap().id, "crafting_shaped");
-    assert_eq!(RECIPE_SERIALIZERS.last().unwrap().id, "smithing_trim");
-    assert_eq!(
-        ids(RECIPE_DISPLAY_TYPES),
-        vec![
-            "crafting_shapeless",
-            "crafting_shaped",
-            "furnace",
-            "stonecutter",
-            "smithing"
-        ]
-    );
-    assert_eq!(
-        ids(SLOT_DISPLAY_TYPES),
-        vec![
-            "empty",
-            "any_fuel",
-            "with_any_potion",
-            "only_with_component",
-            "item",
-            "item_stack",
-            "tag",
-            "dyed",
-            "smithing_trim",
-            "with_remainder",
-            "composite"
-        ]
-    );
-    assert_eq!(RECIPE_BOOK_CATEGORIES.len(), 13);
-    assert_eq!(RECIPE_BOOK_CATEGORIES.last().unwrap().id, "campfire");
-}
+mod registry_tests;
 
 #[test]
 fn recipe_book_settings_use_vanilla_stream_order_and_defaults() {
