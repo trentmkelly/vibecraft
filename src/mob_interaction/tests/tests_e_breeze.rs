@@ -1,10 +1,139 @@
 #[test]
 fn breeze_util_and_shoot_when_stuck_match_java_rules() {
+    assert_breeze_ai_rules();
     assert_breeze_util_random_point_and_los_rules();
     assert_breeze_long_jump_rules();
     assert_breeze_shoot_rules();
     assert_breeze_shoot_when_stuck_memory_rules();
     assert_breeze_slide_rules();
+}
+
+fn assert_breeze_ai_rules() {
+    assert_breeze_ai_constants_and_activities();
+    assert_breeze_ai_activity_update_and_slide_sink();
+}
+
+fn assert_breeze_ai_constants_and_activities() {
+    assert_eq!(BREEZE_AI_SPEED_MULTIPLIER_WHEN_SLIDING, 0.6);
+    assert_eq!(BREEZE_AI_JUMP_CIRCLE_INNER_RADIUS, 4.0);
+    assert_eq!(BREEZE_AI_JUMP_CIRCLE_MIDDLE_RADIUS, 8.0);
+    assert_eq!(BREEZE_AI_JUMP_CIRCLE_OUTER_RADIUS, 24.0);
+    assert_eq!(BREEZE_AI_TICKS_TO_REMEMBER_SEEN_TARGET, 100);
+    assert_eq!(BREEZE_AI_CORE_SWIM_SPEED, 0.8);
+    assert_eq!(BREEZE_AI_LOOK_MIN_Y_ROT, 45);
+    assert_eq!(BREEZE_AI_LOOK_MAX_X_ROT, 90);
+    assert_eq!(BREEZE_AI_SLIDE_TO_TARGET_MIN_TIMEOUT, 20);
+    assert_eq!(BREEZE_AI_SLIDE_TO_TARGET_MAX_TIMEOUT, 40);
+    assert_eq!(BREEZE_AI_DO_NOTHING_MIN_TICKS, 20);
+    assert_eq!(BREEZE_AI_DO_NOTHING_MAX_TICKS, 100);
+    assert_eq!(BREEZE_AI_DO_NOTHING_WEIGHT, 1);
+    assert_eq!(BREEZE_AI_RANDOM_STROLL_WEIGHT, 2);
+    assert_eq!(BREEZE_AI_SLIDE_SHOOT_MEMORY_EXPIRY_TICKS, 60);
+    assert_eq!(BREEZE_AI_SLIDE_SOUND, "minecraft:entity.breeze.slide");
+    assert_eq!(BREEZE_AI_ACTIVITY_ORDER, ["core", "idle", "fight"]);
+    assert_eq!(
+        BREEZE_AI_CORE_ACTIVITY,
+        [
+            BreezeAiActivityStep {
+                activity: "core",
+                priority: 0,
+                behavior: "swim",
+            },
+            BreezeAiActivityStep {
+                activity: "core",
+                priority: 0,
+                behavior: "look_at_target_sink",
+            },
+        ]
+    );
+    assert_eq!(
+        BREEZE_AI_IDLE_ACTIVITY,
+        [
+            BreezeAiActivityStep {
+                activity: "idle",
+                priority: 0,
+                behavior: "start_attacking_nearest_attackable",
+            },
+            BreezeAiActivityStep {
+                activity: "idle",
+                priority: 1,
+                behavior: "start_attacking_hurt_by_living_entity",
+            },
+            BreezeAiActivityStep {
+                activity: "idle",
+                priority: 2,
+                behavior: "slide_to_target_sink",
+            },
+            BreezeAiActivityStep {
+                activity: "idle",
+                priority: 3,
+                behavior: "run_one_do_nothing_or_random_stroll",
+            },
+        ]
+    );
+}
+
+fn assert_breeze_ai_activity_update_and_slide_sink() {
+    assert_eq!(
+        BREEZE_AI_FIGHT_ACTIVITY,
+        [
+            BreezeAiActivityStep {
+                activity: "fight",
+                priority: 0,
+                behavior: "stop_attacking_if_target_invalid",
+            },
+            BreezeAiActivityStep {
+                activity: "fight",
+                priority: 1,
+                behavior: "shoot",
+            },
+            BreezeAiActivityStep {
+                activity: "fight",
+                priority: 2,
+                behavior: "long_jump",
+            },
+            BreezeAiActivityStep {
+                activity: "fight",
+                priority: 3,
+                behavior: "shoot_when_stuck",
+            },
+            BreezeAiActivityStep {
+                activity: "fight",
+                priority: 4,
+                behavior: "slide",
+            },
+        ]
+    );
+    assert_eq!(
+        BREEZE_AI_FIGHT_REQUIREMENTS,
+        [
+            ("attack_target", "value_present"),
+            ("walk_target", "value_absent"),
+        ]
+    );
+    assert_eq!(breeze_ai_update_activity(), ["fight", "idle"]);
+    assert!(breeze_ai_stop_attack_when_target_invalid(false));
+    assert!(!breeze_ai_stop_attack_when_target_invalid(true));
+    assert_eq!(
+        breeze_ai_slide_to_target_start(),
+        BreezeSlideToTargetSinkStep {
+            pose: "sliding",
+            sound: Some("minecraft:entity.breeze.slide"),
+            shoot_memory_expiry_ticks: None,
+        }
+    );
+    assert_eq!(
+        breeze_ai_slide_to_target_stop(true),
+        BreezeSlideToTargetSinkStep {
+            pose: "standing",
+            sound: None,
+            shoot_memory_expiry_ticks: Some(60),
+        }
+    );
+    assert_eq!(
+        breeze_ai_slide_to_target_stop(false).shoot_memory_expiry_ticks,
+        None
+    );
 }
 
 fn assert_breeze_util_random_point_and_los_rules() {

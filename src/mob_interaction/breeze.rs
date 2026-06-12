@@ -124,6 +124,20 @@ pub struct BreezeLongJumpStopStep {
     pub erase_leaving_water: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BreezeAiActivityStep {
+    pub activity: &'static str,
+    pub priority: i32,
+    pub behavior: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BreezeSlideToTargetSinkStep {
+    pub pose: &'static str,
+    pub sound: Option<&'static str>,
+    pub shoot_memory_expiry_ticks: Option<i64>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BreezeSlideStartInput {
     pub breeze_position: BreezeVec3,
@@ -151,6 +165,22 @@ pub const BREEZE_UTIL_BEHIND_TARGET_BASE_DEGREES: f64 = 180.0;
 pub const BREEZE_UTIL_BEHIND_TARGET_SPREAD_DEGREES: f64 = 90.0;
 pub const BREEZE_UTIL_BEHIND_TARGET_MIN_DISTANCE: f64 = 4.0;
 pub const BREEZE_UTIL_BEHIND_TARGET_MAX_DISTANCE: f64 = 8.0;
+pub const BREEZE_AI_SPEED_MULTIPLIER_WHEN_SLIDING: f32 = 0.6;
+pub const BREEZE_AI_JUMP_CIRCLE_INNER_RADIUS: f32 = 4.0;
+pub const BREEZE_AI_JUMP_CIRCLE_MIDDLE_RADIUS: f32 = 8.0;
+pub const BREEZE_AI_JUMP_CIRCLE_OUTER_RADIUS: f32 = 24.0;
+pub const BREEZE_AI_TICKS_TO_REMEMBER_SEEN_TARGET: i32 = 100;
+pub const BREEZE_AI_CORE_SWIM_SPEED: f32 = 0.8;
+pub const BREEZE_AI_LOOK_MIN_Y_ROT: i32 = 45;
+pub const BREEZE_AI_LOOK_MAX_X_ROT: i32 = 90;
+pub const BREEZE_AI_SLIDE_TO_TARGET_MIN_TIMEOUT: i32 = 20;
+pub const BREEZE_AI_SLIDE_TO_TARGET_MAX_TIMEOUT: i32 = 40;
+pub const BREEZE_AI_DO_NOTHING_MIN_TICKS: i32 = 20;
+pub const BREEZE_AI_DO_NOTHING_MAX_TICKS: i32 = 100;
+pub const BREEZE_AI_RANDOM_STROLL_WEIGHT: i32 = 2;
+pub const BREEZE_AI_DO_NOTHING_WEIGHT: i32 = 1;
+pub const BREEZE_AI_SLIDE_SHOOT_MEMORY_EXPIRY_TICKS: i64 = 60;
+pub const BREEZE_AI_SLIDE_SOUND: &str = "minecraft:entity.breeze.slide";
 pub const BREEZE_LONG_JUMP_REQUIRED_AIR_BLOCKS_ABOVE: i32 = 4;
 pub const BREEZE_LONG_JUMP_COOLDOWN_TICKS: i64 = 10;
 pub const BREEZE_LONG_JUMP_COOLDOWN_WHEN_HURT_TICKS: i64 = 2;
@@ -216,6 +246,77 @@ pub const BREEZE_LONG_JUMP_MEMORY_REQUIREMENTS: [(&str, &str); 7] = [
     ("breeze_shoot", "value_absent"),
     ("walk_target", "value_absent"),
     ("breeze_leaving_water", "registered"),
+];
+
+pub const BREEZE_AI_ACTIVITY_ORDER: [&str; 3] = ["core", "idle", "fight"];
+
+pub const BREEZE_AI_CORE_ACTIVITY: [BreezeAiActivityStep; 2] = [
+    BreezeAiActivityStep {
+        activity: "core",
+        priority: 0,
+        behavior: "swim",
+    },
+    BreezeAiActivityStep {
+        activity: "core",
+        priority: 0,
+        behavior: "look_at_target_sink",
+    },
+];
+
+pub const BREEZE_AI_IDLE_ACTIVITY: [BreezeAiActivityStep; 4] = [
+    BreezeAiActivityStep {
+        activity: "idle",
+        priority: 0,
+        behavior: "start_attacking_nearest_attackable",
+    },
+    BreezeAiActivityStep {
+        activity: "idle",
+        priority: 1,
+        behavior: "start_attacking_hurt_by_living_entity",
+    },
+    BreezeAiActivityStep {
+        activity: "idle",
+        priority: 2,
+        behavior: "slide_to_target_sink",
+    },
+    BreezeAiActivityStep {
+        activity: "idle",
+        priority: 3,
+        behavior: "run_one_do_nothing_or_random_stroll",
+    },
+];
+
+pub const BREEZE_AI_FIGHT_ACTIVITY: [BreezeAiActivityStep; 5] = [
+    BreezeAiActivityStep {
+        activity: "fight",
+        priority: 0,
+        behavior: "stop_attacking_if_target_invalid",
+    },
+    BreezeAiActivityStep {
+        activity: "fight",
+        priority: 1,
+        behavior: "shoot",
+    },
+    BreezeAiActivityStep {
+        activity: "fight",
+        priority: 2,
+        behavior: "long_jump",
+    },
+    BreezeAiActivityStep {
+        activity: "fight",
+        priority: 3,
+        behavior: "shoot_when_stuck",
+    },
+    BreezeAiActivityStep {
+        activity: "fight",
+        priority: 4,
+        behavior: "slide",
+    },
+];
+
+pub const BREEZE_AI_FIGHT_REQUIREMENTS: [(&str, &str); 2] = [
+    ("attack_target", "value_present"),
+    ("walk_target", "value_absent"),
 ];
 
 pub const BREEZE_SLIDE_MEMORY_REQUIREMENTS: [(&str, &str); 4] = [
@@ -314,6 +415,31 @@ pub fn breeze_shoot_when_stuck_step(
         can_start,
         can_still_use: false,
         shoot_memory_expiry_ticks: can_start.then_some(BREEZE_SHOOT_WHEN_STUCK_MEMORY_EXPIRY_TICKS),
+    }
+}
+
+pub fn breeze_ai_update_activity() -> [&'static str; 2] {
+    ["fight", "idle"]
+}
+
+pub fn breeze_ai_stop_attack_when_target_invalid(attackable_last_100_ticks: bool) -> bool {
+    !attackable_last_100_ticks
+}
+
+pub fn breeze_ai_slide_to_target_start() -> BreezeSlideToTargetSinkStep {
+    BreezeSlideToTargetSinkStep {
+        pose: "sliding",
+        sound: Some(BREEZE_AI_SLIDE_SOUND),
+        shoot_memory_expiry_ticks: None,
+    }
+}
+
+pub fn breeze_ai_slide_to_target_stop(attack_target_present: bool) -> BreezeSlideToTargetSinkStep {
+    BreezeSlideToTargetSinkStep {
+        pose: "standing",
+        sound: None,
+        shoot_memory_expiry_ticks: attack_target_present
+            .then_some(BREEZE_AI_SLIDE_SHOOT_MEMORY_EXPIRY_TICKS),
     }
 }
 
