@@ -251,3 +251,45 @@ fn single_input_and_smithing_recipe_kind_ids_match_vanilla_registries() {
         "smithing_trim",
     );
 }
+
+#[test]
+fn recipe_holder_identity_matches_java_resource_key_semantics() {
+    let crafting = RecipeHolder {
+        id: "minecraft:shared_id",
+        recipe: RecipeKind::Shaped {
+            width: 1,
+            height: 1,
+            pattern: vec![Some(IngredientSpec::Item("minecraft:stone"))],
+            result: ItemAmount::one("minecraft:stone_button"),
+            category: CraftingBookCategoryModel::Misc,
+        },
+    };
+    let cooking = RecipeHolder {
+        id: "minecraft:shared_id",
+        recipe: RecipeKind::Cooking {
+            kind: CookingKind::Smelting,
+            ingredient: IngredientSpec::Item("minecraft:raw_iron"),
+            result: ItemAmount::one("minecraft:iron_ingot"),
+            experience_millis: 700,
+            cooking_time: None,
+            category: CookingBookCategory::Misc,
+        },
+    };
+    let different_id = RecipeHolder {
+        id: "minecraft:different_id",
+        recipe: crafting.recipe.clone(),
+    };
+
+    assert_eq!(crafting, cooking);
+    assert_ne!(crafting, different_id);
+    assert_eq!(
+        crafting.to_string(),
+        "ResourceKey[minecraft:recipe / minecraft:shared_id]"
+    );
+
+    let mut holders = std::collections::HashSet::new();
+    holders.insert(crafting);
+    holders.insert(cooking);
+    holders.insert(different_id);
+    assert_eq!(holders.len(), 2);
+}

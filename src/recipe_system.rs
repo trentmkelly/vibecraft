@@ -395,34 +395,6 @@ pub struct SelectableSingleInputRecipe {
     pub recipe: Option<&'static str>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RecipeHolder {
-    pub id: &'static str,
-    pub recipe: RecipeKind,
-}
-
-impl RecipeHolder {
-    #[cfg(test)]
-    pub fn get_id(&self) -> &'static str {
-        self.id
-    }
-
-    #[cfg(test)]
-    pub fn get_serializer(&self) -> &'static str {
-        self.recipe.serializer()
-    }
-
-    #[cfg(test)]
-    pub fn get_type(&self) -> &'static str {
-        self.recipe.recipe_type()
-    }
-
-    #[cfg(test)]
-    pub fn get_result_item(&self) -> Option<ItemAmount> {
-        self.recipe.assemble()
-    }
-}
-
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RecipeMap {
     recipes: Vec<RecipeHolder>,
@@ -687,6 +659,8 @@ pub fn load_item_tag_directory(tag_dir: &std::path::Path) -> ItemTagMap {
 
 mod recipe_loading;
 pub use recipe_loading::*;
+mod holder;
+pub use holder::RecipeHolder;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StonecutterSelection {
