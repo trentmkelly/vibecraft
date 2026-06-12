@@ -1096,6 +1096,14 @@ pub struct ClientboundRespawnPacket {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundPlayerCombatEndPacket {
+    pub duration: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientboundPlayerCombatEnterPacket;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RespawnDataToKeep {
     pub(super) bits: u8,
 }

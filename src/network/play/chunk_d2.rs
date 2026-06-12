@@ -887,6 +887,43 @@ impl ClientboundGameTestHighlightPosPacket {
     }
 }
 
+impl ClientboundPlayerCombatEndPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let duration = read_var_i32(reader)?;
+        expect_empty_payload(reader)?;
+        Ok(Self { duration })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.duration)
+    }
+}
+
+impl ClientboundPlayerCombatEnterPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        expect_empty_payload(reader)?;
+        Ok(Self)
+    }
+
+    pub fn write<W: Write>(&self, _writer: &mut W) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+impl ClientboundPlayerCombatKillPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let player_id = read_var_i32(reader)?;
+        let message = read_trusted_component(reader)?.0;
+        expect_empty_payload(reader)?;
+        Ok(Self { player_id, message })
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_var_i32(writer, self.player_id)?;
+        write_trusted_component(writer, &ComponentJson(self.message.clone()))
+    }
+}
+
 impl GameMode {
     pub(super) fn from_wire_id(id: i32) -> Self {
         match id {
