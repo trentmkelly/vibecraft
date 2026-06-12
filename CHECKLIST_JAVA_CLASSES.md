@@ -987,11 +987,11 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/network/protocol/cookie`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/cookie/ClientCookiePacketListener.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/cookie/ClientboundCookieRequestPacket.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/cookie/CookiePacketTypes.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/cookie/ServerCookiePacketListener.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/cookie/ServerboundCookieResponsePacket.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/cookie/ClientCookiePacketListener.java`. Rust cookie parity tests assert the Java listener extends `ClientboundPacketListener` and exposes `handleRequestCookie(ClientboundCookieRequestPacket)`, matching the request packet dispatch surface.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/cookie/ClientboundCookieRequestPacket.java`. `src/network/cookie.rs` round-trips the identifier-only request packet and source-sentinel tests cover the Java packet codec constructor/write path, `CLIENTBOUND_COOKIE_REQUEST` type, and `handleRequestCookie` dispatch.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/cookie/CookiePacketTypes.java`. Cookie packet type parity is source-sentinel tested for the `cookie_request`/`cookie_response` default-namespace IDs and clientbound/serverbound packet flows.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/cookie/ServerCookiePacketListener.java`. Rust cookie parity tests assert the Java listener extends `ServerPacketListener` and exposes `handleCookieResponse(ServerboundCookieResponsePacket)`, matching the response packet dispatch surface.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/cookie/ServerboundCookieResponsePacket.java`. `src/network/cookie.rs` round-trips identifier plus nullable payload responses, enforces the shared 5120-byte payload cap through the `ClientboundStoreCookiePacket` payload codec, and source-sentinel tests cover Java nullable read/write, packet type, and listener dispatch.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/network/protocol/cookie/package-info.java`. Java 26.1.2 package marker contains only `@NullMarked`, the package declaration, and the `org.jspecify.annotations.NullMarked` import; no Rust runtime behavior or parity test is required beyond preserving nullability expectations in typed Rust APIs.
 
 ## `decompiled-server-26.1.2/net/minecraft/network/protocol/game`

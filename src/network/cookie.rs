@@ -187,7 +187,69 @@ mod tests {
     use std::io::Cursor;
 
     #[test]
+    fn cookie_packet_types_and_listener_surfaces_match_java() {
+        const CLIENT_COOKIE_LISTENER_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/cookie/ClientCookiePacketListener.java"
+        );
+        for sentinel in [
+            "public interface ClientCookiePacketListener extends ClientboundPacketListener",
+            "void handleRequestCookie(ClientboundCookieRequestPacket packet);",
+        ] {
+            assert!(
+                CLIENT_COOKIE_LISTENER_JAVA.contains(sentinel),
+                "missing ClientCookiePacketListener sentinel {sentinel}"
+            );
+        }
+
+        const SERVER_COOKIE_LISTENER_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/cookie/ServerCookiePacketListener.java"
+        );
+        for sentinel in [
+            "public interface ServerCookiePacketListener extends ServerPacketListener",
+            "void handleCookieResponse(ServerboundCookieResponsePacket packet);",
+        ] {
+            assert!(
+                SERVER_COOKIE_LISTENER_JAVA.contains(sentinel),
+                "missing ServerCookiePacketListener sentinel {sentinel}"
+            );
+        }
+
+        const COOKIE_PACKET_TYPES_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/cookie/CookiePacketTypes.java"
+        );
+        for sentinel in [
+            "CLIENTBOUND_COOKIE_REQUEST = createClientbound(\"cookie_request\")",
+            "SERVERBOUND_COOKIE_RESPONSE = createServerbound(\"cookie_response\")",
+            "PacketFlow.CLIENTBOUND",
+            "PacketFlow.SERVERBOUND",
+            "Identifier.withDefaultNamespace(id)",
+        ] {
+            assert!(
+                COOKIE_PACKET_TYPES_JAVA.contains(sentinel),
+                "missing CookiePacketTypes sentinel {sentinel}"
+            );
+        }
+    }
+
+    #[test]
     fn round_trips_cookie_request() {
+        const CLIENTBOUND_COOKIE_REQUEST_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/cookie/ClientboundCookieRequestPacket.java"
+        );
+        for sentinel in [
+            "public record ClientboundCookieRequestPacket(Identifier key) implements Packet<ClientCookiePacketListener>",
+            "ClientboundCookieRequestPacket::write, ClientboundCookieRequestPacket::new",
+            "this(input.readIdentifier());",
+            "output.writeIdentifier(this.key);",
+            "CookiePacketTypes.CLIENTBOUND_COOKIE_REQUEST",
+            "listener.handleRequestCookie(this);",
+        ] {
+            assert!(
+                CLIENTBOUND_COOKIE_REQUEST_JAVA.contains(sentinel),
+                "missing ClientboundCookieRequestPacket sentinel {sentinel}"
+            );
+        }
+
         let packet = ClientboundCookieRequestPacket {
             key: Identifier::parse("vibecraft:test").unwrap(),
         };
@@ -201,6 +263,24 @@ mod tests {
 
     #[test]
     fn round_trips_cookie_response_with_and_without_payload() {
+        const SERVERBOUND_COOKIE_RESPONSE_JAVA: &str = include_str!(
+            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/cookie/ServerboundCookieResponsePacket.java"
+        );
+        for sentinel in [
+            "public record ServerboundCookieResponsePacket(Identifier key, byte @Nullable [] payload)",
+            "ServerboundCookieResponsePacket::write, ServerboundCookieResponsePacket::new",
+            "this(input.readIdentifier(), input.readNullable(ClientboundStoreCookiePacket.PAYLOAD_STREAM_CODEC));",
+            "output.writeIdentifier(this.key);",
+            "output.writeNullable(this.payload, ClientboundStoreCookiePacket.PAYLOAD_STREAM_CODEC);",
+            "CookiePacketTypes.SERVERBOUND_COOKIE_RESPONSE",
+            "listener.handleCookieResponse(this);",
+        ] {
+            assert!(
+                SERVERBOUND_COOKIE_RESPONSE_JAVA.contains(sentinel),
+                "missing ServerboundCookieResponsePacket sentinel {sentinel}"
+            );
+        }
+
         for payload in [Some(vec![1, 2, 3]), None] {
             let packet = ServerboundCookieResponsePacket {
                 key: Identifier::parse("vibecraft:test").unwrap(),
