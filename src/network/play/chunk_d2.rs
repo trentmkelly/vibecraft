@@ -960,6 +960,16 @@ impl ClientboundPlayerRotationPacket {
     }
 }
 
+impl ClientboundPlayerInfoRemovePacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let packet = Self {
+            profile_ids: read_collection(reader, read_uuid)?,
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
+    }
+}
+
 impl GameMode {
     pub(super) fn from_wire_id(id: i32) -> Self {
         match id {

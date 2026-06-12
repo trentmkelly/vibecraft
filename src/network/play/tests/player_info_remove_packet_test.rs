@@ -1,7 +1,23 @@
 use super::*;
 
+const CLIENTBOUND_PLAYER_INFO_REMOVE_JAVA: &str = include_str!(
+    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundPlayerInfoRemovePacket.java"
+);
+
 #[test]
 fn clientbound_player_info_remove_packet_matches_java_codec() {
+    for sentinel in [
+        "this(input.readList(UUIDUtil.STREAM_CODEC));",
+        "output.writeCollection(this.profileIds, UUIDUtil.STREAM_CODEC);",
+        "return GamePacketTypes.CLIENTBOUND_PLAYER_INFO_REMOVE;",
+        "listener.handlePlayerInfoRemove(this);",
+    ] {
+        assert!(
+            CLIENTBOUND_PLAYER_INFO_REMOVE_JAVA.contains(sentinel),
+            "missing ClientboundPlayerInfoRemovePacket sentinel {sentinel}"
+        );
+    }
+
     assert_eq!(CLIENTBOUND_PLAYER_INFO_REMOVE_PACKET_ID, 69);
     let registry = PlayProtocolRegistry::new();
     assert_eq!(
@@ -18,15 +34,32 @@ fn clientbound_player_info_remove_packet_matches_java_codec() {
         0x00,
     ]);
 
-    let mut payload = Vec::new();
-    ClientboundPlayerInfoRemovePacket {
+    let packet = ClientboundPlayerInfoRemovePacket {
         profile_ids: vec![first, second],
-    }
-    .write(&mut payload)
-    .unwrap();
+    };
+    let mut payload = Vec::new();
+    packet.write(&mut payload).unwrap();
 
     assert_eq!(payload[0], 2);
     assert_eq!(&payload[1..17], &first.0);
     assert_eq!(&payload[17..33], &second.0);
     assert_eq!(payload.len(), 33);
+    assert_eq!(
+        ClientboundPlayerInfoRemovePacket::read(&mut cursor(payload)).unwrap(),
+        packet
+    );
+}
+
+#[test]
+fn clientbound_player_info_remove_packet_rejects_malformed_payloads() {
+    assert!(ClientboundPlayerInfoRemovePacket::read(&mut cursor(vec![1; 16])).is_err());
+
+    let mut payload = Vec::new();
+    ClientboundPlayerInfoRemovePacket {
+        profile_ids: vec![Uuid([1; 16])],
+    }
+    .write(&mut payload)
+    .unwrap();
+    payload.push(0);
+    assert!(ClientboundPlayerInfoRemovePacket::read(&mut cursor(payload)).is_err());
 }
