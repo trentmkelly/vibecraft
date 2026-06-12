@@ -349,6 +349,11 @@ pub struct ClientboundAdvancementsPacket {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientboundSelectAdvancementsTabPacket {
+    pub tab: Option<Identifier>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientboundPlayerInfoUpdatePacket {
     pub actions: Vec<PlayerInfoUpdateAction>,
     pub entries: Vec<PlayerInfoUpdateEntry>,

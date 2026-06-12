@@ -143,6 +143,20 @@ impl ClientboundAdvancementsPacket {
     }
 }
 
+impl ClientboundSelectAdvancementsTabPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let packet = Self {
+            tab: read_optional(reader, read_identifier)?,
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
+    }
+
+    pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_optional(writer, self.tab.as_ref(), write_identifier)
+    }
+}
+
 impl ClientboundPlayerInfoUpdatePacket {
     pub fn player_initializing(entries: Vec<PlayerInfoUpdateEntry>) -> Self {
         Self {
