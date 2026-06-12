@@ -61,3 +61,78 @@ fn clientbound_set_entity_data_packet_rejects_reserved_eof_index() {
 
     assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
 }
+
+#[test]
+fn entity_data_accessor_and_serializer_registry_match_java_syncher_contracts() {
+    const ACCESSOR_JAVA: &str = include_str!(
+        "../../../../../decompiled-server-26.1.2/net/minecraft/network/syncher/EntityDataAccessor.java"
+    );
+    const SERIALIZER_JAVA: &str = include_str!(
+        "../../../../../decompiled-server-26.1.2/net/minecraft/network/syncher/EntityDataSerializer.java"
+    );
+    const SERIALIZERS_JAVA: &str = include_str!(
+        "../../../../../decompiled-server-26.1.2/net/minecraft/network/syncher/EntityDataSerializers.java"
+    );
+
+    assert!(ACCESSOR_JAVA.contains("return this.id == that.id;"));
+    assert!(ACCESSOR_JAVA.contains("return this.id;"));
+    assert!(ACCESSOR_JAVA.contains("return \"<entity data: \" + this.id + \">\";"));
+    assert!(SERIALIZER_JAVA
+        .contains("return new EntityDataAccessor<>(id, this);"));
+    assert!(SERIALIZER_JAVA.contains("static <T> EntityDataSerializer<T> forValueType"));
+    assert!(SERIALIZER_JAVA.contains("default T copy(final T value)"));
+
+    for serializer in JAVA_ENTITY_DATA_SERIALIZER_ORDER {
+        assert!(
+            SERIALIZERS_JAVA.contains(&format!("registerSerializer({serializer});")),
+            "missing Java serializer registration for {serializer}"
+        );
+    }
+    assert_eq!(JAVA_ENTITY_DATA_SERIALIZER_ORDER.len(), 43);
+}
+
+const JAVA_ENTITY_DATA_SERIALIZER_ORDER: &[&str] = &[
+    "BYTE",
+    "INT",
+    "LONG",
+    "FLOAT",
+    "STRING",
+    "COMPONENT",
+    "OPTIONAL_COMPONENT",
+    "ITEM_STACK",
+    "BOOLEAN",
+    "ROTATIONS",
+    "BLOCK_POS",
+    "OPTIONAL_BLOCK_POS",
+    "DIRECTION",
+    "OPTIONAL_LIVING_ENTITY_REFERENCE",
+    "BLOCK_STATE",
+    "OPTIONAL_BLOCK_STATE",
+    "PARTICLE",
+    "PARTICLES",
+    "VILLAGER_DATA",
+    "OPTIONAL_UNSIGNED_INT",
+    "POSE",
+    "CAT_VARIANT",
+    "CAT_SOUND_VARIANT",
+    "COW_VARIANT",
+    "COW_SOUND_VARIANT",
+    "WOLF_VARIANT",
+    "WOLF_SOUND_VARIANT",
+    "FROG_VARIANT",
+    "PIG_VARIANT",
+    "PIG_SOUND_VARIANT",
+    "CHICKEN_VARIANT",
+    "CHICKEN_SOUND_VARIANT",
+    "ZOMBIE_NAUTILUS_VARIANT",
+    "OPTIONAL_GLOBAL_POS",
+    "PAINTING_VARIANT",
+    "SNIFFER_STATE",
+    "ARMADILLO_STATE",
+    "COPPER_GOLEM_STATE",
+    "WEATHERING_COPPER_STATE",
+    "VECTOR3",
+    "QUATERNION",
+    "RESOLVABLE_PROFILE",
+    "HUMANOID_ARM",
+];
