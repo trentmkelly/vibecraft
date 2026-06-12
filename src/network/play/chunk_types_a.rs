@@ -540,11 +540,50 @@ pub struct ServerboundRecipeBookSeenRecipePacket {
     pub recipe_index: i32,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ServerboundSeenAdvancementsAction {
+    OpenedTab,
+    ClosedScreen,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerboundSeenAdvancementsPacket {
+    pub action: ServerboundSeenAdvancementsAction,
+    pub tab: Option<Identifier>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ServerboundPlaceRecipePacket {
     pub container_id: i32,
     pub recipe_index: i32,
     pub use_max_items: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundSelectBundleItemPacket {
+    pub slot_id: i32,
+    pub selected_item_index: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerboundSetGameRulePacket {
+    pub entries: Vec<ServerboundSetGameRuleEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerboundSetGameRuleEntry {
+    pub game_rule_key: Identifier,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundSpectateEntityPacket {
+    pub entity_id: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerboundTeleportToEntityPacket {
+    pub uuid: Uuid,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -785,6 +824,11 @@ pub struct Vec3 {
     pub x: f64,
     pub y: f64,
     pub z: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct VecDeltaCodec {
+    pub(super) base: Vec3,
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -68,7 +68,10 @@ use crate::network::play::{
     ServerboundPickItemFromBlockPacket, ServerboundPickItemFromEntityPacket,
     ServerboundInteractPacket, ServerboundPlaceRecipePacket, ServerboundPlayerAbilitiesPacket,
     ServerboundRecipeBookChangeSettingsPacket, ServerboundRecipeBookSeenRecipePacket,
-    ServerboundSetCreativeModeSlotPacket, ServerboundSwingHand, ServerboundUseItemOnPacket, Vec3,
+    ServerboundSeenAdvancementsPacket, ServerboundSelectBundleItemPacket,
+    ServerboundSetCreativeModeSlotPacket, ServerboundSetGameRulePacket,
+    ServerboundSpectateEntityPacket, ServerboundSwingHand, ServerboundTeleportToEntityPacket,
+    ServerboundUseItemOnPacket, Vec3,
     CLIENTBOUND_ADD_ENTITY_PACKET_ID, CLIENTBOUND_BLOCK_CHANGED_ACK_PACKET_ID,
     CLIENTBOUND_BLOCK_UPDATE_PACKET_ID, CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID,
     CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID, CLIENTBOUND_COMMANDS_PACKET_ID,
@@ -102,9 +105,12 @@ use crate::network::play::{
     SERVERBOUND_PLAYER_ABILITIES_PACKET_ID, SERVERBOUND_PLAYER_ACTION_PACKET_ID,
     SERVERBOUND_PLAYER_COMMAND_PACKET_ID, SERVERBOUND_PLAYER_INPUT_PACKET_ID,
     SERVERBOUND_RECIPE_BOOK_CHANGE_SETTINGS_PACKET_ID,
-    SERVERBOUND_RECIPE_BOOK_SEEN_RECIPE_PACKET_ID, SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID,
-    SERVERBOUND_SET_CREATIVE_MODE_SLOT_PACKET_ID, SERVERBOUND_SWING_PACKET_ID,
-    SERVERBOUND_USE_ITEM_ON_PACKET_ID, SERVERBOUND_USE_ITEM_PACKET_ID,
+    SERVERBOUND_RECIPE_BOOK_SEEN_RECIPE_PACKET_ID, SERVERBOUND_SEEN_ADVANCEMENTS_PACKET_ID,
+    SERVERBOUND_SELECT_BUNDLE_ITEM_PACKET_ID, SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID,
+    SERVERBOUND_SET_CREATIVE_MODE_SLOT_PACKET_ID, SERVERBOUND_SET_GAME_RULE_PACKET_ID,
+    SERVERBOUND_SPECTATE_ENTITY_PACKET_ID, SERVERBOUND_SWING_PACKET_ID,
+    SERVERBOUND_TELEPORT_TO_ENTITY_PACKET_ID, SERVERBOUND_USE_ITEM_ON_PACKET_ID,
+    SERVERBOUND_USE_ITEM_PACKET_ID,
 };
 use crate::network::rate_limit::{PacketRateDecision, PacketRateLimiter};
 use crate::network::varint::{read_var_i32, write_var_i32, write_var_i64};

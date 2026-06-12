@@ -13,9 +13,9 @@ use crate::item_catalog::item_protocol_id;
 use crate::item_properties::ItemComponent;
 use crate::item_stack::ItemStack;
 use crate::network::codec::{
-    read_enum_index, read_identifier, read_string, read_uuid, write_bitset, write_collection,
-    write_enum_index, write_identifier, write_optional, write_string, write_trusted_component,
-    write_uuid, ComponentJson, Uuid,
+    read_collection, read_enum_index, read_identifier, read_string, read_uuid, write_bitset,
+    write_collection, write_enum_index, write_identifier, write_optional, write_string,
+    write_trusted_component, write_uuid, ComponentJson, Uuid,
 };
 use crate::network::common::ServerboundResourcePackPacket;
 use crate::network::dispatch::{DecodedPacket, DispatchOutcome, PacketDirection, ProtocolState};
@@ -36,6 +36,7 @@ pub const OVERWORLD_SECTION_COUNT: usize = 24;
 
 pub const SERVERBOUND_ACCEPT_TELEPORTATION_PACKET_ID: i32 = 0;
 pub const SERVERBOUND_ATTACK_PACKET_ID: i32 = 1;
+pub const SERVERBOUND_SELECT_BUNDLE_ITEM_PACKET_ID: i32 = 3;
 pub const SERVERBOUND_CHANGE_DIFFICULTY_PACKET_ID: i32 = 4;
 pub const SERVERBOUND_CHAT_ACK_PACKET_ID: i32 = 6;
 pub const SERVERBOUND_CHAT_COMMAND_PACKET_ID: i32 = 7;
@@ -77,15 +78,19 @@ pub const SERVERBOUND_RECIPE_BOOK_CHANGE_SETTINGS_PACKET_ID: i32 = 46;
 pub const SERVERBOUND_RECIPE_BOOK_SEEN_RECIPE_PACKET_ID: i32 = 47;
 pub const SERVERBOUND_RENAME_ITEM_PACKET_ID: i32 = 48;
 pub const SERVERBOUND_RESOURCE_PACK_PACKET_ID: i32 = 49;
+pub const SERVERBOUND_SEEN_ADVANCEMENTS_PACKET_ID: i32 = 50;
 pub const SERVERBOUND_SELECT_TRADE_PACKET_ID: i32 = 51;
 pub const SERVERBOUND_SET_BEACON_PACKET_ID: i32 = 52;
 pub const SERVERBOUND_SET_CARRIED_ITEM_PACKET_ID: i32 = 53;
 pub const SERVERBOUND_SET_COMMAND_BLOCK_PACKET_ID: i32 = 54;
 pub const SERVERBOUND_SET_COMMAND_MINECART_PACKET_ID: i32 = 55;
 pub const SERVERBOUND_SET_CREATIVE_MODE_SLOT_PACKET_ID: i32 = 56;
+pub const SERVERBOUND_SET_GAME_RULE_PACKET_ID: i32 = 57;
 pub const SERVERBOUND_SET_STRUCTURE_BLOCK_PACKET_ID: i32 = 59;
 pub const SERVERBOUND_SIGN_UPDATE_PACKET_ID: i32 = 61;
+pub const SERVERBOUND_SPECTATE_ENTITY_PACKET_ID: i32 = 62;
 pub const SERVERBOUND_SWING_PACKET_ID: i32 = 63;
+pub const SERVERBOUND_TELEPORT_TO_ENTITY_PACKET_ID: i32 = 64;
 pub const SERVERBOUND_USE_ITEM_ON_PACKET_ID: i32 = 66;
 pub const SERVERBOUND_USE_ITEM_PACKET_ID: i32 = 67;
 
@@ -233,6 +238,7 @@ mod chunk_e;
 pub use chunk_e::*;
 
 mod chunk_e2;
+mod chunk_e3;
 use chunk_e2::*;
 
 #[cfg(test)]

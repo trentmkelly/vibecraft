@@ -102,6 +102,77 @@ impl Vec3 {
     };
 }
 
+impl Default for VecDeltaCodec {
+    fn default() -> Self {
+        Self { base: Vec3::ZERO }
+    }
+}
+
+impl VecDeltaCodec {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn encode(input: f64) -> i64 {
+        (input * 4096.0 + 0.5).floor() as i64
+    }
+
+    pub fn decode_component(value: i64) -> f64 {
+        value as f64 / 4096.0
+    }
+
+    pub fn decode(&self, xa: i64, ya: i64, za: i64) -> Vec3 {
+        if xa == 0 && ya == 0 && za == 0 {
+            return self.base;
+        }
+        Vec3 {
+            x: if xa == 0 {
+                self.base.x
+            } else {
+                Self::decode_component(Self::encode(self.base.x) + xa)
+            },
+            y: if ya == 0 {
+                self.base.y
+            } else {
+                Self::decode_component(Self::encode(self.base.y) + ya)
+            },
+            z: if za == 0 {
+                self.base.z
+            } else {
+                Self::decode_component(Self::encode(self.base.z) + za)
+            },
+        }
+    }
+
+    pub fn encode_x(&self, pos: Vec3) -> i64 {
+        Self::encode(pos.x) - Self::encode(self.base.x)
+    }
+
+    pub fn encode_y(&self, pos: Vec3) -> i64 {
+        Self::encode(pos.y) - Self::encode(self.base.y)
+    }
+
+    pub fn encode_z(&self, pos: Vec3) -> i64 {
+        Self::encode(pos.z) - Self::encode(self.base.z)
+    }
+
+    pub fn delta(&self, pos: Vec3) -> Vec3 {
+        Vec3 {
+            x: pos.x - self.base.x,
+            y: pos.y - self.base.y,
+            z: pos.z - self.base.z,
+        }
+    }
+
+    pub fn set_base(&mut self, base: Vec3) {
+        self.base = base;
+    }
+
+    pub fn base(&self) -> Vec3 {
+        self.base
+    }
+}
+
 impl ClientboundAddEntityPacket {
     pub fn new(input: AddEntityPacketInput) -> Self {
         Self {

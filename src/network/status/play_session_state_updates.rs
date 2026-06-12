@@ -20,6 +20,26 @@ pub fn update_play_session_state<R: Read>(
             );
             Ok(PlaySessionUpdate::default())
         }
+        SERVERBOUND_SEEN_ADVANCEMENTS_PACKET_ID => {
+            let _ = ServerboundSeenAdvancementsPacket::read(input)?;
+            Ok(PlaySessionUpdate::default())
+        }
+        SERVERBOUND_SELECT_BUNDLE_ITEM_PACKET_ID => {
+            let _ = ServerboundSelectBundleItemPacket::read(input)?;
+            Ok(PlaySessionUpdate::default())
+        }
+        SERVERBOUND_SET_GAME_RULE_PACKET_ID => {
+            let _ = ServerboundSetGameRulePacket::read(input)?;
+            Ok(PlaySessionUpdate::default())
+        }
+        SERVERBOUND_SPECTATE_ENTITY_PACKET_ID => {
+            let _ = ServerboundSpectateEntityPacket::read(input)?;
+            Ok(PlaySessionUpdate::default())
+        }
+        SERVERBOUND_TELEPORT_TO_ENTITY_PACKET_ID => {
+            let _ = ServerboundTeleportToEntityPacket::read(input)?;
+            Ok(PlaySessionUpdate::default())
+        }
         SERVERBOUND_CONTAINER_CLOSE_PACKET_ID => {
             let packet = ServerboundContainerClosePacket::read(input)?;
             if packet.container_id == 0 {
