@@ -10,8 +10,14 @@ struct JavaMetadataAccessor {
 }
 
 fn decompiled_entity_source_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../decompiled-server-26.1.2/net/minecraft/world/entity")
+    let Some(root) = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT") else {
+        panic!("VIBECRAFT_DECOMPILED_SOURCE_ROOT must be set for source-backed tests");
+    };
+    PathBuf::from(root)
+    .join("net")
+    .join("minecraft")
+    .join("world")
+    .join("entity")
 }
 
 fn collect_java_sources(root: &Path, paths: &mut Vec<PathBuf>) {

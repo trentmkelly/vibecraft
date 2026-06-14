@@ -699,9 +699,15 @@ mod tests {
 
     #[test]
     fn trial_spawner_registry_resources_decode_all_vanilla_configs() {
-        let root = std::path::Path::new("../decompiled-server-26.1.2/data/minecraft/trial_spawner");
+        let Some(source_root) = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT") else {
+            panic!("VIBECRAFT_DECOMPILED_SOURCE_ROOT must be set for source-backed tests");
+        };
+        let root = std::path::PathBuf::from(source_root)
+        .join("data")
+        .join("minecraft")
+        .join("trial_spawner");
         let mut paths = Vec::new();
-        collect_json_paths(root, &mut paths);
+        collect_json_paths(&root, &mut paths);
         paths.sort();
 
         assert_eq!(paths.len(), 28);
@@ -709,7 +715,7 @@ mod tests {
         let actual_keys: BTreeSet<_> = paths
             .iter()
             .map(|path| {
-                path.strip_prefix(root)
+                path.strip_prefix(&root)
                     .unwrap()
                     .with_extension("")
                     .to_string_lossy()
@@ -773,7 +779,13 @@ mod tests {
 
     #[test]
     fn trial_spawner_bootstrap_custom_spawn_data_matches_java_helpers() {
-        let root = std::path::Path::new("../decompiled-server-26.1.2/data/minecraft/trial_spawner");
+        let Some(source_root) = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT") else {
+            panic!("VIBECRAFT_DECOMPILED_SOURCE_ROOT must be set for source-backed tests");
+        };
+        let root = std::path::PathBuf::from(source_root)
+        .join("data")
+        .join("minecraft")
+        .join("trial_spawner");
         let baby = load_trial_spawner_config_resource(
             root.join("trial_chamber/small_melee/baby_zombie/normal.json"),
         )

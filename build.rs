@@ -4,9 +4,8 @@ use std::path::{Path, PathBuf};
 
 const MAX_LINES: usize = 1200;
 const SKIP_ENV_VAR: &str = "VIBECRAFT_SKIP_LINE_CHECK";
-const DECOMPILED_SOURCE_ROOT_RELATIVE: &str = "../decompiled-server-26.1.2";
-const SOUND_EVENTS_SOURCE_RELATIVE: &str =
-    "../decompiled-server-26.1.2/net/minecraft/sounds/SoundEvents.java";
+const DECOMPILED_SOURCE_ROOT_ENV: &str = "VIBECRAFT_DECOMPILED_SOURCE_ROOT";
+const DECOMPILED_SOURCE_DIR_NAME: &str = "decompiled-server-26.1.2";
 
 // Test files that contain a single very large `#[test]` function whose body
 // shares state across hundreds of assertions. Splitting the function into
@@ -28,6 +27,7 @@ fn main() {
     println!("cargo:rerun-if-changed=src");
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed={}", SKIP_ENV_VAR);
+    println!("cargo:rerun-if-env-changed={}", DECOMPILED_SOURCE_ROOT_ENV);
     println!("cargo:rustc-check-cfg=cfg(vibecraft_has_decompiled_sources)");
     println!("cargo:rustc-check-cfg=cfg(vibecraft_has_sound_events_source)");
 
@@ -77,10 +77,14 @@ fn main() {
 }
 
 fn configure_optional_decompiled_sources(manifest_dir: &Path) {
-    let source_root = manifest_dir.join(DECOMPILED_SOURCE_ROOT_RELATIVE);
+    let source_root = optional_decompiled_source_root(manifest_dir);
     println!("cargo:rerun-if-changed={}", source_root.display());
 
     if source_root.is_dir() {
+        println!(
+            "cargo:rustc-env=VIBECRAFT_DECOMPILED_SOURCE_ROOT={}",
+            source_root.display()
+        );
         println!("cargo:rustc-cfg=vibecraft_has_decompiled_sources");
     } else {
         println!(
@@ -92,7 +96,11 @@ fn configure_optional_decompiled_sources(manifest_dir: &Path) {
 }
 
 fn configure_optional_sound_events_source(manifest_dir: &Path) {
-    let source = manifest_dir.join(SOUND_EVENTS_SOURCE_RELATIVE);
+    let source = optional_decompiled_source_root(manifest_dir)
+        .join("net")
+        .join("minecraft")
+        .join("sounds")
+        .join("SoundEvents.java");
     println!("cargo:rerun-if-changed={}", source.display());
 
     if source.is_file() {
@@ -108,6 +116,17 @@ fn configure_optional_sound_events_source(manifest_dir: &Path) {
             source.display()
         );
     }
+}
+
+fn optional_decompiled_source_root(manifest_dir: &Path) -> PathBuf {
+    env::var_os(DECOMPILED_SOURCE_ROOT_ENV)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            manifest_dir
+                .parent()
+                .unwrap_or(manifest_dir)
+                .join(DECOMPILED_SOURCE_DIR_NAME)
+        })
 }
 
 fn collect_offenders(root: &Path, dir: &Path, out: &mut Vec<(PathBuf, usize)>) {

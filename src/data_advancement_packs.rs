@@ -139,7 +139,10 @@ fn parse_item_array_count(source: &str, name: &str) -> usize {
 }
 
 fn vanilla_advancement_json_ids() -> BTreeSet<String> {
-    let root = Path::new("../decompiled-server-26.1.2/data/minecraft/advancement");
+    let root = Path::new(env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT"))
+        .join("data")
+        .join("minecraft")
+        .join("advancement");
     let mut ids = BTreeSet::new();
     for category in ["story", "nether", "end", "adventure", "husbandry"] {
         let category_root = root.join(category);
@@ -149,7 +152,7 @@ fn vanilla_advancement_json_ids() -> BTreeSet<String> {
                 continue;
             }
             let relative = path
-                .strip_prefix(root)
+                .strip_prefix(&root)
                 .expect("advancement path should be under root")
                 .with_extension("");
             ids.insert(relative.to_string_lossy().replace('\\', "/"));

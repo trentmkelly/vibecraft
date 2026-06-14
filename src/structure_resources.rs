@@ -180,8 +180,13 @@ mod tests {
 
     #[test]
     fn structure_resources_decode_all_vanilla_templates() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../decompiled-server-26.1.2/data/minecraft/structure");
+        let Some(source_root) = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT") else {
+            panic!("VIBECRAFT_DECOMPILED_SOURCE_ROOT must be set for source-backed tests");
+        };
+        let root = std::path::PathBuf::from(source_root)
+        .join("data")
+        .join("minecraft")
+        .join("structure");
         let mut paths = Vec::new();
         collect_nbt_paths(&root, &mut paths);
         paths.sort();

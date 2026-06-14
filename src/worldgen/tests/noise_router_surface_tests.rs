@@ -29,8 +29,14 @@ fn extracted_density_function_ids_from_json_tree() -> Vec<String> {
         }
     }
 
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../decompiled-server-26.1.2/data/minecraft/worldgen/density_function");
+    let Some(source_root) = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT") else {
+        panic!("VIBECRAFT_DECOMPILED_SOURCE_ROOT must be set for source-backed tests");
+    };
+    let root = Path::new(source_root)
+    .join("data")
+    .join("minecraft")
+    .join("worldgen")
+    .join("density_function");
     let mut ids = Vec::new();
     visit_density_function_jsons(&root, &root, &mut ids);
     ids.sort_unstable();

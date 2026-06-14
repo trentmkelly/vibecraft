@@ -17,11 +17,15 @@ fn assert_source_contains_all(source: &str, sentinels: &[&str]) {
 }
 
 fn dimension_type_json(name: &str) -> serde_json::Value {
-    let path = format!("../decompiled-server-26.1.2/data/minecraft/dimension_type/{name}.json");
+    let path = std::path::Path::new(env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT"))
+        .join("data")
+        .join("minecraft")
+        .join("dimension_type")
+        .join(format!("{name}.json"));
     let raw = std::fs::read_to_string(&path)
-        .unwrap_or_else(|err| panic!("failed to read dimension type JSON {path}: {err}"));
+        .unwrap_or_else(|err| panic!("failed to read dimension type JSON {path:?}: {err}"));
     serde_json::from_str(&raw)
-        .unwrap_or_else(|err| panic!("failed to parse dimension type JSON {path}: {err}"))
+        .unwrap_or_else(|err| panic!("failed to parse dimension type JSON {path:?}: {err}"))
 }
 
 fn json_path<'a>(value: &'a serde_json::Value, path: &[&str]) -> &'a serde_json::Value {

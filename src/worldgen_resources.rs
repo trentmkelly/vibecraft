@@ -286,8 +286,11 @@ mod tests {
 
     #[test]
     fn worldgen_resources_decode_all_vanilla_subregistries() {
-        let root = std::path::Path::new("../decompiled-server-26.1.2/data/minecraft/worldgen");
-        let resources = summarize_worldgen_resources(root).unwrap();
+        let root = std::path::Path::new(env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT"))
+            .join("data")
+            .join("minecraft")
+            .join("worldgen");
+        let resources = summarize_worldgen_resources(&root).unwrap();
         let counts = count_by_kind(&resources);
 
         assert_eq!(resources.len(), 951);

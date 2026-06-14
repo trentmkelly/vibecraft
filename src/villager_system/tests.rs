@@ -712,11 +712,20 @@ fn assert_wandering_trader_position_and_despawn_helpers_match_java() {
     assert!(!wandering_trader_remove_when_far_away());
 }
 
+fn source_backed_vanilla_data_root() -> std::path::PathBuf {
+    let Some(source_root) = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT") else {
+        panic!("VIBECRAFT_DECOMPILED_SOURCE_ROOT must be set for source-backed tests");
+    };
+    std::path::PathBuf::from(source_root)
+    .join("data")
+    .join("minecraft")
+}
+
 #[test]
 fn villager_trade_resources_decode_all_vanilla_entries() {
-    let root = std::path::Path::new("../decompiled-server-26.1.2/data/minecraft/villager_trade");
+    let root = source_backed_vanilla_data_root().join("villager_trade");
     let mut paths = Vec::new();
-    collect_json_paths(root, &mut paths);
+    collect_json_paths(&root, &mut paths);
     paths.sort();
 
     assert_eq!(paths.len(), 387);
@@ -756,9 +765,9 @@ fn villager_trade_resources_decode_all_vanilla_entries() {
 
 #[test]
 fn trade_set_resources_decode_all_vanilla_entries() {
-    let root = std::path::Path::new("../decompiled-server-26.1.2/data/minecraft/trade_set");
+    let root = source_backed_vanilla_data_root().join("trade_set");
     let mut paths = Vec::new();
-    collect_json_paths(root, &mut paths);
+    collect_json_paths(&root, &mut paths);
     paths.sort();
 
     assert_eq!(paths.len(), 68);
@@ -790,8 +799,7 @@ fn trade_set_resources_decode_all_vanilla_entries() {
 
 #[test]
 fn profession_offer_generation_resolves_vanilla_trade_sets_and_tags() {
-    let resources =
-        load_villager_trade_data_root("../decompiled-server-26.1.2/data/minecraft").unwrap();
+    let resources = load_villager_trade_data_root(source_backed_vanilla_data_root()).unwrap();
 
     let farmer = profession_offers_from_resources(
         &resources,
@@ -825,8 +833,7 @@ fn profession_offer_generation_resolves_vanilla_trade_sets_and_tags() {
 
 #[test]
 fn wandering_trader_offer_generation_resolves_vanilla_trade_sets() {
-    let resources =
-        load_villager_trade_data_root("../decompiled-server-26.1.2/data/minecraft").unwrap();
+    let resources = load_villager_trade_data_root(source_backed_vanilla_data_root()).unwrap();
     let (buying, uncommon, common) = wandering_trader_offers_from_resources(&resources).unwrap();
 
     assert_eq!(buying.len(), 2);

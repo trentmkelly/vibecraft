@@ -21,29 +21,31 @@ fn assert_source_contains_all(source: &str, sentinels: &[&str]) {
 }
 
 fn parse_noise_json(id: &'static str) -> NormalNoiseParameters {
-    let path = format!(
-        "../decompiled-server-26.1.2/data/minecraft/worldgen/noise/{}.json",
-        id.strip_prefix("minecraft:").unwrap()
-    );
+    let path = std::path::Path::new(env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT"))
+        .join("data")
+        .join("minecraft")
+        .join("worldgen")
+        .join("noise")
+        .join(format!("{}.json", id.strip_prefix("minecraft:").unwrap()));
     let raw = std::fs::read_to_string(&path)
-        .unwrap_or_else(|err| panic!("failed to read noise JSON {path}: {err}"));
-    let value: serde_json::Value =
-        serde_json::from_str(&raw).unwrap_or_else(|err| panic!("invalid noise JSON {path}: {err}"));
+        .unwrap_or_else(|err| panic!("failed to read noise JSON {path:?}: {err}"));
+    let value: serde_json::Value = serde_json::from_str(&raw)
+        .unwrap_or_else(|err| panic!("invalid noise JSON {path:?}: {err}"));
     let first_octave = value
         .get("firstOctave")
         .and_then(serde_json::Value::as_i64)
-        .unwrap_or_else(|| panic!("noise JSON {path} missing firstOctave"));
+        .unwrap_or_else(|| panic!("noise JSON {path:?} missing firstOctave"));
     let first_octave = i32::try_from(first_octave)
-        .unwrap_or_else(|_| panic!("noise JSON {path} firstOctave overflows i32"));
+        .unwrap_or_else(|_| panic!("noise JSON {path:?} firstOctave overflows i32"));
     let amplitudes = value
         .get("amplitudes")
         .and_then(serde_json::Value::as_array)
-        .unwrap_or_else(|| panic!("noise JSON {path} missing amplitudes"))
+        .unwrap_or_else(|| panic!("noise JSON {path:?} missing amplitudes"))
         .iter()
         .map(|value| {
             value
                 .as_f64()
-                .unwrap_or_else(|| panic!("noise JSON {path} has non-number amplitude"))
+                .unwrap_or_else(|| panic!("noise JSON {path:?} has non-number amplitude"))
         })
         .collect::<Vec<_>>();
     let leaked_amplitudes: &'static [f64] = Box::leak(amplitudes.into_boxed_slice());
@@ -81,9 +83,13 @@ fn vanilla_noise_json_ids() -> Vec<String> {
         }
     }
 
-    let root = std::path::Path::new("../decompiled-server-26.1.2/data/minecraft/worldgen/noise");
+    let root = std::path::Path::new(env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT"))
+        .join("data")
+        .join("minecraft")
+        .join("worldgen")
+        .join("noise");
     let mut ids = Vec::new();
-    visit(root, root, &mut ids);
+    visit(&root, &root, &mut ids);
     ids.sort();
     ids
 }
