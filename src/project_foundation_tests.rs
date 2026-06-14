@@ -141,6 +141,29 @@ mod tests {
     }
 
     #[test]
+    fn live_runtime_loaders_do_not_hardcode_local_or_decompiled_paths() {
+        let developer_home = ["/home", "trent"].join("/");
+        let decompiled_parent_path = ["..", "decompiled-server-26.1.2"].join("/");
+        for parts in [
+            &["src", "worldgen", "surface_rule_runtime.rs"][..],
+            &["src", "villager_trade_resources.rs"][..],
+            &["src", "villager_system.rs"][..],
+            &["harness", "mineflayer", "vanilla_client_xephyr.test.mjs"][..],
+        ] {
+            let contents = repo_file(parts);
+            let path = parts.join("/");
+            assert!(
+                !contents.contains(&decompiled_parent_path),
+                "{path} must not hard-code an out-of-repo decompiled data path"
+            );
+            assert!(
+                !contents.contains(&developer_home),
+                "{path} must not hard-code a developer-local home path"
+            );
+        }
+    }
+
+    #[test]
     fn login_artifacts_snapshots_and_diagnostics_are_captured_for_failures() {
         let runner = harness_file("runner.mjs");
         let login_session = harness_file("login_session.mjs");

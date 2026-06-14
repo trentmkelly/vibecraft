@@ -661,11 +661,8 @@ fn overworld_surface_rule_has_builtin_fallback_without_decompiled_json() {
     let noise_router = builtin_noise_router(router_id)
         .map(|e| e.router)
         .unwrap_or(NONE_NOISE_ROUTER);
-    let rule = load_surface_rule_uncached(
-        "minecraft:overworld",
-        std::path::Path::new("/definitely/missing/vibecraft/noise_settings"),
-    )
-    .expect("overworld surface rule must fall back when optional JSON is absent");
+    let rule = load_surface_rule_uncached("minecraft:overworld", None)
+        .expect("overworld surface rule must fall back when optional JSON is absent");
 
     let sea_level = settings.sea_level;
     let min_y = settings.noise.min_y;

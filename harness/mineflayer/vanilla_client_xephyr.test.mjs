@@ -34,7 +34,7 @@ test('sanitizeMinecraftClientArgv rewrites gameDir and removes quickPlayPath', (
     'minecraft.jar',
     'net.minecraft.client.main.Main',
     '--gameDir',
-    '/home/trent/.minecraft',
+    '/home/player/.minecraft',
     '--quickPlayPath',
     '/tmp/quickplay.json',
     '--accessToken',

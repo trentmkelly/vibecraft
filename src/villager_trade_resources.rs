@@ -9,7 +9,7 @@ use crate::player_inventory::{ItemCost, MerchantOffer};
 use crate::resources::{DataResourceIndex, DataResourceKind};
 use crate::villager_system::{VillagerLevel, VillagerProfession};
 
-const DEFAULT_DATA_ROOT: &str = "../decompiled-server-26.1.2/data/minecraft";
+const VANILLA_DATA_ROOT_ENV: &str = "VIBECRAFT_VANILLA_DATA_ROOT";
 
 pub type WanderingTraderOfferGroups = (Vec<MerchantOffer>, Vec<MerchantOffer>, Vec<MerchantOffer>);
 
@@ -69,8 +69,18 @@ pub fn profession_offers_from_default_data(
     profession: VillagerProfession,
     level: VillagerLevel,
 ) -> Result<Vec<MerchantOffer>, String> {
-    let index = load_villager_trade_data_root(DEFAULT_DATA_ROOT)?;
+    let index = load_villager_trade_data_root(configured_vanilla_data_root()?)?;
     profession_offers_from_resources(&index, profession, level)
+}
+
+pub fn configured_vanilla_data_root() -> Result<PathBuf, String> {
+    std::env::var_os(VANILLA_DATA_ROOT_ENV)
+        .map(PathBuf::from)
+        .ok_or_else(|| {
+            format!(
+                "{VANILLA_DATA_ROOT_ENV} is not set; vanilla villager trade JSON is not bundled"
+            )
+        })
 }
 
 pub fn profession_offers_from_resources(

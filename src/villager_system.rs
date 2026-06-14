@@ -670,7 +670,7 @@ impl WanderingTraderOffers {
 
     pub fn from_default_data() -> Result<Self, String> {
         let resources = crate::villager_trade_resources::load_villager_trade_data_root(
-            "../decompiled-server-26.1.2/data/minecraft",
+            crate::villager_trade_resources::configured_vanilla_data_root()?,
         )?;
         Self::from_resources(&resources)
     }

@@ -814,9 +814,6 @@ pub(super) fn dyn_surface_rule_apply<'a>(
 
 // ── Surface rule loading from JSON ────────────────────────────────────────────
 
-const VANILLA_NOISE_SETTINGS_ROOT: &str =
-    "../decompiled-server-26.1.2/data/minecraft/worldgen/noise_settings";
-
 /// Cache of loaded `DynSurfaceRule` values keyed by noise settings ID.
 /// Populated lazily on first access from the data directory.
 static SURFACE_RULE_CACHE: std::sync::OnceLock<std::sync::Mutex<HashMap<String, DynSurfaceRule>>> =
@@ -977,19 +974,25 @@ fn load_surface_rule_from_json_root(
 
 pub(super) fn load_surface_rule_uncached(
     settings_id: &str,
-    root: &std::path::Path,
+    root: Option<&std::path::Path>,
 ) -> Option<DynSurfaceRule> {
-    load_surface_rule_from_json_root(settings_id, root).or_else(|| fallback_surface_rule(settings_id))
+    root.and_then(|root| load_surface_rule_from_json_root(settings_id, root))
+        .or_else(|| fallback_surface_rule(settings_id))
+}
+
+fn configured_surface_rule_data_root() -> Option<std::path::PathBuf> {
+    std::env::var_os("VIBECRAFT_VANILLA_NOISE_SETTINGS_ROOT").map(std::path::PathBuf::from)
 }
 
 /// Load (or return from cache) the `DynSurfaceRule` for the given noise settings ID.
 ///
 /// Parse the `surface_rule` field from a noise settings JSON file.
 ///
-/// In development, this reads the optional decompiled vanilla data root used by
-/// the parity test suite. GitHub checkouts do not have that directory, so
-/// missing JSON falls back to a small built-in rule for the vanilla preset
-/// family instead of silently generating all-stone terrain.
+/// In development, `VIBECRAFT_VANILLA_NOISE_SETTINGS_ROOT` can point at an
+/// extracted vanilla data root for JSON-backed parity checks. GitHub checkouts
+/// do not have that directory, so missing JSON falls back to a small built-in
+/// rule for the vanilla preset family instead of silently generating all-stone
+/// terrain.
 ///
 /// Results are cached so each settings ID is only loaded once.
 ///
@@ -1001,7 +1004,8 @@ pub fn load_surface_rule(settings_id: &str) -> Option<DynSurfaceRule> {
             return Some(rule.clone());
         }
     }
-    let rule = load_surface_rule_uncached(settings_id, std::path::Path::new(VANILLA_NOISE_SETTINGS_ROOT))?;
+    let configured_root = configured_surface_rule_data_root();
+    let rule = load_surface_rule_uncached(settings_id, configured_root.as_deref())?;
     let mut cache = surface_rule_cache().lock().ok()?;
     cache.insert(settings_id.to_string(), rule.clone());
     Some(rule)
