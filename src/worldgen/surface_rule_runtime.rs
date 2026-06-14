@@ -814,6 +814,9 @@ pub(super) fn dyn_surface_rule_apply<'a>(
 
 // ── Surface rule loading from JSON ────────────────────────────────────────────
 
+const VANILLA_NOISE_SETTINGS_ROOT: &str =
+    "../decompiled-server-26.1.2/data/minecraft/worldgen/noise_settings";
+
 /// Cache of loaded `DynSurfaceRule` values keyed by noise settings ID.
 /// Populated lazily on first access from the data directory.
 static SURFACE_RULE_CACHE: std::sync::OnceLock<std::sync::Mutex<HashMap<String, DynSurfaceRule>>> =
@@ -823,12 +826,170 @@ fn surface_rule_cache() -> &'static std::sync::Mutex<HashMap<String, DynSurfaceR
     SURFACE_RULE_CACHE.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
 }
 
+fn dyn_block(block: &str) -> DynSurfaceRule {
+    DynSurfaceRule::Block(block.to_string())
+}
+
+fn dyn_if(condition: DynSurfaceCondition, rule: DynSurfaceRule) -> DynSurfaceRule {
+    DynSurfaceRule::Condition {
+        condition: Box::new(condition),
+        rule: Box::new(rule),
+    }
+}
+
+fn dyn_sequence(rules: Vec<DynSurfaceRule>) -> DynSurfaceRule {
+    DynSurfaceRule::Sequence(rules)
+}
+
+fn dyn_vertical_gradient(
+    random_name: &str,
+    true_at_and_below: VerticalAnchor,
+    false_at_and_above: VerticalAnchor,
+) -> DynSurfaceCondition {
+    DynSurfaceCondition::VerticalGradient {
+        random_name: random_name.to_string(),
+        true_at_and_below,
+        false_at_and_above,
+    }
+}
+
+fn dyn_stone_depth(
+    offset: i32,
+    add_surface_depth: bool,
+    secondary_depth_range: i32,
+    surface: CaveSurface,
+) -> DynSurfaceCondition {
+    DynSurfaceCondition::StoneDepth {
+        offset,
+        add_surface_depth,
+        secondary_depth_range,
+        surface,
+    }
+}
+
+fn minimal_overworld_like_surface_rule(
+    bedrock_roof: bool,
+    bedrock_floor: bool,
+    preliminary_surface_check: bool,
+) -> DynSurfaceRule {
+    let mut rules = Vec::new();
+    if bedrock_roof {
+        rules.push(dyn_if(
+            DynSurfaceCondition::Not(Box::new(dyn_vertical_gradient(
+                "minecraft:bedrock_roof",
+                VerticalAnchor::BelowTop(5),
+                VerticalAnchor::BelowTop(0),
+            ))),
+            dyn_block("minecraft:bedrock"),
+        ));
+    }
+    if bedrock_floor {
+        rules.push(dyn_if(
+            dyn_vertical_gradient(
+                "minecraft:bedrock_floor",
+                VerticalAnchor::AboveBottom(0),
+                VerticalAnchor::AboveBottom(5),
+            ),
+            dyn_block("minecraft:bedrock"),
+        ));
+    }
+
+    let topsoil = dyn_sequence(vec![
+        dyn_if(
+            dyn_stone_depth(0, false, 0, CaveSurface::Floor),
+            dyn_if(
+                DynSurfaceCondition::Water {
+                    offset: 0,
+                    surface_depth_multiplier: 0,
+                    add_stone_depth: false,
+                },
+                dyn_block("minecraft:grass_block"),
+            ),
+        ),
+        dyn_if(
+            dyn_stone_depth(0, true, 0, CaveSurface::Floor),
+            dyn_block("minecraft:dirt"),
+        ),
+    ]);
+    let surface = if preliminary_surface_check {
+        dyn_if(DynSurfaceCondition::AbovePreliminarySurface, topsoil)
+    } else {
+        topsoil
+    };
+    rules.push(surface);
+    rules.push(dyn_if(
+        dyn_vertical_gradient(
+            "minecraft:deepslate",
+            VerticalAnchor::Absolute(0),
+            VerticalAnchor::Absolute(8),
+        ),
+        dyn_block("minecraft:deepslate"),
+    ));
+    dyn_sequence(rules)
+}
+
+fn fallback_surface_rule(settings_id: &str) -> Option<DynSurfaceRule> {
+    let name = settings_id
+        .strip_prefix("minecraft:")
+        .unwrap_or(settings_id);
+    match name {
+        "overworld" | "amplified" | "large_biomes" => {
+            Some(minimal_overworld_like_surface_rule(false, true, true))
+        }
+        "caves" => Some(minimal_overworld_like_surface_rule(true, true, false)),
+        "floating_islands" => Some(minimal_overworld_like_surface_rule(false, false, false)),
+        "nether" => Some(dyn_sequence(vec![
+            dyn_if(
+                dyn_vertical_gradient(
+                    "minecraft:bedrock_floor",
+                    VerticalAnchor::AboveBottom(0),
+                    VerticalAnchor::AboveBottom(5),
+                ),
+                dyn_block("minecraft:bedrock"),
+            ),
+            dyn_if(
+                DynSurfaceCondition::Not(Box::new(dyn_vertical_gradient(
+                    "minecraft:bedrock_roof",
+                    VerticalAnchor::BelowTop(5),
+                    VerticalAnchor::BelowTop(0),
+                ))),
+                dyn_block("minecraft:bedrock"),
+            ),
+            dyn_block("minecraft:netherrack"),
+        ])),
+        "end" => Some(dyn_block("minecraft:end_stone")),
+        "air" => Some(dyn_block("minecraft:air")),
+        _ => None,
+    }
+}
+
+fn load_surface_rule_from_json_root(
+    settings_id: &str,
+    root: &std::path::Path,
+) -> Option<DynSurfaceRule> {
+    let name = settings_id
+        .strip_prefix("minecraft:")
+        .unwrap_or(settings_id);
+    let raw = std::fs::read_to_string(root.join(format!("{name}.json"))).ok()?;
+    let json: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    parse_dyn_surface_rule(&json["surface_rule"]).ok()
+}
+
+pub(super) fn load_surface_rule_uncached(
+    settings_id: &str,
+    root: &std::path::Path,
+) -> Option<DynSurfaceRule> {
+    load_surface_rule_from_json_root(settings_id, root).or_else(|| fallback_surface_rule(settings_id))
+}
+
 /// Load (or return from cache) the `DynSurfaceRule` for the given noise settings ID.
 ///
 /// Parse the `surface_rule` field from a noise settings JSON file.
 ///
-/// Reads from the canonical data location used by the test suite:
-/// `../decompiled-server-26.1.2/data/minecraft/worldgen/noise_settings/<name>.json`.
+/// In development, this reads the optional decompiled vanilla data root used by
+/// the parity test suite. GitHub checkouts do not have that directory, so
+/// missing JSON falls back to a small built-in rule for the vanilla preset
+/// family instead of silently generating all-stone terrain.
 ///
 /// Results are cached so each settings ID is only loaded once.
 ///
@@ -840,17 +1001,7 @@ pub fn load_surface_rule(settings_id: &str) -> Option<DynSurfaceRule> {
             return Some(rule.clone());
         }
     }
-    let name = settings_id
-        .strip_prefix("minecraft:")
-        .unwrap_or(settings_id);
-    // Use the same data directory as the noise-settings parity tests.
-    let path = format!(
-        "../decompiled-server-26.1.2/data/minecraft/worldgen/noise_settings/{}.json",
-        name
-    );
-    let raw = std::fs::read_to_string(&path).ok()?;
-    let json: serde_json::Value = serde_json::from_str(&raw).ok()?;
-    let rule = parse_dyn_surface_rule(&json["surface_rule"]).ok()?;
+    let rule = load_surface_rule_uncached(settings_id, std::path::Path::new(VANILLA_NOISE_SETTINGS_ROOT))?;
     let mut cache = surface_rule_cache().lock().ok()?;
     cache.insert(settings_id.to_string(), rule.clone());
     Some(rule)

@@ -648,6 +648,59 @@ fn overworld_surface_rules_place_grass_dirt_stone_in_plains_column() {
 }
 
 #[test]
+fn overworld_surface_rule_has_builtin_fallback_without_decompiled_json() {
+    use super::super::{
+        builtin_noise_generator_settings, builtin_noise_router, fill_noise_and_build_surface,
+        load_surface_rule_uncached, noise_router_id_for_settings, ChunkPos, NONE_NOISE_ROUTER,
+    };
+    use crate::biome::BiomeSourceModel;
+
+    let settings = builtin_noise_generator_settings("minecraft:overworld")
+        .expect("overworld noise settings must exist");
+    let router_id = noise_router_id_for_settings(*settings);
+    let noise_router = builtin_noise_router(router_id)
+        .map(|e| e.router)
+        .unwrap_or(NONE_NOISE_ROUTER);
+    let rule = load_surface_rule_uncached(
+        "minecraft:overworld",
+        std::path::Path::new("/definitely/missing/vibecraft/noise_settings"),
+    )
+    .expect("overworld surface rule must fall back when optional JSON is absent");
+
+    let sea_level = settings.sea_level;
+    let min_y = settings.noise.min_y;
+    let max_y = min_y + settings.noise.height - 1;
+    let chunk = 'found: {
+        for cz in 0..4_i32 {
+            for cx in 0..4_i32 {
+                let chunk = fill_noise_and_build_surface(
+                    ChunkPos { x: cx, z: cz },
+                    &BiomeSourceModel::Fixed {
+                        biome: "minecraft:plains",
+                    },
+                    settings,
+                    0,
+                    noise_router,
+                    &rule,
+                );
+                if chunk_has_land_column(&chunk, min_y, max_y, sea_level) {
+                    break 'found chunk;
+                }
+            }
+        }
+        panic!("fallback surface rule did not produce any land columns near the origin");
+    };
+
+    let (block_x, top_y, block_z, top_block_name) =
+        first_land_column_top(&chunk, min_y, max_y, sea_level)
+            .expect("selected fallback chunk must contain land");
+    assert_eq!(
+        top_block_name, "minecraft:grass_block",
+        "fallback top solid block at ({block_x},{top_y},{block_z}) should not remain bare stone"
+    );
+}
+
+#[test]
 fn material_rule_sources_evaluate_surface_conditions_in_vanilla_order() {
     assert_material_rule_source_registries();
     let heights = sample_surface_rule_heights();
