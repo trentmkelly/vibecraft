@@ -64,6 +64,8 @@ mod combat_damage;
 mod combat_tracker;
 mod command;
 #[cfg(test)]
+mod command_banlist;
+#[cfg(test)]
 mod command_angle_argument;
 #[cfg(test)]
 mod command_argument_signatures;
