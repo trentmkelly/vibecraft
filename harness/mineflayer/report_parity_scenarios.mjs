@@ -45,11 +45,16 @@ export function compareRegistriesReports(officialReport, vibecraftReport) {
 }
 
 export function createReportParityPlan(options = {}) {
+  const officialJar = options.officialJar ?? process.env.VIBECRAFT_OFFICIAL_SERVER_JAR
+  if (!options.officialCommand && !officialJar) {
+    throw new Error('report parity requires VIBECRAFT_OFFICIAL_SERVER_JAR, options.officialJar, or options.officialCommand')
+  }
+
   return {
     name: 'report-registry-parity',
     comparedAgainst: 'official-server.jar --report',
     vibecraftCommand: options.vibecraftCommand ?? 'vibecraft --report',
-    officialCommand: options.officialCommand ?? 'java -jar server.jar --report',
+    officialCommand: options.officialCommand ?? `java -jar ${officialJar} --report`,
     reportPath: 'generated/reports/registries.json',
     requiredChecks: [
       'registry-id-set',

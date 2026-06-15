@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Regenerate block registry + block-state tables from the official data generator reports.
 
-Inputs (vendored from `java -DbundlerMainClass=net.minecraft.data.Main -jar server.jar --reports`):
+Inputs (vendored from the official server reports data generator):
   vanilla-data/reports/block_registry_26_1_2.json  (the `minecraft:block` slice of registries.json)
   vanilla-data/reports/blocks_26_1_2.json          (the full blocks.json state report)
 

@@ -7,15 +7,23 @@ import {
 } from './report_parity_scenarios.mjs'
 
 test('createReportParityPlan records official and VibeCraft report commands', () => {
-  const plan = createReportParityPlan()
+  const plan = createReportParityPlan({ officialJar: '/tmp/official-server.jar' })
 
   assert.equal(plan.comparedAgainst, 'official-server.jar --report')
+  assert.equal(plan.officialCommand, 'java -jar /tmp/official-server.jar --report')
   assert.equal(plan.reportPath, 'generated/reports/registries.json')
   assert.deepEqual(plan.requiredChecks, [
     'registry-id-set',
     'registry-entry-counts',
     'registry-entry-id-sets'
   ])
+})
+
+test('createReportParityPlan requires an explicit official server jar or command', () => {
+  assert.throws(
+    () => createReportParityPlan(),
+    /VIBECRAFT_OFFICIAL_SERVER_JAR, options\.officialJar, or options\.officialCommand/
+  )
 })
 
 test('summarizeRegistriesReport counts registry entries by registry id', () => {

@@ -195,6 +195,7 @@ mod tests {
         let developer_home = ["/home", "trent"].join("/");
         let relative_decompiled_root = ["..", "decompiled-server-26.1.2"].join("/");
         let relative_parent_server_jar = ["..", "server.jar"].join("/");
+        let bare_server_jar_command = ["java -jar", "server.jar"].join(" ");
         let mut files = vec![manifest_dir.join("build.rs")];
         collect_code_files(&manifest_dir.join("src"), &mut files);
         collect_code_files(&manifest_dir.join("harness").join("mineflayer"), &mut files);
@@ -223,6 +224,11 @@ mod tests {
             assert!(
                 !contents.contains(&relative_parent_server_jar),
                 "{} must use VIBECRAFT_OFFICIAL_SERVER_JAR or an explicit option instead of a parent-directory server.jar",
+                path.display()
+            );
+            assert!(
+                !contents.contains(&bare_server_jar_command),
+                "{} must use VIBECRAFT_OFFICIAL_SERVER_JAR or an explicit option instead of assuming an untracked server.jar in the working directory",
                 path.display()
             );
         }
