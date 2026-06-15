@@ -1309,11 +1309,11 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/RegistryLayer.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/ReloadableServerRegistries.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/ReloadableServerResources.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/RunningOnDifferentThreadException.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/RunningOnDifferentThreadException.java`. Rust `running_on_different_thread_exception::RunningOnDifferentThreadException` mirrors Java's singleton control-flow exception surface: the static `RUNNING_ON_DIFFERENT_THREAD` value has no stack trace, `fill_in_stack_trace()` returns the same exception object, and repeated stack-fill attempts keep the trace empty; source-backed tests verify the Java singleton, private constructor, empty stack-trace, synchronized fill method, and self-return sentinels.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/ServerAdvancementManager.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/ServerFunctionLibrary.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/ServerFunctionManager.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/ServerInfo.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/ServerInfo.java`. Rust `server_info::ServerInfo` mirrors Java's four-method server status interface (`getMotd`, `getServerVersion`, `getPlayerCount`, `getMaxPlayers`) with a `StaticServerInfo` implementation for parity tests; source-backed tests verify the exact Java interface and getter declarations.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/ServerInterface.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/ServerLinks.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/ServerScoreboard.java`.
