@@ -6,8 +6,14 @@ import {
   loadConfigurationRegistryDependencyGraph,
   readDependencySources
 } from './configuration_registry_dependency_graph.mjs'
+import {
+  decompiledSourceRoot,
+  missingJavaSourceReason
+} from './optional_decompiled_source.mjs'
 
-test('configuration registry dependency graph covers all synchronized registries', async () => {
+test('configuration registry dependency graph covers all synchronized registries', {
+  skip: !decompiledSourceRoot ? missingJavaSourceReason : false
+}, async () => {
   const graph = await loadConfigurationRegistryDependencyGraph()
 
   assert.equal(graph.length, 28, '26.1.2 synchronized registry count changed')
@@ -15,7 +21,9 @@ test('configuration registry dependency graph covers all synchronized registries
   assert.ok(graph.every(entry => entry.dependencies.includes('synchronized-registry-loader')))
 })
 
-test('dependency graph evidence is backed by decompiled source needles', async () => {
+test('dependency graph evidence is backed by decompiled source needles', {
+  skip: !decompiledSourceRoot ? missingJavaSourceReason : false
+}, async () => {
   const sources = await readDependencySources()
 
   for (const evidence of dependencyEvidence) {
@@ -27,7 +35,9 @@ test('dependency graph evidence is backed by decompiled source needles', async (
   }
 })
 
-test('dependency graph identifies biome and dimension as play-entry dependencies', async () => {
+test('dependency graph identifies biome and dimension as play-entry dependencies', {
+  skip: !decompiledSourceRoot ? missingJavaSourceReason : false
+}, async () => {
   const graph = await loadConfigurationRegistryDependencyGraph()
   const biome = graph.find(entry => entry.registry === 'minecraft:worldgen/biome')
   const dimensionType = graph.find(entry => entry.registry === 'minecraft:dimension_type')
@@ -39,7 +49,9 @@ test('dependency graph identifies biome and dimension as play-entry dependencies
   assert.ok(dimensionType.dependencies.includes('server-player-spawn-info'))
 })
 
-test('dependency graph identifies item initializer and enchantment follow-up dependencies', async () => {
+test('dependency graph identifies item initializer and enchantment follow-up dependencies', {
+  skip: !decompiledSourceRoot ? missingJavaSourceReason : false
+}, async () => {
   const graph = await loadConfigurationRegistryDependencyGraph()
   const trimMaterial = graph.find(entry => entry.registry === 'minecraft:trim_material')
   const jukeboxSong = graph.find(entry => entry.registry === 'minecraft:jukebox_song')

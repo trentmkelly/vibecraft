@@ -6,6 +6,10 @@ import { fileURLToPath } from 'node:url'
 
 import { configurationCompletionManifest } from './configuration_completion_manifest.mjs'
 import {
+  decompiledSourceRoot,
+  missingJavaSourceReason
+} from './optional_decompiled_source.mjs'
+import {
   documentedRegistryOmissions,
   evaluateConfigurationRegistryClosureGate,
   loadConfigurationRegistryClosureReport
@@ -13,9 +17,15 @@ import {
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(here, '..', '..')
-const statusSourcePath = path.join(repoRoot, 'src', 'network', 'status.rs')
+const statusSourcePaths = [
+  path.join(repoRoot, 'src', 'network', 'status.rs'),
+  path.join(repoRoot, 'src', 'network', 'status', 'chunk_d_2.rs'),
+  path.join(repoRoot, 'src', 'network', 'status', 'chunk_e.rs')
+]
 
-test('configuration registry closure report covers every synchronized registry', async () => {
+test('configuration registry closure report covers every synchronized registry', {
+  skip: !decompiledSourceRoot ? missingJavaSourceReason : false
+}, async () => {
   const report = await loadConfigurationRegistryClosureReport()
   const registries = report.map(entry => entry.registry)
 
@@ -34,7 +44,9 @@ test('configuration registry closure report covers every synchronized registry',
   assert.deepEqual(staleOmissions, [], 'documented omissions must still exist in vanilla and must not already be emitted')
 })
 
-test('synced registry report entries are tied to manifest and raw-probe validation', async () => {
+test('synced registry report entries are tied to manifest and raw-probe validation', {
+  skip: !decompiledSourceRoot ? missingJavaSourceReason : false
+}, async () => {
   const report = await loadConfigurationRegistryClosureReport()
   const synced = report.filter(entry => entry.emitted)
 
@@ -54,9 +66,11 @@ test('synced registry report entries are tied to manifest and raw-probe validati
   }
 })
 
-test('synced registry report packet source functions exist in VibeCraft', async () => {
+test('synced registry report packet source functions exist in VibeCraft', {
+  skip: !decompiledSourceRoot ? missingJavaSourceReason : false
+}, async () => {
   const report = await loadConfigurationRegistryClosureReport()
-  const source = await readFile(statusSourcePath, 'utf8')
+  const source = (await Promise.all(statusSourcePaths.map(sourcePath => readFile(sourcePath, 'utf8')))).join('\n')
 
   for (const entry of report.filter(entry => entry.emitted)) {
     assert.match(
@@ -67,7 +81,9 @@ test('synced registry report packet source functions exist in VibeCraft', async 
   }
 })
 
-test('omitted registry report entries carry actionable milestone evidence', async () => {
+test('omitted registry report entries carry actionable milestone evidence', {
+  skip: !decompiledSourceRoot ? missingJavaSourceReason : false
+}, async () => {
   const report = await loadConfigurationRegistryClosureReport()
   const omitted = report.filter(entry => !entry.emitted)
 
@@ -120,7 +136,9 @@ test('configuration registry closure gate fails uncovered registries and missing
   assert.ok(gate.checks.some(check => check.name.startsWith('play-entry:') && !check.ok))
 })
 
-test('configuration registry closure gate passes current report with raw-probe play-entry evidence', async () => {
+test('configuration registry closure gate passes current report with raw-probe play-entry evidence', {
+  skip: !decompiledSourceRoot ? missingJavaSourceReason : false
+}, async () => {
   const report = await loadConfigurationRegistryClosureReport()
   const rawProbe = [
     'expected play login body after holder-id encoding',

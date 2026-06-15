@@ -3,9 +3,12 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { loadConfigurationRegistryClosureReport } from './configuration_registry_closure_report.mjs'
+import {
+  decompiledSourceRoot,
+  warnMissingJavaSource
+} from './optional_decompiled_source.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const decompiledSourceRoot = process.env.VIBECRAFT_DECOMPILED_SOURCE_ROOT
 const decompRoot = decompiledSourceRoot
   ? path.join(decompiledSourceRoot, 'net', 'minecraft')
   : null
@@ -126,7 +129,8 @@ export async function loadConfigurationRegistryDependencyGraph () {
 
 export async function readDependencySources () {
   if (!decompRoot) {
-    throw new Error('VIBECRAFT_DECOMPILED_SOURCE_ROOT must point at the optional Java source root')
+    warnMissingJavaSource('configuration registry dependency source audit')
+    return new Map()
   }
   const pairs = await Promise.all(Object.entries(dependencySourceFiles).map(async ([key, sourceFile]) => {
     return [key, await readFile(sourceFile, 'utf8')]

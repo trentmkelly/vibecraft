@@ -2,8 +2,12 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import {
+  decompiledSourceRoot,
+  warnMissingJavaSource
+} from './optional_decompiled_source.mjs'
+
 const here = path.dirname(fileURLToPath(import.meta.url))
-const decompiledSourceRoot = process.env.VIBECRAFT_DECOMPILED_SOURCE_ROOT
 const decompRoot = decompiledSourceRoot
   ? path.join(decompiledSourceRoot, 'net', 'minecraft', 'network', 'protocol')
   : null
@@ -15,7 +19,8 @@ export const protocolManifestSources = {
 export async function loadPlayProtocolPacketManifest (options = {}) {
   const sourcePath = options.sourcePath ?? protocolManifestSources.play
   if (!sourcePath) {
-    throw new Error('VIBECRAFT_DECOMPILED_SOURCE_ROOT must point at the optional Java source root')
+    warnMissingJavaSource('play protocol packet manifest')
+    return []
   }
   const source = await readFile(sourcePath, 'utf8')
   return createPlayProtocolPacketManifest(source)

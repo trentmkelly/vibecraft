@@ -3,9 +3,13 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { configurationCompletionManifest } from './configuration_completion_manifest.mjs'
+import {
+  decompiledSourceRoot,
+  missingJavaSourceReason,
+  warnMissingJavaSource
+} from './optional_decompiled_source.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const decompiledSourceRoot = process.env.VIBECRAFT_DECOMPILED_SOURCE_ROOT
 
 export const registryDataLoaderPath = path.join(
   decompiledSourceRoot ?? '',
@@ -221,7 +225,8 @@ export function evaluateConfigurationRegistryClosureGate (report, rawProbe) {
 
 export async function loadConfigurationRegistryClosureReport () {
   if (!decompiledSourceRoot) {
-    throw new Error('VIBECRAFT_DECOMPILED_SOURCE_ROOT must point at the optional Java source root')
+    warnMissingJavaSource('configuration registry closure report')
+    return []
   }
   const [registryDataLoader, rawProbe] = await Promise.all([
     readFile(registryDataLoaderPath, 'utf8'),
@@ -233,7 +238,16 @@ export async function loadConfigurationRegistryClosureReport () {
 
 export async function runConfigurationRegistryClosureGate () {
   if (!decompiledSourceRoot) {
-    throw new Error('VIBECRAFT_DECOMPILED_SOURCE_ROOT must point at the optional Java source root')
+    warnMissingJavaSource('configuration registry closure gate')
+    return {
+      report: [],
+      gate: {
+        ok: true,
+        skipped: true,
+        reason: missingJavaSourceReason,
+        checks: [pass('optional-java-source', { skipped: true, reason: missingJavaSourceReason })]
+      }
+    }
   }
   const [registryDataLoader, rawProbe] = await Promise.all([
     readFile(registryDataLoaderPath, 'utf8'),

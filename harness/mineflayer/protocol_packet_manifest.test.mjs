@@ -2,6 +2,10 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  decompiledSourceRoot,
+  missingJavaSourceReason
+} from './optional_decompiled_source.mjs'
+import {
   createClientboundGoldenCoverage,
   createPlayProtocolPacketManifest,
   createServerboundFuzzReplayCoverage,
@@ -9,7 +13,9 @@ import {
   summarizePacketFamilyCoverage
 } from './protocol_packet_manifest.mjs'
 
-test('play protocol packet manifest extracts packet ids and codec metadata from GameProtocols', async () => {
+test('play protocol packet manifest extracts packet ids and codec metadata from GameProtocols', {
+  skip: !decompiledSourceRoot ? missingJavaSourceReason : false
+}, async () => {
   const manifest = await loadPlayProtocolPacketManifest()
   const summary = summarizePacketFamilyCoverage(manifest)
 
@@ -39,7 +45,9 @@ test('play protocol packet manifest extracts packet ids and codec metadata from 
   assert.ok(summary.byFamily.common_shared > 0)
 })
 
-test('generated packet coverage plans include every clientbound golden and serverbound fuzz replay case', async () => {
+test('generated packet coverage plans include every clientbound golden and serverbound fuzz replay case', {
+  skip: !decompiledSourceRoot ? missingJavaSourceReason : false
+}, async () => {
   const manifest = await loadPlayProtocolPacketManifest()
   const goldens = createClientboundGoldenCoverage(manifest)
   const fuzzReplay = createServerboundFuzzReplayCoverage(manifest)

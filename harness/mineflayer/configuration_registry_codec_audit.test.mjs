@@ -6,8 +6,14 @@ import {
   readCodecAuditSources
 } from './configuration_registry_codec_audit.mjs'
 import { configurationCompletionManifest } from './configuration_completion_manifest.mjs'
+import {
+  decompiledSourceRoot,
+  missingJavaSourceReason
+} from './optional_decompiled_source.mjs'
 
-test('configuration registry codec audit covers every synchronized registry', async () => {
+test('configuration registry codec audit covers every synchronized registry', {
+  skip: !decompiledSourceRoot ? missingJavaSourceReason : false
+}, async () => {
   const audit = await loadConfigurationRegistryCodecAudit()
 
   assert.equal(audit.length, 28, '26.1.2 synchronized registry count changed')
@@ -19,7 +25,9 @@ test('configuration registry codec audit covers every synchronized registry', as
   assert.deepEqual(missingOmissionEvidence, [], 'omitted registries need documented milestone evidence')
 })
 
-test('configuration registry codec audit records field evidence for every synchronized registry', async () => {
+test('configuration registry codec audit records field evidence for every synchronized registry', {
+  skip: !decompiledSourceRoot ? missingJavaSourceReason : false
+}, async () => {
   const audit = await loadConfigurationRegistryCodecAudit()
 
   const missingRequiredFieldEvidence = audit.filter(entry => entry.emitted && entry.requiredFields.length === 0)
@@ -36,7 +44,9 @@ test('configuration registry codec audit records field evidence for every synchr
   }
 })
 
-test('synced registry unit manifest asserts counts, client IDs, and codec NBT fields', async () => {
+test('synced registry unit manifest asserts counts, client IDs, and codec NBT fields', {
+  skip: !decompiledSourceRoot ? missingJavaSourceReason : false
+}, async () => {
   const audit = await loadConfigurationRegistryCodecAudit()
   const synced = audit.filter(entry => entry.emitted)
 
@@ -58,7 +68,9 @@ test('synced registry unit manifest asserts counts, client IDs, and codec NBT fi
   }
 })
 
-test('configuration registry codec audit source files contain the audited codec declarations', async () => {
+test('configuration registry codec audit source files contain the audited codec declarations', {
+  skip: !decompiledSourceRoot ? missingJavaSourceReason : false
+}, async () => {
   const audit = await loadConfigurationRegistryCodecAudit()
   const sources = await readCodecAuditSources(audit)
 
@@ -70,7 +82,9 @@ test('configuration registry codec audit source files contain the audited codec 
   }
 })
 
-test('biome codec audit records the 26.1.2 network payload shape from decomp', async () => {
+test('biome codec audit records the 26.1.2 network payload shape from decomp', {
+  skip: !decompiledSourceRoot ? missingJavaSourceReason : false
+}, async () => {
   const audit = await loadConfigurationRegistryCodecAudit()
   const biome = audit.find(entry => entry.registry === 'minecraft:worldgen/biome')
   const sources = await readCodecAuditSources([biome])
@@ -95,7 +109,9 @@ test('biome codec audit records the 26.1.2 network payload shape from decomp', a
   assert.ok(source.includes('MobSpawnSettings.EMPTY'))
 })
 
-test('enchantment codec audit records holder-backed direct-codec fields from decomp', async () => {
+test('enchantment codec audit records holder-backed direct-codec fields from decomp', {
+  skip: !decompiledSourceRoot ? missingJavaSourceReason : false
+}, async () => {
   const audit = await loadConfigurationRegistryCodecAudit()
   const enchantment = audit.find(entry => entry.registry === 'minecraft:enchantment')
   const sources = await readCodecAuditSources([enchantment])
