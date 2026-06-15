@@ -541,6 +541,10 @@ fn swing_command_defaults_to_source_entity_and_accepts_hands() {
 #[test]
 fn swing_command_fails_when_no_living_entity_swings() {
     let mut state = ServerCommandState {
+        command_source_entity: Some(EntityRef {
+            id: "minecart".to_string(),
+            display_name: "minecart".to_string(),
+        }),
         entity_states: vec![EntityState {
             entity: EntityRef {
                 id: "minecart".to_string(),
@@ -559,6 +563,11 @@ fn swing_command_fails_when_no_living_entity_swings() {
         ),
         Err(CommandError::SwingNoLivingEntity)
     );
+    assert_eq!(
+        execute_builtin_command(&mut state, LevelBasedPermissionSet::GAMEMASTER, "swing"),
+        Err(CommandError::SwingNoLivingEntity)
+    );
+    state.command_source_entity = None;
     assert_eq!(
         execute_builtin_command(&mut state, LevelBasedPermissionSet::GAMEMASTER, "swing"),
         Err(CommandError::InvalidSyntax)
