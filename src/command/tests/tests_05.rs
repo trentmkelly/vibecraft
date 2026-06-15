@@ -708,7 +708,7 @@ fn random_value_and_roll_sample_ranges_without_permission() {
     )
     .unwrap();
     assert!((-2..=2).contains(&roll.success_count));
-    assert_eq!(roll.feedback_key, "commands.random.roll");
+    assert_eq!(roll.feedback_key, NO_COMMAND_FEEDBACK);
     assert!(state.random_broadcasts[1].announced);
 }
 
@@ -762,6 +762,33 @@ fn random_named_sequences_and_resets_require_gamemaster() {
         Some("minecraft:test")
     );
 
+    state.random_sequences.set_seed_defaults(7, false, false);
+    let expected_default_reset = {
+        let mut sequences = crate::random_sequences::RandomSequences::default();
+        sequences.set_seed_defaults(7, false, false);
+        sequences.reset("minecraft:defaulted", state.world_seed);
+        sequences
+            .sequences
+            .get("minecraft:defaulted")
+            .cloned()
+            .unwrap()
+    };
+    let default_reset = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "random reset minecraft:defaulted",
+    )
+    .unwrap();
+    assert_eq!(default_reset.success_count, 1);
+    assert_eq!(default_reset.feedback_key, "commands.random.reset.success");
+    assert_eq!(
+        state
+            .random_sequences
+            .sequences
+            .get("minecraft:defaulted"),
+        Some(&expected_default_reset)
+    );
+
     let before_reset = state
         .random_sequences
         .sequences
@@ -776,7 +803,11 @@ fn random_named_sequences_and_resets_require_gamemaster() {
     .unwrap();
     assert_eq!(reset.success_count, 1);
     assert_eq!(reset.feedback_key, "commands.random.reset.success");
-    assert_eq!(state.random_sequences.sequences.len(), 1);
+    assert_eq!(state.random_sequences.sequences.len(), 2);
+    assert!(state
+        .random_sequences
+        .sequences
+        .contains_key("minecraft:defaulted"));
     assert_ne!(
         state
             .random_sequences
@@ -792,7 +823,7 @@ fn random_named_sequences_and_resets_require_gamemaster() {
         "random reset * 7 true false",
     )
     .unwrap();
-    assert_eq!(reset_all.success_count, 1);
+    assert_eq!(reset_all.success_count, 2);
     assert!(state.random_sequences.sequences.is_empty());
     assert_eq!(
         state.random_seed_defaults,

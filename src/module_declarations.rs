@@ -147,6 +147,8 @@ mod command_stop;
 #[cfg(test)]
 mod command_publish;
 #[cfg(test)]
+mod command_random;
+#[cfg(test)]
 mod command_range_argument;
 #[cfg(test)]
 mod command_recipe;

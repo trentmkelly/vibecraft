@@ -521,7 +521,7 @@ pub(super) fn random_sample(
     Ok(CommandResult {
         success_count: value,
         feedback_key: if announced {
-            "commands.random.roll"
+            NO_COMMAND_FEEDBACK
         } else {
             "commands.random.sample.success"
         },
@@ -563,14 +563,17 @@ pub(super) fn reset_random_sequence(
     if sequence.is_empty() {
         return Err(CommandError::InvalidSyntax);
     }
-    let salt = salt.unwrap_or(0);
-    state.random_sequences.reset_with_options(
-        sequence,
-        state.world_seed,
-        salt,
-        include_world_seed,
-        include_sequence_id,
-    );
+    if let Some(salt) = salt {
+        state.random_sequences.reset_with_options(
+            sequence,
+            state.world_seed,
+            salt,
+            include_world_seed,
+            include_sequence_id,
+        );
+    } else {
+        state.random_sequences.reset(sequence, state.world_seed);
+    }
     Ok(CommandResult {
         success_count: 1,
         feedback_key: "commands.random.reset.success",
