@@ -44,6 +44,7 @@ mod block_transforms;
 mod block_update;
 mod boss_fight;
 mod char_predicate;
+mod chained_json_exception;
 mod chat_component;
 mod chat_formatting;
 mod chat_trust;

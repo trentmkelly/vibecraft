@@ -1298,7 +1298,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 ## `decompiled-server-26.1.2/net/minecraft/server`
 
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/Bootstrap.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/ChainedJsonException.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/ChainedJsonException.java`. Rust `chained_json_exception::ChainedJsonException` mirrors Java's JSON exception chain surface: constructor-created initial entry, optional cause storage, key prepending to the active entry, filename flush that pushes a new active entry, `Invalid <last-entry>: <message>` formatting, `forException` identity behavior for already chained exceptions, `FileNotFoundException` message normalization to `File not found`, entry filename/key accessors, `->` key joining, and unknown-file/file-path display forms; source-backed tests verify Java sentinels and all formatting cases.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/ConsoleInput.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/DebugLoggedPrintStream.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/Eula.java`.
