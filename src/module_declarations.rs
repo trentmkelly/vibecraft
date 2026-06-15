@@ -613,6 +613,7 @@ mod scheduled_tick;
 mod seed_validation;
 #[cfg(test)]
 mod server_advancement_manager;
+mod server_function_library;
 mod server_info;
 mod server_interface;
 mod server_links;
