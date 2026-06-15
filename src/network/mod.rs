@@ -9,6 +9,7 @@ pub mod connection;
 pub mod cookie;
 pub mod dispatch;
 pub mod encryption;
+pub mod friendly_byte_buf;
 pub mod handler_names;
 pub mod handshake;
 pub mod local;
