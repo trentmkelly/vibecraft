@@ -541,6 +541,7 @@ mod lighting;
 mod living_entity;
 mod localization_keys;
 mod log;
+mod logged_print_stream;
 mod loot_system;
 mod management_security;
 mod management_server;
