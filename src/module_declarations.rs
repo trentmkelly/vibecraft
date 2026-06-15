@@ -183,6 +183,8 @@ mod command_selector;
 #[cfg(test)]
 mod command_shared_suggestion_provider;
 #[cfg(test)]
+mod command_spectate;
+#[cfg(test)]
 mod command_signing_context;
 #[cfg(test)]
 mod command_slot_arguments;
