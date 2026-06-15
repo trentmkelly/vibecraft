@@ -5,6 +5,7 @@ pub mod codec;
 pub mod common;
 pub mod compression;
 pub mod configuration;
+pub mod connection;
 pub mod cookie;
 pub mod dispatch;
 pub mod encryption;
