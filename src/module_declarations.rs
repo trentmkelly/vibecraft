@@ -596,6 +596,7 @@ mod resource_dependant_name;
 mod resource_file_to_id_converter;
 mod resource_holder_set_codec;
 mod resource_network_registry_load_task;
+mod resource_registry_data_loader;
 mod resource_registry_file_codec;
 mod resource_registry_fixed_codec;
 mod resource_registry_validator;
