@@ -978,6 +978,7 @@ mod chat_command_packet_test;
 mod chat_command_signed_packet_test;
 mod chat_packet_test;
 mod chat_session_update_packet_test;
+mod chunks_biomes_packet_test;
 mod clientbound_tag_query_packet_test;
 mod clientbound_game_test_highlight_pos_packet_test;
 mod clientbound_move_vehicle_packet_test;

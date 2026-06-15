@@ -23,7 +23,10 @@ use crate::network::dispatch::{DecodedPacket, DispatchOutcome, PacketDirection, 
 use crate::network::varint::{read_var_i32, read_var_i64, write_var_i32, write_var_i64};
 use crate::player_inventory::InventoryMenu;
 use crate::registry::Identifier;
-use crate::storage::chunk::{ChunkSection, LevelChunk, PalettedContainer};
+use crate::storage::chunk::{
+    pack_chunk_pos_as_long, unpack_chunk_pos_from_long, ChunkSection, LevelChunk,
+    PalettedContainer,
+};
 use crate::storage::nbt::Tag;
 use crate::storage::region::ChunkPos;
 use crate::world_time::ClockNetworkState;
@@ -106,6 +109,7 @@ pub const CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID: i32 = 0;
 pub const CLIENTBOUND_LOGIN_PACKET_ID: i32 = 49;
 pub const CLIENTBOUND_CHUNK_BATCH_FINISHED_PACKET_ID: i32 = 11;
 pub const CLIENTBOUND_CHUNK_BATCH_START_PACKET_ID: i32 = 12;
+pub const CLIENTBOUND_CHUNKS_BIOMES_PACKET_ID: i32 = 13;
 pub const CLIENTBOUND_CHANGE_DIFFICULTY_PACKET_ID: i32 = 10;
 pub const CLIENTBOUND_ADD_ENTITY_PACKET_ID: i32 = 1;
 pub const CLIENTBOUND_ANIMATE_PACKET_ID: i32 = 2;
@@ -378,6 +382,8 @@ pub use chunk_types_a::*;
 
 mod chunk_types_b;
 pub use chunk_types_b::*;
+
+mod chunk_types_c;
 
 mod chunk_impl_early;
 pub use chunk_impl_early::*;
