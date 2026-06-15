@@ -120,6 +120,25 @@ mod tests {
         targets
     }
 
+    fn env_include_macro_targets(contents: &str) -> Vec<&str> {
+        let mut targets = Vec::new();
+        for macro_name in ["include_str!(", "include_bytes!("] {
+            let mut remaining = contents;
+            while let Some(index) = remaining.find(macro_name) {
+                let after_macro = &remaining[index + macro_name.len()..];
+                remaining = after_macro;
+                let Some(end) = after_macro.find(')') else {
+                    break;
+                };
+                let invocation = &after_macro[..end];
+                if invocation.contains("env!(") {
+                    targets.push(invocation.trim());
+                }
+            }
+        }
+        targets
+    }
+
     fn cargo_manifest_include_targets(contents: &str) -> Vec<&str> {
         let mut targets = Vec::new();
         let mut remaining = contents;
@@ -327,6 +346,17 @@ mod tests {
                 path.display()
             );
         }
+
+        let build_script = fs::read_to_string(manifest_dir.join("build.rs"))
+            .expect("build.rs should be readable");
+        assert!(
+            build_script.contains(".missing-optional-decompiled-source-root"),
+            "build.rs must default optional Java parity sources to a missing in-repo sentinel"
+        );
+        assert!(
+            !build_script.contains(&relative_decompiled_root),
+            "build.rs must not default optional Java parity sources to a parent-directory decompilation"
+        );
     }
 
     #[test]
@@ -374,6 +404,54 @@ mod tests {
                     resolved.display()
                 );
                 assert_tracked_by_git(manifest_dir, &resolved);
+            }
+        }
+    }
+
+    #[test]
+    fn out_of_repo_java_source_includes_are_optional_cfg_only() {
+        let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let main_rs = manifest_dir.join("src").join("main.rs");
+        let presentation_data = manifest_dir.join("src").join("presentation_data.rs");
+        let mut files = Vec::new();
+        collect_code_files(&manifest_dir.join("src"), &mut files);
+        collect_code_files(&manifest_dir.join("harness").join("mineflayer"), &mut files);
+        collect_code_files(&manifest_dir.join("tools"), &mut files);
+        collect_code_files(&manifest_dir.join(".github").join("workflows"), &mut files);
+
+        for path in files {
+            let contents = fs::read_to_string(&path).unwrap_or_else(|err| {
+                panic!("failed to read {}: {err}", path.display());
+            });
+            for invocation in env_include_macro_targets(&contents) {
+                if invocation.contains("VIBECRAFT_DECOMPILED_SOURCE_ROOT") {
+                    assert_eq!(
+                        path, main_rs,
+                        "{} must not include Java source files directly from VIBECRAFT_DECOMPILED_SOURCE_ROOT; use vibecraft_java_source! so fresh clones compile without the decompilation",
+                        path.display()
+                    );
+                    assert!(
+                        contents.contains("#[cfg(vibecraft_has_decompiled_sources)]")
+                            && contents.contains("macro_rules! vibecraft_java_source"),
+                        "the VIBECRAFT_DECOMPILED_SOURCE_ROOT include must stay inside the optional vibecraft_java_source! macro"
+                    );
+                } else if invocation.contains("VIBECRAFT_SOUND_EVENTS_SOURCE") {
+                    assert_eq!(
+                        path, presentation_data,
+                        "{} must not include SoundEvents.java directly; route it through the optional presentation_data gate",
+                        path.display()
+                    );
+                    assert!(
+                        contents.contains("#[cfg(vibecraft_has_sound_events_source)]")
+                            && contents.contains("#[cfg(not(vibecraft_has_sound_events_source))]"),
+                        "SoundEvents.java must remain optional when the decompiled source tree is absent"
+                    );
+                } else if invocation.contains("VIBECRAFT_") {
+                    panic!(
+                        "{} contains an unreviewed compile-time env include target through {invocation}; add a vendored-file check or an explicit optional-source gate",
+                        path.display()
+                    );
+                }
             }
         }
     }
