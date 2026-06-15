@@ -1021,6 +1021,7 @@ mod player_chat_packet_test;
 mod player_info_remove_packet_test;
 mod player_info_update_packet_test;
 mod clientbound_player_look_at_packet_test;
+mod client_game_packet_listener_test;
 mod player_position_packet_test;
 mod recipe_book_remove_packet_test;
 mod recipe_book_settings_packet_test;
