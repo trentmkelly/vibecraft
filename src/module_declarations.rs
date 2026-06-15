@@ -43,6 +43,8 @@ mod block_tags;
 mod block_transforms;
 mod block_update;
 mod boss_fight;
+#[cfg(test)]
+mod bootstrap;
 mod char_predicate;
 mod chained_json_exception;
 mod chat_component;
