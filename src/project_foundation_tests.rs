@@ -4,6 +4,7 @@
 mod tests {
     use std::fs;
     use std::path::{Component, Path, PathBuf};
+    use std::process::Command;
 
     fn harness_file(name: &str) -> String {
         let path = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -134,6 +135,28 @@ mod tests {
             }
         }
         targets
+    }
+
+    fn assert_tracked_by_git(manifest_dir: &Path, path: &Path) {
+        let relative = path.strip_prefix(manifest_dir).unwrap_or_else(|err| {
+            panic!(
+                "compile-time include target {} is outside repo {}: {err}",
+                path.display(),
+                manifest_dir.display()
+            )
+        });
+        let output = Command::new("git")
+            .arg("ls-files")
+            .arg("--error-unmatch")
+            .arg(relative)
+            .current_dir(manifest_dir)
+            .output()
+            .unwrap_or_else(|err| panic!("failed to run git ls-files: {err}"));
+        assert!(
+            output.status.success(),
+            "compile-time include target {} must be tracked by git so fresh clones include it",
+            relative.display()
+        );
     }
 
     #[test]
@@ -334,6 +357,7 @@ mod tests {
                     path.display(),
                     resolved.display()
                 );
+                assert_tracked_by_git(manifest_dir, &resolved);
             }
 
             for target in cargo_manifest_include_targets(&contents) {
@@ -349,6 +373,7 @@ mod tests {
                     path.display(),
                     resolved.display()
                 );
+                assert_tracked_by_git(manifest_dir, &resolved);
             }
         }
     }
