@@ -889,11 +889,29 @@ mod tests {
     #[cfg(vibecraft_has_decompiled_sources)]
     #[test]
     fn advancement_json_loader_decodes_vanilla_codec_fields() {
+        let vanilla_data = |parts: &[&str]| {
+            let Some(source_root) = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT") else {
+                panic!("VIBECRAFT_DECOMPILED_SOURCE_ROOT is required for Java-source parity tests");
+            };
+            std::fs::read_to_string(
+                parts
+                    .iter()
+                    .fold(std::path::PathBuf::from(source_root), |path, part| {
+                        path.join(part)
+                    }),
+            )
+            .expect("vanilla advancement JSON should be readable")
+        };
+
         let mut root = AdvancementDefinition::from_json(
             "minecraft:story/root",
-            include_str!(
-                "../../decompiled-server-26.1.2/data/minecraft/advancement/story/root.json"
-            ),
+            &vanilla_data(&[
+                "data",
+                "minecraft",
+                "advancement",
+                "story",
+                "root.json",
+            ]),
         )
         .unwrap();
         assert_eq!(root.parent, None);
@@ -911,9 +929,13 @@ mod tests {
 
         let mine_stone = AdvancementDefinition::from_json(
             "minecraft:story/mine_stone",
-            include_str!(
-                "../../decompiled-server-26.1.2/data/minecraft/advancement/story/mine_stone.json"
-            ),
+            &vanilla_data(&[
+                "data",
+                "minecraft",
+                "advancement",
+                "story",
+                "mine_stone.json",
+            ]),
         )
         .unwrap();
         assert_eq!(
@@ -929,9 +951,14 @@ mod tests {
 
         let recipe = AdvancementDefinition::from_json(
             "minecraft:recipes/decorations/crafting_table",
-            include_str!(
-                "../../decompiled-server-26.1.2/data/minecraft/advancement/recipes/decorations/crafting_table.json"
-            ),
+            &vanilla_data(&[
+                "data",
+                "minecraft",
+                "advancement",
+                "recipes",
+                "decorations",
+                "crafting_table.json",
+            ]),
         )
         .unwrap();
         assert_eq!(

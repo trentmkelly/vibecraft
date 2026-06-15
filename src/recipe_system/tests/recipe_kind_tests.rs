@@ -717,7 +717,7 @@ fn assert_representative_core_recipe_json_decodes(no_tags: &ItemTagMap) {
     let shaped = load_recipe_json(
         "minecraft:crafting_table",
         include_str!(
-            "../../../../decompiled-server-26.1.2/data/minecraft/recipe/crafting_table.json"
+            "../../../vanilla-data/data/minecraft/recipe/crafting_table.json"
         ),
         no_tags,
     )
@@ -728,7 +728,7 @@ fn assert_representative_core_recipe_json_decodes(no_tags: &ItemTagMap) {
     let smelting = load_recipe_json(
         "minecraft:iron_ingot_from_smelting_raw_iron",
         include_str!(
-            "../../../../decompiled-server-26.1.2/data/minecraft/recipe/iron_ingot_from_smelting_raw_iron.json"
+            "../../../vanilla-data/data/minecraft/recipe/iron_ingot_from_smelting_raw_iron.json"
         ),
         no_tags,
     )
@@ -739,7 +739,7 @@ fn assert_representative_core_recipe_json_decodes(no_tags: &ItemTagMap) {
     let stonecutting = load_recipe_json(
         "minecraft:smooth_stone_slab_from_smooth_stone_stonecutting",
         include_str!(
-            "../../../../decompiled-server-26.1.2/data/minecraft/recipe/smooth_stone_slab_from_smooth_stone_stonecutting.json"
+            "../../../vanilla-data/data/minecraft/recipe/smooth_stone_slab_from_smooth_stone_stonecutting.json"
         ),
         no_tags,
     )
@@ -759,70 +759,70 @@ fn assert_representative_special_recipe_json_decodes(no_tags: &ItemTagMap) {
         (
             "minecraft:white_banner_duplicate",
             include_str!(
-                "../../../../decompiled-server-26.1.2/data/minecraft/recipe/white_banner_duplicate.json"
+                "../../../vanilla-data/data/minecraft/recipe/white_banner_duplicate.json"
             ),
             "crafting_special_bannerduplicate",
         ),
         (
             "minecraft:book_cloning",
             include_str!(
-                "../../../../decompiled-server-26.1.2/data/minecraft/recipe/book_cloning.json"
+                "../../../vanilla-data/data/minecraft/recipe/book_cloning.json"
             ),
             "crafting_special_bookcloning",
         ),
         (
             "minecraft:decorated_pot",
             include_str!(
-                "../../../../decompiled-server-26.1.2/data/minecraft/recipe/decorated_pot.json"
+                "../../../vanilla-data/data/minecraft/recipe/decorated_pot.json"
             ),
             "crafting_decorated_pot",
         ),
         (
             "minecraft:leather_helmet_dyed",
             include_str!(
-                "../../../../decompiled-server-26.1.2/data/minecraft/recipe/leather_helmet_dyed.json"
+                "../../../vanilla-data/data/minecraft/recipe/leather_helmet_dyed.json"
             ),
             "crafting_dye",
         ),
         (
             "minecraft:firework_rocket",
             include_str!(
-                "../../../../decompiled-server-26.1.2/data/minecraft/recipe/firework_rocket.json"
+                "../../../vanilla-data/data/minecraft/recipe/firework_rocket.json"
             ),
             "crafting_special_firework_rocket",
         ),
         (
             "minecraft:firework_star",
             include_str!(
-                "../../../../decompiled-server-26.1.2/data/minecraft/recipe/firework_star.json"
+                "../../../vanilla-data/data/minecraft/recipe/firework_star.json"
             ),
             "crafting_special_firework_star",
         ),
         (
             "minecraft:firework_star_fade",
             include_str!(
-                "../../../../decompiled-server-26.1.2/data/minecraft/recipe/firework_star_fade.json"
+                "../../../vanilla-data/data/minecraft/recipe/firework_star_fade.json"
             ),
             "crafting_special_firework_star_fade",
         ),
         (
             "minecraft:map_extending",
             include_str!(
-                "../../../../decompiled-server-26.1.2/data/minecraft/recipe/map_extending.json"
+                "../../../vanilla-data/data/minecraft/recipe/map_extending.json"
             ),
             "crafting_special_mapextending",
         ),
         (
             "minecraft:repair_item",
             include_str!(
-                "../../../../decompiled-server-26.1.2/data/minecraft/recipe/repair_item.json"
+                "../../../vanilla-data/data/minecraft/recipe/repair_item.json"
             ),
             "crafting_special_repairitem",
         ),
         (
             "minecraft:shield_decoration",
             include_str!(
-                "../../../../decompiled-server-26.1.2/data/minecraft/recipe/shield_decoration.json"
+                "../../../vanilla-data/data/minecraft/recipe/shield_decoration.json"
             ),
             "crafting_special_shielddecoration",
         ),

@@ -62,13 +62,11 @@ fn count_occurrences(source: &str, needle: &str) -> usize {
 }
 
 fn configured_feature_json(id: &str) -> serde_json::Value {
-    let path = format!(
-        "../decompiled-server-26.1.2/data/minecraft/worldgen/configured_feature/{}.json",
-        id.trim_start_matches("minecraft:")
-    );
+    let path = super::vanilla_data_path(&["data", "minecraft", "worldgen", "configured_feature"])
+        .join(format!("{}.json", id.trim_start_matches("minecraft:")));
     let json =
-        std::fs::read_to_string(&path).unwrap_or_else(|err| panic!("failed to read {path}: {err}"));
-    serde_json::from_str(&json).unwrap_or_else(|err| panic!("failed to parse {path}: {err}"))
+        std::fs::read_to_string(&path).unwrap_or_else(|err| panic!("failed to read {path:?}: {err}"));
+    serde_json::from_str(&json).unwrap_or_else(|err| panic!("failed to parse {path:?}: {err}"))
 }
 
 fn tree_feature_keys() -> Vec<&'static str> {

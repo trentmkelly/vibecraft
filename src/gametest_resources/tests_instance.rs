@@ -1,6 +1,17 @@
 use super::*;
 use crate::core_block_pos::RotationModel;
 
+fn vanilla_data_path(parts: &[&str]) -> std::path::PathBuf {
+    let Some(source_root) = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT") else {
+        panic!("VIBECRAFT_DECOMPILED_SOURCE_ROOT is required for Java-source parity tests");
+    };
+    parts
+        .iter()
+        .fold(std::path::PathBuf::from(source_root), |path, part| {
+            path.join(part)
+        })
+}
+
 const GAME_TEST_INSTANCE_JAVA: &str = include_str!(
     "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestInstance.java"
 );
@@ -192,9 +203,12 @@ fn gametest_instances_bootstraps_vanilla_always_pass_instance() {
         }
     );
 
-    let vanilla = parse_test_instance_json(include_str!(
-        "../../../decompiled-server-26.1.2/data/minecraft/test_instance/always_pass.json"
-    ))
+    let vanilla_path =
+        vanilla_data_path(&["data", "minecraft", "test_instance", "always_pass.json"]);
+    let vanilla = parse_test_instance_json(
+        &std::fs::read_to_string(&vanilla_path)
+            .unwrap_or_else(|err| panic!("failed to read {vanilla_path:?}: {err}")),
+    )
     .unwrap();
     assert_eq!(vanilla.environment, instances[0].1.data.environment);
     assert_eq!(vanilla.structure, instances[0].1.data.structure);

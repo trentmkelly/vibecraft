@@ -1,11 +1,10 @@
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 
 use crate::worldgen::{RandomSpreadType, StructurePlacementKind, BUILTIN_STRUCTURE_SETS};
 
 const STRUCTURE_SETS_JAVA: &str =
     include_str!("../../decompiled-server-26.1.2/net/minecraft/data/worldgen/StructureSets.java");
-const STRUCTURE_SET_ROOT: &str =
-    "../decompiled-server-26.1.2/data/minecraft/worldgen/structure_set";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ParsedStructureSet {
@@ -44,6 +43,13 @@ fn assert_source_contains_all(source: &str, sentinels: &[&str]) {
             "StructureSets.java is missing sentinel: {sentinel}"
         );
     }
+}
+
+fn vanilla_data_path(parts: &[&str]) -> PathBuf {
+    let Some(source_root) = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT") else {
+        panic!("VIBECRAFT_DECOMPILED_SOURCE_ROOT is required for Java-source parity tests");
+    };
+    parts.iter().fold(PathBuf::from(source_root), |path, part| path.join(part))
 }
 
 fn json_object<'a>(
@@ -164,9 +170,9 @@ fn parse_structure_set_value(value: &serde_json::Value) -> ParsedStructureSet {
 }
 
 fn load_vanilla_structure_sets() -> BTreeMap<String, ParsedStructureSet> {
-    let root = std::path::Path::new(STRUCTURE_SET_ROOT);
+    let root = vanilla_data_path(&["data", "minecraft", "worldgen", "structure_set"]);
     let mut sets = BTreeMap::new();
-    for entry in std::fs::read_dir(root)
+    for entry in std::fs::read_dir(&root)
         .unwrap_or_else(|err| panic!("failed to read structure_set dir {root:?}: {err}"))
     {
         let entry = entry.unwrap_or_else(|err| panic!("failed to read structure_set entry: {err}"));

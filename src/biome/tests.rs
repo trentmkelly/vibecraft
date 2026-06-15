@@ -24,18 +24,27 @@ const BIOME_PACKAGE_INFO_JAVA: &str = include_str!(
     "../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/biome/package-info.java"
 );
 
+fn vanilla_data_path(parts: &[&str]) -> std::path::PathBuf {
+    let Some(source_root) = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT") else {
+        panic!("VIBECRAFT_DECOMPILED_SOURCE_ROOT is required for Java-source parity tests");
+    };
+    parts
+        .iter()
+        .fold(std::path::PathBuf::from(source_root), |path, part| {
+            path.join(part)
+        })
+}
+
 fn count_occurrences(source: &str, needle: &str) -> usize {
     source.match_indices(needle).count()
 }
 
 fn vanilla_biome_json(id: &str) -> super::BiomeData {
-    let path = format!(
-        "../decompiled-server-26.1.2/data/minecraft/worldgen/biome/{}.json",
-        id.trim_start_matches("minecraft:")
-    );
+    let path = vanilla_data_path(&["data", "minecraft", "worldgen", "biome"])
+        .join(format!("{}.json", id.trim_start_matches("minecraft:")));
     let json =
-        std::fs::read_to_string(&path).unwrap_or_else(|err| panic!("failed to read {path}: {err}"));
-    parse_biome_json(id, &json).unwrap_or_else(|err| panic!("failed to parse {path}: {err}"))
+        std::fs::read_to_string(&path).unwrap_or_else(|err| panic!("failed to read {path:?}: {err}"));
+    parse_biome_json(id, &json).unwrap_or_else(|err| panic!("failed to parse {path:?}: {err}"))
 }
 
 fn padded_feature_steps(steps: &[&[&str]]) -> [Vec<String>; 11] {
@@ -169,14 +178,12 @@ fn biome_data_java_bootstrap_shape_matches_builtin_biome_registry() {
 fn biome_data_registered_biomes_all_have_parseable_vanilla_json() {
     let mut parsed_ids = Vec::new();
     for biome in BUILTIN_BIOMES {
-        let path = format!(
-            "../decompiled-server-26.1.2/data/minecraft/worldgen/biome/{}.json",
-            biome.id.trim_start_matches("minecraft:")
-        );
+        let path = vanilla_data_path(&["data", "minecraft", "worldgen", "biome"])
+            .join(format!("{}.json", biome.id.trim_start_matches("minecraft:")));
         let json = std::fs::read_to_string(&path)
-            .unwrap_or_else(|err| panic!("failed to read {path}: {err}"));
+            .unwrap_or_else(|err| panic!("failed to read {path:?}: {err}"));
         let parsed = parse_biome_json(biome.id, &json)
-            .unwrap_or_else(|err| panic!("failed to parse {path}: {err}"));
+            .unwrap_or_else(|err| panic!("failed to parse {path:?}: {err}"));
         parsed_ids.push(parsed.id);
     }
 
@@ -836,9 +843,13 @@ fn climate_rtree_find_nearest_agrees_with_bruteforce_on_overworld_params() {
 #[test]
 fn plains_biome_generation_and_mob_spawn_settings_match_vanilla_json() {
     // Load from the vanilla 26.1.2 data file.
-    let json = std::fs::read_to_string(
-        "../decompiled-server-26.1.2/data/minecraft/worldgen/biome/plains.json",
-    )
+    let json = std::fs::read_to_string(vanilla_data_path(&[
+        "data",
+        "minecraft",
+        "worldgen",
+        "biome",
+        "plains.json",
+    ]))
     .expect("plains.json must be present in decompiled server data");
 
     let biome =

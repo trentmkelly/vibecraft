@@ -1,7 +1,12 @@
 use super::*;
 
 fn load_vanilla_template_pools() -> crate::worldgen::ParsedTemplatePoolRegistry {
-    load_template_pool_registry("../decompiled-server-26.1.2/data/minecraft/worldgen/template_pool")
+    load_template_pool_registry(vanilla_data_path(&[
+        "data",
+        "minecraft",
+        "worldgen",
+        "template_pool",
+    ]))
         .expect("vanilla template-pool registry should load")
 }
 

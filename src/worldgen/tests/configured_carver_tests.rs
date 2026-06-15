@@ -115,22 +115,23 @@ fn configured_nether_cave_matches_vanilla_bootstrap_entry() {
     ));
 }
 
+#[cfg(vibecraft_has_decompiled_sources)]
 #[test]
 fn configured_carver_json_codec_matches_vanilla_registry_files() {
-    let dir = "../decompiled-server-26.1.2/data/minecraft/worldgen/configured_carver";
+    let dir = super::vanilla_data_path(&["data", "minecraft", "worldgen", "configured_carver"]);
     for id in [
         "minecraft:cave",
         "minecraft:cave_extra_underground",
         "minecraft:canyon",
         "minecraft:nether_cave",
     ] {
-        let path = format!("{}/{}.json", dir, id.strip_prefix("minecraft:").unwrap());
+        let path = dir.join(format!("{}.json", id.strip_prefix("minecraft:").unwrap()));
         let raw = std::fs::read_to_string(&path)
-            .unwrap_or_else(|err| panic!("failed to read {path}: {err}"));
+            .unwrap_or_else(|err| panic!("failed to read {path:?}: {err}"));
         let json: serde_json::Value = serde_json::from_str(&raw)
-            .unwrap_or_else(|err| panic!("failed to parse {path}: {err}"));
+            .unwrap_or_else(|err| panic!("failed to parse {path:?}: {err}"));
         let parsed = super::super::parse_configured_carver_from_json(id, &json)
-            .unwrap_or_else(|err| panic!("failed to decode {path}: {err}"));
+            .unwrap_or_else(|err| panic!("failed to decode {path:?}: {err}"));
         assert_eq!(
             parsed,
             *super::super::configured_carver(id).unwrap(),

@@ -1,5 +1,16 @@
 use super::*;
 
+fn vanilla_data_path(parts: &[&str]) -> std::path::PathBuf {
+    let Some(source_root) = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT") else {
+        panic!("VIBECRAFT_DECOMPILED_SOURCE_ROOT is required for Java-source parity tests");
+    };
+    parts
+        .iter()
+        .fold(std::path::PathBuf::from(source_root), |path, part| {
+            path.join(part)
+        })
+}
+
 const GAMETEST_MAIN_JAVA: &str =
     include_str!("../../../decompiled-server-26.1.2/net/minecraft/gametest/Main.java");
 const BLOCK_BASED_TEST_INSTANCE_JAVA: &str = include_str!(
@@ -1136,9 +1147,12 @@ fn gametest_info_copy_reset_preserves_identity_position_retries_and_clears_runti
 
 #[test]
 fn gametest_environment_and_instance_decode_vanilla_resources() {
-    let environment = parse_test_environment_json(include_str!(
-        "../../../decompiled-server-26.1.2/data/minecraft/test_environment/default.json"
-    ))
+    let environment_path =
+        vanilla_data_path(&["data", "minecraft", "test_environment", "default.json"]);
+    let environment = parse_test_environment_json(
+        &std::fs::read_to_string(&environment_path)
+            .unwrap_or_else(|err| panic!("failed to read {environment_path:?}: {err}")),
+    )
     .expect("vanilla default test environment should decode");
     assert_eq!(
         environment,
@@ -1147,9 +1161,12 @@ fn gametest_environment_and_instance_decode_vanilla_resources() {
         }
     );
 
-    let instance = parse_test_instance_json(include_str!(
-        "../../../decompiled-server-26.1.2/data/minecraft/test_instance/always_pass.json"
-    ))
+    let instance_path =
+        vanilla_data_path(&["data", "minecraft", "test_instance", "always_pass.json"]);
+    let instance = parse_test_instance_json(
+        &std::fs::read_to_string(&instance_path)
+            .unwrap_or_else(|err| panic!("failed to read {instance_path:?}: {err}")),
+    )
     .expect("vanilla always_pass test instance should decode");
     assert_eq!(
         instance,

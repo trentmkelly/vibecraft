@@ -2,6 +2,7 @@ use crate::worldgen::{
     configured_carver, parse_configured_carver_from_json, CarverShape, ConfiguredCarver,
     FloatProvider, HeightRange, VerticalAnchor, WorldCarverType, CONFIGURED_CARVERS,
 };
+use std::path::PathBuf;
 
 const CARVERS_JAVA: &str =
     include_str!("../../decompiled-server-26.1.2/net/minecraft/data/worldgen/Carvers.java");
@@ -17,6 +18,13 @@ fn assert_source_contains_all(source: &str, sentinels: &[&str]) {
             "Carvers.java is missing sentinel: {sentinel}"
         );
     }
+}
+
+fn vanilla_data_path(parts: &[&str]) -> PathBuf {
+    let Some(source_root) = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT") else {
+        panic!("VIBECRAFT_DECOMPILED_SOURCE_ROOT is required for Java-source parity tests");
+    };
+    parts.iter().fold(PathBuf::from(source_root), |path, part| path.join(part))
 }
 
 const EXPECTED_CONFIGURED_CARVERS: [ConfiguredCarver; 4] = [
@@ -211,9 +219,9 @@ fn rust_configured_carvers_match_java_bootstrap_parameters() {
 
 #[test]
 fn configured_carver_json_files_match_rust_bootstrap_table() {
-    let dir = "../decompiled-server-26.1.2/data/minecraft/worldgen/configured_carver";
-    let mut file_names = std::fs::read_dir(dir)
-        .unwrap_or_else(|err| panic!("failed to read configured_carver directory: {err}"))
+    let dir = vanilla_data_path(&["data", "minecraft", "worldgen", "configured_carver"]);
+    let mut file_names = std::fs::read_dir(&dir)
+        .unwrap_or_else(|err| panic!("failed to read configured_carver directory {dir:?}: {err}"))
         .map(|entry| {
             entry
                 .unwrap_or_else(|err| panic!("failed to read configured_carver entry: {err}"))
@@ -234,18 +242,17 @@ fn configured_carver_json_files_match_rust_bootstrap_table() {
     );
 
     for expected_carver in EXPECTED_CONFIGURED_CARVERS {
-        let path = format!(
-            "{}/{}.json",
-            dir,
+        let path = dir.join(format!(
+            "{}.json",
             expected_carver.id.strip_prefix("minecraft:").unwrap()
-        );
+        ));
         let raw = std::fs::read_to_string(&path)
-            .unwrap_or_else(|err| panic!("failed to read {path}: {err}"));
+            .unwrap_or_else(|err| panic!("failed to read {path:?}: {err}"));
         let json = serde_json::from_str(&raw)
-            .unwrap_or_else(|err| panic!("failed to parse configured carver JSON {path}: {err}"));
+            .unwrap_or_else(|err| panic!("failed to parse configured carver JSON {path:?}: {err}"));
         assert_eq!(
             parse_configured_carver_from_json(expected_carver.id, &json)
-                .unwrap_or_else(|err| panic!("failed to decode {path}: {err}")),
+                .unwrap_or_else(|err| panic!("failed to decode {path:?}: {err}")),
             expected_carver
         );
     }

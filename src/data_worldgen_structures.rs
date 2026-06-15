@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 
 use crate::worldgen::BUILTIN_STRUCTURES;
 
 const STRUCTURES_JAVA: &str =
     include_str!("../../decompiled-server-26.1.2/net/minecraft/data/worldgen/Structures.java");
-const STRUCTURE_ROOT: &str = "../decompiled-server-26.1.2/data/minecraft/worldgen/structure";
 
 fn count_occurrences(source: &str, needle: &str) -> usize {
     source.match_indices(needle).count()
@@ -19,6 +19,13 @@ fn assert_source_contains_all(source: &str, sentinels: &[&str]) {
     }
 }
 
+fn vanilla_data_path(parts: &[&str]) -> PathBuf {
+    let Some(source_root) = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT") else {
+        panic!("VIBECRAFT_DECOMPILED_SOURCE_ROOT is required for Java-source parity tests");
+    };
+    parts.iter().fold(PathBuf::from(source_root), |path, part| path.join(part))
+}
+
 fn json_object<'a>(
     value: &'a serde_json::Value,
     label: &str,
@@ -29,9 +36,9 @@ fn json_object<'a>(
 }
 
 fn load_structure_json() -> BTreeMap<String, serde_json::Value> {
-    let root = std::path::Path::new(STRUCTURE_ROOT);
+    let root = vanilla_data_path(&["data", "minecraft", "worldgen", "structure"]);
     let mut structures = BTreeMap::new();
-    for entry in std::fs::read_dir(root)
+    for entry in std::fs::read_dir(&root)
         .unwrap_or_else(|err| panic!("failed to read structure dir {root:?}: {err}"))
     {
         let entry = entry.unwrap_or_else(|err| panic!("failed to read structure entry: {err}"));

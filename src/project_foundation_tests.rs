@@ -44,6 +44,26 @@ mod tests {
         })
     }
 
+    fn collect_code_files(root: &Path, files: &mut Vec<std::path::PathBuf>) {
+        for entry in fs::read_dir(root)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", root.display()))
+        {
+            let entry = entry.unwrap_or_else(|err| {
+                panic!("failed to read directory entry in {}: {err}", root.display())
+            });
+            let path = entry.path();
+            if path.is_dir() {
+                collect_code_files(&path, files);
+                continue;
+            }
+            if let Some("rs" | "js" | "mjs" | "sh" | "toml") =
+                path.extension().and_then(|ext| ext.to_str())
+            {
+                files.push(path);
+            }
+        }
+    }
+
     #[test]
     fn mineflayer_runner_targets_vibecraft_and_official_server() {
         let runner = harness_file("runner.mjs");
@@ -159,6 +179,32 @@ mod tests {
             assert!(
                 !contents.contains(&developer_home),
                 "{path} must not hard-code a developer-local home path"
+            );
+        }
+    }
+
+    #[test]
+    fn code_does_not_hardcode_decompiled_data_roots() {
+        let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let developer_home = ["/home", "trent"].join("/");
+        let relative_decompiled_data = ["..", "decompiled-server-26.1.2", "data"].join("/");
+        let mut files = vec![manifest_dir.join("build.rs")];
+        collect_code_files(&manifest_dir.join("src"), &mut files);
+        collect_code_files(&manifest_dir.join("harness").join("mineflayer"), &mut files);
+
+        for path in files {
+            let contents = fs::read_to_string(&path).unwrap_or_else(|err| {
+                panic!("failed to read {}: {err}", path.display());
+            });
+            assert!(
+                !contents.contains(&developer_home),
+                "{} must not hard-code a developer-local home path",
+                path.display()
+            );
+            assert!(
+                !contents.contains(&relative_decompiled_data),
+                "{} must use VIBECRAFT_DECOMPILED_SOURCE_ROOT or vendored data instead of a relative decompiled data path",
+                path.display()
             );
         }
     }

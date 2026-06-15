@@ -51,9 +51,17 @@ use crate::storage::chunk::{
 use crate::storage::nbt::Tag;
 use crate::storage::region::ChunkPos;
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 mod noise_parity_tests;
+
+#[cfg(vibecraft_has_decompiled_sources)]
+fn vanilla_data_path(parts: &[&str]) -> PathBuf {
+    let Some(source_root) = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT") else {
+        panic!("VIBECRAFT_DECOMPILED_SOURCE_ROOT is required for Java-source parity tests");
+    };
+    parts.iter().fold(PathBuf::from(source_root), |path, part| path.join(part))
+}
 
 mod placement_registry_tests;
 

@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 
 use crate::worldgen::{
     builtin_surface_rule_preset, load_surface_rule, DynSurfaceRule, SurfaceRuleKind,
@@ -7,8 +8,6 @@ use crate::worldgen::{
 
 const SURFACE_RULE_DATA_JAVA: &str =
     include_str!("../../decompiled-server-26.1.2/net/minecraft/data/worldgen/SurfaceRuleData.java");
-const NOISE_SETTINGS_ROOT: &str =
-    "../decompiled-server-26.1.2/data/minecraft/worldgen/noise_settings";
 
 fn count_occurrences(source: &str, needle: &str) -> usize {
     source.match_indices(needle).count()
@@ -23,10 +22,17 @@ fn assert_source_contains_all(source: &str, sentinels: &[&str]) {
     }
 }
 
+fn vanilla_data_path(parts: &[&str]) -> PathBuf {
+    let Some(source_root) = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT") else {
+        panic!("VIBECRAFT_DECOMPILED_SOURCE_ROOT is required for Java-source parity tests");
+    };
+    parts.iter().fold(PathBuf::from(source_root), |path, part| path.join(part))
+}
+
 fn noise_settings_surface_rule_roots() -> BTreeMap<String, String> {
-    let root = std::path::Path::new(NOISE_SETTINGS_ROOT);
+    let root = vanilla_data_path(&["data", "minecraft", "worldgen", "noise_settings"]);
     let mut roots = BTreeMap::new();
-    for entry in std::fs::read_dir(root)
+    for entry in std::fs::read_dir(&root)
         .unwrap_or_else(|err| panic!("failed to read noise_settings dir {root:?}: {err}"))
     {
         let entry =

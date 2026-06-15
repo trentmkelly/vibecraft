@@ -1,6 +1,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 
 use crate::worldgen::{
     load_processor_list_registry, ParsedStructureProcessor, STRUCTURE_PROCESSOR_LISTS,
@@ -8,9 +9,6 @@ use crate::worldgen::{
 
 const PROCESSOR_LISTS_JAVA: &str =
     include_str!("../../decompiled-server-26.1.2/net/minecraft/data/worldgen/ProcessorLists.java");
-
-const PROCESSOR_LIST_ROOT: &str =
-    "../decompiled-server-26.1.2/data/minecraft/worldgen/processor_list";
 
 fn count_occurrences(source: &str, needle: &str) -> usize {
     source.match_indices(needle).count()
@@ -25,8 +23,20 @@ fn assert_source_contains_all(source: &str, sentinels: &[&str]) {
     }
 }
 
+fn vanilla_data_path(parts: &[&str]) -> PathBuf {
+    let Some(source_root) = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT") else {
+        panic!("VIBECRAFT_DECOMPILED_SOURCE_ROOT is required for Java-source parity tests");
+    };
+    parts.iter().fold(PathBuf::from(source_root), |path, part| path.join(part))
+}
+
 fn load_vanilla_processor_lists() -> crate::worldgen::ParsedProcessorListRegistry {
-    load_processor_list_registry(PROCESSOR_LIST_ROOT)
+    load_processor_list_registry(vanilla_data_path(&[
+        "data",
+        "minecraft",
+        "worldgen",
+        "processor_list",
+    ]))
         .expect("vanilla processor-list registry should load")
 }
 

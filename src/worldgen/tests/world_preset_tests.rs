@@ -409,11 +409,16 @@ fn world_preset_resolver_rejects_invalid_generator_wiring() {
     );
 }
 
+#[cfg(vibecraft_has_decompiled_sources)]
 #[test]
 fn world_preset_codecs_parse_vanilla_registry_json() {
-    let normal_raw = std::fs::read_to_string(
-        "../decompiled-server-26.1.2/data/minecraft/worldgen/world_preset/normal.json",
-    )
+    let normal_raw = std::fs::read_to_string(super::vanilla_data_path(&[
+        "data",
+        "minecraft",
+        "worldgen",
+        "world_preset",
+        "normal.json",
+    ]))
     .unwrap();
     let normal = super::super::parse_world_preset_json(&normal_raw).unwrap();
     assert_eq!(
@@ -458,9 +463,13 @@ fn world_preset_codecs_parse_vanilla_registry_json() {
         }
     );
 
-    let flat_raw = std::fs::read_to_string(
-        "../decompiled-server-26.1.2/data/minecraft/worldgen/world_preset/flat.json",
-    )
+    let flat_raw = std::fs::read_to_string(super::vanilla_data_path(&[
+        "data",
+        "minecraft",
+        "worldgen",
+        "world_preset",
+        "flat.json",
+    ]))
     .unwrap();
     let flat = super::super::parse_world_preset_json(&flat_raw).unwrap();
     assert_eq!(
@@ -484,11 +493,14 @@ fn world_preset_codecs_parse_vanilla_registry_json() {
     );
 }
 
+#[cfg(vibecraft_has_decompiled_sources)]
 #[test]
 fn worldgen_preset_registry_loads_vanilla_world_and_flat_presets() {
-    let registry = super::super::load_worldgen_preset_registry(
-        "../decompiled-server-26.1.2/data/minecraft/worldgen",
-    )
+    let registry = super::super::load_worldgen_preset_registry(super::vanilla_data_path(&[
+        "data",
+        "minecraft",
+        "worldgen",
+    ]))
     .unwrap();
 
     assert_eq!(registry.world_presets.len(), 6);
@@ -540,11 +552,15 @@ fn worldgen_preset_registry_loads_vanilla_world_and_flat_presets() {
     );
 }
 
+#[cfg(vibecraft_has_decompiled_sources)]
 #[test]
 fn template_pool_registry_loads_vanilla_nested_pool_json() {
-    let registry = super::super::load_template_pool_registry(
-        "../decompiled-server-26.1.2/data/minecraft/worldgen/template_pool",
-    )
+    let registry = super::super::load_template_pool_registry(super::vanilla_data_path(&[
+        "data",
+        "minecraft",
+        "worldgen",
+        "template_pool",
+    ]))
     .unwrap();
 
     assert!(registry.pools.contains_key("minecraft:empty"));
@@ -581,11 +597,15 @@ fn template_pool_registry_loads_vanilla_nested_pool_json() {
     );
 }
 
+#[cfg(vibecraft_has_decompiled_sources)]
 #[test]
 fn processor_list_registry_loads_vanilla_processor_json() {
-    let registry = super::super::load_processor_list_registry(
-        "../decompiled-server-26.1.2/data/minecraft/worldgen/processor_list",
-    )
+    let registry = super::super::load_processor_list_registry(super::vanilla_data_path(&[
+        "data",
+        "minecraft",
+        "worldgen",
+        "processor_list",
+    ]))
     .unwrap();
 
     assert_eq!(registry.lists.len(), 40);
@@ -633,11 +653,14 @@ fn processor_list_registry_loads_vanilla_processor_json() {
     );
 }
 
+#[cfg(vibecraft_has_decompiled_sources)]
 #[test]
 fn worldgen_preset_registry_resolves_vanilla_generators() {
-    let registry = super::super::load_worldgen_preset_registry(
-        "../decompiled-server-26.1.2/data/minecraft/worldgen",
-    )
+    let registry = super::super::load_worldgen_preset_registry(super::vanilla_data_path(&[
+        "data",
+        "minecraft",
+        "worldgen",
+    ]))
     .unwrap();
 
     for id in [

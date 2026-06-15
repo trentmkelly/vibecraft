@@ -130,20 +130,21 @@ fn random_state_noise_cache_unknown_id_returns_none() {
 
 // ---------- NoiseGeneratorSettings codec loading tests ----------
 
+#[cfg(vibecraft_has_decompiled_sources)]
 #[test]
 fn noise_generator_settings_scalar_fields_match_vanilla_json_files() {
     // Read every noise_settings JSON from the decompiled server data directory and
     // validate the scalar fields against our hardcoded EXTRACTED_NOISE_SETTINGS_REGISTRY_EXPECTATIONS.
     // This is the codec-loading parity test: it proves our statics match vanilla JSON.
-    let dir = "../decompiled-server-26.1.2/data/minecraft/worldgen/noise_settings";
+    let dir = super::vanilla_data_path(&["data", "minecraft", "worldgen", "noise_settings"]);
 
     for entry in EXTRACTED_NOISE_SETTINGS_REGISTRY_EXPECTATIONS {
         let name = entry.id.strip_prefix("minecraft:").unwrap_or(entry.id);
-        let path = format!("{}/{}.json", dir, name);
+        let path = dir.join(format!("{name}.json"));
         let raw =
-            std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("failed to read {path}: {e}"));
+            std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("failed to read {path:?}: {e}"));
         let json: serde_json::Value =
-            serde_json::from_str(&raw).unwrap_or_else(|e| panic!("invalid JSON in {path}: {e}"));
+            serde_json::from_str(&raw).unwrap_or_else(|e| panic!("invalid JSON in {path:?}: {e}"));
 
         let noise = &json["noise"];
         assert_eq!(
