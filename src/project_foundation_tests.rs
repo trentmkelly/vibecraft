@@ -3,7 +3,7 @@
 #[cfg(test)]
 mod tests {
     use std::fs;
-    use std::path::Path;
+    use std::path::{Component, Path, PathBuf};
 
     fn harness_file(name: &str) -> String {
         let path = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -68,6 +68,72 @@ mod tests {
                 files.push(path);
             }
         }
+    }
+
+    fn normalize_repo_path(path: &Path) -> PathBuf {
+        let mut normalized = PathBuf::new();
+        for component in path.components() {
+            match component {
+                Component::CurDir => {}
+                Component::ParentDir => {
+                    normalized.pop();
+                }
+                other => normalized.push(other.as_os_str()),
+            }
+        }
+        normalized
+    }
+
+    fn extract_quoted_literal(text: &str) -> Option<&str> {
+        let start = text.find('"')? + 1;
+        let rest = &text[start..];
+        let end = rest.find('"')?;
+        Some(&rest[..end])
+    }
+
+    fn include_macro_targets(contents: &str) -> Vec<(&str, &str)> {
+        let mut targets = Vec::new();
+        for macro_name in ["include_str!(", "include_bytes!("] {
+            let mut remaining = contents;
+            while let Some(index) = remaining.find(macro_name) {
+                let after_macro = &remaining[index + macro_name.len()..];
+                remaining = after_macro;
+                let Some(end) = after_macro.find(')') else {
+                    break;
+                };
+                let invocation = &after_macro[..end];
+                if invocation.contains("env!(") || invocation.contains("option_env!(") {
+                    continue;
+                }
+                if let Some(target) = extract_quoted_literal(invocation) {
+                    if !target.is_empty()
+                        && target.trim() == target
+                        && !target.contains(',')
+                        && !target.contains('\n')
+                    {
+                        targets.push((macro_name.trim_end_matches('('), target));
+                    }
+                }
+            }
+        }
+        targets
+    }
+
+    fn cargo_manifest_include_targets(contents: &str) -> Vec<&str> {
+        let mut targets = Vec::new();
+        let mut remaining = contents;
+        let needle = "env!(\"CARGO_MANIFEST_DIR\")";
+        while let Some(index) = remaining.find(needle) {
+            let after_env = &remaining[index + needle.len()..];
+            remaining = after_env;
+            if !after_env.trim_start().starts_with(',') {
+                continue;
+            }
+            if let Some(target) = extract_quoted_literal(after_env) {
+                targets.push(target);
+            }
+        }
+        targets
     }
 
     #[test]
@@ -237,6 +303,53 @@ mod tests {
                 "{} must not default official-server parity runs to an untracked workspace server.jar",
                 path.display()
             );
+        }
+    }
+
+    #[test]
+    fn compile_time_file_includes_are_in_repo_and_present() {
+        let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let normalized_manifest_dir = normalize_repo_path(manifest_dir);
+        let mut files = Vec::new();
+        collect_code_files(&manifest_dir.join("src"), &mut files);
+        collect_code_files(&manifest_dir.join("harness").join("mineflayer"), &mut files);
+        collect_code_files(&manifest_dir.join("tools"), &mut files);
+        collect_code_files(&manifest_dir.join(".github").join("workflows"), &mut files);
+
+        for path in files {
+            let contents = fs::read_to_string(&path).unwrap_or_else(|err| {
+                panic!("failed to read {}: {err}", path.display());
+            });
+
+            for (macro_name, target) in include_macro_targets(&contents) {
+                let resolved = normalize_repo_path(&path.parent().unwrap_or(manifest_dir).join(target));
+                assert!(
+                    resolved.starts_with(&normalized_manifest_dir),
+                    "{} includes out-of-repo file {target:?} through {macro_name}",
+                    path.display()
+                );
+                assert!(
+                    resolved.is_file(),
+                    "{} includes missing file {} through {macro_name}",
+                    path.display(),
+                    resolved.display()
+                );
+            }
+
+            for target in cargo_manifest_include_targets(&contents) {
+                let resolved = normalize_repo_path(&manifest_dir.join(target.trim_start_matches('/')));
+                assert!(
+                    resolved.starts_with(&normalized_manifest_dir),
+                    "{} builds an out-of-repo CARGO_MANIFEST_DIR include target {target:?}",
+                    path.display()
+                );
+                assert!(
+                    resolved.is_file(),
+                    "{} builds a missing CARGO_MANIFEST_DIR include target {}",
+                    path.display(),
+                    resolved.display()
+                );
+            }
         }
     }
 
