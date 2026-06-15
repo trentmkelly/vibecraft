@@ -612,6 +612,7 @@ mod runtime;
 mod scheduled_tick;
 mod seed_validation;
 mod server_info;
+mod server_interface;
 mod server_links;
 mod server_registry_layer;
 mod suppressed_exception_collector;
