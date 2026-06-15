@@ -219,8 +219,6 @@ pub(super) const ENTRIES: &[MessageKeyDef] = &[
         MessageKeyFamily::Command,
         &[],
     ),
-    key("commands.serverpack.pop", MessageKeyFamily::Command, &[]),
-    key("commands.serverpack.push", MessageKeyFamily::Command, &[]),
     key("commands.setblock.success", MessageKeyFamily::Command, &[]),
     key(
         "commands.setidletimeout.success",

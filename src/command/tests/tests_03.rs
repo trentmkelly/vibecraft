@@ -75,7 +75,7 @@ fn serverpack_push_generates_java_name_uuid_or_uses_explicit_uuid() {
     )
     .unwrap();
     assert_eq!(generated.success_count, 0);
-    assert_eq!(generated.feedback_key, "commands.serverpack.push");
+    assert_eq!(generated.feedback_key, NO_COMMAND_FEEDBACK);
     assert_eq!(
         state.server_pack_events[0],
         ServerPackCommandEvent::Push(ServerPackPushRequest {
@@ -115,7 +115,7 @@ fn serverpack_pop_records_uuid_and_rejects_bad_syntax() {
     )
     .unwrap();
     assert_eq!(result.success_count, 0);
-    assert_eq!(result.feedback_key, "commands.serverpack.pop");
+    assert_eq!(result.feedback_key, NO_COMMAND_FEEDBACK);
     assert_eq!(
         state.server_pack_events,
         vec![ServerPackCommandEvent::Pop {
@@ -137,6 +137,36 @@ fn serverpack_pop_records_uuid_and_rejects_bad_syntax() {
             "serverpack"
         ),
         Err(CommandError::InvalidSyntax)
+    );
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn serverpack_command_source_matches_java_no_feedback_packets() {
+    const SERVER_PACK_COMMAND_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/ServerPackCommand.java");
+    for sentinel in [
+        "Commands.literal(\"serverpack\")",
+        "Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)",
+        "Commands.literal(\"push\")",
+        "Commands.argument(\"url\", StringArgumentType.string())",
+        "Commands.argument(\"uuid\", UuidArgument.uuid())",
+        "Commands.argument(\"hash\", StringArgumentType.word())",
+        "UUID.nameUUIDFromBytes(url.getBytes(StandardCharsets.UTF_8))",
+        "new ClientboundResourcePackPushPacket(id, url, hash, false, null)",
+        "Commands.literal(\"pop\")",
+        "new ClientboundResourcePackPopPacket(Optional.of(uuid))",
+        "sendToAllConnections(source, packet);",
+        "return 0;",
+    ] {
+        assert!(
+            SERVER_PACK_COMMAND_JAVA.contains(sentinel),
+            "ServerPackCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+    assert!(
+        !SERVER_PACK_COMMAND_JAVA.contains("sendSuccess"),
+        "ServerPackCommand.java should not emit command feedback"
     );
 }
 

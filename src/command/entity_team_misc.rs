@@ -549,7 +549,7 @@ pub(super) fn server_pack_command(
                 .push(ServerPackCommandEvent::Pop { id });
             Ok(CommandResult {
                 success_count: 0,
-                feedback_key: "commands.serverpack.pop",
+                feedback_key: NO_COMMAND_FEEDBACK,
                 broadcast_to_admins: false,
             })
         }
@@ -578,7 +578,7 @@ pub(super) fn push_server_pack(
         }));
     Ok(CommandResult {
         success_count: 0,
-        feedback_key: "commands.serverpack.push",
+        feedback_key: NO_COMMAND_FEEDBACK,
         broadcast_to_admins: false,
     })
 }

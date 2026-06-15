@@ -28,8 +28,6 @@ const INTENTIONALLY_INTERNAL_LOCALIZATION_KEYS: &[&str] = &[
     "commands.return.success",
     "commands.vibecraft.debug.biome",
     "commands.say.success",
-    "commands.serverpack.pop",
-    "commands.serverpack.push",
     "commands.spawn_armor_trims.success",
     "commands.teammsg.success",
     "commands.tellraw.success",
