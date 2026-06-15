@@ -192,9 +192,12 @@ impl Component {
         }
     }
 
-    pub fn object_component(info: ObjectContent, _fallback: Option<Component>) -> Self {
+    pub fn object_component(info: ObjectContent, fallback: Option<Component>) -> Self {
         Self {
-            content: ComponentContent::Object(info),
+            content: ComponentContent::Object {
+                info,
+                fallback: fallback.map(Box::new),
+            },
             style: Style::empty(),
             siblings: Vec::new(),
         }
@@ -372,7 +375,13 @@ fn component_contents_label(content: &ComponentContent) -> String {
         }
         ComponentContent::Keybind(key) => format!("keybind{{{key}}}"),
         ComponentContent::Nbt { path, .. } => format!("nbt{{{path}}}"),
-        ComponentContent::Object(object) => format!("object{{{object:?}}}"),
+        ComponentContent::Object { info, fallback } => {
+            let fallback = fallback
+                .as_ref()
+                .map(|fallback| format!(", fallback={fallback:?}"))
+                .unwrap_or_default();
+            format!("object{{{info:?}{fallback}}}")
+        }
     }
 }
 
@@ -493,6 +502,17 @@ mod tests {
             .get_string(),
             "[stone]"
         );
+        let object_fallback = Component::object_component(
+            ObjectContent::PlayerSprite {
+                profile: "Steve".to_string(),
+                hat: true,
+            },
+            Some(Component::literal("Steve icon")),
+        );
+        assert_eq!(object_fallback.get_string(), "Steve icon");
+        assert!(object_fallback
+            .to_json()
+            .contains("\"fallback\":{\"text\":\"Steve icon\"}"));
         assert_eq!(
             translation_arg("minecraft:stone").get_string(),
             "minecraft:stone"

@@ -145,7 +145,10 @@ pub enum ComponentContent {
         plain: bool,
         separator: Option<Box<Component>>,
     },
-    Object(ObjectContent),
+    Object {
+        info: ObjectContent,
+        fallback: Option<Box<Component>>,
+    },
 }
 
 impl ComponentContent {
@@ -198,7 +201,10 @@ impl ComponentContent {
                     .unwrap_or_else(|| ", ".to_string());
                 context.nbt(source, path).join(&sep)
             }
-            Self::Object(object) => object.render_plain(context),
+            Self::Object { info, fallback } => fallback
+                .as_ref()
+                .map(|component| component.render_plain(translations, context))
+                .unwrap_or_else(|| info.render_plain(context)),
         }
     }
 
@@ -256,7 +262,13 @@ impl ComponentContent {
                 }
                 fields
             }
-            Self::Object(object) => object.json_fields(),
+            Self::Object { info, fallback } => {
+                let mut fields = info.json_fields();
+                if let Some(fallback) = fallback {
+                    fields.push(format!("\"fallback\":{}", fallback.to_json()));
+                }
+                fields
+            }
         }
     }
 }
@@ -908,10 +920,13 @@ mod tests {
         );
         assert_eq!(
             Component {
-                content: ComponentContent::Object(ObjectContent::PlayerSprite {
-                    profile: "Steve".to_string(),
-                    hat: true,
-                }),
+                content: ComponentContent::Object {
+                    info: ObjectContent::PlayerSprite {
+                        profile: "Steve".to_string(),
+                        hat: true,
+                    },
+                    fallback: None,
+                },
                 style: Style::empty(),
                 siblings: Vec::new(),
             }
