@@ -90,12 +90,43 @@ impl<T> ResourceKey<T> {
         }
     }
 
+    pub fn create<U>(registry_name: &ResourceKey<U>, location: Identifier) -> Self {
+        Self::new(registry_name.location.clone(), location)
+    }
+
+    pub fn create_registry_key(identifier: Identifier) -> ResourceKey<Registry<T>> {
+        ResourceKey::new(
+            Identifier {
+                namespace: "minecraft".to_string(),
+                path: "root".to_string(),
+            },
+            identifier,
+        )
+    }
+
     pub fn registry(&self) -> &Identifier {
         &self.registry
     }
 
     pub fn location(&self) -> &Identifier {
         &self.location
+    }
+
+    pub fn is_for<U>(&self, registry: &ResourceKey<Registry<U>>) -> bool {
+        self.registry == *registry.location()
+    }
+
+    pub fn cast<U>(&self, registry: &ResourceKey<Registry<U>>) -> Option<ResourceKey<U>> {
+        self.is_for(registry)
+            .then(|| ResourceKey::new(self.registry.clone(), self.location.clone()))
+    }
+
+    pub fn registry_key(&self) -> ResourceKey<Registry<T>> {
+        ResourceKey::create_registry_key(self.registry.clone())
+    }
+
+    pub fn java_to_string(&self) -> String {
+        format!("ResourceKey[{} / {}]", self.registry, self.location)
     }
 
     pub fn to_json_object(&self) -> String {
@@ -146,6 +177,37 @@ impl<T> ResourceKey<T> {
         let registry = read_identifier(reader)?;
         let location = read_identifier(reader)?;
         Ok(Self::new(registry, location))
+    }
+
+    pub fn write_bound_network<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        write_identifier(writer, &self.location)
+    }
+
+    pub fn read_bound_network<R: Read, U>(
+        registry_name: &ResourceKey<U>,
+        reader: &mut R,
+    ) -> io::Result<Self> {
+        let location = read_identifier(reader)?;
+        Ok(Self::create(registry_name, location))
+    }
+
+    pub fn to_bound_json(&self) -> String {
+        format!("\"{}\"", self.location)
+    }
+
+    pub fn from_bound_json<U>(registry_name: &ResourceKey<U>, raw: &str) -> Result<Self, String> {
+        let raw = raw.trim();
+        let identifier = raw
+            .strip_prefix('"')
+            .and_then(|value| value.strip_suffix('"'))
+            .ok_or_else(|| "resource key codec JSON must be an identifier string".to_string())?;
+        Ok(Self::create(registry_name, Identifier::parse(identifier)?))
+    }
+}
+
+impl<T> fmt::Display for ResourceKey<T> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.java_to_string())
     }
 }
 

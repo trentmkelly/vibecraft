@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use super::{Identifier, Lifecycle, LoadedTags, Registry, TagFile};
 
 pub mod registries {
+    pub const ROOT: &str = "minecraft:root";
     pub const BLOCK: &str = "minecraft:block";
     pub const ITEM: &str = "minecraft:item";
     pub const ENTITY_TYPE: &str = "minecraft:entity_type";

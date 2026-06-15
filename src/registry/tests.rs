@@ -414,6 +414,93 @@ fn registry_backed_keys_round_trip_json_nbt_and_network_forms() {
 }
 
 #[test]
+fn resource_key_helpers_match_java_registry_key_contracts() {
+    let source = vibecraft_java_source!("/net/minecraft/resources/ResourceKey.java");
+    for sentinel in [
+        "private static final ConcurrentMap<ResourceKey.InternKey, ResourceKey<?>> VALUES",
+        "public static <T> ResourceKey<T> create(final ResourceKey<? extends Registry<T>> registryName, final Identifier location)",
+        "return create(registryName.identifier, location);",
+        "public static <T> ResourceKey<Registry<T>> createRegistryKey(final Identifier identifier)",
+        "return create(Registries.ROOT_REGISTRY_NAME, identifier);",
+        "return \"ResourceKey[\" + this.registryName + \" / \" + this.identifier + \"]\";",
+        "return this.registryName.equals(registry.identifier());",
+        "return this.isFor(registry) ? Optional.of((ResourceKey<E>)this) : Optional.empty();",
+        "return createRegistryKey(this.registryName);",
+    ] {
+        assert!(
+            source.contains(sentinel),
+            "ResourceKey.java sentinel missing: {sentinel}"
+        );
+    }
+
+    let item_registry = super::ResourceKey::<String>::create_registry_key(
+        Identifier::parse(registries::ITEM).unwrap(),
+    );
+    let block_registry = super::ResourceKey::<String>::create_registry_key(
+        Identifier::parse(registries::BLOCK).unwrap(),
+    );
+    assert_eq!(item_registry.registry(), &Identifier::parse(registries::ROOT).unwrap());
+    assert_eq!(item_registry.location(), &Identifier::parse(registries::ITEM).unwrap());
+    assert_eq!(
+        item_registry.to_string(),
+        "ResourceKey[minecraft:root / minecraft:item]"
+    );
+
+    let stick = super::ResourceKey::<String>::create(
+        &item_registry,
+        Identifier::parse("minecraft:stick").unwrap(),
+    );
+    assert_eq!(stick.registry(), &Identifier::parse(registries::ITEM).unwrap());
+    assert_eq!(stick.location(), &Identifier::parse("minecraft:stick").unwrap());
+    let stick_registry_key = stick.registry_key();
+    assert_eq!(stick_registry_key.registry(), item_registry.registry());
+    assert_eq!(stick_registry_key.location(), item_registry.location());
+    assert_eq!(stick.to_string(), "ResourceKey[minecraft:item / minecraft:stick]");
+    assert!(stick.is_for(&item_registry));
+    assert!(!stick.is_for(&block_registry));
+    assert_eq!(stick.cast(&item_registry), Some(stick.clone()));
+    assert_eq!(stick.cast::<String>(&block_registry), None);
+}
+
+#[test]
+fn resource_key_bound_codecs_encode_only_location_like_java() {
+    let source = vibecraft_java_source!("/net/minecraft/resources/ResourceKey.java");
+    for sentinel in [
+        "return Identifier.CODEC.xmap(name -> create(registryName, name), ResourceKey::identifier);",
+        "return Identifier.STREAM_CODEC.map(name -> create(registryName, name), ResourceKey::identifier);",
+    ] {
+        assert!(
+            source.contains(sentinel),
+            "ResourceKey.java codec sentinel missing: {sentinel}"
+        );
+    }
+
+    let item_registry = super::ResourceKey::<String>::create_registry_key(
+        Identifier::parse(registries::ITEM).unwrap(),
+    );
+    let stick = super::ResourceKey::<String>::create(
+        &item_registry,
+        Identifier::parse("minecraft:stick").unwrap(),
+    );
+
+    assert_eq!(stick.to_bound_json(), "\"minecraft:stick\"");
+    assert_eq!(
+        super::ResourceKey::<String>::from_bound_json(&item_registry, "\"minecraft:stick\"")
+            .unwrap(),
+        stick
+    );
+
+    let mut bytes = Vec::new();
+    stick.write_bound_network(&mut bytes).unwrap();
+    let mut input = crate::network::codec::cursor(bytes);
+    assert_eq!(
+        super::ResourceKey::<String>::read_bound_network(&item_registry, &mut input).unwrap(),
+        stick
+    );
+    assert_eq!(input.position(), u64::try_from(input.get_ref().len()).unwrap());
+}
+
+#[test]
 fn registry_network_ids_resolve_to_stable_resource_keys() {
     let mut registry = Registry::new(Identifier::parse(registries::ITEM).unwrap());
     let stick = Identifier::parse("minecraft:stick").unwrap();
