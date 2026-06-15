@@ -613,6 +613,7 @@ mod scheduled_tick;
 mod seed_validation;
 mod server_info;
 mod server_links;
+mod server_registry_layer;
 mod suppressed_exception_collector;
 mod server_tick_task;
 mod server_properties;
