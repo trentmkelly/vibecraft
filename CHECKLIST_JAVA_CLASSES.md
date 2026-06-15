@@ -1273,8 +1273,8 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/references`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/references/BlockIds.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/references/ItemIds.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/references/BlockIds.java`. Rust `reference_ids::BLOCK_IDS` mirrors Java's seven default-namespace block `ResourceKey` constants (`pumpkin`, `pumpkin_stem`, `attached_pumpkin_stem`, `melon`, `melon_stem`, `attached_melon_stem`, `dirt`) and verifies each exists in the block registry; verified by `cargo test reference_ids -- --nocapture` and `VIBECRAFT_DECOMPILED_SOURCE_ROOT=/home/trent/Projects/MinecraftServerCRB/decompiled-server-26.1.2 cargo test reference_ids -- --nocapture`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/references/ItemIds.java`. Rust `reference_ids::ITEM_IDS` mirrors Java's two default-namespace item `ResourceKey` constants (`pumpkin_seeds`, `melon_seeds`) and verifies each exists in the item catalog; verified by `cargo test reference_ids -- --nocapture` and `VIBECRAFT_DECOMPILED_SOURCE_ROOT=/home/trent/Projects/MinecraftServerCRB/decompiled-server-26.1.2 cargo test reference_ids -- --nocapture`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/references/package-info.java`. Java 26.1.2 package marker contains only `@NullMarked`, the package declaration, and the `org.jspecify.annotations.NullMarked` import; no Rust runtime behavior or parity test is required beyond preserving nullability expectations in typed Rust APIs.
 
 ## `decompiled-server-26.1.2/net/minecraft/resources`

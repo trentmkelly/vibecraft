@@ -588,6 +588,7 @@ mod random_source;
 mod random_sequences;
 mod random_tick;
 mod recipe_system;
+mod reference_ids;
 mod redstone;
 mod registry;
 mod report_type;
