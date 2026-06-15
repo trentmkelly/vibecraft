@@ -601,6 +601,7 @@ mod resource_registry_data_loader;
 mod resource_registry_file_codec;
 mod resource_registry_fixed_codec;
 mod resource_registry_load_task;
+mod resource_registry_ops;
 mod resource_registry_validator;
 mod report_type;
 mod resources;
