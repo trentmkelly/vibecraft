@@ -22,6 +22,8 @@ pub mod formatted_text;
 pub mod hover_event;
 #[path = "keybind_contents.rs"]
 pub mod keybind_contents;
+#[path = "local_chat_session.rs"]
+pub mod local_chat_session;
 #[path = "nbt_contents.rs"]
 pub mod nbt_contents;
 #[path = "number_format.rs"]
