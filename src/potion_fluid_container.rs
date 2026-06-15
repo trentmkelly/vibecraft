@@ -375,6 +375,10 @@ mod tests {
         }
     }
 
+    #[cfg_attr(
+        not(vibecraft_has_decompiled_sources),
+        ignore = "requires optional Java source root"
+    )]
     #[test]
     fn dispensible_container_interface_default_and_bucket_adapter_match_java() {
         assert!(DISPENSIBLE_CONTAINER_ITEM_JAVA.contains("default void checkExtraContent"));

@@ -759,7 +759,7 @@ pub fn vanilla_brewing_recipes() -> Vec<BrewingRecipe> {
     recipes
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
 

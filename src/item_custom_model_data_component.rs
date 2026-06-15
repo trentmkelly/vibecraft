@@ -55,7 +55,7 @@ fn get_safe<T>(values: &[T], index: i32) -> Option<&T> {
         .and_then(|index| values.get(index))
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
 

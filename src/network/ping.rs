@@ -83,6 +83,10 @@ mod tests {
         );
     }
 
+    #[cfg_attr(
+        not(vibecraft_has_decompiled_sources),
+        ignore = "requires optional Java source root"
+    )]
     #[test]
     fn ping_packet_type_sources_match_java_names_and_listener_methods() {
         const PING_PACKET_TYPES_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/ping/PingPacketTypes.java");

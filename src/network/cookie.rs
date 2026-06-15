@@ -186,6 +186,10 @@ mod tests {
     use crate::registry::Identifier;
     use std::io::Cursor;
 
+    #[cfg_attr(
+        not(vibecraft_has_decompiled_sources),
+        ignore = "requires optional Java source root"
+    )]
     #[test]
     fn cookie_packet_types_and_listener_surfaces_match_java() {
         const CLIENT_COOKIE_LISTENER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/cookie/ClientCookiePacketListener.java");
@@ -225,6 +229,10 @@ mod tests {
         }
     }
 
+    #[cfg_attr(
+        not(vibecraft_has_decompiled_sources),
+        ignore = "requires optional Java source root"
+    )]
     #[test]
     fn round_trips_cookie_request() {
         const CLIENTBOUND_COOKIE_REQUEST_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/cookie/ClientboundCookieRequestPacket.java");
@@ -253,6 +261,10 @@ mod tests {
         );
     }
 
+    #[cfg_attr(
+        not(vibecraft_has_decompiled_sources),
+        ignore = "requires optional Java source root"
+    )]
     #[test]
     fn round_trips_cookie_response_with_and_without_payload() {
         const SERVERBOUND_COOKIE_RESPONSE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/cookie/ServerboundCookieResponsePacket.java");
@@ -294,6 +306,10 @@ mod tests {
         assert!(packet.write(&mut Vec::new()).is_err());
     }
 
+    #[cfg_attr(
+        not(vibecraft_has_decompiled_sources),
+        ignore = "requires optional Java source root"
+    )]
     #[test]
     fn round_trips_store_cookie_at_vanilla_limit() {
         const CLIENTBOUND_STORE_COOKIE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/common/ClientboundStoreCookiePacket.java");

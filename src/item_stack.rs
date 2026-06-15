@@ -679,7 +679,7 @@ pub fn air_item_name_from_type_holder(
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
     use crate::item_properties::{ItemUseAnimation, Rarity, UseCooldown};

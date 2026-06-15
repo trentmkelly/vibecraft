@@ -95,7 +95,7 @@ pub fn apply_dye_textures(current: Option<u32>, dye_textures: &[u32]) -> u32 {
     (red << 16) | (green << 8) | blue
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
 

@@ -869,7 +869,7 @@ pub fn item_definition(registry_id: &str) -> Option<ItemDefinition> {
         .find(|definition| definition.registry_id == registry_id)
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
 

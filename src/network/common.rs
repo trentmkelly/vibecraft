@@ -1045,5 +1045,5 @@ fn read_remaining_limited<R: Read>(reader: &mut R, max_size: usize) -> io::Resul
     Ok(payload)
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests;

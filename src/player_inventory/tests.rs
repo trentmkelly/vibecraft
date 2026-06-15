@@ -182,6 +182,10 @@ fn horse_inventory_layout_matches_equipment_and_chest_slots() {
     assert_eq!(llama.chest_slots, 9);
 }
 
+#[cfg_attr(
+    not(vibecraft_has_decompiled_sources),
+    ignore = "requires optional Java source root"
+)]
 #[test]
 fn merchant_offer_applies_special_price_demand_stock_and_payment_consumption() {
     let java_source = vibecraft_java_source!("/net/minecraft/world/item/trading/MerchantOffer.java");

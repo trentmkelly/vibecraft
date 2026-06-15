@@ -454,7 +454,7 @@ fn write_limited_payload<W: Write>(
     writer.write_all(payload)
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::{
         ClientboundCustomQueryPacket, ClientboundHelloPacket, ClientboundLoginCompressionPacket,

@@ -26,7 +26,7 @@ pub fn append_disc_fragment_hover_text(item_id: &str, tooltip: &mut Vec<Componen
     true
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
     use crate::chat_component::ComponentContent;

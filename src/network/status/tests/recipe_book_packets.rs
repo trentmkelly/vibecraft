@@ -35,6 +35,10 @@ fn vanilla_recipe_manager() -> RecipeManagerModel {
     load_recipe_directory(&recipe_dir).expect("vanilla recipe directory should load")
 }
 
+#[cfg_attr(
+    not(vibecraft_has_decompiled_sources),
+    ignore = "requires optional Java source root"
+)]
 #[test]
 pub fn recipebook_java_source_sentinels_cover_place_recipe_parity_rules() {
     const PLACE_RECIPE_HELPER_JAVA: &str = vibecraft_java_source!("/net/minecraft/recipebook/PlaceRecipeHelper.java");

@@ -98,7 +98,7 @@ fn is_positive_float(value: f32) -> bool {
     matches!(value.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater))
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
 

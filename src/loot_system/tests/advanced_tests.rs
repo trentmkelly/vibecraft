@@ -598,6 +598,10 @@ fn assert_ominous_vault_unlock_sequence(
     );
 }
 
+#[cfg_attr(
+    not(vibecraft_has_decompiled_sources),
+    ignore = "requires optional Java source root"
+)]
 #[test]
 fn mob_gift_loot_covers_cat_villager_and_wandering_trader_surfaces() {
     let living_entity_source = vibecraft_java_source!("/net/minecraft/world/entity/LivingEntity.java");
@@ -664,6 +668,12 @@ fn mob_gift_loot_covers_cat_villager_and_wandering_trader_surfaces() {
         )
     );
 
+    if std::env::var_os("VIBECRAFT_VANILLA_DATA_ROOT").is_none() {
+        eprintln!(
+            "skipping wandering-trader offer resource parity: VIBECRAFT_VANILLA_DATA_ROOT is not set"
+        );
+        return;
+    }
     let trader_offers = wandering_trader_reward_offers();
     assert!(!trader_offers.buying.is_empty());
     assert!(!trader_offers.uncommon.is_empty());

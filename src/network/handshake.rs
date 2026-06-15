@@ -79,7 +79,7 @@ pub fn transition_from_handshake(intent: ClientIntent) -> ProtocolState {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::{transition_from_handshake, ClientIntent, ClientIntentionPacket, ProtocolState};
     use crate::network::varint::{read_var_i32, write_var_i32};

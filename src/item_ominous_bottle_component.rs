@@ -57,7 +57,7 @@ impl OminousBottleAmplifier {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
 

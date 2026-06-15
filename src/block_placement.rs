@@ -1175,5 +1175,5 @@ use attached::attached_placement;
 use attached::face_sturdy_at;
 use connecting::connecting_placement;
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests;

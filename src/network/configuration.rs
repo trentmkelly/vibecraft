@@ -376,7 +376,7 @@ fn write_any_tag<W: Write>(writer: &mut W, tag: &Tag) -> io::Result<()> {
     tag.write_payload(writer)
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::{
         ClientboundCodeOfConductPacket, ClientboundFinishConfigurationPacket,

@@ -13,7 +13,7 @@ impl MapItemColor {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
     use crate::item_properties::MapPostProcessing;

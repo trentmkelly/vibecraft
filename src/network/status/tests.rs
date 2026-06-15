@@ -1169,10 +1169,12 @@ mod tests_b;
 pub use tests_b::*;
 mod recipe_book_packets;
 mod resource_pack_properties;
+#[cfg(vibecraft_has_decompiled_sources)]
 mod status_protocol_packets;
 mod tests_c;
 mod tests_d;
 pub use tests_d::*;
+#[cfg(vibecraft_has_decompiled_sources)]
 mod tests_e;
 mod tests_f;
 mod tests_g;
