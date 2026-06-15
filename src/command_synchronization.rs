@@ -1,5 +1,9 @@
+#![allow(dead_code)]
+
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
-use std::io::{self, Cursor, Read, Write};
+use std::io::{self, Read, Write};
+#[cfg(test)]
+use std::io::Cursor;
 
 use crate::network::varint::{read_var_i32, write_var_i32};
 

@@ -1,4 +1,7 @@
 use super::*;
+use crate::command_synchronization::{
+    argument_type_bootstrap_order, ArgumentInfoKind, NumericArgumentKind,
+};
 
 impl SlotDisplayData {
     const EMPTY_TYPE_ID: i32 = 0;
@@ -596,6 +599,17 @@ impl ClientboundCommandsPacket {
         }
     }
 
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let entries = read_collection(reader, CommandNodeEntryData::read)?;
+        let root_index = read_var_i32(reader)?;
+        validate_command_node_entries(&entries)?;
+        expect_empty_payload(reader)?;
+        Ok(Self {
+            root_index,
+            entries,
+        })
+    }
+
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_collection(writer, &self.entries, |writer, entry| entry.write(writer))?;
         write_var_i32(writer, self.root_index)
@@ -607,6 +621,35 @@ impl CommandNodeEntryData {
     const FLAG_REDIRECT: u8 = 8;
     const FLAG_CUSTOM_SUGGESTIONS: u8 = 16;
     const FLAG_RESTRICTED: u8 = 32;
+
+    pub(super) fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let flags = read_u8(reader)?;
+        let child_count = read_var_i32(reader)?;
+        if child_count < 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "negative command-node child count",
+            ));
+        }
+        let mut children = Vec::with_capacity(child_count as usize);
+        for _ in 0..child_count {
+            children.push(read_var_i32(reader)?);
+        }
+
+        let redirect = if flags & Self::FLAG_REDIRECT != 0 {
+            Some(read_var_i32(reader)?)
+        } else {
+            None
+        };
+        let stub = CommandNodeStubData::read(reader, flags)?;
+        Ok(Self {
+            stub,
+            executable: flags & Self::FLAG_EXECUTABLE != 0,
+            restricted: flags & Self::FLAG_RESTRICTED != 0,
+            redirect,
+            children,
+        })
+    }
 
     pub(super) fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         let mut flags = self.stub.node_type();
@@ -632,9 +675,51 @@ impl CommandNodeEntryData {
         }
         self.stub.write(writer)
     }
+
+    fn can_build(&self, unbuilt_nodes: &[bool]) -> bool {
+        self.redirect
+            .is_none_or(|redirect| !index_is_pending(unbuilt_nodes, redirect))
+    }
+
+    fn can_resolve(&self, unresolved_nodes: &[bool]) -> bool {
+        self.children
+            .iter()
+            .all(|child| !index_is_pending(unresolved_nodes, *child))
+    }
 }
 
 impl CommandNodeStubData {
+    const MASK_TYPE: u8 = 3;
+
+    pub(super) fn read<R: Read>(reader: &mut R, flags: u8) -> io::Result<Self> {
+        match flags & Self::MASK_TYPE {
+            0 => Ok(Self::Root),
+            1 => Ok(Self::Literal {
+                name: read_string(reader, 32767)?,
+            }),
+            2 => {
+                let name = read_string(reader, 32767)?;
+                let parser_type_id = read_var_i32(reader)?;
+                let parser_payload = read_command_argument_payload(reader, parser_type_id)?;
+                let suggestion_id = if flags & CommandNodeEntryData::FLAG_CUSTOM_SUGGESTIONS != 0 {
+                    Some(read_identifier(reader)?)
+                } else {
+                    None
+                };
+                Ok(Self::Argument {
+                    name,
+                    parser_type_id,
+                    parser_payload,
+                    suggestion_id,
+                })
+            }
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "unknown command node type",
+            )),
+        }
+    }
+
     pub(super) fn node_type(&self) -> u8 {
         match self {
             Self::Root => 0,
@@ -673,6 +758,110 @@ impl CommandNodeStubData {
             }
         }
     }
+}
+
+fn validate_command_node_entries(entries: &[CommandNodeEntryData]) -> io::Result<()> {
+    validate_command_node_entries_with(entries, CommandNodeEntryData::can_build)?;
+    validate_command_node_entries_with(entries, CommandNodeEntryData::can_resolve)
+}
+
+fn validate_command_node_entries_with(
+    entries: &[CommandNodeEntryData],
+    validator: fn(&CommandNodeEntryData, &[bool]) -> bool,
+) -> io::Result<()> {
+    let mut pending = vec![true; entries.len()];
+    let mut pending_count = entries.len();
+    while pending_count > 0 {
+        let mut removed_any = false;
+        for index in 0..entries.len() {
+            if pending[index] && validator(&entries[index], &pending) {
+                pending[index] = false;
+                pending_count -= 1;
+                removed_any = true;
+            }
+        }
+        if !removed_any {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Server sent an impossible command tree",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn index_is_pending(pending: &[bool], index: i32) -> bool {
+    usize::try_from(index)
+        .ok()
+        .and_then(|index| pending.get(index))
+        .copied()
+        .unwrap_or(false)
+}
+
+fn read_command_argument_payload<R: Read>(reader: &mut R, parser_type_id: i32) -> io::Result<Vec<u8>> {
+    let registration = usize::try_from(parser_type_id)
+        .ok()
+        .and_then(|index| argument_type_bootstrap_order().get(index))
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("unknown command argument type id {parser_type_id}"),
+            )
+        })?;
+
+    match registration.info {
+        ArgumentInfoKind::Singleton { .. } => Ok(Vec::new()),
+        ArgumentInfoKind::Numeric(kind) => read_numeric_argument_payload(reader, kind),
+        ArgumentInfoKind::String => read_string_argument_payload(reader),
+        ArgumentInfoKind::Entity | ArgumentInfoKind::ScoreHolder => read_fixed_payload(reader, 1),
+        ArgumentInfoKind::Time => read_fixed_payload(reader, 4),
+        ArgumentInfoKind::RegistryBacked => read_registry_key_argument_payload(reader),
+    }
+}
+
+fn read_numeric_argument_payload<R: Read>(
+    reader: &mut R,
+    kind: NumericArgumentKind,
+) -> io::Result<Vec<u8>> {
+    let mut payload = read_fixed_payload(reader, 1)?;
+    let flags = payload[0];
+    let value_width = match kind {
+        NumericArgumentKind::Float | NumericArgumentKind::Integer => 4,
+        NumericArgumentKind::Double | NumericArgumentKind::Long => 8,
+    };
+    if flags & 1 != 0 {
+        payload.extend(read_fixed_payload(reader, value_width)?);
+    }
+    if flags & 2 != 0 {
+        payload.extend(read_fixed_payload(reader, value_width)?);
+    }
+    Ok(payload)
+}
+
+fn read_string_argument_payload<R: Read>(reader: &mut R) -> io::Result<Vec<u8>> {
+    let ordinal = read_var_i32(reader)?;
+    if !(0..=2).contains(&ordinal) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("Invalid StringArgumentType ordinal {ordinal}"),
+        ));
+    }
+    let mut payload = Vec::new();
+    write_var_i32(&mut payload, ordinal)?;
+    Ok(payload)
+}
+
+fn read_registry_key_argument_payload<R: Read>(reader: &mut R) -> io::Result<Vec<u8>> {
+    let key = read_identifier(reader)?;
+    let mut payload = Vec::new();
+    write_identifier(&mut payload, &key)?;
+    Ok(payload)
+}
+
+fn read_fixed_payload<R: Read>(reader: &mut R, len: usize) -> io::Result<Vec<u8>> {
+    let mut payload = vec![0; len];
+    reader.read_exact(&mut payload)?;
+    Ok(payload)
 }
 
 impl ClientboundCommandSuggestionsPacket {

@@ -991,6 +991,7 @@ mod clientbound_server_data_packet_test;
 mod clientbound_set_camera_packet_test;
 mod clientbound_set_chunk_cache_packets_test;
 mod clientbound_tracked_waypoint_packet_test;
+mod clientbound_commands_packet_test;
 mod command_suggestion_packet_test;
 mod configuration_acknowledged_packet_test;
 #[cfg(vibecraft_has_decompiled_sources)]

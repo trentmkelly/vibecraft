@@ -161,7 +161,6 @@ mod command_string_representable_argument;
 mod command_style_argument;
 #[cfg(test)]
 mod command_swizzle_argument;
-#[cfg(test)]
 mod command_synchronization;
 #[cfg(test)]
 mod command_team_argument;
