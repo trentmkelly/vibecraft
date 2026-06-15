@@ -1185,7 +1185,6 @@ fn json_bool(
         .and_then(serde_json::Value::as_bool)
         .ok_or_else(|| format!("missing boolean field {field}"))
 }
-
 #[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests;
 #[cfg(all(test, vibecraft_has_decompiled_sources))]
