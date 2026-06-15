@@ -128,6 +128,7 @@ mod generator_carver_preview_tests;
 #[cfg(vibecraft_has_decompiled_sources)]
 mod noise_density_core_tests;
 
+#[cfg(vibecraft_has_decompiled_sources)]
 mod noise_router_surface_tests;
 
 mod aquifer_ore_tests;

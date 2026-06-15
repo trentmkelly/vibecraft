@@ -697,10 +697,11 @@ mod tests {
         );
     }
 
+    #[cfg(vibecraft_has_decompiled_sources)]
     #[test]
     fn trial_spawner_registry_resources_decode_all_vanilla_configs() {
         let Some(source_root) = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT") else {
-            panic!("VIBECRAFT_DECOMPILED_SOURCE_ROOT must be set for source-backed tests");
+            unreachable!("test is gated on vibecraft_has_decompiled_sources");
         };
         let root = std::path::PathBuf::from(source_root)
         .join("data")
@@ -777,10 +778,11 @@ mod tests {
         assert!(entity_ids.contains("minecraft:slime"));
     }
 
+    #[cfg(vibecraft_has_decompiled_sources)]
     #[test]
     fn trial_spawner_bootstrap_custom_spawn_data_matches_java_helpers() {
         let Some(source_root) = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT") else {
-            panic!("VIBECRAFT_DECOMPILED_SOURCE_ROOT must be set for source-backed tests");
+            unreachable!("test is gated on vibecraft_has_decompiled_sources");
         };
         let root = std::path::PathBuf::from(source_root)
         .join("data")

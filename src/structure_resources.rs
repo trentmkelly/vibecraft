@@ -178,10 +178,11 @@ fn double_triplet(values: &[Tag], field: &str) -> Result<[f64; 3], String> {
 mod tests {
     use super::*;
 
+    #[cfg(vibecraft_has_decompiled_sources)]
     #[test]
     fn structure_resources_decode_all_vanilla_templates() {
         let Some(source_root) = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT") else {
-            panic!("VIBECRAFT_DECOMPILED_SOURCE_ROOT must be set for source-backed tests");
+            unreachable!("test is gated on vibecraft_has_decompiled_sources");
         };
         let root = std::path::PathBuf::from(source_root)
         .join("data")

@@ -484,7 +484,7 @@ mod enchantment_system;
 #[cfg(test)]
 mod entity_behavior_tests;
 mod entity_category;
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod entity_metadata;
 mod entity_physics;
 mod entity_syncher;

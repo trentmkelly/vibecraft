@@ -1,9 +1,12 @@
 use super::*;
+#[cfg(vibecraft_has_decompiled_sources)]
 use crate::villager_trade_resources::{
     load_villager_trade_data_root, profession_offers_from_resources,
     wandering_trader_offers_from_resources,
 };
+#[cfg(vibecraft_has_decompiled_sources)]
 use std::collections::BTreeSet;
+#[cfg(vibecraft_has_decompiled_sources)]
 use std::fs;
 
 #[test]
@@ -712,15 +715,17 @@ fn assert_wandering_trader_position_and_despawn_helpers_match_java() {
     assert!(!wandering_trader_remove_when_far_away());
 }
 
+#[cfg(vibecraft_has_decompiled_sources)]
 fn source_backed_vanilla_data_root() -> std::path::PathBuf {
     let Some(source_root) = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT") else {
-        panic!("VIBECRAFT_DECOMPILED_SOURCE_ROOT must be set for source-backed tests");
+        unreachable!("function is gated on vibecraft_has_decompiled_sources");
     };
     std::path::PathBuf::from(source_root)
     .join("data")
     .join("minecraft")
 }
 
+#[cfg(vibecraft_has_decompiled_sources)]
 #[test]
 fn villager_trade_resources_decode_all_vanilla_entries() {
     let root = source_backed_vanilla_data_root().join("villager_trade");
@@ -763,6 +768,7 @@ fn villager_trade_resources_decode_all_vanilla_entries() {
     assert!(exploration_map_count > 0);
 }
 
+#[cfg(vibecraft_has_decompiled_sources)]
 #[test]
 fn trade_set_resources_decode_all_vanilla_entries() {
     let root = source_backed_vanilla_data_root().join("trade_set");
@@ -797,6 +803,7 @@ fn trade_set_resources_decode_all_vanilla_entries() {
     assert_eq!(wandering_sets, 3);
 }
 
+#[cfg(vibecraft_has_decompiled_sources)]
 #[test]
 fn profession_offer_generation_resolves_vanilla_trade_sets_and_tags() {
     let resources = load_villager_trade_data_root(source_backed_vanilla_data_root()).unwrap();
@@ -831,6 +838,7 @@ fn profession_offer_generation_resolves_vanilla_trade_sets_and_tags() {
         .any(|offer| offer.result.item_id() == "minecraft:emerald"));
 }
 
+#[cfg(vibecraft_has_decompiled_sources)]
 #[test]
 fn wandering_trader_offer_generation_resolves_vanilla_trade_sets() {
     let resources = load_villager_trade_data_root(source_backed_vanilla_data_root()).unwrap();
@@ -906,6 +914,7 @@ fn hero_of_the_village_discount_and_special_price_reset_match_java() {
     assert_eq!(villager.offers[1].special_price_diff, 0);
 }
 
+#[cfg(vibecraft_has_decompiled_sources)]
 fn collect_json_paths(root: &std::path::Path, paths: &mut Vec<std::path::PathBuf>) {
     for entry in fs::read_dir(root).unwrap() {
         let entry = entry.unwrap();

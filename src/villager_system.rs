@@ -6,9 +6,11 @@ use crate::player_inventory::{ItemCost, MerchantOffer};
 use crate::spawning::WanderingTraderData;
 #[cfg(test)]
 use crate::villager_trade_resources::{
-    load_trade_set_resource, load_villager_trade_resource, parse_trade_set_resource,
-    parse_villager_trade_resource, HolderSetResource, NumberProviderResource,
+    parse_trade_set_resource, parse_villager_trade_resource, HolderSetResource,
+    NumberProviderResource,
 };
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
+use crate::villager_trade_resources::{load_trade_set_resource, load_villager_trade_resource};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum VillagerLevel {

@@ -700,10 +700,11 @@ fn randomizable_container_loot_realizes_table_once_and_preserves_seed() {
     assert!(first.unpack_once(&engine, (0.0, 64.0, 0.0)).is_none());
 }
 
+#[cfg(vibecraft_has_decompiled_sources)]
 #[test]
 fn loot_table_resources_decode_all_vanilla_tables() {
     let Some(source_root) = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT") else {
-        panic!("VIBECRAFT_DECOMPILED_SOURCE_ROOT must be set for source-backed tests");
+        unreachable!("test is gated on vibecraft_has_decompiled_sources");
     };
     let root = std::path::PathBuf::from(source_root)
     .join("data")
