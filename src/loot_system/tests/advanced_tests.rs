@@ -668,12 +668,6 @@ fn mob_gift_loot_covers_cat_villager_and_wandering_trader_surfaces() {
         )
     );
 
-    if std::env::var_os("VIBECRAFT_VANILLA_DATA_ROOT").is_none() {
-        eprintln!(
-            "skipping wandering-trader offer resource parity: VIBECRAFT_VANILLA_DATA_ROOT is not set"
-        );
-        return;
-    }
     let trader_offers = wandering_trader_reward_offers();
     assert!(!trader_offers.buying.is_empty());
     assert!(!trader_offers.uncommon.is_empty());

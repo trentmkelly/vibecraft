@@ -1,9 +1,9 @@
 use super::*;
-#[cfg(vibecraft_has_decompiled_sources)]
 use crate::villager_trade_resources::{
     load_villager_trade_data_root, profession_offers_from_resources,
     wandering_trader_offers_from_resources,
 };
+use crate::resources::DataResourceKind;
 #[cfg(vibecraft_has_decompiled_sources)]
 use std::collections::BTreeSet;
 #[cfg(vibecraft_has_decompiled_sources)]
@@ -27,6 +27,51 @@ fn professions_expose_workstations_and_generate_level_offers() {
 
     farmer.release_workstation();
     assert!(farmer.assign_workstation());
+}
+
+#[test]
+fn bundled_villager_trade_data_resolves_default_offers() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("vanilla-data")
+        .join("data")
+        .join("minecraft");
+    let resources = load_villager_trade_data_root(root).unwrap();
+
+    assert_eq!(
+        resources
+            .list("minecraft", DataResourceKind::VillagerTrade)
+            .len(),
+        387
+    );
+    assert_eq!(
+        resources.list("minecraft", DataResourceKind::TradeSet).len(),
+        68
+    );
+    assert_eq!(
+        resources
+            .list("minecraft", DataResourceKind::Tags)
+            .into_iter()
+            .filter(|resource| resource.id.starts_with("villager_trade/"))
+            .count(),
+        73
+    );
+
+    let farmer = profession_offers_from_resources(
+        &resources,
+        VillagerProfession::Farmer,
+        VillagerLevel::Novice,
+    )
+    .unwrap();
+    assert_eq!(farmer.len(), 2);
+    assert_eq!(farmer[0].base_cost_a.item_id, "minecraft:wheat");
+    assert_eq!(farmer[0].base_cost_a.count, 20);
+    assert_eq!(farmer[0].result.item_id(), "minecraft:emerald");
+
+    let (buying, uncommon, common) =
+        wandering_trader_offers_from_resources(&resources).unwrap();
+    assert_eq!(buying.len(), 2);
+    assert_eq!(uncommon.len(), 2);
+    assert_eq!(common.len(), 5);
 }
 
 #[test]

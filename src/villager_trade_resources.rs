@@ -74,13 +74,14 @@ pub fn profession_offers_from_default_data(
 }
 
 pub fn configured_vanilla_data_root() -> Result<PathBuf, String> {
-    std::env::var_os(VANILLA_DATA_ROOT_ENV)
+    Ok(std::env::var_os(VANILLA_DATA_ROOT_ENV)
         .map(PathBuf::from)
-        .ok_or_else(|| {
-            format!(
-                "{VANILLA_DATA_ROOT_ENV} is not set; vanilla villager trade JSON is not bundled"
-            )
-        })
+        .unwrap_or_else(|| {
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("vanilla-data")
+                .join("data")
+                .join("minecraft")
+        }))
 }
 
 pub fn profession_offers_from_resources(
