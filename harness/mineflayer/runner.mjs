@@ -390,8 +390,9 @@ function formatUuid(bytes) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
+  const repoRoot = path.resolve(new URL('../..', import.meta.url).pathname)
   const options = {
-    binary: process.env.VIBECRAFT_BIN ?? path.resolve('../../target/debug/vibecraft'),
+    binary: process.env.VIBECRAFT_BIN ?? path.join(repoRoot, 'target', 'debug', 'vibecraft'),
     port: Number(process.env.VIBECRAFT_PORT ?? 25565),
     username: process.env.VIBECRAFT_BOT ?? 'VibeCraftBot',
     version: process.env.MINEFLAYER_VERSION,

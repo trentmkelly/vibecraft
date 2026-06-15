@@ -8,7 +8,14 @@ import { decodeChunkBiomeArray, decodeChunkBlockStateArray, readRegionFile, summ
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(here, '..', '..')
-const defaultServerJar = path.resolve(repoRoot, '..', 'server.jar')
+
+function configuredServerJar (serverJar) {
+  const jar = serverJar ?? process.env.VIBECRAFT_OFFICIAL_SERVER_JAR
+  if (!jar) {
+    throw new Error('vanilla worldgen oracle requires VIBECRAFT_OFFICIAL_SERVER_JAR or serverJar')
+  }
+  return path.resolve(jar)
+}
 
 export function chunkToRegionCoord (chunkCoord) {
   return Math.floor(chunkCoord / 32)
@@ -113,7 +120,7 @@ export async function runVanillaWorldgenOracle ({
   chunks,
   seed = 8675309n,
   root,
-  serverJar = defaultServerJar,
+  serverJar,
   java = process.env.JAVA ?? 'java',
   levelName = 'world',
   port = 0,
@@ -122,8 +129,9 @@ export async function runVanillaWorldgenOracle ({
   const plan = buildVanillaWorldgenOraclePlan({ chunks, seed, levelName, port })
   await rm(root, { recursive: true, force: true })
   await writeVanillaServerFiles(root, plan)
+  const configuredJar = configuredServerJar(serverJar)
 
-  const child = spawn(java, ['-Xmx1G', '-jar', serverJar, '--nogui', '--universe', root, '--world', levelName, '--port', String(port)], {
+  const child = spawn(java, ['-Xmx1G', '-jar', configuredJar, '--nogui', '--universe', root, '--world', levelName, '--port', String(port)], {
     cwd: root,
     stdio: ['pipe', 'pipe', 'pipe']
   })

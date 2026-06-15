@@ -194,6 +194,7 @@ mod tests {
         let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
         let developer_home = ["/home", "trent"].join("/");
         let relative_decompiled_root = ["..", "decompiled-server-26.1.2"].join("/");
+        let relative_parent_server_jar = ["..", "server.jar"].join("/");
         let mut files = vec![manifest_dir.join("build.rs")];
         collect_code_files(&manifest_dir.join("src"), &mut files);
         collect_code_files(&manifest_dir.join("harness").join("mineflayer"), &mut files);
@@ -217,6 +218,11 @@ mod tests {
             assert!(
                 !contents.contains(&["", "..", "decompiled-server-26.1.2"].join("/")),
                 "{} must not embed parent-directory decompiled source paths",
+                path.display()
+            );
+            assert!(
+                !contents.contains(&relative_parent_server_jar),
+                "{} must use VIBECRAFT_OFFICIAL_SERVER_JAR or an explicit option instead of a parent-directory server.jar",
                 path.display()
             );
         }

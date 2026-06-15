@@ -4,8 +4,15 @@ import path from 'node:path'
 import { spawn } from 'node:child_process'
 
 const here = new URL('.', import.meta.url)
-const defaultOfficialJar = path.resolve(new URL('../../../server.jar', here).pathname)
 const defaultOfficialFixture = path.resolve(new URL('fixtures/official-26.1.2-configuration-transcript.json', here).pathname)
+
+function configuredOfficialJar (options = {}) {
+  const jar = options.jar ?? process.env.VIBECRAFT_OFFICIAL_SERVER_JAR
+  if (!jar) {
+    throw new Error('official server transcript capture requires VIBECRAFT_OFFICIAL_SERVER_JAR or options.jar')
+  }
+  return path.resolve(jar)
+}
 
 export function normalizeConfigurationTranscript (rawProbe) {
   return {
@@ -159,7 +166,7 @@ export async function recordOfficialServerConfigurationTranscript (options = {})
     ].join('\n'))
 
     server = await startOfficialServer({
-      jar: options.jar ?? defaultOfficialJar,
+      jar: configuredOfficialJar(options),
       cwd: workdir,
       timeoutMs: options.startTimeoutMs ?? 120_000
     })
