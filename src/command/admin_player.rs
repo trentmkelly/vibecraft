@@ -9,6 +9,9 @@ pub(super) fn publish_server(
     if state.published_server.is_some() {
         return Err(CommandError::PublishAlreadyPublished);
     }
+    if state.publish_should_fail {
+        return Err(CommandError::PublishFailed);
+    }
     state.published_server = Some(PublishRequest {
         port,
         allow_commands,

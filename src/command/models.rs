@@ -93,6 +93,7 @@ pub struct ServerCommandState {
     pub autosave_enabled: bool,
     pub save_all_requests: Vec<SaveAllRequest>,
     pub published_server: Option<PublishRequest>,
+    pub publish_should_fail: bool,
     pub next_available_publish_port: u16,
     pub random_sequences: Vec<RandomSequenceState>,
     pub random_seed_defaults: RandomSeedDefaults,

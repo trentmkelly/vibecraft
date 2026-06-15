@@ -669,6 +669,20 @@ fn publish_command_rejects_invalid_bool_gamemode_or_port() {
 }
 
 #[test]
+fn publish_command_reports_server_publish_failure_without_recording_request() {
+    let mut state = ServerCommandState {
+        publish_should_fail: true,
+        ..ServerCommandState::default()
+    };
+
+    assert_eq!(
+        execute_builtin_command(&mut state, LevelBasedPermissionSet::OWNER, "publish"),
+        Err(CommandError::PublishFailed)
+    );
+    assert_eq!(state.published_server, None);
+}
+
+#[test]
 fn random_value_and_roll_sample_ranges_without_permission() {
     let mut state = ServerCommandState {
         world_seed: 123,

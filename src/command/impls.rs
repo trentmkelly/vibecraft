@@ -38,6 +38,7 @@ macro_rules! default_server_command_state {
             autosave_enabled: true,
             save_all_requests: Vec::new(),
             published_server: None,
+            publish_should_fail: false,
             next_available_publish_port: 25565,
             random_sequences: Vec::new(),
             random_seed_defaults: RandomSeedDefaults::default(),
