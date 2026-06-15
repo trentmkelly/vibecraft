@@ -52,6 +52,8 @@ mod chained_json_exception;
 mod chat_component;
 mod chat_formatting;
 mod chat_trust;
+#[cfg(test)]
+mod chase;
 mod chunk_manager;
 mod chunk_task;
 mod chunk_ticket;
