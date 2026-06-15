@@ -191,7 +191,7 @@ fn exit_after_startup_file_gate(
         return Ok(true);
     }
 
-    if !startup.eula.agreed {
+    if !startup.eula.has_agreed_to_eula() {
         logger.info("You need to agree to the EULA in order to run the server. Go to eula.txt for more info.")?;
         return Ok(true);
     }
