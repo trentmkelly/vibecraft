@@ -181,6 +181,11 @@ pub(super) const ENTRIES: &[MessageKeyDef] = &[
         MessageKeyFamily::Command,
         &[],
     ),
+    key(
+        "commands.recipe.take.success.multiple",
+        MessageKeyFamily::Command,
+        &[],
+    ),
     key("commands.reload.success", MessageKeyFamily::Command, &[]),
     key("commands.return.fail", MessageKeyFamily::Command, &[]),
     key("commands.return.run", MessageKeyFamily::Command, &[]),

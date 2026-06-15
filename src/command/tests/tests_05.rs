@@ -898,6 +898,16 @@ fn recipe_command_fails_when_no_recipes_change() {
             LevelBasedPermissionSet::GAMEMASTER,
             "recipe take Steve minecraft:stick"
         ),
+        Err(CommandError::RecipeNotFound)
+    );
+
+    state.known_recipes.push("minecraft:stick".to_string());
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "recipe take Steve minecraft:stick"
+        ),
         Err(CommandError::RecipeTakeFailed)
     );
     assert_eq!(

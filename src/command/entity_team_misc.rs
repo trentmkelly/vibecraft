@@ -661,6 +661,9 @@ pub(super) fn recipe_command(
             (*mode, parse_name_list(targets), state.known_recipes.clone())
         }
         ["recipe", mode @ ("give" | "take"), targets, recipe] => {
+            if !state.known_recipes.iter().any(|known| known == recipe) {
+                return Err(CommandError::RecipeNotFound);
+            }
             (*mode, parse_name_list(targets), vec![(*recipe).to_string()])
         }
         _ => return Err(CommandError::InvalidSyntax),

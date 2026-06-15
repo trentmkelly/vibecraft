@@ -149,6 +149,8 @@ mod command_publish;
 #[cfg(test)]
 mod command_range_argument;
 #[cfg(test)]
+mod command_recipe;
+#[cfg(test)]
 mod command_resource_argument;
 #[cfg(test)]
 mod command_resource_key_argument;
