@@ -517,6 +517,7 @@ pub(super) struct GameRuleDefinition {
     pub(super) default: GameRuleValue,
     pub(super) min: Option<i32>,
     pub(super) max: Option<i32>,
+    pub(super) requires_minecart_improvements: bool,
 }
 
 pub(super) const VANILLA_GAME_RULES: &[GameRuleDefinition] = &[
@@ -547,7 +548,7 @@ pub(super) const VANILLA_GAME_RULES: &[GameRuleDefinition] = &[
     int_game_rule_min("max_command_forks", 65536, 0),
     int_game_rule_min("max_command_sequence_length", 65536, 0),
     int_game_rule_min("max_entity_cramming", 24, 0),
-    int_game_rule_range("max_minecart_speed", 8, 1, 1000),
+    int_game_rule_range_feature("max_minecart_speed", 8, 1, 1000, true),
     int_game_rule_range("max_snow_accumulation_height", 1, 0, 8),
     bool_game_rule("mob_drops", true),
     bool_game_rule("mob_explosion_drop_decay", true),
@@ -587,6 +588,7 @@ pub(super) const fn bool_game_rule(name: &'static str, default: bool) -> GameRul
         default: GameRuleValue::Bool(default),
         min: None,
         max: None,
+        requires_minecart_improvements: false,
     }
 }
 
@@ -600,6 +602,7 @@ pub(super) const fn int_game_rule_min(
         default: GameRuleValue::Int(default),
         min: Some(min),
         max: None,
+        requires_minecart_improvements: false,
     }
 }
 
@@ -609,11 +612,22 @@ pub(super) const fn int_game_rule_range(
     min: i32,
     max: i32,
 ) -> GameRuleDefinition {
+    int_game_rule_range_feature(name, default, min, max, false)
+}
+
+pub(super) const fn int_game_rule_range_feature(
+    name: &'static str,
+    default: i32,
+    min: i32,
+    max: i32,
+    requires_minecart_improvements: bool,
+) -> GameRuleDefinition {
     GameRuleDefinition {
         name,
         default: GameRuleValue::Int(default),
         min: Some(min),
         max: Some(max),
+        requires_minecart_improvements,
     }
 }
 

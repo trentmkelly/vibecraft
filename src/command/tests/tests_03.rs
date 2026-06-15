@@ -812,13 +812,16 @@ fn gamerule_defaults_cover_26_1_2_registry_names_and_bounds() {
         .iter()
         .map(|rule| rule.name.as_str())
         .collect();
-    assert_eq!(names.len(), super::VANILLA_GAME_RULES.len());
+    let default_enabled_names = super::VANILLA_GAME_RULES
+        .iter()
+        .filter(|definition| !definition.requires_minecart_improvements)
+        .map(|definition| definition.name)
+        .collect::<Vec<_>>();
+    assert_eq!(names.len(), default_enabled_names.len());
+    assert!(!names.contains(&"max_minecart_speed"));
     assert_eq!(
         names,
-        super::VANILLA_GAME_RULES
-            .iter()
-            .map(|definition| definition.name)
-            .collect::<Vec<_>>()
+        default_enabled_names,
     );
     assert_eq!(
         super::game_rule_value(&state, "advance_weather").unwrap(),
@@ -840,6 +843,20 @@ fn gamerule_defaults_cover_26_1_2_registry_names_and_bounds() {
         super::game_rule_value(&state, "random_tick_speed").unwrap(),
         super::GameRuleValue::Int(3)
     );
+    assert_eq!(
+        super::execute_builtin_command(
+            &mut state.clone(),
+            super::LevelBasedPermissionSet::GAMEMASTER,
+            "gamerule max_minecart_speed"
+        ),
+        Err(super::CommandError::InvalidSyntax)
+    );
+
+    let minecart_enabled = super::default_game_rules_with_features(true);
+    assert!(minecart_enabled
+        .iter()
+        .any(|rule| rule.name == "max_minecart_speed"
+            && rule.value == super::GameRuleValue::Int(8)));
 }
 
 #[test]

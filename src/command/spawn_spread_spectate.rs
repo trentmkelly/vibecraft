@@ -408,8 +408,17 @@ pub(super) fn set_player_gamemode(
 }
 
 pub(super) fn default_game_rules() -> Vec<GameRuleState> {
+    default_game_rules_with_features(false)
+}
+
+pub(super) fn default_game_rules_with_features(
+    minecart_improvements_enabled: bool,
+) -> Vec<GameRuleState> {
     VANILLA_GAME_RULES
         .iter()
+        .filter(|definition| {
+            !definition.requires_minecart_improvements || minecart_improvements_enabled
+        })
         .map(|definition| GameRuleState {
             name: definition.name.to_string(),
             value: definition.default,

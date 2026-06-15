@@ -1,6 +1,7 @@
 pub(super) use super::{
-    command_required_permission, command_usage, debug_biome_at_command_source, entity_position,
-    entity_ref, execute_builtin_command, game_rule_value, instantiate_command_function,
+    command_required_permission, command_usage, debug_biome_at_command_source,
+    default_game_rules_with_features, entity_position, entity_ref, execute_builtin_command,
+    game_rule_value, instantiate_command_function,
     instantiated_function_id, load_command_function_tags_from_resources,
     load_command_functions_from_resources, player_gamemode, player_team, players_allied,
     queue_server_function_tick, team_allows_collision, team_allows_friendly_damage,
