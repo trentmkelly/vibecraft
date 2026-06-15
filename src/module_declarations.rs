@@ -615,6 +615,7 @@ mod server_info;
 mod server_interface;
 mod server_links;
 mod server_registry_layer;
+mod server_tick_rate_manager;
 mod services;
 mod suppressed_exception_collector;
 mod server_tick_task;

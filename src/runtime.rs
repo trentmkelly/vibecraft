@@ -546,10 +546,6 @@ impl TickRateController {
     }
 
     pub fn set_frozen(&mut self, frozen: bool) {
-        if frozen {
-            self.stop_sprinting();
-            self.stop_stepping();
-        }
         self.frozen = frozen;
     }
 
@@ -632,7 +628,7 @@ impl TickRateController {
         let completed_ticks = self
             .scheduled_sprint_ticks
             .saturating_sub(self.remaining_sprint_ticks);
-        let millis = self.sprint_time_spent.as_secs_f64().max(0.001) * 1000.0;
+        let millis = self.sprint_time_spent.as_nanos().max(1) as f64 / 1_000_000.0;
         let ticks_per_second = ((1000.0 * completed_ticks as f64) / millis) as u64;
         let milliseconds_per_tick = if completed_ticks == 0 {
             self.milliseconds_per_tick() as f64
@@ -1086,7 +1082,7 @@ mod tests {
     }
 
     #[test]
-    fn freeze_interrupts_step_and_sprint_modes() {
+    fn freeze_preserves_step_and_sprint_modes_like_java() {
         let mut controller = TickRateController::default();
         controller.set_frozen(true);
         assert!(controller.step_game_if_paused(5));
@@ -1095,9 +1091,23 @@ mod tests {
 
         controller.set_frozen(true);
 
-        assert_eq!(controller.frozen_ticks_to_run(), 0);
-        assert!(!controller.is_sprinting());
+        assert_eq!(controller.frozen_ticks_to_run(), 5);
+        assert!(controller.is_sprinting());
         assert!(controller.is_frozen());
+    }
+
+    #[test]
+    fn tick_rate_controller_sprint_report_uses_java_nanosecond_clamp() {
+        let mut controller = TickRateController::default();
+
+        controller.request_game_to_sprint(1);
+        controller.tick();
+        assert!(controller.check_should_sprint_this_tick());
+
+        let report = controller.finish_tick_sprint().unwrap();
+        assert_eq!(report.completed_ticks, 1);
+        assert_eq!(report.ticks_per_second, 1_000_000_000);
+        assert_eq!(report.milliseconds_per_tick, 0.000001);
     }
 
     #[test]
