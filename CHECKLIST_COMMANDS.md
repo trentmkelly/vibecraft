@@ -133,7 +133,7 @@
 - [ ] Implement `/spreadplayers`.
 - [x] Implement `/stop` — owner-gated command dispatch records the server halt request, emits `commands.stop.stopping`, and returns success count 1, matching Java `StopCommand`; covered by `stop_command_requests_halt_and_requires_owner`.
 - [ ] Implement `/stopwatch`.
-- [ ] Implement `/summon`.
+- [x] Implement `/summon` — live command model mirrors Java's gamemaster-gated entity resource argument, summonable entity filtering, optional position and NBT finalization flag, default source-position spawn, spawnable-bounds rejection, Peaceful difficulty rejection via `EntityType.isAllowedInPeaceful`, duplicate UUID rejection, admin-broadcast success feedback, and return value `1`; covered by `summon_command_records_entity_spawn_with_defaults_position_and_nbt`, `summon_command_rejects_invalid_position_duplicate_uuid_and_syntax`, `summon_command_enforces_java_peaceful_entity_type_gate`, and source-backed `command_summon`.
 - [ ] Implement `/swing`.
 - [ ] Implement `/tag`.
 - [ ] Implement `/team`.

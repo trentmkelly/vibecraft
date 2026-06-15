@@ -431,6 +431,22 @@ fn summon_command_rejects_invalid_position_duplicate_uuid_and_syntax() {
         execute_builtin_command(&mut state, LevelBasedPermissionSet::GAMEMASTER, "summon"),
         Err(CommandError::InvalidSyntax)
     );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "summon minecraft:not_a_real_entity 0 64 0"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "summon player 0 64 0"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
 
     execute_builtin_command(
         &mut state,
@@ -446,6 +462,31 @@ fn summon_command_rejects_invalid_position_duplicate_uuid_and_syntax() {
         ),
         Err(CommandError::SummonDuplicateUuid)
     );
+}
+
+#[test]
+fn summon_command_enforces_java_peaceful_entity_type_gate() {
+    let mut state = ServerCommandState {
+        difficulty: Difficulty::Peaceful,
+        ..ServerCommandState::default()
+    };
+
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "summon zombie 0 64 0"
+        ),
+        Err(CommandError::SummonFailedPeaceful)
+    );
+
+    execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "summon hoglin 0 64 0",
+    )
+    .unwrap();
+    assert_eq!(state.summoned_entities[0].entity_type, "minecraft:hoglin");
 }
 
 #[test]

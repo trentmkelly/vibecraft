@@ -201,6 +201,8 @@ mod command_string_representable_argument;
 #[cfg(test)]
 mod command_style_argument;
 #[cfg(test)]
+mod command_summon;
+#[cfg(test)]
 mod command_swing;
 #[cfg(test)]
 mod command_swizzle_argument;
