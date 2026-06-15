@@ -59,6 +59,29 @@ impl RandomSequence {
         result as i64
     }
 
+    pub fn next_int(&mut self) -> i32 {
+        self.next_long() as i32
+    }
+
+    pub fn next_int_bound(&mut self, bound: i32) -> i32 {
+        assert!(bound > 0, "random bound must be positive");
+
+        let mut random_bits = self.next_int() as u32 as u64;
+        let mut multiplied_random_bits = random_bits * bound as u64;
+        let mut fractional_part = multiplied_random_bits & u64::from(u32::MAX);
+        if fractional_part < bound as u64 {
+            let unbiased_buckets_start = (u32::MAX.wrapping_sub(bound as u32).wrapping_add(1)
+                % bound as u32) as u64;
+            while fractional_part < unbiased_buckets_start {
+                random_bits = self.next_int() as u32 as u64;
+                multiplied_random_bits = random_bits * bound as u64;
+                fractional_part = multiplied_random_bits & u64::from(u32::MAX);
+            }
+        }
+
+        (multiplied_random_bits >> 32) as i32
+    }
+
     pub fn to_tag(&self) -> Tag {
         Tag::Compound(vec![(
             "source".to_string(),
@@ -100,6 +123,12 @@ impl RandomSequences {
 
     pub fn next_long(&mut self, id: &str, world_seed: i64) -> i64 {
         let value = self.get_or_create(id, world_seed).next_long();
+        self.dirty = true;
+        value
+    }
+
+    pub fn next_int_bound(&mut self, id: &str, world_seed: i64, bound: i32) -> i32 {
+        let value = self.get_or_create(id, world_seed).next_int_bound(bound);
         self.dirty = true;
         value
     }

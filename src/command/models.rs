@@ -1,4 +1,5 @@
 use super::*;
+use crate::random_sequences::{RandomSequence, RandomSequences};
 
 pub(super) const VANILLA_TRIM_PATTERNS: &[&str] = &[
     "minecraft:sentry",
@@ -95,7 +96,8 @@ pub struct ServerCommandState {
     pub published_server: Option<PublishRequest>,
     pub publish_should_fail: bool,
     pub next_available_publish_port: u16,
-    pub random_sequences: Vec<RandomSequenceState>,
+    pub random_sequences: RandomSequences,
+    pub level_random: Option<RandomSequence>,
     pub random_seed_defaults: RandomSeedDefaults,
     pub random_broadcasts: Vec<RandomSample>,
     pub available_data_packs: Vec<String>,
@@ -631,12 +633,6 @@ pub(super) const fn int_game_rule_range_feature(
         max: Some(max),
         requires_minecart_improvements,
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RandomSequenceState {
-    pub id: String,
-    pub seed: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

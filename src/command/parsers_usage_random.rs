@@ -497,18 +497,20 @@ pub(super) fn random_sample(
         return Err(CommandError::RandomRangeTooLarge);
     }
 
-    let seed = match sequence {
-        Some(id) => random_sequence_seed(state, id),
-        None => state.world_seed as u64,
+    let bound = (span + 1) as i32;
+    let offset = match sequence {
+        Some(id) => state
+            .random_sequences
+            .next_int_bound(id, state.world_seed, bound),
+        None => state
+            .level_random
+            .get_or_insert_with(|| {
+                crate::random_sequences::RandomSequence::from_seed(state.world_seed, None)
+            })
+            .next_int_bound(bound),
     };
-    let next = lcg_next(seed);
-    if let Some(id) = sequence {
-        set_random_sequence_seed(state, id, next);
-    } else {
-        state.world_seed = next as i64;
-    }
 
-    let value = min + (next % (span as u64 + 1)) as i32;
+    let value = min + offset;
     state.random_broadcasts.push(RandomSample {
         value,
         min,
@@ -538,8 +540,12 @@ pub(super) fn random_reset_all(
         include_world_seed,
         include_sequence_id,
     };
-    let count = state.random_sequences.len() as i32;
-    state.random_sequences.clear();
+    state.random_sequences.set_seed_defaults(
+        state.random_seed_defaults.salt,
+        include_world_seed,
+        include_sequence_id,
+    );
+    let count = state.random_sequences.clear() as i32;
     Ok(CommandResult {
         success_count: count,
         feedback_key: "commands.random.reset.all.success",
@@ -558,67 +564,17 @@ pub(super) fn reset_random_sequence(
         return Err(CommandError::InvalidSyntax);
     }
     let salt = salt.unwrap_or(0);
-    let mut seed = salt as u64;
-    if include_world_seed {
-        seed ^= state.world_seed as u64;
-    }
-    if include_sequence_id {
-        seed ^= stable_hash(sequence);
-    }
-    set_random_sequence_seed(state, sequence, seed);
+    state.random_sequences.reset_with_options(
+        sequence,
+        state.world_seed,
+        salt,
+        include_world_seed,
+        include_sequence_id,
+    );
     Ok(CommandResult {
         success_count: 1,
         feedback_key: "commands.random.reset.success",
         broadcast_to_admins: false,
-    })
-}
-
-pub(super) fn random_sequence_seed(state: &mut ServerCommandState, sequence: &str) -> u64 {
-    if let Some(existing) = state
-        .random_sequences
-        .iter()
-        .find(|existing| existing.id == sequence)
-    {
-        existing.seed
-    } else {
-        let mut seed = state.random_seed_defaults.salt as u64;
-        if state.random_seed_defaults.include_world_seed {
-            seed ^= state.world_seed as u64;
-        }
-        if state.random_seed_defaults.include_sequence_id {
-            seed ^= stable_hash(sequence);
-        }
-        state.random_sequences.push(RandomSequenceState {
-            id: sequence.to_string(),
-            seed,
-        });
-        seed
-    }
-}
-
-pub(super) fn set_random_sequence_seed(state: &mut ServerCommandState, sequence: &str, seed: u64) {
-    if let Some(existing) = state
-        .random_sequences
-        .iter_mut()
-        .find(|existing| existing.id == sequence)
-    {
-        existing.seed = seed;
-    } else {
-        state.random_sequences.push(RandomSequenceState {
-            id: sequence.to_string(),
-            seed,
-        });
-    }
-}
-
-pub(super) fn lcg_next(seed: u64) -> u64 {
-    seed.wrapping_mul(6364136223846793005)
-        .wrapping_add(1442695040888963407)
-}
-
-pub(super) fn stable_hash(input: &str) -> u64 {
-    input.bytes().fold(0xcbf29ce484222325, |hash, byte| {
-        (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3)
     })
 }
 

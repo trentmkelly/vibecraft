@@ -863,8 +863,7 @@ fn random_reset_all_default(
     permissions: LevelBasedPermissionSet,
 ) -> Result<CommandResult, CommandError> {
     require_gamemaster(permissions)?;
-    let count = state.random_sequences.len() as i32;
-    state.random_sequences.clear();
+    let count = state.random_sequences.clear() as i32;
     Ok(CommandResult {
         success_count: count,
         feedback_key: "commands.random.reset.all.success",

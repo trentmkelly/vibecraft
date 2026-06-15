@@ -136,6 +136,10 @@ impl LootContext {
     }
 
     pub(super) fn use_random_sequence(&mut self, sequence: &str) {
+        // TODO(random-sequence-saved-data): Java routes loot table random_sequence
+        // through MinecraftServer.getRandomSequence, which advances the per-level
+        // data/random_sequences.dat entry. Thread level RandomSequences into live
+        // loot evaluation once the runtime owns saved-data-backed loot contexts.
         self.random = DeterministicRandom::new(hash_seed(self.base_seed, sequence));
     }
 

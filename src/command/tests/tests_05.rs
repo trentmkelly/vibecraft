@@ -755,13 +755,19 @@ fn random_named_sequences_and_resets_require_gamemaster() {
     )
     .unwrap();
     assert!((1..=10).contains(&sample.success_count));
-    assert_eq!(state.random_sequences.len(), 1);
-    assert_eq!(state.random_sequences[0].id, "minecraft:test");
+    assert_eq!(state.random_sequences.sequences.len(), 1);
+    assert!(state.random_sequences.sequences.contains_key("minecraft:test"));
     assert_eq!(
         state.random_broadcasts[0].sequence.as_deref(),
         Some("minecraft:test")
     );
 
+    let before_reset = state
+        .random_sequences
+        .sequences
+        .get("minecraft:test")
+        .cloned()
+        .unwrap();
     let reset = execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::GAMEMASTER,
@@ -770,7 +776,15 @@ fn random_named_sequences_and_resets_require_gamemaster() {
     .unwrap();
     assert_eq!(reset.success_count, 1);
     assert_eq!(reset.feedback_key, "commands.random.reset.success");
-    assert_eq!(state.random_sequences.len(), 1);
+    assert_eq!(state.random_sequences.sequences.len(), 1);
+    assert_ne!(
+        state
+            .random_sequences
+            .sequences
+            .get("minecraft:test")
+            .unwrap(),
+        &before_reset
+    );
 
     let reset_all = execute_builtin_command(
         &mut state,
@@ -779,7 +793,7 @@ fn random_named_sequences_and_resets_require_gamemaster() {
     )
     .unwrap();
     assert_eq!(reset_all.success_count, 1);
-    assert!(state.random_sequences.is_empty());
+    assert!(state.random_sequences.sequences.is_empty());
     assert_eq!(
         state.random_seed_defaults,
         super::RandomSeedDefaults {
