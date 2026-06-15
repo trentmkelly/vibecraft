@@ -153,6 +153,8 @@ mod command_save;
 #[cfg(test)]
 mod command_resource_selector_argument;
 #[cfg(test)]
+mod command_reload;
+#[cfg(test)]
 mod command_result_callback;
 #[cfg(test)]
 mod command_score_holder_argument;
