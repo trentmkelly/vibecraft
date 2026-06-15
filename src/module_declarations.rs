@@ -78,6 +78,8 @@ mod command_block_position_arguments;
 #[cfg(test)]
 mod command_brigadier_exceptions;
 #[cfg(test)]
+mod command_pardon_ip;
+#[cfg(test)]
 mod command_build_context;
 #[cfg(test)]
 mod command_cacheable_function;

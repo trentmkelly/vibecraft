@@ -1388,7 +1388,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/commands/MsgCommand.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/commands/OpCommand.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/commands/PardonCommand.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/commands/PardonIpCommand.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/commands/PardonIpCommand.java`. Rust `command_pardon_ip` mirrors Java's pardon-ip command surface and execution order: admin-only literal `pardon-ip`, word target argument, suggestions from the IP ban list, `InetAddresses.isInetAddress` validation before ban-list lookup, invalid-IP vs not-banned error split, `IpBanList.remove(ip)`, `commands.pardonip.success` broadcast feedback, and return value `1`. Source-backed tests verify Java registration, suggestion, validation, removal, feedback, and return-value sentinels; existing command tests cover dispatcher behavior for invalid IPs, not-banned IPs, and successful removal.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/commands/ParticleCommand.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/commands/PerfCommand.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/commands/PlaceCommand.java`.
