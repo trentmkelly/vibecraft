@@ -594,6 +594,7 @@ mod registry;
 mod resource_delegating_ops;
 mod resource_dependant_name;
 mod resource_file_to_id_converter;
+mod resource_registry_fixed_codec;
 mod resource_registry_validator;
 mod report_type;
 mod resources;
