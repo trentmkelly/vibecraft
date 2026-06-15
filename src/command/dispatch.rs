@@ -686,6 +686,12 @@ fn tick_command(
         }),
         ["tick", "rate", rate] => tick_rate_command(state, rate),
         ["tick", "freeze"] => {
+            if state.tick_rate.is_sprinting() {
+                state.tick_rate.stop_sprinting();
+            }
+            if state.tick_rate.is_stepping_forward() {
+                state.tick_rate.stop_stepping();
+            }
             state.tick_rate.set_frozen(true);
             Ok(success_result("commands.tick.status.frozen", true))
         }

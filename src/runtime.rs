@@ -1082,7 +1082,7 @@ mod tests {
     }
 
     #[test]
-    fn freeze_preserves_step_and_sprint_modes_like_java() {
+    fn set_frozen_only_sets_base_freeze_flag_like_java_manager() {
         let mut controller = TickRateController::default();
         controller.set_frozen(true);
         assert!(controller.step_game_if_paused(5));

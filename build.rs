@@ -76,10 +76,17 @@ fn main() {
 }
 
 fn configure_optional_decompiled_sources(manifest_dir: &Path) {
-    let source_root = optional_decompiled_source_root(manifest_dir);
-    println!("cargo:rerun-if-changed={}", source_root.display());
+    let requested_source_root = optional_decompiled_source_root(manifest_dir);
+    println!("cargo:rerun-if-changed={}", requested_source_root.display());
 
-    if source_root.is_dir() {
+    if requested_source_root.is_dir() {
+        let source_root = fs::canonicalize(&requested_source_root).unwrap_or_else(|err| {
+            panic!(
+                "failed to canonicalize optional Java decompilation root {}: {}",
+                requested_source_root.display(),
+                err
+            )
+        });
         println!(
             "cargo:rustc-env=VIBECRAFT_DECOMPILED_SOURCE_ROOT={}",
             source_root.display()
@@ -89,7 +96,7 @@ fn configure_optional_decompiled_sources(manifest_dir: &Path) {
         println!(
             "cargo:warning=optional Java decompilation root not found at {}; \
              source-backed parity test modules will be skipped",
-            source_root.display()
+            requested_source_root.display()
         );
     }
 }
@@ -103,6 +110,13 @@ fn configure_optional_sound_events_source(manifest_dir: &Path) {
     println!("cargo:rerun-if-changed={}", source.display());
 
     if source.is_file() {
+        let source = fs::canonicalize(&source).unwrap_or_else(|err| {
+            panic!(
+                "failed to canonicalize optional Java parity source {}: {}",
+                source.display(),
+                err
+            )
+        });
         println!(
             "cargo:rustc-env=VIBECRAFT_SOUND_EVENTS_SOURCE={}",
             source.display()

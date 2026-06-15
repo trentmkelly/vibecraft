@@ -861,6 +861,23 @@ fn tick_freeze_unfreeze_step_and_stop_use_tick_controller() {
 }
 
 #[test]
+fn tick_freeze_stops_active_step_and_sprint_like_java_command() {
+    let mut state = ServerCommandState::default();
+    execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "tick freeze").unwrap();
+    execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "tick step 5t").unwrap();
+    assert_eq!(state.tick_rate.frozen_ticks_to_run(), 5);
+    execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "tick unfreeze").unwrap();
+    execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "tick sprint 10t").unwrap();
+    assert!(state.tick_rate.is_sprinting());
+
+    execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "tick freeze").unwrap();
+
+    assert!(state.tick_rate.is_frozen());
+    assert_eq!(state.tick_rate.frozen_ticks_to_run(), 0);
+    assert!(!state.tick_rate.is_sprinting());
+}
+
+#[test]
 fn tick_sprint_start_and_stop_use_time_arguments() {
     let mut state = ServerCommandState::default();
     let started =

@@ -354,6 +354,11 @@ mod tests {
             "build.rs must default optional Java parity sources to a missing in-repo sentinel"
         );
         assert!(
+            build_script.contains("fs::canonicalize(&requested_source_root)")
+                && build_script.contains("fs::canonicalize(&source)"),
+            "build.rs must canonicalize optional Java source paths before exporting them to rustc so relative env paths do not become source-file-relative include_str! targets"
+        );
+        assert!(
             !build_script.contains(&relative_decompiled_root),
             "build.rs must not default optional Java parity sources to a parent-directory decompilation"
         );
