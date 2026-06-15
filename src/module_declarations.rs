@@ -591,6 +591,7 @@ mod recipe_system;
 mod reference_ids;
 mod redstone;
 mod registry;
+mod resource_dependant_name;
 mod report_type;
 mod resources;
 mod respawn;

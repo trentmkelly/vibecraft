@@ -1280,7 +1280,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 ## `decompiled-server-26.1.2/net/minecraft/resources`
 
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/resources/DelegatingOps.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/resources/DependantName.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/resources/DependantName.java`. Rust `resource_dependant_name::DependantName` models the Java functional interface and `fixed(value)` helper with a key-ignoring cloned-value implementation plus closure-backed key-dependent behavior; verified by `cargo test dependant_name -- --nocapture` and `VIBECRAFT_DECOMPILED_SOURCE_ROOT=/home/trent/Projects/MinecraftServerCRB/decompiled-server-26.1.2 cargo test dependant_name -- --nocapture`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/resources/FileToIdConverter.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/resources/HolderSetCodec.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/resources/Identifier.java`.
