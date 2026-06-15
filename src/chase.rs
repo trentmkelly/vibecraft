@@ -102,6 +102,26 @@ pub struct ChaseServerModel {
     pub logs: Vec<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ChaseCommandSession {
+    Following { host: String, port: u16 },
+    Leading { bind_address: String, port: u16 },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ChaseCommandFeedback {
+    Success(String),
+    Failure(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChaseCommandModel {
+    chase_client: Option<ChaseCommandSession>,
+    chase_server: Option<ChaseCommandSession>,
+    feedback: Vec<ChaseCommandFeedback>,
+    fail_next_server_start: bool,
+}
+
 impl ChaseClientModel {
     pub const RECONNECT_INTERVAL_SECONDS: u64 = 5;
 
@@ -230,6 +250,112 @@ impl ChaseServerModel {
     }
 }
 
+impl ChaseCommandModel {
+    pub const DEFAULT_CONNECT_HOST: &'static str = "localhost";
+    pub const DEFAULT_BIND_ADDRESS: &'static str = "0.0.0.0";
+    pub const DEFAULT_PORT: u16 = 10000;
+    pub const BROADCAST_INTERVAL_MS: u64 = 100;
+
+    pub fn new() -> Self {
+        Self {
+            chase_client: None,
+            chase_server: None,
+            feedback: Vec::new(),
+            fail_next_server_start: false,
+        }
+    }
+
+    pub fn feedback(&self) -> &[ChaseCommandFeedback] {
+        &self.feedback
+    }
+
+    pub fn client(&self) -> Option<&ChaseCommandSession> {
+        self.chase_client.as_ref()
+    }
+
+    pub fn server(&self) -> Option<&ChaseCommandSession> {
+        self.chase_server.as_ref()
+    }
+
+    pub fn fail_next_server_start(&mut self) {
+        self.fail_next_server_start = true;
+    }
+
+    pub fn stop(&mut self) -> i32 {
+        if self.chase_client.take().is_some() {
+            self.feedback.push(ChaseCommandFeedback::Success(
+                "You have now stopped chasing".to_string(),
+            ));
+        }
+        if self.chase_server.take().is_some() {
+            self.feedback.push(ChaseCommandFeedback::Success(
+                "You are no longer being chased".to_string(),
+            ));
+        }
+        0
+    }
+
+    pub fn follow(&mut self, host: impl Into<String>, port: u16) -> i32 {
+        let host = host.into();
+        if self.already_running() {
+            return 0;
+        }
+        self.chase_client = Some(ChaseCommandSession::Following {
+            host: host.clone(),
+            port,
+        });
+        self.feedback.push(ChaseCommandFeedback::Success(format!(
+            "You are now chasing {host}:{port}. If that server does '/chase lead' then you will automatically go to the same position. Use '/chase stop' to stop chasing."
+        )));
+        0
+    }
+
+    pub fn lead(&mut self, bind_address: impl Into<String>, port: u16) -> i32 {
+        let bind_address = bind_address.into();
+        if self.already_running() {
+            return 0;
+        }
+        self.chase_server = Some(ChaseCommandSession::Leading {
+            bind_address,
+            port,
+        });
+        if self.fail_next_server_start {
+            self.fail_next_server_start = false;
+            self.chase_server = None;
+            self.feedback.push(ChaseCommandFeedback::Failure(format!(
+                "Failed to start chase server on port {port}"
+            )));
+        } else {
+            self.feedback.push(ChaseCommandFeedback::Success(format!(
+                "Chase server is now running on port {port}. Clients can follow you using /chase follow <ip> <port>"
+            )));
+        }
+        0
+    }
+
+    fn already_running(&mut self) -> bool {
+        if self.chase_server.is_some() {
+            self.feedback.push(ChaseCommandFeedback::Failure(
+                "Chase server is already running. Stop it using /chase stop".to_string(),
+            ));
+            true
+        } else if self.chase_client.is_some() {
+            self.feedback.push(ChaseCommandFeedback::Failure(
+                "You are already chasing someone. Stop it using /chase stop".to_string(),
+            ));
+            true
+        } else {
+            false
+        }
+    }
+}
+
+impl Default for ChaseCommandModel {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -336,6 +462,90 @@ mod tests {
     }
 
     #[test]
+    fn chase_command_defaults_follow_lead_stop_and_already_running_messages_match_java() {
+        let mut command = ChaseCommandModel::new();
+        assert_eq!(
+            (
+                ChaseCommandModel::DEFAULT_CONNECT_HOST,
+                ChaseCommandModel::DEFAULT_BIND_ADDRESS,
+                ChaseCommandModel::DEFAULT_PORT,
+                ChaseCommandModel::BROADCAST_INTERVAL_MS,
+            ),
+            ("localhost", "0.0.0.0", 10000, 100)
+        );
+
+        assert_eq!(command.follow(ChaseCommandModel::DEFAULT_CONNECT_HOST, 10000), 0);
+        assert_eq!(
+            command.client(),
+            Some(&ChaseCommandSession::Following {
+                host: "localhost".to_string(),
+                port: 10000,
+            })
+        );
+        assert_eq!(
+            command.feedback().last(),
+            Some(&ChaseCommandFeedback::Success(
+                "You are now chasing localhost:10000. If that server does '/chase lead' then you will automatically go to the same position. Use '/chase stop' to stop chasing.".to_string()
+            ))
+        );
+
+        assert_eq!(command.lead("0.0.0.0", 10000), 0);
+        assert_eq!(
+            command.feedback().last(),
+            Some(&ChaseCommandFeedback::Failure(
+                "You are already chasing someone. Stop it using /chase stop".to_string()
+            ))
+        );
+
+        assert_eq!(command.stop(), 0);
+        assert_eq!(command.client(), None);
+        assert_eq!(
+            command.feedback().last(),
+            Some(&ChaseCommandFeedback::Success(
+                "You have now stopped chasing".to_string()
+            ))
+        );
+
+        assert_eq!(command.lead(ChaseCommandModel::DEFAULT_BIND_ADDRESS, 10000), 0);
+        assert_eq!(
+            command.server(),
+            Some(&ChaseCommandSession::Leading {
+                bind_address: "0.0.0.0".to_string(),
+                port: 10000,
+            })
+        );
+        assert_eq!(command.follow("example.test", 10000), 0);
+        assert_eq!(
+            command.feedback().last(),
+            Some(&ChaseCommandFeedback::Failure(
+                "Chase server is already running. Stop it using /chase stop".to_string()
+            ))
+        );
+        assert_eq!(command.stop(), 0);
+        assert_eq!(command.server(), None);
+        assert_eq!(
+            command.feedback().last(),
+            Some(&ChaseCommandFeedback::Success(
+                "You are no longer being chased".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn chase_command_failed_lead_start_clears_server_slot_like_java() {
+        let mut command = ChaseCommandModel::new();
+        command.fail_next_server_start();
+        assert_eq!(command.lead("127.0.0.1", 12000), 0);
+        assert_eq!(command.server(), None);
+        assert_eq!(
+            command.feedback().last(),
+            Some(&ChaseCommandFeedback::Failure(
+                "Failed to start chase server on port 12000".to_string()
+            ))
+        );
+    }
+
+    #[test]
     #[cfg(vibecraft_has_decompiled_sources)]
     fn chase_sources_match_java_26_1_2() {
         for sentinel in [
@@ -375,6 +585,19 @@ mod tests {
             "private static final int DEFAULT_PORT = 10000;",
             "private static final int BROADCAST_INTERVAL_MS = 100;",
             "ImmutableBiMap.of(\"o\", Level.OVERWORLD, \"n\", Level.NETHER, \"e\", Level.END)",
+            "private static @Nullable ChaseServer chaseServer;",
+            "private static @Nullable ChaseClient chaseClient;",
+            "chaseClient.stop();",
+            "Component.literal(\"You have now stopped chasing\")",
+            "chaseServer.stop();",
+            "Component.literal(\"You are no longer being chased\")",
+            "Chase server is already running. Stop it using /chase stop",
+            "You are already chasing someone. Stop it using /chase stop",
+            "chaseServer = new ChaseServer(serverBindAddress, port, source.getServer().getPlayerList(), 100);",
+            "Component.literal(\"Failed to start chase server on port \" + port)",
+            "chaseServer = null;",
+            "chaseClient = new ChaseClient(host, port, source.getServer());",
+            "chaseClient.start();",
         ] {
             assert!(
                 CHASE_COMMAND_JAVA.contains(sentinel),
