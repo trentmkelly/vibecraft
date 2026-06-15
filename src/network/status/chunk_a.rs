@@ -655,10 +655,10 @@ pub fn should_stop(
 ) -> bool {
     loop {
         match console_input.try_recv() {
-            Ok(input) if input.line.eq_ignore_ascii_case("stop") => return true,
+            Ok(input) if input.line().eq_ignore_ascii_case("stop") => return true,
             Ok(input)
-                if input.line.eq_ignore_ascii_case("reload")
-                    || input.line.eq_ignore_ascii_case("whitelist reload") =>
+                if input.line().eq_ignore_ascii_case("reload")
+                    || input.line().eq_ignore_ascii_case("whitelist reload") =>
             {
                 match PlayerAccess::load_from_dir(Path::new(".")) {
                     Ok(reloaded) => {
