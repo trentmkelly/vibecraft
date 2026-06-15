@@ -216,6 +216,7 @@ pub struct ServerCommandState {
     pub damage_events: Vec<DamageCommandEvent>,
     pub invulnerable_entities: Vec<EntityRef>,
     pub entity_mounts: Vec<EntityMount>,
+    pub ride_mount_failures: Vec<EntityMount>,
     pub entity_positions: Vec<EntityPosition>,
     pub entity_states: Vec<EntityState>,
     pub entity_tags: Vec<EntityTags>,

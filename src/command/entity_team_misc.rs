@@ -856,6 +856,13 @@ pub(super) fn mount_entity(
     if entity_dimension(state, &target) != entity_dimension(state, &vehicle) {
         return Err(CommandError::RideWrongDimension);
     }
+    if state
+        .ride_mount_failures
+        .iter()
+        .any(|failure| failure.target.id == target.id && failure.vehicle.id == vehicle.id)
+    {
+        return Err(CommandError::RideMountFailed);
+    }
 
     let mount = EntityMount {
         target: target.clone(),

@@ -170,6 +170,16 @@ fn ride_command_rejects_vanilla_mount_failures() {
                 dimension: "minecraft:the_nether".to_string(),
             },
         ],
+        ride_mount_failures: vec![EntityMount {
+            target: EntityRef {
+                id: "pig".to_string(),
+                display_name: "pig".to_string(),
+            },
+            vehicle: EntityRef {
+                id: "chicken".to_string(),
+                display_name: "chicken".to_string(),
+            },
+        }],
         ..ServerCommandState::default()
     };
 
@@ -204,6 +214,14 @@ fn ride_command_rejects_vanilla_mount_failures() {
             "ride pig mount strider"
         ),
         Err(CommandError::RideWrongDimension)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "ride pig mount chicken"
+        ),
+        Err(CommandError::RideMountFailed)
     );
 
     execute_builtin_command(
