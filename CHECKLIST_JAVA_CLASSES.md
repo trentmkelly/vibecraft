@@ -1416,7 +1416,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/commands/SpawnArmorTrimsCommand.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/commands/SpectateCommand.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/commands/SpreadPlayersCommand.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/commands/StopCommand.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/commands/StopCommand.java`. Rust `command_stop` and the live dispatcher mirror Java's stop command boundary: owner-only `stop` literal, `commands.stop.stopping` success feedback broadcast to admins, `server.halt(false)` semantics modeled as a halt request without crash-report prevention, and return value `1`. Source-backed tests verify the Java registration, permission gate, feedback, halt argument, and return-value sentinels; existing command tests cover permission rejection and live halt-request mutation.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/commands/StopSoundCommand.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/commands/StopwatchCommand.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/commands/SummonCommand.java`.
