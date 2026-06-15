@@ -1320,7 +1320,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/ServerTickRateManager.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/Services.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/SuppressedExceptionCollector.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/TickTask.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/TickTask.java`. Rust `server_tick_task::TickTask` mirrors Java's tick-scheduled `Runnable` wrapper surface: constructor stores the tick and runnable, `get_tick()` returns the immutable tick value, and `run()` invokes the runnable without mutating the tick; source-backed tests verify the Java class/field/constructor/getter/run sentinels and repeated runnable execution.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/WorldLoader.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/WorldStem.java`.
 
