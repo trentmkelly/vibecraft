@@ -241,6 +241,53 @@ mod tests {
     }
 
     #[test]
+    fn generated_block_protocol_assets_are_vendored_in_repo() {
+        for parts in [
+            &["vanilla-data", "reports", "blocks_26_1_2.json"][..],
+            &["vanilla-data", "reports", "block_registry_26_1_2.json"][..],
+            &["vanilla-data", "reports", "block_properties_26_1_2.json.gz"][..],
+            &["vanilla-data", "reports", "light_occlusion_26_1_2.json.gz"][..],
+            &["src", "block_states", "state_data_a.rs"][..],
+            &["src", "block_states", "state_data_b.rs"][..],
+            &["src", "block_states", "state_data_c.rs"][..],
+            &["src", "block_states", "state_data_d.rs"][..],
+            &["src", "block_states", "state_data_e.rs"][..],
+            &["src", "block_states", "state_data_f.rs"][..],
+            &["src", "block_states", "state_data_g.rs"][..],
+            &["src", "block_states", "state_data_h.rs"][..],
+            &["src", "block_states", "state_data_i.rs"][..],
+        ] {
+            let path = parts
+                .iter()
+                .fold(Path::new(env!("CARGO_MANIFEST_DIR")).to_path_buf(), |path, part| {
+                    path.join(part)
+                });
+            let metadata = fs::metadata(&path).unwrap_or_else(|err| {
+                panic!(
+                    "fresh clones must include generated block protocol asset {}: {err}",
+                    path.display()
+                );
+            });
+            assert!(
+                metadata.is_file() && metadata.len() > 0,
+                "generated block protocol asset {} must be a non-empty file",
+                path.display()
+            );
+        }
+
+        assert_eq!(crate::block_states::VANILLA_BLOCK_STATE_COUNT_26_1_2, 29_873);
+        assert_eq!(crate::block_states::block_state_entries().len(), 1_168);
+        assert_eq!(
+            crate::block_states::default_state_network_id("minecraft:stone"),
+            Some(1)
+        );
+        assert_eq!(
+            crate::block_states::default_state_network_id("minecraft:smooth_stone"),
+            Some(13_480)
+        );
+    }
+
+    #[test]
     fn login_artifacts_snapshots_and_diagnostics_are_captured_for_failures() {
         let runner = harness_file("runner.mjs");
         let login_session = harness_file("login_session.mjs");
