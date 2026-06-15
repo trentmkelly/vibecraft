@@ -473,7 +473,7 @@ pub(super) fn debug_mob_spawning_command(
             });
             Ok(CommandResult {
                 success_count: 1,
-                feedback_key: "commands.debugmobspawning.success",
+                feedback_key: crate::command::NO_COMMAND_FEEDBACK,
                 broadcast_to_admins: false,
             })
         }
@@ -510,7 +510,7 @@ pub(super) fn debug_path_command(
         .push(DebugPathEvent { source, target });
     Ok(CommandResult {
         success_count: 1,
-        feedback_key: "commands.debugpath.success",
+        feedback_key: crate::command::DEBUG_PATH_SUCCESS_FEEDBACK,
         broadcast_to_admins: true,
     })
 }

@@ -75,6 +75,13 @@ pub fn format_command_feedback(
     result: &CommandResult,
     args: &[FeedbackArgument],
 ) -> Result<Component, String> {
+    if let Some(literal) = result
+        .feedback_key
+        .strip_prefix(crate::command::LITERAL_COMMAND_FEEDBACK_PREFIX)
+    {
+        return Ok(Component::literal(literal));
+    }
+
     let key = assert_known_emitted_key(result.feedback_key)?;
     if key.family != MessageKeyFamily::Command {
         return Err(format!(
@@ -100,6 +107,13 @@ pub fn route_command_feedback(
     args: &[FeedbackArgument],
     context: &CommandFeedbackContext,
 ) -> Result<CommandFeedbackPlan, String> {
+    if result.feedback_key.is_empty() {
+        return Ok(CommandFeedbackPlan {
+            success_count: result.success_count,
+            packets: Vec::new(),
+        });
+    }
+
     let component = format_command_feedback(result, args)?;
     let mut packets = Vec::new();
     if context.source_accepts_feedback && !context.source_silent {
@@ -260,6 +274,36 @@ mod tests {
                 .render_plain(&translations(), &ResolutionContext::default()),
             "[Rcon: Saved the game]"
         );
+    }
+
+    #[test]
+    fn routes_no_packets_for_success_without_vanilla_feedback() {
+        let plan = route_command_feedback(
+            &CommandResult {
+                success_count: 1,
+                feedback_key: crate::command::NO_COMMAND_FEEDBACK,
+                broadcast_to_admins: true,
+            },
+            &[],
+            &CommandFeedbackContext::console(),
+        )
+        .unwrap();
+        assert_eq!(plan.success_count, 1);
+        assert!(plan.packets.is_empty());
+    }
+
+    #[test]
+    fn formats_literal_command_feedback_without_translation_lookup() {
+        let component = format_command_feedback(
+            &CommandResult {
+                success_count: 1,
+                feedback_key: crate::command::DEBUG_PATH_SUCCESS_FEEDBACK,
+                broadcast_to_admins: true,
+            },
+            &[],
+        )
+        .unwrap();
+        assert_eq!(component.to_json(), "{\"text\":\"Made path\"}");
     }
 
     #[test]

@@ -591,12 +591,24 @@ fn debugmobspawning_and_debugpath_record_debug_actions() {
         Err(CommandError::PermissionDenied)
     );
 
-    execute_builtin_command(
+    let spawn = execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::GAMEMASTER,
         "debugmobspawning monster 0 64 0",
     )
     .unwrap();
+    assert_eq!(spawn.success_count, 1);
+    assert_eq!(spawn.feedback_key, crate::command::NO_COMMAND_FEEDBACK);
+    assert!(
+        crate::command_feedback::route_command_feedback(
+            &spawn,
+            &[],
+            &crate::command_feedback::CommandFeedbackContext::console(),
+        )
+        .unwrap()
+        .packets
+        .is_empty()
+    );
     assert_eq!(
         state.mob_spawning_events,
         vec![super::DebugMobSpawningEvent {
@@ -612,7 +624,13 @@ fn debugmobspawning_and_debugpath_record_debug_actions() {
     )
     .unwrap();
     assert_eq!(path.success_count, 1);
-    assert_eq!(path.feedback_key, "commands.debugpath.success");
+    assert_eq!(path.feedback_key, crate::command::DEBUG_PATH_SUCCESS_FEEDBACK);
+    assert_eq!(
+        crate::command_feedback::format_command_feedback(&path, &[])
+            .unwrap()
+            .to_json(),
+        "{\"text\":\"Made path\"}"
+    );
     assert_eq!(
         state.debug_path_events[0].target,
         BlockPos { x: 1, y: 64, z: 1 }

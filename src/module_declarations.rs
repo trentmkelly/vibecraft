@@ -94,6 +94,10 @@ mod command_coordinate_arguments;
 #[cfg(test)]
 mod command_default_gamemode;
 #[cfg(test)]
+mod command_debug_mob_spawning;
+#[cfg(test)]
+mod command_debug_path;
+#[cfg(test)]
 mod command_dimension_argument;
 #[cfg(test)]
 mod command_difficulty;

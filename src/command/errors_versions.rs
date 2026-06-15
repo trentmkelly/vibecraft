@@ -7,6 +7,15 @@ pub struct CommandResult {
     pub broadcast_to_admins: bool,
 }
 
+/// Marker for vanilla commands that return a success count without calling
+/// `CommandSourceStack.sendSuccess`.
+pub const NO_COMMAND_FEEDBACK: &str = "";
+
+/// Prefix for successful command feedback that Java emits as
+/// `Component.literal(...)` instead of a translatable key.
+pub const LITERAL_COMMAND_FEEDBACK_PREFIX: &str = "literal:";
+pub const DEBUG_PATH_SUCCESS_FEEDBACK: &str = "literal:Made path";
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CommandError {
     PermissionDenied,
