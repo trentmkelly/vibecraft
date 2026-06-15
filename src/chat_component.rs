@@ -32,6 +32,8 @@ pub mod number_format;
 pub mod object_contents;
 #[path = "outgoing_chat_message.rs"]
 pub mod outgoing_chat_message;
+#[path = "player_chat_message.rs"]
+pub mod player_chat_message;
 #[path = "plain_text_contents.rs"]
 pub mod plain_text_contents;
 #[path = "resolution_context.rs"]
