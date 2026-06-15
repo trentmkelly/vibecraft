@@ -1,5 +1,35 @@
 use super::*;
 
+fn first_land_column_top(
+    chunk: &LevelChunk,
+    min_y: i32,
+    max_y: i32,
+    sea_level: i32,
+) -> Option<(i32, i32, i32, String)> {
+    let chunk_min_x = chunk.pos.x * 16;
+    let chunk_min_z = chunk.pos.z * 16;
+    (0..16_i32).find_map(|local_z| {
+        (0..16_i32).find_map(|local_x| {
+            let x = chunk_min_x + local_x;
+            let z = chunk_min_z + local_z;
+            (min_y..=max_y).rev().find_map(|y| {
+                chunk.get_block_state(x, y, z).and_then(|block| {
+                    (y > sea_level
+                        && !matches!(
+                            block.as_str(),
+                            "minecraft:air"
+                                | "minecraft:cave_air"
+                                | "minecraft:void_air"
+                                | "minecraft:water"
+                                | "minecraft:lava"
+                        ))
+                    .then_some((x, y, z, block))
+                })
+            })
+        })
+    })
+}
+
 #[test]
 fn chunk_biome_storage_is_depth_aware_at_every_quart_position() {
     // Regression: the chunk-biome populator used to bypass depth on the
@@ -86,6 +116,55 @@ fn chunk_biome_storage_is_depth_aware_at_every_quart_position() {
             mismatches.len()
         );
     }
+}
+
+#[test]
+fn overworld_surface_rule_has_in_repo_fallback_without_optional_sources() {
+    let settings = super::super::builtin_noise_generator_settings("minecraft:overworld")
+        .expect("overworld noise settings must exist");
+    let router_id = super::super::noise_router_id_for_settings(*settings);
+    let noise_router = super::super::builtin_noise_router(router_id)
+        .map(|entry| entry.router)
+        .unwrap_or(super::super::NONE_NOISE_ROUTER);
+    let rule = super::super::load_surface_rule_uncached("minecraft:overworld", None)
+        .expect("overworld surface rule must fall back when optional JSON is absent");
+
+    let sea_level = settings.sea_level;
+    let min_y = settings.noise.min_y;
+    let max_y = min_y + settings.noise.height - 1;
+    let biome_source = BiomeSourceModel::Fixed {
+        biome: "minecraft:plains",
+    };
+
+    let chunk = 'found: {
+        for chunk_z in 0..4_i32 {
+            for chunk_x in 0..4_i32 {
+                let chunk = super::super::fill_noise_and_build_surface(
+                    ChunkPos {
+                        x: chunk_x,
+                        z: chunk_z,
+                    },
+                    &biome_source,
+                    settings,
+                    0,
+                    noise_router,
+                    &rule,
+                );
+                if first_land_column_top(&chunk, min_y, max_y, sea_level).is_some() {
+                    break 'found chunk;
+                }
+            }
+        }
+        panic!("fallback surface rule did not produce any land columns near the origin");
+    };
+
+    let (block_x, top_y, block_z, top_block) =
+        first_land_column_top(&chunk, min_y, max_y, sea_level)
+            .expect("selected fallback chunk must contain land");
+    assert_eq!(
+        top_block, "minecraft:grass_block",
+        "fallback top solid block at ({block_x},{top_y},{block_z}) should not remain bare stone"
+    );
 }
 
 #[test]
