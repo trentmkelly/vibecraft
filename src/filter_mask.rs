@@ -274,7 +274,7 @@ mod tests {
         };
         assert_eq!(
             formatted.to_json(),
-            "{\"text\":\"\",\"extra\":[{\"text\":\"a\"},{\"text\":\"##\",\"color\":\"dark_gray\",\"hoverEvent\":{\"action\":\"show_text\",\"value\":{\"translate\":\"chat.filtered\"}}},{\"text\":\"de\"},{\"text\":\"#\",\"color\":\"dark_gray\",\"hoverEvent\":{\"action\":\"show_text\",\"value\":{\"translate\":\"chat.filtered\"}}}]}"
+            "{\"text\":\"\",\"extra\":[{\"text\":\"a\"},{\"text\":\"##\",\"color\":\"dark_gray\",\"hover_event\":{\"action\":\"show_text\",\"value\":{\"translate\":\"chat.filtered\"}}},{\"text\":\"de\"},{\"text\":\"#\",\"color\":\"dark_gray\",\"hover_event\":{\"action\":\"show_text\",\"value\":{\"translate\":\"chat.filtered\"}}}]}"
         );
 
         let mut unicode_mask = FilterMask::partially_filtered(4);

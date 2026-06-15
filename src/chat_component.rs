@@ -46,6 +46,8 @@ pub mod selector_contents;
 pub mod signed_message_chain;
 #[path = "sub_string_source.rs"]
 pub mod sub_string_source;
+#[path = "style.rs"]
+pub mod style;
 #[path = "throwing_component.rs"]
 pub mod throwing_component;
 #[path = "translatable_contents.rs"]
@@ -54,6 +56,7 @@ pub mod translatable_contents;
 pub mod translatable_format_exception;
 
 pub use resolution_context::ResolutionContext;
+pub use style::{Style, TextColor};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Component {
@@ -408,160 +411,6 @@ fn short_identifier_name(identifier: &str) -> String {
         .to_string()
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Style {
-    pub color: Option<TextColor>,
-    pub shadow_color: Option<u32>,
-    pub bold: Option<bool>,
-    pub italic: Option<bool>,
-    pub underlined: Option<bool>,
-    pub strikethrough: Option<bool>,
-    pub obfuscated: Option<bool>,
-    pub click_event: Option<ClickEvent>,
-    pub hover_event: Option<HoverEvent>,
-    pub insertion: Option<String>,
-    pub font: Option<FontDescription>,
-}
-
-impl Style {
-    pub fn empty() -> Self {
-        Self::default()
-    }
-
-    pub fn with_color(mut self, color: TextColor) -> Self {
-        self.color = Some(color);
-        self
-    }
-
-    pub fn with_bold(mut self, bold: bool) -> Self {
-        self.bold = Some(bold);
-        self
-    }
-
-    pub fn with_italic(mut self, italic: bool) -> Self {
-        self.italic = Some(italic);
-        self
-    }
-
-    pub fn with_click_event(mut self, click_event: ClickEvent) -> Self {
-        self.click_event = Some(click_event);
-        self
-    }
-
-    pub fn with_hover_event(mut self, hover_event: HoverEvent) -> Self {
-        self.hover_event = Some(hover_event);
-        self
-    }
-
-    pub fn with_font(mut self, font: FontDescription) -> Self {
-        self.font = Some(font);
-        self
-    }
-
-    pub fn apply_to(&self, other: &Style) -> Style {
-        if *self == Style::empty() {
-            return other.clone();
-        }
-        if *other == Style::empty() {
-            return self.clone();
-        }
-        Style {
-            color: self.color.clone().or_else(|| other.color.clone()),
-            shadow_color: self.shadow_color.or(other.shadow_color),
-            bold: self.bold.or(other.bold),
-            italic: self.italic.or(other.italic),
-            underlined: self.underlined.or(other.underlined),
-            strikethrough: self.strikethrough.or(other.strikethrough),
-            obfuscated: self.obfuscated.or(other.obfuscated),
-            click_event: self
-                .click_event
-                .clone()
-                .or_else(|| other.click_event.clone()),
-            hover_event: self
-                .hover_event
-                .clone()
-                .or_else(|| other.hover_event.clone()),
-            insertion: self.insertion.clone().or_else(|| other.insertion.clone()),
-            font: self.font.clone().or_else(|| other.font.clone()),
-        }
-    }
-
-    fn json_fields(&self) -> Vec<String> {
-        let mut fields = Vec::new();
-        if let Some(color) = &self.color {
-            fields.push(format!("\"color\":{}", json_string(&color.serialize())));
-        }
-        if let Some(color) = self.shadow_color {
-            fields.push(format!("\"shadow_color\":{}", color));
-        }
-        push_bool(&mut fields, "bold", self.bold);
-        push_bool(&mut fields, "italic", self.italic);
-        push_bool(&mut fields, "underlined", self.underlined);
-        push_bool(&mut fields, "strikethrough", self.strikethrough);
-        push_bool(&mut fields, "obfuscated", self.obfuscated);
-        if let Some(click_event) = &self.click_event {
-            fields.push(format!("\"clickEvent\":{}", click_event.to_json()));
-        }
-        if let Some(hover_event) = &self.hover_event {
-            fields.push(format!("\"hoverEvent\":{}", hover_event.to_json()));
-        }
-        if let Some(insertion) = &self.insertion {
-            fields.push(format!("\"insertion\":{}", json_string(insertion)));
-        }
-        if let Some(font) = &self.font {
-            fields.push(format!("\"font\":{}", json_string(&font.serialize())));
-        }
-        fields
-    }
-}
-
-#[derive(Debug, Clone, Eq)]
-pub struct TextColor {
-    value: u32,
-    name: Option<&'static str>,
-}
-
-impl PartialEq for TextColor {
-    fn eq(&self, other: &Self) -> bool {
-        self.value == other.value
-    }
-}
-
-impl TextColor {
-    pub fn from_rgb(value: u32) -> Self {
-        Self {
-            value: value & 0xFF_FFFF,
-            name: None,
-        }
-    }
-
-    pub fn value(&self) -> u32 {
-        self.value
-    }
-
-    pub fn parse(value: &str) -> Option<Self> {
-        if let Some(hex) = value.strip_prefix('#') {
-            let parsed = u32::from_str_radix(hex, 16).ok()?;
-            if hex.len() == 6 && parsed <= 0xFF_FFFF {
-                Some(Self::from_rgb(parsed))
-            } else {
-                None
-            }
-        } else {
-            legacy_color(value).map(|rgb| Self {
-                value: rgb.0,
-                name: Some(rgb.1),
-            })
-        }
-    }
-
-    pub fn serialize(&self) -> String {
-        self.name
-            .map(ToOwned::to_owned)
-            .unwrap_or_else(|| format!("#{:06X}", self.value))
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ClickEvent {
     OpenUrl(String),
@@ -785,34 +634,6 @@ fn render_translation(
     result
 }
 
-fn legacy_color(name: &str) -> Option<(u32, &'static str)> {
-    match name {
-        "black" => Some((0x000000, "black")),
-        "dark_blue" => Some((0x0000AA, "dark_blue")),
-        "dark_green" => Some((0x00AA00, "dark_green")),
-        "dark_aqua" => Some((0x00AAAA, "dark_aqua")),
-        "dark_red" => Some((0xAA0000, "dark_red")),
-        "dark_purple" => Some((0xAA00AA, "dark_purple")),
-        "gold" => Some((0xFFAA00, "gold")),
-        "gray" => Some((0xAAAAAA, "gray")),
-        "dark_gray" => Some((0x555555, "dark_gray")),
-        "blue" => Some((0x5555FF, "blue")),
-        "green" => Some((0x55FF55, "green")),
-        "aqua" => Some((0x55FFFF, "aqua")),
-        "red" => Some((0xFF5555, "red")),
-        "light_purple" => Some((0xFF55FF, "light_purple")),
-        "yellow" => Some((0xFFFF55, "yellow")),
-        "white" => Some((0xFFFFFF, "white")),
-        _ => None,
-    }
-}
-
-fn push_bool(fields: &mut Vec<String>, name: &str, value: Option<bool>) {
-    if let Some(value) = value {
-        fields.push(format!("\"{name}\":{value}"));
-    }
-}
-
 fn json_array(items: Vec<String>) -> String {
     format!("[{}]", items.join(","))
 }
@@ -985,6 +806,55 @@ mod tests {
 
     #[test]
     fn style_serializes_color_flags_click_hover_insertion_shadow_and_font() {
+        const STYLE_JAVA: &str =
+            vibecraft_java_source!("/net/minecraft/network/chat/Style.java");
+
+        for sentinel in [
+            "public static final Style EMPTY = new Style(null, null, null, null, null, null, null, null, null, null, null);",
+            "public static final int NO_SHADOW = 0;",
+            "private final @Nullable TextColor color;",
+            "private final @Nullable Integer shadowColor;",
+            "private final @Nullable Boolean bold;",
+            "private final @Nullable ClickEvent clickEvent;",
+            "private final @Nullable HoverEvent hoverEvent;",
+            "private final @Nullable String insertion;",
+            "private final @Nullable FontDescription font;",
+            "return this.bold == Boolean.TRUE;",
+            "return this.font != null ? this.font : FontDescription.DEFAULT;",
+            "public Style withoutShadow()",
+            "public Style applyFormat(final ChatFormatting format)",
+            "public Style applyLegacyFormat(final ChatFormatting format)",
+            "public Style applyFormats(final ChatFormatting... formats)",
+            "public Style applyTo(final Style other)",
+            "collector.addFlagString(\"bold\", this.bold);",
+            "TextColor.CODEC.optionalFieldOf(\"color\")",
+            "ExtraCodecs.ARGB_COLOR_CODEC.optionalFieldOf(\"shadow_color\")",
+            "ClickEvent.CODEC.optionalFieldOf(\"click_event\")",
+            "HoverEvent.CODEC.optionalFieldOf(\"hover_event\")",
+            "FontDescription.CODEC.optionalFieldOf(\"font\")",
+        ] {
+            assert!(
+                STYLE_JAVA.contains(sentinel),
+                "missing Style sentinel {sentinel}"
+            );
+        }
+        assert_eq!(
+            Style::MAP_CODEC_FIELDS,
+            [
+                "color",
+                "shadow_color",
+                "bold",
+                "italic",
+                "underlined",
+                "strikethrough",
+                "obfuscated",
+                "click_event",
+                "hover_event",
+                "insertion",
+                "font"
+            ]
+        );
+
         let mut style = Style::empty()
             .with_color(TextColor::parse("gold").unwrap())
             .with_bold(true)
@@ -1003,10 +873,91 @@ mod tests {
         assert!(json.contains("\"bold\":true"));
         assert!(json.contains("\"italic\":false"));
         assert!(json.contains("\"shadow_color\":0"));
-        assert!(json.contains("\"clickEvent\":{\"action\":\"run_command\",\"command\":\"/help\"}"));
+        assert!(json.contains("\"click_event\":{\"action\":\"run_command\",\"command\":\"/help\"}"));
         assert!(json
-            .contains("\"hoverEvent\":{\"action\":\"show_text\",\"value\":{\"text\":\"Help\"}}"));
+            .contains("\"hover_event\":{\"action\":\"show_text\",\"value\":{\"text\":\"Help\"}}"));
         assert!(json.contains("\"font\":\"minecraft:uniform\""));
+    }
+
+    #[test]
+    fn style_accessors_mutators_formats_merge_and_debug_string_match_java() {
+        use crate::chat_formatting::ChatFormatting;
+
+        assert!(Style::empty().is_empty());
+        assert_eq!(Style::empty().get_font(), FontDescription::default_resource());
+        assert!(!Style::empty().is_bold());
+        assert!(!Style::empty().is_italic());
+
+        let style = Style::empty()
+            .with_legacy_color(Some(ChatFormatting::Red))
+            .with_shadow_color(0)
+            .with_bold(true)
+            .with_optional_italic(Some(false))
+            .with_underlined(true)
+            .with_strikethrough(false)
+            .with_obfuscated(false)
+            .with_insertion("insert")
+            .with_font(FontDescription::Resource("minecraft:alt".to_string()));
+
+        assert_eq!(style.get_color().map(TextColor::serialize), Some("red".to_string()));
+        assert_eq!(style.get_shadow_color(), Some(0));
+        assert!(style.is_bold());
+        assert!(!style.is_italic());
+        assert!(style.is_underlined());
+        assert!(!style.is_strikethrough());
+        assert!(!style.is_obfuscated());
+        assert_eq!(style.get_insertion(), Some("insert"));
+        assert_eq!(
+            style.get_font(),
+            FontDescription::Resource("minecraft:alt".to_string())
+        );
+        assert_eq!(
+            style.to_java_string(),
+            "{color=red,shadowColor=0,bold,!italic,underlined,!strikethrough,!obfuscated,insertion=insert,font=minecraft:alt}"
+        );
+
+        assert_eq!(
+            style.clone().with_optional_color(None).get_color(),
+            None
+        );
+        assert_eq!(Style::empty().without_shadow().get_shadow_color(), Some(0));
+
+        let formatted = Style::empty()
+            .apply_format(ChatFormatting::Bold)
+            .apply_format(ChatFormatting::Green);
+        assert!(formatted.is_bold());
+        assert_eq!(
+            formatted.get_color().map(TextColor::serialize),
+            Some("green".to_string())
+        );
+
+        let legacy = formatted.apply_legacy_format(ChatFormatting::Blue);
+        assert_eq!(legacy.bold, Some(false));
+        assert_eq!(legacy.italic, Some(false));
+        assert_eq!(legacy.underlined, Some(false));
+        assert_eq!(legacy.strikethrough, Some(false));
+        assert_eq!(legacy.obfuscated, Some(false));
+        assert_eq!(
+            legacy.get_color().map(TextColor::serialize),
+            Some("blue".to_string())
+        );
+
+        assert_eq!(
+            Style::empty().apply_formats([ChatFormatting::Gold, ChatFormatting::Reset]),
+            Style::empty()
+        );
+
+        let child = Style::empty().with_bold(true);
+        let parent = Style::empty()
+            .with_color(TextColor::parse("yellow").unwrap())
+            .with_italic(true);
+        let merged = child.apply_to(&parent);
+        assert!(merged.is_bold());
+        assert!(merged.is_italic());
+        assert_eq!(
+            merged.get_color().map(TextColor::serialize),
+            Some("yellow".to_string())
+        );
     }
 
     #[test]
