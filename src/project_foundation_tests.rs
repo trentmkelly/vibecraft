@@ -411,6 +411,7 @@ mod tests {
                 "generated block protocol asset {} must be a non-empty file",
                 path.display()
             );
+            assert_tracked_by_git(Path::new(env!("CARGO_MANIFEST_DIR")), &path);
         }
 
         assert_eq!(crate::block_states::VANILLA_BLOCK_STATE_COUNT_26_1_2, 29_873);
