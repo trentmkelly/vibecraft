@@ -1,11 +1,9 @@
 use super::*;
 use crate::network::codec::cursor;
 
-const SERVERBOUND_CHANGE_GAME_MODE_PACKET_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundChangeGameModePacket.java"
-);
+const SERVERBOUND_CHANGE_GAME_MODE_PACKET_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundChangeGameModePacket.java");
 const GAME_TYPE_JAVA: &str =
-    include_str!("../../../../../decompiled-server-26.1.2/net/minecraft/world/level/GameType.java");
+    vibecraft_java_source!("/net/minecraft/world/level/GameType.java");
 
 #[test]
 fn serverbound_change_game_mode_packet_matches_java_codec() {

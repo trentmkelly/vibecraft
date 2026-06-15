@@ -5,21 +5,26 @@ import { fileURLToPath } from 'node:url'
 import { loadConfigurationRegistryClosureReport } from './configuration_registry_closure_report.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const repoRoot = path.resolve(here, '..', '..')
-const workspaceRoot = path.resolve(repoRoot, '..')
-const decompRoot = path.join(workspaceRoot, 'decompiled-server-26.1.2', 'net', 'minecraft')
+const decompiledSourceRoot = process.env.VIBECRAFT_DECOMPILED_SOURCE_ROOT
+const decompRoot = decompiledSourceRoot
+  ? path.join(decompiledSourceRoot, 'net', 'minecraft')
+  : null
+
+function decompPath (...parts) {
+  return decompRoot ? path.join(decompRoot, ...parts) : null
+}
 
 export const dependencySourceFiles = {
-  registryDataLoader: path.join(decompRoot, 'resources', 'RegistryDataLoader.java'),
-  vanillaRegistries: path.join(decompRoot, 'data', 'registries', 'VanillaRegistries.java'),
-  items: path.join(decompRoot, 'world', 'item', 'Items.java'),
-  item: path.join(decompRoot, 'world', 'item', 'Item.java'),
-  itemEnchantments: path.join(decompRoot, 'world', 'item', 'enchantment', 'ItemEnchantments.java'),
-  palettedContainerFactory: path.join(decompRoot, 'world', 'level', 'chunk', 'PalettedContainerFactory.java'),
-  levelChunkSection: path.join(decompRoot, 'world', 'level', 'chunk', 'LevelChunkSection.java'),
-  chunksBiomesPacket: path.join(decompRoot, 'network', 'protocol', 'game', 'ClientboundChunksBiomesPacket.java'),
-  commonPlayerSpawnInfo: path.join(decompRoot, 'network', 'protocol', 'game', 'CommonPlayerSpawnInfo.java'),
-  serverPlayer: path.join(decompRoot, 'server', 'level', 'ServerPlayer.java')
+  registryDataLoader: decompPath('resources', 'RegistryDataLoader.java'),
+  vanillaRegistries: decompPath('data', 'registries', 'VanillaRegistries.java'),
+  items: decompPath('world', 'item', 'Items.java'),
+  item: decompPath('world', 'item', 'Item.java'),
+  itemEnchantments: decompPath('world', 'item', 'enchantment', 'ItemEnchantments.java'),
+  palettedContainerFactory: decompPath('world', 'level', 'chunk', 'PalettedContainerFactory.java'),
+  levelChunkSection: decompPath('world', 'level', 'chunk', 'LevelChunkSection.java'),
+  chunksBiomesPacket: decompPath('network', 'protocol', 'game', 'ClientboundChunksBiomesPacket.java'),
+  commonPlayerSpawnInfo: decompPath('network', 'protocol', 'game', 'CommonPlayerSpawnInfo.java'),
+  serverPlayer: decompPath('server', 'level', 'ServerPlayer.java')
 }
 
 export const dependencyEvidence = [
@@ -120,6 +125,9 @@ export async function loadConfigurationRegistryDependencyGraph () {
 }
 
 export async function readDependencySources () {
+  if (!decompRoot) {
+    throw new Error('VIBECRAFT_DECOMPILED_SOURCE_ROOT must point at the optional Java source root')
+  }
   const pairs = await Promise.all(Object.entries(dependencySourceFiles).map(async ([key, sourceFile]) => {
     return [key, await readFile(sourceFile, 'utf8')]
   }))

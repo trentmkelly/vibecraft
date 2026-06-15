@@ -1,6 +1,4 @@
-const VANILLA_CHEST_LOOT_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/loot/packs/VanillaChestLoot.java"
-);
+const VANILLA_CHEST_LOOT_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/loot/packs/VanillaChestLoot.java");
 
 const VANILLA_CHEST_OUTPUT_TABLES: &[&str] = &[
     "ABANDONED_MINESHAFT",

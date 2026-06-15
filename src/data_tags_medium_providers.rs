@@ -1,20 +1,10 @@
-const DAMAGE_TYPE_TAGS_PROVIDER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/tags/DamageTypeTagsProvider.java"
-);
-const ENCHANTMENT_TAGS_PROVIDER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/tags/EnchantmentTagsProvider.java"
-);
-const GAME_EVENT_TAGS_PROVIDER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/tags/GameEventTagsProvider.java"
-);
+const DAMAGE_TYPE_TAGS_PROVIDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/tags/DamageTypeTagsProvider.java");
+const ENCHANTMENT_TAGS_PROVIDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/tags/EnchantmentTagsProvider.java");
+const GAME_EVENT_TAGS_PROVIDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/tags/GameEventTagsProvider.java");
 const POTION_TAGS_PROVIDER_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/tags/PotionTagsProvider.java");
-const STRUCTURE_TAGS_PROVIDER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/tags/StructureTagsProvider.java"
-);
-const TRADE_REBALANCE_ENCHANTMENT_TAGS_PROVIDER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/tags/TradeRebalanceEnchantmentTagsProvider.java"
-);
+    vibecraft_java_source!("/net/minecraft/data/tags/PotionTagsProvider.java");
+const STRUCTURE_TAGS_PROVIDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/tags/StructureTagsProvider.java");
+const TRADE_REBALANCE_ENCHANTMENT_TAGS_PROVIDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/tags/TradeRebalanceEnchantmentTagsProvider.java");
 
 #[derive(Debug, Clone, Copy)]
 struct ProviderAudit {

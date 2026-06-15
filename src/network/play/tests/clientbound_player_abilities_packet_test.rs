@@ -1,8 +1,6 @@
 use super::*;
 
-const CLIENTBOUND_PLAYER_ABILITIES_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundPlayerAbilitiesPacket.java"
-);
+const CLIENTBOUND_PLAYER_ABILITIES_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundPlayerAbilitiesPacket.java");
 
 #[test]
 fn clientbound_player_abilities_packet_matches_java_codec() {

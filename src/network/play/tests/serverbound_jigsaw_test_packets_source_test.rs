@@ -2,24 +2,12 @@ use super::*;
 use crate::network::codec::{write_identifier, ComponentJson};
 use crate::network::varint::write_var_i32;
 
-const SERVERBOUND_SET_JIGSAW_BLOCK_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundSetJigsawBlockPacket.java"
-);
-const SERVERBOUND_SET_TEST_BLOCK_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundSetTestBlockPacket.java"
-);
-const SERVERBOUND_TEST_INSTANCE_BLOCK_ACTION_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundTestInstanceBlockActionPacket.java"
-);
-const TEST_INSTANCE_BLOCK_ENTITY_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/world/level/block/entity/TestInstanceBlockEntity.java"
-);
-const TEST_BLOCK_MODE_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/world/level/block/state/properties/TestBlockMode.java"
-);
-const JIGSAW_BLOCK_ENTITY_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/world/level/block/entity/JigsawBlockEntity.java"
-);
+const SERVERBOUND_SET_JIGSAW_BLOCK_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundSetJigsawBlockPacket.java");
+const SERVERBOUND_SET_TEST_BLOCK_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundSetTestBlockPacket.java");
+const SERVERBOUND_TEST_INSTANCE_BLOCK_ACTION_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundTestInstanceBlockActionPacket.java");
+const TEST_INSTANCE_BLOCK_ENTITY_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/level/block/entity/TestInstanceBlockEntity.java");
+const TEST_BLOCK_MODE_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/level/block/state/properties/TestBlockMode.java");
+const JIGSAW_BLOCK_ENTITY_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/level/block/entity/JigsawBlockEntity.java");
 
 #[test]
 fn serverbound_jigsaw_and_test_packets_match_java_sources() {

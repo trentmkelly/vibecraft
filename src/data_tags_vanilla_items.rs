@@ -1,6 +1,4 @@
-const VANILLA_ITEM_TAGS_PROVIDER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/tags/VanillaItemTagsProvider.java"
-);
+const VANILLA_ITEM_TAGS_PROVIDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/tags/VanillaItemTagsProvider.java");
 
 const VANILLA_ITEM_TAG_SENTINELS: &[&str] = &[
     "public class VanillaItemTagsProvider extends IntrinsicHolderTagsProvider<Item>",

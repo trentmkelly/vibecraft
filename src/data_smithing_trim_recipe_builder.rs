@@ -1,6 +1,4 @@
-const SMITHING_TRIM_RECIPE_BUILDER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/recipes/SmithingTrimRecipeBuilder.java"
-);
+const SMITHING_TRIM_RECIPE_BUILDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/recipes/SmithingTrimRecipeBuilder.java");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SmithingTrimCategory {

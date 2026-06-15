@@ -5,12 +5,10 @@ import { fileURLToPath } from 'node:url'
 import { configurationCompletionManifest } from './configuration_completion_manifest.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const repoRoot = path.resolve(here, '..', '..')
-const workspaceRoot = path.resolve(repoRoot, '..')
+const decompiledSourceRoot = process.env.VIBECRAFT_DECOMPILED_SOURCE_ROOT
 
 export const registryDataLoaderPath = path.join(
-  workspaceRoot,
-  'decompiled-server-26.1.2',
+  decompiledSourceRoot ?? '',
   'net',
   'minecraft',
   'resources',
@@ -222,6 +220,9 @@ export function evaluateConfigurationRegistryClosureGate (report, rawProbe) {
 }
 
 export async function loadConfigurationRegistryClosureReport () {
+  if (!decompiledSourceRoot) {
+    throw new Error('VIBECRAFT_DECOMPILED_SOURCE_ROOT must point at the optional Java source root')
+  }
   const [registryDataLoader, rawProbe] = await Promise.all([
     readFile(registryDataLoaderPath, 'utf8'),
     readFile(rawProbePath, 'utf8')
@@ -231,6 +232,9 @@ export async function loadConfigurationRegistryClosureReport () {
 }
 
 export async function runConfigurationRegistryClosureGate () {
+  if (!decompiledSourceRoot) {
+    throw new Error('VIBECRAFT_DECOMPILED_SOURCE_ROOT must point at the optional Java source root')
+  }
   const [registryDataLoader, rawProbe] = await Promise.all([
     readFile(registryDataLoaderPath, 'utf8'),
     readFile(rawProbePath, 'utf8')

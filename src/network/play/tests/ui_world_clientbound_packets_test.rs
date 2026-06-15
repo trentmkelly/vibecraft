@@ -1,26 +1,12 @@
 use super::*;
 
-const CLIENTBOUND_INITIALIZE_BORDER_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundInitializeBorderPacket.java"
-);
-const CLIENTBOUND_LEVEL_EVENT_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundLevelEventPacket.java"
-);
-const CLIENTBOUND_LOW_DISK_SPACE_WARNING_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundLowDiskSpaceWarningPacket.java"
-);
-const CLIENTBOUND_MOUNT_SCREEN_OPEN_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundMountScreenOpenPacket.java"
-);
-const CLIENTBOUND_OPEN_BOOK_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundOpenBookPacket.java"
-);
-const CLIENTBOUND_OPEN_SCREEN_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundOpenScreenPacket.java"
-);
-const CLIENTBOUND_OPEN_SIGN_EDITOR_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundOpenSignEditorPacket.java"
-);
+const CLIENTBOUND_INITIALIZE_BORDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundInitializeBorderPacket.java");
+const CLIENTBOUND_LEVEL_EVENT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundLevelEventPacket.java");
+const CLIENTBOUND_LOW_DISK_SPACE_WARNING_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundLowDiskSpaceWarningPacket.java");
+const CLIENTBOUND_MOUNT_SCREEN_OPEN_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundMountScreenOpenPacket.java");
+const CLIENTBOUND_OPEN_BOOK_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundOpenBookPacket.java");
+const CLIENTBOUND_OPEN_SCREEN_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundOpenScreenPacket.java");
+const CLIENTBOUND_OPEN_SIGN_EDITOR_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundOpenSignEditorPacket.java");
 
 #[test]
 fn ui_world_clientbound_packet_codecs_match_java_sources() {

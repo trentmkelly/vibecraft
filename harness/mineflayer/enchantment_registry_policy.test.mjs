@@ -8,12 +8,10 @@ import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
 const here = path.dirname(fileURLToPath(import.meta.url))
-const repoRoot = path.resolve(here, '..', '..')
-const workspaceRoot = path.resolve(repoRoot, '..')
+const decompiledSourceRoot = process.env.VIBECRAFT_DECOMPILED_SOURCE_ROOT
 
 const enchantmentPath = path.join(
-  workspaceRoot,
-  'decompiled-server-26.1.2',
+  decompiledSourceRoot ?? '',
   'net',
   'minecraft',
   'world',
@@ -22,8 +20,7 @@ const enchantmentPath = path.join(
   'Enchantment.java'
 )
 const effectComponentsPath = path.join(
-  workspaceRoot,
-  'decompiled-server-26.1.2',
+  decompiledSourceRoot ?? '',
   'net',
   'minecraft',
   'world',
@@ -32,8 +29,7 @@ const effectComponentsPath = path.join(
   'EnchantmentEffectComponents.java'
 )
 const itemsPath = path.join(
-  workspaceRoot,
-  'decompiled-server-26.1.2',
+  decompiledSourceRoot ?? '',
   'net',
   'minecraft',
   'world',
@@ -97,7 +93,9 @@ const effectComponentIds = [
   'trident_spin_attack_strength'
 ]
 
-test('decompiled enchantment direct codec field audit covers the current omission policy', async () => {
+test('decompiled enchantment direct codec field audit covers the current omission policy', {
+  skip: !decompiledSourceRoot ? 'optional Java source root unavailable' : false
+}, async () => {
   const [enchantmentSource, effectSource] = await Promise.all([
     readFile(enchantmentPath, 'utf8'),
     readFile(effectComponentsPath, 'utf8')
@@ -117,7 +115,9 @@ test('decompiled enchantment direct codec field audit covers the current omissio
   }
 })
 
-test('default item initialization does not reference concrete enchantment holders before play entry', async () => {
+test('default item initialization does not reference concrete enchantment holders before play entry', {
+  skip: !decompiledSourceRoot ? 'optional Java source root unavailable' : false
+}, async () => {
   const itemsSource = await readFile(itemsPath, 'utf8')
 
   assert.doesNotMatch(itemsSource, /(?<!Item)Enchantments\.[A-Z0-9_]+/)

@@ -174,13 +174,9 @@ mod tests {
     #[test]
     fn cipher_base_decoder_and_encoder_match_java_update_wrappers() {
         const CIPHER_BASE_JAVA: &str =
-            include_str!("../../../decompiled-server-26.1.2/net/minecraft/network/CipherBase.java");
-        const CIPHER_DECODER_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/CipherDecoder.java"
-        );
-        const CIPHER_ENCODER_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/CipherEncoder.java"
-        );
+            vibecraft_java_source!("/net/minecraft/network/CipherBase.java");
+        const CIPHER_DECODER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/CipherDecoder.java");
+        const CIPHER_ENCODER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/CipherEncoder.java");
 
         for sentinel in [
             "private byte[] heapIn = new byte[0];",

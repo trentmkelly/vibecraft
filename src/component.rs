@@ -382,10 +382,8 @@ mod tests {
     use crate::chat_component::{FontDescription, TextColor};
 
     const COMPONENT_JAVA: &str =
-        include_str!("../../decompiled-server-26.1.2/net/minecraft/network/chat/Component.java");
-    const MUTABLE_COMPONENT_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/network/chat/MutableComponent.java"
-    );
+        vibecraft_java_source!("/net/minecraft/network/chat/Component.java");
+    const MUTABLE_COMPONENT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/MutableComponent.java");
 
     #[test]
     fn component_java_source_contract_is_tracked() {

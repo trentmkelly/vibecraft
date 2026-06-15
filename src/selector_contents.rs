@@ -82,12 +82,8 @@ mod tests {
     use super::*;
     use crate::chat_component::resolution_context::ResolutionSourceModel;
 
-    const SELECTOR_CONTENTS_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/network/chat/contents/SelectorContents.java"
-    );
-    const COMPONENT_UTILS_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/network/chat/ComponentUtils.java"
-    );
+    const SELECTOR_CONTENTS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/contents/SelectorContents.java");
+    const COMPONENT_UTILS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/ComponentUtils.java");
 
     fn source(entity: Option<&str>) -> ResolutionSourceModel {
         ResolutionSourceModel {

@@ -206,9 +206,7 @@ fn set_pair<T>(pairs: &mut Vec<(String, T)>, key: String, value: T) {
 mod tests {
     use super::*;
 
-    const TEST_ENVIRONMENT_DEFINITION_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/TestEnvironmentDefinition.java"
-    );
+    const TEST_ENVIRONMENT_DEFINITION_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/TestEnvironmentDefinition.java");
 
     #[test]
     fn test_environment_definition_matches_java_source_shape() {

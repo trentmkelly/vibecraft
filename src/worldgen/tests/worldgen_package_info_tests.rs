@@ -1,14 +1,8 @@
-const WORLDGEN_PACKAGE_INFO_JAVA: &str = include_str!(
-    "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/package-info.java"
-);
+const WORLDGEN_PACKAGE_INFO_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/package-info.java");
 
-const WORLDGEN_FEATURES_PACKAGE_INFO_JAVA: &str = include_str!(
-    "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/features/package-info.java"
-);
+const WORLDGEN_FEATURES_PACKAGE_INFO_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/features/package-info.java");
 
-const WORLDGEN_PLACEMENT_PACKAGE_INFO_JAVA: &str = include_str!(
-    "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/placement/package-info.java"
-);
+const WORLDGEN_PLACEMENT_PACKAGE_INFO_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/placement/package-info.java");
 
 fn assert_null_marked_package_info(source: &str, package_name: &str) {
     assert_eq!(source.lines().count(), 4);

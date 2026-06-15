@@ -37,12 +37,8 @@ fn vanilla_recipe_manager() -> RecipeManagerModel {
 
 #[test]
 pub fn recipebook_java_source_sentinels_cover_place_recipe_parity_rules() {
-    const PLACE_RECIPE_HELPER_JAVA: &str = include_str!(
-        "../../../../../decompiled-server-26.1.2/net/minecraft/recipebook/PlaceRecipeHelper.java"
-    );
-    const SERVER_PLACE_RECIPE_JAVA: &str = include_str!(
-        "../../../../../decompiled-server-26.1.2/net/minecraft/recipebook/ServerPlaceRecipe.java"
-    );
+    const PLACE_RECIPE_HELPER_JAVA: &str = vibecraft_java_source!("/net/minecraft/recipebook/PlaceRecipeHelper.java");
+    const SERVER_PLACE_RECIPE_JAVA: &str = vibecraft_java_source!("/net/minecraft/recipebook/ServerPlaceRecipe.java");
 
     for sentinel in [
         "placeRecipe(gridWidth, gridHeight, shapedRecipe.getWidth(), shapedRecipe.getHeight(), entries, output);",

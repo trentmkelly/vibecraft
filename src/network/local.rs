@@ -194,9 +194,7 @@ mod tests {
 
     #[test]
     fn handler_names_match_java_constants() {
-        const HANDLER_NAMES_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/HandlerNames.java"
-        );
+        const HANDLER_NAMES_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/HandlerNames.java");
 
         for (name, value) in [
             ("DECOMPRESS", HandlerNames::DECOMPRESS),
@@ -226,9 +224,7 @@ mod tests {
 
     #[test]
     fn hidden_byte_buf_packs_byte_buffers_and_delegates_reference_counting() {
-        const HIDDEN_BYTE_BUF_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/HiddenByteBuf.java"
-        );
+        const HIDDEN_BYTE_BUF_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/HiddenByteBuf.java");
 
         for sentinel in [
             "public record HiddenByteBuf(ByteBuf contents) implements ReferenceCounted",
@@ -278,15 +274,9 @@ mod tests {
 
     #[test]
     fn local_frame_handlers_pack_unpack_and_monitor_byte_buffers() {
-        const LOCAL_FRAME_DECODER_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/LocalFrameDecoder.java"
-        );
-        const LOCAL_FRAME_ENCODER_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/LocalFrameEncoder.java"
-        );
-        const MONITORED_LOCAL_FRAME_DECODER_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/MonitoredLocalFrameDecoder.java"
-        );
+        const LOCAL_FRAME_DECODER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/LocalFrameDecoder.java");
+        const LOCAL_FRAME_ENCODER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/LocalFrameEncoder.java");
+        const MONITORED_LOCAL_FRAME_DECODER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/MonitoredLocalFrameDecoder.java");
 
         assert!(
             LOCAL_FRAME_DECODER_JAVA.contains("ctx.fireChannelRead(HiddenByteBuf.unpack(msg));")

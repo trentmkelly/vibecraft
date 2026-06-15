@@ -1,8 +1,6 @@
 use super::*;
 
-const SERVERBOUND_COMMAND_SUGGESTION_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundCommandSuggestionPacket.java"
-);
+const SERVERBOUND_COMMAND_SUGGESTION_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundCommandSuggestionPacket.java");
 
 #[test]
 fn clientbound_command_suggestions_packet_matches_java_entry_codec() {

@@ -1,17 +1,9 @@
 use super::*;
 
-const SERVERBOUND_PADDLE_BOAT_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundPaddleBoatPacket.java"
-);
-const SERVERBOUND_PLAYER_INPUT_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundPlayerInputPacket.java"
-);
-const SERVERBOUND_PLAYER_COMMAND_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundPlayerCommandPacket.java"
-);
-const SERVERBOUND_PLAYER_ACTION_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundPlayerActionPacket.java"
-);
+const SERVERBOUND_PADDLE_BOAT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundPaddleBoatPacket.java");
+const SERVERBOUND_PLAYER_INPUT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundPlayerInputPacket.java");
+const SERVERBOUND_PLAYER_COMMAND_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundPlayerCommandPacket.java");
+const SERVERBOUND_PLAYER_ACTION_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundPlayerActionPacket.java");
 
 #[test]
 fn serverbound_player_action_family_matches_java_sources() {

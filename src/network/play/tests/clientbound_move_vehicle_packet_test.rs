@@ -1,8 +1,6 @@
 use super::*;
 
-const CLIENTBOUND_MOVE_VEHICLE_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundMoveVehiclePacket.java"
-);
+const CLIENTBOUND_MOVE_VEHICLE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundMoveVehiclePacket.java");
 
 #[test]
 fn clientbound_move_vehicle_packet_matches_java_codec() {

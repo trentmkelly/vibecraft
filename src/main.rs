@@ -1,3 +1,19 @@
+#[cfg(vibecraft_has_decompiled_sources)]
+#[allow(unused_macros)]
+macro_rules! vibecraft_java_source {
+    ($path:literal) => {
+        include_str!(concat!(env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT"), $path))
+    };
+}
+
+#[cfg(not(vibecraft_has_decompiled_sources))]
+#[allow(unused_macros)]
+macro_rules! vibecraft_java_source {
+    ($path:literal) => {
+        ""
+    };
+}
+
 include!("module_declarations.rs");
 
 use std::env;

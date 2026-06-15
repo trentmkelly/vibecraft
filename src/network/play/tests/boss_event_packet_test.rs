@@ -23,9 +23,7 @@ fn boss_prefix(event_id: Uuid, operation: i32) -> Vec<u8> {
 }
 
 fn assert_clientbound_boss_event_java_source() {
-    const CLIENTBOUND_BOSS_EVENT_JAVA: &str = include_str!(
-        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundBossEventPacket.java"
-    );
+    const CLIENTBOUND_BOSS_EVENT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundBossEventPacket.java");
     for sentinel in [
         "public class ClientboundBossEventPacket implements Packet<ClientGamePacketListener>",
         "private static final int FLAG_DARKEN = 1;",

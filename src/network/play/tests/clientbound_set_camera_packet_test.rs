@@ -1,8 +1,6 @@
 use super::*;
 
-const CLIENTBOUND_SET_CAMERA_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSetCameraPacket.java"
-);
+const CLIENTBOUND_SET_CAMERA_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSetCameraPacket.java");
 
 #[test]
 fn clientbound_set_camera_packet_matches_java_codec() {

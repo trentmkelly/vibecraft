@@ -474,57 +474,23 @@ mod tests {
     use crate::registry::Identifier;
     use std::io::{self, Cursor};
 
-    const CLIENT_LOGIN_PACKET_LISTENER_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/ClientLoginPacketListener.java"
-    );
-    const CLIENTBOUND_CUSTOM_QUERY_PACKET_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/ClientboundCustomQueryPacket.java"
-    );
-    const CLIENTBOUND_HELLO_PACKET_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/ClientboundHelloPacket.java"
-    );
-    const CLIENTBOUND_LOGIN_COMPRESSION_PACKET_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/ClientboundLoginCompressionPacket.java"
-    );
-    const CLIENTBOUND_LOGIN_DISCONNECT_PACKET_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/ClientboundLoginDisconnectPacket.java"
-    );
-    const CLIENTBOUND_LOGIN_FINISHED_PACKET_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/ClientboundLoginFinishedPacket.java"
-    );
-    const LOGIN_PACKET_TYPES_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/LoginPacketTypes.java"
-    );
-    const LOGIN_PROTOCOLS_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/LoginProtocols.java"
-    );
-    const SERVER_LOGIN_PACKET_LISTENER_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/ServerLoginPacketListener.java"
-    );
-    const SERVERBOUND_CUSTOM_QUERY_ANSWER_PACKET_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/ServerboundCustomQueryAnswerPacket.java"
-    );
-    const SERVERBOUND_HELLO_PACKET_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/ServerboundHelloPacket.java"
-    );
-    const SERVERBOUND_KEY_PACKET_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/ServerboundKeyPacket.java"
-    );
-    const SERVERBOUND_LOGIN_ACKNOWLEDGED_PACKET_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/ServerboundLoginAcknowledgedPacket.java"
-    );
-    const CUSTOM_QUERY_ANSWER_PAYLOAD_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/custom/CustomQueryAnswerPayload.java"
-    );
-    const CUSTOM_QUERY_PAYLOAD_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/custom/CustomQueryPayload.java"
-    );
-    const DISCARDED_QUERY_ANSWER_PAYLOAD_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/custom/DiscardedQueryAnswerPayload.java"
-    );
-    const DISCARDED_QUERY_PAYLOAD_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/login/custom/DiscardedQueryPayload.java"
-    );
+    const CLIENT_LOGIN_PACKET_LISTENER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/login/ClientLoginPacketListener.java");
+    const CLIENTBOUND_CUSTOM_QUERY_PACKET_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/login/ClientboundCustomQueryPacket.java");
+    const CLIENTBOUND_HELLO_PACKET_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/login/ClientboundHelloPacket.java");
+    const CLIENTBOUND_LOGIN_COMPRESSION_PACKET_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/login/ClientboundLoginCompressionPacket.java");
+    const CLIENTBOUND_LOGIN_DISCONNECT_PACKET_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/login/ClientboundLoginDisconnectPacket.java");
+    const CLIENTBOUND_LOGIN_FINISHED_PACKET_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/login/ClientboundLoginFinishedPacket.java");
+    const LOGIN_PACKET_TYPES_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/login/LoginPacketTypes.java");
+    const LOGIN_PROTOCOLS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/login/LoginProtocols.java");
+    const SERVER_LOGIN_PACKET_LISTENER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/login/ServerLoginPacketListener.java");
+    const SERVERBOUND_CUSTOM_QUERY_ANSWER_PACKET_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/login/ServerboundCustomQueryAnswerPacket.java");
+    const SERVERBOUND_HELLO_PACKET_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/login/ServerboundHelloPacket.java");
+    const SERVERBOUND_KEY_PACKET_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/login/ServerboundKeyPacket.java");
+    const SERVERBOUND_LOGIN_ACKNOWLEDGED_PACKET_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/login/ServerboundLoginAcknowledgedPacket.java");
+    const CUSTOM_QUERY_ANSWER_PAYLOAD_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/login/custom/CustomQueryAnswerPayload.java");
+    const CUSTOM_QUERY_PAYLOAD_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/login/custom/CustomQueryPayload.java");
+    const DISCARDED_QUERY_ANSWER_PAYLOAD_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/login/custom/DiscardedQueryAnswerPayload.java");
+    const DISCARDED_QUERY_PAYLOAD_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/login/custom/DiscardedQueryPayload.java");
 
     #[test]
     fn reads_and_writes_serverbound_hello() {

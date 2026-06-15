@@ -260,9 +260,7 @@ fn java_float_string(value: f64) -> String {
 mod tests {
     use super::*;
 
-    const SNBT_PRINTER_TAG_VISITOR_JAVA: &str = include_str!(
-        "../../../../decompiled-server-26.1.2/net/minecraft/nbt/SnbtPrinterTagVisitor.java"
-    );
+    const SNBT_PRINTER_TAG_VISITOR_JAVA: &str = vibecraft_java_source!("/net/minecraft/nbt/SnbtPrinterTagVisitor.java");
 
     #[test]
     fn snbt_printer_matches_java_constants_and_scalar_suffixes() {

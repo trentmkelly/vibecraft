@@ -8,21 +8,11 @@ use super::{
     BUILTIN_BIOMES, NETHER_BIOME_PARAMETERS,
 };
 
-const BIOME_DATA_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/biome/BiomeData.java"
-);
-const END_BIOMES_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/biome/EndBiomes.java"
-);
-const NETHER_BIOMES_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/biome/NetherBiomes.java"
-);
-const OVERWORLD_BIOMES_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/biome/OverworldBiomes.java"
-);
-const BIOME_PACKAGE_INFO_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/biome/package-info.java"
-);
+const BIOME_DATA_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/biome/BiomeData.java");
+const END_BIOMES_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/biome/EndBiomes.java");
+const NETHER_BIOMES_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/biome/NetherBiomes.java");
+const OVERWORLD_BIOMES_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/biome/OverworldBiomes.java");
+const BIOME_PACKAGE_INFO_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/biome/package-info.java");
 
 fn vanilla_data_path(parts: &[&str]) -> std::path::PathBuf {
     let Some(source_root) = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT") else {

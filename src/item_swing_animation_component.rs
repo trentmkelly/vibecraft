@@ -31,9 +31,7 @@ impl SwingAnimationComponent {
 mod tests {
     use super::*;
 
-    const SWING_ANIMATION_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/world/item/component/SwingAnimation.java"
-    );
+    const SWING_ANIMATION_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/item/component/SwingAnimation.java");
 
     #[test]
     fn swing_animation_component_defaults_and_positive_duration_match_java() {

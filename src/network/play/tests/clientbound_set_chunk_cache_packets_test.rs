@@ -1,11 +1,7 @@
 use super::*;
 
-const CLIENTBOUND_SET_CHUNK_CACHE_CENTER_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSetChunkCacheCenterPacket.java"
-);
-const CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSetChunkCacheRadiusPacket.java"
-);
+const CLIENTBOUND_SET_CHUNK_CACHE_CENTER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSetChunkCacheCenterPacket.java");
+const CLIENTBOUND_SET_CHUNK_CACHE_RADIUS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSetChunkCacheRadiusPacket.java");
 
 #[test]
 fn clientbound_set_chunk_cache_packets_match_java_codecs() {

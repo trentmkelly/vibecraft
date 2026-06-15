@@ -1,17 +1,9 @@
 use super::*;
 
-const SERVERBOUND_CONTAINER_BUTTON_CLICK_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundContainerButtonClickPacket.java"
-);
-const SERVERBOUND_CONTAINER_CLOSE_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundContainerClosePacket.java"
-);
-const SERVERBOUND_JIGSAW_GENERATE_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundJigsawGeneratePacket.java"
-);
-const SERVERBOUND_LOCK_DIFFICULTY_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundLockDifficultyPacket.java"
-);
+const SERVERBOUND_CONTAINER_BUTTON_CLICK_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundContainerButtonClickPacket.java");
+const SERVERBOUND_CONTAINER_CLOSE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundContainerClosePacket.java");
+const SERVERBOUND_JIGSAW_GENERATE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundJigsawGeneratePacket.java");
+const SERVERBOUND_LOCK_DIFFICULTY_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundLockDifficultyPacket.java");
 
 #[test]
 fn serverbound_container_button_close_jigsaw_and_lock_packets_match_java_codecs() {

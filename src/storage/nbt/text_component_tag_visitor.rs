@@ -447,9 +447,7 @@ fn text_color(name: &str) -> TextColor {
 mod tests {
     use super::*;
 
-    const TEXT_COMPONENT_TAG_VISITOR_JAVA: &str = include_str!(
-        "../../../../decompiled-server-26.1.2/net/minecraft/nbt/TextComponentTagVisitor.java"
-    );
+    const TEXT_COMPONENT_TAG_VISITOR_JAVA: &str = vibecraft_java_source!("/net/minecraft/nbt/TextComponentTagVisitor.java");
 
     #[test]
     fn text_component_visitor_matches_java_constants_and_tokens() {

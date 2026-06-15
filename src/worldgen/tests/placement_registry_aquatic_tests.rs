@@ -1,8 +1,6 @@
 use super::*;
 
-const AQUATIC_PLACEMENTS_JAVA: &str = include_str!(
-    "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/placement/AquaticPlacements.java"
-);
+const AQUATIC_PLACEMENTS_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/placement/AquaticPlacements.java");
 
 const AQUATIC_PLACED_FEATURE_KEYS: [&str; 12] = [
     "minecraft:seagrass_warm",

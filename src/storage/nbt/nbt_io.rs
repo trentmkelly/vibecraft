@@ -282,7 +282,7 @@ mod tests {
     };
 
     const NBT_IO_JAVA: &str =
-        include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/NbtIo.java");
+        vibecraft_java_source!("/net/minecraft/nbt/NbtIo.java");
 
     #[test]
     fn nbt_io_matches_java_unnamed_any_compressed_and_parse_contracts() {

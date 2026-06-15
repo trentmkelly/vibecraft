@@ -34,9 +34,7 @@ impl WeaponComponent {
 mod tests {
     use super::*;
 
-    const WEAPON_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/world/item/component/Weapon.java"
-    );
+    const WEAPON_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/item/component/Weapon.java");
 
     #[test]
     fn weapon_component_defaults_and_constant_match_java() {

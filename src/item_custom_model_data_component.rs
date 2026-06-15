@@ -59,9 +59,7 @@ fn get_safe<T>(values: &[T], index: i32) -> Option<&T> {
 mod tests {
     use super::*;
 
-    const CUSTOM_MODEL_DATA_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/world/item/component/CustomModelData.java"
-    );
+    const CUSTOM_MODEL_DATA_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/item/component/CustomModelData.java");
 
     #[test]
     fn custom_model_data_lists_empty_constant_and_safe_getters_match_java() {

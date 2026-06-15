@@ -1,6 +1,4 @@
-const SMITHING_TRANSFORM_RECIPE_BUILDER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/recipes/SmithingTransformRecipeBuilder.java"
-);
+const SMITHING_TRANSFORM_RECIPE_BUILDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/recipes/SmithingTransformRecipeBuilder.java");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SmithingTransformCategory {

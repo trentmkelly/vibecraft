@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use crate::worldgen::{RandomSpreadType, StructurePlacementKind, BUILTIN_STRUCTURE_SETS};
 
 const STRUCTURE_SETS_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/worldgen/StructureSets.java");
+    vibecraft_java_source!("/net/minecraft/data/worldgen/StructureSets.java");
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ParsedStructureSet {

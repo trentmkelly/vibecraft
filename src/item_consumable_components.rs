@@ -50,12 +50,8 @@ mod tests {
     use super::*;
     use std::cell::RefCell;
 
-    const USE_EFFECTS_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/world/item/component/UseEffects.java"
-    );
-    const CONSUMABLE_LISTENER_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/world/item/component/ConsumableListener.java"
-    );
+    const USE_EFFECTS_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/item/component/UseEffects.java");
+    const CONSUMABLE_LISTENER_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/item/component/ConsumableListener.java");
 
     struct RecordingListener {
         seen: RefCell<Vec<ConsumableListenerContext>>,

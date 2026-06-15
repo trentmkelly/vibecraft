@@ -1,9 +1,7 @@
 use super::*;
 use crate::block_update::BlockPos;
 
-const CLIENTBOUND_GAME_TEST_HIGHLIGHT_POS_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundGameTestHighlightPosPacket.java"
-);
+const CLIENTBOUND_GAME_TEST_HIGHLIGHT_POS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundGameTestHighlightPosPacket.java");
 
 #[test]
 fn clientbound_game_test_highlight_pos_packet_matches_java_codec() {

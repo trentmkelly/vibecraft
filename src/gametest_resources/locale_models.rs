@@ -25,9 +25,7 @@ impl DeprecatedTranslationsInfoModel {
 
     #[cfg(vibecraft_has_decompiled_sources)]
     pub fn load_default_resource() -> Result<Self, String> {
-        Self::load_from_json(include_str!(
-            "../../../decompiled-server-26.1.2/assets/minecraft/lang/deprecated.json"
-        ))
+        Self::load_from_json(vibecraft_java_source!("/assets/minecraft/lang/deprecated.json"))
     }
 
     #[cfg(not(vibecraft_has_decompiled_sources))]
@@ -64,7 +62,7 @@ impl LanguageModel {
     pub fn load_default() -> Result<Self, String> {
         let mut translations = BTreeMap::new();
         load_translations_from_json(
-            include_str!("../../../decompiled-server-26.1.2/assets/minecraft/lang/en_us.json"),
+            vibecraft_java_source!("/assets/minecraft/lang/en_us.json"),
             &mut translations,
         )?;
         DeprecatedTranslationsInfoModel::load_default_resource()?.apply_to_map(&mut translations);

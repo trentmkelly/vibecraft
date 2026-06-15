@@ -1,8 +1,6 @@
 use super::*;
 
-const CLIENTBOUND_UPDATE_ADVANCEMENTS_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundUpdateAdvancementsPacket.java"
-);
+const CLIENTBOUND_UPDATE_ADVANCEMENTS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundUpdateAdvancementsPacket.java");
 
 #[test]
 fn clientbound_update_advancements_packet_matches_java_codec() {

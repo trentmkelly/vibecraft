@@ -286,7 +286,11 @@ mod tests {
 
     #[test]
     fn worldgen_resources_decode_all_vanilla_subregistries() {
-        let root = std::path::Path::new(env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT"))
+        let Some(source_root) = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT") else {
+            eprintln!("skipping worldgen resource parity: optional Java source root unavailable");
+            return;
+        };
+        let root = std::path::Path::new(source_root)
             .join("data")
             .join("minecraft")
             .join("worldgen");

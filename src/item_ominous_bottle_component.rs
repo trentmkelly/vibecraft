@@ -61,9 +61,7 @@ impl OminousBottleAmplifier {
 mod tests {
     use super::*;
 
-    const OMINOUS_BOTTLE_AMPLIFIER_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/world/item/component/OminousBottleAmplifier.java"
-    );
+    const OMINOUS_BOTTLE_AMPLIFIER_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/item/component/OminousBottleAmplifier.java");
 
     #[test]
     fn ominous_bottle_amplifier_effect_codec_range_and_tooltip_match_java() {

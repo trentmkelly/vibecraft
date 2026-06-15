@@ -1,13 +1,9 @@
 use super::*;
 
-const CLIENTBOUND_PLAYER_POSITION_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundPlayerPositionPacket.java"
-);
-const POSITION_MOVE_ROTATION_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/world/entity/PositionMoveRotation.java"
-);
+const CLIENTBOUND_PLAYER_POSITION_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundPlayerPositionPacket.java");
+const POSITION_MOVE_ROTATION_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/entity/PositionMoveRotation.java");
 const RELATIVE_JAVA: &str =
-    include_str!("../../../../../decompiled-server-26.1.2/net/minecraft/world/entity/Relative.java");
+    vibecraft_java_source!("/net/minecraft/world/entity/Relative.java");
 
 #[test]
 fn clientbound_player_position_packet_matches_java_codec() {

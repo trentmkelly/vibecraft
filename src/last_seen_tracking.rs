@@ -227,15 +227,9 @@ mod tests {
     #[test]
     #[allow(clippy::cognitive_complexity, clippy::too_many_lines)]
     fn last_seen_tracking_matches_java_tracker_validator_and_entry_contracts() {
-        const TRACKER_JAVA: &str = include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/network/chat/LastSeenMessagesTracker.java"
-        );
-        const VALIDATOR_JAVA: &str = include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/network/chat/LastSeenMessagesValidator.java"
-        );
-        const TRACKED_ENTRY_JAVA: &str = include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/network/chat/LastSeenTrackedEntry.java"
-        );
+        const TRACKER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/LastSeenMessagesTracker.java");
+        const VALIDATOR_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/LastSeenMessagesValidator.java");
+        const TRACKED_ENTRY_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/LastSeenTrackedEntry.java");
 
         for sentinel in [
             "private final @Nullable LastSeenTrackedEntry[] trackedMessages;",

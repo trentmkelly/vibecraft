@@ -1,9 +1,7 @@
 use super::super::*;
 use super::*;
 
-const SERVERBOUND_CONTAINER_SLOT_STATE_CHANGED_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundContainerSlotStateChangedPacket.java"
-);
+const SERVERBOUND_CONTAINER_SLOT_STATE_CHANGED_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundContainerSlotStateChangedPacket.java");
 
 #[test]
 fn serverbound_container_slot_state_changed_packet_matches_java_codec() {

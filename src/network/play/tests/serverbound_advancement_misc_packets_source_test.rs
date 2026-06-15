@@ -2,24 +2,12 @@ use super::*;
 use crate::network::codec::{write_identifier, write_string};
 use crate::network::varint::write_var_i32;
 
-const SERVERBOUND_SEEN_ADVANCEMENTS_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundSeenAdvancementsPacket.java"
-);
-const SERVERBOUND_SELECT_BUNDLE_ITEM_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundSelectBundleItemPacket.java"
-);
-const SERVERBOUND_SET_GAME_RULE_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundSetGameRulePacket.java"
-);
-const SERVERBOUND_SPECTATE_ENTITY_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundSpectateEntityPacket.java"
-);
-const SERVERBOUND_TELEPORT_TO_ENTITY_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundTeleportToEntityPacket.java"
-);
-const VEC_DELTA_CODEC_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/VecDeltaCodec.java"
-);
+const SERVERBOUND_SEEN_ADVANCEMENTS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundSeenAdvancementsPacket.java");
+const SERVERBOUND_SELECT_BUNDLE_ITEM_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundSelectBundleItemPacket.java");
+const SERVERBOUND_SET_GAME_RULE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundSetGameRulePacket.java");
+const SERVERBOUND_SPECTATE_ENTITY_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundSpectateEntityPacket.java");
+const SERVERBOUND_TELEPORT_TO_ENTITY_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundTeleportToEntityPacket.java");
+const VEC_DELTA_CODEC_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/VecDeltaCodec.java");
 
 #[test]
 fn serverbound_advancement_misc_packets_and_vec_delta_match_java_sources() {

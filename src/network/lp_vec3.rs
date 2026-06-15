@@ -110,7 +110,7 @@ mod tests {
     use std::io::Cursor;
 
     const LP_VEC3_JAVA: &str =
-        include_str!("../../../decompiled-server-26.1.2/net/minecraft/network/LpVec3.java");
+        vibecraft_java_source!("/net/minecraft/network/LpVec3.java");
 
     fn assert_close(actual: Vec3, expected: Vec3, scale: f64) {
         let tolerance = scale / 32766.0 + 1.0e-9;

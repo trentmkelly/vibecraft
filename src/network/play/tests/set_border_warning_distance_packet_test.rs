@@ -1,8 +1,6 @@
 use super::*;
 
-const CLIENTBOUND_SET_BORDER_WARNING_DISTANCE_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSetBorderWarningDistancePacket.java"
-);
+const CLIENTBOUND_SET_BORDER_WARNING_DISTANCE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSetBorderWarningDistancePacket.java");
 
 #[test]
 fn clientbound_set_border_warning_distance_packet_matches_java_codec() {

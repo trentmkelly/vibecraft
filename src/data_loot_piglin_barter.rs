@@ -1,6 +1,4 @@
-const JAVA_SOURCE: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/loot/packs/VanillaPiglinBarterLoot.java"
-);
+const JAVA_SOURCE: &str = vibecraft_java_source!("/net/minecraft/data/loot/packs/VanillaPiglinBarterLoot.java");
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct BarterEntrySummary {

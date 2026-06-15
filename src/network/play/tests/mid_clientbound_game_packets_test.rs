@@ -1,35 +1,15 @@
 use super::*;
 
-const CLIENTBOUND_CUSTOM_CHAT_COMPLETIONS_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundCustomChatCompletionsPacket.java"
-);
-const CLIENTBOUND_DEBUG_SAMPLE_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundDebugSamplePacket.java"
-);
-const CLIENTBOUND_DELETE_CHAT_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundDeleteChatPacket.java"
-);
-const CLIENTBOUND_DISGUISED_CHAT_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundDisguisedChatPacket.java"
-);
-const CLIENTBOUND_ENTITY_EVENT_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundEntityEventPacket.java"
-);
-const CLIENTBOUND_ENTITY_POSITION_SYNC_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundEntityPositionSyncPacket.java"
-);
-const CLIENTBOUND_FORGET_LEVEL_CHUNK_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundForgetLevelChunkPacket.java"
-);
-const CLIENTBOUND_GAME_EVENT_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundGameEventPacket.java"
-);
-const CLIENTBOUND_GAME_RULE_VALUES_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundGameRuleValuesPacket.java"
-);
-const CLIENTBOUND_HURT_ANIMATION_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundHurtAnimationPacket.java"
-);
+const CLIENTBOUND_CUSTOM_CHAT_COMPLETIONS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundCustomChatCompletionsPacket.java");
+const CLIENTBOUND_DEBUG_SAMPLE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundDebugSamplePacket.java");
+const CLIENTBOUND_DELETE_CHAT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundDeleteChatPacket.java");
+const CLIENTBOUND_DISGUISED_CHAT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundDisguisedChatPacket.java");
+const CLIENTBOUND_ENTITY_EVENT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundEntityEventPacket.java");
+const CLIENTBOUND_ENTITY_POSITION_SYNC_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundEntityPositionSyncPacket.java");
+const CLIENTBOUND_FORGET_LEVEL_CHUNK_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundForgetLevelChunkPacket.java");
+const CLIENTBOUND_GAME_EVENT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundGameEventPacket.java");
+const CLIENTBOUND_GAME_RULE_VALUES_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundGameRuleValuesPacket.java");
+const CLIENTBOUND_HURT_ANIMATION_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundHurtAnimationPacket.java");
 
 #[test]
 fn mid_clientbound_game_packet_codecs_match_java_sources() {

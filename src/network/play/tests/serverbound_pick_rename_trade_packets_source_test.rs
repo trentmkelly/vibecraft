@@ -1,17 +1,9 @@
 use super::*;
 
-const SERVERBOUND_PICK_ITEM_FROM_BLOCK_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundPickItemFromBlockPacket.java"
-);
-const SERVERBOUND_PICK_ITEM_FROM_ENTITY_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundPickItemFromEntityPacket.java"
-);
-const SERVERBOUND_RENAME_ITEM_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundRenameItemPacket.java"
-);
-const SERVERBOUND_SELECT_TRADE_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundSelectTradePacket.java"
-);
+const SERVERBOUND_PICK_ITEM_FROM_BLOCK_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundPickItemFromBlockPacket.java");
+const SERVERBOUND_PICK_ITEM_FROM_ENTITY_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundPickItemFromEntityPacket.java");
+const SERVERBOUND_RENAME_ITEM_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundRenameItemPacket.java");
+const SERVERBOUND_SELECT_TRADE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundSelectTradePacket.java");
 
 #[test]
 fn serverbound_pick_rename_and_trade_packets_match_java_sources() {

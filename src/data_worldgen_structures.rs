@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use crate::worldgen::BUILTIN_STRUCTURES;
 
 const STRUCTURES_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/worldgen/Structures.java");
+    vibecraft_java_source!("/net/minecraft/data/worldgen/Structures.java");
 
 fn count_occurrences(source: &str, needle: &str) -> usize {
     source.match_indices(needle).count()

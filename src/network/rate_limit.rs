@@ -212,11 +212,9 @@ mod tests {
 
     #[test]
     fn rate_kicking_connection_matches_java_disconnect_sequence() {
-        const RATE_KICKING_CONNECTION_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/RateKickingConnection.java"
-        );
+        const RATE_KICKING_CONNECTION_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/RateKickingConnection.java");
         const CONNECTION_JAVA: &str =
-            include_str!("../../../decompiled-server-26.1.2/net/minecraft/network/Connection.java");
+            vibecraft_java_source!("/net/minecraft/network/Connection.java");
 
         for sentinel in [
             "private static final Component EXCEED_REASON = Component.translatable(\"disconnect.exceeded_packet_rate\");",

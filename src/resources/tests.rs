@@ -4,18 +4,14 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-fn decompiled_minecraft_data_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
-        .join("decompiled-server-26.1.2")
-        .join("data")
-        .join("minecraft")
+fn optional_decompiled_minecraft_data_root() -> Option<PathBuf> {
+    let root = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT")?;
+    Some(Path::new(root).join("data").join("minecraft"))
 }
 
-fn collect_decompiled_minecraft_json_paths() -> Vec<String> {
-    let root = decompiled_minecraft_data_root();
+fn collect_decompiled_minecraft_json_paths(root: &Path) -> Vec<String> {
     let mut paths = Vec::new();
-    let mut dirs = vec![root.clone()];
+    let mut dirs = vec![root.to_path_buf()];
 
     while let Some(current) = dirs.pop() {
         let read_dir = fs::read_dir(&current).expect("failed to read decompiled data dir");
@@ -38,7 +34,7 @@ fn collect_decompiled_minecraft_json_paths() -> Vec<String> {
             }
 
             let relative = path
-                .strip_prefix(&root)
+                .strip_prefix(root)
                 .expect("decompiled data path should be under data/minecraft");
             let relative_path = relative
                 .components()
@@ -54,7 +50,10 @@ fn collect_decompiled_minecraft_json_paths() -> Vec<String> {
 
 #[test]
 fn decompiled_minecraft_data_resource_kinds_match_data_folders() {
-    let root = decompiled_minecraft_data_root();
+    let Some(root) = optional_decompiled_minecraft_data_root() else {
+        eprintln!("skipping decompiled data resource parity: optional Java source root unavailable");
+        return;
+    };
     let mut observed_top_levels = root
         .read_dir()
         .expect("failed to read decompiled data root")
@@ -80,7 +79,11 @@ fn decompiled_minecraft_data_resource_kinds_match_data_folders() {
 
 #[test]
 fn decompiled_minecraft_data_kind_counts_match_index() {
-    let resource_paths = collect_decompiled_minecraft_json_paths();
+    let Some(root) = optional_decompiled_minecraft_data_root() else {
+        eprintln!("skipping decompiled data kind count parity: optional Java source root unavailable");
+        return;
+    };
+    let resource_paths = collect_decompiled_minecraft_json_paths(&root);
     let mut expected_counts = std::collections::BTreeMap::<DataResourceKind, usize>::new();
     for kind in DataResourceKind::ALL {
         expected_counts.insert(*kind, 0);

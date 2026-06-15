@@ -12,33 +12,15 @@ fn vanilla_data_path(parts: &[&str]) -> std::path::PathBuf {
         })
 }
 
-const GAME_TEST_INSTANCE_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestInstance.java"
-);
-const GAME_TEST_INSTANCES_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestInstances.java"
-);
-const GAME_TEST_LISTENER_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestListener.java"
-);
-const GAME_TEST_MAIN_UTIL_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestMainUtil.java"
-);
-const GAME_TEST_RUNNER_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestRunner.java"
-);
-const GAME_TEST_SEQUENCE_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestSequence.java"
-);
-const GAME_TEST_SERVER_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestServer.java"
-);
-const STRUCTURE_GRID_SPAWNER_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/StructureGridSpawner.java"
-);
-const GAME_TEST_TICKER_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestTicker.java"
-);
+const GAME_TEST_INSTANCE_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/GameTestInstance.java");
+const GAME_TEST_INSTANCES_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/GameTestInstances.java");
+const GAME_TEST_LISTENER_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/GameTestListener.java");
+const GAME_TEST_MAIN_UTIL_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/GameTestMainUtil.java");
+const GAME_TEST_RUNNER_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/GameTestRunner.java");
+const GAME_TEST_SEQUENCE_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/GameTestSequence.java");
+const GAME_TEST_SERVER_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/GameTestServer.java");
+const STRUCTURE_GRID_SPAWNER_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/StructureGridSpawner.java");
+const GAME_TEST_TICKER_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/GameTestTicker.java");
 
 fn instance() -> GameTestInstanceModel {
     GameTestInstanceModel {

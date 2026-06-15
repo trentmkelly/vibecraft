@@ -195,9 +195,7 @@ mod tests {
     #[test]
     #[allow(clippy::too_many_lines)]
     fn common_components_match_java_constants_and_helpers() {
-        const COMMON_COMPONENTS_JAVA: &str = include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/network/chat/CommonComponents.java"
-        );
+        const COMMON_COMPONENTS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/CommonComponents.java");
 
         for sentinel in [
             "public static final Component EMPTY = Component.empty();",

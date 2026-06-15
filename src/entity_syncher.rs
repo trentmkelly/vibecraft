@@ -250,9 +250,7 @@ mod tests {
 
     #[test]
     fn entity_data_accessor_equality_hash_and_display_match_java() {
-        const ACCESSOR_JAVA: &str = include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/network/syncher/EntityDataAccessor.java"
-        );
+        const ACCESSOR_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/syncher/EntityDataAccessor.java");
 
         assert!(ACCESSOR_JAVA.contains("return this.id == that.id;"));
         assert!(ACCESSOR_JAVA.contains("return this.id;"));
@@ -268,12 +266,8 @@ mod tests {
 
     #[test]
     fn synched_entity_data_dirty_default_and_assign_semantics_match_java() {
-        const HOLDER_JAVA: &str = include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/network/syncher/SyncedDataHolder.java"
-        );
-        const DATA_JAVA: &str = include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/network/syncher/SynchedEntityData.java"
-        );
+        const HOLDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/syncher/SyncedDataHolder.java");
+        const DATA_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/syncher/SynchedEntityData.java");
 
         for sentinel in [
             "void onSyncedDataUpdated(EntityDataAccessor<?> accessor);",

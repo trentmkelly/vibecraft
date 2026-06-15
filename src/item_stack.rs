@@ -685,20 +685,18 @@ mod tests {
     use crate::item_properties::{ItemUseAnimation, Rarity, UseCooldown};
 
     const AIR_ITEM_JAVA: &str =
-        include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/AirItem.java");
+        vibecraft_java_source!("/net/minecraft/world/item/AirItem.java");
     const ITEM_COOLDOWNS_JAVA: &str =
-        include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/ItemCooldowns.java");
+        vibecraft_java_source!("/net/minecraft/world/item/ItemCooldowns.java");
     const ITEM_INSTANCE_JAVA: &str =
-        include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/ItemInstance.java");
+        vibecraft_java_source!("/net/minecraft/world/item/ItemInstance.java");
     const SERVER_ITEM_COOLDOWNS_JAVA: &str =
-        include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/ServerItemCooldowns.java");
+        vibecraft_java_source!("/net/minecraft/world/item/ServerItemCooldowns.java");
     const ITEM_STACK_LINKED_SET_JAVA: &str =
-        include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/ItemStackLinkedSet.java");
+        vibecraft_java_source!("/net/minecraft/world/item/ItemStackLinkedSet.java");
     const ITEM_STACK_TEMPLATE_JAVA: &str =
-        include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/ItemStackTemplate.java");
-    const USE_REMAINDER_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/world/item/component/UseRemainder.java"
-    );
+        vibecraft_java_source!("/net/minecraft/world/item/ItemStackTemplate.java");
+    const USE_REMAINDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/item/component/UseRemainder.java");
 
     #[test]
     fn empty_stack_rules_match_vanilla_air_or_non_positive_count() {

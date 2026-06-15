@@ -1,8 +1,6 @@
 use super::*;
 
-const CLIENTBOUND_SET_BORDER_CENTER_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSetBorderCenterPacket.java"
-);
+const CLIENTBOUND_SET_BORDER_CENTER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSetBorderCenterPacket.java");
 
 #[test]
 fn clientbound_set_border_center_packet_matches_java_codec() {

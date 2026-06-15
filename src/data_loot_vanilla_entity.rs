@@ -1,6 +1,4 @@
-const VANILLA_ENTITY_LOOT_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/loot/packs/VanillaEntityLoot.java"
-);
+const VANILLA_ENTITY_LOOT_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/loot/packs/VanillaEntityLoot.java");
 
 const EMPTY_ENTITY_TABLES: &[&str] = &[
     "ALLAY",

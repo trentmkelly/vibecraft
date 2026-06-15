@@ -127,12 +127,8 @@ mod tests {
     use crate::chat_component::TextColor;
     use std::sync::{MutexGuard, OnceLock};
 
-    const KEYBIND_RESOLVER_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/network/chat/contents/KeybindResolver.java"
-    );
-    const KEYBIND_CONTENTS_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/network/chat/contents/KeybindContents.java"
-    );
+    const KEYBIND_RESOLVER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/contents/KeybindResolver.java");
+    const KEYBIND_CONTENTS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/contents/KeybindContents.java");
 
     fn bracket_supplier(name: &str) -> KeybindSupplierModel {
         KeybindSupplierModel::new(name, |name| Component::literal(format!("[{name}]")))

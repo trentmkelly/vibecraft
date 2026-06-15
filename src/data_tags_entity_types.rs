@@ -1,6 +1,4 @@
-const ENTITY_TYPE_TAGS_PROVIDER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/tags/EntityTypeTagsProvider.java"
-);
+const ENTITY_TYPE_TAGS_PROVIDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/tags/EntityTypeTagsProvider.java");
 
 const ENTITY_TYPE_TAG_SENTINELS: &[&str] = &[
     "public class EntityTypeTagsProvider extends IntrinsicHolderTagsProvider<EntityType<?>>",

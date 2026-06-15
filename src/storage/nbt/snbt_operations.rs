@@ -110,9 +110,9 @@ mod tests {
     use super::*;
 
     const SNBT_OPERATIONS_JAVA: &str =
-        include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/SnbtOperations.java");
+        vibecraft_java_source!("/net/minecraft/nbt/SnbtOperations.java");
     const UUID_UTIL_JAVA: &str =
-        include_str!("../../../../decompiled-server-26.1.2/net/minecraft/core/UUIDUtil.java");
+        vibecraft_java_source!("/net/minecraft/core/UUIDUtil.java");
 
     #[test]
     fn snbt_operations_match_java_bool_uuid_builtins() {

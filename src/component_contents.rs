@@ -54,9 +54,7 @@ impl MutableComponentModel {
 mod tests {
     use super::*;
 
-    const COMPONENT_CONTENTS_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/network/chat/ComponentContents.java"
-    );
+    const COMPONENT_CONTENTS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/ComponentContents.java");
 
     #[test]
     fn component_contents_default_methods_match_java_interface() {

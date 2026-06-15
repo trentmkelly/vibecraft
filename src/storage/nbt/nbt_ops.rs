@@ -436,7 +436,7 @@ mod tests {
     use super::*;
 
     const NBT_OPS_JAVA: &str =
-        include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/NbtOps.java");
+        vibecraft_java_source!("/net/minecraft/nbt/NbtOps.java");
 
     #[test]
     fn nbt_ops_scalars_maps_and_remove_match_java_contracts() {

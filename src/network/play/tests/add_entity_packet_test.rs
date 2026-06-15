@@ -2,9 +2,7 @@ use super::*;
 
 #[test]
 fn clientbound_add_entity_packet_matches_java_codec_order() {
-    const CLIENTBOUND_ADD_ENTITY_JAVA: &str = include_str!(
-        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundAddEntityPacket.java"
-    );
+    const CLIENTBOUND_ADD_ENTITY_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundAddEntityPacket.java");
     for sentinel in [
         "public class ClientboundAddEntityPacket implements Packet<ClientGamePacketListener>",
         "this.id = input.readVarInt();",

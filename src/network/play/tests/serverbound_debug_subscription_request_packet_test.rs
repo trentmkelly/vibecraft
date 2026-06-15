@@ -2,11 +2,9 @@ use super::*;
 use crate::network::codec::cursor;
 use std::collections::BTreeSet;
 
-const SERVERBOUND_DEBUG_SUBSCRIPTION_REQUEST_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundDebugSubscriptionRequestPacket.java"
-);
+const SERVERBOUND_DEBUG_SUBSCRIPTION_REQUEST_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundDebugSubscriptionRequestPacket.java");
 const DEBUG_SUBSCRIPTIONS_JAVA: &str =
-    include_str!("../../../../../decompiled-server-26.1.2/net/minecraft/util/debug/DebugSubscriptions.java");
+    vibecraft_java_source!("/net/minecraft/util/debug/DebugSubscriptions.java");
 
 #[test]
 fn serverbound_debug_subscription_request_packet_matches_java_codec() {

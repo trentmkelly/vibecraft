@@ -183,7 +183,7 @@ mod tests {
     use super::*;
 
     const TAG_PARSER_JAVA: &str =
-        include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/TagParser.java");
+        vibecraft_java_source!("/net/minecraft/nbt/TagParser.java");
 
     #[test]
     fn tag_parser_matches_java_entry_points_and_cursor_policy() {

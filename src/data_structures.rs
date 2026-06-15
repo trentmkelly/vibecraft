@@ -1,14 +1,12 @@
 const NBT_TO_SNBT_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/structures/NbtToSnbt.java");
+    vibecraft_java_source!("/net/minecraft/data/structures/NbtToSnbt.java");
 const SNBT_TO_NBT_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/structures/SnbtToNbt.java");
+    vibecraft_java_source!("/net/minecraft/data/structures/SnbtToNbt.java");
 const SNBT_DATAFIXER_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/structures/SnbtDatafixer.java");
-const STRUCTURE_UPDATER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/structures/StructureUpdater.java"
-);
+    vibecraft_java_source!("/net/minecraft/data/structures/SnbtDatafixer.java");
+const STRUCTURE_UPDATER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/structures/StructureUpdater.java");
 const DATA_STRUCTURES_PACKAGE_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/structures/package-info.java");
+    vibecraft_java_source!("/net/minecraft/data/structures/package-info.java");
 
 const NBT_TO_SNBT_SENTINELS: &[&str] = &[
     "public class NbtToSnbt implements DataProvider",

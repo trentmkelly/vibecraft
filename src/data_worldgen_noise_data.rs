@@ -5,7 +5,7 @@ use crate::worldgen::{
 };
 
 const NOISE_DATA_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/worldgen/NoiseData.java");
+    vibecraft_java_source!("/net/minecraft/data/worldgen/NoiseData.java");
 
 fn count_occurrences(source: &str, needle: &str) -> usize {
     source.match_indices(needle).count()
@@ -21,7 +21,10 @@ fn assert_source_contains_all(source: &str, sentinels: &[&str]) {
 }
 
 fn parse_noise_json(id: &'static str) -> NormalNoiseParameters {
-    let path = std::path::Path::new(env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT"))
+    let Some(source_root) = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT") else {
+        panic!("VIBECRAFT_DECOMPILED_SOURCE_ROOT must be set for noise JSON parity");
+    };
+    let path = std::path::Path::new(source_root)
         .join("data")
         .join("minecraft")
         .join("worldgen")
@@ -83,7 +86,10 @@ fn vanilla_noise_json_ids() -> Vec<String> {
         }
     }
 
-    let root = std::path::Path::new(env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT"))
+    let Some(source_root) = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT") else {
+        panic!("VIBECRAFT_DECOMPILED_SOURCE_ROOT must be set for noise JSON parity");
+    };
+    let root = std::path::Path::new(source_root)
         .join("data")
         .join("minecraft")
         .join("worldgen")

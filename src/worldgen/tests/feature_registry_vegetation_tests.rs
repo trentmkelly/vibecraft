@@ -1,8 +1,6 @@
 use super::*;
 
-const VEGETATION_FEATURES_JAVA: &str = include_str!(
-    "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/features/VegetationFeatures.java"
-);
+const VEGETATION_FEATURES_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/features/VegetationFeatures.java");
 
 const VEGETATION_FEATURE_KEYS: [&str; 57] = [
     "minecraft:bamboo_no_podzol",

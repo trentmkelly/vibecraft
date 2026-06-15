@@ -53,15 +53,9 @@ impl DamageResistant {
 mod tests {
     use super::*;
 
-    const PROVIDES_TRIM_MATERIAL_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/world/item/component/ProvidesTrimMaterial.java"
-    );
-    const SEEDED_CONTAINER_LOOT_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/world/item/component/SeededContainerLoot.java"
-    );
-    const DAMAGE_RESISTANT_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/world/item/component/DamageResistant.java"
-    );
+    const PROVIDES_TRIM_MATERIAL_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/item/component/ProvidesTrimMaterial.java");
+    const SEEDED_CONTAINER_LOOT_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/item/component/SeededContainerLoot.java");
+    const DAMAGE_RESISTANT_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/item/component/DamageResistant.java");
 
     #[test]
     fn provides_trim_material_wraps_trim_material_holder_like_java() {

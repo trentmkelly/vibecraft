@@ -664,9 +664,7 @@ mod tests {
 
     #[test]
     fn registry_friendly_byte_buf_matches_java_wrapper_contract() {
-        const REGISTRY_FRIENDLY_BYTE_BUF_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/RegistryFriendlyByteBuf.java"
-        );
+        const REGISTRY_FRIENDLY_BYTE_BUF_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/RegistryFriendlyByteBuf.java");
 
         for sentinel in [
             "public class RegistryFriendlyByteBuf extends FriendlyByteBuf",
@@ -712,18 +710,10 @@ mod tests {
 
     #[test]
     fn stream_codec_model_matches_java_functional_surface() {
-        const STREAM_CODEC_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/codec/StreamCodec.java"
-        );
-        const STREAM_DECODER_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/codec/StreamDecoder.java"
-        );
-        const STREAM_ENCODER_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/codec/StreamEncoder.java"
-        );
-        const STREAM_MEMBER_ENCODER_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/codec/StreamMemberEncoder.java"
-        );
+        const STREAM_CODEC_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/codec/StreamCodec.java");
+        const STREAM_DECODER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/codec/StreamDecoder.java");
+        const STREAM_ENCODER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/codec/StreamEncoder.java");
+        const STREAM_MEMBER_ENCODER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/codec/StreamMemberEncoder.java");
 
         for sentinel in [
             "static <B, V> StreamCodec<B, V> of(final StreamEncoder<B, V> encoder, final StreamDecoder<B, V> decoder)",
@@ -783,9 +773,7 @@ mod tests {
 
     #[test]
     fn codec_modifier_wraps_stream_codec_with_context_like_java() {
-        const CODEC_MODIFIER_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/CodecModifier.java"
-        );
+        const CODEC_MODIFIER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/CodecModifier.java");
 
         for sentinel in [
             "@FunctionalInterface",
@@ -817,7 +805,7 @@ mod tests {
     #[test]
     fn string_length_limit_counts_utf16_units_like_java() {
         const UTF8_STRING_JAVA: &str =
-            include_str!("../../../decompiled-server-26.1.2/net/minecraft/network/Utf8String.java");
+            vibecraft_java_source!("/net/minecraft/network/Utf8String.java");
 
         for sentinel in [
             "int maxEncodedLength = ByteBufUtil.utf8MaxBytes(maxLength);",
@@ -878,9 +866,7 @@ mod tests {
 
     #[test]
     fn byte_buf_codecs_count_limits_match_java_collections() {
-        const BYTE_BUF_CODECS_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/codec/ByteBufCodecs.java"
-        );
+        const BYTE_BUF_CODECS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/codec/ByteBufCodecs.java");
 
         for sentinel in [
             "int MAX_INITIAL_COLLECTION_SIZE = 65536;",
@@ -1000,9 +986,7 @@ mod tests {
 
     #[test]
     fn id_dispatch_codec_matches_java_registration_and_error_contracts() {
-        const ID_DISPATCH_CODEC_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/codec/IdDispatchCodec.java"
-        );
+        const ID_DISPATCH_CODEC_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/codec/IdDispatchCodec.java");
 
         for sentinel in [
             "private static final int UNKNOWN_TYPE = -1;",

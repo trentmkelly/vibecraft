@@ -60,12 +60,8 @@ mod tests {
 
     #[test]
     fn hover_event_matches_java_actions_payloads_and_tooltip_lines() {
-        const HOVER_EVENT_JAVA: &str = include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/network/chat/HoverEvent.java"
-        );
-        const ITEM_STACK_TEMPLATE_JAVA: &str = include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/world/item/ItemStackTemplate.java"
-        );
+        const HOVER_EVENT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/HoverEvent.java");
+        const ITEM_STACK_TEMPLATE_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/item/ItemStackTemplate.java");
 
         for sentinel in [
             "Codec<HoverEvent> CODEC = HoverEvent.Action.CODEC.dispatch(\"action\", HoverEvent::action, action -> action.codec);",

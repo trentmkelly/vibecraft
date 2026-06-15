@@ -335,9 +335,7 @@ fn assert_container_cooldown_ability_packets() {
 }
 
 fn assert_block_packet_java_sources() {
-    const CLIENTBOUND_BLOCK_DESTRUCTION_JAVA: &str = include_str!(
-        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundBlockDestructionPacket.java"
-    );
+    const CLIENTBOUND_BLOCK_DESTRUCTION_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundBlockDestructionPacket.java");
     for sentinel in [
         "public class ClientboundBlockDestructionPacket implements Packet<ClientGamePacketListener>",
         "this.id = input.readVarInt();",
@@ -354,9 +352,7 @@ fn assert_block_packet_java_sources() {
             "missing ClientboundBlockDestructionPacket sentinel {sentinel}"
         );
     }
-    const CLIENTBOUND_BLOCK_EVENT_JAVA: &str = include_str!(
-        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundBlockEventPacket.java"
-    );
+    const CLIENTBOUND_BLOCK_EVENT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundBlockEventPacket.java");
     for sentinel in [
         "public class ClientboundBlockEventPacket implements Packet<ClientGamePacketListener>",
         "this.pos = input.readBlockPos();",
@@ -375,9 +371,7 @@ fn assert_block_packet_java_sources() {
             "missing ClientboundBlockEventPacket sentinel {sentinel}"
         );
     }
-    const CLIENTBOUND_BLOCK_UPDATE_JAVA: &str = include_str!(
-        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundBlockUpdatePacket.java"
-    );
+    const CLIENTBOUND_BLOCK_UPDATE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundBlockUpdatePacket.java");
     for sentinel in [
         "public class ClientboundBlockUpdatePacket implements Packet<ClientGamePacketListener>",
         "BlockPos.STREAM_CODEC",
@@ -878,9 +872,7 @@ fn assert_effect_stat_and_attribute_packets() {
     assert_eq!(update_effect, vec![0x81, 0x01, 5, 2, 0xd8, 0x04, 0x0d]);
 
     let mut award_stats = Vec::new();
-    const CLIENTBOUND_AWARD_STATS_JAVA: &str = include_str!(
-        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundAwardStatsPacket.java"
-    );
+    const CLIENTBOUND_AWARD_STATS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundAwardStatsPacket.java");
     for sentinel in [
         "public record ClientboundAwardStatsPacket(Object2IntMap<Stat<?>> stats)",
         "Object2IntOpenHashMap::new",

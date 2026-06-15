@@ -184,9 +184,7 @@ mod tests {
 
     #[test]
     fn java_source_contract_sentinels_match_provider_model() {
-        let provider_source = include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/data/advancements/AdvancementProvider.java"
-        );
+        let provider_source = vibecraft_java_source!("/net/minecraft/data/advancements/AdvancementProvider.java");
         assert!(provider_source
             .contains("output.createRegistryElementsPathProvider(Registries.ADVANCEMENT)"));
         assert!(provider_source.contains("new HashSet<>()"));
@@ -196,9 +194,7 @@ mod tests {
         );
         assert!(provider_source.contains("return \"Advancements\";"));
 
-        let sub_provider_source = include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/data/advancements/AdvancementSubProvider.java"
-        );
+        let sub_provider_source = vibecraft_java_source!("/net/minecraft/data/advancements/AdvancementSubProvider.java");
         assert!(sub_provider_source.contains(
             "void generate(HolderLookup.Provider registries, Consumer<AdvancementHolder> output);"
         ));

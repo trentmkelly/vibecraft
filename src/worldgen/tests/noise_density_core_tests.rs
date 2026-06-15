@@ -1,10 +1,8 @@
 use super::*;
 
-const TERRAIN_PROVIDER_JAVA: &str = include_str!(
-    "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/TerrainProvider.java"
-);
+const TERRAIN_PROVIDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/TerrainProvider.java");
 const CUBIC_SPLINE_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/util/CubicSpline.java");
+    vibecraft_java_source!("/net/minecraft/util/CubicSpline.java");
 
 fn occurrence_count(source: &str, needle: &str) -> usize {
     source.matches(needle).count()

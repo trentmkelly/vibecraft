@@ -1,8 +1,6 @@
 use super::*;
 
-const CLIENTBOUND_PLAYER_LOOK_AT_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundPlayerLookAtPacket.java"
-);
+const CLIENTBOUND_PLAYER_LOOK_AT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundPlayerLookAtPacket.java");
 
 #[test]
 fn clientbound_player_look_at_packet_matches_java_codec_with_entity_target() {

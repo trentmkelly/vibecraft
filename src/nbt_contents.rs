@@ -201,24 +201,12 @@ mod tests {
     use crate::chat_component::resolution_context::ResolutionSourceModel;
     use crate::chat_component::TranslationTable;
 
-    const NBT_CONTENTS_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/network/chat/contents/NbtContents.java"
-    );
-    const DATA_SOURCE_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/network/chat/contents/data/DataSource.java"
-    );
-    const DATA_SOURCES_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/network/chat/contents/data/DataSources.java"
-    );
-    const BLOCK_DATA_SOURCE_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/network/chat/contents/data/BlockDataSource.java"
-    );
-    const ENTITY_DATA_SOURCE_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/network/chat/contents/data/EntityDataSource.java"
-    );
-    const STORAGE_DATA_SOURCE_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/network/chat/contents/data/StorageDataSource.java"
-    );
+    const NBT_CONTENTS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/contents/NbtContents.java");
+    const DATA_SOURCE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/contents/data/DataSource.java");
+    const DATA_SOURCES_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/contents/data/DataSources.java");
+    const BLOCK_DATA_SOURCE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/contents/data/BlockDataSource.java");
+    const ENTITY_DATA_SOURCE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/contents/data/EntityDataSource.java");
+    const STORAGE_DATA_SOURCE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/contents/data/StorageDataSource.java");
 
     fn source_context() -> ResolutionContext {
         ResolutionContext::create(ResolutionSourceModel { entity: None })

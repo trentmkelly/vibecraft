@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub const DATA_PACKAGE_NULL_MARKED: bool = true;
 const DATA_PACKAGE_INFO_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/package-info.java");
+    vibecraft_java_source!("/net/minecraft/data/package-info.java");
 
 const ATLAS_IDS: &[&str] = &[
     "minecraft:armor_trims",
@@ -574,7 +574,7 @@ mod tests {
     #[test]
     fn atlas_ids_match_java_order() {
         let source =
-            include_str!("../../decompiled-server-26.1.2/net/minecraft/data/AtlasIds.java");
+            vibecraft_java_source!("/net/minecraft/data/AtlasIds.java");
         let parsed = parse_atlas_ids(source);
         assert_eq!(parsed, ATLAS_IDS);
     }
@@ -652,7 +652,7 @@ mod tests {
     #[test]
     fn block_families_java_table_has_expected_entries_and_helpers() {
         let source =
-            include_str!("../../decompiled-server-26.1.2/net/minecraft/data/BlockFamilies.java");
+            vibecraft_java_source!("/net/minecraft/data/BlockFamilies.java");
         let fields = parse_block_family_fields(source);
         assert_eq!(fields.len(), 70);
         assert_eq!(fields.first().unwrap(), "ACACIA_PLANKS");
@@ -781,7 +781,7 @@ mod tests {
 
     #[test]
     fn main_options_and_provider_wiring_match_java_sentinels() {
-        let source = include_str!("../../decompiled-server-26.1.2/net/minecraft/data/Main.java");
+        let source = vibecraft_java_source!("/net/minecraft/data/Main.java");
         for option in [
             "help", "server", "dev", "reports", "validate", "all", "output", "input",
         ] {

@@ -69,12 +69,8 @@ impl TooltipDisplayComponent {
 mod tests {
     use super::*;
 
-    const TOOLTIP_DISPLAY_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/world/item/component/TooltipDisplay.java"
-    );
-    const TOOLTIP_PROVIDER_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/world/item/component/TooltipProvider.java"
-    );
+    const TOOLTIP_DISPLAY_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/item/component/TooltipDisplay.java");
+    const TOOLTIP_PROVIDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/item/component/TooltipProvider.java");
 
     struct StaticTooltipProvider;
 

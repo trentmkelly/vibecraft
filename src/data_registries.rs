@@ -1,17 +1,9 @@
-const REGISTRIES_DATAPACK_GENERATOR_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/registries/RegistriesDatapackGenerator.java"
-);
-const REGISTRY_PATCH_GENERATOR_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/registries/RegistryPatchGenerator.java"
-);
-const TRADE_REBALANCE_REGISTRIES_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/registries/TradeRebalanceRegistries.java"
-);
-const VANILLA_REGISTRIES_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/registries/VanillaRegistries.java"
-);
+const REGISTRIES_DATAPACK_GENERATOR_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/registries/RegistriesDatapackGenerator.java");
+const REGISTRY_PATCH_GENERATOR_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/registries/RegistryPatchGenerator.java");
+const TRADE_REBALANCE_REGISTRIES_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/registries/TradeRebalanceRegistries.java");
+const VANILLA_REGISTRIES_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/registries/VanillaRegistries.java");
 const DATA_REGISTRIES_PACKAGE_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/registries/package-info.java");
+    vibecraft_java_source!("/net/minecraft/data/registries/package-info.java");
 
 const VANILLA_REGISTRY_BOOTSTRAPS: &[(&str, &str)] = &[
     ("Registries.DIMENSION_TYPE", "DimensionTypes::bootstrap"),

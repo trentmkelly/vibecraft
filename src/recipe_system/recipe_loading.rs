@@ -378,7 +378,9 @@ fn load_recipe_unlocks(
     };
     let mut paths = advancement_paths(&namespace_dir.join("advancement").join("recipes"))?;
     if paths.is_empty() {
-        paths = advancement_paths(&bundled_decompiled_recipe_advancement_dir())?;
+        if let Some(fallback_dir) = optional_decompiled_recipe_advancement_dir() {
+            paths = advancement_paths(&fallback_dir)?;
+        }
     }
     paths.sort();
 
@@ -401,15 +403,14 @@ fn load_recipe_unlocks(
     Ok(unlocks)
 }
 
-fn bundled_decompiled_recipe_advancement_dir() -> std::path::PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap_or_else(|| std::path::Path::new("."))
-        .join("decompiled-server-26.1.2")
-        .join("data")
-        .join("minecraft")
-        .join("advancement")
-        .join("recipes")
+fn optional_decompiled_recipe_advancement_dir() -> Option<std::path::PathBuf> {
+    option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT").map(|root| {
+        std::path::Path::new(root)
+            .join("data")
+            .join("minecraft")
+            .join("advancement")
+            .join("recipes")
+    })
 }
 
 fn advancement_paths(dir: &std::path::Path) -> Result<Vec<std::path::PathBuf>, String> {

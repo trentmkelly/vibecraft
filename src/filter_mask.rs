@@ -229,9 +229,7 @@ mod tests {
 
     #[test]
     fn filter_mask_matches_java_apply_and_formatting_behavior() {
-        const FILTER_MASK_JAVA: &str = include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/network/chat/FilterMask.java"
-        );
+        const FILTER_MASK_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/FilterMask.java");
 
         for sentinel in [
             "public static final FilterMask FULLY_FILTERED = new FilterMask(new BitSet(0), FilterMask.Type.FULLY_FILTERED);",

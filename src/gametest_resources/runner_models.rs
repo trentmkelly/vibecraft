@@ -792,9 +792,7 @@ fn copy_items<T: Clone>(items: Vec<T>, copies: Option<usize>) -> Vec<T> {
 mod tests_structure_utils {
     use super::*;
 
-    const STRUCTURE_UTILS_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/StructureUtils.java"
-    );
+    const STRUCTURE_UTILS_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/StructureUtils.java");
 
     #[test]
     fn structure_utils_matches_java_source_shape() {
@@ -989,15 +987,9 @@ mod tests_structure_utils {
 mod tests_test_finder {
     use super::*;
 
-    const TEST_FINDER_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/TestFinder.java"
-    );
-    const TEST_INSTANCE_FINDER_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/TestInstanceFinder.java"
-    );
-    const TEST_POS_FINDER_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/TestPosFinder.java"
-    );
+    const TEST_FINDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/TestFinder.java");
+    const TEST_INSTANCE_FINDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/TestInstanceFinder.java");
+    const TEST_POS_FINDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/TestPosFinder.java");
 
     fn source() -> TestFinderSourceModel {
         TestFinderSourceModel {

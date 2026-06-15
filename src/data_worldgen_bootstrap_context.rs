@@ -1,8 +1,6 @@
 use crate::registry::{Identifier, Lifecycle, Registry};
 
-const BOOTSTRAP_CONTEXT_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/BootstrapContext.java"
-);
+const BOOTSTRAP_CONTEXT_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/BootstrapContext.java");
 
 fn count_occurrences(source: &str, needle: &str) -> usize {
     source.match_indices(needle).count()

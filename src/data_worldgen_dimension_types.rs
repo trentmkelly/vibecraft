@@ -1,7 +1,7 @@
 use crate::registry::{registries, BuiltInRegistries, Identifier};
 
 const DIMENSION_TYPES_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/worldgen/DimensionTypes.java");
+    vibecraft_java_source!("/net/minecraft/data/worldgen/DimensionTypes.java");
 
 fn count_occurrences(source: &str, needle: &str) -> usize {
     source.match_indices(needle).count()
@@ -17,7 +17,10 @@ fn assert_source_contains_all(source: &str, sentinels: &[&str]) {
 }
 
 fn dimension_type_json(name: &str) -> serde_json::Value {
-    let path = std::path::Path::new(env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT"))
+    let Some(source_root) = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT") else {
+        panic!("VIBECRAFT_DECOMPILED_SOURCE_ROOT must be set for dimension type JSON parity");
+    };
+    let path = std::path::Path::new(source_root)
         .join("data")
         .join("minecraft")
         .join("dimension_type")

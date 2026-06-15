@@ -350,27 +350,13 @@ pub fn build_unbound_protocol(builder: ProtocolInfoBuilderModel) -> UnboundProto
 mod tests {
     use super::*;
 
-    const PACKET_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/Packet.java"
-    );
-    const PACKET_TYPE_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/PacketType.java"
-    );
-    const PACKET_UTILS_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/PacketUtils.java"
-    );
-    const PROTOCOL_CODEC_BUILDER_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/ProtocolCodecBuilder.java"
-    );
-    const PROTOCOL_INFO_BUILDER_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/ProtocolInfoBuilder.java"
-    );
-    const SIMPLE_UNBOUND_PROTOCOL_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/SimpleUnboundProtocol.java"
-    );
-    const UNBOUND_PROTOCOL_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/UnboundProtocol.java"
-    );
+    const PACKET_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/Packet.java");
+    const PACKET_TYPE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/PacketType.java");
+    const PACKET_UTILS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/PacketUtils.java");
+    const PROTOCOL_CODEC_BUILDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/ProtocolCodecBuilder.java");
+    const PROTOCOL_INFO_BUILDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/ProtocolInfoBuilder.java");
+    const SIMPLE_UNBOUND_PROTOCOL_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/SimpleUnboundProtocol.java");
+    const UNBOUND_PROTOCOL_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/UnboundProtocol.java");
 
     #[test]
     fn packet_and_packet_type_match_java_surface() {

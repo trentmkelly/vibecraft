@@ -5,7 +5,6 @@ use std::path::{Path, PathBuf};
 const MAX_LINES: usize = 1200;
 const SKIP_ENV_VAR: &str = "VIBECRAFT_SKIP_LINE_CHECK";
 const DECOMPILED_SOURCE_ROOT_ENV: &str = "VIBECRAFT_DECOMPILED_SOURCE_ROOT";
-const DECOMPILED_SOURCE_DIR_NAME: &str = "decompiled-server-26.1.2";
 
 // Test files that contain a single very large `#[test]` function whose body
 // shares state across hundreds of assertions. Splitting the function into
@@ -121,12 +120,7 @@ fn configure_optional_sound_events_source(manifest_dir: &Path) {
 fn optional_decompiled_source_root(manifest_dir: &Path) -> PathBuf {
     env::var_os(DECOMPILED_SOURCE_ROOT_ENV)
         .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            manifest_dir
-                .parent()
-                .unwrap_or(manifest_dir)
-                .join(DECOMPILED_SOURCE_DIR_NAME)
-        })
+        .unwrap_or_else(|| manifest_dir.join(".missing-optional-decompiled-source-root"))
 }
 
 fn collect_offenders(root: &Path, dir: &Path, out: &mut Vec<(PathBuf, usize)>) {

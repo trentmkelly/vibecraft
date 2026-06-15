@@ -360,9 +360,9 @@ mod tests {
     use super::*;
 
     const DISPENSIBLE_CONTAINER_ITEM_JAVA: &str =
-        include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/DispensibleContainerItem.java");
+        vibecraft_java_source!("/net/minecraft/world/item/DispensibleContainerItem.java");
     const DISPENSE_ITEM_BEHAVIOR_JAVA: &str =
-        include_str!("../../decompiled-server-26.1.2/net/minecraft/core/dispenser/DispenseItemBehavior.java");
+        vibecraft_java_source!("/net/minecraft/core/dispenser/DispenseItemBehavior.java");
 
     fn block_hit(block: BlockKind) -> HitKind {
         HitKind::Block {

@@ -68,14 +68,10 @@ impl GameTestExceptionModel for UnknownGameTestExceptionModel {
 mod tests {
     use super::*;
 
-    const UNKNOWN_GAME_TEST_EXCEPTION_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/UnknownGameTestException.java"
-    );
-    const FRAMEWORK_PACKAGE_INFO_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/package-info.java"
-    );
+    const UNKNOWN_GAME_TEST_EXCEPTION_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/UnknownGameTestException.java");
+    const FRAMEWORK_PACKAGE_INFO_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/package-info.java");
     const GAMETEST_PACKAGE_INFO_JAVA: &str =
-        include_str!("../../../decompiled-server-26.1.2/net/minecraft/gametest/package-info.java");
+        vibecraft_java_source!("/net/minecraft/gametest/package-info.java");
 
     #[test]
     fn unknown_gametest_exception_matches_java_source_shape() {

@@ -1,8 +1,6 @@
 use super::*;
 
-const TREE_PLACEMENTS_JAVA: &str = include_str!(
-    "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/placement/TreePlacements.java"
-);
+const TREE_PLACEMENTS_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/placement/TreePlacements.java");
 
 const TREE_PLACED_FEATURE_KEYS: [&str; 41] = [
     "minecraft:crimson_fungi",

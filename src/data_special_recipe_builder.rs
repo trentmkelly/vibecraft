@@ -1,6 +1,4 @@
-const SPECIAL_RECIPE_BUILDER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/recipes/SpecialRecipeBuilder.java"
-);
+const SPECIAL_RECIPE_BUILDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/recipes/SpecialRecipeBuilder.java");
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct SpecialRecipeBuilderModel {

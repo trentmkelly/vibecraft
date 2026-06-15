@@ -4,9 +4,7 @@ use crate::worldgen::{
     PLAINS_CREATURE_SPAWNS, PLAINS_FEATURE_STEPS, PLAINS_MONSTER_SPAWNS, SWAMP_MONSTER_SPAWNS,
 };
 
-const BIOME_DEFAULT_FEATURES_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/BiomeDefaultFeatures.java"
-);
+const BIOME_DEFAULT_FEATURES_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/BiomeDefaultFeatures.java");
 
 const BIOME_DEFAULT_FEATURE_SENTINELS: &[&str] = &[
     "public class BiomeDefaultFeatures",

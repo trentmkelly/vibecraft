@@ -1,10 +1,8 @@
 use std::collections::BTreeMap;
 
-const PACK_METADATA_GENERATOR_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/metadata/PackMetadataGenerator.java"
-);
+const PACK_METADATA_GENERATOR_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/metadata/PackMetadataGenerator.java");
 const DATA_METADATA_PACKAGE_INFO_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/metadata/package-info.java");
+    vibecraft_java_source!("/net/minecraft/data/metadata/package-info.java");
 const DATA_METADATA_PACKAGE_NULL_MARKED: bool = true;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,8 +1,6 @@
 use super::*;
 
-const SERVERBOUND_CHAT_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundChatPacket.java"
-);
+const SERVERBOUND_CHAT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundChatPacket.java");
 
 fn chat_prefix(message: &str, timestamp_epoch_millis: i64, salt: i64) -> Vec<u8> {
     let mut payload = Vec::new();

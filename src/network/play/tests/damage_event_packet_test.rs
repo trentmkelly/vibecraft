@@ -1,10 +1,8 @@
 use super::*;
 
-const CLIENTBOUND_DAMAGE_EVENT_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundDamageEventPacket.java"
-);
+const CLIENTBOUND_DAMAGE_EVENT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundDamageEventPacket.java");
 const DAMAGE_TYPE_JAVA: &str =
-    include_str!("../../../../../decompiled-server-26.1.2/net/minecraft/world/damagesource/DamageType.java");
+    vibecraft_java_source!("/net/minecraft/world/damagesource/DamageType.java");
 
 #[test]
 fn clientbound_damage_event_packet_matches_java_codec_with_position() {

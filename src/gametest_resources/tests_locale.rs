@@ -2,13 +2,11 @@ use std::collections::BTreeMap;
 
 use super::*;
 
-const DEPRECATED_TRANSLATIONS_INFO_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/locale/DeprecatedTranslationsInfo.java"
-);
+const DEPRECATED_TRANSLATIONS_INFO_JAVA: &str = vibecraft_java_source!("/net/minecraft/locale/DeprecatedTranslationsInfo.java");
 const LANGUAGE_JAVA: &str =
-    include_str!("../../../decompiled-server-26.1.2/net/minecraft/locale/Language.java");
+    vibecraft_java_source!("/net/minecraft/locale/Language.java");
 const PACKAGE_INFO_JAVA: &str =
-    include_str!("../../../decompiled-server-26.1.2/net/minecraft/locale/package-info.java");
+    vibecraft_java_source!("/net/minecraft/locale/package-info.java");
 
 #[test]
 fn deprecated_translations_info_matches_java_codec_and_application_shape() {

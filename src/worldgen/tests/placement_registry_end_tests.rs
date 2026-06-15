@@ -1,8 +1,6 @@
 use super::*;
 
-const END_PLACEMENTS_JAVA: &str = include_str!(
-    "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/placement/EndPlacements.java"
-);
+const END_PLACEMENTS_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/placement/EndPlacements.java");
 
 const END_PLACED_FEATURE_KEYS: [&str; 5] = [
     "minecraft:end_platform",

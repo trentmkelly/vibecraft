@@ -269,7 +269,7 @@ mod tests {
     use super::*;
 
     const COMPOUND_TAG_JAVA: &str =
-        include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/CompoundTag.java");
+        vibecraft_java_source!("/net/minecraft/nbt/CompoundTag.java");
 
     #[test]
     fn compound_tag_matches_java_map_put_get_and_default_accessors() {

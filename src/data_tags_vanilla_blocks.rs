@@ -1,6 +1,4 @@
-const VANILLA_BLOCK_TAGS_PROVIDER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/tags/VanillaBlockTagsProvider.java"
-);
+const VANILLA_BLOCK_TAGS_PROVIDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/tags/VanillaBlockTagsProvider.java");
 
 const VANILLA_BLOCK_TAG_SENTINELS: &[&str] = &[
     "public class VanillaBlockTagsProvider extends IntrinsicHolderTagsProvider<Block>",

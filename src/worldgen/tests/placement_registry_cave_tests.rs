@@ -1,8 +1,6 @@
 use super::*;
 
-const CAVE_PLACEMENTS_JAVA: &str = include_str!(
-    "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/placement/CavePlacements.java"
-);
+const CAVE_PLACEMENTS_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/placement/CavePlacements.java");
 
 const CAVE_PLACED_FEATURE_KEYS: [&str; 20] = [
     "minecraft:monster_room",

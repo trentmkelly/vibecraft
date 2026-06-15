@@ -1,9 +1,5 @@
-const VANILLA_RECIPE_PROVIDER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/recipes/packs/VanillaRecipeProvider.java"
-);
-const DATA_RECIPES_PACKS_PACKAGE_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/recipes/packs/package-info.java"
-);
+const VANILLA_RECIPE_PROVIDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/recipes/packs/VanillaRecipeProvider.java");
+const DATA_RECIPES_PACKS_PACKAGE_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/recipes/packs/package-info.java");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct SmeltableGroup {

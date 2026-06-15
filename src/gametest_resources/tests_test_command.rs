@@ -1,8 +1,6 @@
 use super::*;
 
-const TEST_COMMAND_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/TestCommand.java"
-);
+const TEST_COMMAND_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/TestCommand.java");
 
 #[test]
 fn test_command_matches_java_constants_and_command_surface() {

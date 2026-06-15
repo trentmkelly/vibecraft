@@ -18,12 +18,8 @@ mod tests {
     use super::*;
     use crate::item_properties::MapPostProcessing;
 
-    const MAP_ITEM_COLOR_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/world/item/component/MapItemColor.java"
-    );
-    const MAP_POST_PROCESSING_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/world/item/component/MapPostProcessing.java"
-    );
+    const MAP_ITEM_COLOR_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/item/component/MapItemColor.java");
+    const MAP_POST_PROCESSING_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/item/component/MapPostProcessing.java");
 
     #[test]
     fn map_item_color_default_and_codecs_match_java() {

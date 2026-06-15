@@ -1,8 +1,6 @@
 use super::*;
 
-const VEGETATION_PLACEMENTS_JAVA: &str = include_str!(
-    "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/placement/VegetationPlacements.java"
-);
+const VEGETATION_PLACEMENTS_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/placement/VegetationPlacements.java");
 
 const VEGETATION_PLACED_FEATURE_KEYS: [&str; 89] = [
     "minecraft:bamboo_light",

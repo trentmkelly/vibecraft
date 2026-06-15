@@ -1,16 +1,14 @@
 use std::collections::BTreeMap;
 
-const CUSTOM_CRAFTING_RECIPE_BUILDER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/recipes/CustomCraftingRecipeBuilder.java"
-);
+const CUSTOM_CRAFTING_RECIPE_BUILDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/recipes/CustomCraftingRecipeBuilder.java");
 const RECIPE_BUILDER_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/recipes/RecipeBuilder.java");
+    vibecraft_java_source!("/net/minecraft/data/recipes/RecipeBuilder.java");
 const RECIPE_CATEGORY_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/recipes/RecipeCategory.java");
+    vibecraft_java_source!("/net/minecraft/data/recipes/RecipeCategory.java");
 const RECIPE_OUTPUT_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/recipes/RecipeOutput.java");
+    vibecraft_java_source!("/net/minecraft/data/recipes/RecipeOutput.java");
 const RECIPE_PROVIDER_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/recipes/RecipeProvider.java");
+    vibecraft_java_source!("/net/minecraft/data/recipes/RecipeProvider.java");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DataRecipeCategory {

@@ -1,10 +1,8 @@
 use super::*;
 
-const CLIENTBOUND_TAG_QUERY_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundTagQueryPacket.java"
-);
+const CLIENTBOUND_TAG_QUERY_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundTagQueryPacket.java");
 const FRIENDLY_BYTE_BUF_JAVA: &str =
-    include_str!("../../../../../decompiled-server-26.1.2/net/minecraft/network/FriendlyByteBuf.java");
+    vibecraft_java_source!("/net/minecraft/network/FriendlyByteBuf.java");
 
 #[test]
 fn clientbound_tag_query_packet_matches_java_codec() {

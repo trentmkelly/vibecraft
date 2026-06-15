@@ -763,18 +763,10 @@ pub fn vanilla_brewing_recipes() -> Vec<BrewingRecipe> {
 mod tests {
     use super::*;
 
-    const POTION_SOURCE: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/world/item/alchemy/Potion.java"
-    );
-    const POTIONS_SOURCE: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/world/item/alchemy/Potions.java"
-    );
-    const POTION_CONTENTS_SOURCE: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/world/item/alchemy/PotionContents.java"
-    );
-    const POTION_BREWING_SOURCE: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/world/item/alchemy/PotionBrewing.java"
-    );
+    const POTION_SOURCE: &str = vibecraft_java_source!("/net/minecraft/world/item/alchemy/Potion.java");
+    const POTIONS_SOURCE: &str = vibecraft_java_source!("/net/minecraft/world/item/alchemy/Potions.java");
+    const POTION_CONTENTS_SOURCE: &str = vibecraft_java_source!("/net/minecraft/world/item/alchemy/PotionContents.java");
+    const POTION_BREWING_SOURCE: &str = vibecraft_java_source!("/net/minecraft/world/item/alchemy/PotionBrewing.java");
 
     #[test]
     fn potion_registry_effects_names_and_instant_flag_match_java() {

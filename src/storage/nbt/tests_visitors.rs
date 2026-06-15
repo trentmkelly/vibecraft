@@ -6,25 +6,17 @@ use super::tag_metadata::tag_type;
 use super::Tag;
 
 const STREAM_TAG_VISITOR_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/StreamTagVisitor.java");
+    vibecraft_java_source!("/net/minecraft/nbt/StreamTagVisitor.java");
 const SKIP_ALL_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/visitors/SkipAll.java");
+    vibecraft_java_source!("/net/minecraft/nbt/visitors/SkipAll.java");
 const SKIP_FIELDS_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/visitors/SkipFields.java");
-const COLLECT_TO_TAG_JAVA: &str = include_str!(
-    "../../../../decompiled-server-26.1.2/net/minecraft/nbt/visitors/CollectToTag.java"
-);
-const COLLECT_FIELDS_JAVA: &str = include_str!(
-    "../../../../decompiled-server-26.1.2/net/minecraft/nbt/visitors/CollectFields.java"
-);
-const FIELD_SELECTOR_JAVA: &str = include_str!(
-    "../../../../decompiled-server-26.1.2/net/minecraft/nbt/visitors/FieldSelector.java"
-);
+    vibecraft_java_source!("/net/minecraft/nbt/visitors/SkipFields.java");
+const COLLECT_TO_TAG_JAVA: &str = vibecraft_java_source!("/net/minecraft/nbt/visitors/CollectToTag.java");
+const COLLECT_FIELDS_JAVA: &str = vibecraft_java_source!("/net/minecraft/nbt/visitors/CollectFields.java");
+const FIELD_SELECTOR_JAVA: &str = vibecraft_java_source!("/net/minecraft/nbt/visitors/FieldSelector.java");
 const FIELD_TREE_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/visitors/FieldTree.java");
-const NBT_VISITORS_PACKAGE_INFO_JAVA: &str = include_str!(
-    "../../../../decompiled-server-26.1.2/net/minecraft/nbt/visitors/package-info.java"
-);
+    vibecraft_java_source!("/net/minecraft/nbt/visitors/FieldTree.java");
+const NBT_VISITORS_PACKAGE_INFO_JAVA: &str = vibecraft_java_source!("/net/minecraft/nbt/visitors/package-info.java");
 
 #[test]
 fn nbt_visitors_package_info_matches_java_metadata() {

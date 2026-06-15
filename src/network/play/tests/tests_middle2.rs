@@ -600,9 +600,7 @@ fn movement_packets_decode_flags_position_and_rotation_by_shape() {
 
 #[test]
 fn move_player_packet_shapes_match_vanilla_field_layouts() {
-    const SERVERBOUND_MOVE_PLAYER_PACKET_JAVA: &str = include_str!(
-        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundMovePlayerPacket.java"
-    );
+    const SERVERBOUND_MOVE_PLAYER_PACKET_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundMovePlayerPacket.java");
     for sentinel in [
         "private static final int FLAG_ON_GROUND = 1;",
         "private static final int FLAG_HORIZONTAL_COLLISION = 2;",
@@ -801,9 +799,7 @@ fn assert_move_player_status_only_shape(movement: &ServerboundMovePlayerPacket) 
 
 #[test]
 fn move_vehicle_packet_matches_vanilla_field_layout() {
-    const SERVERBOUND_MOVE_VEHICLE_PACKET_JAVA: &str = include_str!(
-        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundMoveVehiclePacket.java"
-    );
+    const SERVERBOUND_MOVE_VEHICLE_PACKET_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundMoveVehiclePacket.java");
     for sentinel in [
         "public record ServerboundMoveVehiclePacket(Vec3 position, float yRot, float xRot, boolean onGround)",
         "Vec3.STREAM_CODEC",

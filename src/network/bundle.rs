@@ -209,12 +209,8 @@ mod tests {
 
     #[test]
     fn packet_bundle_packer_matches_java_decode_contract() {
-        const PACKER_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/PacketBundlePacker.java"
-        );
-        const BUNDLER_INFO_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/BundlerInfo.java"
-        );
+        const PACKER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/PacketBundlePacker.java");
+        const BUNDLER_INFO_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/BundlerInfo.java");
 
         for sentinel in [
             "private BundlerInfo.@Nullable Bundler currentBundler;",
@@ -280,24 +276,12 @@ mod tests {
 
     #[test]
     fn packet_bundle_unpacker_and_packet_models_match_java_contract() {
-        const UNPACKER_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/PacketBundleUnpacker.java"
-        );
-        const BUNDLER_INFO_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/BundlerInfo.java"
-        );
-        const BUNDLE_PACKET_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/BundlePacket.java"
-        );
-        const BUNDLE_DELIMITER_PACKET_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/BundleDelimiterPacket.java"
-        );
-        const CLIENTBOUND_BUNDLE_PACKET_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundBundlePacket.java"
-        );
-        const CLIENTBOUND_BUNDLE_DELIMITER_PACKET_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundBundleDelimiterPacket.java"
-        );
+        const UNPACKER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/PacketBundleUnpacker.java");
+        const BUNDLER_INFO_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/BundlerInfo.java");
+        const BUNDLE_PACKET_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/BundlePacket.java");
+        const BUNDLE_DELIMITER_PACKET_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/BundleDelimiterPacket.java");
+        const CLIENTBOUND_BUNDLE_PACKET_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundBundlePacket.java");
+        const CLIENTBOUND_BUNDLE_DELIMITER_PACKET_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundBundleDelimiterPacket.java");
 
         for sentinel in [
             "this.bundlerInfo.unbundlePacket(msg, out::add);",

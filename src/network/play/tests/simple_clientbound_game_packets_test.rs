@@ -1,38 +1,16 @@
 use super::*;
 
-const CLIENTBOUND_BLOCK_CHANGED_ACK_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundBlockChangedAckPacket.java"
-);
-const CLIENTBOUND_CHANGE_DIFFICULTY_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundChangeDifficultyPacket.java"
-);
-const CLIENTBOUND_CHUNK_BATCH_FINISHED_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundChunkBatchFinishedPacket.java"
-);
-const CLIENTBOUND_CHUNK_BATCH_START_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundChunkBatchStartPacket.java"
-);
-const CLIENTBOUND_CLEAR_TITLES_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundClearTitlesPacket.java"
-);
-const CLIENTBOUND_COMMAND_SUGGESTIONS_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundCommandSuggestionsPacket.java"
-);
-const CLIENTBOUND_CONTAINER_CLOSE_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundContainerClosePacket.java"
-);
-const CLIENTBOUND_CONTAINER_SET_CONTENT_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundContainerSetContentPacket.java"
-);
-const CLIENTBOUND_CONTAINER_SET_DATA_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundContainerSetDataPacket.java"
-);
-const CLIENTBOUND_CONTAINER_SET_SLOT_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundContainerSetSlotPacket.java"
-);
-const CLIENTBOUND_COOLDOWN_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundCooldownPacket.java"
-);
+const CLIENTBOUND_BLOCK_CHANGED_ACK_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundBlockChangedAckPacket.java");
+const CLIENTBOUND_CHANGE_DIFFICULTY_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundChangeDifficultyPacket.java");
+const CLIENTBOUND_CHUNK_BATCH_FINISHED_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundChunkBatchFinishedPacket.java");
+const CLIENTBOUND_CHUNK_BATCH_START_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundChunkBatchStartPacket.java");
+const CLIENTBOUND_CLEAR_TITLES_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundClearTitlesPacket.java");
+const CLIENTBOUND_COMMAND_SUGGESTIONS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundCommandSuggestionsPacket.java");
+const CLIENTBOUND_CONTAINER_CLOSE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundContainerClosePacket.java");
+const CLIENTBOUND_CONTAINER_SET_CONTENT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundContainerSetContentPacket.java");
+const CLIENTBOUND_CONTAINER_SET_DATA_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundContainerSetDataPacket.java");
+const CLIENTBOUND_CONTAINER_SET_SLOT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundContainerSetSlotPacket.java");
+const CLIENTBOUND_COOLDOWN_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundCooldownPacket.java");
 
 #[test]
 fn simple_clientbound_game_packet_codecs_match_java_sources() {

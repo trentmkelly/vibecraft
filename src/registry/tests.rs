@@ -276,9 +276,7 @@ fn parse_java_registry_refs_from_source(source: &str, prefix: &str) -> Vec<Strin
 }
 
 fn parse_java_registry_ids() -> std::collections::BTreeSet<String> {
-    let source = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/core/registries/Registries.java"
-    );
+    let source = vibecraft_java_source!("/net/minecraft/core/registries/Registries.java");
     let mut registry_ids = std::collections::BTreeSet::new();
     for id in parse_java_constant_to_path_mapping(source).values() {
         registry_ids.insert(format!("minecraft:{id}", id = id));
@@ -290,13 +288,9 @@ fn parse_java_registry_ids() -> std::collections::BTreeSet<String> {
 }
 
 fn parse_builtin_registry_ids() -> std::collections::BTreeSet<String> {
-    let registries_java = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/core/registries/Registries.java"
-    );
+    let registries_java = vibecraft_java_source!("/net/minecraft/core/registries/Registries.java");
     let mapping = parse_java_constant_to_path_mapping(registries_java);
-    let source = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/core/registries/BuiltInRegistries.java"
-    );
+    let source = vibecraft_java_source!("/net/minecraft/core/registries/BuiltInRegistries.java");
     let mut registry_ids = std::collections::BTreeSet::new();
     for constant in parse_java_registry_refs_from_source(source, "Registries.") {
         if constant == "ROOT_REGISTRY_NAME" || constant == "REGISTRY" {

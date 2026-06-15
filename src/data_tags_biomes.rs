@@ -1,5 +1,5 @@
 const BIOME_TAGS_PROVIDER_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/tags/BiomeTagsProvider.java");
+    vibecraft_java_source!("/net/minecraft/data/tags/BiomeTagsProvider.java");
 
 const BIOME_TAG_SENTINELS: &[&str] = &[
     "public class BiomeTagsProvider extends KeyTagProvider<Biome>",

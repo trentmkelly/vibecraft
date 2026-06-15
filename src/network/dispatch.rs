@@ -643,12 +643,8 @@ mod tests {
 
     #[test]
     fn packet_flow_and_connection_protocol_match_java_ids() {
-        const PACKET_FLOW_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/PacketFlow.java"
-        );
-        const CONNECTION_PROTOCOL_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/ConnectionProtocol.java"
-        );
+        const PACKET_FLOW_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/PacketFlow.java");
+        const CONNECTION_PROTOCOL_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/ConnectionProtocol.java");
 
         for sentinel in [
             "SERVERBOUND(\"serverbound\")",
@@ -696,12 +692,8 @@ mod tests {
 
     #[test]
     fn java_packet_listener_defaults_match_source_contract() {
-        const PACKET_LISTENER_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/PacketListener.java"
-        );
-        const DISCONNECTION_DETAILS_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/DisconnectionDetails.java"
-        );
+        const PACKET_LISTENER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/PacketListener.java");
+        const DISCONNECTION_DETAILS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/DisconnectionDetails.java");
 
         for sentinel in [
             "PacketFlow flow();",
@@ -750,12 +742,10 @@ mod tests {
     #[test]
     fn clientbound_serverbound_and_tickable_listener_surfaces_match_java() {
         const CLIENTBOUND_LISTENER_JAVA: &str =
-            include_str!("../../../decompiled-server-26.1.2/net/minecraft/network/ClientboundPacketListener.java");
+            vibecraft_java_source!("/net/minecraft/network/ClientboundPacketListener.java");
         const SERVERBOUND_LISTENER_JAVA: &str =
-            include_str!("../../../decompiled-server-26.1.2/net/minecraft/network/ServerboundPacketListener.java");
-        const TICKABLE_LISTENER_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/TickablePacketListener.java"
-        );
+            vibecraft_java_source!("/net/minecraft/network/ServerboundPacketListener.java");
+        const TICKABLE_LISTENER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/TickablePacketListener.java");
 
         assert!(CLIENTBOUND_LISTENER_JAVA.contains("return PacketFlow.CLIENTBOUND;"));
         assert!(SERVERBOUND_LISTENER_JAVA.contains("return PacketFlow.SERVERBOUND;"));
@@ -772,9 +762,7 @@ mod tests {
 
     #[test]
     fn packet_send_listener_matches_java_future_branches() {
-        const PACKET_SEND_LISTENER_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/PacketSendListener.java"
-        );
+        const PACKET_SEND_LISTENER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/PacketSendListener.java");
 
         for sentinel in [
             "public static ChannelFutureListener thenRun(final Runnable runnable)",
@@ -880,9 +868,7 @@ mod tests {
 
     #[test]
     fn packet_processor_matches_java_queue_close_and_error_contracts() {
-        const PACKET_PROCESSOR_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/PacketProcessor.java"
-        );
+        const PACKET_PROCESSOR_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/PacketProcessor.java");
 
         for sentinel in [
             "Queues.newConcurrentLinkedQueue()",
@@ -943,9 +929,7 @@ mod tests {
 
     #[test]
     fn protocol_info_matches_java_details_surface() {
-        const PROTOCOL_INFO_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/ProtocolInfo.java"
-        );
+        const PROTOCOL_INFO_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/ProtocolInfo.java");
 
         for sentinel in [
             "ConnectionProtocol id();",
@@ -1004,15 +988,9 @@ mod tests {
 
     #[test]
     fn skip_packet_exceptions_match_java_marker_wrappers() {
-        const SKIP_PACKET_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/SkipPacketException.java"
-        );
-        const SKIP_DECODER_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/SkipPacketDecoderException.java"
-        );
-        const SKIP_ENCODER_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/SkipPacketEncoderException.java"
-        );
+        const SKIP_PACKET_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/SkipPacketException.java");
+        const SKIP_DECODER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/SkipPacketDecoderException.java");
+        const SKIP_ENCODER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/SkipPacketEncoderException.java");
 
         assert!(SKIP_PACKET_JAVA.contains("public interface SkipPacketException"));
         for sentinel in [

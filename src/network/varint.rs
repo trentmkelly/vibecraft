@@ -229,9 +229,9 @@ mod tests {
     #[test]
     fn varint_and_varlong_match_java_constants_and_continuation_bits() {
         const VAR_INT_JAVA: &str =
-            include_str!("../../../decompiled-server-26.1.2/net/minecraft/network/VarInt.java");
+            vibecraft_java_source!("/net/minecraft/network/VarInt.java");
         const VAR_LONG_JAVA: &str =
-            include_str!("../../../decompiled-server-26.1.2/net/minecraft/network/VarLong.java");
+            vibecraft_java_source!("/net/minecraft/network/VarLong.java");
 
         for sentinel in [
             "public static final int MAX_VARINT_SIZE = 5;",
@@ -327,9 +327,7 @@ mod tests {
 
     #[test]
     fn frame_length_matches_varint21_frame_decoder() {
-        const VARINT21_FRAME_DECODER_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/Varint21FrameDecoder.java"
-        );
+        const VARINT21_FRAME_DECODER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/Varint21FrameDecoder.java");
 
         for sentinel in [
             "private static final int MAX_VARINT21_BYTES = 3;",
@@ -380,9 +378,7 @@ mod tests {
 
     #[test]
     fn varint21_length_field_prepender_matches_java() {
-        const VARINT21_PREPENDER_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/Varint21LengthFieldPrepender.java"
-        );
+        const VARINT21_PREPENDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/Varint21LengthFieldPrepender.java");
 
         for sentinel in [
             "public static final int MAX_VARINT21_BYTES = 3;",

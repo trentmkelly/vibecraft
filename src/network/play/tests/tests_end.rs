@@ -858,12 +858,8 @@ fn serverbound_attack_packet_uses_java_entity_id_varint_only() {
 
 #[test]
 fn serverbound_interact_packet_uses_vanilla_flat_stream_codec_order() {
-    const SERVERBOUND_INTERACT_PACKET_JAVA: &str = include_str!(
-        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundInteractPacket.java"
-    );
-    const INTERACTION_HAND_JAVA: &str = include_str!(
-        "../../../../../decompiled-server-26.1.2/net/minecraft/world/InteractionHand.java"
-    );
+    const SERVERBOUND_INTERACT_PACKET_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundInteractPacket.java");
+    const INTERACTION_HAND_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/InteractionHand.java");
     for sentinel in [
         "public record ServerboundInteractPacket(int entityId, InteractionHand hand, Vec3 location, boolean usingSecondaryAction)",
         "ByteBufCodecs.VAR_INT",

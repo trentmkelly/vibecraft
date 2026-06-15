@@ -59,9 +59,7 @@ fn round_trips_keepalive_ping_pong_and_disconnect() {
 
 #[test]
 fn common_packet_types_match_java_common_registry_names() {
-    const COMMON_PACKET_TYPES_JAVA: &str = include_str!(
-        "../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/common/CommonPacketTypes.java"
-    );
+    const COMMON_PACKET_TYPES_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/common/CommonPacketTypes.java");
 
     for expected in [
         "CLIENTBOUND_CLEAR_DIALOG = createClientbound(\"clear_dialog\")",
@@ -93,12 +91,8 @@ fn common_packet_types_match_java_common_registry_names() {
 
 #[test]
 fn common_packet_listener_surfaces_match_java_interfaces() {
-    const CLIENT_COMMON_LISTENER_JAVA: &str = include_str!(
-        "../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/common/ClientCommonPacketListener.java"
-    );
-    const SERVER_COMMON_LISTENER_JAVA: &str = include_str!(
-        "../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/common/ServerCommonPacketListener.java"
-    );
+    const CLIENT_COMMON_LISTENER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/common/ClientCommonPacketListener.java");
+    const SERVER_COMMON_LISTENER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/common/ServerCommonPacketListener.java");
 
     for sentinel in [
         "public interface ClientCommonPacketListener extends ClientCookiePacketListener",
@@ -393,9 +387,7 @@ fn rejects_too_many_report_details() {
 
 #[test]
 fn round_trips_custom_click_action_payload() {
-    const SERVERBOUND_CUSTOM_CLICK_ACTION_JAVA: &str = include_str!(
-        "../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/common/ServerboundCustomClickActionPacket.java"
-    );
+    const SERVERBOUND_CUSTOM_CLICK_ACTION_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/common/ServerboundCustomClickActionPacket.java");
     for sentinel in [
         "public record ServerboundCustomClickActionPacket(Identifier id, Optional<Tag> payload)",
         "new NbtAccounter(32768L, 16)",
@@ -500,9 +492,7 @@ fn round_trips_update_tags_packet() {
 
 #[test]
 fn round_trips_show_dialog_as_bounded_context_free_payload() {
-    const CLIENTBOUND_SHOW_DIALOG_JAVA: &str = include_str!(
-        "../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/common/ClientboundShowDialogPacket.java"
-    );
+    const CLIENTBOUND_SHOW_DIALOG_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/common/ClientboundShowDialogPacket.java");
     for sentinel in [
         "public record ClientboundShowDialogPacket(Holder<Dialog> dialog)",
         "Dialog.STREAM_CODEC, ClientboundShowDialogPacket::dialog, ClientboundShowDialogPacket::new",

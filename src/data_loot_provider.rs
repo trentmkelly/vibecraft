@@ -2,9 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 const PACKAGE_NULL_MARKED: bool = true;
-const VANILLA_LOOT_TABLE_PROVIDER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/loot/packs/VanillaLootTableProvider.java"
-);
+const VANILLA_LOOT_TABLE_PROVIDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/loot/packs/VanillaLootTableProvider.java");
 
 fn package_null_marked() -> bool {
     PACKAGE_NULL_MARKED

@@ -41,9 +41,7 @@ mod tests {
     use super::{BandwidthDebugMonitor, BandwidthSampleLogger};
     use std::sync::Mutex;
 
-    const BANDWIDTH_DEBUG_MONITOR_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/BandwidthDebugMonitor.java"
-    );
+    const BANDWIDTH_DEBUG_MONITOR_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/BandwidthDebugMonitor.java");
 
     #[derive(Default)]
     struct TestSampleLogger {

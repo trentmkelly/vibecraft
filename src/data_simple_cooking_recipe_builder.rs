@@ -1,6 +1,4 @@
-const SIMPLE_COOKING_RECIPE_BUILDER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/recipes/SimpleCookingRecipeBuilder.java"
-);
+const SIMPLE_COOKING_RECIPE_BUILDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/recipes/SimpleCookingRecipeBuilder.java");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SimpleCookingRecipeCategory {

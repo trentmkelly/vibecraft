@@ -2,15 +2,9 @@ use std::collections::HashMap;
 
 use super::*;
 
-const USE_ON_CONTEXT_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/world/item/context/UseOnContext.java"
-);
-const BLOCK_PLACE_CONTEXT_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/world/item/context/BlockPlaceContext.java"
-);
-const DIRECTIONAL_PLACE_CONTEXT_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/world/item/context/DirectionalPlaceContext.java"
-);
+const USE_ON_CONTEXT_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/item/context/UseOnContext.java");
+const BLOCK_PLACE_CONTEXT_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/item/context/BlockPlaceContext.java");
+const DIRECTIONAL_PLACE_CONTEXT_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/item/context/DirectionalPlaceContext.java");
 
 #[derive(Default)]
 struct TestWorld {

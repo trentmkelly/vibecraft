@@ -1,47 +1,19 @@
 use super::*;
 
-const CLIENTBOUND_REMOVE_ENTITIES_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundRemoveEntitiesPacket.java"
-);
-const CLIENTBOUND_REMOVE_MOB_EFFECT_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundRemoveMobEffectPacket.java"
-);
-const CLIENTBOUND_RESET_SCORE_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundResetScorePacket.java"
-);
-const CLIENTBOUND_ROTATE_HEAD_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundRotateHeadPacket.java"
-);
-const CLIENTBOUND_SECTION_BLOCKS_UPDATE_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSectionBlocksUpdatePacket.java"
-);
-const CLIENTBOUND_SET_ACTION_BAR_TEXT_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSetActionBarTextPacket.java"
-);
-const CLIENTBOUND_SET_CURSOR_ITEM_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSetCursorItemPacket.java"
-);
-const CLIENTBOUND_SET_DISPLAY_OBJECTIVE_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSetDisplayObjectivePacket.java"
-);
-const CLIENTBOUND_SET_ENTITY_LINK_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSetEntityLinkPacket.java"
-);
-const CLIENTBOUND_SET_ENTITY_MOTION_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSetEntityMotionPacket.java"
-);
-const CLIENTBOUND_SET_EQUIPMENT_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSetEquipmentPacket.java"
-);
-const CLIENTBOUND_SET_EXPERIENCE_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSetExperiencePacket.java"
-);
-const CLIENTBOUND_SET_HEALTH_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSetHealthPacket.java"
-);
-const CLIENTBOUND_SET_HELD_SLOT_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSetHeldSlotPacket.java"
-);
+const CLIENTBOUND_REMOVE_ENTITIES_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundRemoveEntitiesPacket.java");
+const CLIENTBOUND_REMOVE_MOB_EFFECT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundRemoveMobEffectPacket.java");
+const CLIENTBOUND_RESET_SCORE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundResetScorePacket.java");
+const CLIENTBOUND_ROTATE_HEAD_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundRotateHeadPacket.java");
+const CLIENTBOUND_SECTION_BLOCKS_UPDATE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSectionBlocksUpdatePacket.java");
+const CLIENTBOUND_SET_ACTION_BAR_TEXT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSetActionBarTextPacket.java");
+const CLIENTBOUND_SET_CURSOR_ITEM_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSetCursorItemPacket.java");
+const CLIENTBOUND_SET_DISPLAY_OBJECTIVE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSetDisplayObjectivePacket.java");
+const CLIENTBOUND_SET_ENTITY_LINK_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSetEntityLinkPacket.java");
+const CLIENTBOUND_SET_ENTITY_MOTION_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSetEntityMotionPacket.java");
+const CLIENTBOUND_SET_EQUIPMENT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSetEquipmentPacket.java");
+const CLIENTBOUND_SET_EXPERIENCE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSetExperiencePacket.java");
+const CLIENTBOUND_SET_HEALTH_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSetHealthPacket.java");
+const CLIENTBOUND_SET_HELD_SLOT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSetHeldSlotPacket.java");
 
 #[test]
 fn entity_inventory_clientbound_packet_codecs_match_java_sources() {

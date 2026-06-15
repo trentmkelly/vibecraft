@@ -82,11 +82,9 @@ mod tests {
 
     #[test]
     fn formatted_text_matches_java_visitors_and_short_circuiting() {
-        const FORMATTED_TEXT_JAVA: &str = include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/network/chat/FormattedText.java"
-        );
+        const FORMATTED_TEXT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/FormattedText.java");
         const STYLE_JAVA: &str =
-            include_str!("../../decompiled-server-26.1.2/net/minecraft/network/chat/Style.java");
+            vibecraft_java_source!("/net/minecraft/network/chat/Style.java");
 
         for sentinel in [
             "Optional<Unit> STOP_ITERATION = Optional.of(Unit.INSTANCE);",

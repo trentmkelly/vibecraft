@@ -99,9 +99,7 @@ mod tests {
     use super::*;
     use crate::chat_component::resolution_context::ResolutionSourceModel;
 
-    const SCORE_CONTENTS_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/network/chat/contents/ScoreContents.java"
-    );
+    const SCORE_CONTENTS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/contents/ScoreContents.java");
 
     fn source(entity: Option<&str>) -> ResolutionSourceModel {
         ResolutionSourceModel {

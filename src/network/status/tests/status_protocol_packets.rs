@@ -6,27 +6,13 @@ use std::io::{self, Cursor};
 
 #[test]
 pub fn status_protocol_package_matches_java_packet_contracts() {
-    const CLIENT_LISTENER_JAVA: &str = include_str!(
-        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/status/ClientStatusPacketListener.java"
-    );
-    const STATUS_RESPONSE_JAVA: &str = include_str!(
-        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/status/ClientboundStatusResponsePacket.java"
-    );
-    const SERVER_STATUS_JAVA: &str = include_str!(
-        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/status/ServerStatus.java"
-    );
-    const SERVER_LISTENER_JAVA: &str = include_str!(
-        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/status/ServerStatusPacketListener.java"
-    );
-    const STATUS_REQUEST_JAVA: &str = include_str!(
-        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/status/ServerboundStatusRequestPacket.java"
-    );
-    const PACKET_TYPES_JAVA: &str = include_str!(
-        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/status/StatusPacketTypes.java"
-    );
-    const STATUS_PROTOCOLS_JAVA: &str = include_str!(
-        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/status/StatusProtocols.java"
-    );
+    const CLIENT_LISTENER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/status/ClientStatusPacketListener.java");
+    const STATUS_RESPONSE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/status/ClientboundStatusResponsePacket.java");
+    const SERVER_STATUS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/status/ServerStatus.java");
+    const SERVER_LISTENER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/status/ServerStatusPacketListener.java");
+    const STATUS_REQUEST_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/status/ServerboundStatusRequestPacket.java");
+    const PACKET_TYPES_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/status/StatusPacketTypes.java");
+    const STATUS_PROTOCOLS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/status/StatusProtocols.java");
 
     assert!(CLIENT_LISTENER_JAVA.contains("return ConnectionProtocol.STATUS;"));
     assert!(CLIENT_LISTENER_JAVA

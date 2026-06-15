@@ -218,31 +218,25 @@ fn registry_dump_fixture() -> BTreeMap<&'static str, RegistryDumpModel> {
 fn java_source(file: &str) -> &'static str {
     match file {
         "BiomeParametersDumpReport.java" => {
-            include_str!("../../decompiled-server-26.1.2/net/minecraft/data/info/BiomeParametersDumpReport.java")
+            vibecraft_java_source!("/net/minecraft/data/info/BiomeParametersDumpReport.java")
         }
         "BlockListReport.java" => {
-            include_str!(
-                "../../decompiled-server-26.1.2/net/minecraft/data/info/BlockListReport.java"
-            )
+            vibecraft_java_source!("/net/minecraft/data/info/BlockListReport.java")
         }
         "CommandsReport.java" => {
-            include_str!(
-                "../../decompiled-server-26.1.2/net/minecraft/data/info/CommandsReport.java"
-            )
+            vibecraft_java_source!("/net/minecraft/data/info/CommandsReport.java")
         }
         "DatapackStructureReport.java" => {
-            include_str!("../../decompiled-server-26.1.2/net/minecraft/data/info/DatapackStructureReport.java")
+            vibecraft_java_source!("/net/minecraft/data/info/DatapackStructureReport.java")
         }
         "PacketReport.java" => {
-            include_str!("../../decompiled-server-26.1.2/net/minecraft/data/info/PacketReport.java")
+            vibecraft_java_source!("/net/minecraft/data/info/PacketReport.java")
         }
         "RegistryComponentsReport.java" => {
-            include_str!("../../decompiled-server-26.1.2/net/minecraft/data/info/RegistryComponentsReport.java")
+            vibecraft_java_source!("/net/minecraft/data/info/RegistryComponentsReport.java")
         }
         "RegistryDumpReport.java" => {
-            include_str!(
-                "../../decompiled-server-26.1.2/net/minecraft/data/info/RegistryDumpReport.java"
-            )
+            vibecraft_java_source!("/net/minecraft/data/info/RegistryDumpReport.java")
         }
         _ => unreachable!("unknown data info report source"),
     }

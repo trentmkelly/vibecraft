@@ -1,6 +1,4 @@
-const SINGLE_ITEM_RECIPE_BUILDER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/recipes/SingleItemRecipeBuilder.java"
-);
+const SINGLE_ITEM_RECIPE_BUILDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/recipes/SingleItemRecipeBuilder.java");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SingleItemRecipeCategory {

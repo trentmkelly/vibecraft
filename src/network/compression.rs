@@ -282,12 +282,8 @@ mod tests {
 
     #[test]
     fn compression_decoder_and_encoder_match_java_handler_rules() {
-        const COMPRESSION_DECODER_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/CompressionDecoder.java"
-        );
-        const COMPRESSION_ENCODER_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/CompressionEncoder.java"
-        );
+        const COMPRESSION_DECODER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/CompressionDecoder.java");
+        const COMPRESSION_ENCODER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/CompressionEncoder.java");
 
         for sentinel in [
             "public static final int MAXIMUM_COMPRESSED_LENGTH = 2097152;",

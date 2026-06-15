@@ -1,8 +1,6 @@
 use super::*;
 
-const CLIENTBOUND_PLAYER_INFO_REMOVE_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundPlayerInfoRemovePacket.java"
-);
+const CLIENTBOUND_PLAYER_INFO_REMOVE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundPlayerInfoRemovePacket.java");
 
 #[test]
 fn clientbound_player_info_remove_packet_matches_java_codec() {

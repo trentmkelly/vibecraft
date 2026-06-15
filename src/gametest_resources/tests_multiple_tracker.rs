@@ -1,8 +1,6 @@
 use super::*;
 
-const MULTIPLE_TEST_TRACKER_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/MultipleTestTracker.java"
-);
+const MULTIPLE_TEST_TRACKER_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/MultipleTestTracker.java");
 
 fn test_info(id: &str, required: bool) -> GameTestInfoStateModel {
     GameTestInfoStateModel::new(

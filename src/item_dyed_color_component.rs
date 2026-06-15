@@ -99,9 +99,7 @@ pub fn apply_dye_textures(current: Option<u32>, dye_textures: &[u32]) -> u32 {
 mod tests {
     use super::*;
 
-    const DYED_ITEM_COLOR_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/world/item/component/DyedItemColor.java"
-    );
+    const DYED_ITEM_COLOR_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/item/component/DyedItemColor.java");
 
     #[test]
     fn dyed_item_color_defaults_blending_and_tooltips_match_java() {

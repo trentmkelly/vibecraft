@@ -5,39 +5,44 @@ import { fileURLToPath } from 'node:url'
 import { documentedRegistryOmissions, loadConfigurationRegistryClosureReport } from './configuration_registry_closure_report.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const repoRoot = path.resolve(here, '..', '..')
-const workspaceRoot = path.resolve(repoRoot, '..')
-const decompRoot = path.join(workspaceRoot, 'decompiled-server-26.1.2', 'net', 'minecraft')
+const decompiledSourceRoot = process.env.VIBECRAFT_DECOMPILED_SOURCE_ROOT
+const decompRoot = decompiledSourceRoot
+  ? path.join(decompiledSourceRoot, 'net', 'minecraft')
+  : null
+
+function decompPath (...parts) {
+  return decompRoot ? path.join(decompRoot, ...parts) : null
+}
 
 export const codecAuditSourceFiles = new Map([
-  ['Biome.NETWORK_CODEC', path.join(decompRoot, 'world', 'level', 'biome', 'Biome.java')],
-  ['ChatType.DIRECT_CODEC', path.join(decompRoot, 'network', 'chat', 'ChatType.java')],
-  ['TrimPattern.DIRECT_CODEC', path.join(decompRoot, 'world', 'item', 'equipment', 'trim', 'TrimPattern.java')],
-  ['TrimMaterial.DIRECT_CODEC', path.join(decompRoot, 'world', 'item', 'equipment', 'trim', 'TrimMaterial.java')],
-  ['WolfVariant.NETWORK_CODEC', path.join(decompRoot, 'world', 'entity', 'animal', 'wolf', 'WolfVariant.java')],
-  ['WolfSoundVariant.NETWORK_CODEC', path.join(decompRoot, 'world', 'entity', 'animal', 'wolf', 'WolfSoundVariant.java')],
-  ['PigVariant.NETWORK_CODEC', path.join(decompRoot, 'world', 'entity', 'animal', 'pig', 'PigVariant.java')],
-  ['PigSoundVariant.NETWORK_CODEC', path.join(decompRoot, 'world', 'entity', 'animal', 'pig', 'PigSoundVariant.java')],
-  ['FrogVariant.NETWORK_CODEC', path.join(decompRoot, 'world', 'entity', 'animal', 'frog', 'FrogVariant.java')],
-  ['CatVariant.NETWORK_CODEC', path.join(decompRoot, 'world', 'entity', 'animal', 'feline', 'CatVariant.java')],
-  ['CatSoundVariant.NETWORK_CODEC', path.join(decompRoot, 'world', 'entity', 'animal', 'feline', 'CatSoundVariant.java')],
-  ['CowSoundVariant.DIRECT_CODEC', path.join(decompRoot, 'world', 'entity', 'animal', 'cow', 'CowSoundVariant.java')],
-  ['CowVariant.NETWORK_CODEC', path.join(decompRoot, 'world', 'entity', 'animal', 'cow', 'CowVariant.java')],
-  ['ChickenSoundVariant.DIRECT_CODEC', path.join(decompRoot, 'world', 'entity', 'animal', 'chicken', 'ChickenSoundVariant.java')],
-  ['ChickenVariant.NETWORK_CODEC', path.join(decompRoot, 'world', 'entity', 'animal', 'chicken', 'ChickenVariant.java')],
-  ['ZombieNautilusVariant.NETWORK_CODEC', path.join(decompRoot, 'world', 'entity', 'animal', 'nautilus', 'ZombieNautilusVariant.java')],
-  ['PaintingVariant.DIRECT_CODEC', path.join(decompRoot, 'world', 'entity', 'decoration', 'painting', 'PaintingVariant.java')],
-  ['DimensionType.NETWORK_CODEC', path.join(decompRoot, 'world', 'level', 'dimension', 'DimensionType.java')],
-  ['DamageType.DIRECT_CODEC', path.join(decompRoot, 'world', 'damagesource', 'DamageType.java')],
-  ['BannerPattern.DIRECT_CODEC', path.join(decompRoot, 'world', 'level', 'block', 'entity', 'BannerPattern.java')],
-  ['Enchantment.DIRECT_CODEC', path.join(decompRoot, 'world', 'item', 'enchantment', 'Enchantment.java')],
-  ['JukeboxSong.DIRECT_CODEC', path.join(decompRoot, 'world', 'item', 'JukeboxSong.java')],
-  ['Instrument.DIRECT_CODEC', path.join(decompRoot, 'world', 'item', 'Instrument.java')],
-  ['TestEnvironmentDefinition.DIRECT_CODEC', path.join(decompRoot, 'gametest', 'framework', 'TestEnvironmentDefinition.java')],
-  ['GameTestInstance.DIRECT_CODEC', path.join(decompRoot, 'gametest', 'framework', 'GameTestInstance.java')],
-  ['Dialog.DIRECT_CODEC', path.join(decompRoot, 'server', 'dialog', 'Dialog.java')],
-  ['WorldClock.DIRECT_CODEC', path.join(decompRoot, 'world', 'clock', 'WorldClock.java')],
-  ['Timeline.NETWORK_CODEC', path.join(decompRoot, 'world', 'timeline', 'Timeline.java')]
+  ['Biome.NETWORK_CODEC', decompPath('world', 'level', 'biome', 'Biome.java')],
+  ['ChatType.DIRECT_CODEC', decompPath('network', 'chat', 'ChatType.java')],
+  ['TrimPattern.DIRECT_CODEC', decompPath('world', 'item', 'equipment', 'trim', 'TrimPattern.java')],
+  ['TrimMaterial.DIRECT_CODEC', decompPath('world', 'item', 'equipment', 'trim', 'TrimMaterial.java')],
+  ['WolfVariant.NETWORK_CODEC', decompPath('world', 'entity', 'animal', 'wolf', 'WolfVariant.java')],
+  ['WolfSoundVariant.NETWORK_CODEC', decompPath('world', 'entity', 'animal', 'wolf', 'WolfSoundVariant.java')],
+  ['PigVariant.NETWORK_CODEC', decompPath('world', 'entity', 'animal', 'pig', 'PigVariant.java')],
+  ['PigSoundVariant.NETWORK_CODEC', decompPath('world', 'entity', 'animal', 'pig', 'PigSoundVariant.java')],
+  ['FrogVariant.NETWORK_CODEC', decompPath('world', 'entity', 'animal', 'frog', 'FrogVariant.java')],
+  ['CatVariant.NETWORK_CODEC', decompPath('world', 'entity', 'animal', 'feline', 'CatVariant.java')],
+  ['CatSoundVariant.NETWORK_CODEC', decompPath('world', 'entity', 'animal', 'feline', 'CatSoundVariant.java')],
+  ['CowSoundVariant.DIRECT_CODEC', decompPath('world', 'entity', 'animal', 'cow', 'CowSoundVariant.java')],
+  ['CowVariant.NETWORK_CODEC', decompPath('world', 'entity', 'animal', 'cow', 'CowVariant.java')],
+  ['ChickenSoundVariant.DIRECT_CODEC', decompPath('world', 'entity', 'animal', 'chicken', 'ChickenSoundVariant.java')],
+  ['ChickenVariant.NETWORK_CODEC', decompPath('world', 'entity', 'animal', 'chicken', 'ChickenVariant.java')],
+  ['ZombieNautilusVariant.NETWORK_CODEC', decompPath('world', 'entity', 'animal', 'nautilus', 'ZombieNautilusVariant.java')],
+  ['PaintingVariant.DIRECT_CODEC', decompPath('world', 'entity', 'decoration', 'painting', 'PaintingVariant.java')],
+  ['DimensionType.NETWORK_CODEC', decompPath('world', 'level', 'dimension', 'DimensionType.java')],
+  ['DamageType.DIRECT_CODEC', decompPath('world', 'damagesource', 'DamageType.java')],
+  ['BannerPattern.DIRECT_CODEC', decompPath('world', 'level', 'block', 'entity', 'BannerPattern.java')],
+  ['Enchantment.DIRECT_CODEC', decompPath('world', 'item', 'enchantment', 'Enchantment.java')],
+  ['JukeboxSong.DIRECT_CODEC', decompPath('world', 'item', 'JukeboxSong.java')],
+  ['Instrument.DIRECT_CODEC', decompPath('world', 'item', 'Instrument.java')],
+  ['TestEnvironmentDefinition.DIRECT_CODEC', decompPath('gametest', 'framework', 'TestEnvironmentDefinition.java')],
+  ['GameTestInstance.DIRECT_CODEC', decompPath('gametest', 'framework', 'GameTestInstance.java')],
+  ['Dialog.DIRECT_CODEC', decompPath('server', 'dialog', 'Dialog.java')],
+  ['WorldClock.DIRECT_CODEC', decompPath('world', 'clock', 'WorldClock.java')],
+  ['Timeline.NETWORK_CODEC', decompPath('world', 'timeline', 'Timeline.java')]
 ])
 
 export const registryCodecAuditOverrides = new Map([
@@ -105,6 +110,9 @@ export async function loadConfigurationRegistryCodecAudit () {
 }
 
 export async function readCodecAuditSources (audit) {
+  if (!decompRoot) {
+    throw new Error('VIBECRAFT_DECOMPILED_SOURCE_ROOT must point at the optional Java source root')
+  }
   const uniqueSources = [...new Set(audit.map(entry => entry.sourceFile).filter(Boolean))]
   const pairs = await Promise.all(uniqueSources.map(async sourceFile => {
     return [sourceFile, await readFile(sourceFile, 'utf8')]

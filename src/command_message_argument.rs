@@ -646,9 +646,7 @@ mod tests {
 
     #[test]
     fn chat_decorator_plain_matches_java_identity_decorator() {
-        const CHAT_DECORATOR_JAVA: &str = include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/network/chat/ChatDecorator.java"
-        );
+        const CHAT_DECORATOR_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/ChatDecorator.java");
 
         for sentinel in [
             "@FunctionalInterface",

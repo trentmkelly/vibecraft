@@ -1,17 +1,11 @@
 use super::*;
 use std::collections::BTreeMap;
 
-const GENERATED_TEST_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GeneratedTest.java"
-);
+const GENERATED_TEST_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/GeneratedTest.java");
 const REGISTRIES_JAVA: &str =
-    include_str!("../../../decompiled-server-26.1.2/net/minecraft/core/registries/Registries.java");
-const TEST_DATA_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/TestData.java"
-);
-const TEST_FUNCTION_LOADER_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/TestFunctionLoader.java"
-);
+    vibecraft_java_source!("/net/minecraft/core/registries/Registries.java");
+const TEST_DATA_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/TestData.java");
+const TEST_FUNCTION_LOADER_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/TestFunctionLoader.java");
 
 #[test]
 fn generated_test_matches_java_record_and_constructor_shape() {

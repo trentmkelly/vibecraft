@@ -1,8 +1,6 @@
 use super::*;
 
-const CLIENTBOUND_SOUND_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSoundPacket.java"
-);
+const CLIENTBOUND_SOUND_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSoundPacket.java");
 
 #[test]
 fn clientbound_sound_packet_matches_java_codec() {

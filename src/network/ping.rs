@@ -85,15 +85,9 @@ mod tests {
 
     #[test]
     fn ping_packet_type_sources_match_java_names_and_listener_methods() {
-        const PING_PACKET_TYPES_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/ping/PingPacketTypes.java"
-        );
-        const CLIENT_LISTENER_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/ping/ClientPongPacketListener.java"
-        );
-        const SERVER_LISTENER_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/ping/ServerPingPacketListener.java"
-        );
+        const PING_PACKET_TYPES_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/ping/PingPacketTypes.java");
+        const CLIENT_LISTENER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/ping/ClientPongPacketListener.java");
+        const SERVER_LISTENER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/ping/ServerPingPacketListener.java");
 
         assert!(PING_PACKET_TYPES_JAVA.contains(
             "CLIENTBOUND_PONG_RESPONSE = createClientbound(\"pong_response\")"

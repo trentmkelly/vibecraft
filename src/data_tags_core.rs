@@ -1,16 +1,14 @@
 const TAG_APPENDER_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/tags/TagAppender.java");
+    vibecraft_java_source!("/net/minecraft/data/tags/TagAppender.java");
 const TAGS_PROVIDER_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/tags/TagsProvider.java");
+    vibecraft_java_source!("/net/minecraft/data/tags/TagsProvider.java");
 const HOLDER_TAG_PROVIDER_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/tags/HolderTagProvider.java");
+    vibecraft_java_source!("/net/minecraft/data/tags/HolderTagProvider.java");
 const KEY_TAG_PROVIDER_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/tags/KeyTagProvider.java");
-const INTRINSIC_HOLDER_TAGS_PROVIDER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/tags/IntrinsicHolderTagsProvider.java"
-);
+    vibecraft_java_source!("/net/minecraft/data/tags/KeyTagProvider.java");
+const INTRINSIC_HOLDER_TAGS_PROVIDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/tags/IntrinsicHolderTagsProvider.java");
 const DATA_TAGS_PACKAGE_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/tags/package-info.java");
+    vibecraft_java_source!("/net/minecraft/data/tags/package-info.java");
 
 const TAG_APPENDER_SENTINELS: &[&str] = &[
     "public interface TagAppender<E, T>",

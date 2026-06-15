@@ -1,6 +1,4 @@
-const VANILLA_ENCHANTMENT_TAGS_PROVIDER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/tags/VanillaEnchantmentTagsProvider.java"
-);
+const VANILLA_ENCHANTMENT_TAGS_PROVIDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/tags/VanillaEnchantmentTagsProvider.java");
 
 const TOOLTIP_ORDER_SENTINELS: &[&str] = &[
     "Enchantments.BINDING_CURSE",

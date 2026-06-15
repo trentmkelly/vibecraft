@@ -1,8 +1,6 @@
 use super::*;
 
-const CLIENTBOUND_PLAYER_ROTATION_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundPlayerRotationPacket.java"
-);
+const CLIENTBOUND_PLAYER_ROTATION_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundPlayerRotationPacket.java");
 
 #[test]
 fn clientbound_player_rotation_packet_matches_java_codec() {

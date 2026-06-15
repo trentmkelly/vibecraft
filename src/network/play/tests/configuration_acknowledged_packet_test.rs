@@ -1,8 +1,6 @@
 use super::*;
 
-const SERVERBOUND_CONFIGURATION_ACKNOWLEDGED_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundConfigurationAcknowledgedPacket.java"
-);
+const SERVERBOUND_CONFIGURATION_ACKNOWLEDGED_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundConfigurationAcknowledgedPacket.java");
 
 #[test]
 fn serverbound_configuration_acknowledged_packet_matches_java_unit_codec() {

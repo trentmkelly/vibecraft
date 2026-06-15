@@ -1,6 +1,4 @@
-const RECIPE_UNLOCK_ADVANCEMENT_BUILDER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/recipes/RecipeUnlockAdvancementBuilder.java"
-);
+const RECIPE_UNLOCK_ADVANCEMENT_BUILDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/recipes/RecipeUnlockAdvancementBuilder.java");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RecipeUnlockCategory {

@@ -1,6 +1,4 @@
-const VILLAGER_TRADES_TAGS_PROVIDER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/tags/VillagerTradesTagsProvider.java"
-);
+const VILLAGER_TRADES_TAGS_PROVIDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/tags/VillagerTradesTagsProvider.java");
 
 const VILLAGER_TRADE_TAG_SENTINELS: &[&str] = &[
     "public class VillagerTradesTagsProvider extends KeyTagProvider<VillagerTrade>",

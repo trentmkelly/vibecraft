@@ -64,15 +64,9 @@ fn clientbound_set_entity_data_packet_rejects_reserved_eof_index() {
 
 #[test]
 fn entity_data_accessor_and_serializer_registry_match_java_syncher_contracts() {
-    const ACCESSOR_JAVA: &str = include_str!(
-        "../../../../../decompiled-server-26.1.2/net/minecraft/network/syncher/EntityDataAccessor.java"
-    );
-    const SERIALIZER_JAVA: &str = include_str!(
-        "../../../../../decompiled-server-26.1.2/net/minecraft/network/syncher/EntityDataSerializer.java"
-    );
-    const SERIALIZERS_JAVA: &str = include_str!(
-        "../../../../../decompiled-server-26.1.2/net/minecraft/network/syncher/EntityDataSerializers.java"
-    );
+    const ACCESSOR_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/syncher/EntityDataAccessor.java");
+    const SERIALIZER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/syncher/EntityDataSerializer.java");
+    const SERIALIZERS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/syncher/EntityDataSerializers.java");
 
     assert!(ACCESSOR_JAVA.contains("return this.id == that.id;"));
     assert!(ACCESSOR_JAVA.contains("return this.id;"));

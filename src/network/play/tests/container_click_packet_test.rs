@@ -2,9 +2,7 @@ use super::*;
 
 #[test]
 fn serverbound_container_click_packet_matches_java_codec_order() {
-    const SERVERBOUND_CONTAINER_CLICK_PACKET_JAVA: &str = include_str!(
-        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundContainerClickPacket.java"
-    );
+    const SERVERBOUND_CONTAINER_CLICK_PACKET_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundContainerClickPacket.java");
     for sentinel in [
         "int containerId, int stateId, short slotNum, byte buttonNum, ContainerInput containerInput, Int2ObjectMap<HashedStack> changedSlots, HashedStack carriedItem",
         "private static final int MAX_SLOT_COUNT = 128;",
@@ -122,12 +120,8 @@ fn serverbound_container_click_packet_maps_unknown_input_to_pickup() {
 
 #[test]
 fn hashed_patch_map_and_stack_match_java_create_and_matches_contracts() {
-    const HASHED_PATCH_MAP_JAVA: &str = include_str!(
-        "../../../../../decompiled-server-26.1.2/net/minecraft/network/HashedPatchMap.java"
-    );
-    const HASHED_STACK_JAVA: &str = include_str!(
-        "../../../../../decompiled-server-26.1.2/net/minecraft/network/HashedStack.java"
-    );
+    const HASHED_PATCH_MAP_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/HashedPatchMap.java");
+    const HASHED_STACK_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/HashedStack.java");
 
     for sentinel in [
         "new IdentityHashMap<>(split.added().size())",

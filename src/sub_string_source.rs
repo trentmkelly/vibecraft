@@ -183,14 +183,10 @@ mod tests {
     use super::*;
     use crate::chat_component::TextColor;
 
-    const SUB_STRING_SOURCE_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/network/chat/SubStringSource.java"
-    );
-    const FORMATTED_CHAR_SEQUENCE_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/util/FormattedCharSequence.java"
-    );
+    const SUB_STRING_SOURCE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/SubStringSource.java");
+    const FORMATTED_CHAR_SEQUENCE_JAVA: &str = vibecraft_java_source!("/net/minecraft/util/FormattedCharSequence.java");
     const STRING_DECOMPOSER_JAVA: &str =
-        include_str!("../../decompiled-server-26.1.2/net/minecraft/util/StringDecomposer.java");
+        vibecraft_java_source!("/net/minecraft/util/StringDecomposer.java");
 
     fn color(name: &str) -> TextColor {
         TextColor::parse(name).unwrap_or_else(|| panic!("missing color {name}"))

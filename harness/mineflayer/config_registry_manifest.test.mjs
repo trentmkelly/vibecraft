@@ -5,12 +5,10 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const repoRoot = path.resolve(here, '..', '..')
-const workspaceRoot = path.resolve(repoRoot, '..')
+const decompiledSourceRoot = process.env.VIBECRAFT_DECOMPILED_SOURCE_ROOT
 
 const registryDataLoaderPath = path.join(
-  workspaceRoot,
-  'decompiled-server-26.1.2',
+  decompiledSourceRoot ?? '',
   'net',
   'minecraft',
   'resources',
@@ -63,7 +61,9 @@ function extractProbeRegistries (source) {
   return [...block[1].matchAll(/'([^']+)'/g)].map(match => match[1])
 }
 
-test('raw 26.1.2 probe covers or documents every synchronized registry', async () => {
+test('raw 26.1.2 probe covers or documents every synchronized registry', {
+  skip: !decompiledSourceRoot ? 'optional Java source root unavailable' : false
+}, async () => {
   const [registryDataLoader, rawProbe] = await Promise.all([
     readFile(registryDataLoaderPath, 'utf8'),
     readFile(rawProbePath, 'utf8')

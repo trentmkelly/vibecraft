@@ -400,9 +400,7 @@ mod tests {
 
     #[test]
     fn configuration_listener_and_packet_type_surfaces_match_java() {
-        const CLIENT_LISTENER_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/configuration/ClientConfigurationPacketListener.java"
-        );
+        const CLIENT_LISTENER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/configuration/ClientConfigurationPacketListener.java");
         assert_contains_all(
             CLIENT_LISTENER_JAVA,
             "ClientConfigurationPacketListener",
@@ -418,9 +416,7 @@ mod tests {
             ],
         );
 
-        const SERVER_LISTENER_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/configuration/ServerConfigurationPacketListener.java"
-        );
+        const SERVER_LISTENER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/configuration/ServerConfigurationPacketListener.java");
         assert_contains_all(
             SERVER_LISTENER_JAVA,
             "ServerConfigurationPacketListener",
@@ -433,9 +429,7 @@ mod tests {
             ],
         );
 
-        const PACKET_TYPES_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/configuration/ConfigurationPacketTypes.java"
-        );
+        const PACKET_TYPES_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/configuration/ConfigurationPacketTypes.java");
         assert_contains_all(
             PACKET_TYPES_JAVA,
             "ConfigurationPacketTypes",
@@ -458,9 +452,7 @@ mod tests {
 
     #[test]
     fn configuration_protocol_registration_order_matches_java() {
-        const PROTOCOLS_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/configuration/ConfigurationProtocols.java"
-        );
+        const PROTOCOLS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/configuration/ConfigurationProtocols.java");
         assert_contains_all(
             PROTOCOLS_JAVA,
             "ConfigurationProtocols",
@@ -502,9 +494,7 @@ mod tests {
 
     #[test]
     fn unit_configuration_packets_are_empty() {
-        const CLIENTBOUND_FINISH_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/configuration/ClientboundFinishConfigurationPacket.java"
-        );
+        const CLIENTBOUND_FINISH_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/configuration/ClientboundFinishConfigurationPacket.java");
         assert_contains_all(
             CLIENTBOUND_FINISH_JAVA,
             "ClientboundFinishConfigurationPacket",
@@ -518,9 +508,7 @@ mod tests {
             ],
         );
 
-        const SERVERBOUND_FINISH_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/configuration/ServerboundFinishConfigurationPacket.java"
-        );
+        const SERVERBOUND_FINISH_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/configuration/ServerboundFinishConfigurationPacket.java");
         assert_contains_all(
             SERVERBOUND_FINISH_JAVA,
             "ServerboundFinishConfigurationPacket",
@@ -534,9 +522,7 @@ mod tests {
             ],
         );
 
-        const CLIENTBOUND_RESET_CHAT_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/configuration/ClientboundResetChatPacket.java"
-        );
+        const CLIENTBOUND_RESET_CHAT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/configuration/ClientboundResetChatPacket.java");
         assert_contains_all(
             CLIENTBOUND_RESET_CHAT_JAVA,
             "ClientboundResetChatPacket",
@@ -548,9 +534,7 @@ mod tests {
             ],
         );
 
-        const SERVERBOUND_ACCEPT_CODE_OF_CONDUCT_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/configuration/ServerboundAcceptCodeOfConductPacket.java"
-        );
+        const SERVERBOUND_ACCEPT_CODE_OF_CONDUCT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/configuration/ServerboundAcceptCodeOfConductPacket.java");
         assert_contains_all(
             SERVERBOUND_ACCEPT_CODE_OF_CONDUCT_JAVA,
             "ServerboundAcceptCodeOfConductPacket",
@@ -583,9 +567,7 @@ mod tests {
 
     #[test]
     fn round_trips_code_of_conduct_and_enabled_features() {
-        const CLIENTBOUND_CODE_OF_CONDUCT_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/configuration/ClientboundCodeOfConductPacket.java"
-        );
+        const CLIENTBOUND_CODE_OF_CONDUCT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/configuration/ClientboundCodeOfConductPacket.java");
         assert_contains_all(
             CLIENTBOUND_CODE_OF_CONDUCT_JAVA,
             "ClientboundCodeOfConductPacket",
@@ -598,9 +580,7 @@ mod tests {
             ],
         );
 
-        const CLIENTBOUND_UPDATE_ENABLED_FEATURES_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/configuration/ClientboundUpdateEnabledFeaturesPacket.java"
-        );
+        const CLIENTBOUND_UPDATE_ENABLED_FEATURES_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/configuration/ClientboundUpdateEnabledFeaturesPacket.java");
         assert_contains_all(
             CLIENTBOUND_UPDATE_ENABLED_FEATURES_JAVA,
             "ClientboundUpdateEnabledFeaturesPacket",
@@ -636,9 +616,7 @@ mod tests {
 
     #[test]
     fn round_trips_known_pack_selection_and_enforces_serverbound_limit() {
-        const KNOWN_PACK_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/server/packs/repository/KnownPack.java"
-        );
+        const KNOWN_PACK_JAVA: &str = vibecraft_java_source!("/net/minecraft/server/packs/repository/KnownPack.java");
         assert_contains_all(
             KNOWN_PACK_JAVA,
             "KnownPack",
@@ -653,9 +631,7 @@ mod tests {
             ],
         );
 
-        const CLIENTBOUND_SELECT_KNOWN_PACKS_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/configuration/ClientboundSelectKnownPacks.java"
-        );
+        const CLIENTBOUND_SELECT_KNOWN_PACKS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/configuration/ClientboundSelectKnownPacks.java");
         assert_contains_all(
             CLIENTBOUND_SELECT_KNOWN_PACKS_JAVA,
             "ClientboundSelectKnownPacks",
@@ -667,9 +643,7 @@ mod tests {
             ],
         );
 
-        const SERVERBOUND_SELECT_KNOWN_PACKS_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/configuration/ServerboundSelectKnownPacks.java"
-        );
+        const SERVERBOUND_SELECT_KNOWN_PACKS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/configuration/ServerboundSelectKnownPacks.java");
         assert_contains_all(
             SERVERBOUND_SELECT_KNOWN_PACKS_JAVA,
             "ServerboundSelectKnownPacks",
@@ -702,9 +676,7 @@ mod tests {
 
     #[test]
     fn round_trips_registry_data_entries_with_optional_nbt() {
-        const CLIENTBOUND_REGISTRY_DATA_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/configuration/ClientboundRegistryDataPacket.java"
-        );
+        const CLIENTBOUND_REGISTRY_DATA_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/configuration/ClientboundRegistryDataPacket.java");
         assert_contains_all(
             CLIENTBOUND_REGISTRY_DATA_JAVA,
             "ClientboundRegistryDataPacket",

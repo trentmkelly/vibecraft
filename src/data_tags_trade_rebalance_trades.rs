@@ -1,6 +1,4 @@
-const TRADE_REBALANCE_TRADE_TAGS_PROVIDER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/tags/TradeRebalanceTradeTagsProvider.java"
-);
+const TRADE_REBALANCE_TRADE_TAGS_PROVIDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/tags/TradeRebalanceTradeTagsProvider.java");
 
 const LEVEL_TAGS: &[&str] = &[
     "VillagerTradeTags.LIBRARIAN_LEVEL_1",

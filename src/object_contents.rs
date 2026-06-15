@@ -81,21 +81,11 @@ mod tests {
     use crate::chat_component::resolution_context::ObjectInfoValidatorModel;
     use crate::chat_component::FontDescription;
 
-    const OBJECT_CONTENTS_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/network/chat/contents/ObjectContents.java"
-    );
-    const OBJECT_INFO_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/network/chat/contents/objects/ObjectInfo.java"
-    );
-    const OBJECT_INFOS_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/network/chat/contents/objects/ObjectInfos.java"
-    );
-    const ATLAS_SPRITE_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/network/chat/contents/objects/AtlasSprite.java"
-    );
-    const PLAYER_SPRITE_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/network/chat/contents/objects/PlayerSprite.java"
-    );
+    const OBJECT_CONTENTS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/contents/ObjectContents.java");
+    const OBJECT_INFO_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/contents/objects/ObjectInfo.java");
+    const OBJECT_INFOS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/contents/objects/ObjectInfos.java");
+    const ATLAS_SPRITE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/contents/objects/AtlasSprite.java");
+    const PLAYER_SPRITE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/contents/objects/PlayerSprite.java");
 
     fn atlas(atlas: &str, sprite: &str) -> ObjectContent {
         ObjectContent::AtlasSprite {

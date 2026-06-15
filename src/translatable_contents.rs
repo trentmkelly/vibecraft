@@ -237,9 +237,7 @@ impl std::fmt::Display for TranslatableArgModel {
 mod tests {
     use super::*;
 
-    const TRANSLATABLE_CONTENTS_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/network/chat/contents/TranslatableContents.java"
-    );
+    const TRANSLATABLE_CONTENTS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/contents/TranslatableContents.java");
 
     fn arg(value: &str) -> TranslatableArgModel {
         TranslatableArgModel::String(value.to_string())

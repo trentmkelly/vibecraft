@@ -15,61 +15,57 @@ use super::{
 use std::io::Cursor;
 
 const NBT_ACCOUNTER_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/NbtAccounter.java");
+    vibecraft_java_source!("/net/minecraft/nbt/NbtAccounter.java");
 const NBT_EXCEPTION_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/NbtException.java");
-const NBT_ACCOUNTER_EXCEPTION_JAVA: &str = include_str!(
-    "../../../../decompiled-server-26.1.2/net/minecraft/nbt/NbtAccounterException.java"
-);
+    vibecraft_java_source!("/net/minecraft/nbt/NbtException.java");
+const NBT_ACCOUNTER_EXCEPTION_JAVA: &str = vibecraft_java_source!("/net/minecraft/nbt/NbtAccounterException.java");
 const NBT_FORMAT_EXCEPTION_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/NbtFormatException.java");
+    vibecraft_java_source!("/net/minecraft/nbt/NbtFormatException.java");
 const NBT_PACKAGE_INFO_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/package-info.java");
-const REPORTED_NBT_EXCEPTION_JAVA: &str = include_str!(
-    "../../../../decompiled-server-26.1.2/net/minecraft/nbt/ReportedNbtException.java"
-);
+    vibecraft_java_source!("/net/minecraft/nbt/package-info.java");
+const REPORTED_NBT_EXCEPTION_JAVA: &str = vibecraft_java_source!("/net/minecraft/nbt/ReportedNbtException.java");
 const TAG_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/Tag.java");
+    vibecraft_java_source!("/net/minecraft/nbt/Tag.java");
 const TAG_VISITOR_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/TagVisitor.java");
+    vibecraft_java_source!("/net/minecraft/nbt/TagVisitor.java");
 const TAG_TYPE_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/TagType.java");
+    vibecraft_java_source!("/net/minecraft/nbt/TagType.java");
 const TAG_TYPES_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/TagTypes.java");
+    vibecraft_java_source!("/net/minecraft/nbt/TagTypes.java");
 const END_TAG_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/EndTag.java");
+    vibecraft_java_source!("/net/minecraft/nbt/EndTag.java");
 const BYTE_TAG_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/ByteTag.java");
+    vibecraft_java_source!("/net/minecraft/nbt/ByteTag.java");
 const SHORT_TAG_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/ShortTag.java");
+    vibecraft_java_source!("/net/minecraft/nbt/ShortTag.java");
 const INT_TAG_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/IntTag.java");
+    vibecraft_java_source!("/net/minecraft/nbt/IntTag.java");
 const LONG_TAG_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/LongTag.java");
+    vibecraft_java_source!("/net/minecraft/nbt/LongTag.java");
 const STRING_TAG_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/StringTag.java");
+    vibecraft_java_source!("/net/minecraft/nbt/StringTag.java");
 const STRING_TAG_VISITOR_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/StringTagVisitor.java");
+    vibecraft_java_source!("/net/minecraft/nbt/StringTagVisitor.java");
 const COLLECTION_TAG_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/CollectionTag.java");
+    vibecraft_java_source!("/net/minecraft/nbt/CollectionTag.java");
 const BYTE_ARRAY_TAG_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/ByteArrayTag.java");
+    vibecraft_java_source!("/net/minecraft/nbt/ByteArrayTag.java");
 const INT_ARRAY_TAG_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/IntArrayTag.java");
+    vibecraft_java_source!("/net/minecraft/nbt/IntArrayTag.java");
 const LONG_ARRAY_TAG_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/LongArrayTag.java");
+    vibecraft_java_source!("/net/minecraft/nbt/LongArrayTag.java");
 const LIST_TAG_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/ListTag.java");
+    vibecraft_java_source!("/net/minecraft/nbt/ListTag.java");
 const NUMERIC_TAG_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/NumericTag.java");
+    vibecraft_java_source!("/net/minecraft/nbt/NumericTag.java");
 const PRIMITIVE_TAG_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/PrimitiveTag.java");
+    vibecraft_java_source!("/net/minecraft/nbt/PrimitiveTag.java");
 const FLOAT_TAG_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/FloatTag.java");
+    vibecraft_java_source!("/net/minecraft/nbt/FloatTag.java");
 const DOUBLE_TAG_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/DoubleTag.java");
+    vibecraft_java_source!("/net/minecraft/nbt/DoubleTag.java");
 const SNBT_GRAMMAR_JAVA: &str =
-    include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/SnbtGrammar.java");
+    vibecraft_java_source!("/net/minecraft/nbt/SnbtGrammar.java");
 
 #[test]
 fn nbt_accounter_matches_java_quota_depth_and_error_contracts() {

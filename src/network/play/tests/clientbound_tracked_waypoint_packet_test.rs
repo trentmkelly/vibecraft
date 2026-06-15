@@ -1,17 +1,11 @@
 use super::*;
 use super::super::chunk_waypoint::*;
 
-const CLIENTBOUND_TRACKED_WAYPOINT_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundTrackedWaypointPacket.java"
-);
-const TRACKED_WAYPOINT_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/world/waypoints/TrackedWaypoint.java"
-);
+const CLIENTBOUND_TRACKED_WAYPOINT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundTrackedWaypointPacket.java");
+const TRACKED_WAYPOINT_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/waypoints/TrackedWaypoint.java");
 const WAYPOINT_JAVA: &str =
-    include_str!("../../../../../decompiled-server-26.1.2/net/minecraft/world/waypoints/Waypoint.java");
-const WAYPOINT_STYLE_ASSETS_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/world/waypoints/WaypointStyleAssets.java"
-);
+    vibecraft_java_source!("/net/minecraft/world/waypoints/Waypoint.java");
+const WAYPOINT_STYLE_ASSETS_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/waypoints/WaypointStyleAssets.java");
 
 #[test]
 fn clientbound_tracked_waypoint_packet_matches_java_codec() {

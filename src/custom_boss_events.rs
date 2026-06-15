@@ -312,11 +312,11 @@ mod tests {
     use super::*;
 
     const CUSTOM_BOSS_EVENTS_JAVA: &str =
-        include_str!("../../decompiled-server-26.1.2/net/minecraft/server/bossevents/CustomBossEvents.java");
+        vibecraft_java_source!("/net/minecraft/server/bossevents/CustomBossEvents.java");
     const CUSTOM_BOSS_EVENT_JAVA: &str =
-        include_str!("../../decompiled-server-26.1.2/net/minecraft/server/bossevents/CustomBossEvent.java");
+        vibecraft_java_source!("/net/minecraft/server/bossevents/CustomBossEvent.java");
     const BOSS_EVENT_JAVA: &str =
-        include_str!("../../decompiled-server-26.1.2/net/minecraft/world/BossEvent.java");
+        vibecraft_java_source!("/net/minecraft/world/BossEvent.java");
 
     #[test]
     fn custom_boss_events_java_saved_data_sentinels_match_source() {

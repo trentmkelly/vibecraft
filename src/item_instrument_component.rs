@@ -103,10 +103,8 @@ mod tests {
     use super::*;
 
     const INSTRUMENT_JAVA: &str =
-        include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/Instrument.java");
-    const INSTRUMENT_COMPONENT_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/world/item/component/InstrumentComponent.java"
-    );
+        vibecraft_java_source!("/net/minecraft/world/item/Instrument.java");
+    const INSTRUMENT_COMPONENT_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/item/component/InstrumentComponent.java");
 
     #[test]
     fn instrument_direct_codec_shape_and_vanilla_registry_match_java() {

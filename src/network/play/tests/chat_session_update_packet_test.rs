@@ -1,8 +1,6 @@
 use super::*;
 
-const SERVERBOUND_CHAT_SESSION_UPDATE_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundChatSessionUpdatePacket.java"
-);
+const SERVERBOUND_CHAT_SESSION_UPDATE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundChatSessionUpdatePacket.java");
 
 fn chat_session_prefix(session_id: Uuid, expires_at_epoch_millis: i64) -> Vec<u8> {
     let mut payload = Vec::new();

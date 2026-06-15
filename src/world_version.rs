@@ -328,7 +328,7 @@ fn days_from_civil(year: i32, month: i32, day: i32) -> i64 {
 mod tests {
     use super::*;
 
-    const VANILLA_VERSION_JSON: &str = include_str!("../../decompiled-server-26.1.2/version.json");
+    const VANILLA_VERSION_JSON: &str = vibecraft_java_source!("/version.json");
 
     #[test]
     fn world_version_simple_pack_version_switch_matches_java() {

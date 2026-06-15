@@ -5,7 +5,7 @@ use crate::worldgen::{
 use std::path::PathBuf;
 
 const CARVERS_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/worldgen/Carvers.java");
+    vibecraft_java_source!("/net/minecraft/data/worldgen/Carvers.java");
 
 fn count_occurrences(source: &str, needle: &str) -> usize {
     source.match_indices(needle).count()

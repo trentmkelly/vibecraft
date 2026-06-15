@@ -52,9 +52,7 @@ mod tests {
     use super::*;
     use crate::item_properties::ItemComponent;
 
-    const DEATH_PROTECTION_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/world/item/component/DeathProtection.java"
-    );
+    const DEATH_PROTECTION_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/item/component/DeathProtection.java");
 
     #[test]
     fn death_protection_totem_default_matches_java_effect_list() {

@@ -1,8 +1,6 @@
 use super::*;
 
-const PILE_FEATURES_JAVA: &str = include_str!(
-    "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/features/PileFeatures.java"
-);
+const PILE_FEATURES_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/features/PileFeatures.java");
 
 fn count_occurrences(source: &str, needle: &str) -> usize {
     source.match_indices(needle).count()

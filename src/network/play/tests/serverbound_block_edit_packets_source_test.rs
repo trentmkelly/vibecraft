@@ -1,20 +1,10 @@
 use super::*;
 
-const SERVERBOUND_SET_BEACON_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundSetBeaconPacket.java"
-);
-const SERVERBOUND_SET_COMMAND_BLOCK_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundSetCommandBlockPacket.java"
-);
-const SERVERBOUND_SET_COMMAND_MINECART_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundSetCommandMinecartPacket.java"
-);
-const SERVERBOUND_SET_STRUCTURE_BLOCK_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundSetStructureBlockPacket.java"
-);
-const SERVERBOUND_SIGN_UPDATE_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundSignUpdatePacket.java"
-);
+const SERVERBOUND_SET_BEACON_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundSetBeaconPacket.java");
+const SERVERBOUND_SET_COMMAND_BLOCK_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundSetCommandBlockPacket.java");
+const SERVERBOUND_SET_COMMAND_MINECART_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundSetCommandMinecartPacket.java");
+const SERVERBOUND_SET_STRUCTURE_BLOCK_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundSetStructureBlockPacket.java");
+const SERVERBOUND_SIGN_UPDATE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundSignUpdatePacket.java");
 
 #[test]
 fn serverbound_block_edit_packets_match_java_sources() {

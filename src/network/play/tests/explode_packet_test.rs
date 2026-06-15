@@ -1,18 +1,16 @@
 use super::*;
 
-const CLIENTBOUND_EXPLODE_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundExplodePacket.java"
-);
+const CLIENTBOUND_EXPLODE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundExplodePacket.java");
 const EXPLOSION_PARTICLE_INFO_JAVA: &str =
-    include_str!("../../../../../decompiled-server-26.1.2/net/minecraft/core/particles/ExplosionParticleInfo.java");
+    vibecraft_java_source!("/net/minecraft/core/particles/ExplosionParticleInfo.java");
 const WEIGHTED_JAVA: &str =
-    include_str!("../../../../../decompiled-server-26.1.2/net/minecraft/util/random/Weighted.java");
+    vibecraft_java_source!("/net/minecraft/util/random/Weighted.java");
 const WEIGHTED_LIST_JAVA: &str =
-    include_str!("../../../../../decompiled-server-26.1.2/net/minecraft/util/random/WeightedList.java");
+    vibecraft_java_source!("/net/minecraft/util/random/WeightedList.java");
 const SOUND_EVENT_JAVA: &str =
-    include_str!("../../../../../decompiled-server-26.1.2/net/minecraft/sounds/SoundEvent.java");
+    vibecraft_java_source!("/net/minecraft/sounds/SoundEvent.java");
 const BYTE_BUF_CODECS_JAVA: &str =
-    include_str!("../../../../../decompiled-server-26.1.2/net/minecraft/network/codec/ByteBufCodecs.java");
+    vibecraft_java_source!("/net/minecraft/network/codec/ByteBufCodecs.java");
 
 #[test]
 fn clientbound_explode_packet_matches_java_codec_with_knockback_and_weighted_particles() {

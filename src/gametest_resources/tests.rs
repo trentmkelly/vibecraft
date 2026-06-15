@@ -12,55 +12,23 @@ fn vanilla_data_path(parts: &[&str]) -> std::path::PathBuf {
 }
 
 const GAMETEST_MAIN_JAVA: &str =
-    include_str!("../../../decompiled-server-26.1.2/net/minecraft/gametest/Main.java");
-const BLOCK_BASED_TEST_INSTANCE_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/BlockBasedTestInstance.java"
-    );
-const BUILTIN_TEST_FUNCTIONS_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/BuiltinTestFunctions.java"
-);
-const EXHAUSTED_ATTEMPTS_EXCEPTION_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/ExhaustedAttemptsException.java"
-    );
-const FAILED_TEST_TRACKER_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/FailedTestTracker.java"
-);
-const FUNCTION_GAME_TEST_INSTANCE_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/FunctionGameTestInstance.java"
-    );
-const GAME_TEST_ASSERT_EXCEPTION_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestAssertException.java"
-    );
-const GAME_TEST_ASSERT_POS_EXCEPTION_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestAssertPosException.java"
-);
-const GAME_TEST_EXCEPTION_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestException.java"
-);
-const GAME_TEST_HELPER_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestHelper.java"
-);
-const GAME_TEST_INFO_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestInfo.java"
-);
-const GAME_TEST_TIMEOUT_EXCEPTION_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestTimeoutException.java"
-);
-const GAME_TEST_BATCH_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestBatch.java"
-);
-const GAME_TEST_BATCH_FACTORY_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestBatchFactory.java"
-);
-const GAME_TEST_BATCH_LISTENER_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestBatchListener.java"
-);
-const GAME_TEST_ENVIRONMENTS_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestEnvironments.java"
-);
-const GAME_TEST_EVENT_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GameTestEvent.java"
-);
+    vibecraft_java_source!("/net/minecraft/gametest/Main.java");
+const BLOCK_BASED_TEST_INSTANCE_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/BlockBasedTestInstance.java");
+const BUILTIN_TEST_FUNCTIONS_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/BuiltinTestFunctions.java");
+const EXHAUSTED_ATTEMPTS_EXCEPTION_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/ExhaustedAttemptsException.java");
+const FAILED_TEST_TRACKER_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/FailedTestTracker.java");
+const FUNCTION_GAME_TEST_INSTANCE_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/FunctionGameTestInstance.java");
+const GAME_TEST_ASSERT_EXCEPTION_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/GameTestAssertException.java");
+const GAME_TEST_ASSERT_POS_EXCEPTION_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/GameTestAssertPosException.java");
+const GAME_TEST_EXCEPTION_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/GameTestException.java");
+const GAME_TEST_HELPER_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/GameTestHelper.java");
+const GAME_TEST_INFO_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/GameTestInfo.java");
+const GAME_TEST_TIMEOUT_EXCEPTION_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/GameTestTimeoutException.java");
+const GAME_TEST_BATCH_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/GameTestBatch.java");
+const GAME_TEST_BATCH_FACTORY_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/GameTestBatchFactory.java");
+const GAME_TEST_BATCH_LISTENER_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/GameTestBatchListener.java");
+const GAME_TEST_ENVIRONMENTS_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/GameTestEnvironments.java");
+const GAME_TEST_EVENT_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/GameTestEvent.java");
 
 #[test]
 fn gametest_main_entrypoint_matches_java_launcher_contract() {

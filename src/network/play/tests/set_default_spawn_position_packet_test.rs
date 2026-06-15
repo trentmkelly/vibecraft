@@ -1,13 +1,9 @@
 use super::*;
 
-const CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSetDefaultSpawnPositionPacket.java"
-);
-const LEVEL_DATA_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/world/level/storage/LevelData.java"
-);
+const CLIENTBOUND_SET_DEFAULT_SPAWN_POSITION_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSetDefaultSpawnPositionPacket.java");
+const LEVEL_DATA_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/level/storage/LevelData.java");
 const GLOBAL_POS_JAVA: &str =
-    include_str!("../../../../../decompiled-server-26.1.2/net/minecraft/core/GlobalPos.java");
+    vibecraft_java_source!("/net/minecraft/core/GlobalPos.java");
 
 #[test]
 fn clientbound_set_default_spawn_position_packet_matches_java_codec() {

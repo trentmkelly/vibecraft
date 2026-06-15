@@ -1,8 +1,6 @@
 use super::*;
 
-const CLIENTBOUND_SELECT_ADVANCEMENTS_TAB_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSelectAdvancementsTabPacket.java"
-);
+const CLIENTBOUND_SELECT_ADVANCEMENTS_TAB_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSelectAdvancementsTabPacket.java");
 
 #[test]
 fn clientbound_select_advancements_tab_packet_matches_java_codec() {

@@ -32,7 +32,7 @@ mod tests {
     use crate::chat_component::ComponentContent;
 
     const DISC_FRAGMENT_ITEM_JAVA: &str =
-        include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/DiscFragmentItem.java");
+        vibecraft_java_source!("/net/minecraft/world/item/DiscFragmentItem.java");
 
     #[test]
     fn disc_fragment_hover_text_matches_java_append_hover_text() {

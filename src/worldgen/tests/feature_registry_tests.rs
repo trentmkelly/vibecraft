@@ -1,23 +1,11 @@
 use super::*;
 
-const AQUATIC_FEATURES_JAVA: &str = include_str!(
-    "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/features/AquaticFeatures.java"
-);
-const CAVE_FEATURES_JAVA: &str = include_str!(
-    "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/features/CaveFeatures.java"
-);
-const END_FEATURES_JAVA: &str = include_str!(
-    "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/features/EndFeatures.java"
-);
-const FEATURE_UTILS_JAVA: &str = include_str!(
-    "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/features/FeatureUtils.java"
-);
-const MISC_OVERWORLD_FEATURES_JAVA: &str = include_str!(
-    "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/features/MiscOverworldFeatures.java"
-);
-const DESERT_WELL_FEATURE_JAVA: &str = include_str!(
-    "../../../../decompiled-server-26.1.2/net/minecraft/world/level/levelgen/feature/DesertWellFeature.java"
-);
+const AQUATIC_FEATURES_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/features/AquaticFeatures.java");
+const CAVE_FEATURES_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/features/CaveFeatures.java");
+const END_FEATURES_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/features/EndFeatures.java");
+const FEATURE_UTILS_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/features/FeatureUtils.java");
+const MISC_OVERWORLD_FEATURES_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/features/MiscOverworldFeatures.java");
+const DESERT_WELL_FEATURE_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/level/levelgen/feature/DesertWellFeature.java");
 fn count_occurrences(source: &str, needle: &str) -> usize {
     source.match_indices(needle).count()
 }

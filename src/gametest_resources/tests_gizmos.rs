@@ -4,20 +4,18 @@ use std::rc::Rc;
 use super::gizmo_models::*;
 
 const GIZMO_JAVA: &str =
-    include_str!("../../../decompiled-server-26.1.2/net/minecraft/gizmos/Gizmo.java");
+    vibecraft_java_source!("/net/minecraft/gizmos/Gizmo.java");
 const GIZMO_COLLECTOR_JAVA: &str =
-    include_str!("../../../decompiled-server-26.1.2/net/minecraft/gizmos/GizmoCollector.java");
+    vibecraft_java_source!("/net/minecraft/gizmos/GizmoCollector.java");
 const GIZMO_PRIMITIVES_JAVA: &str =
-    include_str!("../../../decompiled-server-26.1.2/net/minecraft/gizmos/GizmoPrimitives.java");
+    vibecraft_java_source!("/net/minecraft/gizmos/GizmoPrimitives.java");
 const GIZMO_STYLE_JAVA: &str =
-    include_str!("../../../decompiled-server-26.1.2/net/minecraft/gizmos/GizmoStyle.java");
+    vibecraft_java_source!("/net/minecraft/gizmos/GizmoStyle.java");
 const GIZMOS_JAVA: &str =
-    include_str!("../../../decompiled-server-26.1.2/net/minecraft/gizmos/Gizmos.java");
-const SIMPLE_COLLECTOR_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gizmos/SimpleGizmoCollector.java"
-);
+    vibecraft_java_source!("/net/minecraft/gizmos/Gizmos.java");
+const SIMPLE_COLLECTOR_JAVA: &str = vibecraft_java_source!("/net/minecraft/gizmos/SimpleGizmoCollector.java");
 const PACKAGE_INFO_JAVA: &str =
-    include_str!("../../../decompiled-server-26.1.2/net/minecraft/gizmos/package-info.java");
+    vibecraft_java_source!("/net/minecraft/gizmos/package-info.java");
 
 #[test]
 fn gizmo_java_source_shapes_are_tracked() {

@@ -5,12 +5,10 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const repoRoot = path.resolve(here, '..', '..')
-const workspaceRoot = path.resolve(repoRoot, '..')
+const decompiledSourceRoot = process.env.VIBECRAFT_DECOMPILED_SOURCE_ROOT
 
 const itemsPath = path.join(
-  workspaceRoot,
-  'decompiled-server-26.1.2',
+  decompiledSourceRoot ?? '',
   'net',
   'minecraft',
   'world',
@@ -18,8 +16,7 @@ const itemsPath = path.join(
   'Items.java'
 )
 const itemPath = path.join(
-  workspaceRoot,
-  'decompiled-server-26.1.2',
+  decompiledSourceRoot ?? '',
   'net',
   'minecraft',
   'world',
@@ -164,7 +161,9 @@ function extractItemDependencies (itemsSource, itemSource) {
   return dependencies
 }
 
-test('decompiled item initializers map dynamic dependencies to configuration coverage', async () => {
+test('decompiled item initializers map dynamic dependencies to configuration coverage', {
+  skip: !decompiledSourceRoot ? 'optional Java source root unavailable' : false
+}, async () => {
   const [itemsSource, itemSource, rawProbe] = await Promise.all([
     readFile(itemsPath, 'utf8'),
     readFile(itemPath, 'utf8'),

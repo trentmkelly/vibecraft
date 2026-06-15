@@ -1,8 +1,6 @@
 use super::*;
 
-const CLIENTBOUND_PROJECTILE_POWER_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundProjectilePowerPacket.java"
-);
+const CLIENTBOUND_PROJECTILE_POWER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundProjectilePowerPacket.java");
 
 #[test]
 fn clientbound_projectile_power_packet_matches_java_codec() {

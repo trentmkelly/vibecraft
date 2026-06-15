@@ -1,29 +1,17 @@
-const BANNER_PATTERN_TAGS_PROVIDER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/tags/BannerPatternTagsProvider.java"
-);
+const BANNER_PATTERN_TAGS_PROVIDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/tags/BannerPatternTagsProvider.java");
 const DIALOG_TAGS_PROVIDER_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/tags/DialogTagsProvider.java");
+    vibecraft_java_source!("/net/minecraft/data/tags/DialogTagsProvider.java");
 const FEATURE_TAGS_PROVIDER_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/tags/FeatureTagsProvider.java");
-const FLAT_LEVEL_GENERATOR_PRESET_TAGS_PROVIDER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/tags/FlatLevelGeneratorPresetTagsProvider.java"
-);
+    vibecraft_java_source!("/net/minecraft/data/tags/FeatureTagsProvider.java");
+const FLAT_LEVEL_GENERATOR_PRESET_TAGS_PROVIDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/tags/FlatLevelGeneratorPresetTagsProvider.java");
 const FLUID_TAGS_PROVIDER_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/tags/FluidTagsProvider.java");
-const INSTRUMENT_TAGS_PROVIDER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/tags/InstrumentTagsProvider.java"
-);
-const PAINTING_VARIANT_TAGS_PROVIDER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/tags/PaintingVariantTagsProvider.java"
-);
+    vibecraft_java_source!("/net/minecraft/data/tags/FluidTagsProvider.java");
+const INSTRUMENT_TAGS_PROVIDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/tags/InstrumentTagsProvider.java");
+const PAINTING_VARIANT_TAGS_PROVIDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/tags/PaintingVariantTagsProvider.java");
 const POI_TYPE_TAGS_PROVIDER_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/tags/PoiTypeTagsProvider.java");
-const TIMELINE_TAGS_PROVIDER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/tags/TimelineTagsProvider.java"
-);
-const WORLD_PRESET_TAGS_PROVIDER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/tags/WorldPresetTagsProvider.java"
-);
+    vibecraft_java_source!("/net/minecraft/data/tags/PoiTypeTagsProvider.java");
+const TIMELINE_TAGS_PROVIDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/tags/TimelineTagsProvider.java");
+const WORLD_PRESET_TAGS_PROVIDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/tags/WorldPresetTagsProvider.java");
 
 #[derive(Debug, Clone, Copy)]
 struct ProviderAudit {

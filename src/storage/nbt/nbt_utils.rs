@@ -622,7 +622,7 @@ mod tests {
     use super::*;
 
     const NBT_UTILS_JAVA: &str =
-        include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/NbtUtils.java");
+        vibecraft_java_source!("/net/minecraft/nbt/NbtUtils.java");
 
     #[test]
     fn nbt_utils_compare_nbt_matches_java_partial_rules() {

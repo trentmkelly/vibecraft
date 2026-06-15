@@ -53,6 +53,12 @@ mod tests {
             });
             let path = entry.path();
             if path.is_dir() {
+                if matches!(
+                    path.file_name().and_then(|name| name.to_str()),
+                    Some("node_modules" | "target" | ".git" | "artifacts")
+                ) {
+                    continue;
+                }
                 collect_code_files(&path, files);
                 continue;
             }
@@ -187,7 +193,7 @@ mod tests {
     fn code_does_not_hardcode_decompiled_data_roots() {
         let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
         let developer_home = ["/home", "trent"].join("/");
-        let relative_decompiled_data = ["..", "decompiled-server-26.1.2", "data"].join("/");
+        let relative_decompiled_root = ["..", "decompiled-server-26.1.2"].join("/");
         let mut files = vec![manifest_dir.join("build.rs")];
         collect_code_files(&manifest_dir.join("src"), &mut files);
         collect_code_files(&manifest_dir.join("harness").join("mineflayer"), &mut files);
@@ -202,8 +208,13 @@ mod tests {
                 path.display()
             );
             assert!(
-                !contents.contains(&relative_decompiled_data),
-                "{} must use VIBECRAFT_DECOMPILED_SOURCE_ROOT or vendored data instead of a relative decompiled data path",
+                !contents.contains(&relative_decompiled_root),
+                "{} must use VIBECRAFT_DECOMPILED_SOURCE_ROOT or vendored data instead of a relative decompiled source path",
+                path.display()
+            );
+            assert!(
+                !contents.contains(&["", "..", "decompiled-server-26.1.2"].join("/")),
+                "{} must not embed parent-directory decompiled source paths",
                 path.display()
             );
         }

@@ -280,24 +280,12 @@ fn teleport_randomly(diameter: f32, context: &ConsumeEffectContext) -> ConsumeEf
 mod tests {
     use super::*;
 
-    const CONSUME_EFFECT_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/world/item/consume_effects/ConsumeEffect.java"
-    );
-    const APPLY_EFFECTS_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/world/item/consume_effects/ApplyStatusEffectsConsumeEffect.java"
-    );
-    const CLEAR_ALL_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/world/item/consume_effects/ClearAllStatusEffectsConsumeEffect.java"
-    );
-    const PLAY_SOUND_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/world/item/consume_effects/PlaySoundConsumeEffect.java"
-    );
-    const REMOVE_EFFECTS_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/world/item/consume_effects/RemoveStatusEffectsConsumeEffect.java"
-    );
-    const TELEPORT_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/world/item/consume_effects/TeleportRandomlyConsumeEffect.java"
-    );
+    const CONSUME_EFFECT_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/item/consume_effects/ConsumeEffect.java");
+    const APPLY_EFFECTS_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/item/consume_effects/ApplyStatusEffectsConsumeEffect.java");
+    const CLEAR_ALL_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/item/consume_effects/ClearAllStatusEffectsConsumeEffect.java");
+    const PLAY_SOUND_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/item/consume_effects/PlaySoundConsumeEffect.java");
+    const REMOVE_EFFECTS_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/item/consume_effects/RemoveStatusEffectsConsumeEffect.java");
+    const TELEPORT_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/item/consume_effects/TeleportRandomlyConsumeEffect.java");
 
     #[test]
     fn consume_effect_registry_type_ids_match_java() {

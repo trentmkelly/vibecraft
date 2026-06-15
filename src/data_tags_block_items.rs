@@ -1,6 +1,4 @@
-const BLOCK_ITEM_TAGS_PROVIDER_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/tags/BlockItemTagsProvider.java"
-);
+const BLOCK_ITEM_TAGS_PROVIDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/tags/BlockItemTagsProvider.java");
 
 const BLOCK_ITEM_TAG_SENTINELS: &[&str] = &[
     "public abstract class BlockItemTagsProvider",

@@ -4,57 +4,27 @@ use crate::worldgen::{
 };
 use std::path::PathBuf;
 
-const ANCIENT_CITY_STRUCTURE_PIECES_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/AncientCityStructurePieces.java"
-);
-const ANCIENT_CITY_STRUCTURE_POOLS_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/AncientCityStructurePools.java"
-);
-const BASTION_BRIDGE_POOLS_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/BastionBridgePools.java"
-);
-const BASTION_HOGLIN_STABLE_POOLS_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/BastionHoglinStablePools.java"
-);
-const BASTION_HOUSING_UNITS_POOLS_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/BastionHousingUnitsPools.java"
-);
+const ANCIENT_CITY_STRUCTURE_PIECES_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/AncientCityStructurePieces.java");
+const ANCIENT_CITY_STRUCTURE_POOLS_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/AncientCityStructurePools.java");
+const BASTION_BRIDGE_POOLS_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/BastionBridgePools.java");
+const BASTION_HOGLIN_STABLE_POOLS_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/BastionHoglinStablePools.java");
+const BASTION_HOUSING_UNITS_POOLS_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/BastionHousingUnitsPools.java");
 const BASTION_PIECES_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/worldgen/BastionPieces.java");
-const BASTION_SHARED_POOLS_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/BastionSharedPools.java"
-);
-const BASTION_TREASURE_ROOM_POOLS_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/BastionTreasureRoomPools.java"
-);
-const DESERT_VILLAGE_POOLS_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/DesertVillagePools.java"
-);
-const PILLAGER_OUTPOST_POOLS_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/PillagerOutpostPools.java"
-);
-const PLAIN_VILLAGE_POOLS_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/PlainVillagePools.java"
-);
+    vibecraft_java_source!("/net/minecraft/data/worldgen/BastionPieces.java");
+const BASTION_SHARED_POOLS_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/BastionSharedPools.java");
+const BASTION_TREASURE_ROOM_POOLS_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/BastionTreasureRoomPools.java");
+const DESERT_VILLAGE_POOLS_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/DesertVillagePools.java");
+const PILLAGER_OUTPOST_POOLS_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/PillagerOutpostPools.java");
+const PLAIN_VILLAGE_POOLS_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/PlainVillagePools.java");
 const POOLS_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/worldgen/Pools.java");
-const SAVANNA_VILLAGE_POOLS_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/SavannaVillagePools.java"
-);
-const SNOWY_VILLAGE_POOLS_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/SnowyVillagePools.java"
-);
-const TAIGA_VILLAGE_POOLS_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/TaigaVillagePools.java"
-);
-const TRAIL_RUINS_STRUCTURE_POOLS_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/TrailRuinsStructurePools.java"
-);
-const TRIAL_CHAMBERS_STRUCTURE_POOLS_JAVA: &str = include_str!(
-    "../../decompiled-server-26.1.2/net/minecraft/data/worldgen/TrialChambersStructurePools.java"
-);
+    vibecraft_java_source!("/net/minecraft/data/worldgen/Pools.java");
+const SAVANNA_VILLAGE_POOLS_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/SavannaVillagePools.java");
+const SNOWY_VILLAGE_POOLS_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/SnowyVillagePools.java");
+const TAIGA_VILLAGE_POOLS_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/TaigaVillagePools.java");
+const TRAIL_RUINS_STRUCTURE_POOLS_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/TrailRuinsStructurePools.java");
+const TRIAL_CHAMBERS_STRUCTURE_POOLS_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/TrialChambersStructurePools.java");
 const VILLAGE_POOLS_JAVA: &str =
-    include_str!("../../decompiled-server-26.1.2/net/minecraft/data/worldgen/VillagePools.java");
+    vibecraft_java_source!("/net/minecraft/data/worldgen/VillagePools.java");
 
 fn vanilla_data_path(parts: &[&str]) -> PathBuf {
     let Some(source_root) = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT") else {

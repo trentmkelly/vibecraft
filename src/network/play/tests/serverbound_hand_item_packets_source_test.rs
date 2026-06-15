@@ -1,17 +1,9 @@
 use super::*;
 
-const SERVERBOUND_SET_CARRIED_ITEM_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundSetCarriedItemPacket.java"
-);
-const SERVERBOUND_SWING_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundSwingPacket.java"
-);
-const SERVERBOUND_USE_ITEM_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundUseItemPacket.java"
-);
-const SERVERBOUND_USE_ITEM_ON_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundUseItemOnPacket.java"
-);
+const SERVERBOUND_SET_CARRIED_ITEM_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundSetCarriedItemPacket.java");
+const SERVERBOUND_SWING_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundSwingPacket.java");
+const SERVERBOUND_USE_ITEM_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundUseItemPacket.java");
+const SERVERBOUND_USE_ITEM_ON_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundUseItemOnPacket.java");
 
 #[test]
 fn serverbound_hand_and_item_packets_match_java_sources() {

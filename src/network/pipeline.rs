@@ -501,12 +501,8 @@ mod tests {
 
     #[test]
     fn packet_decoder_handler_matches_java_codec_wrapper_contract() {
-        const PACKET_DECODER_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/PacketDecoder.java"
-        );
-        const PROTOCOL_SWAP_HANDLER_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/ProtocolSwapHandler.java"
-        );
+        const PACKET_DECODER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/PacketDecoder.java");
+        const PROTOCOL_SWAP_HANDLER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/ProtocolSwapHandler.java");
 
         for sentinel in [
             "int readableBytes = input.readableBytes();",
@@ -591,12 +587,8 @@ mod tests {
 
     #[test]
     fn packet_encoder_handler_matches_java_error_and_terminal_contract() {
-        const PACKET_ENCODER_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/PacketEncoder.java"
-        );
-        const PROTOCOL_SWAP_HANDLER_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/ProtocolSwapHandler.java"
-        );
+        const PACKET_ENCODER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/PacketEncoder.java");
+        const PROTOCOL_SWAP_HANDLER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/ProtocolSwapHandler.java");
 
         for sentinel in [
             "PacketType<? extends Packet<? super T>> packetId = packet.type();",
@@ -685,9 +677,7 @@ mod tests {
     #[test]
     #[allow(clippy::too_many_lines)]
     fn unconfigured_pipeline_handler_matches_java_inbound_and_outbound_contracts() {
-        const UNCONFIGURED_JAVA: &str = include_str!(
-            "../../../decompiled-server-26.1.2/net/minecraft/network/UnconfiguredPipelineHandler.java"
-        );
+        const UNCONFIGURED_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/UnconfiguredPipelineHandler.java");
 
         for sentinel in [
             "return setupInboundHandler(new PacketDecoder<T>(protocolInfo));",

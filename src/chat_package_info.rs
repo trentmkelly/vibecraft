@@ -33,21 +33,11 @@ mod tests {
 
     fn java_package_info_source(package: &str) -> &'static str {
         match package {
-            "net.minecraft.network.chat" => include_str!(
-                "../../decompiled-server-26.1.2/net/minecraft/network/chat/package-info.java"
-            ),
-            "net.minecraft.network.chat.contents" => include_str!(
-                "../../decompiled-server-26.1.2/net/minecraft/network/chat/contents/package-info.java"
-            ),
-            "net.minecraft.network.chat.contents.data" => include_str!(
-                "../../decompiled-server-26.1.2/net/minecraft/network/chat/contents/data/package-info.java"
-            ),
-            "net.minecraft.network.chat.contents.objects" => include_str!(
-                "../../decompiled-server-26.1.2/net/minecraft/network/chat/contents/objects/package-info.java"
-            ),
-            "net.minecraft.network.chat.numbers" => include_str!(
-                "../../decompiled-server-26.1.2/net/minecraft/network/chat/numbers/package-info.java"
-            ),
+            "net.minecraft.network.chat" => vibecraft_java_source!("/net/minecraft/network/chat/package-info.java"),
+            "net.minecraft.network.chat.contents" => vibecraft_java_source!("/net/minecraft/network/chat/contents/package-info.java"),
+            "net.minecraft.network.chat.contents.data" => vibecraft_java_source!("/net/minecraft/network/chat/contents/data/package-info.java"),
+            "net.minecraft.network.chat.contents.objects" => vibecraft_java_source!("/net/minecraft/network/chat/contents/objects/package-info.java"),
+            "net.minecraft.network.chat.numbers" => vibecraft_java_source!("/net/minecraft/network/chat/numbers/package-info.java"),
             other => panic!("unknown package-info package {other}"),
         }
     }

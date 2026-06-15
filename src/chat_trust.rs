@@ -900,15 +900,9 @@ mod tests {
     #[test]
     #[allow(clippy::too_many_lines)]
     fn last_seen_messages_match_java_checksum_pack_and_update_contracts() {
-        const LAST_SEEN_MESSAGES_JAVA: &str = include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/network/chat/LastSeenMessages.java"
-        );
-        const MESSAGE_SIGNATURE_JAVA: &str = include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/network/chat/MessageSignature.java"
-        );
-        const MESSAGE_SIGNATURE_CACHE_JAVA: &str = include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/network/chat/MessageSignatureCache.java"
-        );
+        const LAST_SEEN_MESSAGES_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/LastSeenMessages.java");
+        const MESSAGE_SIGNATURE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/MessageSignature.java");
+        const MESSAGE_SIGNATURE_CACHE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/MessageSignatureCache.java");
 
         for sentinel in [
             "public static final LastSeenMessages EMPTY = new LastSeenMessages(List.of());",
@@ -1041,12 +1035,8 @@ mod tests {
 
     #[test]
     fn message_signature_and_cache_match_java_codec_packing_and_default_cache() {
-        const MESSAGE_SIGNATURE_JAVA: &str = include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/network/chat/MessageSignature.java"
-        );
-        const MESSAGE_SIGNATURE_CACHE_JAVA: &str = include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/network/chat/MessageSignatureCache.java"
-        );
+        const MESSAGE_SIGNATURE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/MessageSignature.java");
+        const MESSAGE_SIGNATURE_CACHE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/MessageSignatureCache.java");
 
         for sentinel in [
             "public static final Codec<MessageSignature> CODEC = ExtraCodecs.BASE64_STRING.xmap(MessageSignature::new, MessageSignature::bytes);",

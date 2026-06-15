@@ -1,56 +1,22 @@
 use super::*;
 
-const CLIENTBOUND_SET_OBJECTIVE_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSetObjectivePacket.java"
-);
-const CLIENTBOUND_SET_PASSENGERS_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSetPassengersPacket.java"
-);
-const CLIENTBOUND_SET_PLAYER_INVENTORY_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSetPlayerInventoryPacket.java"
-);
-const CLIENTBOUND_SET_PLAYER_TEAM_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSetPlayerTeamPacket.java"
-);
-const CLIENTBOUND_SET_SCORE_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSetScorePacket.java"
-);
-const CLIENTBOUND_SET_SIMULATION_DISTANCE_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSetSimulationDistancePacket.java"
-);
-const CLIENTBOUND_SET_SUBTITLE_TEXT_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSetSubtitleTextPacket.java"
-);
-const CLIENTBOUND_SET_TIME_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSetTimePacket.java"
-);
-const CLIENTBOUND_SET_TITLE_TEXT_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSetTitleTextPacket.java"
-);
-const CLIENTBOUND_SET_TITLES_ANIMATION_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSetTitlesAnimationPacket.java"
-);
-const CLIENTBOUND_STOP_SOUND_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundStopSoundPacket.java"
-);
-const CLIENTBOUND_SYSTEM_CHAT_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundSystemChatPacket.java"
-);
-const CLIENTBOUND_TAB_LIST_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundTabListPacket.java"
-);
-const CLIENTBOUND_TAKE_ITEM_ENTITY_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundTakeItemEntityPacket.java"
-);
-const CLIENTBOUND_TELEPORT_ENTITY_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundTeleportEntityPacket.java"
-);
-const CLIENTBOUND_UPDATE_ATTRIBUTES_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundUpdateAttributesPacket.java"
-);
-const CLIENTBOUND_UPDATE_MOB_EFFECT_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundUpdateMobEffectPacket.java"
-);
+const CLIENTBOUND_SET_OBJECTIVE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSetObjectivePacket.java");
+const CLIENTBOUND_SET_PASSENGERS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSetPassengersPacket.java");
+const CLIENTBOUND_SET_PLAYER_INVENTORY_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSetPlayerInventoryPacket.java");
+const CLIENTBOUND_SET_PLAYER_TEAM_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSetPlayerTeamPacket.java");
+const CLIENTBOUND_SET_SCORE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSetScorePacket.java");
+const CLIENTBOUND_SET_SIMULATION_DISTANCE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSetSimulationDistancePacket.java");
+const CLIENTBOUND_SET_SUBTITLE_TEXT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSetSubtitleTextPacket.java");
+const CLIENTBOUND_SET_TIME_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSetTimePacket.java");
+const CLIENTBOUND_SET_TITLE_TEXT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSetTitleTextPacket.java");
+const CLIENTBOUND_SET_TITLES_ANIMATION_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSetTitlesAnimationPacket.java");
+const CLIENTBOUND_STOP_SOUND_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundStopSoundPacket.java");
+const CLIENTBOUND_SYSTEM_CHAT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSystemChatPacket.java");
+const CLIENTBOUND_TAB_LIST_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundTabListPacket.java");
+const CLIENTBOUND_TAKE_ITEM_ENTITY_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundTakeItemEntityPacket.java");
+const CLIENTBOUND_TELEPORT_ENTITY_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundTeleportEntityPacket.java");
+const CLIENTBOUND_UPDATE_ATTRIBUTES_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundUpdateAttributesPacket.java");
+const CLIENTBOUND_UPDATE_MOB_EFFECT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundUpdateMobEffectPacket.java");
 
 #[test]
 fn scoreboard_display_clientbound_packet_codecs_match_java_sources() {

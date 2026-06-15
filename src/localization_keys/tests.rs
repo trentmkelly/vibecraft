@@ -38,10 +38,7 @@ const INTENTIONALLY_INTERNAL_LOCALIZATION_KEYS: &[&str] = &[
 ];
 
 fn en_us_lang() -> &'static str {
-    include_str!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../decompiled-server-26.1.2/assets/minecraft/lang/en_us.json"
-    ))
+    vibecraft_java_source!("/assets/minecraft/lang/en_us.json")
 }
 
 #[test]

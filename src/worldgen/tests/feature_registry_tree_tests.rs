@@ -1,8 +1,6 @@
 use super::*;
 
-const TREE_FEATURES_JAVA: &str = include_str!(
-    "../../../../decompiled-server-26.1.2/net/minecraft/data/worldgen/features/TreeFeatures.java"
-);
+const TREE_FEATURES_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/worldgen/features/TreeFeatures.java");
 
 const TREE_FEATURE_KEYS: [&str; 50] = [
     "minecraft:crimson_fungus",

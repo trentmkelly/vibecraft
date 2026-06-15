@@ -3,16 +3,20 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const repoRoot = path.resolve(here, '..', '..')
-const workspaceRoot = path.resolve(repoRoot, '..')
-const decompRoot = path.join(workspaceRoot, 'decompiled-server-26.1.2', 'net', 'minecraft', 'network', 'protocol')
+const decompiledSourceRoot = process.env.VIBECRAFT_DECOMPILED_SOURCE_ROOT
+const decompRoot = decompiledSourceRoot
+  ? path.join(decompiledSourceRoot, 'net', 'minecraft', 'network', 'protocol')
+  : null
 
 export const protocolManifestSources = {
-  play: path.join(decompRoot, 'game', 'GameProtocols.java')
+  play: decompRoot ? path.join(decompRoot, 'game', 'GameProtocols.java') : null
 }
 
 export async function loadPlayProtocolPacketManifest (options = {}) {
   const sourcePath = options.sourcePath ?? protocolManifestSources.play
+  if (!sourcePath) {
+    throw new Error('VIBECRAFT_DECOMPILED_SOURCE_ROOT must point at the optional Java source root')
+  }
   const source = await readFile(sourcePath, 'utf8')
   return createPlayProtocolPacketManifest(source)
 }

@@ -1,26 +1,12 @@
 use super::*;
 
-const SERVERBOUND_ACCEPT_TELEPORTATION_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundAcceptTeleportationPacket.java"
-);
-const SERVERBOUND_ATTACK_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundAttackPacket.java"
-);
-const SERVERBOUND_CHANGE_DIFFICULTY_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundChangeDifficultyPacket.java"
-);
-const SERVERBOUND_CHAT_ACK_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundChatAckPacket.java"
-);
-const SERVERBOUND_CHUNK_BATCH_RECEIVED_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundChunkBatchReceivedPacket.java"
-);
-const SERVERBOUND_CLIENT_COMMAND_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundClientCommandPacket.java"
-);
-const SERVERBOUND_CLIENT_TICK_END_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundClientTickEndPacket.java"
-);
+const SERVERBOUND_ACCEPT_TELEPORTATION_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundAcceptTeleportationPacket.java");
+const SERVERBOUND_ATTACK_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundAttackPacket.java");
+const SERVERBOUND_CHANGE_DIFFICULTY_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundChangeDifficultyPacket.java");
+const SERVERBOUND_CHAT_ACK_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundChatAckPacket.java");
+const SERVERBOUND_CHUNK_BATCH_RECEIVED_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundChunkBatchReceivedPacket.java");
+const SERVERBOUND_CLIENT_COMMAND_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundClientCommandPacket.java");
+const SERVERBOUND_CLIENT_TICK_END_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundClientTickEndPacket.java");
 
 #[test]
 fn serverbound_simple_packets_match_java_codecs() {

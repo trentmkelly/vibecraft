@@ -1,23 +1,11 @@
 use super::*;
 
-const GLOBAL_TEST_REPORTER_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/GlobalTestReporter.java"
-);
-const JUNIT_LIKE_TEST_REPORTER_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/JUnitLikeTestReporter.java"
-);
-const LOG_TEST_REPORTER_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/LogTestReporter.java"
-);
-const REPORT_GAME_LISTENER_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/ReportGameListener.java"
-);
-const RETRY_OPTIONS_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/RetryOptions.java"
-);
-const TEST_REPORTER_JAVA: &str = include_str!(
-    "../../../decompiled-server-26.1.2/net/minecraft/gametest/framework/TestReporter.java"
-);
+const GLOBAL_TEST_REPORTER_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/GlobalTestReporter.java");
+const JUNIT_LIKE_TEST_REPORTER_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/JUnitLikeTestReporter.java");
+const LOG_TEST_REPORTER_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/LogTestReporter.java");
+const REPORT_GAME_LISTENER_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/ReportGameListener.java");
+const RETRY_OPTIONS_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/RetryOptions.java");
+const TEST_REPORTER_JAVA: &str = vibecraft_java_source!("/net/minecraft/gametest/framework/TestReporter.java");
 
 fn required_failure() -> ReporterTestInfoModel {
     ReporterTestInfoModel::new(

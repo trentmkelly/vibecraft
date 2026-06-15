@@ -85,21 +85,11 @@ mod tests {
     use crate::network::varint::{read_var_i32, write_var_i32};
     use std::io::Cursor;
 
-    const CLIENT_INTENT_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/handshake/ClientIntent.java"
-    );
-    const CLIENT_INTENTION_PACKET_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/handshake/ClientIntentionPacket.java"
-    );
-    const HANDSHAKE_PACKET_TYPES_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/handshake/HandshakePacketTypes.java"
-    );
-    const HANDSHAKE_PROTOCOLS_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/handshake/HandshakeProtocols.java"
-    );
-    const SERVER_HANDSHAKE_PACKET_LISTENER_JAVA: &str = include_str!(
-        "../../../decompiled-server-26.1.2/net/minecraft/network/protocol/handshake/ServerHandshakePacketListener.java"
-    );
+    const CLIENT_INTENT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/handshake/ClientIntent.java");
+    const CLIENT_INTENTION_PACKET_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/handshake/ClientIntentionPacket.java");
+    const HANDSHAKE_PACKET_TYPES_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/handshake/HandshakePacketTypes.java");
+    const HANDSHAKE_PROTOCOLS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/handshake/HandshakeProtocols.java");
+    const SERVER_HANDSHAKE_PACKET_LISTENER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/handshake/ServerHandshakePacketListener.java");
 
     #[test]
     fn round_trips_client_intention_packet() {

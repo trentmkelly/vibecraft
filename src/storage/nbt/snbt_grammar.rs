@@ -736,7 +736,7 @@ mod tests {
     use super::*;
 
     const SNBT_GRAMMAR_JAVA: &str =
-        include_str!("../../../../decompiled-server-26.1.2/net/minecraft/nbt/SnbtGrammar.java");
+        vibecraft_java_source!("/net/minecraft/nbt/SnbtGrammar.java");
 
     #[test]
     fn snbt_grammar_matches_java_constants_and_control_escapes() {

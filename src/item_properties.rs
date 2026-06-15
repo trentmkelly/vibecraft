@@ -874,18 +874,16 @@ mod tests {
     use super::*;
 
     const ITEM_DISPLAY_CONTEXT_JAVA: &str =
-        include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/ItemDisplayContext.java");
+        vibecraft_java_source!("/net/minecraft/world/item/ItemDisplayContext.java");
     const ITEM_USE_ANIMATION_JAVA: &str =
-        include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/ItemUseAnimation.java");
+        vibecraft_java_source!("/net/minecraft/world/item/ItemUseAnimation.java");
     const RARITY_JAVA: &str =
-        include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/Rarity.java");
+        vibecraft_java_source!("/net/minecraft/world/item/Rarity.java");
     const SWING_ANIMATION_TYPE_JAVA: &str =
-        include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/SwingAnimationType.java");
+        vibecraft_java_source!("/net/minecraft/world/item/SwingAnimationType.java");
     const TOOLTIP_FLAG_JAVA: &str =
-        include_str!("../../decompiled-server-26.1.2/net/minecraft/world/item/TooltipFlag.java");
-    const USE_COOLDOWN_JAVA: &str = include_str!(
-        "../../decompiled-server-26.1.2/net/minecraft/world/item/component/UseCooldown.java"
-    );
+        vibecraft_java_source!("/net/minecraft/world/item/TooltipFlag.java");
+    const USE_COOLDOWN_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/item/component/UseCooldown.java");
 
     #[test]
     fn item_display_context_matches_java_ids_names_and_hand_helpers() {

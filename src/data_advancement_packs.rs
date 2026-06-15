@@ -69,21 +69,11 @@ const PACK_CLASSES: &[AdvancementPackClass] = &[
 
 fn java_source(class: AdvancementPackClass) -> &'static str {
     match class.java_file {
-        "VanillaStoryAdvancements.java" => include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/data/advancements/packs/VanillaStoryAdvancements.java"
-        ),
-        "VanillaNetherAdvancements.java" => include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/data/advancements/packs/VanillaNetherAdvancements.java"
-        ),
-        "VanillaTheEndAdvancements.java" => include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/data/advancements/packs/VanillaTheEndAdvancements.java"
-        ),
-        "VanillaAdventureAdvancements.java" => include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/data/advancements/packs/VanillaAdventureAdvancements.java"
-        ),
-        "VanillaHusbandryAdvancements.java" => include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/data/advancements/packs/VanillaHusbandryAdvancements.java"
-        ),
+        "VanillaStoryAdvancements.java" => vibecraft_java_source!("/net/minecraft/data/advancements/packs/VanillaStoryAdvancements.java"),
+        "VanillaNetherAdvancements.java" => vibecraft_java_source!("/net/minecraft/data/advancements/packs/VanillaNetherAdvancements.java"),
+        "VanillaTheEndAdvancements.java" => vibecraft_java_source!("/net/minecraft/data/advancements/packs/VanillaTheEndAdvancements.java"),
+        "VanillaAdventureAdvancements.java" => vibecraft_java_source!("/net/minecraft/data/advancements/packs/VanillaAdventureAdvancements.java"),
+        "VanillaHusbandryAdvancements.java" => vibecraft_java_source!("/net/minecraft/data/advancements/packs/VanillaHusbandryAdvancements.java"),
         _ => unreachable!("unknown advancement pack class"),
     }
 }
@@ -139,7 +129,10 @@ fn parse_item_array_count(source: &str, name: &str) -> usize {
 }
 
 fn vanilla_advancement_json_ids() -> BTreeSet<String> {
-    let root = Path::new(env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT"))
+    let Some(source_root) = option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT") else {
+        panic!("VIBECRAFT_DECOMPILED_SOURCE_ROOT must be set for advancement JSON parity");
+    };
+    let root = Path::new(source_root)
         .join("data")
         .join("minecraft")
         .join("advancement");
@@ -179,9 +172,7 @@ mod tests {
 
     #[test]
     fn vanilla_advancement_provider_registers_subproviders_in_java_order() {
-        let source = include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/data/advancements/packs/VanillaAdvancementProvider.java"
-        );
+        let source = vibecraft_java_source!("/net/minecraft/data/advancements/packs/VanillaAdvancementProvider.java");
         assert_eq!(
             parse_provider_order(source),
             VANILLA_PACK_PROVIDER_ORDER

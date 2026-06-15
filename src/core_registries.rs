@@ -216,9 +216,7 @@ mod tests {
 
     #[test]
     fn registries_java_declares_default_namespace_keys_and_path_helpers() {
-        let source = include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/core/registries/Registries.java"
-        );
+        let source = vibecraft_java_source!("/net/minecraft/core/registries/Registries.java");
         let mapping = parse_java_registry_key_paths(source);
 
         assert_eq!(mapping.len(), 147);
@@ -248,9 +246,7 @@ mod tests {
 
     #[test]
     fn builtin_registries_java_contract_matches_manifest_tests() {
-        let source = include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/core/registries/BuiltInRegistries.java"
-        );
+        let source = vibecraft_java_source!("/net/minecraft/core/registries/BuiltInRegistries.java");
         let fields = parse_java_builtin_registry_fields(source);
 
         assert_eq!(fields.len(), 95);

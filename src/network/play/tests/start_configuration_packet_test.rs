@@ -1,8 +1,6 @@
 use super::*;
 
-const CLIENTBOUND_START_CONFIGURATION_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundStartConfigurationPacket.java"
-);
+const CLIENTBOUND_START_CONFIGURATION_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundStartConfigurationPacket.java");
 
 #[test]
 fn clientbound_start_configuration_packet_matches_java_unit_codec() {

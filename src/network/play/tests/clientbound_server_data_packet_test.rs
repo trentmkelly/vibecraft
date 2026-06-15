@@ -1,15 +1,11 @@
 use super::*;
 
-const CLIENTBOUND_SERVER_DATA_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundServerDataPacket.java"
-);
-const COMPONENT_SERIALIZATION_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/chat/ComponentSerialization.java"
-);
+const CLIENTBOUND_SERVER_DATA_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundServerDataPacket.java");
+const COMPONENT_SERIALIZATION_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/ComponentSerialization.java");
 const BYTE_BUF_CODECS_JAVA: &str =
-    include_str!("../../../../../decompiled-server-26.1.2/net/minecraft/network/codec/ByteBufCodecs.java");
+    vibecraft_java_source!("/net/minecraft/network/codec/ByteBufCodecs.java");
 const FRIENDLY_BYTE_BUF_JAVA: &str =
-    include_str!("../../../../../decompiled-server-26.1.2/net/minecraft/network/FriendlyByteBuf.java");
+    vibecraft_java_source!("/net/minecraft/network/FriendlyByteBuf.java");
 
 #[test]
 fn clientbound_server_data_packet_matches_java_codec() {

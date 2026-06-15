@@ -1,9 +1,7 @@
 use super::*;
 use crate::network::codec::cursor;
 
-const SERVERBOUND_ENTITY_TAG_QUERY_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ServerboundEntityTagQueryPacket.java"
-);
+const SERVERBOUND_ENTITY_TAG_QUERY_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundEntityTagQueryPacket.java");
 
 #[test]
 fn serverbound_entity_tag_query_packet_matches_java_codec() {

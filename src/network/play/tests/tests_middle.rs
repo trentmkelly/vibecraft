@@ -206,9 +206,7 @@ fn rotate_head_packet_uses_java_entity_id_then_packed_head_yaw() {
 
 #[test]
 fn animate_packet_uses_java_entity_id_then_unsigned_action_byte() {
-    const CLIENTBOUND_ANIMATE_JAVA: &str = include_str!(
-        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundAnimatePacket.java"
-    );
+    const CLIENTBOUND_ANIMATE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundAnimatePacket.java");
     for sentinel in [
         "public class ClientboundAnimatePacket implements Packet<ClientGamePacketListener>",
         "public static final int SWING_MAIN_HAND = 0;",

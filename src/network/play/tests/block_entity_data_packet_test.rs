@@ -3,9 +3,7 @@ use std::io;
 
 #[test]
 fn clientbound_block_entity_data_packet_matches_java_codec() {
-    const CLIENTBOUND_BLOCK_ENTITY_DATA_JAVA: &str = include_str!(
-        "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundBlockEntityDataPacket.java"
-    );
+    const CLIENTBOUND_BLOCK_ENTITY_DATA_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundBlockEntityDataPacket.java");
     for sentinel in [
         "public class ClientboundBlockEntityDataPacket implements Packet<ClientGamePacketListener>",
         "BlockPos.STREAM_CODEC",

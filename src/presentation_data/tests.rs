@@ -17,7 +17,7 @@ fn sound_sources_match_vanilla_serialized_names_and_sound_events_are_lookupable(
     if !sound_events_java_source_available() {
         eprintln!(
             "skipping sound-event lookup assertions because \
-             ../decompiled-server-26.1.2/net/minecraft/sounds/SoundEvents.java is unavailable"
+             VIBECRAFT_DECOMPILED_SOURCE_ROOT does not provide net/minecraft/sounds/SoundEvents.java"
         );
         return;
     }
@@ -34,7 +34,7 @@ fn sound_events_cover_referenced_vanilla_ids_without_duplicates() {
     if !sound_events_java_source_available() {
         eprintln!(
             "skipping sound-event parity assertions because \
-             ../decompiled-server-26.1.2/net/minecraft/sounds/SoundEvents.java is unavailable"
+             VIBECRAFT_DECOMPILED_SOURCE_ROOT does not provide net/minecraft/sounds/SoundEvents.java"
         );
         return;
     }

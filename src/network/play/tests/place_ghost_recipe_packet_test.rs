@@ -1,12 +1,10 @@
 use super::*;
 
-const CLIENTBOUND_PLACE_GHOST_RECIPE_JAVA: &str = include_str!(
-    "../../../../../decompiled-server-26.1.2/net/minecraft/network/protocol/game/ClientboundPlaceGhostRecipePacket.java"
-);
+const CLIENTBOUND_PLACE_GHOST_RECIPE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundPlaceGhostRecipePacket.java");
 const BYTE_BUF_CODECS_JAVA: &str =
-    include_str!("../../../../../decompiled-server-26.1.2/net/minecraft/network/codec/ByteBufCodecs.java");
+    vibecraft_java_source!("/net/minecraft/network/codec/ByteBufCodecs.java");
 const FRIENDLY_BYTE_BUF_JAVA: &str =
-    include_str!("../../../../../decompiled-server-26.1.2/net/minecraft/network/FriendlyByteBuf.java");
+    vibecraft_java_source!("/net/minecraft/network/FriendlyByteBuf.java");
 
 #[test]
 fn clientbound_place_ghost_recipe_packet_matches_java_codec() {

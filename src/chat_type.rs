@@ -251,10 +251,8 @@ mod tests {
     #[allow(clippy::too_many_lines)]
     fn chat_type_and_decoration_match_java_bootstrap_and_parameters() {
         const CHAT_TYPE_JAVA: &str =
-            include_str!("../../decompiled-server-26.1.2/net/minecraft/network/chat/ChatType.java");
-        const CHAT_TYPE_DECORATION_JAVA: &str = include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/network/chat/ChatTypeDecoration.java"
-        );
+            vibecraft_java_source!("/net/minecraft/network/chat/ChatType.java");
+        const CHAT_TYPE_DECORATION_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/ChatTypeDecoration.java");
 
         for sentinel in [
             "public static final ChatTypeDecoration DEFAULT_CHAT_DECORATION = ChatTypeDecoration.withSender(\"chat.type.text\");",

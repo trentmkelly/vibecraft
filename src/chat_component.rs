@@ -922,9 +922,7 @@ mod tests {
 
     #[test]
     fn text_colors_parse_legacy_names_and_hex_values() {
-        const TEXT_COLOR_JAVA: &str = include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/network/chat/TextColor.java"
-        );
+        const TEXT_COLOR_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/TextColor.java");
 
         for sentinel in [
             "private static final String CUSTOM_COLOR_PREFIX = \"#\";",
@@ -986,9 +984,7 @@ mod tests {
 
     #[test]
     fn click_event_actions_match_vanilla_server_safety_flags() {
-        const CLICK_EVENT_JAVA: &str = include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/network/chat/ClickEvent.java"
-        );
+        const CLICK_EVENT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/ClickEvent.java");
 
         for sentinel in [
             "OPEN_URL(\"open_url\", true, ClickEvent.OpenUrl.CODEC)",
@@ -1069,9 +1065,7 @@ mod tests {
 
     #[test]
     fn font_description_codec_matches_java_resource_only_contract() {
-        const FONT_DESCRIPTION_JAVA: &str = include_str!(
-            "../../decompiled-server-26.1.2/net/minecraft/network/chat/FontDescription.java"
-        );
+        const FONT_DESCRIPTION_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/FontDescription.java");
 
         for sentinel in [
             "Identifier.CODEC",
