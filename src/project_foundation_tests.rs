@@ -196,6 +196,7 @@ mod tests {
         let relative_decompiled_root = ["..", "decompiled-server-26.1.2"].join("/");
         let relative_parent_server_jar = ["..", "server.jar"].join("/");
         let bare_server_jar_command = ["java -jar", "server.jar"].join(" ");
+        let workspace_server_jar_default = "workspace.join(\"server.jar\")";
         let mut files = vec![manifest_dir.join("build.rs")];
         collect_code_files(&manifest_dir.join("src"), &mut files);
         collect_code_files(&manifest_dir.join("harness").join("mineflayer"), &mut files);
@@ -229,6 +230,11 @@ mod tests {
             assert!(
                 !contents.contains(&bare_server_jar_command),
                 "{} must use VIBECRAFT_OFFICIAL_SERVER_JAR or an explicit option instead of assuming an untracked server.jar in the working directory",
+                path.display()
+            );
+            assert!(
+                !contents.contains(workspace_server_jar_default),
+                "{} must not default official-server parity runs to an untracked workspace server.jar",
                 path.display()
             );
         }

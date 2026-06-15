@@ -22,6 +22,24 @@ impl ParityHarnessConfig {
     pub fn default_in_workspace(
         workspace: impl AsRef<Path>,
         vibecraft_bin: impl Into<PathBuf>,
+    ) -> Result<Self, String> {
+        let official_jar = std::env::var_os("VIBECRAFT_OFFICIAL_SERVER_JAR")
+            .map(PathBuf::from)
+            .ok_or_else(|| {
+                "parity harness requires VIBECRAFT_OFFICIAL_SERVER_JAR or an explicit official jar path"
+                    .to_string()
+            })?;
+        Ok(Self::with_official_jar_in_workspace(
+            workspace,
+            vibecraft_bin,
+            official_jar,
+        ))
+    }
+
+    pub fn with_official_jar_in_workspace(
+        workspace: impl AsRef<Path>,
+        vibecraft_bin: impl Into<PathBuf>,
+        official_jar: impl Into<PathBuf>,
     ) -> Self {
         let workspace = workspace.as_ref();
         Self {
@@ -29,7 +47,7 @@ impl ParityHarnessConfig {
             seed: 8675309,
             port_base: 25_565,
             minecraft_version: "26.1.2".to_string(),
-            official_jar: workspace.join("server.jar"),
+            official_jar: official_jar.into(),
             vibecraft_bin: vibecraft_bin.into(),
             root: workspace.join("parity-runs"),
             extra_properties: Vec::new(),
@@ -218,7 +236,7 @@ mod tests {
             seed: 12345,
             port_base: 31_000,
             minecraft_version: "26.1.2".to_string(),
-            official_jar: PathBuf::from("/workspace/server.jar"),
+            official_jar: PathBuf::from("/workspace/official-server.jar"),
             vibecraft_bin: PathBuf::from("/workspace/VibeCraft/target/debug/vibecraft"),
             root: root.clone(),
             extra_properties: vec![("difficulty".to_string(), "hard".to_string())],
@@ -249,9 +267,10 @@ mod tests {
     #[test]
     fn command_lines_launch_java_jar_and_vibecraft_binary_from_separate_workdirs() {
         let root = temp_root("vibecraft-parity-command");
-        let config = ParityHarnessConfig::default_in_workspace(
+        let config = ParityHarnessConfig::with_official_jar_in_workspace(
             "/workspace",
             "/workspace/VibeCraft/target/debug/vibecraft",
+            "/workspace/official-server.jar",
         );
         let config = ParityHarnessConfig {
             root: root.clone(),
@@ -265,7 +284,7 @@ mod tests {
                 "-Xms512M",
                 "-Xmx512M",
                 "-jar",
-                "/workspace/server.jar",
+                "/workspace/official-server.jar",
                 "--nogui"
             ]
         );
@@ -283,9 +302,10 @@ mod tests {
         let config = ParityHarnessConfig {
             root: root.clone(),
             port_base: 32_000,
-            ..ParityHarnessConfig::default_in_workspace(
+            ..ParityHarnessConfig::with_official_jar_in_workspace(
                 "/workspace",
                 "/workspace/VibeCraft/target/debug/vibecraft",
+                "/workspace/official-server.jar",
             )
             .with_property("level-name", "same-world")
         };
