@@ -592,6 +592,7 @@ mod reference_ids;
 mod redstone;
 mod registry;
 mod resource_dependant_name;
+mod resource_file_to_id_converter;
 mod report_type;
 mod resources;
 mod respawn;
