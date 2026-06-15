@@ -10,6 +10,8 @@ pub mod common_components;
 pub mod component;
 #[path = "component_contents.rs"]
 pub mod component_contents;
+#[path = "component_serialization.rs"]
+pub mod component_serialization;
 #[path = "filter_mask.rs"]
 pub mod filter_mask;
 #[path = "formatted_text.rs"]
