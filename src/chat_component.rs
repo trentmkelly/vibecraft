@@ -12,6 +12,8 @@ pub mod component;
 pub mod component_contents;
 #[path = "component_serialization.rs"]
 pub mod component_serialization;
+#[path = "component_utils.rs"]
+pub mod component_utils;
 #[path = "filter_mask.rs"]
 pub mod filter_mask;
 #[path = "formatted_text.rs"]
