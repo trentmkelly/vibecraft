@@ -393,6 +393,8 @@ pub use chunk_a::*;
 
 mod chunk_b;
 
+mod chunk_move_entity;
+
 mod chunk_c;
 use chunk_c::*;
 
