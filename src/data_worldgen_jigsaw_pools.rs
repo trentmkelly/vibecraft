@@ -450,13 +450,13 @@ fn pool_entry_by_location<'a>(
         .unwrap_or_else(|| panic!("missing template pool element location: {location}"))
 }
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod village_tests;
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod trail_trial_tests;
 
-#[cfg(test)]
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
 
