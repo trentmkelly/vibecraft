@@ -794,7 +794,7 @@ pub(super) fn return_command(
             });
             Ok(CommandResult {
                 success_count: 0,
-                feedback_key: "commands.return.fail",
+                feedback_key: NO_COMMAND_FEEDBACK,
                 broadcast_to_admins: false,
             })
         }
@@ -806,7 +806,7 @@ pub(super) fn return_command(
             });
             Ok(CommandResult {
                 success_count: 0,
-                feedback_key: "commands.return.run",
+                feedback_key: NO_COMMAND_FEEDBACK,
                 broadcast_to_admins: false,
             })
         }
@@ -818,7 +818,7 @@ pub(super) fn return_command(
             });
             Ok(CommandResult {
                 success_count: value,
-                feedback_key: "commands.return.success",
+                feedback_key: NO_COMMAND_FEEDBACK,
                 broadcast_to_admins: false,
             })
         }

@@ -117,7 +117,7 @@
 - [ ] Implement `/random`.
 - [ ] Implement `/recipe`.
 - [ ] Implement `/reload`.
-- [x] Implement `/return` — `return_command()` covers Java's gamemaster-gated `return <value>`, `return fail`, and `return run <command>` surfaces, records return/discard events for the execution model, and is covered by `return_command_requires_gamemaster_and_records_success_or_failure`, `return_command_records_forwarded_command_and_rejects_invalid_syntax`, and `return_value_discards_same_depth_continuations`.
+- [x] Implement `/return` — `return_command()` covers Java's gamemaster-gated `return <value>`, `return fail`, and `return run <command>` surfaces, records return/discard events for the execution model, emits no command feedback because Java's custom executor never calls `sendSuccess`, and is covered by `return_command_requires_gamemaster_and_records_success_or_failure`, `return_command_records_forwarded_command_and_rejects_invalid_syntax`, `return_value_discards_same_depth_continuations`, and source-backed `command_return`.
 - [x] Implement `/ride` — live command model mirrors Java's gamemaster-gated `ride <target> mount <vehicle>` and `ride <target> dismount` surfaces, current-vehicle rejection, player-vehicle rejection, self/passenger loop rejection, cross-dimension rejection, generic `startRiding` failure, entity mount/dismount mutation, admin-broadcast success feedback, and return value `1`; covered by `ride_command_requires_gamemaster_and_mounts_then_dismounts`, `ride_command_rejects_vanilla_mount_failures`, and source-backed `command_ride`.
 - [ ] Implement `/rotate`.
 - [ ] Implement `/save-all`, `/save-off`, `/save-on`.

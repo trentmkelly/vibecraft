@@ -16,7 +16,7 @@ fn return_command_requires_gamemaster_and_records_success_or_failure() {
         execute_builtin_command(&mut state, LevelBasedPermissionSet::GAMEMASTER, "return 7")
             .unwrap();
     assert_eq!(result.success_count, 7);
-    assert_eq!(result.feedback_key, "commands.return.success");
+    assert_eq!(result.feedback_key, NO_COMMAND_FEEDBACK);
     assert_eq!(
         state.return_events[0],
         ReturnCommandEvent::Success {
@@ -32,7 +32,7 @@ fn return_command_requires_gamemaster_and_records_success_or_failure() {
     )
     .unwrap();
     assert_eq!(result.success_count, 0);
-    assert_eq!(result.feedback_key, "commands.return.fail");
+    assert_eq!(result.feedback_key, NO_COMMAND_FEEDBACK);
     assert_eq!(
         state.return_events[1],
         ReturnCommandEvent::Failure {
@@ -51,7 +51,7 @@ fn return_command_records_forwarded_command_and_rejects_invalid_syntax() {
     )
     .unwrap();
     assert_eq!(result.success_count, 0);
-    assert_eq!(result.feedback_key, "commands.return.run");
+    assert_eq!(result.feedback_key, NO_COMMAND_FEEDBACK);
     assert_eq!(
         state.return_events,
         vec![ReturnCommandEvent::Run {

@@ -169,6 +169,8 @@ mod command_reload;
 #[cfg(test)]
 mod command_result_callback;
 #[cfg(test)]
+mod command_return;
+#[cfg(test)]
 mod command_seed;
 #[cfg(test)]
 mod command_score_holder_argument;
