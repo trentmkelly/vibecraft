@@ -1013,6 +1013,7 @@ mod explode_packet_test;
 mod initialize_border_packet_test;
 mod inventory_packet_item_stack_test;
 mod level_particles_packet_test;
+mod map_item_data_packet_test;
 mod merchant_offers_packet_test;
 mod mid_clientbound_game_packets_test;
 mod mount_screen_open_packet_test;

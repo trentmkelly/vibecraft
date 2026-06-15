@@ -199,6 +199,20 @@ impl ClientboundBossEventPacket {
 }
 
 impl ClientboundMapItemDataPacket {
+    pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let packet = Self {
+            map_id: read_var_i32(reader)?,
+            scale: read_u8(reader)?,
+            locked: read_bool(reader)?,
+            decorations: read_optional(reader, |reader| {
+                read_collection(reader, MapDecorationData::read)
+            })?,
+            color_patch: MapPatch::read_optional(reader)?,
+        };
+        expect_empty_payload(reader)?;
+        Ok(packet)
+    }
+
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.map_id)?;
         writer.write_all(&[self.scale])?;
@@ -218,6 +232,16 @@ impl ClientboundMapItemDataPacket {
 }
 
 impl MapDecorationData {
+    pub(super) fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(Self {
+            decoration_type_id: read_var_i32(reader)?,
+            x: read_i8(reader)?,
+            y: read_i8(reader)?,
+            rotation: read_i8(reader)? & 15,
+            name: read_optional(reader, read_network_tag)?,
+        })
+    }
+
     pub(super) fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_var_i32(writer, self.decoration_type_id)?;
         writer.write_all(&[self.x as u8, self.y as u8, (self.rotation & 15) as u8])?;
@@ -228,6 +252,21 @@ impl MapDecorationData {
 }
 
 impl MapPatch {
+    pub(super) fn read_optional<R: Read>(reader: &mut R) -> io::Result<Option<Self>> {
+        let width = read_u8(reader)?;
+        if width == 0 {
+            return Ok(None);
+        }
+
+        Ok(Some(Self {
+            width,
+            height: read_u8(reader)?,
+            start_x: read_u8(reader)?,
+            start_y: read_u8(reader)?,
+            colors: read_byte_array(reader)?,
+        }))
+    }
+
     pub(super) fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         if self.width == 0 {
             return writer.write_all(&[0]);
@@ -236,6 +275,19 @@ impl MapPatch {
         write_var_i32(writer, self.colors.len() as i32)?;
         writer.write_all(&self.colors)
     }
+}
+
+fn read_byte_array<R: Read>(reader: &mut R) -> io::Result<Vec<u8>> {
+    let len = read_var_i32(reader)?;
+    if len < 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "negative byte array length",
+        ));
+    }
+    let mut bytes = vec![0; len as usize];
+    reader.read_exact(&mut bytes)?;
+    Ok(bytes)
 }
 
 impl BossEventFlags {
@@ -438,6 +490,15 @@ pub(super) fn write_network_tag<W: Write>(writer: &mut W, tag: &Tag) -> io::Resu
         tag.write_payload(writer)?;
     }
     Ok(())
+}
+
+pub(super) fn read_network_tag<R: Read>(reader: &mut R) -> io::Result<Tag> {
+    let id = read_u8(reader)?;
+    if id == 0 {
+        Ok(Tag::End)
+    } else {
+        Tag::read_payload(id, reader)
+    }
 }
 
 pub(super) fn read_length_prefixed_bytes<R: Read>(
