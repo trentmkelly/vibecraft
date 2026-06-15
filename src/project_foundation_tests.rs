@@ -62,7 +62,7 @@ mod tests {
                 collect_code_files(&path, files);
                 continue;
             }
-            if let Some("rs" | "js" | "mjs" | "sh" | "toml") =
+            if let Some("java" | "js" | "mjs" | "py" | "rs" | "sh" | "toml" | "yaml" | "yml") =
                 path.extension().and_then(|ext| ext.to_str())
             {
                 files.push(path);
@@ -197,6 +197,8 @@ mod tests {
         let mut files = vec![manifest_dir.join("build.rs")];
         collect_code_files(&manifest_dir.join("src"), &mut files);
         collect_code_files(&manifest_dir.join("harness").join("mineflayer"), &mut files);
+        collect_code_files(&manifest_dir.join("tools"), &mut files);
+        collect_code_files(&manifest_dir.join(".github").join("workflows"), &mut files);
 
         for path in files {
             let contents = fs::read_to_string(&path).unwrap_or_else(|err| {
