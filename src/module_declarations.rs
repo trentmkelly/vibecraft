@@ -173,7 +173,11 @@ mod command_score_holder_argument;
 #[cfg(test)]
 mod command_scoreboard_slot_argument;
 #[cfg(test)]
+mod command_set_spawn;
+#[cfg(test)]
 mod command_set_idle_timeout;
+#[cfg(test)]
+mod command_set_world_spawn;
 #[cfg(test)]
 mod command_selector;
 #[cfg(test)]
