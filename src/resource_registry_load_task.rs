@@ -58,8 +58,8 @@ impl RegistryLoadRegistrationInfo {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RegistryLoadResource {
-    contents: String,
-    source_pack_id: String,
+    pub contents: String,
+    pub source_pack_id: String,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -213,6 +213,10 @@ impl RegistryLoadTaskModel {
 
     pub fn registry_key(&self) -> &Identifier {
         &self.data.registry_key
+    }
+
+    pub fn element_codec(&self) -> &'static str {
+        self.data.element_codec
     }
 
     pub fn read_only_registry(&self) -> Result<&[RegisteredRegistryElement], String> {
