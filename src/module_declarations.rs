@@ -648,6 +648,7 @@ mod waypoint;
 mod weather;
 mod world;
 mod world_border;
+mod world_loader;
 mod world_stem;
 mod world_time;
 mod world_version;
