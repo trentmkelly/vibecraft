@@ -1017,6 +1017,7 @@ mod merchant_offers_packet_test;
 mod mid_clientbound_game_packets_test;
 mod mount_screen_open_packet_test;
 mod move_entity_packet_test;
+mod move_minecart_packet_test;
 mod named_sound_effect_absence_test;
 mod open_screen_packet_test;
 mod place_ghost_recipe_packet_test;

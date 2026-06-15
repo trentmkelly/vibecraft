@@ -153,6 +153,7 @@ pub const CLIENTBOUND_MAP_ITEM_DATA_PACKET_ID: i32 = 51;
 pub const CLIENTBOUND_MERCHANT_OFFERS_PACKET_ID: i32 = 52;
 pub const CLIENTBOUND_MOVE_ENTITY_POS_PACKET_ID: i32 = 53;
 pub const CLIENTBOUND_MOVE_ENTITY_POS_ROT_PACKET_ID: i32 = 54;
+pub const CLIENTBOUND_MOVE_MINECART_PACKET_ID: i32 = 55;
 pub const CLIENTBOUND_MOVE_ENTITY_ROT_PACKET_ID: i32 = 56;
 pub const CLIENTBOUND_MOVE_VEHICLE_PACKET_ID: i32 = 57;
 pub const CLIENTBOUND_OPEN_BOOK_PACKET_ID: i32 = 58;
@@ -394,6 +395,8 @@ pub use chunk_a::*;
 mod chunk_b;
 
 mod chunk_move_entity;
+
+mod chunk_move_minecart;
 
 mod chunk_c;
 use chunk_c::*;
