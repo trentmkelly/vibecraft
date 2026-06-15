@@ -42,6 +42,8 @@ pub mod resolution_context;
 pub mod score_contents;
 #[path = "selector_contents.rs"]
 pub mod selector_contents;
+#[path = "signed_message_chain.rs"]
+pub mod signed_message_chain;
 #[path = "sub_string_source.rs"]
 pub mod sub_string_source;
 #[path = "throwing_component.rs"]
