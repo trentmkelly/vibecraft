@@ -25,12 +25,12 @@ pub(super) fn stop_sound_command(
     let targets = parse_name_list(parts[1]);
     let (source, sound) = match parts {
         ["stopsound", _targets] => (None, None),
-        ["stopsound", _targets, "*"] => (None, None),
-        ["stopsound", _targets, "*", sound] => (None, Some((*sound).to_string())),
+        ["stopsound", _targets, "*"] => return Err(CommandError::InvalidSyntax),
+        ["stopsound", _targets, "*", sound] => (None, Some(parse_resource_identifier(sound)?)),
         ["stopsound", _targets, source] => (Some(parse_sound_source(source)?), None),
         ["stopsound", _targets, source, sound] => (
             Some(parse_sound_source(source)?),
-            Some((*sound).to_string()),
+            Some(parse_resource_identifier(sound)?),
         ),
         _ => return Err(CommandError::InvalidSyntax),
     };

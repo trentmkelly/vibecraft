@@ -351,6 +351,30 @@ fn stopsound_queues_source_and_sound_filters() {
         result.feedback_key,
         "commands.stopsound.success.sourceless.sound"
     );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "stopsound Steve *"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "stopsound Steve players minecraft:music.menu"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "stopsound Steve player bad id"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
 }
 
 #[test]

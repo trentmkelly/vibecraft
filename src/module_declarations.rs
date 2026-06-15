@@ -193,6 +193,10 @@ mod command_source;
 #[cfg(test)]
 mod command_source_stack;
 #[cfg(test)]
+mod command_stop_sound;
+#[cfg(test)]
+mod command_stopwatch;
+#[cfg(test)]
 mod command_string_representable_argument;
 #[cfg(test)]
 mod command_style_argument;
