@@ -149,6 +149,8 @@ mod command_resource_or_tag_argument;
 #[cfg(test)]
 mod command_resource_or_tag_key_argument;
 #[cfg(test)]
+mod command_save;
+#[cfg(test)]
 mod command_resource_selector_argument;
 #[cfg(test)]
 mod command_result_callback;
