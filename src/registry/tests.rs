@@ -322,6 +322,130 @@ fn rejects_invalid_identifier_case() {
 }
 
 #[test]
+fn identifier_factory_and_validation_helpers_match_java_resource_location() {
+    let source = vibecraft_java_source!("/net/minecraft/resources/Identifier.java");
+    for sentinel in [
+        "public static final Codec<Identifier> CODEC = Codec.STRING.comapFlatMap(Identifier::read, Identifier::toString).stable();",
+        "public static final char NAMESPACE_SEPARATOR = ':';",
+        "public static final String DEFAULT_NAMESPACE = \"minecraft\";",
+        "public static Identifier withDefaultNamespace(final String path)",
+        "public static @Nullable Identifier tryBuild(final String namespace, final String path)",
+        "if (namespace.equals(\"..\"))",
+        "return c == '_' || c == '-' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '.';",
+        "return c == '_' || c == '-' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '/' || c == '.';",
+    ] {
+        if !source.is_empty() {
+            assert!(
+                source.contains(sentinel),
+                "Identifier.java sentinel missing: {sentinel}"
+            );
+        }
+    }
+
+    assert_eq!(Identifier::DEFAULT_NAMESPACE, "minecraft");
+    assert_eq!(Identifier::REALMS_NAMESPACE, "realms");
+    assert_eq!(Identifier::ALLOWED_NAMESPACE_CHARACTERS, "[a-z0-9_.-]");
+
+    let dotted_namespace = Identifier::from_namespace_and_path("my.pack", "path/to.file").unwrap();
+    assert_eq!(dotted_namespace.to_string(), "my.pack:path/to.file");
+    assert_eq!(Identifier::with_default_namespace("").unwrap().to_string(), "minecraft:");
+    assert_eq!(Identifier::parse(":stone").unwrap().to_string(), "minecraft:stone");
+    assert_eq!(Identifier::parse("mod:").unwrap().to_string(), "mod:");
+    assert_eq!(
+        Identifier::by_separator("mod|thing", '|').unwrap().to_string(),
+        "mod:thing"
+    );
+
+    assert!(Identifier::is_valid_namespace(""));
+    assert!(!Identifier::is_valid_namespace(".."));
+    assert!(Identifier::is_valid_namespace("a.b_c-1"));
+    assert!(Identifier::is_valid_path(""));
+    assert!(Identifier::is_valid_path("foo/bar.baz-1"));
+    assert!(!Identifier::is_valid_path("foo:bar"));
+
+    assert_eq!(
+        Identifier::try_parse("Minecraft:stone"),
+        None,
+        "tryParse returns null instead of throwing on invalid namespace"
+    );
+    assert_eq!(
+        Identifier::try_build("..", "stone"),
+        None,
+        "tryBuild rejects the special parent-directory namespace"
+    );
+    assert_eq!(
+        Identifier::read("Upper:stone").unwrap_err(),
+        "Not a valid resource location: Upper:stone Non [a-z0-9_.-] character in namespace of identifier: Upper:stone"
+    );
+    assert_eq!(
+        Identifier::read("minecraft:Bad").unwrap_err(),
+        "Not a valid resource location: minecraft:Bad Non [a-z0-9/._-] character in path of location: minecraft:Bad"
+    );
+}
+
+#[test]
+fn identifier_derived_strings_and_order_match_java() {
+    let source = vibecraft_java_source!("/net/minecraft/resources/Identifier.java");
+    for sentinel in [
+        "public int compareTo(final Identifier o) {\n      int result = this.path.compareTo(o.path);",
+        "return this.toString().replace('/', '_').replace(':', '_');",
+        "return this.namespace.equals(\"minecraft\") ? this.path : this.toLanguageKey();",
+        "return this.namespace.equals(\"minecraft\") ? this.path : this.toString();",
+        "return prefix + \".\" + this.toLanguageKey() + \".\" + suffix;",
+    ] {
+        if !source.is_empty() {
+            assert!(
+                source.contains(sentinel),
+                "Identifier.java sentinel missing: {sentinel}"
+            );
+        }
+    }
+
+    let id = Identifier::parse("custom:block/stone").unwrap();
+    assert_eq!(id.with_path("other/path").unwrap().to_string(), "custom:other/path");
+    assert_eq!(
+        id.with_modified_path(|path| format!("prefix/{path}"))
+            .unwrap()
+            .to_string(),
+        "custom:prefix/block/stone"
+    );
+    assert_eq!(id.with_prefix("pre_").unwrap().to_string(), "custom:pre_block/stone");
+    assert_eq!(
+        id.with_suffix("_post").unwrap().to_string(),
+        "custom:block/stone_post"
+    );
+    assert_eq!(id.to_debug_file_name(), "custom_block_stone");
+    assert_eq!(id.to_language_key(), "custom.block/stone");
+    assert_eq!(id.to_short_language_key(), "custom.block/stone");
+    assert_eq!(id.to_short_string(), "custom:block/stone");
+    assert_eq!(id.to_language_key_with_prefix("block"), "block.custom.block/stone");
+    assert_eq!(
+        id.to_language_key_with_prefix_and_suffix("block", "name"),
+        "block.custom.block/stone.name"
+    );
+    assert_eq!(
+        id.resolve_against(std::path::Path::new("assets")),
+        std::path::PathBuf::from("assets/custom/block/stone")
+    );
+
+    let vanilla = Identifier::parse("minecraft:stone").unwrap();
+    assert_eq!(vanilla.to_short_language_key(), "stone");
+    assert_eq!(vanilla.to_short_string(), "stone");
+
+    let mut sorted = vec![
+        Identifier::parse("minecraft:z").unwrap(),
+        Identifier::parse("a:same").unwrap(),
+        Identifier::parse("minecraft:a").unwrap(),
+        Identifier::parse("b:same").unwrap(),
+    ];
+    sorted.sort();
+    assert_eq!(
+        sorted.into_iter().map(|id| id.to_string()).collect::<Vec<_>>(),
+        vec!["minecraft:a", "a:same", "b:same", "minecraft:z"]
+    );
+}
+
+#[test]
 fn registry_assigns_stable_ids_and_freezes() {
     let mut registry = Registry::new(Identifier::parse(registries::BLOCK).unwrap());
     let stone = Identifier::parse("stone").unwrap();

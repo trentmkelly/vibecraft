@@ -5,9 +5,11 @@
 )]
 
 use std::collections::BTreeMap;
+use std::cmp::Ordering;
 use std::fmt;
 use std::io::{self, Read, Write};
 use std::marker::PhantomData;
+use std::path::{Path, PathBuf};
 
 use crate::network::codec::{
     read_identifier, read_registry_value_id, write_identifier, write_registry_value_id,
@@ -15,38 +17,89 @@ use crate::network::codec::{
 };
 use crate::storage::nbt::Tag;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Identifier {
     namespace: String,
     path: String,
 }
 
 impl Identifier {
+    pub const NAMESPACE_SEPARATOR: char = ':';
+    pub const DEFAULT_NAMESPACE: &'static str = "minecraft";
+    pub const REALMS_NAMESPACE: &'static str = "realms";
+    pub const ALLOWED_NAMESPACE_CHARACTERS: &'static str = "[a-z0-9_.-]";
+
     pub fn parse(value: &str) -> Result<Self, String> {
-        let (namespace, path) = value.split_once(':').unwrap_or(("minecraft", value));
-        Self::new(namespace, path)
+        Self::by_separator(value, Self::NAMESPACE_SEPARATOR)
     }
 
     pub fn new(namespace: &str, path: &str) -> Result<Self, String> {
-        if namespace.is_empty() || path.is_empty() {
-            return Err("identifier namespace and path must be non-empty".to_string());
-        }
-        if !namespace
-            .chars()
-            .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '_' || ch == '-')
-        {
-            return Err(format!("invalid identifier namespace: {namespace}"));
-        }
-        if !path.chars().all(|ch| {
-            ch.is_ascii_lowercase() || ch.is_ascii_digit() || matches!(ch, '_' | '-' | '.' | '/')
-        }) {
-            return Err(format!("invalid identifier path: {path}"));
-        }
+        Self::from_namespace_and_path(namespace, path)
+    }
 
+    pub fn from_namespace_and_path(namespace: &str, path: &str) -> Result<Self, String> {
+        Self::create_untrusted(namespace, path)
+    }
+
+    pub fn with_default_namespace(path: &str) -> Result<Self, String> {
         Ok(Self {
+            namespace: Self::DEFAULT_NAMESPACE.to_string(),
+            path: assert_valid_path(Self::DEFAULT_NAMESPACE, path)?.to_string(),
+        })
+    }
+
+    pub fn try_parse(value: &str) -> Option<Self> {
+        Self::try_by_separator(value, Self::NAMESPACE_SEPARATOR)
+    }
+
+    pub fn try_build(namespace: &str, path: &str) -> Option<Self> {
+        (Self::is_valid_namespace(namespace) && Self::is_valid_path(path)).then(|| Self {
             namespace: namespace.to_string(),
             path: path.to_string(),
         })
+    }
+
+    pub fn by_separator(identifier: &str, separator: char) -> Result<Self, String> {
+        match identifier.find(separator) {
+            Some(0) => Self::with_default_namespace(&identifier[separator.len_utf8()..]),
+            Some(separator_index) => {
+                let path = &identifier[separator_index + separator.len_utf8()..];
+                let namespace = &identifier[..separator_index];
+                Self::create_untrusted(namespace, path)
+            }
+            None => Self::with_default_namespace(identifier),
+        }
+    }
+
+    pub fn try_by_separator(identifier: &str, separator: char) -> Option<Self> {
+        match identifier.find(separator) {
+            Some(0) => {
+                let path = &identifier[separator.len_utf8()..];
+                Self::is_valid_path(path).then(|| Self {
+                    namespace: Self::DEFAULT_NAMESPACE.to_string(),
+                    path: path.to_string(),
+                })
+            }
+            Some(separator_index) => {
+                let path = &identifier[separator_index + separator.len_utf8()..];
+                if !Self::is_valid_path(path) {
+                    return None;
+                }
+                let namespace = &identifier[..separator_index];
+                Self::is_valid_namespace(namespace).then(|| Self {
+                    namespace: namespace.to_string(),
+                    path: path.to_string(),
+                })
+            }
+            None => Self::is_valid_path(identifier).then(|| Self {
+                namespace: Self::DEFAULT_NAMESPACE.to_string(),
+                path: identifier.to_string(),
+            }),
+        }
+    }
+
+    pub fn read(input: &str) -> Result<Self, String> {
+        Self::parse(input).map_err(|err| format!("Not a valid resource location: {input} {err}"))
     }
 
     pub fn namespace(&self) -> &str {
@@ -56,11 +109,138 @@ impl Identifier {
     pub fn path(&self) -> &str {
         &self.path
     }
+
+    pub fn with_path(&self, new_path: &str) -> Result<Self, String> {
+        Ok(Self {
+            namespace: self.namespace.clone(),
+            path: assert_valid_path(&self.namespace, new_path)?.to_string(),
+        })
+    }
+
+    pub fn with_modified_path(&self, modifier: impl FnOnce(&str) -> String) -> Result<Self, String> {
+        self.with_path(&modifier(&self.path))
+    }
+
+    pub fn with_prefix(&self, prefix: &str) -> Result<Self, String> {
+        self.with_path(&format!("{prefix}{}", self.path))
+    }
+
+    pub fn with_suffix(&self, suffix: &str) -> Result<Self, String> {
+        self.with_path(&format!("{}{suffix}", self.path))
+    }
+
+    pub fn resolve_against(&self, root: &Path) -> PathBuf {
+        root.join(&self.namespace).join(&self.path)
+    }
+
+    pub fn to_debug_file_name(&self) -> String {
+        self.to_string().replace(['/', ':'], "_")
+    }
+
+    pub fn to_language_key(&self) -> String {
+        format!("{}.{}", self.namespace, self.path)
+    }
+
+    pub fn to_short_language_key(&self) -> String {
+        if self.namespace == Self::DEFAULT_NAMESPACE {
+            self.path.clone()
+        } else {
+            self.to_language_key()
+        }
+    }
+
+    pub fn to_short_string(&self) -> String {
+        if self.namespace == Self::DEFAULT_NAMESPACE {
+            self.path.clone()
+        } else {
+            self.to_string()
+        }
+    }
+
+    pub fn to_language_key_with_prefix(&self, prefix: &str) -> String {
+        format!("{prefix}.{}", self.to_language_key())
+    }
+
+    pub fn to_language_key_with_prefix_and_suffix(&self, prefix: &str, suffix: &str) -> String {
+        format!("{prefix}.{}.{suffix}", self.to_language_key())
+    }
+
+    pub fn is_allowed_in_identifier(character: char) -> bool {
+        character.is_ascii_digit()
+            || character.is_ascii_lowercase()
+            || matches!(character, '_' | ':' | '/' | '.' | '-')
+    }
+
+    pub fn is_valid_path(path: &str) -> bool {
+        path.chars().all(Self::valid_path_char)
+    }
+
+    pub fn is_valid_namespace(namespace: &str) -> bool {
+        namespace != ".." && namespace.chars().all(valid_namespace_char)
+    }
+
+    pub fn valid_path_char(character: char) -> bool {
+        character == '_'
+            || character == '-'
+            || character.is_ascii_lowercase()
+            || character.is_ascii_digit()
+            || character == '/'
+            || character == '.'
+    }
+
+    fn create_untrusted(namespace: &str, path: &str) -> Result<Self, String> {
+        Ok(Self {
+            namespace: assert_valid_namespace(namespace, path)?.to_string(),
+            path: assert_valid_path(namespace, path)?.to_string(),
+        })
+    }
+}
+
+impl PartialOrd for Identifier {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Identifier {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.path
+            .cmp(&other.path)
+            .then_with(|| self.namespace.cmp(&other.namespace))
+    }
 }
 
 impl fmt::Display for Identifier {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(formatter, "{}:{}", self.namespace, self.path)
+    }
+}
+
+fn valid_namespace_char(character: char) -> bool {
+    character == '_'
+        || character == '-'
+        || character.is_ascii_lowercase()
+        || character.is_ascii_digit()
+        || character == '.'
+}
+
+fn assert_valid_namespace<'a>(namespace: &'a str, path: &str) -> Result<&'a str, String> {
+    if Identifier::is_valid_namespace(namespace) {
+        Ok(namespace)
+    } else {
+        Err(format!(
+            "Non [a-z0-9_.-] character in namespace of identifier: {namespace}:{path}"
+        ))
+    }
+}
+
+fn assert_valid_path<'a>(namespace: &str, path: &'a str) -> Result<&'a str, String> {
+    if Identifier::is_valid_path(path) {
+        Ok(path)
+    } else {
+        Err(format!(
+            "Non [a-z0-9/._-] character in path of location: {namespace}:{path}"
+        ))
     }
 }
 
@@ -670,6 +850,90 @@ pub mod feature_flags {
 
     pub fn default_flags_26_1_2() -> FeatureFlagSet {
         vanilla_set()
+    }
+}
+
+#[cfg(test)]
+mod identifier_parity_tests {
+    use super::Identifier;
+
+    #[test]
+    fn identifier_validation_and_factory_edges_match_java() {
+        let source = vibecraft_java_source!("/net/minecraft/resources/Identifier.java");
+        for sentinel in [
+            "public static Identifier withDefaultNamespace(final String path)",
+            "public static @Nullable Identifier tryBuild(final String namespace, final String path)",
+            "public static boolean isValidNamespace(final String namespace)",
+            "if (namespace.equals(\"..\"))",
+            "throw new IdentifierException(\"Non [a-z0-9/._-] character in path of location: \" + namespace + \":\" + path);",
+        ] {
+            if !source.is_empty() {
+                assert!(
+                    source.contains(sentinel),
+                    "Identifier.java sentinel missing: {sentinel}"
+                );
+            }
+        }
+
+        assert_eq!(Identifier::parse("stone").unwrap().to_string(), "minecraft:stone");
+        assert_eq!(Identifier::parse(":stone").unwrap().to_string(), "minecraft:stone");
+        assert_eq!(Identifier::parse("mod:").unwrap().to_string(), "mod:");
+        assert_eq!(
+            Identifier::from_namespace_and_path("my.pack", "path/to.file")
+                .unwrap()
+                .to_string(),
+            "my.pack:path/to.file"
+        );
+        assert!(Identifier::is_valid_namespace(""));
+        assert!(!Identifier::is_valid_namespace(".."));
+        assert!(Identifier::is_valid_path(""));
+        assert!(!Identifier::is_valid_path("bad:path"));
+        assert_eq!(Identifier::try_parse("Upper:stone"), None);
+        assert_eq!(Identifier::try_build("..", "stone"), None);
+        assert_eq!(
+            Identifier::read("minecraft:Bad").unwrap_err(),
+            "Not a valid resource location: minecraft:Bad Non [a-z0-9/._-] character in path of location: minecraft:Bad"
+        );
+    }
+
+    #[test]
+    fn identifier_helpers_and_order_match_java() {
+        let source = vibecraft_java_source!("/net/minecraft/resources/Identifier.java");
+        for sentinel in [
+            "int result = this.path.compareTo(o.path);",
+            "return this.toString().replace('/', '_').replace(':', '_');",
+            "return this.namespace.equals(\"minecraft\") ? this.path : this.toString();",
+        ] {
+            if !source.is_empty() {
+                assert!(
+                    source.contains(sentinel),
+                    "Identifier.java sentinel missing: {sentinel}"
+                );
+            }
+        }
+
+        let id = Identifier::parse("custom:block/stone").unwrap();
+        assert_eq!(id.with_prefix("pre_").unwrap().to_string(), "custom:pre_block/stone");
+        assert_eq!(
+            id.with_suffix("_post").unwrap().to_string(),
+            "custom:block/stone_post"
+        );
+        assert_eq!(id.to_debug_file_name(), "custom_block_stone");
+        assert_eq!(id.to_language_key(), "custom.block/stone");
+        assert_eq!(id.to_short_string(), "custom:block/stone");
+        assert_eq!(Identifier::parse("minecraft:stone").unwrap().to_short_string(), "stone");
+
+        let mut sorted = vec![
+            Identifier::parse("minecraft:z").unwrap(),
+            Identifier::parse("a:same").unwrap(),
+            Identifier::parse("minecraft:a").unwrap(),
+            Identifier::parse("b:same").unwrap(),
+        ];
+        sorted.sort();
+        assert_eq!(
+            sorted.into_iter().map(|id| id.to_string()).collect::<Vec<_>>(),
+            vec!["minecraft:a", "a:same", "b:same", "minecraft:z"]
+        );
     }
 }
 
