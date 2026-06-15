@@ -1326,7 +1326,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/server/advancements`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/advancements/AdvancementVisibilityEvaluator.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/advancements/AdvancementVisibilityEvaluator.java`. Rust `advancement_visibility_evaluator` mirrors Java's visibility pass: displayless advancements hide, completed displayed advancements show even when hidden, unfinished hidden advancements hide, unfinished visible advancements leave visibility unchanged, the current/parent/grandparent visibility stack depth is exactly 2, evaluation always starts from `node.root()`, child traversal happens before `output.accept`, and ancestors become visible when self or any descendant is done. Covered by behavior tests for rule selection, stack-depth cutoff, root-start/post-order output, done-descendant propagation, hidden/displayless cutoff, completed-hidden visibility, plus source-backed Java sentinels for the evaluator methods and enum.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/advancements/package-info.java`. Java 26.1.2 package marker contains only `@NullMarked`, the package declaration, and the `org.jspecify.annotations.NullMarked` import; no Rust runtime behavior or parity test is required beyond preserving nullability expectations in typed Rust APIs.
 
 ## `decompiled-server-26.1.2/net/minecraft/server/bossevents`
