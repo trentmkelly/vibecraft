@@ -48,11 +48,11 @@ Registry, codec, datapack, and resource-pack parity work moved out of the top-le
 - [ ] Implement `data/minecraft/test_environment`.
 - [ ] Implement `data/minecraft/test_instance`.
 - [ ] Implement `data/minecraft/timeline`.
-- [ ] Implement `data/minecraft/trade_set`.
+- [x] Implement `data/minecraft/trade_set`. — `villager_trade_resources::load_villager_trade_data_root` indexes the bundled `vanilla-data/data/minecraft/trade_set` tree, `offers_from_trade_set` resolves direct and tag-backed trade holders through the resource index, and `bundled_villager_trade_data_resolves_default_offers` verifies all 68 in-repo trade sets parse and resolve through default fresh-clone loading.
 - [ ] Implement `data/minecraft/trial_spawner`.
 - [ ] Implement `data/minecraft/trim_material`.
 - [ ] Implement `data/minecraft/trim_pattern`.
-- [ ] Implement `data/minecraft/villager_trade`.
+- [x] Implement `data/minecraft/villager_trade`. — `villager_trade_resources` decodes vanilla villager-trade JSON into `MerchantOffer`s, profession and wandering-trader offer generation reads the bundled `vanilla-data/data/minecraft/villager_trade` tree by default, and `bundled_villager_trade_data_resolves_default_offers` verifies all 387 in-repo villager trades plus 73 villager-trade tags parse and resolve.
 - [ ] Implement `data/minecraft/world_clock`.
 - [ ] Implement `data/minecraft/worldgen`.
 - [ ] Implement reload failure rollback and user-facing error reporting.
