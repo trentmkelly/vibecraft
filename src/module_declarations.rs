@@ -592,6 +592,7 @@ mod recipe_system;
 mod reference_ids;
 mod redstone;
 mod registry;
+mod reloadable_server_registries;
 mod resource_delegating_ops;
 mod resource_dependant_name;
 mod resource_file_to_id_converter;
