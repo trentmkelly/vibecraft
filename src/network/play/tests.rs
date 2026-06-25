@@ -1059,6 +1059,8 @@ mod open_screen_packet_test;
 mod place_ghost_recipe_packet_test;
 mod player_chat_packet_test;
 #[cfg(all(test, vibecraft_has_decompiled_sources))]
+mod player_chat_packet_source_test;
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod player_info_remove_packet_test;
 #[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod player_info_update_packet_test;
