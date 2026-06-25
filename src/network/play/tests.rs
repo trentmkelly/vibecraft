@@ -1073,6 +1073,8 @@ mod scoreboard_display_clientbound_packets_test;
 #[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod ui_world_clientbound_packets_test;
 mod reset_score_packet_test;
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
+mod respawn_packet_source_test;
 mod resource_pack_packet_test;
 mod section_blocks_update_packet_test;
 mod set_action_bar_text_packet_test;
