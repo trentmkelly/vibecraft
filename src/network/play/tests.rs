@@ -1044,6 +1044,8 @@ mod explode_packet_test;
 mod game_protocols_source_test;
 mod initialize_border_packet_test;
 mod inventory_packet_item_stack_test;
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
+mod level_chunk_packet_source_test;
 mod level_particles_packet_test;
 #[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod light_update_packet_source_test;

@@ -1103,7 +1103,7 @@ pub struct LevelChunkBlockEntityInfo {
     pub packed_xz: u8,
     pub y: i16,
     pub block_entity_type_id: i32,
-    pub tag: Tag,
+    pub tag: Option<Tag>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

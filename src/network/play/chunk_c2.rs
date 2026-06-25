@@ -266,7 +266,10 @@ impl LevelChunkBlockEntityInfo {
             packed_xz: (((x & 15) << 4) | (z & 15)) as u8,
             y: y as i16,
             block_entity_type_id: block_entity_type_network_id(id).unwrap_or(0),
-            tag: tag.clone(),
+            tag: match tag {
+                Tag::Compound(fields) if fields.is_empty() => None,
+                _ => Some(tag.clone()),
+            },
         })
     }
 
@@ -274,7 +277,10 @@ impl LevelChunkBlockEntityInfo {
         writer.write_all(&[self.packed_xz])?;
         write_i16(writer, self.y)?;
         write_var_i32(writer, self.block_entity_type_id)?;
-        write_network_compound_tag(writer, &self.tag)
+        match &self.tag {
+            Some(tag) => write_network_compound_tag(writer, tag),
+            None => write_network_tag(writer, &Tag::End),
+        }
     }
 }
 
