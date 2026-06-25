@@ -14,9 +14,9 @@ use crate::item_properties::ItemComponent;
 use crate::item_stack::ItemStack;
 use crate::network::codec::{
     read_collection, read_enum_index, read_identifier, read_optional, read_string,
-    read_trusted_component, read_uuid, write_bitset, write_collection, write_enum_index,
-    write_identifier, write_optional, write_string, write_trusted_component, write_uuid,
-    ComponentJson, Uuid,
+    read_trusted_component, read_uuid, write_bitset, write_collection, write_component,
+    write_enum_index, write_identifier, write_optional, write_string, write_trusted_component,
+    write_uuid, ComponentJson, Uuid,
 };
 use crate::network::common::ServerboundResourcePackPacket;
 use crate::network::dispatch::{DecodedPacket, DispatchOutcome, PacketDirection, ProtocolState};
@@ -227,6 +227,7 @@ pub const CLIENTBOUND_EXPLODE_PACKET_ID: i32 = 36;
 /// Java: `net/minecraft/network/protocol/game/ClientboundTakeItemEntityPacket`
 pub const CLIENTBOUND_TAKE_ITEM_ENTITY_PACKET_ID: i32 = 124;
 pub const CLIENTBOUND_TELEPORT_ENTITY_PACKET_ID: i32 = 125;
+pub const CLIENTBOUND_TEST_INSTANCE_BLOCK_STATUS_PACKET_ID: i32 = 126;
 pub const CLIENTBOUND_UPDATE_ADVANCEMENTS_PACKET_ID: i32 = 130;
 pub const CLIENTBOUND_UPDATE_ATTRIBUTES_PACKET_ID: i32 = 131;
 pub const CLIENTBOUND_UPDATE_MOB_EFFECT_PACKET_ID: i32 = 132;
@@ -387,6 +388,9 @@ pub use chunk_types_b::*;
 mod chunk_types_debug;
 pub use chunk_types_debug::*;
 
+mod chunk_types_test;
+pub use chunk_types_test::*;
+
 mod chunk_types_c;
 
 mod chunk_impl_early;
@@ -405,6 +409,8 @@ mod chunk_c;
 use chunk_c::*;
 
 mod chunk_debug;
+
+mod chunk_test;
 
 mod chunk_c2;
 use chunk_c2::*;

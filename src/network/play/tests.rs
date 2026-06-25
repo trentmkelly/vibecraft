@@ -1138,6 +1138,8 @@ mod stop_sound_packet_test;
 mod system_chat_packet_test;
 mod tab_list_packet_test;
 #[cfg(all(test, vibecraft_has_decompiled_sources))]
+mod test_instance_block_status_packet_test;
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod ticking_packets_test;
 #[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests_middle;
