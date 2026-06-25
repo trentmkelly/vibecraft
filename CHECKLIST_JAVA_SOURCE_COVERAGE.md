@@ -165,7 +165,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. Each pack
 - [ ] `net/minecraft/network/protocol/handshake` (6 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/network/protocol/login` (14 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/network/protocol/login/custom` (5 Java files): add class-level Rust port tasks and parity tests.
-- [ ] `net/minecraft/network/protocol/ping` (6 Java files): add class-level Rust port tasks and parity tests.
+- [x] `net/minecraft/network/protocol/ping` (6 Java files): class-level Rust port tasks and parity tests are tracked in `CHECKLIST_JAVA_CLASSES.md`; direct filename comparison against `decompiled-server-26.1.2/net/minecraft/network/protocol/ping` confirms all 6 Java files, including `package-info.java`, have checked per-class rows. Covered by `network::ping::tests` for big-endian long request/response codecs, pong echo behavior, Java packet type names, listener method contracts, and the live status ping echo test.
 - [ ] `net/minecraft/network/protocol/status` (8 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/network/syncher` (6 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/package-info.java` (1 Java files): add class-level Rust port tasks and parity tests.
