@@ -89,7 +89,7 @@ This checklist tracks source families from `decompiled-server-26.1.2/net/minecra
 
 Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. Each package bucket must be expanded into class-level tasks during implementation planning.
 
-- [ ] `net/minecraft/CharPredicate.java` (1 Java files): add class-level Rust port tasks and parity tests.
+- [x] `net/minecraft/CharPredicate.java` (1 Java files): class-level Rust port task completed by `src/char_predicate.rs`; `JavaCharPredicate` models Java `char` as a UTF-16 code unit and covers `test`, short-circuiting `and`/`or`, and `negate`; verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 char_predicate`.
 - [ ] `net/minecraft/ChatFormatting.java` (1 Java files): add class-level Rust port tasks and parity tests.
 - [x] `net/minecraft/CrashReport.java` (1 Java files): class-level Rust port task completed by `src/crash.rs` and `src/crash/tests.rs`, including details/friendly report formatting, save-once behavior, stack-trace category tracking, throwable unwrapping, and preload tests.
 - [ ] `net/minecraft/CrashReportCategory.java` (1 Java files): add class-level Rust port tasks and parity tests.
@@ -97,8 +97,8 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. Each pack
 - [ ] `net/minecraft/DefaultUncaughtExceptionHandler.java` (1 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/DefaultUncaughtExceptionHandlerWithName.java` (1 Java files): add class-level Rust port tasks and parity tests.
 - [x] `net/minecraft/DetectedVersion.java` (1 Java files): class-level Rust port task completed by `src/world_version.rs`, including built-in fallback and real `version.json` parsing tests.
-- [ ] `net/minecraft/IdentifierException.java` (1 Java files): add class-level Rust port tasks and parity tests.
-- [ ] `net/minecraft/Optionull.java` (1 Java files): add class-level Rust port tasks and parity tests.
+- [x] `net/minecraft/IdentifierException.java` (1 Java files): class-level Rust port task completed by `src/identifier_exception.rs`; `IdentifierExceptionModel` mirrors Java's escaped runtime-exception message/cause surface, including control-character, quote/backslash, BMP Unicode, and surrogate-pair escaping; verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 identifier_exception`.
+- [x] `net/minecraft/Optionull.java` (1 Java files): class-level Rust port task completed by `src/optionull.rs`; Rust helpers model Java null branches for `orElse`, `map`, `mapOrDefault`, lazy `mapOrElse`, `first`, `firstOrDefault`, lazy `firstOrElse`, and all object/primitive array `isNullOrEmpty` overloads through nullable slices; verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 optionull`.
 - [ ] `net/minecraft/ReportType.java` (1 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/ReportedException.java` (1 Java files): add class-level Rust port tasks and parity tests.
 - [x] `net/minecraft/SharedConstants.java` (1 Java files): class-level Rust port task completed by `src/shared_constants.rs`, including constants, debug-property gates, version state, protocol, debug terrain, and static initializer tests.
