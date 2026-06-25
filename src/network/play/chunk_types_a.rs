@@ -31,7 +31,7 @@ pub struct CommonPlayerSpawnInfo {
 pub struct ClientboundLoginPacket {
     pub player_id: i32,
     pub hardcore: bool,
-    pub levels: Vec<Identifier>,
+    pub levels: BTreeSet<Identifier>,
     pub max_players: i32,
     pub chunk_radius: i32,
     pub simulation_distance: i32,

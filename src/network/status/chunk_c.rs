@@ -526,7 +526,7 @@ fn write_join_login_and_profile_packets(
     let login = ClientboundLoginPacket {
         player_id: 1,
         hardcore: context.properties.hardcore,
-        levels: vec![overworld_identifier()?],
+        levels: BTreeSet::from([overworld_identifier()?]),
         max_players: context.properties.max_players as i32,
         chunk_radius: context.properties.view_distance as i32,
         simulation_distance: context.properties.simulation_distance as i32,

@@ -6,10 +6,10 @@ pub fn live_login_writer_reuses_vanilla_common_spawn_codec() {
     let login = ClientboundLoginPacket {
         player_id: 42,
         hardcore: true,
-        levels: vec![
+        levels: BTreeSet::from([
             Identifier::parse("minecraft:overworld").unwrap(),
             Identifier::parse("minecraft:the_nether").unwrap(),
-        ],
+        ]),
         max_players: 20,
         chunk_radius: 10,
         simulation_distance: 8,

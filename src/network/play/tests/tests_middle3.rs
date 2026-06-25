@@ -6,11 +6,11 @@ fn vanilla_join_sequence_matches_player_list_packet_and_side_effect_order() {
     let login = ClientboundLoginPacket {
         player_id: 42,
         hardcore: true,
-        levels: vec![
+        levels: BTreeSet::from([
             Identifier::parse("minecraft:overworld").unwrap(),
             Identifier::parse("minecraft:the_nether").unwrap(),
             Identifier::parse("minecraft:the_end").unwrap(),
-        ],
+        ]),
         max_players: 20,
         chunk_radius: 10,
         simulation_distance: 10,

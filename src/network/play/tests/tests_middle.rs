@@ -1072,7 +1072,7 @@ fn join_sequence_enters_play_with_login_held_slot_and_position_packets() {
     let login = ClientboundLoginPacket {
         player_id: 42,
         hardcore: false,
-        levels: vec![Identifier::parse("minecraft:overworld").unwrap()],
+        levels: BTreeSet::from([Identifier::parse("minecraft:overworld").unwrap()]),
         max_players: 20,
         chunk_radius: 10,
         simulation_distance: 10,
@@ -1115,10 +1115,10 @@ fn login_and_respawn_packets_write_common_spawn_info_in_vanilla_order() {
     let login = ClientboundLoginPacket {
         player_id: 42,
         hardcore: true,
-        levels: vec![
+        levels: BTreeSet::from([
             Identifier::parse("minecraft:overworld").unwrap(),
             Identifier::parse("minecraft:the_nether").unwrap(),
-        ],
+        ]),
         max_players: 20,
         chunk_radius: 10,
         simulation_distance: 8,
