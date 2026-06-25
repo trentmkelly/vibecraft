@@ -2518,7 +2518,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/util/monitoring/jmx`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/monitoring/jmx/MinecraftServerStatistics.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/monitoring/jmx/MinecraftServerStatistics.java`. `src/util_monitoring_jmx.rs` mirrors Java 26.1.2 `MinecraftServerStatistics` dynamic-MBean surface: the `net.minecraft.server:type=Server` object name, failed-registration log text, `tickTimes` and `averageTickTime` read-only attributes, Java's `long[]`/`long` attribute-info type names including the average-tick float getter quirk, unknown-attribute filtering, empty notification info, no-op mutators, null invoke result, and VibeCraft's documented `server/metrics` JSON-RPC management export as the Rust equivalent for `enable-jmx-monitoring`. Verified by Java-source-backed `util_monitoring_jmx` tests.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/monitoring/jmx/package-info.java`. Java 26.1.2 package marker contains only `@NullMarked`, the package declaration, and the `org.jspecify.annotations.NullMarked` import; no Rust runtime behavior or parity test is required beyond preserving nullability expectations in typed Rust APIs.
 
 ## `decompiled-server-26.1.2/net/minecraft/util`

@@ -691,6 +691,7 @@ mod system_report;
 mod tracing_executor;
 mod trial_system;
 mod util_context;
+mod util_monitoring_jmx;
 mod util_random;
 #[cfg(test)]
 mod vehicle_entity;

@@ -224,7 +224,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. Each pack
 - [ ] `net/minecraft/util/filefix/operations` (9 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/util/filefix/virtualfilesystem` (9 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/util/filefix/virtualfilesystem/exception` (9 Java files): add class-level Rust port tasks and parity tests.
-- [ ] `net/minecraft/util/monitoring/jmx` (2 Java files): add class-level Rust port tasks and parity tests.
+- [x] `net/minecraft/util/monitoring/jmx` (2 Java files): per-class rows are tracked in `CHECKLIST_JAVA_CLASSES.md`, direct filename comparison with `decompiled-server-26.1.2/net/minecraft/util/monitoring/jmx` confirms both files including `package-info.java` are covered, and `util_monitoring_jmx` tests pin Java's `MinecraftServerStatistics` object name, registration failure policy, read-only `tickTimes`/`averageTickTime` dynamic-MBean attributes, MBean info metadata, no-op mutation/invoke behavior, and VibeCraft's JSON-RPC `server/metrics` export as the Rust management equivalent.
 - [x] `net/minecraft/util/parsing` (1 Java files): add class-level Rust port tasks and parity tests. — the package contains only `package-info.java`; its class row in `CHECKLIST_JAVA_CLASSES.md` is audited as a `@NullMarked` package marker with no runtime Rust behavior or parity test required.
 - [ ] `net/minecraft/util/parsing/packrat` (14 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/util/parsing/packrat/commands` (14 Java files): add class-level Rust port tasks and parity tests.
