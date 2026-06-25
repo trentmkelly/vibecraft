@@ -384,6 +384,9 @@ pub use chunk_types_a::*;
 mod chunk_types_b;
 pub use chunk_types_b::*;
 
+mod chunk_types_debug;
+pub use chunk_types_debug::*;
+
 mod chunk_types_c;
 
 mod chunk_impl_early;
@@ -400,6 +403,8 @@ mod chunk_move_minecart;
 
 mod chunk_c;
 use chunk_c::*;
+
+mod chunk_debug;
 
 mod chunk_c2;
 use chunk_c2::*;

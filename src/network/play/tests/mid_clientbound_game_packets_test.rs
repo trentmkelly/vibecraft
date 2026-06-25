@@ -1,6 +1,10 @@
 use super::*;
 
 const CLIENTBOUND_CUSTOM_CHAT_COMPLETIONS_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundCustomChatCompletionsPacket.java");
+const CLIENTBOUND_DEBUG_BLOCK_VALUE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundDebugBlockValuePacket.java");
+const CLIENTBOUND_DEBUG_CHUNK_VALUE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundDebugChunkValuePacket.java");
+const CLIENTBOUND_DEBUG_ENTITY_VALUE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundDebugEntityValuePacket.java");
+const CLIENTBOUND_DEBUG_EVENT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundDebugEventPacket.java");
 const CLIENTBOUND_DEBUG_SAMPLE_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundDebugSamplePacket.java");
 const CLIENTBOUND_DELETE_CHAT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundDeleteChatPacket.java");
 const CLIENTBOUND_DISGUISED_CHAT_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundDisguisedChatPacket.java");
@@ -14,6 +18,7 @@ const CLIENTBOUND_HURT_ANIMATION_JAVA: &str = vibecraft_java_source!("/net/minec
 #[test]
 fn mid_clientbound_game_packet_codecs_match_java_sources() {
     assert_custom_chat_completions();
+    assert_debug_value_and_event_packets();
     assert_debug_sample();
     assert_delete_chat();
     assert_disguised_chat();
@@ -57,6 +62,143 @@ fn assert_custom_chat_completions() {
         ClientboundCustomChatCompletionsPacket::read(&mut cursor(payload)).unwrap(),
         packet
     );
+}
+
+fn assert_debug_value_and_event_packets() {
+    assert_debug_value_java_sources();
+    assert_debug_value_registry_names();
+    assert_debug_value_packet_payloads();
+    assert_debug_value_packets_reject_no_value_subscription();
+}
+
+fn assert_debug_value_java_sources() {
+    assert_java_contains(
+        CLIENTBOUND_DEBUG_BLOCK_VALUE_JAVA,
+        &[
+            "public record ClientboundDebugBlockValuePacket(BlockPos blockPos, DebugSubscription.Update<?> update)",
+            "BlockPos.STREAM_CODEC",
+            "DebugSubscription.Update.STREAM_CODEC",
+            "return GamePacketTypes.CLIENTBOUND_DEBUG_BLOCK_VALUE;",
+            "listener.handleDebugBlockValue(this);",
+        ],
+    );
+    assert_java_contains(
+        CLIENTBOUND_DEBUG_CHUNK_VALUE_JAVA,
+        &[
+            "public record ClientboundDebugChunkValuePacket(ChunkPos chunkPos, DebugSubscription.Update<?> update)",
+            "ChunkPos.STREAM_CODEC",
+            "DebugSubscription.Update.STREAM_CODEC",
+            "return GamePacketTypes.CLIENTBOUND_DEBUG_CHUNK_VALUE;",
+            "listener.handleDebugChunkValue(this);",
+        ],
+    );
+    assert_java_contains(
+        CLIENTBOUND_DEBUG_ENTITY_VALUE_JAVA,
+        &[
+            "public record ClientboundDebugEntityValuePacket(int entityId, DebugSubscription.Update<?> update)",
+            "ByteBufCodecs.VAR_INT",
+            "DebugSubscription.Update.STREAM_CODEC",
+            "return GamePacketTypes.CLIENTBOUND_DEBUG_ENTITY_VALUE;",
+            "listener.handleDebugEntityValue(this);",
+        ],
+    );
+    assert_java_contains(
+        CLIENTBOUND_DEBUG_EVENT_JAVA,
+        &[
+            "public record ClientboundDebugEventPacket(DebugSubscription.Event<?> event)",
+            "DebugSubscription.Event.STREAM_CODEC",
+            "return GamePacketTypes.CLIENTBOUND_DEBUG_EVENT;",
+            "listener.handleDebugEvent(this);",
+        ],
+    );
+}
+
+fn assert_debug_value_registry_names() {
+    assert_registry(CLIENTBOUND_DEBUG_BLOCK_VALUE_PACKET_ID, "debug_block_value");
+    assert_registry(CLIENTBOUND_DEBUG_CHUNK_VALUE_PACKET_ID, "debug_chunk_value");
+    assert_registry(
+        CLIENTBOUND_DEBUG_ENTITY_VALUE_PACKET_ID,
+        "debug_entity_value",
+    );
+    assert_registry(CLIENTBOUND_DEBUG_EVENT_PACKET_ID, "debug_event");
+}
+
+fn assert_debug_value_packet_payloads() {
+    let update = DebugSubscriptionUpdate {
+        subscription_id: 15,
+        value_payload: Some(vec![0x12, 0x34]),
+    };
+    let mut block = Vec::new();
+    ClientboundDebugBlockValuePacket {
+        block_pos: crate::block_update::BlockPos { x: 1, y: 64, z: -2 },
+        update: update.clone(),
+    }
+    .write(&mut block)
+    .unwrap();
+    assert_eq!(
+        block,
+        [
+            pack_block_position(1, 64, -2).to_be_bytes().to_vec(),
+            vec![15, 1, 0x12, 0x34],
+        ]
+        .concat()
+    );
+
+    let mut chunk = Vec::new();
+    ClientboundDebugChunkValuePacket {
+        chunk_pos: ChunkPos { x: -3, z: 9 },
+        update: DebugSubscriptionUpdate {
+            subscription_id: 11,
+            value_payload: None,
+        },
+    }
+    .write(&mut chunk)
+    .unwrap();
+    assert_eq!(
+        chunk,
+        [
+            pack_chunk_pos_as_long(ChunkPos { x: -3, z: 9 })
+                .to_be_bytes()
+                .to_vec(),
+            vec![11, 0],
+        ]
+        .concat()
+    );
+
+    let mut entity = Vec::new();
+    ClientboundDebugEntityValuePacket {
+        entity_id: 300,
+        update,
+    }
+    .write(&mut entity)
+    .unwrap();
+    assert_eq!(entity, vec![0xac, 0x02, 15, 1, 0x12, 0x34]);
+
+    let mut event = Vec::new();
+    ClientboundDebugEventPacket {
+        event: DebugSubscriptionEvent {
+            subscription_id: 14,
+            value_payload: vec![0xaa, 0xbb, 0xcc],
+        },
+    }
+    .write(&mut event)
+    .unwrap();
+    assert_eq!(event, vec![14, 0xaa, 0xbb, 0xcc]);
+}
+
+fn assert_debug_value_packets_reject_no_value_subscription() {
+    assert!(DebugSubscriptionUpdate {
+        subscription_id: 0,
+        value_payload: None,
+    }
+    .write(&mut Vec::new())
+    .is_err());
+    assert!(DebugSubscriptionEvent {
+        subscription_id: 0,
+        value_payload: vec![],
+    }
+    .write(&mut Vec::new())
+    .is_err());
 }
 
 fn assert_debug_sample() {
