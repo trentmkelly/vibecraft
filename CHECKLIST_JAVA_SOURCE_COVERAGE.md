@@ -26,7 +26,7 @@ This checklist tracks source families from `decompiled-server-26.1.2/net/minecra
 
 ## Commands
 
-- [ ] Complete class-by-class coverage for `commands` (14), `commands/arguments` (69), `commands/execution` (18), `commands/functions` (7), and `commands/synchronization` (12), including parsing, suggestions, execution task scheduling, function loading, and Brigadier synchronization.
+- [x] Complete class-by-class coverage for `commands` (14), `commands/arguments` (69), `commands/execution` (18), `commands/functions` (7), and `commands/synchronization` (12), including parsing, suggestions, execution task scheduling, function loading, and Brigadier synchronization. Direct filename comparison against `decompiled-server-26.1.2/net/minecraft/commands` confirms all 120 Java command files have checked per-class rows in `CHECKLIST_JAVA_CLASSES.md`, with no missing or extra checklist entries; covered by the checked package rows for command parsing/suggestions, every argument family, execution scheduling/tasks, function loading/macros, and Brigadier synchronization.
 - [ ] Add command-tree and parser parity tests for every Java argument type, including block/item predicates, coordinates, selectors, NBT paths, ranges, resource keys, styles, and time/objective/team parsers.
 
 ## Network And Serialization

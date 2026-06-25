@@ -145,13 +145,16 @@ impl CommandBuildContextModel {
             })
             .collect();
 
-        let mut tag_members = HashMap::<TagKeyModel, Vec<HolderReferenceModel>>::new();
+        let mut tag_members = Vec::<(TagKeyModel, Vec<HolderReferenceModel>)>::new();
         for holder in &holders {
             for tag in &holder.tags {
-                tag_members
-                    .entry(tag.clone())
-                    .or_default()
-                    .push(holder.clone());
+                if let Some((_key, values)) =
+                    tag_members.iter_mut().find(|(key, _values)| key == tag)
+                {
+                    values.push(holder.clone());
+                } else {
+                    tag_members.push((tag.clone(), vec![holder.clone()]));
+                }
             }
         }
 
