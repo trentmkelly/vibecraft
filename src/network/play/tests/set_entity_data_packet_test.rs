@@ -1,7 +1,41 @@
 use super::*;
 
+const CLIENTBOUND_SET_ENTITY_DATA_JAVA: &str =
+    vibecraft_java_source!("/net/minecraft/network/protocol/game/ClientboundSetEntityDataPacket.java");
+const SYNCHED_ENTITY_DATA_JAVA: &str =
+    vibecraft_java_source!("/net/minecraft/network/syncher/SynchedEntityData.java");
+
 #[test]
 fn clientbound_set_entity_data_packet_matches_java_packed_items_codec() {
+    assert_java_contains(
+        CLIENTBOUND_SET_ENTITY_DATA_JAVA,
+        &[
+            "public record ClientboundSetEntityDataPacket(int id, List<SynchedEntityData.DataValue<?>> packedItems)",
+            "public static final int EOF_MARKER = 255;",
+            "this(input.readVarInt(), unpack(input));",
+            "item.write(output);",
+            "output.writeByte(255);",
+            "while ((id = input.readUnsignedByte()) != 255)",
+            "output.writeVarInt(this.id);",
+            "pack(this.packedItems, output);",
+            "return GamePacketTypes.CLIENTBOUND_SET_ENTITY_DATA;",
+            "listener.handleSetEntityData(this);",
+        ],
+        "ClientboundSetEntityDataPacket",
+    );
+    assert_java_contains(
+        SYNCHED_ENTITY_DATA_JAVA,
+        &[
+            "public record DataValue<T>(int id, EntityDataSerializer<T> serializer, T value)",
+            "int serializerId = EntityDataSerializers.getSerializedId(this.serializer);",
+            "output.writeByte(this.id);",
+            "output.writeVarInt(serializerId);",
+            "this.serializer.codec().encode(output, this.value);",
+            "int type = input.readVarInt();",
+            "EntityDataSerializer<?> serializer = EntityDataSerializers.getSerializer(type);",
+        ],
+        "SynchedEntityData",
+    );
     assert_eq!(CLIENTBOUND_SET_ENTITY_DATA_PACKET_ID, 99);
     let registry = PlayProtocolRegistry::new();
     assert_eq!(
@@ -83,6 +117,15 @@ fn entity_data_accessor_and_serializer_registry_match_java_syncher_contracts() {
         );
     }
     assert_eq!(JAVA_ENTITY_DATA_SERIALIZER_ORDER.len(), 43);
+}
+
+fn assert_java_contains(source: &str, sentinels: &[&str], class_name: &str) {
+    for sentinel in sentinels {
+        assert!(
+            source.contains(sentinel),
+            "missing {class_name} sentinel {sentinel}"
+        );
+    }
 }
 
 const JAVA_ENTITY_DATA_SERIALIZER_ORDER: &[&str] = &[
