@@ -117,6 +117,7 @@ impl ActiveBlockMenu {
         }
     }
 
+    #[cfg(test)]
     pub(in crate::network::status) fn container_id(&self) -> i32 {
         self.container_id
     }

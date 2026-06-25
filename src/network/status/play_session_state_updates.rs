@@ -53,17 +53,13 @@ pub fn update_play_session_state<R: Read>(
             Ok(PlaySessionUpdate::default())
         }
         SERVERBOUND_CONTAINER_CLOSE_PACKET_ID => {
-            let packet = ServerboundContainerClosePacket::read(input)?;
-            if packet.container_id == 0 {
-                state.inventory_menu.removed(&mut state.carried_item);
-            } else if state
-                .active_block_menu
-                .as_ref()
-                .is_some_and(|menu| menu.container_id() == packet.container_id)
-            {
+            let _packet = ServerboundContainerClosePacket::read(input)?;
+            if state.active_block_menu.is_some() {
                 if let Some(menu) = state.active_block_menu.take() {
                     menu.close(state);
                 }
+            } else {
+                state.inventory_menu.removed(&mut state.carried_item);
             }
             Ok(PlaySessionUpdate::default())
         }

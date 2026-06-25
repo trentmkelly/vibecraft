@@ -531,6 +531,11 @@ impl PlaySession {
                     Ok(_) => DispatchOutcome::Disconnect(
                         "bad set beacon packet: trailing payload".to_string(),
                     ),
+                    Err(err) if err.to_string() == "expected empty payload" => {
+                        DispatchOutcome::Disconnect(
+                            "bad set beacon packet: trailing payload".to_string(),
+                        )
+                    }
                     Err(err) => bad_play_packet("set beacon packet", err),
                 }
             }
