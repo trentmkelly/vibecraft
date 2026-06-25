@@ -1987,9 +1987,9 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/util/context`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/context/ContextKey.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/context/ContextKeySet.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/context/ContextMap.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/context/ContextKey.java`. `src/util_context.rs` mirrors Java 26.1.2 `ContextKey<T>` name storage, `vanilla` default namespace construction, `name()` access, and `<parameter id>` display. Verified by Java-source-backed `util_context::tests::context_key_matches_java_name_and_display_contract`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/context/ContextKeySet.java`. `src/util_context.rs` mirrors Java 26.1.2 identity-key required/optional sets, required-vs-optional conflict errors, allowed union construction, and `!required` display formatting. Verified by Java-source-backed `util_context::tests::context_key_set_uses_identity_and_rejects_required_optional_conflicts`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/context/ContextMap.java`. `src/util_context.rs` mirrors Java 26.1.2 `IdentityHashMap` parameter storage, required/allowed validation errors, optional removal on null/`None`, `getOrThrow` missing-key text, optional/default reads, and the builder-backed map aliasing created by `new ContextMap(this.params)`. Verified by Java-source-backed `util_context` map tests.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/context/package-info.java`. Java 26.1.2 package marker contains only `@NullMarked`, the package declaration, and the `org.jspecify.annotations.NullMarked` import; no Rust runtime behavior or parity test is required beyond preserving nullability expectations in typed Rust APIs.
 
 ## `decompiled-server-26.1.2/net/minecraft/util/datafix`

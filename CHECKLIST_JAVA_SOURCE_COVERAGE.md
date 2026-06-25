@@ -211,7 +211,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. Each pack
 - [ ] `net/minecraft/stats` (10 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/tags` (27 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/util` (92 Java files): add class-level Rust port tasks and parity tests.
-- [ ] `net/minecraft/util/context` (4 Java files): add class-level Rust port tasks and parity tests.
+- [x] `net/minecraft/util/context` (4 Java files): per-class rows are tracked in `CHECKLIST_JAVA_CLASSES.md`, direct filename comparison with `decompiled-server-26.1.2/net/minecraft/util/context` confirms all 4 files including `package-info.java` are covered, and `util_context` tests pin Java's context key identity semantics, required/optional key-set validation, allowed/required display surfaces, context-map allowed/missing validation, optional removal, default reads, and builder-backed map aliasing.
 - [ ] `net/minecraft/util/datafix` (6 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/util/datafix/fixes` (269 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/util/datafix/schemas` (117 Java files): add class-level Rust port tasks and parity tests.
