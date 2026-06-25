@@ -3808,10 +3808,10 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/world/food`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/food/FoodConstants.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/food/FoodData.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/food/FoodProperties.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/food/Foods.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/food/FoodConstants.java`. `src/world_food.rs` mirrors Java 26.1.2 max/default hunger constants, saturation modifiers, exhaustion costs, tick thresholds, and `saturationByModifier`; Java-source-backed `world_food::tests::food_constants_match_java_literals` pins representative literal declarations and the modifier formula.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/food/FoodData.java`. `src/world_food.rs` models Java 26.1.2 `FoodData` default fields, add/eat clamping, exhaustion cap semantics, save-data key defaults, fast and slow natural regeneration, starvation damage thresholds, and exhaustion-drain ordering. Verified by Java-source-backed `world_food::tests::food_data_eating_exhaustion_and_save_data_match_java` and `world_food::tests::tick_drains_exhaustion_then_regenerates_or_starves_like_java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/food/FoodProperties.java`. `src/world_food.rs` mirrors Java 26.1.2 `FoodProperties` fields/accessors and builder behavior, including computed saturation and `alwaysEdible`; Java-source-backed `world_food::tests::food_properties_builder_matches_java_shape` pins the record/codec/builder/on-consume source shape.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/food/Foods.java`. `src/world_food.rs` ports all 40 Java 26.1.2 vanilla food constants as builder inputs plus computed properties, including stew helper saturation and always-edible entries. Verified by Java-source-backed `world_food::tests::foods_table_matches_java_constants_and_builder_inputs`, which checks the Java constant count and representative computed food values.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/food/package-info.java`. Java 26.1.2 package marker contains only `@NullMarked`, the package declaration, and the `org.jspecify.annotations.NullMarked` import; no Rust runtime behavior or parity test is required beyond preserving nullability expectations in typed Rust APIs.
 
 ## `decompiled-server-26.1.2/net/minecraft/world/inventory`
