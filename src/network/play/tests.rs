@@ -1046,6 +1046,8 @@ mod initialize_border_packet_test;
 mod inventory_packet_item_stack_test;
 mod level_particles_packet_test;
 #[cfg(all(test, vibecraft_has_decompiled_sources))]
+mod light_update_packet_source_test;
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod login_packet_source_test;
 #[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod map_item_data_packet_test;
