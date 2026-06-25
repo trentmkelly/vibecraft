@@ -238,7 +238,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. Each pack
 - [ ] `net/minecraft/util/profiling/metrics` (6 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/util/profiling/metrics/profiling` (6 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/util/profiling/metrics/storage` (3 Java files): add class-level Rust port tasks and parity tests.
-- [ ] `net/minecraft/util/random` (4 Java files): add class-level Rust port tasks and parity tests.
+- [x] `net/minecraft/util/random` (4 Java files): per-class rows are tracked in `CHECKLIST_JAVA_CLASSES.md`, direct filename comparison with `decompiled-server-26.1.2/net/minecraft/util/random` confirms all 4 files including `package-info.java` are covered, and `util_random` tests pin Java's `Weighted`, `WeightedList`, and `WeightedRandom` weight validation, total-weight overflow/negative/zero behavior, flat-vs-compact selector threshold, builder/map/contains/unwrap surfaces, and random weighted selection walk.
 - [ ] `net/minecraft/util/thread` (9 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/util/valueproviders` (18 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/util/worldupdate` (6 Java files): add class-level Rust port tasks and parity tests.

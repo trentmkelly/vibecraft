@@ -690,6 +690,7 @@ mod suppress_forbidden;
 mod system_report;
 mod tracing_executor;
 mod trial_system;
+mod util_random;
 #[cfg(test)]
 mod vehicle_entity;
 mod vibration;

@@ -2674,9 +2674,9 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/util/random`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/random/Weighted.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/random/WeightedList.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/random/WeightedRandom.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/random/Weighted.java`. `src/util_random.rs` mirrors Java 26.1.2 `Weighted<T>` value/weight storage, rejects negative weights with the vanilla message, preserves zero weights, and maps values while preserving weight. Verified by Java-source-backed `util_random::tests::weighted_rejects_negative_weight_and_maps_value`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/random/WeightedList.java`. `src/util_random.rs` mirrors Java 26.1.2 `WeightedList` construction, copied unwrap surface, zero-total empty selector semantics, `contains`, mapping, builder adds, `getRandom`/`getRandomOrThrow`, flat selector behavior below total weight 64, and compact weighted walk behavior at/above 64. Verified by Java-source-backed `util_random` tests for zero-total lists and flat/compact ranges.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/random/WeightedRandom.java`. `src/util_random.rs` mirrors Java 26.1.2 total-weight summing with `i32::MAX` overflow guard, negative-total rejection, zero-total empty selection, `RandomSource#nextInt(totalWeight)` draw, and subtract-until-negative item walk. Verified by Java-source-backed `util_random::tests::weighted_random_total_weight_and_selection_match_java_walk`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/random/package-info.java`. Java 26.1.2 package marker contains only `@NullMarked`, the package declaration, and the `org.jspecify.annotations.NullMarked` import; no Rust runtime behavior or parity test is required beyond preserving nullability expectations in typed Rust APIs.
 
 ## `decompiled-server-26.1.2/net/minecraft/util/thread`
