@@ -1030,12 +1030,12 @@ fn round_trips_named_compound_with_nested_values() {
 }
 
 #[test]
-fn rejects_mixed_type_lists() {
+fn mixed_type_lists_use_java_wrapper_encoding() {
     let mut bytes = Vec::new();
-    let err = Tag::List(vec![Tag::Int(1), Tag::String("bad".to_string())])
-        .write_payload(&mut bytes)
-        .unwrap_err();
-    assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+    let mixed = Tag::List(vec![Tag::Int(1), Tag::String("bad".to_string())]);
+    mixed.write_payload(&mut bytes).unwrap();
+    assert_eq!(&bytes[..5], &[10, 0, 0, 0, 2]);
+    assert_eq!(Tag::read_payload(9, &mut bytes.as_slice()).unwrap(), mixed);
 }
 
 #[test]
