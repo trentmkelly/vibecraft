@@ -132,6 +132,57 @@ fn common_packet_listener_surfaces_match_java_interfaces() {
 }
 
 #[test]
+fn common_custom_payload_sources_match_java_contracts() {
+    const BRAND_PAYLOAD_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/network/protocol/common/custom/BrandPayload.java");
+    const CUSTOM_PACKET_PAYLOAD_JAVA: &str = vibecraft_java_source!(
+        "/net/minecraft/network/protocol/common/custom/CustomPacketPayload.java"
+    );
+    const DISCARDED_PAYLOAD_JAVA: &str = vibecraft_java_source!(
+        "/net/minecraft/network/protocol/common/custom/DiscardedPayload.java"
+    );
+
+    for sentinel in [
+        "public record BrandPayload(String brand) implements CustomPacketPayload",
+        "CustomPacketPayload.createType(\"brand\")",
+        "this(input.readUtf());",
+        "output.writeUtf(this.brand);",
+    ] {
+        assert!(
+            BRAND_PAYLOAD_JAVA.contains(sentinel),
+            "missing BrandPayload sentinel {sentinel}"
+        );
+    }
+
+    for sentinel in [
+        "output.writeIdentifier(type.id());",
+        "return codec != null ? codec : fallback.create(typeId);",
+        "Identifier identifier = input.readIdentifier();",
+        "return (CustomPacketPayload)this.findCodec(identifier).decode(input);",
+        "return new CustomPacketPayload.Type<>(Identifier.withDefaultNamespace(id));",
+    ] {
+        assert!(
+            CUSTOM_PACKET_PAYLOAD_JAVA.contains(sentinel),
+            "missing CustomPacketPayload sentinel {sentinel}"
+        );
+    }
+
+    for sentinel in [
+        "public record DiscardedPayload(Identifier id) implements CustomPacketPayload",
+        "int length = buf.readableBytes();",
+        "length >= 0 && length <= maxPayloadSize",
+        "buf.skipBytes(length);",
+        "Payload may not be larger than \" + maxPayloadSize + \" bytes",
+        "return new CustomPacketPayload.Type<>(this.id);",
+    ] {
+        assert!(
+            DISCARDED_PAYLOAD_JAVA.contains(sentinel),
+            "missing DiscardedPayload sentinel {sentinel}"
+        );
+    }
+}
+
+#[test]
 fn common_disconnect_uses_trusted_component_nbt_not_login_json() {
     let disconnect = ClientboundDisconnectPacket {
         reason: ComponentJson(
