@@ -1030,6 +1030,8 @@ mod custom_payload_packet_test;
 #[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod damage_event_packet_test;
 mod delete_chat_packet_test;
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
+mod debug_entity_name_generator_test;
 mod disguised_chat_packet_test;
 #[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod entity_inventory_clientbound_packets_test;
