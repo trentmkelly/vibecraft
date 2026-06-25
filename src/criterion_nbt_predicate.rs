@@ -183,18 +183,44 @@ mod tests {
 
     #[test]
     fn compare_nbt_uses_java_partial_unordered_list_matching() {
-        let predicate =
-            NbtPredicateModel::new(tag("{Inventory:[{Slot:1b,id:\"minecraft:stone\"}]}"));
+        let predicate = NbtPredicateModel::new(inventory_tag(vec![inventory_entry(
+            1,
+            "minecraft:stone",
+            None,
+        )]));
 
-        assert!(predicate.matches_tag(Some(&tag(
-            "{Inventory:[{Slot:2b,id:\"minecraft:dirt\"},{Slot:1b,id:\"minecraft:stone\",Count:64b}]}"
-        ))));
-        assert!(!predicate.matches_tag(Some(&tag("{Inventory:[{Slot:2b,id:\"minecraft:dirt\"}]}"))));
+        assert!(predicate.matches_tag(Some(&inventory_tag(vec![
+            inventory_entry(2, "minecraft:dirt", None),
+            inventory_entry(1, "minecraft:stone", Some(64)),
+        ]))));
+        assert!(!predicate.matches_tag(Some(&inventory_tag(vec![inventory_entry(
+            2,
+            "minecraft:dirt",
+            None,
+        )]))));
         assert!(
             NbtPredicateModel::new(tag("{Inventory:[]}")).matches_tag(Some(&tag("{Inventory:[]}")))
         );
         assert!(!NbtPredicateModel::new(tag("{Inventory:[]}"))
-            .matches_tag(Some(&tag("{Inventory:[{Slot:0b}]}"))));
+            .matches_tag(Some(&inventory_tag(vec![Tag::Compound(vec![(
+                "Slot".to_string(),
+                Tag::Byte(0),
+            )])]))));
+    }
+
+    fn inventory_tag(entries: Vec<Tag>) -> Tag {
+        Tag::Compound(vec![("Inventory".to_string(), Tag::List(entries))])
+    }
+
+    fn inventory_entry(slot: i8, id: &str, count: Option<i8>) -> Tag {
+        let mut fields = vec![
+            ("Slot".to_string(), Tag::Byte(slot)),
+            ("id".to_string(), Tag::String(id.to_string())),
+        ];
+        if let Some(count) = count {
+            fields.push(("Count".to_string(), Tag::Byte(count)));
+        }
+        Tag::Compound(fields)
     }
 
     #[test]
