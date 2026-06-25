@@ -217,7 +217,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. Each pack
 - [ ] `net/minecraft/util/datafix/schemas` (117 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/util/debug` (19 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/util/debugchart` (8 Java files): add class-level Rust port tasks and parity tests.
-- [ ] `net/minecraft/util/eventlog` (4 Java files): add class-level Rust port tasks and parity tests.
+- [x] `net/minecraft/util/eventlog` (4 Java files): per-class rows are tracked in `CHECKLIST_JAVA_CLASSES.md`, direct filename comparison with `decompiled-server-26.1.2/net/minecraft/util/eventlog` confirms all 4 files including `package-info.java` are covered, and `util_eventlog` tests pin Java's event-log file id parsing, raw/compressed file discovery, sequential creation, gzip compression/deletion, expired-log pruning, JSON-line append/read behavior, independent reader positions, close/reference guarding, EOF handling, and JSON parse error wrapping.
 - [ ] `net/minecraft/util/filefix` (10 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/util/filefix/access` (11 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/util/filefix/fixes` (8 Java files): add class-level Rust port tasks and parity tests.

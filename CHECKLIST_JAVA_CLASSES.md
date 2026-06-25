@@ -2431,9 +2431,9 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/util/eventlog`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/eventlog/EventLogDirectory.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/eventlog/JsonEventLog.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/eventlog/JsonEventLogReader.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/eventlog/EventLogDirectory.java`. `src/util_eventlog.rs` mirrors Java 26.1.2 event-log directory creation, `BASIC_ISO_DATE` file ids, raw/compressed extension parsing, sequential `createNewFile` index selection, gzip compression/deletion behavior, raw/compressed readers, expired-file pruning, `compressAll`, and file id collection. Verified by Java-source-backed `util_eventlog` directory tests with real filesystem and gzip IO.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/eventlog/JsonEventLog.java`. `src/util_eventlog.rs` mirrors Java 26.1.2 append-at-end JSON-line writes, newline termination, reader reference guarding after close, independent reader positions over the shared file, and close/reference-release behavior. Verified by Java-source-backed `util_eventlog::tests::json_event_log_appends_json_lines_and_readers_track_independent_positions`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/eventlog/JsonEventLogReader.java`. `src/util_eventlog.rs` mirrors Java 26.1.2 JSON event reader EOF-as-`None` behavior and parse-error-to-IO-error behavior for newline-delimited event JSON, with Java source sentinels for lenient JsonReader setup, `hasNext`, `JsonParseException`, and `EOFException` handling. Verified by Java-source-backed `util_eventlog::tests::json_event_log_reader_returns_none_at_eof_and_wraps_parse_errors`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/eventlog/package-info.java`. Java 26.1.2 package marker contains only `@NullMarked`, the package declaration, and the `org.jspecify.annotations.NullMarked` import; no Rust runtime behavior or parity test is required beyond preserving nullability expectations in typed Rust APIs.
 
 ## `decompiled-server-26.1.2/net/minecraft/util/filefix`
