@@ -114,13 +114,13 @@ fn assert_debug_value_java_sources() {
 }
 
 fn assert_debug_value_registry_names() {
-    assert_registry(CLIENTBOUND_DEBUG_BLOCK_VALUE_PACKET_ID, "debug_block_value");
-    assert_registry(CLIENTBOUND_DEBUG_CHUNK_VALUE_PACKET_ID, "debug_chunk_value");
+    assert_registry(CLIENTBOUND_DEBUG_BLOCK_VALUE_PACKET_ID, "debug/block_value");
+    assert_registry(CLIENTBOUND_DEBUG_CHUNK_VALUE_PACKET_ID, "debug/chunk_value");
     assert_registry(
         CLIENTBOUND_DEBUG_ENTITY_VALUE_PACKET_ID,
-        "debug_entity_value",
+        "debug/entity_value",
     );
-    assert_registry(CLIENTBOUND_DEBUG_EVENT_PACKET_ID, "debug_event");
+    assert_registry(CLIENTBOUND_DEBUG_EVENT_PACKET_ID, "debug/event");
 }
 
 fn assert_debug_value_packet_payloads() {

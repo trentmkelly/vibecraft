@@ -1040,6 +1040,8 @@ mod entity_movement_test;
 mod entity_position_sync_packet_test;
 #[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod explode_packet_test;
+#[cfg(all(test, vibecraft_has_decompiled_sources))]
+mod game_protocols_source_test;
 mod initialize_border_packet_test;
 mod inventory_packet_item_stack_test;
 mod level_particles_packet_test;
