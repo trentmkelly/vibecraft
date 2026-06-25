@@ -325,7 +325,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. Each pack
 - [ ] `net/minecraft/world/entity/vehicle` (4 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/world/entity/vehicle/boat` (7 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/world/entity/vehicle/minecart` (13 Java files): add class-level Rust port tasks and parity tests.
-- [ ] `net/minecraft/world/flag` (7 Java files): add class-level Rust port tasks and parity tests.
+- [x] `net/minecraft/world/flag` (7 Java files): per-class rows are tracked in `CHECKLIST_JAVA_CLASSES.md`, direct filename comparison with `decompiled-server-26.1.2/net/minecraft/world/flag` confirms all 7 files including `package-info.java` are covered, and `world_flag` tests pin Java's feature-flag universe identity, bitmask/set operations, registry builder/name mapping/unknown reporting, static 26.1.2 default flags, filtered registries, missing-flag printing, and experimental-feature detection.
 - [ ] `net/minecraft/world/food` (5 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/world/inventory` (61 Java files): add class-level Rust port tasks and parity tests.
 - [ ] `net/minecraft/world/inventory/tooltip` (3 Java files): add class-level Rust port tasks and parity tests.

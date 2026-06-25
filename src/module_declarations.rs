@@ -705,6 +705,7 @@ mod waypoint;
 mod weather;
 mod world;
 mod world_border;
+mod world_flag;
 mod world_loader;
 mod world_stem;
 mod world_time;
