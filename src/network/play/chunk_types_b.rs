@@ -885,6 +885,8 @@ pub struct ClientboundParticlePacket {
     pub particle_data: Vec<u8>,
 }
 
+pub type ClientboundLevelParticlesPacket = ClientboundParticlePacket;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClientboundExplodePacket {
     pub center: Vec3,
