@@ -670,6 +670,12 @@ pub struct TeleportSideEffect {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TickCommandFeedbackEvent {
+    pub feedback_key: &'static str,
+    pub broadcast_to_admins: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EntityState {
     pub entity: EntityRef,
     pub kind: EntityKind,

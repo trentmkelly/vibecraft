@@ -235,6 +235,7 @@ pub struct ServerCommandState {
     pub whitelist_reload_requests: u32,
     pub kick_unlisted_requests: u32,
     pub tick_rate: TickRateController,
+    pub tick_feedback_events: Vec<TickCommandFeedbackEvent>,
     pub average_tick_time_nanos: u64,
     pub tick_time_samples_nanos: Vec<u64>,
     pub halt_requested: bool,

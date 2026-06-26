@@ -179,6 +179,7 @@ macro_rules! default_server_command_state {
             whitelist_reload_requests: 0,
             kick_unlisted_requests: 0,
             tick_rate: TickRateController::default(),
+            tick_feedback_events: Vec::new(),
             average_tick_time_nanos: 50_000_000,
             tick_time_samples_nanos: vec![50_000_000],
             halt_requested: false,

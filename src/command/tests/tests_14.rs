@@ -603,3 +603,67 @@ fn whitelist_command_source_matches_java_26_1_2() {
         );
     }
 }
+
+#[test]
+fn tick_sprint_restart_records_java_interruption_feedback() {
+    let mut state = ServerCommandState::default();
+    execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "tick sprint 10t").unwrap();
+
+    let restarted =
+        execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "tick sprint 5t")
+            .unwrap();
+
+    assert_eq!(restarted.success_count, 1);
+    assert_eq!(restarted.feedback_key, "commands.tick.status.sprinting");
+    assert!(restarted.broadcast_to_admins);
+    assert_eq!(
+        state.tick_feedback_events,
+        vec![TickCommandFeedbackEvent {
+            feedback_key: "commands.tick.sprint.stop.success",
+            broadcast_to_admins: true,
+        }]
+    );
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn tick_command_source_matches_java_26_1_2() {
+    const TICK_COMMAND: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/TickCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\n                                 \"tick\"",
+        ".requires(Commands.hasPermission(Commands.LEVEL_ADMINS))",
+        "Commands.literal(\"query\").executes(c -> tickQuery((CommandSourceStack)c.getSource()))",
+        "Commands.argument(\"rate\", FloatArgumentType.floatArg(1.0F, 10000.0F))",
+        "Commands.literal(\"step\").executes(c -> step((CommandSourceStack)c.getSource(), 1))",
+        "Commands.literal(\"stop\").executes(c -> stopStepping((CommandSourceStack)c.getSource()))",
+        "Commands.argument(\"time\", TimeArgument.time(1))",
+        "Commands.literal(\"sprint\")",
+        "Commands.literal(\"stop\").executes(c -> stopSprinting((CommandSourceStack)c.getSource()))",
+        "Commands.literal(\"unfreeze\").executes(c -> setFreeze((CommandSourceStack)c.getSource(), false))",
+        "Commands.literal(\"freeze\").executes(c -> setFreeze((CommandSourceStack)c.getSource(), true))",
+        "source.sendSuccess(() -> Component.translatable(\"commands.tick.rate.success\", tickRateString), true)",
+        "source.sendSuccess(() -> Component.translatable(\"commands.tick.status.sprinting\"), false)",
+        "source.sendSuccess(() -> Component.translatable(\"commands.tick.status.frozen\"), false)",
+        "source.sendSuccess(() -> Component.translatable(\"commands.tick.status.lagging\"), false)",
+        "source.sendSuccess(() -> Component.translatable(\"commands.tick.status.running\"), false)",
+        "source.sendSuccess(() -> Component.translatable(\"commands.tick.query.rate.running\", tickRateString, busyTime, milliSecondsPerTickTarget), false)",
+        "source.sendSuccess(() -> Component.translatable(\"commands.tick.query.percentiles\", p50, p95, p99, samples.length), false)",
+        "boolean interrupted = source.getServer().tickRateManager().requestGameToSprint(time);",
+        "Component.translatable(\"commands.tick.sprint.stop.success\"), true",
+        "return freeze ? 1 : 0;",
+        "boolean success = manager.stepGameIfPaused(advance);",
+        "source.sendFailure(Component.translatable(\"commands.tick.step.fail\"));",
+        "return 1;",
+        "boolean success = manager.stopStepping();",
+        "source.sendFailure(Component.translatable(\"commands.tick.step.stop.fail\"));",
+        "boolean success = manager.stopSprinting();",
+        "source.sendFailure(Component.translatable(\"commands.tick.sprint.stop.fail\"));",
+    ] {
+        assert!(
+            TICK_COMMAND.contains(sentinel),
+            "TickCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+}

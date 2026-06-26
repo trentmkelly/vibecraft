@@ -769,7 +769,13 @@ fn tick_sprint_command(
     time: &str,
 ) -> Result<CommandResult, CommandError> {
     let ticks = parse_time_ticks(time)? as u64;
-    let _interrupted = state.tick_rate.request_game_to_sprint(ticks);
+    let interrupted = state.tick_rate.request_game_to_sprint(ticks);
+    if interrupted {
+        state.tick_feedback_events.push(TickCommandFeedbackEvent {
+            feedback_key: "commands.tick.sprint.stop.success",
+            broadcast_to_admins: true,
+        });
+    }
     Ok(success_result("commands.tick.status.sprinting", true))
 }
 
