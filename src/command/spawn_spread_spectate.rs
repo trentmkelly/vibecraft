@@ -137,10 +137,11 @@ pub(super) fn spawn_armor_trims_command(
         _ => return Err(CommandError::InvalidSyntax),
     };
 
+    let (step_x, step_z) = horizontal_direction_step_from_y_rot(state.command_source_yaw);
     let origin = Vec3 {
-        x: state.command_source_position.x.floor() + 0.5,
+        x: state.command_source_position.x.floor() + f64::from(step_x * 5) + 0.5,
         y: state.command_source_position.y.floor() + 0.5,
-        z: state.command_source_position.z.floor() + 5.5,
+        z: state.command_source_position.z.floor() + f64::from(step_z * 5) + 0.5,
     };
     for (material_index, material) in VANILLA_TRIM_MATERIALS.iter().enumerate() {
         for (pattern_index, pattern) in patterns.iter().enumerate() {
@@ -154,7 +155,10 @@ pub(super) fn spawn_armor_trims_command(
                         y: origin.y + material_index as f64 * 3.0,
                         z: origin.z + pattern_index as f64 * 10.0,
                     },
+                    y_rot: 180.0,
+                    no_gravity: true,
                     named: item_index == 0,
+                    custom_name_visible: item_index == 0,
                     invisible: item_index != 0,
                 });
             }
@@ -166,6 +170,15 @@ pub(super) fn spawn_armor_trims_command(
         feedback_key: "commands.spawn_armor_trims.success",
         broadcast_to_admins: true,
     })
+}
+
+fn horizontal_direction_step_from_y_rot(y_rot: f32) -> (i32, i32) {
+    match ((y_rot / 90.0 + 0.5).floor() as i32).rem_euclid(4) {
+        0 => (0, 1),
+        1 => (-1, 0),
+        2 => (0, -1),
+        _ => (1, 0),
+    }
 }
 
 pub(super) fn spreadplayers_command(

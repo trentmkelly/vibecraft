@@ -218,6 +218,7 @@ fn spawn_armor_trims_spawns_single_pattern_grid_from_player_position() {
             y: 64.9,
             z: -4.1,
         },
+        command_source_yaw: 90.0,
         ..ServerCommandState::default()
     };
 
@@ -242,13 +243,18 @@ fn spawn_armor_trims_spawns_single_pattern_grid_from_player_position() {
     assert_eq!(
         state.armor_trim_spawns[0].position,
         Vec3 {
-            x: 10.5,
+            x: 5.5,
             y: 64.5,
-            z: 0.5,
+            z: -4.5,
         }
     );
+    assert_eq!(state.armor_trim_spawns[0].y_rot, 180.0);
+    assert!(state.armor_trim_spawns[0].no_gravity);
     assert!(state.armor_trim_spawns[0].named);
+    assert!(state.armor_trim_spawns[0].custom_name_visible);
     assert!(!state.armor_trim_spawns[0].invisible);
+    assert!(!state.armor_trim_spawns[1].named);
+    assert!(!state.armor_trim_spawns[1].custom_name_visible);
     assert!(state.armor_trim_spawns[1].invisible);
 }
 
@@ -288,6 +294,39 @@ fn spawn_armor_trims_spawns_all_patterns_and_rejects_invalid_sources_or_patterns
         ),
         Err(CommandError::InvalidSyntax)
     );
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn spawn_armor_trims_command_source_matches_java_26_1_2() {
+    const SPAWN_ARMOR_TRIMS_COMMAND_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/SpawnArmorTrimsCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"spawn_armor_trims\")",
+        "Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)",
+        "Commands.literal(\"*_lag_my_game\")",
+        "ResourceKeyArgument.key(Registries.TRIM_PATTERN)",
+        "ResourceKeyArgument.getRegistryKey(c, \"pattern\", Registries.TRIM_PATTERN, ERROR_INVALID_PATTERN)",
+        "((CommandSourceStack)c.getSource()).getPlayerOrException()",
+        "patterns.sorted(Comparator.comparing(h -> TRIM_PATTERN_ORDER.applyAsInt(h.key()))).toList()",
+        "sorted(Comparator.comparing(h -> TRIM_MATERIAL_ORDER.applyAsInt(h.key())))",
+        "findEquippableItemsWithAssets(level.registryAccess().lookupOrThrow(Registries.ITEM))",
+        "BlockPos origin = player.blockPosition().relative(player.getDirection(), 5);",
+        "armorStand.setYRot(180.0F);",
+        "armorStand.setNoGravity(true);",
+        "stack.set(DataComponents.TRIM, trim);",
+        "armorStand.setItemSlot(equippable.slot(), stack);",
+        "armorStand.setCustomNameVisible(true);",
+        "armorStand.setInvisible(true);",
+        "source.sendSuccess(() -> Component.literal(\"Armorstands with trimmed armor spawned around you\"), true);",
+        "return 1;",
+    ] {
+        assert!(
+            SPAWN_ARMOR_TRIMS_COMMAND_JAVA.contains(sentinel),
+            "SpawnArmorTrimsCommand.java is missing sentinel: {sentinel}"
+        );
+    }
 }
 
 #[test]

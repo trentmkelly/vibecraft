@@ -568,7 +568,10 @@ pub struct ArmorTrimSpawn {
     pub material: String,
     pub item: String,
     pub position: Vec3,
+    pub y_rot: f32,
+    pub no_gravity: bool,
     pub named: bool,
+    pub custom_name_visible: bool,
     pub invisible: bool,
 }
 
