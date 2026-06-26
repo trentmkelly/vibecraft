@@ -335,6 +335,12 @@ fn spreadplayers_places_entities_or_team_groups() {
     let alex = NameAndId::create_offline("Alex");
     let mut state = ServerCommandState {
         command_source_dimension: "minecraft:the_nether".to_string(),
+        command_source_position: Vec3 {
+            x: 100.25,
+            y: 70.0,
+            z: -25.75,
+        },
+        world_seed: 7,
         player_teams: vec![
             TeamMembership {
                 player: steve.clone(),
@@ -365,10 +371,24 @@ fn spreadplayers_places_entities_or_team_groups() {
         "commands.spreadplayers.success.entities"
     );
     assert_eq!(state.entity_positions.len(), 2);
-    assert_ne!(
-        state.entity_positions[0].position,
-        state.entity_positions[1].position
+    let steve_pos = state
+        .entity_positions
+        .iter()
+        .find(|entry| entry.entity.id == "Steve")
+        .unwrap()
+        .position;
+    let alex_pos = state
+        .entity_positions
+        .iter()
+        .find(|entry| entry.entity.id == "Alex")
+        .unwrap()
+        .position;
+    assert!(
+        ((steve_pos.x - alex_pos.x).powi(2) + (steve_pos.z - alex_pos.z).powi(2)).sqrt()
+            >= 2.0
     );
+    assert_eq!(steve_pos.y, 1.0);
+    assert_eq!(alex_pos.y, 1.0);
     assert_eq!(
         state.entity_positions[0].dimension,
         "minecraft:the_nether".to_string()
@@ -377,7 +397,7 @@ fn spreadplayers_places_entities_or_team_groups() {
     let teams = execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::GAMEMASTER,
-        "spreadplayers 5 5 2 10 under 80 true Steve Alex",
+        "spreadplayers ~ ~ 2 10 under 80 true Steve Alex",
     )
     .unwrap();
     assert_eq!(teams.success_count, 1);
@@ -404,7 +424,7 @@ fn spreadplayers_places_entities_or_team_groups() {
             .unwrap()
             .position
             .y,
-        81.0
+        1.0
     );
 }
 
@@ -454,6 +474,94 @@ fn spreadplayers_rejects_invalid_height_impossible_spacing_and_syntax() {
         ),
         Err(CommandError::InvalidSyntax)
     );
+}
+
+#[test]
+fn spreadplayers_uses_java_team_identity_for_players_only() {
+    let mut state = ServerCommandState {
+        world_seed: 11,
+        online_players: vec![NameAndId::create_offline("Steve")],
+        player_teams: vec![TeamMembership {
+            player: NameAndId::create_offline("Steve"),
+            team: "red".to_string(),
+        }],
+        ..ServerCommandState::default()
+    };
+
+    let result = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "spreadplayers 0 0 1 10 true Steve Zombie Skeleton",
+    )
+    .unwrap();
+    assert_eq!(result.success_count, 2);
+    let zombie = state
+        .entity_positions
+        .iter()
+        .find(|entry| entry.entity.id == "Zombie")
+        .unwrap()
+        .position;
+    let skeleton = state
+        .entity_positions
+        .iter()
+        .find(|entry| entry.entity.id == "Skeleton")
+        .unwrap()
+        .position;
+    assert_eq!(zombie, skeleton);
+    assert_ne!(
+        state
+            .entity_positions
+            .iter()
+            .find(|entry| entry.entity.id == "Steve")
+            .unwrap()
+            .position,
+        zombie
+    );
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn spreadplayers_command_source_matches_java_26_1_2() {
+    const SPREADPLAYERS_COMMAND_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/SpreadPlayersCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"spreadplayers\")",
+        "Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)",
+        "Commands.argument(\"center\", Vec2Argument.vec2())",
+        "FloatArgumentType.floatArg(0.0F)",
+        "FloatArgumentType.floatArg(1.0F)",
+        "Commands.literal(\"under\")",
+        "Commands.argument(\"maxHeight\", IntegerArgumentType.integer())",
+        "Commands.argument(\"respectTeams\", BoolArgumentType.bool())",
+        "Commands.argument(\"targets\", EntityArgument.entities())",
+        "((CommandSourceStack)c.getSource()).getLevel().getMaxY() + 1",
+        "throw ERROR_INVALID_MAX_HEIGHT.create(maxHeight, minY);",
+        "RandomSource random = RandomSource.createThreadLocalInstance();",
+        "createInitialPositions(",
+        "spreadPositions(center, spreadDistance, level, random, minX, minZ, maxX, maxZ, maxHeight, positions, respectTeams);",
+        "setPlayerPositions(entities, level, positions, maxHeight, respectTeams);",
+        "commands.spreadplayers.success.",
+        "return positions.length;",
+        "private static int getNumberOfTeams",
+        "if (player instanceof Player) {",
+        "teams.add(player.getTeam());",
+        "for (iteration = 0; iteration < 10000 && hasCollisions; iteration++)",
+        "if (dist < spreadDist) {",
+        "position.moveAway(averageNeighbourPos);",
+        "position.randomize(random, minX, minZ, maxX, maxZ);",
+        "if (!position.isSafe(level, maxHeight))",
+        "throw ERROR_FAILED_TO_SPREAD_TEAMS.create",
+        "throw ERROR_FAILED_TO_SPREAD_ENTITIES.create",
+        "Mth.floor(position.x) + 0.5",
+        "position.getSpawnY(level, maxHeight)",
+        "pos.getY() < maxHeight && !state.liquid() && !state.is(BlockTags.FIRE)",
+    ] {
+        assert!(
+            SPREADPLAYERS_COMMAND_JAVA.contains(sentinel),
+            "SpreadPlayersCommand.java is missing sentinel: {sentinel}"
+        );
+    }
 }
 
 #[test]

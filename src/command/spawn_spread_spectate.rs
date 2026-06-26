@@ -1,4 +1,5 @@
 use super::*;
+use crate::random_source::LegacyRandom;
 
 pub(super) fn setworldspawn_command(
     state: &mut ServerCommandState,
@@ -191,8 +192,8 @@ pub(super) fn spreadplayers_command(
                 if !targets.is_empty() =>
             {
                 (
-                    parse_f64(x)?,
-                    parse_f64(z)?,
+                    parse_spreadplayers_coordinate(x, state.command_source_position.x)?,
+                    parse_spreadplayers_coordinate(z, state.command_source_position.z)?,
                     parse_non_negative_f32(spread)? as f64,
                     parse_positive_f32(range)? as f64,
                     height
@@ -206,11 +207,11 @@ pub(super) fn spreadplayers_command(
                 if !targets.is_empty() =>
             {
                 (
-                    parse_f64(x)?,
-                    parse_f64(z)?,
+                    parse_spreadplayers_coordinate(x, state.command_source_position.x)?,
+                    parse_spreadplayers_coordinate(z, state.command_source_position.z)?,
                     parse_non_negative_f32(spread)? as f64,
                     parse_positive_f32(range)? as f64,
-                    320,
+                    321,
                     parse_bool(respect)?,
                     targets,
                 )
@@ -228,24 +229,34 @@ pub(super) fn spreadplayers_command(
     if groups.is_empty() {
         return Err(CommandError::InvalidSyntax);
     }
-    if groups.len() > 1 && max_range * 2.0 < spread_distance {
-        return Err(if respect_teams {
-            CommandError::SpreadPlayersFailedTeams
-        } else {
-            CommandError::SpreadPlayersFailedEntities
-        });
-    }
-    let positions = spread_positions(center_x, center_z, max_range, groups.len(), max_height);
+    let mut random = LegacyRandom::new(state.world_seed ^ state.game_time_ticks as i64);
+    let mut positions = create_initial_spread_positions(
+        &mut random,
+        groups.len(),
+        center_x - max_range,
+        center_z - max_range,
+        center_x + max_range,
+        center_z + max_range,
+    );
+    spread_positions_java(
+        state,
+        SpreadConfig {
+            center_x,
+            center_z,
+            spread_distance,
+            max_range,
+            max_height,
+            respect_teams,
+        },
+        &mut random,
+        &mut positions,
+    )?;
     for (group_index, group) in groups.iter().enumerate() {
         for target in group {
             upsert_entity_position(
                 state,
                 target.clone(),
-                Vec3 {
-                    x: positions[group_index].x,
-                    y: positions[group_index].y,
-                    z: positions[group_index].z,
-                },
+                positions[group_index].teleport_position(state, max_height),
             );
         }
     }
@@ -270,13 +281,20 @@ pub(super) fn spread_groups(
     }
     let mut groups: Vec<(Option<String>, Vec<EntityRef>)> = Vec::new();
     for target in targets {
-        let team = state
-            .player_teams
-            .iter()
-            .find(|membership| {
-                membership.player.name == target.id || membership.player.uuid == target.id
-            })
-            .map(|membership| membership.team.clone());
+        let player_team = state.player_teams.iter().find_map(|membership| {
+            (membership.player.name == target.id || membership.player.uuid == target.id)
+                .then(|| membership.team.clone())
+        });
+        let team = if player_team.is_some()
+            || state
+                .online_players
+                .iter()
+                .any(|player| player.name == target.id || player.uuid == target.id)
+        {
+            player_team
+        } else {
+            None
+        };
         if let Some((_, members)) = groups
             .iter_mut()
             .find(|(entry_team, _)| *entry_team == team)
@@ -289,32 +307,264 @@ pub(super) fn spread_groups(
     groups.into_iter().map(|(_, members)| members).collect()
 }
 
-pub(super) fn spread_positions(
+#[derive(Debug, Clone, Copy)]
+struct SpreadPosition {
+    x: f64,
+    z: f64,
+}
+
+impl SpreadPosition {
+    fn new() -> Self {
+        Self { x: 0.0, z: 0.0 }
+    }
+
+    fn dist(self, target: Self) -> f64 {
+        let dx = self.x - target.x;
+        let dz = self.z - target.z;
+        (dx * dx + dz * dz).sqrt()
+    }
+
+    fn length(self) -> f64 {
+        (self.x * self.x + self.z * self.z).sqrt()
+    }
+
+    fn normalize(&mut self) {
+        let distance = self.length();
+        self.x /= distance;
+        self.z /= distance;
+    }
+
+    fn move_away(&mut self, pos: Self) {
+        self.x -= pos.x;
+        self.z -= pos.z;
+    }
+
+    fn clamp(&mut self, min_x: f64, min_z: f64, max_x: f64, max_z: f64) -> bool {
+        let mut changed = false;
+        if self.x < min_x {
+            self.x = min_x;
+            changed = true;
+        } else if self.x > max_x {
+            self.x = max_x;
+            changed = true;
+        }
+        if self.z < min_z {
+            self.z = min_z;
+            changed = true;
+        } else if self.z > max_z {
+            self.z = max_z;
+            changed = true;
+        }
+        changed
+    }
+
+    fn randomize(
+        &mut self,
+        random: &mut LegacyRandom,
+        min_x: f64,
+        min_z: f64,
+        max_x: f64,
+        max_z: f64,
+    ) {
+        self.x = next_double_between(random, min_x, max_x);
+        self.z = next_double_between(random, min_z, max_z);
+    }
+
+    fn spawn_y(self, state: &ServerCommandState, max_height: i32) -> i32 {
+        let x = self.x.floor() as i32;
+        let z = self.z.floor() as i32;
+        let mut y = max_height + 1;
+        let mut air_two_above = spread_block_is_air(state, x, y, z);
+        y -= 1;
+        let mut air_one_above = spread_block_is_air(state, x, y, z);
+        while y > SPREADPLAYERS_MIN_Y {
+            y -= 1;
+            let current_is_air = spread_block_is_air(state, x, y, z);
+            if !current_is_air && air_one_above && air_two_above {
+                return y + 1;
+            }
+            air_two_above = air_one_above;
+            air_one_above = current_is_air;
+        }
+        max_height + 1
+    }
+
+    fn is_safe(self, state: &ServerCommandState, max_height: i32) -> bool {
+        let y = self.spawn_y(state, max_height) - 1;
+        let block = spread_block_at(state, self.x.floor() as i32, y, self.z.floor() as i32);
+        y < max_height && !spread_block_is_liquid(block) && !spread_block_is_fire(block)
+    }
+
+    fn teleport_position(self, state: &ServerCommandState, max_height: i32) -> Vec3 {
+        Vec3 {
+            x: self.x.floor() + 0.5,
+            y: self.spawn_y(state, max_height) as f64,
+            z: self.z.floor() + 0.5,
+        }
+    }
+}
+
+const SPREADPLAYERS_MAX_ITERATION_COUNT: usize = 10_000;
+const SPREADPLAYERS_MIN_Y: i32 = -64;
+
+#[derive(Debug, Clone, Copy)]
+struct SpreadConfig {
     center_x: f64,
     center_z: f64,
+    spread_distance: f64,
     max_range: f64,
-    count: usize,
     max_height: i32,
-) -> Vec<Vec3> {
-    let radius = max_range.max(0.0);
-    let y = (max_height + 1) as f64;
-    if count == 1 {
-        return vec![Vec3 {
-            x: center_x.floor() + 0.5,
-            y,
-            z: center_z.floor() + 0.5,
-        }];
+    respect_teams: bool,
+}
+
+fn parse_spreadplayers_coordinate(input: &str, source: f64) -> Result<f64, CommandError> {
+    if input == "~" {
+        Ok(source)
+    } else if let Some(offset) = input.strip_prefix('~') {
+        Ok(source + parse_f64(if offset.is_empty() { "0" } else { offset })?)
+    } else {
+        parse_f64(input)
     }
-    (0..count)
-        .map(|index| {
-            let angle = (index as f64 / count as f64) * std::f64::consts::TAU;
-            Vec3 {
-                x: (center_x + angle.cos() * radius).floor() + 0.5,
-                y,
-                z: (center_z + angle.sin() * radius).floor() + 0.5,
+}
+
+fn create_initial_spread_positions(
+    random: &mut LegacyRandom,
+    count: usize,
+    min_x: f64,
+    min_z: f64,
+    max_x: f64,
+    max_z: f64,
+) -> Vec<SpreadPosition> {
+    let mut positions = Vec::with_capacity(count);
+    for _ in 0..count {
+        let mut position = SpreadPosition::new();
+        position.randomize(random, min_x, min_z, max_x, max_z);
+        positions.push(position);
+    }
+    positions
+}
+
+fn spread_positions_java(
+    state: &ServerCommandState,
+    config: SpreadConfig,
+    random: &mut LegacyRandom,
+    positions: &mut [SpreadPosition],
+) -> Result<(), CommandError> {
+    let min_x = config.center_x - config.max_range;
+    let min_z = config.center_z - config.max_range;
+    let max_x = config.center_x + config.max_range;
+    let max_z = config.center_z + config.max_range;
+    let mut has_collisions = true;
+    let mut min_distance = f64::from(f32::MAX);
+    let mut iteration = 0;
+
+    while iteration < SPREADPLAYERS_MAX_ITERATION_COUNT && has_collisions {
+        has_collisions = false;
+        min_distance = f64::from(f32::MAX);
+
+        for i in 0..positions.len() {
+            let mut neighbour_count = 0;
+            let mut average_neighbour_pos = SpreadPosition::new();
+
+            for j in 0..positions.len() {
+                if i != j {
+                    let dist = positions[i].dist(positions[j]);
+                    min_distance = min_distance.min(dist);
+                    if dist < config.spread_distance {
+                        neighbour_count += 1;
+                        average_neighbour_pos.x += positions[j].x - positions[i].x;
+                        average_neighbour_pos.z += positions[j].z - positions[i].z;
+                    }
+                }
             }
+
+            if neighbour_count > 0 {
+                average_neighbour_pos.x /= f64::from(neighbour_count);
+                average_neighbour_pos.z /= f64::from(neighbour_count);
+                if average_neighbour_pos.length() > 0.0 {
+                    average_neighbour_pos.normalize();
+                    positions[i].move_away(average_neighbour_pos);
+                } else {
+                    positions[i].randomize(random, min_x, min_z, max_x, max_z);
+                }
+                has_collisions = true;
+            }
+
+            if positions[i].clamp(min_x, min_z, max_x, max_z) {
+                has_collisions = true;
+            }
+        }
+
+        if !has_collisions {
+            for position in positions.iter_mut() {
+                if !position.is_safe(state, config.max_height) {
+                    position.randomize(random, min_x, min_z, max_x, max_z);
+                    has_collisions = true;
+                }
+            }
+        }
+
+        iteration += 1;
+    }
+
+    if min_distance == f64::from(f32::MAX) {
+        min_distance = 0.0;
+    }
+
+    if iteration >= SPREADPLAYERS_MAX_ITERATION_COUNT {
+        return Err(if config.respect_teams {
+            CommandError::SpreadPlayersFailedTeams
+        } else {
+            CommandError::SpreadPlayersFailedEntities
+        });
+    }
+    let _recommended_distance = min_distance;
+    Ok(())
+}
+
+fn next_double_between(random: &mut LegacyRandom, min: f64, max: f64) -> f64 {
+    min + random.next_f64() * (max - min)
+}
+
+fn spread_block_at(state: &ServerCommandState, x: i32, y: i32, z: i32) -> &str {
+    state
+        .blocks
+        .iter()
+        .rev()
+        .find(|entry| {
+            entry.dimension == state.command_source_dimension
+                && entry.position
+                    == BlockPos {
+                        x,
+                        y,
+                        z,
+                    }
         })
-        .collect()
+        .map_or_else(
+            || {
+                if y == 0 {
+                    "minecraft:grass_block"
+                } else {
+                    "minecraft:air"
+                }
+            },
+            |entry| entry.block.as_str(),
+        )
+}
+
+fn spread_block_is_air(state: &ServerCommandState, x: i32, y: i32, z: i32) -> bool {
+    spread_block_at(state, x, y, z) == "minecraft:air"
+}
+
+fn spread_block_is_liquid(block: &str) -> bool {
+    matches!(block, "minecraft:water" | "minecraft:lava")
+}
+
+fn spread_block_is_fire(block: &str) -> bool {
+    matches!(
+        block,
+        "minecraft:fire" | "minecraft:soul_fire" | "minecraft:campfire" | "minecraft:soul_campfire"
+    )
 }
 
 pub(super) fn upsert_entity_position(
