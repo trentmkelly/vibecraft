@@ -870,7 +870,7 @@ fn chat_command_model_covers_public_private_team_raw_and_permission_feedback() {
         "say hello everyone",
     )
     .unwrap();
-    assert_eq!(say.feedback_key, "commands.say.success");
+    assert_eq!(say.feedback_key, NO_COMMAND_FEEDBACK);
     assert_eq!(state.chat_events[0].kind, ChatCommandKind::Say);
     assert_eq!(
         state.chat_events[0].targets,
@@ -885,14 +885,14 @@ fn chat_command_model_covers_public_private_team_raw_and_permission_feedback() {
     let private =
         execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "tell Alex hi").unwrap();
     assert_eq!(private.success_count, 1);
-    assert_eq!(private.feedback_key, "commands.message.display");
+    assert_eq!(private.feedback_key, NO_COMMAND_FEEDBACK);
     assert_eq!(state.chat_events[2].kind, ChatCommandKind::Private);
     assert_eq!(state.chat_events[2].targets, vec![alex.clone()]);
 
     let team =
         execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "teammsg ready").unwrap();
     assert_eq!(team.success_count, 2);
-    assert_eq!(team.feedback_key, "commands.teammsg.success");
+    assert_eq!(team.feedback_key, NO_COMMAND_FEEDBACK);
     assert_eq!(state.chat_events[3].kind, ChatCommandKind::Team);
     assert_eq!(
         state.chat_events[3].targets,
@@ -902,10 +902,10 @@ fn chat_command_model_covers_public_private_team_raw_and_permission_feedback() {
     let tellraw = execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::GAMEMASTER,
-        "tellraw Alex -- {\"text\":\"raw\"}",
+        "tellraw Alex {\"text\":\"raw\"}",
     )
     .unwrap();
-    assert_eq!(tellraw.feedback_key, "commands.tellraw.success");
+    assert_eq!(tellraw.feedback_key, NO_COMMAND_FEEDBACK);
     assert_eq!(state.chat_events[4].kind, ChatCommandKind::TellRaw);
     assert_eq!(state.chat_events[4].message, "{\"text\":\"raw\"}");
 }

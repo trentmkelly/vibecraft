@@ -78,6 +78,7 @@ fn say_command_requires_gamemaster_and_broadcasts_to_online_players() {
     )
     .unwrap();
     assert_eq!(result.success_count, 1);
+    assert_eq!(result.feedback_key, NO_COMMAND_FEEDBACK);
     assert_eq!(state.chat_events.len(), 1);
     assert_eq!(state.chat_events[0].kind, ChatCommandKind::Say);
     assert_eq!(state.chat_events[0].targets.len(), 2);
@@ -154,10 +155,11 @@ fn msg_tell_and_w_send_private_messages_without_permission_gate() {
     let result = execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::ALL,
-        "msg Alex -- secret plan",
+        "msg Alex secret plan",
     )
     .unwrap();
     assert_eq!(result.success_count, 1);
+    assert_eq!(result.feedback_key, NO_COMMAND_FEEDBACK);
     assert_eq!(state.chat_events[0].kind, ChatCommandKind::Private);
     assert_eq!(state.chat_events[0].targets[0].name, "Alex");
     assert_eq!(state.chat_events[0].message, "secret plan");
@@ -165,6 +167,15 @@ fn msg_tell_and_w_send_private_messages_without_permission_gate() {
     execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "tell Steve hello").unwrap();
     execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "w Alex hi").unwrap();
     assert_eq!(state.chat_events.len(), 3);
+
+    let multi = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::ALL,
+        "msg Steve,Alex hello both",
+    )
+    .unwrap();
+    assert_eq!(multi.success_count, 2);
+    assert_eq!(state.chat_events[3].message, "hello both");
 }
 
 #[test]
@@ -173,6 +184,7 @@ fn teammsg_requires_source_team_and_targets_team_members() {
     let alex = NameAndId::create_offline("Alex");
     let mut state = ServerCommandState {
         command_source_player: Some(steve.clone()),
+        online_players: vec![steve.clone(), alex.clone()],
         player_teams: vec![
             TeamMembership {
                 player: steve,
@@ -198,6 +210,7 @@ fn teammsg_requires_source_team_and_targets_team_members() {
     )
     .unwrap();
     assert_eq!(result.success_count, 2);
+    assert_eq!(result.feedback_key, NO_COMMAND_FEEDBACK);
     assert_eq!(state.chat_events[0].kind, ChatCommandKind::Team);
     assert_eq!(state.chat_events[0].message, "push left");
     assert_eq!(
@@ -235,10 +248,11 @@ fn tellraw_requires_gamemaster_and_sends_system_message_to_targets() {
     let result = execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::GAMEMASTER,
-        "tellraw Steve Alex -- {\"text\":\"hi\"}",
+        "tellraw Steve,Alex {\"text\":\"hi\"}",
     )
     .unwrap();
     assert_eq!(result.success_count, 2);
+    assert_eq!(result.feedback_key, NO_COMMAND_FEEDBACK);
     assert_eq!(state.chat_events[0].kind, ChatCommandKind::TellRaw);
     assert_eq!(state.chat_events[0].message, "{\"text\":\"hi\"}");
     assert_eq!(state.chat_events[0].targets.len(), 2);

@@ -403,7 +403,7 @@ fn chat_broadcast_command(
         message: parts[1..].join(" "),
     });
     let feedback_key = match kind {
-        ChatCommandKind::Say => "commands.say.success",
+        ChatCommandKind::Say => NO_COMMAND_FEEDBACK,
         ChatCommandKind::Emote => "commands.me.success",
         ChatCommandKind::Private | ChatCommandKind::Team | ChatCommandKind::TellRaw => {
             return Err(CommandError::InvalidSyntax);
@@ -420,49 +420,27 @@ fn private_message_command(
     if parts.len() < 3 {
         return Err(CommandError::InvalidSyntax);
     }
-    let (target_names, message_parts) = split_message_targets(parts)?;
-    let targets = target_names
-        .iter()
-        .map(|target| NameAndId::create_offline(target))
-        .collect::<Vec<_>>();
+    let targets = parse_name_list(parts[1]);
+    if targets.is_empty() {
+        return Err(CommandError::InvalidSyntax);
+    }
     let count = targets.len() as i32;
     state.chat_events.push(ChatCommandEvent {
         kind,
         sender: state.command_source_player.clone(),
         targets,
-        message: message_parts.join(" "),
+        message: parts[2..].join(" "),
     });
     Ok(CommandResult {
         success_count: count,
         feedback_key: match kind {
-            ChatCommandKind::Private => "commands.message.display",
-            ChatCommandKind::TellRaw => "commands.tellraw.success",
+            ChatCommandKind::Private | ChatCommandKind::TellRaw => NO_COMMAND_FEEDBACK,
             ChatCommandKind::Say | ChatCommandKind::Emote | ChatCommandKind::Team => {
                 return Err(CommandError::InvalidSyntax);
             }
         },
         broadcast_to_admins: false,
     })
-}
-
-fn split_message_targets<'a>(
-    parts: &'a [&'a str],
-) -> Result<(&'a [&'a str], &'a [&'a str]), CommandError> {
-    let split = parts[1..]
-        .iter()
-        .position(|part| *part == "--")
-        .map(|index| index + 1)
-        .unwrap_or(2);
-    let target_names = &parts[1..split];
-    let message_parts = if split < parts.len() && parts[split] == "--" {
-        &parts[split + 1..]
-    } else {
-        &parts[split..]
-    };
-    if target_names.is_empty() || message_parts.is_empty() {
-        return Err(CommandError::InvalidSyntax);
-    }
-    Ok((target_names, message_parts))
 }
 
 fn team_message_command(
@@ -480,7 +458,12 @@ fn team_message_command(
         .team_for_player(&sender)
         .ok_or(CommandError::TeamMsgNoTeam)?
         .to_string();
-    let targets = state.players_on_team(&team);
+    let targets = state
+        .online_players
+        .iter()
+        .filter(|player| state.team_for_player(player) == Some(team.as_str()))
+        .cloned()
+        .collect::<Vec<_>>();
     let count = targets.len() as i32;
     state.chat_events.push(ChatCommandEvent {
         kind: ChatCommandKind::Team,
@@ -490,7 +473,7 @@ fn team_message_command(
     });
     Ok(CommandResult {
         success_count: count,
-        feedback_key: "commands.teammsg.success",
+        feedback_key: NO_COMMAND_FEEDBACK,
         broadcast_to_admins: false,
     })
 }
