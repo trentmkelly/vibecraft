@@ -421,3 +421,20 @@ fn give_command_source_matches_java_26_1_2() {
     assert!(ITEM.contains("public Item.Properties horseArmor(final ArmorMaterial material)"));
     assert!(ITEM.contains(".stacksTo(1);"));
 }
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn help_command_source_matches_java_26_1_2() {
+    const HELP: &str = vibecraft_java_source!("/net/minecraft/server/commands/HelpCommand.java");
+
+    assert!(HELP.contains("Commands.literal(\"help\").executes"));
+    assert!(HELP.contains("dispatcher.getSmartUsage(dispatcher.getRoot()"));
+    assert!(HELP.contains("Component.literal(\"/\" + line)"));
+    assert!(HELP.contains("return usage.size();"));
+    assert!(HELP.contains("Commands.argument(\"command\", StringArgumentType.greedyString())"));
+    assert!(HELP.contains("dispatcher.parse("));
+    assert!(HELP.contains("if (command.getContext().getNodes().isEmpty())"));
+    assert!(HELP.contains("throw ERROR_FAILED.create();"));
+    assert!(HELP.contains("Iterables.getLast(command.getContext().getNodes())"));
+    assert!(HELP.contains("Component.literal(\"/\" + command.getReader().getString() + \" \" + line)"));
+}

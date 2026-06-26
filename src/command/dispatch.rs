@@ -293,14 +293,23 @@ fn help_command(
         ["help", command @ ..] if !command.is_empty() => {
             let command = command.join(" ");
             let root = command.split_whitespace().next().unwrap_or_default();
-            if command_usage(root, permissions).is_some() {
-                Ok(success_result("commands.help.success", false))
+            if let Some(usage) = command_usage(root, permissions) {
+                Ok(CommandResult {
+                    success_count: help_smart_usage_count(root, usage),
+                    feedback_key: "commands.help.success",
+                    broadcast_to_admins: false,
+                })
             } else {
                 Err(CommandError::HelpFailed)
             }
         }
         _ => Err(CommandError::InvalidSyntax),
     }
+}
+
+fn help_smart_usage_count(root: &str, usage: &str) -> i32 {
+    let root_usage = format!("/{root}");
+    if usage == root_usage { 0 } else { 1 }
 }
 
 fn list_command(state: &ServerCommandState, parts: &[&str]) -> Result<CommandResult, CommandError> {

@@ -829,7 +829,7 @@ fn help_command_reports_specific_visible_command_or_failure() {
     assert_eq!(
         execute_builtin_command(&mut state, LevelBasedPermissionSet::OWNER, "help stop"),
         Ok(super::CommandResult {
-            success_count: 1,
+            success_count: 0,
             feedback_key: "commands.help.success",
             broadcast_to_admins: false,
         })
