@@ -715,14 +715,25 @@ fn raid_command_records_sound_and_spawnleader_debug_actions() {
     assert_eq!(
         state.raid_events[0],
         CommandRaidEvent::Sound {
-            local: true,
+            sound: "minecraft:entity.raid.horn",
+            source: SoundSource::Neutral,
             position: Vec3 {
                 x: 6.0,
                 y: 65.0,
                 z: 2.0,
             },
+            volume: 2.0,
+            pitch: 1.0,
         }
     );
+    let non_local = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::ADMIN,
+        "raid sound global",
+    )
+    .unwrap();
+    assert_eq!(non_local.success_count, 1);
+    assert_eq!(state.raid_events.len(), 1);
 
     let leader = execute_builtin_command(
         &mut state,
@@ -734,11 +745,14 @@ fn raid_command_records_sound_and_spawnleader_debug_actions() {
     assert_eq!(
         state.raid_events[1],
         CommandRaidEvent::SpawnLeader {
+            entity_type: "minecraft:pillager",
             position: Vec3 {
                 x: 1.0,
                 y: 65.0,
                 z: 2.0,
             },
+            patrol_leader: true,
+            head_item: "minecraft:white_banner",
         }
     );
 }
@@ -769,6 +783,65 @@ fn raid_command_rejects_missing_player_and_bad_omen_levels() {
             .unwrap();
     assert_eq!(too_high.feedback_key, "commands.raid.omen.too_high");
     assert_eq!(state.raids[0].omen_level, 1);
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn raid_command_source_matches_java_26_1_2() {
+    const RAID: &str = vibecraft_java_source!("/net/minecraft/server/commands/RaidCommand.java");
+    const RAID_STATE: &str = vibecraft_java_source!("/net/minecraft/world/entity/raid/Raid.java");
+
+    for sentinel in [
+        "\"raid\"",
+        ".requires(Commands.hasPermission(Commands.LEVEL_ADMINS))",
+        "Commands.literal(\"start\")",
+        "Commands.argument(\"omenlvl\", IntegerArgumentType.integer(0))",
+        "Commands.literal(\"stop\")",
+        "Commands.literal(\"check\")",
+        "Commands.literal(\"sound\")",
+        "Commands.argument(\"type\", ComponentArgument.textComponent(context))",
+        "Commands.literal(\"spawnleader\")",
+        "Commands.literal(\"setomen\")",
+        "Commands.argument(\"level\", IntegerArgumentType.integer(0))",
+        "Commands.literal(\"glow\")",
+        "source.getPlayerOrException()",
+        "player.level().isRaided(pos)",
+        "Raid already started close by",
+        "raids.createOrExtendRaid(player, player.blockPosition())",
+        "raid.setRaidOmenLevel(raidOmenLevel)",
+        "Created a raid in your local village",
+        "Failed to create a raid in your local village",
+        "raid.stop()",
+        "Stopped raid",
+        "No raid here",
+        "Found a started raid!",
+        "Found no started raids",
+        "type != null && type.getString().equals(\"local\")",
+        "SoundEvents.RAID_HORN",
+        "SoundSource.NEUTRAL",
+        "2.0F, 1.0F",
+        "EntityType.PILLAGER.create(source.getLevel(), EntitySpawnReason.COMMAND)",
+        "raider.setPatrolLeader(true)",
+        "EquipmentSlot.HEAD",
+        "Raid.getOminousBannerInstance",
+        "Spawned a raid captain",
+        "raid.getMaxRaidOmenLevel()",
+        "Sorry, the max raid omen level you can set is ",
+        "Changed village's raid omen level from ",
+        "No raid found here",
+        "raider.addEffect(new MobEffectInstance(MobEffects.GLOWING, 1000, 1))",
+        "return -1;",
+        "return 0;",
+        "return 1;",
+    ] {
+        assert!(
+            RAID.contains(sentinel),
+            "RaidCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+
+    assert!(RAID_STATE.contains("public int getMaxRaidOmenLevel()"));
+    assert!(RAID_STATE.contains("return 5;"));
 }
 
 #[test]

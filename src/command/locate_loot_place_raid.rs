@@ -916,22 +916,27 @@ pub(super) fn raid_command(
             }
         }
         ["raid", "sound", sound_type] => {
-            let local = *sound_type == "local";
-            if local {
+            if *sound_type == "local" {
                 state.raid_events.push(CommandRaidEvent::Sound {
-                    local,
+                    sound: "minecraft:entity.raid.horn",
+                    source: SoundSource::Neutral,
                     position: Vec3 {
                         x: state.command_source_position.x + 5.0,
                         y: state.command_source_position.y,
                         z: state.command_source_position.z,
                     },
+                    volume: 2.0,
+                    pitch: 1.0,
                 });
             }
             Ok(raid_result(1, "commands.raid.sound"))
         }
         ["raid", "spawnleader"] => {
             state.raid_events.push(CommandRaidEvent::SpawnLeader {
+                entity_type: "minecraft:pillager",
                 position: state.command_source_position,
+                patrol_leader: true,
+                head_item: "minecraft:white_banner",
             });
             Ok(raid_result(1, "commands.raid.spawnleader.success"))
         }

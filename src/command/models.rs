@@ -384,8 +384,19 @@ pub struct CommandRaidState {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CommandRaidEvent {
-    Sound { local: bool, position: Vec3 },
-    SpawnLeader { position: Vec3 },
+    Sound {
+        sound: &'static str,
+        source: SoundSource,
+        position: Vec3,
+        volume: f32,
+        pitch: f32,
+    },
+    SpawnLeader {
+        entity_type: &'static str,
+        position: Vec3,
+        patrol_leader: bool,
+        head_item: &'static str,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
