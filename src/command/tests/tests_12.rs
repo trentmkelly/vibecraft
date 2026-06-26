@@ -497,3 +497,38 @@ fn item_command_source_matches_java_26_1_2() {
     assert!(SLOT_RANGES.contains("addSingleSlot(values, \"armor.body\", body)"));
     assert!(SLOT_RANGES.contains("addSingleSlot(values, \"player.cursor\", 499)"));
 }
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn locate_command_source_matches_java_26_1_2() {
+    const LOCATE: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/LocateCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"locate\")",
+        ".requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "Commands.literal(\"structure\")",
+        "ResourceOrTagKeyArgument.resourceOrTagKey(Registries.STRUCTURE)",
+        "Commands.literal(\"biome\")",
+        "ResourceOrTagArgument.resourceOrTag(context, Registries.BIOME)",
+        "Commands.literal(\"poi\")",
+        "ResourceOrTagArgument.resourceOrTag(context, Registries.POINT_OF_INTEREST_TYPE)",
+        "private static final int MAX_STRUCTURE_SEARCH_RADIUS = 100;",
+        "private static final int MAX_BIOME_SEARCH_RADIUS = 6400;",
+        "private static final int BIOME_SAMPLE_RESOLUTION_HORIZONTAL = 32;",
+        "private static final int BIOME_SAMPLE_RESOLUTION_VERTICAL = 64;",
+        "private static final int POI_SEARCH_RADIUS = 256;",
+        "findNearestMapStructure(serverLevel, target, sourcePos, 100, false)",
+        "findClosestBiome3d(elementOrTag, sourcePos, 6400, 32, 64)",
+        "findClosestWithType(resourceOrTag, sourcePos, 256, PoiManager.Occupancy.ANY)",
+        "showLocateResult(source, resourceOrTag, sourcePos, nearest, \"commands.locate.structure.success\", false",
+        "showLocateResult(source, elementOrTag, sourcePos, nearest, \"commands.locate.biome.success\", true",
+        "showLocateResult(source, resourceOrTag, sourcePos, closestWithType.get().swap(), \"commands.locate.poi.success\", false",
+        "return distance;",
+    ] {
+        assert!(
+            LOCATE.contains(sentinel),
+            "LocateCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+}

@@ -4,23 +4,26 @@ pub(super) fn locate_command(
     state: &mut ServerCommandState,
     parts: &[&str],
 ) -> Result<CommandResult, CommandError> {
-    let (kind, query, include_y, feedback_key) = match parts {
+    let (kind, query, include_y, search_radius, feedback_key) = match parts {
         ["locate", "structure", query] => (
             LocateKind::Structure,
             parse_locate_query(query)?,
             false,
+            None,
             "commands.locate.structure.success",
         ),
         ["locate", "biome", query] => (
             LocateKind::Biome,
             parse_locate_query(query)?,
             true,
+            Some(6400),
             "commands.locate.biome.success",
         ),
         ["locate", "poi", query] => (
             LocateKind::Poi,
             parse_locate_query(query)?,
             false,
+            Some(256),
             "commands.locate.poi.success",
         ),
         _ => return Err(CommandError::InvalidSyntax),
@@ -46,6 +49,11 @@ pub(super) fn locate_command(
         .locatable_entries
         .iter()
         .filter(|entry| entry.kind == kind && locate_entry_matches(entry, &query))
+        .filter(|entry| {
+            search_radius.is_none_or(|radius| {
+                locate_distance(source_pos, entry.position, include_y) <= radius
+            })
+        })
         .min_by_key(|entry| locate_distance(source_pos, entry.position, include_y));
 
     let Some(found) = nearest else {

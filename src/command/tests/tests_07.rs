@@ -411,6 +411,52 @@ fn locate_command_reports_invalid_or_missing_targets() {
 }
 
 #[test]
+fn locate_command_respects_java_biome_and_poi_search_radii() {
+    let mut state = ServerCommandState {
+        locatable_entries: vec![
+            CommandLocatableEntry {
+                kind: LocateKind::Biome,
+                id: "minecraft:desert".to_string(),
+                tags: Vec::new(),
+                position: BlockPos {
+                    x: 0,
+                    y: 64,
+                    z: 6401,
+                },
+            },
+            CommandLocatableEntry {
+                kind: LocateKind::Poi,
+                id: "minecraft:armorer".to_string(),
+                tags: Vec::new(),
+                position: BlockPos {
+                    x: 257,
+                    y: 64,
+                    z: 0,
+                },
+            },
+        ],
+        ..ServerCommandState::default()
+    };
+
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "locate biome desert"
+        ),
+        Err(CommandError::LocateBiomeNotFound)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "locate poi armorer"
+        ),
+        Err(CommandError::LocatePoiNotFound)
+    );
+}
+
+#[test]
 fn loot_command_gives_spawns_and_inserts_generated_drops() {
     let mut state = ServerCommandState {
         command_loot_tables: vec![CommandLootTable {
