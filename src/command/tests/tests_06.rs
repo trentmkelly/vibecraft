@@ -91,6 +91,7 @@ fn command_results_keep_source_permissions_feedback_and_side_effects_consistent(
     )
     .unwrap();
     assert_eq!(repeated.success_count, 0);
+    assert_eq!(repeated.feedback_key, NO_COMMAND_FEEDBACK);
     assert!(repeated.broadcast_to_admins);
 
     state.command_source_player = None;
@@ -101,7 +102,7 @@ fn command_results_keep_source_permissions_feedback_and_side_effects_consistent(
     )
     .unwrap();
     assert_eq!(console_set.success_count, 1);
-    assert_eq!(console_set.feedback_key, "commands.gamemode.success.self");
+    assert_eq!(console_set.feedback_key, "commands.gamemode.success.other");
     assert!(console_set.broadcast_to_admins);
     assert_eq!(
         state

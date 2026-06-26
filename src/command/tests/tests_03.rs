@@ -766,6 +766,56 @@ fn gamemode_commands_update_defaults_players_and_forced_modes() {
 }
 
 #[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn gamemode_and_gamerule_command_sources_match_java_26_1_2() {
+    const GAMEMODE_COMMAND_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/GameModeCommand.java");
+    const GAMERULE_COMMAND_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/GameRuleCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"gamemode\").requires(Commands.hasPermission(PERMISSION_CHECK))",
+        "Permissions.COMMANDS_GAMEMASTER",
+        "Commands.argument(\"gamemode\", GameModeArgument.gameMode())",
+        "Collections.singleton(((CommandSourceStack)c.getSource()).getPlayerOrException())",
+        "Commands.argument(\"target\", EntityArgument.players())",
+        "EntityArgument.getPlayers(c, \"target\")",
+        "if (source.getEntity() == target)",
+        "commands.gamemode.success.self",
+        "GameRules.SEND_COMMAND_FEEDBACK",
+        "target.sendSystemMessage(Component.translatable(\"gameMode.changed\", mode));",
+        "commands.gamemode.success.other",
+        "if (player.setGameMode(type))",
+        "return count;",
+    ] {
+        assert!(
+            GAMEMODE_COMMAND_JAVA.contains(sentinel),
+            "GameModeCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+
+    for sentinel in [
+        "Commands.literal(\"gamerule\")",
+        "requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "new GameRules(context.enabledFeatures())",
+        "visitGameRuleTypes",
+        "Commands.literal(gameRule.id())",
+        "Commands.literal(gameRule.getIdentifier().toString())",
+        "queryRule((CommandSourceStack)c.getSource(), gameRule)",
+        "Commands.argument(\"value\", gameRule.argument())",
+        "source.getLevel().getGameRules().set(gameRule, value",
+        "Component.translatable(\"commands.gamerule.set\", gameRule.id(), gameRule.serialize(value))",
+        "return gameRule.getCommandResult(value);",
+        "Component.translatable(\"commands.gamerule.query\", gameRule.id(), gameRule.serialize(value))",
+    ] {
+        assert!(
+            GAMERULE_COMMAND_JAVA.contains(sentinel),
+            "GameRuleCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+}
+
+#[test]
 fn difficulty_and_gamerule_commands_query_set_and_reject_noops() {
     let mut state = ServerCommandState::default();
     assert_eq!(

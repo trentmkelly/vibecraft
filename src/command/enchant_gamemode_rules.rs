@@ -171,13 +171,21 @@ pub(super) fn set_gamemode_for_targets(
             changed += 1;
         }
     }
+    let feedback_key = if changed == 0 {
+        NO_COMMAND_FEEDBACK
+    } else if targets.len() == 1
+        && state
+            .command_source_player
+            .as_ref()
+            .is_some_and(|source| source.uuid == targets[0].uuid)
+    {
+        "commands.gamemode.success.self"
+    } else {
+        "commands.gamemode.success.other"
+    };
     Ok(CommandResult {
         success_count: changed,
-        feedback_key: if targets.len() == 1 {
-            "commands.gamemode.success.self"
-        } else {
-            "commands.gamemode.success.other"
-        },
+        feedback_key,
         broadcast_to_admins: true,
     })
 }
