@@ -2,6 +2,12 @@
 
 use std::collections::BTreeMap;
 
+use crate::chat_component::Component;
+
+pub const DIALOG_WIDTH_MIN: i32 = 1;
+pub const DIALOG_WIDTH_MAX: i32 = 1024;
+pub const PLAIN_MESSAGE_DEFAULT_WIDTH: i32 = 200;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DialogType {
     Notice,
@@ -51,6 +57,17 @@ pub struct DialogDefinition {
     pub dialog_type: DialogType,
     pub title: String,
     pub body_types: Vec<DialogBodyType>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlainMessageBody {
+    pub contents: Component,
+    pub width: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DialogBody {
+    PlainMessage(PlainMessageBody),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -194,6 +211,37 @@ impl DialogAction {
 
     pub fn will_unpause(self) -> bool {
         matches!(self, Self::Close | Self::WaitForResponse)
+    }
+}
+
+impl PlainMessageBody {
+    pub fn new(contents: Component, width: i32) -> Result<Self, String> {
+        if !(DIALOG_WIDTH_MIN..=DIALOG_WIDTH_MAX).contains(&width) {
+            return Err(format!(
+                "plain message width {width} is outside Java Dialog.WIDTH_CODEC range {DIALOG_WIDTH_MIN}..={DIALOG_WIDTH_MAX}"
+            ));
+        }
+
+        Ok(Self { contents, width })
+    }
+
+    pub fn with_default_width(contents: Component) -> Self {
+        Self {
+            contents,
+            width: PLAIN_MESSAGE_DEFAULT_WIDTH,
+        }
+    }
+
+    pub fn body_type(&self) -> DialogBodyType {
+        DialogBodyType::PlainMessage
+    }
+}
+
+impl DialogBody {
+    pub fn body_type(&self) -> DialogBodyType {
+        match self {
+            Self::PlainMessage(message) => message.body_type(),
+        }
     }
 }
 
@@ -366,6 +414,68 @@ mod tests {
         assert!(DialogAction::Close.will_unpause());
         assert!(!DialogAction::None.will_unpause());
         assert!(DialogAction::WaitForResponse.will_unpause());
+    }
+
+    #[test]
+    fn plain_message_body_uses_java_default_width_and_width_range() {
+        let message = PlainMessageBody::with_default_width(Component::literal("Rules"));
+        assert_eq!(message.contents, Component::literal("Rules"));
+        assert_eq!(message.width, PLAIN_MESSAGE_DEFAULT_WIDTH);
+        assert_eq!(message.body_type(), DialogBodyType::PlainMessage);
+        assert_eq!(
+            DialogBody::PlainMessage(message.clone()).body_type(),
+            DialogBodyType::PlainMessage
+        );
+
+        assert_eq!(
+            PlainMessageBody::new(Component::literal("Narrow"), DIALOG_WIDTH_MIN),
+            Ok(PlainMessageBody {
+                contents: Component::literal("Narrow"),
+                width: 1
+            })
+        );
+        assert_eq!(
+            PlainMessageBody::new(Component::literal("Wide"), DIALOG_WIDTH_MAX),
+            Ok(PlainMessageBody {
+                contents: Component::literal("Wide"),
+                width: 1024
+            })
+        );
+        assert!(PlainMessageBody::new(Component::empty(), 0).is_err());
+        assert!(PlainMessageBody::new(Component::empty(), 1025).is_err());
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn plain_message_body_source_matches_java_26_1_2() {
+        const DIALOG: &str = vibecraft_java_source!("/net/minecraft/server/dialog/Dialog.java");
+        const PLAIN_MESSAGE: &str =
+            vibecraft_java_source!("/net/minecraft/server/dialog/body/PlainMessage.java");
+
+        for sentinel in [
+            "Codec<Integer> WIDTH_CODEC = ExtraCodecs.intRange(1, 1024);",
+            "Codec<Dialog> DIRECT_CODEC = BuiltInRegistries.DIALOG_TYPE.byNameCodec().dispatch(Dialog::codec, c -> c);",
+        ] {
+            assert!(
+                DIALOG.contains(sentinel),
+                "Dialog.java is missing sentinel: {sentinel}"
+            );
+        }
+
+        for sentinel in [
+            "public record PlainMessage(Component contents, int width) implements DialogBody",
+            "public static final int DEFAULT_WIDTH = 200;",
+            "ComponentSerialization.CODEC.fieldOf(\"contents\").forGetter(PlainMessage::contents)",
+            "Dialog.WIDTH_CODEC.optionalFieldOf(\"width\", 200).forGetter(PlainMessage::width)",
+            "Codec.withAlternative(",
+            "ComponentSerialization.CODEC, contents -> new PlainMessage(contents, 200)",
+            "return MAP_CODEC;",
+        ] {
+            assert!(
+                PLAIN_MESSAGE.contains(sentinel),
+                "PlainMessage.java is missing sentinel: {sentinel}"
+            );
+        }
     }
 
     #[test]
