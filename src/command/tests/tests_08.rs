@@ -876,7 +876,7 @@ fn kill_command_accepts_multiple_targets() {
     let killed = execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::GAMEMASTER,
-        "kill zombie creeper",
+        "kill zombie,creeper",
     )
     .unwrap();
     assert_eq!(killed.success_count, 2);
@@ -888,6 +888,15 @@ fn kill_command_accepts_multiple_targets() {
             .map(|entity| entity.id.as_str())
             .collect::<Vec<_>>(),
         vec!["zombie", "creeper"]
+    );
+
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "kill zombie creeper"
+        ),
+        Err(CommandError::InvalidSyntax)
     );
 }
 

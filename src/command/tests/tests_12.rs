@@ -582,6 +582,29 @@ fn locate_command_source_matches_java_26_1_2() {
 
 #[test]
 #[cfg(vibecraft_has_decompiled_sources)]
+fn kill_command_source_matches_java_26_1_2() {
+    const KILL: &str = vibecraft_java_source!("/net/minecraft/server/commands/KillCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"kill\")",
+        ".requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "getEntityOrException()",
+        "Commands.argument(\"targets\", EntityArgument.entities())",
+        "EntityArgument.getEntities(c, \"targets\")",
+        "entity.kill(source.getLevel())",
+        "commands.kill.success.single",
+        "commands.kill.success.multiple",
+        "return victims.size();",
+    ] {
+        assert!(
+            KILL.contains(sentinel),
+            "KillCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
 fn loot_command_source_matches_java_26_1_2() {
     const LOOT: &str = vibecraft_java_source!("/net/minecraft/server/commands/LootCommand.java");
 

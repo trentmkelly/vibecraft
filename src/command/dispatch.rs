@@ -589,16 +589,7 @@ fn kill_command(
                 .ok_or(CommandError::InvalidSyntax)?;
             kill_entities(state, vec![source])
         }
-        ["kill", targets @ ..] if !targets.is_empty() => {
-            let targets = targets
-                .iter()
-                .map(|target| EntityRef {
-                    id: (*target).to_string(),
-                    display_name: (*target).to_string(),
-                })
-                .collect::<Vec<_>>();
-            kill_entities(state, targets)
-        }
+        ["kill", targets] => kill_entities(state, parse_entity_list(targets)),
         _ => Err(CommandError::InvalidSyntax),
     }
 }
