@@ -120,6 +120,19 @@ fn enchant_command_allows_zero_level_and_rejects_duplicate_existing_enchantment(
 }
 
 #[test]
+fn gamemode_command_rejects_extra_target_arguments_like_java() {
+    let mut state = ServerCommandState::default();
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "gamemode adventure Steve Alex"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+}
+
+#[test]
 fn fill_command_allows_filtered_modes_like_java_wrap_with_mode() {
     let mut state = ServerCommandState {
         blocks: vec![BlockStateEntry {

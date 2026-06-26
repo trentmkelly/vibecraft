@@ -879,7 +879,7 @@ fn gamemode_commands_update_defaults_players_and_forced_modes() {
     let others = execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::GAMEMASTER,
-        "gamemode creative Steve Alex",
+        "gamemode creative Steve,Alex",
     )
     .unwrap();
     assert_eq!(others.success_count, 2);

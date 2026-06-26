@@ -148,11 +148,8 @@ pub(super) fn gamemode_command(
                 .ok_or(CommandError::InvalidSyntax)?;
             set_gamemode_for_targets(state, parse_gamemode(mode)?, &[player])
         }
-        ["gamemode", mode, targets @ ..] if !targets.is_empty() => {
-            let targets = targets
-                .iter()
-                .map(|target| NameAndId::create_offline(target))
-                .collect::<Vec<_>>();
+        ["gamemode", mode, targets] => {
+            let targets = parse_name_list(targets);
             set_gamemode_for_targets(state, parse_gamemode(mode)?, &targets)
         }
         _ => Err(CommandError::InvalidSyntax),
