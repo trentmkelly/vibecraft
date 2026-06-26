@@ -79,7 +79,7 @@
 - [ ] Implement selector parsing, entity predicates, score predicates, NBT predicates, range predicates, sort/order, limits, and current entity context.
 - [ ] Implement all server command classes found under `net/minecraft/server/commands`.
 - [ ] Implement `/advancement`.
-- [ ] Implement `/attribute`.
+- [x] Implement `/attribute`. — Java `AttributeCommand` is gamemaster-gated and supports `get [scale]`, `base get [scale]`, `base set`, `base reset`, `modifier add <id> <value> add_value|add_multiplied_base|add_multiplied_total`, `modifier remove <id>`, and `modifier value get <id> [scale]`; it rejects non-living targets separately from missing attributes/modifiers, floors Java-style `(int)(value * scale)` return counts, emits non-broadcast feedback, and returns `1` for mutations. Rust `attribute_command()` mirrors the command tree, target/attribute/modifier error paths, all three modifier operations in Java order, return counts, and feedback keys; covered by `attribute_command_gets_sets_resets_and_computes_modifier_values`, `attribute_command_adds_removes_and_reports_modifier_failures`, `attribute_command_rejects_non_living_targets_separately_from_missing_attributes`, `attribute_command_computes_all_java_modifier_operations_in_order`, and source-backed `attribute_command_source_matches_java_26_1_2`.
 - [ ] Implement `/ban-ip`, `/banlist`, `/ban`, `/pardon`, `/pardon-ip`.
 - [ ] Implement `/bossbar`.
 - [ ] Implement `/chase`.
