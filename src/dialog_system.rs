@@ -10,6 +10,12 @@ pub const PLAIN_MESSAGE_DEFAULT_WIDTH: i32 = 200;
 pub const BOOLEAN_INPUT_DEFAULT_INITIAL: bool = false;
 pub const BOOLEAN_INPUT_DEFAULT_ON_TRUE: &str = "true";
 pub const BOOLEAN_INPUT_DEFAULT_ON_FALSE: &str = "false";
+pub const TEXT_INPUT_DEFAULT_WIDTH: i32 = 200;
+pub const TEXT_INPUT_DEFAULT_LABEL_VISIBLE: bool = true;
+pub const TEXT_INPUT_DEFAULT_INITIAL: &str = "";
+pub const TEXT_INPUT_DEFAULT_MAX_LENGTH: i32 = 32;
+pub const TEXT_INPUT_MULTILINE_HEIGHT_MIN: i32 = 1;
+pub const TEXT_INPUT_MULTILINE_MAX_HEIGHT: i32 = 512;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DialogType {
@@ -82,8 +88,25 @@ pub struct BooleanInputControl {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TextInputMultilineOptions {
+    pub max_lines: Option<i32>,
+    pub height: Option<i32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TextInputControl {
+    pub width: i32,
+    pub label: Component,
+    pub label_visible: bool,
+    pub initial: String,
+    pub max_length: i32,
+    pub multiline: Option<TextInputMultilineOptions>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InputControl {
     Boolean(BooleanInputControl),
+    Text(TextInputControl),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -290,10 +313,75 @@ impl BooleanInputControl {
     }
 }
 
+impl TextInputMultilineOptions {
+    pub fn new(max_lines: Option<i32>, height: Option<i32>) -> Result<Self, String> {
+        if matches!(max_lines, Some(lines) if lines <= 0) {
+            return Err("text input multiline max_lines must be positive".to_string());
+        }
+        if matches!(height, Some(height) if !(TEXT_INPUT_MULTILINE_HEIGHT_MIN..=TEXT_INPUT_MULTILINE_MAX_HEIGHT).contains(&height)) {
+            return Err(format!(
+                "text input multiline height must be in Java range {TEXT_INPUT_MULTILINE_HEIGHT_MIN}..={TEXT_INPUT_MULTILINE_MAX_HEIGHT}"
+            ));
+        }
+
+        Ok(Self { max_lines, height })
+    }
+}
+
+impl TextInputControl {
+    pub fn new(
+        width: i32,
+        label: Component,
+        label_visible: bool,
+        initial: impl Into<String>,
+        max_length: i32,
+        multiline: Option<TextInputMultilineOptions>,
+    ) -> Result<Self, String> {
+        if !(DIALOG_WIDTH_MIN..=DIALOG_WIDTH_MAX).contains(&width) {
+            return Err(format!(
+                "text input width {width} is outside Java Dialog.WIDTH_CODEC range {DIALOG_WIDTH_MIN}..={DIALOG_WIDTH_MAX}"
+            ));
+        }
+        if max_length <= 0 {
+            return Err("text input max_length must be positive".to_string());
+        }
+
+        let initial = initial.into();
+        if java_string_length(&initial) > max_length {
+            return Err("Default text length exceeds allowed size".to_string());
+        }
+
+        Ok(Self {
+            width,
+            label,
+            label_visible,
+            initial,
+            max_length,
+            multiline,
+        })
+    }
+
+    pub fn with_defaults(label: Component) -> Self {
+        Self {
+            width: TEXT_INPUT_DEFAULT_WIDTH,
+            label,
+            label_visible: TEXT_INPUT_DEFAULT_LABEL_VISIBLE,
+            initial: TEXT_INPUT_DEFAULT_INITIAL.to_string(),
+            max_length: TEXT_INPUT_DEFAULT_MAX_LENGTH,
+            multiline: None,
+        }
+    }
+
+    pub fn input_type(&self) -> InputControlType {
+        InputControlType::Text
+    }
+}
+
 impl InputControl {
     pub fn input_type(&self) -> InputControlType {
         match self {
             Self::Boolean(input) => input.input_type(),
+            Self::Text(input) => input.input_type(),
         }
     }
 }
@@ -444,6 +532,10 @@ fn normalize_identifier(input: &str) -> String {
     }
 }
 
+fn java_string_length(input: &str) -> i32 {
+    input.encode_utf16().count() as i32
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -526,6 +618,98 @@ mod tests {
                 on_false: "disabled".to_string(),
             }
         );
+    }
+
+    #[test]
+    fn text_input_control_uses_java_defaults_ranges_and_utf16_validation() {
+        let default_input = TextInputControl::with_defaults(Component::literal("Name"));
+        assert_eq!(
+            default_input,
+            TextInputControl {
+                width: 200,
+                label: Component::literal("Name"),
+                label_visible: true,
+                initial: String::new(),
+                max_length: 32,
+                multiline: None,
+            }
+        );
+        assert_eq!(default_input.input_type(), InputControlType::Text);
+        assert_eq!(
+            InputControl::Text(default_input.clone()).input_type(),
+            InputControlType::Text
+        );
+
+        let multiline = TextInputMultilineOptions::new(Some(3), Some(64));
+        assert_eq!(
+            multiline,
+            Ok(TextInputMultilineOptions {
+                max_lines: Some(3),
+                height: Some(64),
+            })
+        );
+
+        assert_eq!(
+            TextInputControl::new(
+                DIALOG_WIDTH_MIN,
+                Component::literal("Short"),
+                false,
+                "ok",
+                2,
+                None,
+            ),
+            Ok(TextInputControl {
+                width: 1,
+                label: Component::literal("Short"),
+                label_visible: false,
+                initial: "ok".to_string(),
+                max_length: 2,
+                multiline: None,
+            })
+        );
+        assert!(TextInputControl::new(
+            DIALOG_WIDTH_MAX + 1,
+            Component::empty(),
+            true,
+            "",
+            32,
+            None
+        )
+        .is_err());
+        assert!(TextInputControl::new(200, Component::empty(), true, "", 0, None).is_err());
+        assert!(TextInputControl::new(200, Component::empty(), true, "toolong", 3, None).is_err());
+        assert!(TextInputControl::new(200, Component::empty(), true, "😀", 1, None).is_err());
+        assert!(TextInputControl::new(200, Component::empty(), true, "😀", 2, None).is_ok());
+        assert!(TextInputMultilineOptions::new(Some(0), None).is_err());
+        assert!(TextInputMultilineOptions::new(None, Some(0)).is_err());
+        assert!(TextInputMultilineOptions::new(None, Some(513)).is_err());
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn text_input_control_source_matches_java_26_1_2() {
+        const TEXT_INPUT: &str =
+            vibecraft_java_source!("/net/minecraft/server/dialog/input/TextInput.java");
+
+        for sentinel in [
+            "public record TextInput(int width, Component label, boolean labelVisible, String initial, int maxLength, Optional<TextInput.MultilineOptions> multiline)",
+            "Dialog.WIDTH_CODEC.optionalFieldOf(\"width\", 200).forGetter(TextInput::width)",
+            "ComponentSerialization.CODEC.fieldOf(\"label\").forGetter(TextInput::label)",
+            "Codec.BOOL.optionalFieldOf(\"label_visible\", true).forGetter(TextInput::labelVisible)",
+            "Codec.STRING.optionalFieldOf(\"initial\", \"\").forGetter(TextInput::initial)",
+            "ExtraCodecs.POSITIVE_INT.optionalFieldOf(\"max_length\", 32).forGetter(TextInput::maxLength)",
+            "TextInput.MultilineOptions.CODEC.optionalFieldOf(\"multiline\").forGetter(TextInput::multiline)",
+            "o.initial.length() > o.maxLength() ? DataResult.error(() -> \"Default text length exceeds allowed size\") : DataResult.success(o)",
+            "public record MultilineOptions(Optional<Integer> maxLines, Optional<Integer> height)",
+            "public static final int MAX_HEIGHT = 512;",
+            "ExtraCodecs.POSITIVE_INT.optionalFieldOf(\"max_lines\").forGetter(TextInput.MultilineOptions::maxLines)",
+            "ExtraCodecs.intRange(1, 512).optionalFieldOf(\"height\").forGetter(TextInput.MultilineOptions::height)",
+        ] {
+            assert!(
+                TEXT_INPUT.contains(sentinel),
+                "TextInput.java is missing sentinel: {sentinel}"
+            );
+        }
     }
 
     #[test]
