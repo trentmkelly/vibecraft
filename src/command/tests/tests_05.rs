@@ -989,6 +989,43 @@ fn recipe_command_fails_when_no_recipes_change() {
 }
 
 #[test]
+fn recipe_command_uses_java_resource_key_argument_rules() {
+    let mut state = ServerCommandState {
+        known_recipes: vec!["minecraft:stick".to_string()],
+        ..ServerCommandState::default()
+    };
+
+    let given = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "recipe give Steve stick",
+    )
+    .unwrap();
+    assert_eq!(given.success_count, 1);
+    assert_eq!(
+        state.player_recipes[0].recipes,
+        vec!["minecraft:stick".to_string()]
+    );
+
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "recipe give Steve Minecraft:Stick"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "recipe give Steve minecraft:missing"
+        ),
+        Err(CommandError::RecipeNotFound)
+    );
+}
+
+#[test]
 fn list_command_reports_online_player_count_for_all_sources() {
     let mut state = ServerCommandState {
         online_players: vec![
