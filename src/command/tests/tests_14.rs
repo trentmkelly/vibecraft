@@ -302,3 +302,34 @@ fn version_command_source_matches_java_26_1_2() {
         );
     }
 }
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn weather_command_source_matches_java_26_1_2() {
+    const WEATHER: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/WeatherCommand.java");
+
+    for sentinel in [
+        "private static final int DEFAULT_TIME = -1;",
+        "Commands.literal(\"weather\")",
+        ".requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "Commands.literal(\"clear\").executes(c -> setClear((CommandSourceStack)c.getSource(), -1))",
+        "Commands.literal(\"rain\").executes(c -> setRain((CommandSourceStack)c.getSource(), -1))",
+        "Commands.literal(\"thunder\").executes(c -> setThunder((CommandSourceStack)c.getSource(), -1))",
+        "Commands.argument(\"duration\", TimeArgument.time(1))",
+        "IntegerArgumentType.getInteger(c, \"duration\")",
+        "input == -1 ? defaultDistribution.sample(source.getLevel().getRandom()) : input",
+        "source.getServer().setWeatherParameters(getDuration(source, duration, ServerLevel.RAIN_DELAY), 0, false, false)",
+        "source.getServer().setWeatherParameters(0, getDuration(source, duration, ServerLevel.RAIN_DURATION), true, false)",
+        "source.getServer().setWeatherParameters(0, getDuration(source, duration, ServerLevel.THUNDER_DURATION), true, true)",
+        "Component.translatable(\"commands.weather.set.clear\")",
+        "Component.translatable(\"commands.weather.set.rain\")",
+        "Component.translatable(\"commands.weather.set.thunder\")",
+        "return duration;",
+    ] {
+        assert!(
+            WEATHER.contains(sentinel),
+            "WeatherCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+}
