@@ -81,6 +81,91 @@ fn effect_command_reports_changed_count_but_feedback_uses_target_count() {
 }
 
 #[test]
+fn enchant_command_allows_zero_level_and_rejects_duplicate_existing_enchantment() {
+    let mut state = ServerCommandState {
+        player_inventories: vec![CommandPlayerInventory {
+            player: NameAndId::create_offline("Steve"),
+            items: vec![CommandItemStack {
+                item: "minecraft:diamond_sword".to_string(),
+                count: 1,
+            }],
+        }],
+        ..ServerCommandState::default()
+    };
+
+    let level_zero = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "enchant Steve sharpness 0",
+    )
+    .unwrap();
+    assert_eq!(level_zero.success_count, 1);
+    assert_eq!(
+        state.item_enchantments,
+        vec![CommandItemEnchantment {
+            target: super::entity_ref("Steve"),
+            item: "minecraft:diamond_sword".to_string(),
+            enchantment: "minecraft:sharpness".to_string(),
+            level: 0,
+        }]
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "enchant Steve sharpness 1"
+        ),
+        Err(CommandError::EnchantIncompatible)
+    );
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn enchant_command_source_matches_java_26_1_2() {
+    const ENCHANT_COMMAND_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/EnchantCommand.java");
+    const ENCHANTMENT_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/world/item/enchantment/Enchantment.java");
+
+    for sentinel in [
+        "Commands.literal(\"enchant\").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "Commands.argument(\"targets\", EntityArgument.entities())",
+        "Commands.argument(\"enchantment\", ResourceArgument.resource(context, Registries.ENCHANTMENT))",
+        "Commands.argument(\"level\", IntegerArgumentType.integer(0))",
+        "if (level > enchantment.getMaxLevel())",
+        "if (entity instanceof LivingEntity target)",
+        "ItemStack item = target.getMainHandItem();",
+        "enchantment.canEnchant(item)",
+        "EnchantmentHelper.isEnchantmentCompatible(EnchantmentHelper.getEnchantmentsForCrafting(item).keySet(), enchantmentHolder)",
+        "item.enchant(enchantmentHolder, level);",
+        "throw ERROR_INCOMPATIBLE.create(item.getHoverName().getString());",
+        "throw ERROR_NO_ITEM.create(target.getName().getString());",
+        "throw ERROR_NOT_LIVING_ENTITY.create(entity.getName().getString());",
+        "throw ERROR_NOTHING_HAPPENED.create();",
+        "commands.enchant.success.single",
+        "commands.enchant.success.multiple",
+        "return success;",
+    ] {
+        assert!(
+            ENCHANT_COMMAND_JAVA.contains(sentinel),
+            "EnchantCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+
+    for sentinel in [
+        "public static boolean areCompatible(final Holder<Enchantment> enchantment, final Holder<Enchantment> other)",
+        "return !enchantment.equals(other)",
+        "!enchantment.value().exclusiveSet.contains(other)",
+        "!other.value().exclusiveSet.contains(enchantment)",
+    ] {
+        assert!(
+            ENCHANTMENT_JAVA.contains(sentinel),
+            "Enchantment.java is missing sentinel: {sentinel}"
+        );
+    }
+}
+
+#[test]
 #[cfg(vibecraft_has_decompiled_sources)]
 fn effect_command_source_matches_java_26_1_2() {
     const EFFECT_COMMAND_JAVA: &str =
