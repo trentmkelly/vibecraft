@@ -286,7 +286,9 @@ pub(super) fn add_team(
     team: &str,
     display_name: &str,
 ) -> Result<CommandResult, CommandError> {
-    parse_identifier(team)?;
+    if team.is_empty() {
+        return Err(CommandError::InvalidSyntax);
+    }
     if state.teams.iter().any(|entry| entry.name == team) {
         return Err(CommandError::TeamAlreadyExists);
     }
@@ -342,31 +344,43 @@ pub(super) fn modify_team(
             &mut team.display_name,
             value,
             "commands.team.option.name.success",
+            CommandError::TeamNameUnchanged,
         )?,
-        "color" => set_team_string(&mut team.color, value, "commands.team.option.color.success")?,
+        "color" => set_team_string(
+            &mut team.color,
+            value,
+            "commands.team.option.color.success",
+            CommandError::TeamColorUnchanged,
+        )?,
         "friendlyFire" => {
             let value = parse_bool(value)?;
-            set_team_bool(
-                &mut team.friendly_fire,
-                value,
-                if value {
-                    "commands.team.option.friendlyfire.enabled"
+            set_team_bool(&mut team.friendly_fire, value).map_err(|unchanged| {
+                if unchanged {
+                    CommandError::TeamFriendlyFireAlreadyEnabled
                 } else {
-                    "commands.team.option.friendlyfire.disabled"
-                },
-            )?
+                    CommandError::TeamFriendlyFireAlreadyDisabled
+                }
+            })?;
+            if value {
+                "commands.team.option.friendlyfire.enabled"
+            } else {
+                "commands.team.option.friendlyfire.disabled"
+            }
         }
         "seeFriendlyInvisibles" => {
             let value = parse_bool(value)?;
-            set_team_bool(
-                &mut team.see_friendly_invisibles,
-                value,
-                if value {
-                    "commands.team.option.seeFriendlyInvisibles.enabled"
+            set_team_bool(&mut team.see_friendly_invisibles, value).map_err(|unchanged| {
+                if unchanged {
+                    CommandError::TeamFriendlyInvisiblesAlreadyEnabled
                 } else {
-                    "commands.team.option.seeFriendlyInvisibles.disabled"
-                },
-            )?
+                    CommandError::TeamFriendlyInvisiblesAlreadyDisabled
+                }
+            })?;
+            if value {
+                "commands.team.option.seeFriendlyInvisibles.enabled"
+            } else {
+                "commands.team.option.seeFriendlyInvisibles.disabled"
+            }
         }
         "nametagVisibility" => {
             validate_team_visibility(value)?;
@@ -374,6 +388,7 @@ pub(super) fn modify_team(
                 &mut team.nametag_visibility,
                 value,
                 "commands.team.option.nametagVisibility.success",
+                CommandError::TeamNametagVisibilityUnchanged,
             )?
         }
         "deathMessageVisibility" => {
@@ -382,6 +397,7 @@ pub(super) fn modify_team(
                 &mut team.death_message_visibility,
                 value,
                 "commands.team.option.deathMessageVisibility.success",
+                CommandError::TeamDeathMessageVisibilityUnchanged,
             )?
         }
         "collisionRule" => {
@@ -390,18 +406,25 @@ pub(super) fn modify_team(
                 &mut team.collision_rule,
                 value,
                 "commands.team.option.collisionRule.success",
+                CommandError::TeamCollisionRuleUnchanged,
             )?
         }
-        "prefix" => set_team_string(
-            &mut team.prefix,
-            value,
-            "commands.team.option.prefix.success",
-        )?,
-        "suffix" => set_team_string(
-            &mut team.suffix,
-            value,
-            "commands.team.option.suffix.success",
-        )?,
+        "prefix" => {
+            team.prefix = value.to_string();
+            return Ok(CommandResult {
+                success_count: 1,
+                feedback_key: "commands.team.option.prefix.success",
+                broadcast_to_admins: false,
+            });
+        }
+        "suffix" => {
+            team.suffix = value.to_string();
+            return Ok(CommandResult {
+                success_count: 1,
+                feedback_key: "commands.team.option.suffix.success",
+                broadcast_to_admins: false,
+            });
+        }
         _ => return Err(CommandError::InvalidSyntax),
     };
     Ok(CommandResult {
@@ -424,24 +447,21 @@ pub(super) fn set_team_string(
     current: &mut String,
     value: &str,
     feedback_key: &'static str,
+    unchanged_error: CommandError,
 ) -> Result<&'static str, CommandError> {
     if current == value {
-        return Err(CommandError::TeamOptionUnchanged);
+        return Err(unchanged_error);
     }
     *current = value.to_string();
     Ok(feedback_key)
 }
 
-pub(super) fn set_team_bool(
-    current: &mut bool,
-    value: bool,
-    feedback_key: &'static str,
-) -> Result<&'static str, CommandError> {
+pub(super) fn set_team_bool(current: &mut bool, value: bool) -> Result<(), bool> {
     if *current == value {
-        return Err(CommandError::TeamOptionUnchanged);
+        return Err(value);
     }
     *current = value;
-    Ok(feedback_key)
+    Ok(())
 }
 
 pub(super) fn validate_team_visibility(value: &str) -> Result<(), CommandError> {

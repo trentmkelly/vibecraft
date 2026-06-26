@@ -523,17 +523,18 @@ fn team_command_manages_teams_and_memberships() {
     let add = execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::GAMEMASTER,
-        "team add red",
+        "team add red@home",
     )
     .unwrap();
     assert_eq!(add.success_count, 1);
     assert_eq!(add.feedback_key, "commands.team.add.success");
-    assert_eq!(state.teams[0].display_name, "red");
+    assert_eq!(state.teams[0].name, "red@home");
+    assert_eq!(state.teams[0].display_name, "red@home");
     assert_eq!(
         execute_builtin_command(
             &mut state,
             LevelBasedPermissionSet::GAMEMASTER,
-            "team add red"
+            "team add red@home"
         ),
         Err(CommandError::TeamAlreadyExists)
     );
@@ -541,7 +542,7 @@ fn team_command_manages_teams_and_memberships() {
     let joined = execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::GAMEMASTER,
-        "team join red Steve Alex",
+        "team join red@home Steve Alex",
     )
     .unwrap();
     assert_eq!(joined.success_count, 2);
@@ -551,7 +552,7 @@ fn team_command_manages_teams_and_memberships() {
     let listed = execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::GAMEMASTER,
-        "team list red",
+        "team list red@home",
     )
     .unwrap();
     assert_eq!(listed.success_count, 2);
@@ -569,7 +570,7 @@ fn team_command_manages_teams_and_memberships() {
     let emptied = execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::GAMEMASTER,
-        "team empty red",
+        "team empty red@home",
     )
     .unwrap();
     assert_eq!(emptied.success_count, 1);
@@ -578,7 +579,7 @@ fn team_command_manages_teams_and_memberships() {
         execute_builtin_command(
             &mut state,
             LevelBasedPermissionSet::GAMEMASTER,
-            "team empty red"
+            "team empty red@home"
         ),
         Err(CommandError::TeamAlreadyEmpty)
     );
@@ -586,15 +587,16 @@ fn team_command_manages_teams_and_memberships() {
     let removed = execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::GAMEMASTER,
-        "team remove red",
+        "team remove red@home",
     )
     .unwrap();
+    assert_eq!(removed.success_count, 0);
     assert_eq!(removed.feedback_key, "commands.team.remove.success");
     assert!(state.teams.is_empty());
 }
 
 #[test]
-fn team_command_modifies_options_and_rejects_unchanged_values() {
+fn team_command_modifies_color_and_boolean_options() {
     let mut state = ServerCommandState {
         teams: vec![TeamState::new("red".to_string(), "Red Team".to_string())],
         ..ServerCommandState::default()
@@ -613,26 +615,55 @@ fn team_command_modifies_options_and_rejects_unchanged_values() {
             LevelBasedPermissionSet::GAMEMASTER,
             "team modify red color blue"
         ),
-        Err(CommandError::TeamOptionUnchanged)
+        Err(CommandError::TeamColorUnchanged)
     );
 
-    execute_builtin_command(
+    let friendly_fire = execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::GAMEMASTER,
         "team modify red friendlyFire false",
     )
     .unwrap();
+    assert_eq!(friendly_fire.success_count, 0);
+    assert!(friendly_fire.broadcast_to_admins);
     assert!(!state.teams[0].friendly_fire);
-    execute_builtin_command(
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "team modify red friendlyFire false"
+        ),
+        Err(CommandError::TeamFriendlyFireAlreadyDisabled)
+    );
+    let see_invisibles = execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::GAMEMASTER,
         "team modify red seeFriendlyInvisibles false",
     )
     .unwrap();
+    assert_eq!(see_invisibles.success_count, 0);
+    assert!(see_invisibles.broadcast_to_admins);
     assert_eq!(state.teams[0].packed_options(), 0);
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "team modify red seeFriendlyInvisibles false"
+        ),
+        Err(CommandError::TeamFriendlyInvisiblesAlreadyDisabled)
+    );
     state.teams[0].apply_packed_options(3);
     assert!(state.teams[0].friendly_fire);
     assert!(state.teams[0].see_friendly_invisibles);
+}
+
+#[test]
+fn team_command_modifies_visibility_and_collision_options() {
+    let mut state = ServerCommandState {
+        teams: vec![TeamState::new("red".to_string(), "Red Team".to_string())],
+        ..ServerCommandState::default()
+    };
+
     execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::GAMEMASTER,
@@ -640,6 +671,14 @@ fn team_command_modifies_options_and_rejects_unchanged_values() {
     )
     .unwrap();
     assert_eq!(state.teams[0].nametag_visibility, "never");
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "team modify red nametagVisibility never"
+        ),
+        Err(CommandError::TeamNametagVisibilityUnchanged)
+    );
     execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::GAMEMASTER,
@@ -647,6 +686,14 @@ fn team_command_modifies_options_and_rejects_unchanged_values() {
     )
     .unwrap();
     assert_eq!(state.teams[0].death_message_visibility, "hideForOtherTeams");
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "team modify red deathMessageVisibility hideForOtherTeams"
+        ),
+        Err(CommandError::TeamDeathMessageVisibilityUnchanged)
+    );
     execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::GAMEMASTER,
@@ -654,23 +701,14 @@ fn team_command_modifies_options_and_rejects_unchanged_values() {
     )
     .unwrap();
     assert_eq!(state.teams[0].collision_rule, "pushOwnTeam");
-    execute_builtin_command(
-        &mut state,
-        LevelBasedPermissionSet::GAMEMASTER,
-        "team modify red prefix <",
-    )
-    .unwrap();
-    execute_builtin_command(
-        &mut state,
-        LevelBasedPermissionSet::GAMEMASTER,
-        "team modify red suffix >",
-    )
-    .unwrap();
     assert_eq!(
-        state.teams[0].formatted_member_name("Steve"),
-        "blue:<Steve>"
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "team modify red collisionRule pushOwnTeam"
+        ),
+        Err(CommandError::TeamCollisionRuleUnchanged)
     );
-    assert_eq!(state.teams[0].formatted_display_name(), "blue:[Red Team]");
     assert_eq!(
         execute_builtin_command(
             &mut state,
@@ -687,6 +725,95 @@ fn team_command_modifies_options_and_rejects_unchanged_values() {
         ),
         Err(CommandError::TeamNotFound)
     );
+}
+
+#[test]
+fn team_command_prefix_and_suffix_always_set_without_admin_broadcast() {
+    let mut state = ServerCommandState {
+        teams: vec![TeamState::new("red".to_string(), "Red Team".to_string())],
+        ..ServerCommandState::default()
+    };
+    execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "team modify red color blue",
+    )
+    .unwrap();
+    let prefix = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "team modify red prefix <",
+    )
+    .unwrap();
+    assert_eq!(prefix.success_count, 1);
+    assert!(!prefix.broadcast_to_admins);
+    let prefix_repeat = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "team modify red prefix <",
+    )
+    .unwrap();
+    assert_eq!(prefix_repeat.success_count, 1);
+    let suffix = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "team modify red suffix >",
+    )
+    .unwrap();
+    assert_eq!(suffix.success_count, 1);
+    assert!(!suffix.broadcast_to_admins);
+    assert_eq!(
+        state.teams[0].formatted_member_name("Steve"),
+        "blue:<Steve>"
+    );
+    assert_eq!(state.teams[0].formatted_display_name(), "blue:[Red Team]");
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn team_command_source_matches_java_26_1_2() {
+    const TEAM_COMMAND_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/TeamCommand.java");
+    const SCOREBOARD_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/world/scores/Scoreboard.java");
+
+    for sentinel in [
+        "Commands.literal(\n                                    \"team\"",
+        ".requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "Commands.argument(\"team\", StringArgumentType.word())",
+        "Commands.argument(\"displayName\", ComponentArgument.textComponent(context))",
+        "Commands.literal(\"friendlyFire\")",
+        "Commands.literal(\"seeFriendlyInvisibles\")",
+        "Commands.literal(\"nametagVisibility\")",
+        "Commands.literal(\"deathMessageVisibility\")",
+        "Commands.literal(\"collisionRule\")",
+        "Commands.literal(\"prefix\")",
+        "Commands.literal(\"suffix\")",
+        "return scoreboard.getPlayerTeams().size();",
+        "return members.size();",
+        "return 0;",
+        "return 1;",
+        "Component.translatable(\"commands.team.option.prefix.success\", prefix), false",
+        "Component.translatable(\"commands.team.option.suffix.success\", suffix), false",
+    ] {
+        assert!(
+            TEAM_COMMAND_JAVA.contains(sentinel),
+            "TeamCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+
+    for sentinel in [
+        "public PlayerTeam addPlayerTeam(final String name)",
+        "this.teamsByName.put(name, team);",
+        "public boolean addPlayerToTeam(final String player, final PlayerTeam team)",
+        "this.removePlayerFromTeam(player);",
+        "return team.getPlayers().add(player);",
+    ] {
+        assert!(
+            SCOREBOARD_JAVA.contains(sentinel),
+            "Scoreboard.java is missing sentinel: {sentinel}"
+        );
+    }
 }
 
 #[test]
