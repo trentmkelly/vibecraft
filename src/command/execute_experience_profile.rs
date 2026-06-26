@@ -560,23 +560,38 @@ pub(super) fn fetch_profile_command(
     state: &mut ServerCommandState,
     parts: &[&str],
 ) -> Result<CommandResult, CommandError> {
-    let (query, profile, feedback_key) = match parts {
+    match parts {
         ["fetchprofile", "name", name @ ..] if !name.is_empty() => {
             let name = name.join(" ");
-            (
-                FetchProfileQuery::Name(name.clone()),
-                NameAndId::create_offline(&name),
+            let profile = profile_by_name(state, &name);
+            finish_async_profile_fetch(
+                state,
+                FetchProfileQuery::Name(name),
+                profile,
                 "commands.fetchprofile.name.success",
-            )
+                "commands.fetchprofile.name.failure",
+            );
+            Ok(CommandResult {
+                success_count: 1,
+                feedback_key: NO_COMMAND_FEEDBACK,
+                broadcast_to_admins: false,
+            })
         }
         ["fetchprofile", "id", id] => {
             let id = parse_uuid_string(id)?;
-            let profile = profile_by_uuid(state, &id).ok_or(CommandError::FetchProfileNotFound)?;
-            (
+            let profile = profile_by_uuid(state, &id);
+            finish_async_profile_fetch(
+                state,
                 FetchProfileQuery::Id(id),
                 profile,
                 "commands.fetchprofile.id.success",
-            )
+                "commands.fetchprofile.id.failure",
+            );
+            Ok(CommandResult {
+                success_count: 1,
+                feedback_key: NO_COMMAND_FEEDBACK,
+                broadcast_to_admins: false,
+            })
         }
         ["fetchprofile", "entity", entity] => {
             let entity = entity_ref(entity);
@@ -585,37 +600,71 @@ pub(super) fn fetch_profile_command(
                 .iter()
                 .find(|avatar| avatar.entity.id == entity.id)
                 .map(|avatar| avatar.profile.clone())
-                .or_else(|| {
-                    state
-                        .online_players
-                        .iter()
-                        .find(|player| player.name == entity.id)
-                        .cloned()
-                })
                 .ok_or(CommandError::FetchProfileNotFound)?;
-            (
+            record_fetched_profile(
+                state,
                 FetchProfileQuery::Entity(entity),
                 profile,
-                "commands.fetchprofile.entity.success",
-            )
+            );
+            Ok(CommandResult {
+                success_count: 1,
+                feedback_key: "commands.fetchprofile.entity.success",
+                broadcast_to_admins: false,
+            })
         }
-        _ => return Err(CommandError::InvalidSyntax),
-    };
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
 
+pub(super) fn finish_async_profile_fetch(
+    state: &mut ServerCommandState,
+    query: FetchProfileQuery,
+    profile: Option<NameAndId>,
+    success_key: &'static str,
+    failure_key: &'static str,
+) {
+    if let Some(profile) = profile {
+        record_fetched_profile(state, query, profile);
+        state.side_feedback.push(CommandResult {
+            success_count: 1,
+            feedback_key: success_key,
+            broadcast_to_admins: false,
+        });
+    } else {
+        state.side_feedback.push(CommandResult {
+            success_count: 0,
+            feedback_key: failure_key,
+            broadcast_to_admins: false,
+        });
+    }
+}
+
+pub(super) fn record_fetched_profile(
+    state: &mut ServerCommandState,
+    query: FetchProfileQuery,
+    profile: NameAndId,
+) {
     state.fetched_profiles.push(FetchProfileEvent {
         query,
         encoded_profile: encoded_profile(&profile),
         encoded_head_component: encoded_head_component(&profile),
         profile,
     });
-    Ok(CommandResult {
-        success_count: 1,
-        feedback_key,
-        broadcast_to_admins: false,
-    })
+}
+
+pub(super) fn profile_by_name(state: &ServerCommandState, name: &str) -> Option<NameAndId> {
+    known_profiles(state)
+        .into_iter()
+        .find(|profile| profile.name == name)
 }
 
 pub(super) fn profile_by_uuid(state: &ServerCommandState, uuid: &str) -> Option<NameAndId> {
+    known_profiles(state)
+        .into_iter()
+        .find(|profile| profile.uuid == uuid)
+}
+
+pub(super) fn known_profiles(state: &ServerCommandState) -> Vec<NameAndId> {
     state
         .online_players
         .iter()
@@ -629,8 +678,8 @@ pub(super) fn profile_by_uuid(state: &ServerCommandState, uuid: &str) -> Option<
                 .map(|inventory| &inventory.player),
         )
         .chain(state.player_experience.iter().map(|xp| &xp.player))
-        .find(|profile| profile.uuid == uuid)
         .cloned()
+        .collect()
 }
 
 pub(super) fn encoded_profile(profile: &NameAndId) -> String {

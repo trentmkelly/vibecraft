@@ -720,7 +720,15 @@ fn fetchprofile_command_resolves_name_id_and_avatar_entity_profiles() {
     )
     .unwrap();
     assert_eq!(by_name.success_count, 1);
-    assert_eq!(by_name.feedback_key, "commands.fetchprofile.name.success");
+    assert_eq!(by_name.feedback_key, NO_COMMAND_FEEDBACK);
+    assert_eq!(
+        state.side_feedback[0],
+        CommandResult {
+            success_count: 1,
+            feedback_key: "commands.fetchprofile.name.success",
+            broadcast_to_admins: false,
+        }
+    );
     assert_eq!(
         state.fetched_profiles[0].query,
         FetchProfileQuery::Name("Steve".to_string())
@@ -739,7 +747,15 @@ fn fetchprofile_command_resolves_name_id_and_avatar_entity_profiles() {
         &format!("fetchprofile id {}", alex.uuid),
     )
     .unwrap();
-    assert_eq!(by_id.feedback_key, "commands.fetchprofile.id.success");
+    assert_eq!(by_id.feedback_key, NO_COMMAND_FEEDBACK);
+    assert_eq!(
+        state.side_feedback[1],
+        CommandResult {
+            success_count: 1,
+            feedback_key: "commands.fetchprofile.id.success",
+            broadcast_to_admins: false,
+        }
+    );
     assert_eq!(
         state.fetched_profiles[1].query,
         FetchProfileQuery::Id(alex.uuid.clone())
@@ -774,13 +790,37 @@ fn fetchprofile_command_reports_missing_and_invalid_profiles() {
         ),
         Err(CommandError::InvalidSyntax)
     );
+    let missing_id = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "fetchprofile id 00000000-0000-0000-0000-000000000001",
+    )
+    .unwrap();
+    assert_eq!(missing_id.success_count, 1);
+    assert_eq!(missing_id.feedback_key, NO_COMMAND_FEEDBACK);
     assert_eq!(
-        execute_builtin_command(
-            &mut state,
-            LevelBasedPermissionSet::GAMEMASTER,
-            "fetchprofile id 00000000-0000-0000-0000-000000000001"
-        ),
-        Err(CommandError::FetchProfileNotFound)
+        state.side_feedback[0],
+        CommandResult {
+            success_count: 0,
+            feedback_key: "commands.fetchprofile.id.failure",
+            broadcast_to_admins: false,
+        }
+    );
+    let missing_name = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "fetchprofile name Missing Player",
+    )
+    .unwrap();
+    assert_eq!(missing_name.success_count, 1);
+    assert_eq!(missing_name.feedback_key, NO_COMMAND_FEEDBACK);
+    assert_eq!(
+        state.side_feedback[1],
+        CommandResult {
+            success_count: 0,
+            feedback_key: "commands.fetchprofile.name.failure",
+            broadcast_to_admins: false,
+        }
     );
     assert_eq!(
         execute_builtin_command(
@@ -798,6 +838,38 @@ fn fetchprofile_command_reports_missing_and_invalid_profiles() {
         ),
         Err(CommandError::InvalidSyntax)
     );
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn fetchprofile_command_source_matches_java_26_1_2() {
+    const FETCH_PROFILE_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/FetchProfileCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"fetchprofile\")",
+        ".requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "Commands.literal(\"name\")",
+        "Commands.argument(\"name\", StringArgumentType.greedyString())",
+        "Commands.literal(\"id\")",
+        "Commands.argument(\"id\", UuidArgument.uuid())",
+        "Commands.literal(\"entity\")",
+        "Commands.argument(\"entity\", EntityArgument.entity())",
+        "reportResolvedProfile(source, profile, \"commands.fetchprofile.name.success\", nameComponent)",
+        "source.sendFailure(Component.translatable(\"commands.fetchprofile.name.failure\", nameComponent))",
+        "return 1;",
+        "reportResolvedProfile(source, profile, \"commands.fetchprofile.id.success\", idComponent)",
+        "source.sendFailure(Component.translatable(\"commands.fetchprofile.id.failure\", idComponent))",
+        "if (entity instanceof Avatar avatar)",
+        "throw NO_PROFILE.create(entity.getDisplayName());",
+        "reportResolvedProfile(source, \"commands.fetchprofile.entity.success\", avatar.getDisplayName(), avatar.getProfile())",
+        "commands.fetchprofile.failed_to_serialize",
+    ] {
+        assert!(
+            FETCH_PROFILE_JAVA.contains(sentinel),
+            "FetchProfileCommand.java is missing sentinel: {sentinel}"
+        );
+    }
 }
 
 #[test]

@@ -96,7 +96,7 @@
 - [ ] Implement `/enchant`.
 - [ ] Implement `/execute`.
 - [ ] Implement `/experience`.
-- [ ] Implement `/fetchprofile`.
+- [x] Implement `/fetchprofile`. — Java `FetchProfileCommand` is gamemaster-gated and supports `name <greedy>`, `id <uuid>`, and `entity <avatar>` forms. Name/id resolver paths return `1` immediately, then asynchronously emit success or failure feedback; entity only succeeds for `Avatar`, emits immediate non-broadcast success feedback, and non-avatar entities throw `commands.fetchprofile.no_profile`. Rust `fetch_profile_command()` mirrors those parse forms, permission gate, async modeled side-feedback for name/id success/failure, avatar-only entity profile lookup, encoded profile/head-component records, feedback keys, and return counts; covered by `fetchprofile_command_resolves_name_id_and_avatar_entity_profiles`, `fetchprofile_command_reports_missing_and_invalid_profiles`, and source-backed `fetchprofile_command_source_matches_java_26_1_2`.
 - [ ] Implement `/fill` and `/fillbiome`.
 - [ ] Implement `/forceload`.
 - [x] Implement `/function` and function scheduling. — Detailed function rows above now cover Java `ServerFunctionLibrary`, `ServerFunctionManager`, `FunctionCommand`, macro arguments, tick/load tags, and `ScheduleCommand`; focused Rust tests cover loading, tag resolution, macro instantiation, source permissions, tick/load queueing, and scheduled function replace/append/clear behavior.
