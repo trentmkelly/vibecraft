@@ -361,6 +361,9 @@ pub(super) fn experience_command(
             parse_experience_type(ty)?,
         ),
         ["experience", "query", target, ty] => {
+            if target.contains(',') {
+                return Err(CommandError::InvalidSyntax);
+            }
             let player = NameAndId::create_offline(target);
             let ty = parse_experience_type(ty)?;
             let state = player_experience(state, &player).clone();

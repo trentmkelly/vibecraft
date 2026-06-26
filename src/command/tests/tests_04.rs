@@ -626,6 +626,39 @@ fn experience_command_adds_sets_queries_points_and_levels() {
 }
 
 #[test]
+fn experience_command_defaults_to_points_and_query_requires_single_player() {
+    let mut state = ServerCommandState {
+        player_experience: vec![PlayerExperienceState {
+            player: NameAndId::create_offline("Steve"),
+            level: 5,
+            progress: 0.0,
+            total: 0,
+        }],
+        ..ServerCommandState::default()
+    };
+
+    let default_set_points = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "experience set Steve 6",
+    )
+    .unwrap();
+    assert_eq!(default_set_points.success_count, 1);
+    assert_eq!(
+        default_set_points.feedback_key,
+        "commands.experience.set.points.success.single"
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "experience query Steve,Alex points"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+}
+
+#[test]
 fn experience_command_rejects_invalid_set_points_and_clamps_negative_levels() {
     let mut state = ServerCommandState {
         player_experience: vec![PlayerExperienceState {
@@ -680,6 +713,89 @@ fn experience_command_rejects_invalid_set_points_and_clamps_negative_levels() {
         ),
         Err(CommandError::ExperienceSetPointsInvalid)
     );
+}
+
+#[test]
+fn experience_command_set_points_matches_java_partial_success() {
+    let mut state = ServerCommandState {
+        player_experience: vec![
+            PlayerExperienceState {
+                player: NameAndId::create_offline("Steve"),
+                level: 0,
+                progress: 0.0,
+                total: 0,
+            },
+            PlayerExperienceState {
+                player: NameAndId::create_offline("Alex"),
+                level: 30,
+                progress: 0.0,
+                total: 0,
+            },
+        ],
+        ..ServerCommandState::default()
+    };
+
+    let result = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "experience set Steve,Alex 50 points",
+    )
+    .unwrap();
+    assert_eq!(result.success_count, 2);
+    assert_eq!(
+        result.feedback_key,
+        "commands.experience.set.points.success.multiple"
+    );
+    let steve = state
+        .player_experience
+        .iter()
+        .find(|xp| xp.player.name == "Steve")
+        .unwrap();
+    assert_eq!(steve.progress, 0.0);
+    let alex = state
+        .player_experience
+        .iter()
+        .find(|xp| xp.player.name == "Alex")
+        .unwrap();
+    assert!((alex.progress - (50.0 / 112.0)).abs() < 0.0001);
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn experience_command_source_matches_java_26_1_2() {
+    const EXPERIENCE_COMMAND_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/ExperienceCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"experience\")",
+        ".requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "Commands.literal(\"add\")",
+        "Commands.argument(\"target\", EntityArgument.players())",
+        "Commands.argument(\"amount\", IntegerArgumentType.integer())",
+        "ExperienceCommand.Type.POINTS",
+        "ExperienceCommand.Type.LEVELS",
+        "Commands.literal(\"set\")",
+        "Commands.argument(\"amount\", IntegerArgumentType.integer(0))",
+        "Commands.literal(\"query\")",
+        "Commands.argument(\"target\", EntityArgument.player())",
+        "Commands.literal(\"xp\").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        ".redirect(command)",
+        "source.sendSuccess(() -> Component.translatable(\"commands.experience.query.\" + type.name",
+        "source.sendSuccess(\n            () -> Component.translatable(\"commands.experience.add.\" + type.name + \".success.single\"",
+        "throw ERROR_SET_POINTS_INVALID.create();",
+        "return players.size();",
+        "POINTS(\"points\", Player::giveExperiencePoints",
+        "if (a >= p.getXpNeededForNextLevel())",
+        "p.setExperiencePoints(a);",
+        "LEVELS(\"levels\", ServerPlayer::giveExperienceLevels",
+        "p.setExperienceLevels(a);",
+        "Mth.floor(p.experienceProgress * p.getXpNeededForNextLevel())",
+    ] {
+        assert!(
+            EXPERIENCE_COMMAND_JAVA.contains(sentinel),
+            "ExperienceCommand.java is missing sentinel: {sentinel}"
+        );
+    }
 }
 
 #[test]
