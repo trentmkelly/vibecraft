@@ -490,6 +490,7 @@ pub(super) fn random_sample(
     announced: bool,
 ) -> Result<CommandResult, CommandError> {
     let (min, max) = parse_int_range(range)?;
+    let sequence = sequence.map(parse_resource_identifier).transpose()?;
     let span = i64::from(max) - i64::from(min);
     if span == 0 {
         return Err(CommandError::RandomRangeTooSmall);
@@ -499,7 +500,7 @@ pub(super) fn random_sample(
     }
 
     let bound = (span + 1) as i32;
-    let offset = match sequence {
+    let offset = match sequence.as_deref() {
         Some(id) => state
             .random_sequences
             .next_int_bound(id, state.world_seed, bound),
@@ -516,7 +517,7 @@ pub(super) fn random_sample(
         value,
         min,
         max,
-        sequence: sequence.map(str::to_string),
+        sequence,
         announced,
     });
     Ok(CommandResult {
@@ -561,19 +562,17 @@ pub(super) fn reset_random_sequence(
     include_world_seed: bool,
     include_sequence_id: bool,
 ) -> Result<CommandResult, CommandError> {
-    if sequence.is_empty() {
-        return Err(CommandError::InvalidSyntax);
-    }
+    let sequence = parse_resource_identifier(sequence)?;
     if let Some(salt) = salt {
         state.random_sequences.reset_with_options(
-            sequence,
+            &sequence,
             state.world_seed,
             salt,
             include_world_seed,
             include_sequence_id,
         );
     } else {
-        state.random_sequences.reset(sequence, state.world_seed);
+        state.random_sequences.reset(&sequence, state.world_seed);
     }
     Ok(CommandResult {
         success_count: 1,

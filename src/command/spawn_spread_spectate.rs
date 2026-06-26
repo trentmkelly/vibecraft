@@ -695,15 +695,9 @@ pub(super) fn parse_vec3(x: &str, y: &str, z: &str) -> Result<Vec3, CommandError
 }
 
 pub(super) fn parse_resource_identifier(input: &str) -> Result<String, CommandError> {
-    let identifier = parse_identifier(input)?;
-    if identifier.bytes().any(|byte| byte.is_ascii_uppercase()) {
-        return Err(CommandError::InvalidSyntax);
-    }
-    if identifier.contains(':') {
-        Ok(identifier)
-    } else {
-        Ok(format!("minecraft:{identifier}"))
-    }
+    crate::registry::Identifier::parse(input)
+        .map(|id| id.to_string())
+        .map_err(|_| CommandError::InvalidSyntax)
 }
 
 pub(super) fn is_in_spawnable_bounds(pos: BlockPos) -> bool {

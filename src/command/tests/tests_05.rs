@@ -836,6 +836,47 @@ fn random_named_sequences_and_resets_require_gamemaster() {
 }
 
 #[test]
+fn random_sequence_arguments_match_java_identifier_argument() {
+    let mut state = ServerCommandState {
+        world_seed: 99,
+        ..ServerCommandState::default()
+    };
+
+    let sample = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "random value 1..10 bare_sequence",
+    )
+    .unwrap();
+    assert!((1..=10).contains(&sample.success_count));
+    assert!(state
+        .random_sequences
+        .sequences
+        .contains_key("minecraft:bare_sequence"));
+    assert_eq!(
+        state.random_broadcasts[0].sequence.as_deref(),
+        Some("minecraft:bare_sequence")
+    );
+
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "random value 1..10 Minecraft:Bad"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "random reset Minecraft:Bad"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+}
+
+#[test]
 fn recipe_command_gives_and_takes_single_or_all_recipes() {
     let mut state = ServerCommandState {
         known_recipes: vec![
