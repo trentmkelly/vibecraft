@@ -251,6 +251,40 @@ fn fill_commands_source_match_java_26_1_2() {
 
 #[test]
 #[cfg(vibecraft_has_decompiled_sources)]
+fn function_command_source_matches_java_26_1_2() {
+    const FUNCTION_COMMAND: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/FunctionCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"function\").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "Commands.argument(\"name\", FunctionArgument.functions())",
+        ".suggests(SUGGEST_FUNCTION)",
+        "Commands.argument(\"arguments\", CompoundTagArgument.compoundTag())",
+        "DataCommands.SOURCE_PROVIDERS",
+        "Commands.argument(\"path\", NbtPathArgument.nbtPath())",
+        "throw ERROR_ARGUMENT_NOT_COMPOUND.create(tag.getType().getName());",
+        "return sender.withSuppressedOutput().withMaximumPermission(LevelBasedPermissionSet.GAMEMASTER);",
+        "if (modifiers.isReturn())",
+        "queueFunctionsAsReturn(functions, arguments, originalSource, functionSource, output, callbacks);",
+        "queueFunctionsNoReturn(functions, arguments, originalSource, functionSource, output, callbacks);",
+        "throw ERROR_FUNCTION_INSTANTATION_FAILURE.create(id, exception.messageComponent());",
+        "callbacks.signalResult(originalSource, id, result);",
+        "output.queueNext(new CallFunction<>(instantiatedFunction, functionResultCollector, returnParentFrame).bind(noCallbackSource));",
+        "output.queueNext(FallthroughTask.instance());",
+        "throw FunctionCommand.ERROR_NO_FUNCTIONS.create(Component.translationArg((Identifier)nameAndFunctions.getFirst()));",
+        "commands.function.scheduled.single",
+        "commands.function.scheduled.multiple",
+        "FunctionCommand.queueFunctions(functions, arguments, sender, commonFunctionContext, output, FunctionCommand.FULL_CONTEXT_CALLBACKS, modifiers);",
+    ] {
+        assert!(
+            FUNCTION_COMMAND.contains(sentinel),
+            "FunctionCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
 fn enchant_command_source_matches_java_26_1_2() {
     const ENCHANT_COMMAND_JAVA: &str =
         vibecraft_java_source!("/net/minecraft/server/commands/EnchantCommand.java");

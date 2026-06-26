@@ -346,7 +346,7 @@ fn function_command_queues_single_function_tags_and_arguments() {
             arguments: None,
             source_dimension: "minecraft:the_nether".to_string(),
             suppressed_output: true,
-            permission_level: PermissionLevel::Admins,
+            permission_level: PermissionLevel::Gamemasters,
         }
     );
 

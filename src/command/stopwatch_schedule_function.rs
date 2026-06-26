@@ -279,7 +279,7 @@ pub(super) fn function_command(
             arguments: arguments.clone(),
             source_dimension: state.command_source_dimension.clone(),
             suppressed_output: true,
-            permission_level: state.function_permission_level,
+            permission_level: PermissionLevel::Gamemasters,
         });
         queued += 1;
     }
