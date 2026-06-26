@@ -269,3 +269,36 @@ fn title_command_source_matches_java_26_1_2() {
         );
     }
 }
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn version_command_source_matches_java_26_1_2() {
+    const VERSION: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/VersionCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"version\")",
+        ".requires(Commands.hasPermission(checkPermissions ? Commands.LEVEL_GAMEMASTERS : Commands.LEVEL_ALL))",
+        "source.sendSystemMessage(HEADER)",
+        "dumpVersion(source::sendSystemMessage)",
+        "return 1;",
+        "private static final Component HEADER = Component.translatable(\"commands.version.header\")",
+        "private static final Component STABLE = Component.translatable(\"commands.version.stable.yes\")",
+        "private static final Component UNSTABLE = Component.translatable(\"commands.version.stable.no\")",
+        "WorldVersion version = SharedConstants.getCurrentVersion();",
+        "Component.translatable(\"commands.version.id\", version.id())",
+        "Component.translatable(\"commands.version.name\", version.name())",
+        "Component.translatable(\"commands.version.data\", version.dataVersion().version())",
+        "Component.translatable(\"commands.version.series\", version.dataVersion().series())",
+        "Component.translatable(\"commands.version.protocol\", version.protocolVersion(), \"0x\" + Integer.toHexString(version.protocolVersion()))",
+        "Component.translatable(\"commands.version.build_time\", Component.translationArg(version.buildTime()))",
+        "Component.translatable(\"commands.version.pack.resource\", version.packVersion(PackType.CLIENT_RESOURCES).toString())",
+        "Component.translatable(\"commands.version.pack.data\", version.packVersion(PackType.SERVER_DATA).toString())",
+        "output.accept(version.stable() ? STABLE : UNSTABLE);",
+    ] {
+        assert!(
+            VERSION.contains(sentinel),
+            "VersionCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+}
