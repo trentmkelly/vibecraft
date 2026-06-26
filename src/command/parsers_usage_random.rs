@@ -333,6 +333,7 @@ const KNOWN_COMMAND_USAGES: &[(&str, &str)] = &[
         ("kick", "/kick <targets> [reason]"),
         ("kill", "/kill [targets]"),
         ("list", "/list [uuids]"),
+        ("me", "/me <action>"),
         ("msg", "/msg <targets> <message>"),
         ("op", "/op <targets>"),
         (

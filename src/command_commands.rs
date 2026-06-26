@@ -159,7 +159,7 @@ fn register_core_commands(
         CommandRegistration::with_context("dialog"),
         CommandRegistration::plain("difficulty"),
         CommandRegistration::with_context("effect"),
-        CommandRegistration::plain("emote"),
+        CommandRegistration::plain("me"),
         CommandRegistration::with_context("enchant"),
         CommandRegistration::plain("experience"),
         CommandRegistration::with_context("fill"),
@@ -553,6 +553,8 @@ mod tests {
 
         assert_eq!(names.first(), Some(&"advancement"));
         assert!(names.contains(&"execute"));
+        assert!(names.contains(&"me"));
+        assert!(!names.contains(&"emote"));
         assert!(names.contains(&"worldborder"));
         assert!(names.contains(&"ban"));
         assert!(names.contains(&"publish"));

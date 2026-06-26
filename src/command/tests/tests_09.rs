@@ -95,6 +95,8 @@ fn me_command_broadcasts_emote_chat_without_permission_gate() {
         ..ServerCommandState::default()
     };
     assert_eq!(command_required_permission("me"), PermissionLevel::All);
+    assert_eq!(command_usage("me", LevelBasedPermissionSet::ALL), Some("/me <action>"));
+    assert_eq!(command_usage("emote", LevelBasedPermissionSet::ALL), None);
 
     let result =
         execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "me waves hello")
@@ -114,6 +116,31 @@ fn me_command_broadcasts_emote_chat_without_permission_gate() {
         execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "me"),
         Err(CommandError::InvalidSyntax)
     );
+    assert_eq!(
+        execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "emote waves"),
+        Err(CommandError::PermissionDenied)
+    );
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn me_command_source_matches_java_26_1_2() {
+    const EMOTE_COMMANDS_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/EmoteCommands.java");
+
+    for sentinel in [
+        "Commands.literal(\"me\")",
+        "Commands.argument(\"action\", MessageArgument.message())",
+        "MessageArgument.resolveChatMessage(c, \"action\", message ->",
+        "source.getServer().getPlayerList()",
+        "playerList.broadcastChatMessage(message, source, ChatType.bind(ChatType.EMOTE_COMMAND, source));",
+        "return 1;",
+    ] {
+        assert!(
+            EMOTE_COMMANDS_JAVA.contains(sentinel),
+            "EmoteCommands.java is missing sentinel: {sentinel}"
+        );
+    }
 }
 
 #[test]
