@@ -132,3 +132,47 @@ fn rotate_command_source_matches_java_26_1_2() {
         );
     }
 }
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn schedule_command_source_matches_java_26_1_2() {
+    const SCHEDULE: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/ScheduleCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"schedule\")",
+        ".requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "Commands.literal(\"function\")",
+        "Commands.argument(\"function\", FunctionArgument.functions())",
+        ".suggests(FunctionCommand.SUGGEST_FUNCTION)",
+        "Commands.argument(\"time\", TimeArgument.time())",
+        "FunctionArgument.getFunctionOrTag(c, \"function\")",
+        "Commands.literal(\"append\")",
+        "Commands.literal(\"replace\")",
+        "Commands.literal(\"clear\")",
+        "Commands.argument(\"function\", StringArgumentType.greedyString())",
+        ".suggests(SUGGEST_SCHEDULE)",
+        "if (time == 0)",
+        "throw ERROR_SAME_TICK.create();",
+        "long tickTime = source.getLevel().getGameTime() + time;",
+        "function.get() instanceof MacroFunction",
+        "throw ERROR_MACRO.create();",
+        "if (replace)",
+        "queue.remove(scheduleId);",
+        "queue.schedule(scheduleId, tickTime, new FunctionCallback(callbackId));",
+        "String scheduleId = \"#\" + callbackId;",
+        "queue.schedule(scheduleId, tickTime, new FunctionTagCallback(callbackId));",
+        "commands.schedule.created.function",
+        "commands.schedule.created.tag",
+        "return Math.floorMod(tickTime, Integer.MAX_VALUE);",
+        "int count = source.getServer().getScheduledEvents().remove(id);",
+        "throw ERROR_CANT_REMOVE.create(id);",
+        "commands.schedule.cleared.success",
+        "return count;",
+    ] {
+        assert!(
+            SCHEDULE.contains(sentinel),
+            "ScheduleCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+}
