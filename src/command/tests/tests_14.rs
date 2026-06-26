@@ -453,3 +453,55 @@ fn transfer_command_source_matches_java_26_1_2() {
         );
     }
 }
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn trigger_command_source_matches_java_26_1_2() {
+    const TRIGGER: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/TriggerCommand.java");
+    const SCORE_ACCESS: &str = vibecraft_java_source!("/net/minecraft/world/scores/ScoreAccess.java");
+
+    for sentinel in [
+        "Commands.literal(\"trigger\")",
+        "Commands.argument(\"objective\", ObjectiveArgument.objective())",
+        ".suggests((c, p) -> suggestObjectives((CommandSourceStack)c.getSource(), p))",
+        "((CommandSourceStack)c.getSource()).getPlayerOrException()",
+        "ObjectiveArgument.getObjective(c, \"objective\")",
+        "Commands.literal(\"add\")",
+        "Commands.argument(\"value\", IntegerArgumentType.integer())",
+        "IntegerArgumentType.getInteger(c, \"value\")",
+        "Commands.literal(\"set\")",
+        "objective.getCriteria() == ObjectiveCriteria.TRIGGER",
+        "scoreInfo != null && !scoreInfo.isLocked()",
+        "result.add(objective.getName())",
+        "if (objective.getCriteria() != ObjectiveCriteria.TRIGGER)",
+        "throw ERROR_INVALID_OBJECTIVE.create();",
+        "score.lock();",
+        "throw ERROR_NOT_PRIMED.create();",
+        "int newValue = score.add(amount);",
+        "int newValue = score.add(1);",
+        "score.set(amount);",
+        "Component.translatable(\"commands.trigger.simple.success\", objective.getFormattedDisplayName())",
+        "Component.translatable(\"commands.trigger.add.success\", objective.getFormattedDisplayName(), amount)",
+        "Component.translatable(\"commands.trigger.set.success\", objective.getFormattedDisplayName(), amount)",
+        "return newValue;",
+        "return amount;",
+    ] {
+        assert!(
+            TRIGGER.contains(sentinel),
+            "TriggerCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+
+    for sentinel in [
+        "default int add(final int count)",
+        "int newValue = this.get() + count;",
+        "this.set(newValue);",
+        "return newValue;",
+    ] {
+        assert!(
+            SCORE_ACCESS.contains(sentinel),
+            "ScoreAccess.java is missing trigger arithmetic sentinel: {sentinel}"
+        );
+    }
+}

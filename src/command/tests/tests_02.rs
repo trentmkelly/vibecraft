@@ -115,6 +115,46 @@ fn trigger_command_consumes_enabled_trigger_scores() {
 }
 
 #[test]
+fn trigger_command_addition_wraps_like_java_int_scores() {
+    let mut state = ServerCommandState {
+        command_source_player: Some(NameAndId::create_offline("Steve")),
+        scoreboard_objectives: vec![ScoreboardObjective {
+            name: "quest".to_string(),
+            criteria: "trigger".to_string(),
+            display_name: "Quest".to_string(),
+            render_type: "integer".to_string(),
+            display_auto_update: true,
+            number_format: None,
+        }],
+        scoreboard_scores: vec![ScoreboardScore {
+            owner: "Steve".to_string(),
+            objective: "quest".to_string(),
+            value: i32::MAX,
+            locked: false,
+            display_name: None,
+            number_format: None,
+        }],
+        ..ServerCommandState::default()
+    };
+
+    let simple =
+        execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "trigger quest").unwrap();
+    assert_eq!(simple.success_count, i32::MIN);
+    assert_eq!(state.scoreboard_scores[0].value, i32::MIN);
+    assert!(state.scoreboard_scores[0].locked);
+
+    state.scoreboard_scores[0].locked = false;
+    let add = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::ALL,
+        "trigger quest add -1",
+    )
+    .unwrap();
+    assert_eq!(add.success_count, i32::MAX);
+    assert_eq!(state.scoreboard_scores[0].value, i32::MAX);
+}
+
+#[test]
 fn trigger_command_rejects_unprimed_non_trigger_and_non_player_sources() {
     let mut state = ServerCommandState {
         command_source_player: Some(NameAndId::create_offline("Steve")),

@@ -572,11 +572,11 @@ pub(super) fn trigger_score(
         .ok_or(CommandError::TriggerNotPrimed)?;
     let (success_count, feedback_key) = match mode {
         TriggerMode::Simple => {
-            score.value = score.value.saturating_add(1);
+            score.value = score.value.wrapping_add(1);
             (score.value, "commands.trigger.simple.success")
         }
         TriggerMode::Add(value) => {
-            score.value = score.value.saturating_add(value);
+            score.value = score.value.wrapping_add(value);
             (score.value, "commands.trigger.add.success")
         }
         TriggerMode::Set(value) => {
