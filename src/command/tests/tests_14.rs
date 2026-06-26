@@ -333,3 +333,33 @@ fn weather_command_source_matches_java_26_1_2() {
         );
     }
 }
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn warden_spawn_tracker_command_source_matches_java_26_1_2() {
+    const WARDEN: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/WardenSpawnTrackerCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"warden_spawn_tracker\")",
+        ".requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "Commands.literal(\"clear\")",
+        "ImmutableList.of(((CommandSourceStack)c.getSource()).getPlayerOrException())",
+        "resetTracker((CommandSourceStack)c.getSource(),",
+        "Commands.literal(\"set\")",
+        "Commands.argument(\"warning_level\", IntegerArgumentType.integer(0, 4))",
+        "IntegerArgumentType.getInteger(c, \"warning_level\")",
+        "wardenSpawnTracker.setWarningLevel(warningLevel)",
+        "player.getWardenSpawnTracker().ifPresent(WardenSpawnTracker::reset)",
+        "Component.translatable(\"commands.warden_spawn_tracker.set.success.single\", players.iterator().next().getDisplayName())",
+        "Component.translatable(\"commands.warden_spawn_tracker.set.success.multiple\", players.size())",
+        "Component.translatable(\"commands.warden_spawn_tracker.clear.success.single\", players.iterator().next().getDisplayName())",
+        "Component.translatable(\"commands.warden_spawn_tracker.clear.success.multiple\", players.size())",
+        "return players.size();",
+    ] {
+        assert!(
+            WARDEN.contains(sentinel),
+            "WardenSpawnTrackerCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+}
