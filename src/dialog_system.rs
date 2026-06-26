@@ -94,6 +94,17 @@ pub struct ActionButton {
     pub action: Option<DialogActionModel>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommonDialogData {
+    pub title: Component,
+    pub external_title: Option<Component>,
+    pub can_close_with_escape: bool,
+    pub pause: bool,
+    pub after_action: DialogAction,
+    pub body: Vec<DialogBody>,
+    pub inputs: Vec<InputControl>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DialogPacket {
     Show { target: String, dialog: String },
@@ -304,6 +315,54 @@ impl CommonButtonData {
 impl ActionButton {
     pub fn new(button: CommonButtonData, action: Option<DialogActionModel>) -> Self {
         Self { button, action }
+    }
+}
+
+impl CommonDialogData {
+    pub fn new(
+        title: Component,
+        external_title: Option<Component>,
+        can_close_with_escape: bool,
+        pause: bool,
+        after_action: DialogAction,
+        body: Vec<DialogBody>,
+        inputs: Vec<InputControl>,
+    ) -> Result<Self, String> {
+        if pause && !after_action.will_unpause() {
+            return Err(
+                "Dialogs that pause the game must use after_action values that unpause it after user action!"
+                    .to_string(),
+            );
+        }
+
+        Ok(Self {
+            title,
+            external_title,
+            can_close_with_escape,
+            pause,
+            after_action,
+            body,
+            inputs,
+        })
+    }
+
+    pub fn with_defaults(title: Component) -> Self {
+        Self {
+            title,
+            external_title: None,
+            can_close_with_escape: true,
+            pause: true,
+            after_action: DialogAction::Close,
+            body: Vec::new(),
+            inputs: Vec::new(),
+        }
+    }
+
+    pub fn compute_external_title(&self) -> Component {
+        match &self.external_title {
+            Some(title) => title.clone(),
+            None => self.title.clone(),
+        }
     }
 }
 
@@ -548,6 +607,86 @@ mod tests {
     }
 
     #[test]
+    fn common_dialog_data_uses_java_defaults_title_fallback_and_pause_validation() {
+        let default_dialog = CommonDialogData::with_defaults(Component::literal("Menu"));
+        assert_eq!(
+            default_dialog,
+            CommonDialogData {
+                title: Component::literal("Menu"),
+                external_title: None,
+                can_close_with_escape: true,
+                pause: true,
+                after_action: DialogAction::Close,
+                body: Vec::new(),
+                inputs: Vec::new(),
+            }
+        );
+        assert_eq!(
+            default_dialog.compute_external_title(),
+            Component::literal("Menu")
+        );
+
+        let custom_dialog = CommonDialogData::new(
+            Component::literal("Internal"),
+            Some(Component::literal("External")),
+            false,
+            false,
+            DialogAction::None,
+            vec![DialogBody::PlainMessage(PlainMessageBody::with_default_width(
+                Component::literal("Body"),
+            ))],
+            vec![InputControl::Boolean(BooleanInputControl::with_defaults(
+                Component::literal("Toggle"),
+            ))],
+        );
+        assert_eq!(
+            custom_dialog,
+            Ok(CommonDialogData {
+                title: Component::literal("Internal"),
+                external_title: Some(Component::literal("External")),
+                can_close_with_escape: false,
+                pause: false,
+                after_action: DialogAction::None,
+                body: vec![DialogBody::PlainMessage(PlainMessageBody::with_default_width(
+                    Component::literal("Body"),
+                ))],
+                inputs: vec![InputControl::Boolean(BooleanInputControl::with_defaults(
+                    Component::literal("Toggle"),
+                ))],
+            })
+        );
+        let custom_dialog = match custom_dialog {
+            Ok(dialog) => dialog,
+            Err(err) => panic!("{err}"),
+        };
+        assert_eq!(
+            custom_dialog.compute_external_title(),
+            Component::literal("External")
+        );
+
+        assert!(CommonDialogData::new(
+            Component::literal("Blocked"),
+            None,
+            true,
+            true,
+            DialogAction::None,
+            Vec::new(),
+            Vec::new(),
+        )
+        .is_err());
+        assert!(CommonDialogData::new(
+            Component::literal("Wait"),
+            None,
+            true,
+            true,
+            DialogAction::WaitForResponse,
+            Vec::new(),
+            Vec::new(),
+        )
+        .is_ok());
+    }
+
+    #[test]
     #[cfg(vibecraft_has_decompiled_sources)]
     fn common_button_and_action_button_sources_match_java_26_1_2() {
         const COMMON_BUTTON: &str =
@@ -579,6 +718,39 @@ mod tests {
             assert!(
                 ACTION_BUTTON.contains(sentinel),
                 "ActionButton.java is missing sentinel: {sentinel}"
+            );
+        }
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn common_dialog_data_source_matches_java_26_1_2() {
+        const COMMON_DIALOG: &str =
+            vibecraft_java_source!("/net/minecraft/server/dialog/CommonDialogData.java");
+
+        for sentinel in [
+            "public record CommonDialogData(",
+            "Component title,",
+            "Optional<Component> externalTitle,",
+            "boolean canCloseWithEscape,",
+            "boolean pause,",
+            "DialogAction afterAction,",
+            "List<DialogBody> body,",
+            "List<Input> inputs",
+            "ComponentSerialization.CODEC.fieldOf(\"title\").forGetter(CommonDialogData::title)",
+            "ComponentSerialization.CODEC.optionalFieldOf(\"external_title\").forGetter(CommonDialogData::externalTitle)",
+            "Codec.BOOL.optionalFieldOf(\"can_close_with_escape\", true).forGetter(CommonDialogData::canCloseWithEscape)",
+            "Codec.BOOL.optionalFieldOf(\"pause\", true).forGetter(CommonDialogData::pause)",
+            "DialogAction.CODEC.optionalFieldOf(\"after_action\", DialogAction.CLOSE).forGetter(CommonDialogData::afterAction)",
+            "DialogBody.COMPACT_LIST_CODEC.optionalFieldOf(\"body\", List.of()).forGetter(CommonDialogData::body)",
+            "Input.CODEC.listOf().optionalFieldOf(\"inputs\", List.of()).forGetter(CommonDialogData::inputs)",
+            "data -> data.pause && !data.afterAction.willUnpause()",
+            "Dialogs that pause the game must use after_action values that unpause it after user action!",
+            "return this.externalTitle.orElse(this.title);",
+        ] {
+            assert!(
+                COMMON_DIALOG.contains(sentinel),
+                "CommonDialogData.java is missing sentinel: {sentinel}"
             );
         }
     }
