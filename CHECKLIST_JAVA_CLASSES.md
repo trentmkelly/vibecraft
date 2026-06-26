@@ -1499,7 +1499,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/server/dialog/input`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/input/BooleanInput.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/input/BooleanInput.java`. Rust `dialog_system::BooleanInputControl` mirrors Java 26.1.2's `label`, `initial`, `on_true`, and `on_false` fields, Java defaults (`false`, `"true"`, `"false"`), and input-control type dispatch, with Java record and codec sentinels pinned by `boolean_input_control_source_matches_java_26_1_2`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/input/InputControl.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/input/InputControlTypes.java`. Rust `dialog_system::input_control_types()` mirrors Java 26.1.2's input control type bootstrap IDs (`boolean`, `number_range`, `single_option`, `text`), covered by `dialog_registry_surface_and_tags_match_vanilla_bootstrap` and source-backed `dialog_registry_bootstrap_sources_match_java_26_1_2`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/input/NumberRangeInput.java`.

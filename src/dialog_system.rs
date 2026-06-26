@@ -7,6 +7,9 @@ use crate::chat_component::Component;
 pub const DIALOG_WIDTH_MIN: i32 = 1;
 pub const DIALOG_WIDTH_MAX: i32 = 1024;
 pub const PLAIN_MESSAGE_DEFAULT_WIDTH: i32 = 200;
+pub const BOOLEAN_INPUT_DEFAULT_INITIAL: bool = false;
+pub const BOOLEAN_INPUT_DEFAULT_ON_TRUE: &str = "true";
+pub const BOOLEAN_INPUT_DEFAULT_ON_FALSE: &str = "false";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DialogType {
@@ -68,6 +71,19 @@ pub struct PlainMessageBody {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DialogBody {
     PlainMessage(PlainMessageBody),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BooleanInputControl {
+    pub label: Component,
+    pub initial: bool,
+    pub on_true: String,
+    pub on_false: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InputControl {
+    Boolean(BooleanInputControl),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -241,6 +257,43 @@ impl DialogBody {
     pub fn body_type(&self) -> DialogBodyType {
         match self {
             Self::PlainMessage(message) => message.body_type(),
+        }
+    }
+}
+
+impl BooleanInputControl {
+    pub fn new(
+        label: Component,
+        initial: bool,
+        on_true: impl Into<String>,
+        on_false: impl Into<String>,
+    ) -> Self {
+        Self {
+            label,
+            initial,
+            on_true: on_true.into(),
+            on_false: on_false.into(),
+        }
+    }
+
+    pub fn with_defaults(label: Component) -> Self {
+        Self::new(
+            label,
+            BOOLEAN_INPUT_DEFAULT_INITIAL,
+            BOOLEAN_INPUT_DEFAULT_ON_TRUE,
+            BOOLEAN_INPUT_DEFAULT_ON_FALSE,
+        )
+    }
+
+    pub fn input_type(&self) -> InputControlType {
+        InputControlType::Boolean
+    }
+}
+
+impl InputControl {
+    pub fn input_type(&self) -> InputControlType {
+        match self {
+            Self::Boolean(input) => input.input_type(),
         }
     }
 }
@@ -443,6 +496,57 @@ mod tests {
         );
         assert!(PlainMessageBody::new(Component::empty(), 0).is_err());
         assert!(PlainMessageBody::new(Component::empty(), 1025).is_err());
+    }
+
+    #[test]
+    fn boolean_input_control_uses_java_fields_defaults_and_dispatch_type() {
+        let default_input = BooleanInputControl::with_defaults(Component::literal("Enable"));
+        assert_eq!(default_input.label, Component::literal("Enable"));
+        assert!(!default_input.initial);
+        assert_eq!(default_input.on_true, "true");
+        assert_eq!(default_input.on_false, "false");
+        assert_eq!(default_input.input_type(), InputControlType::Boolean);
+        assert_eq!(
+            InputControl::Boolean(default_input.clone()).input_type(),
+            InputControlType::Boolean
+        );
+
+        let custom_input = BooleanInputControl::new(
+            Component::literal("Mode"),
+            true,
+            "enabled",
+            "disabled",
+        );
+        assert_eq!(
+            custom_input,
+            BooleanInputControl {
+                label: Component::literal("Mode"),
+                initial: true,
+                on_true: "enabled".to_string(),
+                on_false: "disabled".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn boolean_input_control_source_matches_java_26_1_2() {
+        const BOOLEAN_INPUT: &str =
+            vibecraft_java_source!("/net/minecraft/server/dialog/input/BooleanInput.java");
+
+        for sentinel in [
+            "public record BooleanInput(Component label, boolean initial, String onTrue, String onFalse) implements InputControl",
+            "ComponentSerialization.CODEC.fieldOf(\"label\").forGetter(BooleanInput::label)",
+            "Codec.BOOL.optionalFieldOf(\"initial\", false).forGetter(BooleanInput::initial)",
+            "Codec.STRING.optionalFieldOf(\"on_true\", \"true\").forGetter(BooleanInput::onTrue)",
+            "Codec.STRING.optionalFieldOf(\"on_false\", \"false\").forGetter(BooleanInput::onFalse)",
+            "return MAP_CODEC;",
+        ] {
+            assert!(
+                BOOLEAN_INPUT.contains(sentinel),
+                "BooleanInput.java is missing sentinel: {sentinel}"
+            );
+        }
     }
 
     #[test]
