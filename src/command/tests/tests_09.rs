@@ -913,6 +913,35 @@ fn jfr_command_requires_owner_and_records_start_stop_path() {
 }
 
 #[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn jfr_command_source_matches_java_26_1_2() {
+    const JFR_COMMAND_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/JfrCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"jfr\")",
+        ".requires(Commands.hasPermission(Commands.LEVEL_OWNERS))",
+        "Commands.literal(\"start\").executes(c -> startJfr((CommandSourceStack)c.getSource()))",
+        "Commands.literal(\"stop\").executes(c -> stopJfr((CommandSourceStack)c.getSource()))",
+        "Environment env = Environment.from(source.getServer());",
+        "if (!JvmProfiler.INSTANCE.start(env))",
+        "throw START_FAILED.create();",
+        "Component.translatable(\"commands.jfr.started\")",
+        "return 1;",
+        "JvmProfiler.INSTANCE.stop().normalize()",
+        "ClickEvent.CopyToClipboard",
+        "HoverEvent.ShowText(Component.translatable(\"chat.copy.click\"))",
+        "Component.translatable(\"commands.jfr.stopped\", fileText)",
+        "throw DUMP_FAILED.create(t.getMessage());",
+    ] {
+        assert!(
+            JFR_COMMAND_JAVA.contains(sentinel),
+            "JfrCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+}
+
+#[test]
 fn perf_command_requires_owner_and_toggles_metrics_recording() {
     let mut state = ServerCommandState {
         tick_time_samples_nanos: vec![50_000_000, 60_000_000],

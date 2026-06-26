@@ -103,7 +103,7 @@
 - [ ] Implement `/give`.
 - [ ] Implement `/help`.
 - [ ] Implement `/item`.
-- [ ] Implement `/jfr`.
+- [x] Implement `/jfr`. — Java `JfrCommand` is owner-gated and supports only `jfr start` and `jfr stop`: start builds `Environment.from(server)`, fails with `commands.jfr.start.failed` if `JvmProfiler.start` returns false, emits non-broadcast `commands.jfr.started`, and returns `1`; stop calls `JvmProfiler.stop().normalize()`, records/copies the saved path into clickable/hoverable feedback, emits non-broadcast `commands.jfr.stopped`, returns `1`, and maps stop/dump errors to `commands.jfr.dump.failed`. Rust `jfr_command()` mirrors the owner permission, start/stop state transitions, start-failed and dump-failed paths, recorded output path, non-broadcast feedback, and return values; covered by `jfr_command_requires_owner_and_records_start_stop_path` and source-backed `jfr_command_source_matches_java_26_1_2`.
 - [ ] Implement `/kick`, `/kill`, `/list`. — `/list` is DONE and live-correct: `command_state_for_player` seeds `online_players` from the shared `ActiveLoginRegistry` (`ActiveLoginGuard::in_play_profiles`, = Java `PlayerList.getPlayers`), and `command_feedback_text` renders `commands.list.players` ("There are N of a max of M players online: …"). REMAINING (keeps this bundled item unchecked): `/kick` needs cross-player SEND to disconnect the target's stream (STAGE 4 registry wiring), and `/kill` needs the live death flow (no live death event handler yet). See `TODO(kick-kill-live-wiring)` in play_session_world_packets.rs.
 - [ ] Implement `/locate`.
 - [ ] Implement `/loot`.
