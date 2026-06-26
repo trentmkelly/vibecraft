@@ -17,6 +17,7 @@ pub use dialog_inputs::*;
 pub const DIALOG_WIDTH_MIN: i32 = 1;
 pub const DIALOG_WIDTH_MAX: i32 = 1024;
 pub const PLAIN_MESSAGE_DEFAULT_WIDTH: i32 = 200;
+pub const COMMON_BUTTON_DEFAULT_WIDTH: i32 = 150;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DialogType {
@@ -78,6 +79,19 @@ pub struct PlainMessageBody {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DialogBody {
     PlainMessage(PlainMessageBody),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommonButtonData {
+    pub label: Component,
+    pub tooltip: Option<Component>,
+    pub width: i32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ActionButton {
+    pub button: CommonButtonData,
+    pub action: Option<DialogActionModel>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -255,6 +269,44 @@ impl DialogBody {
     }
 }
 
+impl CommonButtonData {
+    pub fn new(
+        label: Component,
+        tooltip: Option<Component>,
+        width: i32,
+    ) -> Result<Self, String> {
+        if !(DIALOG_WIDTH_MIN..=DIALOG_WIDTH_MAX).contains(&width) {
+            return Err(format!(
+                "button width {width} is outside Java Dialog.WIDTH_CODEC range {DIALOG_WIDTH_MIN}..={DIALOG_WIDTH_MAX}"
+            ));
+        }
+
+        Ok(Self {
+            label,
+            tooltip,
+            width,
+        })
+    }
+
+    pub fn with_width(label: Component, width: i32) -> Result<Self, String> {
+        Self::new(label, None, width)
+    }
+
+    pub fn with_default_width(label: Component) -> Self {
+        Self {
+            label,
+            tooltip: None,
+            width: COMMON_BUTTON_DEFAULT_WIDTH,
+        }
+    }
+}
+
+impl ActionButton {
+    pub fn new(button: CommonButtonData, action: Option<DialogActionModel>) -> Self {
+        Self { button, action }
+    }
+}
+
 pub fn input_control_types() -> &'static [(&'static str, InputControlType)] {
     &[
         ("boolean", InputControlType::Boolean),
@@ -404,6 +456,7 @@ fn normalize_identifier(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chat_component::ClickEvent;
 
     #[test]
     fn dialog_actions_match_java_ids_names_and_unpause_behavior() {
@@ -453,6 +506,81 @@ mod tests {
         );
         assert!(PlainMessageBody::new(Component::empty(), 0).is_err());
         assert!(PlainMessageBody::new(Component::empty(), 1025).is_err());
+    }
+
+    #[test]
+    fn common_button_and_action_button_use_java_defaults_and_width_range() {
+        let default_button = CommonButtonData::with_default_width(Component::literal("OK"));
+        assert_eq!(
+            default_button,
+            CommonButtonData {
+                label: Component::literal("OK"),
+                tooltip: None,
+                width: COMMON_BUTTON_DEFAULT_WIDTH,
+            }
+        );
+
+        assert_eq!(
+            CommonButtonData::new(
+                Component::literal("Help"),
+                Some(Component::literal("More info")),
+                DIALOG_WIDTH_MIN,
+            ),
+            Ok(CommonButtonData {
+                label: Component::literal("Help"),
+                tooltip: Some(Component::literal("More info")),
+                width: 1,
+            })
+        );
+        assert!(CommonButtonData::with_width(Component::empty(), 0).is_err());
+        assert!(CommonButtonData::with_width(Component::empty(), DIALOG_WIDTH_MAX + 1).is_err());
+
+        let action = DialogActionModel::Static(StaticDialogAction::new(ClickEvent::RunCommand(
+            "/help".to_string(),
+        )));
+        assert_eq!(
+            ActionButton::new(default_button.clone(), Some(action.clone())),
+            ActionButton {
+                button: default_button,
+                action: Some(action),
+            }
+        );
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn common_button_and_action_button_sources_match_java_26_1_2() {
+        const COMMON_BUTTON: &str =
+            vibecraft_java_source!("/net/minecraft/server/dialog/CommonButtonData.java");
+        const ACTION_BUTTON: &str =
+            vibecraft_java_source!("/net/minecraft/server/dialog/ActionButton.java");
+
+        for sentinel in [
+            "public record CommonButtonData(Component label, Optional<Component> tooltip, int width)",
+            "public static final int DEFAULT_WIDTH = 150;",
+            "ComponentSerialization.CODEC.fieldOf(\"label\").forGetter(CommonButtonData::label)",
+            "ComponentSerialization.CODEC.optionalFieldOf(\"tooltip\").forGetter(CommonButtonData::tooltip)",
+            "Dialog.WIDTH_CODEC.optionalFieldOf(\"width\", 150).forGetter(CommonButtonData::width)",
+            "public CommonButtonData(final Component label, final int width)",
+            "this(label, Optional.empty(), width);",
+        ] {
+            assert!(
+                COMMON_BUTTON.contains(sentinel),
+                "CommonButtonData.java is missing sentinel: {sentinel}"
+            );
+        }
+
+        for sentinel in [
+            "public record ActionButton(CommonButtonData button, Optional<Action> action)",
+            "CommonButtonData.MAP_CODEC.forGetter(ActionButton::button)",
+            "Action.CODEC.optionalFieldOf(\"action\").forGetter(ActionButton::action)",
+            ".apply(i, ActionButton::new)",
+        ] {
+            assert!(
+                ACTION_BUTTON.contains(sentinel),
+                "ActionButton.java is missing sentinel: {sentinel}"
+            );
+        }
     }
 
     #[test]

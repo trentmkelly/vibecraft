@@ -1463,9 +1463,9 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/server/dialog`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/ActionButton.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/ActionButton.java`. Rust `dialog_system::ActionButton` mirrors Java 26.1.2's `CommonButtonData button` plus optional dialog `Action` payload, with the Java record codec fields pinned by `common_button_and_action_button_sources_match_java_26_1_2`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/ButtonListDialog.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/CommonButtonData.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/CommonButtonData.java`. Rust `dialog_system::CommonButtonData` mirrors Java 26.1.2's `label`, optional `tooltip`, width default `150`, convenience constructor with empty tooltip, and shared `Dialog.WIDTH_CODEC` range `1..=1024`, with Java source sentinels pinned by `common_button_and_action_button_sources_match_java_26_1_2`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/CommonDialogData.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/ConfirmationDialog.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/Dialog.java`.
