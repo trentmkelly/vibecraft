@@ -708,6 +708,49 @@ fn advancement_command_source_matches_java_26_1_2() {
 
 #[test]
 #[cfg(vibecraft_has_decompiled_sources)]
+fn op_and_deop_command_sources_match_java_26_1_2() {
+    const OP_COMMAND: &str = vibecraft_java_source!("/net/minecraft/server/commands/OpCommand.java");
+    const DEOP_COMMAND: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/DeOpCommands.java");
+
+    for sentinel in [
+        "Commands.literal(\"op\").requires(Commands.hasPermission(Commands.LEVEL_ADMINS))",
+        "Commands.argument(\"targets\", GameProfileArgument.gameProfile())",
+        "list.getPlayers().stream().filter(player -> !list.isOp(player.nameAndId())).map(pl -> pl.getGameProfile().name())",
+        "GameProfileArgument.getGameProfiles(c, \"targets\")",
+        "if (!list.isOp(player))",
+        "list.op(player);",
+        "Component.translatable(\"commands.op.success\", player.name())",
+        "throw ERROR_ALREADY_OP.create();",
+        "return count;",
+    ] {
+        assert!(
+            OP_COMMAND.contains(sentinel),
+            "OpCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+
+    for sentinel in [
+        "Commands.literal(\"deop\").requires(Commands.hasPermission(Commands.LEVEL_ADMINS))",
+        "Commands.argument(\"targets\", GameProfileArgument.gameProfile())",
+        "SharedSuggestionProvider.suggest(((CommandSourceStack)c.getSource()).getServer().getPlayerList().getOpNames(), p)",
+        "GameProfileArgument.getGameProfiles(c, \"targets\")",
+        "if (list.isOp(player))",
+        "list.deop(player);",
+        "Component.translatable(\"commands.deop.success\", players.iterator().next().name())",
+        "throw ERROR_NOT_OP.create();",
+        "source.getServer().kickUnlistedPlayers();",
+        "return count;",
+    ] {
+        assert!(
+            DEOP_COMMAND.contains(sentinel),
+            "DeOpCommands.java is missing sentinel: {sentinel}"
+        );
+    }
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
 fn ban_ip_command_source_matches_java_26_1_2() {
     const BAN_IP_COMMAND: &str =
         vibecraft_java_source!("/net/minecraft/server/commands/BanIpCommands.java");

@@ -425,6 +425,14 @@ fn op_command_requires_admin_and_tracks_operator_profiles() {
     assert_eq!(result.success_count, 2);
     assert_eq!(result.feedback_key, "commands.op.success");
     assert!(result.broadcast_to_admins);
+    assert_eq!(
+        state.side_feedback,
+        vec![CommandResult {
+            success_count: 1,
+            feedback_key: "commands.op.success",
+            broadcast_to_admins: true,
+        }]
+    );
     assert_eq!(state.operator_names(), vec!["Steve", "Alex"]);
     assert_eq!(
         execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "op Steve"),
@@ -443,11 +451,23 @@ fn deop_command_removes_ops_and_requests_unlisted_player_kick() {
     };
     assert_eq!(command_required_permission("deop"), PermissionLevel::Admins);
 
-    let result =
-        execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "deop Steve").unwrap();
-    assert_eq!(result.success_count, 1);
+    let result = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::ADMIN,
+        "deop Steve Alex",
+    )
+    .unwrap();
+    assert_eq!(result.success_count, 2);
     assert_eq!(result.feedback_key, "commands.deop.success");
-    assert_eq!(state.operator_names(), vec!["Alex"]);
+    assert_eq!(
+        state.side_feedback,
+        vec![CommandResult {
+            success_count: 1,
+            feedback_key: "commands.deop.success",
+            broadcast_to_admins: true,
+        }]
+    );
+    assert!(state.operator_names().is_empty());
     assert_eq!(state.kick_unlisted_requests, 1);
     assert_eq!(
         execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "deop Steve"),

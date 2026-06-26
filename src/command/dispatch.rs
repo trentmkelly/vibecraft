@@ -506,31 +506,29 @@ fn kick_command(
     }
 }
 
-// TODO(op-deop-live-wiring): op_command/deop_command mutate only the transient
-// ServerCommandState (operator_players); the change is NOT applied to the live
-// PlayerAccess or persisted to ops.json (apply_command_side_effects only handles
-// weather + gamemode). Wiring the local half is feasible via the /weather pattern
-// (seed operator_players from PlayerAccess; diff + apply + persist ops.json — needs
-// a live PlayerAccess save_ops + deop, currently only test-only save_all exists).
-// Full 1:1 with Java OpCommand -> PlayerList.op also resends permission-level +
-// commands to the TARGET player, which requires sending to another player's
-// connection — blocked on the missing live player registry (same gap as the static
-// query player_count). Blocks CHECKLIST_COMMANDS #90 (left unmarked).
+// TODO(op-deop-live-wiring): the command model mirrors Java's PlayerList mutation,
+// feedback, and kick request semantics, but live command side effects still need
+// PlayerAccess ops.json persistence plus PlayerList.op's target permission/command
+// packet resend once cross-player command effects are wired.
 fn op_command(
     state: &mut ServerCommandState,
     parts: &[&str],
 ) -> Result<CommandResult, CommandError> {
     match parts {
         ["op", targets @ ..] if !targets.is_empty() => {
-            let success = targets
+            let changed = targets
                 .iter()
-                .filter(|target| state.add_operator(NameAndId::create_offline(target)))
-                .count() as i32;
-            if success == 0 {
+                .filter_map(|target| {
+                    let profile = NameAndId::create_offline(target);
+                    state.add_operator(profile.clone()).then_some(profile)
+                })
+                .collect::<Vec<_>>();
+            if changed.is_empty() {
                 return Err(CommandError::OpFailed);
             }
+            push_extra_player_feedback(state, changed.len(), "commands.op.success");
             Ok(CommandResult {
-                success_count: success,
+                success_count: changed.len() as i32,
                 feedback_key: "commands.op.success",
                 broadcast_to_admins: true,
             })
@@ -545,23 +543,38 @@ fn deop_command(
 ) -> Result<CommandResult, CommandError> {
     match parts {
         ["deop", targets @ ..] if !targets.is_empty() => {
-            let success = targets
+            let changed = targets
                 .iter()
                 .map(|target| NameAndId::create_offline(target))
                 .filter(|profile| state.remove_operator(profile))
-                .count() as i32;
-            if success == 0 {
+                .collect::<Vec<_>>();
+            if changed.is_empty() {
                 return Err(CommandError::DeOpFailed);
             }
+            push_extra_player_feedback(state, changed.len(), "commands.deop.success");
             state.kick_unlisted_requests += 1;
             Ok(CommandResult {
-                success_count: success,
+                success_count: changed.len() as i32,
                 feedback_key: "commands.deop.success",
                 broadcast_to_admins: true,
             })
         }
         _ => Err(CommandError::InvalidSyntax),
     }
+}
+
+fn push_extra_player_feedback(
+    state: &mut ServerCommandState,
+    changed_count: usize,
+    feedback_key: &'static str,
+) {
+    state
+        .side_feedback
+        .extend((1..changed_count).map(|_| CommandResult {
+            success_count: 1,
+            feedback_key,
+            broadcast_to_admins: true,
+        }));
 }
 
 fn kill_command(
