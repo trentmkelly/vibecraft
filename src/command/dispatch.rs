@@ -489,20 +489,24 @@ fn kick_command(
     parts: &[&str],
 ) -> Result<CommandResult, CommandError> {
     match parts {
-        ["kick", targets @ ..] if !targets.is_empty() => {
-            let split = targets
-                .iter()
-                .position(|part| *part == "--")
-                .unwrap_or(targets.len());
-            let (targets, reason_parts) = targets.split_at(split);
-            let reason = if reason_parts.is_empty() {
-                "multiplayer.disconnect.kicked".to_string()
-            } else {
-                reason_parts[1..].join(" ")
-            };
-            kick_players(state, targets, reason)
+        ["kick", targets] => {
+            let targets = parse_kick_targets(targets)?;
+            kick_players(state, targets, "multiplayer.disconnect.kicked".to_string())
+        }
+        ["kick", targets, reason @ ..] if !reason.is_empty() => {
+            let targets = parse_kick_targets(targets)?;
+            kick_players(state, targets, reason.join(" "))
         }
         _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn parse_kick_targets(input: &str) -> Result<Vec<NameAndId>, CommandError> {
+    let targets = parse_name_list(input);
+    if targets.is_empty() || input.split(',').any(str::is_empty) {
+        Err(CommandError::InvalidSyntax)
+    } else {
+        Ok(targets)
     }
 }
 

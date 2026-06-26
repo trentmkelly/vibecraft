@@ -555,6 +555,33 @@ fn waypoint_command_source_matches_java_26_1_2() {
 
 #[test]
 #[cfg(vibecraft_has_decompiled_sources)]
+fn kick_command_source_matches_java_26_1_2() {
+    const KICK: &str = vibecraft_java_source!("/net/minecraft/server/commands/KickCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"kick\").requires(Commands.hasPermission(Commands.LEVEL_ADMINS))",
+        "Commands.argument(\"targets\", EntityArgument.players())",
+        "EntityArgument.getPlayers(c, \"targets\")",
+        "Component.translatable(\"multiplayer.disconnect.kicked\")",
+        "Commands.argument(\"reason\", MessageArgument.message())",
+        "MessageArgument.getMessage(c, \"reason\")",
+        "if (!source.getServer().isPublished())",
+        "throw ERROR_SINGLEPLAYER.create();",
+        "if (!source.getServer().isSingleplayerOwner(player.nameAndId()))",
+        "player.connection.disconnect(reason)",
+        "Component.translatable(\"commands.kick.success\", player.getDisplayName(), reason)",
+        "throw ERROR_KICKING_OWNER.create();",
+        "return count;",
+    ] {
+        assert!(
+            KICK.contains(sentinel),
+            "KickCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
 fn whitelist_command_source_matches_java_26_1_2() {
     const WHITELIST: &str =
         vibecraft_java_source!("/net/minecraft/server/commands/WhitelistCommand.java");

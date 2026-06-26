@@ -26,7 +26,7 @@ pub(super) fn publish_server(
 
 pub(super) fn kick_players(
     state: &mut ServerCommandState,
-    targets: &[&str],
+    targets: Vec<NameAndId>,
     reason: String,
 ) -> Result<CommandResult, CommandError> {
     if state.published_server.is_none() {
@@ -35,16 +35,15 @@ pub(super) fn kick_players(
 
     let mut count = 0;
     for target in targets {
-        let player = NameAndId::create_offline(target);
         if state
             .singleplayer_owner
             .as_ref()
-            .is_some_and(|owner| owner.uuid == player.uuid)
+            .is_some_and(|owner| owner.uuid == target.uuid)
         {
             continue;
         }
         state.disconnected_players.push(PlayerDisconnect {
-            player,
+            player: target,
             reason: reason.clone(),
         });
         count += 1;

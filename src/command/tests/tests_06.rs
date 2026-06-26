@@ -193,12 +193,28 @@ fn kick_command_disconnects_targets_with_default_or_custom_reason() {
     let kicked = execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::ADMIN,
-        "kick Alex -- maintenance window",
+        "kick Alex maintenance window",
     )
     .unwrap();
     assert_eq!(kicked.success_count, 1);
     assert_eq!(state.disconnected_players[1].player.name, "Alex");
     assert_eq!(state.disconnected_players[1].reason, "maintenance window");
+
+    let kicked = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::ADMIN,
+        "kick Alex,Steve server restart",
+    )
+    .unwrap();
+    assert_eq!(kicked.success_count, 2);
+    assert_eq!(state.disconnected_players[2].player.name, "Alex");
+    assert_eq!(state.disconnected_players[3].player.name, "Steve");
+    assert_eq!(state.disconnected_players[2].reason, "server restart");
+
+    assert_eq!(
+        execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "kick ,"),
+        Err(CommandError::InvalidSyntax)
+    );
 }
 
 #[test]
