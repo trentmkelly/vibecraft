@@ -1,5 +1,7 @@
 use super::*;
 
+const MAX_ENTITY_TAGS: usize = 1024;
+
 pub(super) fn swing_command(
     state: &mut ServerCommandState,
     parts: &[&str],
@@ -71,7 +73,9 @@ pub(super) fn add_entity_tag(
     let mut success = 0;
     for target in targets {
         let index = entity_tags_index(state, target);
-        if !state.entity_tags[index].tags.iter().any(|tag| tag == name) {
+        if state.entity_tags[index].tags.len() < MAX_ENTITY_TAGS
+            && !state.entity_tags[index].tags.iter().any(|tag| tag == name)
+        {
             state.entity_tags[index].tags.push(name.to_string());
             success += 1;
         }

@@ -648,6 +648,47 @@ fn tag_command_adds_removes_and_lists_entity_tags() {
 }
 
 #[test]
+fn tag_command_uses_java_entity_tag_capacity_limit_per_target() {
+    let mut state = ServerCommandState {
+        entity_tags: vec![EntityTags {
+            entity: EntityRef {
+                id: "pig".to_string(),
+                display_name: "pig".to_string(),
+            },
+            tags: (0..1024).map(|index| format!("tag{index}")).collect(),
+        }],
+        ..ServerCommandState::default()
+    };
+
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "tag pig add overflow"
+        ),
+        Err(CommandError::TagAddFailed)
+    );
+
+    let mixed = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "tag pig,cow add overflow",
+    )
+    .unwrap();
+    assert_eq!(mixed.success_count, 1);
+    assert_eq!(mixed.feedback_key, "commands.tag.add.success.multiple");
+    assert_eq!(state.entity_tags[0].tags.len(), 1024);
+    assert_eq!(
+        state
+            .entity_tags
+            .iter()
+            .find(|entry| entry.entity.id == "cow")
+            .map(|entry| entry.tags.as_slice()),
+        Some(["overflow".to_string()].as_slice())
+    );
+}
+
+#[test]
 fn tag_command_reports_empty_lists_and_failed_mutations() {
     let mut state = ServerCommandState::default();
     let empty = execute_builtin_command(
@@ -685,6 +726,49 @@ fn tag_command_reports_empty_lists_and_failed_mutations() {
         execute_builtin_command(&mut state, LevelBasedPermissionSet::GAMEMASTER, "tag pig"),
         Err(CommandError::InvalidSyntax)
     );
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn tag_command_source_matches_java_26_1_2() {
+    const TAG_COMMAND_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/TagCommand.java");
+    const ENTITY_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/entity/Entity.java");
+
+    for sentinel in [
+        "Commands.literal(\"tag\").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "Commands.argument(\"targets\", EntityArgument.entities())",
+        "Commands.literal(\"add\")",
+        "Commands.literal(\"remove\")",
+        "SharedSuggestionProvider.suggest(getTags(EntityArgument.getEntities(c, \"targets\")), p)",
+        "Commands.literal(\"list\")",
+        "throw ERROR_ADD_FAILED.create();",
+        "throw ERROR_REMOVE_FAILED.create();",
+        "commands.tag.add.success.single",
+        "commands.tag.add.success.multiple",
+        "commands.tag.remove.success.single",
+        "commands.tag.remove.success.multiple",
+        "commands.tag.list.single.empty",
+        "commands.tag.list.single.success",
+        "commands.tag.list.multiple.empty",
+        "commands.tag.list.multiple.success",
+    ] {
+        assert!(
+            TAG_COMMAND_JAVA.contains(sentinel),
+            "TagCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+
+    for sentinel in [
+        "public Set<String> entityTags()",
+        "return this.tags.size() >= 1024 ? false : this.tags.add(tag);",
+        "return this.tags.remove(tag);",
+    ] {
+        assert!(
+            ENTITY_JAVA.contains(sentinel),
+            "Entity.java is missing tag sentinel: {sentinel}"
+        );
+    }
 }
 
 #[test]
