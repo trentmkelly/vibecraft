@@ -133,6 +133,7 @@ pub struct ServerCommandState {
     pub player_recipes: Vec<PlayerRecipeBook>,
     pub advancements: Vec<AdvancementDefinition>,
     pub player_advancements: Vec<PlayerAdvancementProgress>,
+    pub advancement_flush_events: Vec<AdvancementFlushEvent>,
     pub entity_attributes: Vec<EntityAttributeState>,
     pub fetched_profiles: Vec<FetchProfileEvent>,
     pub avatar_profiles: Vec<AvatarProfile>,
@@ -790,6 +791,12 @@ pub struct PlayerAdvancementProgress {
     pub player: NameAndId,
     pub advancement: String,
     pub completed_criteria: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AdvancementFlushEvent {
+    pub player: NameAndId,
+    pub hide_advancement_toasts: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]

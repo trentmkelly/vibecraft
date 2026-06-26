@@ -667,3 +667,41 @@ fn tick_command_source_matches_java_26_1_2() {
         );
     }
 }
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn advancement_command_source_matches_java_26_1_2() {
+    const ADVANCEMENT_COMMAND: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/AdvancementCommands.java");
+
+    for sentinel in [
+        "Commands.literal(\"advancement\")",
+        ".requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "Commands.literal(\"grant\")",
+        "Commands.literal(\"revoke\")",
+        "\"targets\", EntityArgument.players()",
+        "Commands.literal(\"only\")",
+        "Commands.literal(\"from\")",
+        "Commands.literal(\"until\")",
+        "Commands.literal(\"through\")",
+        "Commands.literal(\"everything\")",
+        "Commands.argument(\"criterion\", StringArgumentType.greedyString())",
+        "ERROR_NO_ACTION_PERFORMED.create(",
+        "ERROR_CRITERION_NOT_FOUND.create(Advancement.name(holder), criterion)",
+        "source.sendSuccess(\n                  () -> Component.translatable(",
+        "return count;",
+        "player.getAdvancements().flushDirty(player, true);",
+        "player.getAdvancements().flushDirty(player, false);",
+        "progress.getRemainingCriteria()",
+        "progress.getCompletedCriteria()",
+        "Mode.ONLY",
+        "Mode.FROM",
+        "Mode.UNTIL",
+        "Mode.THROUGH",
+    ] {
+        assert!(
+            ADVANCEMENT_COMMAND.contains(sentinel),
+            "AdvancementCommands.java is missing sentinel: {sentinel}"
+        );
+    }
+}

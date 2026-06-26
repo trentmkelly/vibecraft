@@ -77,6 +77,7 @@ macro_rules! default_server_command_state {
             player_recipes: Vec::new(),
             advancements: Vec::new(),
             player_advancements: Vec::new(),
+            advancement_flush_events: Vec::new(),
             entity_attributes: Vec::new(),
             fetched_profiles: Vec::new(),
             avatar_profiles: Vec::new(),

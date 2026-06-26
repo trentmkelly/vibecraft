@@ -207,6 +207,12 @@ pub(super) fn perform_advancement_action(
 ) -> Result<CommandResult, CommandError> {
     let mut count = 0;
     for target in targets {
+        if !show_advancements {
+            state.advancement_flush_events.push(AdvancementFlushEvent {
+                player: target.clone(),
+                hide_advancement_toasts: true,
+            });
+        }
         for advancement in advancements {
             if let Some(criterion) = criterion {
                 let definition = state
@@ -223,6 +229,12 @@ pub(super) fn perform_advancement_action(
             } else if perform_advancement(state, action, target, advancement) {
                 count += 1;
             }
+        }
+        if !show_advancements {
+            state.advancement_flush_events.push(AdvancementFlushEvent {
+                player: target.clone(),
+                hide_advancement_toasts: false,
+            });
         }
     }
     if count == 0 {
@@ -273,7 +285,7 @@ pub(super) fn perform_advancement_action(
                 "commands.advancement.revoke.many.to.many.success"
             }
         },
-        broadcast_to_admins: show_advancements,
+        broadcast_to_admins: true,
     })
 }
 

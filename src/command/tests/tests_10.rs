@@ -1000,8 +1000,21 @@ fn advancement_everything_and_criterion_paths_match_vanilla_outcomes() {
     )
     .unwrap();
     assert_eq!(revoked.success_count, 1);
-    assert!(!revoked.broadcast_to_admins);
+    assert!(revoked.broadcast_to_admins);
     assert!(state.player_advancements[0].completed_criteria.is_empty());
+    assert_eq!(
+        state.advancement_flush_events,
+        vec![
+            AdvancementFlushEvent {
+                player: alex.clone(),
+                hide_advancement_toasts: true,
+            },
+            AdvancementFlushEvent {
+                player: alex,
+                hide_advancement_toasts: false,
+            },
+        ]
+    );
 }
 
 #[test]
