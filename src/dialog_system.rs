@@ -16,6 +16,8 @@ pub const TEXT_INPUT_DEFAULT_INITIAL: &str = "";
 pub const TEXT_INPUT_DEFAULT_MAX_LENGTH: i32 = 32;
 pub const TEXT_INPUT_MULTILINE_HEIGHT_MIN: i32 = 1;
 pub const TEXT_INPUT_MULTILINE_MAX_HEIGHT: i32 = 512;
+pub const SINGLE_OPTION_INPUT_DEFAULT_WIDTH: i32 = 200;
+pub const SINGLE_OPTION_INPUT_DEFAULT_LABEL_VISIBLE: bool = true;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DialogType {
@@ -104,8 +106,24 @@ pub struct TextInputControl {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SingleOptionInputEntry {
+    pub id: String,
+    pub display: Option<Component>,
+    pub initial: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SingleOptionInputControl {
+    pub width: i32,
+    pub entries: Vec<SingleOptionInputEntry>,
+    pub label: Component,
+    pub label_visible: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InputControl {
     Boolean(BooleanInputControl),
+    SingleOption(SingleOptionInputControl),
     Text(TextInputControl),
 }
 
@@ -377,10 +395,77 @@ impl TextInputControl {
     }
 }
 
+impl SingleOptionInputEntry {
+    pub fn new(id: impl Into<String>, display: Option<Component>, initial: bool) -> Self {
+        Self {
+            id: id.into(),
+            display,
+            initial,
+        }
+    }
+
+    pub fn from_id(id: impl Into<String>) -> Self {
+        Self::new(id, None, false)
+    }
+
+    pub fn display_or_default(&self) -> Component {
+        match &self.display {
+            Some(display) => display.clone(),
+            None => Component::literal(self.id.clone()),
+        }
+    }
+}
+
+impl SingleOptionInputControl {
+    pub fn new(
+        width: i32,
+        entries: Vec<SingleOptionInputEntry>,
+        label: Component,
+        label_visible: bool,
+    ) -> Result<Self, String> {
+        if !(DIALOG_WIDTH_MIN..=DIALOG_WIDTH_MAX).contains(&width) {
+            return Err(format!(
+                "single option width {width} is outside Java Dialog.WIDTH_CODEC range {DIALOG_WIDTH_MIN}..={DIALOG_WIDTH_MAX}"
+            ));
+        }
+        if entries.is_empty() {
+            return Err("single option input requires a non-empty options list".to_string());
+        }
+        if entries.iter().filter(|entry| entry.initial).count() > 1 {
+            return Err("Multiple initial values".to_string());
+        }
+
+        Ok(Self {
+            width,
+            entries,
+            label,
+            label_visible,
+        })
+    }
+
+    pub fn with_defaults(entries: Vec<SingleOptionInputEntry>, label: Component) -> Result<Self, String> {
+        Self::new(
+            SINGLE_OPTION_INPUT_DEFAULT_WIDTH,
+            entries,
+            label,
+            SINGLE_OPTION_INPUT_DEFAULT_LABEL_VISIBLE,
+        )
+    }
+
+    pub fn initial(&self) -> Option<&SingleOptionInputEntry> {
+        self.entries.iter().find(|entry| entry.initial)
+    }
+
+    pub fn input_type(&self) -> InputControlType {
+        InputControlType::SingleOption
+    }
+}
+
 impl InputControl {
     pub fn input_type(&self) -> InputControlType {
         match self {
             Self::Boolean(input) => input.input_type(),
+            Self::SingleOption(input) => input.input_type(),
             Self::Text(input) => input.input_type(),
         }
     }
@@ -683,6 +768,83 @@ mod tests {
         assert!(TextInputMultilineOptions::new(Some(0), None).is_err());
         assert!(TextInputMultilineOptions::new(None, Some(0)).is_err());
         assert!(TextInputMultilineOptions::new(None, Some(513)).is_err());
+    }
+
+    #[test]
+    fn single_option_input_uses_java_defaults_validation_and_display_fallback() {
+        let plain = SingleOptionInputEntry::from_id("alpha");
+        let initial = SingleOptionInputEntry::new("beta", Some(Component::literal("Beta")), true);
+        assert_eq!(plain.display_or_default(), Component::literal("alpha"));
+        assert_eq!(initial.display_or_default(), Component::literal("Beta"));
+
+        let input = SingleOptionInputControl::with_defaults(
+            vec![plain.clone(), initial.clone()],
+            Component::literal("Pick"),
+        );
+        assert_eq!(
+            input,
+            Ok(SingleOptionInputControl {
+                width: 200,
+                entries: vec![plain.clone(), initial.clone()],
+                label: Component::literal("Pick"),
+                label_visible: true,
+            })
+        );
+        let input = match input {
+            Ok(input) => input,
+            Err(err) => panic!("{err}"),
+        };
+        assert_eq!(input.initial(), Some(&initial));
+        assert_eq!(input.input_type(), InputControlType::SingleOption);
+        assert_eq!(
+            InputControl::SingleOption(input).input_type(),
+            InputControlType::SingleOption
+        );
+
+        assert!(SingleOptionInputControl::with_defaults(Vec::new(), Component::empty()).is_err());
+        assert!(SingleOptionInputControl::new(
+            0,
+            vec![SingleOptionInputEntry::from_id("a")],
+            Component::empty(),
+            true
+        )
+        .is_err());
+        assert!(SingleOptionInputControl::with_defaults(
+            vec![
+                SingleOptionInputEntry::new("a", None, true),
+                SingleOptionInputEntry::new("b", None, true),
+            ],
+            Component::empty()
+        )
+        .is_err());
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn single_option_input_source_matches_java_26_1_2() {
+        const SINGLE_OPTION: &str =
+            vibecraft_java_source!("/net/minecraft/server/dialog/input/SingleOptionInput.java");
+
+        for sentinel in [
+            "public record SingleOptionInput(int width, List<SingleOptionInput.Entry> entries, Component label, boolean labelVisible) implements InputControl",
+            "Dialog.WIDTH_CODEC.optionalFieldOf(\"width\", 200).forGetter(SingleOptionInput::width)",
+            "ExtraCodecs.nonEmptyList(SingleOptionInput.Entry.CODEC.listOf()).fieldOf(\"options\").forGetter(SingleOptionInput::entries)",
+            "ComponentSerialization.CODEC.fieldOf(\"label\").forGetter(SingleOptionInput::label)",
+            "Codec.BOOL.optionalFieldOf(\"label_visible\", true).forGetter(SingleOptionInput::labelVisible)",
+            "long initialCount = o.entries.stream().filter(SingleOptionInput.Entry::initial).count();",
+            "return initialCount > 1L ? DataResult.error(() -> \"Multiple initial values\") : DataResult.success(o);",
+            "public Optional<SingleOptionInput.Entry> initial()",
+            "public record Entry(String id, Optional<Component> display, boolean initial)",
+            "Codec.BOOL.optionalFieldOf(\"initial\", false).forGetter(SingleOptionInput.Entry::initial)",
+            "Codec.withAlternative(",
+            "FULL_CODEC, Codec.STRING, id -> new SingleOptionInput.Entry(id, Optional.empty(), false)",
+            "return this.display.orElseGet(() -> Component.literal(this.id));",
+        ] {
+            assert!(
+                SINGLE_OPTION.contains(sentinel),
+                "SingleOptionInput.java is missing sentinel: {sentinel}"
+            );
+        }
     }
 
     #[test]
