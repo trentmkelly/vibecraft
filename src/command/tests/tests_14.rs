@@ -176,3 +176,54 @@ fn schedule_command_source_matches_java_26_1_2() {
         );
     }
 }
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn time_command_source_matches_java_26_1_2() {
+    const TIME: &str = vibecraft_java_source!("/net/minecraft/server/commands/TimeCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"time\")",
+        ".requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "addClockNodes(context, baseCommand, c -> getDefaultClock((CommandSourceStack)c.getSource()))",
+        "Commands.literal(\"query\").then(Commands.literal(\"gametime\")",
+        "Commands.literal(\"of\")",
+        "Commands.argument(\"clock\", ResourceArgument.resource(context, Registries.WORLD_CLOCK))",
+        "Commands.literal(\"set\")",
+        "Commands.argument(\"time\", TimeArgument.time())",
+        "Commands.argument(\"timemarker\", IdentifierArgument.id())",
+        "suggestTimeMarkers((CommandSourceStack)c.getSource(), p, clockGetter.getClock(c))",
+        "ClockTimeMarkers.ROOT_ID",
+        "Commands.literal(\"add\")",
+        "Commands.argument(\"time\", TimeArgument.time(Integer.MIN_VALUE))",
+        "Commands.literal(\"pause\")",
+        "Commands.literal(\"resume\")",
+        "Commands.literal(\"rate\")",
+        "FloatArgumentType.floatArg(1.0E-5F, 1000.0F)",
+        "Commands.literal(\"query\")",
+        "Commands.literal(\"time\")",
+        "Commands.argument(\"timeline\", ResourceArgument.resource(context, Registries.TIMELINE))",
+        "Commands.literal(\"repetition\")",
+        "ERROR_NO_DEFAULT_CLOCK.create(dimensionType.getRegisteredName())",
+        "ERROR_NO_TIME_MARKER_FOUND.create(clock.getRegisteredName(), timeMarkerId)",
+        "ERROR_WRONG_TIMELINE_FOR_CLOCK.create(clock.getRegisteredName(), timeline.getRegisteredName())",
+        "source.getLevel().getGameTime()",
+        "Component.translatable(\"commands.time.query.gametime\", gameTime)",
+        "Component.translatable(\"commands.time.query.absolute\", clock.getRegisteredName(), totalTicks)",
+        "Component.translatable(\"commands.time.query.timeline\", timeline.getRegisteredName(), currentTicks)",
+        "Component.translatable(\"commands.time.query.timeline.repetitions\", timeline.getRegisteredName(), repetitions)",
+        "clockManager.setTotalTicks(clock, totalTicks)",
+        "clockManager.addTicks(clock, time)",
+        "clockManager.moveToTimeMarker(clock, timeMarkerId)",
+        "Component.translatable(\"commands.time.set.absolute\", clock.getRegisteredName(), totalTicks)",
+        "Component.translatable(\"commands.time.set.time_marker\", clock.getRegisteredName(), timeMarkerId.identifier().toString())",
+        "setPaused(clock, paused)",
+        "setRate(clock, rate)",
+        "return Math.toIntExact(ticks % 2147483647L);",
+    ] {
+        assert!(
+            TIME.contains(sentinel),
+            "TimeCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+}
