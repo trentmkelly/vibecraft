@@ -200,6 +200,7 @@ pub struct ServerCommandState {
     pub banned_ips: Vec<BanEntry<String>>,
     pub operator_players: Vec<NameAndId>,
     pub killed_entities: Vec<EntityRef>,
+    pub ban_ip_feedback_events: Vec<BanIpFeedbackEvent>,
     pub teams: Vec<TeamState>,
     pub player_teams: Vec<TeamMembership>,
     pub scoreboard_objectives: Vec<ScoreboardObjective>,
@@ -697,6 +698,12 @@ pub struct CommandStorageNbtSource {
 pub struct PlayerDisconnect {
     pub player: NameAndId,
     pub reason: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BanIpFeedbackEvent {
+    pub feedback_key: &'static str,
+    pub broadcast_to_admins: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

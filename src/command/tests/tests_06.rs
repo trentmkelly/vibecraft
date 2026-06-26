@@ -284,6 +284,13 @@ fn ban_ip_banlist_and_pardon_ip_follow_vanilla_resolution_failures() {
             .unwrap();
     assert_eq!(banned.success_count, 2);
     assert_eq!(banned.feedback_key, "commands.banip.info");
+    assert_eq!(
+        state.ban_ip_feedback_events,
+        vec![BanIpFeedbackEvent {
+            feedback_key: "commands.banip.success",
+            broadcast_to_admins: true,
+        }]
+    );
     assert_eq!(state.banned_ip_names(), vec!["203.0.113.7"]);
     assert_eq!(state.disconnected_players.len(), 2);
     assert_eq!(

@@ -112,6 +112,10 @@ pub(super) fn ban_ip_command(
     if !state.add_ip_ban(ip.clone(), reason) {
         return Err(CommandError::BanIpFailed);
     }
+    state.ban_ip_feedback_events.push(BanIpFeedbackEvent {
+        feedback_key: "commands.banip.success",
+        broadcast_to_admins: true,
+    });
     let players = state.players_with_ip(&ip);
     for player in &players {
         state.disconnected_players.push(PlayerDisconnect {

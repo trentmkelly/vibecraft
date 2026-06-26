@@ -144,6 +144,7 @@ macro_rules! default_server_command_state {
             banned_ips: Vec::new(),
             operator_players: Vec::new(),
             killed_entities: Vec::new(),
+            ban_ip_feedback_events: Vec::new(),
             teams: Vec::new(),
             player_teams: Vec::new(),
             scoreboard_objectives: Vec::new(),

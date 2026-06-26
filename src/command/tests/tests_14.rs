@@ -705,3 +705,33 @@ fn advancement_command_source_matches_java_26_1_2() {
         );
     }
 }
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn ban_ip_command_source_matches_java_26_1_2() {
+    const BAN_IP_COMMAND: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/BanIpCommands.java");
+
+    for sentinel in [
+        "Commands.literal(\"ban-ip\").requires(Commands.hasPermission(Commands.LEVEL_ADMINS))",
+        "Commands.argument(\"target\", StringArgumentType.word())",
+        "Commands.argument(\"reason\", MessageArgument.message())",
+        "InetAddresses.isInetAddress(target)",
+        "source.getServer().getPlayerList().getPlayerByName(target)",
+        "throw ERROR_INVALID_IP.create();",
+        "IpBanList list = source.getServer().getPlayerList().getIpBans();",
+        "if (list.isBanned(ip))",
+        "throw ERROR_ALREADY_BANNED.create();",
+        "source.getServer().getPlayerList().getPlayersWithAddress(ip)",
+        "new IpBanListEntry(ip, null, source.getTextName(), null, reason == null ? null : reason.getString())",
+        "source.sendSuccess(() -> Component.translatable(\"commands.banip.success\", ip, entry.getReasonMessage()), true)",
+        "source.sendSuccess(() -> Component.translatable(\"commands.banip.info\", players.size(), EntitySelector.joinNames(players)), true)",
+        "player.connection.disconnect(Component.translatable(\"multiplayer.disconnect.ip_banned\"));",
+        "return players.size();",
+    ] {
+        assert!(
+            BAN_IP_COMMAND.contains(sentinel),
+            "BanIpCommands.java is missing sentinel: {sentinel}"
+        );
+    }
+}
