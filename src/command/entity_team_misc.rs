@@ -482,66 +482,74 @@ pub(super) fn particle_command(
     state: &mut ServerCommandState,
     parts: &[&str],
 ) -> Result<CommandResult, CommandError> {
-    if parts.len() < 2 {
-        return Err(CommandError::InvalidSyntax);
-    }
-    let name = parts[1].to_string();
-    let mut index = 2;
-    let position = if parts.len() >= index + 3 && is_number(parts[index]) {
-        let pos = Vec3 {
-            x: parse_f64(parts[index])?,
-            y: parse_f64(parts[index + 1])?,
-            z: parse_f64(parts[index + 2])?,
-        };
-        index += 3;
-        pos
-    } else {
-        Vec3::default()
+    let (name, position, delta, speed, count, force, viewers) = match parts {
+        ["particle", name] => (
+            *name,
+            state.command_source_position,
+            Vec3::default(),
+            0.0,
+            0,
+            false,
+            state.online_players.clone(),
+        ),
+        ["particle", name, x, y, z] => (
+            *name,
+            parse_teleport_vec3(state, x, y, z)?,
+            Vec3::default(),
+            0.0,
+            0,
+            false,
+            state.online_players.clone(),
+        ),
+        ["particle", name, x, y, z, dx, dy, dz, speed, count] => (
+            *name,
+            parse_teleport_vec3(state, x, y, z)?,
+            parse_vec3(dx, dy, dz)?,
+            parse_non_negative_f32(speed)?,
+            parse_non_negative_i32(count)? as u32,
+            false,
+            state.online_players.clone(),
+        ),
+        ["particle", name, x, y, z, dx, dy, dz, speed, count, mode @ ("force" | "normal")] => (
+            *name,
+            parse_teleport_vec3(state, x, y, z)?,
+            parse_vec3(dx, dy, dz)?,
+            parse_non_negative_f32(speed)?,
+            parse_non_negative_i32(count)? as u32,
+            *mode == "force",
+            state.online_players.clone(),
+        ),
+        [
+            "particle",
+            name,
+            x,
+            y,
+            z,
+            dx,
+            dy,
+            dz,
+            speed,
+            count,
+            mode @ ("force" | "normal"),
+            viewers,
+        ] => (
+            *name,
+            parse_teleport_vec3(state, x, y, z)?,
+            parse_vec3(dx, dy, dz)?,
+            parse_non_negative_f32(speed)?,
+            parse_non_negative_i32(count)? as u32,
+            *mode == "force",
+            parse_name_list(viewers),
+        ),
+        _ => return Err(CommandError::InvalidSyntax),
     };
-
-    let mut delta = Vec3::default();
-    let mut speed = 0.0;
-    let mut count = 0;
-    if parts.len() > index {
-        if parts.len() < index + 5 {
-            return Err(CommandError::InvalidSyntax);
-        }
-        delta = Vec3 {
-            x: parse_f64(parts[index])?,
-            y: parse_f64(parts[index + 1])?,
-            z: parse_f64(parts[index + 2])?,
-        };
-        speed = parse_non_negative_f32(parts[index + 3])?;
-        count = parts[index + 4]
-            .parse::<u32>()
-            .map_err(|_| CommandError::InvalidSyntax)?;
-        index += 5;
-    }
-
-    let mut force = false;
-    if parts
-        .get(index)
-        .is_some_and(|mode| *mode == "force" || *mode == "normal")
-    {
-        force = parts[index] == "force";
-        index += 1;
-    }
-    let viewers = if let Some(viewers) = parts.get(index) {
-        index += 1;
-        parse_name_list(viewers)
-    } else {
-        state.online_players.clone()
-    };
-    if index != parts.len() {
-        return Err(CommandError::InvalidSyntax);
-    }
     if viewers.is_empty() {
         return Err(CommandError::ParticleFailed);
     }
 
     let success_count = viewers.len() as i32;
     state.particle_events.push(ParticleCommandEvent {
-        name,
+        name: name.to_string(),
         viewers,
         position,
         delta,

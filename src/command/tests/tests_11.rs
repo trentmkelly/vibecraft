@@ -1,6 +1,180 @@
 use super::*;
 
 #[test]
+fn particle_command_requires_gamemaster_and_defaults_to_all_online_players() {
+    let mut state = ServerCommandState {
+        command_source_position: Vec3 {
+            x: 10.0,
+            y: 65.0,
+            z: -4.0,
+        },
+        online_players: vec![
+            NameAndId::create_offline("Steve"),
+            NameAndId::create_offline("Alex"),
+        ],
+        ..ServerCommandState::default()
+    };
+    assert_eq!(
+        command_required_permission("particle"),
+        PermissionLevel::Gamemasters
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::MODERATOR,
+            "particle flame"
+        ),
+        Err(CommandError::PermissionDenied)
+    );
+
+    let result = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "particle flame",
+    )
+    .unwrap();
+    assert_eq!(result.success_count, 2);
+    assert_eq!(result.feedback_key, "commands.particle.success");
+    assert_eq!(
+        state.particle_events[0],
+        ParticleCommandEvent {
+            name: "flame".to_string(),
+            viewers: vec![
+                NameAndId::create_offline("Steve"),
+                NameAndId::create_offline("Alex")
+            ],
+            position: Vec3 {
+                x: 10.0,
+                y: 65.0,
+                z: -4.0,
+            },
+            delta: Vec3::default(),
+            speed: 0.0,
+            count: 0,
+            force: false,
+        }
+    );
+}
+
+#[test]
+fn particle_command_parses_position_delta_speed_count_mode_and_viewers() {
+    let mut state = ServerCommandState {
+        command_source_position: Vec3 {
+            x: 10.0,
+            y: 64.0,
+            z: 10.0,
+        },
+        ..ServerCommandState::default()
+    };
+    let result = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "particle minecraft:dust ~1 2 ~-3 0.1 0.2 0.3 0.4 12 force Steve,Alex",
+    )
+    .unwrap();
+    assert_eq!(result.success_count, 2);
+    assert_eq!(
+        state.particle_events[0],
+        ParticleCommandEvent {
+            name: "minecraft:dust".to_string(),
+            viewers: vec![
+                NameAndId::create_offline("Steve"),
+                NameAndId::create_offline("Alex")
+            ],
+            position: Vec3 {
+                x: 11.0,
+                y: 2.0,
+                z: 7.0,
+            },
+            delta: Vec3 {
+                x: 0.1,
+                y: 0.2,
+                z: 0.3,
+            },
+            speed: 0.4,
+            count: 12,
+            force: true,
+        }
+    );
+
+    state.online_players = vec![NameAndId::create_offline("Steve")];
+    let normal = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "particle flame 1 2 3 0 0 0 0 1 normal",
+    )
+    .unwrap();
+    assert_eq!(normal.success_count, 1);
+    assert!(!state.particle_events.last().unwrap().force);
+}
+
+#[test]
+fn particle_command_fails_when_no_players_receive_particles() {
+    let mut state = ServerCommandState::default();
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "particle flame"
+        ),
+        Err(CommandError::ParticleFailed)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "particle flame 0 0 0 0 0 0 -1 1"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "particle flame 0 0 0 0 0 0 0 1 Steve"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "particle flame 0 0 0 0 0 0 0 2147483648"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn particle_command_source_matches_java_26_1_2() {
+    const PARTICLE_COMMAND_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/ParticleCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"particle\").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "Commands.argument(\"name\", ParticleArgument.particle(context))",
+        "((CommandSourceStack)c.getSource()).getPosition()",
+        "Commands.argument(\"pos\", Vec3Argument.vec3())",
+        "Commands.argument(\"delta\", Vec3Argument.vec3(false))",
+        "Commands.argument(\"speed\", FloatArgumentType.floatArg(0.0F))",
+        "Commands.argument(\"count\", IntegerArgumentType.integer(0))",
+        "Commands.literal(\"force\")",
+        "Commands.literal(\"normal\")",
+        "Commands.argument(\"viewers\", EntityArgument.players())",
+        "source.getLevel().sendParticles(player, particle, force, false",
+        "throw ERROR_FAILED.create();",
+        "Component.translatable(\"commands.particle.success\"",
+        "return result;",
+    ] {
+        assert!(
+            PARTICLE_COMMAND_JAVA.contains(sentinel),
+            "ParticleCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+}
+
+#[test]
 fn attribute_command_rejects_non_living_targets_separately_from_missing_attributes() {
     let mut state = ServerCommandState {
         entity_states: vec![EntityState {
