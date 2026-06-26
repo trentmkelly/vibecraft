@@ -985,6 +985,70 @@ fn teleport_command_records_rotation_and_facing_requests() {
 }
 
 #[test]
+fn teleport_command_records_java_post_teleport_side_effects() {
+    let mut state = ServerCommandState {
+        command_source_entity: Some(entity_ref("Steve")),
+        entity_states: vec![
+            EntityState {
+                entity: entity_ref("Boat"),
+                kind: EntityKind::NonLiving,
+                dimension: "minecraft:overworld".to_string(),
+            },
+            EntityState {
+                entity: entity_ref("Alex"),
+                kind: EntityKind::Player,
+                dimension: "minecraft:overworld".to_string(),
+            },
+            EntityState {
+                entity: entity_ref("Zombie"),
+                kind: EntityKind::Generic,
+                dimension: "minecraft:overworld".to_string(),
+            },
+        ],
+        ..ServerCommandState::default()
+    };
+
+    execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "teleport Boat,Alex,Zombie 0 64 0",
+    )
+    .unwrap();
+    execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "tp Alex Zombie",
+    )
+    .unwrap();
+
+    assert_eq!(
+        state.teleport_side_effects,
+        vec![
+            TeleportSideEffect {
+                target: entity_ref("Boat"),
+                clear_vertical_motion_and_set_on_ground: false,
+                stop_pathfinding_navigation: false,
+            },
+            TeleportSideEffect {
+                target: entity_ref("Alex"),
+                clear_vertical_motion_and_set_on_ground: true,
+                stop_pathfinding_navigation: false,
+            },
+            TeleportSideEffect {
+                target: entity_ref("Zombie"),
+                clear_vertical_motion_and_set_on_ground: true,
+                stop_pathfinding_navigation: true,
+            },
+            TeleportSideEffect {
+                target: entity_ref("Alex"),
+                clear_vertical_motion_and_set_on_ground: true,
+                stop_pathfinding_navigation: false,
+            },
+        ]
+    );
+}
+
+#[test]
 #[cfg(vibecraft_has_decompiled_sources)]
 fn teleport_command_source_matches_java_26_1_2() {
     const TELEPORT_COMMAND_JAVA: &str =
@@ -1011,6 +1075,9 @@ fn teleport_command_source_matches_java_26_1_2() {
         "throw INVALID_POSITION.create();",
         "victim.teleportTo(level, relativeOrAbsoluteX, relativeOrAbsoluteY, relativeOrAbsoluteZ, relatives, newYRot, newXRot, true)",
         "lookAt.perform(source, victim);",
+        "victim.setDeltaMovement(victim.getDeltaMovement().multiply(1.0, 0.0, 1.0));",
+        "victim.setOnGround(true);",
+        "if (victim instanceof PathfinderMob mob)",
         "mob.getNavigation().stop();",
     ] {
         assert!(

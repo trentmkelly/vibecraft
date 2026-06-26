@@ -663,6 +663,13 @@ pub struct EntityPosition {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TeleportSideEffect {
+    pub target: EntityRef,
+    pub clear_vertical_motion_and_set_on_ground: bool,
+    pub stop_pathfinding_navigation: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EntityState {
     pub entity: EntityRef,
     pub kind: EntityKind,

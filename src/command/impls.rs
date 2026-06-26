@@ -168,6 +168,7 @@ macro_rules! default_server_command_state {
             entity_mounts: Vec::new(),
             ride_mount_failures: Vec::new(),
             entity_positions: Vec::new(),
+            teleport_side_effects: Vec::new(),
             entity_states: Vec::new(),
             entity_tags: Vec::new(),
             world_spawn: RespawnData::default(),

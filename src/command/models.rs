@@ -224,6 +224,7 @@ pub struct ServerCommandState {
     pub entity_mounts: Vec<EntityMount>,
     pub ride_mount_failures: Vec<EntityMount>,
     pub entity_positions: Vec<EntityPosition>,
+    pub teleport_side_effects: Vec<TeleportSideEffect>,
     pub entity_states: Vec<EntityState>,
     pub entity_tags: Vec<EntityTags>,
     pub world_spawn: RespawnData,

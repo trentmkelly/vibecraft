@@ -93,6 +93,7 @@ pub(super) fn teleport_to_entity(
     for target in &targets {
         upsert_entity_position(state, target.clone(), destination_position.position);
         set_entity_dimension(state, target, &destination_position.dimension);
+        record_teleport_side_effect(state, target.clone());
     }
     Ok(CommandResult {
         success_count: targets.len() as i32,
@@ -115,6 +116,7 @@ pub(super) fn teleport_to_pos(
     for target in &targets {
         upsert_entity_position(state, target.clone(), position);
         set_entity_dimension(state, target, &state.command_source_dimension.clone());
+        record_teleport_side_effect(state, target.clone());
         if let Some((yaw, pitch, yaw_relative, pitch_relative)) = rotation {
             state.rotation_requests.push(RotationRequest {
                 target: target.clone(),
@@ -152,6 +154,16 @@ pub(super) fn teleport_to_pos_with_facing(
         });
     }
     Ok(result)
+}
+
+pub(super) fn record_teleport_side_effect(state: &mut ServerCommandState, target: EntityRef) {
+    let kind = entity_kind(state, &target);
+    let clear_vertical_motion_and_set_on_ground = kind != EntityKind::NonLiving;
+    state.teleport_side_effects.push(TeleportSideEffect {
+        target,
+        clear_vertical_motion_and_set_on_ground,
+        stop_pathfinding_navigation: kind == EntityKind::Generic,
+    });
 }
 
 pub(super) fn parse_teleport_vec3(
