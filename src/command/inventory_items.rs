@@ -440,46 +440,34 @@ fn item_replace_with_command(
 ) -> Result<CommandResult, CommandError> {
     match parts {
         ["item", "replace", "entity", targets, slot, "with", item] => {
-            let stack = CommandItemStack {
-                item: parse_resource_identifier(item)?,
-                count: 1,
-            };
+            let stack = parse_command_item_stack(item, 1)?;
             set_entity_items(
                 state,
                 parse_entity_list(targets),
                 &parse_item_slot(slot)?,
-                stack,
+                Some(stack),
             )
         }
         ["item", "replace", "entity", targets, slot, "with", item, count] => {
             let count = parse_item_count(count)?;
-            let stack = CommandItemStack {
-                item: parse_resource_identifier(item)?,
-                count,
-            };
+            let stack = parse_command_item_stack(item, count)?;
             set_entity_items(
                 state,
                 parse_entity_list(targets),
                 &parse_item_slot(slot)?,
-                stack,
+                Some(stack),
             )
         }
         ["item", "replace", "block", x, y, z, slot, "with", item] => {
             let pos = parse_block_pos(x, y, z)?;
-            let stack = CommandItemStack {
-                item: parse_resource_identifier(item)?,
-                count: 1,
-            };
-            set_block_item(state, pos, &parse_item_slot(slot)?, stack)
+            let stack = parse_command_item_stack(item, 1)?;
+            set_block_item(state, pos, &parse_item_slot(slot)?, Some(stack))
         }
         ["item", "replace", "block", x, y, z, slot, "with", item, count] => {
             let pos = parse_block_pos(x, y, z)?;
             let count = parse_item_count(count)?;
-            let stack = CommandItemStack {
-                item: parse_resource_identifier(item)?,
-                count,
-            };
-            set_block_item(state, pos, &parse_item_slot(slot)?, stack)
+            let stack = parse_command_item_stack(item, count)?;
+            set_block_item(state, pos, &parse_item_slot(slot)?, Some(stack))
         }
         _ => Err(CommandError::InvalidSyntax),
     }
@@ -584,7 +572,7 @@ fn item_modify_command(
                     modifier,
                     stack,
                 )?;
-                upsert_entity_item(state, target, &slot, Some(modified));
+                upsert_entity_item(state, target, &slot, modified);
                 changed += 1;
             }
             if changed == 0 {
@@ -620,6 +608,14 @@ fn item_modify_command(
     }
 }
 
+fn parse_command_item_stack(item: &str, count: i32) -> Result<CommandItemStack, CommandError> {
+    let item = parse_item_identifier(item)?;
+    if count > item_max_stack_size(&item) {
+        return Err(CommandError::InvalidSyntax);
+    }
+    Ok(CommandItemStack { item, count })
+}
+
 pub(super) fn parse_item_count(input: &str) -> Result<i32, CommandError> {
     let count = parse_i32(input)?;
     if (1..=99).contains(&count) {
@@ -630,37 +626,52 @@ pub(super) fn parse_item_count(input: &str) -> Result<i32, CommandError> {
 }
 
 pub(super) fn parse_item_slot(input: &str) -> Result<String, CommandError> {
-    let valid_named_slot = input == "weapon"
-        || input == "weapon.mainhand"
-        || input == "weapon.offhand"
-        || input == "armor.head"
-        || input == "armor.chest"
-        || input == "armor.legs"
-        || input == "armor.feet"
-        || input
-            .strip_prefix("container.")
-            .or_else(|| input.strip_prefix("hotbar."))
-            .or_else(|| input.strip_prefix("inventory."))
-            .and_then(|index| index.parse::<u8>().ok())
-            .is_some();
-    if valid_named_slot || input.parse::<i32>().is_ok_and(|slot| slot >= 0) {
+    let valid_named_slot = matches!(
+        input,
+        "contents"
+            | "weapon"
+            | "weapon.mainhand"
+            | "weapon.offhand"
+            | "armor.head"
+            | "armor.chest"
+            | "armor.legs"
+            | "armor.feet"
+            | "armor.body"
+            | "saddle"
+            | "horse.chest"
+            | "player.cursor"
+    ) || slot_index_in_range(input, "container.", 54)
+        || slot_index_in_range(input, "hotbar.", 9)
+        || slot_index_in_range(input, "inventory.", 27)
+        || slot_index_in_range(input, "enderchest.", 27)
+        || slot_index_in_range(input, "mob.inventory.", 8)
+        || slot_index_in_range(input, "horse.", 15)
+        || slot_index_in_range(input, "player.crafting.", 4);
+    if valid_named_slot {
         Ok(input.to_string())
     } else {
         Err(CommandError::InvalidSyntax)
     }
 }
 
+fn slot_index_in_range(input: &str, prefix: &str, size: u8) -> bool {
+    input
+        .strip_prefix(prefix)
+        .and_then(|index| index.parse::<u8>().ok())
+        .is_some_and(|index| index < size)
+}
+
 pub(super) fn set_entity_items(
     state: &mut ServerCommandState,
     targets: Vec<EntityRef>,
     slot: &str,
-    stack: CommandItemStack,
+    stack: Option<CommandItemStack>,
 ) -> Result<CommandResult, CommandError> {
     if targets.is_empty() {
         return Err(CommandError::ItemTargetNoChanges);
     }
     for target in &targets {
-        upsert_entity_item(state, target.clone(), slot, Some(stack.clone()));
+        upsert_entity_item(state, target.clone(), slot, stack.clone());
     }
     Ok(CommandResult {
         success_count: targets.len() as i32,
@@ -677,9 +688,15 @@ pub(super) fn set_block_item(
     state: &mut ServerCommandState,
     pos: BlockPos,
     slot: &str,
-    stack: CommandItemStack,
+    stack: Option<CommandItemStack>,
 ) -> Result<CommandResult, CommandError> {
-    upsert_block_item(state, pos, slot, Some(stack));
+    if !is_block_container(state, &pos) {
+        return Err(CommandError::ItemTargetNotContainer);
+    }
+    if !has_block_slot(state, &pos, slot) {
+        return Err(CommandError::ItemTargetNoSuchSlot);
+    }
+    upsert_block_item(state, pos, slot, stack);
     Ok(CommandResult {
         success_count: 1,
         feedback_key: "commands.item.block.set.success",
@@ -691,12 +708,12 @@ pub(super) fn get_entity_item(
     state: &ServerCommandState,
     entity: &EntityRef,
     slot: &str,
-) -> Result<CommandItemStack, CommandError> {
+) -> Result<Option<CommandItemStack>, CommandError> {
     state
         .entity_item_slots
         .iter()
         .find(|entry| entry.entity.id == entity.id && entry.slot == slot)
-        .and_then(|entry| entry.item.clone())
+        .map(|entry| entry.item.clone())
         .ok_or(CommandError::ItemSourceNoSuchSlot)
 }
 
@@ -704,13 +721,27 @@ pub(super) fn get_block_item(
     state: &ServerCommandState,
     pos: &BlockPos,
     slot: &str,
-) -> Result<CommandItemStack, CommandError> {
+) -> Result<Option<CommandItemStack>, CommandError> {
+    if !is_block_container(state, pos) {
+        return Err(CommandError::ItemSourceNotContainer);
+    }
     state
         .block_item_slots
         .iter()
         .find(|entry| entry.pos == *pos && entry.slot == slot)
-        .and_then(|entry| entry.item.clone())
+        .map(|entry| entry.item.clone())
         .ok_or(CommandError::ItemSourceNoSuchSlot)
+}
+
+fn is_block_container(state: &ServerCommandState, pos: &BlockPos) -> bool {
+    state.block_item_slots.iter().any(|entry| entry.pos == *pos)
+}
+
+fn has_block_slot(state: &ServerCommandState, pos: &BlockPos, slot: &str) -> bool {
+    state
+        .block_item_slots
+        .iter()
+        .any(|entry| entry.pos == *pos && entry.slot == slot)
 }
 
 pub(super) fn upsert_entity_item(
@@ -759,20 +790,22 @@ pub(super) fn apply_item_modifier(
     state: &mut ServerCommandState,
     target: Option<CommandItemTarget>,
     modifier: &str,
-    stack: CommandItemStack,
-) -> Result<CommandItemStack, CommandError> {
+    stack: Option<CommandItemStack>,
+) -> Result<Option<CommandItemStack>, CommandError> {
     let modifier = parse_resource_identifier(modifier)?;
-    let max_stack_size = item_max_stack_size(&stack.item);
-    let output = CommandItemStack {
-        item: stack.item.clone(),
-        count: stack.count.min(max_stack_size),
-    };
+    let output = stack.as_ref().map(|stack| {
+        let max_stack_size = item_max_stack_size(&stack.item);
+        CommandItemStack {
+            item: stack.item.clone(),
+            count: stack.count.min(max_stack_size),
+        }
+    });
     if let Some(target) = target {
         state.item_modifier_events.push(CommandItemModifierEvent {
             target,
             modifier,
-            input: Some(stack),
-            output: Some(output.clone()),
+            input: stack,
+            output: output.clone(),
         });
     }
     Ok(output)

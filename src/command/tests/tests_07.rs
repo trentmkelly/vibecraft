@@ -53,7 +53,7 @@ fn item_command_modifies_slots_and_clamps_to_stack_size() {
 }
 
 #[test]
-fn item_command_rejects_invalid_counts_slots_and_missing_sources() {
+fn item_command_rejects_invalid_counts_and_items() {
     let mut state = ServerCommandState::default();
     assert_eq!(
         execute_builtin_command(
@@ -63,11 +63,37 @@ fn item_command_rejects_invalid_counts_slots_and_missing_sources() {
         ),
         Err(CommandError::InvalidSyntax)
     );
+}
+
+#[test]
+fn item_command_rejects_invalid_slot_arguments_like_java_slot_argument() {
+    let mut state = ServerCommandState::default();
     assert_eq!(
         execute_builtin_command(
             &mut state,
             LevelBasedPermissionSet::GAMEMASTER,
             "item replace entity Steve hotbar.0 with stone 100"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+}
+
+#[test]
+fn item_command_reports_missing_sources_and_block_container_failures() {
+    let mut state = ServerCommandState::default();
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "item replace entity Steve hotbar.0 with egg 17"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "item replace entity Steve hotbar.0 with definitely_not_a_real_item"
         ),
         Err(CommandError::InvalidSyntax)
     );
@@ -83,9 +109,120 @@ fn item_command_rejects_invalid_counts_slots_and_missing_sources() {
         execute_builtin_command(
             &mut state,
             LevelBasedPermissionSet::GAMEMASTER,
+            "item replace entity Steve 0 with stone"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "item replace entity Steve hotbar.9 with stone"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "item replace entity Steve container.* with stone"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
             "item replace entity Steve hotbar.1 from entity Alex hotbar.0"
         ),
         Err(CommandError::ItemSourceNoSuchSlot)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "item replace block 0 64 0 container.0 with stone"
+        ),
+        Err(CommandError::ItemTargetNotContainer)
+    );
+
+    state.block_item_slots.push(CommandBlockItemSlot {
+        pos: BlockPos { x: 0, y: 64, z: 0 },
+        slot: "container.0".to_string(),
+        item: None,
+    });
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "item replace block 0 64 0 container.1 with stone"
+        ),
+        Err(CommandError::ItemTargetNoSuchSlot)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "item replace entity Steve hotbar.1 from block 1 64 1 container.0"
+        ),
+        Err(CommandError::ItemSourceNotContainer)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "item replace entity Steve hotbar.1 from block 0 64 0 container.1"
+        ),
+        Err(CommandError::ItemSourceNoSuchSlot)
+    );
+}
+
+#[test]
+fn item_command_copies_and_modifies_empty_slots_like_java_item_stack_empty() {
+    let mut state = ServerCommandState {
+        entity_item_slots: vec![CommandEntityItemSlot {
+            entity: super::entity_ref("Alex"),
+            slot: "hotbar.0".to_string(),
+            item: None,
+        }],
+        block_item_slots: vec![CommandBlockItemSlot {
+            pos: BlockPos { x: 0, y: 64, z: 0 },
+            slot: "container.0".to_string(),
+            item: None,
+        }],
+        ..ServerCommandState::default()
+    };
+
+    let copied = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "item replace entity Steve hotbar.0 from entity Alex hotbar.0",
+    )
+    .unwrap();
+    assert_eq!(copied.success_count, 1);
+    assert!(state.entity_item_slots.iter().any(|entry| {
+        entry.entity.id == "Steve" && entry.slot == "hotbar.0" && entry.item.is_none()
+    }));
+
+    let modified = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "item modify block 0 64 0 container.0 minecraft:set_count",
+    )
+    .unwrap();
+    assert_eq!(modified.success_count, 1);
+    assert_eq!(state.block_item_slots[0].item, None);
+    assert_eq!(
+        state.item_modifier_events,
+        vec![CommandItemModifierEvent {
+            target: CommandItemTarget::Block {
+                pos: BlockPos { x: 0, y: 64, z: 0 },
+                slot: "container.0".to_string(),
+            },
+            modifier: "minecraft:set_count".to_string(),
+            input: None,
+            output: None,
+        }]
     );
 }
 

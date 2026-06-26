@@ -438,3 +438,62 @@ fn help_command_source_matches_java_26_1_2() {
     assert!(HELP.contains("Iterables.getLast(command.getContext().getNodes())"));
     assert!(HELP.contains("Component.literal(\"/\" + command.getReader().getString() + \" \" + line)"));
 }
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn item_command_source_matches_java_26_1_2() {
+    const ITEM_COMMANDS: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/ItemCommands.java");
+    const ITEM_INPUT: &str =
+        vibecraft_java_source!("/net/minecraft/commands/arguments/item/ItemInput.java");
+    const SLOT_ARGUMENT: &str =
+        vibecraft_java_source!("/net/minecraft/commands/arguments/SlotArgument.java");
+    const SLOT_RANGES: &str =
+        vibecraft_java_source!("/net/minecraft/world/inventory/SlotRanges.java");
+
+    for sentinel in [
+        "Commands.literal(\"item\")",
+        ".requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "Commands.literal(\"replace\")",
+        "Commands.literal(\"modify\")",
+        "Commands.literal(\"block\")",
+        "Commands.literal(\"entity\")",
+        "ItemArgument.item(context)",
+        "IntegerArgumentType.integer(1, 99)",
+        "ResourceOrIdArgument.lootModifier(context)",
+        "getContainer(source, pos, ERROR_TARGET_NOT_A_CONTAINER)",
+        "getContainer(source, pos, ERROR_SOURCE_NOT_A_CONTAINER)",
+        "throw ERROR_TARGET_INAPPLICABLE_SLOT.create(slot)",
+        "throw ERROR_SOURCE_INAPPLICABLE_SLOT.create(slot)",
+        "throw ERROR_TARGET_NO_CHANGES.create(slot)",
+        "throw ERROR_TARGET_NO_CHANGES_KNOWN_ITEM.create(itemStack.getDisplayName(), slot)",
+        "newItem.limitSize(newItem.getMaxStackSize());",
+        "return changedEntities.size();",
+    ] {
+        assert!(
+            ITEM_COMMANDS.contains(sentinel),
+            "ItemCommands.java is missing sentinel: {sentinel}"
+        );
+    }
+
+    for sentinel in [
+        "public ItemStack createItemStack(final int count)",
+        "if (count > result.getMaxStackSize())",
+        "throw ERROR_STACK_TOO_BIG.create",
+        "ItemStack.validateStrict(result)",
+    ] {
+        assert!(
+            ITEM_INPUT.contains(sentinel),
+            "ItemInput.java is missing sentinel: {sentinel}"
+        );
+    }
+
+    assert!(SLOT_ARGUMENT.contains("SlotRanges.nameToIds(name)"));
+    assert!(SLOT_ARGUMENT.contains("throw ERROR_UNKNOWN_SLOT.createWithContext(reader, name)"));
+    assert!(SLOT_ARGUMENT.contains("throw ERROR_ONLY_SINGLE_SLOT_ALLOWED.createWithContext(reader, name)"));
+    assert!(SLOT_RANGES.contains("addSlotRange(values, \"container.\", 0, 54)"));
+    assert!(SLOT_RANGES.contains("addSlotRange(values, \"hotbar.\", 0, 9)"));
+    assert!(SLOT_RANGES.contains("addSlotRange(values, \"inventory.\", 9, 27)"));
+    assert!(SLOT_RANGES.contains("addSingleSlot(values, \"armor.body\", body)"));
+    assert!(SLOT_RANGES.contains("addSingleSlot(values, \"player.cursor\", 499)"));
+}

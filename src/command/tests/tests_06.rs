@@ -903,6 +903,12 @@ fn item_command_replaces_entity_and_block_slots() {
         }]
     );
 
+    state.block_item_slots.push(CommandBlockItemSlot {
+        pos: BlockPos { x: 1, y: 64, z: 2 },
+        slot: "container.0".to_string(),
+        item: None,
+    });
+
     let block = execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::GAMEMASTER,
@@ -954,6 +960,11 @@ fn item_command_copies_between_block_and_entity_sources() {
             count: 9,
         })));
 
+    state.block_item_slots.push(CommandBlockItemSlot {
+        pos: BlockPos { x: 2, y: 64, z: 2 },
+        slot: "container.1".to_string(),
+        item: None,
+    });
     let to_block = execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::GAMEMASTER,
