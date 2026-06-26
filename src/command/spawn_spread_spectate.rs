@@ -10,9 +10,9 @@ pub(super) fn setworldspawn_command(
             0.0,
             0.0,
         ),
-        ["setworldspawn", x, y, z] => (parse_block_pos(x, y, z)?, 0.0, 0.0),
+        ["setworldspawn", x, y, z] => (parse_spawnable_block_pos(state, x, y, z)?, 0.0, 0.0),
         ["setworldspawn", x, y, z, yaw, pitch] => (
-            parse_block_pos(x, y, z)?,
+            parse_spawnable_block_pos(state, x, y, z)?,
             parse_f32(yaw)?,
             parse_f32(pitch)?,
         ),
@@ -53,13 +53,13 @@ pub(super) fn spawnpoint_command(
         ),
         ["spawnpoint", targets, x, y, z] => (
             parse_name_list(targets),
-            parse_block_pos(x, y, z)?,
+            parse_spawnable_block_pos(state, x, y, z)?,
             0.0,
             0.0,
         ),
         ["spawnpoint", targets, x, y, z, yaw, pitch] => (
             parse_name_list(targets),
-            parse_block_pos(x, y, z)?,
+            parse_spawnable_block_pos(state, x, y, z)?,
             wrap_degrees(parse_f32(yaw)?),
             parse_f32(pitch)?.clamp(-90.0, 90.0),
         ),
