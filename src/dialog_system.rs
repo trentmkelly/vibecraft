@@ -8,11 +8,15 @@ use crate::chat_component::Component;
 mod dialog_inputs;
 #[path = "dialog_actions.rs"]
 mod dialog_actions;
+#[path = "dialog_models.rs"]
+mod dialog_models;
 
 #[allow(unused_imports)]
 pub use dialog_actions::*;
 #[allow(unused_imports)]
 pub use dialog_inputs::*;
+#[allow(unused_imports)]
+pub use dialog_models::*;
 
 pub const DIALOG_WIDTH_MIN: i32 = 1;
 pub const DIALOG_WIDTH_MAX: i32 = 1024;
@@ -79,30 +83,6 @@ pub struct PlainMessageBody {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DialogBody {
     PlainMessage(PlainMessageBody),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CommonButtonData {
-    pub label: Component,
-    pub tooltip: Option<Component>,
-    pub width: i32,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ActionButton {
-    pub button: CommonButtonData,
-    pub action: Option<DialogActionModel>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct CommonDialogData {
-    pub title: Component,
-    pub external_title: Option<Component>,
-    pub can_close_with_escape: bool,
-    pub pause: bool,
-    pub after_action: DialogAction,
-    pub body: Vec<DialogBody>,
-    pub inputs: Vec<InputControl>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -280,92 +260,6 @@ impl DialogBody {
     }
 }
 
-impl CommonButtonData {
-    pub fn new(
-        label: Component,
-        tooltip: Option<Component>,
-        width: i32,
-    ) -> Result<Self, String> {
-        if !(DIALOG_WIDTH_MIN..=DIALOG_WIDTH_MAX).contains(&width) {
-            return Err(format!(
-                "button width {width} is outside Java Dialog.WIDTH_CODEC range {DIALOG_WIDTH_MIN}..={DIALOG_WIDTH_MAX}"
-            ));
-        }
-
-        Ok(Self {
-            label,
-            tooltip,
-            width,
-        })
-    }
-
-    pub fn with_width(label: Component, width: i32) -> Result<Self, String> {
-        Self::new(label, None, width)
-    }
-
-    pub fn with_default_width(label: Component) -> Self {
-        Self {
-            label,
-            tooltip: None,
-            width: COMMON_BUTTON_DEFAULT_WIDTH,
-        }
-    }
-}
-
-impl ActionButton {
-    pub fn new(button: CommonButtonData, action: Option<DialogActionModel>) -> Self {
-        Self { button, action }
-    }
-}
-
-impl CommonDialogData {
-    pub fn new(
-        title: Component,
-        external_title: Option<Component>,
-        can_close_with_escape: bool,
-        pause: bool,
-        after_action: DialogAction,
-        body: Vec<DialogBody>,
-        inputs: Vec<InputControl>,
-    ) -> Result<Self, String> {
-        if pause && !after_action.will_unpause() {
-            return Err(
-                "Dialogs that pause the game must use after_action values that unpause it after user action!"
-                    .to_string(),
-            );
-        }
-
-        Ok(Self {
-            title,
-            external_title,
-            can_close_with_escape,
-            pause,
-            after_action,
-            body,
-            inputs,
-        })
-    }
-
-    pub fn with_defaults(title: Component) -> Self {
-        Self {
-            title,
-            external_title: None,
-            can_close_with_escape: true,
-            pause: true,
-            after_action: DialogAction::Close,
-            body: Vec::new(),
-            inputs: Vec::new(),
-        }
-    }
-
-    pub fn compute_external_title(&self) -> Component {
-        match &self.external_title {
-            Some(title) => title.clone(),
-            None => self.title.clone(),
-        }
-    }
-}
-
 pub fn input_control_types() -> &'static [(&'static str, InputControlType)] {
     &[
         ("boolean", InputControlType::Boolean),
@@ -515,6 +409,7 @@ fn normalize_identifier(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chat_component::common_components::CommonComponents;
     use crate::chat_component::ClickEvent;
 
     #[test]
@@ -687,6 +582,73 @@ mod tests {
     }
 
     #[test]
+    fn notice_and_confirmation_dialogs_match_java_simple_dialog_behavior() {
+        let common = CommonDialogData::with_defaults(Component::literal("Question"));
+        let default_notice_action = NoticeDialog::default_action();
+        assert_eq!(
+            default_notice_action,
+            ActionButton {
+                button: CommonButtonData {
+                    label: CommonComponents::gui_ok(),
+                    tooltip: None,
+                    width: COMMON_BUTTON_DEFAULT_WIDTH,
+                },
+                action: None,
+            }
+        );
+
+        let notice_action = DialogActionModel::Static(StaticDialogAction::new(
+            ClickEvent::SuggestCommand("/spawn".to_string()),
+        ));
+        let notice_button = ActionButton::new(
+            CommonButtonData::with_default_width(Component::literal("Go")),
+            Some(notice_action.clone()),
+        );
+        let notice = NoticeDialog::new(common.clone(), notice_button.clone());
+        assert_eq!(notice.dialog_type(), DialogType::Notice);
+        assert_eq!(notice.on_cancel(), Some(&notice_action));
+        assert_eq!(notice.main_actions(), vec![&notice_button]);
+
+        let yes_action = DialogActionModel::Static(StaticDialogAction::new(
+            ClickEvent::RunCommand("/confirm".to_string()),
+        ));
+        let no_action = DialogActionModel::Static(StaticDialogAction::new(
+            ClickEvent::RunCommand("/cancel".to_string()),
+        ));
+        let yes_button = ActionButton::new(
+            CommonButtonData::with_default_width(Component::literal("Yes")),
+            Some(yes_action),
+        );
+        let no_button = ActionButton::new(
+            CommonButtonData::with_default_width(Component::literal("No")),
+            Some(no_action.clone()),
+        );
+        let confirmation =
+            ConfirmationDialog::new(common.clone(), yes_button.clone(), no_button.clone());
+        assert_eq!(confirmation.dialog_type(), DialogType::Confirmation);
+        assert_eq!(confirmation.on_cancel(), Some(&no_action));
+        assert_eq!(confirmation.main_actions(), vec![&yes_button, &no_button]);
+
+        let simple_notice = SimpleDialogModel::Notice(Box::new(notice));
+        assert_eq!(simple_notice.dialog_type(), DialogType::Notice);
+        assert_eq!(simple_notice.common(), &common);
+        assert_eq!(simple_notice.on_cancel(), Some(&notice_action));
+        assert_eq!(simple_notice.main_actions(), vec![&notice_button]);
+
+        let simple_confirmation = SimpleDialogModel::Confirmation(Box::new(confirmation));
+        assert_eq!(
+            simple_confirmation.dialog_type(),
+            DialogType::Confirmation
+        );
+        assert_eq!(simple_confirmation.common(), &common);
+        assert_eq!(simple_confirmation.on_cancel(), Some(&no_action));
+        assert_eq!(
+            simple_confirmation.main_actions(),
+            vec![&yes_button, &no_button]
+        );
+    }
+
+    #[test]
     #[cfg(vibecraft_has_decompiled_sources)]
     fn common_button_and_action_button_sources_match_java_26_1_2() {
         const COMMON_BUTTON: &str =
@@ -751,6 +713,55 @@ mod tests {
             assert!(
                 COMMON_DIALOG.contains(sentinel),
                 "CommonDialogData.java is missing sentinel: {sentinel}"
+            );
+        }
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn notice_confirmation_and_simple_dialog_sources_match_java_26_1_2() {
+        const NOTICE: &str = vibecraft_java_source!("/net/minecraft/server/dialog/NoticeDialog.java");
+        const CONFIRMATION: &str =
+            vibecraft_java_source!("/net/minecraft/server/dialog/ConfirmationDialog.java");
+        const SIMPLE: &str = vibecraft_java_source!("/net/minecraft/server/dialog/SimpleDialog.java");
+
+        for sentinel in [
+            "public record NoticeDialog(CommonDialogData common, ActionButton action) implements SimpleDialog",
+            "public static final ActionButton DEFAULT_ACTION = new ActionButton(new CommonButtonData(CommonComponents.GUI_OK, 150), Optional.empty());",
+            "CommonDialogData.MAP_CODEC.forGetter(NoticeDialog::common)",
+            "ActionButton.CODEC.optionalFieldOf(\"action\", DEFAULT_ACTION).forGetter(NoticeDialog::action)",
+            "return MAP_CODEC;",
+            "return this.action.action();",
+            "return List.of(this.action);",
+        ] {
+            assert!(
+                NOTICE.contains(sentinel),
+                "NoticeDialog.java is missing sentinel: {sentinel}"
+            );
+        }
+
+        for sentinel in [
+            "public record ConfirmationDialog(CommonDialogData common, ActionButton yesButton, ActionButton noButton) implements SimpleDialog",
+            "CommonDialogData.MAP_CODEC.forGetter(ConfirmationDialog::common)",
+            "ActionButton.CODEC.fieldOf(\"yes\").forGetter(ConfirmationDialog::yesButton)",
+            "ActionButton.CODEC.fieldOf(\"no\").forGetter(ConfirmationDialog::noButton)",
+            "return this.noButton.action();",
+            "return List.of(this.yesButton, this.noButton);",
+        ] {
+            assert!(
+                CONFIRMATION.contains(sentinel),
+                "ConfirmationDialog.java is missing sentinel: {sentinel}"
+            );
+        }
+
+        for sentinel in [
+            "public interface SimpleDialog extends Dialog",
+            "MapCodec<? extends SimpleDialog> codec();",
+            "List<ActionButton> mainActions();",
+        ] {
+            assert!(
+                SIMPLE.contains(sentinel),
+                "SimpleDialog.java is missing sentinel: {sentinel}"
             );
         }
     }
