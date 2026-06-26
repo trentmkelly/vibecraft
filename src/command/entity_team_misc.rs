@@ -484,7 +484,7 @@ pub(super) fn particle_command(
 ) -> Result<CommandResult, CommandError> {
     let (name, position, delta, speed, count, force, viewers) = match parts {
         ["particle", name] => (
-            *name,
+            parse_particle_argument(name)?,
             state.command_source_position,
             Vec3::default(),
             0.0,
@@ -493,7 +493,7 @@ pub(super) fn particle_command(
             state.online_players.clone(),
         ),
         ["particle", name, x, y, z] => (
-            *name,
+            parse_particle_argument(name)?,
             parse_teleport_vec3(state, x, y, z)?,
             Vec3::default(),
             0.0,
@@ -502,7 +502,7 @@ pub(super) fn particle_command(
             state.online_players.clone(),
         ),
         ["particle", name, x, y, z, dx, dy, dz, speed, count] => (
-            *name,
+            parse_particle_argument(name)?,
             parse_teleport_vec3(state, x, y, z)?,
             parse_vec3(dx, dy, dz)?,
             parse_non_negative_f32(speed)?,
@@ -511,7 +511,7 @@ pub(super) fn particle_command(
             state.online_players.clone(),
         ),
         ["particle", name, x, y, z, dx, dy, dz, speed, count, mode @ ("force" | "normal")] => (
-            *name,
+            parse_particle_argument(name)?,
             parse_teleport_vec3(state, x, y, z)?,
             parse_vec3(dx, dy, dz)?,
             parse_non_negative_f32(speed)?,
@@ -533,7 +533,7 @@ pub(super) fn particle_command(
             mode @ ("force" | "normal"),
             viewers,
         ] => (
-            *name,
+            parse_particle_argument(name)?,
             parse_teleport_vec3(state, x, y, z)?,
             parse_vec3(dx, dy, dz)?,
             parse_non_negative_f32(speed)?,
@@ -549,7 +549,7 @@ pub(super) fn particle_command(
 
     let success_count = viewers.len() as i32;
     state.particle_events.push(ParticleCommandEvent {
-        name: name.to_string(),
+        name,
         viewers,
         position,
         delta,
@@ -561,6 +561,25 @@ pub(super) fn particle_command(
         success_count,
         feedback_key: "commands.particle.success",
         broadcast_to_admins: true,
+    })
+}
+
+fn parse_particle_argument(input: &str) -> Result<String, CommandError> {
+    let (id_input, suffix) = match input.split_once('{') {
+        Some((id, payload)) if payload.ends_with('}') => (id, Some(format!("{{{payload}"))),
+        Some(_) => return Err(CommandError::InvalidSyntax),
+        None => (input, None),
+    };
+    let id = parse_resource_identifier(id_input)?;
+    if !crate::presentation_data::PARTICLES
+        .iter()
+        .any(|particle| particle.id == id)
+    {
+        return Err(CommandError::InvalidSyntax);
+    }
+    Ok(match suffix {
+        Some(suffix) => format!("{id}{suffix}"),
+        None => id,
     })
 }
 

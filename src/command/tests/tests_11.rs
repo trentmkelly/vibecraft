@@ -38,7 +38,7 @@ fn particle_command_requires_gamemaster_and_defaults_to_all_online_players() {
     assert_eq!(
         state.particle_events[0],
         ParticleCommandEvent {
-            name: "flame".to_string(),
+            name: "minecraft:flame".to_string(),
             viewers: vec![
                 NameAndId::create_offline("Steve"),
                 NameAndId::create_offline("Alex")
@@ -124,6 +124,14 @@ fn particle_command_fails_when_no_players_receive_particles() {
             &mut state,
             LevelBasedPermissionSet::GAMEMASTER,
             "particle flame 0 0 0 0 0 0 -1 1"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "particle not_a_particle 0 0 0 0 0 0 0 1"
         ),
         Err(CommandError::InvalidSyntax)
     );
