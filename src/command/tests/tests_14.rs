@@ -227,3 +227,45 @@ fn time_command_source_matches_java_26_1_2() {
         );
     }
 }
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn title_command_source_matches_java_26_1_2() {
+    const TITLE: &str = vibecraft_java_source!("/net/minecraft/server/commands/TitleCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"title\").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "\"targets\", EntityArgument.players()",
+        "Commands.literal(\"clear\")",
+        "clearTitle((CommandSourceStack)c.getSource(), EntityArgument.getPlayers(c, \"targets\"))",
+        "Commands.literal(\"reset\")",
+        "resetTitle((CommandSourceStack)c.getSource(), EntityArgument.getPlayers(c, \"targets\"))",
+        "Commands.literal(\"title\")",
+        "Commands.literal(\"subtitle\")",
+        "Commands.literal(\"actionbar\")",
+        "Commands.argument(\"title\", ComponentArgument.textComponent(context))",
+        "ComponentArgument.getRawComponent(c, \"title\")",
+        "ClientboundSetTitleTextPacket::new",
+        "ClientboundSetSubtitleTextPacket::new",
+        "ClientboundSetActionBarTextPacket::new",
+        "Commands.literal(\"times\")",
+        "Commands.argument(\"fadeIn\", TimeArgument.time())",
+        "Commands.argument(\"stay\", TimeArgument.time())",
+        "Commands.argument(\"fadeOut\", TimeArgument.time())",
+        "new ClientboundClearTitlesPacket(false)",
+        "new ClientboundClearTitlesPacket(true)",
+        "new ClientboundSetTitlesAnimationPacket(fadeIn, stay, fadeOut)",
+        "player.connection.send(packet)",
+        "ComponentUtils.resolve(ResolutionContext.builder().withSource(source).withEntityOverride(player).build(), title)",
+        "source.sendSuccess(() -> Component.translatable(\"commands.title.cleared.single\", targets.iterator().next().getDisplayName()), true)",
+        "source.sendSuccess(() -> Component.translatable(\"commands.title.reset.multiple\", targets.size()), true)",
+        "source.sendSuccess(() -> Component.translatable(\"commands.title.show.\" + type + \".single\", targets.iterator().next().getDisplayName()), true)",
+        "source.sendSuccess(() -> Component.translatable(\"commands.title.times.multiple\", targets.size()), true)",
+        "return targets.size();",
+    ] {
+        assert!(
+            TITLE.contains(sentinel),
+            "TitleCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+}
