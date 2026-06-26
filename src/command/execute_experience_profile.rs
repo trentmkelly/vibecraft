@@ -24,6 +24,8 @@ fn execute_command_inner(
     let mut sources = vec![ExecuteSourceSnapshot {
         entity: state.command_source_entity.clone(),
         position: state.command_source_position,
+        yaw: state.command_source_yaw,
+        pitch: state.command_source_pitch,
         dimension: state.command_source_dimension.clone(),
         anchor: EntityAnchor::Feet,
     }];
@@ -103,6 +105,7 @@ fn apply_execute_modifier(
                 .copied()
                 .ok_or(CommandError::InvalidSyntax)?,
         ),
+        "facing" => execute_facing_modifier(state, sources, parts, index),
         "if" | "unless" => execute_condition_modifier(state, sources, parts, index),
         _ => Err(CommandError::InvalidSyntax),
     }
@@ -198,6 +201,103 @@ fn execute_anchored_modifier(
         source.anchor = anchor;
     }
     Ok(2)
+}
+
+fn execute_facing_modifier(
+    state: &ServerCommandState,
+    sources: &mut Vec<ExecuteSourceSnapshot>,
+    parts: &[&str],
+    index: usize,
+) -> Result<usize, CommandError> {
+    match parts.get(index + 1..) {
+        Some(["entity", targets, anchor, ..]) => {
+            let anchor = parse_entity_anchor(anchor)?;
+            let targets = parse_entity_list(targets);
+            if targets.is_empty() {
+                return Err(CommandError::ExecuteConditionFailed);
+            }
+            *sources = sources
+                .iter()
+                .flat_map(|source| {
+                    targets.iter().map(move |target| {
+                        let target_pos = entity_anchor_position(state, target, anchor);
+                        let mut forked = source.clone();
+                        apply_facing_rotation(state, &mut forked, target_pos);
+                        forked
+                    })
+                })
+                .collect();
+            Ok(4)
+        }
+        Some([x, y, z, ..]) => {
+            for source in sources {
+                let target = parse_execute_vec3(source, x, y, z)?;
+                apply_facing_rotation(state, source, target);
+            }
+            Ok(4)
+        }
+        _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn apply_facing_rotation(state: &ServerCommandState, source: &mut ExecuteSourceSnapshot, target: Vec3) {
+    let from = source_anchor_position(state, source);
+    let xd = target.x - from.x;
+    let yd = target.y - from.y;
+    let zd = target.z - from.z;
+    let horizontal = (xd * xd + zd * zd).sqrt();
+    source.pitch = wrap_degrees((-(yd.atan2(horizontal).to_degrees())) as f32);
+    source.yaw = wrap_degrees((zd.atan2(xd).to_degrees() - 90.0) as f32);
+}
+
+fn source_anchor_position(state: &ServerCommandState, source: &ExecuteSourceSnapshot) -> Vec3 {
+    match source.anchor {
+        EntityAnchor::Feet => source.position,
+        EntityAnchor::Eyes => Vec3 {
+            x: source.position.x,
+            y: source.position.y + source_eye_height(state, source.entity.as_ref()),
+            z: source.position.z,
+        },
+    }
+}
+
+fn entity_anchor_position(state: &ServerCommandState, entity: &EntityRef, anchor: EntityAnchor) -> Vec3 {
+    let position = entity_position(state, entity)
+        .map(|entry| entry.position)
+        .unwrap_or_default();
+    match anchor {
+        EntityAnchor::Feet => position,
+        EntityAnchor::Eyes => Vec3 {
+            x: position.x,
+            y: position.y + entity_eye_height(state, entity),
+            z: position.z,
+        },
+    }
+}
+
+fn source_eye_height(state: &ServerCommandState, entity: Option<&EntityRef>) -> f64 {
+    entity.map_or(0.0, |entity| entity_eye_height(state, entity))
+}
+
+fn entity_eye_height(state: &ServerCommandState, entity: &EntityRef) -> f64 {
+    match entity_state(state, entity).map(|state| state.kind) {
+        Some(EntityKind::Player) => 1.62,
+        Some(EntityKind::NonLiving) => 0.0,
+        _ => 1.0,
+    }
+}
+
+fn parse_execute_vec3(
+    source: &ExecuteSourceSnapshot,
+    x: &str,
+    y: &str,
+    z: &str,
+) -> Result<Vec3, CommandError> {
+    Ok(Vec3 {
+        x: parse_coordinate(x, source.position.x)?,
+        y: parse_coordinate(y, source.position.y)?,
+        z: parse_coordinate(z, source.position.z)?,
+    })
 }
 
 fn execute_condition_modifier(
@@ -305,6 +405,8 @@ pub(super) fn apply_execute_source(
         .map(|entity| NameAndId::create_offline(&entity.id))
         .or_else(|| original.player.clone());
     state.command_source_position = source.position;
+    state.command_source_yaw = source.yaw;
+    state.command_source_pitch = source.pitch;
     state.command_source_dimension = source.dimension.clone();
 }
 

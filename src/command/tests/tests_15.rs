@@ -336,3 +336,77 @@ fn sound_command_sources_match_java_26_1_2() {
         );
     }
 }
+
+#[test]
+fn execute_facing_updates_nested_command_source_rotation() {
+    let mut state = ServerCommandState {
+        command_source_player: Some(NameAndId::create_offline("Steve")),
+        command_source_entity: Some(entity_ref("Steve")),
+        command_source_position: Vec3 {
+            x: 0.0,
+            y: 64.0,
+            z: 0.0,
+        },
+        entity_positions: vec![EntityPosition {
+            entity: entity_ref("Alex"),
+            dimension: "minecraft:overworld".to_string(),
+            position: Vec3 {
+                x: 0.0,
+                y: 64.0,
+                z: 10.0,
+            },
+        }],
+        entity_states: vec![
+            EntityState {
+                entity: entity_ref("Steve"),
+                kind: EntityKind::Player,
+                dimension: "minecraft:overworld".to_string(),
+            },
+            EntityState {
+                entity: entity_ref("Alex"),
+                kind: EntityKind::Player,
+                dimension: "minecraft:overworld".to_string(),
+            },
+        ],
+        ..ServerCommandState::default()
+    };
+
+    let position_facing = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "execute facing 10 64 0 run spawn_armor_trims sentry",
+    )
+    .unwrap();
+    assert_eq!(position_facing.success_count, 1);
+    assert_eq!(state.execute_events.last().unwrap().sources[0].yaw, -90.0);
+    assert_eq!(state.execute_events.last().unwrap().sources[0].pitch, -0.0);
+    assert_eq!(
+        state.armor_trim_spawns.first().unwrap().position,
+        Vec3 {
+            x: 5.5,
+            y: 64.5,
+            z: 0.5,
+        }
+    );
+
+    state.armor_trim_spawns.clear();
+    let entity_facing = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "execute anchored eyes facing entity Alex feet run spawn_armor_trims sentry",
+    )
+    .unwrap();
+    assert_eq!(entity_facing.success_count, 1);
+    assert_eq!(state.execute_events.last().unwrap().sources[0].yaw, 0.0);
+    assert!(state.execute_events.last().unwrap().sources[0].pitch > 8.0);
+    assert_eq!(
+        state.armor_trim_spawns.first().unwrap().position,
+        Vec3 {
+            x: 0.5,
+            y: 64.5,
+            z: 5.5,
+        }
+    );
+    assert_eq!(state.command_source_yaw, 0.0);
+    assert_eq!(state.command_source_pitch, 0.0);
+}

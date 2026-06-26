@@ -135,6 +135,41 @@ fn rotate_command_source_matches_java_26_1_2() {
 
 #[test]
 #[cfg(vibecraft_has_decompiled_sources)]
+fn command_helper_sources_match_java_26_1_2() {
+    const IN_COMMAND_FUNCTION: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/InCommandFunction.java");
+    const LOOK_AT: &str = vibecraft_java_source!("/net/minecraft/server/commands/LookAt.java");
+
+    for sentinel in [
+        "@FunctionalInterface",
+        "public interface InCommandFunction<T, R>",
+        "R apply(T t) throws CommandSyntaxException;",
+    ] {
+        assert!(
+            IN_COMMAND_FUNCTION.contains(sentinel),
+            "InCommandFunction.java is missing sentinel: {sentinel}"
+        );
+    }
+
+    for sentinel in [
+        "@FunctionalInterface",
+        "public interface LookAt",
+        "void perform(CommandSourceStack source, Entity target);",
+        "record LookAtEntity(Entity entity, EntityAnchorArgument.Anchor anchor) implements LookAt",
+        "targetPlayer.lookAt(source.getAnchor(), this.entity, this.anchor);",
+        "target.lookAt(source.getAnchor(), this.anchor.apply(this.entity));",
+        "record LookAtPosition(Vec3 position) implements LookAt",
+        "target.lookAt(source.getAnchor(), this.position);",
+    ] {
+        assert!(
+            LOOK_AT.contains(sentinel),
+            "LookAt.java is missing sentinel: {sentinel}"
+        );
+    }
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
 fn schedule_command_source_matches_java_26_1_2() {
     const SCHEDULE: &str =
         vibecraft_java_source!("/net/minecraft/server/commands/ScheduleCommand.java");

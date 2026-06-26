@@ -484,6 +484,8 @@ pub struct ExecuteCommandEvent {
 pub struct ExecuteSourceSnapshot {
     pub entity: Option<EntityRef>,
     pub position: Vec3,
+    pub yaw: f32,
+    pub pitch: f32,
     pub dimension: String,
     pub anchor: EntityAnchor,
 }

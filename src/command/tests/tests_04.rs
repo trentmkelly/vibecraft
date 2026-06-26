@@ -503,6 +503,8 @@ fn execute_command_runs_nested_command_with_derived_sources() {
                 y: 65.0,
                 z: 9.0,
             },
+            yaw: 0.0,
+            pitch: 0.0,
             dimension: "minecraft:overworld".to_string(),
             anchor: EntityAnchor::Feet,
         }
@@ -530,6 +532,8 @@ fn execute_command_runs_nested_command_with_derived_sources() {
                 y: 70.0,
                 z: -3.0,
             },
+            yaw: 0.0,
+            pitch: 0.0,
             dimension: "minecraft:the_nether".to_string(),
             anchor: EntityAnchor::Eyes,
         }
