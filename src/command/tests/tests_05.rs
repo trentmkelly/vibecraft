@@ -559,6 +559,20 @@ fn worldborder_command_rejects_vanilla_failure_paths() {
         ),
         Err(CommandError::WorldBorderTooFarOut)
     );
+    execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "worldborder set 100",
+    )
+    .unwrap();
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "worldborder set 100"
+        ),
+        Err(CommandError::WorldBorderSameSize)
+    );
     assert_eq!(
         execute_builtin_command(
             &mut state,
@@ -575,6 +589,20 @@ fn worldborder_command_rejects_vanilla_failure_paths() {
         ),
         Err(CommandError::WorldBorderSameDamageBuffer)
     );
+    execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "worldborder damage amount 0.75",
+    )
+    .unwrap();
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "worldborder damage amount 0.75"
+        ),
+        Err(CommandError::WorldBorderSameDamageAmount)
+    );
     assert_eq!(
         execute_builtin_command(
             &mut state,
@@ -582,6 +610,20 @@ fn worldborder_command_rejects_vanilla_failure_paths() {
             "worldborder warning distance 5"
         ),
         Err(CommandError::WorldBorderSameWarningDistance)
+    );
+    execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "worldborder warning time 15s",
+    )
+    .unwrap();
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "worldborder warning time 15s"
+        ),
+        Err(CommandError::WorldBorderSameWarningTime)
     );
 }
 

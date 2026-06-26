@@ -363,3 +363,63 @@ fn warden_spawn_tracker_command_source_matches_java_26_1_2() {
         );
     }
 }
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn worldborder_command_source_matches_java_26_1_2() {
+    const WORLDBORDER: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/WorldBorderCommand.java");
+
+    for sentinel in [
+        "\"worldborder\"",
+        ".requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "Commands.literal(\"add\")",
+        "Commands.argument(\"distance\", DoubleArgumentType.doubleArg(-5.999997E7F, 5.999997E7F))",
+        "+ DoubleArgumentType.getDouble(c, \"distance\")",
+        "getWorldBorder().getLerpTime()",
+        "+ IntegerArgumentType.getInteger(c, \"time\")",
+        "Commands.literal(\"set\")",
+        "Commands.argument(\"time\", TimeArgument.time(0))",
+        "Commands.literal(\"center\")",
+        "Commands.argument(\"pos\", Vec2Argument.vec2())",
+        "Commands.literal(\"damage\")",
+        "Commands.literal(\"amount\")",
+        "Commands.argument(\"damagePerBlock\", FloatArgumentType.floatArg(0.0F))",
+        "Commands.literal(\"buffer\")",
+        "Commands.argument(\"distance\", FloatArgumentType.floatArg(0.0F))",
+        "Commands.literal(\"get\")",
+        "Commands.literal(\"warning\")",
+        "Commands.argument(\"distance\", IntegerArgumentType.integer(0))",
+        "if (border.getSafeZone() == distance)",
+        "throw ERROR_SAME_DAMAGE_BUFFER.create();",
+        "if (border.getDamagePerBlock() == damagePerBlock)",
+        "throw ERROR_SAME_DAMAGE_AMOUNT.create();",
+        "if (border.getWarningTime() == ticks)",
+        "throw ERROR_SAME_WARNING_TIME.create();",
+        "if (border.getWarningBlocks() == distance)",
+        "throw ERROR_SAME_WARNING_DISTANCE.create();",
+        "Mth.floor(size + 0.5)",
+        "if (border.getCenterX() == center.x && border.getCenterZ() == center.y)",
+        "throw ERROR_SAME_CENTER.create();",
+        "Math.abs(center.x) > 2.9999984E7",
+        "throw ERROR_TOO_FAR_OUT.create();",
+        "if (current == distance)",
+        "throw ERROR_SAME_SIZE.create();",
+        "if (distance < 1.0)",
+        "throw ERROR_TOO_SMALL.create();",
+        "if (distance > 5.999997E7F)",
+        "throw ERROR_TOO_BIG.create();",
+        "border.lerpSizeBetween(current, distance, ticks, level.getGameTime())",
+        "border.setSize(distance)",
+        "commands.worldborder.set.grow",
+        "commands.worldborder.set.shrink",
+        "commands.worldborder.set.immediate",
+        "return (int)(distance - current);",
+        "return String.format(Locale.ROOT, \"%.2f\", ticks / 20.0);",
+    ] {
+        assert!(
+            WORLDBORDER.contains(sentinel),
+            "WorldBorderCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+}
