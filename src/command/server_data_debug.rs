@@ -723,7 +723,7 @@ pub(super) fn give_effect(
         if matches!(entity_kind(state, &target), EntityKind::NonLiving) {
             continue;
         }
-        upsert_active_effect(
+        let changed = upsert_active_effect(
             state,
             ActiveEffect {
                 target,
@@ -733,7 +733,9 @@ pub(super) fn give_effect(
                 show_particles,
             },
         );
-        count += 1;
+        if changed {
+            count += 1;
+        }
     }
     if count == 0 {
         return Err(CommandError::EffectGiveFailed);
@@ -812,15 +814,32 @@ pub(super) fn clear_specific_effect(
     })
 }
 
-pub(super) fn upsert_active_effect(state: &mut ServerCommandState, effect: ActiveEffect) {
+pub(super) fn upsert_active_effect(state: &mut ServerCommandState, effect: ActiveEffect) -> bool {
     if let Some(existing) = state
         .active_effects
         .iter_mut()
         .find(|active| active.target.id == effect.target.id && active.effect == effect.effect)
     {
-        *existing = effect;
+        let mut changed = false;
+        if effect.amplifier > existing.amplifier {
+            existing.amplifier = effect.amplifier;
+            existing.duration_ticks = effect.duration_ticks;
+            changed = true;
+        } else if existing.duration_ticks != -1
+            && (existing.duration_ticks < effect.duration_ticks || effect.duration_ticks == -1)
+            && effect.amplifier == existing.amplifier
+        {
+            existing.duration_ticks = effect.duration_ticks;
+            changed = true;
+        }
+        if effect.show_particles != existing.show_particles {
+            existing.show_particles = effect.show_particles;
+            changed = true;
+        }
+        changed
     } else {
         state.active_effects.push(effect);
+        true
     }
 }
 
