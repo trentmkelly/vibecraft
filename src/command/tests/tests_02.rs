@@ -852,6 +852,30 @@ fn fillbiome_command_quantizes_replaces_and_filters_biomes() {
     assert!(state.biomes.iter().any(|entry| {
         entry.position == BlockPos { x: 4, y: 0, z: 0 } && entry.biome == "minecraft:forest"
     }));
+
+    let changed = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "fillbiome 0 0 0 4 0 0 swamp replace #minecraft:is_forest",
+    )
+    .unwrap();
+    assert_eq!(changed.success_count, 1);
+    assert_eq!(
+        state.fill_biome_events[1].filter,
+        Some("#minecraft:is_forest".to_string())
+    );
+    assert!(state.biomes.iter().any(|entry| {
+        entry.position == BlockPos { x: 4, y: 0, z: 0 } && entry.biome == "minecraft:swamp"
+    }));
+
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "fillbiome 0 0 0 4 0 0 plains replace #minecraft:not_a_real_biome_tag"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
 }
 
 #[test]

@@ -497,7 +497,7 @@ pub(super) fn fill_biome_command(
     let biome = parse_resource_identifier(parts[7])?;
     let filter = match parts.get(8).copied() {
         None => None,
-        Some("replace") => Some(parse_resource_identifier(parts[9])?),
+        Some("replace") => Some(parse_biome_filter(parts[9])?),
         Some(_) => return Err(CommandError::InvalidSyntax),
     };
     let region = BoundingBox::from_corners(begin, end);
@@ -514,7 +514,7 @@ pub(super) fn fill_biome_command(
         let current = biome_at(state, &dimension, position);
         if filter
             .as_deref()
-            .is_some_and(|predicate| predicate != current)
+            .is_some_and(|predicate| !biome_filter_matches(predicate, &current))
         {
             continue;
         }
@@ -536,6 +536,27 @@ pub(super) fn fill_biome_command(
         feedback_key: "commands.fillbiome.success.count",
         broadcast_to_admins: true,
     })
+}
+
+fn parse_biome_filter(input: &str) -> Result<String, CommandError> {
+    if let Some(tag) = input.strip_prefix('#') {
+        let tag_id = parse_resource_identifier(tag)?;
+        if crate::biome_tags::is_known_biome_tag(&tag_id) {
+            Ok(format!("#{tag_id}"))
+        } else {
+            Err(CommandError::InvalidSyntax)
+        }
+    } else {
+        parse_resource_identifier(input)
+    }
+}
+
+fn biome_filter_matches(filter: &str, biome: &str) -> bool {
+    if filter.starts_with('#') {
+        crate::biome_tags::biome_in_tag(biome, filter)
+    } else {
+        filter == biome
+    }
 }
 
 /// VibeCraft-only debugging command.

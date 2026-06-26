@@ -22,6 +22,7 @@ mod ai_system;
 mod attribute_system;
 mod base_entity;
 mod biome;
+mod biome_tags;
 mod block_behavior;
 #[cfg(test)]
 mod block_behavior_tests;
