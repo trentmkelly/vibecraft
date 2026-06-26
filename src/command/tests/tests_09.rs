@@ -221,6 +221,11 @@ fn tellraw_requires_gamemaster_and_sends_system_message_to_targets() {
 fn playsound_requires_gamemaster_and_defaults_to_source_player() {
     let mut state = ServerCommandState {
         command_source_player: Some(NameAndId::create_offline("Steve")),
+        command_source_position: Vec3 {
+            x: 8.0,
+            y: 65.0,
+            z: -3.0,
+        },
         ..ServerCommandState::default()
     };
     assert_eq!(
@@ -250,7 +255,11 @@ fn playsound_requires_gamemaster_and_defaults_to_source_player() {
             sound: "minecraft:block.note_block.harp".to_string(),
             source: SoundSource::Master,
             targets: vec![NameAndId::create_offline("Steve")],
-            position: Vec3::default(),
+            position: Vec3 {
+                x: 8.0,
+                y: 65.0,
+                z: -3.0,
+            },
             volume: 1.0,
             pitch: 1.0,
             min_volume: 0.0,
@@ -260,11 +269,18 @@ fn playsound_requires_gamemaster_and_defaults_to_source_player() {
 
 #[test]
 fn playsound_accepts_source_targets_position_volume_pitch_and_min_volume() {
-    let mut state = ServerCommandState::default();
+    let mut state = ServerCommandState {
+        command_source_position: Vec3 {
+            x: 10.0,
+            y: 64.0,
+            z: 10.0,
+        },
+        ..ServerCommandState::default()
+    };
     let result = execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::GAMEMASTER,
-        "playsound minecraft:entity.arrow.hit player Steve,Alex 1.5 2.0 3.5 4.0 0.75 0.25",
+        "playsound minecraft:entity.arrow.hit player Steve,Alex ~1.5 2.0 ~-3.5 4.0 0.75 0.25",
     )
     .unwrap();
     assert_eq!(result.success_count, 2);
@@ -279,9 +295,9 @@ fn playsound_accepts_source_targets_position_volume_pitch_and_min_volume() {
                 NameAndId::create_offline("Alex")
             ],
             position: Vec3 {
-                x: 1.5,
+                x: 11.5,
                 y: 2.0,
-                z: 3.5,
+                z: 6.5,
             },
             volume: 4.0,
             pitch: 0.75,
@@ -293,6 +309,14 @@ fn playsound_accepts_source_targets_position_volume_pitch_and_min_volume() {
             &mut state,
             LevelBasedPermissionSet::GAMEMASTER,
             "playsound minecraft:bad player Steve 0 0 0 1 2.5"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "playsound minecraft:entity.arrow.hit player Steve 0"
         ),
         Err(CommandError::InvalidSyntax)
     );
@@ -351,6 +375,23 @@ fn stopsound_queues_source_and_sound_filters() {
         result.feedback_key,
         "commands.stopsound.success.sourceless.sound"
     );
+    let all = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "stopsound Steve",
+    )
+    .unwrap();
+    assert_eq!(all.feedback_key, "commands.stopsound.success.sourceless.any");
+    let source_only = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "stopsound Steve block",
+    )
+    .unwrap();
+    assert_eq!(
+        source_only.feedback_key,
+        "commands.stopsound.success.source.any"
+    );
     assert_eq!(
         execute_builtin_command(
             &mut state,
@@ -375,6 +416,53 @@ fn stopsound_queues_source_and_sound_filters() {
         ),
         Err(CommandError::InvalidSyntax)
     );
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn sound_command_sources_match_java_26_1_2() {
+    const PLAY_SOUND_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/PlaySoundCommand.java");
+    const STOP_SOUND_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/StopSoundCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"playsound\").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "\"sound\", IdentifierArgument.id()",
+        "for (SoundSource source : SoundSource.values())",
+        "getCallingPlayerAsCollection(((CommandSourceStack)c.getSource()).getPlayer())",
+        "((CommandSourceStack)c.getSource()).getPosition()",
+        "Commands.argument(\"pos\", Vec3Argument.vec3())",
+        "Commands.argument(\"volume\", FloatArgumentType.floatArg(0.0F))",
+        "Commands.argument(\"pitch\", FloatArgumentType.floatArg(0.0F, 2.0F))",
+        "Commands.argument(\"minVolume\", FloatArgumentType.floatArg(0.0F, 1.0F))",
+        "throw ERROR_TOO_FAR.create();",
+        "Component.translatable(\"commands.playsound.success.single\"",
+        "return count;",
+    ] {
+        assert!(
+            PLAY_SOUND_JAVA.contains(sentinel),
+            "PlaySoundCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+
+    for sentinel in [
+        "Commands.literal(\"stopsound\").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "Commands.argument(\n               \"targets\", EntityArgument.players()",
+        "Commands.literal(\"*\")",
+        "for (SoundSource source : SoundSource.values())",
+        "new ClientboundStopSoundPacket(sound, soundSource)",
+        "Component.translatable(\"commands.stopsound.success.source.sound\"",
+        "Component.translatable(\"commands.stopsound.success.source.any\"",
+        "Component.translatable(\"commands.stopsound.success.sourceless.sound\"",
+        "Component.translatable(\"commands.stopsound.success.sourceless.any\")",
+        "return targets.size();",
+    ] {
+        assert!(
+            STOP_SOUND_JAVA.contains(sentinel),
+            "StopSoundCommand.java is missing sentinel: {sentinel}"
+        );
+    }
 }
 
 #[test]

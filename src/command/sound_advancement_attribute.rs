@@ -5,49 +5,71 @@ pub(super) fn play_sound_command(
     parts: &[&str],
     _permissions: LevelBasedPermissionSet,
 ) -> Result<CommandResult, CommandError> {
-    if parts.len() < 2 {
-        return Err(CommandError::InvalidSyntax);
-    }
-    let sound = parts[1].to_string();
-    let source = parts
-        .get(2)
-        .map(|source| parse_sound_source(source))
-        .transpose()?
-        .unwrap_or(SoundSource::Master);
-    let targets = if let Some(targets) = parts.get(3) {
-        parse_name_list(targets)
-    } else {
-        state.command_source_player.clone().into_iter().collect()
+    let sound = parts.get(1).ok_or(CommandError::InvalidSyntax)?;
+    let sound = parse_resource_identifier(sound)?;
+    let source_position = state.command_source_position;
+    let source_player = || state.command_source_player.clone().into_iter().collect();
+    let (source, targets, position, volume, pitch, min_volume) = match parts {
+        ["playsound", _sound] => (
+            SoundSource::Master,
+            source_player(),
+            source_position,
+            1.0,
+            1.0,
+            0.0,
+        ),
+        ["playsound", _sound, source] => (
+            parse_sound_source(source)?,
+            source_player(),
+            source_position,
+            1.0,
+            1.0,
+            0.0,
+        ),
+        ["playsound", _sound, source, targets] => (
+            parse_sound_source(source)?,
+            parse_name_list(targets),
+            source_position,
+            1.0,
+            1.0,
+            0.0,
+        ),
+        ["playsound", _sound, source, targets, x, y, z] => (
+            parse_sound_source(source)?,
+            parse_name_list(targets),
+            parse_teleport_vec3(state, x, y, z)?,
+            1.0,
+            1.0,
+            0.0,
+        ),
+        ["playsound", _sound, source, targets, x, y, z, volume] => (
+            parse_sound_source(source)?,
+            parse_name_list(targets),
+            parse_teleport_vec3(state, x, y, z)?,
+            parse_non_negative_f32(volume)?,
+            1.0,
+            0.0,
+        ),
+        ["playsound", _sound, source, targets, x, y, z, volume, pitch] => (
+            parse_sound_source(source)?,
+            parse_name_list(targets),
+            parse_teleport_vec3(state, x, y, z)?,
+            parse_non_negative_f32(volume)?,
+            parse_bounded_f32(pitch, 0.0, 2.0)?,
+            0.0,
+        ),
+        ["playsound", _sound, source, targets, x, y, z, volume, pitch, min_volume] => (
+            parse_sound_source(source)?,
+            parse_name_list(targets),
+            parse_teleport_vec3(state, x, y, z)?,
+            parse_non_negative_f32(volume)?,
+            parse_bounded_f32(pitch, 0.0, 2.0)?,
+            parse_bounded_f32(min_volume, 0.0, 1.0)?,
+        ),
+        _ => return Err(CommandError::InvalidSyntax),
     };
     if targets.is_empty() {
         return Err(CommandError::PlaySoundTooFar);
-    }
-    let position = if parts.len() >= 7 {
-        Vec3 {
-            x: parse_f64(parts[4])?,
-            y: parse_f64(parts[5])?,
-            z: parse_f64(parts[6])?,
-        }
-    } else {
-        Vec3::default()
-    };
-    let volume = parts
-        .get(7)
-        .map(|value| parse_non_negative_f32(value))
-        .transpose()?
-        .unwrap_or(1.0);
-    let pitch = parts
-        .get(8)
-        .map(|value| parse_bounded_f32(value, 0.0, 2.0))
-        .transpose()?
-        .unwrap_or(1.0);
-    let min_volume = parts
-        .get(9)
-        .map(|value| parse_bounded_f32(value, 0.0, 1.0))
-        .transpose()?
-        .unwrap_or(0.0);
-    if parts.len() > 10 {
-        return Err(CommandError::InvalidSyntax);
     }
 
     let count = targets.len() as i32;
