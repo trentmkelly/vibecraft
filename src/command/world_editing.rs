@@ -1,4 +1,5 @@
 use super::*;
+use std::collections::BTreeMap;
 
 const STRICT_BLOCK_UPDATE_FLAGS: i32 = 816;
 
@@ -352,7 +353,7 @@ pub(super) fn fill_command(
     }
     let begin = parse_block_pos(parts[1], parts[2], parts[3])?;
     let end = parse_block_pos(parts[4], parts[5], parts[6])?;
-    let block = parse_resource_identifier(parts[7])?;
+    let block = parse_fill_block_state(parts[7])?;
     let options = parse_fill_options(&parts[8..])?;
     let region = BoundingBox::from_corners(begin, end);
     if region.volume() > i64::from(state.max_block_modifications) {
@@ -367,7 +368,7 @@ pub(super) fn fill_command(
         end,
         block,
         mode: options.mode,
-        filter: options.filter,
+        filter: options.filter.as_ref().map(FillBlockPredicate::printable),
         strict: options.strict,
         count,
     });
@@ -381,8 +382,47 @@ pub(super) fn fill_command(
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct FillOptions {
     mode: FillMode,
-    filter: Option<String>,
+    filter: Option<FillBlockPredicate>,
     strict: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum FillBlockPredicate {
+    Block {
+        block_id: String,
+        properties: BTreeMap<String, String>,
+        printable: String,
+    },
+    Tag {
+        tag_id: String,
+        properties: BTreeMap<String, String>,
+        printable: String,
+    },
+}
+
+impl FillBlockPredicate {
+    fn printable(&self) -> String {
+        match self {
+            Self::Block { printable, .. } | Self::Tag { printable, .. } => printable.clone(),
+        }
+    }
+
+    fn matches(&self, block: &str) -> bool {
+        let state = parse_existing_block_state(block);
+        match self {
+            Self::Block {
+                block_id,
+                properties,
+                ..
+            } => state.block_id == *block_id && properties_match(properties, &state.properties),
+            Self::Tag {
+                tag_id, properties, ..
+            } => {
+                crate::block_tags::block_tag_contains(tag_id, &state.block_id)
+                    && properties_match(properties, &state.properties)
+            }
+        }
+    }
 }
 
 fn parse_fill_options(parts: &[&str]) -> Result<FillOptions, CommandError> {
@@ -394,7 +434,7 @@ fn parse_fill_options(parts: &[&str]) -> Result<FillOptions, CommandError> {
         None => {}
         Some("replace") => {
             if let Some(predicate) = parts.get(1) {
-                filter = Some(parse_resource_identifier(predicate)?);
+                filter = Some(parse_fill_block_predicate(predicate)?);
                 index = 2;
             } else {
                 index = 1;
@@ -457,8 +497,8 @@ fn apply_fill_region(
         let old_block = block_at(state, dimension, position);
         if options
             .filter
-            .as_deref()
-            .is_some_and(|predicate| predicate != old_block)
+            .as_ref()
+            .is_some_and(|predicate| !predicate.matches(&old_block))
         {
             continue;
         }
@@ -483,6 +523,186 @@ fn apply_fill_region(
         return Err(CommandError::FillFailed);
     }
     Ok(count)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ParsedBlockState {
+    block_id: String,
+    properties: BTreeMap<String, String>,
+}
+
+fn parse_fill_block_state(input: &str) -> Result<String, CommandError> {
+    parse_fill_block_state_parts(input).map(|state| canonical_block_state(&state))
+}
+
+fn parse_fill_block_predicate(input: &str) -> Result<FillBlockPredicate, CommandError> {
+    if let Some(tag) = input.strip_prefix('#') {
+        let (tag_id, properties) = parse_tag_predicate_parts(tag)?;
+        if crate::block_tags::block_tag_members(&tag_id).is_none() {
+            return Err(CommandError::InvalidSyntax);
+        }
+        let printable = canonical_block_predicate_printable(&format!("#{tag_id}"), &properties);
+        Ok(FillBlockPredicate::Tag {
+            tag_id,
+            properties,
+            printable,
+        })
+    } else {
+        let (state, defined_properties) = parse_fill_block_state_with_defined_properties(input)?;
+        let printable = canonical_block_predicate_printable(&state.block_id, &defined_properties);
+        Ok(FillBlockPredicate::Block {
+            block_id: state.block_id,
+            properties: defined_properties,
+            printable,
+        })
+    }
+}
+
+fn parse_fill_block_state_parts(input: &str) -> Result<ParsedBlockState, CommandError> {
+    parse_fill_block_state_with_defined_properties(input).map(|(state, _)| state)
+}
+
+fn parse_fill_block_state_with_defined_properties(
+    input: &str,
+) -> Result<(ParsedBlockState, BTreeMap<String, String>), CommandError> {
+    if input.contains('{') || input.starts_with('#') {
+        // TODO(fill-block-entity-nbt): Java BlockStateArgument accepts block
+        // entity NBT. Wire this once command-side block entity mutation is live
+        // instead of pretending the NBT applied.
+        return Err(CommandError::InvalidSyntax);
+    }
+    let (raw_id, raw_properties) = split_block_state_argument(input)?;
+    let block_id = parse_resource_identifier(raw_id)?;
+    let entry = crate::block_states::block_state_entry(&block_id).ok_or(CommandError::InvalidSyntax)?;
+    let mut properties = default_block_properties(entry);
+    let mut defined = BTreeMap::new();
+    for (name, value) in parse_property_assignments(raw_properties)? {
+        let Some(property) = entry
+            .properties
+            .iter()
+            .find(|property| property.name == name)
+        else {
+            return Err(CommandError::InvalidSyntax);
+        };
+        if !property.values.contains(&value.as_str()) || defined.contains_key(&name) {
+            return Err(CommandError::InvalidSyntax);
+        }
+        properties.insert(name.clone(), value.clone());
+        defined.insert(name, value);
+    }
+    Ok((
+        ParsedBlockState {
+            block_id: entry.registry_id.to_string(),
+            properties,
+        },
+        defined,
+    ))
+}
+
+fn parse_tag_predicate_parts(
+    input: &str,
+) -> Result<(String, BTreeMap<String, String>), CommandError> {
+    if input.contains('{') {
+        // TODO(fill-block-entity-nbt): Java BlockPredicateArgument accepts NBT
+        // filters. Keep rejecting it until live block entity NBT comparison is
+        // implemented.
+        return Err(CommandError::InvalidSyntax);
+    }
+    let (raw_id, raw_properties) = split_block_state_argument(input)?;
+    let tag_id = parse_resource_identifier(raw_id)?;
+    let properties = parse_property_assignments(raw_properties)?
+        .into_iter()
+        .collect();
+    Ok((tag_id, properties))
+}
+
+fn split_block_state_argument(input: &str) -> Result<(&str, Option<&str>), CommandError> {
+    match input.split_once('[') {
+        None => Ok((input, None)),
+        Some((id, properties)) if properties.ends_with(']') && !properties[..properties.len() - 1].contains('[') => {
+            Ok((id, Some(&properties[..properties.len() - 1])))
+        }
+        Some(_) => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn parse_property_assignments(
+    raw: Option<&str>,
+) -> Result<Vec<(String, String)>, CommandError> {
+    let Some(raw) = raw else {
+        return Ok(Vec::new());
+    };
+    if raw.trim().is_empty() {
+        return Err(CommandError::InvalidSyntax);
+    }
+    let mut properties = Vec::new();
+    for assignment in raw.split(',') {
+        let Some((name, value)) = assignment.split_once('=') else {
+            return Err(CommandError::InvalidSyntax);
+        };
+        let name = name.trim();
+        let value = value.trim();
+        if name.is_empty() || value.is_empty() {
+            return Err(CommandError::InvalidSyntax);
+        }
+        properties.push((name.to_string(), value.to_string()));
+    }
+    Ok(properties)
+}
+
+fn parse_existing_block_state(block: &str) -> ParsedBlockState {
+    parse_fill_block_state_parts(block).unwrap_or_else(|_| ParsedBlockState {
+        block_id: parse_resource_identifier(block).unwrap_or_else(|_| block.to_string()),
+        properties: BTreeMap::new(),
+    })
+}
+
+fn default_block_properties(
+    entry: &crate::block_states::BlockStateEntryData,
+) -> BTreeMap<String, String> {
+    crate::block_states::default_state_properties(entry.registry_id)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(name, value)| (name.to_string(), value.to_string()))
+        .collect()
+}
+
+fn canonical_block_state(state: &ParsedBlockState) -> String {
+    let Some(entry) = crate::block_states::block_state_entry(&state.block_id) else {
+        return state.block_id.clone();
+    };
+    let defaults = default_block_properties(entry);
+    let non_default = state
+        .properties
+        .iter()
+        .filter(|(name, value)| defaults.get(*name) != Some(*value))
+        .map(|(name, value)| (name.clone(), value.clone()))
+        .collect::<BTreeMap<_, _>>();
+    canonical_block_predicate_printable(&state.block_id, &non_default)
+}
+
+fn canonical_block_predicate_printable(
+    id: &str,
+    properties: &BTreeMap<String, String>,
+) -> String {
+    if properties.is_empty() {
+        return id.to_string();
+    }
+    let properties = properties
+        .iter()
+        .map(|(name, value)| format!("{name}={value}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    format!("{id}[{properties}]")
+}
+
+fn properties_match(
+    expected: &BTreeMap<String, String>,
+    actual: &BTreeMap<String, String>,
+) -> bool {
+    expected
+        .iter()
+        .all(|(name, value)| actual.get(name) == Some(value))
 }
 
 pub(super) fn fill_biome_command(

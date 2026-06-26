@@ -805,6 +805,94 @@ fn fill_command_filters_destroys_strict_and_reports_failures() {
 }
 
 #[test]
+fn fill_command_validates_block_states_and_tag_predicates_like_java() {
+    let mut state = ServerCommandState {
+        blocks: vec![
+            BlockStateEntry {
+                dimension: "minecraft:overworld".to_string(),
+                position: BlockPos { x: 0, y: 0, z: 0 },
+                block: "minecraft:oak_log[axis=x]".to_string(),
+            },
+            BlockStateEntry {
+                dimension: "minecraft:overworld".to_string(),
+                position: BlockPos { x: 1, y: 0, z: 0 },
+                block: "minecraft:oak_log[axis=z]".to_string(),
+            },
+            BlockStateEntry {
+                dimension: "minecraft:overworld".to_string(),
+                position: BlockPos { x: 2, y: 0, z: 0 },
+                block: "minecraft:stone".to_string(),
+            },
+        ],
+        ..ServerCommandState::default()
+    };
+
+    let changed = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "fill 0 0 0 2 0 0 stripped_oak_log[axis=x] replace #minecraft:logs[axis=x]",
+    )
+    .unwrap();
+    assert_eq!(changed.success_count, 1);
+    let event = state.fill_events.last().unwrap();
+    assert_eq!(event.block, "minecraft:stripped_oak_log[axis=x]");
+    assert_eq!(event.filter, Some("#minecraft:logs[axis=x]".to_string()));
+    assert!(state.blocks.iter().any(|entry| {
+        entry.position == BlockPos { x: 0, y: 0, z: 0 }
+            && entry.block == "minecraft:stripped_oak_log[axis=x]"
+    }));
+    assert!(state.blocks.iter().any(|entry| {
+        entry.position == BlockPos { x: 1, y: 0, z: 0 }
+            && entry.block == "minecraft:oak_log[axis=z]"
+    }));
+
+    let changed = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "fill 0 0 0 1 0 0 birch_log replace oak_log",
+    )
+    .unwrap();
+    assert_eq!(changed.success_count, 1);
+    assert_eq!(
+        state.fill_events.last().unwrap().filter,
+        Some("minecraft:oak_log".to_string())
+    );
+
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "fill 0 0 0 0 0 0 not_a_block"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "fill 0 0 0 0 0 0 stone[axis=x]"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "fill 0 0 0 0 0 0 stone replace #minecraft:not_a_real_block_tag"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "fill 0 0 0 0 0 0 stone replace outline"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+}
+
+#[test]
 fn fillbiome_command_quantizes_replaces_and_filters_biomes() {
     let mut state = ServerCommandState {
         biomes: vec![
