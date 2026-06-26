@@ -353,49 +353,54 @@ fn parse_fill_options(parts: &[&str]) -> Result<FillOptions, CommandError> {
     let mut mode = FillMode::Replace;
     let mut strict = false;
     let mut filter = None;
+    let mut index = 0;
     match parts.first().copied() {
         None => {}
         Some("replace") => {
             if let Some(predicate) = parts.get(1) {
                 filter = Some(parse_resource_identifier(predicate)?);
-                if parts.len() != 2 {
-                    return Err(CommandError::InvalidSyntax);
-                }
-            } else if parts.len() != 1 {
-                return Err(CommandError::InvalidSyntax);
+                index = 2;
+            } else {
+                index = 1;
             }
         }
         Some("outline") => {
             mode = FillMode::Outline;
-            if parts.len() != 1 {
-                return Err(CommandError::InvalidSyntax);
-            }
+            index = 1;
         }
         Some("hollow") => {
             mode = FillMode::Hollow;
-            if parts.len() != 1 {
-                return Err(CommandError::InvalidSyntax);
-            }
+            index = 1;
         }
         Some("destroy") => {
             mode = FillMode::Destroy;
-            if parts.len() != 1 {
-                return Err(CommandError::InvalidSyntax);
-            }
+            index = 1;
         }
         Some("keep") => {
             mode = FillMode::Keep;
-            if parts.len() != 1 {
-                return Err(CommandError::InvalidSyntax);
-            }
+            index = 1;
         }
         Some("strict") => {
             strict = true;
-            if parts.len() != 1 {
-                return Err(CommandError::InvalidSyntax);
-            }
+            index = 1;
         }
         Some(_) => return Err(CommandError::InvalidSyntax),
+    }
+    if index < parts.len() {
+        if filter.is_none() || mode != FillMode::Replace || strict {
+            return Err(CommandError::InvalidSyntax);
+        }
+        match parts[index] {
+            "outline" => mode = FillMode::Outline,
+            "hollow" => mode = FillMode::Hollow,
+            "destroy" => mode = FillMode::Destroy,
+            "strict" => strict = true,
+            _ => return Err(CommandError::InvalidSyntax),
+        }
+        index += 1;
+    }
+    if index != parts.len() {
+        return Err(CommandError::InvalidSyntax);
     }
     Ok(FillOptions {
         mode,
@@ -477,9 +482,9 @@ pub(super) fn fill_biome_command(
         {
             continue;
         }
+        count += 1;
         if current != biome {
             set_biome_in_dimension(state, &dimension, position, biome.clone());
-            count += 1;
         }
     }
     state.fill_biome_events.push(FillBiomeEvent {

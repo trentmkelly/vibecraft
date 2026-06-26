@@ -120,6 +120,123 @@ fn enchant_command_allows_zero_level_and_rejects_duplicate_existing_enchantment(
 }
 
 #[test]
+fn fill_command_allows_filtered_modes_like_java_wrap_with_mode() {
+    let mut state = ServerCommandState {
+        blocks: vec![BlockStateEntry {
+            dimension: "minecraft:overworld".to_string(),
+            position: BlockPos { x: 1, y: 1, z: 1 },
+            block: "minecraft:stone".to_string(),
+        }],
+        ..ServerCommandState::default()
+    };
+
+    let hollow = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "fill 0 0 0 2 2 2 glass replace stone hollow",
+    )
+    .unwrap();
+    assert_eq!(hollow.success_count, 1);
+    let event = state.fill_events.last().unwrap();
+    assert_eq!(event.mode, FillMode::Hollow);
+    assert_eq!(event.filter, Some("minecraft:stone".to_string()));
+    assert!(state.blocks.iter().any(|entry| {
+        entry.position == BlockPos { x: 1, y: 1, z: 1 } && entry.block == "minecraft:air"
+    }));
+
+    state.blocks.push(BlockStateEntry {
+        dimension: "minecraft:overworld".to_string(),
+        position: BlockPos { x: 3, y: 0, z: 0 },
+        block: "minecraft:dirt".to_string(),
+    });
+    let strict = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "fill 3 0 0 3 0 0 gold_block replace dirt strict",
+    )
+    .unwrap();
+    assert_eq!(strict.success_count, 1);
+    let event = state.fill_events.last().unwrap();
+    assert_eq!(event.mode, FillMode::Replace);
+    assert_eq!(event.filter, Some("minecraft:dirt".to_string()));
+    assert!(event.strict);
+}
+
+#[test]
+fn fillbiome_command_counts_matching_cells_even_when_biome_is_unchanged() {
+    let mut state = ServerCommandState {
+        biomes: vec![BiomeEntry {
+            dimension: "minecraft:overworld".to_string(),
+            position: BlockPos { x: 0, y: 0, z: 0 },
+            biome: "minecraft:plains".to_string(),
+        }],
+        ..ServerCommandState::default()
+    };
+
+    let result = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "fillbiome 0 0 0 0 0 0 plains",
+    )
+    .unwrap();
+    assert_eq!(result.success_count, 1);
+    assert_eq!(state.fill_biome_events[0].count, 1);
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn fill_commands_source_match_java_26_1_2() {
+    const FILL_COMMAND_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/FillCommand.java");
+    const FILL_BIOME_COMMAND_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/FillBiomeCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"fill\").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "Commands.argument(\"from\", BlockPosArgument.blockPos())",
+        "Commands.argument(\"to\", BlockPosArgument.blockPos())",
+        "Commands.argument(\"block\", BlockStateArgument.block(context))",
+        "Commands.literal(\"replace\")",
+        "Commands.argument(\"filter\", BlockPredicateArgument.blockPredicate(context))",
+        "Commands.literal(\"keep\")",
+        "Commands.literal(\"outline\")",
+        "Commands.literal(\"hollow\")",
+        "Commands.literal(\"destroy\")",
+        "Commands.literal(\"strict\")",
+        "source.getLevel().getGameRules().get(GameRules.MAX_BLOCK_MODIFICATIONS)",
+        "if (level.isDebug())",
+        "throw ERROR_FAILED.create();",
+        "Component.translatable(\"commands.fill.success\", finalCount)",
+        "return count;",
+    ] {
+        assert!(
+            FILL_COMMAND_JAVA.contains(sentinel),
+            "FillCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+
+    for sentinel in [
+        "Commands.literal(\"fillbiome\").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "Commands.argument(\"biome\", ResourceArgument.resource(context, Registries.BIOME))",
+        "Commands.literal(\"replace\")",
+        "Commands.argument(\"filter\", ResourceOrTagArgument.resourceOrTag(context, Registries.BIOME))",
+        "private static int quantize(final int blockCoord)",
+        "BlockPos from = quantize(rawFrom);",
+        "if (volume > limit)",
+        "return Either.right(ERROR_NOT_LOADED.create());",
+        "count.increment();",
+        "chunk.fillBiomesFromNoise",
+        "resendBiomesForChunks(chunks)",
+        "commands.fillbiome.success.count",
+    ] {
+        assert!(
+            FILL_BIOME_COMMAND_JAVA.contains(sentinel),
+            "FillBiomeCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+}
+
+#[test]
 #[cfg(vibecraft_has_decompiled_sources)]
 fn enchant_command_source_matches_java_26_1_2() {
     const ENCHANT_COMMAND_JAVA: &str =
