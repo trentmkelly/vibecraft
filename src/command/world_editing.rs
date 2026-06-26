@@ -647,26 +647,26 @@ pub(super) fn forceload_command(
     match parts {
         ["forceload", "add", x, z] => change_forceload(
             state,
-            parse_column_pos(x, z)?,
-            parse_column_pos(x, z)?,
+            parse_column_pos(state, x, z)?,
+            parse_column_pos(state, x, z)?,
             true,
         ),
         ["forceload", "add", from_x, from_z, to_x, to_z] => change_forceload(
             state,
-            parse_column_pos(from_x, from_z)?,
-            parse_column_pos(to_x, to_z)?,
+            parse_column_pos(state, from_x, from_z)?,
+            parse_column_pos(state, to_x, to_z)?,
             true,
         ),
         ["forceload", "remove", x, z] => change_forceload(
             state,
-            parse_column_pos(x, z)?,
-            parse_column_pos(x, z)?,
+            parse_column_pos(state, x, z)?,
+            parse_column_pos(state, x, z)?,
             false,
         ),
         ["forceload", "remove", from_x, from_z, to_x, to_z] => change_forceload(
             state,
-            parse_column_pos(from_x, from_z)?,
-            parse_column_pos(to_x, to_z)?,
+            parse_column_pos(state, from_x, from_z)?,
+            parse_column_pos(state, to_x, to_z)?,
             false,
         ),
         ["forceload", "remove", "all"] => {
@@ -699,7 +699,7 @@ pub(super) fn forceload_command(
             })
         }
         ["forceload", "query", x, z] => {
-            let chunk = block_column_to_chunk(parse_column_pos(x, z)?);
+            let chunk = block_column_to_chunk(parse_column_pos(state, x, z)?);
             if is_forced_chunk(state, &state.command_source_dimension, chunk) {
                 Ok(CommandResult {
                     success_count: 1,
@@ -783,11 +783,35 @@ pub(super) fn change_forceload(
     })
 }
 
-pub(super) fn parse_column_pos(x: &str, z: &str) -> Result<ChunkPos, CommandError> {
+pub(super) fn parse_column_pos(
+    state: &ServerCommandState,
+    x: &str,
+    z: &str,
+) -> Result<ChunkPos, CommandError> {
     Ok(ChunkPos {
-        x: parse_i32(x)?,
-        z: parse_i32(z)?,
+        x: parse_column_coordinate(x, state.command_source_position.x)?,
+        z: parse_column_coordinate(z, state.command_source_position.z)?,
     })
+}
+
+fn parse_column_coordinate(input: &str, source: f64) -> Result<i32, CommandError> {
+    if input.starts_with('^') {
+        return Err(CommandError::InvalidSyntax);
+    }
+    if let Some(offset) = input.strip_prefix('~') {
+        let offset = if offset.is_empty() {
+            0.0
+        } else {
+            let offset = parse_f64(offset)?;
+            if !offset.is_finite() {
+                return Err(CommandError::InvalidSyntax);
+            }
+            offset
+        };
+        Ok((source + offset).floor() as i32)
+    } else {
+        parse_i32(input)
+    }
 }
 
 pub(super) fn block_column_to_chunk(pos: ChunkPos) -> ChunkPos {

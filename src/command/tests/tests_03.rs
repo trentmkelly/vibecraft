@@ -53,6 +53,110 @@ fn forceload_command_reports_range_and_noop_failures() {
 }
 
 #[test]
+fn forceload_command_matches_java_column_position_parsing_and_dimension_scope() {
+    let mut state = ServerCommandState {
+        command_source_position: Vec3 {
+            x: 32.25,
+            y: 64.0,
+            z: -16.75,
+        },
+        command_source_dimension: "minecraft:the_nether".to_string(),
+        forced_chunks: vec![ForcedChunk {
+            dimension: "minecraft:overworld".to_string(),
+            chunk: ChunkPos { x: 2, z: -1 },
+        }],
+        ..ServerCommandState::default()
+    };
+
+    let added = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "forceload add ~ ~1.75",
+    )
+    .unwrap();
+    assert_eq!(added.success_count, 1);
+    assert!(state.forced_chunks.contains(&ForcedChunk {
+        dimension: "minecraft:the_nether".to_string(),
+        chunk: ChunkPos { x: 2, z: -1 },
+    }));
+
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "forceload query 32 -15"
+        )
+        .unwrap()
+        .feedback_key,
+        "commands.forceload.query.success"
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "forceload add 1.5 0"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "forceload add ^ ^"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "forceload add ~NaN 0"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+
+    execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "forceload remove all",
+    )
+    .unwrap();
+    assert_eq!(
+        state.forced_chunks,
+        vec![ForcedChunk {
+            dimension: "minecraft:overworld".to_string(),
+            chunk: ChunkPos { x: 2, z: -1 },
+        }]
+    );
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn forceload_command_source_matches_java_26_1_2() {
+    const FORCE_LOAD: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/ForceLoadCommand.java");
+    const COLUMN_POS: &str =
+        vibecraft_java_source!("/net/minecraft/commands/arguments/coordinates/ColumnPosArgument.java");
+
+    assert!(FORCE_LOAD.contains("private static final int MAX_CHUNK_LIMIT = 256;"));
+    assert!(FORCE_LOAD.contains("Commands.literal(\"forceload\")"));
+    assert!(FORCE_LOAD.contains("Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)"));
+    assert!(FORCE_LOAD.contains("ColumnPosArgument.columnPos()"));
+    assert!(FORCE_LOAD.contains("level.getForceLoadedChunks().contains(chunkPos.pack())"));
+    assert!(FORCE_LOAD.contains("return 1;"));
+    assert!(FORCE_LOAD.contains("return chunkCount;"));
+    assert!(FORCE_LOAD.contains("return 0;"));
+    assert!(FORCE_LOAD.contains("minX >= -30000000 && minZ >= -30000000"));
+    assert!(FORCE_LOAD.contains("maxX < 30000000 && maxZ < 30000000"));
+    assert!(FORCE_LOAD.contains("SectionPos.blockToSectionCoord(minX)"));
+    assert!(FORCE_LOAD.contains("if (chunkCount > 256L)"));
+    assert!(FORCE_LOAD.contains("throw (add ? ERROR_ALL_ADDED : ERROR_NONE_REMOVED).create();"));
+    assert!(COLUMN_POS.contains("WorldCoordinate x = WorldCoordinate.parseInt(reader);"));
+    assert!(COLUMN_POS.contains("WorldCoordinate z = WorldCoordinate.parseInt(reader);"));
+    assert!(COLUMN_POS.contains("return new WorldCoordinates(x, new WorldCoordinate(true, 0.0), z);"));
+}
+
+#[test]
 fn serverpack_push_generates_java_name_uuid_or_uses_explicit_uuid() {
     let mut state = ServerCommandState::default();
     assert_eq!(
