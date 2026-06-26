@@ -423,3 +423,33 @@ fn worldborder_command_source_matches_java_26_1_2() {
         );
     }
 }
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn transfer_command_source_matches_java_26_1_2() {
+    const TRANSFER: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/TransferCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"transfer\").requires(Commands.hasPermission(Commands.LEVEL_ADMINS))",
+        "Commands.argument(\"hostname\", StringArgumentType.string())",
+        "StringArgumentType.getString(c, \"hostname\")",
+        "25565",
+        "List.of(((CommandSourceStack)c.getSource()).getPlayerOrException())",
+        "Commands.argument(\"port\", IntegerArgumentType.integer(1, 65535))",
+        "IntegerArgumentType.getInteger(c, \"port\")",
+        "Commands.argument(\"players\", EntityArgument.players())",
+        "EntityArgument.getPlayers(c, \"players\")",
+        "if (players.isEmpty())",
+        "throw ERROR_NO_PLAYERS.create();",
+        "player.connection.send(new ClientboundTransferPacket(hostname, port))",
+        "Component.translatable(\"commands.transfer.success.single\", players.iterator().next().getDisplayName(), hostname, port)",
+        "Component.translatable(\"commands.transfer.success.multiple\", players.size(), hostname, port)",
+        "return players.size();",
+    ] {
+        assert!(
+            TRANSFER.contains(sentinel),
+            "TransferCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+}
