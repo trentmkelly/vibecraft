@@ -275,6 +275,8 @@ pub(super) fn capture_command_source(state: &ServerCommandState) -> CommandSourc
         entity: state.command_source_entity.clone(),
         player: state.command_source_player.clone(),
         position: state.command_source_position,
+        yaw: state.command_source_yaw,
+        pitch: state.command_source_pitch,
         dimension: state.command_source_dimension.clone(),
     }
 }
@@ -286,6 +288,8 @@ pub(super) fn restore_command_source(
     state.command_source_entity = source.entity;
     state.command_source_player = source.player;
     state.command_source_position = source.position;
+    state.command_source_yaw = source.yaw;
+    state.command_source_pitch = source.pitch;
     state.command_source_dimension = source.dimension;
 }
 

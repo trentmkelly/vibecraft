@@ -157,6 +157,8 @@ pub struct ServerCommandState {
     pub command_source_player: Option<NameAndId>,
     pub command_source_entity: Option<EntityRef>,
     pub command_source_position: Vec3,
+    pub command_source_yaw: f32,
+    pub command_source_pitch: f32,
     pub command_source_dimension: String,
     pub execute_events: Vec<ExecuteCommandEvent>,
     pub debug_world: bool,
@@ -491,6 +493,8 @@ pub(super) struct CommandSourceSnapshot {
     pub(super) entity: Option<EntityRef>,
     pub(super) player: Option<NameAndId>,
     pub(super) position: Vec3,
+    pub(super) yaw: f32,
+    pub(super) pitch: f32,
     pub(super) dimension: String,
 }
 

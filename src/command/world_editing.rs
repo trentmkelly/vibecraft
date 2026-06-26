@@ -531,7 +531,7 @@ struct ParsedBlockState {
     properties: BTreeMap<String, String>,
 }
 
-fn parse_fill_block_state(input: &str) -> Result<String, CommandError> {
+pub(super) fn parse_fill_block_state(input: &str) -> Result<String, CommandError> {
     parse_fill_block_state_parts(input).map(|state| canonical_block_state(&state))
 }
 

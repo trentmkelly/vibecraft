@@ -579,6 +579,13 @@ fn spreadplayers_rejects_invalid_height_impossible_spacing_and_syntax() {
 fn setblock_command_places_replaces_and_destroys_blocks() {
     let mut state = ServerCommandState {
         command_source_dimension: "minecraft:the_end".to_string(),
+        command_source_position: Vec3 {
+            x: 10.5,
+            y: 64.0,
+            z: -2.5,
+        },
+        command_source_yaw: 0.0,
+        command_source_pitch: 0.0,
         ..ServerCommandState::default()
     };
 
@@ -621,10 +628,29 @@ fn setblock_command_places_replaces_and_destroys_blocks() {
     execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::GAMEMASTER,
-        "setblock 3 70 4 glass strict",
+        "setblock ~1 ~ ~-2 oak_leaves[persistent=true] strict",
     )
     .unwrap();
     assert!(state.setblock_events[2].strict);
+    assert_eq!(
+        state.setblock_events[2].position,
+        BlockPos { x: 11, y: 64, z: -5 }
+    );
+    assert_eq!(
+        state.setblock_events[2].block,
+        "minecraft:oak_leaves[persistent=true]"
+    );
+
+    execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "setblock ^1 ^ ^2 gold_block",
+    )
+    .unwrap();
+    assert_eq!(
+        state.setblock_events[3].position,
+        BlockPos { x: 11, y: 64, z: -1 }
+    );
 }
 
 #[test]
@@ -672,6 +698,67 @@ fn setblock_command_rejects_keep_debug_and_bad_syntax() {
         ),
         Err(CommandError::InvalidSyntax)
     );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "setblock 2 64 0 air"
+        ),
+        Err(CommandError::SetBlockFailed)
+    );
+    state.blocks.push(BlockStateEntry {
+        dimension: "minecraft:overworld".to_string(),
+        position: BlockPos { x: 3, y: 64, z: 0 },
+        block: "minecraft:stone".to_string(),
+    });
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "setblock 3 64 0 stone"
+        ),
+        Err(CommandError::SetBlockFailed)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "setblock 4 64 0 stone[axis=x]"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn setblock_command_source_matches_java_26_1_2() {
+    const SET_BLOCK_COMMAND_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/SetBlockCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"setblock\").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "Commands.argument(\"pos\", BlockPosArgument.blockPos())",
+        "BlockPosArgument.getLoadedBlockPos(c, \"pos\")",
+        "Commands.argument(\n                                       \"block\", BlockStateArgument.block(context)",
+        "Commands.literal(\"destroy\")",
+        "Commands.literal(\"keep\")",
+        "Commands.literal(\"replace\")",
+        "Commands.literal(\"strict\")",
+        "if (level.isDebug())",
+        "predicate != null && !predicate.test(new BlockInWorld(level, pos, true))",
+        "level.destroyBlock(pos, true)",
+        "placeNeeded = !block.getState().isAir() || !level.getBlockState(pos).isAir();",
+        "block.place(level, pos, 2 | (strict ? 816 : 256))",
+        "if (!strict)",
+        "level.updateNeighboursOnBlockSet(pos, oldState)",
+        "Component.translatable(\"commands.setblock.success\", pos.getX(), pos.getY(), pos.getZ())",
+        "return 1;",
+    ] {
+        assert!(
+            SET_BLOCK_COMMAND_JAVA.contains(sentinel),
+            "SetBlockCommand.java is missing sentinel: {sentinel}"
+        );
+    }
 }
 
 #[test]

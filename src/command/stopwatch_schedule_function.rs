@@ -140,32 +140,32 @@ pub(super) fn setblock_command(
 ) -> Result<CommandResult, CommandError> {
     let (position, block, mode, strict) = match parts {
         ["setblock", x, y, z, block] => (
-            parse_block_pos(x, y, z)?,
-            parse_resource_identifier(block)?,
+            parse_setblock_pos(state, x, y, z)?,
+            parse_fill_block_state(block)?,
             SetBlockMode::Replace,
             false,
         ),
         ["setblock", x, y, z, block, "replace"] => (
-            parse_block_pos(x, y, z)?,
-            parse_resource_identifier(block)?,
+            parse_setblock_pos(state, x, y, z)?,
+            parse_fill_block_state(block)?,
             SetBlockMode::Replace,
             false,
         ),
         ["setblock", x, y, z, block, "destroy"] => (
-            parse_block_pos(x, y, z)?,
-            parse_resource_identifier(block)?,
+            parse_setblock_pos(state, x, y, z)?,
+            parse_fill_block_state(block)?,
             SetBlockMode::Destroy,
             false,
         ),
         ["setblock", x, y, z, block, "keep"] => (
-            parse_block_pos(x, y, z)?,
-            parse_resource_identifier(block)?,
+            parse_setblock_pos(state, x, y, z)?,
+            parse_fill_block_state(block)?,
             SetBlockMode::Keep,
             false,
         ),
         ["setblock", x, y, z, block, "strict"] => (
-            parse_block_pos(x, y, z)?,
-            parse_resource_identifier(block)?,
+            parse_setblock_pos(state, x, y, z)?,
+            parse_fill_block_state(block)?,
             SetBlockMode::Replace,
             true,
         ),
@@ -176,39 +176,144 @@ pub(super) fn setblock_command(
         return Err(CommandError::SetBlockFailed);
     }
 
-    let existing_index = state.blocks.iter().position(|entry| {
-        entry.dimension == state.command_source_dimension && entry.position == position
-    });
-    let existing_block = existing_index.map(|index| state.blocks[index].block.clone());
+    let dimension = state.command_source_dimension.clone();
+    let existing_block = block_at(state, &dimension, position);
     if mode == SetBlockMode::Keep
-        && existing_block.as_deref().unwrap_or("minecraft:air") != "minecraft:air"
+        && existing_block != "minecraft:air"
     {
         return Err(CommandError::SetBlockFailed);
     }
 
-    if let Some(index) = existing_index {
-        state.blocks[index].block = block.clone();
+    let block_after_destroy = if mode == SetBlockMode::Destroy {
+        "minecraft:air"
     } else {
-        state.blocks.push(BlockStateEntry {
-            dimension: state.command_source_dimension.clone(),
-            position,
-            block: block.clone(),
-        });
+        existing_block.as_str()
+    };
+    let place_needed = mode != SetBlockMode::Destroy || block != "minecraft:air";
+    if place_needed && block == block_after_destroy {
+        return Err(CommandError::SetBlockFailed);
     }
+
+    let final_block = if place_needed {
+        block.clone()
+    } else {
+        "minecraft:air".to_string()
+    };
+    set_block_in_dimension(state, &dimension, position, final_block);
     state.setblock_events.push(SetBlockEvent {
-        dimension: state.command_source_dimension.clone(),
+        dimension,
         position,
         block,
         mode,
         strict,
-        destroyed_block: (mode == SetBlockMode::Destroy)
-            .then_some(existing_block.unwrap_or_else(|| "minecraft:air".to_string())),
+        destroyed_block: (mode == SetBlockMode::Destroy).then_some(existing_block),
     });
     Ok(CommandResult {
         success_count: 1,
         feedback_key: "commands.setblock.success",
         broadcast_to_admins: true,
     })
+}
+
+fn parse_setblock_pos(
+    state: &ServerCommandState,
+    x: &str,
+    y: &str,
+    z: &str,
+) -> Result<BlockPos, CommandError> {
+    if x.starts_with('^') || y.starts_with('^') || z.starts_with('^') {
+        if !(x.starts_with('^') && y.starts_with('^') && z.starts_with('^')) {
+            return Err(CommandError::InvalidSyntax);
+        }
+        let left = parse_local_coordinate(x)?;
+        let up = parse_local_coordinate(y)?;
+        let forwards = parse_local_coordinate(z)?;
+        return Ok(block_pos_containing(apply_local_block_coordinates(
+            state, left, up, forwards,
+        )));
+    }
+
+    Ok(BlockPos {
+        x: parse_world_block_coordinate(x, state.command_source_position.x)?,
+        y: parse_world_block_coordinate(y, state.command_source_position.y)?,
+        z: parse_world_block_coordinate(z, state.command_source_position.z)?,
+    })
+}
+
+fn parse_world_block_coordinate(input: &str, origin: f64) -> Result<i32, CommandError> {
+    if let Some(relative) = input.strip_prefix('~') {
+        let offset = if relative.is_empty() {
+            0.0
+        } else {
+            relative
+                .parse::<f64>()
+                .map_err(|_| CommandError::InvalidSyntax)?
+        };
+        Ok((origin + offset).floor() as i32)
+    } else {
+        input
+            .parse::<i32>()
+            .map_err(|_| CommandError::InvalidSyntax)
+    }
+}
+
+fn parse_local_coordinate(input: &str) -> Result<f64, CommandError> {
+    let value = input
+        .strip_prefix('^')
+        .ok_or(CommandError::InvalidSyntax)?;
+    if value.is_empty() {
+        Ok(0.0)
+    } else {
+        value.parse::<f64>().map_err(|_| CommandError::InvalidSyntax)
+    }
+}
+
+fn apply_local_block_coordinates(
+    state: &ServerCommandState,
+    left: f64,
+    up: f64,
+    forwards: f64,
+) -> Vec3 {
+    let yaw_radians = (state.command_source_yaw + 90.0).to_radians();
+    let y_cos = yaw_radians.cos();
+    let y_sin = yaw_radians.sin();
+    let pitch_radians = (-state.command_source_pitch).to_radians();
+    let x_cos = pitch_radians.cos();
+    let x_sin = pitch_radians.sin();
+    let pitch_up_radians = (-state.command_source_pitch + 90.0).to_radians();
+    let x_cos_up = pitch_up_radians.cos();
+    let x_sin_up = pitch_up_radians.sin();
+
+    let forwards_vec = Vec3 {
+        x: f64::from(y_cos * x_cos),
+        y: f64::from(x_sin),
+        z: f64::from(y_sin * x_cos),
+    };
+    let up_vec = Vec3 {
+        x: f64::from(y_cos * x_cos_up),
+        y: f64::from(x_sin_up),
+        z: f64::from(y_sin * x_cos_up),
+    };
+    let left_vec = Vec3 {
+        x: -(forwards_vec.y * up_vec.z - forwards_vec.z * up_vec.y),
+        y: -(forwards_vec.z * up_vec.x - forwards_vec.x * up_vec.z),
+        z: -(forwards_vec.x * up_vec.y - forwards_vec.y * up_vec.x),
+    };
+
+    Vec3 {
+        x: state.command_source_position.x
+            + forwards_vec.x * forwards
+            + up_vec.x * up
+            + left_vec.x * left,
+        y: state.command_source_position.y
+            + forwards_vec.y * forwards
+            + up_vec.y * up
+            + left_vec.y * left,
+        z: state.command_source_position.z
+            + forwards_vec.z * forwards
+            + up_vec.z * up
+            + left_vec.z * left,
+    }
 }
 
 pub(super) fn schedule_command(

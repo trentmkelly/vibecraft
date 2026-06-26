@@ -101,6 +101,8 @@ macro_rules! default_server_command_state {
             command_source_player: None,
             command_source_entity: None,
             command_source_position: Vec3::default(),
+            command_source_yaw: 0.0,
+            command_source_pitch: 0.0,
             command_source_dimension: "minecraft:overworld".to_string(),
             execute_events: Vec::new(),
             debug_world: false,
