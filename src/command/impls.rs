@@ -113,6 +113,7 @@ macro_rules! default_server_command_state {
             locate_results: Vec::new(),
             max_block_modifications: 32768,
             online_players: Vec::new(),
+            last_list_includes_uuids: false,
             player_inventories: Vec::new(),
             entity_item_slots: Vec::new(),
             block_item_slots: Vec::new(),

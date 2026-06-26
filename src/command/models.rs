@@ -169,6 +169,7 @@ pub struct ServerCommandState {
     pub locate_results: Vec<CommandLocateResult>,
     pub max_block_modifications: i32,
     pub online_players: Vec<NameAndId>,
+    pub last_list_includes_uuids: bool,
     pub player_inventories: Vec<CommandPlayerInventory>,
     pub entity_item_slots: Vec<CommandEntityItemSlot>,
     pub block_item_slots: Vec<CommandBlockItemSlot>,

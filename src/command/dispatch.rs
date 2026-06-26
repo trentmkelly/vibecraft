@@ -312,13 +312,19 @@ fn help_smart_usage_count(root: &str, usage: &str) -> i32 {
     if usage == root_usage { 0 } else { 1 }
 }
 
-fn list_command(state: &ServerCommandState, parts: &[&str]) -> Result<CommandResult, CommandError> {
+fn list_command(
+    state: &mut ServerCommandState,
+    parts: &[&str],
+) -> Result<CommandResult, CommandError> {
     match parts {
-        ["list"] | ["list", "uuids"] => Ok(CommandResult {
-            success_count: state.online_players.len() as i32,
-            feedback_key: "commands.list.players",
-            broadcast_to_admins: false,
-        }),
+        ["list"] | ["list", "uuids"] => {
+            state.last_list_includes_uuids = matches!(parts, ["list", "uuids"]);
+            Ok(CommandResult {
+                success_count: state.online_players.len() as i32,
+                feedback_key: "commands.list.players",
+                broadcast_to_admins: false,
+            })
+        }
         _ => Err(CommandError::InvalidSyntax),
     }
 }

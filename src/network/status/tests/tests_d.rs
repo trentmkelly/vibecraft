@@ -74,6 +74,26 @@ pub fn biome_debug_command_feedback_prints_current_biome() {
 }
 
 #[test]
+pub fn list_uuids_feedback_prints_name_and_uuid_entries() {
+    let mut state = crate::command::ServerCommandState {
+        online_players: vec![crate::player_access::NameAndId::create_offline("Steve")],
+        max_players: 40,
+        ..crate::command::ServerCommandState::default()
+    };
+    let result = crate::command::execute_builtin_command(
+        &mut state,
+        crate::command::LevelBasedPermissionSet::ALL,
+        "list uuids",
+    )
+    .unwrap();
+
+    assert_eq!(
+        command_feedback_text(&result, &state),
+        "There are 1 of a max of 40 players online: Steve (5627dd98-e6be-3c21-b8a8-e92344183641)"
+    );
+}
+
+#[test]
 pub fn raw_command_suggestion_response_keeps_stream_open_for_keepalive() {
     let mut request = Vec::new();
     ServerboundCommandSuggestionPacket {

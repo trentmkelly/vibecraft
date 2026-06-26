@@ -477,17 +477,26 @@ pub(super) fn command_feedback_text(
 ) -> String {
     match result.feedback_key {
         "commands.seed.success" => format!("Seed: {}", state.world_seed),
-        "commands.list.players" => format!(
-            "There are {} of a max of {} players online: {}",
-            state.online_players.len(),
-            state.max_players,
-            state
+        "commands.list.players" => {
+            let players = state
                 .online_players
                 .iter()
-                .map(|player| player.name.as_str())
+                .map(|player| {
+                    if state.last_list_includes_uuids {
+                        format!("{} ({})", player.name, player.uuid)
+                    } else {
+                        player.name.clone()
+                    }
+                })
                 .collect::<Vec<_>>()
-                .join(", ")
-        ),
+                .join(", ");
+            format!(
+                "There are {} of a max of {} players online: {}",
+                state.online_players.len(),
+                state.max_players,
+                players
+            )
+        }
         "commands.gamemode.success.self" => "Set own game mode".to_string(),
         "commands.say.success" => "Message sent".to_string(),
         // VibeCraft-only debug command feedback; vanilla has no `/biome` command.

@@ -15,12 +15,14 @@ fn list_command_tracks_login_replacement_and_disconnect_counts() {
     let joined = execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "list").unwrap();
     assert_eq!(joined.success_count, 1);
     assert_eq!(joined.feedback_key, "commands.list.players");
+    assert!(!state.last_list_includes_uuids);
 
     state.online_players = vec![NameAndId::create_offline("Steve")];
     let replaced =
         execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "list uuids").unwrap();
     assert_eq!(replaced.success_count, 1);
     assert_eq!(replaced.feedback_key, "commands.list.players");
+    assert!(state.last_list_includes_uuids);
 
     state.online_players = vec![
         NameAndId::create_offline("Steve"),
@@ -29,11 +31,36 @@ fn list_command_tracks_login_replacement_and_disconnect_counts() {
     let two_players =
         execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "list").unwrap();
     assert_eq!(two_players.success_count, 2);
+    assert!(!state.last_list_includes_uuids);
 
     state.online_players = vec![NameAndId::create_offline("Alex")];
     let after_disconnect =
         execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "list").unwrap();
     assert_eq!(after_disconnect.success_count, 1);
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn list_players_command_source_matches_java_26_1_2() {
+    const LIST_PLAYERS: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/ListPlayersCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"list\").executes(c -> listPlayers((CommandSourceStack)c.getSource()))",
+        "Commands.literal(\"uuids\").executes(c -> listPlayersWithUuids((CommandSourceStack)c.getSource()))",
+        "return format(source, Player::getDisplayName);",
+        "Component.translatable(\"commands.list.nameAndId\", player.getName(), Component.translationArg(player.getGameProfile().id()))",
+        "PlayerList playerList = source.getServer().getPlayerList();",
+        "List<ServerPlayer> players = playerList.getPlayers();",
+        "ComponentUtils.formatList(players, formatter)",
+        "Component.translatable(\"commands.list.players\", players.size(), playerList.getMaxPlayers(), listComponent)",
+        "return players.size();",
+    ] {
+        assert!(
+            LIST_PLAYERS.contains(sentinel),
+            "ListPlayersCommand.java is missing sentinel: {sentinel}"
+        );
+    }
 }
 
 #[test]
