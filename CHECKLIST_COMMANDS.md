@@ -85,7 +85,7 @@
 - [ ] Implement `/chase`.
 - [x] Implement `/clear`. Rust `clear_command` is source-audited against `ClearInventoryCommands.java`: gamemaster permission, source-player default, player targets, item predicate validation for plain item IDs, max-count/test mode, matched-item return count, failure split, feedback keys, and admin broadcast are covered by command-model tests and `clear_inventory_command_source_matches_java_26_1_2`.
 - [x] Implement `/clone`. Rust `clone_command` is source-audited against `CloneCommands.java`: source/target dimensions, strict suffix, replace/masked/filtered filters, force/move/normal modes, overlap/too-big/debug/empty failures, block-predicate validation for plain block IDs, success count, feedback, broadcast, and Java update-flag/tick-copy side-effect metadata are covered by command-model tests and `clone_command_source_matches_java_26_1_2`. Live block-entity data/components and scheduled block-tick mutation remain explicitly tracked by `TODO(clone-live-block-entities-ticks)` until command side-effect application has those world subsystems.
-- [ ] Implement `/damage`.
+- [x] Implement `/damage`. Rust `damage_command` is source-audited against `DamageCommand.java`: gamemaster permission, single target, non-negative float amount, generic/default and registry-backed typed damage sources, `at` position, `by` entity, `by ... from` cause, invulnerable failure, success count, feedback, and admin broadcast are covered by command-model tests and `damage_command_source_matches_java_26_1_2`.
 - [ ] Implement `/datapack`.
 - [ ] Implement `/deop` and `/op`.
 - [ ] Implement `/debug`, `/debugconfig`, `/debugmobspawning`, `/debugpath`.

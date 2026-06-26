@@ -14,14 +14,14 @@ pub(super) fn damage_command(
             entity_ref(target),
             parse_damage_amount(amount)?,
             DamageCommandSource::Type {
-                damage_type: parse_resource_identifier(damage_type)?,
+                damage_type: parse_damage_type(damage_type)?,
             },
         ),
         ["damage", target, amount, damage_type, "at", x, y, z] => (
             entity_ref(target),
             parse_damage_amount(amount)?,
             DamageCommandSource::At {
-                damage_type: parse_resource_identifier(damage_type)?,
+                damage_type: parse_damage_type(damage_type)?,
                 location: Vec3 {
                     x: parse_f64(x)?,
                     y: parse_f64(y)?,
@@ -33,7 +33,7 @@ pub(super) fn damage_command(
             entity_ref(target),
             parse_damage_amount(amount)?,
             DamageCommandSource::By {
-                damage_type: parse_resource_identifier(damage_type)?,
+                damage_type: parse_damage_type(damage_type)?,
                 entity: entity_ref(entity),
                 cause: None,
             },
@@ -42,7 +42,7 @@ pub(super) fn damage_command(
             entity_ref(target),
             parse_damage_amount(amount)?,
             DamageCommandSource::By {
-                damage_type: parse_resource_identifier(damage_type)?,
+                damage_type: parse_damage_type(damage_type)?,
                 entity: entity_ref(entity),
                 cause: Some(entity_ref(cause)),
             },
@@ -68,6 +68,15 @@ pub(super) fn damage_command(
         feedback_key: "commands.damage.success",
         broadcast_to_admins: true,
     })
+}
+
+pub(super) fn parse_damage_type(input: &str) -> Result<String, CommandError> {
+    let damage_type = parse_resource_identifier(input)?;
+    if crate::damage_type::builtin_damage_type(&damage_type).is_some() {
+        Ok(damage_type)
+    } else {
+        Err(CommandError::InvalidSyntax)
+    }
 }
 
 pub(super) fn parse_damage_amount(input: &str) -> Result<f32, CommandError> {

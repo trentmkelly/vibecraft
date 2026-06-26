@@ -904,3 +904,35 @@ fn clone_command_source_matches_java_26_1_2() {
         );
     }
 }
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn damage_command_source_matches_java_26_1_2() {
+    const DAMAGE_COMMAND: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/DamageCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"damage\").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "Commands.argument(\"target\", EntityArgument.entity())",
+        "Commands.argument(\"amount\", FloatArgumentType.floatArg(0.0F))",
+        "damageSources().generic()",
+        "\"damageType\", ResourceArgument.resource(context, Registries.DAMAGE_TYPE)",
+        "new DamageSource(ResourceArgument.getResource(c, \"damageType\", Registries.DAMAGE_TYPE))",
+        "Commands.literal(\"at\")",
+        "Commands.argument(\"location\", Vec3Argument.vec3())",
+        "Vec3Argument.getVec3(c, \"location\")",
+        "Commands.literal(\"by\")",
+        "Commands.argument(\"entity\", EntityArgument.entity())",
+        "Commands.literal(\"from\")",
+        "Commands.argument(\"cause\", EntityArgument.entity())",
+        "target.hurtServer(stack.getLevel(), source, amount)",
+        "Component.translatable(\"commands.damage.success\", amount, target.getDisplayName())",
+        "throw ERROR_INVULNERABLE.create();",
+        "return 1;",
+    ] {
+        assert!(
+            DAMAGE_COMMAND.contains(sentinel),
+            "DamageCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+}

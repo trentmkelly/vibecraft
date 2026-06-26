@@ -541,11 +541,24 @@ fn damage_command_records_generic_typed_positioned_and_entity_sources() {
     execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::GAMEMASTER,
-        "damage zombie 2 magic at 1.5 65 -2",
+        "damage zombie 1.5 wither",
     )
     .unwrap();
     assert_eq!(
         state.damage_events[1].source,
+        DamageCommandSource::Type {
+            damage_type: "minecraft:wither".to_string(),
+        }
+    );
+
+    execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "damage zombie 2 magic at 1.5 65 -2",
+    )
+    .unwrap();
+    assert_eq!(
+        state.damage_events[2].source,
         DamageCommandSource::At {
             damage_type: "minecraft:magic".to_string(),
             location: Vec3 {
@@ -563,7 +576,7 @@ fn damage_command_records_generic_typed_positioned_and_entity_sources() {
     )
     .unwrap();
     assert_eq!(
-        state.damage_events[2].source,
+        state.damage_events[3].source,
         DamageCommandSource::By {
             damage_type: "minecraft:arrow".to_string(),
             entity: EntityRef {
@@ -600,6 +613,14 @@ fn damage_command_rejects_negative_amount_bad_syntax_and_invulnerable_targets() 
             &mut state,
             LevelBasedPermissionSet::GAMEMASTER,
             "damage zombie 1 magic at 1 2"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "damage zombie 1 definitely_not_damage"
         ),
         Err(CommandError::InvalidSyntax)
     );
