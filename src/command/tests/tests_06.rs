@@ -262,12 +262,23 @@ fn ban_and_pardon_commands_track_profiles_and_disconnect_online_players() {
     assert_eq!(list.feedback_key, "commands.banlist.list");
     assert!(!list.broadcast_to_admins);
 
-    let pardoned =
-        execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "pardon Steve")
-            .unwrap();
-    assert_eq!(pardoned.success_count, 1);
+    let pardoned = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::ADMIN,
+        "pardon Steve Alex",
+    )
+    .unwrap();
+    assert_eq!(pardoned.success_count, 2);
     assert_eq!(pardoned.feedback_key, "commands.pardon.success");
-    assert_eq!(state.banned_player_names(), vec!["Alex"]);
+    assert_eq!(
+        state.side_feedback,
+        vec![CommandResult {
+            success_count: 1,
+            feedback_key: "commands.pardon.success",
+            broadcast_to_admins: true,
+        }]
+    );
+    assert!(state.banned_players.is_empty());
     assert_eq!(
         execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "pardon Steve"),
         Err(CommandError::PardonFailed)

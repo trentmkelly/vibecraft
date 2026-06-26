@@ -188,22 +188,35 @@ pub(super) fn pardon_command(
     if parts.len() < 2 {
         return Err(CommandError::InvalidSyntax);
     }
-    let mut count = 0;
-    for target in &parts[1..] {
-        let profile = NameAndId::create_offline(target);
-        if state.remove_player_ban(&profile) {
-            count += 1;
-        }
-    }
-    if count == 0 {
+    let pardoned = parts[1..]
+        .iter()
+        .map(|target| NameAndId::create_offline(target))
+        .filter(|profile| state.remove_player_ban(profile))
+        .collect::<Vec<_>>();
+    if pardoned.is_empty() {
         Err(CommandError::PardonFailed)
     } else {
+        push_extra_admin_feedback(state, pardoned.len(), "commands.pardon.success");
         Ok(CommandResult {
-            success_count: count,
+            success_count: pardoned.len() as i32,
             feedback_key: "commands.pardon.success",
             broadcast_to_admins: true,
         })
     }
+}
+
+fn push_extra_admin_feedback(
+    state: &mut ServerCommandState,
+    changed_count: usize,
+    feedback_key: &'static str,
+) {
+    state
+        .side_feedback
+        .extend((1..changed_count).map(|_| CommandResult {
+            success_count: 1,
+            feedback_key,
+            broadcast_to_admins: true,
+        }));
 }
 
 pub(super) fn pardon_ip_command(

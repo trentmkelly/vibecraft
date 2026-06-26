@@ -873,6 +873,31 @@ fn ban_player_command_source_matches_java_26_1_2() {
 
 #[test]
 #[cfg(vibecraft_has_decompiled_sources)]
+fn pardon_command_source_matches_java_26_1_2() {
+    const PARDON_COMMAND: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/PardonCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"pardon\").requires(Commands.hasPermission(Commands.LEVEL_ADMINS))",
+        "Commands.argument(\"targets\", GameProfileArgument.gameProfile())",
+        "SharedSuggestionProvider.suggest(((CommandSourceStack)c.getSource()).getServer().getPlayerList().getBans().getUserList(), p)",
+        "GameProfileArgument.getGameProfiles(c, \"targets\")",
+        "UserBanList list = source.getServer().getPlayerList().getBans();",
+        "if (list.isBanned(player))",
+        "list.remove(player);",
+        "Component.translatable(\"commands.pardon.success\", Component.literal(player.name()))",
+        "throw ERROR_NOT_BANNED.create();",
+        "return count;",
+    ] {
+        assert!(
+            PARDON_COMMAND.contains(sentinel),
+            "PardonCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
 fn bossbar_command_source_matches_java_26_1_2() {
     const BOSSBAR_COMMAND: &str =
         vibecraft_java_source!("/net/minecraft/server/commands/BossBarCommands.java");
