@@ -608,13 +608,30 @@ pub(super) fn perf_command(
                 return Err(CommandError::PerfNotRunning);
             }
             state.perf_recording = false;
-            state.perf_reports.push(PerfReport {
+            let report = PerfReport {
                 ticks: state.tick_time_samples_nanos.len() as u32,
                 duration_nanos: state.tick_time_samples_nanos.iter().sum(),
+            };
+            if report.ticks > 0 {
+                state.side_feedback.push(CommandResult {
+                    success_count: 0,
+                    feedback_key: "commands.perf.stopped",
+                    broadcast_to_admins: false,
+                });
+            }
+            state.perf_reports.push(report);
+            state.side_feedback.push(CommandResult {
+                success_count: 0,
+                feedback_key: if state.perf_report_should_fail {
+                    "commands.perf.reportFailed"
+                } else {
+                    "commands.perf.reportSaved"
+                },
+                broadcast_to_admins: false,
             });
             Ok(CommandResult {
                 success_count: 0,
-                feedback_key: "commands.perf.stopped",
+                feedback_key: NO_COMMAND_FEEDBACK,
                 broadcast_to_admins: false,
             })
         }

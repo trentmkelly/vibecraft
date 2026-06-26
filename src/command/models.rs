@@ -114,6 +114,7 @@ pub struct ServerCommandState {
     pub chase_events: Vec<ChaseEvent>,
     pub perf_recording: bool,
     pub perf_reports: Vec<PerfReport>,
+    pub perf_report_should_fail: bool,
     pub debug_profiler_running: bool,
     pub debug_profiler_results: Vec<DebugProfilerResult>,
     pub debug_trace_events: Vec<DebugTraceEvent>,

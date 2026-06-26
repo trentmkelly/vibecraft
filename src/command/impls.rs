@@ -58,6 +58,7 @@ macro_rules! default_server_command_state {
             chase_events: Vec::new(),
             perf_recording: false,
             perf_reports: Vec::new(),
+            perf_report_should_fail: false,
             debug_profiler_running: false,
             debug_profiler_results: Vec::new(),
             debug_trace_events: Vec::new(),

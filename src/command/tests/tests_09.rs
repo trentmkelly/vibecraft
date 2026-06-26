@@ -967,13 +967,28 @@ fn perf_command_requires_owner_and_toggles_metrics_recording() {
         execute_builtin_command(&mut state, LevelBasedPermissionSet::OWNER, "perf stop").unwrap();
     assert!(!state.perf_recording);
     assert_eq!(stopped.success_count, 0);
-    assert_eq!(stopped.feedback_key, "commands.perf.stopped");
+    assert_eq!(stopped.feedback_key, NO_COMMAND_FEEDBACK);
     assert_eq!(
         state.perf_reports,
         vec![PerfReport {
             ticks: 2,
             duration_nanos: 110_000_000,
         }]
+    );
+    assert_eq!(
+        state.side_feedback,
+        vec![
+            CommandResult {
+                success_count: 0,
+                feedback_key: "commands.perf.stopped",
+                broadcast_to_admins: false,
+            },
+            CommandResult {
+                success_count: 0,
+                feedback_key: "commands.perf.reportSaved",
+                broadcast_to_admins: false,
+            }
+        ]
     );
     assert_eq!(
         execute_builtin_command(&mut state, LevelBasedPermissionSet::OWNER, "perf stop"),
@@ -983,6 +998,87 @@ fn perf_command_requires_owner_and_toggles_metrics_recording() {
         execute_builtin_command(&mut state, LevelBasedPermissionSet::OWNER, "perf"),
         Err(CommandError::InvalidSyntax)
     );
+}
+
+#[test]
+fn perf_command_models_empty_results_and_report_failure_callbacks() {
+    let mut empty = ServerCommandState {
+        perf_recording: true,
+        tick_time_samples_nanos: Vec::new(),
+        ..ServerCommandState::default()
+    };
+    let stopped =
+        execute_builtin_command(&mut empty, LevelBasedPermissionSet::OWNER, "perf stop").unwrap();
+    assert_eq!(stopped.feedback_key, NO_COMMAND_FEEDBACK);
+    assert_eq!(
+        empty.perf_reports,
+        vec![PerfReport {
+            ticks: 0,
+            duration_nanos: 0,
+        }]
+    );
+    assert_eq!(
+        empty.side_feedback,
+        vec![CommandResult {
+            success_count: 0,
+            feedback_key: "commands.perf.reportSaved",
+            broadcast_to_admins: false,
+        }]
+    );
+
+    let mut failing = ServerCommandState {
+        perf_recording: true,
+        perf_report_should_fail: true,
+        tick_time_samples_nanos: vec![50_000_000],
+        ..ServerCommandState::default()
+    };
+    execute_builtin_command(&mut failing, LevelBasedPermissionSet::OWNER, "perf stop").unwrap();
+    assert_eq!(
+        failing.side_feedback,
+        vec![
+            CommandResult {
+                success_count: 0,
+                feedback_key: "commands.perf.stopped",
+                broadcast_to_admins: false,
+            },
+            CommandResult {
+                success_count: 0,
+                feedback_key: "commands.perf.reportFailed",
+                broadcast_to_admins: false,
+            }
+        ]
+    );
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn perf_command_source_matches_java_26_1_2() {
+    const PERF_COMMAND_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/PerfCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"perf\")",
+        ".requires(Commands.hasPermission(Commands.LEVEL_OWNERS))",
+        "Commands.literal(\"start\").executes(c -> startProfilingDedicatedServer((CommandSourceStack)c.getSource()))",
+        "Commands.literal(\"stop\").executes(c -> stopProfilingDedicatedServer((CommandSourceStack)c.getSource()))",
+        "if (server.isRecordingMetrics())",
+        "throw ERROR_ALREADY_RUNNING.create();",
+        "server.startRecordingMetrics(onStopped, onReportFinished);",
+        "Component.translatable(\"commands.perf.started\")",
+        "return 0;",
+        "if (!server.isRecordingMetrics())",
+        "throw ERROR_NOT_RUNNING.create();",
+        "server.finishRecordingMetrics();",
+        "Component.translatable(\"commands.perf.reportFailed\")",
+        "Component.translatable(\"commands.perf.reportSaved\", zipFile)",
+        "if (results != EmptyProfileResults.EMPTY)",
+        "Component.translatable(\n               \"commands.perf.stopped\"",
+    ] {
+        assert!(
+            PERF_COMMAND_JAVA.contains(sentinel),
+            "PerfCommand.java is missing sentinel: {sentinel}"
+        );
+    }
 }
 
 #[test]
