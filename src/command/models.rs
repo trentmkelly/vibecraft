@@ -724,11 +724,17 @@ pub struct DebugConfigDialogEvent {
 pub enum DialogCommandEvent {
     Show {
         targets: Vec<NameAndId>,
-        dialog: String,
+        dialog: DialogCommandDialog,
     },
     Clear {
         targets: Vec<NameAndId>,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DialogCommandDialog {
+    Reference(String),
+    Inline { title: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

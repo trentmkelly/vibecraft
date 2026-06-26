@@ -19,7 +19,7 @@ fn dialog_command_shows_and_clears_dialog_packets_for_players() {
     let shown = execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::GAMEMASTER,
-        "dialog show Steve Alex minecraft:welcome",
+        "dialog show Steve,Alex minecraft:welcome",
     )
     .unwrap();
     assert_eq!(shown.success_count, 2);
@@ -32,7 +32,7 @@ fn dialog_command_shows_and_clears_dialog_packets_for_players() {
                 NameAndId::create_offline("Steve"),
                 NameAndId::create_offline("Alex"),
             ],
-            dialog: "minecraft:welcome".to_string(),
+            dialog: DialogCommandDialog::Reference("minecraft:welcome".to_string()),
         }
     );
 
@@ -58,6 +58,59 @@ fn dialog_command_shows_and_clears_dialog_packets_for_players() {
         ),
         Err(CommandError::InvalidSyntax)
     );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "dialog clear Steve Alex"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+
+    let inline = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "dialog show Steve {title:\"Welcome\"}",
+    )
+    .unwrap();
+    assert_eq!(inline.success_count, 1);
+    assert_eq!(
+        state.dialog_events[2],
+        DialogCommandEvent::Show {
+            targets: vec![NameAndId::create_offline("Steve")],
+            dialog: DialogCommandDialog::Inline {
+                title: "Welcome".to_string()
+            },
+        }
+    );
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn dialog_command_source_matches_java_26_1_2() {
+    const DIALOG_COMMAND_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/DialogCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"dialog\")",
+        ".requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "Commands.literal(\"show\")",
+        "Commands.argument(\"targets\", EntityArgument.players())",
+        "Commands.argument(\"dialog\", ResourceOrIdArgument.dialog(context))",
+        "target.openDialog(dialog);",
+        "Component.translatable(\"commands.dialog.show.single\"",
+        "Component.translatable(\"commands.dialog.show.multiple\"",
+        "Commands.literal(\"clear\")",
+        "target.connection.send(ClientboundClearDialogPacket.INSTANCE);",
+        "Component.translatable(\"commands.dialog.clear.single\"",
+        "Component.translatable(\"commands.dialog.clear.multiple\"",
+        "return targets.size();",
+    ] {
+        assert!(
+            DIALOG_COMMAND_JAVA.contains(sentinel),
+            "DialogCommand.java is missing sentinel: {sentinel}"
+        );
+    }
 }
 
 #[test]

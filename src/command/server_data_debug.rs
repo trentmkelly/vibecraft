@@ -571,15 +571,14 @@ pub(super) fn dialog_command(
     parts: &[&str],
 ) -> Result<CommandResult, CommandError> {
     match parts {
-        ["dialog", "show", targets @ ..] if targets.len() >= 2 => {
-            let (target_names, dialog) = targets.split_at(targets.len() - 1);
-            let targets = target_names
-                .iter()
-                .map(|target| NameAndId::create_offline(target))
-                .collect::<Vec<_>>();
+        ["dialog", "show", targets, dialog] => {
+            let targets = parse_name_list(targets);
+            if targets.is_empty() {
+                return Err(CommandError::InvalidSyntax);
+            }
             state.dialog_events.push(DialogCommandEvent::Show {
                 targets: targets.clone(),
-                dialog: parse_resource_identifier(dialog[0])?,
+                dialog: parse_dialog_argument(dialog)?,
             });
             Ok(CommandResult {
                 success_count: targets.len() as i32,
@@ -591,11 +590,11 @@ pub(super) fn dialog_command(
                 broadcast_to_admins: true,
             })
         }
-        ["dialog", "clear", targets @ ..] if !targets.is_empty() => {
-            let targets = targets
-                .iter()
-                .map(|target| NameAndId::create_offline(target))
-                .collect::<Vec<_>>();
+        ["dialog", "clear", targets] => {
+            let targets = parse_name_list(targets);
+            if targets.is_empty() {
+                return Err(CommandError::InvalidSyntax);
+            }
             state.dialog_events.push(DialogCommandEvent::Clear {
                 targets: targets.clone(),
             });
@@ -610,6 +609,25 @@ pub(super) fn dialog_command(
             })
         }
         _ => Err(CommandError::InvalidSyntax),
+    }
+}
+
+fn parse_dialog_argument(input: &str) -> Result<DialogCommandDialog, CommandError> {
+    if input.starts_with('{') {
+        let Tag::Compound(fields) = parse_snbt(input).map_err(|_| CommandError::InvalidSyntax)?
+        else {
+            return Err(CommandError::InvalidSyntax);
+        };
+        let title = fields
+            .iter()
+            .find_map(|(key, value)| match (key.as_str(), value) {
+                ("title", Tag::String(title)) => Some(title.clone()),
+                _ => None,
+            })
+            .unwrap_or_default();
+        Ok(DialogCommandDialog::Inline { title })
+    } else {
+        Ok(DialogCommandDialog::Reference(parse_resource_identifier(input)?))
     }
 }
 
