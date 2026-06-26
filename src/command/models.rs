@@ -93,6 +93,8 @@ pub struct ServerCommandState {
     pub player_idle_timeout_minutes: u32,
     pub autosave_enabled: bool,
     pub save_all_requests: Vec<SaveAllRequest>,
+    pub save_all_should_fail: bool,
+    pub side_feedback: Vec<CommandResult>,
     pub published_server: Option<PublishRequest>,
     pub publish_should_fail: bool,
     pub next_available_publish_port: u16,

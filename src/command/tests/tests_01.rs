@@ -102,7 +102,19 @@ fn set_idle_timeout_command_updates_minutes_and_feedback() {
 #[test]
 fn save_commands_track_flush_and_autosave_state() {
     let mut state = ServerCommandState::default();
-    execute_builtin_command(&mut state, LevelBasedPermissionSet::OWNER, "save-all").unwrap();
+    let save = execute_builtin_command(&mut state, LevelBasedPermissionSet::OWNER, "save-all").unwrap();
+    assert_eq!(save.success_count, 1);
+    assert_eq!(save.feedback_key, "commands.save.success");
+    assert!(save.broadcast_to_admins);
+    assert_eq!(
+        state.side_feedback,
+        vec![CommandResult {
+            success_count: 1,
+            feedback_key: "commands.save.saving",
+            broadcast_to_admins: false,
+        }]
+    );
+
     execute_builtin_command(&mut state, LevelBasedPermissionSet::OWNER, "save-all flush").unwrap();
     assert_eq!(
         state.save_all_requests,
@@ -110,6 +122,28 @@ fn save_commands_track_flush_and_autosave_state() {
             SaveAllRequest { flush: false },
             SaveAllRequest { flush: true }
         ]
+    );
+    assert_eq!(state.side_feedback.len(), 2);
+
+    let mut failing_save = ServerCommandState {
+        save_all_should_fail: true,
+        ..ServerCommandState::default()
+    };
+    assert_eq!(
+        execute_builtin_command(&mut failing_save, LevelBasedPermissionSet::OWNER, "save-all"),
+        Err(CommandError::SaveFailed)
+    );
+    assert_eq!(
+        failing_save.save_all_requests,
+        vec![SaveAllRequest { flush: false }]
+    );
+    assert_eq!(
+        failing_save.side_feedback,
+        vec![CommandResult {
+            success_count: 1,
+            feedback_key: "commands.save.saving",
+            broadcast_to_admins: false,
+        }]
     );
 
     let off =

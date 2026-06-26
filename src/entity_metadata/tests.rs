@@ -26,7 +26,9 @@ fn collect_java_sources(root: &Path, paths: &mut Vec<PathBuf>) {
     };
 
     for entry in entries {
-        let path = entry.expect("failed to read decompiled entity source entry").path();
+        let path = entry
+            .unwrap_or_else(|err| panic!("failed to read decompiled entity source entry: {err}"))
+            .path();
         if path.is_dir() {
             collect_java_sources(&path, paths);
         } else if path.extension().and_then(|ext| ext.to_str()) == Some("java") {
@@ -54,30 +56,36 @@ fn extract_java_metadata_accessors(source: &str) -> Vec<(String, JavaMetadataAcc
         if statement.contains("SynchedEntityData.defineId") {
             let before_equals = statement
                 .split_once('=')
-                .expect("metadata accessor declaration should contain '='")
+                .unwrap_or_else(|| panic!("metadata accessor declaration should contain '='"))
                 .0;
             let accessor = before_equals
                 .split_whitespace()
                 .last()
-                .expect("metadata accessor declaration should name an accessor")
+                .unwrap_or_else(|| {
+                    panic!("metadata accessor declaration should name an accessor")
+                })
                 .to_string();
             let define_id_args = statement
                 .split_once("defineId(")
-                .expect("metadata accessor declaration should call defineId")
+                .unwrap_or_else(|| {
+                    panic!("metadata accessor declaration should call defineId")
+                })
                 .1;
             let class_part = define_id_args
                 .split_once(".class")
-                .expect("defineId first argument should be a class literal")
+                .unwrap_or_else(|| panic!("defineId first argument should be a class literal"))
                 .0
                 .trim();
             let class_name = class_part
                 .rsplit('.')
                 .next()
-                .expect("class literal should have a final class segment")
+                .unwrap_or_else(|| panic!("class literal should have a final class segment"))
                 .to_string();
             let serializer = define_id_args
                 .split_once("EntityDataSerializers.")
-                .expect("defineId second argument should be an entity data serializer")
+                .unwrap_or_else(|| {
+                    panic!("defineId second argument should be an entity data serializer")
+                })
                 .1
                 .chars()
                 .take_while(|ch| ch.is_ascii_alphanumeric() || *ch == '_')

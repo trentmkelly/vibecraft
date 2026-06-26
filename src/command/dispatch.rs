@@ -227,7 +227,17 @@ fn save_all_command(
         ["save-all", "flush"] => true,
         _ => return Err(CommandError::InvalidSyntax),
     };
+    state
+        .side_feedback
+        .push(CommandResult {
+            success_count: 1,
+            feedback_key: "commands.save.saving",
+            broadcast_to_admins: false,
+        });
     state.save_all_requests.push(SaveAllRequest { flush });
+    if state.save_all_should_fail {
+        return Err(CommandError::SaveFailed);
+    }
     Ok(success_result("commands.save.success", true))
 }
 

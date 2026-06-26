@@ -47,6 +47,9 @@ mod tests {
     use super::*;
 
     #[cfg(vibecraft_has_decompiled_sources)]
+    const SAVE_ALL_COMMAND_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/SaveAllCommand.java");
+    #[cfg(vibecraft_has_decompiled_sources)]
     const SAVE_OFF_COMMAND_JAVA: &str =
         vibecraft_java_source!("/net/minecraft/server/commands/SaveOffCommand.java");
     #[cfg(vibecraft_has_decompiled_sources)]
@@ -85,6 +88,27 @@ mod tests {
                 broadcast_to_admins: true,
             })
         );
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn save_all_command_source_matches_java_26_1_2() {
+        for sentinel in [
+            "Commands.literal(\"save-all\")",
+            ".requires(Commands.hasPermission(Commands.LEVEL_OWNERS))",
+            ".executes(c -> saveAll((CommandSourceStack)c.getSource(), false))",
+            "Commands.literal(\"flush\").executes(c -> saveAll((CommandSourceStack)c.getSource(), true))",
+            "source.sendSuccess(() -> Component.translatable(\"commands.save.saving\"), false);",
+            "boolean success = server.saveEverything(true, flush, true);",
+            "throw ERROR_FAILED.create();",
+            "source.sendSuccess(() -> Component.translatable(\"commands.save.success\"), true);",
+            "return 1;",
+        ] {
+            assert!(
+                SAVE_ALL_COMMAND_JAVA.contains(sentinel),
+                "SaveAllCommand.java is missing sentinel: {sentinel}"
+            );
+        }
     }
 
     #[test]

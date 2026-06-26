@@ -596,7 +596,7 @@ mod tests {
             "worldgen",
             "template_pool",
         ]))
-        .expect("vanilla template-pool registry should load")
+        .unwrap_or_else(|err| panic!("vanilla template-pool registry should load: {err}"))
     }
 
     #[test]

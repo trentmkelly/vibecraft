@@ -7,7 +7,7 @@ fn load_vanilla_template_pools() -> crate::worldgen::ParsedTemplatePoolRegistry 
         "worldgen",
         "template_pool",
     ]))
-        .expect("vanilla template-pool registry should load")
+    .unwrap_or_else(|err| panic!("vanilla template-pool registry should load: {err}"))
 }
 
 fn assert_single_processor_pool(

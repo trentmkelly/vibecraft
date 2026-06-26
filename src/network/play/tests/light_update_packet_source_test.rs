@@ -124,10 +124,16 @@ fn expected_light_update_payload() -> Vec<u8> {
     expected.extend_from_slice(&0b1_0000_u64.to_be_bytes());
     expected.push(0x01);
     expected.extend_from_slice(&[0x80, 0x10]);
-    expected.extend(std::iter::repeat(0xff).take(ClientboundLightUpdatePacketData::DATA_LAYER_SIZE));
+    expected.extend(std::iter::repeat_n(
+        0xff,
+        ClientboundLightUpdatePacketData::DATA_LAYER_SIZE,
+    ));
     expected.push(0x01);
     expected.extend_from_slice(&[0x80, 0x10]);
-    expected.extend(std::iter::repeat(0x01).take(ClientboundLightUpdatePacketData::DATA_LAYER_SIZE));
+    expected.extend(std::iter::repeat_n(
+        0x01,
+        ClientboundLightUpdatePacketData::DATA_LAYER_SIZE,
+    ));
     expected
 }
 

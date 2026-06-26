@@ -37,6 +37,8 @@ macro_rules! default_server_command_state {
             player_idle_timeout_minutes: 0,
             autosave_enabled: true,
             save_all_requests: Vec::new(),
+            save_all_should_fail: false,
+            side_feedback: Vec::new(),
             published_server: None,
             publish_should_fail: false,
             next_available_publish_port: 25565,

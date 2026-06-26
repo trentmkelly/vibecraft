@@ -16,6 +16,7 @@ const FRIENDLY_BYTE_BUF_JAVA: &str =
     vibecraft_java_source!("/net/minecraft/network/FriendlyByteBuf.java");
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn clientbound_player_chat_packet_matches_java_codec_sources() {
     assert_java_contains(
         CLIENTBOUND_PLAYER_CHAT_JAVA,

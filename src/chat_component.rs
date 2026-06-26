@@ -880,6 +880,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::cognitive_complexity)]
     fn style_accessors_mutators_formats_merge_and_debug_string_match_java() {
         use crate::chat_formatting::ChatFormatting;
 
