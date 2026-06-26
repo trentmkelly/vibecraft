@@ -597,3 +597,54 @@ fn loot_command_source_matches_java_26_1_2() {
         );
     }
 }
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn place_command_source_matches_java_26_1_2() {
+    const PLACE: &str = vibecraft_java_source!("/net/minecraft/server/commands/PlaceCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"place\")",
+        ".requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "Commands.literal(\"feature\")",
+        "ResourceKeyArgument.key(Registries.CONFIGURED_FEATURE)",
+        "BlockPos.containing(((CommandSourceStack)c.getSource()).getPosition())",
+        "BlockPosArgument.getLoadedBlockPos(c, \"pos\")",
+        "Commands.literal(\"jigsaw\")",
+        "ResourceKeyArgument.key(Registries.TEMPLATE_POOL)",
+        "IdentifierArgument.id()",
+        "IntegerArgumentType.integer(1, 20)",
+        "JigsawPlacement.generateJigsaw(level, pool, target, maxDepth, pos, false)",
+        "throw ERROR_JIGSAW_FAILED.create();",
+        "Commands.literal(\"structure\")",
+        "ResourceKeyArgument.key(Registries.STRUCTURE)",
+        "structure.generate(",
+        "throw ERROR_STRUCTURE_FAILED.create();",
+        "Commands.literal(\"template\")",
+        "Commands.argument(\"template\", IdentifierArgument.id())",
+        ".suggests(SUGGEST_TEMPLATES)",
+        "TemplateRotationArgument.templateRotation()",
+        "TemplateMirrorArgument.templateMirror()",
+        "FloatArgumentType.floatArg(0.0F, 1.0F)",
+        "IntegerArgumentType.integer()",
+        "Commands.literal(\"strict\")",
+        "throw ERROR_TEMPLATE_INVALID.create(template);",
+        "new StructurePlaceSettings().setMirror(mirror).setRotation(rotation).setKnownShape(strict)",
+        "new BlockRotProcessor(integrity)",
+        "StructureBlockEntity.createRandom(seed)",
+        "structureTemplate.placeInWorld(level, pos, pos, placeSettings, StructureBlockEntity.createRandom(seed), 2 | (strict ? 816 : 0))",
+        "throw ERROR_TEMPLATE_FAILED.create();",
+        "commands.place.feature.success",
+        "commands.place.jigsaw.success",
+        "commands.place.structure.success",
+        "commands.place.template.success",
+        "private static void checkLoaded(final ServerLevel level, final ChunkPos chunkMin, final ChunkPos chunkMax)",
+        "BlockPosArgument.ERROR_NOT_LOADED.create()",
+        "return 1;",
+    ] {
+        assert!(
+            PLACE.contains(sentinel),
+            "PlaceCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+}

@@ -10,7 +10,7 @@ use crate::storage::nbt::{parse_snbt, Tag};
 use crate::world_border::{WorldBorder, WORLD_BORDER_MAX_CENTER_COORDINATE, WORLD_BORDER_MAX_SIZE};
 use crate::worldgen::{
     builtin_noise_router, configured_feature, get_biome, noise_router_id_for_settings,
-    resolve_world_preset, ClimateSampler, ResolvedChunkGenerator,
+    resolve_world_preset, ClimateSampler, ResolvedChunkGenerator, JIGSAW_STRUCTURE_START_POOLS,
 };
 
 mod models;

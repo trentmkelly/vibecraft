@@ -561,6 +561,22 @@ fn place_command_reports_vanilla_failure_paths() {
         execute_builtin_command(
             &mut state,
             LevelBasedPermissionSet::GAMEMASTER,
+            "place jigsaw village/plains/town_centers minecraft:bottom 21"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "place jigsaw missing_pool minecraft:bottom 4"
+        ),
+        Err(CommandError::PlaceJigsawFailed)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
             "place structure not_a_structure"
         ),
         Err(CommandError::PlaceStructureFailed)
@@ -581,6 +597,14 @@ fn place_command_reports_vanilla_failure_paths() {
             &mut state,
             LevelBasedPermissionSet::GAMEMASTER,
             "place template house 0 64 0 bad_rotation"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "place template house 0 64 0 none none 1.5"
         ),
         Err(CommandError::InvalidSyntax)
     );

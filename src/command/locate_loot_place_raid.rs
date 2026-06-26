@@ -753,6 +753,9 @@ pub(super) fn place_jigsaw_command(
     if !(1..=20).contains(&max_depth) {
         return Err(CommandError::InvalidSyntax);
     }
+    if !is_known_jigsaw_start_pool(&pool) {
+        return Err(CommandError::PlaceJigsawFailed);
+    }
     state.place_events.push(CommandPlaceEvent {
         kind: PlaceKind::Jigsaw,
         id: pool,
@@ -766,6 +769,12 @@ pub(super) fn place_jigsaw_command(
         max_depth: Some(max_depth),
     });
     Ok(place_result("commands.place.jigsaw.success"))
+}
+
+fn is_known_jigsaw_start_pool(pool: &str) -> bool {
+    JIGSAW_STRUCTURE_START_POOLS
+        .iter()
+        .any(|entry| entry.pool == pool)
 }
 
 pub(super) fn place_structure_command(
