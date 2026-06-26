@@ -751,6 +751,70 @@ fn op_and_deop_command_sources_match_java_26_1_2() {
 
 #[test]
 #[cfg(vibecraft_has_decompiled_sources)]
+fn debug_and_debugconfig_command_sources_match_java_26_1_2() {
+    const DEBUG_COMMAND: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/DebugCommand.java");
+    const DEBUG_CONFIG_COMMAND: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/DebugConfigCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"debug\")\n                     .requires(Commands.hasPermission(Commands.LEVEL_ADMINS))",
+        "Commands.literal(\"start\").executes(c -> start((CommandSourceStack)c.getSource()))",
+        "Commands.literal(\"stop\").executes(c -> stop((CommandSourceStack)c.getSource()))",
+        "Commands.literal(\"function\").requires(Commands.hasPermission(Commands.LEVEL_ADMINS))",
+        "Commands.argument(\"name\", FunctionArgument.functions())",
+        ".suggests(FunctionCommand.SUGGEST_FUNCTION)",
+        "throw ERROR_ALREADY_RUNNING.create();",
+        "server.startTimeProfiler();",
+        "Component.translatable(\"commands.debug.started\")",
+        "throw ERROR_NOT_RUNNING.create();",
+        "ProfileResults results = server.stopTimeProfiler();",
+        "return (int)tps;",
+        "if (modifiers.isReturn())",
+        "throw DebugCommand.NO_RETURN_RUN.create();",
+        "if (context.tracer() != null)",
+        "throw DebugCommand.NO_RECURSIVE_TRACES.create();",
+        "FunctionArgument.getFunctions(currentContext, \"name\")",
+        "String outputName = \"debug-trace-\" + Util.getFilenameFormattedDateTime() + \".txt\";",
+        "Files.createDirectories(dirPath);",
+        "source.withSource(tracer).withMaximumPermission(LevelBasedPermissionSet.GAMEMASTER)",
+        "context.queueNext((new CallFunction<CommandSourceStack>(instantiatedFunction, CommandResultCallback.EMPTY, false)",
+        "Component.translatable(\"commands.debug.function.traceFailed\")",
+        "Component.translatable(\n                        \"commands.debug.function.success.single\"",
+        "Component.translatable(\"commands.debug.function.success.multiple\"",
+    ] {
+        assert!(
+            DEBUG_COMMAND.contains(sentinel),
+            "DebugCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+
+    for sentinel in [
+        "Commands.literal(\"debugconfig\")\n                     .requires(Commands.hasPermission(Commands.LEVEL_ADMINS))",
+        "Commands.literal(\"config\")",
+        "Commands.argument(\"target\", EntityArgument.player())",
+        "target.connection.switchToConfig();",
+        "Component.literal(\"Switched player \" + gameProfile.name() + \"(\" + gameProfile.id() + \") to config mode\")",
+        "Commands.literal(\"unconfig\")",
+        "Commands.argument(\"target\", UuidArgument.uuid())",
+        "SharedSuggestionProvider.suggest(getUuidsInConfig(((CommandSourceStack)c.getSource()).getServer()), p)",
+        "listener.returnToWorld();",
+        "source.sendFailure(Component.literal(\"Can't find player to unconfig\"));",
+        "Commands.literal(\"dialog\")",
+        "Commands.argument(\"dialog\", ResourceOrIdArgument.dialog(context))",
+        "listener.send(new ClientboundShowDialogPacket(dialog));",
+        "source.sendFailure(Component.literal(\"Can't find player to talk to\"));",
+        "return 0;",
+    ] {
+        assert!(
+            DEBUG_CONFIG_COMMAND.contains(sentinel),
+            "DebugConfigCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
 fn ban_ip_command_source_matches_java_26_1_2() {
     const BAN_IP_COMMAND: &str =
         vibecraft_java_source!("/net/minecraft/server/commands/BanIpCommands.java");

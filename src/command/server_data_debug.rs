@@ -387,7 +387,7 @@ pub(super) fn debug_command(
                 0
             } else {
                 ((result.tick_duration as f64) / ((result.duration_nanos as f64) / 1_000_000_000.0))
-                    .round() as i32
+                    as i32
             };
             Ok(CommandResult {
                 success_count: tps,
@@ -439,10 +439,11 @@ pub(super) fn debug_config_command(
             })
         }
         ["debugconfig", "unconfig", target] => {
+            let target = parse_uuid_string(target)?;
             let old_len = state.config_players.len();
             state
                 .config_players
-                .retain(|known| known.uuid != *target && known.name != *target);
+                .retain(|known| known.uuid != target);
             Ok(CommandResult {
                 success_count: if old_len == state.config_players.len() {
                     0
@@ -458,10 +459,11 @@ pub(super) fn debug_config_command(
             })
         }
         ["debugconfig", "dialog", target, dialog] => {
+            let target = parse_uuid_string(target)?;
             if !state
                 .config_players
                 .iter()
-                .any(|known| known.uuid == *target || known.name == *target)
+                .any(|known| known.uuid == target)
             {
                 return Ok(CommandResult {
                     success_count: 0,
@@ -470,7 +472,7 @@ pub(super) fn debug_config_command(
                 });
             }
             state.config_dialog_events.push(DebugConfigDialogEvent {
-                target: (*target).to_string(),
+                target,
                 dialog: parse_resource_identifier(dialog)?,
             });
             Ok(CommandResult {

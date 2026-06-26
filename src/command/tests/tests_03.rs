@@ -608,7 +608,7 @@ fn debug_command_starts_stops_and_records_function_traces() {
     let mut state = ServerCommandState {
         debug_profiler_results: vec![super::DebugProfilerResult {
             duration_nanos: 2_000_000_000,
-            tick_duration: 40,
+            tick_duration: 41,
         }],
         macro_functions: vec!["minecraft:test".to_string(), "minecraft:test".to_string()],
         ..ServerCommandState::default()
@@ -682,29 +682,24 @@ fn debugconfig_moves_players_through_configuration_and_dialogs() {
         PermissionLevel::Admins
     );
 
-    let config = execute_builtin_command(
-        &mut state,
-        LevelBasedPermissionSet::ADMIN,
-        "debugconfig config Steve",
-    )
-    .unwrap();
+    let config =
+        execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "debugconfig config Steve")
+            .unwrap();
     assert_eq!(config.success_count, 1);
-    assert_eq!(
-        state.config_players,
-        vec![NameAndId::create_offline("Steve")]
-    );
+    let steve = NameAndId::create_offline("Steve");
+    assert_eq!(state.config_players, vec![steve.clone()]);
 
     let dialog = execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::ADMIN,
-        "debugconfig dialog Steve minecraft:test_dialog",
+        &format!("debugconfig dialog {} minecraft:test_dialog", steve.uuid),
     )
     .unwrap();
     assert_eq!(dialog.success_count, 1);
     assert_eq!(
         state.config_dialog_events,
         vec![super::DebugConfigDialogEvent {
-            target: "Steve".to_string(),
+            target: steve.uuid.clone(),
             dialog: "minecraft:test_dialog".to_string(),
         }]
     );
@@ -712,7 +707,7 @@ fn debugconfig_moves_players_through_configuration_and_dialogs() {
     let unconfig = execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::ADMIN,
-        "debugconfig unconfig Steve",
+        &format!("debugconfig unconfig {}", steve.uuid),
     )
     .unwrap();
     assert_eq!(unconfig.success_count, 1);
@@ -720,7 +715,7 @@ fn debugconfig_moves_players_through_configuration_and_dialogs() {
     let missing = execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::ADMIN,
-        "debugconfig dialog Steve minecraft:test_dialog",
+        &format!("debugconfig dialog {} minecraft:test_dialog", steve.uuid),
     )
     .unwrap();
     assert_eq!(missing.success_count, 0);
