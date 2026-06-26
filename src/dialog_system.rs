@@ -17,6 +17,27 @@ pub enum DialogBodyType {
     Item,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DialogActionType {
+    OpenUrl,
+    RunCommand,
+    SuggestCommand,
+    ShowDialog,
+    ChangePage,
+    CopyToClipboard,
+    Custom,
+    DynamicRunCommand,
+    DynamicCustom,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InputControlType {
+    Boolean,
+    NumberRange,
+    SingleOption,
+    Text,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DialogDefinition {
     pub id: String,
@@ -120,8 +141,31 @@ pub fn dialog_types() -> &'static [(&'static str, DialogType)] {
 
 pub fn dialog_body_types() -> &'static [(&'static str, DialogBodyType)] {
     &[
-        ("plain_message", DialogBodyType::PlainMessage),
         ("item", DialogBodyType::Item),
+        ("plain_message", DialogBodyType::PlainMessage),
+    ]
+}
+
+pub fn dialog_action_types() -> &'static [(&'static str, DialogActionType)] {
+    &[
+        ("open_url", DialogActionType::OpenUrl),
+        ("run_command", DialogActionType::RunCommand),
+        ("suggest_command", DialogActionType::SuggestCommand),
+        ("show_dialog", DialogActionType::ShowDialog),
+        ("change_page", DialogActionType::ChangePage),
+        ("copy_to_clipboard", DialogActionType::CopyToClipboard),
+        ("custom", DialogActionType::Custom),
+        ("dynamic/run_command", DialogActionType::DynamicRunCommand),
+        ("dynamic/custom", DialogActionType::DynamicCustom),
+    ]
+}
+
+pub fn input_control_types() -> &'static [(&'static str, InputControlType)] {
+    &[
+        ("boolean", InputControlType::Boolean),
+        ("number_range", InputControlType::NumberRange),
+        ("single_option", InputControlType::SingleOption),
+        ("text", InputControlType::Text),
     ]
 }
 
@@ -283,9 +327,92 @@ mod tests {
                 .iter()
                 .map(|(id, _)| *id)
                 .collect::<Vec<_>>(),
-            vec!["plain_message", "item"]
+            vec!["item", "plain_message"]
+        );
+        assert_eq!(
+            dialog_action_types()
+                .iter()
+                .map(|(id, _)| *id)
+                .collect::<Vec<_>>(),
+            vec![
+                "open_url",
+                "run_command",
+                "suggest_command",
+                "show_dialog",
+                "change_page",
+                "copy_to_clipboard",
+                "custom",
+                "dynamic/run_command",
+                "dynamic/custom"
+            ]
+        );
+        assert_eq!(
+            input_control_types()
+                .iter()
+                .map(|(id, _)| *id)
+                .collect::<Vec<_>>(),
+            vec!["boolean", "number_range", "single_option", "text"]
         );
         assert_eq!(dialog_tags(), &["pause_screen_additions", "quick_actions"]);
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn dialog_registry_bootstrap_sources_match_java_26_1_2() {
+        const DIALOG_TYPES: &str =
+            vibecraft_java_source!("/net/minecraft/server/dialog/DialogTypes.java");
+        const ACTION_TYPES: &str =
+            vibecraft_java_source!("/net/minecraft/server/dialog/action/ActionTypes.java");
+        const BODY_TYPES: &str =
+            vibecraft_java_source!("/net/minecraft/server/dialog/body/DialogBodyTypes.java");
+        const INPUT_TYPES: &str =
+            vibecraft_java_source!("/net/minecraft/server/dialog/input/InputControlTypes.java");
+
+        for sentinel in [
+            "Registry.register(registry, \"notice\", NoticeDialog.MAP_CODEC);",
+            "Registry.register(registry, \"server_links\", ServerLinksDialog.MAP_CODEC);",
+            "Registry.register(registry, \"dialog_list\", DialogListDialog.MAP_CODEC);",
+            "Registry.register(registry, \"multi_action\", MultiActionDialog.MAP_CODEC);",
+            "return Registry.register(registry, \"confirmation\", ConfirmationDialog.MAP_CODEC);",
+        ] {
+            assert!(
+                DIALOG_TYPES.contains(sentinel),
+                "DialogTypes.java is missing sentinel: {sentinel}"
+            );
+        }
+
+        for sentinel in [
+            "StaticAction.WRAPPED_CODECS.forEach((action, codec) -> Registry.register(registry, Identifier.withDefaultNamespace(action.getSerializedName()), codec));",
+            "Registry.register(registry, Identifier.withDefaultNamespace(\"dynamic/run_command\"), CommandTemplate.MAP_CODEC);",
+            "return Registry.register(registry, Identifier.withDefaultNamespace(\"dynamic/custom\"), CustomAll.MAP_CODEC);",
+        ] {
+            assert!(
+                ACTION_TYPES.contains(sentinel),
+                "ActionTypes.java is missing sentinel: {sentinel}"
+            );
+        }
+
+        for sentinel in [
+            "Registry.register(registry, Identifier.withDefaultNamespace(\"item\"), ItemBody.MAP_CODEC);",
+            "return Registry.register(registry, Identifier.withDefaultNamespace(\"plain_message\"), PlainMessage.MAP_CODEC);",
+        ] {
+            assert!(
+                BODY_TYPES.contains(sentinel),
+                "DialogBodyTypes.java is missing sentinel: {sentinel}"
+            );
+        }
+
+        for sentinel in [
+            "Registry.register(registry, Identifier.withDefaultNamespace(\"boolean\"), BooleanInput.MAP_CODEC);",
+            "Registry.register(registry, Identifier.withDefaultNamespace(\"number_range\"), NumberRangeInput.MAP_CODEC);",
+            "Registry.register(registry, Identifier.withDefaultNamespace(\"single_option\"), SingleOptionInput.MAP_CODEC);",
+            "return Registry.register(registry, Identifier.withDefaultNamespace(\"text\"), TextInput.MAP_CODEC);",
+        ] {
+            assert!(
+                INPUT_TYPES.contains(sentinel),
+                "InputControlTypes.java is missing sentinel: {sentinel}"
+            );
+        }
     }
 
     #[test]

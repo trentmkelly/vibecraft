@@ -1471,7 +1471,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/Dialog.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/DialogAction.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/DialogListDialog.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/DialogTypes.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/DialogTypes.java`. Rust `dialog_system::dialog_types()` mirrors Java 26.1.2's dialog type bootstrap IDs (`notice`, `server_links`, `dialog_list`, `multi_action`, `confirmation`) and pins the Java registration calls through source-backed `dialog_registry_bootstrap_sources_match_java_26_1_2`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/Dialogs.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/Input.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/MultiActionDialog.java`.
@@ -1482,7 +1482,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 ## `decompiled-server-26.1.2/net/minecraft/server/dialog/action`
 
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/action/Action.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/action/ActionTypes.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/action/ActionTypes.java`. Rust `dialog_system::dialog_action_types()` mirrors Java 26.1.2's server-allowed static click-action registrations plus `dynamic/run_command` and `dynamic/custom`, with static click-action membership cross-pinned by `chat_component` ClickEvent parity and Java bootstrap calls pinned by `dialog_registry_bootstrap_sources_match_java_26_1_2`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/action/CommandTemplate.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/action/CustomAll.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/action/ParsedTemplate.java`.
@@ -1492,7 +1492,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 ## `decompiled-server-26.1.2/net/minecraft/server/dialog/body`
 
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/body/DialogBody.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/body/DialogBodyTypes.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/body/DialogBodyTypes.java`. Rust `dialog_system::dialog_body_types()` mirrors Java 26.1.2's dialog body type bootstrap order and IDs (`item`, `plain_message`), covered by `dialog_registry_surface_and_tags_match_vanilla_bootstrap` and source-backed `dialog_registry_bootstrap_sources_match_java_26_1_2`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/body/ItemBody.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/body/PlainMessage.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/body/package-info.java`. Java 26.1.2 package marker contains only `@NullMarked`, the package declaration, and the `org.jspecify.annotations.NullMarked` import; no Rust runtime behavior or parity test is required beyond preserving nullability expectations in typed Rust APIs.
@@ -1501,7 +1501,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/input/BooleanInput.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/input/InputControl.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/input/InputControlTypes.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/input/InputControlTypes.java`. Rust `dialog_system::input_control_types()` mirrors Java 26.1.2's input control type bootstrap IDs (`boolean`, `number_range`, `single_option`, `text`), covered by `dialog_registry_surface_and_tags_match_vanilla_bootstrap` and source-backed `dialog_registry_bootstrap_sources_match_java_26_1_2`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/input/NumberRangeInput.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/input/SingleOptionInput.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/input/TextInput.java`.
