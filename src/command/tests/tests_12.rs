@@ -532,3 +532,68 @@ fn locate_command_source_matches_java_26_1_2() {
         );
     }
 }
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn loot_command_source_matches_java_26_1_2() {
+    const LOOT: &str = vibecraft_java_source!("/net/minecraft/server/commands/LootCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"loot\")",
+        ".requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "Commands.literal(\"replace\")",
+        "Commands.literal(\"entity\")",
+        "Commands.literal(\"block\")",
+        "Commands.literal(\"insert\")",
+        "Commands.literal(\"give\")",
+        "Commands.literal(\"spawn\")",
+        "Commands.literal(\"fish\")",
+        "Commands.literal(\"kill\")",
+        "Commands.literal(\"mine\")",
+        "ResourceOrIdArgument.lootTable(context)",
+        "ItemArgument.item(context)",
+        "SlotArgument.slot()",
+        "IntegerArgumentType.integer(0)",
+        "Vec3Argument.vec3()",
+        "private static Container getContainer(final CommandSourceStack source, final BlockPos pos)",
+        "throw ItemCommands.ERROR_TARGET_NOT_A_CONTAINER.create",
+        "private static int blockDistribute",
+        "if (distributeToContainer(container, drop.copy()))",
+        "private static boolean distributeToContainer",
+        "if (current.isEmpty())",
+        "if (canMergeItems(current, itemStack))",
+        "private static int blockReplace",
+        "throw ItemCommands.ERROR_TARGET_INAPPLICABLE_SLOT.create(startSlot)",
+        "usedItems.add(toAdd);",
+        "private static int playerGive",
+        "if (player.getInventory().add(drop.copy()))",
+        "private static void setSlots",
+        "ItemStack item = i < itemsToSet.size() ? itemsToSet.get(i) : ItemStack.EMPTY;",
+        "private static int entityReplace",
+        "private static int dropInWorld",
+        "commands.drop.success.single",
+        "commands.drop.success.multiple",
+        "commands.drop.success.single_with_table",
+        "commands.drop.success.multiple_with_table",
+        "private static ItemStack getSourceHandItem",
+        "throw ERROR_NO_HELD_ITEMS.create",
+        "private static int dropBlockLoot",
+        "throw ERROR_NO_BLOCK_LOOT_TABLE.create",
+        "withParameter(LootContextParams.BLOCK_STATE, blockState)",
+        "withOptionalParameter(LootContextParams.BLOCK_ENTITY, blockEntity)",
+        "withParameter(LootContextParams.TOOL, tool)",
+        "private static int dropKillLoot",
+        "throw ERROR_NO_ENTITY_LOOT_TABLE.create",
+        "withParameter(LootContextParams.DAMAGE_SOURCE, target.damageSources().magic())",
+        "private static int dropChestLoot",
+        "create(LootContextParamSets.CHEST)",
+        "private static int dropFishingLoot",
+        "create(LootContextParamSets.FISHING)",
+        "return output.accept(context, drops, usedItems -> callback(source, usedItems));",
+    ] {
+        assert!(
+            LOOT.contains(sentinel),
+            "LootCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+}

@@ -380,6 +380,7 @@ pub(super) fn apply_loot_target(
 ) -> Result<Vec<CommandItemStack>, CommandError> {
     match target {
         CommandLootTarget::Give { players } => {
+            let mut used = Vec::new();
             for player in players {
                 for drop in drops {
                     command_inventory_mut(state, player).add_item_stacks(
@@ -387,21 +388,22 @@ pub(super) fn apply_loot_target(
                         drop.count,
                         item_max_stack_size(&drop.item),
                     );
+                    used.push(drop.clone());
                 }
             }
-            Ok(drops.to_vec())
+            Ok(used)
         }
         CommandLootTarget::Spawn { .. } => Ok(drops.to_vec()),
         CommandLootTarget::Insert { pos } => {
-            for (index, drop) in drops.iter().enumerate() {
-                upsert_block_item(
-                    state,
-                    *pos,
-                    &format!("container.{index}"),
-                    Some(drop.clone()),
-                );
+            ensure_loot_block_container(state, pos)?;
+            let slots = block_container_slots(state, pos);
+            let mut used = Vec::new();
+            for drop in drops {
+                if distribute_loot_to_block_container(state, pos, &slots, drop) {
+                    used.push(drop.clone());
+                }
             }
-            Ok(drops.to_vec())
+            Ok(used)
         }
         CommandLootTarget::ReplaceEntity {
             entities,
@@ -417,15 +419,19 @@ pub(super) fn apply_loot_target(
             for entity in entities {
                 for index in 0..count {
                     let item = drops.get(index).cloned();
-                    if let Some(stack) = item.clone() {
-                        used.push(stack);
-                    }
+                    used.push(item.clone().unwrap_or_else(empty_loot_stack));
                     upsert_entity_item(state, entity.clone(), &offset_slot(slot, index), item);
                 }
             }
             Ok(used)
         }
         CommandLootTarget::ReplaceBlock { pos, slot, count } => {
+            ensure_loot_block_container(state, pos)?;
+            let start_slot = loot_slot_index(slot).ok_or(CommandError::ItemTargetNoSuchSlot)?;
+            let slots = block_container_slots(state, pos);
+            if !slots.iter().any(|(index, _)| *index == start_slot) {
+                return Err(CommandError::ItemTargetNoSuchSlot);
+            }
             let count = if *count == usize::MAX {
                 drops.len()
             } else {
@@ -433,15 +439,138 @@ pub(super) fn apply_loot_target(
             };
             let mut used = Vec::new();
             for index in 0..count {
+                let target_slot = start_slot + index as i32;
+                let Some((_, slot_name)) = slots.iter().find(|(index, _)| *index == target_slot)
+                else {
+                    continue;
+                };
                 let item = drops.get(index).cloned();
-                if let Some(stack) = item.clone() {
-                    used.push(stack);
-                }
-                upsert_block_item(state, *pos, &offset_slot(slot, index), item);
+                used.push(item.clone().unwrap_or_else(empty_loot_stack));
+                upsert_block_item(state, *pos, slot_name, item);
             }
             Ok(used)
         }
     }
+}
+
+fn ensure_loot_block_container(
+    state: &ServerCommandState,
+    pos: &BlockPos,
+) -> Result<(), CommandError> {
+    if state.block_item_slots.iter().any(|entry| entry.pos == *pos) {
+        Ok(())
+    } else {
+        Err(CommandError::ItemTargetNotContainer)
+    }
+}
+
+fn block_container_slots(state: &ServerCommandState, pos: &BlockPos) -> Vec<(i32, String)> {
+    let mut slots = state
+        .block_item_slots
+        .iter()
+        .filter(|entry| entry.pos == *pos)
+        .filter_map(|entry| loot_slot_index(&entry.slot).map(|index| (index, entry.slot.clone())))
+        .collect::<Vec<_>>();
+    slots.sort_by_key(|(index, _)| *index);
+    slots.dedup_by_key(|(index, _)| *index);
+    slots
+}
+
+fn distribute_loot_to_block_container(
+    state: &mut ServerCommandState,
+    pos: &BlockPos,
+    slots: &[(i32, String)],
+    drop: &CommandItemStack,
+) -> bool {
+    let mut remaining = drop.count;
+    let mut changed = false;
+    for (_, slot) in slots {
+        if remaining <= 0 {
+            break;
+        }
+        let Some(entry) = state
+            .block_item_slots
+            .iter_mut()
+            .find(|entry| entry.pos == *pos && entry.slot == *slot)
+        else {
+            continue;
+        };
+        match &mut entry.item {
+            None => {
+                entry.item = Some(CommandItemStack {
+                    item: drop.item.clone(),
+                    count: remaining,
+                });
+                changed = true;
+                break;
+            }
+            Some(current)
+                if current.item == drop.item
+                    && current.count <= item_max_stack_size(&current.item) =>
+            {
+                let space = item_max_stack_size(&current.item) - current.count;
+                let moved = remaining.min(space);
+                if moved > 0 {
+                    current.count += moved;
+                    remaining -= moved;
+                    changed = true;
+                }
+            }
+            Some(_) => {}
+        }
+    }
+    changed
+}
+
+fn empty_loot_stack() -> CommandItemStack {
+    CommandItemStack {
+        item: "minecraft:air".to_string(),
+        count: 0,
+    }
+}
+
+fn loot_slot_index(slot: &str) -> Option<i32> {
+    match slot {
+        "contents" | "hotbar.0" | "container.0" => Some(0),
+        "hotbar.1" | "container.1" => Some(1),
+        "hotbar.2" | "container.2" => Some(2),
+        "hotbar.3" | "container.3" => Some(3),
+        "hotbar.4" | "container.4" => Some(4),
+        "hotbar.5" | "container.5" => Some(5),
+        "hotbar.6" | "container.6" => Some(6),
+        "hotbar.7" | "container.7" => Some(7),
+        "hotbar.8" | "container.8" => Some(8),
+        "weapon" | "weapon.mainhand" => Some(98),
+        "weapon.offhand" => Some(99),
+        "armor.feet" => Some(100),
+        "armor.legs" => Some(101),
+        "armor.chest" => Some(102),
+        "armor.head" => Some(103),
+        "armor.body" => Some(105),
+        "saddle" => Some(106),
+        "horse.chest" | "player.cursor" => Some(499),
+        _ => numbered_loot_slot_index(slot),
+    }
+}
+
+fn numbered_loot_slot_index(slot: &str) -> Option<i32> {
+    for (prefix, offset, size) in [
+        ("container.", 0, 54),
+        ("hotbar.", 0, 9),
+        ("inventory.", 9, 27),
+        ("enderchest.", 200, 27),
+        ("mob.inventory.", 300, 8),
+        ("horse.", 500, 15),
+        ("player.crafting.", 500, 4),
+    ] {
+        if let Some(index) = slot.strip_prefix(prefix).and_then(|value| value.parse::<i32>().ok())
+        {
+            if (0..size).contains(&index) {
+                return Some(offset + index);
+            }
+        }
+    }
+    None
 }
 
 pub(super) fn offset_slot(slot: &str, offset: usize) -> String {
