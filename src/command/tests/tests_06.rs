@@ -763,7 +763,7 @@ fn give_command_adds_items_to_single_and_multiple_player_inventories() {
     )
     .unwrap();
     assert_eq!(multiple.success_count, 2);
-    assert_eq!(multiple.feedback_key, "commands.give.success.multiple");
+    assert_eq!(multiple.feedback_key, "commands.give.success.single");
     let alex = state
         .player_inventories
         .iter()
@@ -803,27 +803,59 @@ fn give_command_rejects_invalid_counts_and_too_many_stacks() {
         ),
         Err(CommandError::InvalidSyntax)
     );
+    let too_many_stone = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "give Steve stone 6401",
+    )
+    .unwrap();
+    assert_eq!(too_many_stone.success_count, 0);
     assert_eq!(
-        execute_builtin_command(
-            &mut state,
-            LevelBasedPermissionSet::GAMEMASTER,
-            "give Steve stone 6401"
-        ),
-        Err(CommandError::GiveTooManyItems)
+        too_many_stone.feedback_key,
+        "commands.give.failed.toomanyitems"
     );
+    assert!(!too_many_stone.broadcast_to_admins);
+
+    let too_many_sword = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "give Steve diamond_sword 101",
+    )
+    .unwrap();
+    assert_eq!(too_many_sword.success_count, 0);
     assert_eq!(
-        execute_builtin_command(
-            &mut state,
-            LevelBasedPermissionSet::GAMEMASTER,
-            "give Steve diamond_sword 101"
-        ),
-        Err(CommandError::GiveTooManyItems)
+        too_many_sword.feedback_key,
+        "commands.give.failed.toomanyitems"
     );
+    let too_many_egg = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "give Steve egg 1601",
+    )
+    .unwrap();
+    assert_eq!(too_many_egg.success_count, 0);
+    assert_eq!(too_many_egg.feedback_key, "commands.give.failed.toomanyitems");
     assert_eq!(
         execute_builtin_command(
             &mut state,
             LevelBasedPermissionSet::GAMEMASTER,
             "give Steve BadItem"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "give Steve definitely_not_a_real_item"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "give Steve lit_redstone_ore"
         ),
         Err(CommandError::InvalidSyntax)
     );

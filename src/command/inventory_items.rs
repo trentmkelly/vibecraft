@@ -1,4 +1,5 @@
 use super::*;
+use crate::item_catalog::primary_item_static_name;
 
 pub(super) fn clear_command(
     state: &mut ServerCommandState,
@@ -131,12 +132,12 @@ pub(super) fn give_command(
     let (targets, item, count) = match parts {
         ["give", targets, item] => (
             parse_name_list(targets),
-            parse_resource_identifier(item)?,
+            parse_item_identifier(item)?,
             1,
         ),
         ["give", targets, item, count] => (
             parse_name_list(targets),
-            parse_resource_identifier(item)?,
+            parse_item_identifier(item)?,
             parse_i32(count)?,
         ),
         _ => return Err(CommandError::InvalidSyntax),
@@ -147,24 +148,35 @@ pub(super) fn give_command(
     let max_stack_size = item_max_stack_size(&item);
     let max_allowed_count = max_stack_size * 100;
     if count > max_allowed_count {
-        return Err(CommandError::GiveTooManyItems);
+        return Ok(CommandResult {
+            success_count: 0,
+            feedback_key: "commands.give.failed.toomanyitems",
+            broadcast_to_admins: false,
+        });
     }
     for target in &targets {
         command_inventory_mut(state, target).add_item_stacks(&item, count, max_stack_size);
     }
     Ok(CommandResult {
         success_count: targets.len() as i32,
-        feedback_key: if targets.len() == 1 {
-            "commands.give.success.single"
-        } else {
-            "commands.give.success.multiple"
-        },
+        feedback_key: "commands.give.success.single",
         broadcast_to_admins: true,
     })
 }
 
+fn parse_item_identifier(input: &str) -> Result<String, CommandError> {
+    let item = parse_resource_identifier(input)?;
+    if primary_item_static_name(&item).is_some() {
+        Ok(item)
+    } else {
+        Err(CommandError::InvalidSyntax)
+    }
+}
+
 pub(super) fn item_max_stack_size(item: &str) -> i32 {
-    if item.ends_with("_sword")
+    if JAVA_STACKS_TO_1.contains(&item)
+        || item.ends_with("_armor")
+        || item.ends_with("_sword")
         || item.ends_with("_pickaxe")
         || item.ends_with("_axe")
         || item.ends_with("_shovel")
@@ -173,39 +185,230 @@ pub(super) fn item_max_stack_size(item: &str) -> i32 {
         || item.ends_with("_chestplate")
         || item.ends_with("_leggings")
         || item.ends_with("_boots")
-        || matches!(
-            item,
-            "minecraft:bow"
-                | "minecraft:crossbow"
-                | "minecraft:trident"
-                | "minecraft:mace"
-                | "minecraft:shield"
-                | "minecraft:elytra"
-                | "minecraft:written_book"
-                | "minecraft:enchanted_book"
-                | "minecraft:music_disc_13"
-                | "minecraft:music_disc_cat"
-        )
     {
         1
-    } else if matches!(
-        item,
-        "minecraft:ender_pearl"
-            | "minecraft:snowball"
-            | "minecraft:egg"
-            | "minecraft:honey_bottle"
-            | "minecraft:bucket"
-            | "minecraft:water_bucket"
-            | "minecraft:lava_bucket"
-            | "minecraft:milk_bucket"
-            | "minecraft:oak_sign"
-            | "minecraft:oak_hanging_sign"
-    ) {
+    } else if JAVA_STACKS_TO_16.contains(&item) {
         16
     } else {
         64
     }
 }
+
+const JAVA_STACKS_TO_16: &[&str] = &[
+    "minecraft:oak_sign",
+    "minecraft:spruce_sign",
+    "minecraft:birch_sign",
+    "minecraft:jungle_sign",
+    "minecraft:acacia_sign",
+    "minecraft:cherry_sign",
+    "minecraft:dark_oak_sign",
+    "minecraft:pale_oak_sign",
+    "minecraft:mangrove_sign",
+    "minecraft:bamboo_sign",
+    "minecraft:crimson_sign",
+    "minecraft:warped_sign",
+    "minecraft:oak_hanging_sign",
+    "minecraft:spruce_hanging_sign",
+    "minecraft:birch_hanging_sign",
+    "minecraft:jungle_hanging_sign",
+    "minecraft:acacia_hanging_sign",
+    "minecraft:cherry_hanging_sign",
+    "minecraft:dark_oak_hanging_sign",
+    "minecraft:pale_oak_hanging_sign",
+    "minecraft:mangrove_hanging_sign",
+    "minecraft:bamboo_hanging_sign",
+    "minecraft:crimson_hanging_sign",
+    "minecraft:warped_hanging_sign",
+    "minecraft:bucket",
+    "minecraft:snowball",
+    "minecraft:egg",
+    "minecraft:blue_egg",
+    "minecraft:brown_egg",
+    "minecraft:ender_pearl",
+    "minecraft:written_book",
+    "minecraft:armor_stand",
+    "minecraft:white_banner",
+    "minecraft:orange_banner",
+    "minecraft:magenta_banner",
+    "minecraft:light_blue_banner",
+    "minecraft:yellow_banner",
+    "minecraft:lime_banner",
+    "minecraft:pink_banner",
+    "minecraft:gray_banner",
+    "minecraft:light_gray_banner",
+    "minecraft:cyan_banner",
+    "minecraft:purple_banner",
+    "minecraft:blue_banner",
+    "minecraft:brown_banner",
+    "minecraft:green_banner",
+    "minecraft:red_banner",
+    "minecraft:black_banner",
+    "minecraft:honey_bottle",
+];
+
+const JAVA_STACKS_TO_1: &[&str] = &[
+    "minecraft:shulker_box",
+    "minecraft:white_shulker_box",
+    "minecraft:orange_shulker_box",
+    "minecraft:magenta_shulker_box",
+    "minecraft:light_blue_shulker_box",
+    "minecraft:yellow_shulker_box",
+    "minecraft:lime_shulker_box",
+    "minecraft:pink_shulker_box",
+    "minecraft:gray_shulker_box",
+    "minecraft:light_gray_shulker_box",
+    "minecraft:cyan_shulker_box",
+    "minecraft:purple_shulker_box",
+    "minecraft:blue_shulker_box",
+    "minecraft:brown_shulker_box",
+    "minecraft:green_shulker_box",
+    "minecraft:red_shulker_box",
+    "minecraft:black_shulker_box",
+    "minecraft:saddle",
+    "minecraft:white_harness",
+    "minecraft:orange_harness",
+    "minecraft:magenta_harness",
+    "minecraft:light_blue_harness",
+    "minecraft:yellow_harness",
+    "minecraft:lime_harness",
+    "minecraft:pink_harness",
+    "minecraft:gray_harness",
+    "minecraft:light_gray_harness",
+    "minecraft:cyan_harness",
+    "minecraft:purple_harness",
+    "minecraft:blue_harness",
+    "minecraft:brown_harness",
+    "minecraft:green_harness",
+    "minecraft:red_harness",
+    "minecraft:black_harness",
+    "minecraft:minecart",
+    "minecraft:chest_minecart",
+    "minecraft:furnace_minecart",
+    "minecraft:tnt_minecart",
+    "minecraft:hopper_minecart",
+    "minecraft:carrot_on_a_stick",
+    "minecraft:warped_fungus_on_a_stick",
+    "minecraft:elytra",
+    "minecraft:oak_boat",
+    "minecraft:oak_chest_boat",
+    "minecraft:spruce_boat",
+    "minecraft:spruce_chest_boat",
+    "minecraft:birch_boat",
+    "minecraft:birch_chest_boat",
+    "minecraft:jungle_boat",
+    "minecraft:jungle_chest_boat",
+    "minecraft:acacia_boat",
+    "minecraft:acacia_chest_boat",
+    "minecraft:cherry_boat",
+    "minecraft:cherry_chest_boat",
+    "minecraft:dark_oak_boat",
+    "minecraft:dark_oak_chest_boat",
+    "minecraft:pale_oak_boat",
+    "minecraft:pale_oak_chest_boat",
+    "minecraft:mangrove_boat",
+    "minecraft:mangrove_chest_boat",
+    "minecraft:bamboo_raft",
+    "minecraft:bamboo_chest_raft",
+    "minecraft:flint_and_steel",
+    "minecraft:bow",
+    "minecraft:mushroom_stew",
+    "minecraft:water_bucket",
+    "minecraft:lava_bucket",
+    "minecraft:powder_snow_bucket",
+    "minecraft:milk_bucket",
+    "minecraft:pufferfish_bucket",
+    "minecraft:salmon_bucket",
+    "minecraft:cod_bucket",
+    "minecraft:tropical_fish_bucket",
+    "minecraft:axolotl_bucket",
+    "minecraft:tadpole_bucket",
+    "minecraft:bundle",
+    "minecraft:white_bundle",
+    "minecraft:orange_bundle",
+    "minecraft:magenta_bundle",
+    "minecraft:light_blue_bundle",
+    "minecraft:yellow_bundle",
+    "minecraft:lime_bundle",
+    "minecraft:pink_bundle",
+    "minecraft:gray_bundle",
+    "minecraft:light_gray_bundle",
+    "minecraft:cyan_bundle",
+    "minecraft:purple_bundle",
+    "minecraft:blue_bundle",
+    "minecraft:brown_bundle",
+    "minecraft:green_bundle",
+    "minecraft:red_bundle",
+    "minecraft:black_bundle",
+    "minecraft:fishing_rod",
+    "minecraft:spyglass",
+    "minecraft:cake",
+    "minecraft:white_bed",
+    "minecraft:orange_bed",
+    "minecraft:magenta_bed",
+    "minecraft:light_blue_bed",
+    "minecraft:yellow_bed",
+    "minecraft:lime_bed",
+    "minecraft:pink_bed",
+    "minecraft:gray_bed",
+    "minecraft:light_gray_bed",
+    "minecraft:cyan_bed",
+    "minecraft:purple_bed",
+    "minecraft:blue_bed",
+    "minecraft:brown_bed",
+    "minecraft:green_bed",
+    "minecraft:red_bed",
+    "minecraft:black_bed",
+    "minecraft:shears",
+    "minecraft:potion",
+    "minecraft:writable_book",
+    "minecraft:mace",
+    "minecraft:enchanted_book",
+    "minecraft:rabbit_stew",
+    "minecraft:command_block_minecart",
+    "minecraft:beetroot_soup",
+    "minecraft:splash_potion",
+    "minecraft:lingering_potion",
+    "minecraft:shield",
+    "minecraft:totem_of_undying",
+    "minecraft:knowledge_book",
+    "minecraft:debug_stick",
+    "minecraft:music_disc_13",
+    "minecraft:music_disc_cat",
+    "minecraft:music_disc_blocks",
+    "minecraft:music_disc_chirp",
+    "minecraft:music_disc_creator",
+    "minecraft:music_disc_creator_music_box",
+    "minecraft:music_disc_far",
+    "minecraft:music_disc_lava_chicken",
+    "minecraft:music_disc_mall",
+    "minecraft:music_disc_mellohi",
+    "minecraft:music_disc_stal",
+    "minecraft:music_disc_strad",
+    "minecraft:music_disc_ward",
+    "minecraft:music_disc_11",
+    "minecraft:music_disc_wait",
+    "minecraft:music_disc_otherside",
+    "minecraft:music_disc_relic",
+    "minecraft:music_disc_5",
+    "minecraft:music_disc_pigstep",
+    "minecraft:music_disc_precipice",
+    "minecraft:music_disc_tears",
+    "minecraft:trident",
+    "minecraft:crossbow",
+    "minecraft:suspicious_stew",
+    "minecraft:flower_banner_pattern",
+    "minecraft:creeper_banner_pattern",
+    "minecraft:skull_banner_pattern",
+    "minecraft:mojang_banner_pattern",
+    "minecraft:globe_banner_pattern",
+    "minecraft:piglin_banner_pattern",
+    "minecraft:flow_banner_pattern",
+    "minecraft:guster_banner_pattern",
+    "minecraft:field_masoned_banner_pattern",
+    "minecraft:bordure_indented_banner_pattern",
+    "minecraft:goat_horn",
+    "minecraft:brush",
+];
 
 pub(super) fn item_command(
     state: &mut ServerCommandState,

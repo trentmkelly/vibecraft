@@ -343,3 +343,81 @@ fn effect_command_source_matches_java_26_1_2() {
         );
     }
 }
+
+#[test]
+fn give_command_uses_java_item_registry_stack_limits_and_feedback() {
+    let mut state = ServerCommandState::default();
+
+    let eggs = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "give Steve egg 1600",
+    )
+    .unwrap();
+    assert_eq!(eggs.success_count, 1);
+    assert_eq!(eggs.feedback_key, "commands.give.success.single");
+    assert_eq!(state.player_inventories[0].items.len(), 100);
+    assert!(state.player_inventories[0]
+        .items
+        .iter()
+        .all(|stack| stack.item == "minecraft:egg" && stack.count == 16));
+
+    let horse_armor = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "give Alex diamond_horse_armor 100",
+    )
+    .unwrap();
+    assert_eq!(horse_armor.success_count, 1);
+    let alex = state
+        .player_inventories
+        .iter()
+        .find(|inventory| inventory.player.name == "Alex")
+        .unwrap();
+    assert_eq!(alex.items.len(), 100);
+    assert!(alex
+        .items
+        .iter()
+        .all(|stack| stack.item == "minecraft:diamond_horse_armor" && stack.count == 1));
+
+    let multiple = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "give Steve,Alex stone 64",
+    )
+    .unwrap();
+    assert_eq!(multiple.success_count, 2);
+    assert_eq!(multiple.feedback_key, "commands.give.success.single");
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn give_command_source_matches_java_26_1_2() {
+    const GIVE: &str = vibecraft_java_source!("/net/minecraft/server/commands/GiveCommand.java");
+    const ITEMS: &str = vibecraft_java_source!("/net/minecraft/world/item/Items.java");
+    const ITEM: &str = vibecraft_java_source!("/net/minecraft/world/item/Item.java");
+
+    assert!(GIVE.contains("public static final int MAX_ALLOWED_ITEMSTACKS = 100;"));
+    assert!(GIVE.contains("Commands.literal(\"give\").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))"));
+    assert!(GIVE.contains("EntityArgument.players()"));
+    assert!(GIVE.contains("ItemArgument.item(context)"));
+    assert!(GIVE.contains("IntegerArgumentType.integer(1)"));
+    assert!(GIVE.contains("int maxAllowedCount = maxStackSize * 100;"));
+    assert!(GIVE.contains(
+        "source.sendFailure(Component.translatable(\"commands.give.failed.toomanyitems\""
+    ));
+    assert!(GIVE.contains("return 0;"));
+    assert!(GIVE.contains("while (remaining > 0)"));
+    assert!(GIVE.contains("int size = Math.min(maxStackSize, remaining);"));
+    assert!(GIVE.contains("return players.size();"));
+    assert!(GIVE.contains(
+        "\"commands.give.success.single\", count, prototypeItemStack.getDisplayName(), players.size()"
+    ));
+    assert!(ITEMS.contains("public static final Item EGG = registerItem("));
+    assert!(ITEMS.contains("\"egg\", EggItem::new, new Item.Properties().stacksTo(16)"));
+    assert!(ITEMS.contains(
+        "public static final Item DIAMOND_HORSE_ARMOR = registerItem(\"diamond_horse_armor\""
+    ));
+    assert!(ITEM.contains("public Item.Properties horseArmor(final ArmorMaterial material)"));
+    assert!(ITEM.contains(".stacksTo(1);"));
+}

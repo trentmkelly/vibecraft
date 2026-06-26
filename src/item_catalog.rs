@@ -365,6 +365,17 @@ pub fn item_static_name(registry_id: &str) -> Option<&'static str> {
     item_catalog_entry(registry_id).map(|entry| entry.static_name)
 }
 
+/// Maps a Minecraft item registry ID to its canonical static name without accepting
+/// world-data aliases that are not registered item IDs.
+pub fn primary_item_static_name(registry_id: &str) -> Option<&'static str> {
+    let key = item_key(registry_id);
+    item_protocol_catalog::PRIMARY_ITEM_PROTOCOL_CATALOG
+        .iter()
+        .flat_map(|catalog| catalog.iter())
+        .find(|entry| entry.key == key)
+        .map(|entry| entry.static_name)
+}
+
 /// Maps a Minecraft item registry ID to its numeric protocol ID.
 ///
 /// Protocol IDs are sourced from the decompiled Java `Items.java` registration order:
