@@ -6,7 +6,11 @@ use crate::chat_component::Component;
 
 #[path = "dialog_inputs.rs"]
 mod dialog_inputs;
+#[path = "dialog_actions.rs"]
+mod dialog_actions;
 
+#[allow(unused_imports)]
+pub use dialog_actions::*;
 #[allow(unused_imports)]
 pub use dialog_inputs::*;
 

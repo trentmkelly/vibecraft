@@ -1486,7 +1486,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/action/CommandTemplate.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/action/CustomAll.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/action/ParsedTemplate.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/action/StaticAction.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/action/StaticAction.java`. Rust `dialog_system::StaticDialogAction` mirrors Java 26.1.2's static click-event wrapper: `static_action_codec_types()` contains every server-allowed `ClickEvent.Action` codec except `open_file`, `codec_action_type()` mirrors `WRAPPED_CODECS.get(value.action())`, and `create_action()` returns the stored click event unchanged, with Java source sentinels pinned by `static_dialog_action_source_matches_java_26_1_2`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/action/package-info.java`. Java 26.1.2 package marker contains only `@NullMarked`, the package declaration, and the `org.jspecify.annotations.NullMarked` import; no Rust runtime behavior or parity test is required beyond preserving nullability expectations in typed Rust APIs.
 
 ## `decompiled-server-26.1.2/net/minecraft/server/dialog/body`
