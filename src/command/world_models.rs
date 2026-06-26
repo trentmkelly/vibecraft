@@ -488,6 +488,14 @@ pub struct PlaySoundRequest {
     pub volume: f32,
     pub pitch: f32,
     pub min_volume: f32,
+    pub deliveries: Vec<PlaySoundDelivery>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlaySoundDelivery {
+    pub target: NameAndId,
+    pub position: Vec3,
+    pub volume: f32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

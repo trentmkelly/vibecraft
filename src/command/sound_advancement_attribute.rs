@@ -68,11 +68,16 @@ pub(super) fn play_sound_command(
         ),
         _ => return Err(CommandError::InvalidSyntax),
     };
-    if targets.is_empty() {
+    let deliveries = play_sound_deliveries(state, &targets, position, volume, min_volume);
+    if deliveries.is_empty() {
         return Err(CommandError::PlaySoundTooFar);
     }
 
-    let count = targets.len() as i32;
+    let targets = deliveries
+        .iter()
+        .map(|delivery| delivery.target.clone())
+        .collect();
+    let count = deliveries.len() as i32;
     state
         .sound_events
         .push(SoundCommandEvent::Play(PlaySoundRequest {
@@ -83,6 +88,7 @@ pub(super) fn play_sound_command(
             volume,
             pitch,
             min_volume,
+            deliveries,
         }));
     Ok(CommandResult {
         success_count: count,
@@ -93,6 +99,74 @@ pub(super) fn play_sound_command(
         },
         broadcast_to_admins: true,
     })
+}
+
+fn play_sound_deliveries(
+    state: &ServerCommandState,
+    targets: &[NameAndId],
+    sound_position: Vec3,
+    volume: f32,
+    min_volume: f32,
+) -> Vec<PlaySoundDelivery> {
+    let max_distance = if volume > 1.0 { 16.0 * volume } else { 16.0 };
+    let max_distance_sqr = f64::from(max_distance * max_distance);
+    targets
+        .iter()
+        .filter_map(|target| {
+            let entity = EntityRef {
+                id: target.name.clone(),
+                display_name: target.name.clone(),
+            };
+            if entity_state(state, &entity)
+                .is_some_and(|entity_state| {
+                    entity_state.dimension.as_str() != state.command_source_dimension.as_str()
+                })
+            {
+                return None;
+            }
+
+            let target_position_entry = entity_position(state, &entity);
+            if target_position_entry
+                .is_some_and(|position| {
+                    position.dimension.as_str() != state.command_source_dimension.as_str()
+                })
+            {
+                return None;
+            }
+            let target_position = target_position_entry
+                .map(|position| position.position)
+                .unwrap_or(state.command_source_position);
+            let delta_x = sound_position.x - target_position.x;
+            let delta_y = sound_position.y - target_position.y;
+            let delta_z = sound_position.z - target_position.z;
+            let distance_sqr = delta_x.mul_add(
+                delta_x,
+                delta_y.mul_add(delta_y, delta_z * delta_z),
+            );
+            let (position, volume) = if distance_sqr > max_distance_sqr {
+                if min_volume <= 0.0 {
+                    return None;
+                }
+                let distance = distance_sqr.sqrt();
+                (
+                    Vec3 {
+                        x: target_position.x + delta_x / distance * 2.0,
+                        y: target_position.y + delta_y / distance * 2.0,
+                        z: target_position.z + delta_z / distance * 2.0,
+                    },
+                    min_volume,
+                )
+            } else {
+                (sound_position, volume)
+            };
+
+            Some(PlaySoundDelivery {
+                target: target.clone(),
+                position,
+                volume,
+            })
+        })
+        .collect()
 }
 
 pub(super) fn advancement_command(

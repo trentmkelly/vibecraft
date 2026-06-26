@@ -22,9 +22,9 @@ pub(super) use super::{
     ExecuteSourceSnapshot, FetchProfileQuery, FillMode, ForcedChunk, FunctionBuilderModel,
     FunctionEntryModel, GameMode, GameRuleSyncEvent, GameRuleValue, InstantiatedFunctionModel,
     InteractionHand, LevelBasedPermissionSet, LocateKind, ParticleCommandEvent, PerfReport,
-    Permission, PermissionLevel, PlaceKind, PlaySoundRequest, PlayerAdvancementProgress,
-    PlayerExperienceState, PlayerGameMode, PlayerIpAddress, PlayerRecipeBook, PlayerSpawn,
-    PublishRequest, QueuedFunctionCall, RandomSeedDefaults,
+    Permission, PermissionLevel, PlaceKind, PlaySoundDelivery, PlaySoundRequest,
+    PlayerAdvancementProgress, PlayerExperienceState, PlayerGameMode, PlayerIpAddress,
+    PlayerRecipeBook, PlayerSpawn, PublishRequest, QueuedFunctionCall, RandomSeedDefaults,
     ReloadRequest, RespawnData, ReturnCommandEvent, RideCommandEvent, RotationMode,
     RotationRequest, SaveAllRequest, ScheduledFunction, ScoreboardDisplaySlot, ScoreboardObjective,
     ScoreboardPersistence, ScoreboardScore, ServerCommandState, ServerFunctionTickState,
@@ -51,3 +51,4 @@ mod tests_11;
 mod tests_12;
 mod tests_13;
 mod tests_14;
+mod tests_15;
