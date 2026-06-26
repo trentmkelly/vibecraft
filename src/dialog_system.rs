@@ -31,6 +31,13 @@ pub enum DialogActionType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DialogAction {
+    Close,
+    None,
+    WaitForResponse,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InputControlType {
     Boolean,
     NumberRange,
@@ -158,6 +165,36 @@ pub fn dialog_action_types() -> &'static [(&'static str, DialogActionType)] {
         ("dynamic/run_command", DialogActionType::DynamicRunCommand),
         ("dynamic/custom", DialogActionType::DynamicCustom),
     ]
+}
+
+pub fn dialog_actions() -> &'static [(u8, &'static str, DialogAction)] {
+    &[
+        (0, "close", DialogAction::Close),
+        (1, "none", DialogAction::None),
+        (2, "wait_for_response", DialogAction::WaitForResponse),
+    ]
+}
+
+impl DialogAction {
+    pub fn id(self) -> u8 {
+        match self {
+            Self::Close => 0,
+            Self::None => 1,
+            Self::WaitForResponse => 2,
+        }
+    }
+
+    pub fn serialized_name(self) -> &'static str {
+        match self {
+            Self::Close => "close",
+            Self::None => "none",
+            Self::WaitForResponse => "wait_for_response",
+        }
+    }
+
+    pub fn will_unpause(self) -> bool {
+        matches!(self, Self::Close | Self::WaitForResponse)
+    }
 }
 
 pub fn input_control_types() -> &'static [(&'static str, InputControlType)] {
@@ -309,6 +346,48 @@ fn normalize_identifier(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dialog_actions_match_java_ids_names_and_unpause_behavior() {
+        assert_eq!(
+            dialog_actions(),
+            &[
+                (0, "close", DialogAction::Close),
+                (1, "none", DialogAction::None),
+                (2, "wait_for_response", DialogAction::WaitForResponse)
+            ]
+        );
+
+        for (id, name, action) in dialog_actions() {
+            assert_eq!(*id, action.id());
+            assert_eq!(*name, action.serialized_name());
+        }
+
+        assert!(DialogAction::Close.will_unpause());
+        assert!(!DialogAction::None.will_unpause());
+        assert!(DialogAction::WaitForResponse.will_unpause());
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn dialog_action_source_matches_java_26_1_2() {
+        const DIALOG_ACTION: &str =
+            vibecraft_java_source!("/net/minecraft/server/dialog/DialogAction.java");
+
+        for sentinel in [
+            "CLOSE(0, \"close\"),",
+            "NONE(1, \"none\"),",
+            "WAIT_FOR_RESPONSE(2, \"wait_for_response\");",
+            "ByteBufCodecs.idMapper(BY_ID, s -> s.id)",
+            "return this.name;",
+            "return this == CLOSE || this == WAIT_FOR_RESPONSE;",
+        ] {
+            assert!(
+                DIALOG_ACTION.contains(sentinel),
+                "DialogAction.java is missing sentinel: {sentinel}"
+            );
+        }
+    }
 
     #[test]
     fn dialog_registry_surface_and_tags_match_vanilla_bootstrap() {

@@ -1469,7 +1469,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/CommonDialogData.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/ConfirmationDialog.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/Dialog.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/DialogAction.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/DialogAction.java`. Rust `dialog_system::DialogAction` mirrors Java 26.1.2's stream ids, serialized names, and `willUnpause()` behavior, with Java enum literals and stream-codec source sentinels pinned by `dialog_action_source_matches_java_26_1_2`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/DialogListDialog.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/DialogTypes.java`. Rust `dialog_system::dialog_types()` mirrors Java 26.1.2's dialog type bootstrap IDs (`notice`, `server_links`, `dialog_list`, `multi_action`, `confirmation`) and pins the Java registration calls through source-backed `dialog_registry_bootstrap_sources_match_java_26_1_2`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dialog/Dialogs.java`.
