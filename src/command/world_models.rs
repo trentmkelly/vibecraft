@@ -56,6 +56,11 @@ pub struct CloneEvent {
     pub filter: CloneFilter,
     pub mode: CloneMode,
     pub strict: bool,
+    pub default_update_flags: i32,
+    pub move_barrier_update_flags: Option<i32>,
+    pub move_air_update_flags: Option<i32>,
+    pub neighbour_updates: bool,
+    pub block_ticks_copied: bool,
     pub count: i32,
 }
 

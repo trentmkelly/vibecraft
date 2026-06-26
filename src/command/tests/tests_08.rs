@@ -381,6 +381,10 @@ fn clone_command_copies_masked_filtered_move_and_dimension_variants() {
     );
     assert_eq!(state.clone_events[0].filter, CloneFilter::Masked);
     assert_eq!(state.clone_events[0].mode, CloneMode::Force);
+    assert_eq!(state.clone_events[0].default_update_flags, 2);
+    assert_eq!(state.clone_events[0].move_barrier_update_flags, None);
+    assert!(state.clone_events[0].neighbour_updates);
+    assert!(state.clone_events[0].block_ticks_copied);
 
     let filtered = execute_builtin_command(
         &mut state,
@@ -419,6 +423,42 @@ fn clone_command_copies_masked_filtered_move_and_dimension_variants() {
         "minecraft:air"
     );
     assert_eq!(state.clone_events.last().unwrap().mode, CloneMode::Move);
+    assert_eq!(
+        state.clone_events.last().unwrap().move_barrier_update_flags,
+        Some(818)
+    );
+    assert_eq!(
+        state.clone_events.last().unwrap().move_air_update_flags,
+        Some(3)
+    );
+}
+
+#[test]
+fn clone_command_records_strict_update_flags_like_java() {
+    let mut state = ServerCommandState {
+        blocks: vec![BlockStateEntry {
+            dimension: "minecraft:overworld".to_string(),
+            position: BlockPos { x: 0, y: 64, z: 0 },
+            block: "minecraft:stone".to_string(),
+        }],
+        ..ServerCommandState::default()
+    };
+
+    let cloned = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "clone 0 64 0 0 64 0 strict 10 70 0 replace move",
+    )
+    .unwrap();
+
+    let event = state.clone_events.last().unwrap();
+    assert_eq!(cloned.success_count, 1);
+    assert!(event.strict);
+    assert_eq!(event.default_update_flags, 818);
+    assert_eq!(event.move_barrier_update_flags, Some(818));
+    assert_eq!(event.move_air_update_flags, Some(818));
+    assert!(!event.neighbour_updates);
+    assert!(event.block_ticks_copied);
 }
 
 #[test]
@@ -454,6 +494,14 @@ fn clone_command_rejects_overlap_too_big_debug_and_empty_selection() {
             &mut state,
             LevelBasedPermissionSet::GAMEMASTER,
             "clone 0 64 0 0 64 0 10 64 0 filtered diamond"
+        ),
+        Err(CommandError::InvalidSyntax)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "clone 0 64 0 0 64 0 10 64 0 filtered diamond_block"
         ),
         Err(CommandError::CloneFailed)
     );

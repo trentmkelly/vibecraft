@@ -1,5 +1,7 @@
 use super::*;
 
+const STRICT_BLOCK_UPDATE_FLAGS: i32 = 816;
+
 pub(super) fn clone_command(
     state: &mut ServerCommandState,
     parts: &[&str],
@@ -52,6 +54,7 @@ pub(super) fn clone_command(
         return Err(CommandError::CloneFailed);
     }
 
+    let default_update_flags = java_clone_default_update_flags(parsed.strict);
     if parsed.mode == CloneMode::Move {
         for (source_pos, _, _) in &copies {
             set_block_in_dimension(
@@ -66,6 +69,11 @@ pub(super) fn clone_command(
         set_block_in_dimension(state, &parsed.target_dimension, *destination, block.clone());
     }
 
+    // TODO(clone-live-block-entities-ticks): Java CloneCommands saves/restores
+    // block-entity custom data/components and copies scheduled block ticks after
+    // block placement. The command model records those required side effects, but
+    // live execution needs the block-entity and LiveBlockTicks worlds wired into
+    // command side-effect application before this can mutate those systems.
     let count = copies.len() as i32;
     state.clone_events.push(CloneEvent {
         source_dimension: parsed.source_dimension,
@@ -76,6 +84,13 @@ pub(super) fn clone_command(
         filter: parsed.filter,
         mode: parsed.mode,
         strict: parsed.strict,
+        default_update_flags,
+        move_barrier_update_flags: (parsed.mode == CloneMode::Move)
+            .then_some(default_update_flags | STRICT_BLOCK_UPDATE_FLAGS),
+        move_air_update_flags: (parsed.mode == CloneMode::Move)
+            .then_some(java_clone_move_air_update_flags(parsed.strict)),
+        neighbour_updates: !parsed.strict,
+        block_ticks_copied: true,
         count,
     });
     Ok(CommandResult {
@@ -160,7 +175,7 @@ pub(super) fn parse_clone_command(
             }
             "filtered" => {
                 filter = CloneFilter::Filtered;
-                filtered_block = Some(parse_resource_identifier(
+                filtered_block = Some(parse_clone_block_predicate(
                     parts.get(index + 1).ok_or(CommandError::InvalidSyntax)?,
                 )?);
                 index += 2;
@@ -192,6 +207,27 @@ pub(super) fn parse_clone_command(
         mode,
         strict,
     })
+}
+
+pub(super) fn parse_clone_block_predicate(input: &str) -> Result<String, CommandError> {
+    let block = parse_resource_identifier(input)?;
+    if crate::block_states::block_state_entry(&block).is_some() {
+        Ok(block)
+    } else {
+        Err(CommandError::InvalidSyntax)
+    }
+}
+
+pub(super) fn java_clone_default_update_flags(strict: bool) -> i32 {
+    2 | if strict { STRICT_BLOCK_UPDATE_FLAGS } else { 0 }
+}
+
+pub(super) fn java_clone_move_air_update_flags(strict: bool) -> i32 {
+    if strict {
+        java_clone_default_update_flags(true)
+    } else {
+        3
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

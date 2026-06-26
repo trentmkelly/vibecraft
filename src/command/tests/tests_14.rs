@@ -847,3 +847,60 @@ fn clear_inventory_command_source_matches_java_26_1_2() {
         );
     }
 }
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn clone_command_source_matches_java_26_1_2() {
+    const CLONE_COMMAND: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/CloneCommands.java");
+
+    for sentinel in [
+        "Commands.literal(\"clone\")",
+        "Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)",
+        "Commands.literal(\"from\")",
+        "DimensionArgument.dimension()",
+        "BlockPosArgument.getLoadedBlockPos(context, level, positionArgument)",
+        "Commands.literal(\"to\")",
+        "Commands.literal(\"strict\")",
+        "Commands.argument(\"destination\", BlockPosArgument.blockPos())",
+        "Commands.literal(\"replace\")",
+        "Commands.literal(\"masked\")",
+        "Commands.literal(\"filtered\")",
+        "BlockPredicateArgument.blockPredicate(context)",
+        "Commands.literal(\"force\")",
+        "Commands.literal(\"move\")",
+        "Commands.literal(\"normal\")",
+        "if (!mode.canOverlap() && fromDimension == toDimension && destination.intersects(from))",
+        "throw ERROR_OVERLAP.create();",
+        "GameRules.MAX_BLOCK_MODIFICATIONS",
+        "throw ERROR_AREA_TOO_LARGE.create(limit, area);",
+        "throw BlockPosArgument.ERROR_NOT_LOADED.create();",
+        "if (toDimension.isDebug())",
+        "throw ERROR_FAILED.create();",
+        "int defaultUpdateFlags = 2 | (strict ? 816 : 0);",
+        "if (mode == CloneCommands.Mode.MOVE)",
+        "fromDimension.setBlock(pos, Blocks.BARRIER.defaultBlockState(), defaultUpdateFlags | 816);",
+        "int standardUpdateFlags = strict ? defaultUpdateFlags : 3;",
+        "fromDimension.setBlock(pos, Blocks.AIR.defaultBlockState(), standardUpdateFlags);",
+        "blockInfoList.addAll(solidList);",
+        "blockInfoList.addAll(blockEntitiesList);",
+        "blockInfoList.addAll(otherBlocksList);",
+        "Lists.reverse(blockInfoList)",
+        "toDimension.setBlock(cloneInfo.pos, Blocks.BARRIER.defaultBlockState(), defaultUpdateFlags | 816);",
+        "toDimension.setBlock(cloneInfo.pos, cloneInfo.state, defaultUpdateFlags)",
+        "newBlockEntity.loadCustomOnly(",
+        "newBlockEntity.setComponents(cloneInfo.blockEntityInfo.components);",
+        "toDimension.updateNeighboursOnBlockSet(cloneInfo.pos, cloneInfo.previousStateAtDestination);",
+        "toDimension.getBlockTicks().copyAreaFrom(fromDimension.getBlockTicks(), from, offset);",
+        "Component.translatable(\"commands.clone.success\", finalCount)",
+        "return count;",
+        "FORCE(true)",
+        "MOVE(true)",
+        "NORMAL(false)",
+    ] {
+        assert!(
+            CLONE_COMMAND.contains(sentinel),
+            "CloneCommands.java is missing sentinel: {sentinel}"
+        );
+    }
+}
