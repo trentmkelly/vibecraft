@@ -936,3 +936,48 @@ fn damage_command_source_matches_java_26_1_2() {
         );
     }
 }
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn datapack_command_source_matches_java_26_1_2() {
+    const DATAPACK_COMMAND: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/DataPackCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\n                           \"datapack\"",
+        ".requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "Commands.literal(\"enable\")",
+        "Commands.argument(\n                                                \"name\", StringArgumentType.string()",
+        "Commands.literal(\"after\")",
+        "Commands.literal(\"before\")",
+        "Commands.literal(\"last\")",
+        "Commands.literal(\"first\")",
+        "Commands.literal(\"disable\")",
+        "Commands.literal(\"list\").executes(c -> listPacks((CommandSourceStack)c.getSource()))",
+        "Commands.literal(\"available\").executes(c -> listAvailablePacks((CommandSourceStack)c.getSource()))",
+        "Commands.literal(\"enabled\").executes(c -> listEnabledPacks((CommandSourceStack)c.getSource()))",
+        "Commands.literal(\"create\").requires(Commands.hasPermission(Commands.LEVEL_OWNERS))",
+        "Commands.argument(\"id\", StringArgumentType.string())",
+        "Commands.argument(\"description\", ComponentArgument.textComponent(context))",
+        "if (!FileUtil.isValidPathSegment(id))",
+        "if (!FileUtil.isPathPartPortable(id))",
+        "Files.createDirectory(packDir);",
+        "Files.createDirectory(packDir.resolve(PackType.SERVER_DATA.getDirectory()));",
+        "packDir.resolve(\"pack.mcmeta\")",
+        "Component.translatable(\"commands.datapack.create.success\", id)",
+        "ReloadCommand.reloadPacks(selected.stream().map(Pack::getId).collect(Collectors.toList()), source);",
+        "return listEnabledPacks(source) + listAvailablePacks(source);",
+        "Component.translatable(\"commands.datapack.list.available.none\")",
+        "Component.translatable(\n               \"commands.datapack.list.enabled.success\"",
+        "throw ERROR_UNKNOWN_PACK.create(id);",
+        "throw ERROR_PACK_ALREADY_ENABLED.create(id);",
+        "throw ERROR_PACK_ALREADY_DISABLED.create(id);",
+        "throw ERROR_CANNOT_DISABLE_FEATURE.create(id);",
+        "throw ERROR_PACK_FEATURES_NOT_ENABLED.create(id, FeatureFlags.printMissingFlags(availableFeatures, requestedFeatures));",
+    ] {
+        assert!(
+            DATAPACK_COMMAND.contains(sentinel),
+            "DataPackCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+}

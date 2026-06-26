@@ -97,6 +97,16 @@ pub(super) fn datapack_command(
         ["datapack", "list"] => {
             let enabled = datapack_enabled_count(state);
             let available = datapack_available_count(state);
+            state.side_feedback.push(datapack_list_feedback(
+                enabled,
+                "commands.datapack.list.enabled.none",
+                "commands.datapack.list.enabled.success",
+            ));
+            state.side_feedback.push(datapack_list_feedback(
+                available,
+                "commands.datapack.list.available.none",
+                "commands.datapack.list.available.success",
+            ));
             Ok(CommandResult {
                 success_count: enabled + available,
                 feedback_key: "commands.datapack.list.success",
@@ -105,27 +115,19 @@ pub(super) fn datapack_command(
         }
         ["datapack", "list", "enabled"] => {
             let count = datapack_enabled_count(state);
-            Ok(CommandResult {
-                success_count: count,
-                feedback_key: if count == 0 {
-                    "commands.datapack.list.enabled.none"
-                } else {
-                    "commands.datapack.list.enabled.success"
-                },
-                broadcast_to_admins: false,
-            })
+            Ok(datapack_list_feedback(
+                count,
+                "commands.datapack.list.enabled.none",
+                "commands.datapack.list.enabled.success",
+            ))
         }
         ["datapack", "list", "available"] => {
             let count = datapack_available_count(state);
-            Ok(CommandResult {
-                success_count: count,
-                feedback_key: if count == 0 {
-                    "commands.datapack.list.available.none"
-                } else {
-                    "commands.datapack.list.available.success"
-                },
-                broadcast_to_admins: false,
-            })
+            Ok(datapack_list_feedback(
+                count,
+                "commands.datapack.list.available.none",
+                "commands.datapack.list.available.success",
+            ))
         }
         ["datapack", "enable", id] => datapack_enable(state, id, DataPackInsert::Default),
         ["datapack", "enable", id, "first"] => datapack_enable(state, id, DataPackInsert::First),
@@ -178,6 +180,18 @@ pub(super) fn datapack_available_count(state: &ServerCommandState) -> i32 {
         .count() as i32
 }
 
+fn datapack_list_feedback(
+    count: i32,
+    none_key: &'static str,
+    success_key: &'static str,
+) -> CommandResult {
+    CommandResult {
+        success_count: count,
+        feedback_key: if count == 0 { none_key } else { success_key },
+        broadcast_to_admins: false,
+    }
+}
+
 pub(super) fn datapack_enable(
     state: &mut ServerCommandState,
     id: &str,
@@ -222,12 +236,12 @@ pub(super) fn datapack_disable(
     id: &str,
 ) -> Result<CommandResult, CommandError> {
     datapack_check_known(state, id)?;
-    if state
-        .unavailable_feature_data_packs
+    if !state
+        .selected_data_packs
         .iter()
-        .any(|pack| pack == id)
+        .any(|selected| selected == id)
     {
-        return Err(CommandError::DataPackFeaturesNotEnabled);
+        return Err(CommandError::DataPackAlreadyDisabled);
     }
     if state
         .feature_data_packs
@@ -236,12 +250,12 @@ pub(super) fn datapack_disable(
     {
         return Err(CommandError::DataPackCannotDisableFeature);
     }
-    if !state
-        .selected_data_packs
+    if state
+        .unavailable_feature_data_packs
         .iter()
-        .any(|selected| selected == id)
+        .any(|pack| pack == id)
     {
-        return Err(CommandError::DataPackAlreadyDisabled);
+        return Err(CommandError::DataPackFeaturesNotEnabled);
     }
 
     state.selected_data_packs.retain(|selected| selected != id);
@@ -283,6 +297,9 @@ pub(super) fn datapack_create(
         return Err(CommandError::DataPackAlreadyExists);
     }
 
+    // Java creates the pack directory, data directory, and pack.mcmeta here. This
+    // command model records the same requested side effect until live datapack
+    // filesystem writes are wired into the server runtime.
     state.created_data_packs.push(CreatedDataPack {
         id: id.to_string(),
         description: description.to_string(),

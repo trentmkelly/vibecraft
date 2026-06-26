@@ -661,6 +661,8 @@ fn datapack_command_lists_enables_disables_and_reloads_selection() {
         Err(CommandError::PermissionDenied)
     );
 
+    assert_datapack_list_reports_enabled_then_available(&mut state);
+
     let available = execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::GAMEMASTER,
@@ -728,45 +730,19 @@ fn datapack_command_reports_vanilla_failures_and_creates_empty_packs() {
             "vanilla".to_string(),
             "feature/redstone".to_string(),
             "file/locked".to_string(),
+            "file/disabled".to_string(),
         ],
-        selected_data_packs: vec!["vanilla".to_string(), "feature/redstone".to_string()],
+        selected_data_packs: vec![
+            "vanilla".to_string(),
+            "feature/redstone".to_string(),
+            "file/locked".to_string(),
+        ],
         feature_data_packs: vec!["feature/redstone".to_string()],
         unavailable_feature_data_packs: vec!["file/locked".to_string()],
         ..ServerCommandState::default()
     };
 
-    assert_eq!(
-        execute_builtin_command(
-            &mut state,
-            LevelBasedPermissionSet::GAMEMASTER,
-            "datapack enable missing"
-        ),
-        Err(CommandError::DataPackUnknown)
-    );
-    assert_eq!(
-        execute_builtin_command(
-            &mut state,
-            LevelBasedPermissionSet::GAMEMASTER,
-            "datapack enable vanilla"
-        ),
-        Err(CommandError::DataPackAlreadyEnabled)
-    );
-    assert_eq!(
-        execute_builtin_command(
-            &mut state,
-            LevelBasedPermissionSet::GAMEMASTER,
-            "datapack disable file/locked"
-        ),
-        Err(CommandError::DataPackFeaturesNotEnabled)
-    );
-    assert_eq!(
-        execute_builtin_command(
-            &mut state,
-            LevelBasedPermissionSet::GAMEMASTER,
-            "datapack disable feature/redstone"
-        ),
-        Err(CommandError::DataPackCannotDisableFeature)
-    );
+    assert_datapack_vanilla_failure_edges(&mut state);
     assert_eq!(
         execute_builtin_command(
             &mut state,
@@ -817,6 +793,56 @@ fn datapack_command_reports_vanilla_failures_and_creates_empty_packs() {
         ),
         Err(CommandError::DataPackAlreadyExists)
     );
+}
+
+fn assert_datapack_list_reports_enabled_then_available(state: &mut ServerCommandState) {
+    let listed = execute_builtin_command(
+        state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "datapack list",
+    )
+    .unwrap();
+    assert_eq!(listed.success_count, 4);
+    assert_eq!(
+        state.side_feedback,
+        vec![
+            CommandResult {
+                success_count: 2,
+                feedback_key: "commands.datapack.list.enabled.success",
+                broadcast_to_admins: false,
+            },
+            CommandResult {
+                success_count: 2,
+                feedback_key: "commands.datapack.list.available.success",
+                broadcast_to_admins: false,
+            },
+        ]
+    );
+    state.side_feedback.clear();
+}
+
+fn assert_datapack_vanilla_failure_edges(state: &mut ServerCommandState) {
+    for (command, error) in [
+        ("datapack enable missing", CommandError::DataPackUnknown),
+        ("datapack enable vanilla", CommandError::DataPackAlreadyEnabled),
+        (
+            "datapack disable file/locked",
+            CommandError::DataPackFeaturesNotEnabled,
+        ),
+        (
+            "datapack disable file/disabled",
+            CommandError::DataPackAlreadyDisabled,
+        ),
+        (
+            "datapack disable feature/redstone",
+            CommandError::DataPackCannotDisableFeature,
+        ),
+    ] {
+        assert_eq!(
+            execute_builtin_command(state, LevelBasedPermissionSet::GAMEMASTER, command),
+            Err(error)
+        );
+    }
 }
 
 #[test]
