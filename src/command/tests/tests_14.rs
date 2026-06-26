@@ -505,3 +505,50 @@ fn trigger_command_source_matches_java_26_1_2() {
         );
     }
 }
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn waypoint_command_source_matches_java_26_1_2() {
+    const WAYPOINT: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/WaypointCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"waypoint\")",
+        ".requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "Commands.literal(\"list\").executes(c -> listWaypoints((CommandSourceStack)c.getSource()))",
+        "Commands.literal(\"modify\")",
+        "Commands.argument(\"waypoint\", EntityArgument.entity())",
+        "WaypointArgument.getWaypoint(c, \"waypoint\")",
+        "Commands.literal(\"color\")",
+        "Commands.argument(\"color\", ColorArgument.color())",
+        "ColorArgument.getColor(c, \"color\")",
+        "Commands.literal(\"hex\")",
+        "Commands.argument(\"color\", HexColorArgument.hexColor())",
+        "HexColorArgument.getHexColor(c, \"color\")",
+        "Commands.literal(\"reset\")",
+        "Commands.literal(\"style\")",
+        "WaypointStyleAssets.DEFAULT",
+        "Commands.literal(\"set\")",
+        "Commands.argument(\"style\", IdentifierArgument.id())",
+        "ResourceKey.create(WaypointStyleAssets.ROOT_ID, IdentifierArgument.getId(c, \"style\"))",
+        "mutateIcon(source, waypoint, icon -> icon.style = style)",
+        "mutateIcon(source, waypoint, icon -> icon.color = Optional.of(color.getColor()))",
+        "mutateIcon(source, waypoint, icon -> icon.color = Optional.of(color))",
+        "mutateIcon(source, waypoint, icon -> icon.color = Optional.empty())",
+        "Component.translatable(\"commands.waypoint.modify.style\")",
+        "Component.translatable(\"commands.waypoint.modify.color\"",
+        "Component.translatable(\"commands.waypoint.modify.color.reset\")",
+        "source.sendSuccess(() -> Component.translatable(\"commands.waypoint.list.empty\", dimension), false)",
+        "Component.translatable(\"commands.waypoint.list.success\", waypoints.size(), dimension, waypointNames)",
+        "return waypoints.size();",
+        "return 0;",
+        "level.getWaypointManager().untrackWaypoint(waypoint)",
+        "iconConsumer.accept(waypoint.waypointIcon())",
+        "level.getWaypointManager().trackWaypoint(waypoint)",
+    ] {
+        assert!(
+            WAYPOINT.contains(sentinel),
+            "WaypointCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+}
