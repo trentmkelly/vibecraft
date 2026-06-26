@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::chat_component::ClickEvent;
 use crate::command::StringTemplateModel;
+use crate::storage::nbt::{snbt_printer, Tag};
 
 const MAX_COMMAND_FUNCTION_LINE_LENGTH: usize = 2_000_000;
 
@@ -22,9 +23,10 @@ pub struct StaticDialogAction {
     pub value: ClickEvent,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DialogActionValueGetter {
-    value: String,
+#[derive(Debug, Clone)]
+pub enum DialogActionValueGetter {
+    Static(String),
+    Supplier(fn() -> String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,6 +38,19 @@ pub struct ParsedDialogTemplate {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommandTemplateDialogAction {
     pub template: ParsedDialogTemplate,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CustomAllDialogAction {
+    pub id: String,
+    pub additions: Option<Vec<(String, Tag)>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum DialogActionModel {
+    Static(StaticDialogAction),
+    CommandTemplate(CommandTemplateDialogAction),
+    CustomAll(CustomAllDialogAction),
 }
 
 impl StaticDialogAction {
@@ -56,13 +71,22 @@ impl StaticDialogAction {
 
 impl DialogActionValueGetter {
     pub fn of(value: impl Into<String>) -> Self {
-        Self {
-            value: value.into(),
-        }
+        Self::Static(value.into())
+    }
+
+    pub fn of_supplier(value: fn() -> String) -> Self {
+        Self::Supplier(value)
     }
 
     pub fn as_template_substitution(&self) -> String {
-        self.value.clone()
+        match self {
+            Self::Static(value) => value.clone(),
+            Self::Supplier(value) => value(),
+        }
+    }
+
+    pub fn as_tag(&self) -> Tag {
+        Tag::String(self.as_template_substitution())
     }
 }
 
@@ -108,6 +132,59 @@ impl CommandTemplateDialogAction {
             .collect::<BTreeMap<_, _>>();
         let command = self.template.instantiate(&substitutions)?;
         Ok(Some(ClickEvent::RunCommand(command)))
+    }
+}
+
+impl CustomAllDialogAction {
+    pub fn new(id: impl Into<String>, additions: Option<Vec<(String, Tag)>>) -> Self {
+        Self {
+            id: id.into(),
+            additions,
+        }
+    }
+
+    pub fn create_action(
+        &self,
+        parameters: &BTreeMap<String, DialogActionValueGetter>,
+    ) -> Option<ClickEvent> {
+        let mut tag = self.additions.clone().unwrap_or_default();
+        for (key, value) in parameters {
+            put_compound_entry(&mut tag, key.clone(), value.as_tag());
+        }
+
+        Some(ClickEvent::Custom {
+            id: self.id.clone(),
+            payload: Some(snbt_printer::to_pretty_snbt(&Tag::Compound(tag))),
+        })
+    }
+}
+
+impl DialogActionModel {
+    pub fn action_type(&self) -> &'static str {
+        match self {
+            Self::Static(action) => action.codec_action_type().unwrap_or("open_file"),
+            Self::CommandTemplate(_) => "dynamic/run_command",
+            Self::CustomAll(_) => "dynamic/custom",
+        }
+    }
+
+    pub fn create_action(
+        &self,
+        parameters: &BTreeMap<String, DialogActionValueGetter>,
+    ) -> Result<Option<ClickEvent>, String> {
+        match self {
+            Self::Static(action) => Ok(action.create_action()),
+            Self::CommandTemplate(action) => action.create_action(parameters),
+            Self::CustomAll(action) => Ok(action.create_action(parameters)),
+        }
+    }
+}
+
+fn put_compound_entry(entries: &mut Vec<(String, Tag)>, key: String, value: Tag) {
+    if let Some((_, existing)) = entries.iter_mut().find(|(name, _)| name == &key) {
+        *existing = value;
+    } else {
+        entries.push((key, value));
     }
 }
 
@@ -247,6 +324,81 @@ mod tests {
     }
 
     #[test]
+    fn custom_all_dialog_action_copies_additions_and_writes_parameter_tags() {
+        let action = CustomAllDialogAction::new(
+            "minecraft:submit",
+            Some(vec![
+                ("keep".to_string(), Tag::Int(4)),
+                ("name".to_string(), Tag::String("old".to_string())),
+            ]),
+        );
+        let mut parameters = BTreeMap::new();
+        parameters.insert("name".to_string(), DialogActionValueGetter::of("Alex"));
+        parameters.insert("choice".to_string(), DialogActionValueGetter::of("yes"));
+
+        assert_eq!(parameters["name"].as_tag(), Tag::String("Alex".to_string()));
+        assert_eq!(
+            DialogActionValueGetter::of_supplier(supplied_dialog_value)
+                .as_template_substitution(),
+            "supplied"
+        );
+        assert_eq!(
+            action.create_action(&parameters),
+            Some(ClickEvent::Custom {
+                id: "minecraft:submit".to_string(),
+                payload: Some(
+                    "{\n    choice: \"yes\",\n    keep: 4,\n    name: \"Alex\"\n}".to_string()
+                ),
+            })
+        );
+
+        let empty = CustomAllDialogAction::new("minecraft:empty", None);
+        assert_eq!(
+            empty.create_action(&BTreeMap::new()),
+            Some(ClickEvent::Custom {
+                id: "minecraft:empty".to_string(),
+                payload: Some("{}".to_string()),
+            })
+        );
+    }
+
+    #[test]
+    fn dialog_action_model_dispatches_static_dynamic_command_and_custom_actions() {
+        let static_action =
+            DialogActionModel::Static(StaticDialogAction::new(ClickEvent::CopyToClipboard(
+                "seed".to_string(),
+            )));
+        assert_eq!(static_action.action_type(), "copy_to_clipboard");
+        assert_eq!(
+            static_action.create_action(&BTreeMap::new()),
+            Ok(Some(ClickEvent::CopyToClipboard("seed".to_string())))
+        );
+
+        let template = match ParsedDialogTemplate::parse("say $(message)") {
+            Ok(template) => template,
+            Err(err) => panic!("{err}"),
+        };
+        let command = DialogActionModel::CommandTemplate(CommandTemplateDialogAction::new(template));
+        let mut parameters = BTreeMap::new();
+        parameters.insert("message".to_string(), DialogActionValueGetter::of("hi"));
+        assert_eq!(command.action_type(), "dynamic/run_command");
+        assert_eq!(
+            command.create_action(&parameters),
+            Ok(Some(ClickEvent::RunCommand("say hi".to_string())))
+        );
+
+        let custom = DialogActionModel::CustomAll(CustomAllDialogAction::new("minecraft:test", None));
+        assert_eq!(custom.action_type(), "dynamic/custom");
+        assert_eq!(
+            custom.create_action(&BTreeMap::new()),
+            Ok(Some(ClickEvent::Custom {
+                id: "minecraft:test".to_string(),
+                payload: Some("{}".to_string()),
+            }))
+        );
+    }
+
+    #[test]
     #[cfg(vibecraft_has_decompiled_sources)]
     fn static_dialog_action_source_matches_java_26_1_2() {
         const STATIC_ACTION: &str =
@@ -330,10 +482,59 @@ mod tests {
         }
     }
 
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn custom_all_dialog_action_source_matches_java_26_1_2() {
+        const CUSTOM_ALL: &str =
+            vibecraft_java_source!("/net/minecraft/server/dialog/action/CustomAll.java");
+
+        for sentinel in [
+            "public record CustomAll(Identifier id, Optional<CompoundTag> additions) implements Action",
+            "Identifier.CODEC.fieldOf(\"id\").forGetter(CustomAll::id)",
+            "CompoundTag.CODEC.optionalFieldOf(\"additions\").forGetter(CustomAll::additions)",
+            "return MAP_CODEC;",
+            "CompoundTag tag = this.additions.<CompoundTag>map(CompoundTag::copy).orElseGet(CompoundTag::new);",
+            "parameters.forEach((key, value) -> tag.put(key, value.asTag()));",
+            "return Optional.of(new ClickEvent.Custom(this.id, Optional.of(tag)));",
+        ] {
+            assert!(
+                CUSTOM_ALL.contains(sentinel),
+                "CustomAll.java is missing sentinel: {sentinel}"
+            );
+        }
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn dialog_action_interface_source_matches_java_26_1_2() {
+        const ACTION: &str =
+            vibecraft_java_source!("/net/minecraft/server/dialog/action/Action.java");
+
+        for sentinel in [
+            "Codec<Action> CODEC = BuiltInRegistries.DIALOG_ACTION_TYPE.byNameCodec().dispatch(Action::codec, c -> c);",
+            "MapCodec<? extends Action> codec();",
+            "Optional<ClickEvent> createAction(Map<String, Action.ValueGetter> parameters);",
+            "String asTemplateSubstitution();",
+            "Tag asTag();",
+            "return Maps.transformValues(parameters, Action.ValueGetter::asTemplateSubstitution);",
+            "return StringTag.valueOf(value);",
+            "return StringTag.valueOf(value.get());",
+        ] {
+            assert!(
+                ACTION.contains(sentinel),
+                "Action.java is missing sentinel: {sentinel}"
+            );
+        }
+    }
+
     fn parse_template_error(input: &str) -> String {
         match ParsedDialogTemplate::parse(input) {
             Ok(template) => panic!("expected template parse error, got {template:?}"),
             Err(err) => err,
         }
+    }
+
+    fn supplied_dialog_value() -> String {
+        "supplied".to_string()
     }
 }
