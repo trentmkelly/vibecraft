@@ -1,3 +1,5 @@
+use super::*;
+
 #[test]
 #[cfg(vibecraft_has_decompiled_sources)]
 fn chat_message_command_sources_match_java_26_1_2() {
@@ -72,6 +74,61 @@ fn chat_message_command_sources_match_java_26_1_2() {
         assert!(
             TELLRAW.contains(sentinel),
             "TellRawCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+}
+
+#[test]
+fn rotate_command_defaults_facing_entity_anchor_to_feet() {
+    let mut state = ServerCommandState::default();
+    execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "rotate pig facing entity cow",
+    )
+    .unwrap();
+
+    assert_eq!(
+        state.rotation_requests[0].mode,
+        RotationMode::FacingEntity {
+            entity: EntityRef {
+                id: "cow".to_string(),
+                display_name: "cow".to_string(),
+            },
+            anchor: EntityAnchor::Feet,
+        }
+    );
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn rotate_command_source_matches_java_26_1_2() {
+    const ROTATE: &str = vibecraft_java_source!("/net/minecraft/server/commands/RotateCommand.java");
+
+    for sentinel in [
+        "Commands.literal(\"rotate\").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "Commands.argument(\"target\", EntityArgument.entity())",
+        "Commands.argument(\"rotation\", RotationArgument.rotation())",
+        "RotationArgument.getRotation(c, \"rotation\")",
+        "Commands.literal(\"facing\")",
+        "Commands.literal(\"entity\")",
+        "Commands.argument(\"facingEntity\", EntityArgument.entity())",
+        "EntityAnchorArgument.Anchor.FEET",
+        "Commands.argument(\"facingAnchor\", EntityAnchorArgument.anchor())",
+        "EntityAnchorArgument.getAnchor(c, \"facingAnchor\")",
+        "Commands.argument(\"facingLocation\", Vec3Argument.vec3())",
+        "new LookAt.LookAtPosition(Vec3Argument.getVec3(c, \"facingLocation\"))",
+        "rotation.getRotation(source)",
+        "rotation.isYRelative() ? rot.y - entity.getYRot() : rot.y",
+        "rotation.isXRelative() ? rot.x - entity.getXRot() : rot.x",
+        "entity.forceSetRotation(relativeOrAbsoluteYRot, rotation.isYRelative(), relativeOrAbsoluteXRot, rotation.isXRelative())",
+        "facing.perform(source, entity)",
+        "Component.translatable(\"commands.rotate.success\", entity.getDisplayName())",
+        "return 1;",
+    ] {
+        assert!(
+            ROTATE.contains(sentinel),
+            "RotateCommand.java is missing sentinel: {sentinel}"
         );
     }
 }
