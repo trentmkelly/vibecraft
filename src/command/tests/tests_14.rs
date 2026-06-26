@@ -763,3 +763,52 @@ fn ban_player_command_source_matches_java_26_1_2() {
         );
     }
 }
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn bossbar_command_source_matches_java_26_1_2() {
+    const BOSSBAR_COMMAND: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/BossBarCommands.java");
+
+    for sentinel in [
+        "\"bossbar\"",
+        "Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)",
+        "Commands.literal(\"add\")",
+        "Commands.literal(\"remove\")",
+        "Commands.literal(\"list\")",
+        "Commands.literal(\"set\")",
+        "Commands.literal(\"get\")",
+        "Commands.argument(\"id\", IdentifierArgument.id())",
+        "Commands.argument(\"name\", ComponentArgument.textComponent(context))",
+        "Commands.argument(\"value\", IntegerArgumentType.integer(0))",
+        "Commands.argument(\"max\", IntegerArgumentType.integer(1))",
+        "Commands.argument(\"visible\", BoolArgumentType.bool())",
+        "Commands.argument(\"targets\", EntityArgument.players())",
+        "EntityArgument.getOptionalPlayers(c, \"targets\")",
+        "BossEvent.BossBarColor.PINK",
+        "BossEvent.BossBarOverlay.NOTCHED_20",
+        "throw ERROR_ALREADY_EXISTS.create(id.toString());",
+        "throw ERROR_DOESNT_EXIST.create(id.toString());",
+        "throw ERROR_NO_PLAYER_CHANGE.create();",
+        "throw ERROR_NO_NAME_CHANGE.create();",
+        "throw ERROR_NO_COLOR_CHANGE.create();",
+        "throw ERROR_NO_STYLE_CHANGE.create();",
+        "throw ERROR_NO_VALUE_CHANGE.create();",
+        "throw ERROR_NO_MAX_CHANGE.create();",
+        "throw ERROR_ALREADY_HIDDEN.create();",
+        "throw ERROR_ALREADY_VISIBLE.create();",
+        "Component.translatable(\"commands.bossbar.create.success\"",
+        "Component.translatable(\"commands.bossbar.remove.success\"",
+        "Component.translatable(\"commands.bossbar.list.bars.some\"",
+        "Component.translatable(\"commands.bossbar.set.players.success.none\"",
+        "\"commands.bossbar.get.players.some\"",
+        "bossBar.removeAllPlayers();",
+        "events.remove(bossBar);",
+        "return events.getEvents().size();",
+    ] {
+        assert!(
+            BOSSBAR_COMMAND.contains(sentinel),
+            "BossBarCommands.java is missing sentinel: {sentinel}"
+        );
+    }
+}

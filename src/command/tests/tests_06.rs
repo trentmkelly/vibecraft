@@ -417,6 +417,22 @@ fn bossbar_add_list_get_remove_and_permission_match_vanilla_surface() {
     assert_eq!(list.success_count, 1);
     assert_eq!(list.feedback_key, "commands.bossbar.list.bars.some");
     assert!(!list.broadcast_to_admins);
+    let value = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "bossbar get raid value",
+    )
+    .unwrap();
+    assert_eq!(value.success_count, 0);
+    assert_eq!(value.feedback_key, "commands.bossbar.get.value");
+    let max = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "bossbar get raid max",
+    )
+    .unwrap();
+    assert_eq!(max.success_count, 100);
+    assert_eq!(max.feedback_key, "commands.bossbar.get.max");
 
     let visible = execute_builtin_command(
         &mut state,
@@ -435,6 +451,14 @@ fn bossbar_add_list_get_remove_and_permission_match_vanilla_surface() {
     .unwrap();
     assert_eq!(removed.success_count, 0);
     assert!(state.bossbars.is_empty());
+    let empty_list = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "bossbar list",
+    )
+    .unwrap();
+    assert_eq!(empty_list.success_count, 0);
+    assert_eq!(empty_list.feedback_key, "commands.bossbar.list.bars.none");
     assert_eq!(
         execute_builtin_command(
             &mut state,
@@ -447,7 +471,12 @@ fn bossbar_add_list_get_remove_and_permission_match_vanilla_surface() {
 
 #[test]
 fn bossbar_set_mutates_values_players_and_reports_unchanged_errors() {
-    let mut state = ServerCommandState::default();
+    let steve = NameAndId::create_offline("Steve");
+    let alex = NameAndId::create_offline("Alex");
+    let mut state = ServerCommandState {
+        online_players: vec![steve.clone(), alex.clone()],
+        ..ServerCommandState::default()
+    };
     execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::GAMEMASTER,
@@ -527,6 +556,8 @@ fn assert_bossbar_event_values(
     assert_eq!(state.bossbars[0].color, BossBarCommandColor::Purple);
     assert_eq!(state.bossbars[0].overlay, BossBarCommandOverlay::Notched10);
     assert!(!state.bossbars[0].visible);
+    assert_eq!(state.bossbars[0].players.len(), 2);
+    assert_eq!(state.bossbars[0].players[0].name, "Steve");
 }
 
 fn assert_bossbar_event_unchanged_errors(state: &mut ServerCommandState) {
@@ -545,6 +576,38 @@ fn assert_bossbar_event_unchanged_errors(state: &mut ServerCommandState) {
         execute_builtin_command(
             state,
             LevelBasedPermissionSet::GAMEMASTER,
+            "bossbar set event name Dragon Fight"
+        ),
+        Err(CommandError::BossBarNameUnchanged)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "bossbar set event color purple"
+        ),
+        Err(CommandError::BossBarColorUnchanged)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "bossbar set event style notched_10"
+        ),
+        Err(CommandError::BossBarStyleUnchanged)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "bossbar set event max 250"
+        ),
+        Err(CommandError::BossBarMaxUnchanged)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            state,
+            LevelBasedPermissionSet::GAMEMASTER,
             "bossbar set event value 125"
         ),
         Err(CommandError::BossBarValueUnchanged)
@@ -556,6 +619,32 @@ fn assert_bossbar_event_unchanged_errors(state: &mut ServerCommandState) {
             "bossbar set event visible false"
         ),
         Err(CommandError::BossBarAlreadyHidden)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "bossbar set event visible true"
+        )
+        .unwrap()
+        .feedback_key,
+        "commands.bossbar.set.visible.success.visible"
+    );
+    assert_eq!(
+        execute_builtin_command(
+            state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "bossbar set event visible true"
+        ),
+        Err(CommandError::BossBarAlreadyVisible)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "bossbar set event players Herobrine"
+        ),
+        Err(CommandError::NoPlayers)
     );
     assert_eq!(
         execute_builtin_command(

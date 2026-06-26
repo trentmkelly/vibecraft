@@ -353,9 +353,9 @@ pub(super) fn bossbar_set_command(
     property: &str,
     parts: &[&str],
 ) -> Result<CommandResult, CommandError> {
-    let bar = bossbar_mut(state, id)?;
     match property {
         "name" if !parts.is_empty() => {
+            let bar = bossbar_mut(state, id)?;
             let name = parts.join(" ");
             if bar.name == name {
                 return Err(CommandError::BossBarNameUnchanged);
@@ -365,6 +365,7 @@ pub(super) fn bossbar_set_command(
         }
         "color" if parts.len() == 1 => {
             let color = parse_bossbar_color(parts[0])?;
+            let bar = bossbar_mut(state, id)?;
             if bar.color == color {
                 return Err(CommandError::BossBarColorUnchanged);
             }
@@ -373,6 +374,7 @@ pub(super) fn bossbar_set_command(
         }
         "style" if parts.len() == 1 => {
             let overlay = parse_bossbar_overlay(parts[0])?;
+            let bar = bossbar_mut(state, id)?;
             if bar.overlay == overlay {
                 return Err(CommandError::BossBarStyleUnchanged);
             }
@@ -384,6 +386,7 @@ pub(super) fn bossbar_set_command(
             if value < 0 {
                 return Err(CommandError::InvalidSyntax);
             }
+            let bar = bossbar_mut(state, id)?;
             if bar.value == value {
                 return Err(CommandError::BossBarValueUnchanged);
             }
@@ -398,6 +401,7 @@ pub(super) fn bossbar_set_command(
             if max < 1 {
                 return Err(CommandError::InvalidSyntax);
             }
+            let bar = bossbar_mut(state, id)?;
             if bar.max == max {
                 return Err(CommandError::BossBarMaxUnchanged);
             }
@@ -406,6 +410,7 @@ pub(super) fn bossbar_set_command(
         }
         "visible" if parts.len() == 1 => {
             let visible = parse_bool(parts[0])?;
+            let bar = bossbar_mut(state, id)?;
             if bar.visible == visible {
                 return Err(if visible {
                     CommandError::BossBarAlreadyVisible
@@ -424,10 +429,8 @@ pub(super) fn bossbar_set_command(
             ))
         }
         "players" => {
-            let players = parts
-                .iter()
-                .map(|name| NameAndId::create_offline(name))
-                .collect::<Vec<_>>();
+            let players = resolve_bossbar_players(&state.online_players, parts)?;
+            let bar = bossbar_mut(state, id)?;
             if same_players(&bar.players, &players) {
                 return Err(CommandError::BossBarPlayersUnchanged);
             }
@@ -443,6 +446,21 @@ pub(super) fn bossbar_set_command(
         }
         _ => Err(CommandError::InvalidSyntax),
     }
+}
+
+pub(super) fn resolve_bossbar_players(
+    online_players: &[NameAndId],
+    names: &[&str],
+) -> Result<Vec<NameAndId>, CommandError> {
+    let mut players = Vec::with_capacity(names.len());
+    for name in names {
+        let player = online_players
+            .iter()
+            .find(|player| player.name == *name)
+            .ok_or(CommandError::NoPlayers)?;
+        players.push(player.clone());
+    }
+    Ok(players)
 }
 
 pub(super) fn bossbar_set_result(success_count: i32, feedback_key: &'static str) -> CommandResult {
