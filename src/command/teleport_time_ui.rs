@@ -197,10 +197,12 @@ pub(super) fn parse_teleport_rotation_component(input: &str) -> Result<(f32, boo
 }
 
 pub(super) fn validate_teleport_position(position: Vec3) -> Result<(), CommandError> {
-    if position.x.abs() > 30_000_000.0
-        || position.z.abs() > 30_000_000.0
-        || position.y < -20_000_000.0
-        || position.y > 20_000_000.0
+    let block_x = position.x.floor();
+    let block_y = position.y.floor();
+    let block_z = position.z.floor();
+    if !(-30_000_000.0..30_000_000.0).contains(&block_x)
+        || !(-30_000_000.0..30_000_000.0).contains(&block_z)
+        || !(-20_000_000.0..20_000_000.0).contains(&block_y)
     {
         Err(CommandError::TeleportInvalidPosition)
     } else {

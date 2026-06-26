@@ -15,7 +15,29 @@ fn teleport_command_rejects_missing_source_and_invalid_positions() {
         execute_builtin_command(
             &mut state,
             LevelBasedPermissionSet::GAMEMASTER,
-            "teleport Steve 30000001 64 0"
+            "teleport Steve 30000000 64 0"
+        ),
+        Err(CommandError::TeleportInvalidPosition)
+    );
+    execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "teleport Steve -30000000 19999999.999 29999999.999",
+    )
+    .unwrap();
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "teleport Steve 0 20000000 0"
+        ),
+        Err(CommandError::TeleportInvalidPosition)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "teleport Steve -30000000.1 64 0"
         ),
         Err(CommandError::TeleportInvalidPosition)
     );

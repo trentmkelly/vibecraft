@@ -910,3 +910,51 @@ fn teleport_command_records_rotation_and_facing_requests() {
         })
     );
 }
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn teleport_command_source_matches_java_26_1_2() {
+    const TELEPORT_COMMAND_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/TeleportCommand.java");
+    const LEVEL_JAVA: &str = vibecraft_java_source!("/net/minecraft/world/level/Level.java");
+
+    for sentinel in [
+        "Commands.literal(\"teleport\")",
+        ".requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        "Commands.argument(\"location\", Vec3Argument.vec3())",
+        "Commands.argument(\"destination\", EntityArgument.entity())",
+        "Commands.argument(\"targets\", EntityArgument.entities())",
+        "Commands.argument(\"rotation\", RotationArgument.rotation())",
+        "Commands.literal(\"facing\")",
+        "Commands.literal(\"entity\")",
+        "Commands.argument(\"facingAnchor\", EntityAnchorArgument.anchor())",
+        "Commands.literal(\"tp\").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))",
+        ".redirect(teleport)",
+        "Component.translatable(\"commands.teleport.success.entity.single\"",
+        "\"commands.teleport.success.location.single\"",
+        "return entities.size();",
+        "BlockPos blockPos = BlockPos.containing(x, y, z);",
+        "if (!Level.isInSpawnableBounds(blockPos))",
+        "throw INVALID_POSITION.create();",
+        "victim.teleportTo(level, relativeOrAbsoluteX, relativeOrAbsoluteY, relativeOrAbsoluteZ, relatives, newYRot, newXRot, true)",
+        "lookAt.perform(source, victim);",
+        "mob.getNavigation().stop();",
+    ] {
+        assert!(
+            TELEPORT_COMMAND_JAVA.contains(sentinel),
+            "TeleportCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+
+    for sentinel in [
+        "public static boolean isInSpawnableBounds(final BlockPos pos)",
+        "return !isOutsideSpawnableHeight(pos.getY()) && isInWorldBoundsHorizontal(pos);",
+        "pos.getX() >= -30000000 && pos.getZ() >= -30000000 && pos.getX() < 30000000 && pos.getZ() < 30000000",
+        "return y < -20000000 || y >= 20000000;",
+    ] {
+        assert!(
+            LEVEL_JAVA.contains(sentinel),
+            "Level.java is missing sentinel: {sentinel}"
+        );
+    }
+}
