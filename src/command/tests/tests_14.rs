@@ -552,3 +552,54 @@ fn waypoint_command_source_matches_java_26_1_2() {
         );
     }
 }
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn whitelist_command_source_matches_java_26_1_2() {
+    const WHITELIST: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/WhitelistCommand.java");
+
+    for sentinel in [
+        "\"whitelist\"",
+        ".requires(Commands.hasPermission(Commands.LEVEL_ADMINS))",
+        "Commands.literal(\"on\").executes(c -> enableWhitelist((CommandSourceStack)c.getSource()))",
+        "Commands.literal(\"off\").executes(c -> disableWhitelist((CommandSourceStack)c.getSource()))",
+        "Commands.literal(\"list\").executes(c -> showList((CommandSourceStack)c.getSource()))",
+        "Commands.literal(\"add\")",
+        "Commands.argument(\"targets\", GameProfileArgument.gameProfile())",
+        "GameProfileArgument.getGameProfiles(c, \"targets\")",
+        "list.getPlayers()",
+        ".filter(nameAndId -> !list.getWhiteList().isWhiteListed(nameAndId))",
+        "Commands.literal(\"remove\")",
+        "SharedSuggestionProvider.suggest(((CommandSourceStack)c.getSource()).getServer().getPlayerList().getWhiteListNames(), p)",
+        "Commands.literal(\"reload\").executes(c -> reload((CommandSourceStack)c.getSource()))",
+        "source.getServer().getPlayerList().reloadWhiteList();",
+        "source.getServer().kickUnlistedPlayers();",
+        "return 1;",
+        "if (!list.isWhiteListed(target))",
+        "list.add(entry);",
+        "Component.translatable(\"commands.whitelist.add.success\", Component.literal(target.name()))",
+        "throw ERROR_ALREADY_WHITELISTED.create();",
+        "if (list.isWhiteListed(target))",
+        "list.remove(entry);",
+        "Component.translatable(\"commands.whitelist.remove.success\", Component.literal(target.name()))",
+        "throw ERROR_NOT_WHITELISTED.create();",
+        "if (source.getServer().isUsingWhitelist())",
+        "throw ERROR_ALREADY_ENABLED.create();",
+        "source.getServer().setUsingWhitelist(true);",
+        "Component.translatable(\"commands.whitelist.enabled\")",
+        "if (!source.getServer().isUsingWhitelist())",
+        "throw ERROR_ALREADY_DISABLED.create();",
+        "source.getServer().setUsingWhitelist(false);",
+        "Component.translatable(\"commands.whitelist.disabled\")",
+        "String[] list = source.getServer().getPlayerList().getWhiteListNames();",
+        "Component.translatable(\"commands.whitelist.none\")",
+        "Component.translatable(\"commands.whitelist.list\", list.length, String.join(\", \", list))",
+        "return list.length;",
+    ] {
+        assert!(
+            WHITELIST.contains(sentinel),
+            "WhitelistCommand.java is missing sentinel: {sentinel}"
+        );
+    }
+}
