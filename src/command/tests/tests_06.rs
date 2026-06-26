@@ -203,7 +203,12 @@ fn kick_command_disconnects_targets_with_default_or_custom_reason() {
 
 #[test]
 fn ban_and_pardon_commands_track_profiles_and_disconnect_online_players() {
-    let mut state = ServerCommandState::default();
+    let steve = NameAndId::create_offline("Steve");
+    let alex = NameAndId::create_offline("Alex");
+    let mut state = ServerCommandState {
+        online_players: vec![steve.clone()],
+        ..ServerCommandState::default()
+    };
     assert_eq!(
         execute_builtin_command(&mut state, LevelBasedPermissionSet::GAMEMASTER, "ban Steve"),
         Err(CommandError::PermissionDenied)
@@ -219,9 +224,25 @@ fn ban_and_pardon_commands_track_profiles_and_disconnect_online_players() {
     assert_eq!(banned.feedback_key, "commands.ban.success");
     assert_eq!(state.banned_player_names(), vec!["Steve", "Alex"]);
     assert_eq!(
+        state.ban_player_feedback_events,
+        vec![
+            BanPlayerFeedbackEvent {
+                player: steve.clone(),
+                feedback_key: "commands.ban.success",
+                broadcast_to_admins: true,
+            },
+            BanPlayerFeedbackEvent {
+                player: alex,
+                feedback_key: "commands.ban.success",
+                broadcast_to_admins: true,
+            },
+        ]
+    );
+    assert_eq!(
         state.banned_players[0].reason.as_deref(),
         Some("repeated griefing")
     );
+    assert_eq!(state.disconnected_players.len(), 1);
     assert_eq!(
         state.disconnected_players[0].reason,
         "multiplayer.disconnect.banned"
@@ -250,6 +271,25 @@ fn ban_and_pardon_commands_track_profiles_and_disconnect_online_players() {
     assert_eq!(
         execute_builtin_command(&mut state, LevelBasedPermissionSet::ADMIN, "pardon Steve"),
         Err(CommandError::PardonFailed)
+    );
+}
+
+#[test]
+fn ban_command_treats_words_after_plain_target_as_vanilla_message_reason() {
+    let mut state = ServerCommandState::default();
+
+    let banned = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::ADMIN,
+        "ban Steve repeated griefing",
+    )
+    .unwrap();
+
+    assert_eq!(banned.success_count, 1);
+    assert_eq!(state.banned_player_names(), vec!["Steve"]);
+    assert_eq!(
+        state.banned_players[0].reason.as_deref(),
+        Some("repeated griefing")
     );
 }
 

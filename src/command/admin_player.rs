@@ -65,15 +65,28 @@ pub(super) fn ban_command(
     state: &mut ServerCommandState,
     parts: &[&str],
 ) -> Result<CommandResult, CommandError> {
-    let (targets, reason) = targets_and_optional_reason(&parts[1..])?;
+    let (targets, reason) = ban_targets_and_optional_reason(&parts[1..])?;
     let mut count = 0;
     for target in targets {
         let profile = NameAndId::create_offline(target);
         if state.add_player_ban(profile.clone(), reason.clone()) {
-            state.disconnected_players.push(PlayerDisconnect {
-                player: profile,
-                reason: "multiplayer.disconnect.banned".to_string(),
-            });
+            state
+                .ban_player_feedback_events
+                .push(BanPlayerFeedbackEvent {
+                    player: profile.clone(),
+                    feedback_key: "commands.ban.success",
+                    broadcast_to_admins: true,
+                });
+            if state
+                .online_players
+                .iter()
+                .any(|online| online.uuid == profile.uuid)
+            {
+                state.disconnected_players.push(PlayerDisconnect {
+                    player: profile,
+                    reason: "multiplayer.disconnect.banned".to_string(),
+                });
+            }
             count += 1;
         }
     }
@@ -86,6 +99,19 @@ pub(super) fn ban_command(
             feedback_key: "commands.ban.success",
             broadcast_to_admins: true,
         })
+    }
+}
+
+pub(super) fn ban_targets_and_optional_reason<'a>(
+    parts: &'a [&'a str],
+) -> Result<(Vec<&'a str>, Option<String>), CommandError> {
+    if parts.contains(&"--") {
+        return targets_and_optional_reason(parts);
+    }
+    match parts {
+        [] => Err(CommandError::InvalidSyntax),
+        [target] => Ok((vec![*target], None)),
+        [target, reason @ ..] => Ok((vec![*target], Some(reason.join(" ")))),
     }
 }
 

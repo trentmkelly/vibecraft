@@ -6,7 +6,7 @@ pub(super) use super::{
     load_command_functions_from_resources, player_gamemode, player_team, players_allied,
     queue_server_function_tick, team_allows_collision, team_allows_friendly_damage,
     team_allows_visibility, visible_command_usages, ActiveEffect, AdvancementDefinition,
-    BanIpFeedbackEvent,
+    BanIpFeedbackEvent, BanPlayerFeedbackEvent,
     AttributeModifierState, AttributeOperation, AvatarProfile, BiomeEntry, BlockPos,
     BlockStateEntry, BossBarCommandColor, BossBarCommandOverlay, ChaseEvent, ChaseSession,
     AdvancementFlushEvent, ChatCommandKind, ChunkPos, CloneFilter, CloneMode, CommandAvailability,

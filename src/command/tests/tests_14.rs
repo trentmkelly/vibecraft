@@ -735,3 +735,31 @@ fn ban_ip_command_source_matches_java_26_1_2() {
         );
     }
 }
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn ban_player_command_source_matches_java_26_1_2() {
+    const BAN_PLAYER_COMMAND: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/BanPlayerCommands.java");
+
+    for sentinel in [
+        "Commands.literal(\"ban\").requires(Commands.hasPermission(Commands.LEVEL_ADMINS))",
+        "Commands.argument(\"targets\", GameProfileArgument.gameProfile())",
+        "Commands.argument(\"reason\", MessageArgument.message())",
+        "GameProfileArgument.getGameProfiles(c, \"targets\")",
+        "MessageArgument.getMessage(c, \"reason\")",
+        "UserBanList list = source.getServer().getPlayerList().getBans();",
+        "if (!list.isBanned(player))",
+        "new UserBanListEntry(player, null, source.getTextName(), null, reason == null ? null : reason.getString())",
+        "source.sendSuccess(() -> Component.translatable(\"commands.ban.success\", Component.literal(player.name()), entry.getReasonMessage()), true)",
+        "source.getServer().getPlayerList().getPlayer(player.id())",
+        "online.connection.disconnect(Component.translatable(\"multiplayer.disconnect.banned\"));",
+        "throw ERROR_ALREADY_BANNED.create();",
+        "return count;",
+    ] {
+        assert!(
+            BAN_PLAYER_COMMAND.contains(sentinel),
+            "BanPlayerCommands.java is missing sentinel: {sentinel}"
+        );
+    }
+}
