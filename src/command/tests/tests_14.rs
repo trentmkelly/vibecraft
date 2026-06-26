@@ -812,3 +812,38 @@ fn bossbar_command_source_matches_java_26_1_2() {
         );
     }
 }
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn clear_inventory_command_source_matches_java_26_1_2() {
+    const CLEAR_COMMAND: &str =
+        vibecraft_java_source!("/net/minecraft/server/commands/ClearInventoryCommands.java");
+
+    for sentinel in [
+        "Commands.literal(\"clear\")",
+        "Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)",
+        "Collections.singleton(((CommandSourceStack)c.getSource()).getPlayerOrException())",
+        "Commands.argument(\"targets\", EntityArgument.players())",
+        "EntityArgument.getPlayers(c, \"targets\")",
+        "Commands.argument(\"item\", ItemPredicateArgument.itemPredicate(context))",
+        "ItemPredicateArgument.getItemPredicate(c, \"item\")",
+        "Commands.argument(\"maxCount\", IntegerArgumentType.integer(0))",
+        "IntegerArgumentType.getInteger(c, \"maxCount\")",
+        "clearInventory(source, players, predicate, -1)",
+        "player.getInventory().clearOrCountMatchingItems(predicate, maxCount, player.inventoryMenu.getCraftSlots())",
+        "player.containerMenu.broadcastChanges();",
+        "player.inventoryMenu.slotsChanged(player.getInventory());",
+        "throw ERROR_SINGLE.create(players.iterator().next().getName());",
+        "throw ERROR_MULTIPLE.create(players.size());",
+        "\"commands.clear.test.single\"",
+        "\"commands.clear.test.multiple\"",
+        "\"commands.clear.success.single\"",
+        "\"commands.clear.success.multiple\"",
+        "return count;",
+    ] {
+        assert!(
+            CLEAR_COMMAND.contains(sentinel),
+            "ClearInventoryCommands.java is missing sentinel: {sentinel}"
+        );
+    }
+}

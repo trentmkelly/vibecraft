@@ -83,7 +83,7 @@
 - [ ] Implement `/ban-ip`, `/banlist`, `/ban`, `/pardon`, `/pardon-ip`.
 - [x] Implement `/bossbar`. Rust `bossbar_command` is source-audited against `BossBarCommands.java`: gamemaster permission gate, add/remove/list, set/get subtrees, color/style literals, value/max bounds, visible bools, online-player assignment, unchanged errors, feedback keys, return values, and broadcast flags are covered by command-model tests and `bossbar_command_source_matches_java_26_1_2`.
 - [ ] Implement `/chase`.
-- [ ] Implement `/clear`.
+- [x] Implement `/clear`. Rust `clear_command` is source-audited against `ClearInventoryCommands.java`: gamemaster permission, source-player default, player targets, item predicate validation for plain item IDs, max-count/test mode, matched-item return count, failure split, feedback keys, and admin broadcast are covered by command-model tests and `clear_inventory_command_source_matches_java_26_1_2`.
 - [ ] Implement `/clone`.
 - [ ] Implement `/damage`.
 - [ ] Implement `/datapack`.

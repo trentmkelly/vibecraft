@@ -14,10 +14,10 @@ pub(super) fn clear_command(
             None,
             -1,
         ),
-        ["clear", targets] => (parse_name_list(targets), None, -1),
+        ["clear", targets] => (resolve_clear_targets(&state.online_players, targets)?, None, -1),
         ["clear", targets, item] => (
-            parse_name_list(targets),
-            Some(parse_resource_identifier(item)?),
+            resolve_clear_targets(&state.online_players, targets)?,
+            Some(parse_item_identifier(item)?),
             -1,
         ),
         ["clear", targets, item, max_count] => {
@@ -26,8 +26,8 @@ pub(super) fn clear_command(
                 return Err(CommandError::InvalidSyntax);
             }
             (
-                parse_name_list(targets),
-                Some(parse_resource_identifier(item)?),
+                resolve_clear_targets(&state.online_players, targets)?,
+                Some(parse_item_identifier(item)?),
                 max_count,
             )
         }
@@ -61,6 +61,25 @@ pub(super) fn clear_command(
         },
         broadcast_to_admins: true,
     })
+}
+
+pub(super) fn resolve_clear_targets(
+    online_players: &[NameAndId],
+    targets: &str,
+) -> Result<Vec<NameAndId>, CommandError> {
+    let target_names = parse_name_list(targets);
+    if target_names.is_empty() {
+        return Err(CommandError::NoPlayers);
+    }
+    let mut resolved = Vec::with_capacity(target_names.len());
+    for target in target_names {
+        let player = online_players
+            .iter()
+            .find(|online| online.uuid == target.uuid)
+            .ok_or(CommandError::NoPlayers)?;
+        resolved.push(player.clone());
+    }
+    Ok(resolved)
 }
 
 impl CommandPlayerInventory {

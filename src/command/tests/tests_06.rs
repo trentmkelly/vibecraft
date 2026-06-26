@@ -806,10 +806,13 @@ fn clear_command_defaults_to_source_and_removes_matching_items() {
 
 #[test]
 fn clear_command_supports_item_predicate_test_mode_limits_and_failures() {
+    let steve = NameAndId::create_offline("Steve");
+    let alex = NameAndId::create_offline("Alex");
     let mut state = ServerCommandState {
+        online_players: vec![steve.clone(), alex.clone()],
         player_inventories: vec![
             CommandPlayerInventory {
-                player: NameAndId::create_offline("Steve"),
+                player: steve,
                 items: vec![
                     CommandItemStack {
                         item: "minecraft:stone".to_string(),
@@ -822,7 +825,7 @@ fn clear_command_supports_item_predicate_test_mode_limits_and_failures() {
                 ],
             },
             CommandPlayerInventory {
-                player: NameAndId::create_offline("Alex"),
+                player: alex,
                 items: vec![CommandItemStack {
                     item: "minecraft:stone".to_string(),
                     count: 12,
@@ -867,6 +870,22 @@ fn clear_command_supports_item_predicate_test_mode_limits_and_failures() {
             "clear Steve,Alex diamond"
         ),
         Err(CommandError::ClearFailedMultiple)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "clear Herobrine stone"
+        ),
+        Err(CommandError::NoPlayers)
+    );
+    assert_eq!(
+        execute_builtin_command(
+            &mut state,
+            LevelBasedPermissionSet::GAMEMASTER,
+            "clear Steve definitely_not_an_item"
+        ),
+        Err(CommandError::InvalidSyntax)
     );
     assert_eq!(
         execute_builtin_command(
