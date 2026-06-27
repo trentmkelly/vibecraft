@@ -169,6 +169,11 @@ pub struct StatTypeModel {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StatsCounterModel {
+    values: BTreeMap<StatKey, i32>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StatisticsCounter {
     values: BTreeMap<StatKey, i32>,
     dirty: BTreeSet<StatKey>,
@@ -326,6 +331,32 @@ impl StatTypeModel {
 
     pub fn iter(&self) -> impl Iterator<Item = &StatModel> {
         self.stats.values()
+    }
+}
+
+impl StatsCounterModel {
+    pub fn increment(&mut self, stat: &StatModel, count: i32) {
+        let result = (i64::from(self.get_value(stat)) + i64::from(count)).min(i64::from(i32::MAX));
+        self.set_value(stat, result as i32);
+    }
+
+    pub fn set_value(&mut self, stat: &StatModel, count: i32) {
+        self.values.insert(stat.key.clone(), count);
+    }
+
+    pub fn get_typed_value(&self, stat_type: &StatTypeModel, key: &Identifier) -> i32 {
+        if !stat_type.contains(key) {
+            return 0;
+        }
+        let stat_key = StatKey {
+            category: stat_type.category.clone(),
+            value: key.clone(),
+        };
+        self.values.get(&stat_key).copied().unwrap_or(0)
+    }
+
+    pub fn get_value(&self, stat: &StatModel) -> i32 {
+        self.values.get(&stat.key).copied().unwrap_or(0)
     }
 }
 
@@ -596,6 +627,8 @@ mod tests {
     const STAT_JAVA: &str = vibecraft_java_source!("/net/minecraft/stats/Stat.java");
     const STAT_TYPE_JAVA: &str = vibecraft_java_source!("/net/minecraft/stats/StatType.java");
     const STATS_JAVA: &str = vibecraft_java_source!("/net/minecraft/stats/Stats.java");
+    const STATS_COUNTER_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/stats/StatsCounter.java");
 
     #[test]
     fn stat_formatters_match_java_thresholds_and_units() {
@@ -803,6 +836,53 @@ mod tests {
         assert!(CUSTOM_STATS_26_1_2.contains(&"minecraft:play_time"));
         assert!(CUSTOM_STATS_26_1_2.contains(&"minecraft:happy_ghast_one_cm"));
         assert!(CUSTOM_STATS_26_1_2.contains(&"minecraft:interact_with_smithing_table"));
+    }
+
+    #[test]
+    fn stats_counter_base_semantics_match_java() {
+        for sentinel in [
+            "protected final Object2IntMap<Stat<?>> stats = Object2IntMaps.synchronize(new Object2IntOpenHashMap());",
+            "this.stats.defaultReturnValue(0);",
+            "int result = (int)Math.min((long)this.getValue(stat) + count, 2147483647L);",
+            "this.setValue(player, stat, result);",
+            "this.stats.put(stat, count);",
+            "return type.contains(key) ? this.getValue(type.get(key)) : 0;",
+            "return this.stats.getInt(stat);",
+        ] {
+            assert!(
+                STATS_COUNTER_JAVA.contains(sentinel),
+                "StatsCounter.java is missing sentinel: {sentinel}"
+            );
+        }
+
+        let mut stat_type = StatTypeModel::new(
+            "minecraft:custom",
+            "minecraft:custom_stat",
+            "stat_type.minecraft.custom",
+        )
+        .unwrap();
+        let jump = stat_type
+            .get_default("minecraft:jump")
+            .unwrap()
+            .clone();
+        let jump_key = Identifier::parse("minecraft:jump").unwrap();
+        let missing_key = Identifier::parse("minecraft:play_time").unwrap();
+        let mut counter = StatsCounterModel::default();
+
+        assert_eq!(counter.get_value(&jump), 0);
+        assert_eq!(counter.get_typed_value(&stat_type, &jump_key), 0);
+        assert_eq!(counter.get_typed_value(&stat_type, &missing_key), 0);
+
+        counter.set_value(&jump, 12);
+        assert_eq!(counter.get_value(&jump), 12);
+        assert_eq!(counter.get_typed_value(&stat_type, &jump_key), 12);
+
+        counter.increment(&jump, 5);
+        assert_eq!(counter.get_value(&jump), 17);
+        counter.increment(&jump, i32::MAX);
+        assert_eq!(counter.get_value(&jump), i32::MAX);
+        counter.increment(&jump, -10);
+        assert_eq!(counter.get_value(&jump), i32::MAX - 10);
     }
 
     fn java_custom_stat_formatters() -> Vec<(String, StatFormatterKind)> {
