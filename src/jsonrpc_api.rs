@@ -599,67 +599,65 @@ mod tests {
         const SCHEMA_COMPONENT: &str =
             vibecraft_java_source!("/net/minecraft/server/jsonrpc/api/SchemaComponent.java");
 
-        for sentinel in [
+        assert_java_source_contains_all(
+            "MethodInfo.java",
+            METHOD_INFO,
+            &[
             "public record MethodInfo<Params, Result>(String description, Optional<ParamInfo<Params>> params, Optional<ResultInfo<Result>> result)",
             "return list.isEmpty() ? Optional.empty() : Optional.of(list.getFirst());",
             "return opt.isPresent() ? List.of(opt.get()) : List.of();",
             "public MethodInfo.Named<Params, Result> named(final Identifier name)",
             "public record Named<Params, Result>(Identifier name, MethodInfo<Params, Result> contents)",
-        ] {
-            assert!(
-                METHOD_INFO.contains(sentinel),
-                "MethodInfo.java is missing sentinel: {sentinel}"
-            );
-        }
+        ],
+        );
 
-        for sentinel in [
-            "public record ParamInfo<Param>(String name, Schema<Param> schema, boolean required)",
-            "public ParamInfo(final String name, final Schema<Param> schema)",
-            "Codec.BOOL.fieldOf(\"required\").forGetter(ParamInfo::required)",
-        ] {
-            assert!(
-                PARAM_INFO.contains(sentinel),
-                "ParamInfo.java is missing sentinel: {sentinel}"
-            );
-        }
+        assert_java_source_contains_all(
+            "ParamInfo.java",
+            PARAM_INFO,
+            &[
+                "public record ParamInfo<Param>(String name, Schema<Param> schema, boolean required)",
+                "public ParamInfo(final String name, final Schema<Param> schema)",
+                "Codec.BOOL.fieldOf(\"required\").forGetter(ParamInfo::required)",
+            ],
+        );
 
-        for sentinel in [
+        assert_java_source_contains_all(
+            "PlayerDto.java",
+            PLAYER_DTO,
+            &[
             "public record PlayerDto(Optional<UUID> id, Optional<String> name)",
             "UUIDUtil.STRING_CODEC.optionalFieldOf(\"id\").forGetter(PlayerDto::id)",
             "Codec.STRING.optionalFieldOf(\"name\").forGetter(PlayerDto::name)",
             "public static PlayerDto from(final GameProfile gameProfile)",
             "public static PlayerDto from(final NameAndId nameAndId)",
-        ] {
-            assert!(
-                PLAYER_DTO.contains(sentinel),
-                "PlayerDto.java is missing sentinel: {sentinel}"
-            );
-        }
+        ],
+        );
 
-        for sentinel in [
+        assert_java_source_contains_all(
+            "ReferenceUtil.java",
+            REFERENCE_UTIL,
+            &[
             "public static final Codec<URI> REFERENCE_CODEC = Codec.STRING.comapFlatMap",
             "return DataResult.success(new URI(string));",
             "return DataResult.error(e::getMessage);",
             "return URI.create(\"#/components/schemas/\" + typeId);",
-        ] {
-            assert!(
-                REFERENCE_UTIL.contains(sentinel),
-                "ReferenceUtil.java is missing sentinel: {sentinel}"
-            );
-        }
+        ],
+        );
 
-        for sentinel in [
+        assert_java_source_contains_all(
+            "ResultInfo.java",
+            RESULT_INFO,
+            &[
             "public record ResultInfo<Result>(String name, Schema<Result> schema)",
             "Codec.STRING.fieldOf(\"name\").forGetter(ResultInfo::name)",
             "Schema.typedCodec().fieldOf(\"schema\").forGetter(ResultInfo::schema)",
-        ] {
-            assert!(
-                RESULT_INFO.contains(sentinel),
-                "ResultInfo.java is missing sentinel: {sentinel}"
-            );
-        }
+        ],
+        );
 
-        for sentinel in [
+        assert_java_source_contains_all(
+            "Schema.java",
+            SCHEMA,
+            &[
             "public record Schema<T>(",
             "Optional<URI> reference, List<String> type, Optional<Schema<?>> items, Map<String, Schema<?>> properties, List<String> enumValues, Codec<T> codec",
             "private static final List<SchemaComponent<?>> SCHEMA_REGISTRY = new ArrayList<>();",
@@ -680,21 +678,26 @@ mod tests {
             "public static <T> Schema<List<T>> arrayOf(final Schema<?> item, final Codec<T> codec)",
             "public Schema<T> withField(final String name, final Schema<?> field)",
             "public Schema<List<T>> asArray()",
-        ] {
-            assert!(
-                SCHEMA.contains(sentinel),
-                "Schema.java is missing sentinel: {sentinel}"
-            );
-        }
+        ],
+        );
 
-        for sentinel in [
+        assert_java_source_contains_all(
+            "SchemaComponent.java",
+            SCHEMA_COMPONENT,
+            &[
             "public record SchemaComponent<T>(String name, URI ref, Schema<T> schema)",
             "return Schema.ofRef(this.ref, this.schema.codec());",
             "return Schema.arrayOf(this.asRef(), this.schema.codec());",
-        ] {
+        ],
+        );
+    }
+
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn assert_java_source_contains_all(name: &str, source: &str, sentinels: &[&str]) {
+        for sentinel in sentinels {
             assert!(
-                SCHEMA_COMPONENT.contains(sentinel),
-                "SchemaComponent.java is missing sentinel: {sentinel}"
+                source.contains(sentinel),
+                "{name} is missing sentinel: {sentinel}"
             );
         }
     }

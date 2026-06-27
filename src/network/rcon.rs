@@ -78,6 +78,74 @@ pub struct RconSession {
     broadcasts: Vec<String>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct RconConsoleSourceModel {
+    buffer: String,
+    should_rcon_broadcast: bool,
+    respawn_pos: (i32, i32, i32),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RconCommandSourceStackModel {
+    pub source_name: String,
+    pub display_name: String,
+    pub position: (f64, f64, f64),
+    pub rotation: (f32, f32),
+    pub permission: &'static str,
+    pub server_attached: bool,
+    pub entity_attached: bool,
+}
+
+impl RconConsoleSourceModel {
+    pub fn new(should_rcon_broadcast: bool, respawn_pos: (i32, i32, i32)) -> Self {
+        Self {
+            buffer: String::new(),
+            should_rcon_broadcast,
+            respawn_pos,
+        }
+    }
+
+    pub fn prepare_for_command(&mut self) {
+        self.buffer.clear();
+    }
+
+    pub fn get_command_response(&self) -> &str {
+        &self.buffer
+    }
+
+    pub fn create_command_source_stack(&self) -> RconCommandSourceStackModel {
+        RconCommandSourceStackModel {
+            source_name: "Rcon".to_string(),
+            display_name: "Rcon".to_string(),
+            position: (
+                f64::from(self.respawn_pos.0),
+                f64::from(self.respawn_pos.1),
+                f64::from(self.respawn_pos.2),
+            ),
+            rotation: (0.0, 0.0),
+            permission: "LevelBasedPermissionSet.OWNER",
+            server_attached: true,
+            entity_attached: false,
+        }
+    }
+
+    pub fn send_system_message(&mut self, message: &str) {
+        self.buffer.push_str(message);
+    }
+
+    pub fn accepts_success(&self) -> bool {
+        true
+    }
+
+    pub fn accepts_failure(&self) -> bool {
+        true
+    }
+
+    pub fn should_inform_admins(&self) -> bool {
+        self.should_rcon_broadcast
+    }
+}
+
 impl RconSession {
     pub fn new(password: impl Into<String>, broadcast_to_ops: bool) -> Self {
         Self {
@@ -321,8 +389,8 @@ mod tests {
     use super::{
         rcon_byte_to_hex_string, rcon_int_from_byte_array, rcon_int_from_byte_array_with_length,
         rcon_int_from_network_byte_array, rcon_string_from_byte_array, read_packet, write_packet,
-        NetworkDataOutputStreamModel, RconPacket, RconSession, RCON_MAX_PACKET_SIZE,
-        SERVERDATA_AUTH, SERVERDATA_AUTH_FAILURE, SERVERDATA_AUTH_RESPONSE,
+        NetworkDataOutputStreamModel, RconConsoleSourceModel, RconPacket, RconSession,
+        RCON_MAX_PACKET_SIZE, SERVERDATA_AUTH, SERVERDATA_AUTH_FAILURE, SERVERDATA_AUTH_RESPONSE,
         SERVERDATA_EXECCOMMAND, SERVERDATA_RESPONSE_VALUE,
     };
     use std::io::Cursor;
@@ -331,6 +399,8 @@ mod tests {
         vibecraft_java_source!("/net/minecraft/server/rcon/NetworkDataOutputStream.java");
     const PKT_UTILS_JAVA: &str =
         vibecraft_java_source!("/net/minecraft/server/rcon/PktUtils.java");
+    const RCON_CONSOLE_SOURCE_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/rcon/RconConsoleSource.java");
 
     #[test]
     fn network_data_output_stream_writes_little_endian_values_like_java() {
@@ -402,6 +472,51 @@ mod tests {
         assert_eq!(rcon_int_from_network_byte_array(&[1, 2, 3], 0, 3), 0);
         assert_eq!(rcon_byte_to_hex_string(0xAF), "af");
         assert_eq!(rcon_byte_to_hex_string(0x05), "05");
+    }
+
+    #[test]
+    fn rcon_console_source_buffers_messages_and_resets_like_java() {
+        let mut source = RconConsoleSourceModel::new(true, (10, 64, -3));
+
+        source.send_system_message("first");
+        source.send_system_message(" second");
+        assert_eq!(source.get_command_response(), "first second");
+
+        source.prepare_for_command();
+        assert_eq!(source.get_command_response(), "");
+
+        assert!(source.accepts_success());
+        assert!(source.accepts_failure());
+        assert!(source.should_inform_admins());
+        assert!(!RconConsoleSourceModel::new(false, (0, 64, 0)).should_inform_admins());
+    }
+
+    #[test]
+    fn rcon_console_source_stack_matches_java_owner_rcon_source() {
+        assert_contains_all(
+            RCON_CONSOLE_SOURCE_JAVA,
+            &[
+                "private static final String RCON = \"Rcon\";",
+                "private static final Component RCON_COMPONENT = Component.literal(\"Rcon\");",
+                "this.buffer.setLength(0);",
+                "return this.buffer.toString();",
+                "Vec3.atLowerCornerOf(level.getRespawnData().pos())",
+                "Vec2.ZERO",
+                "LevelBasedPermissionSet.OWNER",
+                "\"Rcon\", RCON_COMPONENT",
+                "this.buffer.append(message.getString());",
+                "return this.server.shouldRconBroadcast();",
+            ],
+        );
+
+        let stack = RconConsoleSourceModel::new(false, (10, 64, -3)).create_command_source_stack();
+        assert_eq!(stack.source_name, "Rcon");
+        assert_eq!(stack.display_name, "Rcon");
+        assert_eq!(stack.position, (10.0, 64.0, -3.0));
+        assert_eq!(stack.rotation, (0.0, 0.0));
+        assert_eq!(stack.permission, "LevelBasedPermissionSet.OWNER");
+        assert!(stack.server_attached);
+        assert!(!stack.entity_attached);
     }
 
     #[test]

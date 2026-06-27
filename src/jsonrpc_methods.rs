@@ -949,7 +949,7 @@ mod tests {
 
     #[test]
     #[cfg(vibecraft_has_decompiled_sources)]
-    fn jsonrpc_method_sources_match_java_26_1_2() {
+    fn jsonrpc_exception_message_sources_match_java_26_1_2() {
         const ENCODE: &str =
             vibecraft_java_source!("/net/minecraft/server/jsonrpc/methods/EncodeJsonRpcException.java");
         const INVALID_PARAMETER: &str =
@@ -964,12 +964,6 @@ mod tests {
             vibecraft_java_source!("/net/minecraft/server/jsonrpc/methods/Message.java");
         const CLIENT_INFO: &str =
             vibecraft_java_source!("/net/minecraft/server/jsonrpc/methods/ClientInfo.java");
-        const DISCOVERY: &str =
-            vibecraft_java_source!("/net/minecraft/server/jsonrpc/methods/DiscoveryService.java");
-        const GAME_RULES: &str =
-            vibecraft_java_source!("/net/minecraft/server/jsonrpc/methods/GameRulesService.java");
-        const SERVER_SETTINGS: &str =
-            vibecraft_java_source!("/net/minecraft/server/jsonrpc/methods/ServerSettingsService.java");
 
         for (name, source, sentinel) in [
             (
@@ -998,20 +992,22 @@ mod tests {
             assert!(source.contains("super(message);"), "{name} super message missing");
         }
 
-        for sentinel in [
-            "private final JsonElement id;",
-            "private final JsonObject error;",
-            "public RemoteRpcErrorException(final JsonElement id, final JsonObject error)",
-            "return this.error;",
-            "return this.id;",
-        ] {
-            assert!(
-                REMOTE.contains(sentinel),
-                "RemoteRpcErrorException.java is missing sentinel: {sentinel}"
-            );
-        }
+        assert_java_source_contains_all(
+            "RemoteRpcErrorException.java",
+            REMOTE,
+            &[
+                "private final JsonElement id;",
+                "private final JsonObject error;",
+                "public RemoteRpcErrorException(final JsonElement id, final JsonObject error)",
+                "return this.error;",
+                "return this.id;",
+            ],
+        );
 
-        for sentinel in [
+        assert_java_source_contains_all(
+            "Message.java",
+            MESSAGE,
+            &[
             "public record Message(Optional<String> literal, Optional<String> translatable, Optional<List<String>> translatableParams)",
             "Codec.STRING.optionalFieldOf(\"literal\").forGetter(Message::literal)",
             "Codec.STRING.optionalFieldOf(\"translatable\").forGetter(Message::translatable)",
@@ -1020,25 +1016,34 @@ mod tests {
             "return Optional.of(Component.translatable(translationKey, translationArgs.toArray()));",
             "return Optional.of(Component.translatable(translationKey));",
             "return this.literal.map(Component::literal);",
-        ] {
-            assert!(
-                MESSAGE.contains(sentinel),
-                "Message.java is missing sentinel: {sentinel}"
-            );
-        }
+        ],
+        );
 
-        for sentinel in [
-            "public record ClientInfo(Integer connectionId)",
-            "public static ClientInfo of(final Integer connectionId)",
-            "return new ClientInfo(connectionId);",
-        ] {
-            assert!(
-                CLIENT_INFO.contains(sentinel),
-                "ClientInfo.java is missing sentinel: {sentinel}"
-            );
-        }
+        assert_java_source_contains_all(
+            "ClientInfo.java",
+            CLIENT_INFO,
+            &[
+                "public record ClientInfo(Integer connectionId)",
+                "public static ClientInfo of(final Integer connectionId)",
+                "return new ClientInfo(connectionId);",
+            ],
+        );
+    }
 
-        for sentinel in [
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn jsonrpc_service_sources_match_java_26_1_2() {
+        const DISCOVERY: &str =
+            vibecraft_java_source!("/net/minecraft/server/jsonrpc/methods/DiscoveryService.java");
+        const GAME_RULES: &str =
+            vibecraft_java_source!("/net/minecraft/server/jsonrpc/methods/GameRulesService.java");
+        const SERVER_SETTINGS: &str =
+            vibecraft_java_source!("/net/minecraft/server/jsonrpc/methods/ServerSettingsService.java");
+
+        assert_java_source_contains_all(
+            "DiscoveryService.java",
+            DISCOVERY,
+            &[
             "public static DiscoveryService.DiscoverResponse discover(final List<SchemaComponent<?>> schemaRegistry)",
             "new ArrayList<>(BuiltInRegistries.INCOMING_RPC_METHOD.size() + BuiltInRegistries.OUTGOING_RPC_METHOD.size())",
             "if (e.value().attributes().discoverable())",
@@ -1050,14 +1055,13 @@ mod tests {
             "public record DiscoverInfo(String title, String version)",
             "public record DiscoverResponse(",
             "Codec.STRING.fieldOf(\"openrpc\").forGetter(DiscoveryService.DiscoverResponse::jsonRpcProtocolVersion)",
-        ] {
-            assert!(
-                DISCOVERY.contains(sentinel),
-                "DiscoveryService.java is missing sentinel: {sentinel}"
-            );
-        }
+        ],
+        );
 
-        for sentinel in [
+        assert_java_source_contains_all(
+            "GameRulesService.java",
+            GAME_RULES,
+            &[
             "public static List<GameRulesService.GameRuleUpdate<?>> get(final MinecraftApi minecraftApi)",
             "minecraftApi.gameRuleService().getAvailableGameRules().forEach(gameRule -> addGameRule(minecraftApi, (GameRule<?>)gameRule, rules));",
             "rules.add(getTypedRule(minecraftApi, gameRule, value));",
@@ -1071,19 +1075,18 @@ mod tests {
             "throw new InvalidParameterJsonRpcException(",
             "Stated type \\\"\" + readType + \"\\\" mismatches with actual type \\\"\" + gameRule.gameRuleType() + \"\\\" of gamerule \\\"\" + gameRule.id() + \"\\\"\"",
             "return new GameRulesService.GameRuleUpdate<>(gameRule, value);",
-        ] {
-            assert!(
-                GAME_RULES.contains(sentinel),
-                "GameRulesService.java is missing sentinel: {sentinel}"
-            );
-        }
+        ],
+        );
 
         assert_server_settings_source_matches_java(SERVER_SETTINGS);
     }
 
     #[cfg(vibecraft_has_decompiled_sources)]
     fn assert_server_settings_source_matches_java(source: &str) {
-        for sentinel in [
+        assert_java_source_contains_all(
+            "ServerSettingsService.java",
+            source,
+            &[
             "public class ServerSettingsService",
             "return minecraftApi.serverSettingsService().isAutoSave();",
             "return minecraftApi.serverSettingsService().setAutoSave(enabled, clientInfo);",
@@ -1125,10 +1128,16 @@ mod tests {
             "return minecraftApi.serverSettingsService().setRepliesToStatus(enable, clientInfo);",
             "return minecraftApi.serverSettingsService().getEntityBroadcastRangePercentage();",
             "return minecraftApi.serverSettingsService().setEntityBroadcastRangePercentage(percentage, clientInfo);",
-        ] {
+        ],
+        );
+    }
+
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn assert_java_source_contains_all(name: &str, source: &str, sentinels: &[&str]) {
+        for sentinel in sentinels {
             assert!(
                 source.contains(sentinel),
-                "ServerSettingsService.java is missing sentinel: {sentinel}"
+                "{name} is missing sentinel: {sentinel}"
             );
         }
     }
