@@ -11,6 +11,8 @@ const OUTGOING_RPC_METHOD_JAVA: &str =
     vibecraft_java_source!("/net/minecraft/server/jsonrpc/OutgoingRpcMethod.java");
 const INCOMING_RPC_METHOD_JAVA: &str =
     vibecraft_java_source!("/net/minecraft/server/jsonrpc/IncomingRpcMethod.java");
+const INCOMING_RPC_METHODS_JAVA: &str =
+    vibecraft_java_source!("/net/minecraft/server/jsonrpc/IncomingRpcMethods.java");
 const PENDING_RPC_REQUEST_JAVA: &str =
     vibecraft_java_source!("/net/minecraft/server/jsonrpc/PendingRpcRequest.java");
 const JSON_RPC_NOTIFICATION_SERVICE_JAVA: &str =
@@ -785,6 +787,112 @@ fn json_rpc_dispatch_covers_declared_methods_and_validates_schemas() {
         validate_result_schema("players/get", &JsonRpcResult::Null),
         Err(JsonRpcError::INTERNAL_ERROR)
     );
+}
+
+#[test]
+fn incoming_rpc_methods_registry_matches_java_bootstrap() {
+    assert_incoming_rpc_methods_bootstrap_matches_java_source();
+    assert_eq!(
+        INCOMING_RPC_METHOD_DEFS.len(),
+        INCOMING_RPC_METHODS_JAVA.matches(".register(methodRegistry,").count()
+    );
+
+    let mut previous_register = 0;
+    for definition in &INCOMING_RPC_METHOD_DEFS[..INCOMING_RPC_METHOD_DEFS.len() - 1] {
+        assert_incoming_rpc_method_definition_matches_java(definition, &mut previous_register);
+    }
+
+    let discovery = INCOMING_RPC_METHOD_DEFS
+        .last()
+        .expect("discovery method should be last");
+    assert_incoming_rpc_method_definition_matches_java_without_order(discovery);
+    assert_eq!(discovery.method, "rpc.discover");
+    assert_eq!(discovery.description, "");
+    assert_eq!(discovery.param, None);
+    assert_eq!(discovery.result, ("result", "Schema.DISCOVERY_SCHEMA"));
+    assert!(!discovery.run_on_main_thread);
+    assert!(!discovery.discoverable);
+    assert!(INCOMING_RPC_METHOD_DEFS[..INCOMING_RPC_METHOD_DEFS.len() - 1]
+        .iter()
+        .all(|definition| definition.run_on_main_thread && definition.discoverable));
+}
+
+fn assert_incoming_rpc_method_definition_matches_java(
+    definition: &IncomingRpcMethodDef,
+    previous_register: &mut usize,
+) {
+    assert_incoming_rpc_method_definition_matches_java_without_order(definition);
+
+    let register_sentinel = format!(".register(methodRegistry, \"{}\")", definition.method);
+    let register_index = INCOMING_RPC_METHODS_JAVA
+        .find(&register_sentinel)
+        .unwrap_or_else(|| {
+            panic!("IncomingRpcMethods.java missing register sentinel: {register_sentinel}")
+        });
+    assert!(
+        register_index >= *previous_register,
+        "IncomingRpcMethods.java register out of order: {register_sentinel}"
+    );
+    *previous_register = register_index;
+}
+
+fn assert_incoming_rpc_method_definition_matches_java_without_order(
+    definition: &IncomingRpcMethodDef,
+) {
+    if !definition.description.is_empty() {
+        let description_sentinel = format!(".description(\"{}\")", definition.description);
+        assert!(
+            INCOMING_RPC_METHODS_JAVA.contains(&description_sentinel),
+            "IncomingRpcMethods.java missing description sentinel: {description_sentinel}"
+        );
+    }
+
+    if let Some((param_name, param_schema)) = definition.param {
+        let param_sentinel = format!(".param(\"{param_name}\", {param_schema})");
+        assert!(
+            INCOMING_RPC_METHODS_JAVA.contains(&param_sentinel),
+            "IncomingRpcMethods.java missing param sentinel: {param_sentinel}"
+        );
+    }
+
+    let response_sentinel = format!(
+        ".response(\"{}\", {})",
+        definition.result.0, definition.result.1
+    );
+    assert!(
+        INCOMING_RPC_METHODS_JAVA.contains(&response_sentinel),
+        "IncomingRpcMethods.java missing response sentinel: {response_sentinel}"
+    );
+
+    let register_sentinel = format!(".register(methodRegistry, \"{}\")", definition.method);
+    assert!(
+        INCOMING_RPC_METHODS_JAVA.contains(&register_sentinel),
+        "IncomingRpcMethods.java missing register sentinel: {register_sentinel}"
+    );
+}
+
+fn assert_incoming_rpc_methods_bootstrap_matches_java_source() {
+    for sentinel in [
+        "public static IncomingRpcMethod<?, ?> bootstrap(final Registry<IncomingRpcMethod<?, ?>> methodRegistry)",
+        "registerAllowListService(methodRegistry);",
+        "registerBanlistService(methodRegistry);",
+        "registerIpBanlistService(methodRegistry);",
+        "registerPlayerService(methodRegistry);",
+        "registerOperatorService(methodRegistry);",
+        "registerServerStateService(methodRegistry);",
+        "registerServerSettingsService(methodRegistry);",
+        "registerGameRuleService(methodRegistry);",
+        "IncomingRpcMethod.<DiscoveryService.DiscoverResponse>method(apiService -> DiscoveryService.discover(Schema.getSchemaRegistry()))",
+        ".undiscoverable()",
+        ".notOnMainThread()",
+        ".response(\"result\", Schema.DISCOVERY_SCHEMA)",
+        ".register(methodRegistry, \"rpc.discover\");",
+    ] {
+        assert!(
+            INCOMING_RPC_METHODS_JAVA.contains(sentinel),
+            "IncomingRpcMethods.java missing bootstrap sentinel: {sentinel}"
+        );
+    }
 }
 
 #[test]
