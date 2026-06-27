@@ -1628,7 +1628,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/GenerationChunkHolder.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/LoadingChunkTracker.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/ParticleStatus.java`. Rust `network::common::ParticleStatus` mirrors Java 26.1.2's `ALL`/`DECREASED`/`MINIMAL` ids, translatable caption keys, and legacy integer codec wrap behavior, with Java source sentinels pinned by `particle_status_source_matches_java_26_1_2`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/PlayerMap.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/PlayerMap.java`. Rust `server_level_player_map::PlayerMapModel` mirrors Java 26.1.2's player-to-ignored boolean map facade: key-set listing, add/replace, remove, ignore/unignore using replace-only-existing behavior, `ignoredOrUnknown` defaulting unknown players to true, and `ignored` defaulting unknown players to false, with Java source sentinels pinned by `player_map_source_matches_java_26_1_2`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/PlayerSpawnFinder.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/SectionTracker.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/ServerBossEvent.java`.
