@@ -685,6 +685,7 @@ mod server_interface;
 mod server_level_block_destruction_progress;
 mod server_level_chunk_level;
 mod server_level_chunk_result;
+mod server_level_demo_mode;
 mod server_level_player_map;
 mod server_links;
 mod server_registry_layer;
