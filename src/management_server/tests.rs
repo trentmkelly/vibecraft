@@ -11,6 +11,8 @@ const OUTGOING_RPC_METHOD_JAVA: &str =
     vibecraft_java_source!("/net/minecraft/server/jsonrpc/OutgoingRpcMethod.java");
 const PENDING_RPC_REQUEST_JAVA: &str =
     vibecraft_java_source!("/net/minecraft/server/jsonrpc/PendingRpcRequest.java");
+const JSON_RPC_NOTIFICATION_SERVICE_JAVA: &str =
+    vibecraft_java_source!("/net/minecraft/server/jsonrpc/JsonRpcNotificationService.java");
 
 fn config() -> ManagementServerConfig {
     ManagementServerConfig {
@@ -837,6 +839,98 @@ fn outgoing_notification_methods_cover_vanilla_set_and_broadcast_to_clients() {
             },
         ]
     );
+}
+
+#[test]
+fn json_rpc_notification_service_maps_events_to_outgoing_methods() {
+    for sentinel in [
+        "public class JsonRpcNotificationService implements NotificationService",
+        "private final ManagementServer managementServer;",
+        "private final MinecraftApi minecraftApi;",
+        "public JsonRpcNotificationService(final MinecraftApi minecraftApi, final ManagementServer managementServer)",
+        "this.minecraftApi = minecraftApi;",
+        "this.managementServer = managementServer;",
+        "this.broadcastNotification(OutgoingRpcMethods.PLAYER_JOINED, PlayerDto.from(player));",
+        "this.broadcastNotification(OutgoingRpcMethods.PLAYER_LEFT, PlayerDto.from(player));",
+        "this.broadcastNotification(OutgoingRpcMethods.SERVER_STARTED);",
+        "this.broadcastNotification(OutgoingRpcMethods.SERVER_SHUTTING_DOWN);",
+        "this.broadcastNotification(OutgoingRpcMethods.SERVER_SAVE_STARTED);",
+        "this.broadcastNotification(OutgoingRpcMethods.SERVER_SAVE_COMPLETED);",
+        "this.broadcastNotification(OutgoingRpcMethods.SERVER_ACTIVITY_OCCURRED);",
+        "this.broadcastNotification(OutgoingRpcMethods.PLAYER_OPED, OperatorService.OperatorDto.from(operator));",
+        "this.broadcastNotification(OutgoingRpcMethods.PLAYER_DEOPED, OperatorService.OperatorDto.from(operator));",
+        "this.broadcastNotification(OutgoingRpcMethods.PLAYER_ADDED_TO_ALLOWLIST, PlayerDto.from(player));",
+        "this.broadcastNotification(OutgoingRpcMethods.PLAYER_REMOVED_FROM_ALLOWLIST, PlayerDto.from(player));",
+        "this.broadcastNotification(OutgoingRpcMethods.IP_BANNED, IpBanlistService.IpBanDto.from(ban));",
+        "this.broadcastNotification(OutgoingRpcMethods.IP_UNBANNED, ip);",
+        "this.broadcastNotification(OutgoingRpcMethods.PLAYER_BANNED, BanlistService.UserBanDto.from(ban));",
+        "this.broadcastNotification(OutgoingRpcMethods.PLAYER_UNBANNED, PlayerDto.from(player));",
+        "this.broadcastNotification(OutgoingRpcMethods.GAMERULE_CHANGED, GameRulesService.getTypedRule(this.minecraftApi, gameRule, value));",
+        "this.broadcastNotification(OutgoingRpcMethods.STATUS_HEARTBEAT, ServerStateService.status(this.minecraftApi));",
+        "this.managementServer.forEachConnection(connection -> connection.sendNotification(method));",
+        "this.managementServer.forEachConnection(connection -> connection.sendNotification(method, params));",
+    ] {
+        assert!(
+            JSON_RPC_NOTIFICATION_SERVICE_JAVA.contains(sentinel),
+            "JsonRpcNotificationService.java missing sentinel: {sentinel}"
+        );
+    }
+
+    let steve = PlayerDto::from_profile(&player("Steve"));
+    let alex = PlayerDto::from_profile(&player("Alex"));
+    let mut state = ManagementServerState::default();
+    state.connect_client("admin");
+    {
+        let mut service = JsonRpcNotificationService::new(&mut state);
+        service.player_joined(steve.clone());
+        service.player_left(steve.clone());
+        service.server_started();
+        service.server_shutting_down();
+        service.server_save_started();
+        service.server_save_completed();
+        service.server_activity_occured();
+        service.player_oped(alex.clone());
+        service.player_deoped(alex.clone());
+        service.player_added_to_allowlist(alex.clone());
+        service.player_removed_from_allowlist(alex.clone());
+        service.ip_banned("127.0.0.1".to_string());
+        service.ip_unbanned("127.0.0.1".to_string());
+        service.player_banned(steve.clone());
+        service.player_unbanned(steve);
+        service.on_game_rule_changed("doDaylightCycle".to_string());
+        service.status_heartbeat("running".to_string());
+    }
+
+    assert_eq!(
+        state
+            .notifications
+            .iter()
+            .map(|notification| notification.method.as_str())
+            .collect::<Vec<_>>(),
+        vec![
+            "players/joined",
+            "players/left",
+            "server/started",
+            "server/stopping",
+            "server/saving",
+            "server/saved",
+            "server/activity",
+            "operators/added",
+            "operators/removed",
+            "allowlist/added",
+            "allowlist/removed",
+            "ip_bans/added",
+            "ip_bans/removed",
+            "bans/added",
+            "bans/removed",
+            "gamerules/updated",
+            "server/status",
+        ]
+    );
+    assert!(state
+        .notifications
+        .iter()
+        .all(|notification| notification.client_id == "admin"));
 }
 
 fn assert_outgoing_rpc_methods_match_java_source() {

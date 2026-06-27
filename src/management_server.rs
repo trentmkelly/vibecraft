@@ -874,6 +874,88 @@ pub struct QueuedNotification {
     pub method: String,
 }
 
+pub struct JsonRpcNotificationService<'a> {
+    management_server: &'a mut ManagementServerState,
+}
+
+impl<'a> JsonRpcNotificationService<'a> {
+    pub fn new(management_server: &'a mut ManagementServerState) -> Self {
+        Self { management_server }
+    }
+
+    pub fn player_joined(&mut self, player: PlayerDto) {
+        self.broadcast(OutgoingNotification::PlayersJoined(vec![player]));
+    }
+
+    pub fn player_left(&mut self, player: PlayerDto) {
+        self.broadcast(OutgoingNotification::PlayersLeft(vec![player]));
+    }
+
+    pub fn server_started(&mut self) {
+        self.broadcast(OutgoingNotification::ServerStarted);
+    }
+
+    pub fn server_shutting_down(&mut self) {
+        self.broadcast(OutgoingNotification::ServerStopping);
+    }
+
+    pub fn server_save_started(&mut self) {
+        self.broadcast(OutgoingNotification::ServerSaving);
+    }
+
+    pub fn server_save_completed(&mut self) {
+        self.broadcast(OutgoingNotification::ServerSaved);
+    }
+
+    pub fn server_activity_occured(&mut self) {
+        self.broadcast(OutgoingNotification::ServerActivity(String::new()));
+    }
+
+    pub fn player_oped(&mut self, operator: PlayerDto) {
+        self.broadcast(OutgoingNotification::OperatorsAdded(vec![operator]));
+    }
+
+    pub fn player_deoped(&mut self, operator: PlayerDto) {
+        self.broadcast(OutgoingNotification::OperatorsRemoved(vec![operator]));
+    }
+
+    pub fn player_added_to_allowlist(&mut self, player: PlayerDto) {
+        self.broadcast(OutgoingNotification::AllowlistAdded(vec![player]));
+    }
+
+    pub fn player_removed_from_allowlist(&mut self, player: PlayerDto) {
+        self.broadcast(OutgoingNotification::AllowlistRemoved(vec![player]));
+    }
+
+    pub fn ip_banned(&mut self, ban: String) {
+        self.broadcast(OutgoingNotification::IpBansAdded(vec![ban]));
+    }
+
+    pub fn ip_unbanned(&mut self, ip: String) {
+        self.broadcast(OutgoingNotification::IpBansRemoved(vec![ip]));
+    }
+
+    pub fn player_banned(&mut self, ban: PlayerDto) {
+        self.broadcast(OutgoingNotification::BansAdded(vec![ban]));
+    }
+
+    pub fn player_unbanned(&mut self, player: PlayerDto) {
+        self.broadcast(OutgoingNotification::BansRemoved(vec![player]));
+    }
+
+    pub fn on_game_rule_changed(&mut self, update: String) {
+        self.broadcast(OutgoingNotification::GameRulesUpdated(vec![update]));
+    }
+
+    pub fn status_heartbeat(&mut self, status: String) {
+        self.broadcast(OutgoingNotification::ServerStatus(status));
+    }
+
+    fn broadcast(&mut self, notification: OutgoingNotification) {
+        self.management_server.broadcast(notification);
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ManagementServerState {
     pub online_players: Vec<NameAndId>,
