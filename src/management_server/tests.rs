@@ -2,6 +2,8 @@ use super::*;
 
 const VALID_SECRET: &str = "0123456789abcdefghijklmnopqrstuvwxyzABCD";
 const CONNECTION_JAVA: &str = vibecraft_java_source!("/net/minecraft/server/jsonrpc/Connection.java");
+const MANAGEMENT_SERVER_JAVA: &str =
+    vibecraft_java_source!("/net/minecraft/server/jsonrpc/ManagementServer.java");
 const JSON_RPC_ERRORS_JAVA: &str =
     vibecraft_java_source!("/net/minecraft/server/jsonrpc/JsonRPCErrors.java");
 const JSON_RPC_UTILS_JAVA: &str =
@@ -87,6 +89,117 @@ fn startup_refuses_invalid_secret_and_builds_plain_or_tls_listener() {
             allowed_origins: AllowedOrigins::parse("https://admin.example"),
         }
     );
+}
+
+#[test]
+fn management_server_lifecycle_and_pipeline_match_java_contract() {
+    assert_management_server_java_source_shape();
+
+    let mut server = ManagementServerRuntimeModel::new("127.0.0.1", 0, "bearer-auth");
+    assert_eq!(server.get_port(), 0);
+    assert!(!server.nio_event_loop_group_closed);
+
+    server.start_without_tls(25_585);
+    assert_eq!(server.get_port(), 25_585);
+    assert_eq!(
+        server.pipelines,
+        vec![ManagementServerPipeline {
+            tls: false,
+            handlers: vec![
+                "HttpServerCodec",
+                "HttpObjectAggregator(65536)",
+                "AuthenticationHandler",
+                "WebSocketServerProtocolHandler(/)",
+                "WebSocketToJsonCodec",
+                "JsonToWebSocketEncoder",
+                "Connection",
+            ],
+            tcp_no_delay_attempted: true,
+        }]
+    );
+    assert_eq!(
+        server.log_messages,
+        vec!["Json-RPC Management connection listening on 127.0.0.1:25585".to_string()]
+    );
+
+    let mut connection = JsonRpcConnectionModel::new(1);
+    connection.send_request("notification/server/status", &[], 10);
+    server.on_connected(connection.clone());
+    server.on_connected(connection);
+    assert_eq!(server.connections.len(), 1);
+    server.tick(5_011);
+    assert_eq!(
+        server.connections[0].completed_requests.get(&1),
+        Some(&Err(
+            "RPC method notification/server/status timed out waiting for response".to_string()
+        ))
+    );
+    server.on_disconnected(1);
+    assert!(server.connections.is_empty());
+
+    server.start_with_tls(25_586);
+    assert_eq!(
+        server
+            .pipelines
+            .last()
+            .map(|pipeline| pipeline.handlers.first().copied()),
+        Some(Some("SslHandler"))
+    );
+    server.on_connected(JsonRpcConnectionModel::new(2));
+    server.stop(false);
+    assert_eq!(server.get_port(), 0);
+    assert!(server.connections.is_empty());
+    assert!(!server.nio_event_loop_group_closed);
+
+    server.start_without_tls(25_587);
+    server.stop(true);
+    assert!(server.nio_event_loop_group_closed);
+}
+
+fn assert_management_server_java_source_shape() {
+    for sentinel in [
+        "private final HostAndPort hostAndPort;",
+        "private final AuthenticationHandler authenticationHandler;",
+        "private @Nullable Channel serverChannel;",
+        "private final NioEventLoopGroup nioEventLoopGroup;",
+        "private final Set<Connection> connections = Sets.newIdentityHashSet();",
+        "setNameFormat(\"Management server IO #%d\").setDaemon(true).build()",
+        "this.connections.add(connection);",
+        "this.connections.remove(connection);",
+        "public void startWithoutTls(final MinecraftApi minecraftApi)",
+        "this.start(minecraftApi, null);",
+        "public void startWithTls(final MinecraftApi minecraftApi, final SslContext sslContext)",
+        "this.start(minecraftApi, sslContext);",
+        "final JsonRpcLogger jsonrpcLogger = new JsonRpcLogger();",
+        "new ServerBootstrap().handler(new LoggingHandler(LogLevel.DEBUG))",
+        ".channel(NioServerSocketChannel.class)",
+        "channel.config().setOption(ChannelOption.TCP_NODELAY, true);",
+        "pipeline.addLast(new ChannelHandler[]{sslContext.newHandler(channel.alloc())});",
+        "pipeline.addLast(new ChannelHandler[]{new HttpServerCodec()})",
+        ".addLast(new ChannelHandler[]{new HttpObjectAggregator(65536)})",
+        ".addLast(new ChannelHandler[]{ManagementServer.this.authenticationHandler})",
+        ".addLast(new ChannelHandler[]{new WebSocketServerProtocolHandler(\"/\")})",
+        ".addLast(new ChannelHandler[]{new WebSocketToJsonCodec()})",
+        ".addLast(new ChannelHandler[]{new JsonToWebSocketEncoder()})",
+        ".addLast(new ChannelHandler[]{new Connection(channel, ManagementServer.this, minecraftApi, jsonrpcLogger)});",
+        ".group(this.nioEventLoopGroup)",
+        ".localAddress(this.hostAndPort.getHost(), this.hostAndPort.getPort()))",
+        "this.serverChannel = channel.channel();",
+        "channel.syncUninterruptibly();",
+        "Json-RPC Management connection listening on {}:{}",
+        "this.serverChannel.close().sync();",
+        "this.serverChannel = null;",
+        "this.connections.clear();",
+        "this.nioEventLoopGroup.shutdownGracefully().sync();",
+        "this.forEachConnection(Connection::tick);",
+        "return this.serverChannel != null ? ((InetSocketAddress)this.serverChannel.localAddress()).getPort() : this.hostAndPort.getPort();",
+        "this.connections.forEach(action);",
+    ] {
+        assert!(
+            MANAGEMENT_SERVER_JAVA.contains(sentinel),
+            "ManagementServer.java missing sentinel: {sentinel}"
+        );
+    }
 }
 
 #[test]

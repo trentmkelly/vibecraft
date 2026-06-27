@@ -1969,9 +1969,125 @@ pub struct JsonRpcConnectionModel {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ManagementServerRuntimeModel {
+    pub host: String,
+    pub requested_port: u16,
+    pub authentication_handler: String,
+    pub server_channel_port: Option<u16>,
+    pub nio_event_loop_group_closed: bool,
+    pub connections: Vec<JsonRpcConnectionModel>,
+    pub pipelines: Vec<ManagementServerPipeline>,
+    pub log_messages: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ManagementServerPipeline {
+    pub tls: bool,
+    pub handlers: Vec<&'static str>,
+    pub tcp_no_delay_attempted: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct JsonRpcConnectionDispatchError {
     error: JsonRpcError,
     data: String,
+}
+
+impl ManagementServerRuntimeModel {
+    pub const THREAD_NAME_FORMAT: &'static str = "Management server IO #%d";
+    pub const WEBSOCKET_PATH: &'static str = "/";
+    pub const HTTP_OBJECT_AGGREGATOR_LIMIT: usize = 65_536;
+
+    pub fn new(host: impl Into<String>, port: u16, authentication_handler: impl Into<String>) -> Self {
+        Self {
+            host: host.into(),
+            requested_port: port,
+            authentication_handler: authentication_handler.into(),
+            server_channel_port: None,
+            nio_event_loop_group_closed: false,
+            connections: Vec::new(),
+            pipelines: Vec::new(),
+            log_messages: Vec::new(),
+        }
+    }
+
+    pub fn on_connected(&mut self, connection: JsonRpcConnectionModel) {
+        if !self
+            .connections
+            .iter()
+            .any(|existing| existing.client_info == connection.client_info)
+        {
+            self.connections.push(connection);
+        }
+    }
+
+    pub fn on_disconnected(&mut self, client_info: i32) {
+        self.connections
+            .retain(|connection| connection.client_info != client_info);
+    }
+
+    pub fn start_without_tls(&mut self, bound_port: u16) {
+        self.start(false, bound_port);
+    }
+
+    pub fn start_with_tls(&mut self, bound_port: u16) {
+        self.start(true, bound_port);
+    }
+
+    fn start(&mut self, tls: bool, bound_port: u16) {
+        self.server_channel_port = Some(bound_port);
+        self.pipelines.push(ManagementServerPipeline::new(tls));
+        self.log_messages.push(format!(
+            "Json-RPC Management connection listening on {}:{}",
+            self.host,
+            self.get_port()
+        ));
+    }
+
+    pub fn stop(&mut self, close_nio_event_loop_group: bool) {
+        self.server_channel_port = None;
+        self.connections.clear();
+        if close_nio_event_loop_group {
+            self.nio_event_loop_group_closed = true;
+        }
+    }
+
+    pub fn tick(&mut self, current_time: u64) {
+        self.for_each_connection_mut(|connection| connection.tick(current_time));
+    }
+
+    pub fn get_port(&self) -> u16 {
+        self.server_channel_port.unwrap_or(self.requested_port)
+    }
+
+    pub fn for_each_connection_mut(&mut self, mut action: impl FnMut(&mut JsonRpcConnectionModel)) {
+        for connection in &mut self.connections {
+            action(connection);
+        }
+    }
+}
+
+impl ManagementServerPipeline {
+    pub fn new(tls: bool) -> Self {
+        let mut handlers = Vec::new();
+        if tls {
+            handlers.push("SslHandler");
+        }
+        handlers.extend([
+            "HttpServerCodec",
+            "HttpObjectAggregator(65536)",
+            "AuthenticationHandler",
+            "WebSocketServerProtocolHandler(/)",
+            "WebSocketToJsonCodec",
+            "JsonToWebSocketEncoder",
+            "Connection",
+        ]);
+        Self {
+            tls,
+            handlers,
+            tcp_no_delay_attempted: true,
+        }
+    }
 }
 
 impl JsonRpcConnectionModel {
