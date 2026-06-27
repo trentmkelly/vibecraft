@@ -1614,7 +1614,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/ChunkLevel.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/ChunkLoadCounter.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/ChunkMap.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/ChunkResult.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/ChunkResult.java`. Rust `server_level_chunk_result::ChunkResultModel` mirrors Java 26.1.2's success/fail factories, string and lazy error suppliers, `isSuccess`, instance and static `orElse`, `getError`, `ifSuccess`, success/fail `map`, and `orElseThrow` behavior, with Java source sentinels pinned by `chunk_result_source_matches_java_26_1_2`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/ChunkTaskDispatcher.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/ChunkTaskPriorityQueue.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/ChunkTracker.java`.
