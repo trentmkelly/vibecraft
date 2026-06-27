@@ -261,6 +261,44 @@ impl RecipeBookTypeSettings {
 }
 
 #[cfg(test)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct RecipeBook {
+    book_settings: RecipeBookSettings,
+}
+
+#[cfg(test)]
+impl RecipeBook {
+    pub fn is_open(self, book_type: RecipeBookType) -> bool {
+        self.book_settings.get(book_type).open
+    }
+
+    pub fn set_open(&mut self, book_type: RecipeBookType, open: bool) {
+        self.book_settings.set_open(book_type, open);
+    }
+
+    pub fn is_filtering(self, book_type: RecipeBookType) -> bool {
+        self.book_settings.get(book_type).filtering
+    }
+
+    pub fn set_filtering(&mut self, book_type: RecipeBookType, filtering: bool) {
+        self.book_settings.set_filtering(book_type, filtering);
+    }
+
+    pub fn set_book_settings(&mut self, settings: RecipeBookSettings) {
+        self.book_settings.replace_from(settings);
+    }
+
+    pub fn get_book_settings(self) -> RecipeBookSettings {
+        self.book_settings
+    }
+
+    pub fn set_book_setting(&mut self, book_type: RecipeBookType, open: bool, filtering: bool) {
+        self.book_settings.set_open(book_type, open);
+        self.book_settings.set_filtering(book_type, filtering);
+    }
+}
+
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RecipeDisplay {
     ShapelessCrafting {

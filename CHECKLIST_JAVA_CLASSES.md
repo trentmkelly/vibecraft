@@ -1850,7 +1850,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/stats`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/stats/RecipeBook.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/stats/RecipeBook.java`. Rust `recipe_system::RecipeBook` mirrors Java's default `RecipeBookSettings` ownership, open/filtering accessor delegation, individual setters, `setBookSettings` replacement semantics, `getBookSettings` exposure, and combined `setBookSetting` ordering; Java-source-backed tests cover every method sentinel and behavior against the audited settings model.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/stats/RecipeBookSettings.java`. Rust `recipe_system::RecipeBookSettings` mirrors Java's four `TypeSettings` value fields, default closed/unfiltered state, fixed stream-codec order (crafting, furnace, blast furnace, smoker), per-type open/filtering replacement semantics, copy/replace behavior, Java `TypeSettings.toString` shape, and the four map-codec/NBT field-name pairs; Java-source-backed tests cover the class, record, codec, accessor, mutator, copy, replace, field-name, and display sentinels.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/stats/ServerRecipeBook.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/stats/ServerStatsCounter.java`.

@@ -11,8 +11,57 @@ use crate::advancement_system::{
 
 mod registry_tests;
 
+const RECIPE_BOOK_JAVA: &str = vibecraft_java_source!("/net/minecraft/stats/RecipeBook.java");
 const RECIPE_BOOK_SETTINGS_JAVA: &str =
     vibecraft_java_source!("/net/minecraft/stats/RecipeBookSettings.java");
+
+#[test]
+fn recipe_book_wrapper_matches_java_settings_delegation() {
+    for sentinel in [
+        "protected final RecipeBookSettings bookSettings = new RecipeBookSettings();",
+        "public boolean isOpen(final RecipeBookType recipeBookType)",
+        "return this.bookSettings.isOpen(recipeBookType);",
+        "public void setOpen(final RecipeBookType recipeBookType, final boolean open)",
+        "this.bookSettings.setOpen(recipeBookType, open);",
+        "public boolean isFiltering(final RecipeBookType type)",
+        "return this.bookSettings.isFiltering(type);",
+        "public void setFiltering(final RecipeBookType type, final boolean filtering)",
+        "this.bookSettings.setFiltering(type, filtering);",
+        "public void setBookSettings(final RecipeBookSettings settings)",
+        "this.bookSettings.replaceFrom(settings);",
+        "public RecipeBookSettings getBookSettings()",
+        "return this.bookSettings;",
+        "public void setBookSetting(final RecipeBookType bookType, final boolean open, final boolean filtering)",
+        "this.bookSettings.setOpen(bookType, open);\n      this.bookSettings.setFiltering(bookType, filtering);",
+    ] {
+        assert!(
+            RECIPE_BOOK_JAVA.contains(sentinel),
+            "RecipeBook.java missing sentinel: {sentinel}"
+        );
+    }
+
+    let mut book = RecipeBook::default();
+    assert!(!book.is_open(RecipeBookType::Crafting));
+    assert!(!book.is_filtering(RecipeBookType::Crafting));
+
+    book.set_open(RecipeBookType::Crafting, true);
+    book.set_filtering(RecipeBookType::Crafting, true);
+    assert!(book.is_open(RecipeBookType::Crafting));
+    assert!(book.is_filtering(RecipeBookType::Crafting));
+
+    let mut replacement = RecipeBookSettings::default();
+    replacement.set_open(RecipeBookType::Furnace, true);
+    replacement.set_filtering(RecipeBookType::BlastFurnace, true);
+    book.set_book_settings(replacement);
+    assert_eq!(book.get_book_settings(), replacement);
+    assert!(!book.is_open(RecipeBookType::Crafting));
+    assert!(book.is_open(RecipeBookType::Furnace));
+    assert!(book.is_filtering(RecipeBookType::BlastFurnace));
+
+    book.set_book_setting(RecipeBookType::Smoker, true, true);
+    assert!(book.is_open(RecipeBookType::Smoker));
+    assert!(book.is_filtering(RecipeBookType::Smoker));
+}
 
 #[test]
 fn recipe_book_settings_use_vanilla_stream_order_and_defaults() {
