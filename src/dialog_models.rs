@@ -11,6 +11,13 @@ use super::{
 pub const BUTTON_LIST_DEFAULT_COLUMNS: i32 = 2;
 pub const DIALOG_LIST_DEFAULT_BUTTON_WIDTH: i32 = 150;
 pub const SERVER_LINKS_DEFAULT_BUTTON_WIDTH: i32 = 150;
+pub const DIALOGS_SERVER_LINKS: &str = "server_links";
+pub const DIALOGS_CUSTOM_OPTIONS: &str = "custom_options";
+pub const DIALOGS_QUICK_ACTIONS: &str = "quick_actions";
+pub const DIALOGS_BIG_BUTTON_WIDTH: i32 = 310;
+pub const DIALOGS_DEFAULT_BACK_BUTTON_WIDTH: i32 = 200;
+pub const DIALOGS_PAUSE_SCREEN_ADDITIONS_TAG: &str = "pause_screen_additions";
+pub const DIALOGS_QUICK_ACTIONS_TAG: &str = "quick_actions";
 pub const ITEM_BODY_DEFAULT_SHOW_DECORATIONS: bool = true;
 pub const ITEM_BODY_DEFAULT_SHOW_TOOLTIP: bool = true;
 pub const ITEM_BODY_DEFAULT_WIDTH: i32 = 16;
@@ -122,6 +129,12 @@ pub enum DialogModel {
     DialogList(Box<DialogListDialog>),
     MultiAction(Box<MultiActionDialog>),
     Confirmation(Box<ConfirmationDialog>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct BuiltinDialog {
+    pub key: Identifier,
+    pub dialog: DialogModel,
 }
 
 impl CommonButtonData {
@@ -514,6 +527,68 @@ impl DialogModel {
     }
 }
 
+pub fn dialogs_create_key(id: &str) -> Result<Identifier, String> {
+    Identifier::with_default_namespace(id)
+}
+
+pub fn dialogs_default_back_button() -> ActionButton {
+    ActionButton::new(
+        CommonButtonData {
+            label: CommonComponents::gui_back(),
+            tooltip: None,
+            width: DIALOGS_DEFAULT_BACK_BUTTON_WIDTH,
+        },
+        None,
+    )
+}
+
+pub fn bootstrap_builtin_dialogs() -> Result<Vec<BuiltinDialog>, String> {
+    let back_button = dialogs_default_back_button();
+    Ok(vec![
+        BuiltinDialog {
+            key: dialogs_create_key(DIALOGS_SERVER_LINKS)?,
+            dialog: DialogModel::ServerLinks(Box::new(ServerLinksDialog::new(
+                dialogs_common_data("menu.server_links.title", "menu.server_links"),
+                Some(back_button.clone()),
+                1,
+                DIALOGS_BIG_BUTTON_WIDTH,
+            )?)),
+        },
+        BuiltinDialog {
+            key: dialogs_create_key(DIALOGS_CUSTOM_OPTIONS)?,
+            dialog: DialogModel::DialogList(Box::new(DialogListDialog::new(
+                dialogs_common_data("menu.custom_options.title", "menu.custom_options"),
+                DialogHolderSet::tag(DIALOGS_PAUSE_SCREEN_ADDITIONS_TAG)?,
+                Some(back_button.clone()),
+                1,
+                DIALOGS_BIG_BUTTON_WIDTH,
+            )?)),
+        },
+        BuiltinDialog {
+            key: dialogs_create_key(DIALOGS_QUICK_ACTIONS)?,
+            dialog: DialogModel::DialogList(Box::new(DialogListDialog::new(
+                dialogs_common_data("menu.quick_actions.title", "menu.quick_actions"),
+                DialogHolderSet::tag(DIALOGS_QUICK_ACTIONS_TAG)?,
+                Some(back_button),
+                1,
+                DIALOGS_BIG_BUTTON_WIDTH,
+            )?)),
+        },
+    ])
+}
+
+fn dialogs_common_data(title_key: &str, external_title_key: &str) -> CommonDialogData {
+    CommonDialogData {
+        title: Component::translatable(title_key, Vec::new()),
+        external_title: Some(Component::translatable(external_title_key, Vec::new())),
+        can_close_with_escape: true,
+        pause: true,
+        after_action: DialogAction::Close,
+        body: Vec::new(),
+        inputs: Vec::new(),
+    }
+}
+
 fn validate_positive_columns(columns: i32) -> Result<(), String> {
     if columns <= 0 {
         Err("button list dialog columns must be positive".to_string())
@@ -694,6 +769,64 @@ mod tests {
         assert_eq!(dialog.dialog_type(), DialogType::ServerLinks);
         assert_eq!(dialog.common(), &common);
         assert_eq!(dialog.on_cancel(), Some(&exit_action));
+    }
+
+    #[test]
+    fn dialogs_bootstrap_matches_java_builtin_entries_and_back_button() {
+        let back = dialogs_default_back_button();
+        assert_eq!(
+            back,
+            ActionButton {
+                button: CommonButtonData {
+                    label: CommonComponents::gui_back(),
+                    tooltip: None,
+                    width: DIALOGS_DEFAULT_BACK_BUTTON_WIDTH,
+                },
+                action: None,
+            }
+        );
+
+        let dialogs = match bootstrap_builtin_dialogs() {
+            Ok(dialogs) => dialogs,
+            Err(err) => panic!("{err}"),
+        };
+        assert_eq!(dialogs.len(), 3);
+        assert_eq!(dialogs[0].key.to_string(), "minecraft:server_links");
+        assert_eq!(dialogs[1].key.to_string(), "minecraft:custom_options");
+        assert_eq!(dialogs[2].key.to_string(), "minecraft:quick_actions");
+
+        match &dialogs[0].dialog {
+            DialogModel::ServerLinks(dialog) => {
+                assert_eq!(dialog.common.title, Component::translatable("menu.server_links.title", Vec::new()));
+                assert_eq!(
+                    dialog.common.external_title,
+                    Some(Component::translatable("menu.server_links", Vec::new()))
+                );
+                assert_eq!(dialog.columns, 1);
+                assert_eq!(dialog.button_width, DIALOGS_BIG_BUTTON_WIDTH);
+                assert_eq!(dialog.exit_action, Some(back.clone()));
+            }
+            other => panic!("expected server-links dialog, got {other:?}"),
+        }
+
+        for (dialog, tag) in [
+            (&dialogs[1].dialog, "minecraft:pause_screen_additions"),
+            (&dialogs[2].dialog, "minecraft:quick_actions"),
+        ] {
+            let expected_tag = match DialogHolderSet::tag(tag) {
+                Ok(tag) => tag,
+                Err(err) => panic!("{err}"),
+            };
+            match dialog {
+                DialogModel::DialogList(dialog) => {
+                    assert_eq!(dialog.columns, 1);
+                    assert_eq!(dialog.button_width, DIALOGS_BIG_BUTTON_WIDTH);
+                    assert_eq!(dialog.exit_action, Some(back.clone()));
+                    assert_eq!(dialog.dialogs, expected_tag);
+                }
+                other => panic!("expected dialog-list dialog, got {other:?}"),
+            }
+        }
     }
 
     #[test]
@@ -924,6 +1057,34 @@ mod tests {
             assert!(
                 DIALOG.contains(sentinel),
                 "Dialog.java is missing sentinel: {sentinel}"
+            );
+        }
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn dialogs_bootstrap_source_matches_java_26_1_2() {
+        const DIALOGS: &str = vibecraft_java_source!("/net/minecraft/server/dialog/Dialogs.java");
+
+        for sentinel in [
+            "public static final ResourceKey<Dialog> SERVER_LINKS = create(\"server_links\");",
+            "public static final ResourceKey<Dialog> CUSTOM_OPTIONS = create(\"custom_options\");",
+            "public static final ResourceKey<Dialog> QUICK_ACTIONS = create(\"quick_actions\");",
+            "public static final int BIG_BUTTON_WIDTH = 310;",
+            "private static final ActionButton DEFAULT_BACK_BUTTON = new ActionButton(new CommonButtonData(CommonComponents.GUI_BACK, 200), Optional.empty());",
+            "return ResourceKey.create(Registries.DIALOG, Identifier.withDefaultNamespace(id));",
+            "HolderGetter<Dialog> dialogs = context.lookup(Registries.DIALOG);",
+            "Component.translatable(\"menu.server_links.title\")",
+            "Optional.of(Component.translatable(\"menu.server_links\"))",
+            "dialogs.getOrThrow(DialogTags.PAUSE_SCREEN_ADDITIONS)",
+            "dialogs.getOrThrow(DialogTags.QUICK_ACTIONS)",
+            "Optional.of(DEFAULT_BACK_BUTTON),",
+            "1,",
+            "310",
+        ] {
+            assert!(
+                DIALOGS.contains(sentinel),
+                "Dialogs.java is missing sentinel: {sentinel}"
             );
         }
     }
