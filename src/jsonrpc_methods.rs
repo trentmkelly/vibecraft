@@ -3,6 +3,10 @@
 use std::collections::BTreeMap;
 
 use crate::chat_component::{Component, ComponentArgument};
+use crate::game_rules::{
+    GameRuleDefinition, GameRuleError, GameRuleType, GameRuleValue, GameRules,
+    vanilla_game_rules,
+};
 use crate::jsonrpc_api::{JsonRpcSchema, MethodInfo, NamedMethodInfo, SchemaComponent};
 use crate::registry::Identifier;
 
@@ -70,6 +74,14 @@ pub struct DiscoverResponse {
 }
 
 pub struct DiscoveryService;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct JsonRpcGameRuleUpdate {
+    pub game_rule: GameRuleDefinition,
+    pub value: GameRuleValue,
+}
+
+pub struct GameRulesService;
 
 impl JsonRpcRuntimeException {
     pub fn encode(message: impl Into<String>) -> Self {
@@ -216,6 +228,72 @@ fn add_discoverable_methods(
     );
 }
 
+impl JsonRpcGameRuleUpdate {
+    pub fn new(game_rule: GameRuleDefinition, value: GameRuleValue) -> Self {
+        Self { game_rule, value }
+    }
+
+    pub fn from_untyped(
+        game_rule: GameRuleDefinition,
+        read_type: GameRuleType,
+        value: GameRuleValue,
+    ) -> Result<Self, JsonRpcRuntimeException> {
+        if game_rule.rule_type != read_type {
+            Err(JsonRpcRuntimeException::invalid_parameter(format!(
+                "Stated type \"{}\" mismatches with actual type \"{}\" of gamerule \"{}\"",
+                game_rule_type_name(read_type),
+                game_rule_type_name(game_rule.rule_type),
+                game_rule.name
+            )))
+        } else {
+            Ok(Self::new(game_rule, value))
+        }
+    }
+}
+
+impl GameRulesService {
+    pub fn get(game_rules: &GameRules) -> Vec<JsonRpcGameRuleUpdate> {
+        let mut rules = Vec::new();
+        for game_rule in vanilla_game_rules() {
+            if let Some(value) = game_rules.get(game_rule.name) {
+                Self::add_game_rule(*game_rule, value, &mut rules);
+            }
+        }
+        rules
+    }
+
+    fn add_game_rule(
+        game_rule: GameRuleDefinition,
+        value: GameRuleValue,
+        rules: &mut Vec<JsonRpcGameRuleUpdate>,
+    ) {
+        rules.push(Self::get_typed_rule(game_rule, value));
+    }
+
+    pub fn get_typed_rule(
+        game_rule: GameRuleDefinition,
+        value: GameRuleValue,
+    ) -> JsonRpcGameRuleUpdate {
+        JsonRpcGameRuleUpdate::new(game_rule, value)
+    }
+
+    pub fn update(
+        game_rules: &mut GameRules,
+        update: JsonRpcGameRuleUpdate,
+        _client_info: ClientInfo,
+    ) -> Result<JsonRpcGameRuleUpdate, GameRuleError> {
+        game_rules.set(update.game_rule.name, update.value.sync_value().as_str())?;
+        Ok(update)
+    }
+}
+
+fn game_rule_type_name(rule_type: GameRuleType) -> &'static str {
+    match rule_type {
+        GameRuleType::Int => "integer",
+        GameRuleType::Bool => "boolean",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -336,6 +414,59 @@ mod tests {
     }
 
     #[test]
+    fn game_rules_service_matches_java_get_update_and_untyped_validation() {
+        let mut game_rules = GameRules::new(false);
+        let keep_inventory = game_rule("keep_inventory");
+        let max_entity_cramming = game_rule("max_entity_cramming");
+
+        let rules = GameRulesService::get(&game_rules);
+        assert!(rules.iter().any(|update| {
+            update.game_rule.name == "keep_inventory" && update.value == GameRuleValue::Bool(false)
+        }));
+
+        assert_eq!(
+            GameRulesService::get_typed_rule(keep_inventory, GameRuleValue::Bool(true)),
+            JsonRpcGameRuleUpdate::new(keep_inventory, GameRuleValue::Bool(true))
+        );
+
+        let update =
+            JsonRpcGameRuleUpdate::from_untyped(keep_inventory, GameRuleType::Bool, GameRuleValue::Bool(true));
+        assert_eq!(
+            update,
+            Ok(JsonRpcGameRuleUpdate::new(
+                keep_inventory,
+                GameRuleValue::Bool(true)
+            ))
+        );
+
+        let mismatch = JsonRpcGameRuleUpdate::from_untyped(
+            keep_inventory,
+            GameRuleType::Int,
+            GameRuleValue::Bool(true),
+        );
+        assert_eq!(
+            mismatch,
+            Err(JsonRpcRuntimeException::invalid_parameter(
+                "Stated type \"integer\" mismatches with actual type \"boolean\" of gamerule \"keep_inventory\""
+            ))
+        );
+
+        let updated = GameRulesService::update(
+            &mut game_rules,
+            JsonRpcGameRuleUpdate::new(max_entity_cramming, GameRuleValue::Int(7)),
+            ClientInfo::of(9),
+        );
+        assert_eq!(
+            updated,
+            Ok(JsonRpcGameRuleUpdate::new(
+                max_entity_cramming,
+                GameRuleValue::Int(7)
+            ))
+        );
+        assert_eq!(game_rules.get("max_entity_cramming"), Some(GameRuleValue::Int(7)));
+    }
+
+    #[test]
     #[cfg(vibecraft_has_decompiled_sources)]
     fn jsonrpc_method_sources_match_java_26_1_2() {
         const ENCODE: &str =
@@ -354,6 +485,8 @@ mod tests {
             vibecraft_java_source!("/net/minecraft/server/jsonrpc/methods/ClientInfo.java");
         const DISCOVERY: &str =
             vibecraft_java_source!("/net/minecraft/server/jsonrpc/methods/DiscoveryService.java");
+        const GAME_RULES: &str =
+            vibecraft_java_source!("/net/minecraft/server/jsonrpc/methods/GameRulesService.java");
 
         for (name, source, sentinel) in [
             (
@@ -440,6 +573,27 @@ mod tests {
                 "DiscoveryService.java is missing sentinel: {sentinel}"
             );
         }
+
+        for sentinel in [
+            "public static List<GameRulesService.GameRuleUpdate<?>> get(final MinecraftApi minecraftApi)",
+            "minecraftApi.gameRuleService().getAvailableGameRules().forEach(gameRule -> addGameRule(minecraftApi, (GameRule<?>)gameRule, rules));",
+            "rules.add(getTypedRule(minecraftApi, gameRule, value));",
+            "return minecraftApi.gameRuleService().getTypedRule(gameRule, value);",
+            "return minecraftApi.gameRuleService().updateGameRule(update, clientInfo);",
+            "public record GameRuleUpdate<T>(GameRule<T> gameRule, T value)",
+            "BuiltInRegistries.GAME_RULE",
+            "dispatch(\"key\", GameRulesService.GameRuleUpdate::gameRule, GameRulesService.GameRuleUpdate::getValueAndTypeCodec)",
+            "StringRepresentable.fromEnum(GameRuleType::values).fieldOf(\"type\")",
+            "if (gameRule.gameRuleType() != readType)",
+            "throw new InvalidParameterJsonRpcException(",
+            "Stated type \\\"\" + readType + \"\\\" mismatches with actual type \\\"\" + gameRule.gameRuleType() + \"\\\" of gamerule \\\"\" + gameRule.id() + \"\\\"\"",
+            "return new GameRulesService.GameRuleUpdate<>(gameRule, value);",
+        ] {
+            assert!(
+                GAME_RULES.contains(sentinel),
+                "GameRulesService.java is missing sentinel: {sentinel}"
+            );
+        }
     }
 
     fn method(id: &str, description: &str, discoverable: bool) -> DiscoverableJsonRpcMethod {
@@ -448,5 +602,15 @@ mod tests {
             Err(err) => panic!("test method id should parse: {err}"),
         };
         DiscoverableJsonRpcMethod::new(id, MethodInfo::new(description, None, None), discoverable)
+    }
+
+    fn game_rule(name: &str) -> GameRuleDefinition {
+        match vanilla_game_rules()
+            .iter()
+            .find(|definition| definition.name == name)
+        {
+            Some(definition) => *definition,
+            None => panic!("missing test game rule: {name}"),
+        }
     }
 }
