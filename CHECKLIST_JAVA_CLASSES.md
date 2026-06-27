@@ -1736,7 +1736,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 ## `decompiled-server-26.1.2/net/minecraft/server/packs/metadata/pack`
 
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/metadata/pack/PackFormat.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/metadata/pack/PackMetadataSection.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/metadata/pack/PackMetadataSection.java`. Rust `server_packs_metadata::PackMetadataSectionModel` mirrors Java's description/supported-format record fields, client/server `"pack"` metadata section types, fallback `"pack"` metadata section type, fallback unknown-format range, and per-pack-type section dispatch; verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 server_packs_metadata --bin vibecraft`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/metadata/pack/package-info.java`. Java 26.1.2 package marker contains only `@NullMarked`, the package declaration, and the `org.jspecify.annotations.NullMarked` import; no Rust runtime behavior or parity test is required beyond preserving nullability expectations in typed Rust APIs.
 
 ## `decompiled-server-26.1.2/net/minecraft/server/packs/metadata`

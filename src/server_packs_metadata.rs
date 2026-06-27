@@ -120,6 +120,9 @@ pub enum MetadataSectionKind {
     Features,
     OverlaysClient,
     OverlaysServer,
+    PackClient,
+    PackServer,
+    PackFallback,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -172,6 +175,24 @@ pub const OVERLAY_SERVER_METADATA_TYPE: MetadataSectionTypeModel = MetadataSecti
     codec: "OverlayEntry.listCodecForPackType(PackType.SERVER_DATA).fieldOf(\"entries\")",
 };
 
+pub const PACK_CLIENT_METADATA_TYPE: MetadataSectionTypeModel = MetadataSectionTypeModel {
+    kind: MetadataSectionKind::PackClient,
+    name: "pack",
+    codec: "PackMetadataSection.codecForPackType(PackType.CLIENT_RESOURCES)",
+};
+
+pub const PACK_SERVER_METADATA_TYPE: MetadataSectionTypeModel = MetadataSectionTypeModel {
+    kind: MetadataSectionKind::PackServer,
+    name: "pack",
+    codec: "PackMetadataSection.codecForPackType(PackType.SERVER_DATA)",
+};
+
+pub const PACK_FALLBACK_METADATA_TYPE: MetadataSectionTypeModel = MetadataSectionTypeModel {
+    kind: MetadataSectionKind::PackFallback,
+    name: "pack",
+    codec: "PackMetadataSection.FALLBACK_CODEC",
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FeatureFlagsMetadataSectionModel {
     pub flags: FeatureFlagSet,
@@ -180,6 +201,46 @@ pub struct FeatureFlagsMetadataSectionModel {
 impl FeatureFlagsMetadataSectionModel {
     pub fn section_type() -> MetadataSectionTypeModel {
         FEATURE_FLAGS_METADATA_TYPE
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackMetadataSectionModel {
+    pub description: Component,
+    pub supported_formats: PackFormatRange,
+}
+
+impl PackMetadataSectionModel {
+    pub fn new(description: Component, supported_formats: PackFormatRange) -> Self {
+        Self {
+            description,
+            supported_formats,
+        }
+    }
+
+    pub fn fallback(description: Component) -> Self {
+        let unknown = PackFormat {
+            major: u32::MAX,
+            minor: 0,
+        };
+        Self::new(
+            description,
+            PackFormatRange {
+                min: unknown,
+                max: unknown,
+            },
+        )
+    }
+
+    pub fn section_type_for_pack_type(pack_type: PackTypeModel) -> MetadataSectionTypeModel {
+        match pack_type {
+            PackTypeModel::ClientResources => PACK_CLIENT_METADATA_TYPE,
+            PackTypeModel::ServerData => PACK_SERVER_METADATA_TYPE,
+        }
+    }
+
+    pub fn fallback_section_type() -> MetadataSectionTypeModel {
+        PACK_FALLBACK_METADATA_TYPE
     }
 }
 
@@ -297,6 +358,8 @@ mod tests {
     const PACK_TYPE_JAVA: &str = vibecraft_java_source!("/net/minecraft/server/packs/PackType.java");
     const METADATA_SECTION_TYPE_JAVA: &str =
         vibecraft_java_source!("/net/minecraft/server/packs/metadata/MetadataSectionType.java");
+    const PACK_METADATA_SECTION_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/packs/metadata/pack/PackMetadataSection.java");
     const PACK_SOURCE_JAVA: &str =
         vibecraft_java_source!("/net/minecraft/server/packs/repository/PackSource.java");
 
@@ -323,6 +386,8 @@ mod tests {
             OVERLAY_CLIENT_METADATA_TYPE.kind,
             OVERLAY_SERVER_METADATA_TYPE.kind
         );
+        assert_ne!(PACK_CLIENT_METADATA_TYPE.kind, PACK_SERVER_METADATA_TYPE.kind);
+        assert_ne!(PACK_CLIENT_METADATA_TYPE.kind, PACK_FALLBACK_METADATA_TYPE.kind);
     }
 
     #[test]
@@ -344,6 +409,57 @@ mod tests {
                 required: true,
                 default_position: PackPositionModel::Bottom,
                 fixed_position: false,
+            }
+        );
+    }
+
+    #[test]
+    fn pack_metadata_section_preserves_description_range_and_types_like_java() {
+        let description = Component::literal("Pack description");
+        let supported_formats = PackFormatRange {
+            min: PackFormat {
+                major: 101,
+                minor: 0,
+            },
+            max: PackFormat {
+                major: 101,
+                minor: 1,
+            },
+        };
+        let section = PackMetadataSectionModel::new(description.clone(), supported_formats);
+
+        assert_eq!(section.description, description);
+        assert_eq!(section.supported_formats, supported_formats);
+        assert_eq!(
+            PackMetadataSectionModel::section_type_for_pack_type(PackTypeModel::ClientResources),
+            PACK_CLIENT_METADATA_TYPE
+        );
+        assert_eq!(
+            PackMetadataSectionModel::section_type_for_pack_type(PackTypeModel::ServerData),
+            PACK_SERVER_METADATA_TYPE
+        );
+        assert_eq!(
+            PackMetadataSectionModel::fallback_section_type(),
+            PACK_FALLBACK_METADATA_TYPE
+        );
+    }
+
+    #[test]
+    fn pack_metadata_fallback_uses_unknown_single_format_like_java() {
+        let fallback = PackMetadataSectionModel::fallback(Component::literal("missing format"));
+
+        assert_eq!(fallback.description.get_string(), "missing format");
+        assert_eq!(
+            fallback.supported_formats,
+            PackFormatRange {
+                min: PackFormat {
+                    major: u32::MAX,
+                    minor: 0,
+                },
+                max: PackFormat {
+                    major: u32::MAX,
+                    minor: 0,
+                },
             }
         );
     }
@@ -524,6 +640,20 @@ mod tests {
             "return type == this.type ? Optional.of(this.value) : Optional.empty();",
         ] {
             assert!(METADATA_SECTION_TYPE_JAVA.contains(needle));
+        }
+
+        for needle in [
+            "public record PackMetadataSection(Component description, InclusiveRange<PackFormat> supportedFormats)",
+            "ComponentSerialization.CODEC.fieldOf(\"description\").forGetter(PackMetadataSection::description)",
+            "new PackMetadataSection(description, new InclusiveRange<>(PackFormat.of(Integer.MAX_VALUE)))",
+            "new MetadataSectionType<>(\"pack\", codecForPackType(PackType.CLIENT_RESOURCES))",
+            "new MetadataSectionType<>(\"pack\", codecForPackType(PackType.SERVER_DATA))",
+            "public static final MetadataSectionType<PackMetadataSection> FALLBACK_TYPE = new MetadataSectionType<>(\"pack\", FALLBACK_CODEC);",
+            "PackFormat.packCodec(packType).forGetter(PackMetadataSection::supportedFormats)",
+            "case CLIENT_RESOURCES -> CLIENT_TYPE",
+            "case SERVER_DATA -> SERVER_TYPE",
+        ] {
+            assert!(PACK_METADATA_SECTION_JAVA.contains(needle));
         }
 
         for needle in [
