@@ -1,6 +1,10 @@
 #![allow(dead_code)]
 
+use std::collections::BTreeMap;
+
 use crate::chat_component::{Component, ComponentArgument};
+use crate::jsonrpc_api::{JsonRpcSchema, MethodInfo, NamedMethodInfo, SchemaComponent};
+use crate::registry::Identifier;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum JsonRpcRuntimeExceptionKind {
@@ -33,6 +37,39 @@ pub struct JsonRpcMethodMessage {
 pub struct ClientInfo {
     pub connection_id: i32,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JsonRpcMethodAttributes {
+    pub discoverable: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiscoverableJsonRpcMethod {
+    pub id: Identifier,
+    pub info: MethodInfo,
+    pub attributes: JsonRpcMethodAttributes,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiscoverComponents {
+    pub schemas: BTreeMap<String, JsonRpcSchema>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiscoverInfo {
+    pub title: String,
+    pub version: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiscoverResponse {
+    pub json_rpc_protocol_version: String,
+    pub discover_info: DiscoverInfo,
+    pub methods: Vec<NamedMethodInfo>,
+    pub components: DiscoverComponents,
+}
+
+pub struct DiscoveryService;
 
 impl JsonRpcRuntimeException {
     pub fn encode(message: impl Into<String>) -> Self {
@@ -120,6 +157,65 @@ impl ClientInfo {
     }
 }
 
+impl JsonRpcMethodAttributes {
+    pub fn new(discoverable: bool) -> Self {
+        Self { discoverable }
+    }
+}
+
+impl DiscoverableJsonRpcMethod {
+    pub fn new(id: Identifier, info: MethodInfo, discoverable: bool) -> Self {
+        Self {
+            id,
+            info,
+            attributes: JsonRpcMethodAttributes::new(discoverable),
+        }
+    }
+}
+
+impl DiscoveryService {
+    pub const OPENRPC_VERSION: &'static str = "1.3.2";
+    pub const TITLE: &'static str = "Minecraft Server JSON-RPC";
+    pub const VERSION: &'static str = "2.0.0";
+
+    pub fn discover(
+        schema_registry: &[SchemaComponent],
+        incoming_methods: &[DiscoverableJsonRpcMethod],
+        outgoing_methods: &[DiscoverableJsonRpcMethod],
+    ) -> DiscoverResponse {
+        let mut methods = Vec::with_capacity(incoming_methods.len() + outgoing_methods.len());
+        add_discoverable_methods(&mut methods, incoming_methods);
+        add_discoverable_methods(&mut methods, outgoing_methods);
+
+        let schemas = schema_registry
+            .iter()
+            .map(|component| (component.name.clone(), component.schema.info()))
+            .collect();
+
+        DiscoverResponse {
+            json_rpc_protocol_version: Self::OPENRPC_VERSION.to_string(),
+            discover_info: DiscoverInfo {
+                title: Self::TITLE.to_string(),
+                version: Self::VERSION.to_string(),
+            },
+            methods,
+            components: DiscoverComponents { schemas },
+        }
+    }
+}
+
+fn add_discoverable_methods(
+    output: &mut Vec<NamedMethodInfo>,
+    methods: &[DiscoverableJsonRpcMethod],
+) {
+    output.extend(
+        methods
+            .iter()
+            .filter(|method| method.attributes.discoverable)
+            .map(|method| method.info.named(method.id.clone())),
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -196,6 +292,50 @@ mod tests {
     }
 
     #[test]
+    fn discovery_service_matches_java_openrpc_metadata_and_filtering_order() {
+        let schema = JsonRpcSchema::record("Test.CODEC")
+            .with_field("field", JsonRpcSchema::of_type("string", "Codec.STRING"));
+        let schema_registry = vec![SchemaComponent::new("test", schema)];
+        let incoming_visible = method("minecraft:incoming/visible", "incoming visible", true);
+        let incoming_hidden = method("minecraft:incoming/hidden", "incoming hidden", false);
+        let outgoing_visible = method("minecraft:outgoing/visible", "outgoing visible", true);
+
+        let response = DiscoveryService::discover(
+            &schema_registry,
+            &[incoming_visible.clone(), incoming_hidden],
+            std::slice::from_ref(&outgoing_visible),
+        );
+
+        assert_eq!(response.json_rpc_protocol_version, "1.3.2");
+        assert_eq!(response.discover_info.title, "Minecraft Server JSON-RPC");
+        assert_eq!(response.discover_info.version, "2.0.0");
+        assert_eq!(
+            response
+                .methods
+                .iter()
+                .map(|method| method.contents.description.as_str())
+                .collect::<Vec<_>>(),
+            vec!["incoming visible", "outgoing visible"]
+        );
+        assert_eq!(
+            response.components.schemas.get("test").map(|schema| schema.codec.as_str()),
+            Some("Test.CODEC")
+        );
+        assert_eq!(
+            response
+                .components
+                .schemas
+                .get("test")
+                .and_then(|schema| schema.properties.get("field"))
+                .map(|field| field.codec.as_str()),
+            Some("Codec.STRING")
+        );
+
+        assert_eq!(incoming_visible.info.description, "incoming visible");
+        assert_eq!(outgoing_visible.info.description, "outgoing visible");
+    }
+
+    #[test]
     #[cfg(vibecraft_has_decompiled_sources)]
     fn jsonrpc_method_sources_match_java_26_1_2() {
         const ENCODE: &str =
@@ -212,6 +352,8 @@ mod tests {
             vibecraft_java_source!("/net/minecraft/server/jsonrpc/methods/Message.java");
         const CLIENT_INFO: &str =
             vibecraft_java_source!("/net/minecraft/server/jsonrpc/methods/ClientInfo.java");
+        const DISCOVERY: &str =
+            vibecraft_java_source!("/net/minecraft/server/jsonrpc/methods/DiscoveryService.java");
 
         for (name, source, sentinel) in [
             (
@@ -279,5 +421,32 @@ mod tests {
                 "ClientInfo.java is missing sentinel: {sentinel}"
             );
         }
+
+        for sentinel in [
+            "public static DiscoveryService.DiscoverResponse discover(final List<SchemaComponent<?>> schemaRegistry)",
+            "new ArrayList<>(BuiltInRegistries.INCOMING_RPC_METHOD.size() + BuiltInRegistries.OUTGOING_RPC_METHOD.size())",
+            "if (e.value().attributes().discoverable())",
+            "methods.add(e.value().info().named(e.key().identifier()));",
+            "schemas.put(component.name(), component.schema().info());",
+            "new DiscoveryService.DiscoverInfo(\"Minecraft Server JSON-RPC\", \"2.0.0\")",
+            "return new DiscoveryService.DiscoverResponse(\"1.3.2\", discoverInfo, methods, new DiscoveryService.DiscoverComponents(schemas));",
+            "public record DiscoverComponents(Map<String, Schema<?>> schemas)",
+            "public record DiscoverInfo(String title, String version)",
+            "public record DiscoverResponse(",
+            "Codec.STRING.fieldOf(\"openrpc\").forGetter(DiscoveryService.DiscoverResponse::jsonRpcProtocolVersion)",
+        ] {
+            assert!(
+                DISCOVERY.contains(sentinel),
+                "DiscoveryService.java is missing sentinel: {sentinel}"
+            );
+        }
+    }
+
+    fn method(id: &str, description: &str, discoverable: bool) -> DiscoverableJsonRpcMethod {
+        let id = match Identifier::parse(id) {
+            Ok(id) => id,
+            Err(err) => panic!("test method id should parse: {err}"),
+        };
+        DiscoverableJsonRpcMethod::new(id, MethodInfo::new(description, None, None), discoverable)
     }
 }
