@@ -5,6 +5,10 @@ const JSON_RPC_ERRORS_JAVA: &str =
     vibecraft_java_source!("/net/minecraft/server/jsonrpc/JsonRPCErrors.java");
 const JSON_RPC_UTILS_JAVA: &str =
     vibecraft_java_source!("/net/minecraft/server/jsonrpc/JsonRPCUtils.java");
+const OUTGOING_RPC_METHODS_JAVA: &str =
+    vibecraft_java_source!("/net/minecraft/server/jsonrpc/OutgoingRpcMethods.java");
+const OUTGOING_RPC_METHOD_JAVA: &str =
+    vibecraft_java_source!("/net/minecraft/server/jsonrpc/OutgoingRpcMethod.java");
 
 fn config() -> ManagementServerConfig {
     ManagementServerConfig {
@@ -762,6 +766,14 @@ fn outgoing_notification_methods_cover_vanilla_set_and_broadcast_to_clients() {
             .collect::<Vec<_>>(),
         OUTGOING_METHODS
     );
+    assert_eq!(
+        OUTGOING_RPC_METHOD_DEFS
+            .iter()
+            .map(|definition| definition.method)
+            .collect::<Vec<_>>(),
+        OUTGOING_METHODS
+    );
+    assert_outgoing_rpc_methods_match_java_source();
 
     let mut state = ManagementServerState::default();
     state.connect_client("first");
@@ -779,5 +791,77 @@ fn outgoing_notification_methods_cover_vanilla_set_and_broadcast_to_clients() {
                 method: "server/started".to_string(),
             },
         ]
+    );
+}
+
+fn assert_outgoing_rpc_methods_match_java_source() {
+    for sentinel in [
+        "String NOTIFICATION_PREFIX = \"notification/\";",
+        "static OutgoingRpcMethod.OutgoingRpcMethodBuilder<Void, Void> notification()",
+        "static <Params> OutgoingRpcMethod.OutgoingRpcMethodBuilder<Params, Void> notificationWithParams()",
+        "public static final OutgoingRpcMethod.Attributes DEFAULT_ATTRIBUTES = new OutgoingRpcMethod.Attributes(true);",
+        "return this.register(Identifier.withDefaultNamespace(\"notification/\" + key));",
+    ] {
+        assert!(
+            OUTGOING_RPC_METHOD_JAVA.contains(sentinel),
+            "OutgoingRpcMethod.java missing notification sentinel: {sentinel}"
+        );
+    }
+    assert_eq!(
+        OutgoingRpcMethodDef::NOTIFICATION_PREFIX,
+        "notification/"
+    );
+
+    for definition in OUTGOING_RPC_METHOD_DEFS {
+        let register_sentinel = format!(".register(\"{}\")", definition.method);
+        let description_sentinel = format!(".description(\"{}\")", definition.description);
+        assert!(
+            OUTGOING_RPC_METHODS_JAVA.contains(&register_sentinel),
+            "OutgoingRpcMethods.java missing register sentinel: {register_sentinel}"
+        );
+        assert!(
+            OUTGOING_RPC_METHODS_JAVA.contains(&description_sentinel),
+            "OutgoingRpcMethods.java missing description sentinel: {description_sentinel}"
+        );
+        if let Some((param_name, _)) = definition.param {
+            let param_sentinel = format!(".param(\"{}\", Schema.", param_name);
+            assert!(
+                OUTGOING_RPC_METHODS_JAVA.contains(&param_sentinel),
+                "OutgoingRpcMethods.java missing param sentinel: {param_sentinel}"
+            );
+        }
+        assert_eq!(
+            definition.registry_key(),
+            format!("notification/{}", definition.method)
+        );
+        assert!(definition.discoverable);
+    }
+    assert_eq!(
+        OUTGOING_RPC_METHOD_DEFS
+            .iter()
+            .filter(|definition| definition.param.is_none())
+            .map(|definition| definition.method)
+            .collect::<Vec<_>>(),
+        vec![
+            "server/started",
+            "server/stopping",
+            "server/saving",
+            "server/saved",
+            "server/activity"
+        ]
+    );
+    assert_eq!(
+        OUTGOING_RPC_METHOD_DEFS
+            .iter()
+            .find(|definition| definition.method == "server/status")
+            .and_then(|definition| definition.param),
+        Some(("status", "ServerState"))
+    );
+    assert_eq!(
+        OUTGOING_RPC_METHOD_DEFS
+            .iter()
+            .find(|definition| definition.method == "ip_bans/removed")
+            .and_then(|definition| definition.param),
+        Some(("player", "string"))
     );
 }

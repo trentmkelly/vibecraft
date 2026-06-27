@@ -51,6 +51,103 @@ pub const OUTGOING_METHODS: &[&str] = &[
     "server/status",
 ];
 
+pub const OUTGOING_RPC_METHOD_DEFS: &[OutgoingRpcMethodDef] = &[
+    OutgoingRpcMethodDef::notification("server/started", "Server started", None),
+    OutgoingRpcMethodDef::notification("server/stopping", "Server shutting down", None),
+    OutgoingRpcMethodDef::notification("server/saving", "Server save started", None),
+    OutgoingRpcMethodDef::notification("server/saved", "Server save completed", None),
+    OutgoingRpcMethodDef::notification(
+        "server/activity",
+        "Server activity occurred. Rate limited to 1 notification per 30 seconds",
+        None,
+    ),
+    OutgoingRpcMethodDef::notification(
+        "players/joined",
+        "Player joined",
+        Some(("player", "PlayerDto")),
+    ),
+    OutgoingRpcMethodDef::notification("players/left", "Player left", Some(("player", "PlayerDto"))),
+    OutgoingRpcMethodDef::notification(
+        "operators/added",
+        "Player was oped",
+        Some(("player", "OperatorDto")),
+    ),
+    OutgoingRpcMethodDef::notification(
+        "operators/removed",
+        "Player was deoped",
+        Some(("player", "OperatorDto")),
+    ),
+    OutgoingRpcMethodDef::notification(
+        "allowlist/added",
+        "Player was added to allowlist",
+        Some(("player", "PlayerDto")),
+    ),
+    OutgoingRpcMethodDef::notification(
+        "allowlist/removed",
+        "Player was removed from allowlist",
+        Some(("player", "PlayerDto")),
+    ),
+    OutgoingRpcMethodDef::notification(
+        "ip_bans/added",
+        "Ip was added to ip ban list",
+        Some(("player", "IpBanDto")),
+    ),
+    OutgoingRpcMethodDef::notification(
+        "ip_bans/removed",
+        "Ip was removed from ip ban list",
+        Some(("player", "string")),
+    ),
+    OutgoingRpcMethodDef::notification(
+        "bans/added",
+        "Player was added to ban list",
+        Some(("player", "UserBanDto")),
+    ),
+    OutgoingRpcMethodDef::notification(
+        "bans/removed",
+        "Player was removed from ban list",
+        Some(("player", "PlayerDto")),
+    ),
+    OutgoingRpcMethodDef::notification(
+        "gamerules/updated",
+        "Gamerule was changed",
+        Some(("gamerule", "GameRuleUpdate")),
+    ),
+    OutgoingRpcMethodDef::notification(
+        "server/status",
+        "Server status heartbeat",
+        Some(("status", "ServerState")),
+    ),
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OutgoingRpcMethodDef {
+    pub method: &'static str,
+    pub description: &'static str,
+    pub param: Option<(&'static str, &'static str)>,
+    pub discoverable: bool,
+}
+
+impl OutgoingRpcMethodDef {
+    pub const NOTIFICATION_PREFIX: &'static str = "notification/";
+
+    pub const fn notification(
+        method: &'static str,
+        description: &'static str,
+        param: Option<(&'static str, &'static str)>,
+    ) -> Self {
+        Self {
+            method,
+            description,
+            param,
+            discoverable: true,
+        }
+    }
+
+    pub fn registry_key(self) -> String {
+        format!("{}{}", Self::NOTIFICATION_PREFIX, self.method)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ManagementServerConfig {
     pub enabled: bool,
@@ -1218,7 +1315,6 @@ fn outgoing_params_schema(method: &str) -> Option<&'static str> {
         "ip_bans/added" | "ip_bans/removed" => Some("IpBanDto[]"),
         "gamerules/updated" => Some("GameRuleDto[]"),
         "server/status" => Some("ServerStatusDto"),
-        "server/activity" => Some("string"),
         _ => None,
     }
 }
