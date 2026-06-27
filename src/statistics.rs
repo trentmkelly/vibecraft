@@ -98,12 +98,55 @@ pub const CUSTOM_STATS_26_1_2: &[&str] = &[
 pub const CUSTOM_STAT_TYPE_NETWORK_ID_26_1_2: i32 = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StatTypeDef {
+    pub category: &'static str,
+    pub registry_key: &'static str,
+    pub display_name: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StatFormatterKind {
     Default,
     DivideByTen,
     Distance,
     Time,
 }
+
+pub const STAT_TYPE_DEFS_26_1_2: &[StatTypeDef] = &[
+    stat_type_def("minecraft:mined", "minecraft:block", "stat_type.minecraft.mined"),
+    stat_type_def(
+        "minecraft:crafted",
+        "minecraft:item",
+        "stat_type.minecraft.crafted",
+    ),
+    stat_type_def("minecraft:used", "minecraft:item", "stat_type.minecraft.used"),
+    stat_type_def("minecraft:broken", "minecraft:item", "stat_type.minecraft.broken"),
+    stat_type_def(
+        "minecraft:picked_up",
+        "minecraft:item",
+        "stat_type.minecraft.picked_up",
+    ),
+    stat_type_def(
+        "minecraft:dropped",
+        "minecraft:item",
+        "stat_type.minecraft.dropped",
+    ),
+    stat_type_def(
+        "minecraft:killed",
+        "minecraft:entity_type",
+        "stat_type.minecraft.killed",
+    ),
+    stat_type_def(
+        "minecraft:killed_by",
+        "minecraft:entity_type",
+        "stat_type.minecraft.killed_by",
+    ),
+    stat_type_def(
+        "minecraft:custom",
+        "minecraft:custom_stat",
+        "stat_type.minecraft.custom",
+    ),
+];
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct StatKey {
@@ -168,6 +211,30 @@ impl StatFormatterKind {
     }
 }
 
+pub fn custom_stat_formatter_26_1_2(id: &str) -> Option<StatFormatterKind> {
+    let id = id.strip_prefix("minecraft:").unwrap_or(id);
+    match id {
+        "play_time" | "total_world_time" | "time_since_death" | "time_since_rest"
+        | "sneak_time" => Some(StatFormatterKind::Time),
+        "walk_one_cm" | "crouch_one_cm" | "sprint_one_cm" | "walk_on_water_one_cm"
+        | "fall_one_cm" | "climb_one_cm" | "fly_one_cm" | "walk_under_water_one_cm"
+        | "minecart_one_cm" | "boat_one_cm" | "pig_one_cm" | "happy_ghast_one_cm"
+        | "horse_one_cm" | "aviate_one_cm" | "swim_one_cm" | "strider_one_cm"
+        | "nautilus_one_cm" => Some(StatFormatterKind::Distance),
+        "damage_dealt" | "damage_dealt_absorbed" | "damage_dealt_resisted" | "damage_taken"
+        | "damage_blocked_by_shield" | "damage_absorbed" | "damage_resisted" => {
+            Some(StatFormatterKind::DivideByTen)
+        }
+        _ if CUSTOM_STATS_26_1_2
+            .iter()
+            .any(|known| *known == format!("minecraft:{id}")) =>
+        {
+            Some(StatFormatterKind::Default)
+        }
+        _ => None,
+    }
+}
+
 impl StatModel {
     pub fn new(key: StatKey, formatter: StatFormatterKind) -> Self {
         Self { key, formatter }
@@ -195,6 +262,18 @@ impl StatModel {
             self.name(),
             self.formatter
         )
+    }
+}
+
+const fn stat_type_def(
+    category: &'static str,
+    registry_key: &'static str,
+    display_name: &'static str,
+) -> StatTypeDef {
+    StatTypeDef {
+        category,
+        registry_key,
+        display_name,
     }
 }
 
@@ -516,6 +595,7 @@ mod tests {
         vibecraft_java_source!("/net/minecraft/stats/StatFormatter.java");
     const STAT_JAVA: &str = vibecraft_java_source!("/net/minecraft/stats/Stat.java");
     const STAT_TYPE_JAVA: &str = vibecraft_java_source!("/net/minecraft/stats/StatType.java");
+    const STATS_JAVA: &str = vibecraft_java_source!("/net/minecraft/stats/Stats.java");
 
     #[test]
     fn stat_formatters_match_java_thresholds_and_units() {
@@ -640,6 +720,70 @@ mod tests {
     }
 
     #[test]
+    fn stats_registry_and_custom_stat_formatters_match_java() {
+        for sentinel in [
+            "public static final StatType<Block> BLOCK_MINED = makeRegistryStatType(\"mined\", BuiltInRegistries.BLOCK);",
+            "public static final StatType<Identifier> CUSTOM = makeRegistryStatType(\"custom\", BuiltInRegistries.CUSTOM_STAT);",
+            "public static final Identifier PLAY_TIME = makeCustomStat(\"play_time\", StatFormatter.TIME);",
+            "public static final Identifier WALK_ONE_CM = makeCustomStat(\"walk_one_cm\", StatFormatter.DISTANCE);",
+            "public static final Identifier DAMAGE_DEALT = makeCustomStat(\"damage_dealt\", StatFormatter.DIVIDE_BY_TEN);",
+            "public static final Identifier INTERACT_WITH_SMITHING_TABLE = makeCustomStat(\"interact_with_smithing_table\", StatFormatter.DEFAULT);",
+            "Identifier location = Identifier.withDefaultNamespace(id);",
+            "Registry.register(BuiltInRegistries.CUSTOM_STAT, id, location);",
+            "CUSTOM.get(location, formatter);",
+            "Component displayName = Component.translatable(\"stat_type.minecraft.\" + name);",
+            "Registry.register(BuiltInRegistries.STAT_TYPE, name, new StatType<>(registry, displayName));",
+        ] {
+            assert!(
+                STATS_JAVA.contains(sentinel),
+                "Stats.java is missing sentinel: {sentinel}"
+            );
+        }
+
+        assert_eq!(
+            STAT_TYPE_DEFS_26_1_2
+                .iter()
+                .map(|definition| definition.category)
+                .collect::<Vec<_>>(),
+            STAT_TYPE_CATEGORIES_26_1_2
+        );
+        assert_eq!(
+            STAT_TYPE_DEFS_26_1_2
+                .iter()
+                .map(|definition| (definition.registry_key, definition.display_name))
+                .collect::<Vec<_>>(),
+            vec![
+                ("minecraft:block", "stat_type.minecraft.mined"),
+                ("minecraft:item", "stat_type.minecraft.crafted"),
+                ("minecraft:item", "stat_type.minecraft.used"),
+                ("minecraft:item", "stat_type.minecraft.broken"),
+                ("minecraft:item", "stat_type.minecraft.picked_up"),
+                ("minecraft:item", "stat_type.minecraft.dropped"),
+                ("minecraft:entity_type", "stat_type.minecraft.killed"),
+                ("minecraft:entity_type", "stat_type.minecraft.killed_by"),
+                ("minecraft:custom_stat", "stat_type.minecraft.custom"),
+            ]
+        );
+
+        let java_custom_stats = java_custom_stat_formatters();
+        assert_eq!(java_custom_stats.len(), CUSTOM_STATS_26_1_2.len());
+        assert_eq!(
+            java_custom_stats
+                .iter()
+                .map(|(id, _)| id.as_str())
+                .collect::<Vec<_>>(),
+            CUSTOM_STATS_26_1_2
+        );
+        for (id, formatter) in java_custom_stats {
+            assert_eq!(
+                custom_stat_formatter_26_1_2(&id),
+                Some(formatter),
+                "formatter mismatch for {id}"
+            );
+        }
+    }
+
+    #[test]
     fn stat_categories_and_custom_stats_match_decompiled_surface() {
         assert_eq!(
             STAT_TYPE_CATEGORIES_26_1_2,
@@ -659,6 +803,33 @@ mod tests {
         assert!(CUSTOM_STATS_26_1_2.contains(&"minecraft:play_time"));
         assert!(CUSTOM_STATS_26_1_2.contains(&"minecraft:happy_ghast_one_cm"));
         assert!(CUSTOM_STATS_26_1_2.contains(&"minecraft:interact_with_smithing_table"));
+    }
+
+    fn java_custom_stat_formatters() -> Vec<(String, StatFormatterKind)> {
+        STATS_JAVA
+            .lines()
+            .filter_map(|line| {
+                let line = line.trim_start();
+                if !line.starts_with("public static final Identifier ") {
+                    return None;
+                }
+                let id_start = line.find("makeCustomStat(\"")? + "makeCustomStat(\"".len();
+                let id_remainder = &line[id_start..];
+                let id_end = id_remainder.find('"')?;
+                let id = format!("minecraft:{}", &id_remainder[..id_end]);
+                let formatter_start = line.find("StatFormatter.")? + "StatFormatter.".len();
+                let formatter_remainder = &line[formatter_start..];
+                let formatter_end = formatter_remainder.find(')')?;
+                let formatter = match &formatter_remainder[..formatter_end] {
+                    "DEFAULT" => StatFormatterKind::Default,
+                    "DIVIDE_BY_TEN" => StatFormatterKind::DivideByTen,
+                    "DISTANCE" => StatFormatterKind::Distance,
+                    "TIME" => StatFormatterKind::Time,
+                    other => panic!("unknown Java stat formatter: {other}"),
+                };
+                Some((id, formatter))
+            })
+            .collect()
     }
 
     #[test]
