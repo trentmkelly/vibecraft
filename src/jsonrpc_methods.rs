@@ -44,6 +44,26 @@ pub struct ClientInfo {
     pub connection_id: i32,
 }
 
+pub struct JsonRpcLogger;
+
+impl JsonRpcLogger {
+    pub const PREFIX: &'static str = "RPC Connection #{}: ";
+
+    pub fn log_message(client_info: ClientInfo, message: &str, args: &[&str]) -> (String, Vec<String>) {
+        if args.is_empty() {
+            (
+                format!("RPC Connection #{{}}: {message}"),
+                vec![client_info.connection_id.to_string()],
+            )
+        } else {
+            let mut all_args = Vec::with_capacity(args.len() + 1);
+            all_args.push(client_info.connection_id.to_string());
+            all_args.extend(args.iter().map(|arg| (*arg).to_string()));
+            (format!("RPC Connection #{{}}: {message}"), all_args)
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JsonRpcMethodAttributes {
     pub discoverable: bool,
@@ -692,6 +712,42 @@ mod tests {
     #[test]
     fn client_info_of_matches_java_factory() {
         assert_eq!(ClientInfo::of(42), ClientInfo { connection_id: 42 });
+    }
+
+    #[test]
+    fn jsonrpc_logger_prefix_and_varargs_match_java() {
+        const JSON_RPC_LOGGER_JAVA: &str =
+            vibecraft_java_source!("/net/minecraft/server/jsonrpc/JsonRpcLogger.java");
+        for sentinel in [
+            "private static final String PREFIX = \"RPC Connection #{}: \";",
+            "public void log(final ClientInfo clientInfo, final String message, final Object... args)",
+            "if (args.length == 0)",
+            "LOGGER.info(\"RPC Connection #{}: \" + message, clientInfo.connectionId());",
+            "List<Object> list = new ArrayList<>(Arrays.asList(args));",
+            "list.addFirst(clientInfo.connectionId());",
+            "LOGGER.info(\"RPC Connection #{}: \" + message, list.toArray());",
+        ] {
+            assert!(
+                JSON_RPC_LOGGER_JAVA.contains(sentinel),
+                "JsonRpcLogger.java missing sentinel: {sentinel}"
+            );
+        }
+
+        assert_eq!(JsonRpcLogger::PREFIX, "RPC Connection #{}: ");
+        assert_eq!(
+            JsonRpcLogger::log_message(ClientInfo::of(7), "connected", &[]),
+            (
+                "RPC Connection #{}: connected".to_string(),
+                vec!["7".to_string()]
+            )
+        );
+        assert_eq!(
+            JsonRpcLogger::log_message(ClientInfo::of(9), "sent {}", &["payload"]),
+            (
+                "RPC Connection #{}: sent {}".to_string(),
+                vec!["9".to_string(), "payload".to_string()]
+            )
+        );
     }
 
     #[test]
