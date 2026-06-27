@@ -11,7 +11,57 @@ pub const SERVERDATA_EXECCOMMAND: i32 = 2;
 pub const SERVERDATA_AUTH_RESPONSE: i32 = 2;
 pub const SERVERDATA_AUTH: i32 = 3;
 pub const SERVERDATA_AUTH_FAILURE: i32 = -1;
+pub const RCON_MAX_PACKET_SIZE: usize = 1460;
+pub const RCON_HEX_CHARS: [char; 16] = [
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
+];
 const MAX_RESPONSE_CHARS: usize = 4096;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct NetworkDataOutputStreamModel {
+    bytes: Vec<u8>,
+}
+
+impl NetworkDataOutputStreamModel {
+    pub fn new(size: usize) -> Self {
+        Self {
+            bytes: Vec::with_capacity(size),
+        }
+    }
+
+    pub fn write_bytes(&mut self, data: &[u8]) {
+        self.bytes.extend_from_slice(data);
+    }
+
+    pub fn write_string(&mut self, data: &str) {
+        self.bytes.extend_from_slice(data.as_bytes());
+        self.bytes.push(0);
+    }
+
+    pub fn write(&mut self, data: i32) {
+        self.bytes.push(data as u8);
+    }
+
+    pub fn write_short(&mut self, data: i16) {
+        self.bytes.extend_from_slice(&data.to_le_bytes());
+    }
+
+    pub fn write_int(&mut self, data: i32) {
+        self.bytes.extend_from_slice(&data.to_le_bytes());
+    }
+
+    pub fn write_float(&mut self, data: f32) {
+        self.bytes.extend_from_slice(&data.to_bits().to_le_bytes());
+    }
+
+    pub fn to_byte_array(&self) -> Vec<u8> {
+        self.bytes.clone()
+    }
+
+    pub fn reset(&mut self) {
+        self.bytes.clear();
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RconPacket {
@@ -107,6 +157,59 @@ pub fn read_packet<R: Read>(reader: &mut R) -> std::io::Result<Option<RconPacket
         packet_type,
         payload,
     }))
+}
+
+pub fn rcon_string_from_byte_array(bytes: &[u8], offset: usize, length: usize) -> String {
+    if bytes.is_empty() || length == 0 {
+        return String::new();
+    }
+
+    let max = length.saturating_sub(1).min(bytes.len().saturating_sub(1));
+    let start = offset.min(max);
+    let mut end = start;
+    while end < max && bytes[end] != 0 {
+        end += 1;
+    }
+
+    String::from_utf8_lossy(&bytes[start..end]).into_owned()
+}
+
+pub fn rcon_int_from_byte_array(bytes: &[u8], offset: usize) -> i32 {
+    rcon_int_from_byte_array_with_length(bytes, offset, bytes.len())
+}
+
+pub fn rcon_int_from_byte_array_with_length(bytes: &[u8], offset: usize, length: usize) -> i32 {
+    if length.saturating_sub(offset) < 4 || bytes.len().saturating_sub(offset) < 4 {
+        return 0;
+    }
+
+    i32::from_le_bytes([
+        bytes[offset],
+        bytes[offset + 1],
+        bytes[offset + 2],
+        bytes[offset + 3],
+    ])
+}
+
+pub fn rcon_int_from_network_byte_array(bytes: &[u8], offset: usize, length: usize) -> i32 {
+    if length.saturating_sub(offset) < 4 || bytes.len().saturating_sub(offset) < 4 {
+        return 0;
+    }
+
+    i32::from_be_bytes([
+        bytes[offset],
+        bytes[offset + 1],
+        bytes[offset + 2],
+        bytes[offset + 3],
+    ])
+}
+
+pub fn rcon_byte_to_hex_string(byte: u8) -> String {
+    format!(
+        "{}{}",
+        RCON_HEX_CHARS[((byte & 0xF0) >> 4) as usize],
+        RCON_HEX_CHARS[(byte & 0x0F) as usize]
+    )
 }
 
 pub fn write_packet<W: Write>(writer: &mut W, packet: &RconPacket) -> std::io::Result<()> {
@@ -216,11 +319,90 @@ fn fragment_response(request_id: i32, response: &str) -> Vec<RconPacket> {
 #[cfg(test)]
 mod tests {
     use super::{
-        read_packet, write_packet, RconPacket, RconSession, SERVERDATA_AUTH,
-        SERVERDATA_AUTH_FAILURE, SERVERDATA_AUTH_RESPONSE, SERVERDATA_EXECCOMMAND,
-        SERVERDATA_RESPONSE_VALUE,
+        rcon_byte_to_hex_string, rcon_int_from_byte_array, rcon_int_from_byte_array_with_length,
+        rcon_int_from_network_byte_array, rcon_string_from_byte_array, read_packet, write_packet,
+        NetworkDataOutputStreamModel, RconPacket, RconSession, RCON_MAX_PACKET_SIZE,
+        SERVERDATA_AUTH, SERVERDATA_AUTH_FAILURE, SERVERDATA_AUTH_RESPONSE,
+        SERVERDATA_EXECCOMMAND, SERVERDATA_RESPONSE_VALUE,
     };
     use std::io::Cursor;
+
+    const NETWORK_DATA_OUTPUT_STREAM_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/rcon/NetworkDataOutputStream.java");
+    const PKT_UTILS_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/rcon/PktUtils.java");
+
+    #[test]
+    fn network_data_output_stream_writes_little_endian_values_like_java() {
+        assert_contains_all(
+            NETWORK_DATA_OUTPUT_STREAM_JAVA,
+            &[
+                "new ByteArrayOutputStream(size)",
+                "this.dataOutputStream.write(data, 0, data.length);",
+                "data.getBytes(StandardCharsets.UTF_8)",
+                "this.dataOutputStream.write(0);",
+                "this.dataOutputStream.writeShort(Short.reverseBytes(data));",
+                "this.dataOutputStream.writeInt(Integer.reverseBytes(data));",
+                "Integer.reverseBytes(Float.floatToIntBits(data))",
+                "this.outputStream.reset();",
+            ],
+        );
+
+        let mut output = NetworkDataOutputStreamModel::new(32);
+        output.write_bytes(&[0xAA, 0xBB]);
+        output.write_string("hé");
+        output.write(0x123);
+        output.write_short(0x1234);
+        output.write_int(0x1234_5678);
+        output.write_float(1.0);
+
+        assert_eq!(
+            output.to_byte_array(),
+            vec![
+                0xAA, 0xBB, 0x68, 0xC3, 0xA9, 0, 0x23, 0x34, 0x12, 0x78, 0x56, 0x34, 0x12,
+                0, 0, 0x80, 0x3F,
+            ]
+        );
+
+        output.reset();
+        assert!(output.to_byte_array().is_empty());
+    }
+
+    #[test]
+    fn pkt_utils_decode_strings_ints_and_hex_like_java() {
+        assert_contains_all(
+            PKT_UTILS_JAVA,
+            &[
+                "public static final int MAX_PACKET_SIZE = 1460;",
+                "HEX_CHAR = new char[]{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'}",
+                "new String(b, offset, i - offset, StandardCharsets.UTF_8)",
+                "b[offset + 3] << 24 | (b[offset + 2] & 0xFF) << 16 | (b[offset + 1] & 0xFF) << 8 | b[offset] & 0xFF",
+                "b[offset] << 24 | (b[offset + 1] & 0xFF) << 16 | (b[offset + 2] & 0xFF) << 8 | b[offset + 3] & 0xFF",
+                "HEX_CHAR[(b & 240) >>> 4]",
+            ],
+        );
+
+        assert_eq!(RCON_MAX_PACKET_SIZE, 1460);
+        assert_eq!(
+            rcon_string_from_byte_array(b"hello\0ignored", 0, 13),
+            "hello"
+        );
+        assert_eq!(rcon_string_from_byte_array("hé\0x".as_bytes(), 0, 5), "hé");
+        assert_eq!(rcon_string_from_byte_array(b"abc", 10, 3), "");
+        assert_eq!(rcon_int_from_byte_array(&[0x78, 0x56, 0x34, 0x12], 0), 0x1234_5678);
+        assert_eq!(
+            rcon_int_from_byte_array_with_length(&[1, 2, 3, 4, 5], 1, 5),
+            0x0504_0302
+        );
+        assert_eq!(rcon_int_from_byte_array_with_length(&[1, 2, 3], 0, 3), 0);
+        assert_eq!(
+            rcon_int_from_network_byte_array(&[0x12, 0x34, 0x56, 0x78], 0, 4),
+            0x1234_5678
+        );
+        assert_eq!(rcon_int_from_network_byte_array(&[1, 2, 3], 0, 3), 0);
+        assert_eq!(rcon_byte_to_hex_string(0xAF), "af");
+        assert_eq!(rcon_byte_to_hex_string(0x05), "05");
+    }
 
     #[test]
     fn rcon_packets_use_little_endian_length_id_type_and_two_nulls() {
@@ -338,5 +520,11 @@ mod tests {
             |_| Ok(String::new()),
         );
         assert_eq!(unknown[0].payload, "Unknown request feed");
+    }
+
+    fn assert_contains_all(source: &str, sentinels: &[&str]) {
+        for sentinel in sentinels {
+            assert!(source.contains(sentinel), "missing rcon sentinel {sentinel}");
+        }
     }
 }
