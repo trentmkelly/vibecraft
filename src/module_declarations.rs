@@ -588,6 +588,7 @@ mod item_stack;
 mod jsonrpc_allowlist_service;
 mod jsonrpc_api;
 mod jsonrpc_banlist_service;
+mod jsonrpc_ip_banlist_service;
 mod jsonrpc_methods;
 mod jsonrpc_operator_service;
 mod jsonrpc_player_service;
