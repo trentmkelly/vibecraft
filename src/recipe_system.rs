@@ -179,6 +179,17 @@ pub struct RecipeBookSettings {
 
 #[cfg(test)]
 impl RecipeBookSettings {
+    pub const CRAFTING_CODEC_FIELDS: (&'static str, &'static str) =
+        ("isGuiOpen", "isFilteringCraftable");
+    pub const FURNACE_CODEC_FIELDS: (&'static str, &'static str) =
+        ("isFurnaceGuiOpen", "isFurnaceFilteringCraftable");
+    pub const BLAST_FURNACE_CODEC_FIELDS: (&'static str, &'static str) = (
+        "isBlastingFurnaceGuiOpen",
+        "isBlastingFurnaceFilteringCraftable",
+    );
+    pub const SMOKER_CODEC_FIELDS: (&'static str, &'static str) =
+        ("isSmokerGuiOpen", "isSmokerFilteringCraftable");
+
     pub fn get(self, book_type: RecipeBookType) -> RecipeBookTypeSettings {
         match book_type {
             RecipeBookType::Crafting => self.crafting,
@@ -189,17 +200,31 @@ impl RecipeBookSettings {
     }
 
     pub fn set_open(&mut self, book_type: RecipeBookType, open: bool) {
-        self.update(book_type, |mut settings| {
-            settings.open = open;
-            settings
-        });
+        self.update(book_type, |settings| settings.set_open(open));
     }
 
     pub fn set_filtering(&mut self, book_type: RecipeBookType, filtering: bool) {
-        self.update(book_type, |mut settings| {
-            settings.filtering = filtering;
-            settings
-        });
+        self.update(book_type, |settings| settings.set_filtering(filtering));
+    }
+
+    pub fn copy(self) -> Self {
+        self
+    }
+
+    pub fn replace_from(&mut self, other: Self) {
+        self.crafting = other.crafting;
+        self.furnace = other.furnace;
+        self.blast_furnace = other.blast_furnace;
+        self.smoker = other.smoker;
+    }
+
+    pub fn codec_fields(book_type: RecipeBookType) -> (&'static str, &'static str) {
+        match book_type {
+            RecipeBookType::Crafting => Self::CRAFTING_CODEC_FIELDS,
+            RecipeBookType::Furnace => Self::FURNACE_CODEC_FIELDS,
+            RecipeBookType::BlastFurnace => Self::BLAST_FURNACE_CODEC_FIELDS,
+            RecipeBookType::Smoker => Self::SMOKER_CODEC_FIELDS,
+        }
     }
 
     fn update(
@@ -217,6 +242,21 @@ impl RecipeBookSettings {
 
     pub fn stream_order(self) -> [RecipeBookTypeSettings; 4] {
         [self.crafting, self.furnace, self.blast_furnace, self.smoker]
+    }
+}
+
+#[cfg(test)]
+impl RecipeBookTypeSettings {
+    pub fn set_open(self, open: bool) -> Self {
+        Self { open, ..self }
+    }
+
+    pub fn set_filtering(self, filtering: bool) -> Self {
+        Self { filtering, ..self }
+    }
+
+    pub fn java_display(self) -> String {
+        format!("[open={}, filtering={}]", self.open, self.filtering)
     }
 }
 

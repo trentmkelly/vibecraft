@@ -1851,7 +1851,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 ## `decompiled-server-26.1.2/net/minecraft/stats`
 
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/stats/RecipeBook.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/stats/RecipeBookSettings.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/stats/RecipeBookSettings.java`. Rust `recipe_system::RecipeBookSettings` mirrors Java's four `TypeSettings` value fields, default closed/unfiltered state, fixed stream-codec order (crafting, furnace, blast furnace, smoker), per-type open/filtering replacement semantics, copy/replace behavior, Java `TypeSettings.toString` shape, and the four map-codec/NBT field-name pairs; Java-source-backed tests cover the class, record, codec, accessor, mutator, copy, replace, field-name, and display sentinels.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/stats/ServerRecipeBook.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/stats/ServerStatsCounter.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/stats/Stat.java`. Rust `statistics::StatModel` mirrors Java stat type/value storage, objective-name construction (`minecraft.custom:minecraft.walk_one_cm` style `locationToKey` replacement), formatter delegation, equality by objective name, and string description shape; Java-source-backed tests cover the stream-codec dispatch and method sentinels.

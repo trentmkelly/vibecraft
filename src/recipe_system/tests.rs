@@ -11,6 +11,9 @@ use crate::advancement_system::{
 
 mod registry_tests;
 
+const RECIPE_BOOK_SETTINGS_JAVA: &str =
+    vibecraft_java_source!("/net/minecraft/stats/RecipeBookSettings.java");
+
 #[test]
 fn recipe_book_settings_use_vanilla_stream_order_and_defaults() {
     let mut settings = RecipeBookSettings::default();
@@ -39,6 +42,82 @@ fn recipe_book_settings_use_vanilla_stream_order_and_defaults() {
     );
     assert!(settings.get(RecipeBookType::Crafting).open);
     assert!(!settings.get(RecipeBookType::Smoker).open);
+}
+
+#[test]
+fn recipe_book_settings_match_java_value_object_contract() {
+    for sentinel in [
+        "public static final StreamCodec<FriendlyByteBuf, RecipeBookSettings> STREAM_CODEC",
+        "RecipeBookSettings.TypeSettings.STREAM_CODEC,\n      o -> o.crafting",
+        "RecipeBookSettings.TypeSettings.STREAM_CODEC,\n      o -> o.furnace",
+        "RecipeBookSettings.TypeSettings.STREAM_CODEC,\n      o -> o.blastFurnace",
+        "RecipeBookSettings.TypeSettings.STREAM_CODEC,\n      o -> o.smoker",
+        "public static final MapCodec<RecipeBookSettings> MAP_CODEC",
+        "public RecipeBookSettings.TypeSettings getSettings(final RecipeBookType type)",
+        "public void setOpen(final RecipeBookType type, final boolean open)",
+        "public void setFiltering(final RecipeBookType type, final boolean filtering)",
+        "public RecipeBookSettings copy()",
+        "public void replaceFrom(final RecipeBookSettings other)",
+        "public record TypeSettings(boolean open, boolean filtering)",
+        "public static final RecipeBookSettings.TypeSettings DEFAULT = new RecipeBookSettings.TypeSettings(false, false)",
+        "public RecipeBookSettings.TypeSettings setOpen(final boolean open)",
+        "public RecipeBookSettings.TypeSettings setFiltering(final boolean filtering)",
+        "return \"[open=\" + this.open + \", filtering=\" + this.filtering + \"]\";",
+    ] {
+        assert!(
+            RECIPE_BOOK_SETTINGS_JAVA.contains(sentinel),
+            "RecipeBookSettings.java missing sentinel: {sentinel}"
+        );
+    }
+
+    assert_eq!(
+        RecipeBookSettings::codec_fields(RecipeBookType::Crafting),
+        ("isGuiOpen", "isFilteringCraftable")
+    );
+    assert_eq!(
+        RecipeBookSettings::codec_fields(RecipeBookType::Furnace),
+        ("isFurnaceGuiOpen", "isFurnaceFilteringCraftable")
+    );
+    assert_eq!(
+        RecipeBookSettings::codec_fields(RecipeBookType::BlastFurnace),
+        (
+            "isBlastingFurnaceGuiOpen",
+            "isBlastingFurnaceFilteringCraftable"
+        )
+    );
+    assert_eq!(
+        RecipeBookSettings::codec_fields(RecipeBookType::Smoker),
+        ("isSmokerGuiOpen", "isSmokerFilteringCraftable")
+    );
+
+    let mut settings = RecipeBookSettings::default();
+    settings.set_open(RecipeBookType::Furnace, true);
+    let copied = settings.copy();
+    settings.set_filtering(RecipeBookType::Smoker, true);
+    assert_eq!(
+        copied.stream_order(),
+        [
+            RecipeBookTypeSettings::default(),
+            RecipeBookTypeSettings {
+                open: true,
+                filtering: false
+            },
+            RecipeBookTypeSettings::default(),
+            RecipeBookTypeSettings::default(),
+        ]
+    );
+
+    settings.replace_from(copied);
+    assert_eq!(settings.stream_order(), copied.stream_order());
+    assert_eq!(
+        RecipeBookTypeSettings {
+            open: true,
+            filtering: false
+        }
+        .set_filtering(true)
+        .java_display(),
+        "[open=true, filtering=true]"
+    );
 }
 
 #[test]
