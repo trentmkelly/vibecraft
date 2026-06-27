@@ -1530,7 +1530,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/ManagementServer.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/OutgoingRpcMethod.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/OutgoingRpcMethods.java`. Rust `management_server::OUTGOING_RPC_METHOD_DEFS` mirrors Java's fixed outgoing notification registry: all 17 notification ids in order, exact descriptions, Java `notification/` registry-key prefix, default discoverable attributes, parameter names/schemas, and the parameterless `server/activity` shape; Java-source-backed tests cover every `.register`, `.description`, parameter sentinel, registry key, and broadcast method mapping.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/PendingRpcRequest.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/PendingRpcRequest.java`. Rust `management_server::PendingRpcRequest` mirrors Java's outgoing-method identity, stored timeout time, `accept` decode/complete behavior including exceptional completion on decode failure or null result, and strict `currentTime > timeoutTime` timeout predicate; Java-source-backed tests cover the record fields, `accept`, `Objects.requireNonNull`, exceptional completion, and timeout sentinels.
 
 ## `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/api`
 

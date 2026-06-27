@@ -9,6 +9,8 @@ const OUTGOING_RPC_METHODS_JAVA: &str =
     vibecraft_java_source!("/net/minecraft/server/jsonrpc/OutgoingRpcMethods.java");
 const OUTGOING_RPC_METHOD_JAVA: &str =
     vibecraft_java_source!("/net/minecraft/server/jsonrpc/OutgoingRpcMethod.java");
+const PENDING_RPC_REQUEST_JAVA: &str =
+    vibecraft_java_source!("/net/minecraft/server/jsonrpc/PendingRpcRequest.java");
 
 fn config() -> ManagementServerConfig {
     ManagementServerConfig {
@@ -472,6 +474,49 @@ fn request_tracking_correlates_responses_and_cleans_up_on_disconnect() {
     assert_eq!(state.pending_request_count(), 1);
     state.disconnect_client("admin");
     assert_eq!(state.pending_request_count(), 0);
+}
+
+#[test]
+fn pending_rpc_request_accept_and_timeout_match_java_record() {
+    for sentinel in [
+        "public record PendingRpcRequest<Result>(",
+        "Holder.Reference<? extends OutgoingRpcMethod<?, ? extends Result>> method",
+        "CompletableFuture<Result> resultFuture",
+        "long timeoutTime",
+        "public void accept(final JsonElement response)",
+        "Result result = (Result)this.method.value().decodeResult(response);",
+        "this.resultFuture.complete(Objects.requireNonNull(result));",
+        "this.resultFuture.completeExceptionally(e);",
+        "return currentTime > this.timeoutTime;",
+    ] {
+        assert!(
+            PENDING_RPC_REQUEST_JAVA.contains(sentinel),
+            "PendingRpcRequest.java missing sentinel: {sentinel}"
+        );
+    }
+
+    let response = serde_json::json!({"ok": true});
+    let mut pending = PendingRpcRequest::new("notification/server/status", 100);
+    assert!(!pending.timed_out(100));
+    assert!(pending.timed_out(101));
+    pending.accept(&response, |value| {
+        Ok(Some(value["ok"].as_bool().unwrap().to_string()))
+    });
+    assert_eq!(pending.result, Some(Ok("true".to_string())));
+
+    let mut decode_error = PendingRpcRequest::new("notification/server/status", 5);
+    decode_error.accept(&response, |_| Err("decode failed".to_string()));
+    assert_eq!(
+        decode_error.result,
+        Some(Err("decode failed".to_string()))
+    );
+
+    let mut null_result = PendingRpcRequest::new("notification/server/status", 5);
+    null_result.accept(&response, |_| Ok(None));
+    assert_eq!(
+        null_result.result,
+        Some(Err("decoded result was null".to_string()))
+    );
 }
 
 #[test]

@@ -897,6 +897,39 @@ pub struct PendingManagementRequest {
     pub method: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingRpcRequest {
+    pub method: String,
+    pub timeout_time: u64,
+    pub result: Option<Result<String, String>>,
+}
+
+impl PendingRpcRequest {
+    pub fn new(method: impl Into<String>, timeout_time: u64) -> Self {
+        Self {
+            method: method.into(),
+            timeout_time,
+            result: None,
+        }
+    }
+
+    pub fn accept(
+        &mut self,
+        response: &serde_json::Value,
+        decode_result: impl FnOnce(&serde_json::Value) -> Result<Option<String>, String>,
+    ) {
+        self.result = Some(match decode_result(response) {
+            Ok(Some(result)) => Ok(result),
+            Ok(None) => Err("decoded result was null".to_string()),
+            Err(error) => Err(error),
+        });
+    }
+
+    pub fn timed_out(&self, current_time: u64) -> bool {
+        current_time > self.timeout_time
+    }
+}
+
 impl ManagementServerState {
     pub fn connect_client(&mut self, client_id: impl Into<String>) {
         let client_id = client_id.into();
