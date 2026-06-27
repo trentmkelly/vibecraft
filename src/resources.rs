@@ -4,6 +4,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
+use crate::chat_component::{Component, Style};
+use crate::chat_formatting::ChatFormatting;
 use crate::registry::{feature_flags, FeatureFlagSet, Identifier};
 
 pub const VANILLA_PACK_ID: &str = "vanilla";
@@ -472,12 +474,14 @@ pub enum PackCompatibility {
 }
 
 impl PackCompatibility {
+    pub const UNKNOWN_VERSION: u32 = u32::MAX;
+
     pub fn is_compatible(self) -> bool {
         self == Self::Compatible
     }
 
     pub fn for_version(declared: PackFormatRange, current: PackFormat) -> Self {
-        if declared.min.major == u32::MAX {
+        if declared.min.major == Self::UNKNOWN_VERSION {
             Self::Unknown
         } else if declared.max < current {
             Self::TooOld
@@ -485,6 +489,27 @@ impl PackCompatibility {
             Self::TooNew
         } else {
             Self::Compatible
+        }
+    }
+
+    pub fn description(self) -> Component {
+        Component::translatable(format!("pack.incompatible.{}", self.key()), Vec::new())
+            .styled(Style::empty().with_legacy_color(Some(ChatFormatting::Gray)))
+    }
+
+    pub fn confirmation(self) -> Component {
+        Component::translatable(
+            format!("pack.incompatible.confirm.{}", self.key()),
+            Vec::new(),
+        )
+    }
+
+    fn key(self) -> &'static str {
+        match self {
+            Self::TooOld => "old",
+            Self::TooNew => "new",
+            Self::Unknown => "unknown",
+            Self::Compatible => "compatible",
         }
     }
 }

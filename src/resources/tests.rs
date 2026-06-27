@@ -511,6 +511,131 @@ fn parses_pack_metadata_and_detects_compatibility() {
 }
 
 #[test]
+fn pack_compatibility_source_matches_repository_java_contract() {
+    const PACK_COMPATIBILITY_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/packs/repository/PackCompatibility.java");
+    for sentinel in [
+        "TOO_OLD(\"old\")",
+        "TOO_NEW(\"new\")",
+        "UNKNOWN(\"unknown\")",
+        "COMPATIBLE(\"compatible\")",
+        "public static final int UNKNOWN_VERSION = Integer.MAX_VALUE;",
+        "Component.translatable(\"pack.incompatible.\" + key).withStyle(ChatFormatting.GRAY)",
+        "Component.translatable(\"pack.incompatible.confirm.\" + key)",
+        "return this == COMPATIBLE;",
+        "packDeclaredVersions.minInclusive().major() == Integer.MAX_VALUE",
+        "packDeclaredVersions.maxInclusive().compareTo(gameSupportedVersion) < 0",
+        "gameSupportedVersion.compareTo(packDeclaredVersions.minInclusive()) < 0 ? TOO_NEW : COMPATIBLE",
+    ] {
+        assert!(
+            PACK_COMPATIBILITY_JAVA.contains(sentinel),
+            "missing PackCompatibility sentinel {sentinel}"
+        );
+    }
+}
+
+#[test]
+fn pack_compatibility_range_decisions_match_java_order() {
+    let current = PackFormat {
+        major: 101,
+        minor: 1,
+    };
+    assert_eq!(
+        PackCompatibility::for_version(
+            PackFormatRange {
+                min: PackFormat {
+                    major: PackCompatibility::UNKNOWN_VERSION,
+                    minor: 0,
+                },
+                max: PackFormat {
+                    major: PackCompatibility::UNKNOWN_VERSION,
+                    minor: 0,
+                },
+            },
+            current,
+        ),
+        PackCompatibility::Unknown
+    );
+    assert_eq!(
+        PackCompatibility::for_version(
+            PackFormatRange {
+                min: PackFormat {
+                    major: 100,
+                    minor: 0,
+                },
+                max: PackFormat {
+                    major: 101,
+                    minor: 0,
+                },
+            },
+            current,
+        ),
+        PackCompatibility::TooOld
+    );
+    assert_eq!(
+        PackCompatibility::for_version(
+            PackFormatRange {
+                min: PackFormat {
+                    major: 101,
+                    minor: 2,
+                },
+                max: PackFormat {
+                    major: 102,
+                    minor: 0,
+                },
+            },
+            current,
+        ),
+        PackCompatibility::TooNew
+    );
+    assert_eq!(
+        PackCompatibility::for_version(
+            PackFormatRange {
+                min: PackFormat {
+                    major: 101,
+                    minor: 0,
+                },
+                max: PackFormat {
+                    major: 101,
+                    minor: 1,
+                },
+            },
+            current,
+        ),
+        PackCompatibility::Compatible
+    );
+
+    assert!(!PackCompatibility::TooOld.is_compatible());
+    assert!(!PackCompatibility::TooNew.is_compatible());
+    assert!(!PackCompatibility::Unknown.is_compatible());
+    assert!(PackCompatibility::Compatible.is_compatible());
+}
+
+#[test]
+fn pack_compatibility_description_and_confirmation_components_match_java() {
+    for (compatibility, key) in [
+        (PackCompatibility::TooOld, "old"),
+        (PackCompatibility::TooNew, "new"),
+        (PackCompatibility::Unknown, "unknown"),
+        (PackCompatibility::Compatible, "compatible"),
+    ] {
+        let description = compatibility.description();
+        assert_eq!(description.get_string(), format!("pack.incompatible.{key}"));
+        assert_eq!(
+            description
+                .get_style()
+                .get_color()
+                .map(crate::chat_component::TextColor::serialize),
+            Some("gray".to_string())
+        );
+        assert_eq!(
+            compatibility.confirmation().get_string(),
+            format!("pack.incompatible.confirm.{key}")
+        );
+    }
+}
+
+#[test]
 fn server_repository_discovers_compatible_directory_world_packs_with_metadata() {
     let temp_dir = std::env::temp_dir().join(format!(
         "vibecraft-packs-{}",
