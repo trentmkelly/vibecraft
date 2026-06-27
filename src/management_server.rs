@@ -455,36 +455,77 @@ impl JsonRpcResponse {
 pub struct JsonRpcError {
     pub code: i32,
     pub message: &'static str,
+    pub data: Option<String>,
 }
 
 impl JsonRpcError {
     pub const PARSE_ERROR: Self = Self {
         code: -32700,
         message: "Parse error",
+        data: None,
     };
     pub const INVALID_REQUEST: Self = Self {
         code: -32600,
         message: "Invalid Request",
+        data: None,
     };
     pub const METHOD_NOT_FOUND: Self = Self {
         code: -32601,
         message: "Method not found",
+        data: None,
     };
     pub const INVALID_PARAMS: Self = Self {
         code: -32602,
         message: "Invalid params",
+        data: None,
     };
     pub const INTERNAL_ERROR: Self = Self {
         code: -32603,
         message: "Internal error",
+        data: None,
     };
 
+    pub fn create_with_unknown_id(self, data: Option<&str>) -> JsonRpcResponse {
+        JsonRpcResponse {
+            id: JsonRpcId::Null,
+            result: Err(self.with_data(data)),
+        }
+    }
+
+    pub fn create_without_data(self, id: JsonRpcId) -> JsonRpcResponse {
+        JsonRpcResponse {
+            id,
+            result: Err(self),
+        }
+    }
+
+    pub fn create(self, id: JsonRpcId, data: &str) -> JsonRpcResponse {
+        JsonRpcResponse {
+            id,
+            result: Err(self.with_data(Some(data))),
+        }
+    }
+
+    fn with_data(mut self, data: Option<&str>) -> Self {
+        self.data = data
+            .filter(|data| !data.trim().is_empty())
+            .map(ToOwned::to_owned);
+        self
+    }
+
     fn to_json(&self) -> String {
-        format!(
+        let mut out = format!(
             "{{\"code\":{},\"message\":{}}}",
             self.code,
             json_string(self.message)
-        )
+        );
+        if let Some(data) = &self.data {
+            out.pop();
+            out.push_str(",\"data\":");
+            out.push_str(&json_string(data));
+            out.push('}');
+        }
+        out
     }
 }
 

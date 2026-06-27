@@ -1,6 +1,10 @@
 use super::*;
 
 const VALID_SECRET: &str = "0123456789abcdefghijklmnopqrstuvwxyzABCD";
+const JSON_RPC_ERRORS_JAVA: &str =
+    vibecraft_java_source!("/net/minecraft/server/jsonrpc/JsonRPCErrors.java");
+const JSON_RPC_UTILS_JAVA: &str =
+    vibecraft_java_source!("/net/minecraft/server/jsonrpc/JsonRPCUtils.java");
 
 fn config() -> ManagementServerConfig {
     ManagementServerConfig {
@@ -520,6 +524,46 @@ fn shutdown_rejects_in_flight_requests_and_announces_stopping() {
 
 #[test]
 fn json_rpc_errors_and_envelopes_use_standard_codes() {
+    for sentinel in [
+        "PARSE_ERROR(-32700, \"Parse error\")",
+        "INVALID_REQUEST(-32600, \"Invalid Request\")",
+        "METHOD_NOT_FOUND(-32601, \"Method not found\")",
+        "INVALID_PARAMS(-32602, \"Invalid params\")",
+        "INTERNAL_ERROR(-32603, \"Internal error\")",
+        "public JsonObject createWithUnknownId(final @Nullable String data)",
+        "return JsonRPCUtils.createError(JsonNull.INSTANCE, this.message, this.errorCode, data);",
+        "public JsonObject createWithoutData(final JsonElement id)",
+        "return JsonRPCUtils.createError(id, this.message, this.errorCode, null);",
+        "public JsonObject create(final JsonElement id, final String data)",
+        "return JsonRPCUtils.createError(id, this.message, this.errorCode, data);",
+    ] {
+        assert!(
+            JSON_RPC_ERRORS_JAVA.contains(sentinel),
+            "JsonRPCErrors.java missing sentinel: {sentinel}"
+        );
+    }
+    for sentinel in [
+        "public static JsonObject createError(final JsonElement id, final String message, final int errorCode, final @Nullable String data)",
+        "errorResponse.addProperty(\"jsonrpc\", \"2.0\");",
+        "errorResponse.add(\"id\", id);",
+        "error.addProperty(\"code\", errorCode);",
+        "error.addProperty(\"message\", message);",
+        "if (data != null && !data.isBlank())",
+        "error.addProperty(\"data\", data);",
+        "errorResponse.add(\"error\", error);",
+    ] {
+        assert!(
+            JSON_RPC_UTILS_JAVA.contains(sentinel),
+            "JsonRPCUtils.java missing error sentinel: {sentinel}"
+        );
+    }
+
+    assert_eq!(JsonRpcError::PARSE_ERROR.code, -32700);
+    assert_eq!(JsonRpcError::INVALID_REQUEST.message, "Invalid Request");
+    assert_eq!(JsonRpcError::METHOD_NOT_FOUND.code, -32601);
+    assert_eq!(JsonRpcError::INVALID_PARAMS.code, -32602);
+    assert_eq!(JsonRpcError::INTERNAL_ERROR.message, "Internal error");
+
     let mut state = ManagementServerState::default();
     let unknown = state.handle_request(JsonRpcRequest {
         id: JsonRpcId::Number(99),
@@ -538,6 +582,31 @@ fn json_rpc_errors_and_envelopes_use_standard_codes() {
         params: JsonRpcParams::None,
     });
     assert_eq!(invalid_params.result, Err(JsonRpcError::INVALID_PARAMS));
+
+    assert_eq!(
+        JsonRpcError::PARSE_ERROR
+            .create_with_unknown_id(Some("bad json"))
+            .to_json(),
+        "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32700,\"message\":\"Parse error\",\"data\":\"bad json\"}}"
+    );
+    assert_eq!(
+        JsonRpcError::INVALID_REQUEST
+            .create_with_unknown_id(Some("   "))
+            .to_json(),
+        "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32600,\"message\":\"Invalid Request\"}}"
+    );
+    assert_eq!(
+        JsonRpcError::INTERNAL_ERROR
+            .create_without_data(JsonRpcId::String("abc".to_string()))
+            .to_json(),
+        "{\"jsonrpc\":\"2.0\",\"id\":\"abc\",\"error\":{\"code\":-32603,\"message\":\"Internal error\"}}"
+    );
+    assert_eq!(
+        JsonRpcError::INVALID_PARAMS
+            .create(JsonRpcId::Number(7), "expected object")
+            .to_json(),
+        "{\"jsonrpc\":\"2.0\",\"id\":7,\"error\":{\"code\":-32602,\"message\":\"Invalid params\",\"data\":\"expected object\"}}"
+    );
 }
 
 #[test]

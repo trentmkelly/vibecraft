@@ -1523,7 +1523,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/Connection.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/IncomingRpcMethod.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/IncomingRpcMethods.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/JsonRPCErrors.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/JsonRPCErrors.java`. Rust `management_server::JsonRpcError` mirrors Java's five JSON-RPC error variants and exact codes/messages plus `createWithUnknownId`, `createWithoutData`, and `create` delegation semantics through the Java `JsonRPCUtils.createError` shape, including `id:null` for unknown ids and omitting blank `data`; Java-source-backed tests cover every enum variant, factory method, and required `createError` field sentinel.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/JsonRPCUtils.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/JsonRpcLogger.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/JsonRpcNotificationService.java`.
