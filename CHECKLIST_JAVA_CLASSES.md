@@ -1550,7 +1550,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/internalapi`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/internalapi/MinecraftAllowListService.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/internalapi/MinecraftAllowListService.java`. Rust `jsonrpc_allowlist_service::MinecraftAllowListService` mirrors Java's internal allowlist service interface: `getEntries`, boolean `add(UserWhiteListEntry, ClientInfo)`, `clear(ClientInfo)`, `remove(NameAndId, ClientInfo)`, and `kickUnlistedPlayers(ClientInfo)`; Java-source-backed tests cover the exact method/import sentinels, duplicate-add false vs new-add true behavior, entry collection reads, and mutating void-operation event effects.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/internalapi/MinecraftAllowListServiceImpl.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/internalapi/MinecraftApi.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/internalapi/MinecraftBanListService.java`.
