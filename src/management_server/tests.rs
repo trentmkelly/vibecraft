@@ -1,6 +1,7 @@
 use super::*;
 
 const VALID_SECRET: &str = "0123456789abcdefghijklmnopqrstuvwxyzABCD";
+const CONNECTION_JAVA: &str = vibecraft_java_source!("/net/minecraft/server/jsonrpc/Connection.java");
 const JSON_RPC_ERRORS_JAVA: &str =
     vibecraft_java_source!("/net/minecraft/server/jsonrpc/JsonRPCErrors.java");
 const JSON_RPC_UTILS_JAVA: &str =
@@ -480,6 +481,210 @@ fn request_tracking_correlates_responses_and_cleans_up_on_disconnect() {
     assert_eq!(state.pending_request_count(), 1);
     state.disconnect_client("admin");
     assert_eq!(state.pending_request_count(), 0);
+}
+
+#[test]
+fn json_rpc_connection_protocol_flow_matches_java_contract() {
+    assert_connection_java_source_shape();
+
+    let mut connection = JsonRpcConnectionModel::new(42);
+    connection.channel_active("/127.0.0.1:25585");
+    connection.channel_inactive("/127.0.0.1:25585");
+    assert_eq!(
+        connection.events,
+        vec![
+            JsonRpcConnectionEvent::Connected {
+                client_info: 42,
+                remote_address: "/127.0.0.1:25585".to_string(),
+            },
+            JsonRpcConnectionEvent::Disconnected {
+                client_info: 42,
+                remote_address: "/127.0.0.1:25585".to_string(),
+            },
+        ]
+    );
+
+    connection.send_notification("server/status", &["{\"running\":true}"]);
+    let id = connection.send_request("notification/server/status", &[], 1_000);
+    assert_eq!(id, 1);
+    assert_eq!(
+        connection.writes,
+        vec![
+            JsonRpcConnectionWrite::Single(
+                "{\"jsonrpc\":\"2.0\",\"method\":\"server/status\",\"params\":[{\"running\":true}]}".to_string()
+            ),
+            JsonRpcConnectionWrite::Single(
+                "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"notification/server/status\"}"
+                    .to_string()
+            ),
+        ]
+    );
+    assert_eq!(connection.pending_requests[&1].timeout_time, 6_000);
+
+    connection.read_json(&serde_json::json!({"id": 1, "result": {"ok": true}}));
+    assert!(!connection.pending_requests.contains_key(&1));
+    assert_eq!(
+        connection.completed_requests.get(&1),
+        Some(&Ok("{\"ok\":true}".to_string()))
+    );
+
+    let error_id = connection.send_request("notification/server/status", &[], 2_000);
+    connection.read_json(&serde_json::json!({
+        "id": error_id,
+        "error": {"code": -32000, "message": "remote failure"}
+    }));
+    assert!(!connection.pending_requests.contains_key(&error_id));
+    assert!(connection.completed_requests[&error_id]
+        .as_ref()
+        .is_err_and(|message| message.contains("Remote RPC error")));
+
+    let timeout_id = connection.send_request("notification/server/status", &[], 5);
+    connection.tick(5_005);
+    assert!(connection.pending_requests.contains_key(&timeout_id));
+    connection.tick(5_006);
+    assert!(connection.completed_requests[&timeout_id]
+        .as_ref()
+        .is_err_and(|message| {
+            message == "RPC method notification/server/status timed out waiting for response"
+        }));
+}
+
+#[test]
+fn json_rpc_connection_handles_incoming_objects_and_batches_like_java() {
+    let mut connection = JsonRpcConnectionModel::new(7);
+
+    let invalid_id_json = serde_json::json!({"id": {}, "method": "players", "params": []});
+    let invalid_id = connection.handle_json_object(json_object(&invalid_id_json));
+    assert_eq!(
+        invalid_id,
+        Some("{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32600,\"message\":\"Invalid Request\",\"data\":\"Invalid request id - only String, Number and NULL supported\"}}".to_string())
+    );
+
+    let notification_json = serde_json::json!({"method": "players", "params": []});
+    let notification = connection.handle_json_object(json_object(&notification_json));
+    assert_eq!(notification, None);
+
+    let request_json = serde_json::json!({"id": "req", "method": "players", "params": []});
+    let request = connection.handle_json_object(json_object(&request_json));
+    assert_eq!(
+        request,
+        Some("{\"jsonrpc\":\"2.0\",\"id\":\"req\",\"result\":null}".to_string())
+    );
+
+    let bad_method_json = serde_json::json!({"id": 2, "method": "bad method"});
+    let bad_method = connection.handle_json_object(json_object(&bad_method_json));
+    assert_eq!(
+        bad_method,
+        Some("{\"jsonrpc\":\"2.0\",\"id\":2,\"error\":{\"code\":-32600,\"message\":\"Invalid Request\",\"data\":\"Failed to parse method value: bad method\"}}".to_string())
+    );
+
+    let missing_json = serde_json::json!({"id": 3, "method": "missing/method"});
+    let missing = connection.handle_json_object(json_object(&missing_json));
+    assert_eq!(
+        missing,
+        Some("{\"jsonrpc\":\"2.0\",\"id\":3,\"error\":{\"code\":-32601,\"message\":\"Method not found\",\"data\":\"Method not found: missing/method\"}}".to_string())
+    );
+
+    connection.read_json(&serde_json::json!([
+        {"id": 4, "method": "players", "params": []},
+        {"method": "players", "params": []}
+    ]));
+    assert_eq!(
+        connection.writes.last(),
+        Some(&JsonRpcConnectionWrite::Batch(vec![
+            "{\"jsonrpc\":\"2.0\",\"id\":4,\"result\":null}".to_string()
+        ]))
+    );
+
+    connection.read_json(&serde_json::json!(true));
+    assert_eq!(
+        connection.writes.last(),
+        Some(&JsonRpcConnectionWrite::Single(
+            "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32600,\"message\":\"Invalid Request\"}}".to_string()
+        ))
+    );
+
+    connection.exception_caught("bad json", true);
+    assert_eq!(
+        connection.writes.last(),
+        Some(&JsonRpcConnectionWrite::Single(
+            "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32700,\"message\":\"Parse error\",\"data\":\"bad json\"}}".to_string()
+        ))
+    );
+    connection.exception_caught("closed", false);
+    assert!(connection.events.contains(&JsonRpcConnectionEvent::Closed));
+}
+
+fn assert_connection_java_source_shape() {
+    for sentinel in [
+        "private static final AtomicInteger CONNECTION_ID_COUNTER = new AtomicInteger(0);",
+        "private final AtomicInteger transactionId = new AtomicInteger();",
+        "private final Int2ObjectMap<PendingRpcRequest<?>> pendingRequests",
+        "new ReadTimeoutException(",
+        "\" timed out waiting for response\"",
+        "this.managementServer.onConnected(this);",
+        "this.managementServer.onDisconnected(this);",
+        "cause.getCause() instanceof JsonParseException",
+        "JsonRPCErrors.PARSE_ERROR.createWithUnknownId(cause.getMessage())",
+        "this.channel.close().awaitUninterruptibly();",
+        "jsonElement.isJsonObject()",
+        "jsonElement.isJsonArray()",
+        "this.handleBatchRequest(jsonElement.getAsJsonArray().asList())",
+        "JsonRPCErrors.INVALID_REQUEST.createWithUnknownId(null)",
+        "batchRequests.stream().map(batchEntry -> this.handleJsonObject(batchEntry.getAsJsonObject())).filter(Objects::nonNull).forEach(batchResponses::add);",
+        "this.sendRequest(method, null, false);",
+        "this.sendRequest(method, params, false);",
+        "this.sendRequest(method, null, true);",
+        "this.sendRequest(method, params, true);",
+        "List<JsonElement> jsonParams = params != null ? List.of(Objects.requireNonNull(method.value().encodeParams(params))) : List.of();",
+        "int id = this.transactionId.incrementAndGet();",
+        "time + 5000L",
+        "JsonRPCUtils.createRequest(id, method.key().identifier(), jsonParams)",
+        "JsonRPCUtils.createRequest(null, method.key().identifier(), jsonParams)",
+    ] {
+        assert!(
+            CONNECTION_JAVA.contains(sentinel),
+            "Connection.java missing sentinel: {sentinel}"
+        );
+    }
+    assert_connection_java_handle_object_shape();
+}
+
+fn json_object(value: &serde_json::Value) -> &serde_json::Map<String, serde_json::Value> {
+    if let Some(object) = value.as_object() {
+        object
+    } else {
+        panic!("JSON fixture should be an object")
+    }
+}
+
+fn assert_connection_java_handle_object_shape() {
+    for sentinel in [
+        "String method = JsonRPCUtils.getMethodName(jsonObject);",
+        "JsonElement result = JsonRPCUtils.getResult(jsonObject);",
+        "JsonObject error = JsonRPCUtils.getError(jsonObject);",
+        "method != null && result == null && error == null",
+        "Invalid request id - only String, Number and NULL supported",
+        "method == null && result != null && error == null && id != null",
+        "this.handleRequestResponse(id.getAsInt(), result);",
+        "Received respose {} with id {} we did not request",
+        "method == null && result == null && error != null",
+        "JsonRPCErrors.INVALID_REQUEST.createWithoutData(Objects.requireNonNullElse(id, JsonNull.INSTANCE))",
+        "Identifier identifier = Identifier.tryParse(method);",
+        "throw new InvalidRequestJsonRpcException(\"Failed to parse method value: \" + method);",
+        "throw new MethodNotFoundJsonRpcException(\"Method not found: \" + method);",
+        "incomingRpcMethod.get().attributes().runOnMainThread()",
+        "this.minecraftApi.<JsonElement>submit(() -> incomingRpcMethod.get().apply(this.minecraftApi, params, this.clientInfo)).join();",
+        "this.pendingRequests.remove(id)",
+        "request.accept(result);",
+        "request.resultFuture().completeExceptionally(new RemoteRpcErrorException(id, error));",
+        "LOGGER.error(\"Received error (id: {}): {}\", id, error);",
+    ] {
+        assert!(
+            CONNECTION_JAVA.contains(sentinel),
+            "Connection.java missing handle-object sentinel: {sentinel}"
+        );
+    }
 }
 
 #[test]
