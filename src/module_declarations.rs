@@ -692,6 +692,7 @@ mod server_network_filterable;
 mod server_network_common;
 mod server_network_config_tasks;
 mod server_network_legacy_query;
+mod server_network_transport;
 mod server_links;
 mod server_registry_layer;
 mod server_tick_rate_manager;
