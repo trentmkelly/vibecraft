@@ -1680,10 +1680,10 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/server/network/config`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/network/config/JoinWorldTask.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/network/config/JoinWorldTask.java`. Rust `server_network_config_tasks::JoinWorldTaskModel` mirrors Java 26.1.2's `join_world` task type and `start` behavior sending the singleton finish-configuration packet, with Java source sentinels pinned by `simple_config_task_sources_match_java_26_1_2`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/network/config/PrepareSpawnTask.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/network/config/ServerCodeOfConductConfigurationTask.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/network/config/ServerResourcePackConfigurationTask.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/network/config/ServerCodeOfConductConfigurationTask.java`. Rust `server_network_config_tasks::ServerCodeOfConductConfigurationTaskModel` mirrors Java 26.1.2's `server_code_of_conduct` task type, supplier-backed code text, and `start` behavior sending `ClientboundCodeOfConductPacket`, with Java source sentinels pinned by `simple_config_task_sources_match_java_26_1_2`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/network/config/ServerResourcePackConfigurationTask.java`. Rust `server_network_config_tasks::ServerResourcePackConfigurationTaskModel` mirrors Java 26.1.2's `server_resource_pack` task type and `start` behavior sending `ClientboundResourcePackPushPacket` with id/url/hash/required and nullable prompt mapped to an optional prompt, with Java source sentinels pinned by `simple_config_task_sources_match_java_26_1_2`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/network/config/SynchronizeRegistriesTask.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/network/config/package-info.java`. Java 26.1.2 package marker contains only `@NullMarked`, the package declaration, and the `org.jspecify.annotations.NullMarked` import; no Rust runtime behavior or parity test is required beyond preserving nullability expectations in typed Rust APIs.
 
