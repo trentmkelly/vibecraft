@@ -587,6 +587,7 @@ mod item_sign_applicator;
 mod item_stack;
 mod jsonrpc_allowlist_service;
 mod jsonrpc_api;
+mod jsonrpc_authentication_handler;
 mod jsonrpc_banlist_service;
 mod jsonrpc_ip_banlist_service;
 mod jsonrpc_methods;
