@@ -1841,8 +1841,8 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/sounds`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/sounds/Music.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/sounds/Musics.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/sounds/Music.java`. Rust `presentation_data::MusicDef` mirrors Java's `Music` record fields (`sound`, nonnegative `min_delay`, nonnegative `max_delay`, and default-false `replace_current_music`) with validation for the nonnegative codec contract; covered by Java-source-backed presentation data parity tests.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/sounds/Musics.java`. Rust `presentation_data` exposes Java's vanilla music constants (`MENU`, `CREATIVE`, `CREDITS`, `END_BOSS`, `END`, `UNDER_WATER`, `GAME`) and `create_game_music` 12000/24000 false defaults with exact 26.1.2 SoundEvent IDs; covered by Java-source-backed presentation data parity tests.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/sounds/SoundEvent.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/sounds/SoundEvents.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/sounds/SoundSource.java`. Rust `presentation_data::SoundSource` and `SOUND_SOURCES` preserve Java enum order and `getName()` serialized names (`master`, `music`, `record`, `weather`, `block`, `hostile`, `neutral`, `player`, `ambient`, `voice`, `ui`); covered by a Java-source-backed presentation data parity test.

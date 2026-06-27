@@ -2,6 +2,8 @@ use super::*;
 use std::collections::HashSet;
 
 const SOUND_SOURCE_JAVA: &str = vibecraft_java_source!("/net/minecraft/sounds/SoundSource.java");
+const MUSIC_JAVA: &str = vibecraft_java_source!("/net/minecraft/sounds/Music.java");
+const MUSICS_JAVA: &str = vibecraft_java_source!("/net/minecraft/sounds/Musics.java");
 
 #[test]
 fn sound_sources_match_vanilla_serialized_names_and_sound_events_are_lookupable() {
@@ -49,6 +51,69 @@ fn sound_sources_match_vanilla_serialized_names_and_sound_events_are_lookupable(
         "minecraft:music_disc.pigstep"
     );
     assert!(find_sound_event("minecraft:missing").is_none());
+}
+
+#[test]
+fn music_records_and_vanilla_constants_match_java() {
+    for sentinel in [
+        "public record Music(Holder<SoundEvent> sound, int minDelay, int maxDelay, boolean replaceCurrentMusic)",
+        "SoundEvent.CODEC.fieldOf(\"sound\").forGetter(Music::sound)",
+        "ExtraCodecs.NON_NEGATIVE_INT.fieldOf(\"min_delay\").forGetter(Music::minDelay)",
+        "ExtraCodecs.NON_NEGATIVE_INT.fieldOf(\"max_delay\").forGetter(Music::maxDelay)",
+        "Codec.BOOL.optionalFieldOf(\"replace_current_music\", false).forGetter(Music::replaceCurrentMusic)",
+    ] {
+        assert!(
+            MUSIC_JAVA.contains(sentinel),
+            "Music.java is missing sentinel: {sentinel}"
+        );
+    }
+
+    for sentinel in [
+        "public static final Music MENU = new Music(SoundEvents.MUSIC_MENU, 20, 600, true);",
+        "public static final Music CREATIVE = new Music(SoundEvents.MUSIC_CREATIVE, 12000, 24000, false);",
+        "public static final Music CREDITS = new Music(SoundEvents.MUSIC_CREDITS, 0, 0, true);",
+        "public static final Music END_BOSS = new Music(SoundEvents.MUSIC_DRAGON, 0, 0, true);",
+        "public static final Music END = new Music(SoundEvents.MUSIC_END, 6000, 24000, true);",
+        "public static final Music UNDER_WATER = createGameMusic(SoundEvents.MUSIC_UNDER_WATER);",
+        "public static final Music GAME = createGameMusic(SoundEvents.MUSIC_GAME);",
+        "return new Music(soundEvent, 12000, 24000, false);",
+    ] {
+        assert!(
+            MUSICS_JAVA.contains(sentinel),
+            "Musics.java is missing sentinel: {sentinel}"
+        );
+    }
+
+    assert_eq!(MUSIC_MENU, MusicDef::new("minecraft:music.menu", 20, 600, true));
+    assert_eq!(
+        MUSIC_CREATIVE,
+        MusicDef::new("minecraft:music.creative", 12000, 24000, false)
+    );
+    assert_eq!(
+        MUSIC_CREDITS,
+        MusicDef::new("minecraft:music.credits", 0, 0, true)
+    );
+    assert_eq!(
+        MUSIC_END_BOSS,
+        MusicDef::new("minecraft:music.dragon", 0, 0, true)
+    );
+    assert_eq!(
+        MUSIC_END,
+        MusicDef::new("minecraft:music.end", 6000, 24000, true)
+    );
+    assert_eq!(
+        MUSIC_UNDER_WATER,
+        MusicDef::new("minecraft:music.under_water", 12000, 24000, false)
+    );
+    assert_eq!(MUSIC_GAME, create_game_music("minecraft:music.game"));
+    assert_eq!(
+        MusicDef::try_new("minecraft:test", -1, 0, false),
+        Err(MusicDelayError::NegativeMinDelay)
+    );
+    assert_eq!(
+        MusicDef::try_new("minecraft:test", 0, -1, false),
+        Err(MusicDelayError::NegativeMaxDelay)
+    );
 }
 
 #[test]

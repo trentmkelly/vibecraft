@@ -10,6 +10,69 @@ pub struct SoundEventDef {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MusicDef {
+    pub sound: &'static str,
+    pub min_delay: i32,
+    pub max_delay: i32,
+    pub replace_current_music: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MusicDelayError {
+    NegativeMinDelay,
+    NegativeMaxDelay,
+}
+
+impl MusicDef {
+    pub const fn new(
+        sound: &'static str,
+        min_delay: i32,
+        max_delay: i32,
+        replace_current_music: bool,
+    ) -> Self {
+        Self {
+            sound,
+            min_delay,
+            max_delay,
+            replace_current_music,
+        }
+    }
+
+    pub fn try_new(
+        sound: &'static str,
+        min_delay: i32,
+        max_delay: i32,
+        replace_current_music: bool,
+    ) -> Result<Self, MusicDelayError> {
+        if min_delay < 0 {
+            return Err(MusicDelayError::NegativeMinDelay);
+        }
+        if max_delay < 0 {
+            return Err(MusicDelayError::NegativeMaxDelay);
+        }
+        Ok(Self::new(
+            sound,
+            min_delay,
+            max_delay,
+            replace_current_music,
+        ))
+    }
+}
+
+pub const MUSIC_MENU: MusicDef = MusicDef::new("minecraft:music.menu", 20, 600, true);
+pub const MUSIC_CREATIVE: MusicDef = MusicDef::new("minecraft:music.creative", 12000, 24000, false);
+pub const MUSIC_CREDITS: MusicDef = MusicDef::new("minecraft:music.credits", 0, 0, true);
+pub const MUSIC_END_BOSS: MusicDef = MusicDef::new("minecraft:music.dragon", 0, 0, true);
+pub const MUSIC_END: MusicDef = MusicDef::new("minecraft:music.end", 6000, 24000, true);
+pub const MUSIC_UNDER_WATER: MusicDef =
+    create_game_music("minecraft:music.under_water");
+pub const MUSIC_GAME: MusicDef = create_game_music("minecraft:music.game");
+
+pub const fn create_game_music(sound: &'static str) -> MusicDef {
+    MusicDef::new(sound, 12000, 24000, false)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SoundSource {
     Master,
     Music,
