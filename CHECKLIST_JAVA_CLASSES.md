@@ -1709,13 +1709,13 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/CompositePackResources.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/DownloadCacheCleaner.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/DownloadQueue.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/FeatureFlagsMetadataSection.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/FeatureFlagsMetadataSection.java`. Rust `server_packs_metadata` mirrors the record-shaped feature flag metadata section, its `"features"` metadata section type, and the Java `FeatureFlags.CODEC.fieldOf("enabled")` source contract; verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 server_packs_metadata --bin vibecraft`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/FilePackResources.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/OverlayMetadataSection.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/OverlayMetadataSection.java`. Rust `server_packs_metadata` mirrors Java's client/server `"overlays"` metadata section types, overlay directory validator `[-_a-zA-Z0-9.]+`, per-pack-type type selection, order-preserving inclusive format filtering, and overlay entry applicability checks; verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 server_packs_metadata --bin vibecraft`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/PackLocationInfo.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/PackResources.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/PackSelectionConfig.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/PackType.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/PackSelectionConfig.java`. Rust `server_packs_metadata` mirrors the required/default-position/fixed-position record fields while preserving the Java dependency on `Pack.Position`; verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 server_packs_metadata --bin vibecraft`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/PackType.java`. Rust `server_packs_metadata` mirrors `CLIENT_RESOURCES("assets")`, `SERVER_DATA("data")`, and `getDirectory()` behavior; verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 server_packs_metadata --bin vibecraft`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/PathPackResources.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/VanillaPackResources.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/VanillaPackResourcesBuilder.java`.
@@ -1731,7 +1731,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/server/packs/metadata`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/metadata/MetadataSectionType.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/metadata/MetadataSectionType.java`. Rust `server_packs_metadata` mirrors the metadata section name/codec record, `withValue` wrapper, and Java reference-identity-style `unwrapToType` success/failure behavior with distinct section kinds; verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 server_packs_metadata --bin vibecraft`.
 
 ## `decompiled-server-26.1.2/net/minecraft/server/packs/metadata/pack`
 
