@@ -6,6 +6,11 @@
 use crate::item_stack::ItemStack;
 
 #[cfg(test)]
+use crate::advancement_system::RecipeDefinition;
+#[cfg(test)]
+use crate::registry::Identifier;
+
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RegistryEntry {
     pub id: &'static str,
@@ -395,6 +400,201 @@ impl RecipeDisplayEntry {
             }),
             _ => false,
         })
+    }
+}
+
+#[cfg(test)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ServerRecipeBookDisplayResolver {
+    displays: std::collections::BTreeMap<Identifier, Vec<RecipeDisplayEntry>>,
+}
+
+#[cfg(test)]
+impl ServerRecipeBookDisplayResolver {
+    pub fn new(displays: impl IntoIterator<Item = (Identifier, Vec<RecipeDisplayEntry>)>) -> Self {
+        Self {
+            displays: displays.into_iter().collect(),
+        }
+    }
+
+    pub fn displays_for_recipe(&self, id: &Identifier) -> &[RecipeDisplayEntry] {
+        self.displays.get(id).map_or(&[], Vec::as_slice)
+    }
+}
+
+#[cfg(test)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerRecipeBookPacked {
+    pub settings: RecipeBookSettings,
+    pub known: Vec<Identifier>,
+    pub highlight: Vec<Identifier>,
+}
+
+#[cfg(test)]
+impl ServerRecipeBookPacked {
+    pub const RECIPES_FIELD: &'static str = "recipes";
+    pub const HIGHLIGHT_FIELD: &'static str = "toBeDisplayed";
+}
+
+#[cfg(test)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ServerRecipeBook {
+    recipe_book: RecipeBook,
+    display_resolver: ServerRecipeBookDisplayResolver,
+    known: std::collections::BTreeSet<Identifier>,
+    highlight: std::collections::BTreeSet<Identifier>,
+}
+
+#[cfg(test)]
+impl ServerRecipeBook {
+    pub const RECIPE_BOOK_TAG: &'static str = "recipeBook";
+
+    pub fn new(display_resolver: ServerRecipeBookDisplayResolver) -> Self {
+        Self {
+            display_resolver,
+            ..Self::default()
+        }
+    }
+
+    pub fn add(&mut self, id: Identifier) {
+        self.known.insert(id);
+    }
+
+    pub fn contains(&self, id: &Identifier) -> bool {
+        self.known.contains(id)
+    }
+
+    pub fn remove(&mut self, id: &Identifier) {
+        self.known.remove(id);
+        self.highlight.remove(id);
+    }
+
+    pub fn remove_highlight(&mut self, id: &Identifier) {
+        self.highlight.remove(id);
+    }
+
+    fn add_highlight(&mut self, id: Identifier) {
+        self.highlight.insert(id);
+    }
+
+    pub fn add_recipes(
+        &mut self,
+        recipes: &[RecipeDefinition],
+    ) -> (usize, Option<ClientboundRecipeBookAddPacket>, Vec<Identifier>) {
+        let mut entries = Vec::new();
+        let mut triggered = Vec::new();
+        for recipe in recipes {
+            if self.known.contains(&recipe.id) || recipe.special {
+                continue;
+            }
+            self.add(recipe.id.clone());
+            self.add_highlight(recipe.id.clone());
+            entries.extend(self.display_resolver.displays_for_recipe(&recipe.id).iter().map(
+                |display| RecipeBookAddEntry {
+                    contents: display.clone(),
+                    flags: RecipeBookEntryFlags::new(recipe.show_notification, true),
+                },
+            ));
+            triggered.push(recipe.id.clone());
+        }
+
+        let count = entries.len();
+        let packet = (!entries.is_empty()).then_some(ClientboundRecipeBookAddPacket {
+            entries,
+            replace: false,
+        });
+        (count, packet, triggered)
+    }
+
+    pub fn remove_recipes(
+        &mut self,
+        recipes: &[Identifier],
+    ) -> (usize, Option<ClientboundRecipeBookRemovePacket>) {
+        let mut removed = Vec::new();
+        for recipe in recipes {
+            if self.known.contains(recipe) {
+                self.remove(recipe);
+                removed.extend(
+                    self.display_resolver
+                        .displays_for_recipe(recipe)
+                        .iter()
+                        .map(|display| display.id.clone()),
+                );
+            }
+        }
+
+        let count = removed.len();
+        let packet = (!removed.is_empty()).then_some(ClientboundRecipeBookRemovePacket {
+            recipes: removed,
+        });
+        (count, packet)
+    }
+
+    pub fn send_initial_recipe_book(
+        &self,
+    ) -> (
+        ClientboundRecipeBookSettingsPacket,
+        ClientboundRecipeBookAddPacket,
+    ) {
+        let entries = self
+            .known
+            .iter()
+            .flat_map(|id| {
+                self.display_resolver
+                    .displays_for_recipe(id)
+                    .iter()
+                    .map(|display| RecipeBookAddEntry {
+                        contents: display.clone(),
+                        flags: RecipeBookEntryFlags::new(false, self.highlight.contains(id)),
+                    })
+            })
+            .collect();
+
+        (
+            ClientboundRecipeBookSettingsPacket {
+                settings: self.recipe_book.get_book_settings().copy(),
+            },
+            ClientboundRecipeBookAddPacket {
+                entries,
+                replace: true,
+            },
+        )
+    }
+
+    pub fn copy_over_data(&mut self, book_to_copy: &ServerRecipeBook) {
+        self.apply(book_to_copy.pack());
+    }
+
+    pub fn pack(&self) -> ServerRecipeBookPacked {
+        ServerRecipeBookPacked {
+            settings: self.recipe_book.get_book_settings().copy(),
+            known: self.known.iter().cloned().collect(),
+            highlight: self.highlight.iter().cloned().collect(),
+        }
+    }
+
+    fn apply(&mut self, packed: ServerRecipeBookPacked) {
+        self.known.clear();
+        self.highlight.clear();
+        self.recipe_book.set_book_settings(packed.settings);
+        self.known.extend(packed.known);
+        self.highlight.extend(packed.highlight);
+    }
+
+    pub fn load_untrusted(
+        &mut self,
+        packed: ServerRecipeBookPacked,
+        validator: impl Fn(&Identifier) -> bool,
+    ) {
+        self.recipe_book.set_book_settings(packed.settings);
+        self.known
+            .extend(packed.known.into_iter().filter(|recipe| validator(recipe)));
+        self.highlight.extend(
+            packed
+                .highlight
+                .into_iter()
+                .filter(|recipe| validator(recipe)),
+        );
     }
 }
 

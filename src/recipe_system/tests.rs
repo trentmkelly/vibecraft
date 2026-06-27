@@ -14,6 +14,26 @@ mod registry_tests;
 const RECIPE_BOOK_JAVA: &str = vibecraft_java_source!("/net/minecraft/stats/RecipeBook.java");
 const RECIPE_BOOK_SETTINGS_JAVA: &str =
     vibecraft_java_source!("/net/minecraft/stats/RecipeBookSettings.java");
+const SERVER_RECIPE_BOOK_JAVA: &str =
+    vibecraft_java_source!("/net/minecraft/stats/ServerRecipeBook.java");
+
+fn id(value: &str) -> crate::registry::Identifier {
+    crate::registry::Identifier::parse(value).unwrap()
+}
+
+fn stone_display(display_id: i32) -> RecipeDisplayEntry {
+    RecipeDisplayEntry {
+        id: RecipeDisplayId(display_id),
+        display: RecipeDisplay::Stonecutter {
+            ingredient: SlotDisplay::Item("minecraft:stone"),
+            result: SlotDisplay::Item("minecraft:stone_slab"),
+            crafting_station: SlotDisplay::Item("minecraft:stonecutter"),
+        },
+        group: None,
+        category: "stonecutter",
+        crafting_requirements: Some(vec![SlotDisplay::Item("minecraft:stone")]),
+    }
+}
 
 #[test]
 fn recipe_book_wrapper_matches_java_settings_delegation() {
@@ -61,6 +81,139 @@ fn recipe_book_wrapper_matches_java_settings_delegation() {
     book.set_book_setting(RecipeBookType::Smoker, true, true);
     assert!(book.is_open(RecipeBookType::Smoker));
     assert!(book.is_filtering(RecipeBookType::Smoker));
+}
+
+#[test]
+fn server_recipe_book_matches_java_unlock_remove_and_initial_sync() {
+    for sentinel in [
+        "public static final String RECIPE_BOOK_TAG = \"recipeBook\";",
+        "protected final Set<ResourceKey<Recipe<?>>> known = Sets.newIdentityHashSet();",
+        "protected final Set<ResourceKey<Recipe<?>>> highlight = Sets.newIdentityHashSet();",
+        "public void add(final ResourceKey<Recipe<?>> id)",
+        "return this.known.contains(id);",
+        "this.known.remove(id);\n      this.highlight.remove(id);",
+        "private void addHighlight(final ResourceKey<Recipe<?>> id)",
+        "if (!this.known.contains(id) && !recipe.value().isSpecial())",
+        "new ClientboundRecipeBookAddPacket.Entry(display, recipe.value().showNotification(), true)",
+        "CriteriaTriggers.RECIPE_UNLOCKED.trigger(player, recipe);",
+        "return recipesToAdd.size();",
+        "new ClientboundRecipeBookRemovePacket(recipesToRemove)",
+        "player.connection.send(new ClientboundRecipeBookSettingsPacket(this.getBookSettings().copy()));",
+        "new ClientboundRecipeBookAddPacket.Entry(r, false, this.highlight.contains(id))",
+        "player.connection.send(new ClientboundRecipeBookAddPacket(recipesToSend, true));",
+        "return new ServerRecipeBook.Packed(this.bookSettings.copy(), List.copyOf(this.known), List.copyOf(this.highlight));",
+        "this.known.clear();\n      this.highlight.clear();",
+        "this.bookSettings.replaceFrom(packed.settings);",
+        "this.loadRecipes(packed.known, this.known::add, validator);",
+        "this.loadRecipes(packed.highlight, this.highlight::add, validator);",
+        "Recipe.KEY_CODEC.listOf().fieldOf(\"recipes\").forGetter(ServerRecipeBook.Packed::known)",
+        "Recipe.KEY_CODEC.listOf().fieldOf(\"toBeDisplayed\").forGetter(ServerRecipeBook.Packed::highlight)",
+    ] {
+        assert!(
+            SERVER_RECIPE_BOOK_JAVA.contains(sentinel),
+            "ServerRecipeBook.java missing sentinel: {sentinel}"
+        );
+    }
+
+    assert_eq!(ServerRecipeBook::RECIPE_BOOK_TAG, "recipeBook");
+    assert_eq!(ServerRecipeBookPacked::RECIPES_FIELD, "recipes");
+    assert_eq!(ServerRecipeBookPacked::HIGHLIGHT_FIELD, "toBeDisplayed");
+
+    let stone = id("minecraft:stone_slab_from_stone_stonecutting");
+    let special = id("minecraft:special_debug_recipe");
+    let resolver = ServerRecipeBookDisplayResolver::new([(
+        stone.clone(),
+        vec![stone_display(10), stone_display(11)],
+    )]);
+    let mut book = ServerRecipeBook::new(resolver);
+    let recipes = vec![
+        AdvancementRecipeDefinition {
+            id: stone.clone(),
+            special: false,
+            show_notification: true,
+        },
+        AdvancementRecipeDefinition {
+            id: special.clone(),
+            special: true,
+            show_notification: true,
+        },
+    ];
+
+    let (count, packet, triggered) = book.add_recipes(&recipes);
+    assert_eq!(count, 2);
+    assert_eq!(triggered, vec![stone.clone()]);
+    let packet = packet.expect("new known recipe displays should send an add packet");
+    assert!(!packet.replace);
+    assert_eq!(packet.entries.len(), 2);
+    assert!(packet.entries.iter().all(|entry| {
+        entry.flags.notification() && entry.flags.highlight()
+    }));
+    assert!(book.contains(&stone));
+    assert!(!book.contains(&special));
+
+    let (duplicate_count, duplicate_packet, duplicate_triggers) = book.add_recipes(&recipes);
+    assert_eq!(duplicate_count, 0);
+    assert_eq!(duplicate_packet, None);
+    assert!(duplicate_triggers.is_empty());
+
+    let (settings_packet, initial_packet) = book.send_initial_recipe_book();
+    assert_eq!(settings_packet.settings, RecipeBookSettings::default());
+    assert!(initial_packet.replace);
+    assert_eq!(initial_packet.entries.len(), 2);
+    assert!(initial_packet.entries.iter().all(|entry| {
+        !entry.flags.notification() && entry.flags.highlight()
+    }));
+
+    book.remove_highlight(&stone);
+    let (_, initial_without_highlight) = book.send_initial_recipe_book();
+    assert!(initial_without_highlight
+        .entries
+        .iter()
+        .all(|entry| !entry.flags.highlight()));
+
+    let (removed_count, remove_packet) = book.remove_recipes(std::slice::from_ref(&stone));
+    assert_eq!(removed_count, 2);
+    assert_eq!(
+        remove_packet.unwrap().recipes,
+        vec![RecipeDisplayId(10), RecipeDisplayId(11)]
+    );
+    assert!(!book.contains(&stone));
+}
+
+#[test]
+fn server_recipe_book_pack_copy_and_load_untrusted_match_java() {
+    let known = id("minecraft:oak_planks");
+    let highlight = id("minecraft:stick");
+    let invalid = id("minecraft:not_registered");
+
+    let mut settings = RecipeBookSettings::default();
+    settings.set_open(RecipeBookType::Crafting, true);
+    settings.set_filtering(RecipeBookType::Furnace, true);
+
+    let mut book = ServerRecipeBook::default();
+    book.add(id("minecraft:preexisting"));
+    book.load_untrusted(
+        ServerRecipeBookPacked {
+            settings,
+            known: vec![known.clone(), invalid.clone()],
+            highlight: vec![highlight.clone(), invalid.clone()],
+        },
+        |recipe| recipe != &invalid,
+    );
+
+    let packed = book.pack();
+    assert!(packed.known.contains(&id("minecraft:preexisting")));
+    assert!(packed.known.contains(&known));
+    assert!(!packed.known.contains(&invalid));
+    assert!(packed.highlight.contains(&highlight));
+    assert!(!packed.highlight.contains(&invalid));
+    assert_eq!(packed.settings, settings);
+
+    let mut replacement = ServerRecipeBook::default();
+    replacement.add(id("minecraft:old_recipe"));
+    replacement.copy_over_data(&book);
+    assert_eq!(replacement.pack(), packed);
+    assert!(!replacement.pack().known.contains(&id("minecraft:old_recipe")));
 }
 
 #[test]
