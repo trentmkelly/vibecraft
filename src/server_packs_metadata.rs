@@ -85,6 +85,42 @@ pub struct PackLocationInfoModel {
     pub known_pack_info: Option<KnownPack>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RepositoryPackModel {
+    pub id: String,
+}
+
+impl RepositoryPackModel {
+    pub fn new(id: impl Into<String>) -> Self {
+        Self { id: id.into() }
+    }
+}
+
+pub trait RepositorySourceModel {
+    fn load_packs(&self, result: &mut dyn FnMut(RepositoryPackModel));
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StaticRepositorySourceModel {
+    packs: Vec<RepositoryPackModel>,
+}
+
+impl StaticRepositorySourceModel {
+    pub fn new(packs: impl IntoIterator<Item = RepositoryPackModel>) -> Self {
+        Self {
+            packs: packs.into_iter().collect(),
+        }
+    }
+}
+
+impl RepositorySourceModel for StaticRepositorySourceModel {
+    fn load_packs(&self, result: &mut dyn FnMut(RepositoryPackModel)) {
+        for pack in &self.packs {
+            result(pack.clone());
+        }
+    }
+}
+
 impl PackLocationInfoModel {
     pub fn new(
         id: impl Into<String>,
@@ -362,6 +398,8 @@ mod tests {
         vibecraft_java_source!("/net/minecraft/server/packs/metadata/pack/PackMetadataSection.java");
     const PACK_SOURCE_JAVA: &str =
         vibecraft_java_source!("/net/minecraft/server/packs/repository/PackSource.java");
+    const REPOSITORY_SOURCE_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/packs/repository/RepositorySource.java");
 
     #[test]
     fn pack_type_directories_match_java() {
@@ -537,6 +575,19 @@ mod tests {
     }
 
     #[test]
+    fn repository_source_loads_packs_through_consumer_like_java() {
+        let source = StaticRepositorySourceModel::new([
+            RepositoryPackModel::new("vanilla"),
+            RepositoryPackModel::new("file/world"),
+        ]);
+        let mut loaded = Vec::new();
+
+        source.load_packs(&mut |pack| loaded.push(pack.id));
+
+        assert_eq!(loaded, vec!["vanilla".to_string(), "file/world".to_string()]);
+    }
+
+    #[test]
     fn overlay_metadata_validates_directories_and_filters_versions_like_java() {
         for valid in ["base", "modded.assets_1-20", ".", "A_Z-9"] {
             assert_eq!(validate_overlay_directory(valid.to_string()), Ok(valid.to_string()));
@@ -665,6 +716,14 @@ mod tests {
             "Component.translatable(\"pack.nameAndSource\", packDescription, description).withStyle(ChatFormatting.GRAY)",
         ] {
             assert!(PACK_SOURCE_JAVA.contains(needle));
+        }
+
+        for needle in [
+            "@FunctionalInterface",
+            "public interface RepositorySource",
+            "void loadPacks(Consumer<Pack> result);",
+        ] {
+            assert!(REPOSITORY_SOURCE_JAVA.contains(needle));
         }
     }
 
