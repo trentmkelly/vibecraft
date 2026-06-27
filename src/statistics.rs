@@ -1,4 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::fs;
+use std::io;
+use std::path::{Path, PathBuf};
 
 use crate::network::play::{AwardedStat, ClientboundAwardStatsPacket};
 use crate::registry::Identifier;
@@ -177,6 +180,12 @@ pub struct StatsCounterModel {
 pub struct StatisticsCounter {
     values: BTreeMap<StatKey, i32>,
     dirty: BTreeSet<StatKey>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerStatsCounter {
+    file: PathBuf,
+    stats: StatisticsCounter,
 }
 
 impl StatKey {
@@ -443,6 +452,102 @@ impl StatisticsCounter {
     }
 }
 
+impl ServerStatsCounter {
+    pub fn new(file: impl Into<PathBuf>) -> Self {
+        Self {
+            file: file.into(),
+            stats: StatisticsCounter::default(),
+        }
+    }
+
+    pub fn load_current_version(file: impl Into<PathBuf>) -> Self {
+        let file = file.into();
+        if !file.is_file() {
+            return Self::new(file);
+        }
+
+        let stats = fs::read_to_string(&file)
+            .ok()
+            .and_then(|json| Self::parse_current_version_json(&json).ok())
+            .unwrap_or_default();
+        Self { file, stats }
+    }
+
+    pub fn parse_current_version_json(json: &str) -> Result<StatisticsCounter, String> {
+        // TODO(vanilla-stats-datafixer): Java runs DataFixTypes.STATS from the
+        // file's DataVersion (default 1343) before STATS_CODEC parses the
+        // grouped map. VibeCraft's storage/datafix.rs currently classifies
+        // stats/*.json as version-stamped validation, so this accepts the
+        // current 26.1.2 grouped shape only.
+        let value = serde_json::from_str(json).map_err(|err| err.to_string())?;
+        parse_stats_json_value(&value)
+    }
+
+    pub fn save_current_version(&self, data_version: i32) -> io::Result<()> {
+        if let Some(parent) = self.file.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(&self.file, self.to_pretty_vanilla_json(data_version))
+    }
+
+    pub fn to_pretty_vanilla_json(&self, data_version: i32) -> String {
+        serde_json::to_string_pretty(&self.to_json_value(data_version))
+            .expect("statistics JSON value should serialize")
+    }
+
+    pub fn to_json_value(&self, data_version: i32) -> serde_json::Value {
+        let mut stats = serde_json::Map::new();
+        for (stat, value) in &self.stats.values {
+            let category = stats
+                .entry(stat.category.to_string())
+                .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+            let serde_json::Value::Object(values) = category else {
+                unreachable!("statistics categories are always objects")
+            };
+            values.insert(
+                stat.value.to_string(),
+                serde_json::Value::Number(serde_json::Number::from(*value)),
+            );
+        }
+
+        let mut root = serde_json::Map::new();
+        root.insert("stats".to_string(), serde_json::Value::Object(stats));
+        root.insert(
+            "DataVersion".to_string(),
+            serde_json::Value::Number(serde_json::Number::from(data_version)),
+        );
+        serde_json::Value::Object(root)
+    }
+
+    pub fn set_value(&mut self, stat: StatKey, value: i32) {
+        self.stats.set(stat, value);
+    }
+
+    pub fn increment(&mut self, stat: StatKey, count: i32) {
+        self.stats.increment(stat, count);
+    }
+
+    pub fn get_value(&self, stat: &StatKey) -> i32 {
+        self.stats.get(stat)
+    }
+
+    pub fn mark_all_dirty(&mut self) {
+        self.stats.mark_all_dirty();
+    }
+
+    pub fn send_stats(&mut self) -> ClientboundAwardStatsPacket {
+        self.stats.drain_dirty_packet()
+    }
+
+    pub fn file(&self) -> &Path {
+        &self.file
+    }
+
+    pub fn inner(&self) -> &StatisticsCounter {
+        &self.stats
+    }
+}
+
 fn format_distance(cm: i32) -> String {
     let meters = f64::from(cm) / 100.0;
     let kilometers = meters / 1000.0;
@@ -538,6 +643,29 @@ fn stat_network_value(stat: &StatKey, value: i32) -> Option<AwardedStat> {
     })
 }
 
+fn parse_stats_json_value(value: &serde_json::Value) -> Result<StatisticsCounter, String> {
+    let stats = value
+        .get("stats")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| "missing stats root".to_string())?;
+    let mut counter = StatisticsCounter::default();
+    for (category, values) in stats {
+        let values = values
+            .as_object()
+            .ok_or_else(|| format!("expected stat category object for {category}"))?;
+        for (value, count) in values {
+            let count = count
+                .as_i64()
+                .and_then(|count| i32::try_from(count).ok())
+                .ok_or_else(|| format!("invalid stat value for {category}:{value}"))?;
+            counter
+                .values
+                .insert(StatKey::new(category, value)?, count);
+        }
+    }
+    Ok(counter)
+}
+
 fn matching_brace(input: &str, open: usize) -> Result<usize, String> {
     let mut depth = 0_i32;
     for (index, byte) in input.bytes().enumerate().skip(open) {
@@ -629,6 +757,8 @@ mod tests {
     const STATS_JAVA: &str = vibecraft_java_source!("/net/minecraft/stats/Stats.java");
     const STATS_COUNTER_JAVA: &str =
         vibecraft_java_source!("/net/minecraft/stats/StatsCounter.java");
+    const SERVER_STATS_COUNTER_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/stats/ServerStatsCounter.java");
 
     #[test]
     fn stat_formatters_match_java_thresholds_and_units() {
@@ -933,6 +1063,105 @@ mod tests {
         assert!(counter.drain_dirty_packet().stats.is_empty());
         counter.mark_all_dirty();
         assert_eq!(counter.drain_dirty_packet().stats.len(), 1);
+    }
+
+    #[test]
+    fn server_stats_counter_matches_java_dirty_save_and_send_contract() {
+        for sentinel in [
+            "private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();",
+            "private static final Codec<Map<Stat<?>, Integer>> STATS_CODEC = Codec.dispatchedMap",
+            "BuiltInRegistries.STAT_TYPE.byNameCodec()",
+            "Util.memoize(ServerStatsCounter::createTypedStatsCodec)",
+            "Codec.unboundedMap(statCodec, Codec.INT)",
+            "private final Path file;",
+            "private final Set<Stat<?>> dirty = Sets.newHashSet();",
+            "if (Files.isRegularFile(file))",
+            "StrictJsonParser.parse(reader)",
+            "this.parse(server.getFixerUpper(), element);",
+            "FileUtil.createDirectoriesSafe(this.file.getParent());",
+            "Files.newBufferedWriter(this.file, StandardCharsets.UTF_8)",
+            "GSON.toJson(this.toJson(), GSON.newJsonWriter(writer));",
+            "public void setValue(final Player player, final Stat<?> stat, final int count)",
+            "super.setValue(player, stat, count);\n      this.dirty.add(stat);",
+            "Set<Stat<?>> result = Sets.newHashSet(this.dirty);\n      this.dirty.clear();",
+            "DataFixTypes.STATS.updateToCurrentVersion(fixerUpper, data, NbtUtils.getDataVersion(data, 1343))",
+            "STATS_CODEC.parse(data.get(\"stats\").orElseEmptyMap())",
+            "result.add(\"stats\", (JsonElement)STATS_CODEC.encodeStart(JsonOps.INSTANCE, this.stats).getOrThrow());",
+            "result.addProperty(\"DataVersion\", SharedConstants.getCurrentVersion().dataVersion().version());",
+            "this.dirty.addAll(this.stats.keySet());",
+            "statsToSend.put(stat, this.getValue(stat));",
+            "player.connection.send(new ClientboundAwardStatsPacket(statsToSend));",
+        ] {
+            assert!(
+                SERVER_STATS_COUNTER_JAVA.contains(sentinel),
+                "ServerStatsCounter.java is missing sentinel: {sentinel}"
+            );
+        }
+
+        let path = std::env::temp_dir().join(format!(
+            "vibecraft-server-stats-{}-nested/stats/player.json",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(
+            path.parent()
+                .and_then(std::path::Path::parent)
+                .expect("nested temp path should have a parent"),
+        );
+
+        let mut counter = ServerStatsCounter::new(path.clone());
+        let jump = StatKey::custom("jump").unwrap();
+        let play_time = StatKey::custom("play_time").unwrap();
+        counter.set_value(jump.clone(), 4);
+        counter.increment(play_time.clone(), 20);
+
+        let packet = counter.send_stats();
+        assert_eq!(packet.stats.len(), 2);
+        assert!(counter.send_stats().stats.is_empty());
+
+        counter.mark_all_dirty();
+        assert_eq!(counter.send_stats().stats.len(), 2);
+        assert_eq!(counter.get_value(&jump), 4);
+        assert_eq!(counter.file(), path.as_path());
+
+        let pretty = counter.to_pretty_vanilla_json(4189);
+        assert!(pretty.contains("\"stats\""));
+        assert!(pretty.contains("\"DataVersion\": 4189"));
+        assert!(pretty.contains("\"minecraft:custom\""));
+        assert!(pretty.contains("\"minecraft:jump\": 4"));
+
+        counter.save_current_version(4189).unwrap();
+        assert!(path.is_file());
+        let loaded = ServerStatsCounter::load_current_version(path.clone());
+        assert_eq!(loaded.get_value(&jump), 4);
+        assert_eq!(loaded.get_value(&play_time), 20);
+        assert!(loaded.inner().dirty.is_empty());
+
+        std::fs::write(&path, "{\"stats\":").unwrap();
+        let corrupt = ServerStatsCounter::load_current_version(path.clone());
+        assert_eq!(corrupt.get_value(&jump), 0);
+
+        let _ = std::fs::remove_dir_all(
+            path.parent()
+                .and_then(std::path::Path::parent)
+                .expect("nested temp path should have a parent"),
+        );
+    }
+
+    #[test]
+    fn server_stats_counter_documents_datafix_boundary() {
+        assert!(
+            SERVER_STATS_COUNTER_JAVA.contains("NbtUtils.getDataVersion(data, 1343)"),
+            "Java default stats DataVersion sentinel changed"
+        );
+        let source = include_str!("statistics.rs");
+        assert!(
+            source.contains("TODO(vanilla-stats-datafixer)"),
+            "ServerStatsCounter datafix boundary must stay explicit until DFU stats migration exists"
+        );
+        assert!(ServerStatsCounter::parse_current_version_json(
+            "{\"stats\":{\"minecraft:custom\":{\"minecraft:jump\":1}},\"DataVersion\":4189}"
+        )
+        .is_ok());
     }
 
     #[test]
