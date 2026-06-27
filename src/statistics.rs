@@ -117,6 +117,14 @@ pub struct StatModel {
     formatter: StatFormatterKind,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StatTypeModel {
+    category: Identifier,
+    registry_key: Identifier,
+    display_name: String,
+    stats: BTreeMap<Identifier, StatModel>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StatisticsCounter {
     values: BTreeMap<StatKey, i32>,
@@ -187,6 +195,58 @@ impl StatModel {
             self.name(),
             self.formatter
         )
+    }
+}
+
+impl StatTypeModel {
+    pub fn new(category: &str, registry_key: &str, display_name: &str) -> Result<Self, String> {
+        let category = normalize_identifier(category)?;
+        let registry_key = normalize_identifier(registry_key)?;
+        Ok(Self {
+            category,
+            registry_key,
+            display_name: display_name.to_string(),
+            stats: BTreeMap::new(),
+        })
+    }
+
+    pub fn registry_key(&self) -> &Identifier {
+        &self.registry_key
+    }
+
+    pub fn display_name(&self) -> &str {
+        &self.display_name
+    }
+
+    pub fn contains(&self, value: &Identifier) -> bool {
+        self.stats.contains_key(value)
+    }
+
+    pub fn get(
+        &mut self,
+        value: &str,
+        formatter: StatFormatterKind,
+    ) -> Result<&StatModel, String> {
+        let value = normalize_identifier(value)?;
+        if !self.stats.contains_key(&value) {
+            let key = StatKey {
+                category: self.category.clone(),
+                value: value.clone(),
+            };
+            self.stats
+                .insert(value.clone(), StatModel::new(key, formatter));
+        }
+        self.stats
+            .get(&value)
+            .ok_or_else(|| format!("missing cached stat {value}"))
+    }
+
+    pub fn get_default(&mut self, value: &str) -> Result<&StatModel, String> {
+        self.get(value, StatFormatterKind::Default)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &StatModel> {
+        self.stats.values()
     }
 }
 
@@ -455,6 +515,7 @@ mod tests {
     const STAT_FORMATTER_JAVA: &str =
         vibecraft_java_source!("/net/minecraft/stats/StatFormatter.java");
     const STAT_JAVA: &str = vibecraft_java_source!("/net/minecraft/stats/Stat.java");
+    const STAT_TYPE_JAVA: &str = vibecraft_java_source!("/net/minecraft/stats/StatType.java");
 
     #[test]
     fn stat_formatters_match_java_thresholds_and_units() {
@@ -525,6 +586,57 @@ mod tests {
             "Stat{name=minecraft.custom:minecraft.walk_one_cm, formatter=Distance}"
         );
         assert_eq!(stat, StatModel::new(key, StatFormatterKind::Distance));
+    }
+
+    #[test]
+    fn stat_type_model_matches_java_cache_and_accessors() {
+        for sentinel in [
+            "private final Registry<T> registry;",
+            "private final Map<T, Stat<T>> map = new IdentityHashMap<>();",
+            "private final Component displayName;",
+            "this.streamCodec = ByteBufCodecs.registry(registry.key()).map(this::get, Stat::getValue);",
+            "public StreamCodec<RegistryFriendlyByteBuf, Stat<T>> streamCodec()",
+            "return this.map.containsKey(key);",
+            "return this.map.computeIfAbsent(argument, t -> new Stat<>(this, (T)t, formatter));",
+            "return this.registry;",
+            "return this.map.values().iterator();",
+            "return this.get(argument, StatFormatter.DEFAULT);",
+            "return this.displayName;",
+        ] {
+            assert!(
+                STAT_TYPE_JAVA.contains(sentinel),
+                "StatType.java is missing sentinel: {sentinel}"
+            );
+        }
+
+        let mut stat_type = StatTypeModel::new(
+            "minecraft:custom",
+            "minecraft:custom_stat",
+            "stat_type.minecraft.custom",
+        )
+        .unwrap();
+        let walk = Identifier::parse("minecraft:walk_one_cm").unwrap();
+        assert_eq!(stat_type.registry_key().to_string(), "minecraft:custom_stat");
+        assert_eq!(stat_type.display_name(), "stat_type.minecraft.custom");
+        assert!(!stat_type.contains(&walk));
+
+        let first_name = stat_type
+            .get("minecraft:walk_one_cm", StatFormatterKind::Distance)
+            .unwrap()
+            .name();
+        assert_eq!(first_name, "minecraft.custom:minecraft.walk_one_cm");
+        assert!(stat_type.contains(&walk));
+        let cached_name = stat_type
+            .get("minecraft:walk_one_cm", StatFormatterKind::Default)
+            .unwrap()
+            .name();
+        assert_eq!(cached_name, first_name);
+        assert_eq!(stat_type.iter().count(), 1);
+
+        let jump = stat_type.get_default("jump").unwrap();
+        assert_eq!(jump.name(), "minecraft.custom:minecraft.jump");
+        assert_eq!(jump.format(1_234), "1,234");
+        assert_eq!(stat_type.iter().count(), 2);
     }
 
     #[test]
