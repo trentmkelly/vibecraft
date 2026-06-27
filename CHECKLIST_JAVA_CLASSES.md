@@ -1648,10 +1648,10 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/server/level/progress`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/progress/ChunkLoadStatusView.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/progress/LevelLoadListener.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/progress/LevelLoadProgressTracker.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/progress/LoggingLevelLoadListener.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/progress/ChunkLoadStatusView.java`. Rust `server_level_progress::ChunkLoadStatusViewModel` mirrors Java 26.1.2's move-to focus, nullable status lookup, and radius view contract, with Java source sentinels pinned by `progress_sources_match_java_26_1_2`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/progress/LevelLoadListener.java`. Rust `server_level_progress` mirrors Java 26.1.2's listener stages and `compose` forwarding order for start/update/finish/focus events, with Java source sentinels pinned by `progress_sources_match_java_26_1_2`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/progress/LevelLoadProgressTracker.java`. Rust `server_level_progress::LevelLoadProgressTrackerModel` mirrors Java 26.1.2's 10-weight prepare segment, `Mth.square(7)` expected player chunk weight, include-player-chunks branch, tracked-stage filtering, zero-total update behavior, finalized/segment weight math, and float progress getter, with Java source sentinels pinned by `progress_sources_match_java_26_1_2`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/progress/LoggingLevelLoadListener.java`. Rust `server_level_progress::LoggingLevelLoadListenerModel` mirrors Java 26.1.2's dedicated/singleplayer constructors, start-time initialization, stage log messages, 500 ms strict `>` progress log cadence, final-stage selection, elapsed-time close behavior, and no-op focus updates, with Java source sentinels pinned by `progress_sources_match_java_26_1_2`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/progress/package-info.java`. Java 26.1.2 package marker contains only `@NullMarked`, the package declaration, and the `org.jspecify.annotations.NullMarked` import; no Rust runtime behavior or parity test is required beyond preserving nullability expectations in typed Rust APIs.
 
 ## `decompiled-server-26.1.2/net/minecraft/server/network`
