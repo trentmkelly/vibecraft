@@ -842,6 +842,124 @@ fn outgoing_notification_methods_cover_vanilla_set_and_broadcast_to_clients() {
 }
 
 #[test]
+fn outgoing_rpc_method_builder_and_variants_match_java_contract() {
+    assert_outgoing_rpc_method_builder_matches_java_source();
+
+    let notification = OutgoingRpcMethodBuilderModel::notification()
+        .description("Server started")
+        .build();
+    assert_eq!(
+        notification.kind,
+        OutgoingRpcMethodKind::ParameterlessNotification
+    );
+    assert!(notification.discoverable);
+    assert_eq!(notification.description, "Server started");
+    assert_eq!(notification.default_encode_params(), None);
+    assert_eq!(notification.default_decode_result(), None);
+    assert_eq!(
+        notification.encode_params(serde_json::json!({"ignored": true})),
+        Ok(None)
+    );
+    assert_eq!(
+        notification.decode_result(serde_json::json!(true)),
+        Ok(None)
+    );
+
+    let notification_with_params = OutgoingRpcMethodBuilderModel::notification_with_params()
+        .param("player", "PlayerDto")
+        .build();
+    assert_eq!(
+        notification_with_params.encode_params(serde_json::json!({"name": "Steve"})),
+        Ok(Some(serde_json::json!({"name": "Steve"})))
+    );
+    assert_eq!(
+        notification_with_params.decode_result(serde_json::json!(null)),
+        Ok(None)
+    );
+
+    let request = OutgoingRpcMethodBuilderModel::request()
+        .response("result", "bool")
+        .build();
+    assert_eq!(
+        request.kind,
+        OutgoingRpcMethodKind::ParameterlessMethod
+    );
+    assert_eq!(
+        request.encode_params(serde_json::json!(true)),
+        Ok(None)
+    );
+    assert_eq!(
+        request.decode_result(serde_json::json!(true)),
+        Ok(Some(serde_json::json!(true)))
+    );
+
+    let request_with_params = OutgoingRpcMethodBuilderModel::request_with_params()
+        .description("Set autosave")
+        .param("enable", "bool")
+        .response("enabled", "bool")
+        .build();
+    assert_eq!(
+        request_with_params.encode_params(serde_json::json!(false)),
+        Ok(Some(serde_json::json!(false)))
+    );
+    assert_eq!(
+        request_with_params.decode_result(serde_json::json!(false)),
+        Ok(Some(serde_json::json!(false)))
+    );
+
+    let bad_param_method = OutgoingRpcMethodBuilderModel::request_with_params()
+        .response("result", "bool")
+        .build();
+    assert_eq!(
+        bad_param_method.encode_params(serde_json::json!(true)),
+        Err("Method defined as having no parameters".to_string())
+    );
+    let bad_result_method = OutgoingRpcMethodBuilderModel::request()
+        .build();
+    assert_eq!(
+        bad_result_method.decode_result(serde_json::json!(true)),
+        Err("Method defined as having no result".to_string())
+    );
+    assert_eq!(
+        OutgoingRpcMethodBuilderModel::register_key("server/status"),
+        "notification/server/status"
+    );
+}
+
+fn assert_outgoing_rpc_method_builder_matches_java_source() {
+    for sentinel in [
+        "String NOTIFICATION_PREFIX = \"notification/\";",
+        "default @Nullable JsonElement encodeParams(final Params params)",
+        "return null;",
+        "default @Nullable Result decodeResult(final JsonElement result)",
+        "static OutgoingRpcMethod.OutgoingRpcMethodBuilder<Void, Void> notification()",
+        "OutgoingRpcMethod.ParmeterlessNotification::new",
+        "static <Params> OutgoingRpcMethod.OutgoingRpcMethodBuilder<Params, Void> notificationWithParams()",
+        "OutgoingRpcMethod.Notification::new",
+        "static <Result> OutgoingRpcMethod.OutgoingRpcMethodBuilder<Void, Result> request()",
+        "OutgoingRpcMethod.ParameterlessMethod::new",
+        "static <Params, Result> OutgoingRpcMethod.OutgoingRpcMethodBuilder<Params, Result> requestWithParams()",
+        "OutgoingRpcMethod.Method::new",
+        "record Attributes(boolean discoverable)",
+        "throw new IllegalStateException(\"Method defined as having no parameters\");",
+        "throw new IllegalStateException(\"Method defined as having no result\");",
+        "public static final OutgoingRpcMethod.Attributes DEFAULT_ATTRIBUTES = new OutgoingRpcMethod.Attributes(true);",
+        "private String description = \"\";",
+        "this.resultInfo = new ResultInfo<>(resultName, resultSchema);",
+        "this.paramInfo = new ParamInfo<>(paramName, paramSchema);",
+        "MethodInfo<Params, Result> methodInfo = new MethodInfo<>(this.description, this.paramInfo, this.resultInfo);",
+        "return this.method.create(methodInfo, DEFAULT_ATTRIBUTES);",
+        "return this.register(Identifier.withDefaultNamespace(\"notification/\" + key));",
+        "Registry.registerForHolder(BuiltInRegistries.OUTGOING_RPC_METHOD, id, this.build());",
+    ] {
+        assert!(
+            OUTGOING_RPC_METHOD_JAVA.contains(sentinel),
+            "OutgoingRpcMethod.java missing sentinel: {sentinel}"
+        );
+    }
+}
+
+#[test]
 fn json_rpc_notification_service_maps_events_to_outgoing_methods() {
     for sentinel in [
         "public class JsonRpcNotificationService implements NotificationService",

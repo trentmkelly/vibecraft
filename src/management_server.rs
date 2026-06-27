@@ -148,6 +148,133 @@ impl OutgoingRpcMethodDef {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutgoingRpcMethodKind {
+    Method,
+    Notification,
+    ParameterlessMethod,
+    ParameterlessNotification,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OutgoingRpcMethodModel {
+    pub description: String,
+    pub param: Option<(String, String)>,
+    pub result: Option<(String, String)>,
+    pub discoverable: bool,
+    pub kind: OutgoingRpcMethodKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OutgoingRpcMethodBuilderModel {
+    description: String,
+    param: Option<(String, String)>,
+    result: Option<(String, String)>,
+    kind: OutgoingRpcMethodKind,
+}
+
+impl OutgoingRpcMethodModel {
+    pub fn default_encode_params(&self) -> Option<serde_json::Value> {
+        None
+    }
+
+    pub fn default_decode_result(&self) -> Option<serde_json::Value> {
+        None
+    }
+
+    pub fn encode_params(
+        &self,
+        params: serde_json::Value,
+    ) -> Result<Option<serde_json::Value>, String> {
+        match self.kind {
+            OutgoingRpcMethodKind::Method | OutgoingRpcMethodKind::Notification => {
+                if self.param.is_none() {
+                    Err("Method defined as having no parameters".to_string())
+                } else {
+                    Ok(Some(params))
+                }
+            }
+            OutgoingRpcMethodKind::ParameterlessMethod
+            | OutgoingRpcMethodKind::ParameterlessNotification => Ok(None),
+        }
+    }
+
+    pub fn decode_result(
+        &self,
+        result: serde_json::Value,
+    ) -> Result<Option<serde_json::Value>, String> {
+        match self.kind {
+            OutgoingRpcMethodKind::Method | OutgoingRpcMethodKind::ParameterlessMethod => {
+                if self.result.is_none() {
+                    Err("Method defined as having no result".to_string())
+                } else {
+                    Ok(Some(result))
+                }
+            }
+            OutgoingRpcMethodKind::Notification
+            | OutgoingRpcMethodKind::ParameterlessNotification => Ok(None),
+        }
+    }
+}
+
+impl OutgoingRpcMethodBuilderModel {
+    pub const DEFAULT_DISCOVERABLE: bool = true;
+
+    pub fn notification() -> Self {
+        Self::new(OutgoingRpcMethodKind::ParameterlessNotification)
+    }
+
+    pub fn notification_with_params() -> Self {
+        Self::new(OutgoingRpcMethodKind::Notification)
+    }
+
+    pub fn request() -> Self {
+        Self::new(OutgoingRpcMethodKind::ParameterlessMethod)
+    }
+
+    pub fn request_with_params() -> Self {
+        Self::new(OutgoingRpcMethodKind::Method)
+    }
+
+    fn new(kind: OutgoingRpcMethodKind) -> Self {
+        Self {
+            description: String::new(),
+            param: None,
+            result: None,
+            kind,
+        }
+    }
+
+    pub fn description(mut self, description: &str) -> Self {
+        self.description = description.to_string();
+        self
+    }
+
+    pub fn response(mut self, result_name: &str, result_schema: &str) -> Self {
+        self.result = Some((result_name.to_string(), result_schema.to_string()));
+        self
+    }
+
+    pub fn param(mut self, param_name: &str, param_schema: &str) -> Self {
+        self.param = Some((param_name.to_string(), param_schema.to_string()));
+        self
+    }
+
+    pub fn build(self) -> OutgoingRpcMethodModel {
+        OutgoingRpcMethodModel {
+            description: self.description,
+            param: self.param,
+            result: self.result,
+            discoverable: Self::DEFAULT_DISCOVERABLE,
+            kind: self.kind,
+        }
+    }
+
+    pub fn register_key(key: &str) -> String {
+        format!("{}{}", OutgoingRpcMethodDef::NOTIFICATION_PREFIX, key)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ManagementServerConfig {
     pub enabled: bool,
