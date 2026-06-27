@@ -867,12 +867,32 @@ impl HumanoidArm {
 }
 
 impl ParticleStatus {
-    fn index(self) -> usize {
+    pub fn id(self) -> i32 {
         match self {
             Self::All => 0,
             Self::Decreased => 1,
             Self::Minimal => 2,
         }
+    }
+
+    pub fn caption_key(self) -> &'static str {
+        match self {
+            Self::All => "options.particles.all",
+            Self::Decreased => "options.particles.decreased",
+            Self::Minimal => "options.particles.minimal",
+        }
+    }
+
+    pub fn legacy_from_id(id: i32) -> Self {
+        match id.rem_euclid(3) {
+            0 => Self::All,
+            1 => Self::Decreased,
+            _ => Self::Minimal,
+        }
+    }
+
+    fn index(self) -> usize {
+        self.id() as usize
     }
 
     fn from_index(index: usize) -> io::Result<Self> {

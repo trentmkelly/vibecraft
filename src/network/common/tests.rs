@@ -311,6 +311,54 @@ fn round_trips_client_information_with_vanilla_defaults() {
 }
 
 #[test]
+fn particle_status_matches_java_ids_captions_and_legacy_wrap_codec() {
+    assert_eq!(ParticleStatus::All.id(), 0);
+    assert_eq!(ParticleStatus::All.caption_key(), "options.particles.all");
+    assert_eq!(ParticleStatus::Decreased.id(), 1);
+    assert_eq!(
+        ParticleStatus::Decreased.caption_key(),
+        "options.particles.decreased"
+    );
+    assert_eq!(ParticleStatus::Minimal.id(), 2);
+    assert_eq!(
+        ParticleStatus::Minimal.caption_key(),
+        "options.particles.minimal"
+    );
+
+    assert_eq!(ParticleStatus::legacy_from_id(0), ParticleStatus::All);
+    assert_eq!(ParticleStatus::legacy_from_id(1), ParticleStatus::Decreased);
+    assert_eq!(ParticleStatus::legacy_from_id(2), ParticleStatus::Minimal);
+    assert_eq!(ParticleStatus::legacy_from_id(3), ParticleStatus::All);
+    assert_eq!(ParticleStatus::legacy_from_id(-1), ParticleStatus::Minimal);
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn particle_status_source_matches_java_26_1_2() {
+    const PARTICLE_STATUS: &str =
+        vibecraft_java_source!("/net/minecraft/server/level/ParticleStatus.java");
+
+    for sentinel in [
+        "public enum ParticleStatus",
+        "ALL(0, \"options.particles.all\"),",
+        "DECREASED(1, \"options.particles.decreased\"),",
+        "MINIMAL(2, \"options.particles.minimal\");",
+        "ByIdMap.continuous(s -> s.id, values(), ByIdMap.OutOfBoundsStrategy.WRAP)",
+        "public static final Codec<ParticleStatus> LEGACY_CODEC = Codec.INT.xmap(BY_ID::apply, s -> s.id);",
+        "private final int id;",
+        "private final Component caption;",
+        "this.caption = Component.translatable(key);",
+        "public Component caption()",
+        "return this.caption;",
+    ] {
+        assert!(
+            PARTICLE_STATUS.contains(sentinel),
+            "ParticleStatus.java is missing sentinel: {sentinel}"
+        );
+    }
+}
+
+#[test]
 fn round_trips_resource_pack_packets() {
     let id = Uuid([3; 16]);
     let push = ClientboundResourcePackPushPacket {

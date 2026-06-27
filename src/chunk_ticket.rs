@@ -164,6 +164,10 @@ impl Ticket {
 }
 
 impl FullChunkStatus {
+    pub fn is_or_after(self, step: Self) -> bool {
+        self.ordinal() >= step.ordinal()
+    }
+
     pub fn by_level(level: i32) -> Self {
         if level <= ENTITY_TICKING_LEVEL {
             Self::EntityTicking
@@ -182,6 +186,15 @@ impl FullChunkStatus {
             Self::Full => FULL_CHUNK_LEVEL,
             Self::BlockTicking => BLOCK_TICKING_LEVEL,
             Self::EntityTicking => ENTITY_TICKING_LEVEL,
+        }
+    }
+
+    fn ordinal(self) -> u8 {
+        match self {
+            Self::Inaccessible => 0,
+            Self::Full => 1,
+            Self::BlockTicking => 2,
+            Self::EntityTicking => 3,
         }
     }
 }
@@ -759,6 +772,32 @@ mod tests {
         assert_eq!(FullChunkStatus::by_level(33), FullChunkStatus::Full);
         assert_eq!(FullChunkStatus::by_level(34), FullChunkStatus::Inaccessible);
         assert_eq!(FullChunkStatus::Full.level(), 33);
+        assert!(FullChunkStatus::EntityTicking.is_or_after(FullChunkStatus::Full));
+        assert!(FullChunkStatus::BlockTicking.is_or_after(FullChunkStatus::BlockTicking));
+        assert!(!FullChunkStatus::Full.is_or_after(FullChunkStatus::BlockTicking));
+        assert!(!FullChunkStatus::Inaccessible.is_or_after(FullChunkStatus::Full));
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn full_chunk_status_source_matches_java_26_1_2() {
+        const FULL_CHUNK_STATUS: &str =
+            vibecraft_java_source!("/net/minecraft/server/level/FullChunkStatus.java");
+
+        for sentinel in [
+            "public enum FullChunkStatus",
+            "INACCESSIBLE,",
+            "FULL,",
+            "BLOCK_TICKING,",
+            "ENTITY_TICKING;",
+            "public boolean isOrAfter(final FullChunkStatus step)",
+            "return this.ordinal() >= step.ordinal();",
+        ] {
+            assert!(
+                FULL_CHUNK_STATUS.contains(sentinel),
+                "FullChunkStatus.java is missing sentinel: {sentinel}"
+            );
+        }
     }
 
     #[test]

@@ -1623,11 +1623,11 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/ColumnPos.java`. Rust `command_block_position_arguments` covers Java's record fields, `toChunkPos` via `SectionPos.blockToSectionCoord`, `toLong`/`asLong`/`getX`/`getZ` 32-bit packing behavior, `toString`, and `hashCode` delegation to `ChunkPos.hash` with Java wrapping arithmetic; verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 block_position_arguments`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/DemoMode.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/DistanceManager.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/FullChunkStatus.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/FullChunkStatus.java`. Rust `chunk_ticket::FullChunkStatus` mirrors Java 26.1.2's enum order (`INACCESSIBLE`, `FULL`, `BLOCK_TICKING`, `ENTITY_TICKING`) and `isOrAfter` ordinal comparison, with Java source sentinels pinned by `full_chunk_status_source_matches_java_26_1_2`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/GeneratingChunkMap.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/GenerationChunkHolder.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/LoadingChunkTracker.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/ParticleStatus.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/ParticleStatus.java`. Rust `network::common::ParticleStatus` mirrors Java 26.1.2's `ALL`/`DECREASED`/`MINIMAL` ids, translatable caption keys, and legacy integer codec wrap behavior, with Java source sentinels pinned by `particle_status_source_matches_java_26_1_2`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/PlayerMap.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/PlayerSpawnFinder.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/SectionTracker.java`.
