@@ -1597,7 +1597,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/security/AuthenticationHandler.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/security/JsonRpcSslContextProvider.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/security/SecurityConfig.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/security/SecurityConfig.java`. Rust `management_security` mirrors Java 26.1.2's `SecurityConfig(String secretKey)` validation shape (`^[a-zA-Z0-9]{40}$`, empty rejected) and 40-character alphanumeric secret generation over the same alphabet, and `server_properties` now uses that shared generator for the management-server-secret default, with Java source sentinels pinned by `security_config_source_matches_java_26_1_2`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/security/package-info.java`. Java 26.1.2 package marker contains only `@NullMarked`, the package declaration, and the `org.jspecify.annotations.NullMarked` import; no Rust runtime behavior or parity test is required beyond preserving nullability expectations in typed Rust APIs.
 
 ## `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/websocket`
