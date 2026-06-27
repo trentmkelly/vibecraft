@@ -111,6 +111,12 @@ pub struct StatKey {
     pub value: Identifier,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StatModel {
+    key: StatKey,
+    formatter: StatFormatterKind,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StatisticsCounter {
     values: BTreeMap<StatKey, i32>,
@@ -151,6 +157,36 @@ impl StatFormatterKind {
             Self::Distance => format_distance(value),
             Self::Time => format_time(value),
         }
+    }
+}
+
+impl StatModel {
+    pub fn new(key: StatKey, formatter: StatFormatterKind) -> Self {
+        Self { key, formatter }
+    }
+
+    pub fn stat_type(&self) -> &Identifier {
+        &self.key.category
+    }
+
+    pub fn value(&self) -> &Identifier {
+        &self.key.value
+    }
+
+    pub fn name(&self) -> String {
+        self.key.objective_name()
+    }
+
+    pub fn format(&self, value: i32) -> String {
+        self.formatter.format(value)
+    }
+
+    pub fn description(&self) -> String {
+        format!(
+            "Stat{{name={}, formatter={:?}}}",
+            self.name(),
+            self.formatter
+        )
     }
 }
 
@@ -418,6 +454,7 @@ mod tests {
 
     const STAT_FORMATTER_JAVA: &str =
         vibecraft_java_source!("/net/minecraft/stats/StatFormatter.java");
+    const STAT_JAVA: &str = vibecraft_java_source!("/net/minecraft/stats/Stat.java");
 
     #[test]
     fn stat_formatters_match_java_thresholds_and_units() {
@@ -454,6 +491,40 @@ mod tests {
         assert_eq!(StatFormatterKind::Time.format(36_001), "0.50 h");
         assert_eq!(StatFormatterKind::Time.format(864_001), "0.50 d");
         assert_eq!(StatFormatterKind::Time.format(315_360_001), "0.50 y");
+    }
+
+    #[test]
+    fn stat_model_matches_java_name_format_and_identity_rules() {
+        for sentinel in [
+            "public static final StreamCodec<RegistryFriendlyByteBuf, Stat<?>> STREAM_CODEC = ByteBufCodecs.registry(Registries.STAT_TYPE)",
+            ".dispatch(Stat::getType, StatType::streamCodec)",
+            "super(buildName(type, value));",
+            "return locationToKey(BuiltInRegistries.STAT_TYPE.getKey(type)) + \":\" + locationToKey(type.getRegistry().getKey(value));",
+            "return location.toString().replace(':', '.');",
+            "return this.type;",
+            "return this.value;",
+            "return this.formatter.format(value);",
+            "Objects.equals(this.getName(), ((Stat)o).getName())",
+            "return this.getName().hashCode();",
+            "\"Stat{name=\" + this.getName() + \", formatter=\" + this.formatter + \"}\"",
+        ] {
+            assert!(
+                STAT_JAVA.contains(sentinel),
+                "Stat.java is missing sentinel: {sentinel}"
+            );
+        }
+
+        let key = StatKey::new("minecraft:custom", "minecraft:walk_one_cm").unwrap();
+        let stat = StatModel::new(key.clone(), StatFormatterKind::Distance);
+        assert_eq!(stat.stat_type().to_string(), "minecraft:custom");
+        assert_eq!(stat.value().to_string(), "minecraft:walk_one_cm");
+        assert_eq!(stat.name(), "minecraft.custom:minecraft.walk_one_cm");
+        assert_eq!(stat.format(123), "1.23 m");
+        assert_eq!(
+            stat.description(),
+            "Stat{name=minecraft.custom:minecraft.walk_one_cm, formatter=Distance}"
+        );
+        assert_eq!(stat, StatModel::new(key, StatFormatterKind::Distance));
     }
 
     #[test]
