@@ -1855,7 +1855,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/stats/ServerRecipeBook.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/stats/ServerStatsCounter.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/stats/Stat.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/stats/StatFormatter.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/stats/StatFormatter.java`. Rust `statistics::StatFormatterKind` mirrors Java's DEFAULT Locale.US integer grouping, DIVIDE_BY_TEN two-decimal formatter, DISTANCE cm/m/km thresholds, and TIME seconds/minutes/hours/days/years thresholds; Java-source-backed tests cover the formatter sentinels and boundary behavior.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/stats/StatType.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/stats/Stats.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/stats/StatsCounter.java`.

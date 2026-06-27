@@ -97,6 +97,14 @@ pub const CUSTOM_STATS_26_1_2: &[&str] = &[
 
 pub const CUSTOM_STAT_TYPE_NETWORK_ID_26_1_2: i32 = 8;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StatFormatterKind {
+    Default,
+    DivideByTen,
+    Distance,
+    Time,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct StatKey {
     pub category: Identifier,
@@ -132,6 +140,17 @@ impl StatKey {
             self.category.to_string().replace(':', "."),
             self.value.to_string().replace(':', ".")
         )
+    }
+}
+
+impl StatFormatterKind {
+    pub fn format(self, value: i32) -> String {
+        match self {
+            Self::Default => format_integer_us(value),
+            Self::DivideByTen => decimal_format(f64::from(value) * 0.1),
+            Self::Distance => format_distance(value),
+            Self::Time => format_time(value),
+        }
     }
 }
 
@@ -215,6 +234,78 @@ impl StatisticsCounter {
             .ok_or_else(|| "missing stats object".to_string())?;
         let object_end = matching_brace(json, object_start)?;
         parse_stats_object(&json[object_start + 1..object_end])
+    }
+}
+
+fn format_distance(cm: i32) -> String {
+    let meters = f64::from(cm) / 100.0;
+    let kilometers = meters / 1000.0;
+    if kilometers > 0.5 {
+        format!("{} km", decimal_format(kilometers))
+    } else if meters > 0.5 {
+        format!("{} m", decimal_format(meters))
+    } else {
+        format!("{cm} cm")
+    }
+}
+
+fn format_time(value: i32) -> String {
+    let seconds = f64::from(value) / 20.0;
+    let minutes = seconds / 60.0;
+    let hours = minutes / 60.0;
+    let days = hours / 24.0;
+    let years = days / 365.0;
+    if years > 0.5 {
+        format!("{} y", decimal_format(years))
+    } else if days > 0.5 {
+        format!("{} d", decimal_format(days))
+    } else if hours > 0.5 {
+        format!("{} h", decimal_format(hours))
+    } else if minutes > 0.5 {
+        format!("{} min", decimal_format(minutes))
+    } else {
+        format!("{} s", java_double_text(seconds))
+    }
+}
+
+fn decimal_format(value: f64) -> String {
+    format!("{value:.2}")
+}
+
+fn java_double_text(value: f64) -> String {
+    let formatted = value.to_string();
+    if formatted.contains(['.', 'E', 'e']) {
+        formatted
+    } else {
+        format!("{formatted}.0")
+    }
+}
+
+fn format_integer_us(value: i32) -> String {
+    let magnitude = if value < 0 {
+        -(i64::from(value))
+    } else {
+        i64::from(value)
+    };
+    let mut digits = magnitude.to_string();
+    let mut grouped = String::new();
+    while digits.len() > 3 {
+        let tail = digits.split_off(digits.len() - 3);
+        if grouped.is_empty() {
+            grouped = tail;
+        } else {
+            grouped = format!("{tail},{grouped}");
+        }
+    }
+    if grouped.is_empty() {
+        grouped = digits;
+    } else {
+        grouped = format!("{digits},{grouped}");
+    }
+    if value < 0 {
+        format!("-{grouped}")
+    } else {
+        grouped
     }
 }
 
@@ -324,6 +415,46 @@ fn parse_json_key(input: &str) -> Result<(String, &str), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const STAT_FORMATTER_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/stats/StatFormatter.java");
+
+    #[test]
+    fn stat_formatters_match_java_thresholds_and_units() {
+        for sentinel in [
+            "new DecimalFormat(\"########0.00\", DecimalFormatSymbols.getInstance(Locale.ROOT))",
+            "NumberFormat.getIntegerInstance(Locale.US)::format",
+            "value -> DECIMAL_FORMAT.format(value * 0.1)",
+            "double meters = cm / 100.0;",
+            "double kilometers = meters / 1000.0;",
+            "if (kilometers > 0.5)",
+            "return meters > 0.5 ? DECIMAL_FORMAT.format(meters) + \" m\" : cm + \" cm\";",
+            "double seconds = value / 20.0;",
+            "double years = days / 365.0;",
+            "return minutes > 0.5 ? DECIMAL_FORMAT.format(minutes) + \" min\" : seconds + \" s\";",
+        ] {
+            assert!(
+                STAT_FORMATTER_JAVA.contains(sentinel),
+                "StatFormatter.java is missing sentinel: {sentinel}"
+            );
+        }
+
+        assert_eq!(StatFormatterKind::Default.format(1_234_567), "1,234,567");
+        assert_eq!(StatFormatterKind::Default.format(i32::MIN), "-2,147,483,648");
+        assert_eq!(StatFormatterKind::DivideByTen.format(123), "12.30");
+
+        assert_eq!(StatFormatterKind::Distance.format(50), "50 cm");
+        assert_eq!(StatFormatterKind::Distance.format(51), "0.51 m");
+        assert_eq!(StatFormatterKind::Distance.format(50_000), "500.00 m");
+        assert_eq!(StatFormatterKind::Distance.format(50_001), "0.50 km");
+
+        assert_eq!(StatFormatterKind::Time.format(10), "0.5 s");
+        assert_eq!(StatFormatterKind::Time.format(20), "1.0 s");
+        assert_eq!(StatFormatterKind::Time.format(601), "0.50 min");
+        assert_eq!(StatFormatterKind::Time.format(36_001), "0.50 h");
+        assert_eq!(StatFormatterKind::Time.format(864_001), "0.50 d");
+        assert_eq!(StatFormatterKind::Time.format(315_360_001), "0.50 y");
+    }
 
     #[test]
     fn stat_categories_and_custom_stats_match_decompiled_surface() {
