@@ -3,11 +3,13 @@
 use std::collections::BTreeMap;
 
 use crate::chat_component::{Component, ComponentArgument};
+use crate::command::{LevelBasedPermissionSet, PermissionLevel};
 use crate::game_rules::{
     GameRuleDefinition, GameRuleError, GameRuleType, GameRuleValue, GameRules,
     vanilla_game_rules,
 };
 use crate::jsonrpc_api::{JsonRpcSchema, MethodInfo, NamedMethodInfo, SchemaComponent};
+use crate::network::play::GameMode;
 use crate::registry::Identifier;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -82,6 +84,40 @@ pub struct JsonRpcGameRuleUpdate {
 }
 
 pub struct GameRulesService;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JsonRpcDifficulty {
+    Peaceful,
+    Easy,
+    Normal,
+    Hard,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JsonRpcServerSettings {
+    pub autosave: bool,
+    pub difficulty: JsonRpcDifficulty,
+    pub enforce_allowlist: bool,
+    pub using_allowlist: bool,
+    pub max_players: i32,
+    pub pause_when_empty: i32,
+    pub player_idle_timeout: i32,
+    pub allow_flight: bool,
+    pub spawn_protection: i32,
+    pub motd: String,
+    pub force_game_mode: bool,
+    pub game_mode: GameMode,
+    pub view_distance: i32,
+    pub simulation_distance: i32,
+    pub accept_transfers: bool,
+    pub status_heartbeat_interval: i32,
+    pub operator_user_permissions: LevelBasedPermissionSet,
+    pub hides_online_players: bool,
+    pub replies_to_status: bool,
+    pub entity_broadcast_range_percentage: i32,
+}
+
+pub struct ServerSettingsService;
 
 impl JsonRpcRuntimeException {
     pub fn encode(message: impl Into<String>) -> Self {
@@ -294,6 +330,295 @@ fn game_rule_type_name(rule_type: GameRuleType) -> &'static str {
     }
 }
 
+impl Default for JsonRpcServerSettings {
+    fn default() -> Self {
+        Self {
+            autosave: true,
+            difficulty: JsonRpcDifficulty::Normal,
+            enforce_allowlist: false,
+            using_allowlist: false,
+            max_players: 20,
+            pause_when_empty: 60,
+            player_idle_timeout: 0,
+            allow_flight: false,
+            spawn_protection: 16,
+            motd: "A Minecraft Server".to_string(),
+            force_game_mode: false,
+            game_mode: GameMode::Survival,
+            view_distance: 10,
+            simulation_distance: 10,
+            accept_transfers: false,
+            status_heartbeat_interval: 0,
+            operator_user_permissions: LevelBasedPermissionSet::GAMEMASTER,
+            hides_online_players: false,
+            replies_to_status: true,
+            entity_broadcast_range_percentage: 100,
+        }
+    }
+}
+
+impl ServerSettingsService {
+    pub fn autosave(settings: &JsonRpcServerSettings) -> bool {
+        settings.autosave
+    }
+
+    pub fn set_autosave(
+        settings: &mut JsonRpcServerSettings,
+        enabled: bool,
+        _client_info: ClientInfo,
+    ) -> bool {
+        settings.autosave = enabled;
+        settings.autosave
+    }
+
+    pub fn difficulty(settings: &JsonRpcServerSettings) -> JsonRpcDifficulty {
+        settings.difficulty
+    }
+
+    pub fn set_difficulty(
+        settings: &mut JsonRpcServerSettings,
+        difficulty: JsonRpcDifficulty,
+        _client_info: ClientInfo,
+    ) -> JsonRpcDifficulty {
+        settings.difficulty = difficulty;
+        settings.difficulty
+    }
+
+    pub fn enforce_allowlist(settings: &JsonRpcServerSettings) -> bool {
+        settings.enforce_allowlist
+    }
+
+    pub fn set_enforce_allowlist(
+        settings: &mut JsonRpcServerSettings,
+        enforce: bool,
+        _client_info: ClientInfo,
+    ) -> bool {
+        settings.enforce_allowlist = enforce;
+        settings.enforce_allowlist
+    }
+
+    pub fn using_allowlist(settings: &JsonRpcServerSettings) -> bool {
+        settings.using_allowlist
+    }
+
+    pub fn set_using_allowlist(
+        settings: &mut JsonRpcServerSettings,
+        use_allowlist: bool,
+        _client_info: ClientInfo,
+    ) -> bool {
+        settings.using_allowlist = use_allowlist;
+        settings.using_allowlist
+    }
+
+    pub fn max_players(settings: &JsonRpcServerSettings) -> i32 {
+        settings.max_players
+    }
+
+    pub fn set_max_players(
+        settings: &mut JsonRpcServerSettings,
+        max_players: i32,
+        _client_info: ClientInfo,
+    ) -> i32 {
+        settings.max_players = max_players;
+        settings.max_players
+    }
+
+    pub fn pause_when_empty(settings: &JsonRpcServerSettings) -> i32 {
+        settings.pause_when_empty
+    }
+
+    pub fn set_pause_when_empty(
+        settings: &mut JsonRpcServerSettings,
+        empty_seconds: i32,
+        _client_info: ClientInfo,
+    ) -> i32 {
+        settings.pause_when_empty = empty_seconds;
+        settings.pause_when_empty
+    }
+
+    pub fn player_idle_timeout(settings: &JsonRpcServerSettings) -> i32 {
+        settings.player_idle_timeout
+    }
+
+    pub fn set_player_idle_timeout(
+        settings: &mut JsonRpcServerSettings,
+        idle_time: i32,
+        _client_info: ClientInfo,
+    ) -> i32 {
+        settings.player_idle_timeout = idle_time;
+        settings.player_idle_timeout
+    }
+
+    pub fn allow_flight(settings: &JsonRpcServerSettings) -> bool {
+        settings.allow_flight
+    }
+
+    pub fn set_allow_flight(
+        settings: &mut JsonRpcServerSettings,
+        allow: bool,
+        _client_info: ClientInfo,
+    ) -> bool {
+        settings.allow_flight = allow;
+        settings.allow_flight
+    }
+
+    pub fn spawn_protection(settings: &JsonRpcServerSettings) -> i32 {
+        settings.spawn_protection
+    }
+
+    pub fn set_spawn_protection(
+        settings: &mut JsonRpcServerSettings,
+        spawn_protection: i32,
+        _client_info: ClientInfo,
+    ) -> i32 {
+        settings.spawn_protection = spawn_protection;
+        settings.spawn_protection
+    }
+
+    pub fn motd(settings: &JsonRpcServerSettings) -> String {
+        settings.motd.clone()
+    }
+
+    pub fn set_motd(
+        settings: &mut JsonRpcServerSettings,
+        motd: impl Into<String>,
+        _client_info: ClientInfo,
+    ) -> String {
+        settings.motd = motd.into();
+        settings.motd.clone()
+    }
+
+    pub fn force_game_mode(settings: &JsonRpcServerSettings) -> bool {
+        settings.force_game_mode
+    }
+
+    pub fn set_force_game_mode(
+        settings: &mut JsonRpcServerSettings,
+        force: bool,
+        _client_info: ClientInfo,
+    ) -> bool {
+        settings.force_game_mode = force;
+        settings.force_game_mode
+    }
+
+    pub fn game_mode(settings: &JsonRpcServerSettings) -> GameMode {
+        settings.game_mode
+    }
+
+    pub fn set_game_mode(
+        settings: &mut JsonRpcServerSettings,
+        game_mode: GameMode,
+        _client_info: ClientInfo,
+    ) -> GameMode {
+        settings.game_mode = game_mode;
+        settings.game_mode
+    }
+
+    pub fn view_distance(settings: &JsonRpcServerSettings) -> i32 {
+        settings.view_distance
+    }
+
+    pub fn set_view_distance(
+        settings: &mut JsonRpcServerSettings,
+        view_distance: i32,
+        _client_info: ClientInfo,
+    ) -> i32 {
+        settings.view_distance = view_distance;
+        settings.view_distance
+    }
+
+    pub fn simulation_distance(settings: &JsonRpcServerSettings) -> i32 {
+        settings.simulation_distance
+    }
+
+    pub fn set_simulation_distance(
+        settings: &mut JsonRpcServerSettings,
+        simulation_distance: i32,
+        _client_info: ClientInfo,
+    ) -> i32 {
+        settings.simulation_distance = simulation_distance;
+        settings.simulation_distance
+    }
+
+    pub fn accept_transfers(settings: &JsonRpcServerSettings) -> bool {
+        settings.accept_transfers
+    }
+
+    pub fn set_accept_transfers(
+        settings: &mut JsonRpcServerSettings,
+        accept: bool,
+        _client_info: ClientInfo,
+    ) -> bool {
+        settings.accept_transfers = accept;
+        settings.accept_transfers
+    }
+
+    pub fn status_heartbeat_interval(settings: &JsonRpcServerSettings) -> i32 {
+        settings.status_heartbeat_interval
+    }
+
+    pub fn set_status_heartbeat_interval(
+        settings: &mut JsonRpcServerSettings,
+        status_heartbeat_interval: i32,
+        _client_info: ClientInfo,
+    ) -> i32 {
+        settings.status_heartbeat_interval = status_heartbeat_interval;
+        settings.status_heartbeat_interval
+    }
+
+    pub fn operator_user_permission_level(settings: &JsonRpcServerSettings) -> PermissionLevel {
+        settings.operator_user_permissions.level()
+    }
+
+    pub fn set_operator_user_permission_level(
+        settings: &mut JsonRpcServerSettings,
+        level: PermissionLevel,
+        _client_info: ClientInfo,
+    ) -> PermissionLevel {
+        settings.operator_user_permissions = LevelBasedPermissionSet::new(level);
+        settings.operator_user_permissions.level()
+    }
+
+    pub fn hides_online_players(settings: &JsonRpcServerSettings) -> bool {
+        settings.hides_online_players
+    }
+
+    pub fn set_hides_online_players(
+        settings: &mut JsonRpcServerSettings,
+        hide: bool,
+        _client_info: ClientInfo,
+    ) -> bool {
+        settings.hides_online_players = hide;
+        settings.hides_online_players
+    }
+
+    pub fn replies_to_status(settings: &JsonRpcServerSettings) -> bool {
+        settings.replies_to_status
+    }
+
+    pub fn set_replies_to_status(
+        settings: &mut JsonRpcServerSettings,
+        enable: bool,
+        _client_info: ClientInfo,
+    ) -> bool {
+        settings.replies_to_status = enable;
+        settings.replies_to_status
+    }
+
+    pub fn entity_broadcast_range_percentage(settings: &JsonRpcServerSettings) -> i32 {
+        settings.entity_broadcast_range_percentage
+    }
+
+    pub fn set_entity_broadcast_range_percentage(
+        settings: &mut JsonRpcServerSettings,
+        percentage: i32,
+        _client_info: ClientInfo,
+    ) -> i32 {
+        settings.entity_broadcast_range_percentage = percentage;
+        settings.entity_broadcast_range_percentage
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -467,6 +792,162 @@ mod tests {
     }
 
     #[test]
+    fn server_settings_service_matches_java_boolean_forwarders() {
+        let mut settings = JsonRpcServerSettings::default();
+        let client_info = ClientInfo::of(11);
+
+        assert!(ServerSettingsService::autosave(&settings));
+        assert!(!ServerSettingsService::set_autosave(&mut settings, false, client_info));
+        assert!(ServerSettingsService::set_enforce_allowlist(
+            &mut settings,
+            true,
+            client_info
+        ));
+        assert!(ServerSettingsService::set_using_allowlist(
+            &mut settings,
+            true,
+            client_info
+        ));
+        assert!(ServerSettingsService::set_allow_flight(
+            &mut settings,
+            true,
+            client_info
+        ));
+        assert!(ServerSettingsService::set_force_game_mode(
+            &mut settings,
+            true,
+            client_info
+        ));
+        assert!(ServerSettingsService::set_accept_transfers(
+            &mut settings,
+            true,
+            client_info
+        ));
+        assert!(ServerSettingsService::set_hides_online_players(
+            &mut settings,
+            true,
+            client_info
+        ));
+        assert!(!ServerSettingsService::set_replies_to_status(
+            &mut settings,
+            false,
+            client_info
+        ));
+
+        assert!(ServerSettingsService::enforce_allowlist(&settings));
+        assert!(ServerSettingsService::using_allowlist(&settings));
+        assert!(ServerSettingsService::allow_flight(&settings));
+        assert!(ServerSettingsService::force_game_mode(&settings));
+        assert!(ServerSettingsService::accept_transfers(&settings));
+        assert!(ServerSettingsService::hides_online_players(&settings));
+        assert!(!ServerSettingsService::replies_to_status(&settings));
+    }
+
+    #[test]
+    fn server_settings_service_matches_java_numeric_forwarders() {
+        let mut settings = JsonRpcServerSettings::default();
+        let client_info = ClientInfo::of(11);
+
+        assert_eq!(
+            ServerSettingsService::set_max_players(&mut settings, 77, client_info),
+            77
+        );
+        assert_eq!(
+            ServerSettingsService::set_pause_when_empty(&mut settings, 5, client_info),
+            5
+        );
+        assert_eq!(
+            ServerSettingsService::set_player_idle_timeout(&mut settings, 12, client_info),
+            12
+        );
+        assert_eq!(
+            ServerSettingsService::set_spawn_protection(&mut settings, 0, client_info),
+            0
+        );
+        assert_eq!(
+            ServerSettingsService::set_view_distance(&mut settings, 14, client_info),
+            14
+        );
+        assert_eq!(
+            ServerSettingsService::set_simulation_distance(&mut settings, 9, client_info),
+            9
+        );
+        assert_eq!(
+            ServerSettingsService::set_status_heartbeat_interval(&mut settings, 30, client_info),
+            30
+        );
+        assert_eq!(
+            ServerSettingsService::set_entity_broadcast_range_percentage(
+                &mut settings,
+                150,
+                client_info,
+            ),
+            150
+        );
+
+        assert_eq!(ServerSettingsService::max_players(&settings), 77);
+        assert_eq!(ServerSettingsService::pause_when_empty(&settings), 5);
+        assert_eq!(ServerSettingsService::player_idle_timeout(&settings), 12);
+        assert_eq!(ServerSettingsService::spawn_protection(&settings), 0);
+        assert_eq!(ServerSettingsService::view_distance(&settings), 14);
+        assert_eq!(ServerSettingsService::simulation_distance(&settings), 9);
+        assert_eq!(ServerSettingsService::status_heartbeat_interval(&settings), 30);
+        assert_eq!(
+            ServerSettingsService::entity_broadcast_range_percentage(&settings),
+            150
+        );
+    }
+
+    #[test]
+    fn server_settings_service_matches_java_enum_and_text_forwarders() {
+        let mut settings = JsonRpcServerSettings::default();
+        let client_info = ClientInfo::of(11);
+
+        assert_eq!(
+            ServerSettingsService::set_difficulty(
+                &mut settings,
+                JsonRpcDifficulty::Hard,
+                client_info,
+            ),
+            JsonRpcDifficulty::Hard
+        );
+        assert_eq!(
+            ServerSettingsService::set_game_mode(&mut settings, GameMode::Creative, client_info),
+            GameMode::Creative
+        );
+        assert_eq!(
+            ServerSettingsService::set_motd(&mut settings, "Managed", client_info),
+            "Managed"
+        );
+
+        assert_eq!(
+            ServerSettingsService::difficulty(&settings),
+            JsonRpcDifficulty::Hard
+        );
+        assert_eq!(ServerSettingsService::game_mode(&settings), GameMode::Creative);
+        assert_eq!(ServerSettingsService::motd(&settings), "Managed");
+    }
+
+    #[test]
+    fn server_settings_service_matches_java_permission_level_conversion() {
+        let mut settings = JsonRpcServerSettings::default();
+        let client_info = ClientInfo::of(11);
+
+        assert_eq!(
+            ServerSettingsService::set_operator_user_permission_level(
+                &mut settings,
+                PermissionLevel::Admins,
+                client_info,
+            ),
+            PermissionLevel::Admins
+        );
+        assert_eq!(
+            ServerSettingsService::operator_user_permission_level(&settings),
+            PermissionLevel::Admins
+        );
+    }
+
+    #[test]
     #[cfg(vibecraft_has_decompiled_sources)]
     fn jsonrpc_method_sources_match_java_26_1_2() {
         const ENCODE: &str =
@@ -487,6 +968,8 @@ mod tests {
             vibecraft_java_source!("/net/minecraft/server/jsonrpc/methods/DiscoveryService.java");
         const GAME_RULES: &str =
             vibecraft_java_source!("/net/minecraft/server/jsonrpc/methods/GameRulesService.java");
+        const SERVER_SETTINGS: &str =
+            vibecraft_java_source!("/net/minecraft/server/jsonrpc/methods/ServerSettingsService.java");
 
         for (name, source, sentinel) in [
             (
@@ -592,6 +1075,60 @@ mod tests {
             assert!(
                 GAME_RULES.contains(sentinel),
                 "GameRulesService.java is missing sentinel: {sentinel}"
+            );
+        }
+
+        assert_server_settings_source_matches_java(SERVER_SETTINGS);
+    }
+
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn assert_server_settings_source_matches_java(source: &str) {
+        for sentinel in [
+            "public class ServerSettingsService",
+            "return minecraftApi.serverSettingsService().isAutoSave();",
+            "return minecraftApi.serverSettingsService().setAutoSave(enabled, clientInfo);",
+            "return minecraftApi.serverSettingsService().getDifficulty();",
+            "return minecraftApi.serverSettingsService().setDifficulty(difficulty, clientInfo);",
+            "return minecraftApi.serverSettingsService().isEnforceWhitelist();",
+            "return minecraftApi.serverSettingsService().setEnforceWhitelist(enforce, clientInfo);",
+            "return minecraftApi.serverSettingsService().isUsingWhitelist();",
+            "return minecraftApi.serverSettingsService().setUsingWhitelist(use, clientInfo);",
+            "return minecraftApi.serverSettingsService().getMaxPlayers();",
+            "return minecraftApi.serverSettingsService().setMaxPlayers(maxPlayers, clientInfo);",
+            "return minecraftApi.serverSettingsService().getPauseWhenEmptySeconds();",
+            "return minecraftApi.serverSettingsService().setPauseWhenEmptySeconds(emptySeconds, clientInfo);",
+            "return minecraftApi.serverSettingsService().getPlayerIdleTimeout();",
+            "return minecraftApi.serverSettingsService().setPlayerIdleTimeout(idleTime, clientInfo);",
+            "return minecraftApi.serverSettingsService().allowFlight();",
+            "return minecraftApi.serverSettingsService().setAllowFlight(allow, clientInfo);",
+            "return minecraftApi.serverSettingsService().getSpawnProtectionRadius();",
+            "return minecraftApi.serverSettingsService().setSpawnProtectionRadius(spawnProtection, clientInfo);",
+            "return minecraftApi.serverSettingsService().getMotd();",
+            "return minecraftApi.serverSettingsService().setMotd(motd, clientInfo);",
+            "return minecraftApi.serverSettingsService().forceGameMode();",
+            "return minecraftApi.serverSettingsService().setForceGameMode(force, clientInfo);",
+            "return minecraftApi.serverSettingsService().getGameMode();",
+            "return minecraftApi.serverSettingsService().setGameMode(gameMode, clientInfo);",
+            "return minecraftApi.serverSettingsService().getViewDistance();",
+            "return minecraftApi.serverSettingsService().setViewDistance(viewDistance, clientInfo);",
+            "return minecraftApi.serverSettingsService().getSimulationDistance();",
+            "return minecraftApi.serverSettingsService().setSimulationDistance(simulationDistance, clientInfo);",
+            "return minecraftApi.serverSettingsService().acceptsTransfers();",
+            "return minecraftApi.serverSettingsService().setAcceptsTransfers(accept, clientInfo);",
+            "return minecraftApi.serverSettingsService().getStatusHeartbeatInterval();",
+            "return minecraftApi.serverSettingsService().setStatusHeartbeatInterval(statusHeartbeatInterval, clientInfo);",
+            "return minecraftApi.serverSettingsService().getOperatorUserPermissions().level();",
+            "return minecraftApi.serverSettingsService().setOperatorUserPermissions(LevelBasedPermissionSet.forLevel(level), clientInfo).level();",
+            "return minecraftApi.serverSettingsService().hidesOnlinePlayers();",
+            "return minecraftApi.serverSettingsService().setHidesOnlinePlayers(hide, clientInfo);",
+            "return minecraftApi.serverSettingsService().repliesToStatus();",
+            "return minecraftApi.serverSettingsService().setRepliesToStatus(enable, clientInfo);",
+            "return minecraftApi.serverSettingsService().getEntityBroadcastRangePercentage();",
+            "return minecraftApi.serverSettingsService().setEntityBroadcastRangePercentage(percentage, clientInfo);",
+        ] {
+            assert!(
+                source.contains(sentinel),
+                "ServerSettingsService.java is missing sentinel: {sentinel}"
             );
         }
     }
