@@ -3,6 +3,7 @@ use std::collections::HashSet;
 
 const SOUND_SOURCE_JAVA: &str = vibecraft_java_source!("/net/minecraft/sounds/SoundSource.java");
 const SOUND_EVENT_JAVA: &str = vibecraft_java_source!("/net/minecraft/sounds/SoundEvent.java");
+const SOUND_EVENTS_JAVA: &str = vibecraft_java_source!("/net/minecraft/sounds/SoundEvents.java");
 const MUSIC_JAVA: &str = vibecraft_java_source!("/net/minecraft/sounds/Music.java");
 const MUSICS_JAVA: &str = vibecraft_java_source!("/net/minecraft/sounds/Musics.java");
 
@@ -159,6 +160,33 @@ fn sound_events_cover_referenced_vanilla_ids_without_duplicates() {
         );
         return;
     }
+
+    for sentinel in [
+        "public static final SoundEvent ALLAY_AMBIENT_WITH_ITEM = register(\"entity.allay.ambient_with_item\");",
+        "public static final Holder.Reference<SoundEvent> AMBIENT_CAVE = registerForHolder(\"ambient.cave\");",
+        "public static final Map<WolfSoundVariants.SoundSet, WolfSoundVariant> WOLF_SOUNDS = registerWolfSoundVariants();",
+        "public static final Map<CatSoundVariants.SoundSet, CatSoundVariant> CAT_SOUNDS = registerCatSoundVariants();",
+        "private static Holder<SoundEvent> register(final Identifier id, final Identifier soundId, final float range)",
+        "SoundEvent.createFixedRangeEvent(soundId, range)",
+        "SoundEvent.createVariableRangeEvent(soundId)",
+        "IntStream.range(0, 8).mapToObj(i -> registerForHolder(\"item.goat_horn.sound.\" + i))",
+        "String soundEventIdentifier = soundSet.getSoundEventIdentifier();",
+        "registerForHolder(\"entity.\" + soundEventIdentifier + \".purr\")",
+    ] {
+        assert!(
+            SOUND_EVENTS_JAVA.contains(sentinel),
+            "SoundEvents.java is missing sentinel: {sentinel}"
+        );
+    }
+    assert!(
+        !SOUND_EVENTS_JAVA.lines().any(|line| {
+            let line = line.trim_start();
+            line.starts_with("public static final ")
+                && (line.contains("= register(") || line.contains("= registerForHolder("))
+                && line.contains(',')
+        }),
+        "SoundEvents.java added a fixed-range static registration; update SOUND_EVENTS extraction"
+    );
 
     assert_eq!(SOUND_EVENTS.len(), SOUND_EVENTS_COUNT_26_1_2);
     assert_eq!(
