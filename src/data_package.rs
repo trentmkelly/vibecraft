@@ -1,5 +1,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::jsonrpc_api::schema_registry;
+use crate::jsonrpc_api::{MethodInfo, ParamInfo, ResultInfo};
+use crate::jsonrpc_methods::{
+    DiscoverResponse, DiscoverableJsonRpcMethod, DiscoveryService,
+};
+use crate::management_server::{INCOMING_RPC_METHOD_DEFS, OUTGOING_RPC_METHOD_DEFS};
+use crate::registry::Identifier;
+
 pub const DATA_PACKAGE_NULL_MARKED: bool = true;
 const DATA_PACKAGE_INFO_JAVA: &str =
     vibecraft_java_source!("/net/minecraft/data/package-info.java");
@@ -292,6 +300,91 @@ impl CachedOutputModel {
     fn no_cache_write(&mut self, path: &str, input: &[u8]) {
         self.writes.insert(path.to_string(), input.to_vec());
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct JsonRpcApiSchemaProviderModel {
+    path: String,
+}
+
+impl JsonRpcApiSchemaProviderModel {
+    const FILE_NAME: &'static str = "json-rpc-api-schema.json";
+    const NAME: &'static str = "Json RPC API schema";
+
+    fn new(pack_output: &PackOutputModel) -> Self {
+        Self {
+            path: format!(
+                "{}/{}",
+                pack_output.get_output_folder(PackOutputTarget::Reports),
+                Self::FILE_NAME
+            ),
+        }
+    }
+
+    fn get_name(&self) -> &'static str {
+        Self::NAME
+    }
+
+    fn discover(&self) -> DiscoverResponse {
+        DiscoveryService::discover(
+            &schema_registry(),
+            &incoming_discoverable_methods(),
+            &outgoing_discoverable_methods(),
+        )
+    }
+
+    fn run(&self, cache: &mut CachedOutputModel) -> DiscoverResponse {
+        let discover = self.discover();
+        cache.no_cache_write(&self.path, discover_summary(&discover).as_bytes());
+        discover
+    }
+}
+
+fn incoming_discoverable_methods() -> Vec<DiscoverableJsonRpcMethod> {
+    INCOMING_RPC_METHOD_DEFS
+        .iter()
+        .filter_map(|definition| {
+            let param = definition.param.map(|(name, schema)| {
+                ParamInfo::new(name, crate::jsonrpc_api::JsonRpcSchema::of_ref(schema, schema))
+            });
+            let result = Some(ResultInfo::new(
+                definition.result.0,
+                crate::jsonrpc_api::JsonRpcSchema::of_ref(definition.result.1, definition.result.1),
+            ));
+            Some(DiscoverableJsonRpcMethod::new(
+                Identifier::with_default_namespace(definition.method).ok()?,
+                MethodInfo::new(definition.description, param, result),
+                definition.discoverable,
+            ))
+        })
+        .collect()
+}
+
+fn outgoing_discoverable_methods() -> Vec<DiscoverableJsonRpcMethod> {
+    OUTGOING_RPC_METHOD_DEFS
+        .iter()
+        .filter_map(|definition| {
+            let param = definition.param.map(|(name, schema)| {
+                ParamInfo::new(name, crate::jsonrpc_api::JsonRpcSchema::of_ref(schema, schema))
+            });
+            Some(DiscoverableJsonRpcMethod::new(
+                Identifier::with_default_namespace(&definition.registry_key()).ok()?,
+                MethodInfo::new(definition.description, param, None),
+                definition.discoverable,
+            ))
+        })
+        .collect()
+}
+
+fn discover_summary(discover: &DiscoverResponse) -> String {
+    format!(
+        "openrpc={};title={};version={};methods={};schemas={}",
+        discover.json_rpc_protocol_version,
+        discover.discover_info.title,
+        discover.discover_info.version,
+        discover.methods.len(),
+        discover.components.schemas.len()
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -705,6 +798,56 @@ mod tests {
             _ => (2, *key),
         });
         assert_eq!(keys, vec!["type", "parent", "alpha", "zeta"]);
+    }
+
+    #[test]
+    fn json_rpc_api_schema_provider_matches_java_dataprovider() {
+        const JSON_RPC_API_SCHEMA: &str = vibecraft_java_source!(
+            "/net/minecraft/server/jsonrpc/dataprovider/JsonRpcApiSchema.java"
+        );
+        for sentinel in [
+            "public class JsonRpcApiSchema implements DataProvider",
+            "private final Path path;",
+            "packOutput.getOutputFolder(PackOutput.Target.REPORTS).resolve(\"json-rpc-api-schema.json\")",
+            "public CompletableFuture<?> run(final CachedOutput cache)",
+            "DiscoveryService.DiscoverResponse discover = DiscoveryService.discover(Schema.getSchemaRegistry());",
+            "DiscoveryService.DiscoverResponse.CODEC.codec().encodeStart(JsonOps.INSTANCE, discover).getOrThrow()",
+            "DataProvider.saveStable(",
+            "this.path",
+            "public String getName()",
+            "return \"Json RPC API schema\";",
+        ] {
+            assert!(
+                JSON_RPC_API_SCHEMA.contains(sentinel),
+                "JsonRpcApiSchema.java missing sentinel: {sentinel}"
+            );
+        }
+
+        let output = PackOutputModel::new("generated");
+        let provider = JsonRpcApiSchemaProviderModel::new(&output);
+        assert_eq!(
+            provider.path,
+            "generated/reports/json-rpc-api-schema.json"
+        );
+        assert_eq!(provider.get_name(), "Json RPC API schema");
+
+        let mut cache = CachedOutputModel::default();
+        let discover = provider.run(&mut cache);
+        assert_eq!(discover.json_rpc_protocol_version, "1.3.2");
+        assert_eq!(discover.discover_info.title, "Minecraft Server JSON-RPC");
+        assert_eq!(discover.discover_info.version, "2.0.0");
+        assert!(discover
+            .methods
+            .iter()
+            .any(|method| method.name.to_string() == "minecraft:players"));
+        assert!(discover
+            .methods
+            .iter()
+            .all(|method| method.name.to_string() != "minecraft:rpc.discover"));
+        assert_eq!(
+            cache.writes["generated/reports/json-rpc-api-schema.json"],
+            discover_summary(&discover).into_bytes()
+        );
     }
 
     #[test]

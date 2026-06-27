@@ -1545,7 +1545,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/dataprovider`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/dataprovider/JsonRpcApiSchema.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/dataprovider/JsonRpcApiSchema.java`. Rust `data_package::JsonRpcApiSchemaProviderModel` mirrors Java's report target path `json-rpc-api-schema.json`, provider name `Json RPC API schema`, `DiscoveryService.discover(Schema.getSchemaRegistry())` source, stable-save target, and encoded discovery contents summary; Java-source-backed tests cover constructor path, `run`, codec/save sentinels, provider name, OpenRPC metadata, discoverable method filtering, and cache write target.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/dataprovider/package-info.java`. Java 26.1.2 package marker contains only `@NullMarked`, the package declaration, and the `org.jspecify.annotations.NullMarked` import; no Rust runtime behavior or parity test is required beyond preserving nullability expectations in typed Rust APIs.
 
 ## `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/internalapi`
