@@ -80,8 +80,9 @@ pub struct PlainMessageBody {
     pub width: i32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum DialogBody {
+    Item(ItemBody),
     PlainMessage(PlainMessageBody),
 }
 
@@ -255,6 +256,7 @@ impl PlainMessageBody {
 impl DialogBody {
     pub fn body_type(&self) -> DialogBodyType {
         match self {
+            Self::Item(item) => item.body_type(),
             Self::PlainMessage(message) => message.body_type(),
         }
     }
@@ -521,6 +523,15 @@ mod tests {
             Component::literal("Menu")
         );
 
+        let toggle_input = match DialogInput::new(
+            "toggle",
+            InputControl::Boolean(BooleanInputControl::with_defaults(Component::literal(
+                "Toggle",
+            ))),
+        ) {
+            Ok(input) => input,
+            Err(err) => panic!("{err}"),
+        };
         let custom_dialog = CommonDialogData::new(
             Component::literal("Internal"),
             Some(Component::literal("External")),
@@ -530,9 +541,7 @@ mod tests {
             vec![DialogBody::PlainMessage(PlainMessageBody::with_default_width(
                 Component::literal("Body"),
             ))],
-            vec![InputControl::Boolean(BooleanInputControl::with_defaults(
-                Component::literal("Toggle"),
-            ))],
+            vec![toggle_input.clone()],
         );
         assert_eq!(
             custom_dialog,
@@ -545,9 +554,7 @@ mod tests {
                 body: vec![DialogBody::PlainMessage(PlainMessageBody::with_default_width(
                     Component::literal("Body"),
                 ))],
-                inputs: vec![InputControl::Boolean(BooleanInputControl::with_defaults(
-                    Component::literal("Toggle"),
-                ))],
+                inputs: vec![toggle_input],
             })
         );
         let custom_dialog = match custom_dialog {

@@ -1,15 +1,22 @@
 use crate::chat_component::common_components::CommonComponents;
 use crate::chat_component::Component;
+use crate::item_stack::ItemStackTemplate;
 use crate::registry::Identifier;
 
 use super::{
-    DialogAction, DialogActionModel, DialogBody, DialogType, InputControl, StaticDialogAction,
-    COMMON_BUTTON_DEFAULT_WIDTH, DIALOG_WIDTH_MAX, DIALOG_WIDTH_MIN,
+    DialogAction, DialogActionModel, DialogBody, DialogBodyType, DialogType, InputControl,
+    PlainMessageBody, COMMON_BUTTON_DEFAULT_WIDTH, DIALOG_WIDTH_MAX, DIALOG_WIDTH_MIN,
 };
 
 pub const BUTTON_LIST_DEFAULT_COLUMNS: i32 = 2;
 pub const DIALOG_LIST_DEFAULT_BUTTON_WIDTH: i32 = 150;
 pub const SERVER_LINKS_DEFAULT_BUTTON_WIDTH: i32 = 150;
+pub const ITEM_BODY_DEFAULT_SHOW_DECORATIONS: bool = true;
+pub const ITEM_BODY_DEFAULT_SHOW_TOOLTIP: bool = true;
+pub const ITEM_BODY_DEFAULT_WIDTH: i32 = 16;
+pub const ITEM_BODY_DEFAULT_HEIGHT: i32 = 16;
+pub const ITEM_BODY_SIZE_MIN: i32 = 1;
+pub const ITEM_BODY_SIZE_MAX: i32 = 256;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommonButtonData {
@@ -32,7 +39,23 @@ pub struct CommonDialogData {
     pub pause: bool,
     pub after_action: DialogAction,
     pub body: Vec<DialogBody>,
-    pub inputs: Vec<InputControl>,
+    pub inputs: Vec<DialogInput>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct DialogInput {
+    pub key: String,
+    pub control: InputControl,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ItemBody {
+    pub item: ItemStackTemplate,
+    pub description: Option<PlainMessageBody>,
+    pub show_decorations: bool,
+    pub show_tooltip: bool,
+    pub width: i32,
+    pub height: i32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -92,6 +115,15 @@ pub enum ButtonListDialogModel {
     ServerLinks(Box<ServerLinksDialog>),
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum DialogModel {
+    Notice(Box<NoticeDialog>),
+    ServerLinks(Box<ServerLinksDialog>),
+    DialogList(Box<DialogListDialog>),
+    MultiAction(Box<MultiActionDialog>),
+    Confirmation(Box<ConfirmationDialog>),
+}
+
 impl CommonButtonData {
     pub fn new(
         label: Component,
@@ -138,7 +170,7 @@ impl CommonDialogData {
         pause: bool,
         after_action: DialogAction,
         body: Vec<DialogBody>,
-        inputs: Vec<InputControl>,
+        inputs: Vec<DialogInput>,
     ) -> Result<Self, String> {
         if pause && !after_action.will_unpause() {
             return Err(
@@ -175,6 +207,56 @@ impl CommonDialogData {
             Some(title) => title.clone(),
             None => self.title.clone(),
         }
+    }
+}
+
+impl DialogInput {
+    pub fn new(key: impl Into<String>, control: InputControl) -> Result<Self, String> {
+        let key = key.into();
+        if !super::ParsedDialogTemplate::is_valid_variable_name(&key) {
+            return Err(format!(
+                "dialog input key {key:?} is not a valid Java ParsedTemplate variable"
+            ));
+        }
+        Ok(Self { key, control })
+    }
+}
+
+impl ItemBody {
+    pub fn new(
+        item: ItemStackTemplate,
+        description: Option<PlainMessageBody>,
+        show_decorations: bool,
+        show_tooltip: bool,
+        width: i32,
+        height: i32,
+    ) -> Result<Self, String> {
+        validate_item_body_size("item body width", width)?;
+        validate_item_body_size("item body height", height)?;
+
+        Ok(Self {
+            item,
+            description,
+            show_decorations,
+            show_tooltip,
+            width,
+            height,
+        })
+    }
+
+    pub fn with_defaults(item: ItemStackTemplate) -> Self {
+        Self {
+            item,
+            description: None,
+            show_decorations: ITEM_BODY_DEFAULT_SHOW_DECORATIONS,
+            show_tooltip: ITEM_BODY_DEFAULT_SHOW_TOOLTIP,
+            width: ITEM_BODY_DEFAULT_WIDTH,
+            height: ITEM_BODY_DEFAULT_HEIGHT,
+        }
+    }
+
+    pub fn body_type(&self) -> DialogBodyType {
+        DialogBodyType::Item
     }
 }
 
@@ -400,6 +482,38 @@ impl ButtonListDialogModel {
     }
 }
 
+impl DialogModel {
+    pub fn dialog_type(&self) -> DialogType {
+        match self {
+            Self::Notice(dialog) => dialog.dialog_type(),
+            Self::ServerLinks(dialog) => dialog.dialog_type(),
+            Self::DialogList(dialog) => dialog.dialog_type(),
+            Self::MultiAction(dialog) => dialog.dialog_type(),
+            Self::Confirmation(dialog) => dialog.dialog_type(),
+        }
+    }
+
+    pub fn common(&self) -> &CommonDialogData {
+        match self {
+            Self::Notice(dialog) => &dialog.common,
+            Self::ServerLinks(dialog) => &dialog.common,
+            Self::DialogList(dialog) => &dialog.common,
+            Self::MultiAction(dialog) => &dialog.common,
+            Self::Confirmation(dialog) => &dialog.common,
+        }
+    }
+
+    pub fn on_cancel(&self) -> Option<&DialogActionModel> {
+        match self {
+            Self::Notice(dialog) => dialog.on_cancel(),
+            Self::ServerLinks(dialog) => dialog.on_cancel(),
+            Self::DialogList(dialog) => dialog.on_cancel(),
+            Self::MultiAction(dialog) => dialog.on_cancel(),
+            Self::Confirmation(dialog) => dialog.on_cancel(),
+        }
+    }
+}
+
 fn validate_positive_columns(columns: i32) -> Result<(), String> {
     if columns <= 0 {
         Err("button list dialog columns must be positive".to_string())
@@ -412,6 +526,16 @@ fn validate_button_width(field_name: &str, width: i32) -> Result<(), String> {
     if !(DIALOG_WIDTH_MIN..=DIALOG_WIDTH_MAX).contains(&width) {
         Err(format!(
             "{field_name} {width} is outside Java Dialog.WIDTH_CODEC range {DIALOG_WIDTH_MIN}..={DIALOG_WIDTH_MAX}"
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+fn validate_item_body_size(field_name: &str, value: i32) -> Result<(), String> {
+    if !(ITEM_BODY_SIZE_MIN..=ITEM_BODY_SIZE_MAX).contains(&value) {
+        Err(format!(
+            "{field_name} {value} is outside Java ItemBody size range {ITEM_BODY_SIZE_MIN}..={ITEM_BODY_SIZE_MAX}"
         ))
     } else {
         Ok(())
@@ -458,6 +582,7 @@ impl SimpleDialogModel {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::{BooleanInputControl, StaticDialogAction, TextInputControl};
     use crate::chat_component::ClickEvent;
 
     #[test]
@@ -554,6 +679,91 @@ mod tests {
         assert_eq!(button_list.on_cancel(), Some(&exit_action));
     }
 
+    #[test]
+    fn dialog_model_matches_java_common_type_and_cancel_dispatch() {
+        let common = common_dialog();
+        let notice = NoticeDialog::new(common.clone(), NoticeDialog::default_action());
+        let dialog = DialogModel::Notice(Box::new(notice));
+        assert_eq!(dialog.dialog_type(), DialogType::Notice);
+        assert_eq!(dialog.common(), &common);
+        assert_eq!(dialog.on_cancel(), None);
+
+        let (exit_button, exit_action) = exit_button();
+        let server_links = ServerLinksDialog::with_defaults(common.clone(), Some(exit_button));
+        let dialog = DialogModel::ServerLinks(Box::new(server_links));
+        assert_eq!(dialog.dialog_type(), DialogType::ServerLinks);
+        assert_eq!(dialog.common(), &common);
+        assert_eq!(dialog.on_cancel(), Some(&exit_action));
+    }
+
+    #[test]
+    fn dialog_input_matches_java_key_validation_and_control_payload() {
+        let control = InputControl::Text(TextInputControl::with_defaults(Component::literal(
+            "Name",
+        )));
+        assert_eq!(
+            DialogInput::new("player_name", control.clone()),
+            Ok(DialogInput {
+                key: "player_name".to_string(),
+                control,
+            })
+        );
+        assert!(DialogInput::new(
+            "bad-name",
+            InputControl::Boolean(BooleanInputControl::with_defaults(Component::literal(
+                "Enabled",
+            ))),
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn item_body_matches_java_defaults_ranges_and_dispatch_type() {
+        let item = match ItemStackTemplate::with_count("minecraft:diamond", 3) {
+            Ok(item) => item,
+            Err(err) => panic!("{err:?}"),
+        };
+        let default_body = ItemBody::with_defaults(item.clone());
+        assert_eq!(
+            default_body,
+            ItemBody {
+                item: item.clone(),
+                description: None,
+                show_decorations: true,
+                show_tooltip: true,
+                width: ITEM_BODY_DEFAULT_WIDTH,
+                height: ITEM_BODY_DEFAULT_HEIGHT,
+            }
+        );
+        assert_eq!(default_body.body_type(), DialogBodyType::Item);
+        assert_eq!(
+            DialogBody::Item(default_body.clone()).body_type(),
+            DialogBodyType::Item
+        );
+
+        let description = PlainMessageBody::with_default_width(Component::literal("Rare"));
+        assert_eq!(
+            ItemBody::new(
+                item.clone(),
+                Some(description.clone()),
+                false,
+                false,
+                ITEM_BODY_SIZE_MIN,
+                ITEM_BODY_SIZE_MAX,
+            ),
+            Ok(ItemBody {
+                item: item.clone(),
+                description: Some(description),
+                show_decorations: false,
+                show_tooltip: false,
+                width: 1,
+                height: 256,
+            })
+        );
+        assert!(ItemBody::new(item.clone(), None, true, true, 0, 16).is_err());
+        assert!(ItemBody::new(item, None, true, true, 16, ITEM_BODY_SIZE_MAX + 1).is_err());
+    }
+
     fn common_dialog() -> CommonDialogData {
         CommonDialogData::with_defaults(Component::literal("Buttons"))
     }
@@ -641,6 +851,79 @@ mod tests {
             assert!(
                 SERVER_LINKS.contains(sentinel),
                 "ServerLinksDialog.java is missing sentinel: {sentinel}"
+            );
+        }
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn dialog_input_and_body_sources_match_java_26_1_2() {
+        const INPUT: &str = vibecraft_java_source!("/net/minecraft/server/dialog/Input.java");
+        const DIALOG_BODY: &str =
+            vibecraft_java_source!("/net/minecraft/server/dialog/body/DialogBody.java");
+        const ITEM_BODY: &str =
+            vibecraft_java_source!("/net/minecraft/server/dialog/body/ItemBody.java");
+
+        for sentinel in [
+            "public record Input(String key, InputControl control)",
+            "ParsedTemplate.VARIABLE_CODEC.fieldOf(\"key\").forGetter(Input::key)",
+            "InputControl.MAP_CODEC.forGetter(Input::control)",
+            ".apply(i, Input::new)",
+        ] {
+            assert!(
+                INPUT.contains(sentinel),
+                "Input.java is missing sentinel: {sentinel}"
+            );
+        }
+
+        for sentinel in [
+            "public interface DialogBody",
+            "BuiltInRegistries.DIALOG_BODY_TYPE.byNameCodec().dispatch(DialogBody::mapCodec, c -> c)",
+            "ExtraCodecs.compactListCodec(DIALOG_BODY_CODEC)",
+            "MapCodec<? extends DialogBody> mapCodec();",
+        ] {
+            assert!(
+                DIALOG_BODY.contains(sentinel),
+                "DialogBody.java is missing sentinel: {sentinel}"
+            );
+        }
+
+        for sentinel in [
+            "public record ItemBody(ItemStackTemplate item, Optional<PlainMessage> description, boolean showDecorations, boolean showTooltip, int width, int height)",
+            "ItemStackTemplate.CODEC.fieldOf(\"item\").forGetter(ItemBody::item)",
+            "PlainMessage.CODEC.optionalFieldOf(\"description\").forGetter(ItemBody::description)",
+            "Codec.BOOL.optionalFieldOf(\"show_decorations\", true).forGetter(ItemBody::showDecorations)",
+            "Codec.BOOL.optionalFieldOf(\"show_tooltip\", true).forGetter(ItemBody::showTooltip)",
+            "ExtraCodecs.intRange(1, 256).optionalFieldOf(\"width\", 16).forGetter(ItemBody::width)",
+            "ExtraCodecs.intRange(1, 256).optionalFieldOf(\"height\", 16).forGetter(ItemBody::height)",
+            "return MAP_CODEC;",
+        ] {
+            assert!(
+                ITEM_BODY.contains(sentinel),
+                "ItemBody.java is missing sentinel: {sentinel}"
+            );
+        }
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn dialog_interface_source_matches_java_26_1_2() {
+        const DIALOG: &str = vibecraft_java_source!("/net/minecraft/server/dialog/Dialog.java");
+
+        for sentinel in [
+            "Codec<Integer> WIDTH_CODEC = ExtraCodecs.intRange(1, 1024);",
+            "Codec<Dialog> DIRECT_CODEC = BuiltInRegistries.DIALOG_TYPE.byNameCodec().dispatch(Dialog::codec, c -> c);",
+            "Codec<Holder<Dialog>> CODEC = RegistryFileCodec.create(Registries.DIALOG, DIRECT_CODEC);",
+            "Codec<HolderSet<Dialog>> LIST_CODEC = RegistryCodecs.homogeneousList(Registries.DIALOG, DIRECT_CODEC);",
+            "StreamCodec<RegistryFriendlyByteBuf, Holder<Dialog>> STREAM_CODEC = ByteBufCodecs.holder(",
+            "StreamCodec<ByteBuf, Dialog> CONTEXT_FREE_STREAM_CODEC = ByteBufCodecs.fromCodecTrusted(DIRECT_CODEC);",
+            "CommonDialogData common();",
+            "MapCodec<? extends Dialog> codec();",
+            "Optional<Action> onCancel();",
+        ] {
+            assert!(
+                DIALOG.contains(sentinel),
+                "Dialog.java is missing sentinel: {sentinel}"
             );
         }
     }
