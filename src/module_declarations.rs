@@ -688,6 +688,7 @@ mod server_level_chunk_result;
 mod server_level_demo_mode;
 mod server_level_player_map;
 mod server_level_progress;
+mod server_network_filterable;
 mod server_links;
 mod server_registry_layer;
 mod server_tick_rate_manager;

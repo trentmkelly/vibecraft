@@ -1659,8 +1659,8 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/network/CommonListenerCookie.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/network/ConfigurationTask.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/network/EventLoopGroupHolder.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/network/Filterable.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/network/FilteredText.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/network/Filterable.java`. Rust `server_network_filterable::FilterableModel` mirrors Java 26.1.2's full/simple codec alternatives, stream-codec field order, `passThrough`, `from(FilteredText)`, filter-enabled `get`, mapped raw/filtered values, and `resolve` optional short-circuit behavior, with Java source sentinels pinned by `filterable_sources_match_java_26_1_2`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/network/FilteredText.java`. Rust `server_network_filterable::FilteredTextModel` mirrors Java 26.1.2's `EMPTY`, pass-through and fully-filtered factories, `FilterMask.apply` integration, `filteredOrEmpty`, and `isFiltered` mask-empty predicate, with Java source sentinels pinned by `filterable_sources_match_java_26_1_2`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/network/LegacyProtocolUtils.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/network/LegacyQueryHandler.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/network/LegacyTextFilter.java`.
