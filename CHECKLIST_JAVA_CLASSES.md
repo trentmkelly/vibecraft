@@ -1571,7 +1571,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/methods`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/methods/AllowlistService.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/methods/AllowlistService.java`. Rust `jsonrpc_allowlist_service::AllowlistService` mirrors Java 26.1.2's allowlist DTO listing, add/clear/remove/set facades, requested player resolution before mutations, `UserWhiteListEntry` add semantics, set-difference remove/add behavior, and `kickUnlistedPlayers` calls after remove and set, with Java source sentinels pinned by `allowlist_service_source_matches_java_26_1_2`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/methods/BanlistService.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/methods/ClientInfo.java`. Rust `jsonrpc_methods::ClientInfo` mirrors Java 26.1.2's `ClientInfo(Integer connectionId)` record and `of(connectionId)` factory, with Java source sentinels pinned by `jsonrpc_method_sources_match_java_26_1_2`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/methods/DiscoveryService.java`. Rust `jsonrpc_methods::DiscoveryService` mirrors Java 26.1.2's discoverable incoming-then-outgoing method collection, schema component `info()` map, OpenRPC `"1.3.2"` response, and `"Minecraft Server JSON-RPC"`/`"2.0.0"` info metadata, with Java source sentinels pinned by `jsonrpc_method_sources_match_java_26_1_2`.
