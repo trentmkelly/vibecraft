@@ -1602,8 +1602,8 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/websocket`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/websocket/JsonToWebSocketEncoder.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/websocket/WebSocketToJsonCodec.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/websocket/JsonToWebSocketEncoder.java`. Rust `jsonrpc_websocket_codec::JsonToWebSocketEncoder` mirrors Java 26.1.2's `MessageToMessageEncoder<JsonElement>` behavior by wrapping `JsonElement.toString()`/compact JSON text in a text websocket frame, with Java source sentinels pinned by `websocket_codec_sources_match_java_26_1_2`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/websocket/WebSocketToJsonCodec.java`. Rust `jsonrpc_websocket_codec::WebSocketToJsonCodec` mirrors Java 26.1.2's `MessageToMessageDecoder<TextWebSocketFrame>` behavior by parsing the frame text as JSON and forwarding the parsed JSON value while surfacing parse errors, with Java source sentinels pinned by `websocket_codec_sources_match_java_26_1_2`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/jsonrpc/websocket/package-info.java`. Java 26.1.2 package marker contains only `@NullMarked`, the package declaration, and the `org.jspecify.annotations.NullMarked` import; no Rust runtime behavior or parity test is required beyond preserving nullability expectations in typed Rust APIs.
 
 ## `decompiled-server-26.1.2/net/minecraft/server/level`
