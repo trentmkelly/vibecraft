@@ -369,7 +369,11 @@ impl ChunkTrackingView {
     }
 
     pub fn chunks(&self) -> BTreeSet<ChunkPos> {
-        let mut chunks = BTreeSet::new();
+        self.iterated_chunks().into_iter().collect()
+    }
+
+    fn iterated_chunks(&self) -> Vec<ChunkPos> {
+        let mut chunks = Vec::new();
         let Some(center) = self.center else {
             return chunks;
         };
@@ -377,23 +381,62 @@ impl ChunkTrackingView {
             for z in self.min_z()..=self.max_z() {
                 let pos = ChunkPos { x, z };
                 if self.contains(pos, true) {
-                    chunks.insert(pos);
+                    chunks.push(pos);
                 }
             }
         }
         if chunks.is_empty() {
-            chunks.insert(center);
+            chunks.push(center);
         }
         chunks
     }
 
     pub fn diff(&self, next: &Self) -> ChunkTrackingDiff {
-        let from = self.chunks();
-        let to = next.chunks();
-        ChunkTrackingDiff {
-            entered: to.difference(&from).copied().collect(),
-            left: from.difference(&to).copied().collect(),
+        if self == next {
+            return ChunkTrackingDiff {
+                entered: Vec::new(),
+                left: Vec::new(),
+            };
         }
+
+        let (Some(_), Some(_)) = (self.center, next.center) else {
+            return ChunkTrackingDiff {
+                entered: next.iterated_chunks(),
+                left: self.iterated_chunks(),
+            };
+        };
+
+        if self.square_intersects(next) {
+            let mut entered = Vec::new();
+            let mut left = Vec::new();
+            for x in self.min_x().min(next.min_x())..=self.max_x().max(next.max_x()) {
+                for z in self.min_z().min(next.min_z())..=self.max_z().max(next.max_z()) {
+                    let pos = ChunkPos { x, z };
+                    let saw = self.contains(pos, true);
+                    let sees = next.contains(pos, true);
+                    if saw != sees {
+                        if sees {
+                            entered.push(pos);
+                        } else {
+                            left.push(pos);
+                        }
+                    }
+                }
+            }
+            ChunkTrackingDiff { entered, left }
+        } else {
+            ChunkTrackingDiff {
+                entered: next.iterated_chunks(),
+                left: self.iterated_chunks(),
+            }
+        }
+    }
+
+    fn square_intersects(&self, other: &Self) -> bool {
+        self.min_x() <= other.max_x()
+            && self.max_x() >= other.min_x()
+            && self.min_z() <= other.max_z()
+            && self.max_z() >= other.min_z()
     }
 
     fn min_x(&self) -> i32 {
@@ -627,7 +670,8 @@ fn string_field<'a>(fields: &'a [(String, Tag)], name: &str) -> Option<&'a str> 
 mod tests {
     use super::{
         chunk_map_updates_for_diff, is_within_view_distance, ticket_type_by_id, ChunkMapUpdateKind,
-        ChunkTrackingView, FullChunkStatus, PlayerChunkTracker, Ticket, TicketStore,
+        ChunkTrackingDiff, ChunkTrackingView, FullChunkStatus, PlayerChunkTracker, Ticket,
+        TicketStore,
         BLOCK_TICKING_LEVEL, ENTITY_TICKING_LEVEL, FULL_CHUNK_LEVEL, TICKET_TYPES,
     };
     use crate::storage::chunk::{pack_chunk_pos_as_long, unpack_chunk_pos_from_long};
@@ -848,6 +892,75 @@ mod tests {
         assert!(view.contains(ChunkPos { x: 3, z: 0 }, true));
         assert!(!view.is_in_view_distance(ChunkPos { x: 3, z: 0 }));
         assert!(view.chunks().contains(&center));
+    }
+
+    #[test]
+    fn chunk_tracking_view_difference_matches_java_overlap_and_fallback_paths() {
+        let previous = ChunkTrackingView::positioned(ChunkPos { x: 0, z: 0 }, 1);
+        let overlapping = ChunkTrackingView::positioned(ChunkPos { x: 1, z: 0 }, 1);
+        assert!(previous.square_intersects(&overlapping));
+        let overlap_diff = previous.diff(&overlapping);
+        assert_eq!(overlap_diff.entered.first(), Some(&ChunkPos { x: 3, z: -2 }));
+        assert_eq!(overlap_diff.left.first(), Some(&ChunkPos { x: -2, z: -2 }));
+        assert!(overlap_diff
+            .entered
+            .iter()
+            .all(|chunk| overlapping.contains(*chunk, true) && !previous.contains(*chunk, true)));
+        assert!(overlap_diff
+            .left
+            .iter()
+            .all(|chunk| previous.contains(*chunk, true) && !overlapping.contains(*chunk, true)));
+
+        let distant = ChunkTrackingView::positioned(ChunkPos { x: 20, z: 0 }, 1);
+        assert!(!previous.square_intersects(&distant));
+        let fallback_diff = previous.diff(&distant);
+        assert_eq!(fallback_diff.left, previous.iterated_chunks());
+        assert_eq!(fallback_diff.entered, distant.iterated_chunks());
+        assert_eq!(ChunkTrackingView::EMPTY.diff(&previous).entered, previous.iterated_chunks());
+        assert_eq!(previous.diff(&ChunkTrackingView::EMPTY).left, previous.iterated_chunks());
+        assert_eq!(
+            previous.diff(&previous),
+            ChunkTrackingDiff {
+                entered: Vec::new(),
+                left: Vec::new(),
+            }
+        );
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn chunk_tracking_view_source_matches_java_26_1_2() {
+        const CHUNK_TRACKING_VIEW: &str =
+            vibecraft_java_source!("/net/minecraft/server/level/ChunkTrackingView.java");
+
+        for sentinel in [
+            "ChunkTrackingView EMPTY = new ChunkTrackingView()",
+            "static ChunkTrackingView of(final ChunkPos center, final int radius)",
+            "static void difference(final ChunkTrackingView from, final ChunkTrackingView to, final Consumer<ChunkPos> onEnter, final Consumer<ChunkPos> onLeave)",
+            "if (!from.equals(to))",
+            "last.squareIntersects(next)",
+            "boolean saw = last.contains(x, z);",
+            "boolean sees = next.contains(x, z);",
+            "onEnter.accept(new ChunkPos(x, z));",
+            "onLeave.accept(new ChunkPos(x, z));",
+            "from.forEach(onLeave);",
+            "to.forEach(onEnter);",
+            "return this.contains(x, z, true);",
+            "return this.contains(chunkX, chunkZ, false);",
+            "int bufferRange = includeNeighbors ? 2 : 1;",
+            "long deltaX = Math.max(0, Math.abs(chunkX - centerX) - bufferRange);",
+            "long distanceSquared = deltaX * deltaX + deltaZ * deltaZ;",
+            "return distanceSquared < radiusSquared;",
+            "private int minX()",
+            "return this.center.x() - this.viewDistance - 1;",
+            "protected boolean squareIntersects(final ChunkTrackingView.Positioned other)",
+            "public void forEach(final Consumer<ChunkPos> consumer)",
+        ] {
+            assert!(
+                CHUNK_TRACKING_VIEW.contains(sentinel),
+                "ChunkTrackingView.java is missing sentinel: {sentinel}"
+            );
+        }
     }
 
     #[test]
