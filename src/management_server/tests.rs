@@ -9,6 +9,8 @@ const OUTGOING_RPC_METHODS_JAVA: &str =
     vibecraft_java_source!("/net/minecraft/server/jsonrpc/OutgoingRpcMethods.java");
 const OUTGOING_RPC_METHOD_JAVA: &str =
     vibecraft_java_source!("/net/minecraft/server/jsonrpc/OutgoingRpcMethod.java");
+const INCOMING_RPC_METHOD_JAVA: &str =
+    vibecraft_java_source!("/net/minecraft/server/jsonrpc/IncomingRpcMethod.java");
 const PENDING_RPC_REQUEST_JAVA: &str =
     vibecraft_java_source!("/net/minecraft/server/jsonrpc/PendingRpcRequest.java");
 const JSON_RPC_NOTIFICATION_SERVICE_JAVA: &str =
@@ -956,6 +958,248 @@ fn assert_outgoing_rpc_method_builder_matches_java_source() {
             OUTGOING_RPC_METHOD_JAVA.contains(sentinel),
             "OutgoingRpcMethod.java missing sentinel: {sentinel}"
         );
+    }
+}
+
+#[test]
+fn incoming_rpc_method_builder_and_apply_match_java_contract() {
+    assert_incoming_rpc_method_builder_matches_java_source();
+
+    let method = IncomingRpcMethodBuilderModel::method_with_params()
+        .description("Kick players")
+        .param("players", "KickDto[]")
+        .response("kicked", "PlayerDto[]")
+        .undiscoverable()
+        .not_on_main_thread()
+        .build()
+        .expect("method with params should build");
+
+    assert_eq!(method.kind, IncomingRpcMethodKind::Method);
+    assert_eq!(method.description, "Kick players");
+    assert_eq!(method.param, Some(("players".to_string(), "KickDto[]".to_string())));
+    assert_eq!(method.result, Some(("kicked".to_string(), "PlayerDto[]".to_string())));
+    assert_eq!(
+        method.attributes,
+        IncomingRpcMethodAttributes {
+            run_on_main_thread: false,
+            discoverable: false,
+        }
+    );
+    assert_incoming_param_method_apply_matches_java(&method);
+    assert_incoming_parameterless_apply_matches_java();
+    assert_incoming_builder_errors_match_java();
+    assert_eq!(IncomingRpcMethodBuilderModel::register_key("players/kick"), "players/kick");
+}
+
+fn assert_incoming_param_method_apply_matches_java(method: &IncomingRpcMethodModel) {
+    assert_eq!(
+        method.extract_param(Some(&serde_json::json!({"players": [{"name": "Steve"}]}))),
+        Ok(serde_json::json!([{"name": "Steve"}]))
+    );
+    assert_eq!(
+        method.extract_param(Some(&serde_json::json!([[{"name": "Alex"}]]))),
+        Ok(serde_json::json!([{"name": "Alex"}]))
+    );
+    assert_eq!(
+        method.apply(
+            Some(&serde_json::json!({"players": []})),
+            serde_json::json!([{"name": "Steve"}])
+        ),
+        Ok(serde_json::json!([{"name": "Steve"}]))
+    );
+    assert_eq!(
+        method.extract_param(None),
+        Err(incoming_invalid_parameter("Expected params as array or named"))
+    );
+    assert_eq!(
+        method.extract_param(Some(&serde_json::json!(true))),
+        Err(incoming_invalid_parameter("Expected params as array or named"))
+    );
+    assert_eq!(
+        method.extract_param(Some(&serde_json::json!({}))),
+        Err(incoming_invalid_parameter(
+            "Params passed by-name, but expected param [players] does not exist"
+        ))
+    );
+    assert_eq!(
+        method.extract_param(Some(&serde_json::json!([]))),
+        Err(incoming_invalid_parameter(
+            "Expected exactly one element in the params array"
+        ))
+    );
+    assert_eq!(
+        method.extract_param(Some(&serde_json::json!([1, 2]))),
+        Err(incoming_invalid_parameter(
+            "Expected exactly one element in the params array"
+        ))
+    );
+}
+
+fn assert_incoming_parameterless_apply_matches_java() {
+    let parameterless = IncomingRpcMethodBuilderModel::method_parameterless()
+        .response("status", "ServerStatusDto")
+        .build()
+        .expect("parameterless method should build");
+    let supplier = IncomingRpcMethodBuilderModel::method_api_supplier()
+        .response("status", "ServerStatusDto")
+        .build()
+        .expect("api supplier should build as parameterless");
+
+    assert_eq!(parameterless.kind, IncomingRpcMethodKind::ParameterlessMethod);
+    assert_eq!(supplier.kind, IncomingRpcMethodKind::ParameterlessMethod);
+    assert_eq!(
+        parameterless.attributes,
+        IncomingRpcMethodAttributes {
+            run_on_main_thread: true,
+            discoverable: true,
+        }
+    );
+    assert_eq!(parameterless.apply(None, serde_json::json!({"running": true})), Ok(serde_json::json!({"running": true})));
+    assert_eq!(
+        parameterless.apply(Some(&serde_json::json!([])), serde_json::json!(true)),
+        Ok(serde_json::json!(true))
+    );
+    assert_eq!(
+        parameterless.validate_parameterless_params(Some(&serde_json::json!({}))),
+        Err(incoming_invalid_parameter("Expected no params, or an empty array"))
+    );
+    assert_eq!(
+        parameterless.validate_parameterless_params(Some(&serde_json::json!([1]))),
+        Err(incoming_invalid_parameter("Expected no params, or an empty array"))
+    );
+}
+
+fn assert_incoming_builder_errors_match_java() {
+    assert_eq!(
+        IncomingRpcMethodBuilderModel::method_parameterless().build(),
+        Err(incoming_illegal_state("No response defined"))
+    );
+    assert_eq!(
+        IncomingRpcMethodBuilderModel::method_with_params()
+            .response("result", "bool")
+            .build(),
+        Err(incoming_illegal_state("No param schema defined"))
+    );
+    assert_eq!(
+        IncomingRpcMethodBuilderModel::missing_function_for_test()
+            .response("result", "bool")
+            .build(),
+        Err(incoming_illegal_state("No method defined"))
+    );
+
+    let direct_paramless_with_param = IncomingRpcMethodModel {
+        description: String::new(),
+        param: Some(("unexpected".to_string(), "bool".to_string())),
+        result: Some(("result".to_string(), "bool".to_string())),
+        attributes: IncomingRpcMethodAttributes {
+            run_on_main_thread: true,
+            discoverable: true,
+        },
+        kind: IncomingRpcMethodKind::ParameterlessMethod,
+    };
+    assert_eq!(
+        direct_paramless_with_param.validate_parameterless_params(None),
+        Err(incoming_illegal_argument(
+            "Parameterless method unexpectedly has parameter description"
+        ))
+    );
+
+    let direct_method_without_param = IncomingRpcMethodModel {
+        kind: IncomingRpcMethodKind::Method,
+        param: None,
+        ..direct_paramless_with_param
+    };
+    assert_eq!(
+        direct_method_without_param.extract_param(Some(&serde_json::json!([]))),
+        Err(incoming_illegal_argument(
+            "Method defined as having parameters without describing them"
+        ))
+    );
+
+    let direct_method_without_result = IncomingRpcMethodModel {
+        description: String::new(),
+        param: Some(("param".to_string(), "bool".to_string())),
+        result: None,
+        attributes: IncomingRpcMethodAttributes {
+            run_on_main_thread: true,
+            discoverable: true,
+        },
+        kind: IncomingRpcMethodKind::Method,
+    };
+    assert_eq!(
+        direct_method_without_result.encode_result(serde_json::json!(true)),
+        Err(incoming_illegal_state("No result codec defined"))
+    );
+}
+
+fn assert_incoming_rpc_method_builder_matches_java_source() {
+    for sentinel in [
+        "static <Result> IncomingRpcMethod.IncomingRpcMethodBuilder<Void, Result> method(final IncomingRpcMethod.ParameterlessRpcMethodFunction<Result> function)",
+        "static <Params, Result> IncomingRpcMethod.IncomingRpcMethodBuilder<Params, Result> method(final IncomingRpcMethod.RpcMethodFunction<Params, Result> function)",
+        "static <Result> IncomingRpcMethod.IncomingRpcMethodBuilder<Void, Result> method(final Function<MinecraftApi, Result> supplier)",
+        "record Attributes(boolean runOnMainThread, boolean discoverable)",
+        "private String description = \"\";",
+        "private boolean discoverable = true;",
+        "private boolean runOnMainThread = true;",
+        "this.parameterlessFunction = (apiService, clientInfo) -> supplier.apply(apiService);",
+        "this.resultInfo = new ResultInfo<>(resultName, resultSchema.info());",
+        "this.paramInfo = new ParamInfo<>(paramName, paramSchema.info());",
+        "this.discoverable = false;",
+        "this.runOnMainThread = false;",
+        "throw new IllegalStateException(\"No response defined\");",
+        "throw new IllegalStateException(\"No param schema defined\");",
+        "throw new IllegalStateException(\"No method defined\");",
+        "return new IncomingRpcMethod.ParameterlessMethod<>(methodInfo, attributes, this.parameterlessFunction);",
+        "return new IncomingRpcMethod.Method<>(methodInfo, attributes, this.parameterFunction);",
+        "return this.register(methodRegistry, Identifier.withDefaultNamespace(key));",
+        "return Registry.register(methodRegistry, id, this.build());",
+    ] {
+        assert!(
+            INCOMING_RPC_METHOD_JAVA.contains(sentinel),
+            "IncomingRpcMethod.java missing builder sentinel: {sentinel}"
+        );
+    }
+    assert_incoming_rpc_method_apply_matches_java_source();
+}
+
+fn assert_incoming_rpc_method_apply_matches_java_source() {
+    for sentinel in [
+        "paramsJson != null && (paramsJson.isJsonArray() || paramsJson.isJsonObject())",
+        "throw new IllegalArgumentException(\"Method defined as having parameters without describing them\");",
+        "String parameterName = this.info.params().get().name();",
+        "Params passed by-name, but expected param [%s] does not exist",
+        "throw new InvalidParameterJsonRpcException(\"Expected exactly one element in the params array\");",
+        "throw new InvalidParameterJsonRpcException(\"Expected params as array or named\");",
+        "if (paramsJson == null || paramsJson.isJsonArray() && paramsJson.getAsJsonArray().isEmpty())",
+        "throw new IllegalArgumentException(\"Parameterless method unexpectedly has parameter description\");",
+        "throw new IllegalStateException(\"No result codec defined\");",
+        "throw new InvalidParameterJsonRpcException(\"Expected no params, or an empty array\");",
+    ] {
+        assert!(
+            INCOMING_RPC_METHOD_JAVA.contains(sentinel),
+            "IncomingRpcMethod.java missing apply sentinel: {sentinel}"
+        );
+    }
+}
+
+fn incoming_invalid_parameter(message: &str) -> IncomingRpcMethodError {
+    IncomingRpcMethodError {
+        kind: IncomingRpcMethodErrorKind::InvalidParameter,
+        message: message.to_string(),
+    }
+}
+
+fn incoming_illegal_state(message: &str) -> IncomingRpcMethodError {
+    IncomingRpcMethodError {
+        kind: IncomingRpcMethodErrorKind::IllegalState,
+        message: message.to_string(),
+    }
+}
+
+fn incoming_illegal_argument(message: &str) -> IncomingRpcMethodError {
+    IncomingRpcMethodError {
+        kind: IncomingRpcMethodErrorKind::IllegalArgument,
+        message: message.to_string(),
     }
 }
 

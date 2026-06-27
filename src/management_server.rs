@@ -275,6 +275,272 @@ impl OutgoingRpcMethodBuilderModel {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IncomingRpcMethodKind {
+    Method,
+    ParameterlessMethod,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IncomingRpcMethodBuilderKind {
+    ParameterlessFunction,
+    ParameterFunction,
+    ApiSupplier,
+    MissingFunction,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IncomingRpcMethodAttributes {
+    pub run_on_main_thread: bool,
+    pub discoverable: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IncomingRpcMethodModel {
+    pub description: String,
+    pub param: Option<(String, String)>,
+    pub result: Option<(String, String)>,
+    pub attributes: IncomingRpcMethodAttributes,
+    pub kind: IncomingRpcMethodKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IncomingRpcMethodBuilderModel {
+    description: String,
+    param: Option<(String, String)>,
+    result: Option<(String, String)>,
+    discoverable: bool,
+    run_on_main_thread: bool,
+    kind: IncomingRpcMethodBuilderKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IncomingRpcMethodErrorKind {
+    IllegalArgument,
+    IllegalState,
+    InvalidParameter,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IncomingRpcMethodError {
+    pub kind: IncomingRpcMethodErrorKind,
+    pub message: String,
+}
+
+impl IncomingRpcMethodBuilderModel {
+    pub const DEFAULT_DISCOVERABLE: bool = true;
+    pub const DEFAULT_RUN_ON_MAIN_THREAD: bool = true;
+
+    pub fn method_parameterless() -> Self {
+        Self::new(IncomingRpcMethodBuilderKind::ParameterlessFunction)
+    }
+
+    pub fn method_with_params() -> Self {
+        Self::new(IncomingRpcMethodBuilderKind::ParameterFunction)
+    }
+
+    pub fn method_api_supplier() -> Self {
+        Self::new(IncomingRpcMethodBuilderKind::ApiSupplier)
+    }
+
+    pub fn missing_function_for_test() -> Self {
+        Self::new(IncomingRpcMethodBuilderKind::MissingFunction)
+    }
+
+    fn new(kind: IncomingRpcMethodBuilderKind) -> Self {
+        Self {
+            description: String::new(),
+            param: None,
+            result: None,
+            discoverable: Self::DEFAULT_DISCOVERABLE,
+            run_on_main_thread: Self::DEFAULT_RUN_ON_MAIN_THREAD,
+            kind,
+        }
+    }
+
+    pub fn description(mut self, description: &str) -> Self {
+        self.description = description.to_string();
+        self
+    }
+
+    pub fn response(mut self, result_name: &str, result_schema: &str) -> Self {
+        self.result = Some((result_name.to_string(), result_schema.to_string()));
+        self
+    }
+
+    pub fn param(mut self, param_name: &str, param_schema: &str) -> Self {
+        self.param = Some((param_name.to_string(), param_schema.to_string()));
+        self
+    }
+
+    pub fn undiscoverable(mut self) -> Self {
+        self.discoverable = false;
+        self
+    }
+
+    pub fn not_on_main_thread(mut self) -> Self {
+        self.run_on_main_thread = false;
+        self
+    }
+
+    pub fn build(self) -> Result<IncomingRpcMethodModel, IncomingRpcMethodError> {
+        if self.result.is_none() {
+            return Err(IncomingRpcMethodError::illegal_state("No response defined"));
+        }
+
+        let attributes = IncomingRpcMethodAttributes {
+            run_on_main_thread: self.run_on_main_thread,
+            discoverable: self.discoverable,
+        };
+        let kind = match self.kind {
+            IncomingRpcMethodBuilderKind::ParameterlessFunction
+            | IncomingRpcMethodBuilderKind::ApiSupplier => IncomingRpcMethodKind::ParameterlessMethod,
+            IncomingRpcMethodBuilderKind::ParameterFunction => {
+                if self.param.is_none() {
+                    return Err(IncomingRpcMethodError::illegal_state(
+                        "No param schema defined",
+                    ));
+                }
+                IncomingRpcMethodKind::Method
+            }
+            IncomingRpcMethodBuilderKind::MissingFunction => {
+                return Err(IncomingRpcMethodError::illegal_state("No method defined"));
+            }
+        };
+
+        Ok(IncomingRpcMethodModel {
+            description: self.description,
+            param: self.param,
+            result: self.result,
+            attributes,
+            kind,
+        })
+    }
+
+    pub fn register_key(key: &str) -> String {
+        key.to_string()
+    }
+}
+
+impl IncomingRpcMethodModel {
+    pub fn apply(
+        &self,
+        params_json: Option<&serde_json::Value>,
+        result: serde_json::Value,
+    ) -> Result<serde_json::Value, IncomingRpcMethodError> {
+        match self.kind {
+            IncomingRpcMethodKind::Method => {
+                self.extract_param(params_json)?;
+                self.encode_result(result)
+            }
+            IncomingRpcMethodKind::ParameterlessMethod => {
+                self.validate_parameterless_params(params_json)?;
+                self.encode_result(result)
+            }
+        }
+    }
+
+    pub fn extract_param(
+        &self,
+        params_json: Option<&serde_json::Value>,
+    ) -> Result<serde_json::Value, IncomingRpcMethodError> {
+        let Some(params_json) = params_json else {
+            return Err(IncomingRpcMethodError::invalid_parameter(
+                "Expected params as array or named",
+            ));
+        };
+        if !(params_json.is_array() || params_json.is_object()) {
+            return Err(IncomingRpcMethodError::invalid_parameter(
+                "Expected params as array or named",
+            ));
+        }
+        let Some((parameter_name, _)) = &self.param else {
+            return Err(IncomingRpcMethodError::illegal_argument(
+                "Method defined as having parameters without describing them",
+            ));
+        };
+
+        if let Some(object) = params_json.as_object() {
+            object.get(parameter_name).cloned().ok_or_else(|| {
+                IncomingRpcMethodError::invalid_parameter(format!(
+                    "Params passed by-name, but expected param [{parameter_name}] does not exist"
+                ))
+            })
+        } else if let Some(array) = params_json.as_array() {
+            if array.is_empty() || array.len() > 1 {
+                Err(IncomingRpcMethodError::invalid_parameter(
+                    "Expected exactly one element in the params array",
+                ))
+            } else {
+                Ok(array[0].clone())
+            }
+        } else {
+            Err(IncomingRpcMethodError::invalid_parameter(
+                "Expected params as array or named",
+            ))
+        }
+    }
+
+    pub fn validate_parameterless_params(
+        &self,
+        params_json: Option<&serde_json::Value>,
+    ) -> Result<(), IncomingRpcMethodError> {
+        if params_json.is_none()
+            || params_json
+                .and_then(serde_json::Value::as_array)
+                .is_some_and(Vec::is_empty)
+        {
+            if self.param.is_some() {
+                Err(IncomingRpcMethodError::illegal_argument(
+                    "Parameterless method unexpectedly has parameter description",
+                ))
+            } else {
+                Ok(())
+            }
+        } else {
+            Err(IncomingRpcMethodError::invalid_parameter(
+                "Expected no params, or an empty array",
+            ))
+        }
+    }
+
+    pub fn encode_result(
+        &self,
+        result: serde_json::Value,
+    ) -> Result<serde_json::Value, IncomingRpcMethodError> {
+        if self.result.is_none() {
+            Err(IncomingRpcMethodError::illegal_state(
+                "No result codec defined",
+            ))
+        } else {
+            Ok(result)
+        }
+    }
+}
+
+impl IncomingRpcMethodError {
+    fn illegal_argument(message: impl Into<String>) -> Self {
+        Self {
+            kind: IncomingRpcMethodErrorKind::IllegalArgument,
+            message: message.into(),
+        }
+    }
+
+    fn illegal_state(message: impl Into<String>) -> Self {
+        Self {
+            kind: IncomingRpcMethodErrorKind::IllegalState,
+            message: message.into(),
+        }
+    }
+
+    fn invalid_parameter(message: impl Into<String>) -> Self {
+        Self {
+            kind: IncomingRpcMethodErrorKind::InvalidParameter,
+            message: message.into(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ManagementServerConfig {
     pub enabled: bool,
