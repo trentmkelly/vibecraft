@@ -1693,10 +1693,10 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/server/notifications`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/notifications/EmptyNotificationService.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/notifications/NotificationManager.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/notifications/NotificationService.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/notifications/ServerActivityMonitor.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/notifications/EmptyNotificationService.java`. Rust `dialog_system::NotificationManager` with no registered services mirrors Java 26.1.2's empty no-op implementation for all `NotificationService` methods, with Java source sentinels pinned by `notification_sources_match_java_26_1_2`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/notifications/NotificationManager.java`. Rust `dialog_system::NotificationManager` mirrors Java 26.1.2's service registration and ordered fan-out for every `NotificationService` method, with Java source sentinels pinned by `notification_sources_match_java_26_1_2`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/notifications/NotificationService.java`. Rust `dialog_system::NotificationEvent` covers Java 26.1.2's 17 notification method shapes: player join/leave, server lifecycle/save/activity/heartbeat, ops, allowlist, IP/player bans, and game-rule changes, with Java source sentinels pinned by `notification_sources_match_java_26_1_2`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/notifications/ServerActivityMonitor.java`. Rust `dialog_system::ServerActivityMonitor` mirrors Java 26.1.2's seconds-to-millis constructor, pending activity flag, rate-limited `serverActivityOccured` dispatch, last-notification timestamp update, login-activity processing, tick processing, and activity reset, with Java source sentinels pinned by `notification_sources_match_java_26_1_2`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/notifications/package-info.java`. Java 26.1.2 package marker contains only `@NullMarked`, the package declaration, and the `org.jspecify.annotations.NullMarked` import; no Rust runtime behavior or parity test is required beyond preserving nullability expectations in typed Rust APIs.
 
 ## `decompiled-server-26.1.2/net/minecraft/server`

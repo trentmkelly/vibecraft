@@ -1017,22 +1017,40 @@ mod tests {
         manager.register_service("audit");
         manager.register_service("webhook");
 
-        manager.notify(NotificationEvent::ServerStarted);
-        manager.notify(NotificationEvent::PlayerJoined("Steve".to_string()));
-        manager.notify(NotificationEvent::GameRuleChanged {
-            rule: "doDaylightCycle".to_string(),
-            value: "false".to_string(),
-        });
+        let events = vec![
+            NotificationEvent::PlayerJoined("Steve".to_string()),
+            NotificationEvent::PlayerLeft("Alex".to_string()),
+            NotificationEvent::ServerStarted,
+            NotificationEvent::ServerShuttingDown,
+            NotificationEvent::ServerSaveStarted,
+            NotificationEvent::ServerSaveCompleted,
+            NotificationEvent::ServerActivityOccurred,
+            NotificationEvent::PlayerOpped("Steve".to_string()),
+            NotificationEvent::PlayerDeopped("Steve".to_string()),
+            NotificationEvent::PlayerAddedToAllowlist("Alex".to_string()),
+            NotificationEvent::PlayerRemovedFromAllowlist("Alex".to_string()),
+            NotificationEvent::IpBanned("127.0.0.1".to_string()),
+            NotificationEvent::IpUnbanned("127.0.0.1".to_string()),
+            NotificationEvent::PlayerBanned("Steve".to_string()),
+            NotificationEvent::PlayerUnbanned("Steve".to_string()),
+            NotificationEvent::GameRuleChanged {
+                rule: "doDaylightCycle".to_string(),
+                value: "false".to_string(),
+            },
+            NotificationEvent::StatusHeartbeat,
+        ];
+        let mut empty_service = NotificationManager::default();
+        for event in events.clone() {
+            manager.notify(event.clone());
+            empty_service.notify(event);
+        }
 
         assert_eq!(manager.services().len(), 2);
         assert!(manager
             .services()
             .iter()
-            .all(|service| service.events.len() == 3));
-        assert_eq!(
-            manager.services()[0].events[1],
-            NotificationEvent::PlayerJoined("Steve".to_string())
-        );
+            .all(|service| service.events == events));
+        assert!(empty_service.services().is_empty());
     }
 
     #[test]
@@ -1052,5 +1070,61 @@ mod tests {
         assert_eq!(manager.services()[0].events.len(), 1);
         monitor.report_login_activity(20_000, &mut manager);
         assert_eq!(manager.services()[0].events.len(), 2);
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn notification_sources_match_java_26_1_2() {
+        const EMPTY: &str = vibecraft_java_source!(
+            "/net/minecraft/server/notifications/EmptyNotificationService.java"
+        );
+        const SERVICE: &str =
+            vibecraft_java_source!("/net/minecraft/server/notifications/NotificationService.java");
+        const MANAGER: &str =
+            vibecraft_java_source!("/net/minecraft/server/notifications/NotificationManager.java");
+        const MONITOR: &str = vibecraft_java_source!(
+            "/net/minecraft/server/notifications/ServerActivityMonitor.java"
+        );
+
+        for method in [
+            "playerJoined", "playerLeft", "serverStarted", "serverShuttingDown",
+            "serverSaveStarted", "serverSaveCompleted", "serverActivityOccured",
+            "playerOped", "playerDeoped", "playerAddedToAllowlist",
+            "playerRemovedFromAllowlist", "ipBanned", "ipUnbanned", "playerBanned",
+            "playerUnbanned", "onGameRuleChanged", "statusHeartbeat",
+        ] {
+            assert!(SERVICE.contains(method), "NotificationService missing {method}");
+            assert!(EMPTY.contains(method), "EmptyNotificationService missing {method}");
+            assert!(MANAGER.contains(method), "NotificationManager missing {method}");
+        }
+
+        for sentinel in [
+            "private final List<NotificationService> notificationServices = Lists.newArrayList();",
+            "public void registerService(final NotificationService notificationService)",
+            "this.notificationServices.add(notificationService);",
+            "this.notificationServices.forEach(NotificationService::serverStarted);",
+            "this.notificationServices.forEach(notificationService -> notificationService.playerJoined(player));",
+            "this.notificationServices.forEach(notificationService -> notificationService.onGameRuleChanged(gameRule, value));",
+            "this.notificationServices.forEach(NotificationService::statusHeartbeat);",
+        ] {
+            assert!(MANAGER.contains(sentinel), "NotificationManager missing {sentinel}");
+        }
+
+        for sentinel in [
+            "private final long minimumMillisBetweenNotifications;",
+            "private final AtomicLong lastNotificationTime = new AtomicLong();",
+            "private final AtomicBoolean serverActivity = new AtomicBoolean(false);",
+            "this.minimumMillisBetweenNotifications = TimeUnit.SECONDS.toMillis(secondsBetweenNotifications);",
+            "public void tick()",
+            "this.processWithRateLimit();",
+            "public void reportLoginActivity()",
+            "this.serverActivity.set(true);",
+            "if (this.serverActivity.get() && now - this.lastNotificationTime.get() >= this.minimumMillisBetweenNotifications)",
+            "this.notificationManager.serverActivityOccured();",
+            "this.lastNotificationTime.set(Util.getMillis());",
+            "this.serverActivity.set(false);",
+        ] {
+            assert!(MONITOR.contains(sentinel), "ServerActivityMonitor missing {sentinel}");
+        }
     }
 }
