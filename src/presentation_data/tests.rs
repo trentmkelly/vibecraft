@@ -1,8 +1,30 @@
 use super::*;
 use std::collections::HashSet;
 
+const SOUND_SOURCE_JAVA: &str = vibecraft_java_source!("/net/minecraft/sounds/SoundSource.java");
+
 #[test]
 fn sound_sources_match_vanilla_serialized_names_and_sound_events_are_lookupable() {
+    for sentinel in [
+        "MASTER(\"master\")",
+        "MUSIC(\"music\")",
+        "RECORDS(\"record\")",
+        "WEATHER(\"weather\")",
+        "BLOCKS(\"block\")",
+        "HOSTILE(\"hostile\")",
+        "NEUTRAL(\"neutral\")",
+        "PLAYERS(\"player\")",
+        "AMBIENT(\"ambient\")",
+        "VOICE(\"voice\")",
+        "UI(\"ui\");",
+        "public String getName()",
+    ] {
+        assert!(
+            SOUND_SOURCE_JAVA.contains(sentinel),
+            "SoundSource.java is missing sentinel: {sentinel}"
+        );
+    }
+
     assert_eq!(
         SOUND_SOURCES
             .iter()
