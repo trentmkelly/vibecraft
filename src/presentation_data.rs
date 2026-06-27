@@ -3,10 +3,31 @@
 use std::collections::HashSet;
 use std::sync::LazyLock;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SoundEventDef {
     pub id: &'static str,
-    pub fixed_range: Option<u8>,
+    pub fixed_range: Option<f32>,
+}
+
+impl SoundEventDef {
+    pub const fn create_variable_range_event(id: &'static str) -> Self {
+        Self {
+            id,
+            fixed_range: None,
+        }
+    }
+
+    pub const fn create_fixed_range_event(id: &'static str, range: f32) -> Self {
+        Self {
+            id,
+            fixed_range: Some(range),
+        }
+    }
+
+    pub fn range(self, volume: f32) -> f32 {
+        self.fixed_range
+            .unwrap_or(if volume > 1.0 { 16.0 * volume } else { 16.0 })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -208,7 +229,7 @@ fn add_sound_event(
     events: &mut Vec<SoundEventDef>,
     seen: &mut HashSet<&'static str>,
     id: &str,
-    fixed_range: Option<u8>,
+    fixed_range: Option<f32>,
 ) {
     let full_id = Box::leak(format!("minecraft:{id}").into_boxed_str());
     if seen.insert(full_id) {
@@ -1003,10 +1024,7 @@ pub fn language_key(prefix: &str, id: &str, suffix: &str) -> String {
 }
 
 const fn sound(id: &'static str) -> SoundEventDef {
-    SoundEventDef {
-        id,
-        fixed_range: None,
-    }
+    SoundEventDef::create_variable_range_event(id)
 }
 
 const fn particle(

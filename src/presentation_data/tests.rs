@@ -2,6 +2,7 @@ use super::*;
 use std::collections::HashSet;
 
 const SOUND_SOURCE_JAVA: &str = vibecraft_java_source!("/net/minecraft/sounds/SoundSource.java");
+const SOUND_EVENT_JAVA: &str = vibecraft_java_source!("/net/minecraft/sounds/SoundEvent.java");
 const MUSIC_JAVA: &str = vibecraft_java_source!("/net/minecraft/sounds/Music.java");
 const MUSICS_JAVA: &str = vibecraft_java_source!("/net/minecraft/sounds/Musics.java");
 
@@ -51,6 +52,39 @@ fn sound_sources_match_vanilla_serialized_names_and_sound_events_are_lookupable(
         "minecraft:music_disc.pigstep"
     );
     assert!(find_sound_event("minecraft:missing").is_none());
+}
+
+#[test]
+fn sound_event_direct_and_range_semantics_match_java() {
+    for sentinel in [
+        "public record SoundEvent(Identifier location, Optional<Float> fixedRange)",
+        "Identifier.CODEC.fieldOf(\"sound_id\").forGetter(SoundEvent::location)",
+        "Codec.FLOAT.lenientOptionalFieldOf(\"range\").forGetter(SoundEvent::fixedRange)",
+        "RegistryFileCodec.create(Registries.SOUND_EVENT, DIRECT_CODEC)",
+        "Identifier.STREAM_CODEC, SoundEvent::location",
+        "ByteBufCodecs.FLOAT.apply(ByteBufCodecs::optional), SoundEvent::fixedRange",
+        "ByteBufCodecs.holder(Registries.SOUND_EVENT, DIRECT_STREAM_CODEC)",
+        "return range.<SoundEvent>map(r -> createFixedRangeEvent(location, r)).orElseGet(() -> createVariableRangeEvent(location));",
+        "return new SoundEvent(location, Optional.empty());",
+        "return new SoundEvent(location, Optional.of(range));",
+        "return this.fixedRange.orElse(volume > 1.0F ? 16.0F * volume : 16.0F);",
+    ] {
+        assert!(
+            SOUND_EVENT_JAVA.contains(sentinel),
+            "SoundEvent.java is missing sentinel: {sentinel}"
+        );
+    }
+
+    let variable = SoundEventDef::create_variable_range_event("minecraft:test.variable");
+    assert_eq!(variable.fixed_range, None);
+    assert_eq!(variable.range(0.0), 16.0);
+    assert_eq!(variable.range(1.0), 16.0);
+    assert_eq!(variable.range(2.5), 40.0);
+
+    let fixed = SoundEventDef::create_fixed_range_event("minecraft:test.fixed", 7.25);
+    assert_eq!(fixed.fixed_range, Some(7.25));
+    assert_eq!(fixed.range(0.0), 7.25);
+    assert_eq!(fixed.range(3.0), 7.25);
 }
 
 #[test]
