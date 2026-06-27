@@ -1,5 +1,9 @@
 #![allow(dead_code)]
 
+use crate::chat_component::component_utils::wrap_in_square_brackets;
+use crate::chat_component::{Component, ComponentArgument, HoverEvent, Style, TextColor};
+use crate::chat_formatting::ChatFormatting;
+use crate::network::configuration::KnownPack;
 use crate::registry::FeatureFlagSet;
 use crate::resources::{PackFormat, PackFormatRange};
 
@@ -29,6 +33,86 @@ pub struct PackSelectionConfigModel {
     pub required: bool,
     pub default_position: PackPositionModel,
     pub fixed_position: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PackSourceModel {
+    Default,
+    BuiltIn,
+    Feature,
+    World,
+    Server,
+}
+
+impl PackSourceModel {
+    pub fn decorate(self, pack_description: Component) -> Component {
+        match self.description_id() {
+            Some(description_id) => Component::translatable(
+                "pack.nameAndSource",
+                vec![
+                    ComponentArgument::Component(Box::new(pack_description)),
+                    ComponentArgument::Component(Box::new(Component::translatable(
+                        description_id,
+                        Vec::new(),
+                    ))),
+                ],
+            )
+            .styled(Style::empty().with_legacy_color(Some(ChatFormatting::Gray))),
+            None => pack_description,
+        }
+    }
+
+    pub fn should_add_automatically(self) -> bool {
+        !matches!(self, Self::Feature)
+    }
+
+    fn description_id(self) -> Option<&'static str> {
+        match self {
+            Self::Default => None,
+            Self::BuiltIn => Some("pack.source.builtin"),
+            Self::Feature => Some("pack.source.feature"),
+            Self::World => Some("pack.source.world"),
+            Self::Server => Some("pack.source.server"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackLocationInfoModel {
+    pub id: String,
+    pub title: Component,
+    pub source: PackSourceModel,
+    pub known_pack_info: Option<KnownPack>,
+}
+
+impl PackLocationInfoModel {
+    pub fn new(
+        id: impl Into<String>,
+        title: Component,
+        source: PackSourceModel,
+        known_pack_info: Option<KnownPack>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            title,
+            source,
+            known_pack_info,
+        }
+    }
+
+    pub fn create_chat_link(&self, enabled: bool, description: Component) -> Component {
+        wrap_in_square_brackets(self.source.decorate(Component::literal(&self.id))).styled(
+            Style::empty()
+                .with_color(link_color(enabled))
+                .with_insertion(escape_if_required(&self.id))
+                .with_hover_event(HoverEvent::Text(Box::new(
+                    Component::empty()
+                        .append(self.title.clone())
+                        .append(Component::literal("\n"))
+                        .append(description),
+                ))),
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -160,20 +244,61 @@ pub fn validate_overlay_directory(path: String) -> Result<String, String> {
     }
 }
 
+fn link_color(enabled: bool) -> TextColor {
+    if enabled {
+        legacy_color(ChatFormatting::Green)
+    } else {
+        legacy_color(ChatFormatting::Red)
+    }
+}
+
+fn legacy_color(format: ChatFormatting) -> TextColor {
+    match TextColor::from_legacy_format(format) {
+        Some(color) => color,
+        None => unreachable!("pack location uses only Java color formatting values"),
+    }
+}
+
+fn escape_if_required(input: &str) -> String {
+    if !input.is_empty() && input.chars().all(is_allowed_in_unquoted_string) {
+        input.to_string()
+    } else {
+        let mut escaped = String::with_capacity(input.len() + 2);
+        escaped.push('"');
+        for ch in input.chars() {
+            if matches!(ch, '\\' | '"') {
+                escaped.push('\\');
+            }
+            escaped.push(ch);
+        }
+        escaped.push('"');
+        escaped
+    }
+}
+
+fn is_allowed_in_unquoted_string(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '.' | '+')
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chat_component::ComponentContent;
     use crate::registry::feature_flags;
 
     const FEATURE_FLAGS_METADATA_SECTION_JAVA: &str =
         vibecraft_java_source!("/net/minecraft/server/packs/FeatureFlagsMetadataSection.java");
     const OVERLAY_METADATA_SECTION_JAVA: &str =
         vibecraft_java_source!("/net/minecraft/server/packs/OverlayMetadataSection.java");
+    const PACK_LOCATION_INFO_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/packs/PackLocationInfo.java");
     const PACK_SELECTION_CONFIG_JAVA: &str =
         vibecraft_java_source!("/net/minecraft/server/packs/PackSelectionConfig.java");
     const PACK_TYPE_JAVA: &str = vibecraft_java_source!("/net/minecraft/server/packs/PackType.java");
     const METADATA_SECTION_TYPE_JAVA: &str =
         vibecraft_java_source!("/net/minecraft/server/packs/metadata/MetadataSectionType.java");
+    const PACK_SOURCE_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/packs/repository/PackSource.java");
 
     #[test]
     fn pack_type_directories_match_java() {
@@ -221,6 +346,78 @@ mod tests {
                 fixed_position: false,
             }
         );
+    }
+
+    #[test]
+    fn pack_source_decoration_and_auto_add_flags_match_java() {
+        assert_eq!(
+            PackSourceModel::Default
+                .decorate(Component::literal("plain"))
+                .get_string(),
+            "plain"
+        );
+
+        let built_in = PackSourceModel::BuiltIn.decorate(Component::literal("vanilla"));
+        assert_eq!(
+            built_in.get_style().get_color().map(TextColor::serialize),
+            Some("gray".to_string())
+        );
+        match built_in.get_contents() {
+            ComponentContent::Translatable { key, args, .. } => {
+                assert_eq!(key, "pack.nameAndSource");
+                assert_eq!(args.len(), 2);
+            }
+            other => panic!("pack source decoration should be translatable, got {other:?}"),
+        }
+
+        assert!(PackSourceModel::Default.should_add_automatically());
+        assert!(PackSourceModel::BuiltIn.should_add_automatically());
+        assert!(!PackSourceModel::Feature.should_add_automatically());
+        assert!(PackSourceModel::World.should_add_automatically());
+        assert!(PackSourceModel::Server.should_add_automatically());
+    }
+
+    #[test]
+    fn pack_location_chat_link_matches_java_component_shape() {
+        let location = PackLocationInfoModel::new(
+            "file/My Pack",
+            Component::literal("Display Name"),
+            PackSourceModel::BuiltIn,
+            Some(KnownPack::vanilla("core", "26.1.2")),
+        );
+        let link = location.create_chat_link(false, Component::literal("Description"));
+
+        assert_eq!(
+            link.style.get_color().map(TextColor::serialize),
+            Some("red".to_string())
+        );
+        assert_eq!(link.style.get_insertion(), Some("\"file/My Pack\""));
+        match link.get_contents() {
+            ComponentContent::Translatable { key, args, .. } => {
+                assert_eq!(key, "chat.square_brackets");
+                assert_eq!(args.len(), 1);
+            }
+            other => panic!("chat link should be square-brackets translation, got {other:?}"),
+        }
+        match link.style.get_hover_event() {
+            Some(HoverEvent::Text(text)) => {
+                assert_eq!(text.get_string(), "Display Name\nDescription");
+            }
+            other => panic!("chat link should use show_text hover, got {other:?}"),
+        }
+
+        let enabled = PackLocationInfoModel::new(
+            "simple_id",
+            Component::literal("Title"),
+            PackSourceModel::Default,
+            None,
+        )
+        .create_chat_link(true, Component::literal("Desc"));
+        assert_eq!(
+            enabled.style.get_color().map(TextColor::serialize),
+            Some("green".to_string())
+        );
+        assert_eq!(enabled.style.get_insertion(), Some("simple_id"));
     }
 
     #[test]
@@ -300,6 +497,15 @@ mod tests {
             assert!(OVERLAY_METADATA_SECTION_JAVA.contains(needle));
         }
 
+        for needle in [
+            "ComponentUtils.wrapInSquareBrackets(this.source.decorate(Component.literal(this.id)))",
+            "enabled ? ChatFormatting.GREEN : ChatFormatting.RED",
+            "StringArgumentType.escapeIfRequired(this.id)",
+            "new HoverEvent.ShowText(Component.empty().append(this.title).append(\"\\n\").append(description))",
+        ] {
+            assert!(PACK_LOCATION_INFO_JAVA.contains(needle));
+        }
+
         assert!(PACK_SELECTION_CONFIG_JAVA.contains(
             "public record PackSelectionConfig(boolean required, Pack.Position defaultPosition, boolean fixedPosition)"
         ));
@@ -318,6 +524,17 @@ mod tests {
             "return type == this.type ? Optional.of(this.value) : Optional.empty();",
         ] {
             assert!(METADATA_SECTION_TYPE_JAVA.contains(needle));
+        }
+
+        for needle in [
+            "PackSource DEFAULT = create(NO_DECORATION, true);",
+            "PackSource BUILT_IN = create(decorateWithSource(\"pack.source.builtin\"), true);",
+            "PackSource FEATURE = create(decorateWithSource(\"pack.source.feature\"), false);",
+            "PackSource WORLD = create(decorateWithSource(\"pack.source.world\"), true);",
+            "PackSource SERVER = create(decorateWithSource(\"pack.source.server\"), true);",
+            "Component.translatable(\"pack.nameAndSource\", packDescription, description).withStyle(ChatFormatting.GRAY)",
+        ] {
+            assert!(PACK_SOURCE_JAVA.contains(needle));
         }
     }
 
