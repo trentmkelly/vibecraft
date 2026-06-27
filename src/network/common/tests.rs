@@ -8,6 +8,7 @@ use super::{
     ServerLinkType, ServerboundClientInformationPacket, ServerboundCustomClickActionPacket,
     ServerboundCustomPayloadPacket, ServerboundKeepAlivePacket, ServerboundPongPacket,
     ServerboundResourcePackPacket, TagNetworkPayload, MAX_SERVERBOUND_CUSTOM_PAYLOAD_SIZE,
+    CLIENT_INFORMATION_MAX_LANGUAGE_LENGTH,
 };
 use crate::network::codec::{ComponentJson, Uuid};
 use crate::registry::Identifier;
@@ -308,6 +309,50 @@ fn round_trips_client_information_with_vanilla_defaults() {
     assert_eq!(packet.information.chat_visibility, ChatVisibility::Full);
     assert_eq!(packet.information.main_hand, HumanoidArm::Right);
     assert_eq!(packet.information.particle_status, ParticleStatus::All);
+    assert_eq!(CLIENT_INFORMATION_MAX_LANGUAGE_LENGTH, 16);
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn client_information_source_matches_java_26_1_2() {
+    const CLIENT_INFORMATION: &str =
+        vibecraft_java_source!("/net/minecraft/server/level/ClientInformation.java");
+
+    for sentinel in [
+        "public record ClientInformation(",
+        "String language,",
+        "int viewDistance,",
+        "ChatVisiblity chatVisibility,",
+        "boolean chatColors,",
+        "int modelCustomisation,",
+        "HumanoidArm mainHand,",
+        "boolean textFilteringEnabled,",
+        "boolean allowsListing,",
+        "ParticleStatus particleStatus",
+        "public static final int MAX_LANGUAGE_LENGTH = 16;",
+        "input.readUtf(16)",
+        "input.readByte()",
+        "input.readEnum(ChatVisiblity.class)",
+        "input.readBoolean()",
+        "input.readUnsignedByte()",
+        "input.readEnum(HumanoidArm.class)",
+        "input.readEnum(ParticleStatus.class)",
+        "output.writeUtf(this.language);",
+        "output.writeByte(this.viewDistance);",
+        "output.writeEnum(this.chatVisibility);",
+        "output.writeBoolean(this.chatColors);",
+        "output.writeByte(this.modelCustomisation);",
+        "output.writeEnum(this.mainHand);",
+        "output.writeBoolean(this.textFilteringEnabled);",
+        "output.writeBoolean(this.allowsListing);",
+        "output.writeEnum(this.particleStatus);",
+        "return new ClientInformation(\"en_us\", 2, ChatVisiblity.FULL, true, 0, Player.DEFAULT_MAIN_HAND, false, false, ParticleStatus.ALL);",
+    ] {
+        assert!(
+            CLIENT_INFORMATION.contains(sentinel),
+            "ClientInformation.java is missing sentinel: {sentinel}"
+        );
+    }
 }
 
 #[test]

@@ -15,6 +15,7 @@ use crate::registry::Identifier;
 
 pub const MAX_CLIENTBOUND_CUSTOM_PAYLOAD_SIZE: usize = 1_048_576;
 pub const MAX_SERVERBOUND_CUSTOM_PAYLOAD_SIZE: usize = 32_767;
+pub const CLIENT_INFORMATION_MAX_LANGUAGE_LENGTH: usize = 16;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientboundKeepAlivePacket {
@@ -560,7 +561,7 @@ impl Default for ClientInformation {
 impl ClientInformation {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         Ok(Self {
-            language: read_string(reader, 16)?,
+            language: read_string(reader, CLIENT_INFORMATION_MAX_LANGUAGE_LENGTH)?,
             view_distance: read_i8(reader)?,
             chat_visibility: ChatVisibility::from_index(read_enum_index(reader, 3)?)?,
             chat_colors: read_bool(reader)?,
@@ -573,7 +574,7 @@ impl ClientInformation {
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-        write_string(writer, &self.language, 16)?;
+        write_string(writer, &self.language, CLIENT_INFORMATION_MAX_LANGUAGE_LENGTH)?;
         writer.write_all(&self.view_distance.to_be_bytes())?;
         write_enum_index(writer, self.chat_visibility.index(), 3)?;
         write_bool(writer, self.chat_colors)?;
