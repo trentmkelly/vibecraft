@@ -587,6 +587,7 @@ mod item_sign_applicator;
 mod item_stack;
 mod jsonrpc_api;
 mod jsonrpc_methods;
+mod jsonrpc_player_service;
 mod item_swing_animation_component;
 mod item_tags;
 mod item_tooltip_components;
