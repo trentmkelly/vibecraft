@@ -1608,7 +1608,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/server/level`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/BlockDestructionProgress.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/BlockDestructionProgress.java`. Rust `server_level_block_destruction_progress::BlockDestructionProgressModel` mirrors Java 26.1.2's id/BlockPos fields, progress setter clamping only above 10, updated render tick storage, equality and hash-code by id only, and `compareTo` ordering by progress then id, with Java source sentinels pinned by `block_destruction_progress_source_matches_java_26_1_2`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/ChunkGenerationTask.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/ChunkHolder.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/level/ChunkLevel.java`.

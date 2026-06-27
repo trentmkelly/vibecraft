@@ -682,6 +682,7 @@ mod server_function_library;
 mod server_function_manager;
 mod server_info;
 mod server_interface;
+mod server_level_block_destruction_progress;
 mod server_links;
 mod server_registry_layer;
 mod server_tick_rate_manager;
