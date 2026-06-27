@@ -590,6 +590,7 @@ mod jsonrpc_api;
 mod jsonrpc_methods;
 mod jsonrpc_operator_service;
 mod jsonrpc_player_service;
+mod jsonrpc_server_state_service;
 mod item_swing_animation_component;
 mod item_tags;
 mod item_tooltip_components;
