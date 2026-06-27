@@ -1751,7 +1751,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/repository/BuiltInPackSource.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/repository/FolderRepositorySource.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/repository/KnownPack.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/repository/KnownPack.java`. Rust `network::configuration::KnownPack` mirrors the namespace/id/version record fields, UTF-8 stream codec order, `VANILLA_NAMESPACE`, Java-current-version `vanilla(id)` construction, `isVanilla`, and colon-separated `toString`; verified by `VIBECRAFT_SKIP_LINE_CHECK=1 cargo test -q -j 1 known_pack --bin vibecraft`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/repository/Pack.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/repository/PackCompatibility.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/packs/repository/PackDetector.java`.

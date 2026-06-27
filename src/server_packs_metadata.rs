@@ -383,7 +383,7 @@ mod tests {
             "file/My Pack",
             Component::literal("Display Name"),
             PackSourceModel::BuiltIn,
-            Some(KnownPack::vanilla("core", "26.1.2")),
+            Some(KnownPack::vanilla("core")),
         );
         let link = location.create_chat_link(false, Component::literal("Description"));
 

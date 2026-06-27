@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use std::fmt;
 use std::io::{self, Read, Write};
 
 use crate::network::codec::{
@@ -8,6 +9,7 @@ use crate::network::codec::{
 };
 use crate::registry::{Identifier, Registry};
 use crate::storage::nbt::Tag;
+use crate::world_version::CURRENT_VERSION_ID;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClientboundFinishConfigurationPacket;
@@ -135,9 +137,27 @@ impl ClientboundUpdateEnabledFeaturesPacket {
 }
 
 impl KnownPack {
-    pub fn vanilla(id: impl Into<String>, version: impl Into<String>) -> Self {
+    pub const VANILLA_NAMESPACE: &'static str = "minecraft";
+
+    pub fn new(
+        namespace: impl Into<String>,
+        id: impl Into<String>,
+        version: impl Into<String>,
+    ) -> Self {
         Self {
-            namespace: "minecraft".to_string(),
+            namespace: namespace.into(),
+            id: id.into(),
+            version: version.into(),
+        }
+    }
+
+    pub fn vanilla(id: impl Into<String>) -> Self {
+        Self::new(Self::VANILLA_NAMESPACE, id, CURRENT_VERSION_ID)
+    }
+
+    pub fn vanilla_with_version(id: impl Into<String>, version: impl Into<String>) -> Self {
+        Self {
+            namespace: Self::VANILLA_NAMESPACE.to_string(),
             id: id.into(),
             version: version.into(),
         }
@@ -159,6 +179,12 @@ impl KnownPack {
         write_string(writer, &self.namespace, 32767)?;
         write_string(writer, &self.id, 32767)?;
         write_string(writer, &self.version, 32767)
+    }
+}
+
+impl fmt::Display for KnownPack {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{}:{}:{}", self.namespace, self.id, self.version)
     }
 }
 
@@ -387,6 +413,7 @@ mod tests {
     };
     use crate::registry::{Identifier, Lifecycle, Registry};
     use crate::storage::nbt::Tag;
+    use crate::world_version::CURRENT_VERSION_ID;
     use std::io::Cursor;
 
     fn assert_contains_all(source: &str, name: &str, sentinels: &[&str]) {
@@ -628,6 +655,7 @@ mod tests {
                 "public static final String VANILLA_NAMESPACE = \"minecraft\";",
                 "return new KnownPack(\"minecraft\", id, SharedConstants.getCurrentVersion().id());",
                 "return this.namespace.equals(\"minecraft\");",
+                "return this.namespace + \":\" + this.id + \":\" + this.version;",
             ],
         );
 
@@ -655,8 +683,12 @@ mod tests {
             ],
         );
 
-        let pack = KnownPack::vanilla("core", "26.1.2");
+        let pack = KnownPack::vanilla("core");
         assert!(pack.is_vanilla());
+        assert_eq!(KnownPack::VANILLA_NAMESPACE, "minecraft");
+        assert_eq!(pack.version, CURRENT_VERSION_ID);
+        assert_eq!(pack.to_string(), format!("minecraft:core:{CURRENT_VERSION_ID}"));
+        assert!(!KnownPack::new("custom", "core", CURRENT_VERSION_ID).is_vanilla());
 
         let clientbound = ClientboundSelectKnownPacks {
             known_packs: vec![pack.clone()],
@@ -711,7 +743,7 @@ mod tests {
     #[test]
     fn configuration_session_syncs_registries_features_known_packs_and_code_of_conduct() {
         let feature = Identifier::parse("minecraft:vanilla").unwrap();
-        let pack = KnownPack::vanilla("core", "26.1.2");
+        let pack = KnownPack::vanilla("core");
         let registry = ClientboundRegistryDataPacket {
             registry: Identifier::parse("minecraft:damage_type").unwrap(),
             entries: vec![PackedRegistryEntry {
@@ -808,11 +840,11 @@ mod tests {
     #[test]
     fn configuration_session_rejects_unoffered_known_packs() {
         let mut session = ConfigurationSession::new(Vec::new());
-        session.offer_known_packs(vec![KnownPack::vanilla("core", "26.1.2")]);
+        session.offer_known_packs(vec![KnownPack::vanilla("core")]);
         session.start();
         let err = session
             .select_known_packs(ServerboundSelectKnownPacks {
-                known_packs: vec![KnownPack::vanilla("other", "26.1.2")],
+                known_packs: vec![KnownPack::vanilla("other")],
             })
             .unwrap_err();
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
