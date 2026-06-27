@@ -610,6 +610,92 @@ fn json_rpc_errors_and_envelopes_use_standard_codes() {
 }
 
 #[test]
+fn json_rpc_utils_match_java_envelope_helpers_and_accessors() {
+    for sentinel in [
+        "public static final String JSON_RPC_VERSION = \"2.0\";",
+        "public static final String OPEN_RPC_VERSION = \"1.3.2\";",
+        "public static JsonObject createSuccessResult(final JsonElement id, final JsonElement result)",
+        "response.addProperty(\"jsonrpc\", \"2.0\");",
+        "response.add(\"id\", id);",
+        "response.add(\"result\", result);",
+        "public static JsonObject createRequest(final @Nullable Integer id, final Identifier method, final List<JsonElement> params)",
+        "if (id != null)",
+        "request.addProperty(\"method\", method.toString());",
+        "if (!params.isEmpty())",
+        "request.add(\"params\", jsonArray);",
+        "public static @Nullable JsonElement getRequestId(final JsonObject jsonObject)",
+        "return jsonObject.get(\"id\");",
+        "public static @Nullable String getMethodName(final JsonObject jsonObject)",
+        "return GsonHelper.getAsString(jsonObject, \"method\", null);",
+        "public static @Nullable JsonElement getParams(final JsonObject jsonObject)",
+        "return jsonObject.get(\"params\");",
+        "public static @Nullable JsonElement getResult(final JsonObject jsonObject)",
+        "return jsonObject.get(\"result\");",
+        "public static @Nullable JsonObject getError(final JsonObject jsonObject)",
+        "return GsonHelper.getAsJsonObject(jsonObject, \"error\", null);",
+    ] {
+        assert!(
+            JSON_RPC_UTILS_JAVA.contains(sentinel),
+            "JsonRPCUtils.java missing sentinel: {sentinel}"
+        );
+    }
+
+    assert_eq!(JSON_RPC_VERSION, "2.0");
+    assert_eq!(OPEN_RPC_VERSION, "1.3.2");
+    assert_eq!(
+        JsonRpcUtils::create_success_result(JsonRpcId::Number(4), "{\"ok\":true}"),
+        "{\"jsonrpc\":\"2.0\",\"id\":4,\"result\":{\"ok\":true}}"
+    );
+    assert_eq!(
+        JsonRpcUtils::create_request(None, "server/status", &[]),
+        "{\"jsonrpc\":\"2.0\",\"method\":\"server/status\"}"
+    );
+    assert_eq!(
+        JsonRpcUtils::create_request(Some(8), "players/kick", &["{\"name\":\"Steve\"}", "true"]),
+        "{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"players/kick\",\"params\":[{\"name\":\"Steve\"},true]}"
+    );
+    assert_eq!(
+        JsonRpcUtils::create_error(JsonRpcId::Null, "Invalid Request", -32600, Some("")),
+        "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32600,\"message\":\"Invalid Request\"}}"
+    );
+    assert_eq!(
+        JsonRpcUtils::create_error(
+            JsonRpcId::String("req".to_string()),
+            "Invalid params",
+            -32602,
+            Some("missing player")
+        ),
+        "{\"jsonrpc\":\"2.0\",\"id\":\"req\",\"error\":{\"code\":-32602,\"message\":\"Invalid params\",\"data\":\"missing player\"}}"
+    );
+
+    let request = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 9,
+        "method": "players/get",
+        "params": [{"name": "Steve"}]
+    });
+    assert_eq!(
+        JsonRpcUtils::get_request_id(&request),
+        request.get("id")
+    );
+    assert_eq!(JsonRpcUtils::get_method_name(&request), Some("players/get"));
+    assert_eq!(JsonRpcUtils::get_params(&request), request.get("params"));
+    assert_eq!(JsonRpcUtils::get_result(&request), None);
+    assert_eq!(JsonRpcUtils::get_error(&request), None);
+
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 9,
+        "result": {"running": true},
+        "error": {"code": -32603}
+    });
+    assert_eq!(JsonRpcUtils::get_result(&response), response.get("result"));
+    assert!(JsonRpcUtils::get_error(&response)
+        .is_some_and(|error| error.contains_key("code")));
+    assert_eq!(JsonRpcUtils::get_method_name(&response), None);
+}
+
+#[test]
 fn json_rpc_dispatch_covers_declared_methods_and_validates_schemas() {
     let mut state = ManagementServerState::default();
     for method in INCOMING_METHODS {

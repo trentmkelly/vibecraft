@@ -9,6 +9,8 @@ use crate::player_access::NameAndId;
 use crate::server_properties::ServerProperties;
 
 pub const DEFAULT_KICK_MESSAGE: &str = "multiplayer.disconnect.kicked";
+pub const JSON_RPC_VERSION: &str = "2.0";
+pub const OPEN_RPC_VERSION: &str = "1.3.2";
 
 pub const INCOMING_METHODS: &[&str] = &[
     "rpc/discover",
@@ -374,7 +376,7 @@ pub enum JsonRpcId {
 }
 
 impl JsonRpcId {
-    fn to_json(&self) -> String {
+    pub fn to_json(&self) -> String {
         match self {
             Self::Number(value) => value.to_string(),
             Self::String(value) => json_string(value),
@@ -397,6 +399,81 @@ pub struct JsonRpcRequest {
     pub id: JsonRpcId,
     pub method: String,
     pub params: JsonRpcParams,
+}
+
+pub struct JsonRpcUtils;
+
+impl JsonRpcUtils {
+    pub fn create_success_result(id: JsonRpcId, result_json: &str) -> String {
+        format!(
+            "{{\"jsonrpc\":{},\"id\":{},\"result\":{}}}",
+            json_string(JSON_RPC_VERSION),
+            id.to_json(),
+            result_json
+        )
+    }
+
+    pub fn create_request(id: Option<i32>, method: &str, params_json: &[&str]) -> String {
+        let mut request = format!(
+            "{{\"jsonrpc\":{},",
+            json_string(JSON_RPC_VERSION),
+        );
+        if let Some(id) = id {
+            request.push_str("\"id\":");
+            request.push_str(&id.to_string());
+            request.push(',');
+        }
+        request.push_str("\"method\":");
+        request.push_str(&json_string(method));
+        if !params_json.is_empty() {
+            request.push_str(",\"params\":[");
+            request.push_str(&params_json.join(","));
+            request.push(']');
+        }
+        request.push('}');
+        request
+    }
+
+    pub fn create_error(
+        id: JsonRpcId,
+        message: &str,
+        error_code: i32,
+        data: Option<&str>,
+    ) -> String {
+        let mut error = format!(
+            "{{\"jsonrpc\":{},\"id\":{},\"error\":{{\"code\":{},\"message\":{}",
+            json_string(JSON_RPC_VERSION),
+            id.to_json(),
+            error_code,
+            json_string(message)
+        );
+        if let Some(data) = data.filter(|data| !data.trim().is_empty()) {
+            error.push_str(",\"data\":");
+            error.push_str(&json_string(data));
+        }
+        error.push_str("}}");
+        error
+    }
+
+    pub fn get_request_id(json_object: &serde_json::Value) -> Option<&serde_json::Value> {
+        json_object.get("id")
+    }
+
+    pub fn get_method_name(json_object: &serde_json::Value) -> Option<&str> {
+        json_object.get("method").and_then(serde_json::Value::as_str)
+    }
+
+    pub fn get_params(json_object: &serde_json::Value) -> Option<&serde_json::Value> {
+        json_object.get("params")
+    }
+
+    pub fn get_result(json_object: &serde_json::Value) -> Option<&serde_json::Value> {
+        json_object.get("result")
+    }
+
+    pub fn get_error(json_object: &serde_json::Value) -> Option<&serde_json::Map<String, serde_json::Value>> {
+        json_object.get("error").and_then(serde_json::Value::as_object)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -438,12 +515,14 @@ impl JsonRpcResponse {
     pub fn to_json(&self) -> String {
         match &self.result {
             Ok(result) => format!(
-                "{{\"jsonrpc\":\"2.0\",\"id\":{},\"result\":{}}}",
+                "{{\"jsonrpc\":{},\"id\":{},\"result\":{}}}",
+                json_string(JSON_RPC_VERSION),
                 self.id.to_json(),
                 result.to_json()
             ),
             Err(error) => format!(
-                "{{\"jsonrpc\":\"2.0\",\"id\":{},\"error\":{}}}",
+                "{{\"jsonrpc\":{},\"id\":{},\"error\":{}}}",
+                json_string(JSON_RPC_VERSION),
                 self.id.to_json(),
                 error.to_json()
             ),
