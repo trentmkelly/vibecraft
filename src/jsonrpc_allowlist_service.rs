@@ -42,6 +42,68 @@ pub trait MinecraftAllowListService {
     fn kick_unlisted_players(&mut self, client_info: ClientInfo);
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MinecraftAllowListServiceImplModel {
+    pub server_allowlist: JsonRpcAllowlist,
+    pub log_messages: Vec<(ClientInfo, String)>,
+    pub server_events: Vec<MinecraftAllowListServerEvent>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MinecraftAllowListServerEvent {
+    KickUnlistedPlayers,
+}
+
+impl MinecraftAllowListServiceImplModel {
+    pub fn new(server_allowlist: JsonRpcAllowlist) -> Self {
+        Self {
+            server_allowlist,
+            log_messages: Vec::new(),
+            server_events: Vec::new(),
+        }
+    }
+
+    fn log(&mut self, client_info: ClientInfo, message: String) {
+        self.log_messages.push((client_info, message));
+    }
+}
+
+impl MinecraftAllowListService for MinecraftAllowListServiceImplModel {
+    fn get_entries(&self) -> Vec<JsonRpcPlayerDto> {
+        MinecraftAllowListService::get_entries(&self.server_allowlist)
+    }
+
+    fn add(&mut self, infos: JsonRpcPlayerDto, client_info: ClientInfo) -> bool {
+        self.log(
+            client_info,
+            format!("Add player '{}' to allowlist", player_display(&infos)),
+        );
+        MinecraftAllowListService::add(&mut self.server_allowlist, infos, client_info)
+    }
+
+    fn clear(&mut self, client_info: ClientInfo) {
+        self.log(client_info, "Clear allowlist".to_string());
+        MinecraftAllowListService::clear(&mut self.server_allowlist, client_info);
+    }
+
+    fn remove(&mut self, name_and_id: &JsonRpcPlayerDto, client_info: ClientInfo) {
+        self.log(
+            client_info,
+            format!(
+                "Remove player '{}' from allowlist",
+                player_display(name_and_id)
+            ),
+        );
+        MinecraftAllowListService::remove(&mut self.server_allowlist, name_and_id, client_info);
+    }
+
+    fn kick_unlisted_players(&mut self, client_info: ClientInfo) {
+        self.log(client_info, "Kick unlisted players".to_string());
+        self.server_events
+            .push(MinecraftAllowListServerEvent::KickUnlistedPlayers);
+    }
+}
+
 impl MinecraftAllowListService for JsonRpcAllowlist {
     fn get_entries(&self) -> Vec<JsonRpcPlayerDto> {
         self.entries.clone()
@@ -77,6 +139,15 @@ impl MinecraftAllowListService for JsonRpcAllowlist {
         self.events
             .push(JsonRpcAllowlistEvent::KickUnlistedPlayers { client_info });
     }
+}
+
+fn player_display(player: &JsonRpcPlayerDto) -> String {
+    // Java's logger receives a NameAndId record. Records use this exact generated
+    // toString shape; retain `null` handling because PlayerDto represents both
+    // fields as optional at the JSON-RPC boundary.
+    let id = player.id.as_deref().unwrap_or("null");
+    let name = player.name.as_deref().unwrap_or("null");
+    format!("NameAndId[id={id}, name={name}]")
 }
 
 impl JsonRpcAllowlist {
@@ -397,6 +468,102 @@ mod tests {
                 JsonRpcAllowlistEvent::KickUnlistedPlayers { client_info },
                 JsonRpcAllowlistEvent::Clear { client_info },
             ]
+        );
+    }
+
+    #[test]
+    fn minecraft_allow_list_service_impl_logs_and_delegates_like_java() {
+        const MINECRAFT_ALLOW_LIST_SERVICE_IMPL: &str = vibecraft_java_source!(
+            "/net/minecraft/server/jsonrpc/internalapi/MinecraftAllowListServiceImpl.java"
+        );
+        for sentinel in [
+            "public class MinecraftAllowListServiceImpl implements MinecraftAllowListService",
+            "private final DedicatedServer server;",
+            "private final JsonRpcLogger jsonrpcLogger;",
+            "public MinecraftAllowListServiceImpl(final DedicatedServer server, final JsonRpcLogger jsonrpcLogger)",
+            "this.server = server;",
+            "this.jsonrpcLogger = jsonrpcLogger;",
+            "return this.server.getPlayerList().getWhiteList().getEntries();",
+            "this.jsonrpcLogger.log(clientInfo, \"Add player '{}' to allowlist\", infos.getUser());",
+            "return this.server.getPlayerList().getWhiteList().add(infos);",
+            "this.jsonrpcLogger.log(clientInfo, \"Clear allowlist\");",
+            "this.server.getPlayerList().getWhiteList().clear();",
+            "this.jsonrpcLogger.log(clientInfo, \"Remove player '{}' from allowlist\", nameAndId);",
+            "this.server.getPlayerList().getWhiteList().remove(nameAndId);",
+            "this.jsonrpcLogger.log(clientInfo, \"Kick unlisted players\");",
+            "this.server.kickUnlistedPlayers();",
+        ] {
+            assert!(
+                MINECRAFT_ALLOW_LIST_SERVICE_IMPL.contains(sentinel),
+                "MinecraftAllowListServiceImpl.java is missing sentinel: {sentinel}"
+            );
+        }
+
+        let steve = player("00000000-0000-0000-0000-000000000001", "Steve");
+        let alex = player("00000000-0000-0000-0000-000000000002", "Alex");
+        let client_info = ClientInfo::of(11);
+        let mut service =
+            MinecraftAllowListServiceImplModel::new(JsonRpcAllowlist::new(vec![steve.clone()]));
+
+        assert_eq!(
+            MinecraftAllowListService::get_entries(&service),
+            vec![steve.clone()]
+        );
+        assert!(MinecraftAllowListService::add(
+            &mut service,
+            alex.clone(),
+            client_info
+        ));
+        assert!(!MinecraftAllowListService::add(
+            &mut service,
+            alex.clone(),
+            client_info
+        ));
+        MinecraftAllowListService::remove(&mut service, &steve, client_info);
+        MinecraftAllowListService::clear(&mut service, client_info);
+        MinecraftAllowListService::kick_unlisted_players(&mut service, client_info);
+
+        assert_eq!(MinecraftAllowListService::get_entries(&service), vec![]);
+        assert_eq!(
+            service.log_messages,
+            vec![
+                (
+                    client_info,
+                    "Add player 'NameAndId[id=00000000-0000-0000-0000-000000000002, name=Alex]' to allowlist".to_string(),
+                ),
+                (
+                    client_info,
+                    "Add player 'NameAndId[id=00000000-0000-0000-0000-000000000002, name=Alex]' to allowlist".to_string(),
+                ),
+                (
+                    client_info,
+                    "Remove player 'NameAndId[id=00000000-0000-0000-0000-000000000001, name=Steve]' from allowlist".to_string(),
+                ),
+                (client_info, "Clear allowlist".to_string()),
+                (client_info, "Kick unlisted players".to_string()),
+            ]
+        );
+        assert_eq!(
+            service.server_allowlist.events,
+            vec![
+                JsonRpcAllowlistEvent::Add {
+                    user: alex.clone(),
+                    client_info,
+                },
+                JsonRpcAllowlistEvent::Add {
+                    user: alex,
+                    client_info,
+                },
+                JsonRpcAllowlistEvent::Remove {
+                    user: steve,
+                    client_info,
+                },
+                JsonRpcAllowlistEvent::Clear { client_info },
+            ]
+        );
+        assert_eq!(
+            service.server_events,
+            vec![MinecraftAllowListServerEvent::KickUnlistedPlayers]
         );
     }
 
