@@ -83,6 +83,90 @@ pub struct MinecraftBanLists {
     pub ip_bans: JsonRpcIpBanlist,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MinecraftBanListServiceImplModel {
+    pub server_ban_lists: MinecraftBanLists,
+    pub log_messages: Vec<(ClientInfo, String)>,
+}
+
+impl MinecraftBanListServiceImplModel {
+    pub const fn new(server_ban_lists: MinecraftBanLists) -> Self {
+        Self {
+            server_ban_lists,
+            log_messages: Vec::new(),
+        }
+    }
+
+    fn log(&mut self, client_info: ClientInfo, message: String) {
+        self.log_messages.push((client_info, message));
+    }
+}
+
+impl MinecraftBanListService for MinecraftBanListServiceImplModel {
+    fn add_user_ban(&mut self, ban: JsonRpcUserBan, client_info: ClientInfo) {
+        let display_name = ban.player.name.as_deref().unwrap_or("(Unknown)");
+        let reason = ban
+            .reason
+            .as_deref()
+            .unwrap_or("Banned by an operator.");
+        self.log(
+            client_info,
+            format!("Add player '{display_name}' to banlist. Reason: '{reason}'"),
+        );
+        self.server_ban_lists.add_user_ban(ban, client_info);
+    }
+
+    fn remove_user_ban(&mut self, name_and_id: &JsonRpcPlayerDto, client_info: ClientInfo) {
+        self.log(
+            client_info,
+            format!(
+                "Remove player '{}' from banlist",
+                name_and_id_display(name_and_id)
+            ),
+        );
+        self.server_ban_lists
+            .remove_user_ban(name_and_id, client_info);
+    }
+
+    fn get_user_ban_entries(&self) -> Vec<JsonRpcUserBan> {
+        self.server_ban_lists.get_user_ban_entries()
+    }
+
+    fn get_ip_ban_entries(&self) -> Vec<JsonRpcIpBan> {
+        self.server_ban_lists.get_ip_ban_entries()
+    }
+
+    fn add_ip_ban(&mut self, ip_ban_entry: JsonRpcIpBan, client_info: ClientInfo) {
+        self.log(
+            client_info,
+            format!("Add ip '{}' to ban list", ip_ban_entry.ip),
+        );
+        self.server_ban_lists
+            .add_ip_ban(ip_ban_entry, client_info);
+    }
+
+    fn clear_ip_bans(&mut self, client_info: ClientInfo) {
+        self.log(client_info, "Clear ip ban list".to_string());
+        self.server_ban_lists.clear_ip_bans(client_info);
+    }
+
+    fn remove_ip_ban(&mut self, ip: &str, client_info: ClientInfo) {
+        self.log(client_info, format!("Remove ip '{ip}' from ban list"));
+        self.server_ban_lists.remove_ip_ban(ip, client_info);
+    }
+
+    fn clear_user_bans(&mut self, client_info: ClientInfo) {
+        // Java intentionally performs this one mutation without a JSON-RPC log.
+        self.server_ban_lists.clear_user_bans(client_info);
+    }
+}
+
+fn name_and_id_display(player: &JsonRpcPlayerDto) -> String {
+    let id = player.id.as_deref().unwrap_or("null");
+    let name = player.name.as_deref().unwrap_or("null");
+    format!("NameAndId[id={id}, name={name}]")
+}
+
 impl MinecraftBanLists {
     pub const fn new(user_bans: JsonRpcBanlist, ip_bans: JsonRpcIpBanlist) -> Self {
         Self {
@@ -627,6 +711,89 @@ mod tests {
             service.ip_bans.events.last(),
             Some(&JsonRpcIpBanlistEvent::ClearIpBans { client_info })
         );
+    }
+
+    #[test]
+    fn minecraft_ban_list_service_impl_logs_and_delegates_like_java() {
+        let steve = player("11111111-1111-1111-1111-111111111111", "Steve");
+        let user_ban = ban(steve.clone(), None, "Console", None);
+        let first_ip_ban = ip_ban("192.0.2.10", Some("proxy abuse"));
+        let second_ip_ban = ip_ban("192.0.2.20", None);
+        let client_info = ClientInfo::of(32);
+        let mut service = MinecraftBanListServiceImplModel::new(MinecraftBanLists::new(
+            JsonRpcBanlist::default(),
+            JsonRpcIpBanlist::new(vec![first_ip_ban.clone()]),
+        ));
+
+        service.add_user_ban(user_ban.clone(), client_info);
+        service.add_ip_ban(second_ip_ban.clone(), client_info);
+        assert_eq!(service.get_user_ban_entries(), vec![user_ban]);
+        assert_eq!(
+            service.get_ip_ban_entries(),
+            vec![first_ip_ban, second_ip_ban]
+        );
+        service.remove_user_ban(&steve, client_info);
+        service.remove_ip_ban("192.0.2.10", client_info);
+        service.clear_user_bans(client_info);
+        service.clear_ip_bans(client_info);
+
+        assert!(service.get_user_ban_entries().is_empty());
+        assert!(service.get_ip_ban_entries().is_empty());
+        assert_eq!(
+            service.log_messages,
+            vec![
+                (
+                    client_info,
+                    "Add player 'Steve' to banlist. Reason: 'Banned by an operator.'".to_string(),
+                ),
+                (
+                    client_info,
+                    "Add ip '192.0.2.20' to ban list".to_string(),
+                ),
+                (
+                    client_info,
+                    "Remove player 'NameAndId[id=11111111-1111-1111-1111-111111111111, name=Steve]' from banlist".to_string(),
+                ),
+                (
+                    client_info,
+                    "Remove ip '192.0.2.10' from ban list".to_string(),
+                ),
+                (client_info, "Clear ip ban list".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn minecraft_ban_list_service_impl_matches_java_contract() {
+        const SOURCE: &str = vibecraft_java_source!(
+            "/net/minecraft/server/jsonrpc/internalapi/MinecraftBanListServiceImpl.java"
+        );
+        for sentinel in [
+            "private final MinecraftServer server;",
+            "private final JsonRpcLogger jsonrpcLogger;",
+            "public MinecraftBanListServiceImpl(final MinecraftServer server, final JsonRpcLogger jsonrpcLogger)",
+            "this.server = server;",
+            "this.jsonrpcLogger = jsonrpcLogger;",
+            "this.jsonrpcLogger.log(clientInfo, \"Add player '{}' to banlist. Reason: '{}'\", ban.getDisplayName(), ban.getReasonMessage().getString());",
+            "this.server.getPlayerList().getBans().add(ban);",
+            "this.jsonrpcLogger.log(clientInfo, \"Remove player '{}' from banlist\", nameAndId);",
+            "this.server.getPlayerList().getBans().remove(nameAndId);",
+            "this.server.getPlayerList().getBans().clear();",
+            "return this.server.getPlayerList().getBans().getEntries();",
+            "return this.server.getPlayerList().getIpBans().getEntries();",
+            "this.jsonrpcLogger.log(clientInfo, \"Add ip '{}' to ban list\", ipBanEntry.getUser());",
+            "this.server.getPlayerList().getIpBans().add(ipBanEntry);",
+            "this.jsonrpcLogger.log(clientInfo, \"Clear ip ban list\");",
+            "this.server.getPlayerList().getIpBans().clear();",
+            "this.jsonrpcLogger.log(clientInfo, \"Remove ip '{}' from ban list\", ip);",
+            "this.server.getPlayerList().getIpBans().remove(ip);",
+        ] {
+            assert!(
+                SOURCE.contains(sentinel),
+                "MinecraftBanListServiceImpl.java missing: {sentinel}"
+            );
+        }
     }
 
     #[test]
