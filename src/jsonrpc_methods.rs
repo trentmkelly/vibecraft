@@ -9,6 +9,7 @@ use crate::game_rules::{
     vanilla_game_rules,
 };
 use crate::jsonrpc_api::{JsonRpcSchema, MethodInfo, NamedMethodInfo, SchemaComponent};
+use crate::jsonrpc_minecraft_api::DedicatedServerIdentity;
 use crate::network::play::GameMode;
 use crate::registry::Identifier;
 
@@ -118,6 +119,64 @@ pub trait MinecraftGameRuleService {
         value: GameRuleValue,
     ) -> JsonRpcGameRuleUpdate;
     fn get_available_game_rules(&self) -> Vec<GameRuleDefinition>;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MinecraftGameRuleServiceImplModel {
+    pub server: DedicatedServerIdentity,
+    pub game_rules: GameRules,
+    pub log_messages: Vec<(ClientInfo, String)>,
+}
+
+impl MinecraftGameRuleServiceImplModel {
+    pub const fn new(server: DedicatedServerIdentity, game_rules: GameRules) -> Self {
+        Self {
+            server,
+            game_rules,
+            log_messages: Vec::new(),
+        }
+    }
+}
+
+impl MinecraftGameRuleService for MinecraftGameRuleServiceImplModel {
+    fn update_game_rule(
+        &mut self,
+        update: JsonRpcGameRuleUpdate,
+        client_info: ClientInfo,
+    ) -> Result<JsonRpcGameRuleUpdate, GameRuleError> {
+        let old_value = self.game_rules.get(update.game_rule.name);
+        let result = self
+            .game_rules
+            .set(update.game_rule.name, &update.value.sync_value());
+        result?;
+        let old_value = old_value.ok_or(GameRuleError::DisabledByFeature)?;
+        self.log_messages.push((
+            client_info,
+            format!(
+                "Game rule 'minecraft:{}' updated from '{}' to '{}'",
+                update.game_rule.name,
+                old_value.sync_value(),
+                update.value.sync_value()
+            ),
+        ));
+        Ok(update)
+    }
+
+    fn get_rule_value(&self, game_rule: GameRuleDefinition) -> Option<GameRuleValue> {
+        self.game_rules.get(game_rule.name)
+    }
+
+    fn get_typed_rule(
+        &self,
+        game_rule: GameRuleDefinition,
+        value: GameRuleValue,
+    ) -> JsonRpcGameRuleUpdate {
+        JsonRpcGameRuleUpdate::new(game_rule, value)
+    }
+
+    fn get_available_game_rules(&self) -> Vec<GameRuleDefinition> {
+        self.game_rules.get_available_game_rules()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -952,6 +1011,89 @@ mod tests {
             assert!(
                 SOURCE.contains(sentinel),
                 "MinecraftGameRuleService.java missing: {sentinel}"
+            );
+        }
+    }
+
+    #[test]
+    fn minecraft_game_rule_service_impl_mutates_then_logs_serialized_values() {
+        let server = DedicatedServerIdentity(51);
+        let keep_inventory = game_rule("keep_inventory");
+        let max_entity_cramming = game_rule("max_entity_cramming");
+        let mut service = MinecraftGameRuleServiceImplModel::new(server, GameRules::new(false));
+
+        let bool_update =
+            JsonRpcGameRuleUpdate::new(keep_inventory, GameRuleValue::Bool(true));
+        let int_update =
+            JsonRpcGameRuleUpdate::new(max_entity_cramming, GameRuleValue::Int(9));
+        assert_eq!(
+            service.update_game_rule(bool_update, ClientInfo::of(52)),
+            Ok(bool_update)
+        );
+        assert_eq!(
+            service.update_game_rule(int_update, ClientInfo::of(53)),
+            Ok(int_update)
+        );
+        assert_eq!(service.server, server);
+        assert_eq!(
+            service.get_rule_value(keep_inventory),
+            Some(GameRuleValue::Bool(true))
+        );
+        assert_eq!(
+            service.get_rule_value(max_entity_cramming),
+            Some(GameRuleValue::Int(9))
+        );
+        assert_eq!(
+            service.log_messages,
+            vec![
+                (
+                    ClientInfo::of(52),
+                    "Game rule 'minecraft:keep_inventory' updated from 'false' to 'true'"
+                        .to_string(),
+                ),
+                (
+                    ClientInfo::of(53),
+                    "Game rule 'minecraft:max_entity_cramming' updated from '24' to '9'"
+                        .to_string(),
+                ),
+            ]
+        );
+
+        let rejected = JsonRpcGameRuleUpdate::new(keep_inventory, GameRuleValue::Int(1));
+        assert_eq!(
+            service.update_game_rule(rejected, ClientInfo::of(54)),
+            Err(GameRuleError::WrongType)
+        );
+        assert_eq!(service.log_messages.len(), 2);
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn minecraft_game_rule_service_impl_matches_java_contract() {
+        const SOURCE: &str = vibecraft_java_source!(
+            "/net/minecraft/server/jsonrpc/internalapi/MinecraftGameRuleServiceImpl.java"
+        );
+        for sentinel in [
+            "private final DedicatedServer server;",
+            "private final GameRules gameRules;",
+            "private final JsonRpcLogger jsonrpcLogger;",
+            "public MinecraftGameRuleServiceImpl(final DedicatedServer server, final JsonRpcLogger jsonrpcLogger)",
+            "this.server = server;",
+            "this.gameRules = server.getGameRules();",
+            "this.jsonrpcLogger = jsonrpcLogger;",
+            "GameRule<T> gameRule = update.gameRule();",
+            "T oldValue = this.gameRules.get(gameRule);",
+            "T newValue = update.value();",
+            "this.gameRules.set(gameRule, newValue, this.server);",
+            "this.jsonrpcLogger.log(clientInfo, \"Game rule '{}' updated from '{}' to '{}'\", gameRule.id(), gameRule.serialize(oldValue), gameRule.serialize(newValue));",
+            "return update;",
+            "return new GameRulesService.GameRuleUpdate<>(gameRule, value);",
+            "return this.gameRules.availableRules();",
+            "return this.gameRules.get(gameRule);",
+        ] {
+            assert!(
+                SOURCE.contains(sentinel),
+                "MinecraftGameRuleServiceImpl.java missing: {sentinel}"
             );
         }
     }
