@@ -105,6 +105,21 @@ pub struct JsonRpcGameRuleUpdate {
 
 pub struct GameRulesService;
 
+pub trait MinecraftGameRuleService {
+    fn update_game_rule(
+        &mut self,
+        update: JsonRpcGameRuleUpdate,
+        client_info: ClientInfo,
+    ) -> Result<JsonRpcGameRuleUpdate, GameRuleError>;
+    fn get_rule_value(&self, game_rule: GameRuleDefinition) -> Option<GameRuleValue>;
+    fn get_typed_rule(
+        &self,
+        game_rule: GameRuleDefinition,
+        value: GameRuleValue,
+    ) -> JsonRpcGameRuleUpdate;
+    fn get_available_game_rules(&self) -> Vec<GameRuleDefinition>;
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JsonRpcDifficulty {
     Peaceful,
@@ -340,6 +355,36 @@ impl GameRulesService {
     ) -> Result<JsonRpcGameRuleUpdate, GameRuleError> {
         game_rules.set(update.game_rule.name, update.value.sync_value().as_str())?;
         Ok(update)
+    }
+}
+
+impl MinecraftGameRuleService for GameRules {
+    fn update_game_rule(
+        &mut self,
+        update: JsonRpcGameRuleUpdate,
+        client_info: ClientInfo,
+    ) -> Result<JsonRpcGameRuleUpdate, GameRuleError> {
+        GameRulesService::update(self, update, client_info)
+    }
+
+    fn get_rule_value(&self, game_rule: GameRuleDefinition) -> Option<GameRuleValue> {
+        self.get(game_rule.name)
+    }
+
+    fn get_typed_rule(
+        &self,
+        game_rule: GameRuleDefinition,
+        value: GameRuleValue,
+    ) -> JsonRpcGameRuleUpdate {
+        GameRulesService::get_typed_rule(game_rule, value)
+    }
+
+    fn get_available_game_rules(&self) -> Vec<GameRuleDefinition> {
+        vanilla_game_rules()
+            .iter()
+            .filter(|game_rule| self.get(game_rule.name).is_some())
+            .copied()
+            .collect()
     }
 }
 
@@ -845,6 +890,70 @@ mod tests {
             ))
         );
         assert_eq!(game_rules.get("max_entity_cramming"), Some(GameRuleValue::Int(7)));
+    }
+
+    #[test]
+    fn minecraft_game_rule_service_covers_typed_values_updates_and_availability() {
+        let keep_inventory = game_rule("keep_inventory");
+        let max_entity_cramming = game_rule("max_entity_cramming");
+        let max_minecart_speed = game_rule("max_minecart_speed");
+        let mut game_rules = GameRules::new(false);
+
+        assert_eq!(
+            game_rules.get_rule_value(keep_inventory),
+            Some(GameRuleValue::Bool(false))
+        );
+        assert_eq!(
+            game_rules.get_rule_value(max_entity_cramming),
+            Some(GameRuleValue::Int(24))
+        );
+        assert_eq!(
+            game_rules.get_typed_rule(keep_inventory, GameRuleValue::Bool(true)),
+            JsonRpcGameRuleUpdate::new(keep_inventory, GameRuleValue::Bool(true))
+        );
+        assert_eq!(
+            game_rules.update_game_rule(
+                JsonRpcGameRuleUpdate::new(max_entity_cramming, GameRuleValue::Int(8)),
+                ClientInfo::of(41),
+            ),
+            Ok(JsonRpcGameRuleUpdate::new(
+                max_entity_cramming,
+                GameRuleValue::Int(8)
+            ))
+        );
+        assert_eq!(
+            game_rules.get_rule_value(max_entity_cramming),
+            Some(GameRuleValue::Int(8))
+        );
+        assert!(!game_rules
+            .get_available_game_rules()
+            .contains(&max_minecart_speed));
+        assert!(GameRules::new(true)
+            .get_available_game_rules()
+            .contains(&max_minecart_speed));
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn minecraft_game_rule_service_interface_matches_java_contract() {
+        const SOURCE: &str = vibecraft_java_source!(
+            "/net/minecraft/server/jsonrpc/internalapi/MinecraftGameRuleService.java"
+        );
+        for sentinel in [
+            "import java.util.stream.Stream;",
+            "import net.minecraft.server.jsonrpc.methods.ClientInfo;",
+            "import net.minecraft.server.jsonrpc.methods.GameRulesService;",
+            "import net.minecraft.world.level.gamerules.GameRule;",
+            "<T> GameRulesService.GameRuleUpdate<T> updateGameRule(GameRulesService.GameRuleUpdate<T> update, ClientInfo clientInfo);",
+            "<T> T getRuleValue(GameRule<T> gameRule);",
+            "<T> GameRulesService.GameRuleUpdate<T> getTypedRule(GameRule<T> gameRule, T value);",
+            "Stream<GameRule<?>> getAvailableGameRules();",
+        ] {
+            assert!(
+                SOURCE.contains(sentinel),
+                "MinecraftGameRuleService.java missing: {sentinel}"
+            );
+        }
     }
 
     #[test]
