@@ -2,6 +2,7 @@
 
 use crate::command::PermissionLevel;
 use crate::jsonrpc_api::JsonRpcPlayerDto;
+use crate::jsonrpc_minecraft_api::DedicatedServerIdentity;
 use crate::jsonrpc_methods::ClientInfo;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,6 +63,77 @@ pub trait MinecraftOperatorListService {
 pub struct MinecraftOperatorListModel {
     pub operator_list: JsonRpcOperatorList,
     pub default_permission_level: PermissionLevel,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MinecraftOperatorListServiceImplModel {
+    pub minecraft_server: DedicatedServerIdentity,
+    pub player_list: MinecraftOperatorListModel,
+    pub log_messages: Vec<(ClientInfo, String)>,
+}
+
+impl MinecraftOperatorListServiceImplModel {
+    pub const fn new(
+        minecraft_server: DedicatedServerIdentity,
+        player_list: MinecraftOperatorListModel,
+    ) -> Self {
+        Self {
+            minecraft_server,
+            player_list,
+            log_messages: Vec::new(),
+        }
+    }
+
+    fn log_player(&mut self, client_info: ClientInfo, action: &str, user: &JsonRpcPlayerDto) {
+        self.log_messages.push((
+            client_info,
+            format!("{action} '{}'", name_and_id_display(user)),
+        ));
+    }
+}
+
+impl MinecraftOperatorListService for MinecraftOperatorListServiceImplModel {
+    fn get_entries(&self) -> Vec<JsonRpcOperatorOp> {
+        self.player_list.get_entries()
+    }
+
+    fn op_with_options(
+        &mut self,
+        name_and_id: JsonRpcPlayerDto,
+        permission_level: Option<PermissionLevel>,
+        can_bypass_player_limit: Option<bool>,
+        client_info: ClientInfo,
+    ) {
+        self.log_player(client_info, "Op", &name_and_id);
+        self.player_list.op_with_options(
+            name_and_id,
+            permission_level,
+            can_bypass_player_limit,
+            client_info,
+        );
+    }
+
+    fn op(&mut self, name_and_id: JsonRpcPlayerDto, client_info: ClientInfo) {
+        self.log_player(client_info, "Op", &name_and_id);
+        self.player_list.op(name_and_id, client_info);
+    }
+
+    fn deop(&mut self, name_and_id: &JsonRpcPlayerDto, client_info: ClientInfo) {
+        self.log_player(client_info, "Deop", name_and_id);
+        self.player_list.deop(name_and_id, client_info);
+    }
+
+    fn clear(&mut self, client_info: ClientInfo) {
+        self.log_messages
+            .push((client_info, "Clear operator list".to_string()));
+        self.player_list.clear(client_info);
+    }
+}
+
+fn name_and_id_display(player: &JsonRpcPlayerDto) -> String {
+    let id = player.id.as_deref().unwrap_or("null");
+    let name = player.name.as_deref().unwrap_or("null");
+    format!("NameAndId[id={id}, name={name}]")
 }
 
 impl MinecraftOperatorListModel {
@@ -536,6 +608,101 @@ mod tests {
             assert!(
                 SOURCE.contains(sentinel),
                 "MinecraftOperatorListService.java missing: {sentinel}"
+            );
+        }
+    }
+
+    #[test]
+    fn minecraft_operator_list_service_impl_logs_and_delegates_like_java() {
+        let server = DedicatedServerIdentity(71);
+        let steve = player("11111111-1111-1111-1111-111111111111", "Steve");
+        let alex = player("22222222-2222-2222-2222-222222222222", "Alex");
+        let mut service = MinecraftOperatorListServiceImplModel::new(
+            server,
+            MinecraftOperatorListModel::new(
+                JsonRpcOperatorList::new(vec![op(
+                    steve.clone(),
+                    Some(PermissionLevel::Admins),
+                    Some(true),
+                )]),
+                PermissionLevel::Gamemasters,
+            ),
+        );
+
+        assert_eq!(service.minecraft_server, server);
+        assert_eq!(service.get_entries().len(), 1);
+        service.op(steve.clone(), ClientInfo::of(72));
+        service.op_with_options(
+            alex.clone(),
+            Some(PermissionLevel::Owners),
+            Some(false),
+            ClientInfo::of(73),
+        );
+        assert_eq!(
+            service.get_entries(),
+            vec![
+                op(
+                    steve.clone(),
+                    Some(PermissionLevel::Gamemasters),
+                    Some(true),
+                ),
+                op(
+                    alex.clone(),
+                    Some(PermissionLevel::Owners),
+                    Some(false),
+                ),
+            ]
+        );
+        service.deop(&steve, ClientInfo::of(74));
+        service.clear(ClientInfo::of(75));
+        assert!(service.get_entries().is_empty());
+        assert_eq!(
+            service.log_messages,
+            vec![
+                (
+                    ClientInfo::of(72),
+                    "Op 'NameAndId[id=11111111-1111-1111-1111-111111111111, name=Steve]'"
+                        .to_string(),
+                ),
+                (
+                    ClientInfo::of(73),
+                    "Op 'NameAndId[id=22222222-2222-2222-2222-222222222222, name=Alex]'"
+                        .to_string(),
+                ),
+                (
+                    ClientInfo::of(74),
+                    "Deop 'NameAndId[id=11111111-1111-1111-1111-111111111111, name=Steve]'"
+                        .to_string(),
+                ),
+                (ClientInfo::of(75), "Clear operator list".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn minecraft_operator_list_service_impl_matches_java_contract() {
+        const SOURCE: &str = vibecraft_java_source!(
+            "/net/minecraft/server/jsonrpc/internalapi/MinecraftOperatorListServiceImpl.java"
+        );
+        for sentinel in [
+            "private final MinecraftServer minecraftServer;",
+            "private final JsonRpcLogger jsonrpcLogger;",
+            "public MinecraftOperatorListServiceImpl(final MinecraftServer minecraftServer, final JsonRpcLogger jsonrpcLogger)",
+            "this.minecraftServer = minecraftServer;",
+            "this.jsonrpcLogger = jsonrpcLogger;",
+            "return this.minecraftServer.getPlayerList().getOps().getEntries();",
+            "this.jsonrpcLogger.log(clientInfo, \"Op '{}'\", nameAndId);",
+            "this.minecraftServer.getPlayerList().op(nameAndId, permissionLevel.map(LevelBasedPermissionSet::forLevel), canBypassPlayerLimit);",
+            "this.minecraftServer.getPlayerList().op(nameAndId);",
+            "this.jsonrpcLogger.log(clientInfo, \"Deop '{}'\", nameAndId);",
+            "this.minecraftServer.getPlayerList().deop(nameAndId);",
+            "this.jsonrpcLogger.log(clientInfo, \"Clear operator list\");",
+            "this.minecraftServer.getPlayerList().getOps().clear();",
+        ] {
+            assert!(
+                SOURCE.contains(sentinel),
+                "MinecraftOperatorListServiceImpl.java missing: {sentinel}"
             );
         }
     }
