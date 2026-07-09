@@ -2,6 +2,7 @@
 
 use crate::chat_component::Component;
 use crate::jsonrpc_api::JsonRpcPlayerDto;
+use crate::jsonrpc_ip_banlist_service::{JsonRpcIpBan, JsonRpcIpBanlist};
 use crate::jsonrpc_methods::ClientInfo;
 
 pub const MANAGEMENT_BAN_SOURCE: &str = "Management server";
@@ -62,6 +63,68 @@ pub enum JsonRpcBanlistEvent {
 }
 
 pub struct BanlistService;
+
+pub trait MinecraftBanListService {
+    fn add_user_ban(&mut self, ban: JsonRpcUserBan, client_info: ClientInfo);
+    fn remove_user_ban(&mut self, name_and_id: &JsonRpcPlayerDto, client_info: ClientInfo);
+    fn get_user_ban_entries(&self) -> Vec<JsonRpcUserBan>;
+    fn get_ip_ban_entries(&self) -> Vec<JsonRpcIpBan>;
+    fn add_ip_ban(&mut self, ip_ban_entry: JsonRpcIpBan, client_info: ClientInfo);
+    fn clear_ip_bans(&mut self, client_info: ClientInfo);
+    fn remove_ip_ban(&mut self, ip: &str, client_info: ClientInfo);
+    fn clear_user_bans(&mut self, client_info: ClientInfo);
+}
+
+/// The two vanilla `StoredUserList` instances exposed through Java's single
+/// internal ban-list service interface.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct MinecraftBanLists {
+    pub user_bans: JsonRpcBanlist,
+    pub ip_bans: JsonRpcIpBanlist,
+}
+
+impl MinecraftBanLists {
+    pub const fn new(user_bans: JsonRpcBanlist, ip_bans: JsonRpcIpBanlist) -> Self {
+        Self {
+            user_bans,
+            ip_bans,
+        }
+    }
+}
+
+impl MinecraftBanListService for MinecraftBanLists {
+    fn add_user_ban(&mut self, ban: JsonRpcUserBan, client_info: ClientInfo) {
+        self.user_bans.add_user_ban(ban, client_info);
+    }
+
+    fn remove_user_ban(&mut self, name_and_id: &JsonRpcPlayerDto, client_info: ClientInfo) {
+        self.user_bans.remove_user_ban(name_and_id, client_info);
+    }
+
+    fn get_user_ban_entries(&self) -> Vec<JsonRpcUserBan> {
+        self.user_bans.entries.clone()
+    }
+
+    fn get_ip_ban_entries(&self) -> Vec<JsonRpcIpBan> {
+        self.ip_bans.entries.clone()
+    }
+
+    fn add_ip_ban(&mut self, ip_ban_entry: JsonRpcIpBan, client_info: ClientInfo) {
+        self.ip_bans.add_ip_ban(ip_ban_entry, client_info);
+    }
+
+    fn clear_ip_bans(&mut self, client_info: ClientInfo) {
+        self.ip_bans.clear_ip_bans(client_info);
+    }
+
+    fn remove_ip_ban(&mut self, ip: &str, client_info: ClientInfo) {
+        self.ip_bans.remove_ip_ban(ip, client_info);
+    }
+
+    fn clear_user_bans(&mut self, client_info: ClientInfo) {
+        self.user_bans.clear_user_bans(client_info);
+    }
+}
 
 impl JsonRpcUserBan {
     fn to_dto(&self) -> JsonRpcUserBanDto {
@@ -499,6 +562,102 @@ mod tests {
     }
 
     #[test]
+    fn minecraft_ban_list_service_unifies_user_and_ip_stores() {
+        use crate::jsonrpc_ip_banlist_service::JsonRpcIpBanlistEvent;
+
+        let steve = player("11111111-1111-1111-1111-111111111111", "Steve");
+        let alex = player("22222222-2222-2222-2222-222222222222", "Alex");
+        let old_user_ban = ban(steve.clone(), Some("old"), "Console", None);
+        let old_ip_ban = ip_ban("192.0.2.10", Some("old"));
+        let mut service = MinecraftBanLists::new(
+            JsonRpcBanlist::new(vec![old_user_ban.clone()]),
+            JsonRpcIpBanlist::new(vec![old_ip_ban.clone()]),
+        );
+        let client_info = ClientInfo::of(31);
+
+        assert_eq!(service.get_user_ban_entries(), vec![old_user_ban]);
+        assert_eq!(service.get_ip_ban_entries(), vec![old_ip_ban]);
+
+        let new_user_ban = ban(alex.clone(), Some("new"), "Management server", None);
+        let new_ip_ban = ip_ban("192.0.2.20", Some("new"));
+        service.add_user_ban(new_user_ban.clone(), client_info);
+        service.add_ip_ban(new_ip_ban.clone(), client_info);
+        service.remove_user_ban(&steve, client_info);
+        service.remove_ip_ban("192.0.2.10", client_info);
+
+        assert_eq!(service.get_user_ban_entries(), vec![new_user_ban.clone()]);
+        assert_eq!(service.get_ip_ban_entries(), vec![new_ip_ban.clone()]);
+        assert_eq!(
+            service.user_bans.events,
+            vec![
+                JsonRpcBanlistEvent::AddUserBan {
+                    ban: new_user_ban,
+                    client_info,
+                },
+                JsonRpcBanlistEvent::RemoveUserBan {
+                    user: steve,
+                    client_info,
+                },
+            ]
+        );
+        assert_eq!(
+            service.ip_bans.events,
+            vec![
+                JsonRpcIpBanlistEvent::AddIpBan {
+                    ban: new_ip_ban,
+                    client_info,
+                },
+                JsonRpcIpBanlistEvent::RemoveIpBan {
+                    ip: "192.0.2.10".to_string(),
+                    client_info,
+                },
+            ]
+        );
+
+        service.clear_user_bans(client_info);
+        assert!(service.get_user_ban_entries().is_empty());
+        assert!(!service.get_ip_ban_entries().is_empty());
+        service.clear_ip_bans(client_info);
+        assert!(service.get_ip_ban_entries().is_empty());
+        assert_eq!(
+            service.user_bans.events.last(),
+            Some(&JsonRpcBanlistEvent::ClearUserBans { client_info })
+        );
+        assert_eq!(
+            service.ip_bans.events.last(),
+            Some(&JsonRpcIpBanlistEvent::ClearIpBans { client_info })
+        );
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn minecraft_ban_list_service_interface_matches_java_contract() {
+        const SOURCE: &str = vibecraft_java_source!(
+            "/net/minecraft/server/jsonrpc/internalapi/MinecraftBanListService.java"
+        );
+        for sentinel in [
+            "import java.util.Collection;",
+            "import net.minecraft.server.jsonrpc.methods.ClientInfo;",
+            "import net.minecraft.server.players.IpBanListEntry;",
+            "import net.minecraft.server.players.NameAndId;",
+            "import net.minecraft.server.players.UserBanListEntry;",
+            "void addUserBan(UserBanListEntry ban, ClientInfo clientInfo);",
+            "void removeUserBan(NameAndId nameAndId, ClientInfo clientInfo);",
+            "Collection<UserBanListEntry> getUserBanEntries();",
+            "Collection<IpBanListEntry> getIpBanEntries();",
+            "void addIpBan(IpBanListEntry ipBanEntry, ClientInfo clientInfo);",
+            "void clearIpBans(ClientInfo clientInfo);",
+            "void removeIpBan(String ip, ClientInfo clientInfo);",
+            "void clearUserBans(ClientInfo clientInfo);",
+        ] {
+            assert!(
+                SOURCE.contains(sentinel),
+                "MinecraftBanListService.java missing: {sentinel}"
+            );
+        }
+    }
+
+    #[test]
     #[cfg(vibecraft_has_decompiled_sources)]
     fn banlist_service_source_matches_java_26_1_2() {
         const BANLIST_SERVICE: &str =
@@ -551,6 +710,15 @@ mod tests {
             reason: reason.map(ToString::to_string),
             source: source.to_string(),
             expires: expires.map(ToString::to_string),
+        }
+    }
+
+    fn ip_ban(ip: &str, reason: Option<&str>) -> JsonRpcIpBan {
+        JsonRpcIpBan {
+            ip: ip.to_string(),
+            reason: reason.map(str::to_string),
+            source: "Console".to_string(),
+            expires: None,
         }
     }
 }

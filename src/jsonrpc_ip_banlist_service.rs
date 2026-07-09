@@ -165,7 +165,7 @@ impl JsonRpcIpBanlist {
         }
     }
 
-    fn add_ip_ban(&mut self, ban: JsonRpcIpBan, client_info: ClientInfo) {
+    pub(crate) fn add_ip_ban(&mut self, ban: JsonRpcIpBan, client_info: ClientInfo) {
         let previous = self.entries.iter().position(|entry| entry.ip == ban.ip);
         if let Some(index) = previous {
             if self.entries[index] != ban {
@@ -178,13 +178,13 @@ impl JsonRpcIpBanlist {
             .push(JsonRpcIpBanlistEvent::AddIpBan { ban, client_info });
     }
 
-    fn clear_ip_bans(&mut self, client_info: ClientInfo) {
+    pub(crate) fn clear_ip_bans(&mut self, client_info: ClientInfo) {
         self.entries.clear();
         self.events
             .push(JsonRpcIpBanlistEvent::ClearIpBans { client_info });
     }
 
-    fn remove_ip_ban(&mut self, ip: &str, client_info: ClientInfo) {
+    pub(crate) fn remove_ip_ban(&mut self, ip: &str, client_info: ClientInfo) {
         self.entries.retain(|ban| ban.ip != ip);
         self.events.push(JsonRpcIpBanlistEvent::RemoveIpBan {
             ip: ip.to_string(),
