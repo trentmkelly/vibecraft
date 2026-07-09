@@ -590,6 +590,7 @@ mod jsonrpc_api;
 mod jsonrpc_authentication_handler;
 mod jsonrpc_banlist_service;
 mod jsonrpc_ip_banlist_service;
+mod jsonrpc_minecraft_api;
 mod jsonrpc_methods;
 mod jsonrpc_operator_service;
 mod jsonrpc_player_service;
