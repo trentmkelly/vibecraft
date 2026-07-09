@@ -48,6 +48,14 @@ pub struct MinecraftCompletedFuture<V> {
     value: V,
 }
 
+pub trait MinecraftExecutorService {
+    fn submit<V>(&mut self, supplier: impl FnOnce() -> V) -> MinecraftCompletedFuture<V>;
+    fn submit_runnable(
+        &mut self,
+        runnable: impl FnOnce(),
+    ) -> MinecraftCompletedFuture<()>;
+}
+
 impl<V> MinecraftCompletedFuture<V> {
     pub fn into_inner(self) -> V {
         self.value
@@ -57,22 +65,22 @@ impl<V> MinecraftCompletedFuture<V> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MinecraftExecutorServiceModel {
     pub server: DedicatedServerIdentity,
-    pub submitted_tasks: Vec<MinecraftSubmittedTask>,
+    pub server_submissions: Vec<MinecraftSubmittedTask>,
 }
 
 impl MinecraftExecutorServiceModel {
     pub const fn new(server: DedicatedServerIdentity) -> Self {
         Self {
             server,
-            submitted_tasks: Vec::new(),
+            server_submissions: Vec::new(),
         }
     }
 
-    fn submit_supplier<V>(
-        &mut self,
-        supplier: impl FnOnce() -> V,
-    ) -> MinecraftCompletedFuture<V> {
-        self.submitted_tasks.push(MinecraftSubmittedTask::Supplier);
+}
+
+impl MinecraftExecutorService for MinecraftExecutorServiceModel {
+    fn submit<V>(&mut self, supplier: impl FnOnce() -> V) -> MinecraftCompletedFuture<V> {
+        self.server_submissions.push(MinecraftSubmittedTask::Supplier);
         MinecraftCompletedFuture { value: supplier() }
     }
 
@@ -80,7 +88,7 @@ impl MinecraftExecutorServiceModel {
         &mut self,
         runnable: impl FnOnce(),
     ) -> MinecraftCompletedFuture<()> {
-        self.submitted_tasks.push(MinecraftSubmittedTask::Runnable);
+        self.server_submissions.push(MinecraftSubmittedTask::Runnable);
         runnable();
         MinecraftCompletedFuture { value: () }
     }
@@ -126,7 +134,7 @@ impl MinecraftApiModel {
     }
 
     pub fn submit<V>(&mut self, supplier: impl FnOnce() -> V) -> MinecraftCompletedFuture<V> {
-        self.executor_service.submit_supplier(supplier)
+        self.executor_service.submit(supplier)
     }
 
     pub fn submit_runnable(
@@ -225,7 +233,7 @@ mod tests {
         api.submit_runnable(|| ran.set(true)).into_inner();
         assert!(ran.get());
         assert_eq!(
-            api.executor_service().submitted_tasks,
+            api.executor_service().server_submissions,
             vec![
                 MinecraftSubmittedTask::Supplier,
                 MinecraftSubmittedTask::Runnable
@@ -311,5 +319,75 @@ mod tests {
         ] {
             assert!(SOURCE.contains(sentinel), "MinecraftApi.java missing: {sentinel}");
         }
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn minecraft_executor_service_interface_matches_java_contract() {
+        const SOURCE: &str = vibecraft_java_source!(
+            "/net/minecraft/server/jsonrpc/internalapi/MinecraftExecutorService.java"
+        );
+        for sentinel in [
+            "import java.util.concurrent.CompletableFuture;",
+            "import java.util.function.Supplier;",
+            "public interface MinecraftExecutorService",
+            "<V> CompletableFuture<V> submit(final Supplier<V> supplier);",
+            "CompletableFuture<Void> submit(final Runnable runnable);",
+        ] {
+            assert!(
+                SOURCE.contains(sentinel),
+                "MinecraftExecutorService.java missing: {sentinel}"
+            );
+        }
+
+        let mut executor = MinecraftExecutorServiceModel::new(DedicatedServerIdentity(12));
+        assert_eq!(
+            MinecraftExecutorService::submit(&mut executor, || "value").into_inner(),
+            "value"
+        );
+        let ran = Cell::new(false);
+        MinecraftExecutorService::submit_runnable(&mut executor, || ran.set(true)).into_inner();
+        assert!(ran.get());
+        assert_eq!(
+            executor.server_submissions,
+            vec![
+                MinecraftSubmittedTask::Supplier,
+                MinecraftSubmittedTask::Runnable
+            ]
+        );
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn minecraft_executor_service_impl_delegates_to_dedicated_server() {
+        const SOURCE: &str = vibecraft_java_source!(
+            "/net/minecraft/server/jsonrpc/internalapi/MinecraftExecutorServiceImpl.java"
+        );
+        for sentinel in [
+            "public class MinecraftExecutorServiceImpl implements MinecraftExecutorService",
+            "private final DedicatedServer server;",
+            "public MinecraftExecutorServiceImpl(final DedicatedServer server)",
+            "this.server = server;",
+            "return this.server.submit(supplier);",
+            "return this.server.submit(runnable);",
+        ] {
+            assert!(
+                SOURCE.contains(sentinel),
+                "MinecraftExecutorServiceImpl.java missing: {sentinel}"
+            );
+        }
+
+        let server = DedicatedServerIdentity(88);
+        let mut executor = MinecraftExecutorServiceModel::new(server);
+        assert_eq!(executor.server, server);
+        assert_eq!(executor.submit(|| 775).into_inner(), 775);
+        executor.submit_runnable(|| {}).into_inner();
+        assert_eq!(
+            executor.server_submissions,
+            vec![
+                MinecraftSubmittedTask::Supplier,
+                MinecraftSubmittedTask::Runnable
+            ]
+        );
     }
 }
