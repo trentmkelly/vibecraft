@@ -51,6 +51,10 @@ pub enum JsonRpcServerStateEvent {
         wait_for_shutdown: bool,
         client_info: ClientInfo,
     },
+    SendSystemMessage {
+        component: Box<Component>,
+        client_info: ClientInfo,
+    },
     BroadcastSystemMessage {
         component: Box<Component>,
         overlay: bool,
@@ -67,6 +71,32 @@ pub struct JsonRpcServerStateContext {
 }
 
 pub struct ServerStateService;
+
+pub trait MinecraftServerStateService {
+    fn is_ready(&self) -> bool;
+    fn save_everything(
+        &mut self,
+        suppress_logs: bool,
+        flush: bool,
+        force: bool,
+        client_info: ClientInfo,
+    ) -> bool;
+    fn halt(&mut self, wait_for_shutdown: bool, client_info: ClientInfo);
+    fn send_system_message(&mut self, message: Component, client_info: ClientInfo);
+    fn send_system_message_to_players(
+        &mut self,
+        message: Component,
+        overlay: bool,
+        players: &[JsonRpcPlayerDto],
+        client_info: ClientInfo,
+    );
+    fn broadcast_system_message(
+        &mut self,
+        message: Component,
+        overlay: bool,
+        client_info: ClientInfo,
+    );
+}
 
 impl JsonRpcServerVersion {
     pub fn current() -> Self {
@@ -139,6 +169,81 @@ impl JsonRpcServerStateContext {
                     .position(|online| online.player.name.as_ref() == Some(name))
             })
         }
+    }
+}
+
+impl MinecraftServerStateService for JsonRpcServerStateContext {
+    fn is_ready(&self) -> bool {
+        self.ready
+    }
+
+    fn save_everything(
+        &mut self,
+        suppress_logs: bool,
+        flush: bool,
+        force: bool,
+        client_info: ClientInfo,
+    ) -> bool {
+        self.events.push(JsonRpcServerStateEvent::SaveEverything {
+            suppress_logs,
+            flush,
+            force,
+            client_info,
+        });
+        self.save_result
+    }
+
+    fn halt(&mut self, wait_for_shutdown: bool, client_info: ClientInfo) {
+        self.events.push(JsonRpcServerStateEvent::Halt {
+            wait_for_shutdown,
+            client_info,
+        });
+    }
+
+    fn send_system_message(&mut self, message: Component, client_info: ClientInfo) {
+        self.events.push(JsonRpcServerStateEvent::SendSystemMessage {
+            component: Box::new(message),
+            client_info,
+        });
+    }
+
+    fn send_system_message_to_players(
+        &mut self,
+        message: Component,
+        overlay: bool,
+        players: &[JsonRpcPlayerDto],
+        _client_info: ClientInfo,
+    ) {
+        for player in players {
+            if let Some(index) = self.get_player_index(player) {
+                self.players[index]
+                    .messages
+                    .push(JsonRpcDeliveredSystemMessage {
+                        component: message.clone(),
+                        overlay,
+                    });
+            }
+        }
+    }
+
+    fn broadcast_system_message(
+        &mut self,
+        message: Component,
+        overlay: bool,
+        client_info: ClientInfo,
+    ) {
+        for player in &mut self.players {
+            player.messages.push(JsonRpcDeliveredSystemMessage {
+                component: message.clone(),
+                overlay,
+            });
+        }
+        self.events
+            .push(JsonRpcServerStateEvent::BroadcastSystemMessage {
+                component: Box::new(message),
+                overlay,
+                client_info,
+            });
     }
 }
 
@@ -328,6 +433,105 @@ mod tests {
         ));
         assert_eq!(context.events, Vec::<JsonRpcServerStateEvent>::new());
         assert_eq!(context.players[0].messages, Vec::<JsonRpcDeliveredSystemMessage>::new());
+    }
+
+    #[test]
+    fn minecraft_server_state_service_covers_all_six_operations() {
+        let steve = player(Some("11111111-1111-1111-1111-111111111111"), "Steve");
+        let alex = player(Some("22222222-2222-2222-2222-222222222222"), "Alex");
+        let mut context = JsonRpcServerStateContext::new(
+            true,
+            vec![
+                JsonRpcOnlinePlayer::new(steve.clone()),
+                JsonRpcOnlinePlayer::new(alex.clone()),
+            ],
+        );
+        context.save_result = false;
+
+        assert!(context.is_ready());
+        assert!(!context.save_everything(false, true, false, ClientInfo::of(121)));
+        context.halt(true, ClientInfo::of(122));
+        context.send_system_message(Component::literal("Console"), ClientInfo::of(123));
+        context.send_system_message_to_players(
+            Component::literal("Targeted"),
+            true,
+            std::slice::from_ref(&steve),
+            ClientInfo::of(124),
+        );
+        context.broadcast_system_message(
+            Component::literal("Broadcast"),
+            false,
+            ClientInfo::of(125),
+        );
+
+        assert_eq!(
+            context.players[0].messages,
+            vec![
+                JsonRpcDeliveredSystemMessage {
+                    component: Component::literal("Targeted"),
+                    overlay: true,
+                },
+                JsonRpcDeliveredSystemMessage {
+                    component: Component::literal("Broadcast"),
+                    overlay: false,
+                },
+            ]
+        );
+        assert_eq!(
+            context.players[1].messages,
+            vec![JsonRpcDeliveredSystemMessage {
+                component: Component::literal("Broadcast"),
+                overlay: false,
+            }]
+        );
+        assert_eq!(
+            context.events,
+            vec![
+                JsonRpcServerStateEvent::SaveEverything {
+                    suppress_logs: false,
+                    flush: true,
+                    force: false,
+                    client_info: ClientInfo::of(121),
+                },
+                JsonRpcServerStateEvent::Halt {
+                    wait_for_shutdown: true,
+                    client_info: ClientInfo::of(122),
+                },
+                JsonRpcServerStateEvent::SendSystemMessage {
+                    component: Box::new(Component::literal("Console")),
+                    client_info: ClientInfo::of(123),
+                },
+                JsonRpcServerStateEvent::BroadcastSystemMessage {
+                    component: Box::new(Component::literal("Broadcast")),
+                    overlay: false,
+                    client_info: ClientInfo::of(125),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn minecraft_server_state_service_interface_matches_java_contract() {
+        const SOURCE: &str = vibecraft_java_source!(
+            "/net/minecraft/server/jsonrpc/internalapi/MinecraftServerStateService.java"
+        );
+        for sentinel in [
+            "import java.util.Collection;",
+            "import net.minecraft.network.chat.Component;",
+            "import net.minecraft.server.level.ServerPlayer;",
+            "boolean isReady();",
+            "boolean saveEverything(boolean suppressLogs, boolean flush, boolean force, ClientInfo clientInfo);",
+            "void halt(boolean waitForShutdown, ClientInfo clientInfo);",
+            "void sendSystemMessage(Component message, ClientInfo clientInfo);",
+            "void sendSystemMessage(Component message, boolean overlay, Collection<ServerPlayer> players, ClientInfo clientInfo);",
+            "void broadcastSystemMessage(Component message, boolean overlay, ClientInfo clientInfo);",
+        ] {
+            assert!(
+                SOURCE.contains(sentinel),
+                "MinecraftServerStateService.java missing: {sentinel}"
+            );
+        }
     }
 
     #[test]
