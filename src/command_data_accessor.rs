@@ -3,6 +3,7 @@
 use crate::chat_component::{Component, ComponentArgument};
 use crate::command::BlockPos;
 use crate::storage::nbt::{nbt_utils, Tag};
+use crate::storage::saved_data::{CommandStorage, ResourceLocation};
 
 pub const ERROR_NOT_A_BLOCK_ENTITY: &str = "commands.data.block.invalid";
 pub const ERROR_NO_PLAYERS: &str = "commands.data.entity.invalid";
@@ -197,6 +198,89 @@ impl EntityDataProviderModel {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct StorageDataAccessor {
+    pub storage: CommandStorage,
+    pub id: ResourceLocation,
+}
+
+impl StorageDataAccessor {
+    pub const fn new(storage: CommandStorage, id: ResourceLocation) -> Self {
+        Self { storage, id }
+    }
+
+    pub fn suggestions(&mut self) -> Result<Vec<ResourceLocation>, String> {
+        self.storage.keys().map_err(|error| error.to_string())
+    }
+}
+
+impl DataAccessor for StorageDataAccessor {
+    fn set_data(&mut self, tag: Tag) -> Result<(), String> {
+        let Tag::Compound(_) = tag else {
+            return Err("StorageDataAccessor requires a compound tag".to_string());
+        };
+        self.storage
+            .set(self.id.clone(), tag)
+            .map_err(|error| error.to_string())
+    }
+
+    fn get_data(&mut self) -> Result<Tag, String> {
+        self.storage
+            .get(&self.id)
+            .map_err(|error| error.to_string())
+    }
+
+    fn get_modified_success(&self) -> Component {
+        Component::translatable(
+            "commands.data.storage.modified",
+            vec![ComponentArgument::String(self.id.to_string())],
+        )
+    }
+
+    fn get_print_success(&self, data: &Tag) -> Component {
+        Component::translatable(
+            "commands.data.storage.query",
+            vec![
+                ComponentArgument::String(self.id.to_string()),
+                ComponentArgument::Component(Box::new(nbt_utils::to_pretty_component(data))),
+            ],
+        )
+    }
+
+    fn get_scaled_print_success(&self, path: &str, scale: f64, value: i32) -> Component {
+        Component::translatable(
+            "commands.data.storage.get",
+            vec![
+                ComponentArgument::String(path.to_string()),
+                ComponentArgument::String(self.id.to_string()),
+                ComponentArgument::String(format!("{scale:.2}")),
+                ComponentArgument::Number(value),
+            ],
+        )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StorageDataProviderModel {
+    pub argument_name: String,
+}
+
+impl StorageDataProviderModel {
+    pub fn new(argument_name: impl Into<String>) -> Self {
+        Self {
+            argument_name: argument_name.into(),
+        }
+    }
+
+    pub fn access(&self, storage: CommandStorage, id: ResourceLocation) -> StorageDataAccessor {
+        StorageDataAccessor::new(storage, id)
+    }
+
+    pub fn wrapped_argument_shape(&self) -> String {
+        format!("storage <{}> [suggest command-storage keys]", self.argument_name)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockDataProviderModel {
     pub argument_prefix: String,
@@ -351,6 +435,63 @@ mod tests {
     }
 
     #[test]
+    fn storage_accessor_uses_real_command_storage_and_suggestions() {
+        use crate::storage::saved_data::SavedDataStorage;
+
+        let data_dir = std::env::temp_dir().join(format!(
+            "vibecraft-storage-accessor-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&data_dir);
+        let storage = CommandStorage::new(SavedDataStorage::new(&data_dir));
+        let id = ResourceLocation::parse("example:state").unwrap();
+        let provider = StorageDataProviderModel::new("target");
+        let mut accessor = provider.access(storage, id.clone());
+        let value = Tag::Compound(vec![("value".to_string(), Tag::Int(7))]);
+
+        accessor.set_data(value.clone()).unwrap();
+        assert_eq!(accessor.get_data(), Ok(value.clone()));
+        assert_eq!(accessor.suggestions(), Ok(vec![id.clone()]));
+        assert_eq!(
+            accessor.get_modified_success(),
+            Component::translatable(
+                "commands.data.storage.modified",
+                vec![ComponentArgument::String("example:state".to_string())]
+            )
+        );
+        assert_eq!(
+            accessor.get_print_success(&value),
+            Component::translatable(
+                "commands.data.storage.query",
+                vec![
+                    ComponentArgument::String("example:state".to_string()),
+                    ComponentArgument::Component(Box::new(nbt_utils::to_pretty_component(&value))),
+                ]
+            )
+        );
+        assert_eq!(
+            accessor.get_scaled_print_success("value", 1.25, 8),
+            Component::translatable(
+                "commands.data.storage.get",
+                vec![
+                    ComponentArgument::String("value".to_string()),
+                    ComponentArgument::String("example:state".to_string()),
+                    ComponentArgument::String("1.25".to_string()),
+                    ComponentArgument::Number(8),
+                ]
+            )
+        );
+        accessor.set_data(Tag::Compound(Vec::new())).unwrap();
+        assert_eq!(accessor.get_data(), Ok(Tag::Compound(Vec::new())));
+        assert!(accessor.suggestions().unwrap().is_empty());
+        assert_eq!(
+            provider.wrapped_argument_shape(),
+            "storage <target> [suggest command-storage keys]"
+        );
+        let _ = std::fs::remove_dir_all(data_dir);
+    }
+
+    #[test]
     #[cfg(vibecraft_has_decompiled_sources)]
     fn data_accessor_and_block_accessor_sources_match_java_26_1_2() {
         const INTERFACE: &str = vibecraft_java_source!(
@@ -402,6 +543,25 @@ mod tests {
             "String.format(Locale.ROOT, \"%.2f\", scale)",
         ] {
             assert!(ENTITY.contains(sentinel), "EntityDataAccessor.java missing: {sentinel}");
+        }
+
+
+        const STORAGE: &str = vibecraft_java_source!(
+            "/net/minecraft/server/commands/data/StorageDataAccessor.java"
+        );
+        for sentinel in [
+            "SharedSuggestionProvider.suggestResource(getGlobalTags(c).keys(), p)",
+            "new StorageDataAccessor(StorageDataAccessor.getGlobalTags(context), IdentifierArgument.getId(context, arg))",
+            "Commands.literal(\"storage\")",
+            "getServer().getCommandStorage();",
+            "this.storage.set(this.id, tag);",
+            "return this.storage.get(this.id);",
+            "commands.data.storage.modified",
+            "commands.data.storage.query",
+            "commands.data.storage.get",
+            "String.format(Locale.ROOT, \"%.2f\", scale)",
+        ] {
+            assert!(STORAGE.contains(sentinel), "StorageDataAccessor.java missing: {sentinel}");
         }
     }
 

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs;
 use std::io;
@@ -106,7 +108,11 @@ impl SavedDataStorage {
             self.cache
                 .insert(id.clone(), Some(SavedDataEntry::new(constructor())));
         }
-        Ok(&mut self.cache.get_mut(&id).unwrap().as_mut().unwrap().data)
+        self.cache
+            .get_mut(&id)
+            .and_then(Option::as_mut)
+            .map(|entry| &mut entry.data)
+            .ok_or_else(|| io::Error::other("saved-data cache insertion invariant failed"))
     }
 
     pub fn schedule_save(&mut self) -> io::Result<Vec<PathBuf>> {
