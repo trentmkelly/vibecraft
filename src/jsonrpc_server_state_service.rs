@@ -3,6 +3,7 @@
 use crate::chat_component::Component;
 use crate::jsonrpc_api::JsonRpcPlayerDto;
 use crate::jsonrpc_methods::{ClientInfo, JsonRpcMethodMessage};
+use crate::jsonrpc_minecraft_api::DedicatedServerIdentity;
 
 pub const SERVER_VERSION_NAME_26_1_2: &str = "26.1.2";
 pub const SERVER_PROTOCOL_VERSION_26_1_2: i32 = 775;
@@ -96,6 +97,27 @@ pub trait MinecraftServerStateService {
         overlay: bool,
         client_info: ClientInfo,
     );
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MinecraftServerStateServiceImplModel {
+    pub server: DedicatedServerIdentity,
+    pub context: JsonRpcServerStateContext,
+    pub log_messages: Vec<(ClientInfo, String)>,
+}
+
+impl MinecraftServerStateServiceImplModel {
+    pub const fn new(server: DedicatedServerIdentity, context: JsonRpcServerStateContext) -> Self {
+        Self {
+            server,
+            context,
+            log_messages: Vec::new(),
+        }
+    }
+
+    fn log(&mut self, client_info: ClientInfo, message: String) {
+        self.log_messages.push((client_info, message));
+    }
 }
 
 impl JsonRpcServerVersion {
@@ -244,6 +266,83 @@ impl MinecraftServerStateService for JsonRpcServerStateContext {
                 overlay,
                 client_info,
             });
+    }
+}
+
+impl MinecraftServerStateService for MinecraftServerStateServiceImplModel {
+    fn is_ready(&self) -> bool {
+        self.context.is_ready()
+    }
+
+    fn save_everything(
+        &mut self,
+        suppress_logs: bool,
+        flush: bool,
+        force: bool,
+        client_info: ClientInfo,
+    ) -> bool {
+        self.log(
+            client_info,
+            format!(
+                "Save everything. SuppressLogs: {suppress_logs}, flush: {flush}, force: {force}"
+            ),
+        );
+        self.context
+            .save_everything(suppress_logs, flush, force, client_info)
+    }
+
+    fn halt(&mut self, wait_for_shutdown: bool, client_info: ClientInfo) {
+        self.log(
+            client_info,
+            format!("Halt server. WaitForShutdown: {wait_for_shutdown}"),
+        );
+        self.context.halt(wait_for_shutdown, client_info);
+    }
+
+    fn send_system_message(&mut self, message: Component, client_info: ClientInfo) {
+        self.log(
+            client_info,
+            format!("Send system message: '{}'", message.get_string()),
+        );
+        self.context.send_system_message(message, client_info);
+    }
+
+    fn send_system_message_to_players(
+        &mut self,
+        message: Component,
+        overlay: bool,
+        players: &[JsonRpcPlayerDto],
+        client_info: ClientInfo,
+    ) {
+        self.log(
+            client_info,
+            format!(
+                "Send system message to '{}' players (overlay: {}): '{}'",
+                players.len(),
+                overlay,
+                message.get_string()
+            ),
+        );
+        self.context
+            .send_system_message_to_players(message, overlay, players, client_info);
+    }
+
+    fn broadcast_system_message(
+        &mut self,
+        message: Component,
+        overlay: bool,
+        client_info: ClientInfo,
+    ) {
+        self.log(
+            client_info,
+            format!(
+                "Broadcast system message (overlay: {}): '{}'",
+                overlay,
+                message.get_string()
+            ),
+        );
+        self.context
+            .broadcast_system_message(message, overlay, client_info);
     }
 }
 
@@ -532,6 +631,105 @@ mod tests {
                 "MinecraftServerStateService.java missing: {sentinel}"
             );
         }
+    }
+
+    #[test]
+    fn minecraft_server_state_service_impl_logs_before_delegating() {
+        let steve = player(Some("11111111-1111-1111-1111-111111111111"), "Steve");
+        let alex = player(Some("22222222-2222-2222-2222-222222222222"), "Alex");
+        let mut context = JsonRpcServerStateContext::new(
+            true,
+            vec![
+                JsonRpcOnlinePlayer::new(steve.clone()),
+                JsonRpcOnlinePlayer::new(alex.clone()),
+            ],
+        );
+        context.save_result = false;
+        let mut service = MinecraftServerStateServiceImplModel::new(
+            DedicatedServerIdentity(130),
+            context,
+        );
+
+        assert!(service.is_ready());
+        assert!(!service.save_everything(true, false, true, ClientInfo::of(131)));
+        service.halt(false, ClientInfo::of(132));
+        service.send_system_message(Component::literal("Console"), ClientInfo::of(133));
+        service.send_system_message_to_players(
+            Component::literal("Target"),
+            true,
+            std::slice::from_ref(&steve),
+            ClientInfo::of(134),
+        );
+        service.broadcast_system_message(
+            Component::literal("All"),
+            false,
+            ClientInfo::of(135),
+        );
+
+        assert_eq!(
+            service.log_messages,
+            vec![
+                (
+                    ClientInfo::of(131),
+                    "Save everything. SuppressLogs: true, flush: false, force: true".to_string(),
+                ),
+                (
+                    ClientInfo::of(132),
+                    "Halt server. WaitForShutdown: false".to_string(),
+                ),
+                (
+                    ClientInfo::of(133),
+                    "Send system message: 'Console'".to_string(),
+                ),
+                (
+                    ClientInfo::of(134),
+                    "Send system message to '1' players (overlay: true): 'Target'".to_string(),
+                ),
+                (
+                    ClientInfo::of(135),
+                    "Broadcast system message (overlay: false): 'All'".to_string(),
+                ),
+            ]
+        );
+        assert_eq!(service.server, DedicatedServerIdentity(130));
+        assert_eq!(service.context.players[0].messages.len(), 2);
+        assert_eq!(service.context.players[1].messages.len(), 1);
+        assert!(service.context.players[0].messages[0].overlay);
+        assert!(!service.context.players[0].messages[1].overlay);
+        assert_eq!(service.context.events.len(), 4);
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn minecraft_server_state_service_impl_matches_java_contract() {
+        const SOURCE: &str = vibecraft_java_source!(
+            "/net/minecraft/server/jsonrpc/internalapi/MinecraftServerStateServiceImpl.java"
+        );
+        for sentinel in [
+            "private final DedicatedServer server;",
+            "private final JsonRpcLogger jsonrpcLogger;",
+            "public MinecraftServerStateServiceImpl(final DedicatedServer server, final JsonRpcLogger jsonrpcLogger)",
+            "return this.server.isReady();",
+            "Save everything. SuppressLogs: {}, flush: {}, force: {}",
+            "return this.server.saveEverything(suppressLogs, flush, force);",
+            "Halt server. WaitForShutdown: {}",
+            "this.server.halt(waitForShutdown);",
+            "Send system message: '{}'",
+            "this.server.sendSystemMessage(message);",
+            "List<String> playerNames = players.stream().map(Player::getPlainTextName).toList();",
+            "Send system message to '{}' players (overlay: {}): '{}'",
+            "for (ServerPlayer player : players)",
+            "player.sendOverlayMessage(message);",
+            "player.sendSystemMessage(message);",
+            "Broadcast system message (overlay: {}): '{}'",
+            "for (ServerPlayer player : this.server.getPlayerList().getPlayers())",
+        ] {
+            assert!(
+                SOURCE.contains(sentinel),
+                "MinecraftServerStateServiceImpl.java missing: {sentinel}"
+            );
+        }
+        assert_eq!(SOURCE.matches("this.jsonrpcLogger.log(").count(), 5);
     }
 
     #[test]
