@@ -5,10 +5,11 @@ use crate::command::BlockPos;
 use crate::storage::nbt::{nbt_utils, Tag};
 
 pub const ERROR_NOT_A_BLOCK_ENTITY: &str = "commands.data.block.invalid";
+pub const ERROR_NO_PLAYERS: &str = "commands.data.entity.invalid";
 
 pub trait DataAccessor {
     fn set_data(&mut self, tag: Tag) -> Result<(), String>;
-    fn get_data(&self) -> Result<Tag, String>;
+    fn get_data(&mut self) -> Result<Tag, String>;
     fn get_modified_success(&self) -> Component;
     fn get_print_success(&self, data: &Tag) -> Component;
     fn get_scaled_print_success(&self, path: &str, scale: f64, value: i32) -> Component;
@@ -72,7 +73,7 @@ impl DataAccessor for BlockDataAccessor {
         Ok(())
     }
 
-    fn get_data(&self) -> Result<Tag, String> {
+    fn get_data(&mut self) -> Result<Tag, String> {
         Ok(self.entity.full_metadata.clone())
     }
 
@@ -102,6 +103,97 @@ impl DataAccessor for BlockDataAccessor {
                 ComponentArgument::Number(value),
             ],
         )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommandEntityModel {
+    pub uuid: String,
+    pub display_name: Component,
+    pub is_player: bool,
+    pub comparison_tag: Tag,
+    pub problem_path: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct EntityDataAccessor {
+    pub entity: CommandEntityModel,
+}
+
+impl EntityDataAccessor {
+    pub const fn new(entity: CommandEntityModel) -> Self {
+        Self { entity }
+    }
+}
+
+impl DataAccessor for EntityDataAccessor {
+    fn set_data(&mut self, tag: Tag) -> Result<(), String> {
+        if self.entity.is_player {
+            return Err(ERROR_NO_PLAYERS.to_string());
+        }
+        let Tag::Compound(_) = tag else {
+            return Err("EntityDataAccessor requires a compound tag".to_string());
+        };
+        let uuid = self.entity.uuid.clone();
+        self.entity.comparison_tag = tag;
+        self.entity.uuid = uuid;
+        Ok(())
+    }
+
+    fn get_data(&mut self) -> Result<Tag, String> {
+        Ok(self.entity.comparison_tag.clone())
+    }
+
+    fn get_modified_success(&self) -> Component {
+        Component::translatable(
+            "commands.data.entity.modified",
+            vec![ComponentArgument::Component(Box::new(
+                self.entity.display_name.clone(),
+            ))],
+        )
+    }
+
+    fn get_print_success(&self, data: &Tag) -> Component {
+        Component::translatable(
+            "commands.data.entity.query",
+            vec![
+                ComponentArgument::Component(Box::new(self.entity.display_name.clone())),
+                ComponentArgument::Component(Box::new(nbt_utils::to_pretty_component(data))),
+            ],
+        )
+    }
+
+    fn get_scaled_print_success(&self, path: &str, scale: f64, value: i32) -> Component {
+        Component::translatable(
+            "commands.data.entity.get",
+            vec![
+                ComponentArgument::String(path.to_string()),
+                ComponentArgument::Component(Box::new(self.entity.display_name.clone())),
+                ComponentArgument::String(format!("{scale:.2}")),
+                ComponentArgument::Number(value),
+            ],
+        )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EntityDataProviderModel {
+    pub argument_name: String,
+}
+
+impl EntityDataProviderModel {
+    pub fn new(argument_name: impl Into<String>) -> Self {
+        Self {
+            argument_name: argument_name.into(),
+        }
+    }
+
+    pub fn access(&self, entity: CommandEntityModel) -> EntityDataAccessor {
+        EntityDataAccessor::new(entity)
+    }
+
+    pub fn wrapped_argument_shape(&self) -> String {
+        format!("entity <{}>", self.argument_name)
     }
 }
 
@@ -219,6 +311,46 @@ mod tests {
     }
 
     #[test]
+    fn entity_accessor_rejects_players_and_restores_non_player_uuid() {
+        let tag = Tag::Compound(vec![(
+            "UUID".to_string(),
+            Tag::String("replacement-uuid".to_string()),
+        )]);
+        let mut player = EntityDataAccessor::new(entity(true));
+        assert_eq!(
+            player.set_data(tag.clone()),
+            Err(ERROR_NO_PLAYERS.to_string())
+        );
+
+        let mut entity_accessor = EntityDataAccessor::new(entity(false));
+        entity_accessor.set_data(tag.clone()).unwrap();
+        assert_eq!(entity_accessor.entity.uuid, "original-uuid");
+        assert_eq!(entity_accessor.get_data(), Ok(tag.clone()));
+        assert_eq!(
+            entity_accessor.get_modified_success(),
+            Component::translatable(
+                "commands.data.entity.modified",
+                vec![ComponentArgument::Component(Box::new(Component::literal("Pig")))]
+            )
+        );
+        assert_eq!(
+            entity_accessor.get_scaled_print_success("Health", 2.0, 40),
+            Component::translatable(
+                "commands.data.entity.get",
+                vec![
+                    ComponentArgument::String("Health".to_string()),
+                    ComponentArgument::Component(Box::new(Component::literal("Pig"))),
+                    ComponentArgument::String("2.00".to_string()),
+                    ComponentArgument::Number(40),
+                ]
+            )
+        );
+        let provider = EntityDataProviderModel::new("target");
+        assert_eq!(provider.wrapped_argument_shape(), "entity <target>");
+        assert_eq!(provider.access(entity(false)).entity.uuid, "original-uuid");
+    }
+
+    #[test]
     #[cfg(vibecraft_has_decompiled_sources)]
     fn data_accessor_and_block_accessor_sources_match_java_26_1_2() {
         const INTERFACE: &str = vibecraft_java_source!(
@@ -250,6 +382,36 @@ mod tests {
             "String.format(Locale.ROOT, \"%.2f\", scale)",
         ] {
             assert!(BLOCK.contains(sentinel), "BlockDataAccessor.java missing: {sentinel}");
+        }
+
+
+        const ENTITY: &str = vibecraft_java_source!(
+            "/net/minecraft/server/commands/data/EntityDataAccessor.java"
+        );
+        for sentinel in [
+            "commands.data.entity.invalid",
+            "EntityArgument.getEntity(context, arg)",
+            "Commands.literal(\"entity\")",
+            "if (this.entity instanceof Player)",
+            "UUID uuid = this.entity.getUUID();",
+            "this.entity.load(TagValueInput.create(reporter, this.entity.registryAccess(), tag));",
+            "this.entity.setUUID(uuid);",
+            "return NbtPredicate.getEntityTagToCompare(this.entity);",
+            "commands.data.entity.modified",
+            "commands.data.entity.query",
+            "String.format(Locale.ROOT, \"%.2f\", scale)",
+        ] {
+            assert!(ENTITY.contains(sentinel), "EntityDataAccessor.java missing: {sentinel}");
+        }
+    }
+
+    fn entity(is_player: bool) -> CommandEntityModel {
+        CommandEntityModel {
+            uuid: "original-uuid".to_string(),
+            display_name: Component::literal("Pig"),
+            is_player,
+            comparison_tag: Tag::Compound(Vec::new()),
+            problem_path: "Pig".to_string(),
         }
     }
 }
