@@ -3,6 +3,7 @@
 use crate::chat_component::Component;
 use crate::jsonrpc_api::JsonRpcPlayerDto;
 use crate::jsonrpc_minecraft_api::MinecraftCompletedFuture;
+use crate::jsonrpc_minecraft_api::DedicatedServerIdentity;
 use crate::jsonrpc_methods::{ClientInfo, JsonRpcMethodMessage};
 
 pub const DEFAULT_KICK_MESSAGE_KEY: &str = "multiplayer.disconnect.kicked";
@@ -72,6 +73,31 @@ pub struct MinecraftPlayerListModel {
     pub session_users: Vec<JsonRpcPlayerDto>,
     pub lookup_tasks: Vec<MinecraftPlayerLookupTask>,
     pub removed_players: Vec<JsonRpcRemovedPlayer>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MinecraftPlayerListServiceImplModel {
+    pub server: DedicatedServerIdentity,
+    pub player_list_service: MinecraftPlayerListModel,
+    pub log_messages: Vec<(ClientInfo, String)>,
+    pub events: Vec<MinecraftPlayerListImplEvent>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MinecraftPlayerListImplEvent {
+    PlayerRemoved(JsonRpcPlayerDto),
+    RemovalLogged(String),
+}
+
+impl MinecraftPlayerListServiceImplModel {
+    pub fn new(server: DedicatedServerIdentity, player_list_service: MinecraftPlayerListModel) -> Self {
+        Self {
+            server,
+            player_list_service,
+            log_messages: Vec::new(),
+            events: Vec::new(),
+        }
+    }
 }
 
 impl MinecraftPlayerListModel {
@@ -240,6 +266,63 @@ impl MinecraftPlayerListService for MinecraftPlayerListModel {
             player: player.player.clone(),
             client_info,
         });
+    }
+}
+
+impl MinecraftPlayerListService for MinecraftPlayerListServiceImplModel {
+    fn get_players(&self) -> Vec<JsonRpcManagedPlayer> {
+        self.player_list_service.get_players()
+    }
+
+    fn get_player(&self, uuid: &str) -> Option<JsonRpcManagedPlayer> {
+        self.player_list_service.get_player(uuid)
+    }
+
+    fn get_user(
+        &mut self,
+        id: Option<&str>,
+        name: Option<&str>,
+    ) -> MinecraftCompletedFuture<Option<JsonRpcPlayerDto>> {
+        self.player_list_service.get_user(id, name)
+    }
+
+    fn fetch_user_by_name(&self, name: &str) -> Option<JsonRpcPlayerDto> {
+        self.player_list_service.fetch_user_by_name(name)
+    }
+
+    fn fetch_user_by_id(&self, id: &str) -> Option<JsonRpcPlayerDto> {
+        self.player_list_service.fetch_user_by_id(id)
+    }
+
+    fn get_cached_user_by_id(&self, id: &str) -> Option<JsonRpcPlayerDto> {
+        self.player_list_service.get_cached_user_by_id(id)
+    }
+
+    fn get_player_optional(
+        &self,
+        id: Option<&str>,
+        name: Option<&str>,
+    ) -> Option<JsonRpcManagedPlayer> {
+        self.player_list_service.get_player_optional(id, name)
+    }
+
+    fn get_players_with_address(&self, ip: &str) -> Vec<JsonRpcManagedPlayer> {
+        self.player_list_service.get_players_with_address(ip)
+    }
+
+    fn get_player_by_name(&self, name: &str) -> Option<JsonRpcManagedPlayer> {
+        self.player_list_service.get_player_by_name(name)
+    }
+
+    fn remove(&mut self, player: &JsonRpcManagedPlayer, client_info: ClientInfo) {
+        self.player_list_service.remove(player, client_info);
+        self.events
+            .push(MinecraftPlayerListImplEvent::PlayerRemoved(player.player.clone()));
+        let name = player.player.name.as_deref().unwrap_or("");
+        let message = format!("Remove player '{name}'");
+        self.log_messages.push((client_info, message.clone()));
+        self.events
+            .push(MinecraftPlayerListImplEvent::RemovalLogged(message));
     }
 }
 
@@ -474,6 +557,87 @@ mod tests {
             assert!(
                 SOURCE.contains(sentinel),
                 "MinecraftPlayerListService.java missing: {sentinel}"
+            );
+        }
+    }
+
+    #[test]
+    fn minecraft_player_list_service_impl_forwards_and_removes_before_logging() {
+        let server = DedicatedServerIdentity(91);
+        let steve_dto = player_dto("11111111-1111-1111-1111-111111111111", "Steve");
+        let steve = player("11111111-1111-1111-1111-111111111111", "Steve")
+            .with_address("192.0.2.91");
+        let mut service = MinecraftPlayerListServiceImplModel::new(
+            server,
+            MinecraftPlayerListModel::new(
+                JsonRpcPlayerList::new(vec![steve.clone()]),
+                vec![steve_dto.clone()],
+                vec![steve_dto.clone()],
+            ),
+        );
+
+        assert_eq!(service.server, server);
+        assert_eq!(service.get_players(), vec![steve.clone()]);
+        assert_eq!(
+            service.get_player("11111111-1111-1111-1111-111111111111"),
+            Some(steve.clone())
+        );
+        assert_eq!(service.get_player_by_name("STEVE"), Some(steve.clone()));
+        assert_eq!(
+            service.get_players_with_address("192.0.2.91"),
+            vec![steve.clone()]
+        );
+        assert_eq!(
+            service
+                .get_user(None, Some("Steve"))
+                .into_inner(),
+            Some(steve_dto)
+        );
+
+        service.remove(&steve, ClientInfo::of(92));
+        assert!(service.get_players().is_empty());
+        assert_eq!(
+            service.log_messages,
+            vec![(ClientInfo::of(92), "Remove player 'Steve'".to_string())]
+        );
+        assert_eq!(
+            service.events,
+            vec![
+                MinecraftPlayerListImplEvent::PlayerRemoved(steve.player),
+                MinecraftPlayerListImplEvent::RemovalLogged(
+                    "Remove player 'Steve'".to_string()
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn minecraft_player_list_service_impl_matches_java_contract() {
+        const SOURCE: &str = vibecraft_java_source!(
+            "/net/minecraft/server/jsonrpc/internalapi/MinecraftPlayerListServiceImpl.java"
+        );
+        for sentinel in [
+            "private final JsonRpcLogger jsonRpcLogger;",
+            "private final DedicatedServer server;",
+            "public MinecraftPlayerListServiceImpl(final DedicatedServer server, final JsonRpcLogger jsonRpcLogger)",
+            "this.jsonRpcLogger = jsonRpcLogger;",
+            "this.server = server;",
+            "return this.server.getPlayerList().getPlayers();",
+            "return this.server.getPlayerList().getPlayer(uuid);",
+            "return this.server.services().nameToIdCache().get(name);",
+            "return Optional.ofNullable(this.server.services().sessionService().fetchProfile(id, true)).map(profile -> new NameAndId(profile.profile()));",
+            "return this.server.services().nameToIdCache().get(id);",
+            "return Optional.ofNullable(this.server.getPlayerList().getPlayer(id.get()));",
+            "Optional.ofNullable(this.server.getPlayerList().getPlayerByName(name.get()))",
+            "return this.server.getPlayerList().getPlayersWithAddress(ip);",
+            "this.server.getPlayerList().remove(serverPlayer);",
+            "this.jsonRpcLogger.log(clientInfo, \"Remove player '{}'\", serverPlayer.getPlainTextName());",
+            "return this.server.getPlayerList().getPlayerByName(name);",
+        ] {
+            assert!(
+                SOURCE.contains(sentinel),
+                "MinecraftPlayerListServiceImpl.java missing: {sentinel}"
             );
         }
     }
