@@ -594,6 +594,7 @@ mod jsonrpc_minecraft_api;
 mod jsonrpc_methods;
 mod jsonrpc_operator_service;
 mod jsonrpc_player_service;
+mod jsonrpc_server_settings_impl;
 mod jsonrpc_server_state_service;
 mod jsonrpc_websocket_codec;
 mod item_swing_animation_component;
