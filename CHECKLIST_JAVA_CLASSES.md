@@ -1673,7 +1673,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/network/ServerGamePacketListenerImpl.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/network/ServerHandshakePacketListenerImpl.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/network/ServerLoginPacketListenerImpl.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/network/ServerPlayerConnection.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/network/ServerPlayerConnection.java`. Rust `server_player_connection::ServerPlayerConnection<P>` mirrors Java's player accessor and generic packet send boundary; `ServerPlayerConnectionModel<P>` owns one typed player and preserves packet submission order. Java-source-backed tests pin both imports, the interface declaration, wildcard packet signature, and player return, while behavioral tests prove player identity and ordered sends.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/network/ServerStatusPacketListenerImpl.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/network/ServerTextFilter.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/network/TextFilter.java`.
