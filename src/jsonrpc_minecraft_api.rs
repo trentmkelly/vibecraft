@@ -57,6 +57,10 @@ pub trait MinecraftExecutorService {
 }
 
 impl<V> MinecraftCompletedFuture<V> {
+    pub fn completed(value: V) -> Self {
+        Self { value }
+    }
+
     pub fn into_inner(self) -> V {
         self.value
     }

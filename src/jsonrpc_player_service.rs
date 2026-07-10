@@ -2,6 +2,7 @@
 
 use crate::chat_component::Component;
 use crate::jsonrpc_api::JsonRpcPlayerDto;
+use crate::jsonrpc_minecraft_api::MinecraftCompletedFuture;
 use crate::jsonrpc_methods::{ClientInfo, JsonRpcMethodMessage};
 
 pub const DEFAULT_KICK_MESSAGE_KEY: &str = "multiplayer.disconnect.kicked";
@@ -9,6 +10,7 @@ pub const DEFAULT_KICK_MESSAGE_KEY: &str = "multiplayer.disconnect.kicked";
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JsonRpcManagedPlayer {
     pub player: JsonRpcPlayerDto,
+    pub address: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,13 +32,77 @@ pub struct JsonRpcPlayerList {
     pub kicked: Vec<JsonRpcKickedPlayer>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JsonRpcRemovedPlayer {
+    pub player: JsonRpcPlayerDto,
+    pub client_info: ClientInfo,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MinecraftPlayerLookupTask {
+    FetchById(String),
+    FetchByName(String),
+}
+
+pub trait MinecraftPlayerListService {
+    fn get_players(&self) -> Vec<JsonRpcManagedPlayer>;
+    fn get_player(&self, uuid: &str) -> Option<JsonRpcManagedPlayer>;
+    fn get_user(
+        &mut self,
+        id: Option<&str>,
+        name: Option<&str>,
+    ) -> MinecraftCompletedFuture<Option<JsonRpcPlayerDto>>;
+    fn fetch_user_by_name(&self, name: &str) -> Option<JsonRpcPlayerDto>;
+    fn fetch_user_by_id(&self, id: &str) -> Option<JsonRpcPlayerDto>;
+    fn get_cached_user_by_id(&self, id: &str) -> Option<JsonRpcPlayerDto>;
+    fn get_player_optional(
+        &self,
+        id: Option<&str>,
+        name: Option<&str>,
+    ) -> Option<JsonRpcManagedPlayer>;
+    fn get_players_with_address(&self, ip: &str) -> Vec<JsonRpcManagedPlayer>;
+    fn get_player_by_name(&self, name: &str) -> Option<JsonRpcManagedPlayer>;
+    fn remove(&mut self, player: &JsonRpcManagedPlayer, client_info: ClientInfo);
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MinecraftPlayerListModel {
+    pub player_list: JsonRpcPlayerList,
+    pub cached_users: Vec<JsonRpcPlayerDto>,
+    pub session_users: Vec<JsonRpcPlayerDto>,
+    pub lookup_tasks: Vec<MinecraftPlayerLookupTask>,
+    pub removed_players: Vec<JsonRpcRemovedPlayer>,
+}
+
+impl MinecraftPlayerListModel {
+    pub fn new(
+        player_list: JsonRpcPlayerList,
+        cached_users: Vec<JsonRpcPlayerDto>,
+        session_users: Vec<JsonRpcPlayerDto>,
+    ) -> Self {
+        Self {
+            player_list,
+            cached_users,
+            session_users,
+            lookup_tasks: Vec::new(),
+            removed_players: Vec::new(),
+        }
+    }
+}
+
 pub struct PlayerService;
 
 impl JsonRpcManagedPlayer {
     pub fn new(id: Option<String>, name: Option<String>) -> Self {
         Self {
             player: JsonRpcPlayerDto::new(id, name),
+            address: None,
         }
+    }
+
+    pub fn with_address(mut self, address: impl Into<String>) -> Self {
+        self.address = Some(address.into());
+        self
     }
 }
 
@@ -66,6 +132,114 @@ impl JsonRpcPlayerList {
                     .position(|server_player| server_player.player.name.as_ref() == Some(name))
             })
         }
+    }
+}
+
+impl MinecraftPlayerListService for MinecraftPlayerListModel {
+    fn get_players(&self) -> Vec<JsonRpcManagedPlayer> {
+        self.player_list.players.clone()
+    }
+
+    fn get_player(&self, uuid: &str) -> Option<JsonRpcManagedPlayer> {
+        self.player_list
+            .players
+            .iter()
+            .find(|player| player.player.id.as_deref() == Some(uuid))
+            .cloned()
+    }
+
+    fn get_user(
+        &mut self,
+        id: Option<&str>,
+        name: Option<&str>,
+    ) -> MinecraftCompletedFuture<Option<JsonRpcPlayerDto>> {
+        let value = if let Some(id) = id {
+            match self.get_cached_user_by_id(id) {
+                some @ Some(_) => some,
+                None => {
+                    self.lookup_tasks
+                        .push(MinecraftPlayerLookupTask::FetchById(id.to_string()));
+                    self.fetch_user_by_id(id)
+                }
+            }
+        } else if let Some(name) = name {
+            self.lookup_tasks
+                .push(MinecraftPlayerLookupTask::FetchByName(name.to_string()));
+            self.fetch_user_by_name(name)
+        } else {
+            None
+        };
+        MinecraftCompletedFuture::completed(value)
+    }
+
+    fn fetch_user_by_name(&self, name: &str) -> Option<JsonRpcPlayerDto> {
+        self.cached_users
+            .iter()
+            .find(|user| {
+                user.name
+                    .as_deref()
+                    .is_some_and(|cached_name| cached_name.eq_ignore_ascii_case(name))
+            })
+            .cloned()
+    }
+
+    fn fetch_user_by_id(&self, id: &str) -> Option<JsonRpcPlayerDto> {
+        self.session_users
+            .iter()
+            .find(|user| user.id.as_deref() == Some(id))
+            .cloned()
+    }
+
+    fn get_cached_user_by_id(&self, id: &str) -> Option<JsonRpcPlayerDto> {
+        self.cached_users
+            .iter()
+            .find(|user| user.id.as_deref() == Some(id))
+            .cloned()
+    }
+
+    fn get_player_optional(
+        &self,
+        id: Option<&str>,
+        name: Option<&str>,
+    ) -> Option<JsonRpcManagedPlayer> {
+        if let Some(id) = id {
+            self.get_player(id)
+        } else {
+            name.and_then(|name| self.get_player_by_name(name))
+        }
+    }
+
+    fn get_players_with_address(&self, ip: &str) -> Vec<JsonRpcManagedPlayer> {
+        self.player_list
+            .players
+            .iter()
+            .filter(|player| player.address.as_deref() == Some(ip))
+            .cloned()
+            .collect()
+    }
+
+    fn get_player_by_name(&self, name: &str) -> Option<JsonRpcManagedPlayer> {
+        self.player_list
+            .players
+            .iter()
+            .find(|player| {
+                player
+                    .player
+                    .name
+                    .as_deref()
+                    .is_some_and(|player_name| player_name.eq_ignore_ascii_case(name))
+            })
+            .cloned()
+    }
+
+    fn remove(&mut self, player: &JsonRpcManagedPlayer, client_info: ClientInfo) {
+        self.player_list
+            .players
+            .retain(|candidate| candidate.player != player.player);
+        self.removed_players.push(JsonRpcRemovedPlayer {
+            player: player.player.clone(),
+            client_info,
+        });
     }
 }
 
@@ -190,6 +364,118 @@ mod tests {
             player_list.kicked[0].message,
             Component::translatable(DEFAULT_KICK_MESSAGE_KEY, Vec::new())
         );
+    }
+
+    #[test]
+    fn minecraft_player_list_service_matches_lookup_and_async_cache_contract() {
+        let steve_dto = player_dto("11111111-1111-1111-1111-111111111111", "Steve");
+        let alex_dto = player_dto("22222222-2222-2222-2222-222222222222", "Alex");
+        let steve = player("11111111-1111-1111-1111-111111111111", "Steve")
+            .with_address("192.0.2.10");
+        let alex = player("22222222-2222-2222-2222-222222222222", "Alex")
+            .with_address("192.0.2.10");
+        let mut service = MinecraftPlayerListModel::new(
+            JsonRpcPlayerList::new(vec![steve.clone(), alex.clone()]),
+            vec![steve_dto.clone()],
+            vec![alex_dto.clone()],
+        );
+
+        assert_eq!(service.get_players(), vec![steve.clone(), alex.clone()]);
+        assert_eq!(
+            service.get_player("11111111-1111-1111-1111-111111111111"),
+            Some(steve.clone())
+        );
+        assert_eq!(service.get_player_by_name("aLeX"), Some(alex.clone()));
+        assert_eq!(
+            service.get_players_with_address("192.0.2.10"),
+            vec![steve.clone(), alex.clone()]
+        );
+        assert_eq!(
+            service.get_player_optional(
+                Some("11111111-1111-1111-1111-111111111111"),
+                Some("Alex")
+            ),
+            Some(steve.clone())
+        );
+
+        assert_eq!(
+            service
+                .get_user(
+                    Some("11111111-1111-1111-1111-111111111111"),
+                    Some("WrongName")
+                )
+                .into_inner(),
+            Some(steve_dto.clone())
+        );
+        assert!(service.lookup_tasks.is_empty());
+        assert_eq!(
+            service
+                .get_user(
+                    Some("22222222-2222-2222-2222-222222222222"),
+                    None
+                )
+                .into_inner(),
+            Some(alex_dto)
+        );
+        assert_eq!(
+            service.get_user(None, Some("sTeVe")).into_inner(),
+            Some(steve_dto)
+        );
+        assert_eq!(service.get_user(None, None).into_inner(), None);
+        assert_eq!(
+            service.lookup_tasks,
+            vec![
+                MinecraftPlayerLookupTask::FetchById(
+                    "22222222-2222-2222-2222-222222222222".to_string()
+                ),
+                MinecraftPlayerLookupTask::FetchByName("sTeVe".to_string()),
+            ]
+        );
+
+        service.remove(&steve, ClientInfo::of(81));
+        assert_eq!(service.get_players(), vec![alex]);
+        assert_eq!(
+            service.removed_players,
+            vec![JsonRpcRemovedPlayer {
+                player: steve.player,
+                client_info: ClientInfo::of(81),
+            }]
+        );
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn minecraft_player_list_service_interface_matches_java_contract() {
+        const SOURCE: &str = vibecraft_java_source!(
+            "/net/minecraft/server/jsonrpc/internalapi/MinecraftPlayerListService.java"
+        );
+        for sentinel in [
+            "import java.util.List;",
+            "import java.util.Optional;",
+            "import java.util.UUID;",
+            "import java.util.concurrent.CompletableFuture;",
+            "import net.minecraft.util.Util;",
+            "List<ServerPlayer> getPlayers();",
+            "@Nullable ServerPlayer getPlayer(UUID uuid);",
+            "default CompletableFuture<Optional<NameAndId>> getUser(final Optional<UUID> id, final Optional<String> name)",
+            "Optional<NameAndId> nameAndId = this.getCachedUserById(id.get());",
+            "CompletableFuture.completedFuture(nameAndId)",
+            "CompletableFuture.supplyAsync(() -> this.fetchUserById(id.get()), Util.nonCriticalIoPool())",
+            "CompletableFuture.supplyAsync(() -> this.fetchUserByName(name.get()), Util.nonCriticalIoPool())",
+            "CompletableFuture.completedFuture(Optional.empty())",
+            "Optional<NameAndId> fetchUserByName(String name);",
+            "Optional<NameAndId> fetchUserById(UUID id);",
+            "Optional<NameAndId> getCachedUserById(UUID id);",
+            "Optional<ServerPlayer> getPlayer(Optional<UUID> id, Optional<String> name);",
+            "List<ServerPlayer> getPlayersWithAddress(String ip);",
+            "@Nullable ServerPlayer getPlayerByName(String name);",
+            "void remove(ServerPlayer player, ClientInfo clientInfo);",
+        ] {
+            assert!(
+                SOURCE.contains(sentinel),
+                "MinecraftPlayerListService.java missing: {sentinel}"
+            );
+        }
     }
 
     #[test]
