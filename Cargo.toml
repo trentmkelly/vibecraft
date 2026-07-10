@@ -16,6 +16,7 @@ unwrap_used = "deny"
 
 [dependencies]
 aes = "0.8"
+chrono = "0.4"
 flate2 = "1"
 libc = "0.2"
 lz4 = "1"

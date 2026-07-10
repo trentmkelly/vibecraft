@@ -89,6 +89,14 @@ pub fn log_info(message: &str) {
     }
 }
 
+/// Logs a warning via the global logger, if logging has been initialized.
+#[allow(dead_code)]
+pub fn log_warn(message: &str) {
+    if let Some(logger) = GLOBAL_LOGGER.get() {
+        let _ = logger.warn(message);
+    }
+}
+
 /// Logs a message at DEBUG level via the global logger.  No-ops when the global
 /// level is below Debug.
 pub fn log_debug(message: &str) {
@@ -168,7 +176,7 @@ impl Logger {
     }
 
     /// Writes a message at WARN level.  Always emitted regardless of configured level.
-    #[cfg(test)]
+    #[allow(dead_code)]
     pub fn warn(&self, message: &str) -> Result<(), String> {
         self.write("WARN", message)
     }
