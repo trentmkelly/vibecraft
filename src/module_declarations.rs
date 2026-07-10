@@ -92,6 +92,7 @@ mod command_commands;
 mod command_component_argument;
 #[cfg(test)]
 mod command_coordinate_arguments;
+mod command_data_accessor;
 #[cfg(test)]
 mod command_default_gamemode;
 #[cfg(test)]

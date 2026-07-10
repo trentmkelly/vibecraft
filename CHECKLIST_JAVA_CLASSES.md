@@ -1440,8 +1440,8 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/server/commands/data`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/commands/data/BlockDataAccessor.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/commands/data/DataAccessor.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/commands/data/BlockDataAccessor.java`. Rust `command_data_accessor::BlockDataAccessor` mirrors loaded block-entity resolution, prefixed block-position provider grammar, missing-entity failure, scoped load delegation, dirty marking, same-state block update flags `3`, full-metadata reads, and all three translated success forms including locale-root two-decimal scale formatting and pretty NBT components. Java-source-backed and behavioral tests cover every branch and side effect.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/commands/data/DataAccessor.java`. Rust `command_data_accessor::DataAccessor` mirrors Java's compound set/get contract and modified, raw-print, and scaled-path-print component methods; `BlockDataAccessor` provides a complete implementation, with Java-source-backed tests pinning all five signatures and behavior tests exercising each method.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/commands/data/DataCommands.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/commands/data/EntityDataAccessor.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/commands/data/StorageDataAccessor.java`.
