@@ -35,6 +35,7 @@ mod block_entity;
 mod block_metadata;
 mod block_placement;
 mod block_properties;
+mod bit_storage;
 #[cfg(test)]
 mod block_regression;
 mod block_scheduled_ticks;
