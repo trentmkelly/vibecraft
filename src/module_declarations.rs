@@ -724,6 +724,7 @@ mod static_cache_2d;
 mod status_effect;
 mod string_util;
 mod storage;
+mod tick_throttler;
 mod structure_resources;
 mod suppress_forbidden;
 mod system_report;
