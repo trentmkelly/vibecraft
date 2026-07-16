@@ -726,6 +726,7 @@ mod string_util;
 mod storage;
 mod tick_throttler;
 mod time_source;
+mod unit;
 mod structure_resources;
 mod suppress_forbidden;
 mod system_report;
