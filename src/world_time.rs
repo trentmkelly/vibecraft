@@ -286,7 +286,7 @@ impl SleepStatus {
     ) -> bool {
         let deep_sleepers = players
             .iter()
-            .filter(|player| !player.spectator && player.sleeping_long_enough)
+            .filter(|player| player.sleeping_long_enough)
             .count() as i32;
         deep_sleepers >= self.sleepers_needed(sleep_percentage_needed)
     }
@@ -469,6 +469,26 @@ pub fn builtin_timelines() -> &'static [TimelineDefinition] {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(vibecraft_has_decompiled_sources)]
+    const SLEEP_STATUS_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/players/SleepStatus.java");
+
+    #[cfg(vibecraft_has_decompiled_sources)]
+    #[test]
+    fn sleep_status_source_matches_java_counting_and_threshold_surface() {
+        for fragment in [
+            "private int activePlayers",
+            "private int sleepingPlayers",
+            "sleepingPlayers >= this.sleepersNeeded(sleepPercentageNeeded)",
+            "Mth.ceil(this.activePlayers * sleepPercentageNeeded / 100.0F)",
+            "Player::isSleepingLongEnough",
+            "player.isSpectator()",
+            "this.sleepingPlayers = 0",
+        ] {
+            assert!(SLEEP_STATUS_JAVA.contains(fragment), "missing Java source fragment: {fragment}");
+        }
+    }
 
     #[test]
     fn server_clock_manager_ticks_game_time_and_fires_scheduled_functions() {
