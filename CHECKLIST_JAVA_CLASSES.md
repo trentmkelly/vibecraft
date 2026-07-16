@@ -1803,7 +1803,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/CachedUserNameToIdResolver.java`. Ported the persistent dual-index cache with Java-compatible lower-case name lookup, repository and offline-profile fallback, one-calendar-month expiration, access tracking shared across name/UUID indexes, 1,000-entry MRU serialization, tolerant loading/saving, and focused source-anchored behavioral tests.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/IpBanList.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/IpBanListEntry.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/NameAndId.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/NameAndId.java`. Added Java-parity record access and identity APIs, strict UUID normalization, legacy `uuid`/`name` JSON parsing and append behavior, `NameAndId.CODEC`-shaped `id`/`name` conversion, offline UUID coverage, and source-anchored tests.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/OldUsersConverter.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/PlayerList.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/ProfileResolver.java`.

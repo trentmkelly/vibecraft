@@ -3,6 +3,7 @@ use std::path::Path;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::block_update::BlockPos;
+use serde_json::{Map, Value};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NameAndId {
@@ -126,7 +127,7 @@ impl PlayerAccess {
     pub fn is_player_banned(&self, uuid: &str) -> bool {
         self.banned_players
             .iter()
-            .any(|entry| entry.user.uuid == uuid)
+            .any(|entry| entry.user.id() == uuid)
     }
 
     pub fn is_ip_banned(&self, ip: &str) -> bool {
@@ -283,12 +284,12 @@ impl PlayerAccess {
             self.user_cache
                 .iter()
                 .map(|user| {
-                    format!(
-                        "{{\"uuid\":\"{}\",\"name\":\"{}\",\"expiresOn\":\"{}\"}}",
-                        escape(&user.uuid),
-                        escape(&user.name),
-                        escape(&expires_on)
-                    )
+                    let Value::Object(mut object) = user.to_json_value() else {
+                        return "{}".to_string();
+                    };
+                    object.insert("expiresOn".to_string(), Value::String(expires_on.clone()));
+                    serde_json::to_string(&Value::Object(object))
+                        .unwrap_or_else(|_| "{}".to_string())
                 })
                 .collect(),
         )
@@ -296,12 +297,93 @@ impl PlayerAccess {
 }
 
 impl NameAndId {
+    /// Returns the UUID string represented by Java's `NameAndId.id()` record
+    /// accessor. UUIDs are stored as strings in this Rust port because the
+    /// surrounding player-list and persistence APIs use textual identifiers.
+    pub fn id(&self) -> &str {
+        &self.uuid
+    }
+
+    /// Reads the legacy player-list representation used by Java
+    /// `NameAndId.fromJson`: `{ "uuid": "...", "name": "..." }`.
+    pub fn from_json(value: &Value) -> Option<Self> {
+        let object = value.as_object()?;
+        let uuid = normalize_uuid(object.get("uuid")?.as_str()?)?;
+        let name = object.get("name")?.as_str()?.to_string();
+        Some(Self { uuid, name })
+    }
+
+    /// Appends this record to the legacy JSON shape used by ban, op, and
+    /// whitelist files. Existing fields are intentionally overwritten, just as
+    /// Gson's `JsonObject.addProperty` does.
+    pub fn append_to(&self, output: &mut Map<String, Value>) {
+        output.insert(
+            "uuid".to_string(),
+            Value::String(normalize_uuid(&self.uuid).unwrap_or_else(|| self.uuid.clone())),
+        );
+        output.insert("name".to_string(), Value::String(self.name.clone()));
+    }
+
+    pub fn to_json_value(&self) -> Value {
+        let mut output = Map::new();
+        self.append_to(&mut output);
+        Value::Object(output)
+    }
+
+    /// Encodes the `NameAndId.CODEC` record shape: `{ "id": "...", "name":
+    /// "..." }`. Unlike the legacy JSON helper, this returns an error for a
+    /// malformed UUID because Java's `UUIDUtil.STRING_CODEC` does.
+    #[allow(dead_code)]
+    pub fn to_codec_value(&self) -> Result<Value, String> {
+        let uuid = normalize_uuid(&self.uuid)
+            .ok_or_else(|| format!("Invalid UUID {}", self.uuid))?;
+        let mut output = Map::new();
+        output.insert("id".to_string(), Value::String(uuid));
+        output.insert("name".to_string(), Value::String(self.name.clone()));
+        Ok(Value::Object(output))
+    }
+
+    #[allow(dead_code)]
+    pub fn from_codec_value(value: &Value) -> Result<Self, String> {
+        let object = value
+            .as_object()
+            .ok_or_else(|| "NameAndId must be a JSON object".to_string())?;
+        let uuid = object
+            .get("id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "NameAndId.id must be a string".to_string())?;
+        let uuid = normalize_uuid(uuid).ok_or_else(|| format!("Invalid UUID {uuid}"))?;
+        let name = object
+            .get("name")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "NameAndId.name must be a string".to_string())?;
+        Ok(Self {
+            uuid,
+            name: name.to_string(),
+        })
+    }
+
     pub fn create_offline(name: &str) -> Self {
         Self {
             uuid: offline_player_uuid(name),
             name: name.to_string(),
         }
     }
+}
+
+fn normalize_uuid(value: &str) -> Option<String> {
+    let bytes = value.as_bytes();
+    if bytes.len() != 36 || ![8, 13, 18, 23].iter().all(|&index| bytes[index] == b'-') {
+        return None;
+    }
+    if bytes
+        .iter()
+        .enumerate()
+        .any(|(index, byte)| !matches!(index, 8 | 13 | 18 | 23) && !byte.is_ascii_hexdigit())
+    {
+        return None;
+    }
+    Some(value.to_ascii_lowercase())
 }
 
 fn offline_player_uuid(name: &str) -> String {
@@ -471,11 +553,7 @@ struct ProfileCacheEntry {
 
 #[cfg(test)]
 fn name_and_id_json(user: &NameAndId) -> String {
-    format!(
-        "{{\"uuid\":\"{}\",\"name\":\"{}\"}}",
-        escape(&user.uuid),
-        escape(&user.name)
-    )
+    serde_json::to_string(&user.to_json_value()).unwrap_or_else(|_| "{}".to_string())
 }
 
 fn user_cache_expires_on(now: SystemTime) -> String {
@@ -558,6 +636,7 @@ fn json_array(entries: Vec<String>) -> String {
     }
 }
 
+#[cfg(test)]
 fn escape(value: &str) -> String {
     value
         .chars()
@@ -576,12 +655,8 @@ fn load_name_and_id_entries(path: &Path) -> std::io::Result<Vec<NameAndId>> {
     let raw = read_optional(path)?;
     Ok(json_objects(&raw)
         .into_iter()
-        .filter_map(|object| {
-            Some(NameAndId {
-                uuid: json_string_field(&object, "uuid")?,
-                name: json_string_field(&object, "name")?,
-            })
-        })
+        .filter_map(|object| serde_json::from_str::<Value>(&object).ok())
+        .filter_map(|object| NameAndId::from_json(&object))
         .collect())
 }
 
@@ -778,6 +853,68 @@ mod tests {
         SpawnProtection,
     };
     use std::fs;
+
+    #[cfg(vibecraft_has_decompiled_sources)]
+    const JAVA_SOURCE: &str =
+        vibecraft_java_source!("/net/minecraft/server/players/NameAndId.java");
+
+    #[test]
+    fn name_and_id_matches_java_legacy_json_and_codec_shapes() {
+        let profile = NameAndId {
+            uuid: "069A79F4-44E9-4726-A5BE-FCA90E38AAF5".to_string(),
+            name: "Notch\"".to_string(),
+        };
+        let legacy = profile.to_json_value();
+        assert_eq!(legacy["uuid"], "069a79f4-44e9-4726-a5be-fca90e38aaf5");
+        assert_eq!(legacy["name"], "Notch\"");
+        assert_eq!(NameAndId::from_json(&legacy), Some(NameAndId {
+            uuid: "069a79f4-44e9-4726-a5be-fca90e38aaf5".to_string(),
+            name: "Notch\"".to_string(),
+        }));
+
+        let codec = profile.to_codec_value().expect("valid UUID codec value");
+        assert_eq!(codec["id"], "069a79f4-44e9-4726-a5be-fca90e38aaf5");
+        assert_eq!(codec["name"], "Notch\"");
+        assert_eq!(NameAndId::from_codec_value(&codec), Ok(NameAndId {
+            uuid: "069a79f4-44e9-4726-a5be-fca90e38aaf5".to_string(),
+            name: "Notch\"".to_string(),
+        }));
+
+        #[cfg(vibecraft_has_decompiled_sources)]
+        {
+            for source_fragment in [
+                "public record NameAndId(UUID id, String name)",
+                "UUIDUtil.STRING_CODEC.fieldOf(\"id\")",
+                "object.has(\"uuid\") && object.has(\"name\")",
+                "output.addProperty(\"uuid\", this.id().toString())",
+                "UUIDUtil.createOfflinePlayerUUID(name)",
+            ] {
+                assert!(JAVA_SOURCE.contains(source_fragment), "missing: {source_fragment}");
+            }
+        }
+    }
+
+    #[test]
+    fn name_and_id_rejects_invalid_uuid_and_missing_codec_fields() {
+        let invalid_legacy = serde_json::json!({"uuid": "not-a-uuid", "name": "Steve"});
+        assert_eq!(NameAndId::from_json(&invalid_legacy), None);
+        assert_eq!(
+            NameAndId::from_codec_value(&serde_json::json!({"id": "not-a-uuid", "name": "Steve"})),
+            Err("Invalid UUID not-a-uuid".to_string())
+        );
+        assert_eq!(
+            NameAndId::from_codec_value(&serde_json::json!({"id": "00000000-0000-0000-0000-000000000001"})),
+            Err("NameAndId.name must be a string".to_string())
+        );
+        assert_eq!(
+            (NameAndId {
+                uuid: "not-a-uuid".to_string(),
+                name: "Steve".to_string(),
+            })
+            .to_codec_value(),
+            Err("Invalid UUID not-a-uuid".to_string())
+        );
+    }
 
     fn player() -> NameAndId {
         NameAndId {
