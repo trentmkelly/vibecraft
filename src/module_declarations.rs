@@ -716,6 +716,7 @@ mod suppressed_exception_collector;
 mod server_tick_task;
 mod server_properties;
 mod segmented_angle_precision;
+mod sequenced_priority_iterator;
 mod settings;
 mod shared_constants;
 mod single_key_cache;
