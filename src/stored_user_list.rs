@@ -14,6 +14,8 @@ use std::path::{Path, PathBuf};
 use chrono::{DateTime, Local};
 use serde_json::{Map, Value};
 
+use crate::player_access::NameAndId;
+
 const DATE_FORMAT: &str = "%Y-%m-%d %H:%M:%S %z";
 const EXPIRES_NEVER: &str = "forever";
 
@@ -352,6 +354,139 @@ where
 
 }
 
+/// Notification callbacks used by `UserBanList.add/remove/clear`.
+pub trait PlayerBanNotifications {
+    fn player_banned(&mut self, ban: &UserBanListEntry);
+    fn player_unbanned(&mut self, player: &NameAndId);
+}
+
+impl PlayerBanNotifications for () {
+    fn player_banned(&mut self, _ban: &UserBanListEntry) {}
+    fn player_unbanned(&mut self, _player: &NameAndId) {}
+}
+
+/// Java `UserBanListEntry`, keyed by the UUID portion of `NameAndId`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UserBanListEntry {
+    pub common: BanListEntry<NameAndId>,
+}
+
+impl UserBanListEntry {
+    pub fn new(user: Option<NameAndId>) -> Self {
+        Self {
+            common: BanListEntry::new(user, None, None, None, None),
+        }
+    }
+
+    pub fn with_details(user: Option<NameAndId>, created: Option<DateTime<Local>>, source: Option<String>, expires: Option<DateTime<Local>>, reason: Option<String>) -> Self {
+        Self {
+            common: BanListEntry::new(user, created, source, expires, reason),
+        }
+    }
+
+    pub fn from_json(object: &Map<String, Value>) -> Self {
+        let user = NameAndId::from_json(&Value::Object(object.clone()));
+        Self {
+            common: BanListEntry::from_json_common(object, user),
+        }
+    }
+
+    pub fn user(&self) -> Option<&NameAndId> {
+        self.common.user.as_ref()
+    }
+
+    pub fn display_name(&self) -> String {
+        self.user().map_or_else(|| "commands.banlist.entry.unknown".to_string(), |user| user.name.clone())
+    }
+}
+
+impl StoredUserEntry<NameAndId> for UserBanListEntry {
+    fn user(&self) -> Option<&NameAndId> {
+        self.user()
+    }
+
+    fn has_expired(&self, now: DateTime<Local>) -> bool {
+        self.common.expires.is_some_and(|expires| expires < now)
+    }
+
+    fn serialize(&self) -> Value {
+        let Some(user) = self.user() else {
+            return Value::Object(Map::new());
+        };
+        let mut object = Map::new();
+        user.append_to(&mut object);
+        self.common.serialize_common(&mut object);
+        Value::Object(object)
+    }
+}
+
+/// Java `UserBanList` facade over the generic stored list.
+#[derive(Debug, Clone)]
+pub struct UserBanList<N = ()> {
+    list: StoredUserList<NameAndId, UserBanListEntry>,
+    notifications: N,
+}
+
+impl<N> UserBanList<N>
+where
+    N: PlayerBanNotifications,
+{
+    pub fn new(file: impl Into<PathBuf>, notifications: N) -> Self {
+        Self {
+            list: StoredUserList::new(file),
+            notifications,
+        }
+    }
+
+    pub fn load(&mut self) -> std::io::Result<()> {
+        self.list.load(UserBanListEntry::from_json)
+    }
+
+    pub fn is_banned(&mut self, user: &NameAndId, now: DateTime<Local>) -> bool {
+        self.list.get(user, now).is_some()
+    }
+
+    pub fn get_user_list(&self) -> Vec<String> {
+        self.list
+            .entries()
+            .filter_map(UserBanListEntry::user)
+            .map(|user| user.name.clone())
+            .collect()
+    }
+
+    pub fn add(&mut self, entry: UserBanListEntry) -> std::io::Result<bool> {
+        let changed = self.list.add(entry.clone())?;
+        if changed && entry.user().is_some() {
+            self.notifications.player_banned(&entry);
+        }
+        Ok(changed)
+    }
+
+    pub fn remove(&mut self, user: &NameAndId) -> std::io::Result<bool> {
+        let changed = self.list.remove(user)?;
+        if changed {
+            self.notifications.player_unbanned(user);
+        }
+        Ok(changed)
+    }
+
+    pub fn clear(&mut self) -> std::io::Result<()> {
+        let users: Vec<NameAndId> = self.list.entries().filter_map(|entry| entry.user().cloned()).collect();
+        for user in users {
+            self.notifications.player_unbanned(&user);
+        }
+        self.list.clear()
+    }
+
+    pub fn entries(&self) -> impl Iterator<Item = &UserBanListEntry> {
+        self.list.entries()
+    }
+
+    pub fn notifications(&self) -> &N {
+        &self.notifications
+    }
+}
+
 fn parse_date(value: &Value) -> Option<DateTime<Local>> {
     parse_date_text(value.as_str()?)
 }
@@ -388,6 +523,10 @@ mod tests {
     const IP_LIST_JAVA: &str = vibecraft_java_source!("/net/minecraft/server/players/IpBanList.java");
     #[cfg(vibecraft_has_decompiled_sources)]
     const IP_ENTRY_JAVA: &str = vibecraft_java_source!("/net/minecraft/server/players/IpBanListEntry.java");
+    #[cfg(vibecraft_has_decompiled_sources)]
+    const USER_LIST_JAVA: &str = vibecraft_java_source!("/net/minecraft/server/players/UserBanList.java");
+    #[cfg(vibecraft_has_decompiled_sources)]
+    const USER_ENTRY_JAVA: &str = vibecraft_java_source!("/net/minecraft/server/players/UserBanListEntry.java");
 
     #[derive(Default, Debug)]
     struct Notifications {
@@ -402,6 +541,22 @@ mod tests {
 
         fn ip_unbanned(&mut self, ip: &str) {
             self.unbanned.borrow_mut().push(ip.to_string());
+        }
+    }
+
+    #[derive(Default, Debug)]
+    struct PlayerNotifications {
+        banned: RefCell<Vec<String>>,
+        unbanned: RefCell<Vec<String>>,
+    }
+
+    impl PlayerBanNotifications for PlayerNotifications {
+        fn player_banned(&mut self, ban: &UserBanListEntry) {
+            self.banned.borrow_mut().push(ban.display_name());
+        }
+
+        fn player_unbanned(&mut self, player: &NameAndId) {
+            self.unbanned.borrow_mut().push(player.name.clone());
         }
     }
 
@@ -422,6 +577,8 @@ mod tests {
             (BAN_ENTRY_JAVA, &["EXPIRES_NEVER = \"forever\"", "(Unknown)", "getReasonMessage", "hasExpired"][..]),
             (IP_LIST_JAVA, &["extends StoredUserList<String, IpBanListEntry>", "getIpFromAddress", "notificationService.ipBanned", "notificationService.ipUnbanned"][..]),
             (IP_ENTRY_JAVA, &["extends BanListEntry<String>", "object.has(\"ip\")", "Component.literal(String.valueOf(this.getUser()))"][..]),
+            (USER_LIST_JAVA, &["extends StoredUserList<NameAndId, UserBanListEntry>", "getUserList", "notificationService.playerBanned", "notificationService.playerUnbanned"][..]),
+            (USER_ENTRY_JAVA, &["extends BanListEntry<NameAndId>", "NameAndId.fromJson(object)", "commands.banlist.entry.unknown"][..]),
         ] {
             for fragment in fragments {
                 assert!(source.contains(fragment), "missing Java source fragment: {fragment}");
@@ -473,5 +630,45 @@ mod tests {
         assert_eq!(one, two);
         assert_eq!(one.common.source, "(Unknown)");
         assert_eq!(one.common.reason_message(), None);
+    }
+
+    #[test]
+    fn user_ban_list_keys_by_uuid_lists_names_and_notifies() {
+        let path = fixture_path("user-list");
+        let _ignored = fs::remove_file(&path);
+        let user = NameAndId::create_offline("Steve");
+        let replacement = UserBanListEntry::with_details(
+            Some(user.clone()),
+            Some(now()),
+            Some("Console".to_string()),
+            None,
+            Some("test".to_string()),
+        );
+        let notifications = PlayerNotifications::default();
+        let mut list = UserBanList::new(&path, notifications);
+        assert!(list.add(replacement.clone()).expect("add user ban"));
+        assert!(!list.add(replacement).expect("duplicate user ban"));
+        assert!(list.is_banned(&user, now()));
+        assert_eq!(list.get_user_list(), vec!["Steve".to_string()]);
+        assert_eq!(list.notifications().banned.borrow().as_slice(), ["Steve"]);
+        assert!(list.remove(&user).expect("remove user ban"));
+        assert_eq!(list.notifications().unbanned.borrow().as_slice(), ["Steve"]);
+
+        let unknown = UserBanListEntry::new(None);
+        assert_eq!(unknown.display_name(), "commands.banlist.entry.unknown");
+        let _ignored = fs::remove_file(path);
+    }
+
+    #[test]
+    fn user_ban_entry_round_trips_name_and_id_json() {
+        let path = fixture_path("user-load");
+        let _ignored = fs::remove_file(&path);
+        let user = NameAndId::create_offline("Alex");
+        let entry = UserBanListEntry::with_details(Some(user.clone()), Some(now()), None, None, None);
+        let value = entry.serialize();
+        let object = value.as_object().expect("serialized user ban object");
+        assert_eq!(UserBanListEntry::from_json(object).user(), Some(&user));
+        assert_eq!(object["uuid"], user.uuid.as_str());
+        assert_eq!(object["name"], "Alex");
     }
 }

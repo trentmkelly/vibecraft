@@ -1812,8 +1812,8 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/SleepStatus.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/StoredUserEntry.java`. Added the generic stored-entry contract for nullable users, expiry checks, and serialization.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/StoredUserList.java`. Added Java-compatible key replacement, duplicate detection, expiry removal, load/save, clear/remove, collection, and empty/list queries.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/UserBanList.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/UserBanListEntry.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/UserBanList.java`. Added UUID-keyed stored-list behavior, name projection, replacement/removal/clear operations, persistence, expiry-aware queries, and player-ban notifications.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/UserBanListEntry.java`. Added `NameAndId` JSON construction/serialization, ban defaults/equality/expiry inheritance, and unknown-user display behavior.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/UserNameToIdResolver.java`. Added the complete Rust interface for add, name lookup, UUID lookup, offline-resolution configuration, and persistence, exercised through the cached resolver parity suite.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/UserWhiteList.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/UserWhiteListEntry.java`.

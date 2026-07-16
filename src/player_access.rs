@@ -1,4 +1,5 @@
 use std::fs;
+use std::fmt;
 use std::path::Path;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -9,6 +10,12 @@ use serde_json::{Map, Value};
 pub struct NameAndId {
     pub uuid: String,
     pub name: String,
+}
+
+impl fmt::Display for NameAndId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&normalize_uuid(&self.uuid).unwrap_or_else(|| self.uuid.clone()))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
