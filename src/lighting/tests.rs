@@ -29,6 +29,23 @@ use crate::lighting::queue_entry::{
     should_propagate_in_direction,
 };
 
+#[cfg(vibecraft_has_decompiled_sources)]
+const LIGHT_LAYER_JAVA: &str =
+    vibecraft_java_source!("/net/minecraft/world/level/LightLayer.java");
+
+#[test]
+fn light_layer_matches_java_enum_contract() {
+    assert_eq!(LightLayer::Sky, LightLayer::Sky);
+    assert_ne!(LightLayer::Sky, LightLayer::Block);
+    #[cfg(vibecraft_has_decompiled_sources)]
+    {
+        assert_eq!(LIGHT_LAYER_JAVA.lines().count(), 6);
+        for fragment in ["public enum LightLayer", "SKY,", "BLOCK;"] {
+            assert!(LIGHT_LAYER_JAVA.contains(fragment), "missing LightLayer source fragment: {fragment}");
+        }
+    }
+}
+
 // ---- F1. DataLayer nibble parity ----
 #[test]
 fn f1_data_layer_nibble_layout_matches_java() {
