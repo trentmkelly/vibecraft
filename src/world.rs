@@ -420,6 +420,18 @@ impl WorldOptions {
         }
     }
 
+    /// Java `WorldOptions.defaultWithRandomSeed`: normal generation with a
+    /// random seed and no bonus chest.
+    pub fn default_with_random_seed() -> Self {
+        Self::new(random_seed(), true, false)
+    }
+
+    /// Java `WorldOptions.testWorldWithRandomSeed`: random seed with
+    /// structures and bonus chests disabled for deterministic test setup.
+    pub fn test_world_with_random_seed() -> Self {
+        Self::new(random_seed(), false, false)
+    }
+
     pub fn from_server_inputs(
         level_seed: &str,
         generate_structures: bool,
@@ -827,5 +839,38 @@ mod tests {
         assert!(demo.generate_structures);
         assert!(demo.generate_bonus_chest);
         assert!(demo.demo);
+    }
+
+    #[test]
+    fn world_options_random_seed_factories_match_java_defaults() {
+        let normal = WorldOptions::default_with_random_seed();
+        assert!(normal.generate_structures);
+        assert!(!normal.generate_bonus_chest);
+        assert!(!normal.demo);
+
+        let test = WorldOptions::test_world_with_random_seed();
+        assert!(!test.generate_structures);
+        assert!(!test.generate_bonus_chest);
+        assert!(!test.demo);
+    }
+
+    #[cfg(vibecraft_has_decompiled_sources)]
+    #[test]
+    fn world_options_source_matches_java_26_1_2_contract() {
+        const JAVA_SOURCE: &str =
+            vibecraft_java_source!("/net/minecraft/world/level/levelgen/WorldOptions.java");
+        for fragment in [
+            "public static WorldOptions defaultWithRandomSeed()",
+            "public static WorldOptions testWorldWithRandomSeed()",
+            "public boolean isOldCustomizedWorld()",
+            "public WorldOptions withBonusChest(final boolean generateBonusChest)",
+            "public WorldOptions withStructures(final boolean generateStructures)",
+            "public WorldOptions withSeed(final OptionalLong seed)",
+            "public static OptionalLong parseSeed(String seedString)",
+            "return OptionalLong.of(seedString.hashCode());",
+            "public static long randomSeed()",
+        ] {
+            assert!(JAVA_SOURCE.contains(fragment), "missing Java source fragment: {fragment}");
+        }
     }
 }

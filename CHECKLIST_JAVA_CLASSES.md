@@ -5006,7 +5006,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/levelgen/WorldDimensions.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/levelgen/WorldGenSettings.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/levelgen/WorldGenerationContext.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/levelgen/WorldOptions.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/levelgen/WorldOptions.java`. Rust `world::WorldOptions` mirrors Java's seed, structure, bonus-chest, demo, legacy-custom-options, mutation, and seed-parsing semantics; `default_with_random_seed` and `test_world_with_random_seed` cover Java's random-seed factories, with source-backed and behavioral tests. The separate registry-driven `WorldGenSettings`/`WorldDimensions` loading surface remains tracked by its own checklist items.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/levelgen/WorldgenRandom.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/levelgen/Xoroshiro128PlusPlus.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/levelgen/XoroshiroRandomSource.java`.
