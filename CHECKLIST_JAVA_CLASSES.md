@@ -1799,10 +1799,10 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/server/players`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/BanListEntry.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/BanListEntry.java`. Added shared ban fields/defaults, date parsing and serialization, expiration checks, reason handling, and Java equality semantics that intentionally exclude `created`, with source-anchored tests.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/CachedUserNameToIdResolver.java`. Ported the persistent dual-index cache with Java-compatible lower-case name lookup, repository and offline-profile fallback, one-calendar-month expiration, access tracking shared across name/UUID indexes, 1,000-entry MRU serialization, tolerant loading/saving, and focused source-anchored behavioral tests.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/IpBanList.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/IpBanListEntry.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/IpBanList.java`. Added the stored-map facade, expiry-aware lookup, socket-address extraction, replacement/removal/clear behavior, persistence, and notification callbacks.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/IpBanListEntry.java`. Added IP-specific construction, JSON load/save shape, null-user handling, and display-name behavior.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/NameAndId.java`. Added Java-parity record access and identity APIs, strict UUID normalization, legacy `uuid`/`name` JSON parsing and append behavior, `NameAndId.CODEC`-shaped `id`/`name` conversion, offline UUID coverage, and source-anchored tests.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/OldUsersConverter.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/PlayerList.java`.
@@ -1810,8 +1810,8 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/ServerOpList.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/ServerOpListEntry.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/SleepStatus.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/StoredUserEntry.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/StoredUserList.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/StoredUserEntry.java`. Added the generic stored-entry contract for nullable users, expiry checks, and serialization.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/StoredUserList.java`. Added Java-compatible key replacement, duplicate detection, expiry removal, load/save, clear/remove, collection, and empty/list queries.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/UserBanList.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/UserBanListEntry.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/players/UserNameToIdResolver.java`. Added the complete Rust interface for add, name lookup, UUID lookup, offline-resolution configuration, and persistence, exercised through the cached resolver parity suite.
