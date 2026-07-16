@@ -713,6 +713,7 @@ mod server_properties;
 mod settings;
 mod shared_constants;
 mod single_key_cache;
+mod smooth_double;
 mod spawning;
 mod special_block;
 mod special_dates;
