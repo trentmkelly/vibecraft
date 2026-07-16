@@ -619,6 +619,7 @@ mod memory_reserve;
 #[cfg(test)]
 mod mob_family;
 mod mob_interaction;
+mod mod_check;
 #[cfg(test)]
 mod movement_physics;
 #[cfg(test)]
