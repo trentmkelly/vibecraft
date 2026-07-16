@@ -30,6 +30,7 @@ pub struct PlayerProfile {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayerListEntry {
     pub profile: PlayerProfile,
+    pub remote_ip: String,
     pub listed: bool,
     pub latency: i32,
     pub game_mode: GameMode,
@@ -44,6 +45,7 @@ impl PlayerListEntry {
     pub fn new(profile: PlayerProfile, game_mode: GameMode) -> Self {
         Self {
             profile,
+            remote_ip: String::new(),
             listed: true,
             latency: 0,
             game_mode,
@@ -198,8 +200,14 @@ pub struct PlayerListModel {
     whitelist: BTreeSet<UuidKey>,
     banned_profiles: BTreeSet<UuidKey>,
     banned_ips: BTreeSet<String>,
+    operators: BTreeSet<UuidKey>,
+    player_limit_bypass: BTreeSet<UuidKey>,
     max_players: usize,
     accepts_transfers: bool,
+    allow_commands_for_all_players: bool,
+    singleplayer_owner: Option<UuidKey>,
+    world_allow_commands: bool,
+    send_all_player_info_in: u16,
 }
 
 impl PlayerListModel {
@@ -212,8 +220,14 @@ impl PlayerListModel {
             whitelist: BTreeSet::new(),
             banned_profiles: BTreeSet::new(),
             banned_ips: BTreeSet::new(),
+            operators: BTreeSet::new(),
+            player_limit_bypass: BTreeSet::new(),
             max_players,
             accepts_transfers: false,
+            allow_commands_for_all_players: false,
+            singleplayer_owner: None,
+            world_allow_commands: false,
+            send_all_player_info_in: 0,
         }
     }
 
@@ -235,6 +249,30 @@ impl PlayerListModel {
 
     pub fn ban_ip(&mut self, ip: impl Into<String>) {
         self.banned_ips.insert(ip.into());
+    }
+
+    pub fn op_uuid(&mut self, uuid: Uuid) {
+        self.operators.insert(UuidKey::from(uuid));
+    }
+
+    pub fn deop_uuid(&mut self, uuid: Uuid) {
+        self.operators.remove(&UuidKey::from(uuid));
+    }
+
+    /// Models the `DedicatedPlayerList` override of the base `PlayerList`
+    /// method. The base Java implementation returns false; a dedicated list
+    /// delegates to `ServerOpList.canBypassPlayerLimit`.
+    pub fn allow_player_limit_bypass(&mut self, uuid: Uuid) {
+        self.player_limit_bypass.insert(UuidKey::from(uuid));
+    }
+
+    pub fn set_allow_commands_for_all_players(&mut self, allow: bool) {
+        self.allow_commands_for_all_players = allow;
+    }
+
+    pub fn set_singleplayer_owner(&mut self, uuid: Option<Uuid>, world_allow_commands: bool) {
+        self.singleplayer_owner = uuid.map(UuidKey::from);
+        self.world_allow_commands = world_allow_commands;
     }
 
     pub fn enqueue_login(&mut self, profile: PlayerProfile) {
@@ -268,26 +306,26 @@ impl PlayerListModel {
                 translation_key: BANNED_DISCONNECT,
             };
         }
+        if self.whitelist_enabled && !self.is_white_listed_key(key) {
+            return LoginDecision::Rejected {
+                translation_key: NOT_WHITELISTED_DISCONNECT,
+            };
+        }
         if self.banned_ips.contains(remote_ip) {
             return LoginDecision::Rejected {
                 translation_key: BANNED_IP_DISCONNECT,
             };
         }
-        if self.whitelist_enabled && !self.whitelist.contains(&key) {
-            return LoginDecision::Rejected {
-                translation_key: NOT_WHITELISTED_DISCONNECT,
-            };
-        }
-
-        let duplicate_disconnects = self.disconnect_all_players_with_profile(profile.uuid);
-        if self.players.len() >= self.max_players {
+        if self.players.len() >= self.max_players && !self.can_bypass_player_limit_key(key) {
             return LoginDecision::Rejected {
                 translation_key: SERVER_FULL_DISCONNECT,
             };
         }
 
         let mut entry = PlayerListEntry::new(profile, game_mode);
+        entry.remote_ip = remote_ip.to_string();
         entry.transferred = transferred_cookie;
+        let duplicate_disconnects = self.disconnect_all_players_with_profile(entry.profile.uuid);
         let self_initializing = PlayerInfoUpdatePacket::initializing(self.players.clone());
         self.players.push(entry.clone());
         self.players_by_uuid.insert(key, entry.clone());
@@ -347,6 +385,16 @@ impl PlayerListModel {
 
     pub fn broadcast_latency(&self) -> PlayerInfoUpdatePacket {
         PlayerInfoUpdatePacket::single_action(PlayerInfoAction::UpdateLatency, self.players.clone())
+    }
+
+    pub fn tick(&mut self) -> Option<PlayerInfoUpdatePacket> {
+        self.send_all_player_info_in += 1;
+        if self.send_all_player_info_in > 600 {
+            self.send_all_player_info_in = 0;
+            Some(self.broadcast_latency())
+        } else {
+            None
+        }
     }
 
     pub fn update_tab_entry<F>(&mut self, uuid: Uuid, mut update: F) -> Option<TabListUpdate>
@@ -427,6 +475,57 @@ impl PlayerListModel {
     pub fn players(&self) -> &[PlayerListEntry] {
         &self.players
     }
+
+    pub fn get_player_names_array(&self) -> Vec<String> {
+        self.players
+            .iter()
+            .map(|player| player.profile.name.clone())
+            .collect()
+    }
+
+    pub fn get_player_count(&self) -> usize {
+        self.players.len()
+    }
+
+    pub fn get_player_by_name(&self, name: &str) -> Option<&PlayerListEntry> {
+        self.players
+            .iter()
+            .find(|player| player.profile.name.eq_ignore_ascii_case(name))
+    }
+
+    pub fn get_player(&self, uuid: Uuid) -> Option<&PlayerListEntry> {
+        self.players_by_uuid.get(&UuidKey::from(uuid))
+    }
+
+    pub fn get_players_with_address(&self, ip: &str) -> Vec<&PlayerListEntry> {
+        self.players
+            .iter()
+            .filter(|player| player.remote_ip == ip)
+            .collect()
+    }
+
+    pub fn is_white_listed(&self, uuid: Uuid) -> bool {
+        !self.whitelist_enabled || self.is_white_listed_key(UuidKey::from(uuid))
+    }
+
+    pub fn is_op(&self, uuid: Uuid) -> bool {
+        let key = UuidKey::from(uuid);
+        self.operators.contains(&key)
+            || self.singleplayer_owner == Some(key) && self.world_allow_commands
+            || self.allow_commands_for_all_players
+    }
+
+    pub fn can_bypass_player_limit(&self, uuid: Uuid) -> bool {
+        self.can_bypass_player_limit_key(UuidKey::from(uuid))
+    }
+
+    fn is_white_listed_key(&self, key: UuidKey) -> bool {
+        !self.whitelist_enabled || self.operators.contains(&key) || self.whitelist.contains(&key)
+    }
+
+    fn can_bypass_player_limit_key(&self, key: UuidKey) -> bool {
+        self.player_limit_bypass.contains(&key)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -450,6 +549,10 @@ mod tests {
     use crate::network::play::GameMode;
     use crate::registry::Identifier;
 
+    #[cfg(vibecraft_has_decompiled_sources)]
+    const JAVA_SOURCE: &str =
+        vibecraft_java_source!("/net/minecraft/server/players/PlayerList.java");
+
     fn uuid(byte: u8) -> Uuid {
         Uuid([byte; 16])
     }
@@ -459,6 +562,23 @@ mod tests {
             uuid: uuid(byte),
             name: name.to_string(),
             properties: Vec::new(),
+        }
+    }
+
+    #[cfg(vibecraft_has_decompiled_sources)]
+    #[test]
+    fn source_matches_player_list_gate_and_lifecycle_surface() {
+        for fragment in [
+            "public @Nullable Component canPlayerLogin",
+            "if (!this.isWhiteListed(nameAndId))",
+            "public boolean disconnectAllPlayersWithProfile",
+            "public void tick()",
+            "public void broadcastAll(final Packet<?> packet, final ResourceKey<Level> dimension)",
+            "public String[] getPlayerNamesArray()",
+            "public List<ServerPlayer> getPlayersWithAddress(final String ip)",
+            "public boolean canBypassPlayerLimit(final NameAndId nameAndId)",
+        ] {
+            assert!(JAVA_SOURCE.contains(fragment), "missing Java source fragment: {fragment}");
         }
     }
 
@@ -567,6 +687,37 @@ mod tests {
     }
 
     #[test]
+    fn login_gate_matches_java_whitelist_ip_and_operator_bypass_order() {
+        let mut list = PlayerListModel::new(10);
+        list.set_whitelist_enabled(true);
+        list.ban_ip("127.0.0.1");
+        assert_eq!(
+            list.login(profile(1, "Alpha"), GameMode::Survival, "127.0.0.1", false),
+            LoginDecision::Rejected {
+                translation_key: NOT_WHITELISTED_DISCONNECT
+            }
+        );
+
+        list.op_uuid(uuid(1));
+        assert_eq!(
+            list.login(profile(1, "Alpha"), GameMode::Survival, "127.0.0.1", false),
+            LoginDecision::Rejected {
+                translation_key: super::BANNED_IP_DISCONNECT
+            }
+        );
+
+        let mut full = PlayerListModel::new(1);
+        full.login(profile(1, "Alpha"), GameMode::Survival, "127.0.0.1", false);
+        full.op_uuid(uuid(2));
+        full.allow_player_limit_bypass(uuid(2));
+        assert!(matches!(
+            full.login(profile(2, "Beta"), GameMode::Survival, "127.0.0.2", false),
+            LoginDecision::Accepted { .. }
+        ));
+        assert!(full.can_bypass_player_limit(uuid(2)));
+    }
+
+    #[test]
     fn login_queue_is_fifo_and_transfer_cookie_suppresses_status_send() {
         let mut list = PlayerListModel::new(10);
         list.enqueue_login(profile(1, "Alpha"));
@@ -613,6 +764,25 @@ mod tests {
             list.shutdown_disconnects()[0].translation_key,
             SERVER_SHUTDOWN_DISCONNECT
         );
+    }
+
+    #[test]
+    fn player_lookup_address_and_latency_tick_match_java_surface() {
+        let mut list = PlayerListModel::new(10);
+        list.login(profile(1, "Alpha"), GameMode::Survival, "127.0.0.1", false);
+        list.login(profile(2, "Beta"), GameMode::Survival, "127.0.0.1", false);
+        assert_eq!(list.get_player_names_array(), ["Alpha", "Beta"]);
+        assert_eq!(list.get_player_count(), 2);
+        assert_eq!(list.get_player_by_name("aLpHa").map(|p| p.profile.uuid), Some(uuid(1)));
+        assert_eq!(list.get_player(uuid(2)).map(|p| p.profile.name.as_str()), Some("Beta"));
+        assert_eq!(list.get_players_with_address("127.0.0.1").len(), 2);
+
+        for _ in 0..600 {
+            assert!(list.tick().is_none());
+        }
+        let update = list.tick().expect("latency update after 600 ticks");
+        assert_eq!(update.actions, vec![PlayerInfoAction::UpdateLatency]);
+        assert_eq!(update.entries.len(), 2);
     }
 
     #[test]
