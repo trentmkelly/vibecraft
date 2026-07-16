@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::chat_component::Component;
 use crate::command_shared_suggestion_provider::{
     suggest, SuggestionModel, SuggestionsBuilderModel,
 };
@@ -83,12 +84,24 @@ impl GameTypeModel {
         }
     }
 
+    pub fn serialized_name(self) -> &'static str {
+        self.name()
+    }
+
     pub fn short_display_key(self) -> String {
         format!("selectWorld.gameMode.{}", self.name())
     }
 
     pub fn long_display_key(self) -> String {
         format!("gameMode.{}", self.name())
+    }
+
+    pub fn short_display_name(self) -> Component {
+        Component::translatable(self.short_display_key(), Vec::new())
+    }
+
+    pub fn long_display_name(self) -> Component {
+        Component::translatable(self.long_display_key(), Vec::new())
     }
 
     pub fn by_id(id: i32) -> Self {
@@ -281,6 +294,41 @@ mod tests {
         );
         assert!(GameTypeModel::is_valid_id(3));
         assert!(!GameTypeModel::is_valid_id(4));
+        assert_eq!(GameTypeModel::Creative.serialized_name(), "creative");
+        assert_eq!(
+            GameTypeModel::Creative.short_display_name().get_string(),
+            "selectWorld.gameMode.creative"
+        );
+        assert_eq!(
+            GameTypeModel::Spectator.long_display_name().get_string(),
+            "gameMode.spectator"
+        );
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn game_type_source_matches_java_26_1_2() {
+        const JAVA_SOURCE: &str =
+            vibecraft_java_source!("/net/minecraft/world/level/GameType.java");
+        for fragment in [
+            "SURVIVAL(0, \"survival\")",
+            "CREATIVE(1, \"creative\")",
+            "ADVENTURE(2, \"adventure\")",
+            "SPECTATOR(3, \"spectator\")",
+            "ByIdMap.continuous(GameType::getId, values(), ByIdMap.OutOfBoundsStrategy.ZERO)",
+            "public Component getLongDisplayName()",
+            "Component.translatable(\"gameMode.\" + name)",
+            "public Component getShortDisplayName()",
+            "Component.translatable(\"selectWorld.gameMode.\" + name)",
+            "public void updatePlayerAbilities(final Abilities abilities)",
+            "public boolean isBlockPlacingRestricted()",
+            "public boolean isCreative()",
+            "public boolean isSurvival()",
+            "public static @Nullable GameType byNullableId(final int id)",
+            "public static boolean isValidId(final int id)",
+        ] {
+            assert!(JAVA_SOURCE.contains(fragment), "missing Java source fragment: {fragment}");
+        }
     }
 
     #[test]
