@@ -625,6 +625,7 @@ mod non_living_entity;
 #[cfg(test)]
 mod operational_coverage;
 mod optionull;
+mod old_users_converter;
 #[cfg(test)]
 mod parity_harness;
 mod performance_benchmarks;

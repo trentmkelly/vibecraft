@@ -304,6 +304,10 @@ where
         self.list.load(IpBanListEntry::from_json)
     }
 
+    pub fn save(&self) -> std::io::Result<()> {
+        self.list.save()
+    }
+
     pub fn is_banned(&mut self, ip: &str, now: DateTime<Local>) -> bool {
         self.list.get(&ip.to_string(), now).is_some()
     }
@@ -443,6 +447,10 @@ where
         self.list.load(UserBanListEntry::from_json)
     }
 
+    pub fn save(&self) -> std::io::Result<()> {
+        self.list.save()
+    }
+
     pub fn is_banned(&mut self, user: &NameAndId, now: DateTime<Local>) -> bool {
         self.list.get(user, now).is_some()
     }
@@ -558,6 +566,10 @@ where
 
     pub fn load(&mut self) -> std::io::Result<()> {
         self.list.load(UserWhiteListEntry::from_json)
+    }
+
+    pub fn save(&self) -> std::io::Result<()> {
+        self.list.save()
     }
 
     pub fn is_white_listed(&mut self, user: &NameAndId, now: DateTime<Local>) -> bool {
@@ -700,6 +712,10 @@ where
 
     pub fn load(&mut self) -> std::io::Result<()> {
         self.list.load(ServerOpListEntry::from_json)
+    }
+
+    pub fn save(&self) -> std::io::Result<()> {
+        self.list.save()
     }
 
     pub fn get_user_list(&self) -> Vec<String> {
