@@ -2,6 +2,53 @@
 
 use std::collections::BTreeMap;
 
+use crate::registry::{Identifier, ResourceKey};
+use crate::storage::nbt::Tag;
+
+/// Java `WorldClock` is a zero-field record. Its direct codec encodes an empty
+/// map, while registry holders carry the clock's resource key.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct WorldClock;
+
+impl WorldClock {
+    /// Java `WorldClock.DIRECT_CODEC`: a zero-field record is represented by
+    /// an empty compound in the direct/NBT form.
+    pub fn encode_direct(&self) -> Tag {
+        Tag::Compound(Vec::new())
+    }
+}
+
+/// Built-in world-clock keys and bootstrap order from Java's `WorldClocks`.
+pub struct WorldClocks;
+
+impl WorldClocks {
+    pub fn overworld() -> Result<ResourceKey<WorldClock>, String> {
+        Self::key("overworld")
+    }
+
+    pub fn the_end() -> Result<ResourceKey<WorldClock>, String> {
+        Self::key("the_end")
+    }
+
+    /// Java `WorldClocks.bootstrap`: registers overworld before the End.
+    pub fn bootstrap() -> Result<[ResourceKey<WorldClock>; 2], String> {
+        Ok([Self::overworld()?, Self::the_end()?])
+    }
+
+    /// The registered values produced by Java's bootstrap method.
+    pub fn bootstrap_values() -> Result<[(ResourceKey<WorldClock>, WorldClock); 2], String> {
+        let keys = Self::bootstrap()?;
+        Ok([(keys[0].clone(), WorldClock), (keys[1].clone(), WorldClock)])
+    }
+
+    fn key(id: &str) -> Result<ResourceKey<WorldClock>, String> {
+        Ok(ResourceKey::new(
+            Identifier::parse("minecraft:world_clock")?,
+            Identifier::with_default_namespace(id)?,
+        ))
+    }
+}
+
 pub const DAY_LENGTH_TICKS: i64 = 24_000;
 pub const MOON_CYCLE_TICKS: i64 = DAY_LENGTH_TICKS * 8;
 pub const WAKE_UP_FROM_SLEEP_TIME: i64 = 0;
@@ -469,6 +516,59 @@ pub fn builtin_timelines() -> &'static [TimelineDefinition] {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(vibecraft_has_decompiled_sources)]
+    const WORLD_CLOCK_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/world/clock/WorldClock.java");
+    #[cfg(vibecraft_has_decompiled_sources)]
+    const WORLD_CLOCKS_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/world/clock/WorldClocks.java");
+
+    #[test]
+    fn world_clock_keys_match_java_bootstrap_order() {
+        let keys = match WorldClocks::bootstrap() {
+            Ok(keys) => keys,
+            Err(error) => panic!("failed to construct built-in world clock keys: {error}"),
+        };
+        assert_eq!(keys[0].location().to_string(), "minecraft:overworld");
+        assert_eq!(keys[1].location().to_string(), "minecraft:the_end");
+        assert_eq!(keys[0].registry().to_string(), "minecraft:world_clock");
+        assert_eq!(keys[1].registry(), keys[0].registry());
+        assert_eq!(OVERWORLD_CLOCK_ID, 0);
+        assert_eq!(THE_END_CLOCK_ID, 1);
+        let registrations = match WorldClocks::bootstrap_values() {
+            Ok(registrations) => registrations,
+            Err(error) => panic!("failed to construct world clock registrations: {error}"),
+        };
+        assert_eq!(registrations[0].0, keys[0]);
+        assert_eq!(registrations[1].0, keys[1]);
+        assert_eq!(registrations[0].1.encode_direct(), Tag::Compound(Vec::new()));
+        assert_eq!(registrations[1].1.encode_direct(), Tag::Compound(Vec::new()));
+    }
+
+    #[cfg(vibecraft_has_decompiled_sources)]
+    #[test]
+    fn world_clock_sources_match_zero_field_record_and_bootstrap() {
+        assert_eq!(WORLD_CLOCK_JAVA.lines().count(), 16);
+        for fragment in [
+            "public record WorldClock()",
+            "RegistryFixedCodec.create(Registries.WORLD_CLOCK)",
+            "MapCodec.unitCodec(WorldClock::new)",
+        ] {
+            assert!(WORLD_CLOCK_JAVA.contains(fragment), "missing WorldClock source fragment: {fragment}");
+        }
+        assert_eq!(WORLD_CLOCKS_JAVA.lines().count(), 20);
+        for fragment in [
+            "public interface WorldClocks",
+            "ResourceKey<WorldClock> OVERWORLD = key(\"overworld\");",
+            "ResourceKey<WorldClock> THE_END = key(\"the_end\");",
+            "context.register(OVERWORLD, new WorldClock());",
+            "context.register(THE_END, new WorldClock());",
+            "ResourceKey.create(Registries.WORLD_CLOCK, Identifier.withDefaultNamespace(id))",
+        ] {
+            assert!(WORLD_CLOCKS_JAVA.contains(fragment), "missing WorldClocks source fragment: {fragment}");
+        }
+    }
 
     #[cfg(vibecraft_has_decompiled_sources)]
     const SLEEP_STATUS_JAVA: &str =

@@ -2,6 +2,7 @@ use crate::registry::{Identifier, TagKey};
 
 const WORLD_PRESET_TAGS_JAVA: &str =
     vibecraft_java_source!("/net/minecraft/tags/WorldPresetTags.java");
+const TIMELINE_TAGS_JAVA: &str = vibecraft_java_source!("/net/minecraft/tags/TimelineTags.java");
 const BANNER_PATTERN_TAGS_PROVIDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/tags/BannerPatternTagsProvider.java");
 const DIALOG_TAGS_PROVIDER_JAVA: &str =
     vibecraft_java_source!("/net/minecraft/data/tags/DialogTagsProvider.java");
@@ -34,6 +35,34 @@ impl WorldPresetTags {
     fn create(name: &str) -> Result<TagKey<String>, String> {
         Ok(TagKey::new(
             Identifier::parse("minecraft:worldgen/world_preset")?,
+            Identifier::with_default_namespace(name)?,
+        ))
+    }
+}
+
+/// Typed timeline tag keys from Java's `TimelineTags` interface.
+pub struct TimelineTags;
+
+impl TimelineTags {
+    pub fn universal() -> Result<TagKey<String>, String> {
+        Self::create("universal")
+    }
+
+    pub fn in_overworld() -> Result<TagKey<String>, String> {
+        Self::create("in_overworld")
+    }
+
+    pub fn in_nether() -> Result<TagKey<String>, String> {
+        Self::create("in_nether")
+    }
+
+    pub fn in_end() -> Result<TagKey<String>, String> {
+        Self::create("in_end")
+    }
+
+    fn create(name: &str) -> Result<TagKey<String>, String> {
+        Ok(TagKey::new(
+            Identifier::parse("minecraft:timeline")?,
             Identifier::with_default_namespace(name)?,
         ))
     }
@@ -268,6 +297,47 @@ mod tests {
         };
         assert_eq!(normal, TagKey::new(registry.clone(), normal_location));
         assert_eq!(extended, TagKey::new(registry, extended_location));
+    }
+
+    #[test]
+    fn timeline_tag_keys_match_java_constants() {
+        let registry = match Identifier::parse("minecraft:timeline") {
+            Ok(identifier) => identifier,
+            Err(error) => panic!("invalid timeline registry identifier: {error}"),
+        };
+        for (tag, name) in [
+            (TimelineTags::universal(), "universal"),
+            (TimelineTags::in_overworld(), "in_overworld"),
+            (TimelineTags::in_nether(), "in_nether"),
+            (TimelineTags::in_end(), "in_end"),
+        ] {
+            let tag = match tag {
+                Ok(tag) => tag,
+                Err(error) => panic!("failed to construct timeline tag {name}: {error}"),
+            };
+            let location = match Identifier::with_default_namespace(name) {
+                Ok(identifier) => identifier,
+                Err(error) => panic!("invalid timeline tag identifier {name}: {error}"),
+            };
+            assert_eq!(tag, TagKey::new(registry.clone(), location));
+        }
+    }
+
+    #[cfg(vibecraft_has_decompiled_sources)]
+    #[test]
+    fn timeline_tags_source_matches_java_contract() {
+        assert_eq!(TIMELINE_TAGS_JAVA.lines().count(), 16);
+        assert_source_contains_all(
+            TIMELINE_TAGS_JAVA,
+            &[
+                "public interface TimelineTags",
+                "TagKey<Timeline> UNIVERSAL = create(\"universal\");",
+                "TagKey<Timeline> IN_OVERWORLD = create(\"in_overworld\");",
+                "TagKey<Timeline> IN_NETHER = create(\"in_nether\");",
+                "TagKey<Timeline> IN_END = create(\"in_end\");",
+                "TagKey.create(Registries.TIMELINE, Identifier.withDefaultNamespace(name))",
+            ],
+        );
     }
 
     #[cfg(vibecraft_has_decompiled_sources)]
