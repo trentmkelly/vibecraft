@@ -714,6 +714,7 @@ mod settings;
 mod shared_constants;
 mod spawning;
 mod special_block;
+mod special_dates;
 #[cfg(test)]
 mod statistics;
 mod status_effect;
