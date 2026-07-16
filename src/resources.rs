@@ -521,18 +521,70 @@ pub struct DataPackConfig {
 }
 
 impl DataPackConfig {
-    pub fn default_26_1_2() -> Self {
+    /// Java `DataPackConfig(List<String>, List<String>)` takes immutable
+    /// copies of both lists. Rust callers receive owned vectors, so this
+    /// constructor performs the same boundary copy while retaining the
+    /// existing field-based API used by repository selection.
+    pub fn new<E, D, EI, DI>(enabled: EI, disabled: DI) -> Self
+    where
+        E: Into<String>,
+        D: Into<String>,
+        EI: IntoIterator<Item = E>,
+        DI: IntoIterator<Item = D>,
+    {
         Self {
-            enabled: vec![VANILLA_PACK_ID.to_string()],
-            disabled: Vec::new(),
+            enabled: enabled.into_iter().map(Into::into).collect(),
+            disabled: disabled.into_iter().map(Into::into).collect(),
         }
     }
 
+    pub fn default_26_1_2() -> Self {
+        Self::new([VANILLA_PACK_ID], std::iter::empty::<&str>())
+    }
+
     pub fn from_properties(enabled: &str, disabled: &str) -> Self {
-        Self {
-            enabled: split_pack_list(enabled),
-            disabled: split_pack_list(disabled),
-        }
+        Self::new(split_pack_list(enabled), split_pack_list(disabled))
+    }
+
+    pub fn enabled(&self) -> &[String] {
+        &self.enabled
+    }
+
+    pub fn disabled(&self) -> &[String] {
+        &self.disabled
+    }
+
+    /// Encodes Java `DataPackConfig.CODEC`'s exact field names and order.
+    pub fn to_json(&self) -> Result<String, String> {
+        let enabled = serde_json::to_string(&self.enabled).map_err(|error| error.to_string())?;
+        let disabled = serde_json::to_string(&self.disabled).map_err(|error| error.to_string())?;
+        Ok(format!(r#"{{"Enabled":{enabled},"Disabled":{disabled}}}"#))
+    }
+
+    /// Decodes the record codec shape used by level data and datapack
+    /// configuration files. Unknown fields are ignored like Mojang's codec.
+    pub fn from_json(raw: &str) -> Result<Self, String> {
+        let value: serde_json::Value =
+            serde_json::from_str(raw).map_err(|error| format!("invalid DataPackConfig JSON: {error}"))?;
+        let object = value
+            .as_object()
+            .ok_or_else(|| "DataPackConfig must be a JSON object".to_string())?;
+        let read_list = |name: &str| -> Result<Vec<String>, String> {
+            object
+                .get(name)
+                .ok_or_else(|| format!("DataPackConfig missing {name}"))?
+                .as_array()
+                .ok_or_else(|| format!("DataPackConfig {name} must be an array"))?
+                .iter()
+                .map(|entry| {
+                    entry
+                        .as_str()
+                        .map(ToOwned::to_owned)
+                        .ok_or_else(|| format!("DataPackConfig {name} entries must be strings"))
+                })
+                .collect()
+        };
+        Ok(Self::new(read_list("Enabled")?, read_list("Disabled")?))
     }
 }
 

@@ -333,6 +333,47 @@ fn datapack_config_from_server_properties_matches_java_comma_splitter() {
 }
 
 #[test]
+fn datapack_config_codec_matches_java_record_shape_and_immutable_copy_boundary() {
+    let enabled = vec!["vanilla".to_string(), "file/world".to_string()];
+    let disabled = vec!["file/disabled".to_string()];
+    let config = DataPackConfig::new(enabled.clone(), disabled.clone());
+
+    assert_eq!(config.enabled(), enabled.as_slice());
+    assert_eq!(config.disabled(), disabled.as_slice());
+    assert_eq!(
+        config.to_json().unwrap(),
+        r#"{"Enabled":["vanilla","file/world"],"Disabled":["file/disabled"]}"#
+    );
+    assert_eq!(
+        DataPackConfig::from_json(
+            r#"{"Enabled":["vanilla","file/world"],"Disabled":["file/disabled"],"Unknown":true}"#
+        )
+        .unwrap(),
+        config
+    );
+    assert!(DataPackConfig::from_json(r#"{"Enabled":[],"Disabled":[1]}"#).is_err());
+    assert!(DataPackConfig::from_json(r#"{"Enabled":[]}"#).is_err());
+}
+
+#[cfg(vibecraft_has_decompiled_sources)]
+#[test]
+fn datapack_config_source_matches_java_26_1_2_codec_contract() {
+    const JAVA_SOURCE: &str =
+        vibecraft_java_source!("/net/minecraft/world/level/DataPackConfig.java");
+    for fragment in [
+        "public static final DataPackConfig DEFAULT",
+        "Codec.STRING.listOf().fieldOf(\"Enabled\")",
+        "Codec.STRING.listOf().fieldOf(\"Disabled\")",
+        "this.enabled = ImmutableList.copyOf(enabled)",
+        "this.disabled = ImmutableList.copyOf(disabled)",
+        "public List<String> getEnabled()",
+        "public List<String> getDisabled()",
+    ] {
+        assert!(JAVA_SOURCE.contains(fragment), "missing Java source fragment: {fragment}");
+    }
+}
+
+#[test]
 fn initial_datapack_property_lists_configure_repository_selection() {
     let mut repository = DataPackRepository::new([
         DataPack::new(VANILLA_PACK_ID, PackSource::BuiltIn)

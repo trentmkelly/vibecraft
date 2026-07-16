@@ -4265,7 +4265,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/ColorResolver.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/CommonLevelAccessor.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/CustomSpawner.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/DataPackConfig.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/DataPackConfig.java`. Rust `resources::DataPackConfig` mirrors Java's immutable-copy constructor boundary, `DEFAULT` vanilla selection, enabled/disabled accessors, and `CODEC` JSON field names/order (`Enabled`/`Disabled`), with strict string-list decoding, comma-split property coverage, and source-backed tests.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/DryFoliageColor.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/EmptyBlockGetter.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/EntityBasedExplosionDamageCalculator.java`.
