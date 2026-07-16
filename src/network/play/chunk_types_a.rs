@@ -155,6 +155,10 @@ pub struct ServerboundPlayerInput {
     pub sprint: bool,
 }
 
+/// Java `net.minecraft.world.entity.player.Input` is the same seven-bit
+/// movement state carried by `ServerboundPlayerInputPacket`.
+pub type InputModel = ServerboundPlayerInput;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ServerboundPlayerInputPacket {
     pub input: ServerboundPlayerInput,

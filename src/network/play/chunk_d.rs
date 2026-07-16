@@ -301,6 +301,24 @@ impl ServerboundPaddleBoatPacket {
 }
 
 impl ServerboundPlayerInput {
+    pub const EMPTY: Self = Self {
+        forward: false,
+        backward: false,
+        left: false,
+        right: false,
+        jump: false,
+        shift: false,
+        sprint: false,
+    };
+
+    pub fn from_byte(flags: u8) -> Self {
+        Self::from_flags(flags)
+    }
+
+    pub fn to_byte(self) -> u8 {
+        self.to_flags()
+    }
+
     pub(super) fn from_flags(flags: u8) -> Self {
         Self {
             forward: flags & 1 != 0,

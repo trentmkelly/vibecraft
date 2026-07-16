@@ -626,6 +626,41 @@ fn serverbound_player_input_packet_uses_vanilla_input_bitset() {
 }
 
 #[test]
+fn input_model_matches_java_empty_and_flag_codec() {
+    assert_eq!(ServerboundPlayerInput::EMPTY.to_byte(), 0);
+    assert_eq!(
+        ServerboundPlayerInput::from_byte(0x55),
+        ServerboundPlayerInput {
+            forward: true,
+            backward: false,
+            left: true,
+            right: false,
+            jump: true,
+            shift: false,
+            sprint: true,
+        }
+    );
+    assert_eq!(ServerboundPlayerInput::from_byte(0xff).to_byte(), 0x7f);
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn input_source_matches_java_26_1_2() {
+    const JAVA_SOURCE: &str =
+        vibecraft_java_source!("/net/minecraft/world/entity/player/Input.java");
+    for fragment in [
+        "public record Input(boolean forward, boolean backward, boolean left, boolean right, boolean jump, boolean shift, boolean sprint)",
+        "private static final byte FLAG_FORWARD = 1",
+        "private static final byte FLAG_SPRINT = 64",
+        "output.writeByte(flags)",
+        "boolean forward = (flags & 1) != 0",
+        "public static final Input EMPTY = new Input(false, false, false, false, false, false, false)",
+    ] {
+        assert!(JAVA_SOURCE.contains(fragment), "missing Java source fragment: {fragment}");
+    }
+}
+
+#[test]
 fn serverbound_change_difficulty_packet_uses_vanilla_varint_wrapping() {
     let mut payload = Vec::new();
     ServerboundChangeDifficultyPacket {
