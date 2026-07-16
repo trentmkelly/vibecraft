@@ -722,6 +722,7 @@ mod special_dates;
 mod statistics;
 mod static_cache_2d;
 mod status_effect;
+mod string_util;
 mod storage;
 mod structure_resources;
 mod suppress_forbidden;
