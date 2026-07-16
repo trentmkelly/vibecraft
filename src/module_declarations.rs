@@ -729,6 +729,7 @@ mod static_cache_2d;
 mod status_effect;
 mod string_util;
 mod storage;
+mod strict_json_parser;
 mod tick_throttler;
 mod time_source;
 mod to_float_function;
