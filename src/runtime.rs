@@ -851,6 +851,29 @@ mod tests {
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
 
+    #[cfg(vibecraft_has_decompiled_sources)]
+    const SERVER_WATCHDOG_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/server/dedicated/ServerWatchdog.java");
+
+    #[cfg(vibecraft_has_decompiled_sources)]
+    #[test]
+    fn server_watchdog_source_matches_tick_limit_and_crash_report_surface() {
+        for fragment in [
+            "private static final long MAX_SHUTDOWN_TIME = 10000L",
+            "private static final int SHUTDOWN_STATUS = 1",
+            "this.maxTickTimeNanos = server.getMaxTickLength() * TimeUtil.NANOSECONDS_PER_MILLISECOND",
+            "if (deltaNanos > this.maxTickTimeNanos)",
+            "Considering it to be crashed, server will forcibly shutdown.",
+            "createWatchdogCrashReport(\"Watching Server\"",
+            "public static CrashReport createWatchdogCrashReport",
+        ] {
+            assert!(
+                SERVER_WATCHDOG_JAVA.contains(fragment),
+                "missing Java source fragment: {fragment}"
+            );
+        }
+    }
+
     #[test]
     fn exposes_twenty_tps_target() {
         assert_eq!(TARGET_TPS, 20);
