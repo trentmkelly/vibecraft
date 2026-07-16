@@ -1977,9 +1977,9 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/TickThrottler.java`. `tick_throttler::TickThrottler` mirrors Java increment, positive-only tick decay, and strict threshold checks, with source-backed and transition tests.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/TimeSource.java`. `time_source::TimeSource` and `NanoTimeSource` mirror Java's nanosecond supplier contract and TimeUnit conversion, with source-backed and conversion tests.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/TimeUtil.java`. `time_util::TimeUtil` preserves all Java time constants and `rangeOfSeconds`, with source-backed tests.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/ToFloatFunction.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/TriState.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/Tuple.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/ToFloatFunction.java`. `to_float_function::ToFloatFunction` mirrors Java's functional float application contract, with source-backed and mapping tests.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/TriState.java`. `tri_state::TriState` mirrors boolean/default states, serialized names, and bool/string codec mapping, with source-backed and behavior tests.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/Tuple.java`. `tuple::Tuple` mirrors mutable generic A/B storage and accessors, with source-backed and mutation tests.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/Unit.java`. `unit::Unit` mirrors Java's singleton value and zero-field map/stream codecs, with source-backed and codec-width tests.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/Util.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/VisibleForDebug.java`. `visible_for_debug::VisibleForDebug` preserves the annotation's empty marker surface with source-backed and marker tests.
