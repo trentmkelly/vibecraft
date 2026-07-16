@@ -839,6 +839,17 @@ mod validity_tests;
 mod tests {
     use super::*;
 
+    #[cfg(vibecraft_has_decompiled_sources)]
+    #[test]
+    fn click_action_matches_java_enum() {
+        const JAVA: &str = vibecraft_java_source!("/net/minecraft/world/inventory/ClickAction.java");
+        assert_eq!(JAVA.lines().count(), 6);
+        for fragment in ["public enum ClickAction", "PRIMARY,", "SECONDARY;"] {
+            assert!(JAVA.contains(fragment), "missing ClickAction source fragment: {fragment}");
+        }
+        assert_ne!(ClickAction::Primary, ClickAction::Secondary);
+    }
+
     #[test]
     fn primary_and_secondary_pickup_follow_carried_stack_rules() {
         let mut menu = Menu::new(2);

@@ -3827,7 +3827,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/inventory/BrewingStandMenu.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/inventory/CartographyTableMenu.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/inventory/ChestMenu.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/inventory/ClickAction.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/inventory/ClickAction.java`. `inventory::ClickAction` preserves Java's `PRIMARY`/`SECONDARY` enum, with a source-backed test.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/inventory/ContainerData.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/inventory/ContainerInput.java`. Rust network `ContainerInput` mirrors Java's seven ids, ZERO fallback, and stream-codec mapping; source-backed and behavior tests cover all values and unknown ids.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/inventory/ContainerLevelAccess.java`.
@@ -4537,7 +4537,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/RedstoneLampBlock.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/RedstoneTorchBlock.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/RedstoneWallTorchBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/RenderShape.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/RenderShape.java`. `block_properties::RenderShape` now models and parses the Java `INVISIBLE`/`MODEL` enum, with a source-backed test.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/RepeaterBlock.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/RespawnAnchorBlock.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/RodBlock.java`.
@@ -4875,7 +4875,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/chunk/status/ChunkStatusTask.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/chunk/status/ChunkStatusTasks.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/chunk/status/ChunkStep.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/chunk/status/ChunkType.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/chunk/status/ChunkType.java`. `storage::chunk::ChunkType` preserves Java's `PROTOCHUNK`/`LEVELCHUNK` enum, with a source-backed test.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/chunk/status/WorldGenContext.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/chunk/status/package-info.java`. Java 26.1.2 package marker contains only `@NullMarked`, the package declaration, and the `org.jspecify.annotations.NullMarked` import; no Rust runtime behavior or parity test is required beyond preserving nullability expectations in typed Rust APIs.
 
@@ -5512,7 +5512,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/material/FogType.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/material/LavaFluid.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/material/MapColor.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/material/PushReaction.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/material/PushReaction.java`. `block_properties::PushReaction` preserves all five Java enum values, with a source-backed test.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/material/WaterFluid.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/material/package-info.java`. Java 26.1.2 package marker contains only `@NullMarked`, the package declaration, and the `org.jspecify.annotations.NullMarked` import; no Rust runtime behavior or parity test is required beyond preserving nullability expectations in typed Rust APIs.
 

@@ -61,6 +61,30 @@ pub enum PushReaction {
     PushOnly,
 }
 
+/// Java `RenderShape` values used by block-state rendering.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RenderShape {
+    Invisible,
+    Model,
+}
+
+impl RenderShape {
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "INVISIBLE" => Some(Self::Invisible),
+            "MODEL" => Some(Self::Model),
+            _ => None,
+        }
+    }
+
+    pub const fn serialized_name(self) -> &'static str {
+        match self {
+            Self::Invisible => "INVISIBLE",
+            Self::Model => "MODEL",
+        }
+    }
+}
+
 /// The fluid contained in a block state (`BlockStateBase.getFluidState`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StateFluid {
@@ -97,8 +121,7 @@ pub struct StatePhysics {
     pub replaceable: bool,
     /// Java `NoteBlockInstrument` constant name.
     pub instrument: &'static str,
-    /// Java `RenderShape` constant name.
-    pub render_shape: &'static str,
+    pub render_shape: RenderShape,
     pub pathfind_land: bool,
     pub pathfind_air: bool,
     pub pathfind_water: bool,
@@ -306,11 +329,12 @@ fn parse_state(state: &Value, sound_type_indices: &HashMap<String, u16>) -> Stat
                 .as_str()
                 .unwrap_or_else(|| panic!("instrument")),
         ),
-        render_shape: intern_constant(
+        render_shape: RenderShape::parse(
             state["render_shape"]
                 .as_str()
                 .unwrap_or_else(|| panic!("render shape")),
-        ),
+        )
+        .unwrap_or_else(|| panic!("unexpected render shape")),
         pathfind_land: boolean(state, "pathfind_land"),
         pathfind_air: boolean(state, "pathfind_air"),
         pathfind_water: boolean(state, "pathfind_water"),

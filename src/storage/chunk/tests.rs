@@ -10,6 +10,18 @@ use crate::storage::nbt::Tag;
 use crate::storage::region::ChunkPos;
 use std::collections::BTreeMap;
 
+#[cfg(vibecraft_has_decompiled_sources)]
+#[test]
+fn chunk_type_matches_java_enum() {
+    const JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/world/level/chunk/status/ChunkType.java");
+    assert_eq!(JAVA.lines().count(), 6);
+    for fragment in ["public enum ChunkType", "PROTOCHUNK,", "LEVELCHUNK;"] {
+        assert!(JAVA.contains(fragment), "missing ChunkType source fragment: {fragment}");
+    }
+    assert_ne!(super::ChunkType::ProtoChunk, super::ChunkType::LevelChunk);
+}
+
 #[test]
 fn level_chunk_round_trips_vanilla_storage_sections_and_side_payloads() {
     let pos = ChunkPos { x: 4, z: -2 };

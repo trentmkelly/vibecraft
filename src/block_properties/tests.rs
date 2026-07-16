@@ -1,5 +1,32 @@
 use super::*;
 
+#[cfg(vibecraft_has_decompiled_sources)]
+#[test]
+fn push_reaction_and_render_shape_match_java_enums() {
+    const PUSH_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/world/level/material/PushReaction.java");
+    const RENDER_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/world/level/block/RenderShape.java");
+    assert_eq!(PUSH_JAVA.lines().count(), 9);
+    for fragment in [
+        "public enum PushReaction",
+        "NORMAL,",
+        "DESTROY,",
+        "BLOCK,",
+        "IGNORE,",
+        "PUSH_ONLY;",
+    ] {
+        assert!(PUSH_JAVA.contains(fragment), "missing PushReaction source fragment: {fragment}");
+    }
+    assert_eq!(RENDER_JAVA.lines().count(), 6);
+    for fragment in ["public enum RenderShape", "INVISIBLE,", "MODEL;"] {
+        assert!(RENDER_JAVA.contains(fragment), "missing RenderShape source fragment: {fragment}");
+    }
+    assert_eq!(RenderShape::parse("MODEL"), Some(RenderShape::Model));
+    assert_eq!(RenderShape::Invisible.serialized_name(), "INVISIBLE");
+    assert_eq!(PushReaction::PushOnly, PushReaction::PushOnly);
+}
+
 fn physics(name: &str) -> &'static StatePhysics {
     state_physics_by_name(name).unwrap_or_else(|| panic!("missing {name}"))
 }
