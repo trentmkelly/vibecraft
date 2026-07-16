@@ -3,6 +3,8 @@ use super::{
     HolderSet, Identifier, Lifecycle, Registry, TagKey,
 };
 
+const TAG_KEY_JAVA: &str = vibecraft_java_source!("/net/minecraft/tags/TagKey.java");
+
 const INTENTIONALLY_OMITTED_REGISTRIES: &[(&str, &str)] = &[
     (
         "minecraft:advancement",
@@ -1118,6 +1120,41 @@ fn represents_holders_and_named_tag_sets() {
     let key = super::ResourceKey::new(registry, Identifier::parse("stick").unwrap());
     let holder = Holder::<String>::Reference(key);
     assert!(matches!(holder, Holder::Reference(_)));
+}
+
+#[test]
+fn tag_key_matches_java_codec_cast_and_display_contract() -> Result<(), String> {
+    assert_eq!(TAG_KEY_JAVA.lines().count(), 53);
+    for fragment in [
+        "public record TagKey<T>(ResourceKey<? extends Registry<T>> registry, Identifier location)",
+        "Identifier.CODEC.xmap(name -> create(registryName, name), TagKey::location)",
+        "name.startsWith(\"#\")",
+        "e -> \"#\" + e.location",
+        "public boolean isFor(final ResourceKey<? extends Registry<?>> registry)",
+        "public <E> Optional<TagKey<E>> cast",
+        "VALUES.intern(new TagKey<>(registry, location))",
+    ] {
+        assert!(TAG_KEY_JAVA.contains(fragment), "missing TagKey source fragment: {fragment}");
+    }
+
+    let registry = Identifier::parse("minecraft:item")?;
+    let tag = TagKey::<String>::codec(registry.clone(), "minecraft:logs")?;
+    assert_eq!(tag.registry(), &registry);
+    assert_eq!(tag.location().to_string(), "minecraft:logs");
+    assert_eq!(tag.hashed_string(), "#minecraft:logs");
+    assert_eq!(tag.to_string(), "TagKey[minecraft:item / minecraft:logs]");
+    assert!(tag.is_for(&registry));
+    assert!(tag.cast::<String>(&registry).is_some());
+    assert!(!tag.is_for(&Identifier::parse("minecraft:block")?));
+    assert!(tag.cast::<u8>(&Identifier::parse("minecraft:block")?).is_none());
+
+    let hashed = TagKey::<String>::hashed_codec(registry.clone(), "#minecraft:logs")?;
+    assert_eq!(hashed, tag);
+    assert_eq!(
+        TagKey::<String>::hashed_codec(registry, "minecraft:logs").map(|_| ()),
+        Err("Not a tag id".to_string())
+    );
+    Ok(())
 }
 
 #[test]

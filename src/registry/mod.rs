@@ -648,6 +648,52 @@ impl<T> TagKey<T> {
             _marker: PhantomData,
         }
     }
+
+    /// Java `TagKey.codec(registryName)` decodes an identifier and associates
+    /// it with the requested registry.
+    pub fn codec(registry: Identifier, location: &str) -> Result<Self, String> {
+        Ok(Self::new(registry, Identifier::parse(location)?))
+    }
+
+    /// Java `TagKey.hashedCodec(registryName)` requires the serialized value
+    /// to carry the leading `#` marker.
+    pub fn hashed_codec(registry: Identifier, value: &str) -> Result<Self, String> {
+        let location = value
+            .strip_prefix('#')
+            .ok_or_else(|| "Not a tag id".to_string())?;
+        Self::codec(registry, location)
+    }
+
+    pub fn registry(&self) -> &Identifier {
+        &self.registry
+    }
+
+    pub fn location(&self) -> &Identifier {
+        &self.location
+    }
+
+    pub fn is_for(&self, registry: &Identifier) -> bool {
+        self.registry == *registry
+    }
+
+    pub fn cast<E>(&self, registry: &Identifier) -> Option<TagKey<E>> {
+        self.is_for(registry)
+            .then(|| TagKey::new(self.registry.clone(), self.location.clone()))
+    }
+
+    pub fn hashed_string(&self) -> String {
+        format!("#{}", self.location)
+    }
+}
+
+impl<T> fmt::Display for TagKey<T> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "TagKey[{} / {}]",
+            self.registry, self.location
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
