@@ -712,6 +712,7 @@ mod server_tick_task;
 mod server_properties;
 mod settings;
 mod shared_constants;
+mod single_key_cache;
 mod spawning;
 mod special_block;
 mod special_dates;
