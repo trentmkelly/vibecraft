@@ -532,6 +532,7 @@ mod data_worldgen_surface_rule_data;
 #[cfg(test)]
 mod datapack_reload_tests;
 mod dedicated_player_list;
+mod dedicated_server_settings;
 #[cfg(test)]
 mod dialog_system;
 mod dispenser_cauldron;
