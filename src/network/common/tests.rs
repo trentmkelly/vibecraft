@@ -4,11 +4,11 @@ use super::{
     ClientboundDisconnectPacket, ClientboundKeepAlivePacket, ClientboundPingPacket,
     ClientboundResourcePackPopPacket, ClientboundResourcePackPushPacket, CommonSession,
     CustomPayload, DialogState, HumanoidArm, KeepAliveState, KeepAliveTick, ParticleStatus,
-    ResourcePackAction, ResourcePackState, ResourcePackStatus, ServerLinkEntry, ServerLinkLabel,
-    ServerLinkType, ServerboundClientInformationPacket, ServerboundCustomClickActionPacket,
-    ServerboundCustomPayloadPacket, ServerboundKeepAlivePacket, ServerboundPongPacket,
-    ServerboundResourcePackPacket, TagNetworkPayload, MAX_SERVERBOUND_CUSTOM_PAYLOAD_SIZE,
-    CLIENT_INFORMATION_MAX_LANGUAGE_LENGTH,
+    PlayerModelPart, PlayerModelType, ResourcePackAction, ResourcePackState, ResourcePackStatus,
+    ServerLinkEntry, ServerLinkLabel, ServerLinkType, ServerboundClientInformationPacket,
+    ServerboundCustomClickActionPacket, ServerboundCustomPayloadPacket, ServerboundKeepAlivePacket,
+    ServerboundPongPacket, ServerboundResourcePackPacket, TagNetworkPayload,
+    CLIENT_INFORMATION_MAX_LANGUAGE_LENGTH, MAX_SERVERBOUND_CUSTOM_PAYLOAD_SIZE,
 };
 use crate::network::codec::{ComponentJson, Uuid};
 use crate::registry::Identifier;
@@ -60,7 +60,8 @@ fn round_trips_keepalive_ping_pong_and_disconnect() {
 
 #[test]
 fn common_packet_types_match_java_common_registry_names() {
-    const COMMON_PACKET_TYPES_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/common/CommonPacketTypes.java");
+    const COMMON_PACKET_TYPES_JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/network/protocol/common/CommonPacketTypes.java");
 
     for expected in [
         "CLIENTBOUND_CLEAR_DIALOG = createClientbound(\"clear_dialog\")",
@@ -92,8 +93,12 @@ fn common_packet_types_match_java_common_registry_names() {
 
 #[test]
 fn common_packet_listener_surfaces_match_java_interfaces() {
-    const CLIENT_COMMON_LISTENER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/common/ClientCommonPacketListener.java");
-    const SERVER_COMMON_LISTENER_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/common/ServerCommonPacketListener.java");
+    const CLIENT_COMMON_LISTENER_JAVA: &str = vibecraft_java_source!(
+        "/net/minecraft/network/protocol/common/ClientCommonPacketListener.java"
+    );
+    const SERVER_COMMON_LISTENER_JAVA: &str = vibecraft_java_source!(
+        "/net/minecraft/network/protocol/common/ServerCommonPacketListener.java"
+    );
 
     for sentinel in [
         "public interface ClientCommonPacketListener extends ClientCookiePacketListener",
@@ -216,7 +221,13 @@ fn round_trips_known_brand_custom_payload() {
     packet.write(&mut bytes).unwrap();
     assert_eq!(
         bytes,
-        [vec![15], b"minecraft:brand".to_vec(), vec![7], b"vanilla".to_vec()].concat()
+        [
+            vec![15],
+            b"minecraft:brand".to_vec(),
+            vec![7],
+            b"vanilla".to_vec()
+        ]
+        .concat()
     );
     assert_eq!(
         ServerboundCustomPayloadPacket::read(&mut Cursor::new(bytes)).unwrap(),
@@ -299,7 +310,10 @@ fn round_trips_client_information_with_vanilla_defaults() {
     };
     let mut bytes = Vec::new();
     packet.write(&mut bytes).unwrap();
-    assert_eq!(bytes, vec![5, b'e', b'n', b'_', b'u', b's', 2, 0, 1, 0, 1, 0, 0, 0]);
+    assert_eq!(
+        bytes,
+        vec![5, b'e', b'n', b'_', b'u', b's', 2, 0, 1, 0, 1, 0, 0, 0]
+    );
     assert_eq!(
         ServerboundClientInformationPacket::read(&mut Cursor::new(bytes)).unwrap(),
         packet
@@ -382,7 +396,85 @@ fn chat_visibility_source_matches_java_26_1_2() {
         "this.caption = Component.translatable(key)",
         "public Component caption()",
     ] {
-        assert!(JAVA_SOURCE.contains(fragment), "missing Java source fragment: {fragment}");
+        assert!(
+            JAVA_SOURCE.contains(fragment),
+            "missing Java source fragment: {fragment}"
+        );
+    }
+}
+
+#[test]
+fn player_model_parts_and_types_match_java_ids_masks_and_wire_codec() {
+    for (index, part) in PlayerModelPart::VALUES.into_iter().enumerate() {
+        assert_eq!(part.bit(), index as u8);
+        assert_eq!(part.mask(), 1 << index);
+        assert_eq!(part.serialized_name(), part.id());
+        assert_eq!(
+            part.name().get_string(),
+            format!("options.modelPart.{}", part.id())
+        );
+    }
+    assert_eq!(
+        PlayerModelType::by_legacy_services_name(Some("slim")),
+        PlayerModelType::Slim
+    );
+    assert_eq!(
+        PlayerModelType::by_legacy_services_name(Some("default")),
+        PlayerModelType::Wide
+    );
+    assert_eq!(
+        PlayerModelType::by_legacy_services_name(None),
+        PlayerModelType::Wide
+    );
+    assert_eq!(
+        PlayerModelType::by_legacy_services_name(Some("unknown")),
+        PlayerModelType::Wide
+    );
+    assert_eq!(PlayerModelType::from_wire_bool(true), PlayerModelType::Slim);
+    assert_eq!(
+        PlayerModelType::from_wire_bool(false),
+        PlayerModelType::Wide
+    );
+    assert!(PlayerModelType::Slim.to_wire_bool());
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn player_model_source_matches_java_26_1_2() {
+    const PARTS: &str =
+        vibecraft_java_source!("/net/minecraft/world/entity/player/PlayerModelPart.java");
+    const TYPES: &str =
+        vibecraft_java_source!("/net/minecraft/world/entity/player/PlayerModelType.java");
+    for fragment in [
+        "CAPE(0, \"cape\")",
+        "JACKET(1, \"jacket\")",
+        "LEFT_SLEEVE(2, \"left_sleeve\")",
+        "RIGHT_SLEEVE(3, \"right_sleeve\")",
+        "LEFT_PANTS_LEG(4, \"left_pants_leg\")",
+        "RIGHT_PANTS_LEG(5, \"right_pants_leg\")",
+        "HAT(6, \"hat\")",
+        "this.mask = 1 << bit",
+        "Component.translatable(\"options.modelPart.\" + name)",
+        "public int getMask()",
+        "public int getBit()",
+    ] {
+        assert!(
+            PARTS.contains(fragment),
+            "missing PlayerModelPart fragment: {fragment}"
+        );
+    }
+    for fragment in [
+        "SLIM(\"slim\", \"slim\")",
+        "WIDE(\"wide\", \"default\")",
+        "NAME_LOOKUP",
+        "ByteBufCodecs.BOOL.map(slim -> slim ? SLIM : WIDE, type -> type == SLIM)",
+        "public static PlayerModelType byLegacyServicesName",
+        "Objects.requireNonNullElse(NAME_LOOKUP.apply(name), WIDE)",
+    ] {
+        assert!(
+            TYPES.contains(fragment),
+            "missing PlayerModelType fragment: {fragment}"
+        );
     }
 }
 
@@ -562,7 +654,9 @@ fn rejects_too_many_report_details() {
 
 #[test]
 fn round_trips_custom_click_action_payload() {
-    const SERVERBOUND_CUSTOM_CLICK_ACTION_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/common/ServerboundCustomClickActionPacket.java");
+    const SERVERBOUND_CUSTOM_CLICK_ACTION_JAVA: &str = vibecraft_java_source!(
+        "/net/minecraft/network/protocol/common/ServerboundCustomClickActionPacket.java"
+    );
     for sentinel in [
         "public record ServerboundCustomClickActionPacket(Identifier id, Optional<Tag> payload)",
         "new NbtAccounter(32768L, 16)",
@@ -667,7 +761,9 @@ fn round_trips_update_tags_packet() {
 
 #[test]
 fn round_trips_show_dialog_as_bounded_context_free_payload() {
-    const CLIENTBOUND_SHOW_DIALOG_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/common/ClientboundShowDialogPacket.java");
+    const CLIENTBOUND_SHOW_DIALOG_JAVA: &str = vibecraft_java_source!(
+        "/net/minecraft/network/protocol/common/ClientboundShowDialogPacket.java"
+    );
     for sentinel in [
         "public record ClientboundShowDialogPacket(Holder<Dialog> dialog)",
         "Dialog.STREAM_CODEC, ClientboundShowDialogPacket::dialog, ClientboundShowDialogPacket::new",

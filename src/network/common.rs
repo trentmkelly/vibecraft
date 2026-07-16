@@ -121,6 +121,104 @@ pub enum ChatVisibility {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerModelPart {
+    Cape,
+    Jacket,
+    LeftSleeve,
+    RightSleeve,
+    LeftPantsLeg,
+    RightPantsLeg,
+    Hat,
+}
+
+impl PlayerModelPart {
+    pub const VALUES: [Self; 7] = [
+        Self::Cape,
+        Self::Jacket,
+        Self::LeftSleeve,
+        Self::RightSleeve,
+        Self::LeftPantsLeg,
+        Self::RightPantsLeg,
+        Self::Hat,
+    ];
+
+    pub fn bit(self) -> u8 {
+        self.index()
+    }
+
+    pub fn mask(self) -> u8 {
+        1 << self.bit()
+    }
+
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::Cape => "cape",
+            Self::Jacket => "jacket",
+            Self::LeftSleeve => "left_sleeve",
+            Self::RightSleeve => "right_sleeve",
+            Self::LeftPantsLeg => "left_pants_leg",
+            Self::RightPantsLeg => "right_pants_leg",
+            Self::Hat => "hat",
+        }
+    }
+
+    pub fn name(&self) -> Component {
+        Component::translatable(format!("options.modelPart.{}", self.id()), Vec::new())
+    }
+
+    pub fn serialized_name(self) -> &'static str {
+        self.id()
+    }
+
+    fn index(self) -> u8 {
+        match self {
+            Self::Cape => 0,
+            Self::Jacket => 1,
+            Self::LeftSleeve => 2,
+            Self::RightSleeve => 3,
+            Self::LeftPantsLeg => 4,
+            Self::RightPantsLeg => 5,
+            Self::Hat => 6,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerModelType {
+    Slim,
+    Wide,
+}
+
+impl PlayerModelType {
+    pub fn by_legacy_services_name(name: Option<&str>) -> Self {
+        match name {
+            Some("slim") => Self::Slim,
+            Some("default") => Self::Wide,
+            _ => Self::Wide,
+        }
+    }
+
+    pub fn serialized_name(self) -> &'static str {
+        match self {
+            Self::Slim => "slim",
+            Self::Wide => "wide",
+        }
+    }
+
+    pub fn to_wire_bool(self) -> bool {
+        matches!(self, Self::Slim)
+    }
+
+    pub fn from_wire_bool(slim: bool) -> Self {
+        if slim {
+            Self::Slim
+        } else {
+            Self::Wide
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HumanoidArm {
     Left,
     Right,
@@ -575,7 +673,11 @@ impl ClientInformation {
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-        write_string(writer, &self.language, CLIENT_INFORMATION_MAX_LANGUAGE_LENGTH)?;
+        write_string(
+            writer,
+            &self.language,
+            CLIENT_INFORMATION_MAX_LANGUAGE_LENGTH,
+        )?;
         writer.write_all(&self.view_distance.to_be_bytes())?;
         write_enum_index(writer, self.chat_visibility.index(), 3)?;
         write_bool(writer, self.chat_colors)?;
