@@ -709,6 +709,7 @@ mod services;
 mod suppressed_exception_collector;
 mod server_tick_task;
 mod server_properties;
+mod settings;
 mod shared_constants;
 mod spawning;
 mod special_block;

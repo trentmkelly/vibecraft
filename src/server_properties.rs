@@ -1,8 +1,8 @@
 use crate::game_rules::{GameRuleError, GameRuleSync, GameRules};
 use crate::management_security::generate_management_secret_key;
+use crate::settings::SettingsModel;
 
-use std::collections::{BTreeMap, HashMap};
-use std::fs;
+use std::collections::BTreeMap;
 use std::path::Path;
 
 #[derive(Debug, Clone)]
@@ -83,13 +83,8 @@ pub struct ServerProperties {
 impl ServerProperties {
     pub fn load_or_default(path: &Path) -> Result<Self, String> {
         let mut raw = vanilla_defaults();
-        if path.exists() {
-            for (key, value) in parse_properties(
-                &fs::read_to_string(path)
-                    .map_err(|err| format!("Failed to read '{}': {err}", path.display()))?,
-            ) {
-                raw.insert(key, value);
-            }
+        for (key, value) in SettingsModel::load_from_file(path).properties() {
+            raw.insert(key.clone(), value.clone());
         }
 
         Ok(Self::from_raw(raw))
@@ -199,18 +194,8 @@ impl ServerProperties {
             self.raw.entry(key).or_insert(value);
         }
 
-        // Java Properties.store() writes "#<comment>\n#<date>\n<key=value>..."
-        let mut output = String::from("#Minecraft server properties\n");
-        output.push('#');
-        output.push_str(&java_style_date_string());
-        output.push('\n');
-        for (key, value) in &self.raw {
-            output.push_str(key);
-            output.push('=');
-            output.push_str(value);
-            output.push('\n');
-        }
-        fs::write(path, output)
+        SettingsModel::new(self.raw.clone())
+            .store(path)
             .map_err(|err| format!("Failed to write '{}': {err}", path.display()))
     }
 
@@ -229,19 +214,9 @@ impl ServerProperties {
     }
 }
 
-fn parse_properties(text: &str) -> HashMap<String, String> {
-    let mut map = HashMap::new();
-    for line in text.lines() {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') || line.starts_with('!') {
-            continue;
-        }
-        let Some((key, value)) = line.split_once('=') else {
-            continue;
-        };
-        map.insert(key.trim().to_string(), value.trim().to_string());
-    }
-    map
+#[cfg(test)]
+fn parse_properties(text: &str) -> BTreeMap<String, String> {
+    crate::settings::parse_java_properties(text)
 }
 
 fn string_key(raw: &BTreeMap<String, String>, key: &str, default: &str) -> String {
@@ -282,19 +257,6 @@ fn i32_key(raw: &BTreeMap<String, String>, key: &str, default: i32) -> i32 {
         .unwrap_or(default)
 }
 
-/// Matches Java `new Date().toString()` format: `EEE MMM dd HH:mm:ss zzz yyyy`
-/// Java always uses English locale regardless of system locale.
-fn java_style_date_string() -> String {
-    std::process::Command::new("date")
-        .arg("+%a %b %d %H:%M:%S %Z %Y")
-        .env("LC_ALL", "C")
-        .output()
-        .ok()
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| "unknown".to_string())
-}
 
 fn vanilla_defaults() -> BTreeMap<String, String> {
     let mut defaults = BTreeMap::new();
