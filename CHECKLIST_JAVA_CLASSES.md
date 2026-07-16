@@ -1888,7 +1888,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/tags/TagNetworkSerialization.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/tags/TimelineTags.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/tags/VillagerTradeTags.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/tags/WorldPresetTags.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/tags/WorldPresetTags.java`. `data_tags_registry_providers::WorldPresetTags` preserves the `minecraft:worldgen/world_preset` registry and the `normal`/`extended` tag keys, with source-backed tests.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/tags/package-info.java`. Java 26.1.2 package marker contains only `@NullMarked`, the package declaration, and the `org.jspecify.annotations.NullMarked` import; no Rust runtime behavior or parity test is required beyond preserving nullability expectations in typed Rust APIs.
 
 ## `decompiled-server-26.1.2/net/minecraft/util`

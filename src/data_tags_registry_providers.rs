@@ -1,3 +1,7 @@
+use crate::registry::{Identifier, TagKey};
+
+const WORLD_PRESET_TAGS_JAVA: &str =
+    vibecraft_java_source!("/net/minecraft/tags/WorldPresetTags.java");
 const BANNER_PATTERN_TAGS_PROVIDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/tags/BannerPatternTagsProvider.java");
 const DIALOG_TAGS_PROVIDER_JAVA: &str =
     vibecraft_java_source!("/net/minecraft/data/tags/DialogTagsProvider.java");
@@ -12,6 +16,28 @@ const POI_TYPE_TAGS_PROVIDER_JAVA: &str =
     vibecraft_java_source!("/net/minecraft/data/tags/PoiTypeTagsProvider.java");
 const TIMELINE_TAGS_PROVIDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/tags/TimelineTagsProvider.java");
 const WORLD_PRESET_TAGS_PROVIDER_JAVA: &str = vibecraft_java_source!("/net/minecraft/data/tags/WorldPresetTagsProvider.java");
+
+/// Typed world-preset tag keys from Java's `WorldPresetTags`.
+pub struct WorldPresetTags;
+
+impl WorldPresetTags {
+    /// Java `WorldPresetTags.NORMAL`.
+    pub fn normal() -> Result<TagKey<String>, String> {
+        Self::create("normal")
+    }
+
+    /// Java `WorldPresetTags.EXTENDED`.
+    pub fn extended() -> Result<TagKey<String>, String> {
+        Self::create("extended")
+    }
+
+    fn create(name: &str) -> Result<TagKey<String>, String> {
+        Ok(TagKey::new(
+            Identifier::parse("minecraft:worldgen/world_preset")?,
+            Identifier::with_default_namespace(name)?,
+        ))
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 struct ProviderAudit {
@@ -217,6 +243,47 @@ fn assert_source_contains_all(source: &str, sentinels: &[&str]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn world_preset_tag_keys_match_java_constants() {
+        let normal = match WorldPresetTags::normal() {
+            Ok(tag) => tag,
+            Err(error) => panic!("failed to construct normal world-preset tag: {error}"),
+        };
+        let extended = match WorldPresetTags::extended() {
+            Ok(tag) => tag,
+            Err(error) => panic!("failed to construct extended world-preset tag: {error}"),
+        };
+        let registry = match Identifier::parse("minecraft:worldgen/world_preset") {
+            Ok(identifier) => identifier,
+            Err(error) => panic!("invalid world-preset registry identifier: {error}"),
+        };
+        let normal_location = match Identifier::parse("minecraft:normal") {
+            Ok(identifier) => identifier,
+            Err(error) => panic!("invalid normal tag identifier: {error}"),
+        };
+        let extended_location = match Identifier::parse("minecraft:extended") {
+            Ok(identifier) => identifier,
+            Err(error) => panic!("invalid extended tag identifier: {error}"),
+        };
+        assert_eq!(normal, TagKey::new(registry.clone(), normal_location));
+        assert_eq!(extended, TagKey::new(registry, extended_location));
+    }
+
+    #[cfg(vibecraft_has_decompiled_sources)]
+    #[test]
+    fn world_preset_tags_source_matches_java_contract() {
+        assert_eq!(WORLD_PRESET_TAGS_JAVA.lines().count(), 17);
+        assert_source_contains_all(
+            WORLD_PRESET_TAGS_JAVA,
+            &[
+                "public class WorldPresetTags",
+                "public static final TagKey<WorldPreset> NORMAL = create(\"normal\");",
+                "public static final TagKey<WorldPreset> EXTENDED = create(\"extended\");",
+                "TagKey.create(Registries.WORLD_PRESET, Identifier.withDefaultNamespace(name))",
+            ],
+        );
+    }
 
     #[test]
     fn data_tags_registry_provider_class_contracts_match_java() {
