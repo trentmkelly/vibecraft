@@ -166,13 +166,128 @@ impl GameTypeModel {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AbilitiesModel {
     pub mayfly: bool,
     pub instabuild: bool,
     pub invulnerable: bool,
     pub flying: bool,
     pub may_build: bool,
+    pub flying_speed: f32,
+    pub walking_speed: f32,
+}
+
+impl Default for AbilitiesModel {
+    fn default() -> Self {
+        Self {
+            mayfly: false,
+            instabuild: false,
+            invulnerable: false,
+            flying: false,
+            may_build: true,
+            flying_speed: 0.05,
+            walking_speed: 0.1,
+        }
+    }
+}
+
+impl AbilitiesModel {
+    pub fn get_flying_speed(&self) -> f32 {
+        self.flying_speed
+    }
+
+    pub fn set_flying_speed(&mut self, value: f32) {
+        self.flying_speed = value;
+    }
+
+    pub fn get_walking_speed(&self) -> f32 {
+        self.walking_speed
+    }
+
+    pub fn set_walking_speed(&mut self, value: f32) {
+        self.walking_speed = value;
+    }
+
+    pub fn pack(&self) -> AbilitiesPacked {
+        AbilitiesPacked {
+            invulnerable: self.invulnerable,
+            flying: self.flying,
+            may_fly: self.mayfly,
+            instabuild: self.instabuild,
+            may_build: self.may_build,
+            flying_speed: self.flying_speed,
+            walking_speed: self.walking_speed,
+        }
+    }
+
+    pub fn apply(&mut self, packed: &AbilitiesPacked) {
+        self.invulnerable = packed.invulnerable;
+        self.flying = packed.flying;
+        self.mayfly = packed.may_fly;
+        self.instabuild = packed.instabuild;
+        self.may_build = packed.may_build;
+        self.flying_speed = packed.flying_speed;
+        self.walking_speed = packed.walking_speed;
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct AbilitiesPacked {
+    pub invulnerable: bool,
+    pub flying: bool,
+    pub may_fly: bool,
+    pub instabuild: bool,
+    pub may_build: bool,
+    pub flying_speed: f32,
+    pub walking_speed: f32,
+}
+
+impl AbilitiesPacked {
+    pub fn to_json(&self) -> Result<String, String> {
+        serde_json::to_string(&serde_json::json!({
+            "invulnerable": self.invulnerable,
+            "flying": self.flying,
+            "mayfly": self.may_fly,
+            "instabuild": self.instabuild,
+            "mayBuild": self.may_build,
+            "flySpeed": self.flying_speed,
+            "walkSpeed": self.walking_speed,
+        }))
+        .map_err(|error| error.to_string())
+    }
+
+    pub fn from_json(raw: &str) -> Result<Self, String> {
+        let value: serde_json::Value = serde_json::from_str(raw)
+            .map_err(|error| format!("invalid Abilities.Packed JSON: {error}"))?;
+        let object = value
+            .as_object()
+            .ok_or_else(|| "Abilities.Packed must be a JSON object".to_string())?;
+        let bool_value = |name: &str, default: bool| {
+            object.get(name).map_or(Ok(default), |value| {
+                value
+                    .as_bool()
+                    .ok_or_else(|| format!("Abilities.Packed {name} must be boolean"))
+            })
+        };
+        let float_value = |name: &str, default: f32| {
+            object.get(name).map_or(Ok(default), |value| {
+                value
+                    .as_f64()
+                    .filter(|value| value.is_finite())
+                    .map(|value| value as f32)
+                    .ok_or_else(|| format!("Abilities.Packed {name} must be finite number"))
+            })
+        };
+        Ok(Self {
+            invulnerable: bool_value("invulnerable", false)?,
+            flying: bool_value("flying", false)?,
+            may_fly: bool_value("mayfly", false)?,
+            instabuild: bool_value("instabuild", false)?,
+            may_build: bool_value("mayBuild", true)?,
+            flying_speed: float_value("flySpeed", 0.05)?,
+            walking_speed: float_value("walkSpeed", 0.1)?,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -343,6 +458,8 @@ mod tests {
                 invulnerable: true,
                 flying: false,
                 may_build: true,
+                flying_speed: 0.05,
+                walking_speed: 0.1,
             }
         );
 
@@ -356,6 +473,8 @@ mod tests {
                 invulnerable: true,
                 flying: true,
                 may_build: false,
+                flying_speed: 0.05,
+                walking_speed: 0.1,
             }
         );
 
@@ -365,6 +484,8 @@ mod tests {
             invulnerable: true,
             flying: true,
             may_build: true,
+            flying_speed: 0.05,
+            walking_speed: 0.1,
         };
         GameTypeModel::Adventure.update_player_abilities(&mut adventure);
         assert_eq!(
@@ -375,11 +496,76 @@ mod tests {
                 invulnerable: false,
                 flying: false,
                 may_build: false,
+                flying_speed: 0.05,
+                walking_speed: 0.1,
             }
         );
         assert!(GameTypeModel::Creative.is_creative());
         assert!(GameTypeModel::Adventure.is_survival());
         assert!(GameTypeModel::Spectator.is_block_placing_restricted());
+    }
+
+    #[test]
+    fn abilities_pack_apply_and_codec_match_java_defaults() {
+        let abilities = AbilitiesModel {
+            invulnerable: true,
+            flying: true,
+            mayfly: true,
+            instabuild: true,
+            may_build: false,
+            ..AbilitiesModel::default()
+        };
+        let mut abilities = abilities;
+        abilities.set_flying_speed(0.2);
+        abilities.set_walking_speed(0.15);
+        assert_eq!(abilities.get_flying_speed(), 0.2);
+        assert_eq!(abilities.get_walking_speed(), 0.15);
+        let packed = abilities.pack();
+        assert_eq!(packed.flying_speed, 0.2);
+        assert_eq!(packed.walking_speed, 0.15);
+
+        let encoded = packed.to_json().unwrap();
+        assert_eq!(AbilitiesPacked::from_json(&encoded).unwrap(), packed);
+        assert_eq!(
+            AbilitiesPacked::from_json("{}").unwrap(),
+            AbilitiesPacked {
+                invulnerable: false,
+                flying: false,
+                may_fly: false,
+                instabuild: false,
+                may_build: true,
+                flying_speed: 0.05,
+                walking_speed: 0.1,
+            }
+        );
+        assert!(AbilitiesPacked::from_json(r#"{"flySpeed":"fast"}"#).is_err());
+
+        let mut applied = AbilitiesModel::default();
+        applied.apply(&packed);
+        assert_eq!(applied, abilities);
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn abilities_source_matches_java_26_1_2() {
+        const JAVA_SOURCE: &str =
+            vibecraft_java_source!("/net/minecraft/world/entity/player/Abilities.java");
+        for fragment in [
+            "private static final boolean DEFAULT_INVULNERABLE = false",
+            "private static final float DEFAULT_FLYING_SPEED = 0.05F",
+            "public float getFlyingSpeed()",
+            "public void setFlyingSpeed(final float value)",
+            "public float getWalkingSpeed()",
+            "public void setWalkingSpeed(final float value)",
+            "public Abilities.Packed pack()",
+            "public void apply(final Abilities.Packed packed)",
+            "public record Packed(boolean invulnerable, boolean flying, boolean mayFly, boolean instabuild, boolean mayBuild, float flyingSpeed, float walkingSpeed)",
+            "Codec.BOOL.fieldOf(\"mayBuild\").orElse(true)",
+            "Codec.FLOAT.fieldOf(\"flySpeed\").orElse(0.05F)",
+            "Codec.FLOAT.fieldOf(\"walkSpeed\").orElse(0.1F)",
+        ] {
+            assert!(JAVA_SOURCE.contains(fragment), "missing Java source fragment: {fragment}");
+        }
     }
 
     #[test]
