@@ -1453,7 +1453,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/server/dedicated`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dedicated/DedicatedPlayerList.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dedicated/DedicatedPlayerList.java`. Added `dedicated_player_list::DedicatedPlayerListModel` with Java's startup access-list load/save sequence, view/simulation distance state, whitelist reload, operator-aware whitelist decision, operator player-limit bypass, and source-anchored persistence/policy tests. Inherited live packet/server wiring remains explicitly deferred to the `PlayerList`/`DedicatedServer` integration surface.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dedicated/DedicatedServer.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dedicated/DedicatedServerProperties.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/server/dedicated/DedicatedServerSettings.java`.

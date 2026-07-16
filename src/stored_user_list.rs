@@ -576,6 +576,10 @@ where
         self.list.get(user, now).is_some()
     }
 
+    pub fn contains(&mut self, user: &NameAndId) -> bool {
+        self.is_white_listed(user, Local::now())
+    }
+
     pub fn add(&mut self, entry: UserWhiteListEntry) -> std::io::Result<bool> {
         let changed = self.list.add(entry.clone())?;
         if changed {
@@ -755,6 +759,10 @@ where
 
     pub fn can_bypass_player_limit(&mut self, user: &NameAndId, now: DateTime<Local>) -> bool {
         self.list.get(user, now).is_some_and(ServerOpListEntry::get_bypasses_player_limit)
+    }
+
+    pub fn contains(&mut self, user: &NameAndId) -> bool {
+        self.list.get(user, Local::now()).is_some()
     }
 
     pub fn entries(&self) -> impl Iterator<Item = &ServerOpListEntry> {
