@@ -3829,7 +3829,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/inventory/ChestMenu.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/inventory/ClickAction.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/inventory/ContainerData.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/inventory/ContainerInput.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/inventory/ContainerInput.java`. Rust network `ContainerInput` mirrors Java's seven ids, ZERO fallback, and stream-codec mapping; source-backed and behavior tests cover all values and unknown ids.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/inventory/ContainerLevelAccess.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/inventory/ContainerListener.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/inventory/ContainerSynchronizer.java`.

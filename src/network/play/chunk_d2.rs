@@ -631,7 +631,19 @@ fn sorted_unique_i32(values: &[i32]) -> Vec<i32> {
 }
 
 impl ContainerInput {
-    pub(super) fn from_wire_id(id: i32) -> Self {
+    pub fn id(self) -> i32 {
+        match self {
+            Self::Pickup => 0,
+            Self::QuickMove => 1,
+            Self::Swap => 2,
+            Self::Clone => 3,
+            Self::Throw => 4,
+            Self::QuickCraft => 5,
+            Self::PickupAll => 6,
+        }
+    }
+
+    pub fn by_id(id: i32) -> Self {
         match id {
             1 => Self::QuickMove,
             2 => Self::Swap,
@@ -643,16 +655,12 @@ impl ContainerInput {
         }
     }
 
+    pub(super) fn from_wire_id(id: i32) -> Self {
+        Self::by_id(id)
+    }
+
     pub(super) fn to_wire_id(self) -> i32 {
-        match self {
-            Self::Pickup => 0,
-            Self::QuickMove => 1,
-            Self::Swap => 2,
-            Self::Clone => 3,
-            Self::Throw => 4,
-            Self::QuickCraft => 5,
-            Self::PickupAll => 6,
-        }
+        self.id()
     }
 }
 

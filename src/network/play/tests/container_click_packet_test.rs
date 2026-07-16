@@ -1,6 +1,46 @@
 use super::*;
 
 #[test]
+fn container_input_ids_match_java_zero_fallback_codec() {
+    let values = [
+        ContainerInput::Pickup,
+        ContainerInput::QuickMove,
+        ContainerInput::Swap,
+        ContainerInput::Clone,
+        ContainerInput::Throw,
+        ContainerInput::QuickCraft,
+        ContainerInput::PickupAll,
+    ];
+    for (id, value) in values.into_iter().enumerate() {
+        assert_eq!(value.id(), id as i32);
+        assert_eq!(ContainerInput::by_id(id as i32), value);
+    }
+    assert_eq!(ContainerInput::by_id(-1), ContainerInput::Pickup);
+    assert_eq!(ContainerInput::by_id(99), ContainerInput::Pickup);
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn container_input_source_matches_java_26_1_2() {
+    const JAVA_SOURCE: &str =
+        vibecraft_java_source!("/net/minecraft/world/inventory/ContainerInput.java");
+    for fragment in [
+        "PICKUP(0)",
+        "QUICK_MOVE(1)",
+        "SWAP(2)",
+        "CLONE(3)",
+        "THROW(4)",
+        "QUICK_CRAFT(5)",
+        "PICKUP_ALL(6)",
+        "ByIdMap.continuous(ContainerInput::id, values(), ByIdMap.OutOfBoundsStrategy.ZERO)",
+        "public static final StreamCodec<ByteBuf, ContainerInput> STREAM_CODEC",
+        "public int id()",
+    ] {
+        assert!(JAVA_SOURCE.contains(fragment), "missing Java source fragment: {fragment}");
+    }
+}
+
+#[test]
 fn serverbound_container_click_packet_matches_java_codec_order() {
     const SERVERBOUND_CONTAINER_CLICK_PACKET_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/protocol/game/ServerboundContainerClickPacket.java");
     for sentinel in [
