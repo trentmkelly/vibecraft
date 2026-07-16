@@ -227,6 +227,7 @@ mod command_time_argument;
 mod command_tree;
 #[cfg(test)]
 mod command_uuid_argument;
+mod color_rgba;
 mod console;
 mod container_block;
 mod container_menus;
