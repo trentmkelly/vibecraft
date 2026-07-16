@@ -1944,7 +1944,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/LightCoordsUtil.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/LinearCongruentialGenerator.java`. `random_source::linear_congruential_next` mirrors Java's overflowing long arithmetic and constants, with Java-source-backed formula and boundary tests.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/ListAndDeque.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/MemoryReserve.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/MemoryReserve.java`. `memory_reserve` mirrors Java's 10 MiB emergency allocation and idempotent release lifecycle with safe Rust storage, plus source-backed and lifecycle tests.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/ModCheck.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/Mth.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/NativeModuleLister.java`.

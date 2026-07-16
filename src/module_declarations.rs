@@ -615,6 +615,7 @@ mod loot_system;
 mod management_security;
 mod management_server;
 mod map_state;
+mod memory_reserve;
 #[cfg(test)]
 mod mob_family;
 mod mob_interaction;
