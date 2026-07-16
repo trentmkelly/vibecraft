@@ -747,6 +747,7 @@ mod util_random;
 #[cfg(test)]
 mod vehicle_entity;
 mod vibration;
+mod visible_for_debug;
 mod villager_system;
 mod villager_trade_resources;
 #[cfg(test)]

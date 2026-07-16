@@ -1982,7 +1982,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/Tuple.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/Unit.java`. `unit::Unit` mirrors Java's singleton value and zero-field map/stream codecs, with source-backed and codec-width tests.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/Util.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/VisibleForDebug.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/VisibleForDebug.java`. `visible_for_debug::VisibleForDebug` preserves the annotation's empty marker surface with source-backed and marker tests.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/ZeroBitStorage.java`. `bit_storage::ZeroBitStorage` mirrors zero-bit validation, raw storage, iteration, unpack, and identity-copy behavior, with source-backed and behavior tests.
 
 ## `decompiled-server-26.1.2/net/minecraft/util/context`
