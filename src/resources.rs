@@ -6,7 +6,7 @@ use std::path::Path;
 
 use crate::chat_component::{Component, Style};
 use crate::chat_formatting::ChatFormatting;
-use crate::registry::{feature_flags, FeatureFlagSet, Identifier};
+use crate::registry::{feature_flags, FeatureFlagRegistry, FeatureFlagSet, Identifier};
 
 pub const VANILLA_PACK_ID: &str = "vanilla";
 pub const CLIENT_RESOURCE_PACK_FORMAT_MAJOR: u32 = 84;
@@ -595,11 +595,74 @@ pub struct WorldDataConfiguration {
 }
 
 impl WorldDataConfiguration {
+    pub const ENABLED_FEATURES_ID: &'static str = "enabled_features";
+
     pub fn default_26_1_2() -> Self {
         Self {
             data_packs: DataPackConfig::default_26_1_2(),
             enabled_features: feature_flags::default_flags_26_1_2(),
         }
+    }
+
+    /// Java `WorldDataConfiguration#expandFeatures` joins the supplied flags
+    /// without changing the selected datapacks.
+    pub fn expand_features(&self, new_enabled_features: FeatureFlagSet) -> Self {
+        Self {
+            data_packs: self.data_packs.clone(),
+            enabled_features: self.enabled_features.join(new_enabled_features),
+        }
+    }
+
+    /// Encodes the Java record codec's optional `DataPacks` and
+    /// `enabled_features` fields using the server's feature registry names.
+    pub fn to_json(&self, registry: &FeatureFlagRegistry) -> Result<String, String> {
+        let data_packs = self.data_packs.to_json()?;
+        let features = registry
+            .to_names(self.enabled_features)
+            .into_iter()
+            .map(|id| id.to_string())
+            .collect::<Vec<_>>();
+        let features = serde_json::to_string(&features).map_err(|error| error.to_string())?;
+        Ok(format!(r#"{{"DataPacks":{data_packs},"enabled_features":{features}}}"#))
+    }
+
+    /// Decodes the Java record codec shape. Missing optional fields receive
+    /// `DEFAULT` values, while present fields are validated by their codecs.
+    pub fn from_json(raw: &str, registry: &FeatureFlagRegistry) -> Result<Self, String> {
+        let value: serde_json::Value =
+            serde_json::from_str(raw).map_err(|error| format!("invalid WorldDataConfiguration JSON: {error}"))?;
+        let object = value
+            .as_object()
+            .ok_or_else(|| "WorldDataConfiguration must be a JSON object".to_string())?;
+        let data_packs = object
+            .get("DataPacks")
+            .map(|value| DataPackConfig::from_json(&value.to_string()))
+            .transpose()?
+            .unwrap_or_else(DataPackConfig::default_26_1_2);
+        let enabled_features = match object.get(Self::ENABLED_FEATURES_ID) {
+            Some(value) => {
+                let values = value
+                    .as_array()
+                    .ok_or_else(|| "enabled_features must be an array".to_string())?;
+                let names = values
+                    .iter()
+                    .map(|value| {
+                        value
+                            .as_str()
+                            .ok_or_else(|| "enabled_features entries must be strings".to_string())
+                            .and_then(Identifier::parse)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                registry
+                    .resolve_names(&names)
+                    .map_err(|unknown| format!("unknown feature flags: {unknown:?}"))?
+            }
+            None => feature_flags::default_flags_26_1_2(),
+        };
+        Ok(Self {
+            data_packs,
+            enabled_features,
+        })
     }
 }
 

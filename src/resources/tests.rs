@@ -1,5 +1,5 @@
 use super::*;
-use crate::registry::feature_flags;
+use crate::registry::{feature_flags, FeatureFlagRegistry, FeatureFlagSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -353,6 +353,61 @@ fn datapack_config_codec_matches_java_record_shape_and_immutable_copy_boundary()
     );
     assert!(DataPackConfig::from_json(r#"{"Enabled":[],"Disabled":[1]}"#).is_err());
     assert!(DataPackConfig::from_json(r#"{"Enabled":[]}"#).is_err());
+}
+
+#[test]
+fn world_data_configuration_codec_defaults_expands_and_round_trips() {
+    let registry = FeatureFlagRegistry::main_26_1_2().unwrap();
+    let config = WorldDataConfiguration::default_26_1_2();
+    let expanded = config.expand_features(FeatureFlagSet::of(&[
+        feature_flags::REDSTONE_EXPERIMENTS,
+    ]));
+    assert!(expanded
+        .enabled_features
+        .contains(feature_flags::VANILLA));
+    assert!(expanded
+        .enabled_features
+        .contains(feature_flags::REDSTONE_EXPERIMENTS));
+    assert_eq!(expanded.data_packs, config.data_packs);
+
+    let encoded = expanded.to_json(&registry).unwrap();
+    assert_eq!(
+        encoded,
+        r#"{"DataPacks":{"Enabled":["vanilla"],"Disabled":[]},"enabled_features":["minecraft:vanilla","minecraft:redstone_experiments"]}"#
+    );
+    assert_eq!(
+        WorldDataConfiguration::from_json(&encoded, &registry).unwrap(),
+        expanded
+    );
+    assert_eq!(
+        WorldDataConfiguration::from_json("{}", &registry)
+            .unwrap()
+            .data_packs,
+        DataPackConfig::default_26_1_2()
+    );
+    assert!(WorldDataConfiguration::from_json(
+        r#"{"enabled_features":["minecraft:missing"]}"#,
+        &registry
+    )
+    .is_err());
+}
+
+#[cfg(vibecraft_has_decompiled_sources)]
+#[test]
+fn world_data_configuration_source_matches_java_26_1_2_codec_contract() {
+    const JAVA_SOURCE: &str =
+        vibecraft_java_source!("/net/minecraft/world/level/WorldDataConfiguration.java");
+    for fragment in [
+        "public record WorldDataConfiguration(DataPackConfig dataPacks, FeatureFlagSet enabledFeatures)",
+        "public static final String ENABLED_FEATURES_ID = \"enabled_features\"",
+        "DataPackConfig.CODEC.lenientOptionalFieldOf(\"DataPacks\", DataPackConfig.DEFAULT)",
+        "FeatureFlags.CODEC.lenientOptionalFieldOf(\"enabled_features\", FeatureFlags.DEFAULT_FLAGS)",
+        "public static final WorldDataConfiguration DEFAULT",
+        "public WorldDataConfiguration expandFeatures(final FeatureFlagSet newEnabledFeatures)",
+        "this.enabledFeatures.join(newEnabledFeatures)",
+    ] {
+        assert!(JAVA_SOURCE.contains(fragment), "missing Java source fragment: {fragment}");
+    }
 }
 
 #[cfg(vibecraft_has_decompiled_sources)]

@@ -4300,7 +4300,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/Spawner.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/StructureManager.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/TicketStorage.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/WorldDataConfiguration.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/WorldDataConfiguration.java`. Rust `resources::WorldDataConfiguration` mirrors Java's default datapack/feature selections, `enabled_features` identifier, feature-set expansion, and optional `DataPacks`/feature codec fields with registry validation; source-backed and round-trip/default tests cover the record contract.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/WorldGenLevel.java`.
 
 ## `decompiled-server-26.1.2/net/minecraft/world/level/biome`
