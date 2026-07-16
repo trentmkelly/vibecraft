@@ -126,7 +126,7 @@ impl<R: GameProfileRepository> CachedUserNameToIdResolver<R> {
             return Some(info.profile.clone());
         }
 
-        let resolved = if valid_player_name(&user_name) {
+        let resolved = if is_valid_player_name(&user_name) {
             self.profile_repository.find_profile_by_name(&user_name)
         } else {
             None
@@ -189,7 +189,7 @@ impl<R: GameProfileRepository> UserNameToIdResolver for CachedUserNameToIdResolv
     }
 }
 
-fn valid_player_name(name: &str) -> bool {
+pub fn is_valid_player_name(name: &str) -> bool {
     // Java checks UTF-16 length and rejects control/non-ASCII characters only.
     name.encode_utf16().count() <= 16
         && name

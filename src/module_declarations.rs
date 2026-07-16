@@ -720,6 +720,7 @@ mod stored_user_list;
 mod tracing_executor;
 mod trial_system;
 mod user_name_to_id_resolver;
+mod profile_resolver;
 mod util_context;
 mod util_debugchart;
 mod util_eventlog;
