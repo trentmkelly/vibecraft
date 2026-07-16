@@ -1,6 +1,12 @@
 use crate::game_rules::{GameRuleError, GameRuleSync, GameRules};
 use crate::management_security::generate_management_secret_key;
+use crate::network::codec::Uuid;
+use crate::resources::DataPackConfig;
+use crate::server_network_config_tasks::ServerResourcePackInfoModel;
 use crate::settings::SettingsModel;
+use crate::world::{builtin_world_preset, parse_seed, random_seed, WorldOptions, WorldPreset, BUILTIN_WORLD_PRESETS};
+use md5::{Digest, Md5};
+use serde_json::Value;
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -78,6 +84,9 @@ pub struct ServerProperties {
     pub use_native_transport: bool,
     pub view_distance: u32,
     pub white_list: bool,
+    /// Parsed once during construction, matching Java's constructor-time
+    /// `WorldOptions` allocation rather than generating a new seed per read.
+    pub world_options: WorldOptions,
 }
 
 impl ServerProperties {
@@ -95,6 +104,13 @@ impl ServerProperties {
         // field is read, so a later `Settings.store` does not write it back.
         let announce_player_achievements = optional_bool_key(&raw, "announce-player-achievements");
         raw.remove("announce-player-achievements");
+        // DedicatedServerProperties reads the legacy hash through
+        // `getLegacyString`, consuming it so Settings.store does not write it
+        // back after the modern SHA-1 property is understood.
+        let resource_pack_hash = raw.get("resource-pack-hash").cloned();
+        raw.remove("resource-pack-hash");
+        let level_seed = string_key(&raw, "level-seed", "");
+        let generate_structures = bool_key(&raw, "generate-structures", true);
         Self {
             accepts_transfers: bool_key(&raw, "accepts-transfers", false),
             allow_flight: bool_key(&raw, "allow-flight", false),
@@ -126,7 +142,7 @@ impl ServerProperties {
             initial_enabled_packs: string_key(&raw, "initial-enabled-packs", "vanilla"),
             level_name: string_key(&raw, "level-name", "world"),
             level_seed: string_key(&raw, "level-seed", ""),
-            level_type: string_key(&raw, "level-type", "minecraft:normal"),
+            level_type: string_key(&raw, "level-type", "minecraft:normal").to_lowercase(),
             log_ips: bool_key(&raw, "log-ips", true),
             management_server_allowed_origins: string_key(
                 &raw,
@@ -162,7 +178,7 @@ impl ServerProperties {
             region_file_compression: string_key(&raw, "region-file-compression", "deflate"),
             require_resource_pack: bool_key(&raw, "require-resource-pack", false),
             resource_pack: string_key(&raw, "resource-pack", ""),
-            resource_pack_hash: raw.get("resource-pack-hash").cloned(),
+            resource_pack_hash,
             resource_pack_id: string_key(&raw, "resource-pack-id", ""),
             resource_pack_prompt: string_key(&raw, "resource-pack-prompt", ""),
             resource_pack_sha1: string_key(&raw, "resource-pack-sha1", ""),
@@ -178,6 +194,11 @@ impl ServerProperties {
             use_native_transport: bool_key(&raw, "use-native-transport", true),
             view_distance: u32_key(&raw, "view-distance", 10),
             white_list: bool_key(&raw, "white-list", false),
+            world_options: WorldOptions::new(
+                parse_seed(&level_seed).unwrap_or_else(random_seed),
+                generate_structures,
+                false,
+            ),
             raw,
         }
     }
@@ -212,6 +233,111 @@ impl ServerProperties {
             .map(|enabled| game_rules.set("show_advancement_messages", &enabled.to_string()))
             .transpose()
     }
+
+    /// Java `DedicatedServerProperties#getServerPackInfo`, including the
+    /// modern-over-legacy hash precedence and UUID fallback derived from the
+    /// URL's UTF-8 bytes.
+    // TODO(dedicated-properties-live-wiring): feed this value into the live
+    // configuration-task pipeline once the dedicated login owner is connected.
+    #[allow(dead_code)]
+    pub fn server_resource_pack_info(&self) -> Option<ServerResourcePackInfoModel> {
+        if self.resource_pack.is_empty() {
+            return None;
+        }
+
+        let hash = if !self.resource_pack_sha1.is_empty() {
+            self.resource_pack_sha1.clone()
+        } else {
+            self.resource_pack_hash.clone().unwrap_or_default()
+        };
+        let id = if self.resource_pack_id.is_empty() {
+            java_name_uuid(self.resource_pack.as_bytes())
+        } else {
+            parse_java_uuid(&self.resource_pack_id)?
+        };
+        let prompt = (!self.resource_pack_prompt.is_empty())
+            .then(|| self.resource_pack_prompt.clone())
+            .filter(|prompt| crate::chat_component::component_serialization::decode_json_str(prompt).is_ok());
+
+        Some(ServerResourcePackInfoModel {
+            id,
+            url: self.resource_pack.clone(),
+            hash,
+            required: self.require_resource_pack,
+            prompt,
+        })
+    }
+
+    /// Java `DedicatedServerProperties#getDatapackConfig` delegates to a
+    /// comma splitter with `trimResults`, preserving empty entries.
+    #[allow(dead_code)]
+    pub fn initial_data_pack_configuration(&self) -> DataPackConfig {
+        DataPackConfig::from_properties(&self.initial_enabled_packs, &self.initial_disabled_packs)
+    }
+
+    /// Returns the parsed generator-settings JSON used by the flat preset.
+    /// Java's `GsonHelper.parse` requires an object at this property boundary.
+    #[allow(dead_code)]
+    pub fn generator_settings_json(&self) -> Result<Value, String> {
+        let source = if self.generator_settings.is_empty() {
+            "{}"
+        } else {
+            &self.generator_settings
+        };
+        let value: Value = serde_json::from_str(source)
+            .map_err(|error| format!("invalid generator-settings JSON: {error}"))?;
+        if !value.is_object() {
+            return Err("generator-settings must be a JSON object".to_string());
+        }
+        Ok(value)
+    }
+
+    /// Resolves built-in level types and Java's two legacy aliases. Datapack
+    /// registry-provided presets are intentionally left to the registry-aware
+    /// worldgen resolver; unknown identifiers use Java's normal-preset
+    /// fallback here.
+    #[allow(dead_code)]
+    pub fn world_preset(&self) -> &'static WorldPreset {
+        let id = match self.level_type.as_str() {
+            "default" => "minecraft:normal",
+            "largebiomes" => "minecraft:large_biomes",
+            other => other,
+        };
+        builtin_world_preset(id).unwrap_or(&BUILTIN_WORLD_PRESETS[0])
+    }
+}
+
+#[allow(dead_code)]
+fn parse_java_uuid(value: &str) -> Option<Uuid> {
+    let groups: Vec<&str> = value.split('-').collect();
+    if groups.len() != 5 {
+        return None;
+    }
+    let widths = [8, 4, 4, 4, 12];
+    let mut bytes = [0u8; 16];
+    let mut cursor = 0usize;
+    for (group, width) in groups.into_iter().zip(widths) {
+        if group.is_empty() || group.len() > width {
+            return None;
+        }
+        let number = u128::from_str_radix(group, 16).ok()?;
+        let padded = format!("{number:0width$x}", width = width);
+        for pair in padded.as_bytes().chunks_exact(2) {
+            bytes[cursor] = u8::from_str_radix(std::str::from_utf8(pair).ok()?, 16).ok()?;
+            cursor += 1;
+        }
+    }
+    Some(Uuid(bytes))
+}
+
+#[allow(dead_code)]
+fn java_name_uuid(bytes: &[u8]) -> Uuid {
+    let mut digest = Md5::digest(bytes);
+    digest[6] = (digest[6] & 0x0f) | 0x30;
+    digest[8] = (digest[8] & 0x3f) | 0x80;
+    let mut uuid = [0u8; 16];
+    uuid.copy_from_slice(&digest);
+    Uuid(uuid)
 }
 
 #[cfg(test)]
@@ -344,6 +470,7 @@ fn vanilla_defaults() -> BTreeMap<String, String> {
 mod tests {
     use super::{parse_properties, ServerProperties};
     use crate::game_rules::{GameRuleValue, GameRules};
+    use crate::resources::DataPackConfig;
     use std::fs;
     use std::path::Path;
 
@@ -363,6 +490,10 @@ mod tests {
             "Mth.clamp(Integer.parseInt(v), 10, 1000)",
             "getServerPackInfo",
             "getDatapackConfig",
+            "WorldOptions.parseSeed(levelSeed).orElse(WorldOptions.randomSeed())",
+            "new WorldOptions(seed, generateStructures, false)",
+            "WorldDimensions createDimensions",
+            "LEGACY_PRESET_NAMES",
         ] {
             assert!(JAVA_SOURCE.contains(fragment), "missing Java source fragment: {fragment}");
         }
@@ -571,6 +702,82 @@ resource-pack-prompt={\"text\":\"Use pack?\"}
         let saved = fs::read_to_string(&path).unwrap();
         assert!(!saved.contains("announce-player-achievements="));
         let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn dedicated_resource_pack_info_matches_java_precedence_uuid_and_prompt_rules() {
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "vibecraft-resource-pack-info-{}.properties",
+            std::process::id()
+        ));
+        fs::write(
+            &path,
+            "resource-pack=https://example.invalid/pack.zip\nresource-pack-sha1=modern\nresource-pack-hash=legacy\nresource-pack-prompt={\\\"text\\\":\\\"Download?\\\"}\nrequire-resource-pack=true\n",
+        )
+        .unwrap();
+        let properties = ServerProperties::load_or_default(&path).unwrap();
+        let _ = fs::remove_file(&path);
+
+        let info = properties.server_resource_pack_info().unwrap();
+        assert_eq!(info.url, "https://example.invalid/pack.zip");
+        assert_eq!(info.hash, "modern");
+        assert!(info.required);
+        assert_eq!(info.prompt.as_deref(), Some("{\"text\":\"Download?\"}"));
+        assert_eq!(
+            info.id,
+            super::java_name_uuid(b"https://example.invalid/pack.zip")
+        );
+        assert!(!properties.raw.contains_key("resource-pack-hash"));
+
+        let mut invalid = properties.clone();
+        invalid.set("resource-pack-id", "not-a-uuid");
+        assert!(invalid.server_resource_pack_info().is_none());
+        invalid.set("resource-pack-id", "");
+        invalid.set("resource-pack-prompt", "not-json");
+        assert!(invalid.server_resource_pack_info().unwrap().prompt.is_none());
+
+        invalid.set("resource-pack", "");
+        assert!(invalid.server_resource_pack_info().is_none());
+    }
+
+    #[test]
+    fn dedicated_datapack_world_options_and_dimension_aliases_match_java() {
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "vibecraft-dedicated-derived-properties-{}.properties",
+            std::process::id()
+        ));
+        fs::write(
+            &path,
+            "initial-enabled-packs=vanilla, file/world,,\ninitial-disabled-packs= file/disabled ,\nlevel-seed=8675309\ngenerate-structures=false\nlevel-type=LARGEBIOMES\ngenerator-settings={\\\"layers\\\":[]}\n",
+        )
+        .unwrap();
+        let properties = ServerProperties::load_or_default(&path).unwrap();
+        let _ = fs::remove_file(&path);
+
+        assert_eq!(
+            properties.initial_data_pack_configuration(),
+            DataPackConfig {
+                enabled: vec!["vanilla", "file/world", "", ""]
+                    .into_iter()
+                    .map(String::from)
+                    .collect(),
+                disabled: vec!["file/disabled", ""]
+                    .into_iter()
+                    .map(String::from)
+                    .collect(),
+            }
+        );
+        assert_eq!(properties.world_options.seed, 8_675_309);
+        assert!(!properties.world_options.generate_structures);
+        assert_eq!(properties.level_type, "largebiomes");
+        assert_eq!(properties.world_preset().id, "minecraft:large_biomes");
+        assert!(properties.generator_settings_json().is_ok());
+
+        let mut invalid = properties.clone();
+        invalid.set("generator-settings", "[]");
+        assert!(invalid.generator_settings_json().is_err());
     }
 
     #[test]
