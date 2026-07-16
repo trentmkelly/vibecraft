@@ -3665,7 +3665,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 ## `decompiled-server-26.1.2/net/minecraft/world/entity/player`
 
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/player/Abilities.java`. Rust `command_game_mode_argument::AbilitiesModel` and `AbilitiesPacked` mirror Java's defaults, mutable speed accessors, pack/apply transfer, and Packed codec field names/defaults; source-backed and behavioral JSON round-trip tests cover the contract.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/player/ChatVisiblity.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/player/ChatVisiblity.java`. Rust `network::common::ChatVisibility` mirrors Java's wrapped legacy IDs, enum ordering, translated captions, and caption keys; source-backed and behavioral tests cover the enum codec contract.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/player/Input.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/player/Inventory.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/entity/player/Player.java`.

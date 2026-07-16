@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::io::{self, Read, Write};
 
+use crate::chat_component::Component;
 use crate::network::codec::{
     read_collection, read_component, read_enum_index, read_identifier, read_optional, read_string,
     read_trusted_component, read_uuid, write_collection, write_component, write_enum_index,
@@ -827,6 +828,30 @@ impl ResourcePackAction {
 }
 
 impl ChatVisibility {
+    pub fn id(self) -> i32 {
+        self.index() as i32
+    }
+
+    pub fn by_id(id: i32) -> Self {
+        match id.rem_euclid(3) {
+            0 => Self::Full,
+            1 => Self::System,
+            _ => Self::Hidden,
+        }
+    }
+
+    pub fn caption_key(self) -> &'static str {
+        match self {
+            Self::Full => "options.chat.visibility.full",
+            Self::System => "options.chat.visibility.system",
+            Self::Hidden => "options.chat.visibility.hidden",
+        }
+    }
+
+    pub fn caption(self) -> Component {
+        Component::translatable(self.caption_key(), Vec::new())
+    }
+
     fn index(self) -> usize {
         match self {
             Self::Full => 0,

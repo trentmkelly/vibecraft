@@ -356,6 +356,37 @@ fn client_information_source_matches_java_26_1_2() {
 }
 
 #[test]
+fn chat_visibility_ids_wrap_and_captions_match_java() {
+    assert_eq!(ChatVisibility::Full.id(), 0);
+    assert_eq!(ChatVisibility::System.id(), 1);
+    assert_eq!(ChatVisibility::Hidden.id(), 2);
+    assert_eq!(ChatVisibility::by_id(-1), ChatVisibility::Hidden);
+    assert_eq!(ChatVisibility::by_id(3), ChatVisibility::Full);
+    assert_eq!(
+        ChatVisibility::System.caption().get_string(),
+        "options.chat.visibility.system"
+    );
+}
+
+#[test]
+#[cfg(vibecraft_has_decompiled_sources)]
+fn chat_visibility_source_matches_java_26_1_2() {
+    const JAVA_SOURCE: &str =
+        vibecraft_java_source!("/net/minecraft/world/entity/player/ChatVisiblity.java");
+    for fragment in [
+        "FULL(0, \"options.chat.visibility.full\")",
+        "SYSTEM(1, \"options.chat.visibility.system\")",
+        "HIDDEN(2, \"options.chat.visibility.hidden\")",
+        "ByIdMap.continuous(v -> v.id, values(), ByIdMap.OutOfBoundsStrategy.WRAP)",
+        "public static final Codec<ChatVisiblity> LEGACY_CODEC",
+        "this.caption = Component.translatable(key)",
+        "public Component caption()",
+    ] {
+        assert!(JAVA_SOURCE.contains(fragment), "missing Java source fragment: {fragment}");
+    }
+}
+
+#[test]
 fn particle_status_matches_java_ids_captions_and_legacy_wrap_codec() {
     assert_eq!(ParticleStatus::All.id(), 0);
     assert_eq!(ParticleStatus::All.caption_key(), "options.particles.all");
