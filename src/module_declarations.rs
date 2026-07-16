@@ -720,6 +720,7 @@ mod special_block;
 mod special_dates;
 #[cfg(test)]
 mod statistics;
+mod static_cache_2d;
 mod status_effect;
 mod storage;
 mod structure_resources;
