@@ -41,6 +41,17 @@ pub enum BorderStatus {
     Shrinking,
 }
 
+impl BorderStatus {
+    /// Java `BorderStatus.getColor()` values used by the client border packet.
+    pub const fn color(self) -> i32 {
+        match self {
+            Self::Growing => 4_259_712,
+            Self::Shrinking => 16_724_016,
+            Self::Stationary => 2_138_367,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BorderExtent {
     Static {
@@ -496,6 +507,26 @@ mod tests {
         WorldBorder, WorldBorderSettings, WORLD_BORDER_DEFAULT_ABSOLUTE_MAX_SIZE,
         WORLD_BORDER_MAX_CENTER_COORDINATE, WORLD_BORDER_MAX_SIZE,
     };
+
+    #[cfg(vibecraft_has_decompiled_sources)]
+    #[test]
+    fn border_status_matches_java_enum_colors() {
+        const JAVA: &str =
+            vibecraft_java_source!("/net/minecraft/world/level/border/BorderStatus.java");
+        assert_eq!(JAVA.lines().count(), 17);
+        for fragment in [
+            "public enum BorderStatus",
+            "GROWING(4259712)",
+            "SHRINKING(16724016)",
+            "STATIONARY(2138367)",
+            "public int getColor()",
+        ] {
+            assert!(JAVA.contains(fragment), "missing BorderStatus source fragment: {fragment}");
+        }
+        assert_eq!(BorderStatus::Growing.color(), 4_259_712);
+        assert_eq!(BorderStatus::Shrinking.color(), 16_724_016);
+        assert_eq!(BorderStatus::Stationary.color(), 2_138_367);
+    }
 
     #[test]
     fn set_warning_blocks_and_time_update_state_and_build_packets() {

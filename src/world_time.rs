@@ -524,6 +524,30 @@ mod tests {
     const WORLD_CLOCKS_JAVA: &str =
         vibecraft_java_source!("/net/minecraft/world/clock/WorldClocks.java");
 
+    #[cfg(vibecraft_has_decompiled_sources)]
+    #[test]
+    fn clock_network_state_matches_java_record_and_stream_codec() {
+        const JAVA: &str =
+            vibecraft_java_source!("/net/minecraft/world/clock/ClockNetworkState.java");
+        assert_eq!(JAVA.lines().count(), 17);
+        for fragment in [
+            "public record ClockNetworkState(long totalTicks, float partialTick, float rate)",
+            "ByteBufCodecs.VAR_LONG",
+            "ByteBufCodecs.FLOAT",
+            "ClockNetworkState::new",
+        ] {
+            assert!(JAVA.contains(fragment), "missing ClockNetworkState source fragment: {fragment}");
+        }
+        let state = ClockNetworkState {
+            total_ticks: 123,
+            partial_tick: 0.25,
+            rate: 1.5,
+        };
+        assert_eq!(state.total_ticks, 123);
+        assert_eq!(state.partial_tick, 0.25);
+        assert_eq!(state.rate, 1.5);
+    }
+
     #[test]
     fn world_clock_keys_match_java_bootstrap_order() {
         let keys = match WorldClocks::bootstrap() {
