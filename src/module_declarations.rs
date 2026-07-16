@@ -645,6 +645,7 @@ mod player_inventory;
 mod player_list;
 mod png_info;
 mod player_online_auth;
+mod progress_listener;
 #[cfg(test)]
 mod player_presentation;
 #[cfg(test)]

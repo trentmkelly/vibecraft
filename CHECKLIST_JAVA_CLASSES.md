@@ -1953,7 +1953,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/PlaceholderLookupProvider.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/PngInfo.java`. `png_info::PngInfo` mirrors Java big-endian PNG signature/IHDR parsing, dimension extraction, and validation errors, with source-backed and malformed-header tests.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/ProblemReporter.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/ProgressListener.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/ProgressListener.java`. `progress_listener::ProgressListener` mirrors all five Java component/progress callbacks through a typed generic payload, with source-backed and callback-order tests.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/RandomSource.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/RegistryContextSwapper.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/SegmentedAnglePrecision.java`. `segmented_angle_precision::SegmentedAnglePrecision` mirrors Java precision validation, direction mapping, fixed-point normalization, Math.round behavior, and signed degree conversion, with source-backed tests.
