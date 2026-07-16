@@ -1975,7 +1975,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/TaskChainer.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/ThreadingDetector.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/TickThrottler.java`. `tick_throttler::TickThrottler` mirrors Java increment, positive-only tick decay, and strict threshold checks, with source-backed and transition tests.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/TimeSource.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/TimeSource.java`. `time_source::TimeSource` and `NanoTimeSource` mirror Java's nanosecond supplier contract and TimeUnit conversion, with source-backed and conversion tests.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/TimeUtil.java`. `time_util::TimeUtil` preserves all Java time constants and `rangeOfSeconds`, with source-backed tests.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/ToFloatFunction.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/TriState.java`.

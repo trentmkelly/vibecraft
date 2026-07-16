@@ -725,6 +725,7 @@ mod status_effect;
 mod string_util;
 mod storage;
 mod tick_throttler;
+mod time_source;
 mod structure_resources;
 mod suppress_forbidden;
 mod system_report;
