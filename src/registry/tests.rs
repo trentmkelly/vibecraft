@@ -4,6 +4,8 @@ use super::{
 };
 
 const TAG_KEY_JAVA: &str = vibecraft_java_source!("/net/minecraft/tags/TagKey.java");
+const TAG_ENTRY_JAVA: &str = vibecraft_java_source!("/net/minecraft/tags/TagEntry.java");
+const TAG_FILE_JAVA: &str = vibecraft_java_source!("/net/minecraft/tags/TagFile.java");
 
 const INTENTIONALLY_OMITTED_REGISTRIES: &[(&str, &str)] = &[
     (
@@ -936,6 +938,7 @@ fn tag_loading_handles_replace_optional_entries_and_errors() {
                 replace: false,
                 entries: vec![super::TagEntry {
                     id: Identifier::parse("stick").unwrap(),
+                    tag: false,
                     required: true,
                 }],
             },
@@ -946,10 +949,12 @@ fn tag_loading_handles_replace_optional_entries_and_errors() {
                 entries: vec![
                     super::TagEntry {
                         id: Identifier::parse("apple").unwrap(),
+                        tag: false,
                         required: true,
                     },
                     super::TagEntry {
                         id: Identifier::parse("missing_optional").unwrap(),
+                        tag: false,
                         required: false,
                     },
                 ],
@@ -973,6 +978,7 @@ fn tag_loading_handles_replace_optional_entries_and_errors() {
             replace: false,
             entries: vec![super::TagEntry {
                 id: Identifier::parse("missing_required").unwrap(),
+                tag: false,
                 required: true,
             }],
         }],
@@ -1007,6 +1013,7 @@ fn reloadable_server_registries_order_datapack_registries_before_tags_and_freeze
                 replace: true,
                 entries: vec![super::TagEntry {
                     id: custom_biome.clone(),
+                    tag: false,
                     required: true,
                 }],
             }],
@@ -1068,6 +1075,7 @@ fn reloadable_server_registries_keep_last_successful_state_on_tag_failure() -> R
                 replace: true,
                 entries: vec![super::TagEntry {
                     id: stick.clone(),
+                    tag: false,
                     required: true,
                 }],
             }],
@@ -1090,6 +1098,7 @@ fn reloadable_server_registries_keep_last_successful_state_on_tag_failure() -> R
                 replace: true,
                 entries: vec![super::TagEntry {
                     id: Identifier::parse("minecraft:missing_required").unwrap(),
+                    tag: false,
                     required: true,
                 }],
             }],
@@ -1153,6 +1162,114 @@ fn tag_key_matches_java_codec_cast_and_display_contract() -> Result<(), String> 
     assert_eq!(
         TagKey::<String>::hashed_codec(registry, "minecraft:logs").map(|_| ()),
         Err("Not a tag id".to_string())
+    );
+    Ok(())
+}
+
+#[test]
+fn tag_entry_and_file_match_java_codec_and_dependency_contracts() -> Result<(), String> {
+    assert_eq!(TAG_ENTRY_JAVA.lines().count(), 115);
+    for fragment in [
+        "public static TagEntry element(final Identifier id)",
+        "public static TagEntry optionalElement(final Identifier id)",
+        "public static TagEntry tag(final Identifier id)",
+        "public static TagEntry optionalTag(final Identifier id)",
+        "public void visitRequiredDependencies(final Consumer<Identifier> output)",
+        "public void visitOptionalDependencies(final Consumer<Identifier> output)",
+        "public boolean verifyIfPresent",
+        "result.append('?');",
+    ] {
+        assert!(TAG_ENTRY_JAVA.contains(fragment), "missing TagEntry source fragment: {fragment}");
+    }
+    assert_eq!(TAG_FILE_JAVA.lines().count(), 14);
+    for fragment in [
+        "public record TagFile(List<TagEntry> entries, boolean replace)",
+        "TagEntry.CODEC.listOf().fieldOf(\"values\")",
+        "Codec.BOOL.optionalFieldOf(\"replace\", false)",
+    ] {
+        assert!(TAG_FILE_JAVA.contains(fragment), "missing TagFile source fragment: {fragment}");
+    }
+
+    let element = super::TagEntry::element(Identifier::parse("minecraft:stick")?);
+    let optional_tag = super::TagEntry::optional_tag(Identifier::parse("minecraft:logs")?);
+    assert_eq!(element.to_string(), "minecraft:stick");
+    assert_eq!(optional_tag.to_string(), "#minecraft:logs?");
+    assert_eq!(element.to_json(), serde_json::json!("minecraft:stick"));
+    assert_eq!(
+        optional_tag.to_json(),
+        serde_json::json!({"id": "#minecraft:logs", "required": false})
+    );
+    assert_eq!(
+        super::TagEntry::from_json(&serde_json::json!("#minecraft:logs"))?,
+        super::TagEntry::tag(Identifier::parse("minecraft:logs")?)
+    );
+    assert_eq!(
+        super::TagEntry::from_json(&serde_json::json!({
+            "id": "minecraft:missing",
+            "required": false
+        }))?,
+        super::TagEntry::optional_element(Identifier::parse("minecraft:missing")?)
+    );
+    let mut required = Vec::new();
+    optional_tag.visit_required_dependencies(&mut required);
+    assert!(required.is_empty());
+    let mut optional = Vec::new();
+    optional_tag.visit_optional_dependencies(&mut optional);
+    assert_eq!(optional, vec![Identifier::parse("minecraft:logs")?]);
+    assert!(optional_tag.verify_if_present(|_| false, |_| false));
+
+    let file = super::TagFile::new(
+        Identifier::parse("minecraft:item")?,
+        Identifier::parse("minecraft:logs")?,
+        vec![element, optional_tag],
+        false,
+    );
+    let encoded = file.to_json();
+    assert_eq!(encoded["values"].as_array().map(Vec::len), Some(2));
+    assert!(encoded.get("replace").is_none());
+    let decoded = super::TagFile::from_json(
+        Identifier::parse("minecraft:item")?,
+        Identifier::parse("minecraft:logs")?,
+        &encoded,
+    )?;
+    assert_eq!(decoded, file);
+    Ok(())
+}
+
+#[test]
+fn loaded_tags_resolve_nested_required_and_optional_tag_entries() -> Result<(), String> {
+    let mut registry = Registry::new(Identifier::parse(registries::ITEM)?);
+    let stick = Identifier::parse("minecraft:stick")?;
+    let apple = Identifier::parse("minecraft:apple")?;
+    registry.register(stick.clone(), "stick".to_string(), Lifecycle::Stable)?;
+    registry.register(apple.clone(), "apple".to_string(), Lifecycle::Stable)?;
+    let base = Identifier::parse("minecraft:base")?;
+    let combined = Identifier::parse("minecraft:combined")?;
+    let loaded = super::LoadedTags::load(
+        &registry,
+        [
+            super::TagFile::new(
+                Identifier::parse(registries::ITEM)?,
+                base.clone(),
+                vec![super::TagEntry::element(stick.clone())],
+                true,
+            ),
+            super::TagFile::new(
+                Identifier::parse(registries::ITEM)?,
+                combined.clone(),
+                vec![
+                    super::TagEntry::tag(base.clone()),
+                    super::TagEntry::optional_element(Identifier::parse("minecraft:missing")?),
+                    super::TagEntry::element(apple.clone()),
+                ],
+                true,
+            ),
+        ],
+    )
+    .map_err(|errors| errors.join("; "))?;
+    assert_eq!(
+        loaded.values(&Identifier::parse(registries::ITEM)?, &combined),
+        Some([stick, apple].as_slice())
     );
     Ok(())
 }

@@ -1881,8 +1881,8 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/tags/PotionTags.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/tags/StructureTags.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/tags/TagBuilder.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/tags/TagEntry.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/tags/TagFile.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/tags/TagEntry.java`. `registry::TagEntry` preserves required/optional element and tag entries, codec forms, dependency visitation, verification, and display behavior; `LoadedTags` resolves nested tags and detects cycles, with source-backed tests.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/tags/TagFile.java`. `registry::TagFile` preserves the `values`/optional-`replace` codec shape and round-trips entries, with source-backed tests.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/tags/TagKey.java`. `registry::TagKey` preserves identifier/hashed codecs, registry checks, generic casts, interning-compatible equality, and Java display formatting, with source-backed tests.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/tags/TagLoader.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/tags/TagNetworkSerialization.java`.

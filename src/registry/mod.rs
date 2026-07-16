@@ -710,10 +710,176 @@ pub struct TagFile {
     pub entries: Vec<TagEntry>,
 }
 
+impl TagFile {
+    /// Constructs a tag file with the Java codec's `replace` default.
+    pub fn new(registry: Identifier, tag: Identifier, entries: Vec<TagEntry>, replace: bool) -> Self {
+        Self {
+            registry,
+            tag,
+            replace,
+            entries,
+        }
+    }
+
+    /// Encodes the Java `TagFile.CODEC` shape (`values` plus optional
+    /// `replace`). Registry and tag identify the resource file and are not
+    /// serialized inside the file itself.
+    pub fn to_json(&self) -> serde_json::Value {
+        let mut object = serde_json::Map::new();
+        object.insert(
+            "values".to_string(),
+            serde_json::Value::Array(self.entries.iter().map(TagEntry::to_json).collect()),
+        );
+        if self.replace {
+            object.insert("replace".to_string(), serde_json::Value::Bool(true));
+        }
+        serde_json::Value::Object(object)
+    }
+
+    pub fn from_json(
+        registry: Identifier,
+        tag: Identifier,
+        value: &serde_json::Value,
+    ) -> Result<Self, String> {
+        let object = value
+            .as_object()
+            .ok_or_else(|| "tag file must be a JSON object".to_string())?;
+        let values = object
+            .get("values")
+            .and_then(serde_json::Value::as_array)
+            .ok_or_else(|| "tag file is missing array field values".to_string())?
+            .iter()
+            .map(TagEntry::from_json)
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self::new(
+            registry,
+            tag,
+            values,
+            object
+                .get("replace")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false),
+        ))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TagEntry {
     pub id: Identifier,
+    pub tag: bool,
     pub required: bool,
+}
+
+impl TagEntry {
+    pub fn element(id: Identifier) -> Self {
+        Self {
+            id,
+            tag: false,
+            required: true,
+        }
+    }
+
+    pub fn optional_element(id: Identifier) -> Self {
+        Self {
+            id,
+            tag: false,
+            required: false,
+        }
+    }
+
+    pub fn tag(id: Identifier) -> Self {
+        Self {
+            id,
+            tag: true,
+            required: true,
+        }
+    }
+
+    pub fn optional_tag(id: Identifier) -> Self {
+        Self {
+            id,
+            tag: true,
+            required: false,
+        }
+    }
+
+    pub fn to_json(&self) -> serde_json::Value {
+        let id = if self.tag {
+            format!("#{}", self.id)
+        } else {
+            self.id.to_string()
+        };
+        if self.required {
+            serde_json::Value::String(id)
+        } else {
+            serde_json::json!({"id": id, "required": false})
+        }
+    }
+
+    pub fn from_json(value: &serde_json::Value) -> Result<Self, String> {
+        if let Some(value) = value.as_str() {
+            return Self::from_id(value, true);
+        }
+        let object = value
+            .as_object()
+            .ok_or_else(|| "tag entry must be a string or object".to_string())?;
+        let id = object
+            .get("id")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| "tag entry object is missing string field id".to_string())?;
+        Self::from_id(
+            id,
+            object
+                .get("required")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(true),
+        )
+    }
+
+    fn from_id(value: &str, required: bool) -> Result<Self, String> {
+        let (tag, id) = value
+            .strip_prefix('#')
+            .map_or((false, value), |id| (true, id));
+        let id = Identifier::parse(id)?;
+        Ok(Self {
+            id,
+            tag,
+            required,
+        })
+    }
+
+    pub fn visit_required_dependencies(&self, output: &mut Vec<Identifier>) {
+        if self.tag && self.required {
+            output.push(self.id.clone());
+        }
+    }
+
+    pub fn visit_optional_dependencies(&self, output: &mut Vec<Identifier>) {
+        if self.tag && !self.required {
+            output.push(self.id.clone());
+        }
+    }
+
+    pub fn verify_if_present<F, G>(&self, element_check: F, tag_check: G) -> bool
+    where
+        F: FnOnce(&Identifier) -> bool,
+        G: FnOnce(&Identifier) -> bool,
+    {
+        !self.required || if self.tag { tag_check(&self.id) } else { element_check(&self.id) }
+    }
+}
+
+impl fmt::Display for TagEntry {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.tag {
+            formatter.write_str("#")?;
+        }
+        write!(formatter, "{}", self.id)?;
+        if !self.required {
+            formatter.write_str("?")?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -726,7 +892,7 @@ impl LoadedTags {
         registry: &Registry<T>,
         files: impl IntoIterator<Item = TagFile>,
     ) -> Result<Self, Vec<String>> {
-        let mut tags = BTreeMap::new();
+        let mut definitions: BTreeMap<(Identifier, Identifier), Vec<TagEntry>> = BTreeMap::new();
         let mut errors = Vec::new();
         for file in files {
             if &file.registry != registry.registry_id() {
@@ -740,18 +906,23 @@ impl LoadedTags {
             }
             let key = (file.registry.clone(), file.tag.clone());
             if file.replace {
-                tags.insert(key.clone(), Vec::new());
+                definitions.insert(key.clone(), Vec::new());
             }
-            let values = tags.entry(key).or_insert_with(Vec::new);
-            for entry in file.entries {
-                if registry.get(&entry.id).is_some() {
-                    if !values.contains(&entry.id) {
-                        values.push(entry.id);
-                    }
-                } else if entry.required {
-                    errors.push(format!("missing required tag entry {}", entry.id));
-                }
-            }
+            definitions.entry(key).or_default().extend(file.entries);
+        }
+
+        let mut tags = BTreeMap::new();
+        let mut resolving = Vec::new();
+        let keys = definitions.keys().cloned().collect::<Vec<_>>();
+        for key in keys {
+            resolve_tag_entries(
+                &key,
+                &definitions,
+                registry,
+                &mut tags,
+                &mut resolving,
+                &mut errors,
+            );
         }
         if errors.is_empty() {
             Ok(Self { tags })
@@ -765,6 +936,59 @@ impl LoadedTags {
             .get(&(registry.clone(), tag.clone()))
             .map(Vec::as_slice)
     }
+}
+
+fn resolve_tag_entries<T>(
+    key: &(Identifier, Identifier),
+    definitions: &BTreeMap<(Identifier, Identifier), Vec<TagEntry>>,
+    registry: &Registry<T>,
+    resolved: &mut BTreeMap<(Identifier, Identifier), Vec<Identifier>>,
+    resolving: &mut Vec<(Identifier, Identifier)>,
+    errors: &mut Vec<String>,
+) -> Vec<Identifier> {
+    if let Some(values) = resolved.get(key) {
+        return values.clone();
+    }
+    if resolving.iter().any(|active| active == key) {
+        errors.push(format!("cyclic tag reference {}", key.1));
+        return Vec::new();
+    }
+    resolving.push(key.clone());
+    let mut values = Vec::new();
+    if let Some(entries) = definitions.get(key) {
+        for entry in entries {
+            if entry.tag {
+                let dependency = (key.0.clone(), entry.id.clone());
+                if !definitions.contains_key(&dependency) {
+                    if entry.required {
+                        errors.push(format!("missing required tag entry #{}", entry.id));
+                    }
+                    continue;
+                }
+                for value in resolve_tag_entries(
+                    &dependency,
+                    definitions,
+                    registry,
+                    resolved,
+                    resolving,
+                    errors,
+                ) {
+                    if !values.contains(&value) {
+                        values.push(value);
+                    }
+                }
+            } else if registry.get(&entry.id).is_some() {
+                if !values.contains(&entry.id) {
+                    values.push(entry.id.clone());
+                }
+            } else if entry.required {
+                errors.push(format!("missing required tag entry {}", entry.id));
+            }
+        }
+    }
+    resolving.pop();
+    resolved.insert(key.clone(), values.clone());
+    values
 }
 
 mod builtin;
