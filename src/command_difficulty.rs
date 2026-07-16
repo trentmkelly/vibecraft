@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use crate::chat_component::Component;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Difficulty {
     Peaceful,
@@ -25,6 +27,38 @@ impl Difficulty {
             Self::Normal => "normal",
             Self::Hard => "hard",
         }
+    }
+
+    /// Java `ByIdMap.continuous(..., WRAP)` semantics, including negative and
+    /// out-of-range ids wrapping around the four enum values.
+    pub fn by_id(id: i32) -> Self {
+        match id.rem_euclid(4) {
+            0 => Self::Peaceful,
+            1 => Self::Easy,
+            2 => Self::Normal,
+            _ => Self::Hard,
+        }
+    }
+
+    pub fn by_name(name: &str) -> Option<Self> {
+        match name {
+            "peaceful" => Some(Self::Peaceful),
+            "easy" => Some(Self::Easy),
+            "normal" => Some(Self::Normal),
+            "hard" => Some(Self::Hard),
+            _ => None,
+        }
+    }
+
+    pub fn display_name(self) -> Component {
+        Component::translatable(format!("options.difficulty.{}", self.serialized_name()), Vec::new())
+    }
+
+    pub fn info(self) -> Component {
+        Component::translatable(
+            format!("options.difficulty.{}.info", self.serialized_name()),
+            Vec::new(),
+        )
     }
 }
 
@@ -111,6 +145,45 @@ mod tests {
                 broadcast_to_admins: true,
             })
         );
+    }
+
+    #[test]
+    fn difficulty_lookup_and_components_match_java_enum_contract() {
+        assert_eq!(Difficulty::by_id(-1), Difficulty::Hard);
+        assert_eq!(Difficulty::by_id(4), Difficulty::Peaceful);
+        assert_eq!(Difficulty::by_id(6), Difficulty::Normal);
+        assert_eq!(Difficulty::by_name("normal"), Some(Difficulty::Normal));
+        assert_eq!(Difficulty::by_name("NORMAL"), None);
+        assert_eq!(
+            Difficulty::Hard.display_name().get_string(),
+            "options.difficulty.hard"
+        );
+        assert_eq!(
+            Difficulty::Peaceful.info().get_string(),
+            "options.difficulty.peaceful.info"
+        );
+    }
+
+    #[test]
+    #[cfg(vibecraft_has_decompiled_sources)]
+    fn difficulty_source_matches_java_26_1_2() {
+        const JAVA_SOURCE: &str = vibecraft_java_source!("/net/minecraft/world/Difficulty.java");
+        for fragment in [
+            "PEACEFUL(0, \"peaceful\")",
+            "EASY(1, \"easy\")",
+            "NORMAL(2, \"normal\")",
+            "HARD(3, \"hard\")",
+            "ByIdMap.continuous(Difficulty::getId, values(), ByIdMap.OutOfBoundsStrategy.WRAP)",
+            "public Component getDisplayName()",
+            "Component.translatable(\"options.difficulty.\" + this.key)",
+            "public Component getInfo()",
+            "Component.translatable(\"options.difficulty.\" + this.key + \".info\")",
+            "public static Difficulty byId(final int id)",
+            "public static @Nullable Difficulty byName(final String name)",
+            "public String getSerializedName()",
+        ] {
+            assert!(JAVA_SOURCE.contains(fragment), "missing Java source fragment: {fragment}");
+        }
     }
 
     #[test]
