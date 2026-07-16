@@ -4898,8 +4898,8 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/world/level/dimension`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/dimension/BuiltinDimensionTypes.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/dimension/DimensionDefaults.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/dimension/BuiltinDimensionTypes.java`. `world::BuiltinDimensionTypes` preserves the four Java `ResourceKey<DimensionType>` identifiers and registry identity, with source-backed tests.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/dimension/DimensionDefaults.java`. `world::DimensionDefaults` preserves every Java constant and aliases the existing world-generation constants, with source-backed tests.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/dimension/DimensionType.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/dimension/LevelStem.java`.
 

@@ -3,6 +3,59 @@
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// The registry key used by Java's `BuiltinDimensionTypes` constants.
+pub const DIMENSION_TYPE_REGISTRY: &str = "minecraft:dimension_type";
+
+/// A typed dimension-type resource key corresponding to Java's
+/// `ResourceKey<DimensionType>`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DimensionTypeKey {
+    pub registry: &'static str,
+    pub id: &'static str,
+}
+
+/// Built-in dimension-type resource keys from Java's
+/// `net.minecraft.world.level.dimension.BuiltinDimensionTypes`.
+pub struct BuiltinDimensionTypes;
+
+impl BuiltinDimensionTypes {
+    const fn register(id: &'static str) -> DimensionTypeKey {
+        DimensionTypeKey {
+            registry: DIMENSION_TYPE_REGISTRY,
+            id,
+        }
+    }
+
+    pub const OVERWORLD: DimensionTypeKey = Self::register("minecraft:overworld");
+    pub const NETHER: DimensionTypeKey = Self::register("minecraft:the_nether");
+    pub const END: DimensionTypeKey = Self::register("minecraft:the_end");
+    pub const OVERWORLD_CAVES: DimensionTypeKey = Self::register("minecraft:overworld_caves");
+}
+
+/// Dimension constants from Java's `DimensionDefaults`.
+pub struct DimensionDefaults;
+
+impl DimensionDefaults {
+    pub const CLOUD_THICKNESS: i32 = 4;
+    pub const BLOCK_LIGHT_TINT: i32 = -10_100;
+    pub const NIGHT_VISION_COLOR: i32 = -6_710_887;
+    pub const TURTLE_EGG_HATCH_CHANCE: f32 = 0.002;
+    pub const OVERWORLD_MIN_Y: i32 = -64;
+    pub const OVERWORLD_LEVEL_HEIGHT: i32 = 384;
+    pub const OVERWORLD_GENERATION_HEIGHT: i32 = 384;
+    pub const OVERWORLD_LOGICAL_HEIGHT: i32 = 384;
+    pub const OVERWORLD_CLOUD_HEIGHT: f32 = 192.33;
+    pub const NETHER_MIN_Y: i32 = 0;
+    pub const NETHER_LEVEL_HEIGHT: i32 = 256;
+    pub const NETHER_GENERATION_HEIGHT: i32 = 128;
+    pub const NETHER_LOGICAL_HEIGHT: i32 = 128;
+    pub const END_MIN_Y: i32 = 0;
+    pub const END_LEVEL_HEIGHT: i32 = 256;
+    pub const END_GENERATION_HEIGHT: i32 = 128;
+    pub const END_LOGICAL_HEIGHT: i32 = 256;
+    pub const END_ISLAND_BASE_Y: i32 = 63;
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DimensionType {
     pub id: &'static str,
@@ -131,22 +184,22 @@ pub struct WorldOptions {
     pub legacy_custom_options: Option<String>,
 }
 
-pub const OVERWORLD_MIN_Y: i32 = -64;
-pub const OVERWORLD_LEVEL_HEIGHT: i32 = 384;
-pub const OVERWORLD_GENERATION_HEIGHT: i32 = 384;
-pub const OVERWORLD_LOGICAL_HEIGHT: i32 = 384;
-pub const OVERWORLD_CLOUD_HEIGHT: f32 = 192.33;
+pub const OVERWORLD_MIN_Y: i32 = DimensionDefaults::OVERWORLD_MIN_Y;
+pub const OVERWORLD_LEVEL_HEIGHT: i32 = DimensionDefaults::OVERWORLD_LEVEL_HEIGHT;
+pub const OVERWORLD_GENERATION_HEIGHT: i32 = DimensionDefaults::OVERWORLD_GENERATION_HEIGHT;
+pub const OVERWORLD_LOGICAL_HEIGHT: i32 = DimensionDefaults::OVERWORLD_LOGICAL_HEIGHT;
+pub const OVERWORLD_CLOUD_HEIGHT: f32 = DimensionDefaults::OVERWORLD_CLOUD_HEIGHT;
 
-pub const NETHER_MIN_Y: i32 = 0;
-pub const NETHER_LEVEL_HEIGHT: i32 = 256;
-pub const NETHER_GENERATION_HEIGHT: i32 = 128;
-pub const NETHER_LOGICAL_HEIGHT: i32 = 128;
+pub const NETHER_MIN_Y: i32 = DimensionDefaults::NETHER_MIN_Y;
+pub const NETHER_LEVEL_HEIGHT: i32 = DimensionDefaults::NETHER_LEVEL_HEIGHT;
+pub const NETHER_GENERATION_HEIGHT: i32 = DimensionDefaults::NETHER_GENERATION_HEIGHT;
+pub const NETHER_LOGICAL_HEIGHT: i32 = DimensionDefaults::NETHER_LOGICAL_HEIGHT;
 
-pub const END_MIN_Y: i32 = 0;
-pub const END_LEVEL_HEIGHT: i32 = 256;
-pub const END_GENERATION_HEIGHT: i32 = 128;
-pub const END_LOGICAL_HEIGHT: i32 = 256;
-pub const END_ISLAND_BASE_Y: i32 = 63;
+pub const END_MIN_Y: i32 = DimensionDefaults::END_MIN_Y;
+pub const END_LEVEL_HEIGHT: i32 = DimensionDefaults::END_LEVEL_HEIGHT;
+pub const END_GENERATION_HEIGHT: i32 = DimensionDefaults::END_GENERATION_HEIGHT;
+pub const END_LOGICAL_HEIGHT: i32 = DimensionDefaults::END_LOGICAL_HEIGHT;
+pub const END_ISLAND_BASE_Y: i32 = DimensionDefaults::END_ISLAND_BASE_Y;
 
 pub const OVERWORLD: DimensionType = DimensionType {
     id: "minecraft:overworld",
@@ -584,13 +637,88 @@ impl WorldPreset {
 #[cfg(test)]
 mod tests {
     use super::{
-        builtin_dimension_type, builtin_world_preset, BedSpawnRule, BiomeSourceKind, CardinalLight,
-        ChunkGeneratorKind, MonsterSpawnLightLevel, Skybox, SleepRule, WorldOptions,
-        BUILTIN_WORLD_PRESETS, DEFAULT_FLAT_GENERATOR_SETTINGS, END, END_GENERATION_HEIGHT,
-        END_ISLAND_BASE_Y, LEVEL_STEMS, NETHER, NETHER_GENERATION_HEIGHT, OVERWORLD,
-        OVERWORLD_CAVES, OVERWORLD_CLOUD_HEIGHT, OVERWORLD_GENERATION_HEIGHT,
+        builtin_dimension_type, builtin_world_preset, BedSpawnRule, BiomeSourceKind,
+        BuiltinDimensionTypes, CardinalLight, ChunkGeneratorKind, DimensionDefaults,
+        DimensionTypeKey, MonsterSpawnLightLevel, Skybox, SleepRule, WorldOptions,
+        BUILTIN_WORLD_PRESETS, DEFAULT_FLAT_GENERATOR_SETTINGS, DIMENSION_TYPE_REGISTRY, END,
+        END_GENERATION_HEIGHT, END_ISLAND_BASE_Y, LEVEL_STEMS, NETHER, NETHER_GENERATION_HEIGHT,
+        OVERWORLD, OVERWORLD_CAVES, OVERWORLD_CLOUD_HEIGHT, OVERWORLD_GENERATION_HEIGHT,
     };
     use std::path::Path;
+
+    #[test]
+    fn builtin_dimension_type_keys_match_java_resource_keys() {
+        assert_eq!(
+            DIMENSION_TYPE_REGISTRY,
+            "minecraft:dimension_type"
+        );
+        assert_eq!(
+            BuiltinDimensionTypes::OVERWORLD,
+            DimensionTypeKey {
+                registry: DIMENSION_TYPE_REGISTRY,
+                id: "minecraft:overworld"
+            }
+        );
+        assert_eq!(BuiltinDimensionTypes::NETHER.id, "minecraft:the_nether");
+        assert_eq!(BuiltinDimensionTypes::END.id, "minecraft:the_end");
+        assert_eq!(
+            BuiltinDimensionTypes::OVERWORLD_CAVES.id,
+            "minecraft:overworld_caves"
+        );
+    }
+
+    #[test]
+    fn dimension_defaults_match_java_constants() {
+        assert_eq!(DimensionDefaults::CLOUD_THICKNESS, 4);
+        assert_eq!(DimensionDefaults::BLOCK_LIGHT_TINT, -10_100);
+        assert_eq!(DimensionDefaults::NIGHT_VISION_COLOR, -6_710_887);
+        assert_eq!(DimensionDefaults::TURTLE_EGG_HATCH_CHANCE, 0.002);
+        assert_eq!(DimensionDefaults::OVERWORLD_MIN_Y, -64);
+        assert_eq!(DimensionDefaults::OVERWORLD_LEVEL_HEIGHT, 384);
+        assert_eq!(DimensionDefaults::OVERWORLD_GENERATION_HEIGHT, 384);
+        assert_eq!(DimensionDefaults::OVERWORLD_LOGICAL_HEIGHT, 384);
+        assert_eq!(DimensionDefaults::OVERWORLD_CLOUD_HEIGHT, 192.33);
+        assert_eq!(DimensionDefaults::NETHER_MIN_Y, 0);
+        assert_eq!(DimensionDefaults::NETHER_LEVEL_HEIGHT, 256);
+        assert_eq!(DimensionDefaults::NETHER_GENERATION_HEIGHT, 128);
+        assert_eq!(DimensionDefaults::NETHER_LOGICAL_HEIGHT, 128);
+        assert_eq!(DimensionDefaults::END_MIN_Y, 0);
+        assert_eq!(DimensionDefaults::END_LEVEL_HEIGHT, 256);
+        assert_eq!(DimensionDefaults::END_GENERATION_HEIGHT, 128);
+        assert_eq!(DimensionDefaults::END_LOGICAL_HEIGHT, 256);
+        assert_eq!(DimensionDefaults::END_ISLAND_BASE_Y, 63);
+    }
+
+    #[cfg(vibecraft_has_decompiled_sources)]
+    #[test]
+    fn dimension_bootstrap_constants_match_java_source() {
+        const BUILTIN_JAVA: &str =
+            vibecraft_java_source!("/net/minecraft/world/level/dimension/BuiltinDimensionTypes.java");
+        for fragment in [
+            "public static final ResourceKey<DimensionType> OVERWORLD = register(\"overworld\");",
+            "public static final ResourceKey<DimensionType> NETHER = register(\"the_nether\");",
+            "public static final ResourceKey<DimensionType> END = register(\"the_end\");",
+            "public static final ResourceKey<DimensionType> OVERWORLD_CAVES = register(\"overworld_caves\");",
+            "ResourceKey.create(Registries.DIMENSION_TYPE, Identifier.withDefaultNamespace(id))",
+        ] {
+            assert!(BUILTIN_JAVA.contains(fragment), "missing BuiltinDimensionTypes source fragment: {fragment}");
+        }
+
+        const DEFAULTS_JAVA: &str =
+            vibecraft_java_source!("/net/minecraft/world/level/dimension/DimensionDefaults.java");
+        for fragment in [
+            "public static final int CLOUD_THICKNESS = 4;",
+            "public static final int BLOCK_LIGHT_TINT = -10100;",
+            "public static final int NIGHT_VISION_COLOR = -6710887;",
+            "public static final float TURTLE_EGG_HATCH_CHANCE = 0.002F;",
+            "public static final int OVERWORLD_MIN_Y = -64;",
+            "public static final int OVERWORLD_LEVEL_HEIGHT = 384;",
+            "public static final int NETHER_LEVEL_HEIGHT = 256;",
+            "public static final int END_ISLAND_BASE_Y = 63;",
+        ] {
+            assert!(DEFAULTS_JAVA.contains(fragment), "missing DimensionDefaults source fragment: {fragment}");
+        }
+    }
 
     #[test]
     fn builtin_level_stems_match_vanilla_ids() {
