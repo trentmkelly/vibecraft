@@ -95,11 +95,15 @@ impl ServerProperties {
         Ok(Self::from_raw(raw))
     }
 
-    fn from_raw(raw: BTreeMap<String, String>) -> Self {
+    fn from_raw(mut raw: BTreeMap<String, String>) -> Self {
+        // Java's `getLegacyBoolean` consumes the legacy key while the typed
+        // field is read, so a later `Settings.store` does not write it back.
+        let announce_player_achievements = optional_bool_key(&raw, "announce-player-achievements");
+        raw.remove("announce-player-achievements");
         Self {
             accepts_transfers: bool_key(&raw, "accepts-transfers", false),
             allow_flight: bool_key(&raw, "allow-flight", false),
-            announce_player_achievements: optional_bool_key(&raw, "announce-player-achievements"),
+            announce_player_achievements,
             broadcast_console_to_ops: bool_key(&raw, "broadcast-console-to-ops", true),
             broadcast_rcon_to_ops: bool_key(&raw, "broadcast-rcon-to-ops", true),
             bug_report_link: string_key(&raw, "bug-report-link", ""),
@@ -111,12 +115,12 @@ impl ServerProperties {
             enable_status: bool_key(&raw, "enable-status", true),
             enforce_secure_profile: bool_key(&raw, "enforce-secure-profile", true),
             enforce_whitelist: bool_key(&raw, "enforce-whitelist", false),
-            entity_broadcast_range_percentage: u32_key(
+            entity_broadcast_range_percentage: i32_key(
                 &raw,
                 "entity-broadcast-range-percentage",
                 100,
             )
-            .clamp(10, 1000),
+            .clamp(10, 1000) as u32,
             force_game_mode: bool_key(&raw, "force-gamemode", false),
             function_permission_level: i32_key(&raw, "function-permission-level", 2),
             game_mode: string_key(&raw, "gamemode", "survival"),
@@ -148,7 +152,7 @@ impl ServerProperties {
             max_chained_neighbor_updates: u32_key(&raw, "max-chained-neighbor-updates", 1_000_000),
             max_players: u32_key(&raw, "max-players", 20),
             max_tick_time: u64_key(&raw, "max-tick-time", 60_000),
-            max_world_size: u32_key(&raw, "max-world-size", 29_999_984).clamp(1, 29_999_984),
+            max_world_size: i32_key(&raw, "max-world-size", 29_999_984).clamp(1, 29_999_984) as u32,
             motd: string_key(&raw, "motd", "A Minecraft Server"),
             network_compression_threshold: i32_key(&raw, "network-compression-threshold", 256),
             online_mode: bool_key(&raw, "online-mode", true),
@@ -381,6 +385,27 @@ mod tests {
     use std::fs;
     use std::path::Path;
 
+    #[cfg(vibecraft_has_decompiled_sources)]
+    const JAVA_SOURCE: &str =
+        vibecraft_java_source!("/net/minecraft/server/dedicated/DedicatedServerProperties.java");
+
+    #[cfg(vibecraft_has_decompiled_sources)]
+    #[test]
+    fn source_matches_dedicated_properties_legacy_and_validator_surface() {
+        for fragment in [
+            "public final @Nullable Boolean announcePlayerAchievements",
+            "this.getLegacyBoolean(\"announce-player-achievements\")",
+            "public final int maxWorldSize",
+            "Mth.clamp(v, 1, 29999984)",
+            "entity-broadcast-range-percentage",
+            "Mth.clamp(Integer.parseInt(v), 10, 1000)",
+            "getServerPackInfo",
+            "getDatapackConfig",
+        ] {
+            assert!(JAVA_SOURCE.contains(fragment), "missing Java source fragment: {fragment}");
+        }
+    }
+
     #[test]
     fn parses_basic_properties_and_skips_comments() {
         let parsed = parse_properties("# comment\nserver-port=25566\nmotd = Test\n");
@@ -557,6 +582,33 @@ resource-pack-prompt={\"text\":\"Use pack?\"}
         let too_large = ServerProperties::load_or_default(&path).unwrap();
         let _ = fs::remove_file(&path);
         assert_eq!(too_large.max_world_size, 29_999_984);
+
+        fs::write(&path, "max-world-size=-1\n").unwrap();
+        let negative = ServerProperties::load_or_default(&path).unwrap();
+        assert_eq!(negative.max_world_size, 1);
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn legacy_announce_key_is_consumed_and_signed_range_clamps_match_java() {
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "vibecraft-properties-legacy-consume-{}.properties",
+            std::process::id()
+        ));
+        fs::write(
+            &path,
+            "announce-player-achievements=false\nentity-broadcast-range-percentage=-5\n",
+        )
+        .unwrap();
+
+        let mut properties = ServerProperties::load_or_default(&path).unwrap();
+        assert_eq!(properties.announce_player_achievements, Some(false));
+        assert_eq!(properties.entity_broadcast_range_percentage, 10);
+        properties.save(&path).unwrap();
+        let saved = fs::read_to_string(&path).unwrap();
+        assert!(!saved.contains("announce-player-achievements="));
+        let _ = fs::remove_file(&path);
     }
 
     #[test]
