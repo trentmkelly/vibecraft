@@ -655,6 +655,7 @@ mod project_foundation_tests;
 mod projectile_entity;
 mod raid;
 mod random_source;
+mod time_util;
 mod random_sequences;
 mod random_tick;
 mod recipe_system;
