@@ -18,6 +18,7 @@ mod advancement_tree_position;
 mod advancement_trigger_registry;
 #[cfg(test)]
 mod advancement_visibility_evaluator;
+mod abortable_iteration_consumer;
 mod ai_system;
 mod attribute_system;
 mod base_entity;
