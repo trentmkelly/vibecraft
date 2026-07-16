@@ -643,6 +643,7 @@ mod player_entity;
 mod player_game_mode;
 mod player_inventory;
 mod player_list;
+mod png_info;
 mod player_online_auth;
 #[cfg(test)]
 mod player_presentation;
