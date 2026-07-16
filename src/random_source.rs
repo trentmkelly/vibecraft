@@ -777,6 +777,31 @@ mod tests {
         assert_ne!(slime.next_i32_bound(10), 0);
     }
 
+    #[cfg(vibecraft_has_decompiled_sources)]
+    #[test]
+    fn linear_congruential_generator_matches_java_source() {
+        const JAVA: &str =
+            vibecraft_java_source!("/net/minecraft/util/LinearCongruentialGenerator.java");
+        assert_eq!(JAVA.lines().count(), 11);
+        for fragment in [
+            "private static final long MULTIPLIER = 6364136223846793005L",
+            "private static final long INCREMENT = 1442695040888963407L",
+            "public static long next(long rval, final long c)",
+            "rval *= rval * 6364136223846793005L + 1442695040888963407L",
+            "return rval + c",
+        ] {
+            assert!(
+                JAVA.contains(fragment),
+                "missing LinearCongruentialGenerator source fragment: {fragment}"
+            );
+        }
+        assert_eq!(linear_congruential_next(123, 456), 2_443_659_180_228_472_098);
+        assert_eq!(
+            linear_congruential_next(i64::MAX, i64::MIN),
+            4_921_441_182_957_829_598
+        );
+    }
+
     #[test]
     fn random_source_consume_count_matches_vanilla_skip_widths() {
         let mut legacy_manual = LegacyRandom::new(12345);
