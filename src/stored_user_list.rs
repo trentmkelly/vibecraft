@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 use chrono::{DateTime, Local};
 use serde_json::{Map, Value};
 
+use crate::command::PermissionLevel;
 use crate::player_access::NameAndId;
 
 const DATE_FORMAT: &str = "%Y-%m-%d %H:%M:%S %z";
@@ -606,6 +607,149 @@ where
     }
 }
 
+/// Notification callbacks used by `ServerOpList.add/remove/clear`.
+pub trait OperatorNotifications {
+    fn player_oped(&mut self, operator: &ServerOpListEntry);
+    fn player_deoped(&mut self, operator: &ServerOpListEntry);
+}
+
+impl OperatorNotifications for () {
+    fn player_oped(&mut self, _operator: &ServerOpListEntry) {}
+    fn player_deoped(&mut self, _operator: &ServerOpListEntry) {}
+}
+
+/// Java `ServerOpListEntry` with level-based permissions and player-limit bypass.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerOpListEntry {
+    pub user: Option<NameAndId>,
+    pub permissions: PermissionLevel,
+    pub bypasses_player_limit: bool,
+}
+
+impl ServerOpListEntry {
+    pub fn new(user: NameAndId, permissions: PermissionLevel, bypasses_player_limit: bool) -> Self {
+        Self {
+            user: Some(user),
+            permissions,
+            bypasses_player_limit,
+        }
+    }
+
+    pub fn from_json(object: &Map<String, Value>) -> Self {
+        let level = object.get("level").and_then(Value::as_i64).map_or(PermissionLevel::All, |level| match level {
+            ..=0 => PermissionLevel::All,
+            1 => PermissionLevel::Moderators,
+            2 => PermissionLevel::Gamemasters,
+            3 => PermissionLevel::Admins,
+            _ => PermissionLevel::Owners,
+        });
+        Self {
+            user: NameAndId::from_json(&Value::Object(object.clone())),
+            permissions: level,
+            bypasses_player_limit: object.get("bypassesPlayerLimit").and_then(Value::as_bool).unwrap_or(false),
+        }
+    }
+
+    pub fn user(&self) -> Option<&NameAndId> {
+        self.user.as_ref()
+    }
+
+    pub fn get_bypasses_player_limit(&self) -> bool {
+        self.bypasses_player_limit
+    }
+}
+
+impl StoredUserEntry<NameAndId> for ServerOpListEntry {
+    fn user(&self) -> Option<&NameAndId> {
+        self.user()
+    }
+
+    fn has_expired(&self, _now: DateTime<Local>) -> bool {
+        false
+    }
+
+    fn serialize(&self) -> Value {
+        let Some(user) = self.user() else {
+            return Value::Object(Map::new());
+        };
+        let mut object = Map::new();
+        user.append_to(&mut object);
+        object.insert("level".to_string(), Value::from(self.permissions as i64));
+        object.insert("bypassesPlayerLimit".to_string(), Value::Bool(self.bypasses_player_limit));
+        Value::Object(object)
+    }
+}
+
+/// Java `ServerOpList` facade over a UUID-keyed stored list.
+#[derive(Debug, Clone)]
+pub struct ServerOpList<N = ()> {
+    list: StoredUserList<NameAndId, ServerOpListEntry>,
+    notifications: N,
+}
+
+impl<N> ServerOpList<N>
+where
+    N: OperatorNotifications,
+{
+    pub fn new(file: impl Into<PathBuf>, notifications: N) -> Self {
+        Self {
+            list: StoredUserList::new(file),
+            notifications,
+        }
+    }
+
+    pub fn load(&mut self) -> std::io::Result<()> {
+        self.list.load(ServerOpListEntry::from_json)
+    }
+
+    pub fn get_user_list(&self) -> Vec<String> {
+        self.list
+            .entries()
+            .filter_map(ServerOpListEntry::user)
+            .map(|user| user.name.clone())
+            .collect()
+    }
+
+    pub fn add(&mut self, entry: ServerOpListEntry) -> std::io::Result<bool> {
+        let changed = self.list.add(entry.clone())?;
+        if changed && entry.user().is_some() {
+            self.notifications.player_oped(&entry);
+        }
+        Ok(changed)
+    }
+
+    pub fn remove(&mut self, user: &NameAndId, now: DateTime<Local>) -> std::io::Result<bool> {
+        let entry = self.list.get(user, now).cloned();
+        let changed = self.list.remove(user)?;
+        if changed {
+            if let Some(entry) = entry {
+                self.notifications.player_deoped(&entry);
+            }
+        }
+        Ok(changed)
+    }
+
+    pub fn clear(&mut self) -> std::io::Result<()> {
+        let entries: Vec<ServerOpListEntry> = self.list.entries().filter(|entry| entry.user().is_some()).cloned().collect();
+        for entry in entries {
+            self.notifications.player_deoped(&entry);
+        }
+        self.list.clear()
+    }
+
+    pub fn can_bypass_player_limit(&mut self, user: &NameAndId, now: DateTime<Local>) -> bool {
+        self.list.get(user, now).is_some_and(ServerOpListEntry::get_bypasses_player_limit)
+    }
+
+    pub fn entries(&self) -> impl Iterator<Item = &ServerOpListEntry> {
+        self.list.entries()
+    }
+
+    pub fn notifications(&self) -> &N {
+        &self.notifications
+    }
+}
+
 fn parse_date(value: &Value) -> Option<DateTime<Local>> {
     parse_date_text(value.as_str()?)
 }
@@ -650,6 +794,10 @@ mod tests {
     const WHITE_LIST_JAVA: &str = vibecraft_java_source!("/net/minecraft/server/players/UserWhiteList.java");
     #[cfg(vibecraft_has_decompiled_sources)]
     const WHITE_ENTRY_JAVA: &str = vibecraft_java_source!("/net/minecraft/server/players/UserWhiteListEntry.java");
+    #[cfg(vibecraft_has_decompiled_sources)]
+    const OP_LIST_JAVA: &str = vibecraft_java_source!("/net/minecraft/server/players/ServerOpList.java");
+    #[cfg(vibecraft_has_decompiled_sources)]
+    const OP_ENTRY_JAVA: &str = vibecraft_java_source!("/net/minecraft/server/players/ServerOpListEntry.java");
 
     #[derive(Default, Debug)]
     struct Notifications {
@@ -693,6 +841,16 @@ mod tests {
         }
     }
 
+    impl OperatorNotifications for PlayerNotifications {
+        fn player_oped(&mut self, operator: &ServerOpListEntry) {
+            self.banned.borrow_mut().push(operator.user().map_or_else(|| "null".to_string(), |user| user.name.clone()));
+        }
+
+        fn player_deoped(&mut self, operator: &ServerOpListEntry) {
+            self.unbanned.borrow_mut().push(operator.user().map_or_else(|| "null".to_string(), |user| user.name.clone()));
+        }
+    }
+
     fn fixture_path(name: &str) -> PathBuf {
         std::env::temp_dir().join(format!("vibecraft-{name}-{}.json", std::process::id()))
     }
@@ -714,6 +872,8 @@ mod tests {
             (USER_ENTRY_JAVA, &["extends BanListEntry<NameAndId>", "NameAndId.fromJson(object)", "commands.banlist.entry.unknown"][..]),
             (WHITE_LIST_JAVA, &["extends StoredUserList<NameAndId, UserWhiteListEntry>", "isWhiteListed", "notificationService.playerAddedToAllowlist", "notificationService.playerRemovedFromAllowlist"][..]),
             (WHITE_ENTRY_JAVA, &["extends StoredUserEntry<NameAndId>", "NameAndId.fromJson(object)", "this.getUser().appendTo(object)"][..]),
+            (OP_LIST_JAVA, &["extends StoredUserList<NameAndId, ServerOpListEntry>", "canBypassPlayerLimit", "notificationService.playerOped", "notificationService.playerDeoped"][..]),
+            (OP_ENTRY_JAVA, &["LevelBasedPermissionSet permissions", "PermissionLevel.byId", "bypassesPlayerLimit", "getBypassesPlayerLimit"][..]),
         ] {
             for fragment in fragments {
                 assert!(source.contains(fragment), "missing Java source fragment: {fragment}");
@@ -825,5 +985,41 @@ mod tests {
         let unknown = UserWhiteListEntry::from_json(&Map::new());
         assert!(unknown.user().is_none());
         let _ignored = fs::remove_file(path);
+    }
+
+    #[test]
+    fn server_op_list_persists_permission_level_and_bypass_flag() {
+        let path = fixture_path("op-list");
+        let _ignored = fs::remove_file(&path);
+        let user = NameAndId::create_offline("Operator");
+        let notifications = PlayerNotifications::default();
+        let mut list = ServerOpList::new(&path, notifications);
+        let entry = ServerOpListEntry::new(user.clone(), PermissionLevel::Admins, true);
+        assert!(list.add(entry.clone()).expect("add operator"));
+        assert!(!list.add(entry).expect("duplicate operator"));
+        assert!(list.can_bypass_player_limit(&user, now()));
+        assert_eq!(list.get_user_list(), vec!["Operator".to_string()]);
+        assert_eq!(list.notifications().banned.borrow().as_slice(), ["Operator"]);
+
+        let saved: Value = serde_json::from_str(&fs::read_to_string(&path).expect("saved operators")).expect("valid operator JSON");
+        assert_eq!(saved[0]["level"], 3);
+        assert_eq!(saved[0]["bypassesPlayerLimit"], true);
+
+        assert!(list.remove(&user, now()).expect("remove operator"));
+        assert_eq!(list.notifications().unbanned.borrow().as_slice(), ["Operator"]);
+        let _ignored = fs::remove_file(path);
+    }
+
+    #[test]
+    fn server_op_entry_defaults_missing_level_to_all_and_clamps_ids() {
+        let user = NameAndId::create_offline("Alex");
+        let mut object = Map::new();
+        user.append_to(&mut object);
+        let default = ServerOpListEntry::from_json(&object);
+        assert_eq!(default.permissions, PermissionLevel::All);
+        object.insert("level".to_string(), Value::from(999));
+        let clamped = ServerOpListEntry::from_json(&object);
+        assert_eq!(clamped.permissions, PermissionLevel::Owners);
+        assert!(!clamped.get_bypasses_player_limit());
     }
 }
