@@ -487,6 +487,125 @@ where
     }
 }
 
+/// Notification callbacks used by `UserWhiteList.add/remove/clear`.
+pub trait AllowlistNotifications {
+    fn player_added(&mut self, player: &NameAndId);
+    fn player_removed(&mut self, player: &NameAndId);
+}
+
+impl AllowlistNotifications for () {
+    fn player_added(&mut self, _player: &NameAndId) {}
+    fn player_removed(&mut self, _player: &NameAndId) {}
+}
+
+/// Java `UserWhiteListEntry`, a non-expiring stored `NameAndId` entry.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UserWhiteListEntry {
+    pub user: Option<NameAndId>,
+}
+
+impl UserWhiteListEntry {
+    pub fn new(user: NameAndId) -> Self {
+        Self { user: Some(user) }
+    }
+
+    pub fn from_json(object: &Map<String, Value>) -> Self {
+        Self {
+            user: NameAndId::from_json(&Value::Object(object.clone())),
+        }
+    }
+
+    pub fn user(&self) -> Option<&NameAndId> {
+        self.user.as_ref()
+    }
+}
+
+impl StoredUserEntry<NameAndId> for UserWhiteListEntry {
+    fn user(&self) -> Option<&NameAndId> {
+        self.user()
+    }
+
+    fn has_expired(&self, _now: DateTime<Local>) -> bool {
+        false
+    }
+
+    fn serialize(&self) -> Value {
+        let Some(user) = self.user() else {
+            return Value::Object(Map::new());
+        };
+        user.to_json_value()
+    }
+}
+
+/// Java `UserWhiteList` facade over a UUID-keyed stored list.
+#[derive(Debug, Clone)]
+pub struct UserWhiteList<N = ()> {
+    list: StoredUserList<NameAndId, UserWhiteListEntry>,
+    notifications: N,
+}
+
+impl<N> UserWhiteList<N>
+where
+    N: AllowlistNotifications,
+{
+    pub fn new(file: impl Into<PathBuf>, notifications: N) -> Self {
+        Self {
+            list: StoredUserList::new(file),
+            notifications,
+        }
+    }
+
+    pub fn load(&mut self) -> std::io::Result<()> {
+        self.list.load(UserWhiteListEntry::from_json)
+    }
+
+    pub fn is_white_listed(&mut self, user: &NameAndId, now: DateTime<Local>) -> bool {
+        self.list.get(user, now).is_some()
+    }
+
+    pub fn add(&mut self, entry: UserWhiteListEntry) -> std::io::Result<bool> {
+        let changed = self.list.add(entry.clone())?;
+        if changed {
+            if let Some(user) = entry.user() {
+                self.notifications.player_added(user);
+            }
+        }
+        Ok(changed)
+    }
+
+    pub fn remove(&mut self, user: &NameAndId) -> std::io::Result<bool> {
+        let changed = self.list.remove(user)?;
+        if changed {
+            self.notifications.player_removed(user);
+        }
+        Ok(changed)
+    }
+
+    pub fn clear(&mut self) -> std::io::Result<()> {
+        let users: Vec<NameAndId> = self.list.entries().filter_map(UserWhiteListEntry::user).cloned().collect();
+        for user in users {
+            self.notifications.player_removed(&user);
+        }
+        self.list.clear()
+    }
+
+    pub fn get_user_list(&self) -> Vec<String> {
+        self.list
+            .entries()
+            .filter_map(UserWhiteListEntry::user)
+            .map(|user| user.name.clone())
+            .collect()
+    }
+
+    pub fn entries(&self) -> impl Iterator<Item = &UserWhiteListEntry> {
+        self.list.entries()
+    }
+
+    pub fn notifications(&self) -> &N {
+        &self.notifications
+    }
+}
+
 fn parse_date(value: &Value) -> Option<DateTime<Local>> {
     parse_date_text(value.as_str()?)
 }
@@ -527,6 +646,10 @@ mod tests {
     const USER_LIST_JAVA: &str = vibecraft_java_source!("/net/minecraft/server/players/UserBanList.java");
     #[cfg(vibecraft_has_decompiled_sources)]
     const USER_ENTRY_JAVA: &str = vibecraft_java_source!("/net/minecraft/server/players/UserBanListEntry.java");
+    #[cfg(vibecraft_has_decompiled_sources)]
+    const WHITE_LIST_JAVA: &str = vibecraft_java_source!("/net/minecraft/server/players/UserWhiteList.java");
+    #[cfg(vibecraft_has_decompiled_sources)]
+    const WHITE_ENTRY_JAVA: &str = vibecraft_java_source!("/net/minecraft/server/players/UserWhiteListEntry.java");
 
     #[derive(Default, Debug)]
     struct Notifications {
@@ -560,6 +683,16 @@ mod tests {
         }
     }
 
+    impl AllowlistNotifications for PlayerNotifications {
+        fn player_added(&mut self, player: &NameAndId) {
+            self.banned.borrow_mut().push(player.name.clone());
+        }
+
+        fn player_removed(&mut self, player: &NameAndId) {
+            self.unbanned.borrow_mut().push(player.name.clone());
+        }
+    }
+
     fn fixture_path(name: &str) -> PathBuf {
         std::env::temp_dir().join(format!("vibecraft-{name}-{}.json", std::process::id()))
     }
@@ -579,6 +712,8 @@ mod tests {
             (IP_ENTRY_JAVA, &["extends BanListEntry<String>", "object.has(\"ip\")", "Component.literal(String.valueOf(this.getUser()))"][..]),
             (USER_LIST_JAVA, &["extends StoredUserList<NameAndId, UserBanListEntry>", "getUserList", "notificationService.playerBanned", "notificationService.playerUnbanned"][..]),
             (USER_ENTRY_JAVA, &["extends BanListEntry<NameAndId>", "NameAndId.fromJson(object)", "commands.banlist.entry.unknown"][..]),
+            (WHITE_LIST_JAVA, &["extends StoredUserList<NameAndId, UserWhiteListEntry>", "isWhiteListed", "notificationService.playerAddedToAllowlist", "notificationService.playerRemovedFromAllowlist"][..]),
+            (WHITE_ENTRY_JAVA, &["extends StoredUserEntry<NameAndId>", "NameAndId.fromJson(object)", "this.getUser().appendTo(object)"][..]),
         ] {
             for fragment in fragments {
                 assert!(source.contains(fragment), "missing Java source fragment: {fragment}");
@@ -670,5 +805,25 @@ mod tests {
         assert_eq!(UserBanListEntry::from_json(object).user(), Some(&user));
         assert_eq!(object["uuid"], user.uuid.as_str());
         assert_eq!(object["name"], "Alex");
+    }
+
+    #[test]
+    fn user_whitelist_is_uuid_keyed_non_expiring_and_notifies() {
+        let path = fixture_path("white-list");
+        let _ignored = fs::remove_file(&path);
+        let user = NameAndId::create_offline("Alex");
+        let notifications = PlayerNotifications::default();
+        let mut list = UserWhiteList::new(&path, notifications);
+        assert!(list.add(UserWhiteListEntry::new(user.clone())).expect("add allowlist entry"));
+        assert!(!list.add(UserWhiteListEntry::new(user.clone())).expect("duplicate allowlist entry"));
+        assert!(list.is_white_listed(&user, now()));
+        assert_eq!(list.get_user_list(), vec!["Alex".to_string()]);
+        assert_eq!(list.notifications().banned.borrow().as_slice(), ["Alex"]);
+        assert!(list.remove(&user).expect("remove allowlist entry"));
+        assert_eq!(list.notifications().unbanned.borrow().as_slice(), ["Alex"]);
+
+        let unknown = UserWhiteListEntry::from_json(&Map::new());
+        assert!(unknown.user().is_none());
+        let _ignored = fs::remove_file(path);
     }
 }
