@@ -235,6 +235,7 @@ mod common_colors;
 mod common_links;
 mod console;
 mod crypt_exception;
+mod csv_output;
 mod container_block;
 mod container_menus;
 #[cfg(test)]

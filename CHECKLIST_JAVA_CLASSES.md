@@ -1912,7 +1912,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/CrudeIncrementalIntIdentityHashBiMap.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/Crypt.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/CryptException.java`. `crypt_exception::CryptException` preserves the cause-bearing checked error and source chain with source-backed and behavior tests.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/CsvOutput.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/CsvOutput.java`. `csv_output` preserves header-first construction, CRLF records, Apache-compatible CSV escaping, `[null]` fields, width rejection, and builder behavior with source-backed and behavior tests.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/CubicSpline.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/DelegateDataOutput.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/DependencySorter.java`.
