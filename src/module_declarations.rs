@@ -24,6 +24,7 @@ mod attribute_system;
 mod base_entity;
 mod biome;
 mod biome_tags;
+mod brightness;
 mod block_behavior;
 #[cfg(test)]
 mod block_behavior_tests;
