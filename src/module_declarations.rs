@@ -554,6 +554,7 @@ mod entity_metadata;
 mod entity_physics;
 mod entity_syncher;
 mod entity_validation;
+mod exception_collector;
 #[cfg(test)]
 mod entity_variants;
 mod environment_attributes;
