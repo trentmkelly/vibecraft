@@ -9,6 +9,8 @@ use crate::storage::region::{ChunkPos, RegionFile};
 
 use super::datafix::require_current_world_data_version;
 
+/// Java `DirectoryLock.LOCK_FILE`.
+pub const SESSION_LOCK_FILE: &str = "session.lock";
 const SESSION_LOCK_MARKER: &[u8] = "\u{2603}".as_bytes();
 const CURRENT_VERSION_NAME: &str = "26.1.2";
 const CURRENT_VERSION_SERIES: &str = "main";
@@ -1140,27 +1142,50 @@ impl LevelVersion {
 
 #[derive(Debug)]
 pub struct SessionLock {
-    file: File,
+    // `None` corresponds to a Java `DirectoryLock` after `close()`: the file
+    // lock has been released and the channel is closed.
+    file: Option<File>,
 }
+
+/// Name-preserving alias for Java's `DirectoryLock`.
+pub type DirectoryLock = SessionLock;
 
 impl SessionLock {
     pub fn acquire(dir: &Path) -> std::io::Result<Self> {
         fs::create_dir_all(dir)?;
-        let lock_path = dir.join("session.lock");
+        let lock_path = dir.join(SESSION_LOCK_FILE);
         let mut file = OpenOptions::new()
             .create(true)
-            .truncate(true)
             .write(true)
             .open(&lock_path)?;
         file.write_all(SESSION_LOCK_MARKER)?;
         file.sync_all()?;
 
         lock_file_exclusive_nonblocking(&file, &lock_path)?;
-        Ok(Self { file })
+        Ok(Self { file: Some(file) })
+    }
+
+    /// Mirrors `DirectoryLock.isValid()`.
+    ///
+    /// Rust's advisory-lock API does not expose a separate validity query, so
+    /// ownership of the still-open locked file is the equivalent state.
+    pub fn is_valid(&self) -> bool {
+        self.file.is_some()
+    }
+
+    /// Releases the lock and closes its file, matching `DirectoryLock.close()`.
+    /// Calling `close` repeatedly is harmless, just as Java skips releasing an
+    /// already-invalid lock and an already-closed channel.
+    pub fn close(&mut self) -> std::io::Result<()> {
+        let Some(file) = self.file.take() else {
+            return Ok(());
+        };
+
+        unlock_file(&file)
     }
 
     pub fn is_locked(dir: &Path) -> std::io::Result<bool> {
-        let lock_path = dir.join("session.lock");
+        let lock_path = dir.join(SESSION_LOCK_FILE);
         let file = match OpenOptions::new().write(true).open(&lock_path) {
             Ok(file) => file,
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(false),
@@ -1181,7 +1206,9 @@ impl SessionLock {
 
 impl Drop for SessionLock {
     fn drop(&mut self) {
-        let _ = unlock_file(&self.file);
+        if let Some(file) = self.file.take() {
+            let _ = unlock_file(&file);
+        }
     }
 }
 

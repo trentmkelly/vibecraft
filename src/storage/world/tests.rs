@@ -261,21 +261,42 @@ fn session_lock_matches_vanilla_marker_and_enforces_exclusive_lock() {
     let layout = WorldLayout::new(&path);
     assert!(!layout.is_session_locked().unwrap());
 
-    let lock = layout.acquire_session_lock().unwrap();
+    let mut lock = layout.acquire_session_lock().unwrap();
     assert_eq!(
         fs::read(layout.session_lock()).unwrap(),
         "\u{2603}".as_bytes()
     );
     assert!(layout.is_session_locked().unwrap());
+    assert!(lock.is_valid());
 
     let err = layout.acquire_session_lock().unwrap_err();
     assert_eq!(err.kind(), std::io::ErrorKind::WouldBlock);
     assert!(err.to_string().contains("already locked"));
 
-    drop(lock);
+    lock.close().unwrap();
+    assert!(!lock.is_valid());
+    // Java's close path is safe once the underlying lock/channel are invalid.
+    lock.close().unwrap();
     assert!(!layout.is_session_locked().unwrap());
 
     let _ = fs::remove_dir_all(&path);
+}
+
+#[cfg(vibecraft_has_decompiled_sources)]
+#[test]
+fn directory_lock_source_contract_is_preserved() {
+    const JAVA: &str = vibecraft_java_source!("/net/minecraft/util/DirectoryLock.java");
+    assert_eq!(JAVA.lines().count(), 90);
+    for fragment in [
+        "public static final String LOCK_FILE = \"session.lock\"",
+        "lockFile.write(DUMMY.duplicate())",
+        "public boolean isValid()",
+        "public static boolean isLocked",
+        "already locked (possibly by other Minecraft instance?)",
+        "\"☃\".getBytes(StandardCharsets.UTF_8)",
+    ] {
+        assert!(JAVA.contains(fragment), "missing DirectoryLock source fragment: {fragment}");
+    }
 }
 
 #[test]

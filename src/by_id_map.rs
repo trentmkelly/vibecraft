@@ -102,6 +102,16 @@ fn duplicate_id_error<T: Display>(id: i32, current: &T, previous: &T) -> String 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fmt::{self, Display};
+
+    #[derive(Clone)]
+    struct Entry(i32, &'static str);
+
+    impl Display for Entry {
+        fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(formatter, "({}, {})", self.0, self.1)
+        }
+    }
 
     #[cfg(vibecraft_has_decompiled_sources)]
     #[test]
@@ -124,7 +134,7 @@ mod tests {
 
     #[test]
     fn sparse_lookup_returns_default_for_an_unknown_id() {
-        let map = sparse(|value: &(i32, &str)| value.0, &[(2, "two")], (0, "zero"))
+        let map = sparse(|value: &Entry| value.0, &[Entry(2, "two")], Entry(0, "zero"))
             .unwrap_or_else(|error| panic!("{error}"));
 
         assert_eq!(map(2).1, "two");
@@ -146,21 +156,34 @@ mod tests {
 
     #[test]
     fn validation_errors_match_java_diagnostics() {
-        assert_eq!(
-            sparse(|value: &(i32, &str)| value.0, &[(4, "first"), (4, "second")], (0, "default")),
-            Err("Duplicate entry on id 4: current=(4, second), previous=(4, first)".to_owned())
-        );
-        assert_eq!(
-            continuous(|value: &(i32, &str)| value.0, &[(3, "outside")], OutOfBoundsStrategy::Zero),
-            Err("Values are not continous, found index 3 for value (3, outside)".to_owned())
-        );
-        assert_eq!(
-            continuous(
-                |value: &(i32, &str)| value.0,
-                &[(0, "first"), (0, "second")],
-                OutOfBoundsStrategy::Zero,
-            ),
-            Err("Duplicate entry on id 0: current=(0, second), previous=(0, first)".to_owned())
-        );
+        let duplicate = match sparse(
+            |value: &Entry| value.0,
+            &[Entry(4, "first"), Entry(4, "second")],
+            Entry(0, "default"),
+        ) {
+            Err(error) => error,
+            Ok(_) => panic!("duplicate ids must be rejected"),
+        };
+        assert_eq!(duplicate, "Duplicate entry on id 4: current=(4, second), previous=(4, first)");
+
+        let outside = match continuous(
+            |value: &Entry| value.0,
+            &[Entry(3, "outside")],
+            OutOfBoundsStrategy::Zero,
+        ) {
+            Err(error) => error,
+            Ok(_) => panic!("out-of-range ids must be rejected"),
+        };
+        assert_eq!(outside, "Values are not continous, found index 3 for value (3, outside)");
+
+        let duplicate = match continuous(
+            |value: &Entry| value.0,
+            &[Entry(0, "first"), Entry(0, "second")],
+            OutOfBoundsStrategy::Zero,
+        ) {
+            Err(error) => error,
+            Ok(_) => panic!("duplicate ids must be rejected"),
+        };
+        assert_eq!(duplicate, "Duplicate entry on id 0: current=(0, second), previous=(0, first)");
     }
 }

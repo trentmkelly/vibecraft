@@ -99,7 +99,7 @@ pub const fn blue(color: i32) -> i32 {
 }
 
 pub const fn color(alpha: i32, red: i32, green: i32, blue: i32) -> i32 {
-    (((alpha & 0xff) << 24) | ((red & 0xff) << 16) | ((green & 0xff) << 8) | (blue & 0xff))
+    ((alpha & 0xff) << 24) | ((red & 0xff) << 16) | ((green & 0xff) << 8) | (blue & 0xff)
 }
 
 pub const fn rgb(red: i32, green: i32, blue: i32) -> i32 {
@@ -161,27 +161,28 @@ pub fn scale_rgb(color: i32, scale: f32) -> i32 {
     scale_rgb_components(color, scale, scale, scale)
 }
 
-pub fn scale_rgb_components(color: i32, scale_red: f32, scale_green: f32, scale_blue: f32) -> i32 {
+pub fn scale_rgb_components(argb: i32, scale_red: f32, scale_green: f32, scale_blue: f32) -> i32 {
     color(
-        alpha(color),
-        ((red(color) as f32 * scale_red) as i32).clamp(0, 255),
-        ((green(color) as f32 * scale_green) as i32).clamp(0, 255),
-        ((blue(color) as f32 * scale_blue) as i32).clamp(0, 255),
+        alpha(argb),
+        ((red(argb) as f32 * scale_red) as i32).clamp(0, 255),
+        ((green(argb) as f32 * scale_green) as i32).clamp(0, 255),
+        ((blue(argb) as f32 * scale_blue) as i32).clamp(0, 255),
     )
 }
 
-pub fn scale_rgb_int(color: i32, scale: i32) -> i32 {
+pub fn scale_rgb_int(argb: i32, scale: i32) -> i32 {
     color(
-        alpha(color),
-        ((red(color) as i64 * scale as i64 / 255).clamp(0, 255)) as i32,
-        ((green(color) as i64 * scale as i64 / 255).clamp(0, 255)) as i32,
-        ((blue(color) as i64 * scale as i64 / 255).clamp(0, 255)) as i32,
+        alpha(argb),
+        ((red(argb) as i64 * scale as i64 / 255).clamp(0, 255)) as i32,
+        ((green(argb) as i64 * scale as i64 / 255).clamp(0, 255)) as i32,
+        ((blue(argb) as i64 * scale as i64 / 255).clamp(0, 255)) as i32,
     )
 }
 
-pub fn greyscale(color: i32) -> i32 {
-    let channel = (red(color) as f32 * 0.3 + green(color) as f32 * 0.59 + blue(color) as f32 * 0.11) as i32;
-    color(alpha(color), channel, channel, channel)
+pub fn greyscale(argb: i32) -> i32 {
+    let channel =
+        (red(argb) as f32 * 0.3 + green(argb) as f32 * 0.59 + blue(argb) as f32 * 0.11) as i32;
+    color(alpha(argb), channel, channel, channel)
 }
 
 pub fn alpha_blend(destination: i32, source: i32) -> i32 {
@@ -237,11 +238,11 @@ fn lerp_int(blend: f32, start: i32, end: i32) -> i32 {
 pub const fn opaque(color: i32) -> i32 { color | 0xff00_0000u32 as i32 }
 pub const fn transparent(color: i32) -> i32 { color & 0x00ff_ffff }
 pub const fn with_alpha(alpha: i32, rgb: i32) -> i32 { (alpha << 24) | (rgb & 0x00ff_ffff) }
-pub const fn with_alpha_from_float(alpha: f32, rgb: i32) -> i32 { (alpha * 255.0).floor() as i32 << 24 | (rgb & 0x00ff_ffff) }
+pub const fn with_alpha_from_float(alpha: f32, rgb: i32) -> i32 { ((alpha * 255.0).floor() as i32) << 24 | (rgb & 0x00ff_ffff) }
 pub const fn white(alpha: i32) -> i32 { (alpha << 24) | 0x00ff_ffff }
 pub const fn white_from_float(alpha: f32) -> i32 { with_alpha_from_float(alpha, 0x00ff_ffff) }
 pub const fn black(alpha: i32) -> i32 { alpha << 24 }
-pub const fn black_from_float(alpha: f32) -> i32 { (alpha * 255.0).floor() as i32 << 24 }
+pub const fn black_from_float(alpha: f32) -> i32 { ((alpha * 255.0).floor() as i32) << 24 }
 
 pub fn gray(brightness: f32) -> i32 {
     let channel = as_8_bit_channel(brightness);
@@ -267,11 +268,11 @@ pub const fn blue_float(color: i32) -> f32 { blue(color) as f32 / 255.0 }
 pub const fn to_abgr(color: i32) -> i32 { (color & !0x00ff_00ff) | ((color & 0x00ff_0000) >> 16) | ((color & 0x0000_00ff) << 16) }
 pub const fn from_abgr(color: i32) -> i32 { to_abgr(color) }
 
-pub fn set_brightness(color: i32, brightness: f32) -> i32 {
-    let mut red = red(color);
-    let mut green = green(color);
-    let mut blue = blue(color);
-    let alpha = alpha(color);
+pub fn set_brightness(argb: i32, brightness: f32) -> i32 {
+    let mut red = red(argb);
+    let mut green = green(argb);
+    let mut blue = blue(argb);
+    let alpha = alpha(argb);
     let rgb_max = red.max(green).max(blue);
     let rgb_min = red.min(green).min(blue);
     let range = (rgb_max - rgb_min) as f32;
