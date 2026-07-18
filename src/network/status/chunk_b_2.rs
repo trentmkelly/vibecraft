@@ -291,7 +291,7 @@ pub fn load_play_session_state(
             let mut state = PlaySessionState {
                 game_mode: default_game_mode,
                 abilities: PlayerNbtAbilities::for_game_mode(default_game_mode),
-                ..PlaySessionState::default()
+                ..PlaySessionState::new_with_recipes(recipes.clone())
             };
             let spawn = find_default_player_spawn(world_root, world_seed, default_game_mode);
             apply_spawn_placement_to_state(&mut state, spawn);

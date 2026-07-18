@@ -241,6 +241,54 @@ pub fn fresh_creative_session_accepts_and_persists_creative_picker_items() {
 }
 
 #[test]
+pub fn fresh_player_inventory_menu_uses_loaded_recipes_for_manual_crafting() -> Result<(), String> {
+    let recipe_map = RecipeMap::create(vec![crate::recipe_system::RecipeHolder {
+        id: "minecraft:oak_planks",
+        recipe: crate::recipe_system::RecipeKind::Shapeless {
+            category: crate::recipe_system::CraftingBookCategoryModel::Misc,
+            ingredients: vec![crate::recipe_system::IngredientSpec::Item("minecraft:oak_log")],
+            result: crate::recipe_system::ItemAmount {
+                item: "minecraft:oak_planks",
+                count: 4,
+            },
+        },
+    }]);
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|error| format!("system clock before Unix epoch: {error}"))?
+        .as_nanos();
+    let world_root = std::env::temp_dir().join(format!(
+        "vibecraft-fresh-player-recipes-{unique}-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&world_root)
+        .map_err(|error| format!("failed to create fresh-player test world: {error}"))?;
+    let properties = crate::server_properties::ServerProperties::load_or_default(
+        &world_root.join("server.properties"),
+    )?;
+
+    let mut state = super::super::load_play_session_state(
+        &world_root,
+        "00000000-0000-4000-8000-000000000444",
+        &properties,
+        &recipe_map,
+        0,
+    );
+    std::fs::remove_dir_all(&world_root)
+        .map_err(|error| format!("failed to remove fresh-player test world: {error}"))?;
+
+    assert!(state.inventory_menu.set_slot(
+        1,
+        ItemStack::new("minecraft:oak_log", 1)
+    ));
+    assert_eq!(
+        state.inventory_menu.get_slot(0),
+        Some(ItemStack::new("minecraft:oak_planks", 4))
+    );
+    Ok(())
+}
+
+#[test]
 pub fn container_close_returns_cursor_stack_to_inventory_before_save() {
     let mut state = session_state_with_inventory(&[]);
     state.carried_item = ItemStack::new("minecraft:stone", 64);

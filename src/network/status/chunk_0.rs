@@ -1,7 +1,12 @@
 use super::*;
 
-impl Default for PlaySessionState {
-    fn default() -> Self {
+impl PlaySessionState {
+    /// Creates the state for a player with no saved player-data file.
+    ///
+    /// Java resolves `InventoryMenu` crafting recipes through the server's loaded
+    /// `RecipeManager`; a new player must therefore receive the same map as a
+    /// player reconstructed from NBT rather than an empty fallback map.
+    pub(crate) fn new_with_recipes(recipes: RecipeMap) -> Self {
         Self {
             x: 0.5,
             y: SPAWN_Y,
@@ -45,7 +50,7 @@ impl Default for PlaySessionState {
             active_effects: Vec::new(),
             ender_items: Vec::new(),
             abilities: PlayerNbtAbilities::default_survival(),
-            inventory_menu: InventoryMenu::new(PlayerInventory::new(), RecipeMap::default()),
+            inventory_menu: InventoryMenu::new(PlayerInventory::new(), recipes),
             carried_item: ItemStack::empty(),
             container_state_id: 0,
             next_container_id: 1,
@@ -58,6 +63,12 @@ impl Default for PlaySessionState {
                 smoker: RecipeBookTypeSettings::CLOSED_UNFILTERED,
             },
         }
+    }
+}
+
+impl Default for PlaySessionState {
+    fn default() -> Self {
+        Self::new_with_recipes(RecipeMap::default())
     }
 }
 
