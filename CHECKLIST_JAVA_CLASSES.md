@@ -1907,7 +1907,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/ClassTreeIdRegistry.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/ColorRGBA.java`. `color_rgba::ColorRgba` preserves the signed packed RGBA record value, Java-compatible lowercase hexadecimal display, and `STRING_ARGB_COLOR` hex decoding/encoding, with source-backed and behavior tests.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/CommonColors.java`. `common_colors` preserves all Java packed signed-ARGB constants with source-backed and value tests.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/CommonLinks.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/CommonLinks.java`. `common_links` preserves all Java link constants, null-subscription fallbacks, trial/realm reference suffixes, and undashed UUID URL construction with source-backed and behavior tests.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/CompilableString.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/CrudeIncrementalIntIdentityHashBiMap.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/Crypt.java`.

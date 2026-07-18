@@ -230,6 +230,7 @@ mod command_tree;
 mod command_uuid_argument;
 mod color_rgba;
 mod common_colors;
+mod common_links;
 mod console;
 mod container_block;
 mod container_menus;
