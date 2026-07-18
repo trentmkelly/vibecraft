@@ -567,6 +567,7 @@ mod eula;
 mod experience_system;
 mod fire;
 mod fast_buffered_input_stream;
+mod formatted_char_sink;
 mod fluid;
 #[cfg(test)]
 mod fuzz_tests;
