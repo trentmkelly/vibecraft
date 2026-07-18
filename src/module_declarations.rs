@@ -25,6 +25,7 @@ mod base_entity;
 mod biome;
 mod biome_tags;
 mod brightness;
+mod bounded_float_function;
 mod block_behavior;
 #[cfg(test)]
 mod block_behavior_tests;

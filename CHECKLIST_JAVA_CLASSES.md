@@ -1900,7 +1900,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/BinaryAnimator.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/BitStorage.java`. `bit_storage::BitStorage` mirrors Java's storage operation contract and is covered by source-backed contract tests.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/BlockUtil.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/BoundedFloatFunction.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/BoundedFloatFunction.java`. `bounded_float_function` preserves the unbounded adapter, identity behavior, declared infinite limits, and input `comap` bound forwarding with source-backed and behavior tests.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/Brightness.java`. `brightness::Brightness` preserves the block/sky record, bounded codec fields, full-bright constant, and `LightCoordsUtil` packing/unpacking with source-backed and behavior tests.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/ByIdMap.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/ClassInstanceMultiMap.java`.
