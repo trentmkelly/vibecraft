@@ -1893,7 +1893,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/util`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/ARGB.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/ARGB.java`. Rust `argb` carries Java's packed signed-`int` channel API, sRGB/linear lookup conversions and means, arithmetic, interpolation, alpha compositing, vector conversion, ABGR conversion, and HSV-preserving brightness adjustment.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/AbortableIterationConsumer.java`. `abortable_iteration_consumer` preserves the callback continuation contract, `forConsumer` adapter, and `shouldAbort()` result semantics with source-backed and behavior tests.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/AbstractListBuilder.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/ArrayListDeque.java`.

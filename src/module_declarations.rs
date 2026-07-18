@@ -20,6 +20,7 @@ mod advancement_trigger_registry;
 mod advancement_visibility_evaluator;
 mod abortable_iteration_consumer;
 mod ai_system;
+mod argb;
 mod attribute_system;
 mod base_entity;
 mod biome;
