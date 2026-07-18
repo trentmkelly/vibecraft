@@ -238,6 +238,7 @@ mod console;
 mod crypt_exception;
 mod csv_output;
 mod delegate_data_output;
+mod dependency_sorter;
 mod container_block;
 mod container_menus;
 #[cfg(test)]

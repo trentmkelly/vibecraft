@@ -1915,7 +1915,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/CsvOutput.java`. `csv_output` preserves header-first construction, CRLF records, Apache-compatible CSV escaping, `[null]` fields, width rejection, and builder behavior with source-backed and behavior tests.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/CubicSpline.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/DelegateDataOutput.java`. `delegate_data_output` preserves every `DataOutput` forwarding operation, including raw byte ranges and all primitive/string forms, with source-backed delegation tests.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/DependencySorter.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/DependencySorter.java`. `dependency_sorter` preserves required/optional edge traversal, dependency-first ordering, and cyclic-edge suppression.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/DirectoryLock.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/DummyFileAttributes.java`. `dummy_file_attributes::DummyFileAttributes` preserves Java's synthetic directory/file variants, epoch times, zero size, false link/other flags, and absent file key with source-backed and behavior tests.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/Ease.java`.
