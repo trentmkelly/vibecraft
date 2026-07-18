@@ -544,6 +544,7 @@ mod dedicated_server_settings;
 #[cfg(test)]
 mod dialog_system;
 mod dispenser_cauldron;
+mod dummy_file_attributes;
 mod enchantment_system;
 #[cfg(test)]
 mod entity_behavior_tests;
