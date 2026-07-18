@@ -26,6 +26,7 @@ mod biome;
 mod biome_tags;
 mod brightness;
 mod bounded_float_function;
+mod by_id_map;
 mod block_behavior;
 #[cfg(test)]
 mod block_behavior_tests;

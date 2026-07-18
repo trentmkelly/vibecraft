@@ -1902,7 +1902,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/BlockUtil.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/BoundedFloatFunction.java`. `bounded_float_function` preserves the unbounded adapter, identity behavior, declared infinite limits, and input `comap` bound forwarding with source-backed and behavior tests.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/Brightness.java`. `brightness::Brightness` preserves the block/sky record, bounded codec fields, full-bright constant, and `LightCoordsUtil` packing/unpacking with source-backed and behavior tests.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/ByIdMap.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/ByIdMap.java`. `by_id_map` preserves sparse and continuous lookup validation plus ZERO, WRAP, and CLAMP out-of-bounds behavior.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/ClassInstanceMultiMap.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/ClassTreeIdRegistry.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/ColorRGBA.java`. `color_rgba::ColorRgba` preserves the signed packed RGBA record value, Java-compatible lowercase hexadecimal display, and `STRING_ARGB_COLOR` hex decoding/encoding, with source-backed and behavior tests.
