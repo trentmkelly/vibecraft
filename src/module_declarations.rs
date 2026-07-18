@@ -612,6 +612,7 @@ mod item_tooltip_components;
 mod item_tool_use;
 mod item_weapon_component;
 mod lighting;
+mod light_coords_util;
 mod living_entity;
 mod localization_keys;
 mod log;
