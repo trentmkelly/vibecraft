@@ -571,6 +571,7 @@ mod fluid;
 mod fuzz_tests;
 mod game_event;
 mod game_rules;
+mod graph;
 #[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod gametest_resources;
 mod generated_reports;
