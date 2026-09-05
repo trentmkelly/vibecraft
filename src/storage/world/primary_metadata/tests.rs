@@ -118,3 +118,91 @@ fn save_metadata_contract_matches_java_source() {
         assert!(JAVA.contains(fragment), "missing Java contract: {fragment}");
     }
 }
+
+#[test]
+fn optional_uuid_falls_back_or_overrides_without_mutating_loaded_identity() {
+    use crate::network::codec::Uuid;
+    let stored = Uuid([0xa5; 16]);
+    let supplied = Uuid([0x5a; 16]);
+    let mut level = loaded_metadata();
+    assert!(level.singleplayer_uuid.is_none());
+    let without = level.to_level_dat_at(0).unwrap();
+    assert!(!saved_fields(&without)
+        .iter()
+        .any(|(key, _)| key == "singleplayer_uuid"));
+    level.singleplayer_uuid = Some(stored);
+    for (override_uuid, expected) in [(None, stored), (Some(supplied), supplied)] {
+        let saved = level.to_level_dat_with_player_uuid(override_uuid).unwrap();
+        assert_eq!(
+            PrimaryLevelData::from_level_dat(&saved)
+                .unwrap()
+                .singleplayer_uuid,
+            Some(expected)
+        );
+        assert_eq!(level.singleplayer_uuid, Some(stored));
+    }
+    level.singleplayer_uuid = None;
+    let saved = level.to_level_dat_with_player_uuid(Some(supplied)).unwrap();
+    assert_eq!(
+        PrimaryLevelData::from_level_dat(&saved)
+            .unwrap()
+            .singleplayer_uuid,
+        Some(supplied)
+    );
+}
+
+#[test]
+fn malformed_uuid_defaults_and_removed_features_round_trip_as_a_set() {
+    let mut data = saved_fields(&loaded_metadata().to_level_dat_at(0).unwrap()).to_vec();
+    assert!(!data.iter().any(|(key, _)| key == "removed_features"));
+    data.push((
+        "singleplayer_uuid".to_owned(),
+        Tag::String("invalid".to_owned()),
+    ));
+    data.push((
+        "removed_features".to_owned(),
+        Tag::List(vec![
+            Tag::String("old:a".to_owned()),
+            Tag::String("old:b".to_owned()),
+            Tag::String("old:a".to_owned()),
+            Tag::Byte(1),
+        ]),
+    ));
+    let loaded = PrimaryLevelData::from_level_dat(&Tag::Compound(vec![(
+        "Data".to_owned(),
+        Tag::Compound(data),
+    )]))
+    .unwrap();
+    assert!(loaded.singleplayer_uuid.is_none());
+    assert_eq!(
+        loaded.removed_features,
+        ["old:a".to_owned(), "old:b".to_owned()]
+            .into_iter()
+            .collect()
+    );
+    let saved = loaded.to_level_dat_at(0).unwrap();
+    let reloaded = PrimaryLevelData::from_level_dat(&saved).unwrap();
+    assert_eq!(reloaded.removed_features, loaded.removed_features);
+    assert_eq!(
+        compound_string_list(saved_fields(&saved), "removed_features").len(),
+        2
+    );
+}
+
+#[cfg(vibecraft_has_decompiled_sources)]
+#[test]
+fn optional_world_metadata_matches_java_codec_and_override_contract() {
+    const JAVA: &str =
+        vibecraft_java_source!("/net/minecraft/world/level/storage/PrimaryLevelData.java");
+    for fragment in [
+        "input.get(\"singleplayer_uuid\").flatMap(UUIDUtil.CODEC::parse).result().orElse(null)",
+        "if (singlePlayerUUID == null)",
+        "singlePlayerUUID = this.singlePlayerUUID",
+        "if (!this.removedFeatureFlags.isEmpty())",
+        "tag.put(\"removed_features\", stringCollectionToTag(this.removedFeatureFlags))",
+    ] {
+        assert!(JAVA.contains(fragment), "missing Java contract: {fragment}");
+    }
+    const UUID_JAVA: &str = vibecraft_java_source!("/net/minecraft/core/UUIDUtil.java");
+    assert!(UUID_JAVA.contains("Util.fixedSize(list, 4).map(UUIDUtil::uuidFromIntArray)"));
+}

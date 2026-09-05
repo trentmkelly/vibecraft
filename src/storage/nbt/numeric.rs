@@ -11,6 +11,28 @@ pub enum NbtNumericValue {
 }
 
 impl NbtNumericValue {
+    /// Number.intValue on the boxed primitive returned by NumericTag.box.
+    /// This truncates floating values, whereas NumericTag.intValue floors them.
+    pub fn boxed_int_value(self) -> i32 {
+        match self {
+            Self::Float(value) => value as i32,
+            Self::Double(value) => value as i32,
+            _ => self.int_value(),
+        }
+    }
+
+    pub fn boxed_long_value(self) -> i64 {
+        match self {
+            Self::Float(value) => value as i64,
+            Self::Double(value) => value as i64,
+            _ => self.long_value(),
+        }
+    }
+
+    pub fn boxed_byte_value(self) -> i8 {
+        self.boxed_int_value() as i8
+    }
+
     pub fn byte_value(self) -> i8 {
         self.int_floor_value() as u8 as i8
     }

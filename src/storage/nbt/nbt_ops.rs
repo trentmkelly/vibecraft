@@ -259,33 +259,12 @@ impl NbtOpsModel {
         }
     }
 
-    pub fn get_byte_buffer(self, input: &Tag) -> NbtOpsResult<Vec<i8>> {
-        match input {
-            Tag::ByteArray(values) => NbtOpsResult::success(values.clone()),
-            _ => NbtOpsResult::error("Not a byte list", None),
-        }
-    }
-
     pub fn create_byte_list(self, input: &[i8]) -> Tag {
         Tag::ByteArray(input.to_vec())
     }
 
-    pub fn get_int_stream(self, input: &Tag) -> NbtOpsResult<Vec<i32>> {
-        match input {
-            Tag::IntArray(values) => NbtOpsResult::success(values.clone()),
-            _ => NbtOpsResult::error("Not an int list", None),
-        }
-    }
-
     pub fn create_int_list(self, input: &[i32]) -> Tag {
         Tag::IntArray(input.to_vec())
-    }
-
-    pub fn get_long_stream(self, input: &Tag) -> NbtOpsResult<Vec<i64>> {
-        match input {
-            Tag::LongArray(values) => NbtOpsResult::success(values.clone()),
-            _ => NbtOpsResult::error("Not a long list", None),
-        }
     }
 
     pub fn create_long_list(self, input: &[i64]) -> Tag {
@@ -435,8 +414,7 @@ pub fn to_tree_map(entries: &[(Tag, Tag)]) -> BTreeMap<String, Tag> {
 mod tests {
     use super::*;
 
-    const NBT_OPS_JAVA: &str =
-        vibecraft_java_source!("/net/minecraft/nbt/NbtOps.java");
+    const NBT_OPS_JAVA: &str = vibecraft_java_source!("/net/minecraft/nbt/NbtOps.java");
 
     #[test]
     fn nbt_ops_scalars_maps_and_remove_match_java_contracts() {
@@ -606,3 +584,5 @@ mod tests {
         ));
     }
 }
+
+mod numeric_streams;

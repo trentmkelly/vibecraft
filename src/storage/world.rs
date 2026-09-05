@@ -51,6 +51,8 @@ pub struct PrimaryLevelData {
     pub data_configuration: crate::resources::WorldDataConfiguration,
     pub scheduled_events: Tag,
     pub server_brands: Vec<String>,
+    pub singleplayer_uuid: Option<crate::network::codec::Uuid>,
+    pub removed_features: std::collections::BTreeSet<String>,
     pub custom_boss_events: Tag,
     pub dragon_fight: Tag,
     pub scoreboard: Tag,
@@ -127,6 +129,11 @@ impl PrimaryLevelData {
                 data,
                 "ServerBrands",
             )),
+            singleplayer_uuid: field("singleplayer_uuid")
+                .and_then(|tag| crate::storage::nbt::uuid_codec::uuid_from_nbt(tag).ok()),
+            removed_features: compound_string_list(data, "removed_features")
+                .into_iter()
+                .collect(),
             custom_boss_events: compound_clone(data, "CustomBossEvents")
                 .unwrap_or_else(empty_compound_tag),
             dragon_fight: compound_clone(data, "DragonFight").unwrap_or_else(empty_compound_tag),

@@ -83,29 +83,13 @@ impl LevelDifficulty {
 /// DynamicOps.getBooleanValue uses Number.byteValue, not a general nonzero test.
 /// Float/double narrowing goes through int before byte in Java.
 pub(super) fn nbt_boolean(tag: &Tag) -> Option<bool> {
-    let byte = match tag {
-        Tag::Byte(value) => *value,
-        Tag::Short(value) => *value as i8,
-        Tag::Int(value) => *value as i8,
-        Tag::Long(value) => *value as i8,
-        Tag::Float(value) => *value as i32 as i8,
-        Tag::Double(value) => *value as i32 as i8,
-        _ => return None,
-    };
-    Some(byte != 0)
+    tag.numeric_value()
+        .map(|number| number.boxed_byte_value() != 0)
 }
 
 /// Dynamic.asInt delegates to Number.intValue for all numeric NBT tags.
 pub(super) fn nbt_integer(tag: &Tag) -> Option<i32> {
-    match tag {
-        Tag::Byte(value) => Some(i32::from(*value)),
-        Tag::Short(value) => Some(i32::from(*value)),
-        Tag::Int(value) => Some(*value),
-        Tag::Long(value) => Some(*value as i32),
-        Tag::Float(value) => Some(*value as i32),
-        Tag::Double(value) => Some(*value as i32),
-        _ => None,
-    }
+    tag.numeric_value().map(|number| number.boxed_int_value())
 }
 
 #[cfg(test)]

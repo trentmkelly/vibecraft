@@ -108,36 +108,16 @@ fn validate_rotation(name: &str, value: f32, limit: f32) -> Result<(), String> {
 
 // NbtOps reads Number values, so FLOAT and INT_STREAM accept all numeric tags.
 fn float_value(tag: &Tag) -> Result<f32, String> {
-    match tag {
-        Tag::Byte(n) => Ok(*n as f32),
-        Tag::Short(n) => Ok(*n as f32),
-        Tag::Int(n) => Ok(*n as f32),
-        Tag::Long(n) => Ok(*n as f32),
-        Tag::Float(n) => Ok(*n),
-        Tag::Double(n) => Ok(*n as f32),
-        _ => Err("respawn rotation must be numeric".to_owned()),
-    }
-}
-
-fn int_value(tag: &Tag) -> Result<i32, String> {
-    match tag {
-        Tag::Byte(n) => Ok(i32::from(*n)),
-        Tag::Short(n) => Ok(i32::from(*n)),
-        Tag::Int(n) => Ok(*n),
-        Tag::Long(n) => Ok(*n as i32),
-        Tag::Float(n) => Ok(*n as i32),
-        Tag::Double(n) => Ok(*n as i32),
-        _ => Err("respawn position must contain numbers".to_owned()),
-    }
+    tag.numeric_value()
+        .map(|number| number.float_value())
+        .ok_or_else(|| "respawn rotation must be numeric".to_owned())
 }
 
 fn position_values(tag: &Tag) -> Result<[i32; 3], String> {
-    let values: Vec<i32> = match tag {
-        Tag::IntArray(values) => values.clone(),
-        Tag::ByteArray(values) => values.iter().map(|n| i32::from(*n)).collect(),
-        Tag::LongArray(values) => values.iter().map(|n| *n as i32).collect(),
-        Tag::List(values) => values.iter().map(int_value).collect::<Result<_, _>>()?,
-        _ => return Err("respawn position must be an integer stream".to_owned()),
+    use crate::storage::nbt::nbt_ops::{NbtOpsModel, NbtOpsResult};
+    let values = match NbtOpsModel::INSTANCE.get_int_stream(tag) {
+        NbtOpsResult::Success(values) => values,
+        NbtOpsResult::Error { message, .. } => return Err(message),
     };
     values
         .try_into()

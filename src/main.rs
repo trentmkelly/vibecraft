@@ -641,6 +641,8 @@ mod tests {
             },
             scheduled_events: Tag::List(vec![]),
             server_brands: Vec::new(),
+            singleplayer_uuid: None,
+            removed_features: Default::default(),
             custom_boss_events: Tag::Compound(vec![]),
             dragon_fight: Tag::Compound(vec![]),
             scoreboard: Tag::Compound(vec![]),
@@ -1033,7 +1035,10 @@ management-server-allowed-origins=https://admin.example\n",
             .unwrap();
         let (stored, init) = super::load_initial_data_configuration(&layout, &properties).unwrap();
         assert!(!init);
-        assert_eq!(stored, crate::resources::WorldDataConfiguration::default_26_1_2());
+        assert_eq!(
+            stored,
+            crate::resources::WorldDataConfiguration::default_26_1_2()
+        );
         fs::remove_dir_all(dir).unwrap();
     }
 }

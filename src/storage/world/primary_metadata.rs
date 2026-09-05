@@ -5,10 +5,27 @@ use super::*;
 impl PrimaryLevelData {
     /// Java stamps the current server version and wall-clock time on every save.
     pub fn to_level_dat(&self) -> Result<Tag, String> {
-        self.to_level_dat_at(chrono::Utc::now().timestamp_millis())
+        self.to_level_dat_with_player_uuid(None)
+    }
+
+    /// Java createTag uses a supplied UUID for this save, falling back to the
+    /// stored value for null without changing the loaded single-player identity.
+    pub fn to_level_dat_with_player_uuid(
+        &self,
+        player_uuid: Option<crate::network::codec::Uuid>,
+    ) -> Result<Tag, String> {
+        self.encode_level_dat(chrono::Utc::now().timestamp_millis(), player_uuid)
     }
 
     fn to_level_dat_at(&self, epoch_millis: i64) -> Result<Tag, String> {
+        self.encode_level_dat(epoch_millis, None)
+    }
+
+    fn encode_level_dat(
+        &self,
+        epoch_millis: i64,
+        player_uuid: Option<crate::network::codec::Uuid>,
+    ) -> Result<Tag, String> {
         let mut data = vec![
             (
                 "DataVersion".to_string(),
@@ -81,6 +98,18 @@ impl PrimaryLevelData {
             ("scoreboard".to_string(), self.scoreboard.clone()),
             ("GameRules".to_string(), self.game_rules.clone()),
         ];
+        if let Some(uuid) = player_uuid.or(self.singleplayer_uuid) {
+            data.push((
+                "singleplayer_uuid".to_owned(),
+                crate::storage::nbt::uuid_codec::uuid_to_nbt(uuid),
+            ));
+        }
+        if !self.removed_features.is_empty() {
+            data.push((
+                "removed_features".to_owned(),
+                string_list_tag(self.removed_features.iter()),
+            ));
+        }
         let registry = crate::registry::FeatureFlagRegistry::main_26_1_2()?;
         if let Tag::Compound(configuration) = self.data_configuration.to_nbt(&registry) {
             data.extend(configuration);

@@ -15,6 +15,7 @@ pub mod nbt_io;
 pub mod nbt_ops;
 pub mod nbt_utils;
 pub mod numeric;
+pub mod uuid_codec;
 pub mod snbt_grammar;
 pub mod snbt_operations;
 pub mod snbt_printer;

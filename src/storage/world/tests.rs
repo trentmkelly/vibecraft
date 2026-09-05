@@ -864,6 +864,8 @@ fn primary_level_data_round_trips_vanilla_level_dat_fields() {
             )],
         )]),
         server_brands: vec!["vanilla".to_string(), "vibecraft".to_string()],
+        singleplayer_uuid: None,
+        removed_features: Default::default(),
         custom_boss_events: crate::storage::nbt::Tag::Compound(vec![(
             "minecraft:boss".to_string(),
             crate::storage::nbt::Tag::Compound(vec![]),
@@ -947,6 +949,8 @@ fn default_level_dat_round_trip_matches_vanilla_generated_field_shape() {
         },
         scheduled_events: crate::storage::nbt::Tag::List(vec![]),
         server_brands: vec!["vanilla".to_string()],
+        singleplayer_uuid: None,
+        removed_features: Default::default(),
         custom_boss_events: crate::storage::nbt::Tag::Compound(vec![]),
         dragon_fight: crate::storage::nbt::Tag::Compound(vec![]),
         scoreboard: crate::storage::nbt::Tag::Compound(vec![]),
