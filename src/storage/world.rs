@@ -66,13 +66,8 @@ pub struct LevelVersionInfo {
     pub snapshot: bool,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct LevelSpawnData {
-    pub x: i32,
-    pub y: i32,
-    pub z: i32,
-    pub angle: f32,
-}
+/// World metadata and spawn packets share Java’s RespawnData record.
+pub type LevelSpawnData = LevelRespawnData;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataPackSelection {
@@ -98,12 +93,10 @@ impl PrimaryLevelData {
                 snapshot: compound_bool(version, "Snapshot").unwrap_or(false),
             },
             level_name: compound_string(data, "LevelName")?.to_string(),
-            spawn: LevelSpawnData {
-                x: compound_i32(data, "SpawnX").unwrap_or_default(),
-                y: compound_i32(data, "SpawnY").unwrap_or_default(),
-                z: compound_i32(data, "SpawnZ").unwrap_or_default(),
-                angle: compound_f32(data, "SpawnAngle").unwrap_or_default(),
-            },
+            // PrimaryLevelData.parse defaults on a missing or invalid spawn codec.
+            spawn: compound_clone(data, "spawn")
+                .and_then(|tag| LevelRespawnData::from_nbt(&tag).ok())
+                .unwrap_or_default(),
             game_type: LevelGameType::from_id(compound_i32(data, "GameType")?)?,
             difficulty: LevelDifficulty::from_id(compound_i8(data, "Difficulty")?)?,
             day_time: compound_i64(data, "DayTime").unwrap_or_default(),
@@ -132,87 +125,83 @@ impl PrimaryLevelData {
         })
     }
 
-    pub fn to_level_dat(&self) -> Tag {
-        Tag::Compound(vec![(
-            "Data".to_string(),
-            Tag::Compound(vec![
-                ("DataVersion".to_string(), Tag::Int(self.data_version)),
-                ("version".to_string(), Tag::Int(self.level_data_version)),
-                (
-                    "Version".to_string(),
-                    Tag::Compound(vec![
-                        ("Id".to_string(), Tag::Int(self.version.id)),
-                        ("Name".to_string(), Tag::String(self.version.name.clone())),
-                        (
-                            "Series".to_string(),
-                            Tag::String(self.version.series.clone()),
-                        ),
-                        (
-                            "Snapshot".to_string(),
-                            Tag::Byte(i8::from(self.version.snapshot)),
-                        ),
-                    ]),
-                ),
-                (
-                    "LevelName".to_string(),
-                    Tag::String(self.level_name.clone()),
-                ),
-                ("SpawnX".to_string(), Tag::Int(self.spawn.x)),
-                ("SpawnY".to_string(), Tag::Int(self.spawn.y)),
-                ("SpawnZ".to_string(), Tag::Int(self.spawn.z)),
-                ("SpawnAngle".to_string(), Tag::Float(self.spawn.angle)),
-                ("GameType".to_string(), Tag::Int(self.game_type.id())),
-                ("Difficulty".to_string(), Tag::Byte(self.difficulty.id())),
-                ("DayTime".to_string(), Tag::Long(self.day_time)),
-                ("Time".to_string(), Tag::Long(self.time)),
-                (
-                    "generatorName".to_string(),
-                    Tag::String(self.generator_name.clone()),
-                ),
-                (
-                    "generatorSettings".to_string(),
-                    self.generator_settings.clone(),
-                ),
-                (
-                    "allowCommands".to_string(),
-                    Tag::Byte(i8::from(self.allow_commands)),
-                ),
-                ("hardcore".to_string(), Tag::Byte(i8::from(self.hardcore))),
-                (
-                    "initialized".to_string(),
-                    Tag::Byte(i8::from(self.initialized)),
-                ),
-                (
-                    "WasModded".to_string(),
-                    Tag::Byte(i8::from(self.was_modded)),
-                ),
-                (
-                    "DataPacks".to_string(),
-                    Tag::Compound(vec![
-                        (
-                            "Enabled".to_string(),
-                            string_list_tag(self.data_packs.enabled.iter()),
-                        ),
-                        (
-                            "Disabled".to_string(),
-                            string_list_tag(self.data_packs.disabled.iter()),
-                        ),
-                    ]),
-                ),
-                ("ScheduledEvents".to_string(), self.scheduled_events.clone()),
-                (
-                    "ServerBrands".to_string(),
-                    string_list_tag(self.server_brands.iter()),
-                ),
-                (
-                    "CustomBossEvents".to_string(),
-                    self.custom_boss_events.clone(),
-                ),
-                ("DragonFight".to_string(), self.dragon_fight.clone()),
-                ("scoreboard".to_string(), self.scoreboard.clone()),
-                ("GameRules".to_string(), self.game_rules.clone()),
-            ]),
-        )])
+    pub fn to_level_dat(&self) -> Result<Tag, String> {
+        let mut data = vec![
+            ("DataVersion".to_string(), Tag::Int(self.data_version)),
+            ("version".to_string(), Tag::Int(self.level_data_version)),
+            (
+                "Version".to_string(),
+                Tag::Compound(vec![
+                    ("Id".to_string(), Tag::Int(self.version.id)),
+                    ("Name".to_string(), Tag::String(self.version.name.clone())),
+                    (
+                        "Series".to_string(),
+                        Tag::String(self.version.series.clone()),
+                    ),
+                    (
+                        "Snapshot".to_string(),
+                        Tag::Byte(i8::from(self.version.snapshot)),
+                    ),
+                ]),
+            ),
+            (
+                "LevelName".to_string(),
+                Tag::String(self.level_name.clone()),
+            ),
+            ("GameType".to_string(), Tag::Int(self.game_type.id())),
+            ("Difficulty".to_string(), Tag::Byte(self.difficulty.id())),
+            ("DayTime".to_string(), Tag::Long(self.day_time)),
+            ("Time".to_string(), Tag::Long(self.time)),
+            (
+                "generatorName".to_string(),
+                Tag::String(self.generator_name.clone()),
+            ),
+            (
+                "generatorSettings".to_string(),
+                self.generator_settings.clone(),
+            ),
+            (
+                "allowCommands".to_string(),
+                Tag::Byte(i8::from(self.allow_commands)),
+            ),
+            ("hardcore".to_string(), Tag::Byte(i8::from(self.hardcore))),
+            (
+                "initialized".to_string(),
+                Tag::Byte(i8::from(self.initialized)),
+            ),
+            (
+                "WasModded".to_string(),
+                Tag::Byte(i8::from(self.was_modded)),
+            ),
+            (
+                "DataPacks".to_string(),
+                Tag::Compound(vec![
+                    (
+                        "Enabled".to_string(),
+                        string_list_tag(self.data_packs.enabled.iter()),
+                    ),
+                    (
+                        "Disabled".to_string(),
+                        string_list_tag(self.data_packs.disabled.iter()),
+                    ),
+                ]),
+            ),
+            ("ScheduledEvents".to_string(), self.scheduled_events.clone()),
+            (
+                "ServerBrands".to_string(),
+                string_list_tag(self.server_brands.iter()),
+            ),
+            (
+                "CustomBossEvents".to_string(),
+                self.custom_boss_events.clone(),
+            ),
+            ("DragonFight".to_string(), self.dragon_fight.clone()),
+            ("scoreboard".to_string(), self.scoreboard.clone()),
+            ("GameRules".to_string(), self.game_rules.clone()),
+        ];
+        // Java CompoundTag.store calls getOrThrow: invalid values fail the save.
+        data.push(("spawn".to_owned(), self.spawn.to_nbt()?));
+        Ok(Tag::Compound(vec![("Data".to_owned(), Tag::Compound(data))]))
     }
 }
 
@@ -567,26 +556,8 @@ impl LevelDifficulty {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct LevelRespawnData {
-    pub dimension: String,
-    pub x: i32,
-    pub y: i32,
-    pub z: i32,
-    pub angle: f32,
-}
-
-impl Default for LevelRespawnData {
-    fn default() -> Self {
-        Self {
-            dimension: "minecraft:overworld".to_string(),
-            x: 0,
-            y: 0,
-            z: 0,
-            angle: 0.0,
-        }
-    }
-}
+mod respawn_data;
+pub use respawn_data::LevelRespawnData;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct WorldDataView {

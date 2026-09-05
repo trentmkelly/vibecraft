@@ -329,7 +329,7 @@ fn migrate_legacy_announce_player_achievements(
         enabled.to_string(),
     );
     layout
-        .save_level_dat(&level.to_level_dat())
+        .save_level_dat(&level.to_level_dat()?)
         .map_err(|err| format!("Failed to write level.dat for legacy gamerule migration: {err}"))
 }
 
@@ -590,7 +590,8 @@ mod tests {
                 x: 0,
                 y: 64,
                 z: 0,
-                angle: 0.0,
+                yaw: 0.0,
+                ..Default::default()
             },
             game_type: LevelGameType::Survival,
             difficulty: LevelDifficulty::Easy,
@@ -780,7 +781,7 @@ management-server-allowed-origins=https://admin.example\n",
             Tag::String("true".to_string()),
         )]));
         layout
-            .save_level_dat(&data.to_level_dat())
+            .save_level_dat(&data.to_level_dat().unwrap())
             .expect("save level.dat");
         let properties_path = dir.join("server.properties");
         fs::write(&properties_path, "announce-player-achievements=false\n")
@@ -820,7 +821,7 @@ management-server-allowed-origins=https://admin.example\n",
             Tag::String("true".to_string()),
         )]));
         layout
-            .save_level_dat(&data.to_level_dat())
+            .save_level_dat(&data.to_level_dat().unwrap())
             .expect("save level.dat");
         let before = layout.load_level_dat().unwrap();
         let properties_path = dir.join("server.properties");

@@ -188,11 +188,12 @@ fn derived_level_data_matches_java_delegation_semantics() {
     };
     let wrapped = super::ServerLevelDataView {
         respawn_data: super::LevelRespawnData {
-            dimension: "minecraft:the_nether".to_string(),
+            dimension: crate::registry::Identifier::parse("minecraft:the_nether").unwrap(),
             x: 8,
             y: 70,
             z: -4,
-            angle: 90.0,
+            yaw: 90.0,
+            pitch: 30.0,
         },
         game_time: 24000,
         initialized: false,
@@ -212,13 +213,14 @@ fn derived_level_data_matches_java_delegation_semantics() {
     assert_eq!(derived.dimension_seed(), 67890);
 
     derived.set_spawn(super::LevelRespawnData {
-        dimension: "minecraft:overworld".to_string(),
+        dimension: crate::registry::Identifier::parse("minecraft:overworld").unwrap(),
         x: 0,
         y: 64,
         z: 0,
-        angle: 0.0,
+        yaw: 0.0,
+        pitch: -20.0,
     });
-    assert_eq!(derived.respawn_data().dimension, "minecraft:overworld");
+    assert_eq!(derived.respawn_data().dimension.to_string(), "minecraft:overworld");
     assert_eq!(derived.respawn_data().y, 64);
 
     derived.set_game_time(1);
@@ -818,7 +820,8 @@ fn primary_level_data_round_trips_vanilla_level_dat_fields() {
             x: 12,
             y: 80,
             z: -9,
-            angle: 45.0,
+            yaw: 45.0,
+            ..Default::default()
         },
         game_type: super::LevelGameType::Creative,
         difficulty: super::LevelDifficulty::Hard,
@@ -862,7 +865,7 @@ fn primary_level_data_round_trips_vanilla_level_dat_fields() {
         )]),
     };
 
-    let encoded = data.to_level_dat();
+    let encoded = data.to_level_dat().unwrap();
     let crate::storage::nbt::Tag::Compound(root) = &encoded else {
         panic!("expected level.dat root compound");
     };
@@ -902,7 +905,8 @@ fn default_level_dat_round_trip_matches_vanilla_generated_field_shape() {
             x: 0,
             y: 64,
             z: 0,
-            angle: 0.0,
+            yaw: 0.0,
+            ..Default::default()
         },
         game_type: super::LevelGameType::Survival,
         difficulty: super::LevelDifficulty::Normal,
@@ -926,7 +930,7 @@ fn default_level_dat_round_trip_matches_vanilla_generated_field_shape() {
         game_rules: crate::storage::nbt::Tag::Compound(vec![]),
     };
 
-    let encoded = data.to_level_dat();
+    let encoded = data.to_level_dat().unwrap();
     let crate::storage::nbt::Tag::Compound(root) = &encoded else {
         panic!("expected level.dat root compound");
     };
@@ -943,10 +947,7 @@ fn default_level_dat_round_trip_matches_vanilla_generated_field_shape() {
         "version",
         "Version",
         "LevelName",
-        "SpawnX",
-        "SpawnY",
-        "SpawnZ",
-        "SpawnAngle",
+        "spawn",
         "GameType",
         "Difficulty",
         "DayTime",

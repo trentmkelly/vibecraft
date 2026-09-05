@@ -707,15 +707,8 @@ pub struct ClientboundSetChunkCacheRadiusPacket {
     pub radius: i32,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct ClientboundSetDefaultSpawnPositionData {
-    pub dimension: Identifier,
-    pub x: i32,
-    pub y: i32,
-    pub z: i32,
-    pub yaw: f32,
-    pub pitch: f32,
-}
+/// The packet carries the same record as level storage in Java.
+pub type ClientboundSetDefaultSpawnPositionData = crate::storage::world::LevelRespawnData;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClientboundSetDefaultSpawnPositionPacket {

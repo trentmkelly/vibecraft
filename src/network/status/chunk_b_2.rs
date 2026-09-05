@@ -567,7 +567,7 @@ pub fn world_spawn_suggestion(world_root: &Path, world_seed: i64) -> (i32, i32, 
                 level.spawn.x,
                 level.spawn.y,
                 level.spawn.z,
-                level.spawn.angle,
+                level.spawn.yaw,
             );
         }
     }
