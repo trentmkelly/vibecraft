@@ -221,10 +221,19 @@ impl LevelCandidates {
     }
 
     pub fn summaries(&self) -> Vec<std::io::Result<LevelSummary>> {
-        self.levels
+        let mut summaries: Vec<_> = self
+            .levels
             .iter()
             .map(LevelDirectory::load_summary)
-            .collect()
+            .collect();
+        // Keep errors visible to callers; successful summaries use Java's order.
+        summaries.sort_by(|left, right| match (left, right) {
+            (Ok(left), Ok(right)) => left.compare(right),
+            (Ok(_), Err(_)) => std::cmp::Ordering::Less,
+            (Err(_), Ok(_)) => std::cmp::Ordering::Greater,
+            (Err(_), Err(_)) => std::cmp::Ordering::Equal,
+        });
+        summaries
     }
 }
 
@@ -237,6 +246,7 @@ pub struct LevelSummary {
     pub hardcore: bool,
     pub cheats: bool,
     pub requires_manual_conversion: bool,
+    pub requires_file_fixing: bool,
     pub icon_file: PathBuf,
     pub locked: bool,
 }
@@ -570,55 +580,6 @@ impl DerivedLevelData {
 
     pub fn dimension_seed(&self) -> i64 {
         self.wrapped.seed
-    }
-}
-
-impl LevelSummary {
-    pub fn from_level_dat(
-        directory: &LevelDirectory,
-        tag: &Tag,
-        locked: bool,
-    ) -> std::io::Result<Self> {
-        let data = level_dat_data_compound(tag).ok_or_else(|| {
-            std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "level.dat root is not compound",
-            )
-        })?;
-        let version = LevelVersion::parse_level_dat(tag).ok_or_else(|| {
-            std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "level.dat missing version data",
-            )
-        })?;
-        if !matches!(version.level_data_version, 19132 | 19133) {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!(
-                    "Unknown data version: {:x}",
-                    version.level_data_version as u32
-                ),
-            ));
-        }
-        let settings = level_settings::parse(data);
-        let level_name = if settings.level_name.is_empty() {
-            directory.directory_name()
-        } else {
-            settings.level_name
-        };
-        let requires_manual_conversion = version.level_data_version != 19133;
-
-        Ok(Self {
-            directory_name: directory.directory_name(),
-            level_name,
-            version,
-            game_type: settings.game_type,
-            hardcore: settings.difficulty.hardcore,
-            cheats: settings.allow_commands,
-            requires_manual_conversion,
-            icon_file: directory.icon_file(),
-            locked,
-        })
     }
 }
 
@@ -1010,6 +971,7 @@ impl PlayerDataStorage {
 
 mod backup;
 mod deletion;
+pub mod summary;
 mod level_settings;
 mod level_version;
 mod metadata_edit;
