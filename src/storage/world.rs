@@ -123,88 +123,16 @@ impl PrimaryLevelData {
             ),
             scheduled_events: compound_clone(data, "ScheduledEvents")
                 .unwrap_or_else(empty_list_tag),
-            server_brands: compound_string_list(data, "ServerBrands"),
+            server_brands: primary_metadata::unique_server_brands(&compound_string_list(
+                data,
+                "ServerBrands",
+            )),
             custom_boss_events: compound_clone(data, "CustomBossEvents")
                 .unwrap_or_else(empty_compound_tag),
             dragon_fight: compound_clone(data, "DragonFight").unwrap_or_else(empty_compound_tag),
             scoreboard: compound_clone(data, "scoreboard").unwrap_or_else(empty_compound_tag),
             game_rules: compound_clone(data, "GameRules").unwrap_or_else(empty_compound_tag),
         })
-    }
-
-    pub fn to_level_dat(&self) -> Result<Tag, String> {
-        let mut data = vec![
-            ("DataVersion".to_string(), Tag::Int(self.data_version)),
-            ("version".to_string(), Tag::Int(self.level_data_version)),
-            (
-                "Version".to_string(),
-                Tag::Compound(vec![
-                    ("Id".to_string(), Tag::Int(self.version.id)),
-                    ("Name".to_string(), Tag::String(self.version.name.clone())),
-                    (
-                        "Series".to_string(),
-                        Tag::String(self.version.series.clone()),
-                    ),
-                    (
-                        "Snapshot".to_string(),
-                        Tag::Byte(i8::from(self.version.snapshot)),
-                    ),
-                ]),
-            ),
-            (
-                "LevelName".to_string(),
-                Tag::String(self.level_name.clone()),
-            ),
-            ("GameType".to_string(), Tag::Int(self.game_type.id())),
-            (
-                "difficulty_settings".to_string(),
-                self.difficulty_settings.to_nbt(),
-            ),
-            ("DayTime".to_string(), Tag::Long(self.day_time)),
-            ("Time".to_string(), Tag::Long(self.time)),
-            (
-                "generatorName".to_string(),
-                Tag::String(self.generator_name.clone()),
-            ),
-            (
-                "generatorSettings".to_string(),
-                self.generator_settings.clone(),
-            ),
-            (
-                "allowCommands".to_string(),
-                Tag::Byte(i8::from(self.allow_commands)),
-            ),
-            (
-                "initialized".to_string(),
-                Tag::Byte(i8::from(self.initialized)),
-            ),
-            (
-                "WasModded".to_string(),
-                Tag::Byte(i8::from(self.was_modded)),
-            ),
-            ("ScheduledEvents".to_string(), self.scheduled_events.clone()),
-            (
-                "ServerBrands".to_string(),
-                string_list_tag(self.server_brands.iter()),
-            ),
-            (
-                "CustomBossEvents".to_string(),
-                self.custom_boss_events.clone(),
-            ),
-            ("DragonFight".to_string(), self.dragon_fight.clone()),
-            ("scoreboard".to_string(), self.scoreboard.clone()),
-            ("GameRules".to_string(), self.game_rules.clone()),
-        ];
-        let registry = crate::registry::FeatureFlagRegistry::main_26_1_2()?;
-        if let Tag::Compound(configuration) = self.data_configuration.to_nbt(&registry) {
-            data.extend(configuration);
-        }
-        // Java CompoundTag.store calls getOrThrow: invalid values fail the save.
-        data.push(("spawn".to_owned(), self.spawn.to_nbt()?));
-        Ok(Tag::Compound(vec![(
-            "Data".to_owned(),
-            Tag::Compound(data),
-        )]))
     }
 }
 
@@ -558,6 +486,8 @@ impl LevelDifficulty {
         }
     }
 }
+
+mod primary_metadata;
 
 mod difficulty_settings;
 pub use difficulty_settings::DifficultySettings;
