@@ -41,6 +41,63 @@ fn normal_root() -> Tag {
 }
 
 #[test]
+fn lightweight_reader_skips_only_java_selected_compounds_without_decoding_payloads() {
+    use std::io::Write;
+    let fixture = Fixture::new("lightweight");
+    let tag = Tag::Compound(vec![
+        ("Player".to_owned(), Tag::Int(8)),
+        (
+            "Data".to_owned(),
+            Tag::Compound(vec![
+                ("version".to_owned(), Tag::Int(19133)),
+                (
+                    "Player".to_owned(),
+                    Tag::Compound(vec![("payload".to_owned(), Tag::String("BAD".to_owned()))]),
+                ),
+                (
+                    "WorldGenSettings".to_owned(),
+                    Tag::Compound(vec![("large".to_owned(), Tag::ByteArray(vec![0; 100_000]))]),
+                ),
+                (
+                    "other".to_owned(),
+                    Tag::Compound(vec![("Player".to_owned(), Tag::Int(9))]),
+                ),
+            ]),
+        ),
+    ]);
+    let mut bytes = vec![];
+    write_named_tag(&mut bytes, "", &tag).unwrap();
+    let offset = bytes.windows(3).position(|part| part == b"BAD").unwrap();
+    bytes[offset..offset + 3].fill(0xff);
+    let mut encoder = flate2::write::GzEncoder::new(
+        File::create(fixture.directory.data_file()).unwrap(),
+        flate2::Compression::default(),
+    );
+    encoder.write_all(&bytes).unwrap();
+    encoder.finish().unwrap();
+    assert_eq!(
+        read_lightweight_data(&fixture.directory.data_file()).unwrap(),
+        Tag::Compound(vec![
+            ("Player".to_owned(), Tag::Int(8)),
+            (
+                "Data".to_owned(),
+                Tag::Compound(vec![
+                    ("version".to_owned(), Tag::Int(19133)),
+                    (
+                        "other".to_owned(),
+                        Tag::Compound(vec![("Player".to_owned(), Tag::Int(9))])
+                    ),
+                ])
+            ),
+        ])
+    );
+    assert!(matches!(
+        fixture.directory.load_summary().unwrap(),
+        WorldSummary::Normal(_)
+    ));
+}
+
+#[test]
 fn corrupt_primary_never_uses_backup_metadata_and_uses_primary_modification_time() {
     let fixture = Fixture::new("backup");
     let layout = fixture.directory.layout();

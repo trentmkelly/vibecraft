@@ -254,6 +254,7 @@ impl CollectToTagVisitor {
         } else if tag_type_id(tag_type) == Some(10) {
             self.container_stack.push(ContainerBuilder::Compound {
                 values: Vec::new(),
+                indices: HashMap::new(),
                 last_id: String::new(),
             });
         }
@@ -331,8 +332,8 @@ impl NbtStreamTagVisitor for CollectToTagVisitor {
         StreamEntryResult::Enter
     }
 
-    fn visit_entry(&mut self, tag_type: NbtTagTypeLookup) -> StreamEntryResult {
-        self.enter_container_if_needed(&tag_type);
+    fn visit_entry(&mut self, _tag_type: NbtTagTypeLookup) -> StreamEntryResult {
+        // Java waits for the named-entry callback before entering a container.
         StreamEntryResult::Enter
     }
 
@@ -656,6 +657,7 @@ enum ContainerBuilder {
     },
     Compound {
         values: Vec<(String, Tag)>,
+        indices: HashMap<String, usize>,
         last_id: String,
     },
 }
@@ -671,7 +673,20 @@ impl ContainerBuilder {
         match self {
             Self::Root { result } => *result = Some(tag),
             Self::List { values } => values.push(try_unwrap_list_compound(tag)),
-            Self::Compound { values, last_id } => values.push((last_id.clone(), tag)),
+            Self::Compound {
+                values,
+                indices,
+                last_id,
+            } => {
+                // CompoundTag.put replaces duplicate keys. Index once rather
+                // than scanning every earlier field for each streamed value.
+                if let Some(&index) = indices.get(last_id) {
+                    values[index].1 = tag;
+                } else {
+                    indices.insert(last_id.clone(), values.len());
+                    values.push((last_id.clone(), tag));
+                }
+            }
         }
     }
 

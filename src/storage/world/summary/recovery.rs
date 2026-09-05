@@ -104,7 +104,7 @@ impl LevelDirectory {
                     icon_file: self.icon_file(),
                 });
             }
-            if let Ok((_, root)) = read_gzip_named_tag_file(&path) {
+            if let Ok(root) = read_lightweight_data(&path) {
                 // getCompoundOrEmpty("Data") does not accept legacy flat roots.
                 if let Tag::Compound(fields) = &root {
                     if compound_tag(fields, "Data").is_some() {
@@ -125,6 +125,20 @@ impl LevelDirectory {
             last_played,
         })
     }
+}
+
+fn read_lightweight_data(path: &Path) -> std::io::Result<Tag> {
+    use crate::storage::nbt::tag_access::{NbtFieldSelectorSpec, SkipFieldsVisitor};
+    use crate::storage::nbt::tag_metadata::tag_type;
+    let mut visitor = SkipFieldsVisitor::new(&[
+        NbtFieldSelectorSpec::child("Data", tag_type(10), "Player"),
+        NbtFieldSelectorSpec::child("Data", tag_type(10), "WorldGenSettings"),
+    ]);
+    crate::storage::nbt::nbt_io::parse_compressed_path(path, &mut visitor)?;
+    visitor
+        .get_result()
+        .cloned()
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "Missing summary root"))
 }
 
 fn modification_time(path: &Path) -> Option<i64> {

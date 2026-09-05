@@ -80,28 +80,10 @@ pub fn write_root_compound<W: Write>(tag: &Tag, writer: &mut W) -> io::Result<()
 }
 
 pub fn parse<R: Read, V: NbtStreamTagVisitor>(reader: &mut R, visitor: &mut V) -> io::Result<()> {
-    let id = read_u8(reader)?;
-    if id == 0 {
-        if visitor.visit_root_entry(tag_type(0)) == StreamValueResult::Continue {
-            visitor.visit_end();
-        }
-        return Ok(());
-    }
-
-    let root_type = tag_type(i32::from(id));
-    match visitor.visit_root_entry(root_type) {
-        StreamValueResult::Halt => Ok(()),
-        StreamValueResult::Break => {
-            let _ = read_string(reader)?;
-            Tag::read_payload_limited(id, reader, DEFAULT_MAX_NBT_DEPTH).map(|_| ())
-        }
-        StreamValueResult::Continue => {
-            let _ = read_string(reader)?;
-            let tag = Tag::read_payload_limited(id, reader, DEFAULT_MAX_NBT_DEPTH)?;
-            visit_tag_payload(&tag, visitor).map(|_| ())
-        }
-    }
+    streaming::parse(reader, visitor)
 }
+
+mod streaming;
 
 pub fn read_any_tag<R: Read>(reader: &mut R) -> io::Result<Tag> {
     let id = read_u8(reader)?;
@@ -281,8 +263,7 @@ mod tests {
         StreamValueResult,
     };
 
-    const NBT_IO_JAVA: &str =
-        vibecraft_java_source!("/net/minecraft/nbt/NbtIo.java");
+    const NBT_IO_JAVA: &str = vibecraft_java_source!("/net/minecraft/nbt/NbtIo.java");
 
     #[test]
     fn nbt_io_matches_java_unnamed_any_compressed_and_parse_contracts() {
