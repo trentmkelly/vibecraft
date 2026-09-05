@@ -90,10 +90,13 @@ fn level_storage_source_enumerates_and_validates_world_folders() {
 
     let world = WorldLayout::new(path.join("world_one"));
     world
-        .save_level_dat(&crate::storage::nbt::Tag::Compound(vec![(
-            "LevelName".to_string(),
-            crate::storage::nbt::Tag::String("World One".to_string()),
-        )]))
+        .save_level_dat(&crate::storage::nbt::Tag::Compound(vec![
+            (
+                "LevelName".to_string(),
+                crate::storage::nbt::Tag::String("World One".to_string()),
+            ),
+            ("version".to_string(), crate::storage::nbt::Tag::Int(19133)),
+        ]))
         .unwrap();
     fs::create_dir_all(path.join("not_a_world")).unwrap();
 
@@ -1066,7 +1069,8 @@ fn parses_legacy_level_version_defaults_without_version_compound() {
 
     let version = super::LevelVersion::parse_level_dat(&tag).unwrap();
     assert_eq!(version.level_data_version, 19132);
-    assert_eq!(version.minecraft_version_name, "26.1.2");
+    assert_eq!(version.minecraft_version_name, "");
+    assert_eq!(version.minecraft_version.id, 0);
     assert_eq!(version.minecraft_version.series, "main");
     assert!(!version.snapshot);
 }

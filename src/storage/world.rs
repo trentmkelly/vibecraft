@@ -75,7 +75,7 @@ pub type DataPackSelection = crate::resources::DataPackConfig;
 impl PrimaryLevelData {
     pub fn from_level_dat(tag: &Tag) -> Option<Self> {
         let data = level_dat_data_compound(tag)?;
-        let version = compound_tag(data, "Version")?;
+        let version = LevelVersion::parse_level_dat(tag)?;
         let feature_registry = crate::registry::FeatureFlagRegistry::main_26_1_2().ok()?;
 
         let field = |key: &str| {
@@ -83,42 +83,42 @@ impl PrimaryLevelData {
                 .find(|(name, _)| name == key)
                 .map(|(_, value)| value)
         };
-        let game_type = field("GameType")
-            .and_then(difficulty_settings::nbt_integer)
-            .and_then(LevelGameType::from_id)
-            .unwrap_or(LevelGameType::Survival);
+        let settings = level_settings::parse(data);
         Some(Self {
-            data_version: compound_i32(data, "DataVersion")?,
-            level_data_version: compound_i32(data, "version").unwrap_or(19133),
+            // Preserve the unversioned sentinel for diagnostics; storage upgrade
+            // validation remains responsible for accepting a world for use.
+            data_version: version.data_version.unwrap_or(-1),
+            level_data_version: version.level_data_version,
             version: LevelVersionInfo {
-                id: compound_i32(version, "Id")?,
-                name: compound_string(version, "Name")?.to_string(),
-                series: compound_string(version, "Series")
-                    .unwrap_or(CURRENT_VERSION_SERIES)
-                    .to_string(),
-                snapshot: compound_bool(version, "Snapshot").unwrap_or(false),
+                id: version.minecraft_version.id,
+                name: version.minecraft_version_name,
+                series: version.minecraft_version.series,
+                snapshot: version.snapshot,
             },
-            level_name: compound_string(data, "LevelName").unwrap_or("").to_string(),
+            level_name: settings.level_name,
             // PrimaryLevelData.parse defaults on a missing or invalid spawn codec.
             spawn: compound_clone(data, "spawn")
                 .and_then(|tag| LevelRespawnData::from_nbt(&tag).ok())
                 .unwrap_or_default(),
-            game_type,
-            difficulty_settings: field("difficulty_settings")
-                .and_then(|tag| DifficultySettings::from_nbt(tag).ok())
-                .unwrap_or_default(),
+            game_type: settings.game_type,
+            difficulty_settings: settings.difficulty,
             day_time: compound_i64(data, "DayTime").unwrap_or_default(),
-            time: compound_i64(data, "Time").unwrap_or_default(),
+            time: field("Time")
+                .and_then(Tag::numeric_value)
+                .map(|number| number.boxed_long_value())
+                .unwrap_or_default(),
             generator_name: compound_string(data, "generatorName")
                 .unwrap_or("default")
                 .to_string(),
             generator_settings: compound_clone(data, "generatorSettings")
                 .unwrap_or_else(empty_compound_tag),
-            allow_commands: field("allowCommands")
+            allow_commands: settings.allow_commands,
+            initialized: field("initialized")
                 .and_then(difficulty_settings::nbt_boolean)
-                .unwrap_or(game_type == LevelGameType::Creative),
-            initialized: compound_bool(data, "initialized").unwrap_or(true),
-            was_modded: compound_bool(data, "WasModded").unwrap_or(false),
+                .unwrap_or(true),
+            was_modded: field("WasModded")
+                .and_then(difficulty_settings::nbt_boolean)
+                .unwrap_or(false),
             data_configuration: crate::resources::WorldDataConfiguration::from_nbt_fields(
                 data,
                 &feature_registry,
@@ -617,22 +617,31 @@ impl LevelSummary {
                 "level.dat missing version data",
             )
         })?;
-        let level_name = compound_string(data, "LevelName")
-            .map(str::to_string)
-            .unwrap_or_else(|| directory.directory_name());
-        let game_type = compound_i32(data, "GameType")
-            .and_then(LevelGameType::from_id)
-            .unwrap_or(LevelGameType::Survival);
+        if !matches!(version.level_data_version, 19132 | 19133) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!(
+                    "Unknown data version: {:x}",
+                    version.level_data_version as u32
+                ),
+            ));
+        }
+        let settings = level_settings::parse(data);
+        let level_name = if settings.level_name.is_empty() {
+            directory.directory_name()
+        } else {
+            settings.level_name
+        };
+        let requires_manual_conversion = version.level_data_version != 19133;
 
         Ok(Self {
             directory_name: directory.directory_name(),
             level_name,
             version,
-            game_type,
-            hardcore: compound_bool(data, "hardcore").unwrap_or(false),
-            cheats: compound_bool(data, "allowCommands").unwrap_or(false),
-            requires_manual_conversion: compound_bool(data, "requiresManualConversion")
-                .unwrap_or(false),
+            game_type: settings.game_type,
+            hardcore: settings.difficulty.hardcore,
+            cheats: settings.allow_commands,
+            requires_manual_conversion,
             icon_file: directory.icon_file(),
             locked,
         })
@@ -1025,34 +1034,8 @@ impl PlayerDataStorage {
     }
 }
 
-impl LevelVersion {
-    pub fn parse_level_dat(tag: &Tag) -> Option<Self> {
-        let data = level_dat_data_compound(tag)?;
-        let data_version = compound_i32(data, "DataVersion");
-        let version = compound_tag(data, "Version");
-        Some(Self {
-            level_data_version: compound_i32(data, "version").unwrap_or(0),
-            data_version,
-            last_played: compound_i64(data, "LastPlayed").unwrap_or(0),
-            minecraft_version_name: version
-                .and_then(|version| compound_string(version, "Name"))
-                .unwrap_or(CURRENT_VERSION_NAME)
-                .to_string(),
-            minecraft_version: MinecraftDataVersion {
-                id: version
-                    .and_then(|version| compound_i32(version, "Id"))
-                    .unwrap_or(crate::storage::datafix::TARGET_DATA_VERSION),
-                series: version
-                    .and_then(|version| compound_string(version, "Series"))
-                    .unwrap_or(CURRENT_VERSION_SERIES)
-                    .to_string(),
-            },
-            snapshot: version
-                .and_then(|version| compound_bool(version, "Snapshot"))
-                .unwrap_or(CURRENT_VERSION_SNAPSHOT),
-        })
-    }
-}
+mod level_settings;
+mod level_version;
 
 mod session_lock;
 pub use session_lock::SessionLock;
