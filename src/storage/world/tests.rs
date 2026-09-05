@@ -497,6 +497,48 @@ fn player_data_uses_dat_old_and_corrupt_backup_like_vanilla_storage() {
     let _ = fs::remove_dir_all(&path);
 }
 
+/// PlayerDataStorage.load backs up any unreadable primary, including valid
+/// gzip/NBT whose root is not a CompoundTag, before trying the old save.
+#[test]
+fn player_data_recovers_non_compound_primary_and_preserves_corrupt_bytes() {
+    use crate::storage::nbt::{write_gzip_named_tag, Tag};
+
+    let path = std::env::temp_dir().join(format!(
+        "vibecraft-player-root-corrupt-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&path);
+    let layout = WorldLayout::new(&path);
+    let uuid = "00000000-0000-0000-0000-000000000003";
+    let saved = Tag::Compound(vec![("Score".to_owned(), Tag::Int(42))]);
+    layout.save_player_data(uuid, &saved).unwrap();
+    layout.save_player_data(uuid, &saved).unwrap();
+    let expected = super::tag_with_data_version(&saved);
+    let mut corrupt = Vec::new();
+    write_gzip_named_tag(&mut corrupt, "", &Tag::Int(42)).unwrap();
+    fs::write(layout.player_data_file(uuid), &corrupt).unwrap();
+
+    assert_eq!(layout.load_player_data(uuid).unwrap(), expected);
+    let backups: Vec<_> = fs::read_dir(layout.playerdata_dir())
+        .unwrap()
+        .map(Result::unwrap)
+        .filter(|entry| entry.file_name().to_string_lossy().starts_with(
+            &format!("{uuid}_corrupted_")
+        ))
+        .collect();
+    assert_eq!(backups.len(), 1);
+    assert_eq!(fs::read(backups[0].path()).unwrap(), corrupt);
+    assert_eq!(fs::read(layout.player_data_file(uuid)).unwrap(), corrupt);
+
+    // Missing primary files also fall back, without creating a corrupt copy.
+    fs::remove_file(layout.player_data_file(uuid)).unwrap();
+    assert_eq!(layout.load_player_data(uuid).unwrap(), expected);
+    // Neither candidate being readable must remain an error.
+    fs::write(layout.player_data_old_file(uuid), &corrupt).unwrap();
+    assert!(layout.load_player_data(uuid).is_err());
+    fs::remove_dir_all(path).unwrap();
+}
+
 #[test]
 fn player_data_storage_wraps_layout_save_load_backup_paths() {
     let mut path = std::env::temp_dir();

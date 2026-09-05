@@ -311,7 +311,17 @@ pub(super) fn read_named_tag_file(path: &Path) -> std::io::Result<(String, Tag)>
 
 pub(super) fn read_gzip_named_tag_file(path: &Path) -> std::io::Result<(String, Tag)> {
     let bytes = fs::read(path)?;
-    read_gzip_named_tag(bytes.as_slice())
+    let (name, tag) = read_gzip_named_tag(bytes.as_slice())?;
+    // NbtIo.readCompressed delegates to NbtIo.read, which rejects non-compound
+    // roots. Do this before data-version validation so PlayerDataStorage can
+    // preserve the corrupt file and try .dat_old, just as Java does.
+    if !matches!(tag, Tag::Compound(_)) {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "Root tag must be a named compound tag",
+        ));
+    }
+    Ok((name, tag))
 }
 
 /// Read `level.dat`, auto-detecting the format. Vanilla writes gzip-compressed
