@@ -168,9 +168,10 @@ fn level_storage_access_locks_saves_renames_backs_up_and_deletes() {
 
     fs::write(access.layout().root().join("kept.txt"), b"backup").unwrap();
     let backup = access.make_world_backup().unwrap();
-    assert!(backup.join("level.dat").is_file());
-    assert!(backup.join("kept.txt").is_file());
-    assert!(!backup.join("session.lock").exists());
+    let mut archive = zip::ZipArchive::new(fs::File::open(backup).unwrap()).unwrap();
+    assert!(archive.by_name("world_two/level.dat").is_ok());
+    assert!(archive.by_name("world_two/kept.txt").is_ok());
+    assert!(archive.by_name("world_two/session.lock").is_err());
 
     access.delete_level().unwrap();
     assert!(!path.join("world_two").exists());

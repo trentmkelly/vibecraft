@@ -249,41 +249,6 @@ pub(super) fn put_compound_string(values: &mut Vec<(String, Tag)>, key: &str, va
     }
 }
 
-pub(super) fn sanitize_backup_name(value: &str) -> String {
-    value
-        .chars()
-        .map(|ch| match ch {
-            'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-' | '.' => ch,
-            _ => '_',
-        })
-        .collect()
-}
-
-pub(super) fn copy_dir_recursive(
-    source: &Path,
-    target: &Path,
-    skip_file_name: Option<&str>,
-) -> std::io::Result<()> {
-    fs::create_dir_all(target)?;
-    for entry in fs::read_dir(source)? {
-        let entry = entry?;
-        let source_path = entry.path();
-        if skip_file_name.is_some_and(|skip| {
-            source_path.file_name().and_then(|name| name.to_str()) == Some(skip)
-        }) {
-            continue;
-        }
-        let target_path = target.join(entry.file_name());
-        let file_type = entry.file_type()?;
-        if file_type.is_dir() {
-            copy_dir_recursive(&source_path, &target_path, skip_file_name)?;
-        } else if file_type.is_file() {
-            fs::copy(source_path, target_path)?;
-        }
-    }
-    Ok(())
-}
-
 pub(super) fn remove_dir_recursive_except(path: &Path, except: &Path) -> std::io::Result<()> {
     if !path.exists() {
         return Ok(());
