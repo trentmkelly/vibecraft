@@ -90,13 +90,16 @@ fn level_storage_source_enumerates_and_validates_world_folders() {
 
     let world = WorldLayout::new(path.join("world_one"));
     world
-        .save_level_dat(&crate::storage::nbt::Tag::Compound(vec![
-            (
-                "LevelName".to_string(),
-                crate::storage::nbt::Tag::String("World One".to_string()),
-            ),
-            ("version".to_string(), crate::storage::nbt::Tag::Int(19133)),
-        ]))
+        .save_level_dat(&crate::storage::nbt::Tag::Compound(vec![(
+            "Data".to_owned(),
+            crate::storage::nbt::Tag::Compound(vec![
+                (
+                    "LevelName".to_string(),
+                    crate::storage::nbt::Tag::String("World One".to_string()),
+                ),
+                ("version".to_string(), crate::storage::nbt::Tag::Int(19133)),
+            ]),
+        )]))
         .unwrap();
     fs::create_dir_all(path.join("not_a_world")).unwrap();
 
@@ -105,7 +108,7 @@ fn level_storage_source_enumerates_and_validates_world_folders() {
     assert_eq!(candidates.levels()[0].directory_name(), "world_one");
     let summaries = candidates.summaries();
     assert_eq!(summaries.len(), 1);
-    let summary = summaries[0].as_ref().unwrap();
+    let summary = summaries[0].as_ref().unwrap().normal().unwrap();
     assert_eq!(summary.directory_name, "world_one");
     assert_eq!(summary.level_name, "World One");
     assert_eq!(summary.game_type, super::LevelGameType::Survival);

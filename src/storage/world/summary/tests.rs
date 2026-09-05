@@ -101,7 +101,7 @@ fn action_policies_keep_upload_and_conversion_distinct_from_compatibility() {
 }
 
 #[test]
-fn summaries_sort_by_recent_time_then_java_utf16_world_id_and_keep_errors_visible() {
+fn summaries_sort_by_recent_time_then_java_utf16_world_id() {
     let path = std::env::temp_dir().join(format!("vibecraft-summary-order-{}", std::process::id()));
     let _ = fs::remove_dir_all(&path);
     let source = LevelStorageSource::create_default(&path).unwrap();
@@ -120,10 +120,13 @@ fn summaries_sort_by_recent_time_then_java_utf16_world_id_and_keep_errors_visibl
     let names: Vec<_> = summaries
         .iter()
         .filter_map(|value| value.as_ref().ok())
-        .map(|value| value.directory_name.as_str())
+        .map(|value| value.directory_name())
         .collect();
-    assert_eq!(names, ["recent", "\u{10000}", "\u{e000}", "old"]);
-    assert!(summaries.last().unwrap().is_err());
+    assert_eq!(names, ["recent", "broken", "\u{10000}", "\u{e000}", "old"]);
+    assert!(matches!(
+        summaries[1].as_ref().unwrap(),
+        WorldSummary::Corrupted { .. }
+    ));
     fs::remove_dir_all(path).unwrap();
 }
 

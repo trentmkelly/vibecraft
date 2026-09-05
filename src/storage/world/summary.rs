@@ -1,5 +1,18 @@
 //! World-summary compatibility, backup policy, and ordering from Java LevelSummary.
 use super::*;
+mod recovery;
+pub use recovery::WorldSummary;
+
+fn compare_entries(
+    left_time: i64,
+    left_id: &str,
+    right_time: i64,
+    right_id: &str,
+) -> std::cmp::Ordering {
+    right_time
+        .cmp(&left_time)
+        .then_with(|| left_id.encode_utf16().cmp(right_id.encode_utf16()))
+}
 
 /// FileFixerUpper maps pre-4772 versions to zero; DataFixers registers its
 /// latest file-fixer schema at 4773. This reports the need, not migration support.
@@ -34,17 +47,12 @@ impl BackupStatus {
 
 impl LevelSummary {
     pub fn compare(&self, other: &Self) -> std::cmp::Ordering {
-        other
-            .version
-            .last_played
-            .cmp(&self.version.last_played)
-            .then_with(|| {
-                // String.compareTo uses UTF-16 code units, which differs from UTF-8
-                // lexical order for supplementary characters versus high BMP values.
-                self.directory_name
-                    .encode_utf16()
-                    .cmp(other.directory_name.encode_utf16())
-            })
+        compare_entries(
+            self.version.last_played,
+            &self.directory_name,
+            other.version.last_played,
+            &other.directory_name,
+        )
     }
 
     pub fn backup_status(&self) -> BackupStatus {

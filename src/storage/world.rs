@@ -194,12 +194,6 @@ impl LevelDirectory {
     pub fn lock_file(&self) -> PathBuf {
         self.layout().session_lock()
     }
-
-    pub fn load_summary(&self) -> std::io::Result<LevelSummary> {
-        let layout = self.layout();
-        let tag = layout.load_level_dat_with_backup()?;
-        LevelSummary::from_level_dat(self, &tag, layout.is_session_locked()?)
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -220,7 +214,7 @@ impl LevelCandidates {
         &self.levels
     }
 
-    pub fn summaries(&self) -> Vec<std::io::Result<LevelSummary>> {
+    pub fn summaries(&self) -> Vec<std::io::Result<summary::WorldSummary>> {
         let mut summaries: Vec<_> = self
             .levels
             .iter()
@@ -333,7 +327,9 @@ impl LevelStorageSource {
         Ok(LevelCandidates::new(levels))
     }
 
-    pub fn load_level_summaries(&self) -> std::io::Result<Vec<std::io::Result<LevelSummary>>> {
+    pub fn load_level_summaries(
+        &self,
+    ) -> std::io::Result<Vec<std::io::Result<summary::WorldSummary>>> {
         Ok(self.find_level_candidates()?.summaries())
     }
 
