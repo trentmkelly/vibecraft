@@ -207,24 +207,6 @@ pub(super) fn validate_level_id(value: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-pub(super) fn reject_symlinks_recursive(path: &Path) -> std::io::Result<()> {
-    if !path.exists() {
-        return Ok(());
-    }
-    if fs::symlink_metadata(path)?.file_type().is_symlink() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            "symlinks are not allowed",
-        ));
-    }
-    if path.is_dir() {
-        for entry in fs::read_dir(path)? {
-            reject_symlinks_recursive(&entry?.path())?;
-        }
-    }
-    Ok(())
-}
-
 pub(super) fn put_compound_string(values: &mut Vec<(String, Tag)>, key: &str, value: &str) {
     if let Some((_, tag)) = values.iter_mut().find(|(name, _)| name == key) {
         *tag = Tag::String(value.to_string());

@@ -7,4 +7,5 @@ pub mod region;
 pub mod saved_data;
 #[cfg(test)]
 pub mod tag_value;
+pub mod validation;
 pub mod world;

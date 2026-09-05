@@ -174,7 +174,8 @@
 - [ ] Implement POI storage.
 - [ ] Implement entity region/storage behavior.
 - [x] Implement durable write, temp-file, backup, and corruption handling semantics. — `durable_write_with_backup` writes to `.tmp`, renames old to backup, renames tmp to target with retry/rollback matching Java `Util.safeReplaceFile`; `corruption_backup_stamp` generates `yyyy-MM-dd_HH-mm-ss` timestamps matching Java `FileNameDateFormatter`; load paths fall back to `.dat_old` backups.
-- [ ] Implement symlink validation and path allow-list behavior. — Reopened after summary audit: current validation rejects all symlinks; Java allow-list parsing and permitted-target handling remain unimplemented.
+- [ ] Implement symlink validation and path allow-list behavior. — DirectoryValidator now accepts a target matcher, but PathAllowList prefix/glob/regex parsing, configuration loading, and shared policy wiring remain unfinished. The default matcher denies targets; world access follows the top-level link as Java does.
+- [x] Implement DirectoryValidator raw-target validation, top-level-link behavior, no-follow traversal, ForbiddenSymlinkInfo, and ContentValidationException diagnostics; wire validation into world access before lock acquisition. — Six regression/source-contract tests cover missing/file roots, raw relative targets, dangling and allowed links, top-link traversal, structured error messages, and access/lock ordering. All 87 validation/storage tests, normal build, and all-target Clippy pass with Java sources enabled; artifacts cleaned.
 
 ## Migrated From Main Checklist: Source-Derived Granularity Appendix - Storage, NBT, And Datafix Coverage
 

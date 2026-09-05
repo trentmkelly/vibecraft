@@ -338,7 +338,8 @@ impl LevelStorageSource {
         level_id: &str,
     ) -> std::io::Result<LevelStorageAccess> {
         let path = self.level_path(level_id)?;
-        reject_symlinks_recursive(&path)?;
+        crate::storage::validation::DirectoryValidator::deny_all()
+            .require_valid_directory(&path, true)?;
         self.create_access(level_id)
     }
 
