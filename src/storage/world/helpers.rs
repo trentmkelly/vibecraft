@@ -233,26 +233,6 @@ pub(super) fn put_compound_string(values: &mut Vec<(String, Tag)>, key: &str, va
     }
 }
 
-pub(super) fn remove_dir_recursive_except(path: &Path, except: &Path) -> std::io::Result<()> {
-    if !path.exists() {
-        return Ok(());
-    }
-    for entry in fs::read_dir(path)? {
-        let entry = entry?;
-        let entry_path = entry.path();
-        if entry_path == except {
-            continue;
-        }
-        if entry_path.is_dir() {
-            remove_dir_recursive_except(&entry_path, except)?;
-            let _ = fs::remove_dir(&entry_path);
-        } else {
-            fs::remove_file(entry_path)?;
-        }
-    }
-    Ok(())
-}
-
 pub(super) fn read_named_tag_file(path: &Path) -> std::io::Result<(String, Tag)> {
     let bytes = fs::read(path)?;
     read_named_tag(&mut bytes.as_slice())

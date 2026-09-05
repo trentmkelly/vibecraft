@@ -13,9 +13,7 @@ impl LevelStorageAccess {
     }
 
     fn rename_metadata(&self, new_name: &str, drop_player: bool) -> std::io::Result<()> {
-        if !self.lock.is_valid() {
-            return Err(std::io::Error::other("Lock is no longer valid"));
-        }
+        self.check_lock()?;
         // Unlike normal world loading, a failed primary read must not promote
         // level.dat_old and replace the damaged primary as a side effect of rename.
         let (_, mut root) = read_gzip_named_tag_file(&self.level_directory.data_file())?;

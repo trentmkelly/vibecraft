@@ -132,7 +132,7 @@ fn level_storage_access_locks_saves_renames_backs_up_and_deletes() {
     let _ = fs::remove_dir_all(&path);
 
     let source = LevelStorageSource::new(&path, path.join("backups")).unwrap();
-    let access = source.create_access("world_two").unwrap();
+    let mut access = source.create_access("world_two").unwrap();
     assert_eq!(access.level_id(), "world_two");
     assert_eq!(
         access.get_dimension_path("minecraft:the_nether").unwrap(),

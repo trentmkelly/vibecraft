@@ -392,6 +392,7 @@ impl LevelStorageAccess {
 
     /// Write a Java-compatible world ZIP, returning its path for operator use.
     pub fn make_world_backup(&self) -> std::io::Result<PathBuf> {
+        self.check_lock()?;
         backup::write_world_backup(
             self.level_directory.path(),
             &self.backup_dir,
@@ -400,20 +401,12 @@ impl LevelStorageAccess {
         )
     }
 
-    pub fn delete_level(self) -> std::io::Result<()> {
-        let Self {
-            level_directory,
-            lock,
-            ..
-        } = self;
-        let lock_path = level_directory.lock_file();
-        drop(lock);
-        if level_directory.path().exists() {
-            remove_dir_recursive_except(level_directory.path(), &lock_path)?;
-            let _ = fs::remove_file(lock_path);
-            let _ = fs::remove_dir(level_directory.path());
+    pub(super) fn check_lock(&self) -> std::io::Result<()> {
+        if self.lock.is_valid() {
+            Ok(())
+        } else {
+            Err(std::io::Error::other("Lock is no longer valid"))
         }
-        Ok(())
     }
 }
 
@@ -1016,6 +1009,7 @@ impl PlayerDataStorage {
 }
 
 mod backup;
+mod deletion;
 mod level_settings;
 mod level_version;
 mod metadata_edit;
