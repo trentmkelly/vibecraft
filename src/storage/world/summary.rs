@@ -137,6 +137,7 @@ impl LevelSummary {
         let requires_manual_conversion = version.level_data_version != 19133;
         let requires_file_fixing =
             summary::requires_file_fixing(version.data_version.unwrap_or(-1));
+        let experimental = information::experimental_features(data)?;
 
         Ok(Self {
             directory_name: directory.directory_name(),
@@ -147,6 +148,7 @@ impl LevelSummary {
             cheats: settings.allow_commands,
             requires_manual_conversion,
             requires_file_fixing,
+            experimental,
             icon_file: directory.icon_file(),
             locked,
         })
@@ -155,3 +157,5 @@ impl LevelSummary {
 
 #[cfg(test)]
 mod tests;
+
+mod information;

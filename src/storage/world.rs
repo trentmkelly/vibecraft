@@ -247,6 +247,7 @@ pub struct LevelSummary {
     pub cheats: bool,
     pub requires_manual_conversion: bool,
     pub requires_file_fixing: bool,
+    pub experimental: bool,
     pub icon_file: PathBuf,
     pub locked: bool,
 }
@@ -971,10 +972,10 @@ impl PlayerDataStorage {
 
 mod backup;
 mod deletion;
-pub mod summary;
 mod level_settings;
 mod level_version;
 mod metadata_edit;
+pub mod summary;
 
 mod session_lock;
 pub use session_lock::SessionLock;
