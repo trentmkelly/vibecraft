@@ -225,22 +225,6 @@ pub(super) fn reject_symlinks_recursive(path: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-pub(super) fn put_level_name(tag: &mut Tag, new_name: &str) {
-    let Tag::Compound(values) = tag else {
-        return;
-    };
-    if let Some(index) = values
-        .iter()
-        .position(|(name, value)| name == "Data" && matches!(value, Tag::Compound(_)))
-    {
-        if let Tag::Compound(data) = &mut values[index].1 {
-            put_compound_string(data, "LevelName", new_name);
-        }
-    } else {
-        put_compound_string(values, "LevelName", new_name);
-    }
-}
-
 pub(super) fn put_compound_string(values: &mut Vec<(String, Tag)>, key: &str, value: &str) {
     if let Some((_, tag)) = values.iter_mut().find(|(name, _)| name == key) {
         *tag = Tag::String(value.to_string());

@@ -139,25 +139,26 @@ fn level_storage_access_locks_saves_renames_backs_up_and_deletes() {
         path.join("world_two/dimensions/minecraft/the_nether")
     );
 
-    let tag = crate::storage::nbt::Tag::Compound(vec![
-        (
-            "DataVersion".to_string(),
-            crate::storage::nbt::Tag::Int(crate::storage::datafix::TARGET_DATA_VERSION),
-        ),
-        (
-            "LevelName".to_string(),
-            crate::storage::nbt::Tag::String("Old Name".to_string()),
-        ),
-    ]);
+    let tag = crate::storage::nbt::Tag::Compound(vec![(
+        "Data".to_owned(),
+        crate::storage::nbt::Tag::Compound(vec![
+            (
+                "DataVersion".to_owned(),
+                crate::storage::nbt::Tag::Int(crate::storage::datafix::TARGET_DATA_VERSION),
+            ),
+            (
+                "LevelName".to_owned(),
+                crate::storage::nbt::Tag::String("Old Name".to_owned()),
+            ),
+        ]),
+    )]);
     access.save_level_data(&tag).unwrap();
     assert!(access.has_world_data());
     assert_eq!(access.read_level_data().unwrap(), tag);
 
     access.rename_level("  New Name  ").unwrap();
     let renamed = access.read_level_data().unwrap();
-    let crate::storage::nbt::Tag::Compound(values) = renamed else {
-        panic!("expected compound");
-    };
+    let values = super::helpers::level_dat_data_compound(&renamed).unwrap();
     assert_eq!(
         values.iter().find(|(name, _)| name == "LevelName"),
         Some(&(

@@ -390,12 +390,6 @@ impl LevelStorageAccess {
         self.level_directory.data_file().is_file() || self.level_directory.old_data_file().is_file()
     }
 
-    pub fn rename_level(&self, new_name: &str) -> std::io::Result<()> {
-        let mut tag = self.read_level_data()?;
-        put_level_name(&mut tag, new_name.trim());
-        self.save_level_data(&tag)
-    }
-
     /// Write a Java-compatible world ZIP, returning its path for operator use.
     pub fn make_world_backup(&self) -> std::io::Result<PathBuf> {
         backup::write_world_backup(
@@ -1024,6 +1018,7 @@ impl PlayerDataStorage {
 mod backup;
 mod level_settings;
 mod level_version;
+mod metadata_edit;
 
 mod session_lock;
 pub use session_lock::SessionLock;
