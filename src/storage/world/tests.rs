@@ -286,10 +286,13 @@ fn session_lock_matches_vanilla_marker_and_enforces_exclusive_lock() {
 #[test]
 fn directory_lock_source_contract_is_preserved() {
     const JAVA: &str = vibecraft_java_source!("/net/minecraft/util/DirectoryLock.java");
-    assert_eq!(JAVA.lines().count(), 90);
     for fragment in [
         "public static final String LOCK_FILE = \"session.lock\"",
+        "FileChannel.open(lockPath, StandardOpenOption.CREATE, StandardOpenOption.WRITE)",
         "lockFile.write(DUMMY.duplicate())",
+        "lockFile.force(true)",
+        "this.lock.release()",
+        "this.lockFile.close()",
         "public boolean isValid()",
         "public static boolean isLocked",
         "already locked (possibly by other Minecraft instance?)",

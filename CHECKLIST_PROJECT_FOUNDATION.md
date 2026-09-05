@@ -32,3 +32,7 @@ Cross-cutting project rules and compatibility commitments moved out of the top-l
 ## Migrated From Main Checklist: Source-Derived Granularity Appendix Note
 
 Use this appendix as an implementation tracking map for the 26.1.2 decompiled tree. The main sections above describe the behavior; this section pins that behavior to concrete source families that should each get design notes, implementation tasks, and parity tests.
+
+## Build Hygiene
+
+- [x] Restore the default 1,200-line source-file gate by splitting oversized modules along subsystem boundaries; verify the build and Clippy without `VIBECRAFT_SKIP_LINE_CHECK`. — Split RPC declarations/builders, DTOs, connections, session locking, crafting models, and subsystem tests into focused modules. Normal `cargo build` and `cargo clippy --all-targets -- -D warnings` pass with the Java source oracle enabled. All 249 affected tests pass across the focused run and corrected DirectoryLock source-check rerun; `cargo clean` completed.

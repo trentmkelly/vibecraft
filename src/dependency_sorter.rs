@@ -2,8 +2,128 @@
 #![allow(dead_code)]
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
-pub trait DependencyEntry<K>{fn visit_required_dependencies(&self, output:&mut dyn FnMut(K));fn visit_optional_dependencies(&self, output:&mut dyn FnMut(K));}
-#[derive(Debug,Default)]pub struct DependencySorter<K,V>{contents:HashMap<K,V>}
-impl<K:Eq+Hash+Clone,V:DependencyEntry<K>> DependencySorter<K,V>{pub fn new()->Self{Self{contents:HashMap::new()}}pub fn add_entry(&mut self,id:K,value:V)->&mut Self{self.contents.insert(id,value);self}pub fn order_by_dependencies(&self,output:&mut dyn FnMut(&K,&V)){let mut dependencies:HashMap<K,HashSet<K>>=HashMap::new();for(id,value)in &self.contents{let mut add=|dependency|add_if_not_cyclic(&mut dependencies,id.clone(),dependency);value.visit_required_dependencies(&mut add);}for(id,value)in &self.contents{let mut add=|dependency|add_if_not_cyclic(&mut dependencies,id.clone(),dependency);value.visit_optional_dependencies(&mut add);}let mut visited=HashSet::new();for id in self.contents.keys(){visit(&dependencies,&self.contents,&mut visited,id,output);}}}
-fn cyclic<K:Eq+Hash+Clone>(edges:&HashMap<K,HashSet<K>>,from:&K,to:&K)->bool{edges.get(to).is_some_and(|next|next.contains(from)||next.iter().any(|node|cyclic(edges,from,node)))}fn add_if_not_cyclic<K:Eq+Hash+Clone>(edges:&mut HashMap<K,HashSet<K>>,from:K,to:K){if !cyclic(edges,&from,&to){edges.entry(from).or_default().insert(to);}}fn visit<'a,K:Eq+Hash+Clone,V>(edges:&HashMap<K,HashSet<K>>,contents:&'a HashMap<K,V>,visited:&mut HashSet<K>,id:&K,output:&mut dyn FnMut(&K,&'a V)){if visited.insert(id.clone()){if let Some(dependencies)=edges.get(id){for dependency in dependencies{visit(edges,contents,visited,dependency,output);}}if let Some(value)=contents.get(id){output(id,value);}}}
-#[cfg(test)]mod tests{use super::*;#[derive(Clone)]struct Entry{required:Vec<&'static str>,optional:Vec<&'static str>}impl DependencyEntry<&'static str>for Entry{fn visit_required_dependencies(&self,o:&mut dyn FnMut(&'static str)){for d in &self.required{o(*d)}}fn visit_optional_dependencies(&self,o:&mut dyn FnMut(&'static str)){for d in &self.optional{o(*d)}}}#[cfg(vibecraft_has_decompiled_sources)]#[test]fn source(){const J:&str=vibecraft_java_source!("/net/minecraft/util/DependencySorter.java");assert_eq!(J.lines().count(),55);for s in ["visitRequiredDependencies","visitOptionalDependencies","addDependencyIfNotCyclic","isCyclic"]{assert!(J.contains(s));}}#[test]fn dependencies_precede_entries_and_cycles_are_dropped(){let mut sorter=DependencySorter::new();sorter.add_entry("a",Entry{required:vec!["b"],optional:vec![]}).add_entry("b",Entry{required:vec!["a"],optional:vec![]});let mut output=Vec::new();sorter.order_by_dependencies(&mut|id,_|output.push(*id));assert_eq!(output.len(),2);assert!(output.iter().position(|id|*id=="b").unwrap_or(2)<output.iter().position(|id|*id=="a").unwrap_or(0));}}
+pub trait DependencyEntry<K> {
+    fn visit_required_dependencies(&self, output: &mut dyn FnMut(K));
+    fn visit_optional_dependencies(&self, output: &mut dyn FnMut(K));
+}
+#[derive(Debug, Default)]
+pub struct DependencySorter<K, V> {
+    contents: HashMap<K, V>,
+}
+impl<K: Eq + Hash + Clone, V: DependencyEntry<K>> DependencySorter<K, V> {
+    pub fn new() -> Self {
+        Self {
+            contents: HashMap::new(),
+        }
+    }
+    pub fn add_entry(&mut self, id: K, value: V) -> &mut Self {
+        self.contents.insert(id, value);
+        self
+    }
+    pub fn order_by_dependencies(&self, output: &mut dyn FnMut(&K, &V)) {
+        let mut dependencies: HashMap<K, HashSet<K>> = HashMap::new();
+        for (id, value) in &self.contents {
+            let mut add = |dependency| add_if_not_cyclic(&mut dependencies, id.clone(), dependency);
+            value.visit_required_dependencies(&mut add);
+        }
+        for (id, value) in &self.contents {
+            let mut add = |dependency| add_if_not_cyclic(&mut dependencies, id.clone(), dependency);
+            value.visit_optional_dependencies(&mut add);
+        }
+        let mut visited = HashSet::new();
+        for id in self.contents.keys() {
+            visit(&dependencies, &self.contents, &mut visited, id, output);
+        }
+    }
+}
+fn cyclic<K: Eq + Hash + Clone>(edges: &HashMap<K, HashSet<K>>, from: &K, to: &K) -> bool {
+    edges.get(to).is_some_and(|next| {
+        next.contains(from) || next.iter().any(|node| cyclic(edges, from, node))
+    })
+}
+fn add_if_not_cyclic<K: Eq + Hash + Clone>(edges: &mut HashMap<K, HashSet<K>>, from: K, to: K) {
+    if !cyclic(edges, &from, &to) {
+        edges.entry(from).or_default().insert(to);
+    }
+}
+fn visit<'a, K: Eq + Hash + Clone, V>(
+    edges: &HashMap<K, HashSet<K>>,
+    contents: &'a HashMap<K, V>,
+    visited: &mut HashSet<K>,
+    id: &K,
+    output: &mut dyn FnMut(&K, &'a V),
+) {
+    if visited.insert(id.clone()) {
+        if let Some(dependencies) = edges.get(id) {
+            for dependency in dependencies {
+                visit(edges, contents, visited, dependency, output);
+            }
+        }
+        if let Some(value) = contents.get(id) {
+            output(id, value);
+        }
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[derive(Clone)]
+    struct Entry {
+        required: Vec<&'static str>,
+        optional: Vec<&'static str>,
+    }
+    impl DependencyEntry<&'static str> for Entry {
+        fn visit_required_dependencies(&self, o: &mut dyn FnMut(&'static str)) {
+            for d in &self.required {
+                o(d)
+            }
+        }
+        fn visit_optional_dependencies(&self, o: &mut dyn FnMut(&'static str)) {
+            for d in &self.optional {
+                o(d)
+            }
+        }
+    }
+    #[cfg(vibecraft_has_decompiled_sources)]
+    #[test]
+    fn source() {
+        const J: &str = vibecraft_java_source!("/net/minecraft/util/DependencySorter.java");
+        assert_eq!(J.lines().count(), 55);
+        for s in [
+            "visitRequiredDependencies",
+            "visitOptionalDependencies",
+            "addDependencyIfNotCyclic",
+            "isCyclic",
+        ] {
+            assert!(J.contains(s));
+        }
+    }
+    #[test]
+    fn required_dependencies_precede_entries_and_optional_cycles_are_dropped() {
+        let mut sorter = DependencySorter::new();
+        sorter
+            .add_entry(
+                "a",
+                Entry {
+                    required: vec!["b"],
+                    optional: vec![],
+                },
+            )
+            .add_entry(
+                "b",
+                Entry {
+                    // Required edges are inserted before optional edges in Java.
+                    // This makes the retained edge independent of HashMap order.
+                    required: vec![],
+                    optional: vec!["a"],
+                },
+            );
+        let mut output = Vec::new();
+        sorter.order_by_dependencies(&mut |id, _| output.push(*id));
+        assert_eq!(output.len(), 2);
+        assert!(
+            output.iter().position(|id| *id == "b").unwrap_or(2)
+                < output.iter().position(|id| *id == "a").unwrap_or(0)
+        );
+    }
+}
