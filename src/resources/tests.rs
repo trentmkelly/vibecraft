@@ -51,7 +51,9 @@ fn collect_decompiled_minecraft_json_paths(root: &Path) -> Vec<String> {
 #[test]
 fn decompiled_minecraft_data_resource_kinds_match_data_folders() {
     let Some(root) = optional_decompiled_minecraft_data_root() else {
-        eprintln!("skipping decompiled data resource parity: optional Java source root unavailable");
+        eprintln!(
+            "skipping decompiled data resource parity: optional Java source root unavailable"
+        );
         return;
     };
     let mut observed_top_levels = root
@@ -80,7 +82,9 @@ fn decompiled_minecraft_data_resource_kinds_match_data_folders() {
 #[test]
 fn decompiled_minecraft_data_kind_counts_match_index() {
     let Some(root) = optional_decompiled_minecraft_data_root() else {
-        eprintln!("skipping decompiled data kind count parity: optional Java source root unavailable");
+        eprintln!(
+            "skipping decompiled data kind count parity: optional Java source root unavailable"
+        );
         return;
     };
     let resource_paths = collect_decompiled_minecraft_json_paths(&root);
@@ -126,14 +130,14 @@ fn safe_mode_selects_only_vanilla_and_does_not_disable_world_packs() {
         DataPack::new("server_pack", PackSource::Server),
     ]);
     let initial = WorldDataConfiguration {
-        data_packs: DataPackConfig {
-            enabled: vec![
+        data_packs: DataPackConfig::new(
+            vec![
                 VANILLA_PACK_ID.to_string(),
                 "world_pack".to_string(),
                 "server_pack".to_string(),
             ],
-            disabled: Vec::new(),
-        },
+            Vec::<String>::new(),
+        ),
         enabled_features: feature_flags::default_flags_26_1_2(),
     };
 
@@ -233,10 +237,10 @@ fn normal_mode_keeps_enabled_packs_and_disables_inactive_available_packs() {
         DataPack::new("disabled_pack", PackSource::World),
     ]);
     let initial = WorldDataConfiguration {
-        data_packs: DataPackConfig {
-            enabled: vec![VANILLA_PACK_ID.to_string(), "world_pack".to_string()],
-            disabled: vec!["disabled_pack".to_string()],
-        },
+        data_packs: DataPackConfig::new(
+            vec![VANILLA_PACK_ID.to_string(), "world_pack".to_string()],
+            vec!["disabled_pack".to_string()],
+        ),
         enabled_features: feature_flags::default_flags_26_1_2(),
     };
 
@@ -320,15 +324,15 @@ fn datapack_config_from_server_properties_matches_java_comma_splitter() {
     // empty tokens are preserved.
     assert_eq!(
         DataPackConfig::from_properties("vanilla,file/a,, file/b ", ""),
-        DataPackConfig {
-            enabled: vec![
+        DataPackConfig::new(
+            vec![
                 "vanilla".to_string(),
                 "file/a".to_string(),
                 String::new(),
                 "file/b".to_string()
             ],
-            disabled: vec![String::new()],
-        }
+            vec![String::new()]
+        )
     );
 }
 
@@ -359,12 +363,9 @@ fn datapack_config_codec_matches_java_record_shape_and_immutable_copy_boundary()
 fn world_data_configuration_codec_defaults_expands_and_round_trips() {
     let registry = FeatureFlagRegistry::main_26_1_2().unwrap();
     let config = WorldDataConfiguration::default_26_1_2();
-    let expanded = config.expand_features(FeatureFlagSet::of(&[
-        feature_flags::REDSTONE_EXPERIMENTS,
-    ]));
-    assert!(expanded
-        .enabled_features
-        .contains(feature_flags::VANILLA));
+    let expanded =
+        config.expand_features(FeatureFlagSet::of(&[feature_flags::REDSTONE_EXPERIMENTS]));
+    assert!(expanded.enabled_features.contains(feature_flags::VANILLA));
     assert!(expanded
         .enabled_features
         .contains(feature_flags::REDSTONE_EXPERIMENTS));
@@ -373,7 +374,7 @@ fn world_data_configuration_codec_defaults_expands_and_round_trips() {
     let encoded = expanded.to_json(&registry).unwrap();
     assert_eq!(
         encoded,
-        r#"{"DataPacks":{"Enabled":["vanilla"],"Disabled":[]},"enabled_features":["minecraft:vanilla","minecraft:redstone_experiments"]}"#
+        r#"{"enabled_features":["minecraft:vanilla","minecraft:redstone_experiments"]}"#
     );
     assert_eq!(
         WorldDataConfiguration::from_json(&encoded, &registry).unwrap(),
@@ -385,11 +386,14 @@ fn world_data_configuration_codec_defaults_expands_and_round_trips() {
             .data_packs,
         DataPackConfig::default_26_1_2()
     );
-    assert!(WorldDataConfiguration::from_json(
-        r#"{"enabled_features":["minecraft:missing"]}"#,
-        &registry
-    )
-    .is_err());
+    assert_eq!(
+        WorldDataConfiguration::from_json(
+            r#"{"enabled_features":["minecraft:missing"]}"#,
+            &registry
+        )
+        .unwrap(),
+        WorldDataConfiguration::default_26_1_2()
+    );
 }
 
 #[cfg(vibecraft_has_decompiled_sources)]
@@ -424,7 +428,10 @@ fn datapack_config_source_matches_java_26_1_2_codec_contract() {
         "public List<String> getEnabled()",
         "public List<String> getDisabled()",
     ] {
-        assert!(JAVA_SOURCE.contains(fragment), "missing Java source fragment: {fragment}");
+        assert!(
+            JAVA_SOURCE.contains(fragment),
+            "missing Java source fragment: {fragment}"
+        );
     }
 }
 
@@ -450,9 +457,15 @@ fn initial_datapack_property_lists_configure_repository_selection() {
         },
     );
 
-    assert_eq!(configured.data_packs.enabled, vec![VANILLA_PACK_ID, "file/world"]);
+    assert_eq!(
+        configured.data_packs.enabled,
+        vec![VANILLA_PACK_ID, "file/world"]
+    );
     assert_eq!(configured.data_packs.disabled, vec!["file/disabled"]);
-    assert_eq!(repository.selected_ids(), vec![VANILLA_PACK_ID, "file/world"]);
+    assert_eq!(
+        repository.selected_ids(),
+        vec![VANILLA_PACK_ID, "file/world"]
+    );
 }
 
 #[test]
@@ -480,10 +493,10 @@ fn pack_priority_enable_disable_and_reload_rollback_match_repository_rules() {
     assert!(!repository.enable_pack_highest_priority("missing"));
 
     let initial = WorldDataConfiguration {
-        data_packs: DataPackConfig {
-            enabled: vec![VANILLA_PACK_ID.to_string(), "high".to_string()],
-            disabled: vec!["low".to_string()],
-        },
+        data_packs: DataPackConfig::new(
+            vec![VANILLA_PACK_ID.to_string(), "high".to_string()],
+            vec!["low".to_string()],
+        ),
         enabled_features: feature_flags::default_flags_26_1_2(),
     };
     let err = reload_pack_repository(
@@ -534,10 +547,10 @@ fn reload_failure_report_is_user_facing_and_names_restored_selection() {
     ]);
     repository.set_selected([VANILLA_PACK_ID, "kept"]);
     let initial = WorldDataConfiguration {
-        data_packs: DataPackConfig {
-            enabled: vec![VANILLA_PACK_ID.to_string(), "broken".to_string()],
-            disabled: vec!["kept".to_string()],
-        },
+        data_packs: DataPackConfig::new(
+            vec![VANILLA_PACK_ID.to_string(), "broken".to_string()],
+            vec!["kept".to_string()],
+        ),
         enabled_features: feature_flags::default_flags_26_1_2(),
     };
 

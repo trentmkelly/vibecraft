@@ -220,7 +220,10 @@ fn derived_level_data_matches_java_delegation_semantics() {
         yaw: 0.0,
         pitch: -20.0,
     });
-    assert_eq!(derived.respawn_data().dimension.to_string(), "minecraft:overworld");
+    assert_eq!(
+        derived.respawn_data().dimension.to_string(),
+        "minecraft:overworld"
+    );
     assert_eq!(derived.respawn_data().y, 64);
 
     derived.set_game_time(1);
@@ -300,7 +303,10 @@ fn directory_lock_source_contract_is_preserved() {
         "already locked (possibly by other Minecraft instance?)",
         "\"☃\".getBytes(StandardCharsets.UTF_8)",
     ] {
-        assert!(JAVA.contains(fragment), "missing DirectoryLock source fragment: {fragment}");
+        assert!(
+            JAVA.contains(fragment),
+            "missing DirectoryLock source fragment: {fragment}"
+        );
     }
 }
 
@@ -524,9 +530,12 @@ fn player_data_recovers_non_compound_primary_and_preserves_corrupt_bytes() {
     let backups: Vec<_> = fs::read_dir(layout.playerdata_dir())
         .unwrap()
         .map(Result::unwrap)
-        .filter(|entry| entry.file_name().to_string_lossy().starts_with(
-            &format!("{uuid}_corrupted_")
-        ))
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with(&format!("{uuid}_corrupted_"))
+        })
         .collect();
     assert_eq!(backups.len(), 1);
     assert_eq!(fs::read(backups[0].path()).unwrap(), corrupt);
@@ -643,7 +652,9 @@ fn saves_vanilla_named_data_files() {
     assert!(layout.saved_data_file("scoreboard").is_file());
     assert!(layout.saved_data_file("chunk_tickets").is_file());
     assert!(layout.command_storage_file("minecraft").is_file());
-    assert!(!layout.saved_data_file("command_storage_minecraft").is_file());
+    assert!(!layout
+        .saved_data_file("command_storage_minecraft")
+        .is_file());
     assert!(layout.map_data_file(0).is_file());
 
     let _ = fs::remove_dir_all(&path);
@@ -839,9 +850,12 @@ fn primary_level_data_round_trips_vanilla_level_dat_fields() {
         allow_commands: true,
         initialized: true,
         was_modded: true,
-        data_packs: super::DataPackSelection {
-            enabled: vec!["vanilla".to_string(), "file/example".to_string()],
-            disabled: vec!["file/disabled".to_string()],
+        data_configuration: crate::resources::WorldDataConfiguration {
+            data_packs: super::DataPackSelection::new(
+                vec!["vanilla".to_string(), "file/example".to_string()],
+                vec!["file/disabled".to_string()],
+            ),
+            enabled_features: crate::registry::feature_flags::default_flags_26_1_2(),
         },
         scheduled_events: crate::storage::nbt::Tag::List(vec![crate::storage::nbt::Tag::Compound(
             vec![(
@@ -924,9 +938,12 @@ fn default_level_dat_round_trip_matches_vanilla_generated_field_shape() {
         allow_commands: false,
         initialized: true,
         was_modded: false,
-        data_packs: super::DataPackSelection {
-            enabled: vec!["vanilla".to_string()],
-            disabled: Vec::new(),
+        data_configuration: crate::resources::WorldDataConfiguration {
+            data_packs: super::DataPackSelection::new(
+                vec!["vanilla".to_string()],
+                Vec::<String>::new(),
+            ),
+            enabled_features: crate::registry::feature_flags::default_flags_26_1_2(),
         },
         scheduled_events: crate::storage::nbt::Tag::List(vec![]),
         server_brands: vec!["vanilla".to_string()],

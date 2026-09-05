@@ -132,14 +132,14 @@ mod tests {
         let failure = reload_pack_repository_with_report(
             &mut repository,
             &WorldDataConfiguration {
-                data_packs: DataPackConfig {
-                    enabled: vec![
+                data_packs: DataPackConfig::new(
+                    vec![
                         VANILLA_PACK_ID.to_string(),
                         "file/kept".to_string(),
                         "file/broken".to_string(),
                     ],
-                    disabled: Vec::new(),
-                },
+                    Vec::<String>::new(),
+                ),
                 enabled_features: crate::registry::feature_flags::default_flags_26_1_2(),
             },
             PackConfigureOptions {

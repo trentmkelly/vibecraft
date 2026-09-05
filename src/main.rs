@@ -29,8 +29,7 @@ use network::query::{spawn_query_server, QueryServerInfo};
 use network::rcon::spawn_rcon_server;
 use network::status::{read_code_of_conducts, run_status_server, ActiveLoginRegistry};
 use resources::{
-    configure_pack_repository, DataPackConfig, DataPackRepository, PackConfigureOptions,
-    WorldDataConfiguration,
+    configure_pack_repository, DataPackRepository, PackConfigureOptions, WorldDataConfiguration,
 };
 use server_properties::ServerProperties;
 use storage::datafix::{run_world_upgrade, WorldUpgradeOptions};
@@ -348,6 +347,38 @@ fn upsert_game_rule_string(game_rules: &mut Tag, name: &str, value: String) {
     }
 }
 
+/// Java Main chooses stored configuration for existing worlds and properties
+/// only for new worlds. PackRepository also needs the corresponding init flag.
+fn load_initial_data_configuration(
+    layout: &WorldLayout,
+    properties: &ServerProperties,
+) -> Result<(WorldDataConfiguration, bool), String> {
+    if layout.level_dat().is_file() || layout.level_dat_old().is_file() {
+        let tag = layout
+            .load_level_dat_with_backup()
+            .map_err(|error| error.to_string())?;
+        let registry = registry::FeatureFlagRegistry::main_26_1_2()?;
+        let data = match &tag {
+            Tag::Compound(root) => root
+                .iter()
+                .find(|(key, _)| key == "Data")
+                .map(|(_, value)| value),
+            _ => None,
+        };
+        let config = data
+            .and_then(|tag| WorldDataConfiguration::from_nbt(tag, &registry).ok())
+            .unwrap_or_else(WorldDataConfiguration::default_26_1_2);
+        return Ok((config, false));
+    }
+    Ok((
+        WorldDataConfiguration {
+            data_packs: properties.initial_data_pack_configuration(),
+            enabled_features: registry::feature_flags::default_flags_26_1_2(),
+        },
+        true,
+    ))
+}
+
 fn configure_initial_data_packs(
     logger: &Logger,
     options: &CliOptions,
@@ -356,18 +387,13 @@ fn configure_initial_data_packs(
 ) -> Result<WorldOptions, String> {
     let datapack_dir = runtime.universe.join(&runtime.world_name).join("datapacks");
     let mut pack_repository = DataPackRepository::server_repository(&datapack_dir)?;
-    let initial_data_config = WorldDataConfiguration {
-        data_packs: DataPackConfig::from_properties(
-            &properties.initial_enabled_packs,
-            &properties.initial_disabled_packs,
-        ),
-        enabled_features: registry::feature_flags::default_flags_26_1_2(),
-    };
+    let layout = WorldLayout::new(runtime.universe.join(&runtime.world_name));
+    let (initial_data_config, init_mode) = load_initial_data_configuration(&layout, properties)?;
     let configured_data = configure_pack_repository(
         &mut pack_repository,
         &initial_data_config,
         PackConfigureOptions {
-            init_mode: false,
+            init_mode,
             safe_mode: options.safe_mode,
         },
     );
@@ -606,9 +632,12 @@ mod tests {
             allow_commands: false,
             initialized: true,
             was_modded: false,
-            data_packs: DataPackSelection {
-                enabled: vec!["vanilla".to_string()],
-                disabled: Vec::new(),
+            data_configuration: crate::resources::WorldDataConfiguration {
+                data_packs: DataPackSelection::new(
+                    vec!["vanilla".to_string()],
+                    Vec::<String>::new(),
+                ),
+                enabled_features: crate::registry::feature_flags::default_flags_26_1_2(),
             },
             scheduled_events: Tag::List(vec![]),
             server_brands: Vec::new(),
@@ -964,5 +993,47 @@ management-server-allowed-origins=https://admin.example\n",
         let result = super::check_world_version_compatibility(&logger, &runtime);
         assert!(result.is_err(), "should refuse corrupted level.dat");
         let _ = fs::remove_dir_all(&dir);
+    }
+    #[test]
+    fn startup_uses_stored_pack_configuration_and_new_world_initialization() {
+        let dir = temp_workdir("stored-data-config");
+        let properties_path = dir.join("server.properties");
+        fs::write(
+            &properties_path,
+            "initial-enabled-packs=vanilla,file/initial\n",
+        )
+        .unwrap();
+        let properties = ServerProperties::load_or_default(&properties_path).unwrap();
+        let layout = WorldLayout::new(dir.join("world"));
+        let (fresh, init) = super::load_initial_data_configuration(&layout, &properties).unwrap();
+        assert!(init);
+        assert_eq!(fresh.data_packs.enabled, ["vanilla", "file/initial"]);
+        let mut level = minimal_level_data(Tag::Compound(vec![]));
+        level.data_configuration = crate::resources::WorldDataConfiguration {
+            data_packs: crate::resources::DataPackConfig::new(
+                ["vanilla", "file/saved"],
+                ["file/initial"],
+            ),
+            enabled_features: crate::registry::FeatureFlagSet::of(&[
+                crate::registry::feature_flags::TRADE_REBALANCE,
+            ]),
+        };
+        layout
+            .save_level_dat(&level.to_level_dat().unwrap())
+            .unwrap();
+        let (stored, init) = super::load_initial_data_configuration(&layout, &properties).unwrap();
+        assert!(!init);
+        assert_eq!(stored, level.data_configuration);
+        // Existing worlds with absent fields use codec defaults, not initial properties.
+        layout
+            .save_level_dat(&Tag::Compound(vec![(
+                "Data".to_owned(),
+                Tag::Compound(vec![]),
+            )]))
+            .unwrap();
+        let (stored, init) = super::load_initial_data_configuration(&layout, &properties).unwrap();
+        assert!(!init);
+        assert_eq!(stored, crate::resources::WorldDataConfiguration::default_26_1_2());
+        fs::remove_dir_all(dir).unwrap();
     }
 }

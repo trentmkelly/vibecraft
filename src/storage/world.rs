@@ -48,7 +48,7 @@ pub struct PrimaryLevelData {
     pub allow_commands: bool,
     pub initialized: bool,
     pub was_modded: bool,
-    pub data_packs: DataPackSelection,
+    pub data_configuration: crate::resources::WorldDataConfiguration,
     pub scheduled_events: Tag,
     pub server_brands: Vec<String>,
     pub custom_boss_events: Tag,
@@ -68,17 +68,13 @@ pub struct LevelVersionInfo {
 /// World metadata and spawn packets share Java’s RespawnData record.
 pub type LevelSpawnData = LevelRespawnData;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DataPackSelection {
-    pub enabled: Vec<String>,
-    pub disabled: Vec<String>,
-}
+pub type DataPackSelection = crate::resources::DataPackConfig;
 
 impl PrimaryLevelData {
     pub fn from_level_dat(tag: &Tag) -> Option<Self> {
         let data = level_dat_data_compound(tag)?;
         let version = compound_tag(data, "Version")?;
-        let data_packs = compound_tag(data, "DataPacks").unwrap_or(&[]);
+        let feature_registry = crate::registry::FeatureFlagRegistry::main_26_1_2().ok()?;
 
         let field = |key: &str| {
             data.iter()
@@ -121,10 +117,10 @@ impl PrimaryLevelData {
                 .unwrap_or(game_type == LevelGameType::Creative),
             initialized: compound_bool(data, "initialized").unwrap_or(true),
             was_modded: compound_bool(data, "WasModded").unwrap_or(false),
-            data_packs: DataPackSelection {
-                enabled: compound_string_list(data_packs, "Enabled"),
-                disabled: compound_string_list(data_packs, "Disabled"),
-            },
+            data_configuration: crate::resources::WorldDataConfiguration::from_nbt_fields(
+                data,
+                &feature_registry,
+            ),
             scheduled_events: compound_clone(data, "ScheduledEvents")
                 .unwrap_or_else(empty_list_tag),
             server_brands: compound_string_list(data, "ServerBrands"),
@@ -186,19 +182,6 @@ impl PrimaryLevelData {
                 "WasModded".to_string(),
                 Tag::Byte(i8::from(self.was_modded)),
             ),
-            (
-                "DataPacks".to_string(),
-                Tag::Compound(vec![
-                    (
-                        "Enabled".to_string(),
-                        string_list_tag(self.data_packs.enabled.iter()),
-                    ),
-                    (
-                        "Disabled".to_string(),
-                        string_list_tag(self.data_packs.disabled.iter()),
-                    ),
-                ]),
-            ),
             ("ScheduledEvents".to_string(), self.scheduled_events.clone()),
             (
                 "ServerBrands".to_string(),
@@ -212,6 +195,10 @@ impl PrimaryLevelData {
             ("scoreboard".to_string(), self.scoreboard.clone()),
             ("GameRules".to_string(), self.game_rules.clone()),
         ];
+        let registry = crate::registry::FeatureFlagRegistry::main_26_1_2()?;
+        if let Tag::Compound(configuration) = self.data_configuration.to_nbt(&registry) {
+            data.extend(configuration);
+        }
         // Java CompoundTag.store calls getOrThrow: invalid values fail the save.
         data.push(("spawn".to_owned(), self.spawn.to_nbt()?));
         Ok(Tag::Compound(vec![(

@@ -4,7 +4,9 @@ use crate::network::codec::Uuid;
 use crate::resources::DataPackConfig;
 use crate::server_network_config_tasks::ServerResourcePackInfoModel;
 use crate::settings::SettingsModel;
-use crate::world::{builtin_world_preset, parse_seed, random_seed, WorldOptions, WorldPreset, BUILTIN_WORLD_PRESETS};
+use crate::world::{
+    builtin_world_preset, parse_seed, random_seed, WorldOptions, WorldPreset, BUILTIN_WORLD_PRESETS,
+};
 use md5::{Digest, Md5};
 use serde_json::Value;
 
@@ -257,7 +259,9 @@ impl ServerProperties {
         };
         let prompt = (!self.resource_pack_prompt.is_empty())
             .then(|| self.resource_pack_prompt.clone())
-            .filter(|prompt| crate::chat_component::component_serialization::decode_json_str(prompt).is_ok());
+            .filter(|prompt| {
+                crate::chat_component::component_serialization::decode_json_str(prompt).is_ok()
+            });
 
         Some(ServerResourcePackInfoModel {
             id,
@@ -383,7 +387,6 @@ fn i32_key(raw: &BTreeMap<String, String>, key: &str, default: i32) -> i32 {
         .unwrap_or(default)
 }
 
-
 fn vanilla_defaults() -> BTreeMap<String, String> {
     let mut defaults = BTreeMap::new();
     for (key, value) in [
@@ -495,7 +498,10 @@ mod tests {
             "WorldDimensions createDimensions",
             "LEGACY_PRESET_NAMES",
         ] {
-            assert!(JAVA_SOURCE.contains(fragment), "missing Java source fragment: {fragment}");
+            assert!(
+                JAVA_SOURCE.contains(fragment),
+                "missing Java source fragment: {fragment}"
+            );
         }
     }
 
@@ -651,10 +657,7 @@ resource-pack-prompt={\"text\":\"Use pack?\"}
             properties.resource_pack_sha1,
             "0123456789abcdef0123456789abcdef01234567"
         );
-        assert_eq!(
-            properties.resource_pack_hash.as_deref(),
-            Some("legacyhash")
-        );
+        assert_eq!(properties.resource_pack_hash.as_deref(), Some("legacyhash"));
         assert!(properties.require_resource_pack);
         assert_eq!(properties.resource_pack_prompt, "{\"text\":\"Use pack?\"}");
     }
@@ -735,7 +738,11 @@ resource-pack-prompt={\"text\":\"Use pack?\"}
         assert!(invalid.server_resource_pack_info().is_none());
         invalid.set("resource-pack-id", "");
         invalid.set("resource-pack-prompt", "not-json");
-        assert!(invalid.server_resource_pack_info().unwrap().prompt.is_none());
+        assert!(invalid
+            .server_resource_pack_info()
+            .unwrap()
+            .prompt
+            .is_none());
 
         invalid.set("resource-pack", "");
         assert!(invalid.server_resource_pack_info().is_none());
@@ -758,16 +765,16 @@ resource-pack-prompt={\"text\":\"Use pack?\"}
 
         assert_eq!(
             properties.initial_data_pack_configuration(),
-            DataPackConfig {
-                enabled: vec!["vanilla", "file/world", "", ""]
+            DataPackConfig::new(
+                vec!["vanilla", "file/world", "", ""]
                     .into_iter()
                     .map(String::from)
-                    .collect(),
-                disabled: vec!["file/disabled", ""]
+                    .collect::<Vec<String>>(),
+                vec!["file/disabled", ""]
                     .into_iter()
                     .map(String::from)
-                    .collect(),
-            }
+                    .collect::<Vec<String>>()
+            )
         );
         assert_eq!(properties.world_options.seed, 8_675_309);
         assert!(!properties.world_options.generate_structures);
