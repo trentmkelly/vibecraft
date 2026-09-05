@@ -40,13 +40,12 @@ pub struct PrimaryLevelData {
     pub level_name: String,
     pub spawn: LevelSpawnData,
     pub game_type: LevelGameType,
-    pub difficulty: LevelDifficulty,
+    pub difficulty_settings: DifficultySettings,
     pub day_time: i64,
     pub time: i64,
     pub generator_name: String,
     pub generator_settings: Tag,
     pub allow_commands: bool,
-    pub hardcore: bool,
     pub initialized: bool,
     pub was_modded: bool,
     pub data_packs: DataPackSelection,
@@ -81,6 +80,15 @@ impl PrimaryLevelData {
         let version = compound_tag(data, "Version")?;
         let data_packs = compound_tag(data, "DataPacks").unwrap_or(&[]);
 
+        let field = |key: &str| {
+            data.iter()
+                .find(|(name, _)| name == key)
+                .map(|(_, value)| value)
+        };
+        let game_type = field("GameType")
+            .and_then(difficulty_settings::nbt_integer)
+            .and_then(LevelGameType::from_id)
+            .unwrap_or(LevelGameType::Survival);
         Some(Self {
             data_version: compound_i32(data, "DataVersion")?,
             level_data_version: compound_i32(data, "version").unwrap_or(19133),
@@ -92,13 +100,15 @@ impl PrimaryLevelData {
                     .to_string(),
                 snapshot: compound_bool(version, "Snapshot").unwrap_or(false),
             },
-            level_name: compound_string(data, "LevelName")?.to_string(),
+            level_name: compound_string(data, "LevelName").unwrap_or("").to_string(),
             // PrimaryLevelData.parse defaults on a missing or invalid spawn codec.
             spawn: compound_clone(data, "spawn")
                 .and_then(|tag| LevelRespawnData::from_nbt(&tag).ok())
                 .unwrap_or_default(),
-            game_type: LevelGameType::from_id(compound_i32(data, "GameType")?)?,
-            difficulty: LevelDifficulty::from_id(compound_i8(data, "Difficulty")?)?,
+            game_type,
+            difficulty_settings: field("difficulty_settings")
+                .and_then(|tag| DifficultySettings::from_nbt(tag).ok())
+                .unwrap_or_default(),
             day_time: compound_i64(data, "DayTime").unwrap_or_default(),
             time: compound_i64(data, "Time").unwrap_or_default(),
             generator_name: compound_string(data, "generatorName")
@@ -106,8 +116,9 @@ impl PrimaryLevelData {
                 .to_string(),
             generator_settings: compound_clone(data, "generatorSettings")
                 .unwrap_or_else(empty_compound_tag),
-            allow_commands: compound_bool(data, "allowCommands").unwrap_or(false),
-            hardcore: compound_bool(data, "hardcore").unwrap_or(false),
+            allow_commands: field("allowCommands")
+                .and_then(difficulty_settings::nbt_boolean)
+                .unwrap_or(game_type == LevelGameType::Creative),
             initialized: compound_bool(data, "initialized").unwrap_or(true),
             was_modded: compound_bool(data, "WasModded").unwrap_or(false),
             data_packs: DataPackSelection {
@@ -149,7 +160,10 @@ impl PrimaryLevelData {
                 Tag::String(self.level_name.clone()),
             ),
             ("GameType".to_string(), Tag::Int(self.game_type.id())),
-            ("Difficulty".to_string(), Tag::Byte(self.difficulty.id())),
+            (
+                "difficulty_settings".to_string(),
+                self.difficulty_settings.to_nbt(),
+            ),
             ("DayTime".to_string(), Tag::Long(self.day_time)),
             ("Time".to_string(), Tag::Long(self.time)),
             (
@@ -164,7 +178,6 @@ impl PrimaryLevelData {
                 "allowCommands".to_string(),
                 Tag::Byte(i8::from(self.allow_commands)),
             ),
-            ("hardcore".to_string(), Tag::Byte(i8::from(self.hardcore))),
             (
                 "initialized".to_string(),
                 Tag::Byte(i8::from(self.initialized)),
@@ -201,7 +214,10 @@ impl PrimaryLevelData {
         ];
         // Java CompoundTag.store calls getOrThrow: invalid values fail the save.
         data.push(("spawn".to_owned(), self.spawn.to_nbt()?));
-        Ok(Tag::Compound(vec![("Data".to_owned(), Tag::Compound(data))]))
+        Ok(Tag::Compound(vec![(
+            "Data".to_owned(),
+            Tag::Compound(data),
+        )]))
     }
 }
 
@@ -555,6 +571,9 @@ impl LevelDifficulty {
         }
     }
 }
+
+mod difficulty_settings;
+pub use difficulty_settings::DifficultySettings;
 
 mod respawn_data;
 pub use respawn_data::LevelRespawnData;

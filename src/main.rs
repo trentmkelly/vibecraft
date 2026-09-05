@@ -594,13 +594,16 @@ mod tests {
                 ..Default::default()
             },
             game_type: LevelGameType::Survival,
-            difficulty: LevelDifficulty::Easy,
+            difficulty_settings: crate::storage::world::DifficultySettings {
+                difficulty: LevelDifficulty::Easy,
+                hardcore: false,
+                locked: true,
+            },
             day_time: 0,
             time: 0,
             generator_name: "default".to_string(),
             generator_settings: Tag::Compound(vec![]),
             allow_commands: false,
-            hardcore: false,
             initialized: true,
             was_modded: false,
             data_packs: DataPackSelection {
