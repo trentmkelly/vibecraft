@@ -1642,6 +1642,9 @@ struct PlayerTickContext<'a, 'b> {
     chunk_pipeline_stats: &'b mut ChunkPipelineSessionStats,
     live_fluid_ticks: &'b mut LiveFluidTicks,
     live_block_ticks: &'b mut LiveBlockTicks,
+    /// This session's inbox on the server-wide packet bus.
+    world_bus: &'a Subscription,
+    world_bus_publisher: &'a WorldPacketBus,
     world_items: &'a Arc<Mutex<WorldItemEntities>>,
     world_mobs: &'a Arc<Mutex<LiveMobStore>>,
     loaded_chunks: &'a BTreeSet<(i32, i32)>,
@@ -1673,6 +1676,8 @@ fn tick_player_and_chunk_sender(
         chunk_pipeline_stats,
         live_fluid_ticks,
         live_block_ticks,
+        world_bus,
+        world_bus_publisher,
         world_items,
         world_mobs,
         loaded_chunks,
@@ -1697,6 +1702,7 @@ fn tick_player_and_chunk_sender(
             max_chained_neighbor_updates: max_chained_neighbor_updates_limit(properties),
             live_fluid_ticks,
             live_block_ticks,
+            world_bus_publisher,
             world_layout,
             world_seed,
             chunk_cache,
@@ -1706,6 +1712,8 @@ fn tick_player_and_chunk_sender(
             world_root,
         },
     )?;
+    // Deliver whatever the rest of the server published since the last tick.
+    world_bus.drain_into(stream, compression)?;
     let fluid_state =
         detect_play_session_fluid_state(play_state, world_root, world_seed, chunk_cache);
     let water_update = tick_play_session_water(play_state, fluid_state);
@@ -1766,6 +1774,8 @@ struct LiveWorldTickContext<'a, 'b> {
     max_chained_neighbor_updates: i32,
     live_fluid_ticks: &'b mut LiveFluidTicks,
     live_block_ticks: &'b mut LiveBlockTicks,
+    /// Bus the scheduled-tick block updates are broadcast on.
+    world_bus_publisher: &'a WorldPacketBus,
     world_layout: &'b WorldLayout,
     world_seed: i64,
     chunk_cache: &'a GeneratedChunkCache,
@@ -1791,9 +1801,13 @@ fn tick_live_world_systems(
         context.world_seed,
         context.chunk_cache,
     )?;
+    // Scheduled-tick block changes are world events: capture them as plain
+    // frames and broadcast to every session (Java `ServerLevel.sendBlockUpdated`
+    // -> `ChunkMap` tracking players) instead of only this connection.
+    let mut block_tick_frames = Vec::new();
     super::block_placement_live::process_live_block_ticks(
-        stream,
-        compression,
+        &mut block_tick_frames,
+        CompressionState::disabled(),
         context.live_block_ticks,
         tick_count as i64,
         context.world_layout,
@@ -1802,6 +1816,7 @@ fn tick_live_world_systems(
         context.world_items,
         context.max_chained_neighbor_updates,
     )?;
+    context.world_bus_publisher.publish_frames(&block_tick_frames)?;
     tick_live_falling_blocks(
         stream,
         compression,
@@ -2050,6 +2065,8 @@ struct JoinedPlayLoopTickContext<'a, 'b> {
     play_tick_count: &'b mut u64,
     live_fluid_ticks: &'b mut LiveFluidTicks,
     live_block_ticks: &'b mut LiveBlockTicks,
+    world_bus: &'a Subscription,
+    world_bus_publisher: &'a WorldPacketBus,
     last_sent_rain_level: &'b mut f32,
     last_sent_thunder_level: &'b mut f32,
     join_commands_sent: &'b mut bool,
@@ -2087,6 +2104,8 @@ fn tick_joined_play_session_loop(
         play_tick_count,
         live_fluid_ticks,
         live_block_ticks,
+        world_bus,
+        world_bus_publisher,
         last_sent_rain_level,
         last_sent_thunder_level,
         join_commands_sent,
@@ -2118,6 +2137,8 @@ fn tick_joined_play_session_loop(
             chunk_pipeline_stats,
             live_fluid_ticks,
             live_block_ticks,
+            world_bus,
+            world_bus_publisher,
             world_items,
             world_mobs,
             loaded_chunks,
@@ -3926,6 +3947,11 @@ fn run_joined_play_session(
     // them. `join_commands_sent` latches the one-shot `/biome` command tree, sent
     // once after the first chunk batch.
     let mut join_commands_sent = false;
+    // Unsubscribes automatically when the session ends.
+    let world_bus = shared
+        .active_logins
+        .world_bus
+        .subscribe(active_login.token);
     loop {
         if !tick_joined_play_session_loop(
             stream,
@@ -3948,6 +3974,8 @@ fn run_joined_play_session(
                 chunk_pipeline_stats: &mut chunk_pipeline_stats,
                 live_fluid_ticks: &mut live_fluid_ticks,
                 live_block_ticks: &mut live_block_ticks,
+                world_bus: &world_bus,
+                world_bus_publisher: &shared.active_logins.world_bus,
                 world_layout: &world_layout,
                 keep_alive: &mut keep_alive,
                 keep_alive_epoch,

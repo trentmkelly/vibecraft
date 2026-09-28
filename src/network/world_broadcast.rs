@@ -27,10 +27,6 @@ pub struct WorldPacketBus {
 }
 
 impl WorldPacketBus {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     fn lock(&self) -> MutexGuard<'_, Inboxes> {
         // A poisoned inbox map only means another session thread panicked
         // mid-push; the queues themselves are still structurally valid.
@@ -52,16 +48,6 @@ impl WorldPacketBus {
     pub fn publish(&self, payload: &[u8]) {
         for inbox in self.lock().values_mut() {
             inbox.push_back(payload.to_vec());
-        }
-    }
-
-    /// Queues `payload` for every connection except `origin`, which already
-    /// received it directly (Java `PlayerList.broadcast(except, ...)`).
-    pub fn publish_except(&self, origin: u64, payload: &[u8]) {
-        for (token, inbox) in self.lock().iter_mut() {
-            if *token != origin {
-                inbox.push_back(payload.to_vec());
-            }
         }
     }
 

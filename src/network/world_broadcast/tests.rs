@@ -15,7 +15,7 @@ fn drain(sub: &Subscription) -> Vec<u8> {
 
 #[test]
 fn publish_reaches_every_subscriber_framed_per_connection() {
-    let bus = WorldPacketBus::new();
+    let bus = WorldPacketBus::default();
     let a = bus.subscribe(1);
     let b = bus.subscribe(2);
     bus.publish(&plain(0x05, &[9, 9]));
@@ -26,18 +26,8 @@ fn publish_reaches_every_subscriber_framed_per_connection() {
 }
 
 #[test]
-fn publish_except_skips_the_origin_connection() {
-    let bus = WorldPacketBus::new();
-    let a = bus.subscribe(1);
-    let b = bus.subscribe(2);
-    bus.publish_except(1, &plain(0x07, &[]));
-    assert!(drain(&a).is_empty());
-    assert_eq!(drain(&b), vec![1, 0x07]);
-}
-
-#[test]
 fn dropping_a_subscription_unsubscribes_it() {
-    let bus = WorldPacketBus::new();
+    let bus = WorldPacketBus::default();
     drop(bus.subscribe(1));
     bus.publish(&plain(1, &[]));
     assert!(bus.lock().is_empty());
@@ -45,7 +35,7 @@ fn dropping_a_subscription_unsubscribes_it() {
 
 #[test]
 fn publish_frames_splits_uncompressed_frames() {
-    let bus = WorldPacketBus::new();
+    let bus = WorldPacketBus::default();
     let a = bus.subscribe(1);
     bus.publish_frames(&[2, 0x01, 0xAA, 1, 0x02]).unwrap();
     assert_eq!(drain(&a), vec![2, 0x01, 0xAA, 1, 0x02]);
@@ -53,13 +43,13 @@ fn publish_frames_splits_uncompressed_frames() {
 
 #[test]
 fn publish_frames_rejects_truncated_input() {
-    let bus = WorldPacketBus::new();
+    let bus = WorldPacketBus::default();
     assert!(bus.publish_frames(&[5, 0x01]).is_err());
 }
 
 #[test]
 fn drain_applies_the_connection_compression_state() {
-    let bus = WorldPacketBus::new();
+    let bus = WorldPacketBus::default();
     let a = bus.subscribe(1);
     bus.publish(&plain(0x01, &[0; 4]));
     let mut out = Vec::new();

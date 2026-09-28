@@ -826,6 +826,8 @@ pub fn region_generated_chunk_is_cacheable(center: ChunkPos, candidate: ChunkPos
 pub struct ActiveLoginRegistry {
     pub sessions: Arc<Mutex<HashMap<String, ActiveLoginSession>>>,
     pub next_token: Arc<AtomicU64>,
+    /// Server-wide packet fan-out; each in-play session subscribes with its token.
+    pub world_bus: WorldPacketBus,
 }
 
 pub struct ActiveLoginSession {
