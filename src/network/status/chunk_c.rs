@@ -530,8 +530,10 @@ fn write_join_login_and_profile_packets(
         max_players: context.properties.max_players as i32,
         chunk_radius: context.properties.view_distance as i32,
         simulation_distance: context.properties.simulation_distance as i32,
+        // TODO(gamerule-reduced_debug_info): PlayerList.placeNewPlayer sends GameRules.REDUCED_DEBUG_INFO.
         reduced_debug_info: false,
         show_death_screen: true,
+        // TODO(gamerule-limited_crafting): PlayerList.placeNewPlayer sends GameRules.LIMITED_CRAFTING.
         do_limited_crafting: false,
         spawn_info: CommonPlayerSpawnInfo {
             seed: context.world_seed,

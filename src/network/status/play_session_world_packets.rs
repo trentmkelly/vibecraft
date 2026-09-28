@@ -1,4 +1,5 @@
 use super::*;
+use super::live_chat_state::CHAT_VALIDATION_FAILED;
 
 pub fn write_generated_spawn_chunk_packets_from_chunk<W: Write>(
     writer: &mut W,
@@ -201,15 +202,42 @@ pub fn write_command_suggestions_response<W: Write, R: Read>(
     )
 }
 
+/// Java `ServerGamePacketListenerImpl.handleChatAck`: advances the last-seen
+/// window, disconnecting with `CHAT_VALIDATION_FAILED` when the offset is invalid.
+pub fn handle_chat_ack_packet<R: Read>(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    input: &mut R,
+    chat_state: &mut LiveChatState,
+) -> io::Result<()> {
+    let packet = ServerboundChatAckPacket::read(input)?;
+    if chat_state.apply_ack_offset(packet.offset).is_err() {
+        write_disconnect_component(stream, compression, CHAT_VALIDATION_FAILED)?;
+    }
+    Ok(())
+}
+
 pub fn handle_chat_packet<R: Read>(
     stream: &mut TcpStream,
     compression: CompressionState,
     input: &mut R,
     profile: &NameAndId,
+    chat_state: &mut LiveChatState,
 ) -> io::Result<()> {
-    // Java ServerGamePacketListenerImpl.handleChat delegates to tryHandleChat,
-    // which rejects StringUtil-disallowed chat characters before decoration.
+    // Java handleChat: unpackAndApplyLastSeen runs first (disconnecting on a
+    // validation failure), then tryHandleChat rejects StringUtil-disallowed
+    // chat characters before decoration.
+    // TODO(secure-chat-chain): decode the signature through SignedMessageChain
+    // (needs a validated RemoteChatSession, i.e. online-mode profile keys) and
+    // surface handleMessageDecodeFailure; offline sessions are always unsigned.
     let packet = ServerboundChatPacket::read(input)?;
+    if chat_state
+        .unpack_and_apply_last_seen(&packet.last_seen_messages)
+        .is_err()
+    {
+        write_disconnect_component(stream, compression, CHAT_VALIDATION_FAILED)?;
+        return Ok(());
+    }
     if chat_message_is_illegal(&packet.message) {
         write_disconnect_component(
             stream,
@@ -237,6 +265,8 @@ pub struct ChatCommandContext<'a> {
     /// The player's registry guard, used to enumerate the live online roster for
     /// roster commands like `/list` (Java `PlayerList.getPlayers`).
     pub active_login: &'a ActiveLoginGuard,
+    /// Last-seen validator for signed commands (Java `unpackAndApplyLastSeen`).
+    pub chat_state: &'a mut LiveChatState,
 }
 
 pub fn handle_chat_command_packet<R: Read>(
@@ -247,7 +277,19 @@ pub fn handle_chat_command_packet<R: Read>(
     context: ChatCommandContext<'_>,
 ) -> io::Result<()> {
     let command = if signed {
-        ServerboundChatCommandSignedPacket::read(input)?.command
+        let packet = ServerboundChatCommandSignedPacket::read(input)?;
+        // Java handleChatCommandSigned: unpackAndApplyLastSeen precedes tryHandleChat.
+        // TODO(command-signing): collectSignedArguments / SignableCommand argument
+        // signature verification is not wired (needs profile-key sessions).
+        if context
+            .chat_state
+            .unpack_and_apply_last_seen(&packet.last_seen_messages)
+            .is_err()
+        {
+            write_disconnect_component(stream, compression, CHAT_VALIDATION_FAILED)?;
+            return Ok(());
+        }
+        packet.command
     } else {
         ServerboundChatCommandPacket::read(input)?.command
     };

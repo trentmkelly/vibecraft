@@ -32,14 +32,16 @@ pub(super) use super::{
     StopSoundRequest, StopwatchState, StringTemplateModel, SwingCommandEvent, TeamMembership,
     TeamState, TeleportSideEffect, TickCommandFeedbackEvent, TitleCommandAction, TitleTextKind,
     Vec3, VersionInfo, WardenSpawnTrackerState, WaypointState, WeatherMode,
-    COMMAND_FUNCTIONS_PACKAGE_NULL_MARKED, NO_COMMAND_FEEDBACK, VANILLA_GAME_RULES,
+    COMMAND_FUNCTIONS_PACKAGE_NULL_MARKED, NO_COMMAND_FEEDBACK,
 };
+pub(super) use crate::game_rules::vanilla_game_rules;
 pub(super) use crate::player_access::NameAndId;
 pub(super) use crate::storage::nbt::Tag;
 
 mod tests_01;
 mod tests_02;
 mod tests_03;
+mod gamerule_tests;
 mod tests_04;
 mod tests_05;
 mod tests_06;

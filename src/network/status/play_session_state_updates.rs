@@ -29,6 +29,7 @@ pub fn update_play_session_state<R: Read>(
             Ok(PlaySessionUpdate::default())
         }
         SERVERBOUND_SET_GAME_RULE_PACKET_ID => {
+            // TODO(gamerule-set_game_rule): ServerGamePacketListenerImpl.handleSetGameRule (permission check, GameRules.set, MinecraftServer.onGameRuleChanged sync); also send ClientboundGameRuleValuesPacket on join and consume ServerCommandState.game_rule_syncs (reduced_debug_info entity events 22/23, limited_crafting/immediate_respawn game events, locator_bar, spawn_monsters, advance_time clock sync).
             let _ = ServerboundSetGameRulePacket::read(input)?;
             Ok(PlaySessionUpdate::default())
         }

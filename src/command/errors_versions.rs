@@ -176,6 +176,12 @@ pub enum CommandError {
     ScoreboardDisplayAlreadySet,
     ScoreboardTriggerAlreadyEnabled,
     ScoreboardNotTrigger,
+    /// `argument.criteria.invalid` (Java `ObjectiveCriteriaArgument.ERROR_INVALID_VALUE`).
+    ScoreboardCriteriaInvalid,
+    /// `arguments.objective.readonly` (Java `ObjectiveArgument.ERROR_OBJECTIVE_READ_ONLY`).
+    ScoreboardObjectiveReadOnly,
+    /// `arguments.operation.div0` (Java `OperationArgument.ERROR_DIVIDE_BY_ZERO`).
+    OperationDivideByZero,
     TriggerNotPrimed,
     AdvancementNoAction,
     AdvancementCriterionNotFound,

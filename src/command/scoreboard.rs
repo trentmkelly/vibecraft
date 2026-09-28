@@ -64,7 +64,11 @@ fn scoreboard_objective_modify_command(
 ) -> Result<CommandResult, CommandError> {
     match parts {
         ["scoreboard", "objectives", "modify", objective, "displayname", display] => {
+            // Java `setDisplayName`: only mutates and reports when the name differs.
             let objective = scoreboard_objective_mut(state, objective)?;
+            if objective.display_name == *display {
+                return Ok(scoreboard_result(NO_COMMAND_FEEDBACK, 0, false));
+            }
             objective.display_name = (*display).to_string();
             Ok(scoreboard_result(
                 "commands.scoreboard.objectives.modify.displayname",
@@ -76,7 +80,11 @@ fn scoreboard_objective_modify_command(
             if !matches!(*render_type, "integer" | "hearts") {
                 return Err(CommandError::InvalidSyntax);
             }
+            // Java `setRenderType`: only mutates and reports when the type differs.
             let objective = scoreboard_objective_mut(state, objective)?;
+            if objective.render_type == *render_type {
+                return Ok(scoreboard_result(NO_COMMAND_FEEDBACK, 0, false));
+            }
             objective.render_type = (*render_type).to_string();
             Ok(scoreboard_result(
                 "commands.scoreboard.objectives.modify.rendertype",
@@ -86,7 +94,11 @@ fn scoreboard_objective_modify_command(
         }
         ["scoreboard", "objectives", "modify", objective, "displayautoupdate", value] => {
             let value = parse_bool(value)?;
+            // Java `setDisplayAutoUpdate`: only mutates and reports on change.
             let objective = scoreboard_objective_mut(state, objective)?;
+            if objective.display_auto_update == value {
+                return Ok(scoreboard_result(NO_COMMAND_FEEDBACK, 0, false));
+            }
             objective.display_auto_update = value;
             Ok(scoreboard_result(
                 if value {
@@ -129,6 +141,7 @@ fn scoreboard_objective_display_command(
 ) -> Result<CommandResult, CommandError> {
     match parts {
         ["scoreboard", "objectives", "setdisplay", slot] => {
+            require_display_slot(slot)?;
             if !state
                 .scoreboard_display_slots
                 .iter()
@@ -146,6 +159,7 @@ fn scoreboard_objective_display_command(
             ))
         }
         ["scoreboard", "objectives", "setdisplay", slot, objective] => {
+            require_display_slot(slot)?;
             require_scoreboard_objective(state, objective)?;
             if state
                 .scoreboard_display_slots
@@ -253,11 +267,11 @@ fn scoreboard_players_score_command(
         }
         ["scoreboard", "players", "add", targets, objective, value] => {
             let value = parse_non_negative_i32(value)?;
-            add_scores(state, targets, objective, value)
+            add_scores(state, targets, objective, value, false)
         }
         ["scoreboard", "players", "remove", targets, objective, value] => {
             let value = parse_non_negative_i32(value)?;
-            add_scores(state, targets, objective, -value)
+            add_scores(state, targets, objective, value, true)
         }
         _ => Err(CommandError::InvalidSyntax),
     }
@@ -269,7 +283,7 @@ fn scoreboard_players_state_command(
 ) -> Result<CommandResult, CommandError> {
     match parts {
         ["scoreboard", "players", "reset", targets] => {
-            let names = parse_score_holders(targets);
+            let names = resolve_score_holders(state, targets);
             for name in &names {
                 state.scoreboard_scores.retain(|entry| entry.owner != *name);
             }
@@ -285,7 +299,7 @@ fn scoreboard_players_state_command(
         }
         ["scoreboard", "players", "reset", targets, objective] => {
             require_scoreboard_objective(state, objective)?;
-            let names = parse_score_holders(targets);
+            let names = resolve_score_holders(state, targets);
             for name in &names {
                 state
                     .scoreboard_scores
@@ -305,7 +319,7 @@ fn scoreboard_players_state_command(
             if require_scoreboard_objective(state, objective)?.criteria != "trigger" {
                 return Err(CommandError::ScoreboardNotTrigger);
             }
-            let names = parse_score_holders(targets);
+            let names = resolve_score_holders(state, targets);
             let mut changed = 0;
             for name in &names {
                 let score = scoreboard_score_mut_or_create(state, name, objective);
@@ -428,13 +442,19 @@ pub(super) fn parse_schedule_function(input: &str) -> Result<(String, bool), Com
     }
 }
 
+/// Mirrors Java `ScoreboardCommand.addObjective`: the name is a Brigadier `word()`, the criteria
+/// must resolve through `ObjectiveCriteriaArgument`, duplicates fail, and the new objective takes
+/// the criteria's default render type. Returns the objective count.
 pub(super) fn add_scoreboard_objective(
     state: &mut ServerCommandState,
     objective: &str,
     criteria: &str,
     display_name: &str,
 ) -> Result<CommandResult, CommandError> {
-    parse_identifier(objective)?;
+    if !is_brigadier_word(objective) {
+        return Err(CommandError::InvalidSyntax);
+    }
+    let render_type = resolve_objective_criteria(criteria)?.render_type;
     if state
         .scoreboard_objectives
         .iter()
@@ -446,8 +466,8 @@ pub(super) fn add_scoreboard_objective(
         name: objective.to_string(),
         criteria: criteria.to_string(),
         display_name: display_name.to_string(),
-        render_type: "integer".to_string(),
-        display_auto_update: true,
+        render_type: render_type.to_string(),
+        display_auto_update: false,
         number_format: None,
     });
     Ok(scoreboard_result(
@@ -455,6 +475,121 @@ pub(super) fn add_scoreboard_objective(
         state.scoreboard_objectives.len() as i32,
         true,
     ))
+}
+
+/// Brigadier `StringArgumentType.word()` character set (`StringReader.isAllowedInUnquotedString`).
+fn is_brigadier_word(input: &str) -> bool {
+    !input.is_empty()
+        && input
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.' | b'+'))
+}
+
+/// Resolved `ObjectiveCriteria`: whether it is read-only and its default `RenderType` id.
+struct ObjectiveCriteriaInfo {
+    read_only: bool,
+    render_type: &'static str,
+}
+
+/// Mirrors `ObjectiveCriteriaArgument.parse` / `ObjectiveCriteria.byName` for the custom criteria
+/// registered in `ObjectiveCriteria` (dummy, trigger, health, food, teamkill.*, ...).
+// TODO: register the STAT_TYPE registry so `stat:value` criteria are validated; until then any
+// `<stat_type>:<value>` name is accepted as a writable, integer-rendered stat criterion.
+fn resolve_objective_criteria(name: &str) -> Result<ObjectiveCriteriaInfo, CommandError> {
+    const TEAM_COLORS: [&str; 16] = [
+        "black",
+        "dark_blue",
+        "dark_green",
+        "dark_aqua",
+        "dark_red",
+        "dark_purple",
+        "gold",
+        "gray",
+        "dark_gray",
+        "blue",
+        "green",
+        "aqua",
+        "red",
+        "light_purple",
+        "yellow",
+        "white",
+    ];
+    let writable = ObjectiveCriteriaInfo {
+        read_only: false,
+        render_type: "integer",
+    };
+    match name {
+        "dummy" | "trigger" | "deathCount" | "playerKillCount" | "totalKillCount" => Ok(writable),
+        "health" => Ok(ObjectiveCriteriaInfo {
+            read_only: true,
+            render_type: "hearts",
+        }),
+        "food" | "air" | "armor" | "xp" | "level" => Ok(ObjectiveCriteriaInfo {
+            read_only: true,
+            render_type: "integer",
+        }),
+        _ if ["teamkill.", "killedByTeam."].iter().any(|prefix| {
+            name.strip_prefix(prefix)
+                .is_some_and(|color| TEAM_COLORS.contains(&color))
+        }) =>
+        {
+            Ok(writable)
+        }
+        _ if name.contains(':') => Ok(writable),
+        _ => Err(CommandError::ScoreboardCriteriaInvalid),
+    }
+}
+
+/// Mirrors `ObjectiveArgument.getWritableObjective`: read-only criteria (health, food, ...) fail.
+fn require_writable_objective(
+    state: &ServerCommandState,
+    objective: &str,
+) -> Result<(), CommandError> {
+    let entry = require_scoreboard_objective(state, objective)?;
+    match resolve_objective_criteria(&entry.criteria) {
+        Ok(criteria) if criteria.read_only => Err(CommandError::ScoreboardObjectiveReadOnly),
+        _ => Ok(()),
+    }
+}
+
+/// Validates a `ScoreboardSlotArgument.displaySlot()` name against `DisplaySlot` serialized names.
+fn require_display_slot(slot: &str) -> Result<(), CommandError> {
+    const TEAM_COLORS: [&str; 16] = [
+        "black",
+        "dark_blue",
+        "dark_green",
+        "dark_aqua",
+        "dark_red",
+        "dark_purple",
+        "gold",
+        "gray",
+        "dark_gray",
+        "blue",
+        "green",
+        "aqua",
+        "red",
+        "light_purple",
+        "yellow",
+        "white",
+    ];
+    let valid = matches!(slot, "list" | "sidebar" | "below_name")
+        || slot
+            .strip_prefix("sidebar.team.")
+            .is_some_and(|color| TEAM_COLORS.contains(&color));
+    if valid {
+        Ok(())
+    } else {
+        Err(CommandError::InvalidSyntax)
+    }
+}
+
+/// Mirrors `ScoreHolderArgument.getNamesWithDefaultWildcard`: `*` expands to every tracked holder.
+fn resolve_score_holders(state: &ServerCommandState, input: &str) -> Vec<String> {
+    if input == "*" {
+        tracked_score_holders(state)
+    } else {
+        parse_score_holders(input)
+    }
 }
 
 pub(super) fn scoreboard_result(
@@ -610,14 +745,15 @@ pub(super) fn tracked_score_holders(state: &ServerCommandState) -> Vec<String> {
     holders
 }
 
+/// Mirrors Java `ScoreboardCommand.setScore`; the result is `value * names.size()` (wrapping).
 pub(super) fn set_scores(
     state: &mut ServerCommandState,
     targets: &str,
     objective: &str,
     value: i32,
 ) -> Result<CommandResult, CommandError> {
-    require_scoreboard_objective(state, objective)?;
-    let names = parse_score_holders(targets);
+    require_writable_objective(state, objective)?;
+    let names = resolve_score_holders(state, targets);
     for name in &names {
         scoreboard_score_mut_or_create(state, name, objective).value = value;
     }
@@ -627,42 +763,41 @@ pub(super) fn set_scores(
         } else {
             "commands.scoreboard.players.set.success.multiple"
         },
-        names.len() as i32,
+        value.wrapping_mul(names.len() as i32),
         true,
     ))
 }
 
+/// Mirrors Java `ScoreboardCommand.addScore` / `removeScore`: wrapping int arithmetic and a result
+/// equal to the sum of the resulting scores across all targets.
 pub(super) fn add_scores(
     state: &mut ServerCommandState,
     targets: &str,
     objective: &str,
-    delta: i32,
+    amount: i32,
+    remove: bool,
 ) -> Result<CommandResult, CommandError> {
-    require_scoreboard_objective(state, objective)?;
-    let names = parse_score_holders(targets);
-    let mut last = 0;
+    require_writable_objective(state, objective)?;
+    let names = resolve_score_holders(state, targets);
+    let mut result = 0i32;
     for name in &names {
         let score = scoreboard_score_mut_or_create(state, name, objective);
-        score.value += delta;
-        last = score.value;
+        score.value = if remove {
+            score.value.wrapping_sub(amount)
+        } else {
+            score.value.wrapping_add(amount)
+        };
+        result = result.wrapping_add(score.value);
     }
+    let single = names.len() == 1;
     Ok(scoreboard_result(
-        if delta >= 0 {
-            if names.len() == 1 {
-                "commands.scoreboard.players.add.success.single"
-            } else {
-                "commands.scoreboard.players.add.success.multiple"
-            }
-        } else if names.len() == 1 {
-            "commands.scoreboard.players.remove.success.single"
-        } else {
-            "commands.scoreboard.players.remove.success.multiple"
+        match (remove, single) {
+            (false, true) => "commands.scoreboard.players.add.success.single",
+            (false, false) => "commands.scoreboard.players.add.success.multiple",
+            (true, true) => "commands.scoreboard.players.remove.success.single",
+            (true, false) => "commands.scoreboard.players.remove.success.multiple",
         },
-        if names.len() == 1 {
-            last
-        } else {
-            names.len() as i32
-        },
+        result,
         true,
     ))
 }
@@ -674,7 +809,7 @@ pub(super) fn set_score_display_name(
     display_name: Option<String>,
 ) -> Result<CommandResult, CommandError> {
     require_scoreboard_objective(state, objective)?;
-    let names = parse_score_holders(targets);
+    let names = resolve_score_holders(state, targets);
     for name in &names {
         scoreboard_score_mut_or_create(state, name, objective).display_name = display_name.clone();
     }
@@ -702,7 +837,7 @@ pub(super) fn set_score_number_format(
     number_format: Option<String>,
 ) -> Result<CommandResult, CommandError> {
     require_scoreboard_objective(state, objective)?;
-    let names = parse_score_holders(targets);
+    let names = resolve_score_holders(state, targets);
     for name in &names {
         scoreboard_score_mut_or_create(state, name, objective).number_format =
             number_format.clone();
@@ -844,6 +979,8 @@ pub(super) fn nbt_bool(fields: &[(String, Tag)], name: &str) -> Option<bool> {
     }
 }
 
+/// Mirrors Java `ScoreboardCommand.performOperation`: source scores are created on demand, each
+/// target applies the operation once per source, and the result sums the final target scores.
 pub(super) fn scoreboard_operation(
     state: &mut ServerCommandState,
     targets: &str,
@@ -852,28 +989,33 @@ pub(super) fn scoreboard_operation(
     sources: &str,
     source_objective: &str,
 ) -> Result<CommandResult, CommandError> {
+    // Brigadier parses every argument (objective lookups, operation) before executing, and
+    // `getWritableObjective` runs inside the executor.
     require_scoreboard_objective(state, target_objective)?;
-    require_scoreboard_objective(state, source_objective)?;
-    let targets = parse_score_holders(targets);
-    let sources = parse_score_holders(sources);
-    if sources.is_empty() || targets.is_empty() {
+    if !matches!(
+        operation,
+        "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "<" | ">" | "><"
+    ) {
         return Err(CommandError::InvalidSyntax);
     }
-    let source_values = sources
-        .iter()
-        .map(|source| {
-            scoreboard_score(state, source, source_objective)
-                .map(|score| score.value)
-                .ok_or(CommandError::ScoreboardScoreNotFound)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let mut last = 0;
+    require_scoreboard_objective(state, source_objective)?;
+    require_writable_objective(state, target_objective)?;
+    let targets = resolve_score_holders(state, targets);
+    let sources = resolve_score_holders(state, sources);
+    let mut result = 0i32;
     for target in &targets {
-        for source_value in &source_values {
-            let score = scoreboard_score_mut_or_create(state, target, target_objective);
-            apply_score_operation(score, operation, *source_value)?;
-            last = score.value;
+        scoreboard_score_mut_or_create(state, target, target_objective);
+        for source in &sources {
+            scoreboard_score_mut_or_create(state, source, source_objective);
+            let a = scoreboard_score(state, target, target_objective).map_or(0, |s| s.value);
+            let b = scoreboard_score(state, source, source_objective).map_or(0, |s| s.value);
+            let (new_a, new_b) = apply_score_operation(operation, a, b)?;
+            scoreboard_score_mut_or_create(state, target, target_objective).value = new_a;
+            // `><` swaps, so the source score may change too.
+            scoreboard_score_mut_or_create(state, source, source_objective).value = new_b;
         }
+        result = result
+            .wrapping_add(scoreboard_score(state, target, target_objective).map_or(0, |s| s.value));
     }
     Ok(scoreboard_result(
         if targets.len() == 1 {
@@ -881,40 +1023,54 @@ pub(super) fn scoreboard_operation(
         } else {
             "commands.scoreboard.players.operation.success.multiple"
         },
-        if targets.len() == 1 {
-            last
-        } else {
-            targets.len() as i32
-        },
+        result,
         true,
     ))
 }
 
+/// Mirrors `OperationArgument.getOperation`: returns the new `(target, source)` values. Division
+/// and modulo floor like `Mth.floorDiv` / `Mth.positiveModulo`, and zero divisors fail.
 pub(super) fn apply_score_operation(
-    score: &mut ScoreboardScore,
     operation: &str,
-    source_value: i32,
-) -> Result<(), CommandError> {
-    match operation {
-        "=" => score.value = source_value,
-        "+=" => score.value += source_value,
-        "-=" => score.value -= source_value,
-        "*=" => score.value *= source_value,
-        "/=" => {
-            if source_value == 0 {
-                return Err(CommandError::InvalidSyntax);
-            }
-            score.value /= source_value;
-        }
-        "%=" => {
-            if source_value == 0 {
-                return Err(CommandError::InvalidSyntax);
-            }
-            score.value %= source_value;
-        }
-        "<" => score.value = score.value.min(source_value),
-        ">" => score.value = score.value.max(source_value),
+    a: i32,
+    b: i32,
+) -> Result<(i32, i32), CommandError> {
+    let new_a = match operation {
+        "=" => b,
+        "+=" => a.wrapping_add(b),
+        "-=" => a.wrapping_sub(b),
+        "*=" => a.wrapping_mul(b),
+        "/=" | "%=" if b == 0 => return Err(CommandError::OperationDivideByZero),
+        "/=" => floor_div(a, b),
+        "%=" => floor_mod(a, b),
+        "<" => a.min(b),
+        ">" => a.max(b),
+        "><" => return Ok((b, a)),
         _ => return Err(CommandError::InvalidSyntax),
-    }
-    Ok(())
+    };
+    Ok((new_a, b))
 }
+
+/// `Math.floorDiv` on ints, as used by `Mth.floorDiv`.
+fn floor_div(a: i32, b: i32) -> i32 {
+    let quotient = a.wrapping_div(b);
+    if a.wrapping_rem(b) != 0 && ((a < 0) != (b < 0)) {
+        quotient - 1
+    } else {
+        quotient
+    }
+}
+
+/// `Math.floorMod` on ints, as used by `Mth.positiveModulo`.
+fn floor_mod(a: i32, b: i32) -> i32 {
+    let rem = a.wrapping_rem(b);
+    if rem != 0 && ((rem < 0) != (b < 0)) {
+        rem.wrapping_add(b)
+    } else {
+        rem
+    }
+}
+
+#[cfg(test)]
+#[path = "scoreboard_tests.rs"]
+mod scoreboard_tests;

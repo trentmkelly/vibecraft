@@ -64,7 +64,7 @@ use crate::network::play::{
     PlayInstruction, PlayerChunkSender, RawDataComponentPatch, RawItemStack, ReadyChunkBatch,
     RecipeBookType, RecipeBookTypeSettings, RespawnDataToKeep, ServerboundAttackPacket,
     ServerboundBlockEntityTagQueryPacket, ServerboundChatCommandPacket,
-    ServerboundChatCommandSignedPacket, ServerboundChatPacket, ServerboundChunkBatchReceivedPacket,
+    ServerboundChatAckPacket, ServerboundChatCommandSignedPacket, ServerboundChatPacket, ServerboundChunkBatchReceivedPacket,
     ServerboundChangeGameModePacket, ServerboundCommandSuggestionPacket,
     ServerboundContainerClickPacket, ServerboundContainerClosePacket, ServerboundEditBookPacket,
     ServerboundDebugSubscriptionRequestPacket, ServerboundEntityTagQueryPacket,
@@ -298,6 +298,9 @@ mod block_menu_open;
 
 mod active_block_menu;
 use active_block_menu::ActiveBlockMenu;
+
+mod live_chat_state;
+use live_chat_state::LiveChatState;
 
 mod live_mobs;
 use live_mobs::LiveMobStore;

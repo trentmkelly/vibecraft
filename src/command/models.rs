@@ -523,6 +523,10 @@ pub enum Difficulty {
     Hard,
 }
 
+pub use crate::game_rules::GameRuleValue;
+
+/// One live game-rule value in the command state; the canonical id/type/default/bounds table
+/// is `crate::game_rules::vanilla_game_rules` (mirrors `GameRules.java`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GameRuleState {
     pub name: String,
@@ -533,132 +537,6 @@ pub struct GameRuleState {
 pub struct GameRuleSyncEvent {
     pub rule: String,
     pub value: String,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum GameRuleValue {
-    Bool(bool),
-    Int(i32),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct GameRuleDefinition {
-    pub(super) name: &'static str,
-    pub(super) default: GameRuleValue,
-    pub(super) min: Option<i32>,
-    pub(super) max: Option<i32>,
-    pub(super) requires_minecart_improvements: bool,
-}
-
-pub(super) const VANILLA_GAME_RULES: &[GameRuleDefinition] = &[
-    bool_game_rule("advance_time", true),
-    bool_game_rule("advance_weather", true),
-    bool_game_rule("allow_entering_nether_using_portals", true),
-    bool_game_rule("block_drops", true),
-    bool_game_rule("block_explosion_drop_decay", true),
-    bool_game_rule("command_blocks_work", true),
-    bool_game_rule("command_block_output", true),
-    bool_game_rule("drowning_damage", true),
-    bool_game_rule("elytra_movement_check", true),
-    bool_game_rule("ender_pearls_vanish_on_death", true),
-    bool_game_rule("entity_drops", true),
-    bool_game_rule("fall_damage", true),
-    bool_game_rule("fire_damage", true),
-    int_game_rule_min("fire_spread_radius_around_player", 128, -1),
-    bool_game_rule("forgive_dead_players", true),
-    bool_game_rule("freeze_damage", true),
-    bool_game_rule("global_sound_events", true),
-    bool_game_rule("immediate_respawn", false),
-    bool_game_rule("keep_inventory", false),
-    bool_game_rule("lava_source_conversion", false),
-    bool_game_rule("limited_crafting", false),
-    bool_game_rule("locator_bar", true),
-    bool_game_rule("log_admin_commands", true),
-    int_game_rule_min("max_block_modifications", 32768, 1),
-    int_game_rule_min("max_command_forks", 65536, 0),
-    int_game_rule_min("max_command_sequence_length", 65536, 0),
-    int_game_rule_min("max_entity_cramming", 24, 0),
-    int_game_rule_range_feature("max_minecart_speed", 8, 1, 1000, true),
-    int_game_rule_range("max_snow_accumulation_height", 1, 0, 8),
-    bool_game_rule("mob_drops", true),
-    bool_game_rule("mob_explosion_drop_decay", true),
-    bool_game_rule("mob_griefing", true),
-    bool_game_rule("natural_health_regeneration", true),
-    bool_game_rule("player_movement_check", true),
-    int_game_rule_min("players_nether_portal_creative_delay", 0, 0),
-    int_game_rule_min("players_nether_portal_default_delay", 80, 0),
-    int_game_rule_min("players_sleeping_percentage", 100, 0),
-    bool_game_rule("projectiles_can_break_blocks", true),
-    bool_game_rule("pvp", true),
-    bool_game_rule("raids", true),
-    int_game_rule_min("random_tick_speed", 3, 0),
-    bool_game_rule("reduced_debug_info", false),
-    int_game_rule_min("respawn_radius", 10, 0),
-    bool_game_rule("send_command_feedback", true),
-    bool_game_rule("show_advancement_messages", true),
-    bool_game_rule("show_death_messages", true),
-    bool_game_rule("spawner_blocks_work", true),
-    bool_game_rule("spawn_mobs", true),
-    bool_game_rule("spawn_monsters", true),
-    bool_game_rule("spawn_patrols", true),
-    bool_game_rule("spawn_phantoms", true),
-    bool_game_rule("spawn_wandering_traders", true),
-    bool_game_rule("spawn_wardens", true),
-    bool_game_rule("spectators_generate_chunks", true),
-    bool_game_rule("spread_vines", true),
-    bool_game_rule("tnt_explodes", true),
-    bool_game_rule("tnt_explosion_drop_decay", false),
-    bool_game_rule("universal_anger", false),
-    bool_game_rule("water_source_conversion", true),
-];
-
-pub(super) const fn bool_game_rule(name: &'static str, default: bool) -> GameRuleDefinition {
-    GameRuleDefinition {
-        name,
-        default: GameRuleValue::Bool(default),
-        min: None,
-        max: None,
-        requires_minecart_improvements: false,
-    }
-}
-
-pub(super) const fn int_game_rule_min(
-    name: &'static str,
-    default: i32,
-    min: i32,
-) -> GameRuleDefinition {
-    GameRuleDefinition {
-        name,
-        default: GameRuleValue::Int(default),
-        min: Some(min),
-        max: None,
-        requires_minecart_improvements: false,
-    }
-}
-
-pub(super) const fn int_game_rule_range(
-    name: &'static str,
-    default: i32,
-    min: i32,
-    max: i32,
-) -> GameRuleDefinition {
-    int_game_rule_range_feature(name, default, min, max, false)
-}
-
-pub(super) const fn int_game_rule_range_feature(
-    name: &'static str,
-    default: i32,
-    min: i32,
-    max: i32,
-    requires_minecart_improvements: bool,
-) -> GameRuleDefinition {
-    GameRuleDefinition {
-        name,
-        default: GameRuleValue::Int(default),
-        min: Some(min),
-        max: Some(max),
-        requires_minecart_improvements,
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

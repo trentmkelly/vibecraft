@@ -5,14 +5,15 @@ use std::collections::BTreeMap;
 pub const VANILLA_GAME_RULE_COUNT_26_1_2: usize = 59;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Declared in the registration order of `GameRuleCategory.java`.
 pub enum GameRuleCategory {
-    Updates,
-    Misc,
-    Drops,
-    Chat,
     Player,
     Mobs,
     Spawning,
+    Drops,
+    Updates,
+    Chat,
+    Misc,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -255,48 +256,11 @@ pub fn game_rule_definition(name: &str) -> Option<&'static GameRuleDefinition> {
         .find(|definition| definition.name == normalized)
 }
 
+/// Strips the optional `minecraft:` namespace, mirroring the qualified/unqualified literals that
+/// `GameRuleCommand.register` and the `game_rule` registry key accept. Legacy camelCase names
+/// (`doDaylightCycle`, ...) are datafixer-only in 26.1.2 and are intentionally NOT aliased here.
 pub fn normalize_game_rule_name(rule: &str) -> String {
-    let rule = rule.strip_prefix("minecraft:").unwrap_or(rule);
-    match rule {
-        "commandBlockOutput" => "command_block_output",
-        "doDaylightCycle" => "advance_time",
-        "doEntityDrops" => "entity_drops",
-        "doImmediateRespawn" => "immediate_respawn",
-        "doInsomnia" => "spawn_phantoms",
-        "doLimitedCrafting" => "limited_crafting",
-        "doMobLoot" => "mob_drops",
-        "doMobSpawning" => "spawn_mobs",
-        "doPatrolSpawning" => "spawn_patrols",
-        "doTileDrops" => "block_drops",
-        "doTraderSpawning" => "spawn_wandering_traders",
-        "doVinesSpread" => "spread_vines",
-        "doWardenSpawning" => "spawn_wardens",
-        "doWeatherCycle" => "advance_weather",
-        "drowningDamage" => "drowning_damage",
-        "fallDamage" => "fall_damage",
-        "fireDamage" => "fire_damage",
-        "forgiveDeadPlayers" => "forgive_dead_players",
-        "freezeDamage" => "freeze_damage",
-        "globalSoundEvents" => "global_sound_events",
-        "keepInventory" => "keep_inventory",
-        "logAdminCommands" => "log_admin_commands",
-        "maxCommandChainLength" => "max_command_sequence_length",
-        "maxCommandForkCount" => "max_command_forks",
-        "maxEntityCramming" => "max_entity_cramming",
-        "mobGriefing" => "mob_griefing",
-        "naturalRegeneration" => "natural_health_regeneration",
-        "playersSleepingPercentage" => "players_sleeping_percentage",
-        "randomTickSpeed" => "random_tick_speed",
-        "reducedDebugInfo" => "reduced_debug_info",
-        "sendCommandFeedback" => "send_command_feedback",
-        "showDeathMessages" => "show_death_messages",
-        "spawnRadius" => "respawn_radius",
-        "spectatorsGenerateChunks" => "spectators_generate_chunks",
-        "tntExplodes" => "tnt_explodes",
-        "universalAnger" => "universal_anger",
-        _ => rule,
-    }
-    .to_string()
+    rule.strip_prefix("minecraft:").unwrap_or(rule).to_string()
 }
 
 pub fn parse_game_rule_value(
@@ -537,14 +501,11 @@ mod tests {
     }
 
     #[test]
-    fn legacy_command_aliases_normalize_to_current_rule_ids() {
-        assert_eq!(normalize_game_rule_name("doDaylightCycle"), "advance_time");
-        assert_eq!(normalize_game_rule_name("keepInventory"), "keep_inventory");
-        assert_eq!(normalize_game_rule_name("mobGriefing"), "mob_griefing");
-        assert_eq!(
-            normalize_game_rule_name("minecraft:randomTickSpeed"),
-            "random_tick_speed"
-        );
+    fn legacy_camel_case_names_are_not_aliased() {
+        assert_eq!(normalize_game_rule_name("minecraft:keep_inventory"), "keep_inventory");
+        assert!(game_rule_definition("doDaylightCycle").is_none());
+        assert!(game_rule_definition("keepInventory").is_none());
+        assert!(GameRules::new(true).set("mobGriefing", "false").is_err());
     }
 
     #[test]
@@ -580,7 +541,7 @@ mod tests {
 
         let mut rules = GameRules::new(true);
         assert_eq!(rules.get("max_minecart_speed"), Some(GameRuleValue::Int(8)));
-        let sync = rules.set("keepInventory", "true").unwrap();
+        let sync = rules.set("keep_inventory", "true").unwrap();
         assert_eq!(sync.rule, "minecraft:keep_inventory");
         assert_eq!(sync.value, "true");
         assert_eq!(sync.command_result, 1);
@@ -594,11 +555,11 @@ mod tests {
     #[test]
     fn runtime_effects_expose_all_client_and_server_rule_hooks() {
         let mut rules = GameRules::new(true);
-        rules.set("doImmediateRespawn", "true").unwrap();
-        rules.set("keepInventory", "true").unwrap();
-        rules.set("randomTickSpeed", "12").unwrap();
-        rules.set("mobGriefing", "false").unwrap();
-        rules.set("sendCommandFeedback", "false").unwrap();
+        rules.set("immediate_respawn", "true").unwrap();
+        rules.set("keep_inventory", "true").unwrap();
+        rules.set("random_tick_speed", "12").unwrap();
+        rules.set("mob_griefing", "false").unwrap();
+        rules.set("send_command_feedback", "false").unwrap();
 
         let effects = rules.runtime_effects();
         assert!(effects.immediate_respawn);

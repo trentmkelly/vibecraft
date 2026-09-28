@@ -1,5 +1,6 @@
 use super::*;
 use crate::random_source::LegacyRandom;
+use crate::game_rules::{self, vanilla_game_rules, GameRuleDefinition};
 
 pub(super) fn setworldspawn_command(
     state: &mut ServerCommandState,
@@ -677,7 +678,7 @@ pub(super) fn default_game_rules() -> Vec<GameRuleState> {
 pub(super) fn default_game_rules_with_features(
     minecart_improvements_enabled: bool,
 ) -> Vec<GameRuleState> {
-    VANILLA_GAME_RULES
+    vanilla_game_rules()
         .iter()
         .filter(|definition| {
             !definition.requires_minecart_improvements || minecart_improvements_enabled
@@ -689,48 +690,11 @@ pub(super) fn default_game_rules_with_features(
         .collect()
 }
 
+/// Resolves a `/gamerule` literal to its rule id. `GameRuleCommand.register` only registers the
+/// short id (`gameRule.id()`) and the qualified identifier, so legacy camelCase names such as
+/// `doDaylightCycle` are unknown literals (they only exist in datafixers).
 pub(super) fn normalize_game_rule_name(rule: &str) -> String {
-    let rule = rule.strip_prefix("minecraft:").unwrap_or(rule);
-    match rule {
-        "commandBlockOutput" => "command_block_output",
-        "doDaylightCycle" => "advance_time",
-        "doEntityDrops" => "entity_drops",
-        "doImmediateRespawn" => "immediate_respawn",
-        "doInsomnia" => "spawn_phantoms",
-        "doLimitedCrafting" => "limited_crafting",
-        "doMobLoot" => "mob_drops",
-        "doMobSpawning" => "spawn_mobs",
-        "doPatrolSpawning" => "spawn_patrols",
-        "doTileDrops" => "block_drops",
-        "doTraderSpawning" => "spawn_wandering_traders",
-        "doVinesSpread" => "spread_vines",
-        "doWardenSpawning" => "spawn_wardens",
-        "doWeatherCycle" => "advance_weather",
-        "drowningDamage" => "drowning_damage",
-        "fallDamage" => "fall_damage",
-        "fireDamage" => "fire_damage",
-        "forgiveDeadPlayers" => "forgive_dead_players",
-        "freezeDamage" => "freeze_damage",
-        "globalSoundEvents" => "global_sound_events",
-        "keepInventory" => "keep_inventory",
-        "logAdminCommands" => "log_admin_commands",
-        "maxCommandChainLength" => "max_command_sequence_length",
-        "maxCommandForkCount" => "max_command_forks",
-        "maxEntityCramming" => "max_entity_cramming",
-        "mobGriefing" => "mob_griefing",
-        "naturalRegeneration" => "natural_health_regeneration",
-        "playersSleepingPercentage" => "players_sleeping_percentage",
-        "randomTickSpeed" => "random_tick_speed",
-        "reducedDebugInfo" => "reduced_debug_info",
-        "sendCommandFeedback" => "send_command_feedback",
-        "showDeathMessages" => "show_death_messages",
-        "spawnRadius" => "respawn_radius",
-        "spectatorsGenerateChunks" => "spectators_generate_chunks",
-        "tntExplodes" => "tnt_explodes",
-        "universalAnger" => "universal_anger",
-        _ => rule,
-    }
-    .to_string()
+    rule.strip_prefix("minecraft:").unwrap_or(rule).to_string()
 }
 
 pub(super) fn game_rule_value(
@@ -783,26 +747,8 @@ pub(super) fn game_rule_definition(
     rule: &str,
 ) -> Result<&'static GameRuleDefinition, CommandError> {
     let normalized = normalize_game_rule_name(rule);
-    VANILLA_GAME_RULES
-        .iter()
-        .find(|definition| definition.name == normalized)
+    game_rules::game_rule_definition(&normalized)
         .ok_or(CommandError::InvalidSyntax)
-}
-
-impl GameRuleValue {
-    pub(super) fn command_result(&self) -> i32 {
-        match self {
-            Self::Bool(value) => i32::from(*value),
-            Self::Int(value) => *value,
-        }
-    }
-
-    pub(super) fn sync_value(&self) -> String {
-        match self {
-            Self::Bool(value) => value.to_string(),
-            Self::Int(value) => value.to_string(),
-        }
-    }
 }
 
 pub(super) fn set_camera_target(

@@ -241,6 +241,8 @@ struct JoinedPlaySessionStart {
     /// keepAlive fields), driven off `keep_alive_epoch` for millisecond timestamps.
     keep_alive: KeepAliveState,
     keep_alive_epoch: Instant,
+    /// Java `ServerGamePacketListenerImpl.lastSeenMessages` validator.
+    chat_state: LiveChatState,
     last_sent_rain_level: f32,
     last_sent_thunder_level: f32,
     last_time_sync: Instant,
@@ -439,6 +441,7 @@ impl StatusServerRuntime {
                 let tick_start = Instant::now();
 
                 // advance_time=true: no per-world gamerule access yet; always advance.
+                // TODO(gamerule-advance_time): read GameRules.ADVANCE_TIME (MinecraftServer.tickServer/ServerClockManager) once a live per-world GameRules store exists; also advance_weather below and random_tick_speed.
                 lock_status_mutex(&clock_t).tick(true, &mut scheduled);
 
                 // Advance weather. can_have_weather=true for overworld.
@@ -1465,6 +1468,7 @@ fn initialize_joined_play_session(
         chunk_pipeline_stats: ChunkPipelineSessionStats::default(),
         keep_alive: KeepAliveState::new(0, 0),
         keep_alive_epoch: Instant::now(),
+        chat_state: LiveChatState::new(),
         last_sent_rain_level: join_rain_level,
         last_sent_thunder_level: join_thunder_level,
         last_time_sync: Instant::now(),
@@ -3500,6 +3504,7 @@ struct DecodedPlayPacketContext<'a, 'b> {
     /// against the pending challenge (Java `handleKeepAlive`).
     keep_alive: &'b mut KeepAliveState,
     keep_alive_epoch: Instant,
+    chat_state: &'b mut LiveChatState,
 }
 
 enum PlayPacketDispatchOutcome {
@@ -3531,6 +3536,7 @@ struct JoinedPlayPacketStepContext<'a, 'b> {
     active_login: &'a ActiveLoginGuard,
     keep_alive: &'b mut KeepAliveState,
     keep_alive_epoch: Instant,
+    chat_state: &'b mut LiveChatState,
 }
 
 fn read_and_dispatch_joined_play_packet(
@@ -3562,12 +3568,52 @@ fn read_and_dispatch_joined_play_packet(
     }
 }
 
+/// Routes the serverbound chat family (`chat`, `chat_ack`, `chat_command`,
+/// `chat_command_signed`) to their handlers, mirroring the `handleChat*` methods
+/// of Java `ServerGamePacketListenerImpl`. Returns `false` for any other packet.
+fn try_handle_chat_packet(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    input: &mut Cursor<Vec<u8>>,
+    packet_id: i32,
+    play_state: &mut PlaySessionState,
+    context: &mut DecodedPlayPacketContext<'_, '_>,
+) -> io::Result<bool> {
+    if packet_id == SERVERBOUND_CHAT_PACKET_ID {
+        handle_chat_packet(stream, compression, input, context.profile, context.chat_state)?;
+    } else if packet_id == SERVERBOUND_CHAT_ACK_PACKET_ID {
+        handle_chat_ack_packet(stream, compression, input, context.chat_state)?;
+    } else if packet_id == SERVERBOUND_CHAT_COMMAND_PACKET_ID
+        || packet_id == SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID
+    {
+        handle_chat_command_packet(
+            stream,
+            compression,
+            input,
+            packet_id == SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID,
+            ChatCommandContext {
+                profile: context.profile,
+                play_state,
+                properties: context.properties,
+                player_access: context.player_access,
+                world_seed: context.world_seed,
+                weather: context.weather,
+                active_login: context.active_login,
+                chat_state: context.chat_state,
+            },
+        )?;
+    } else {
+        return Ok(false);
+    }
+    Ok(true)
+}
+
 fn handle_decoded_play_packet(
     stream: &mut TcpStream,
     compression: CompressionState,
     packet: Vec<u8>,
     play_state: &mut PlaySessionState,
-    context: DecodedPlayPacketContext<'_, '_>,
+    mut context: DecodedPlayPacketContext<'_, '_>,
 ) -> io::Result<PlayPacketDispatchOutcome> {
     let mut input = Cursor::new(packet);
     let packet_id = read_var_i32(&mut input)?;
@@ -3585,26 +3631,7 @@ fn handle_decoded_play_packet(
     }
     if packet_id == SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID {
         write_command_suggestions_response(stream, compression, &mut input)?;
-    } else if packet_id == SERVERBOUND_CHAT_PACKET_ID {
-        handle_chat_packet(stream, compression, &mut input, context.profile)?;
-    } else if packet_id == SERVERBOUND_CHAT_COMMAND_PACKET_ID
-        || packet_id == SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID
-    {
-        handle_chat_command_packet(
-            stream,
-            compression,
-            &mut input,
-            packet_id == SERVERBOUND_CHAT_COMMAND_SIGNED_PACKET_ID,
-            ChatCommandContext {
-                profile: context.profile,
-                play_state,
-                properties: context.properties,
-                player_access: context.player_access,
-                world_seed: context.world_seed,
-                weather: context.weather,
-                active_login: context.active_login,
-            },
-        )?;
+    } else if try_handle_chat_packet(stream, compression, &mut input, packet_id, play_state, &mut context)? {
     } else if packet_id == SERVERBOUND_USE_ITEM_ON_PACKET_ID {
         let packet = ServerboundUseItemOnPacket::read(&mut input)?;
         handle_use_item_on(
@@ -3740,6 +3767,7 @@ impl<'a, 'b> JoinedPlayPacketStepContext<'a, 'b> {
             active_login: self.active_login,
             keep_alive: self.keep_alive,
             keep_alive_epoch: self.keep_alive_epoch,
+            chat_state: self.chat_state,
         }
     }
 }
@@ -3931,6 +3959,7 @@ fn run_joined_play_session(
         mut chunk_pipeline_stats,
         mut keep_alive,
         keep_alive_epoch,
+        mut chat_state,
         mut last_sent_rain_level,
         mut last_sent_thunder_level,
         mut last_time_sync,
@@ -4021,6 +4050,7 @@ fn run_joined_play_session(
                 active_login,
                 keep_alive: &mut keep_alive,
                 keep_alive_epoch,
+                chat_state: &mut chat_state,
             },
         )?;
         if let PlayPacketDispatchOutcome::EndSession = packet_outcome {

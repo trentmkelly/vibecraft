@@ -1,3 +1,8 @@
+// TODO(AUTH_CHAT #7): this module is NOT wired into the live login path. Missing: RSA keypair +
+// ClientboundHello(server_id, public_key, challenge, should_authenticate) send when online-mode,
+// ServerboundKey handling (RSA-decrypt secret + challenge check, `Crypt.digestData` hash, AES/CFB8
+// pipeline enable via network::encryption), a real HTTPS `hasJoinedServer` SessionService
+// (no RSA/HTTP crate in Cargo.toml), and the async auth thread (ServerLoginPacketListenerImpl).
 #![allow(dead_code)]
 
 use sha1::{Digest, Sha1};

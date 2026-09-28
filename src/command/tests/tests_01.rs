@@ -880,7 +880,7 @@ fn scoreboard_objectives_and_display_slots_follow_vanilla_feedbacks() {
             criteria: "dummy".to_string(),
             display_name: "Kills".to_string(),
             render_type: "integer".to_string(),
-            display_auto_update: true,
+            display_auto_update: false,
             number_format: None,
         }
     );
