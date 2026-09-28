@@ -289,6 +289,8 @@ pub use chunk_0_2::*;
 mod chunk_a;
 pub use chunk_a::*;
 
+mod online_login;
+
 mod block_placement_live;
 mod chunk_b;
 pub use chunk_b::*;
@@ -298,6 +300,17 @@ mod block_menu_open;
 
 mod active_block_menu;
 use active_block_menu::ActiveBlockMenu;
+
+mod command_result_feedback;
+use command_result_feedback::write_command_result_feedback;
+mod game_rule_live;
+use crate::game_rules::SharedGameRules;
+use game_rule_live::{
+    apply_command_game_rule_changes, join_game_rule_flags, seed_command_game_rules,
+    try_handle_game_rule_packet, write_system_chat_translatable,
+    load_live_game_rules, replay_game_rule_changes, save_live_game_rules, GameRuleSessionPlayer,
+    GameRuleSessionSync,
+};
 
 mod live_chat_state;
 use live_chat_state::LiveChatState;

@@ -71,6 +71,8 @@ pub struct ClientboundLoginDisconnectPacket {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientboundLoginFinishedPacket {
     pub profile: NameAndId,
+    /// `GameProfile.properties` (empty for offline profiles).
+    pub properties: Vec<crate::player_online_auth::ProfileProperty>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -236,24 +238,34 @@ impl ClientboundLoginFinishedPacket {
     pub fn read<R: Read>(reader: &mut R) -> io::Result<Self> {
         let uuid = read_uuid(reader)?;
         let name = read_string(reader, 16)?;
-        let _properties = read_collection(reader, |reader| {
-            let _name = read_string(reader, 64)?;
-            let _value = read_string(reader, 32767)?;
-            let _signature = read_optional(reader, |reader| read_string(reader, 1024))?;
-            Ok(())
+        let properties = read_collection(reader, |reader| {
+            Ok(crate::player_online_auth::ProfileProperty {
+                name: read_string(reader, 64)?,
+                value: read_string(reader, 32767)?,
+                signature: read_optional(reader, |reader| read_string(reader, 1024))?,
+            })
         })?;
         Ok(Self {
             profile: NameAndId {
                 name,
                 uuid: hyphenate_uuid(uuid),
             },
+            properties,
         })
     }
 
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_uuid(writer, uuid_from_hyphenated(&self.profile.uuid)?)?;
         write_string(writer, &self.profile.name, 16)?;
-        crate::network::varint::write_var_i32(writer, 0)
+        write_var_i32(writer, self.properties.len() as i32)?;
+        for property in &self.properties {
+            write_string(writer, &property.name, 64)?;
+            write_string(writer, &property.value, 32767)?;
+            write_optional(writer, property.signature.as_ref(), |writer, signature| {
+                write_string(writer, signature, 1024)
+            })?;
+        }
+        Ok(())
     }
 }
 
@@ -337,7 +349,24 @@ impl LoginSession {
         let profile = NameAndId::create_offline(&hello.name);
         self.profile = Some(profile.clone());
         self.state = LoginState::Accepted;
-        ClientboundLoginFinishedPacket { profile }
+        ClientboundLoginFinishedPacket {
+            profile,
+            properties: Vec::new(),
+        }
+    }
+
+    /// Accepts a profile authenticated by the session server
+    /// (`ServerLoginPacketListenerImpl.startClientVerification` after `hasJoinedServer`).
+    pub fn accept_authenticated_profile(
+        &mut self,
+        result: crate::player_online_auth::ProfileResult,
+    ) -> ClientboundLoginFinishedPacket {
+        self.profile = Some(result.profile.clone());
+        self.state = LoginState::Accepted;
+        ClientboundLoginFinishedPacket {
+            profile: result.profile,
+            properties: result.properties,
+        }
     }
 
     pub fn acknowledge(&mut self, _packet: ServerboundLoginAcknowledgedPacket) {

@@ -163,6 +163,9 @@ pub fn live_join_sends_update_recipes_after_held_slot_like_java() {
             clock_data: &[],
             rain_level: 0.0,
             thunder_level: 0.0,
+            reduced_debug_info: false,
+            show_death_screen: true,
+            do_limited_crafting: false,
         },
     )
     .expect("join writer should emit play packets");

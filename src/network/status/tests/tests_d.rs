@@ -911,7 +911,7 @@ pub fn cache_flush_dirty_uses_configured_region_compression() {
         1
     );
     let region =
-        crate::storage::region::RegionFile::open(&world_root.join("region"), pos.region()).unwrap();
+        crate::storage::region::RegionFile::open(&crate::storage::world::WorldLayout::new(&world_root).region_dir(), pos.region()).unwrap();
     let location = region.read_location(pos).unwrap().unwrap();
     let bytes = std::fs::read(region.path()).unwrap();
     let offset = location.sector_offset as usize * crate::storage::region::SECTOR_BYTES as usize;

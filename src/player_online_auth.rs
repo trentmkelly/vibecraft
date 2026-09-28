@@ -1,8 +1,5 @@
-// TODO(AUTH_CHAT #7): this module is NOT wired into the live login path. Missing: RSA keypair +
-// ClientboundHello(server_id, public_key, challenge, should_authenticate) send when online-mode,
-// ServerboundKey handling (RSA-decrypt secret + challenge check, `Crypt.digestData` hash, AES/CFB8
-// pipeline enable via network::encryption), a real HTTPS `hasJoinedServer` SessionService
-// (no RSA/HTTP crate in Cargo.toml), and the async auth thread (ServerLoginPacketListenerImpl).
+//! Online-mode authentication decisions (`ServerLoginPacketListenerImpl.handleKey`'s
+//! authenticator thread). Live wiring: `network::online_login`.
 #![allow(dead_code)]
 
 use sha1::{Digest, Sha1};
@@ -19,6 +16,16 @@ pub struct HasJoinedRequest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProfileResult {
     pub profile: NameAndId,
+    /// authlib `GameProfile.properties` (e.g. the signed `textures` property).
+    pub properties: Vec<ProfileProperty>,
+}
+
+/// authlib `Property`: a name/value pair with an optional Mojang signature.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProfileProperty {
+    pub name: String,
+    pub value: String,
+    pub signature: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,7 +48,7 @@ pub struct OnlineAuthOptions {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AuthenticationDecision {
-    Authenticated(NameAndId),
+    Authenticated(ProfileResult),
     StartOfflineMode(NameAndId),
     Disconnect(&'static str),
 }
@@ -78,7 +85,7 @@ impl OnlineAuthenticator {
         };
         match service.has_joined_server(request) {
             SessionServiceResult::Joined(result) => {
-                AuthenticationDecision::Authenticated(result.profile)
+                AuthenticationDecision::Authenticated(result)
             }
             SessionServiceResult::NotJoined if self.options.singleplayer => {
                 AuthenticationDecision::StartOfflineMode(NameAndId::create_offline(username))
@@ -187,6 +194,7 @@ mod tests {
         let mut service =
             RecordingSessionService::returning(SessionServiceResult::Joined(ProfileResult {
                 profile: profile.clone(),
+                properties: Vec::new(),
             }));
         let auth = OnlineAuthenticator::new(OnlineAuthOptions {
             online_mode: true,
@@ -201,7 +209,10 @@ mod tests {
                 "server-hash".to_string(),
                 Some("203.0.113.7")
             ),
-            AuthenticationDecision::Authenticated(profile)
+            AuthenticationDecision::Authenticated(ProfileResult {
+                profile,
+                properties: Vec::new(),
+            })
         );
         assert_eq!(
             service.requests,

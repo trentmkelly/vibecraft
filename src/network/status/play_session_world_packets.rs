@@ -1,3 +1,4 @@
+use crate::storage::world::WorldLayout;
 use super::*;
 use super::live_chat_state::CHAT_VALIDATION_FAILED;
 
@@ -262,6 +263,7 @@ pub struct ChatCommandContext<'a> {
     pub player_access: &'a Arc<Mutex<PlayerAccess>>,
     pub world_seed: i64,
     pub weather: &'a Arc<Mutex<WeatherCycle>>,
+    pub game_rules: &'a SharedGameRules,
     /// The player's registry guard, used to enumerate the live online roster for
     /// roster commands like `/list` (Java `PlayerList.getPlayers`).
     pub active_login: &'a ActiveLoginGuard,
@@ -314,7 +316,9 @@ pub fn handle_chat_command_packet<R: Read>(
         context.weather,
         context.active_login,
     );
+    seed_command_game_rules(&mut command_state, context.game_rules);
     let result = execute_builtin_command(&mut command_state, permissions, &command);
+    apply_command_game_rule_changes(&command_state, context.game_rules);
     apply_command_side_effects(
         stream,
         compression,
@@ -323,20 +327,7 @@ pub fn handle_chat_command_packet<R: Read>(
         &command_state,
         context.weather,
     )?;
-    match result {
-        Ok(result) => write_system_chat_text(
-            stream,
-            compression,
-            &command_feedback_text(&result, &command_state),
-            false,
-        ),
-        Err(error) => write_system_chat_text(
-            stream,
-            compression,
-            &format!("Command failed: {error:?}"),
-            false,
-        ),
-    }
+    write_command_result_feedback(stream, compression, result, &command_state, context.game_rules)
 }
 
 pub fn chat_message_is_illegal(message: &str) -> bool {
@@ -345,7 +336,7 @@ pub fn chat_message_is_illegal(message: &str) -> bool {
         .any(|ch| ch == '\u{00a7}' || ch < ' ' || ch == '\u{7f}')
 }
 
-fn player_permission_set(
+pub(super) fn player_permission_set(
     profile: &NameAndId,
     properties: &ServerProperties,
     player_access: &Arc<Mutex<PlayerAccess>>,
@@ -755,7 +746,7 @@ pub fn load_or_generate_spawn_chunk_uncached(
 ) -> LevelChunk {
     let started = Instant::now();
     let pos = ChunkPos { x, z };
-    let region_dir = world_root.join("region");
+    let region_dir = WorldLayout::new(world_root).region_dir();
     let mut source = "region";
     let region_started = Instant::now();
     let loaded = try_load_chunk_from_region(&region_dir, pos);

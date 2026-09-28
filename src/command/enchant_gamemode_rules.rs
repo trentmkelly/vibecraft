@@ -194,6 +194,8 @@ pub(super) fn gamerule_command(
     match parts {
         ["gamerule", rule] => {
             let value = game_rule_value(state, rule)?;
+            let id = game_rule_definition(rule)?.name;
+            state.feedback_args = vec![id.to_string(), value.sync_value()];
             Ok(CommandResult {
                 success_count: value.command_result(),
                 feedback_key: "commands.gamerule.query",
@@ -203,9 +205,10 @@ pub(super) fn gamerule_command(
         ["gamerule", rule, value] => {
             let normalized = normalize_game_rule_name(rule);
             let definition = game_rule_definition(&normalized)?;
-            let current = game_rule_value(state, &normalized)?;
-            let parsed = parse_game_rule_value(value, &current, definition)?;
+            game_rule_value(state, &normalized)?;
+            let parsed = parse_game_rule_value(value, definition)?;
             set_game_rule_value(state, normalized, parsed);
+            state.feedback_args = vec![definition.name.to_string(), parsed.sync_value()];
             state.game_rule_syncs.push(GameRuleSyncEvent {
                 rule: format!("minecraft:{}", definition.name),
                 value: parsed.sync_value(),

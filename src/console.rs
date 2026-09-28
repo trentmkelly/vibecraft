@@ -1,7 +1,10 @@
 #![allow(dead_code)]
 
 use std::io::{self, BufRead};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::time::Duration;
 use std::thread::{self, JoinHandle};
 
 use crate::command_execution::CommandSourceStackModel;
@@ -27,6 +30,7 @@ impl ConsoleInput {
 
 pub fn spawn_console_input_thread() -> io::Result<(Receiver<ConsoleInput>, JoinHandle<()>)> {
     let (sender, receiver) = mpsc::channel();
+    install_shutdown_signal_watcher(sender.clone())?;
     let handle = thread::Builder::new()
         .name("Server console handler".to_string())
         .spawn(move || {
@@ -35,6 +39,26 @@ pub fn spawn_console_input_thread() -> io::Result<(Receiver<ConsoleInput>, JoinH
             let _ = read_console_lines(reader, &sender);
         })?;
     Ok((receiver, handle))
+}
+
+/// Equivalent of the JVM shutdown hook Java's `DedicatedServer.initServer`
+/// registers ("Server Shutdown Thread" calling `MinecraftServer.halt(true)`):
+/// SIGINT/SIGTERM are translated into the console `stop` command so the live
+/// accept loop takes the same graceful-stop path as typing `stop`.
+fn install_shutdown_signal_watcher(sender: Sender<ConsoleInput>) -> io::Result<()> {
+    let signalled = Arc::new(AtomicBool::new(false));
+    for signal in [signal_hook::consts::SIGINT, signal_hook::consts::SIGTERM] {
+        signal_hook::flag::register(signal, Arc::clone(&signalled))?;
+    }
+    thread::Builder::new()
+        .name("Server shutdown signal watcher".to_string())
+        .spawn(move || {
+            while !signalled.load(Ordering::SeqCst) {
+                thread::sleep(Duration::from_millis(50));
+            }
+            let _ = sender.send(ConsoleInput::new("stop", console_command_source()));
+        })?;
+    Ok(())
 }
 
 pub fn read_console_lines<R: BufRead>(
@@ -98,6 +122,18 @@ mod tests {
                 ConsoleInput::new("stop", source),
             ]
         );
+        Ok(())
+    }
+
+    #[test]
+    fn sigterm_is_translated_into_console_stop_command() -> std::io::Result<()> {
+        let (sender, receiver) = mpsc::channel();
+        super::install_shutdown_signal_watcher(sender)?;
+        signal_hook::low_level::raise(signal_hook::consts::SIGTERM)?;
+        let input = receiver
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .expect("stop command from signal");
+        assert_eq!(input.line(), "stop");
         Ok(())
     }
 

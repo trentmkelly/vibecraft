@@ -199,6 +199,8 @@ pub enum CommandError {
     BossBarMaxUnchanged,
     BossBarAlreadyHidden,
     BossBarAlreadyVisible,
+    /// A Brigadier `CommandSyntaxException` raised while parsing a `/gamerule` value argument.
+    GameRuleArgument(crate::game_rules::GameRuleArgumentError),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -722,24 +722,20 @@ pub(super) fn set_game_rule_value(
     }
 }
 
+/// Parses a `/gamerule` value with the rule's Brigadier argument type. Text after the value is
+/// reported the way `CommandDispatcher.parseNodes` does (`dispatcherExpectedArgumentSeparator`).
 pub(super) fn parse_game_rule_value(
     input: &str,
-    current: &GameRuleValue,
     definition: &GameRuleDefinition,
 ) -> Result<GameRuleValue, CommandError> {
-    match current {
-        GameRuleValue::Bool(_) => Ok(GameRuleValue::Bool(parse_bool(input)?)),
-        GameRuleValue::Int(_) => {
-            let value = input
-                .parse::<i32>()
-                .map_err(|_| CommandError::InvalidSyntax)?;
-            if definition.min.is_some_and(|min| value < min)
-                || definition.max.is_some_and(|max| value > max)
-            {
-                return Err(CommandError::InvalidSyntax);
-            }
-            Ok(GameRuleValue::Int(value))
-        }
+    let (value, rest) = game_rules::parse_argument_prefix(input, definition)
+        .map_err(CommandError::GameRuleArgument)?;
+    if rest.is_empty() {
+        Ok(value)
+    } else {
+        Err(CommandError::GameRuleArgument(
+            game_rules::GameRuleArgumentError::ExpectedArgumentSeparator,
+        ))
     }
 }
 

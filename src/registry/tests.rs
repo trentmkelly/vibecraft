@@ -1120,3 +1120,14 @@ fn reloadable_server_registries_keep_last_successful_state_on_tag_failure() -> R
 }
 
 mod tags_and_holders;
+
+/// Java: `FeatureFlags.DEFAULT_FLAGS = VANILLA_SET` (FeatureFlags.java:41). The default
+/// enabled set must be exactly `{minecraft:vanilla}` (no trade_rebalance etc.).
+#[test]
+fn default_enabled_feature_set_is_vanilla_only() {
+    use super::feature_flags;
+    assert_eq!(
+        feature_flags::default_flags_26_1_2(),
+        super::FeatureFlagSet::of(&[feature_flags::VANILLA])
+    );
+}

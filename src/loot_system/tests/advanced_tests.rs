@@ -126,7 +126,9 @@ fn assert_fishing_category_loot(engine: &LootBehaviorEngine) {
         0.0,
         0.0,
         false,
-        2,
+        // Seeds are picked against Java's LegacyRandomSource stream:
+        // RandomSource.create(224).nextInt(95) == 7 (< junk weight 10).
+        224,
     );
     assert_eq!(no_open_water.param_set, LootParamSet::Fishing);
     assert_eq!(
@@ -155,7 +157,8 @@ fn assert_fishing_category_loot(engine: &LootBehaviorEngine) {
         2.0,
         8.0,
         true,
-        4,
+        // RandomSource.create(2).nextInt(100) == 8 (< treasure weight 25 at luck 10).
+        2,
     );
     assert_eq!(
         lucky_open_water.delivery,

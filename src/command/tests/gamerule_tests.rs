@@ -40,7 +40,9 @@ fn gamerule_command_supports_canonical_names_qualified_ids_and_integer_ranges() 
             LevelBasedPermissionSet::GAMEMASTER,
             "gamerule max_snow_accumulation_height 9"
         ),
-        Err(CommandError::InvalidSyntax)
+        Err(CommandError::GameRuleArgument(
+            crate::game_rules::GameRuleArgumentError::IntegerTooHigh { found: 9, max: 8 }
+        ))
     );
     assert_eq!(
         execute_builtin_command(
@@ -48,7 +50,9 @@ fn gamerule_command_supports_canonical_names_qualified_ids_and_integer_ranges() 
             LevelBasedPermissionSet::GAMEMASTER,
             "gamerule random_tick_speed -1"
         ),
-        Err(CommandError::InvalidSyntax)
+        Err(CommandError::GameRuleArgument(
+            crate::game_rules::GameRuleArgumentError::IntegerTooLow { found: -1, min: 0 }
+        ))
     );
     assert_eq!(
         execute_builtin_command(
@@ -122,4 +126,38 @@ fn gamerule_command_toggles_named_client_observable_rules() {
         super::game_rule_value(&state, "mob_griefing").unwrap(),
         super::GameRuleValue::Bool(false)
     );
+}
+
+#[test]
+fn gamerule_command_reports_brigadier_argument_errors_and_feedback_args() {
+    use crate::game_rules::GameRuleArgumentError as Arg;
+    let mut state = ServerCommandState::default();
+    let run = |state: &mut ServerCommandState, line: &str| {
+        execute_builtin_command(state, LevelBasedPermissionSet::GAMEMASTER, line)
+    };
+    assert_eq!(
+        run(&mut state, "gamerule pvp yes"),
+        Err(CommandError::GameRuleArgument(Arg::InvalidBool("yes".to_string())))
+    );
+    assert_eq!(
+        run(&mut state, "gamerule random_tick_speed x"),
+        Err(CommandError::GameRuleArgument(Arg::ExpectedInteger))
+    );
+    assert_eq!(
+        run(&mut state, "gamerule random_tick_speed 1.5"),
+        Err(CommandError::GameRuleArgument(Arg::InvalidInteger("1.5".to_string())))
+    );
+    assert_eq!(
+        run(&mut state, "gamerule random_tick_speed 5x"),
+        Err(CommandError::GameRuleArgument(Arg::ExpectedArgumentSeparator))
+    );
+
+    // commands.gamerule.set / .query take (rule id, serialized value).
+    run(&mut state, "gamerule minecraft:random_tick_speed 12").unwrap();
+    assert_eq!(state.feedback_args, vec!["random_tick_speed", "12"]);
+    let query = run(&mut state, "gamerule random_tick_speed").unwrap();
+    assert_eq!(query.feedback_key, "commands.gamerule.query");
+    assert_eq!(query.success_count, 12);
+    assert!(!query.broadcast_to_admins);
+    assert_eq!(state.feedback_args, vec!["random_tick_speed", "12"]);
 }

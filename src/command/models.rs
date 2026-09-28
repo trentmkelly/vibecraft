@@ -192,6 +192,9 @@ pub struct ServerCommandState {
     pub difficulty: Difficulty,
     pub game_rules: Vec<GameRuleState>,
     pub game_rule_syncs: Vec<GameRuleSyncEvent>,
+    /// Translation arguments of the last successful command's feedback message
+    /// (`Component.translatable(key, args...)`), e.g. `[rule, value]` for `commands.gamerule.set`.
+    pub feedback_args: Vec<String>,
     pub camera_targets: Vec<CameraTarget>,
     pub untrackable_entities: Vec<EntityRef>,
     pub max_players: u32,

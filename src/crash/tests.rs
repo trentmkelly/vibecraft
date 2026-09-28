@@ -59,8 +59,8 @@ fn crash_report_world_artifact_summary_reports_loaded_state() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(dir.join("region")).unwrap();
-    fs::create_dir_all(dir.join("playerdata")).unwrap();
+    fs::create_dir_all(dir.join("dimensions/minecraft/overworld/region")).unwrap();
+    fs::create_dir_all(dir.join("players/data")).unwrap();
     fs::write(dir.join("level.dat"), b"nbt").unwrap();
 
     let report = CrashReport::from_watchdog_tick(

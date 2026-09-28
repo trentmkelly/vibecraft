@@ -3,13 +3,14 @@
 use std::collections::HashMap;
 
 use super::*;
+use crate::random_sequences::SharedRandomSequences;
 
 pub struct LootContext {
     pub param_set: LootParamSet,
     pub entity_type: LootContextEntityType,
     pub params: LootParams,
     pub dynamic_params: HashMap<LootDynamicParamKey, LootDynamicParamValue>,
-    pub random: DeterministicRandom,
+    pub random: LootRandom,
     pub luck: f32,
     pub looting_level: i32,
     pub fortune_level: i32,
@@ -39,7 +40,10 @@ pub struct LootContext {
     pub warnings: Vec<String>,
     pub(super) max_stack_size: i32,
     visited: Vec<String>,
-    base_seed: u64,
+    /// Java `Builder.withOptionalRandomSeed`: a non-zero seed pins the random source
+    /// and takes precedence over the table's `random_sequence`.
+    explicit_random: bool,
+    random_sequences: Option<(SharedRandomSequences, i64)>,
 }
 
 impl LootContext {
@@ -49,7 +53,7 @@ impl LootContext {
             entity_type: entity_type_for_param_set(param_set),
             params: LootParams::default(),
             dynamic_params: HashMap::new(),
-            random: DeterministicRandom::new(seed),
+            random: LootRandom::from_seed(seed),
             luck: 0.0,
             looting_level: 0,
             fortune_level: 0,
@@ -79,7 +83,8 @@ impl LootContext {
             warnings: Vec::new(),
             max_stack_size: 64,
             visited: Vec::new(),
-            base_seed: seed,
+            explicit_random: seed != 0,
+            random_sequences: None,
         }
     }
 
@@ -89,7 +94,7 @@ impl LootContext {
             entity_type: self.entity_type,
             params: self.params.clone(),
             dynamic_params: self.dynamic_params.clone(),
-            random: self.random,
+            random: self.random.clone(),
             luck: self.luck,
             looting_level: self.looting_level,
             fortune_level: self.fortune_level,
@@ -119,7 +124,8 @@ impl LootContext {
             warnings: Vec::new(),
             max_stack_size: self.max_stack_size,
             visited: self.visited.clone(),
-            base_seed: self.base_seed,
+            explicit_random: self.explicit_random,
+            random_sequences: self.random_sequences.clone(),
         }
     }
 
@@ -135,12 +141,33 @@ impl LootContext {
         self.visited.pop();
     }
 
+    /// True until the first table is entered; Java only resolves the
+    /// `random_sequence` when building the top-level context, so nested table
+    /// references keep drawing from the same `RandomSource`.
+    pub(super) fn is_top_level(&self) -> bool {
+        self.visited.is_empty()
+    }
+
+    /// Attaches the server-owned `RandomSequences` (with the world seed) so tables
+    /// declaring a `random_sequence` draw from the persisted sequence.
+    pub fn with_random_sequences(
+        mut self,
+        sequences: SharedRandomSequences,
+        world_seed: i64,
+    ) -> Self {
+        self.random_sequences = Some((sequences, world_seed));
+        self
+    }
+
+    /// Java `LootContext.Builder.create(randomSequenceKey)`: an explicit seed wins,
+    /// otherwise the table's sequence from `RandomSequences` is used.
     pub(super) fn use_random_sequence(&mut self, sequence: &str) {
-        // TODO(random-sequence-saved-data): Java routes loot table random_sequence
-        // through MinecraftServer.getRandomSequence, which advances the per-level
-        // data/random_sequences.dat entry. Thread level RandomSequences into live
-        // loot evaluation once the runtime owns saved-data-backed loot contexts.
-        self.random = DeterministicRandom::new(hash_seed(self.base_seed, sequence));
+        if self.explicit_random {
+            return;
+        }
+        if let Some((sequences, world_seed)) = &self.random_sequences {
+            self.random = LootRandom::from_sequence(sequences.clone(), sequence, *world_seed);
+        }
     }
 
     pub fn insert_param(&mut self, value: LootParamValue) {
@@ -249,37 +276,6 @@ fn entity_type_for_param_set(param_set: LootParamSet) -> LootContextEntityType {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct DeterministicRandom {
-    state: u64,
-}
-
-impl DeterministicRandom {
-    pub fn new(seed: u64) -> Self {
-        Self { state: seed | 1 }
-    }
-
-    pub fn next_u64(&mut self) -> u64 {
-        let mut x = self.state;
-        x ^= x << 13;
-        x ^= x >> 7;
-        x ^= x << 17;
-        self.state = x;
-        x
-    }
-
-    pub fn next_i32(&mut self, bound: i32) -> i32 {
-        if bound <= 1 {
-            return 0;
-        }
-        (self.next_u64() % bound as u64) as i32
-    }
-
-    pub fn next_f32(&mut self) -> f32 {
-        ((self.next_u64() >> 40) as f32) / ((1u64 << 24) as f32)
-    }
-}
-
 pub(super) fn split_stacks(stacks: Vec<LootStack>, max_stack_size: i32) -> Vec<LootStack> {
     let mut result = Vec::new();
     for stack in stacks.into_iter().filter(|stack| !stack.is_empty()) {
@@ -293,7 +289,7 @@ pub(super) fn split_stacks(stacks: Vec<LootStack>, max_stack_size: i32) -> Vec<L
     result
 }
 
-pub(super) fn shuffle<T>(values: &mut [T], random: &mut DeterministicRandom) {
+pub(super) fn shuffle<T>(values: &mut [T], random: &LootRandom) {
     for index in (1..values.len()).rev() {
         let other = random.next_i32(index as i32 + 1) as usize;
         values.swap(index, other);

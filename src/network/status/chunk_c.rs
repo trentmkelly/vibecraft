@@ -471,6 +471,11 @@ pub struct MinimalPlayJoinContext<'a> {
     pub clock_data: &'a [(i32, ClockNetworkState)],
     pub rain_level: f32,
     pub thunder_level: f32,
+    /// `GameRules.REDUCED_DEBUG_INFO`, `!GameRules.IMMEDIATE_RESPAWN` and
+    /// `GameRules.LIMITED_CRAFTING` for `ClientboundLoginPacket` (`PlayerList.placeNewPlayer`).
+    pub reduced_debug_info: bool,
+    pub show_death_screen: bool,
+    pub do_limited_crafting: bool,
 }
 
 pub fn write_minimal_play_join(
@@ -530,11 +535,9 @@ fn write_join_login_and_profile_packets(
         max_players: context.properties.max_players as i32,
         chunk_radius: context.properties.view_distance as i32,
         simulation_distance: context.properties.simulation_distance as i32,
-        // TODO(gamerule-reduced_debug_info): PlayerList.placeNewPlayer sends GameRules.REDUCED_DEBUG_INFO.
-        reduced_debug_info: false,
-        show_death_screen: true,
-        // TODO(gamerule-limited_crafting): PlayerList.placeNewPlayer sends GameRules.LIMITED_CRAFTING.
-        do_limited_crafting: false,
+        reduced_debug_info: context.reduced_debug_info,
+        show_death_screen: context.show_death_screen,
+        do_limited_crafting: context.do_limited_crafting,
         spawn_info: CommonPlayerSpawnInfo {
             seed: context.world_seed,
             game_mode: context.play_state.game_mode,

@@ -1,3 +1,5 @@
+// TODO(trial-live-wiring): no non-test caller exists for this module; vault/trial-spawner
+// block entities are not ticked or interacted with by live handlers yet (CHECKLIST_LOOT).
 #![allow(dead_code)]
 
 use std::collections::BTreeSet;

@@ -17,7 +17,7 @@ Registry, codec, datapack, and resource-pack parity work moved out of the top-le
 - [x] Add a Mineflayer offline-mode registry-size guard test that verifies large registry/tag payloads complete configuration without Mineflayer parser errors, truncated packets, or server-side compression regressions. — `registry_scenarios.mjs` `registry-size-guard` (large-registry-payload / large-tag-payload / configuration-completes / no-mineflayer-parser-errors / no-truncated-packets / no-compression-regression).
 - [ ] Implement codecs for JSON/NBT/network forms of registry-backed values.
 - [ ] Implement feature flag registry and enabled-feature negotiation.
-- [ ] Implement default enabled feature set for 26.1.2.
+- [x] Implement default enabled feature set for 26.1.2. — `feature_flags::default_flags_26_1_2` == FeatureFlags.DEFAULT_FLAGS (vanilla only); wired in main.rs default WorldDataConfiguration + live UpdateEnabledFeatures packet; test `default_enabled_feature_set_is_vanilla_only`.
 - [ ] Implement tag loading, replacement, optional entries, and error reporting.
 - [ ] Implement reloadable server registries and resource reload dependency ordering.
 - [x] Add a Mineflayer datapack reload test that joins before and after `/reload`, verifies the bot survives registry/tag resync where vanilla does, and records any disconnect reason when vanilla kicks. — `harness/mineflayer/datapack_scenarios.mjs` (join-before-reload / run-reload-command / bot-survives-where-vanilla-survives / registry-tag-resync-observed / disconnect-reason-recorded-when-vanilla-kicks); `datapack_scenarios.test.mjs` passes (5 tests).

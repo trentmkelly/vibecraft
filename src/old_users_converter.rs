@@ -245,7 +245,7 @@ pub fn convert_players<R: LegacyProfileResolver>(root: &Path, resolver: &mut R) 
         match name_result {
             Ok(profile) => {
                 resolver.cache_profile(profile.clone());
-                if move_player_file(&source, &root.join("playerdata"), &format!("{}.dat", profile.uuid)).is_err() {
+                if move_player_file(&source, &root.join("players").join("data"), &format!("{}.dat", profile.uuid)).is_err() {
                     return false;
                 }
             }
@@ -389,7 +389,7 @@ mod tests {
         let offline = convert_mob_owner_if_necessary(&mut resolver, "Steve", true).expect("offline owner");
         assert_eq!(offline, NameAndId::create_offline("Steve").uuid);
         assert!(convert_players(&path, &mut resolver));
-        assert!(path.join(format!("playerdata/{}.dat", offline)).is_file());
+        assert!(path.join(format!("players/data/{}.dat", offline)).is_file());
         assert_eq!(convert_mob_owner_if_necessary(&mut resolver, offline.as_str(), true), Some(offline));
         let _ignored = fs::remove_dir_all(path);
     }

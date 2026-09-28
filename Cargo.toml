@@ -21,9 +21,13 @@ flate2 = "1"
 libc = "0.2"
 lz4 = "1"
 md-5 = "0.10"
+rand = "0.8"
+rsa = "0.9"
 serde_json = "1"
 sha1 = "0.10"
 sha2 = "0.10"
+signal-hook = "0.3"
+ureq = "3"
 zip = { version = "2.4.2", default-features = false, features = ["deflate-flate2", "flate2"] }
 
 [profile.dev]

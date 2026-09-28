@@ -1,3 +1,4 @@
+use crate::storage::world::WorldLayout;
 use super::*;
 
 impl PlaySessionState {
@@ -227,7 +228,7 @@ impl GeneratedChunkCache {
         if live_region_feature_generation_enabled()
             && live_chunk_generation_mode() == LiveChunkGenerationMode::RealSurface
         {
-            let region_dir = world_root.join("region");
+            let region_dir = WorldLayout::new(world_root).region_dir();
             if try_load_chunk_from_region(&region_dir, pos).is_none() {
                 match generate_overworld_spawn_chunk_region_for_preset_with_mode(
                     pos,
@@ -412,7 +413,7 @@ impl GeneratedChunkCache {
                 .filter_map(|pos| map.get(pos).cloned().map(|c| (*pos, c)))
                 .collect()
         };
-        let region_dir = world_root.join("region");
+        let region_dir = WorldLayout::new(world_root).region_dir();
         let mut written = 0_usize;
         for (pos, chunk) in snapshots {
             let Ok(region) = RegionFile::open_with_options(

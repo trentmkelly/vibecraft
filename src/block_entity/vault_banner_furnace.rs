@@ -737,6 +737,8 @@ impl AbstractFurnaceBlockEntity {
     pub const RESULT_SLOT: usize = 2;
     pub const SLOT_COUNT: usize = 3;
     pub const MAX_STACK_SIZE: i32 = 64;
+    /// `AbstractFurnaceBlockEntity.BURN_TIME_STANDARD`, also the `getTotalCookTime` fallback.
+    pub const BURN_TIME_STANDARD: i32 = 200;
 
     pub fn furnace() -> Self {
         Self::new(FurnaceBlockEntityKind::Furnace)
@@ -757,7 +759,7 @@ impl AbstractFurnaceBlockEntity {
             lit_time_remaining: 0,
             lit_total_time: 0,
             cooking_time_spent: 0,
-            cooking_total_time: kind.default_cooking_time(),
+            cooking_total_time: 0,
             recipes_used: BTreeMap::new(),
         }
     }
@@ -777,75 +779,83 @@ impl AbstractFurnaceBlockEntity {
             self.cooking_total_time = recipe
                 .filter(|recipe| self.recipe_matches(recipe))
                 .map(|recipe| recipe.cooking_time)
-                .unwrap_or_else(|| self.kind.default_cooking_time());
+                .unwrap_or(Self::BURN_TIME_STANDARD);
             self.cooking_time_spent = 0;
         }
         true
     }
 
+    /// `AbstractFurnaceBlockEntity.serverTick`. `recipe` is the cooking recipe the
+    /// caller resolved for the ingredient slot (Java's `quickCheck.getRecipeFor`);
+    /// a recipe that does not match the current ingredient is treated as absent.
     pub fn server_tick(
         &mut self,
         fuel_values: &FuelValues,
         recipe: Option<&FurnaceCookingRecipe>,
     ) -> FurnaceTickResult {
-        let was_lit = self.is_lit();
-        if self.lit_time_remaining > 0 {
+        let mut result = FurnaceTickResult::Idle;
+        let was_lit = self.lit_time_remaining > 0;
+        let mut is_lit = false;
+        if was_lit {
             self.lit_time_remaining -= 1;
+            is_lit = self.lit_time_remaining > 0;
         }
-        let is_lit_after_decrement = self.is_lit();
         let has_ingredient = self.items[Self::INGREDIENT_SLOT].is_some();
         let has_fuel = self.items[Self::FUEL_SLOT].is_some();
 
-        if is_lit_after_decrement || has_fuel && has_ingredient {
-            if let Some(recipe) = recipe.filter(|recipe| self.recipe_matches(recipe)) {
-                self.cooking_total_time = recipe.cooking_time;
-                if self.can_burn(recipe) {
-                    if !self.is_lit() {
-                        let new_lit_time = self
-                            .kind
-                            .burn_duration(fuel_values, self.items[Self::FUEL_SLOT].as_ref());
-                        self.lit_time_remaining = new_lit_time;
-                        self.lit_total_time = new_lit_time;
-                        if new_lit_time > 0 {
-                            self.consume_fuel();
+        if is_lit || has_fuel && has_ingredient {
+            if has_ingredient {
+                if let Some(recipe) = recipe.filter(|recipe| self.recipe_matches(recipe)) {
+                    if self.can_burn(recipe) {
+                        if !is_lit {
+                            let new_lit_time = self
+                                .kind
+                                .burn_duration(fuel_values, self.items[Self::FUEL_SLOT].as_ref());
+                            self.lit_time_remaining = new_lit_time;
+                            self.lit_total_time = new_lit_time;
+                            if new_lit_time > 0 {
+                                self.consume_fuel();
+                                is_lit = true;
+                                result = FurnaceTickResult::Cooking;
+                            }
                         }
-                    }
-
-                    if self.is_lit() {
-                        self.cooking_time_spent += 1;
-                        if self.cooking_time_spent == self.cooking_total_time {
-                            self.cooking_time_spent = 0;
-                            self.burn(recipe);
-                            self.record_recipe(recipe);
-                            return FurnaceTickResult::Burned {
-                                output_count: self.items[Self::RESULT_SLOT]
-                                    .as_ref()
-                                    .map(|stack| stack.count)
-                                    .unwrap_or(0),
-                            };
-                        }
-                        return if was_lit != self.is_lit() {
-                            FurnaceTickResult::LitChanged { lit: self.is_lit() }
+                        if is_lit {
+                            self.cooking_time_spent += 1;
+                            if self.cooking_time_spent == self.cooking_total_time {
+                                self.cooking_time_spent = 0;
+                                self.cooking_total_time = recipe.cooking_time;
+                                self.burn(recipe);
+                                self.record_recipe(recipe);
+                                result = FurnaceTickResult::Burned {
+                                    output_count: self.items[Self::RESULT_SLOT]
+                                        .as_ref()
+                                        .map(|stack| stack.count)
+                                        .unwrap_or(0),
+                                };
+                            } else if result == FurnaceTickResult::Idle {
+                                result = FurnaceTickResult::Cooking;
+                            }
                         } else {
-                            FurnaceTickResult::Cooking
-                        };
+                            self.cooking_time_spent = 0;
+                        }
+                    } else {
+                        self.cooking_time_spent = 0;
                     }
                 }
-                self.cooking_time_spent = 0;
-            } else if has_ingredient {
+            } else {
                 self.cooking_time_spent = 0;
             }
         } else if self.cooking_time_spent > 0 {
             self.cooking_time_spent =
                 (self.cooking_time_spent - 2).clamp(0, self.cooking_total_time);
-            return FurnaceTickResult::Cooling;
+            result = FurnaceTickResult::Cooling;
         }
 
-        if was_lit != self.is_lit() {
-            FurnaceTickResult::LitChanged { lit: self.is_lit() }
-        } else {
-            FurnaceTickResult::Idle
+        if was_lit != is_lit {
+            // Java also rewrites AbstractFurnaceBlock.LIT via level.setBlock.
+            return FurnaceTickResult::LitChanged { lit: is_lit };
         }
+        result
     }
 
     pub fn is_lit(&self) -> bool {
@@ -922,24 +932,30 @@ impl AbstractFurnaceBlockEntity {
         }
     }
 
-    pub fn xp_to_award_and_clear(&mut self, fraction_roll: f32) -> i32 {
-        let total = self
-            .recipes_used
-            .iter()
-            .map(|(_, (times_used, experience_millis))| {
-                if *times_used <= 0 || *experience_millis <= 0 {
-                    return 0;
-                }
-                let total_millis = *times_used * *experience_millis;
-                let whole = total_millis / 1000;
-                let fraction = (total_millis % 1000) as f32 / 1000.0;
-                if fraction != 0.0 && fraction_roll < fraction {
-                    whole + 1
-                } else {
-                    whole
-                }
-            })
-            .sum();
+    /// `getRecipesToAwardAndPopExperience` + `createExperience`: for each used
+    /// recipe the XP is `floor(count * xp)` plus one more with probability
+    /// `frac(count * xp)`. `experience_of` is Java's `recipeAccess().byKey` lookup
+    /// (recipes that no longer exist award nothing) and `roll` is
+    /// `level.getRandom().nextFloat()`. Clears the used-recipe map like
+    /// `awardUsedRecipesAndPopExperience`.
+    pub fn xp_to_award_and_clear(
+        &mut self,
+        experience_of: impl Fn(&str) -> Option<f32>,
+        mut roll: impl FnMut() -> f32,
+    ) -> i32 {
+        let mut total = 0;
+        for (recipe_id, amount) in &self.recipes_used {
+            let Some(xp) = experience_of(recipe_id) else {
+                continue;
+            };
+            let product = *amount as f32 * xp;
+            let mut reward = product.floor() as i32;
+            let fraction = product - product.floor();
+            if fraction != 0.0 && roll() < fraction {
+                reward += 1;
+            }
+            total += reward;
+        }
         self.recipes_used.clear();
         total
     }
@@ -972,12 +988,11 @@ impl AbstractFurnaceBlockEntity {
         let Some(entries) = compound_entries(tag) else {
             return furnace;
         };
-        furnace.cooking_time_spent = get_short(entries, "cooking_time_spent").unwrap_or(0).max(0);
+        furnace.cooking_time_spent = get_short(entries, "cooking_time_spent").unwrap_or(0);
         furnace.cooking_total_time = get_short(entries, "cooking_total_time")
-            .unwrap_or(kind.default_cooking_time())
-            .max(0);
-        furnace.lit_time_remaining = get_short(entries, "lit_time_remaining").unwrap_or(0).max(0);
-        furnace.lit_total_time = get_short(entries, "lit_total_time").unwrap_or(0).max(0);
+            .unwrap_or(0);
+        furnace.lit_time_remaining = get_short(entries, "lit_time_remaining").unwrap_or(0);
+        furnace.lit_total_time = get_short(entries, "lit_total_time").unwrap_or(0);
         if let Some(Tag::List(items)) = entries
             .iter()
             .find(|(name, _)| name == "Items")
@@ -998,14 +1013,9 @@ impl AbstractFurnaceBlockEntity {
             .map(|(_, tag)| tag)
         {
             for (recipe_id, tag) in recipes {
-                if let Tag::Compound(values) = tag {
-                    let count = get_int(values, "count").unwrap_or(0).max(0);
-                    let experience = get_int(values, "experience_millis").unwrap_or(0).max(0);
-                    if count > 0 {
-                        furnace
-                            .recipes_used
-                            .insert(recipe_id.clone(), (count, experience));
-                    }
+                // RECIPES_USED_CODEC = unboundedMap(Recipe.KEY_CODEC, Codec.INT)
+                if let Tag::Int(count) = tag {
+                    furnace.recipes_used.insert(recipe_id.clone(), *count);
                 }
             }
         }
@@ -1029,20 +1039,17 @@ impl AbstractFurnaceBlockEntity {
         }
     }
 
+    /// `AbstractFurnaceBlockEntity.burn`: the wet-sponge/bucket swap is evaluated
+    /// against the input stack *before* it is shrunk.
     pub(super) fn burn(&mut self, recipe: &FurnaceCookingRecipe) {
         match &mut self.items[Self::RESULT_SLOT] {
             Some(result) => result.count += recipe.result.count,
             slot @ None => *slot = Some(recipe.result.clone()),
         }
-        if let Some(input) = &mut self.items[Self::INGREDIENT_SLOT] {
-            input.count -= 1;
-            if input.count <= 0 {
-                self.items[Self::INGREDIENT_SLOT] = None;
-            }
-        }
-        if self.items[Self::INGREDIENT_SLOT]
+        let input_is_wet_sponge = self.items[Self::INGREDIENT_SLOT]
             .as_ref()
-            .is_some_and(|input| input.item_id == "minecraft:wet_sponge")
+            .is_some_and(|input| input.item_id == "minecraft:wet_sponge");
+        if input_is_wet_sponge
             && self.items[Self::FUEL_SLOT]
                 .as_ref()
                 .is_some_and(|fuel| fuel.item_id == "minecraft:bucket")
@@ -1051,6 +1058,12 @@ impl AbstractFurnaceBlockEntity {
                 item_id: "minecraft:water_bucket".to_string(),
                 count: 1,
             });
+        }
+        if let Some(input) = &mut self.items[Self::INGREDIENT_SLOT] {
+            input.count -= 1;
+            if input.count <= 0 {
+                self.items[Self::INGREDIENT_SLOT] = None;
+            }
         }
     }
 
@@ -1070,13 +1083,9 @@ impl AbstractFurnaceBlockEntity {
         }
     }
 
+    /// `RecipeCraftingHolder.setRecipeUsed`: `recipesUsed.addTo(id, 1)`.
     pub(super) fn record_recipe(&mut self, recipe: &FurnaceCookingRecipe) {
-        let entry = self
-            .recipes_used
-            .entry(recipe.recipe_id.clone())
-            .or_insert((0, recipe.experience_millis));
-        entry.0 += 1;
-        entry.1 = recipe.experience_millis;
+        *self.recipes_used.entry(recipe.recipe_id.clone()).or_insert(0) += 1;
     }
 
     pub(super) fn items_tag(&self) -> Tag {
@@ -1099,18 +1108,7 @@ impl AbstractFurnaceBlockEntity {
         Tag::Compound(
             self.recipes_used
                 .iter()
-                .map(|(recipe_id, (count, experience_millis))| {
-                    (
-                        recipe_id.clone(),
-                        Tag::Compound(vec![
-                            ("count".to_string(), Tag::Int(*count)),
-                            (
-                                "experience_millis".to_string(),
-                                Tag::Int(*experience_millis),
-                            ),
-                        ]),
-                    )
-                })
+                .map(|(recipe_id, count)| (recipe_id.clone(), Tag::Int(*count)))
                 .collect(),
         )
     }

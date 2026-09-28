@@ -1,12 +1,17 @@
 #![allow(dead_code)]
 
 use std::collections::{btree_map::Entry, BTreeMap};
+use std::sync::{Arc, Mutex};
 
 use crate::random_source::{
     mix_stafford_13, seed128_from_hash_of, upgrade_seed_to_128bit_unmixed, Seed128, GOLDEN_RATIO_64,
     SILVER_RATIO_64,
 };
 use crate::storage::nbt::Tag;
+
+/// Server-wide handle to the `random_sequences` saved data
+/// (Java `MinecraftServer.getRandomSequences()`).
+pub type SharedRandomSequences = Arc<Mutex<RandomSequences>>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RandomSequence {
@@ -61,6 +66,16 @@ impl RandomSequence {
 
     pub fn next_int(&mut self) -> i32 {
         self.next_long() as i32
+    }
+
+    /// Java `XoroshiroRandomSource.nextBoolean()`.
+    pub fn next_bool(&mut self) -> bool {
+        (self.next_long() & 1) != 0
+    }
+
+    /// Java `XoroshiroRandomSource.nextFloat()`: `nextBits(24) * 2^-24`.
+    pub fn next_f32(&mut self) -> f32 {
+        ((self.next_long() as u64 >> 40) as f32) * 5.960_464_5E-8_f32
     }
 
     pub fn next_int_bound(&mut self, bound: i32) -> i32 {

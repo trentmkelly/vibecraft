@@ -773,7 +773,8 @@ pub struct AbstractFurnaceBlockEntity {
     pub lit_total_time: i32,
     pub cooking_time_spent: i32,
     pub cooking_total_time: i32,
-    pub recipes_used: BTreeMap<String, (i32, i32)>,
+    /// `recipesUsed`: recipe id -> times used (XP is resolved from the recipe at award time).
+    pub recipes_used: BTreeMap<String, i32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

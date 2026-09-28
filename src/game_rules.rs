@@ -2,6 +2,15 @@
 
 use std::collections::BTreeMap;
 
+mod argument;
+mod live;
+mod saved_data;
+#[cfg(test)]
+mod tests_live;
+
+pub use argument::{deserialize_game_rule_value, parse_argument_prefix, GameRuleArgumentError};
+pub use live::{GameRuleChange, LiveGameRules, SharedGameRules};
+
 pub const VANILLA_GAME_RULE_COUNT_26_1_2: usize = 59;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -90,12 +99,28 @@ impl GameRules {
             return Err(GameRuleError::DisabledByFeature);
         }
         let value = parse_game_rule_value(raw_value, definition)?;
+        Ok(self.set_value(definition, value))
+    }
+
+    /// `GameRules.set` with an already-typed value for an enabled rule.
+    pub fn set_value(
+        &mut self,
+        definition: &'static GameRuleDefinition,
+        value: GameRuleValue,
+    ) -> GameRuleSync {
         self.values.insert(definition.name, value);
-        Ok(GameRuleSync {
+        GameRuleSync {
             rule: format!("minecraft:{}", definition.name),
             value: value.sync_value(),
             command_result: value.command_result(),
-        })
+        }
+    }
+
+    /// `GameRules.availableRules`: enabled rules with their current values, in registry order.
+    pub fn available_rules(&self) -> impl Iterator<Item = (&'static GameRuleDefinition, GameRuleValue)> + '_ {
+        vanilla_game_rules()
+            .iter()
+            .filter_map(|definition| Some((definition, *self.values.get(definition.name)?)))
     }
 
     pub fn runtime_effects(&self) -> GameRuleRuntimeEffects {
@@ -263,27 +288,18 @@ pub fn normalize_game_rule_name(rule: &str) -> String {
     rule.strip_prefix("minecraft:").unwrap_or(rule).to_string()
 }
 
+/// Parses `raw` with the rule's Brigadier argument type (`GameRule.deserialize`), collapsing
+/// the failure into the coarse [`GameRuleError`] used by the JSON-RPC layer. Callers that
+/// need the exact Brigadier message use [`deserialize_game_rule_value`].
 pub fn parse_game_rule_value(
     raw: &str,
     definition: &GameRuleDefinition,
 ) -> Result<GameRuleValue, GameRuleError> {
-    match definition.rule_type {
-        GameRuleType::Bool => match raw {
-            "true" => Ok(GameRuleValue::Bool(true)),
-            "false" => Ok(GameRuleValue::Bool(false)),
-            _ => Err(GameRuleError::WrongType),
-        },
-        GameRuleType::Int => {
-            let value = raw.parse::<i32>().map_err(|_| GameRuleError::WrongType)?;
-            if definition.min.is_some_and(|min| value < min)
-                || definition.max.is_some_and(|max| value > max)
-            {
-                Err(GameRuleError::OutOfRange)
-            } else {
-                Ok(GameRuleValue::Int(value))
-            }
-        }
-    }
+    deserialize_game_rule_value(raw, definition).map_err(|error| match error {
+        GameRuleArgumentError::IntegerTooLow { .. }
+        | GameRuleArgumentError::IntegerTooHigh { .. } => GameRuleError::OutOfRange,
+        _ => GameRuleError::WrongType,
+    })
 }
 
 const VANILLA_GAME_RULES: &[GameRuleDefinition] = &[

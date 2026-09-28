@@ -34,7 +34,7 @@ use resources::{
 use server_properties::ServerProperties;
 use storage::datafix::{run_world_upgrade, WorldUpgradeOptions};
 use storage::nbt::Tag;
-use storage::world::{LevelVersion, PrimaryLevelData, WorldLayout};
+use storage::world::{LevelVersion, WorldLayout};
 use world::WorldOptions;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -98,7 +98,6 @@ fn run(options: CliOptions) -> Result<(), String> {
     log_runtime_selection(&logger, &options, &runtime, &watchdog)?;
     run_configured_world_upgrade(&logger, &options, &runtime)?;
     check_world_version_compatibility(&logger, &runtime)?;
-    migrate_legacy_announce_player_achievements(&startup.properties, &runtime)?;
 
     // Acquire exclusive session lock to prevent concurrent world access.
     // Matches Java LevelStorageSource.LevelStorageAccess constructor.
@@ -116,13 +115,23 @@ fn run(options: CliOptions) -> Result<(), String> {
 
     let world_options =
         configure_initial_data_packs(&logger, &options, &startup.properties, &runtime)?;
-    start_network_listeners(
+    // Java MinecraftServer loads RandomSequences saved data at startup and
+    // writes it back (when dirty) on save/shutdown.
+    random_sequences_live::initialize(
+        WorldLayout::new(runtime.universe.join(&runtime.world_name)),
+        world_options.seed,
+    )
+    .map_err(|err| format!("Failed to load random_sequences.dat: {err}"))?;
+    let result = start_network_listeners(
         &logger,
         &startup.properties,
         &runtime,
         world_options.seed,
         &console_input,
-    )
+    );
+    random_sequences_live::save_if_dirty()
+        .map_err(|err| format!("Failed to save random_sequences.dat: {err}"))?;
+    result
 }
 
 fn initialize_logger(options: &CliOptions) -> Result<std::sync::Arc<Logger>, String> {
@@ -302,49 +311,6 @@ fn check_world_version_compatibility(
     }
 
     Ok(())
-}
-
-fn migrate_legacy_announce_player_achievements(
-    properties: &ServerProperties,
-    runtime: &RuntimeSelection,
-) -> Result<(), String> {
-    let Some(enabled) = properties.announce_player_achievements else {
-        return Ok(());
-    };
-
-    let layout = WorldLayout::new(runtime.universe.join(&runtime.world_name));
-    if !layout.level_dat().is_file() && !layout.level_dat_old().is_file() {
-        return Ok(());
-    }
-
-    let tag = layout
-        .load_level_dat_with_backup()
-        .map_err(|err| format!("Failed to read level.dat for legacy gamerule migration: {err}"))?;
-    let mut level = PrimaryLevelData::from_level_dat(&tag)
-        .ok_or_else(|| "level.dat exists but has no parseable level data".to_string())?;
-    upsert_game_rule_string(
-        &mut level.game_rules,
-        "show_advancement_messages",
-        enabled.to_string(),
-    );
-    layout
-        .save_level_dat(&level.to_level_dat()?)
-        .map_err(|err| format!("Failed to write level.dat for legacy gamerule migration: {err}"))
-}
-
-fn upsert_game_rule_string(game_rules: &mut Tag, name: &str, value: String) {
-    let Tag::Compound(entries) = game_rules else {
-        *game_rules = Tag::Compound(vec![(name.to_string(), Tag::String(value))]);
-        return;
-    };
-    if let Some((_, existing)) = entries
-        .iter_mut()
-        .find(|(entry_name, _)| entry_name == name)
-    {
-        *existing = Tag::String(value);
-    } else {
-        entries.push((name.to_string(), Tag::String(value)));
-    }
 }
 
 /// Java Main chooses stored configuration for existing worlds and properties
@@ -558,9 +524,9 @@ fn validate_code_of_conduct_configuration(properties: &ServerProperties) -> Resu
 #[cfg(test)]
 mod tests {
     use super::{
-        listener_bind_ip, migrate_legacy_announce_player_achievements, run, runtime_selection,
-        validate_code_of_conduct_configuration, validate_management_server_configuration,
-        CliOptions, LogLevel, Logger, ManagementStartupPlan, RuntimeSelection,
+        listener_bind_ip, run, runtime_selection, validate_code_of_conduct_configuration,
+        validate_management_server_configuration, CliOptions, LogLevel, Logger,
+        ManagementStartupPlan,
     };
     use crate::management_server::AllowedOrigins;
     use crate::server_properties::ServerProperties;
@@ -802,76 +768,6 @@ management-server-allowed-origins=https://admin.example\n",
         let invalid = ServerProperties::load_or_default(Path::new("server.properties")).unwrap();
         let err = validate_management_server_configuration(&logger, &invalid).unwrap_err();
         assert!(err.contains("DisabledInvalidSecret"));
-    }
-
-    #[test]
-    fn legacy_announce_player_achievements_updates_persisted_gamerule_like_java() {
-        let _lock = CWD_LOCK.lock().unwrap();
-        let dir = temp_workdir("legacy-announce");
-        let world = dir.join("world");
-        let layout = WorldLayout::new(&world);
-        let data = minimal_level_data(Tag::Compound(vec![(
-            "show_advancement_messages".to_string(),
-            Tag::String("true".to_string()),
-        )]));
-        layout
-            .save_level_dat(&data.to_level_dat().unwrap())
-            .expect("save level.dat");
-        let properties_path = dir.join("server.properties");
-        fs::write(&properties_path, "announce-player-achievements=false\n")
-            .expect("write properties");
-        let properties = ServerProperties::load_or_default(&properties_path).unwrap();
-        let runtime = RuntimeSelection {
-            world_name: "world".to_string(),
-            universe: dir.clone(),
-            port: 25565,
-            server_id: None,
-        };
-
-        migrate_legacy_announce_player_achievements(&properties, &runtime).unwrap();
-
-        let migrated = PrimaryLevelData::from_level_dat(&layout.load_level_dat().unwrap()).unwrap();
-        let Tag::Compound(rules) = migrated.game_rules else {
-            panic!("expected GameRules compound");
-        };
-        assert_eq!(
-            rules
-                .iter()
-                .find(|(name, _)| name == "show_advancement_messages")
-                .map(|(_, value)| value),
-            Some(&Tag::String("false".to_string()))
-        );
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn absent_legacy_announce_player_achievements_leaves_level_dat_unchanged() {
-        let _lock = CWD_LOCK.lock().unwrap();
-        let dir = temp_workdir("legacy-announce-absent");
-        let world = dir.join("world");
-        let layout = WorldLayout::new(&world);
-        let data = minimal_level_data(Tag::Compound(vec![(
-            "show_advancement_messages".to_string(),
-            Tag::String("true".to_string()),
-        )]));
-        layout
-            .save_level_dat(&data.to_level_dat().unwrap())
-            .expect("save level.dat");
-        let before = layout.load_level_dat().unwrap();
-        let properties_path = dir.join("server.properties");
-        fs::write(&properties_path, "").expect("write properties");
-        let properties = ServerProperties::load_or_default(&properties_path).unwrap();
-        let runtime = RuntimeSelection {
-            world_name: "world".to_string(),
-            universe: dir.clone(),
-            port: 25565,
-            server_id: None,
-        };
-
-        migrate_legacy_announce_player_achievements(&properties, &runtime).unwrap();
-
-        assert_eq!(layout.load_level_dat().unwrap(), before);
-        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

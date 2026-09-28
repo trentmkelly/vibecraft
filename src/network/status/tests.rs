@@ -1167,6 +1167,7 @@ fn assert_goat_horn_instrument_registry_payload_fields() {
 mod tests_a2;
 mod tests_b;
 pub use tests_b::*;
+mod game_rule_packets;
 mod recipe_book_packets;
 mod resource_pack_properties;
 #[cfg(vibecraft_has_decompiled_sources)]

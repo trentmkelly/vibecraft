@@ -292,7 +292,13 @@ fn version_command_reports_26_1_2_metadata() {
     assert!(lines.contains(&"commands.version.stable.yes".to_string()));
 
     let result =
-        execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "/version").unwrap();
+        execute_builtin_command(&mut state, LevelBasedPermissionSet::GAMEMASTER, "/version")
+            .unwrap();
+    // Dedicated servers gate `/version` at LEVEL_GAMEMASTERS (VersionCommand.register).
+    assert_eq!(
+        execute_builtin_command(&mut state, LevelBasedPermissionSet::ALL, "/version"),
+        Err(CommandError::PermissionDenied)
+    );
     assert_eq!(result.success_count, 1);
     assert_eq!(result.feedback_key, "commands.version.header");
     assert!(!result.broadcast_to_admins);
@@ -1023,7 +1029,9 @@ fn difficulty_and_gamerule_commands_query_set_and_reject_noops() {
             LevelBasedPermissionSet::GAMEMASTER,
             "gamerule random_tick_speed true"
         ),
-        Err(CommandError::InvalidSyntax)
+        Err(CommandError::GameRuleArgument(
+            crate::game_rules::GameRuleArgumentError::ExpectedInteger
+        ))
     );
 }
 

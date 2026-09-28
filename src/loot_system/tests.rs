@@ -697,17 +697,20 @@ fn random_sequences_are_repeatable_and_independent_from_context_seed_stream() {
         bonus_rolls: NumberProvider::Constant(0.0),
     });
     table.random_sequence = Some("minecraft:chests/simple_dungeon".to_string());
+    let mut other = table.clone();
+    other.random_sequence = Some("minecraft:chests/abandoned_mineshaft".to_string());
 
-    let mut first = LootContext::new(LootParamSet::Chest, 99);
-    let mut second = LootContext::new(LootParamSet::Chest, 99);
-    let mut different_sequence = table.clone();
-    different_sequence.random_sequence = Some("minecraft:chests/abandoned_mineshaft".to_string());
+    let run = |table: &LootTable| {
+        let sequences = std::sync::Arc::new(std::sync::Mutex::new(
+            crate::random_sequences::RandomSequences::default(),
+        ));
+        let mut context =
+            LootContext::new(LootParamSet::Chest, 0).with_random_sequences(sequences, 99);
+        table.evaluate(&mut context)
+    };
 
-    assert_eq!(table.evaluate(&mut first), table.evaluate(&mut second));
-    assert_ne!(
-        table.evaluate(&mut LootContext::new(LootParamSet::Chest, 99)),
-        different_sequence.evaluate(&mut LootContext::new(LootParamSet::Chest, 99))
-    );
+    assert_eq!(run(&table), run(&table));
+    assert_ne!(run(&table), run(&other));
 }
 
 #[test]

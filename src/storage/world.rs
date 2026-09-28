@@ -602,35 +602,49 @@ impl WorldLayout {
         self.root.join("session.lock")
     }
 
-    // TODO(dimension-folder-layout-26.1.2): PRE-26.1.2 layout. Java 26.1.2 stores
-    // EVERY dimension (incl. overworld) under `dimensions/<ns>/<path>/` —
-    // ChunkMap.java:174 uses `getDimensionPath(dim).resolve("region")`,
-    // getDimensionPath = DimensionType.getStorageFolder = `<root>/dimensions/<ns>/
-    // <path>` (no DIM-1/DIM1 special-casing). So overworld region belongs at
-    // `dimensions/minecraft/overworld/{region,entities,poi}`. Deferred (foundational
-    // + needs migration). Blocks STORAGE #110/#28/#29/#117. See memory note.
+    /// Overworld dimension folder, `dimensions/minecraft/overworld`.
+    ///
+    /// Java: `DimensionType.getStorageFolder(Level.OVERWORLD, root)` =
+    /// `Identifier.resolveAgainst(root/dimensions)`; there is no `DIM-1`/`DIM1`
+    /// or root-level special casing in 26.1.2 (older layouts are converted by
+    /// `DimensionStorageFileFix`, see [`Self::migrate_legacy_layout`]).
+    pub fn overworld_dir(&self) -> PathBuf {
+        self.dimensions_dir().join("minecraft").join("overworld")
+    }
+
+    /// `ChunkMap`: `getDimensionPath(dim).resolve("region")` (overworld).
     pub fn region_dir(&self) -> PathBuf {
-        self.root.join("region")
+        self.overworld_dir().join("region")
     }
 
+    /// `ServerLevel`: `getDimensionPath(dim).resolve("entities")` (overworld).
     pub fn entities_dir(&self) -> PathBuf {
-        self.root.join("entities")
+        self.overworld_dir().join("entities")
     }
 
+    /// `ChunkMap`: `getDimensionPath(dim)` + `poi` (overworld).
     pub fn poi_dir(&self) -> PathBuf {
-        self.root.join("poi")
+        self.overworld_dir().join("poi")
     }
 
+    /// `LevelResource.PLAYER_OLD_DATA_DIR` (`players`).
+    pub fn players_dir(&self) -> PathBuf {
+        self.root.join("players")
+    }
+
+    /// `LevelResource.PLAYER_DATA_DIR` (`players/data`).
     pub fn playerdata_dir(&self) -> PathBuf {
-        self.root.join("playerdata")
+        self.players_dir().join("data")
     }
 
+    /// `LevelResource.PLAYER_ADVANCEMENTS_DIR` (`players/advancements`).
     pub fn advancements_dir(&self) -> PathBuf {
-        self.root.join("advancements")
+        self.players_dir().join("advancements")
     }
 
+    /// `LevelResource.PLAYER_STATS_DIR` (`players/stats`).
     pub fn stats_dir(&self) -> PathBuf {
-        self.root.join("stats")
+        self.players_dir().join("stats")
     }
 
     pub fn datapacks_dir(&self) -> PathBuf {
@@ -680,6 +694,7 @@ impl WorldLayout {
 
     pub fn ensure_base_dirs(&self) -> std::io::Result<()> {
         fs::create_dir_all(&self.root)?;
+        self.migrate_legacy_layout()?;
         for dir in [
             self.region_dir(),
             self.entities_dir(),
@@ -974,6 +989,7 @@ mod level_version;
 mod metadata_edit;
 pub mod summary;
 
+mod legacy_layout;
 mod session_lock;
 pub use session_lock::SessionLock;
 /// Name-preserving alias for Java’s `DirectoryLock`.

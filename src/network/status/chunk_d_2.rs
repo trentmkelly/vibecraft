@@ -14,6 +14,11 @@ pub fn evaluate_block_loot_with_tool(
         return Vec::new();
     };
     let mut context = LootContext::new(LootParamSet::Block, seed);
+    // Java LootContext.Builder.create(table.random_sequence) draws from the
+    // server's persisted RandomSequences when the table declares one.
+    if let Some((sequences, world_seed)) = crate::random_sequences_live::handle() {
+        context = context.with_random_sequences(sequences, world_seed);
+    }
     context.block = Some(
         block_name
             .split_once('[')

@@ -1,0 +1,163 @@
+//! HTTPS `hasJoinedServer` client for the Mojang session server.
+//!
+//! Mirrors authlib's `YggdrasilMinecraftSessionService.hasJoinedServer`: a GET to
+//! `<session host>/session/minecraft/hasJoined?username=..&serverId=..[&ip=..]`.
+//! `200` carries the profile JSON, `204` means the client never called `joinServer`
+//! (Java returns `null`), and transport/server failures raise
+//! `AuthenticationUnavailableException`.
+
+use std::time::Duration;
+
+use serde_json::Value;
+
+use crate::player_access::NameAndId;
+use crate::player_online_auth::{
+    HasJoinedRequest, ProfileProperty, ProfileResult, SessionService, SessionServiceResult,
+};
+
+const DEFAULT_SESSION_HOST: &str = "https://sessionserver.mojang.com";
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// [`SessionService`] backed by the live Yggdrasil session server.
+pub struct YggdrasilSessionService {
+    agent: ureq::Agent,
+    base_url: String,
+}
+
+impl YggdrasilSessionService {
+    /// Session service for the official Mojang session host.
+    pub fn new() -> Self {
+        Self::with_base_url(DEFAULT_SESSION_HOST)
+    }
+
+    /// Session service for an alternate host (authlib's `minecraft.api.session.host`).
+    pub fn with_base_url(base_url: &str) -> Self {
+        let agent: ureq::Agent = ureq::Agent::config_builder()
+            .timeout_global(Some(REQUEST_TIMEOUT))
+            .http_status_as_error(false)
+            .build()
+            .into();
+        Self {
+            agent,
+            base_url: base_url.trim_end_matches('/').to_string(),
+        }
+    }
+}
+
+impl SessionService for YggdrasilSessionService {
+    fn has_joined_server(&mut self, request: HasJoinedRequest) -> SessionServiceResult {
+        let url = format!("{}/session/minecraft/hasJoined", self.base_url);
+        let mut call = self
+            .agent
+            .get(&url)
+            .query("username", &request.username)
+            .query("serverId", &request.server_hash);
+        if let Some(address) = &request.address {
+            call = call.query("ip", address);
+        }
+        let mut response = match call.call() {
+            Ok(response) => response,
+            Err(_) => return SessionServiceResult::AuthenticationUnavailable,
+        };
+        match response.status().as_u16() {
+            200 => {}
+            204 => return SessionServiceResult::NotJoined,
+            _ => return SessionServiceResult::AuthenticationUnavailable,
+        }
+        match response.body_mut().read_to_string() {
+            Ok(body) => parse_has_joined_response(&body),
+            Err(_) => SessionServiceResult::AuthenticationUnavailable,
+        }
+    }
+}
+
+/// Parses the `hasJoined` `200` body (`{"id":"<undashed uuid>","name":..,"properties":[..]}`).
+pub fn parse_has_joined_response(body: &str) -> SessionServiceResult {
+    let Ok(json) = serde_json::from_str::<Value>(body) else {
+        return SessionServiceResult::AuthenticationUnavailable;
+    };
+    let (Some(id), Some(name)) = (
+        json.get("id").and_then(Value::as_str),
+        json.get("name").and_then(Value::as_str),
+    ) else {
+        return SessionServiceResult::NotJoined;
+    };
+    let Some(uuid) = hyphenate_undashed_uuid(id) else {
+        return SessionServiceResult::AuthenticationUnavailable;
+    };
+    let properties = json
+        .get("properties")
+        .and_then(Value::as_array)
+        .map(|entries| entries.iter().filter_map(parse_property).collect())
+        .unwrap_or_default();
+    SessionServiceResult::Joined(ProfileResult {
+        profile: NameAndId {
+            uuid,
+            name: name.to_string(),
+        },
+        properties,
+    })
+}
+
+fn parse_property(entry: &Value) -> Option<ProfileProperty> {
+    Some(ProfileProperty {
+        name: entry.get("name")?.as_str()?.to_string(),
+        value: entry.get("value")?.as_str()?.to_string(),
+        signature: entry
+            .get("signature")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+    })
+}
+
+/// Converts a 32-hex-digit UUID (authlib `UndashedUuid`) to the canonical dashed form.
+fn hyphenate_undashed_uuid(id: &str) -> Option<String> {
+    let id = id.replace('-', "").to_ascii_lowercase();
+    if id.len() != 32 || !id.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return None;
+    }
+    Some(format!(
+        "{}-{}-{}-{}-{}",
+        &id[0..8],
+        &id[8..12],
+        &id[12..16],
+        &id[16..20],
+        &id[20..32]
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_profile_with_signed_texture_property() {
+        let body = r#"{"id":"069a79f444e94726a5befca90e38aaf5","name":"Notch",
+            "properties":[{"name":"textures","value":"abc","signature":"sig"},
+                          {"name":"other","value":"v"}]}"#;
+        let SessionServiceResult::Joined(result) = parse_has_joined_response(body) else {
+            panic!("expected joined");
+        };
+        assert_eq!(result.profile.name, "Notch");
+        assert_eq!(result.profile.uuid, "069a79f4-44e9-4726-a5be-fca90e38aaf5");
+        assert_eq!(result.properties.len(), 2);
+        assert_eq!(result.properties[0].signature.as_deref(), Some("sig"));
+        assert_eq!(result.properties[1].signature, None);
+    }
+
+    #[test]
+    fn malformed_bodies_map_to_unavailable_or_not_joined() {
+        assert_eq!(
+            parse_has_joined_response("not json"),
+            SessionServiceResult::AuthenticationUnavailable
+        );
+        assert_eq!(
+            parse_has_joined_response("{}"),
+            SessionServiceResult::NotJoined
+        );
+        assert_eq!(
+            parse_has_joined_response(r#"{"id":"zz","name":"A"}"#),
+            SessionServiceResult::AuthenticationUnavailable
+        );
+    }
+}

@@ -46,6 +46,7 @@ impl LootTable {
     }
 
     pub fn evaluate(&self, context: &mut LootContext) -> Vec<LootStack> {
+        let top_level = context.is_top_level();
         let visit_key = self
             .random_sequence
             .as_ref()
@@ -58,8 +59,10 @@ impl LootTable {
             return Vec::new();
         }
 
-        if let Some(sequence) = &self.random_sequence {
-            context.use_random_sequence(sequence);
+        if top_level {
+            if let Some(sequence) = &self.random_sequence {
+                context.use_random_sequence(sequence);
+            }
         }
 
         let mut result = Vec::new();
@@ -84,8 +87,8 @@ impl LootTable {
     ) -> Vec<Option<LootStack>> {
         let mut items = self.evaluate(context);
         let mut available: Vec<usize> = (0..slots).collect();
-        shuffle(&mut available, &mut context.random);
-        shuffle(&mut items, &mut context.random);
+        shuffle(&mut available, &context.random);
+        shuffle(&mut items, &context.random);
 
         let mut filled = vec![None; slots];
         for item in items.into_iter().filter(|stack| !stack.is_empty()) {
@@ -791,6 +794,10 @@ mod runtime_functions;
 
 mod context;
 pub use context::*;
+mod random;
+pub use random::LootRandom;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod random_tests;

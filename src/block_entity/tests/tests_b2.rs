@@ -253,9 +253,9 @@ fn assert_smelting_furnace_ticks_fuel_xp_and_persists(
         furnace
             .recipes_used
             .get("minecraft:iron_ingot_from_smelting_raw_iron"),
-        Some(&(1, 700))
+        Some(&1)
     );
-    assert_eq!(furnace.xp_to_award_and_clear(0.0), 1);
+    assert_eq!(furnace.xp_to_award_and_clear(|_| Some(0.7), || 0.0), 1);
     assert!(furnace.recipes_used.is_empty());
 
     let saved = furnace.save_additional();

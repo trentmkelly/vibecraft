@@ -136,6 +136,7 @@ macro_rules! default_server_command_state {
             difficulty: Difficulty::Easy,
             game_rules: default_game_rules(),
             game_rule_syncs: Vec::new(),
+            feedback_args: Vec::new(),
             camera_targets: Vec::new(),
             untrackable_entities: Vec::new(),
             max_players: 20,

@@ -290,15 +290,16 @@ fn configured_level_name(properties_path: &Path) -> Option<String> {
 }
 
 fn world_artifact_summary(world_root: &Path) -> String {
+    let layout = crate::storage::world::WorldLayout::new(world_root);
     let artifacts = [
         ("level.dat", world_root.join("level.dat")),
         ("level.dat_old", world_root.join("level.dat_old")),
-        ("region", world_root.join("region")),
-        ("entities", world_root.join("entities")),
-        ("poi", world_root.join("poi")),
-        ("playerdata", world_root.join("playerdata")),
-        ("advancements", world_root.join("advancements")),
-        ("stats", world_root.join("stats")),
+        ("region", layout.region_dir()),
+        ("entities", layout.entities_dir()),
+        ("poi", layout.poi_dir()),
+        ("playerdata", layout.playerdata_dir()),
+        ("advancements", layout.advancements_dir()),
+        ("stats", layout.stats_dir()),
     ];
     artifacts
         .into_iter()

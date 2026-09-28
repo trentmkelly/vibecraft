@@ -714,3 +714,69 @@ fn test_instance_block_entity_render_beam_and_update_tag_match_java() {
         matches!(entity.get_update_tag(), Tag::Compound(values) if values.iter().any(|(key, _)| key == "data") && values.iter().all(|(key, _)| key != "components"))
     );
 }
+
+/// `AbstractFurnaceBlockEntity.burn`: the wet-sponge -> water-bucket swap looks at
+/// the input stack before it is shrunk, so it also fires for the last sponge.
+#[test]
+fn furnace_burn_swaps_bucket_for_last_wet_sponge_like_java() {
+    let fuels = FuelValues::vanilla();
+    let recipe = FurnaceCookingRecipe::new(
+        "minecraft:sponge",
+        "smelting",
+        "minecraft:wet_sponge",
+        "minecraft:sponge",
+        1,
+        0,
+    );
+    let mut furnace = AbstractFurnaceBlockEntity::furnace();
+    furnace.set_item(
+        AbstractFurnaceBlockEntity::INGREDIENT_SLOT,
+        Some(stack("minecraft:wet_sponge", 1)),
+        Some(&recipe),
+    );
+    furnace.lit_time_remaining = 10;
+    furnace.items[AbstractFurnaceBlockEntity::FUEL_SLOT] = Some(stack("minecraft:bucket", 1));
+    furnace.server_tick(&fuels, Some(&recipe));
+    assert_eq!(
+        furnace.items[AbstractFurnaceBlockEntity::FUEL_SLOT],
+        Some(stack("minecraft:water_bucket", 1))
+    );
+    assert!(furnace.items[AbstractFurnaceBlockEntity::INGREDIENT_SLOT].is_none());
+}
+
+/// `RECIPES_USED_CODEC` is `unboundedMap(Recipe.KEY_CODEC, Codec.INT)`; XP is
+/// resolved from the recipe at award time with `createExperience` rounding.
+#[test]
+fn furnace_recipes_used_uses_java_codec_and_create_experience_rounding() {
+    let mut furnace = AbstractFurnaceBlockEntity::furnace();
+    furnace.recipes_used.insert("minecraft:a".to_string(), 3);
+    let saved = furnace.save_additional();
+    let Tag::Compound(entries) = &saved else {
+        panic!("compound expected");
+    };
+    let used = entries.iter().find(|(name, _)| name == "RecipesUsed").unwrap();
+    assert_eq!(
+        used.1,
+        Tag::Compound(vec![("minecraft:a".to_string(), Tag::Int(3))])
+    );
+    let loaded =
+        AbstractFurnaceBlockEntity::load_additional(FurnaceBlockEntityKind::Furnace, &saved);
+    assert_eq!(loaded.recipes_used, furnace.recipes_used);
+    // 3 * 0.35 = 1.05 -> floor 1, plus 1 only when the roll is below the fraction.
+    assert_eq!(furnace.clone().xp_to_award_and_clear(|_| Some(0.35), || 0.99), 1);
+    assert_eq!(furnace.clone().xp_to_award_and_clear(|_| Some(0.35), || 0.0), 2);
+    // Recipes missing from the recipe manager award nothing but are still cleared.
+    assert_eq!(furnace.xp_to_award_and_clear(|_| None, || 0.0), 0);
+    assert!(furnace.recipes_used.is_empty());
+}
+
+/// Missing NBT keys default to 0 (`getShortOr(.., 0)`), including the total cook time.
+#[test]
+fn furnace_load_defaults_match_java_get_short_or() {
+    let loaded = AbstractFurnaceBlockEntity::load_additional(
+        FurnaceBlockEntityKind::BlastFurnace,
+        &Tag::Compound(vec![]),
+    );
+    assert_eq!(loaded.cooking_total_time, 0);
+    assert_eq!(loaded.lit_time_remaining, 0);
+}

@@ -18,22 +18,22 @@ fn exposes_vanilla_world_paths() {
     );
     assert_eq!(
         layout.region_dir(),
-        std::path::PathBuf::from("world/region")
+        std::path::PathBuf::from("world/dimensions/minecraft/overworld/region")
     );
     assert_eq!(
         layout.entities_dir(),
-        std::path::PathBuf::from("world/entities")
+        std::path::PathBuf::from("world/dimensions/minecraft/overworld/entities")
     );
-    assert_eq!(layout.poi_dir(), std::path::PathBuf::from("world/poi"));
+    assert_eq!(layout.poi_dir(), std::path::PathBuf::from("world/dimensions/minecraft/overworld/poi"));
     assert_eq!(
         layout.playerdata_dir(),
-        std::path::PathBuf::from("world/playerdata")
+        std::path::PathBuf::from("world/players/data")
     );
     assert_eq!(
         layout.advancements_dir(),
-        std::path::PathBuf::from("world/advancements")
+        std::path::PathBuf::from("world/players/advancements")
     );
-    assert_eq!(layout.stats_dir(), std::path::PathBuf::from("world/stats"));
+    assert_eq!(layout.stats_dir(), std::path::PathBuf::from("world/players/stats"));
     assert_eq!(
         layout.datapacks_dir(),
         std::path::PathBuf::from("world/datapacks")
@@ -45,15 +45,15 @@ fn exposes_vanilla_world_paths() {
     );
     assert_eq!(
         layout.player_data_file("uuid"),
-        std::path::PathBuf::from("world/playerdata/uuid.dat")
+        std::path::PathBuf::from("world/players/data/uuid.dat")
     );
     assert_eq!(
         layout.advancements_file("uuid"),
-        std::path::PathBuf::from("world/advancements/uuid.json")
+        std::path::PathBuf::from("world/players/advancements/uuid.json")
     );
     assert_eq!(
         layout.stats_file("uuid"),
-        std::path::PathBuf::from("world/stats/uuid.json")
+        std::path::PathBuf::from("world/players/stats/uuid.json")
     );
     assert_eq!(
         layout.saved_data_file("scoreboard"),
@@ -1078,4 +1078,41 @@ fn parses_legacy_level_version_defaults_without_version_compound() {
     assert_eq!(version.minecraft_version.id, 0);
     assert_eq!(version.minecraft_version.series, "main");
     assert!(!version.snapshot);
+}
+
+#[test]
+fn layout_uses_26_1_2_dimension_and_player_folders() {
+    let layout = WorldLayout::new("w");
+    let ow = std::path::Path::new("w/dimensions/minecraft/overworld");
+    assert_eq!(layout.region_dir(), ow.join("region"));
+    assert_eq!(layout.entities_dir(), ow.join("entities"));
+    assert_eq!(layout.poi_dir(), ow.join("poi"));
+    assert_eq!(layout.playerdata_dir(), std::path::Path::new("w/players/data"));
+    assert_eq!(layout.advancements_dir(), std::path::Path::new("w/players/advancements"));
+    assert_eq!(layout.stats_dir(), std::path::Path::new("w/players/stats"));
+}
+
+#[test]
+fn legacy_layout_is_migrated_and_conflicts_are_rejected() {
+    let root = std::env::temp_dir().join(format!("vc-legacy-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    for dir in ["region", "entities", "poi", "DIM-1/region", "DIM1/poi", "playerdata", "stats", "advancements"] {
+        std::fs::create_dir_all(root.join(dir)).unwrap();
+    }
+    std::fs::write(root.join("region/r.0.0.mca"), b"x").unwrap();
+    std::fs::write(root.join("playerdata/a.dat"), b"p").unwrap();
+    let layout = WorldLayout::new(&root);
+    layout.ensure_base_dirs().unwrap();
+    assert!(layout.region_dir().join("r.0.0.mca").is_file());
+    assert!(root.join("dimensions/minecraft/the_nether/region").is_dir());
+    assert!(root.join("dimensions/minecraft/the_end/poi").is_dir());
+    assert!(layout.playerdata_dir().join("a.dat").is_file());
+    assert!(!root.join("DIM-1").exists() && !root.join("playerdata").exists());
+    // Idempotent, and a re-appearing legacy folder next to real data is a conflict.
+    layout.ensure_base_dirs().unwrap();
+    std::fs::create_dir_all(root.join("region")).unwrap();
+    std::fs::write(root.join("region/r.1.1.mca"), b"y").unwrap();
+    let err = layout.migrate_legacy_layout().unwrap_err();
+    assert_eq!(err.kind(), std::io::ErrorKind::AlreadyExists);
+    let _ = std::fs::remove_dir_all(&root);
 }

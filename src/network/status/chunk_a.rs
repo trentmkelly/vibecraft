@@ -183,6 +183,8 @@ struct StatusServerRuntime {
     player_access: Arc<Mutex<PlayerAccess>>,
     clock: Arc<Mutex<ServerClockManager>>,
     weather: Arc<Mutex<WeatherCycle>>,
+    /// Server-wide `GameRules` (Java `MinecraftServer.getGlobalGameRules`).
+    game_rules: SharedGameRules,
     recipe_manager: Arc<RecipeManagerModel>,
     world_items: Arc<Mutex<WorldItemEntities>>,
     world_mobs: Arc<Mutex<LiveMobStore>>,
@@ -201,6 +203,7 @@ struct ConnectionSharedContext<'a> {
     world_seed: i64,
     clock: &'a Arc<Mutex<ServerClockManager>>,
     weather: &'a Arc<Mutex<WeatherCycle>>,
+    game_rules: &'a SharedGameRules,
     recipe_manager: &'a RecipeManagerModel,
     world_items: &'a Arc<Mutex<WorldItemEntities>>,
     world_mobs: &'a Arc<Mutex<LiveMobStore>>,
@@ -246,6 +249,8 @@ struct JoinedPlaySessionStart {
     last_sent_rain_level: f32,
     last_sent_thunder_level: f32,
     last_time_sync: Instant,
+    /// Cursor into the shared game-rule change log (`MinecraftServer.onGameRuleChanged`).
+    game_rule_sync: GameRuleSessionSync,
     world_layout: WorldLayout,
     last_item_tick: Instant,
     last_player_tick: Instant,
@@ -378,6 +383,7 @@ impl StatusServerRuntime {
             .unwrap_or_else(|| WeatherCycle::new(WeatherData::default()));
         let clock: Arc<Mutex<ServerClockManager>> = Arc::new(Mutex::new(initial_clock));
         let weather: Arc<Mutex<WeatherCycle>> = Arc::new(Mutex::new(initial_weather));
+        let game_rules = load_live_game_rules(&world_root, properties);
         // World-level item entity store.  Shared across all player sessions and persisted to
         // item_entities.json so items survive both player disconnects and server restarts.
         // Java: ServerLevel.entityStorage — entity lists belong to the world, not any connection.
@@ -412,6 +418,7 @@ impl StatusServerRuntime {
             player_access,
             clock,
             weather,
+            game_rules,
             recipe_manager,
             world_items,
             world_mobs,
@@ -422,6 +429,7 @@ impl StatusServerRuntime {
     fn start_tick_thread(&self) {
         let clock_t = Arc::clone(&self.clock);
         let weather_t = Arc::clone(&self.weather);
+        let game_rules_t = Arc::clone(&self.game_rules);
         let world_root_t = Arc::clone(&self.world_root);
         let world_items_t = Arc::clone(&self.world_items);
         let max_tick_time = self.max_tick_time;
@@ -440,12 +448,17 @@ impl StatusServerRuntime {
                 tick_count += 1;
                 let tick_start = Instant::now();
 
-                // advance_time=true: no per-world gamerule access yet; always advance.
-                // TODO(gamerule-advance_time): read GameRules.ADVANCE_TIME (MinecraftServer.tickServer/ServerClockManager) once a live per-world GameRules store exists; also advance_weather below and random_tick_speed.
-                lock_status_mutex(&clock_t).tick(true, &mut scheduled);
+                // Java: ServerClockManager.tick reads GameRules.ADVANCE_TIME and
+                // ServerLevel.tickWeather reads GameRules.ADVANCE_WEATHER.
+                // TODO(gamerule-random_tick_speed): consumed by the live random-tick loop once one exists.
+                let (advance_time, advance_weather) = {
+                    let rules = lock_status_mutex(&game_rules_t);
+                    (rules.bool("advance_time"), rules.bool("advance_weather"))
+                };
+                lock_status_mutex(&clock_t).tick(advance_time, &mut scheduled);
 
                 // Advance weather. can_have_weather=true for overworld.
-                lock_status_mutex(&weather_t).advance(true, true, sample_weather_durations());
+                lock_status_mutex(&weather_t).advance(true, advance_weather, sample_weather_durations());
 
                 if tick_count.is_multiple_of(RESOURCE_USAGE_LOG_INTERVAL_TICKS) {
                     resource_usage.log_current_usage(tick_count);
@@ -457,6 +470,7 @@ impl StatusServerRuntime {
                     save_server_clock_state(&world_root_t, &lock_status_mutex(&clock_t));
                     save_server_weather_state(&world_root_t, &lock_status_mutex(&weather_t));
                     save_world_item_entities(&world_root_t, &lock_status_mutex(&world_items_t));
+                    save_live_game_rules(&world_root_t, &game_rules_t);
                 }
 
                 if let WatchdogDecision::Crash { .. } = watchdog.check_tick(tick_start.elapsed())
@@ -476,6 +490,7 @@ impl StatusServerRuntime {
         save_server_clock_state(&self.world_root, &lock_status_mutex(&self.clock));
         save_server_weather_state(&self.world_root, &lock_status_mutex(&self.weather));
         save_world_item_entities(&self.world_root, &lock_status_mutex(&self.world_items));
+        save_live_game_rules(&self.world_root, &self.game_rules);
     }
 }
 
@@ -613,6 +628,7 @@ fn run_status_accept_loop(
                 let player_access = Arc::clone(&runtime.player_access);
                 let clock = Arc::clone(&runtime.clock);
                 let weather = Arc::clone(&runtime.weather);
+                let game_rules = Arc::clone(&runtime.game_rules);
                 let recipe_manager = Arc::clone(&runtime.recipe_manager);
                 let world_items = Arc::clone(&runtime.world_items);
                 let world_mobs = Arc::clone(&runtime.world_mobs);
@@ -632,6 +648,7 @@ fn run_status_accept_loop(
                             world_seed,
                             clock: &clock,
                             weather: &weather,
+                            game_rules: &game_rules,
                             recipe_manager: &recipe_manager,
                             world_items: &world_items,
                             world_mobs: &world_mobs,
@@ -979,7 +996,28 @@ fn complete_login_handshake(
         }
         Err(err) => return Err(err),
     };
-    let finished = login.accept_offline_hello(hello);
+    let finished = if context.shared.properties.online_mode {
+        // ServerLoginPacketListenerImpl.handleHello online branch (`usesAuthentication`).
+        match online_login::negotiate_online_login(
+            stream,
+            &hello.name,
+            context.remote_ip,
+            context.shared.properties,
+            context.rate_limiter,
+            crate::network::yggdrasil::YggdrasilSessionService::new(),
+        )? {
+            online_login::OnlineLoginOutcome::Authenticated {
+                result,
+                stream: decrypted,
+            } => {
+                *stream = decrypted;
+                login.accept_authenticated_profile(result)
+            }
+            online_login::OnlineLoginOutcome::Closed => return Ok(LoginHandshakeOutcome::Closed),
+        }
+    } else {
+        login.accept_offline_hello(hello)
+    };
     if let Some(reason) = login_access_disconnect_reason(
         context.shared.properties,
         context.shared.player_access,
@@ -1401,7 +1439,11 @@ fn initialize_joined_play_session(
 
     // Snapshot current clock and weather state for the join packet.
     // Java: ServerClockManager.createFullSyncPacket() on player join, ServerLevel.sendLevelInfo()
-    let (join_game_time, join_clock_data) = lock_status_mutex(shared.clock).full_sync_data(true);
+    let join_flags = join_game_rule_flags(shared.game_rules);
+    let game_rule_sync = GameRuleSessionSync::joined(shared.game_rules);
+    let advance_time = lock_status_mutex(shared.game_rules).bool("advance_time");
+    let (join_game_time, join_clock_data) =
+        lock_status_mutex(shared.clock).full_sync_data(advance_time);
     let (join_rain_level, join_thunder_level) = {
         let weather = lock_status_mutex(shared.weather);
         (weather.rain_level, weather.thunder_level)
@@ -1421,6 +1463,9 @@ fn initialize_joined_play_session(
             clock_data: &join_clock_data,
             rain_level: join_rain_level,
             thunder_level: join_thunder_level,
+            reduced_debug_info: join_flags.reduced_debug_info,
+            show_death_screen: join_flags.show_death_screen,
+            do_limited_crafting: join_flags.do_limited_crafting,
         },
     )?;
     log_info(&player_login_log_message(
@@ -1472,6 +1517,7 @@ fn initialize_joined_play_session(
         last_sent_rain_level: join_rain_level,
         last_sent_thunder_level: join_thunder_level,
         last_time_sync: Instant::now(),
+        game_rule_sync,
         world_layout: WorldLayout::new(shared.world_root),
         last_item_tick: Instant::now(),
         last_player_tick: Instant::now(),
@@ -2051,6 +2097,9 @@ struct JoinedPlayLoopTickContext<'a, 'b> {
     world_seed: i64,
     clock: &'a Arc<Mutex<ServerClockManager>>,
     weather: &'a Arc<Mutex<WeatherCycle>>,
+    game_rules: &'a SharedGameRules,
+    game_rule_sync: &'b mut GameRuleSessionSync,
+    game_rule_player: GameRuleSessionPlayer<'a>,
     world_items: &'a Arc<Mutex<WorldItemEntities>>,
     world_mobs: &'a Arc<Mutex<LiveMobStore>>,
     chunk_cache: &'a GeneratedChunkCache,
@@ -2090,6 +2139,9 @@ fn tick_joined_play_session_loop(
         world_seed,
         clock,
         weather,
+        game_rules,
+        game_rule_sync,
+        game_rule_player,
         world_items,
         world_mobs,
         chunk_cache,
@@ -2124,6 +2176,14 @@ fn tick_joined_play_session_loop(
     )? {
         return Ok(false);
     }
+    replay_game_rule_changes(
+        stream,
+        compression,
+        game_rule_sync,
+        game_rules,
+        clock,
+        &game_rule_player,
+    )?;
     tick_item_entities_for_client(stream, compression, world_items, last_item_tick)?;
     tick_player_and_chunk_sender(
         stream,
@@ -3489,6 +3549,7 @@ struct DecodedPlayPacketContext<'a, 'b> {
     world_items: &'a Arc<Mutex<WorldItemEntities>>,
     world_mobs: &'a Arc<Mutex<LiveMobStore>>,
     weather: &'a Arc<Mutex<WeatherCycle>>,
+    game_rules: &'a SharedGameRules,
     current_chunk_x: &'b mut i32,
     current_chunk_z: &'b mut i32,
     chunk_batch_radius: i32,
@@ -3525,6 +3586,7 @@ struct JoinedPlayPacketStepContext<'a, 'b> {
     world_items: &'a Arc<Mutex<WorldItemEntities>>,
     world_mobs: &'a Arc<Mutex<LiveMobStore>>,
     weather: &'a Arc<Mutex<WeatherCycle>>,
+    game_rules: &'a SharedGameRules,
     current_chunk_x: &'b mut i32,
     current_chunk_z: &'b mut i32,
     chunk_batch_radius: i32,
@@ -3598,6 +3660,7 @@ fn try_handle_chat_packet(
                 player_access: context.player_access,
                 world_seed: context.world_seed,
                 weather: context.weather,
+                game_rules: context.game_rules,
                 active_login: context.active_login,
                 chat_state: context.chat_state,
             },
@@ -3617,6 +3680,20 @@ fn handle_decoded_play_packet(
 ) -> io::Result<PlayPacketDispatchOutcome> {
     let mut input = Cursor::new(packet);
     let packet_id = read_var_i32(&mut input)?;
+    if try_handle_game_rule_packet(
+        stream,
+        compression,
+        packet_id,
+        &mut input,
+        context.game_rules,
+        &GameRuleSessionPlayer {
+            profile: context.profile,
+            properties: context.properties,
+            player_access: context.player_access,
+        },
+    )? {
+        return Ok(PlayPacketDispatchOutcome::Continue);
+    }
     let session_update = update_play_session_state(packet_id, &mut input, play_state)?;
     if session_update.health_changed {
         write_play_state_health_packet(stream, compression, play_state)?;
@@ -3756,6 +3833,7 @@ impl<'a, 'b> JoinedPlayPacketStepContext<'a, 'b> {
             world_items: self.world_items,
             world_mobs: self.world_mobs,
             weather: self.weather,
+            game_rules: self.game_rules,
             live_block_ticks: self.live_block_ticks,
             current_chunk_x: self.current_chunk_x,
             current_chunk_z: self.current_chunk_z,
@@ -3944,6 +4022,7 @@ fn run_joined_play_session(
         world_seed,
         clock,
         weather,
+        game_rules,
         recipe_manager,
         world_items,
         world_mobs,
@@ -3963,6 +4042,7 @@ fn run_joined_play_session(
         mut last_sent_rain_level,
         mut last_sent_thunder_level,
         mut last_time_sync,
+        mut game_rule_sync,
         mut live_block_ticks,
         world_layout,
         mut last_item_tick,
@@ -3992,6 +4072,13 @@ fn run_joined_play_session(
                 world_seed,
                 clock,
                 weather,
+                game_rules,
+                game_rule_sync: &mut game_rule_sync,
+                game_rule_player: GameRuleSessionPlayer {
+                    profile: &finished.profile,
+                    properties,
+                    player_access,
+                },
                 world_items,
                 world_mobs,
                 chunk_cache,
@@ -4039,6 +4126,7 @@ fn run_joined_play_session(
                 world_items,
                 world_mobs,
                 weather,
+                game_rules,
                 current_chunk_x: &mut current_chunk_x,
                 current_chunk_z: &mut current_chunk_z,
                 chunk_batch_radius,
