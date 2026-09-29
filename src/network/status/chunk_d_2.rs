@@ -10,10 +10,24 @@ pub fn evaluate_block_loot_with_tool(
     tool: Option<&str>,
     correct_tool: bool,
 ) -> Vec<(&'static str, i32)> {
+    evaluate_block_loot_in_context(block_name, seed, tool, correct_tool, None)
+}
+
+/// Block loot with the optional `LootContextParams.EXPLOSION_RADIUS` parameter
+/// (`BlockBehaviour.onExplosionHit` sets it for `DESTROY_WITH_DECAY`
+/// explosions so `SurvivesExplosion` can thin the drops).
+pub fn evaluate_block_loot_in_context(
+    block_name: &str,
+    seed: u64,
+    tool: Option<&str>,
+    correct_tool: bool,
+    explosion_radius: Option<f32>,
+) -> Vec<(&'static str, i32)> {
     let Some(table) = block_loot_table(block_name) else {
         return Vec::new();
     };
     let mut context = LootContext::new(LootParamSet::Block, seed);
+    context.explosion_radius = explosion_radius;
     // Java LootContext.Builder.create(table.random_sequence) draws from the
     // server's persisted RandomSequences when the table declares one.
     if let Some((sequences, world_seed)) = crate::random_sequences_live::handle() {
@@ -25,6 +39,16 @@ pub fn evaluate_block_loot_with_tool(
             .map_or(block_name, |(id, _)| id)
             .to_string(),
     );
+    // `LootContextParams.BLOCK_STATE` properties for `block_state_property`.
+    if let Some((_, properties)) = block_name.split_once('[') {
+        for pair in properties.trim_end_matches(']').split(',') {
+            if let Some((key, value)) = pair.split_once('=') {
+                context
+                    .block_state_properties
+                    .insert(key.trim().to_string(), value.trim().to_string());
+            }
+        }
+    }
     context
         .entity_properties
         .insert("correct_tool".to_string(), correct_tool.to_string());
@@ -415,6 +439,54 @@ pub fn write_item_entity_spawn_packets<W: Write>(
     )
 }
 
+/// Tells the client the new contents of the hotbar slot a drop emptied.
+fn sync_dropped_slot(
+    stream: &mut ClientStream,
+    compression: CompressionState,
+    state: &mut PlaySessionState,
+    held_slot: usize,
+) -> io::Result<()> {
+    // Update the client's held slot after removal.
+    // Java: ServerPlayer.drop() → containerMenu.setRemoteSlot()
+    let raw_after = {
+        let stack = state.inventory_menu.player_inventory().get(held_slot);
+        if stack.is_empty() {
+            RawItemStack::empty()
+        } else if let Some(pid) = item_protocol_id(stack.item_id()) {
+            RawItemStack {
+                count: stack.count(),
+                item_id: Some(pid),
+                components: RawDataComponentPatch::empty(),
+            }
+        } else {
+            RawItemStack::empty()
+        }
+    };
+    // Use ContainerSetSlot (container_id=0, with state_id) rather than SetPlayerInventory
+    // so the client learns the new state_id and won't reject subsequent ContainerClick packets.
+    // Java: ServerPlayer.drop() → containerMenu.setRemoteSlot() + broadcastChanges()
+    //       → ClientboundContainerSetSlotPacket(containerId, incrementStateId(), slot, item).
+    // The hotbar slot in the InventoryMenu is at index 36 + held_slot (menu layout: result=0,
+    // crafting=1-4, armour=5-8, storage=9-35, hotbar=36-44, offhand=45).
+    state.container_state_id = state.container_state_id.wrapping_add(1);
+    let new_state_id = state.container_state_id;
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_CONTAINER_SET_SLOT_PACKET_ID,
+        |p| {
+            ClientboundContainerSetSlotPacket {
+                container_id: 0,
+                state_id: new_state_id,
+                slot: (36 + held_slot) as i16,
+                item_stack: raw_after,
+            }
+            .write(p)
+        },
+    )?;
+    Ok(())
+}
+
 /// Handles `DROP_ITEM` (action 4, Q) and `DROP_ALL_ITEMS` (action 3, Ctrl+Q) from
 /// `ServerboundPlayerActionPacket`.
 ///
@@ -459,44 +531,7 @@ pub fn handle_drop_item(
         return Ok(());
     }
 
-    // Update the client's held slot after removal.
-    // Java: ServerPlayer.drop() → containerMenu.setRemoteSlot()
-    let raw_after = {
-        let stack = state.inventory_menu.player_inventory().get(held_slot);
-        if stack.is_empty() {
-            RawItemStack::empty()
-        } else if let Some(pid) = item_protocol_id(stack.item_id()) {
-            RawItemStack {
-                count: stack.count(),
-                item_id: Some(pid),
-                components: RawDataComponentPatch::empty(),
-            }
-        } else {
-            RawItemStack::empty()
-        }
-    };
-    // Use ContainerSetSlot (container_id=0, with state_id) rather than SetPlayerInventory
-    // so the client learns the new state_id and won't reject subsequent ContainerClick packets.
-    // Java: ServerPlayer.drop() → containerMenu.setRemoteSlot() + broadcastChanges()
-    //       → ClientboundContainerSetSlotPacket(containerId, incrementStateId(), slot, item).
-    // The hotbar slot in the InventoryMenu is at index 36 + held_slot (menu layout: result=0,
-    // crafting=1-4, armour=5-8, storage=9-35, hotbar=36-44, offhand=45).
-    state.container_state_id = state.container_state_id.wrapping_add(1);
-    let new_state_id = state.container_state_id;
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONTAINER_SET_SLOT_PACKET_ID,
-        |p| {
-            ClientboundContainerSetSlotPacket {
-                container_id: 0,
-                state_id: new_state_id,
-                slot: (36 + held_slot) as i16,
-                item_stack: raw_after,
-            }
-            .write(p)
-        },
-    )?;
+    sync_dropped_slot(stream, compression, state, held_slot)?;
 
     let Some(item_pid) = item_protocol_id(removed.item_id()) else {
         return Ok(());
@@ -549,6 +584,7 @@ pub fn handle_drop_item(
         pickup_delay: 40,
         age: 0,
         target_uuid: None,
+        health: crate::item_entity::ITEM_DEFAULT_HEALTH,
     };
     write_item_entity_spawn_packets(stream, compression, &item, item_pid)?;
     world_items

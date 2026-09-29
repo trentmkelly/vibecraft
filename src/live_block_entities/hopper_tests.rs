@@ -423,6 +423,7 @@ fn hoppers_absorb_item_entities_above_them() {
         pickup_delay: 0,
         age: 0,
         target_uuid: None,
+        health: crate::item_entity::ITEM_DEFAULT_HEALTH,
     });
     let effects = world.tick();
     assert_eq!(world.slots(HOPPER, 5)[0], Some(coal(3)));
@@ -457,6 +458,7 @@ fn a_partly_absorbed_item_entity_keeps_the_rest_and_reports_its_count() {
         pickup_delay: 0,
         age: 0,
         target_uuid: None,
+        health: crate::item_entity::ITEM_DEFAULT_HEALTH,
     });
     let effects = world.tick();
     assert_eq!(world.count(HOPPER, 5), 5 * 64, "hopper filled up");
@@ -483,6 +485,7 @@ fn a_full_block_above_stops_the_hopper_sucking_items_but_a_hopper_blocking_tag_d
         pickup_delay: 0,
         age: 0,
         target_uuid: None,
+        health: crate::item_entity::ITEM_DEFAULT_HEALTH,
     };
     // Item inside the hopper's own block space (still in the suck box).
     blocked.items.entities.push(item(65.75));
@@ -516,6 +519,7 @@ fn item_entities_outside_the_suck_box_are_ignored() {
             pickup_delay: 0,
             age: 0,
             target_uuid: None,
+            health: crate::item_entity::ITEM_DEFAULT_HEALTH,
         });
     }
     world.tick();
@@ -572,6 +576,7 @@ fn the_live_ticker_runs_hoppers_and_broadcasts_absorbed_item_entities() {
             pickup_delay: 0,
             age: 0,
             target_uuid: None,
+            health: crate::item_entity::ITEM_DEFAULT_HEALTH,
         });
         eid
     };

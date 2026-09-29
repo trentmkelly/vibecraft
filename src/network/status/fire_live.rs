@@ -35,6 +35,16 @@ pub struct FireEnvironment {
     pub spread_radius: i32,
 }
 
+/// The players `ChunkMap.playerIsCloseEnoughTo` counts for fire spread:
+/// everyone who is not a spectator.
+pub(super) fn fire_spread_players(bus: &WorldPacketBus) -> Vec<[f64; 3]> {
+    bus.players()
+        .into_iter()
+        .filter(|(_, presence)| !presence.spectator)
+        .map(|(_, presence)| presence.position)
+        .collect()
+}
+
 /// `RandomSource` backed by an xorshift generator seeded per use.
 pub struct LiveRandom(u64);
 
@@ -75,6 +85,9 @@ struct LiveFireWorld<'a, 'b, W: Write> {
     block_ticks: &'b mut LiveBlockTicks,
     game_time: i64,
     environment: FireEnvironment,
+    world_items: &'b Arc<Mutex<WorldItemEntities>>,
+    /// Positions of the non-spectator players (`anyPlayerCloseEnoughTo`).
+    players: &'b [[f64; 3]],
     random: LiveRandom,
     /// Positions whose neighbours need the `updateShape` cascade.
     changed: Vec<BlockPos>,
@@ -108,12 +121,16 @@ impl<W: Write> PlacementWorld for LiveFireWorld<'_, '_, W> {
 }
 
 impl<W: Write> FireWorld for LiveFireWorld<'_, '_, W> {
-    fn can_spread_fire_around(&self, _pos: BlockPos) -> bool {
-        // TODO(live-player-registry): `ChunkMap.anyPlayerCloseEnoughTo(pos,
-        // radius)` needs every online player's position; until the registry
-        // exists a finite radius is treated like -1 (spread everywhere).
-        let _ = self.environment.spread_radius;
-        true
+    fn can_spread_fire_around(&self, pos: BlockPos) -> bool {
+        // `ServerLevel.canSpreadFireAround`: -1 is unlimited, else
+        // `ChunkMap.anyPlayerCloseEnoughTo(pos, radius)`.
+        let radius = self.environment.spread_radius;
+        radius == -1
+            || self.players.iter().any(|player| {
+                let d = |axis: usize, block: i32| player[axis] - f64::from(block);
+                (d(0, pos.x).powi(2) + d(1, pos.y).powi(2) + d(2, pos.z).powi(2)).sqrt()
+                    < f64::from(radius)
+            })
     }
 
     fn is_raining(&self) -> bool {
@@ -172,9 +189,15 @@ impl<W: Write> FireWorld for LiveFireWorld<'_, '_, W> {
         self.changed.push(pos);
     }
 
-    fn prime_tnt(&mut self, _pos: BlockPos) {
-        // TODO(tnt-prime): `TntBlock.prime` spawns a PrimedTnt entity; the
-        // entity does not exist yet, so the TNT block simply disappears.
+    fn prime_tnt(&mut self, pos: BlockPos) {
+        // `TntBlock.prime(level, pos)`; the burnt block was already removed by
+        // `checkBurnOut`, so the result (`tnt_explodes`) only gates the entity.
+        super::tnt_live::prime_tnt(
+            self.world_items,
+            &self.inner.cache.level_random,
+            pos,
+            None,
+        );
     }
 
     fn schedule_fire_tick(&mut self, pos: BlockPos, delay: i32) {
@@ -193,6 +216,8 @@ pub(super) fn run_live_fire_tick<W: Write>(
     block_ticks: &mut LiveBlockTicks,
     game_time: i64,
     environment: FireEnvironment,
+    world_items: &Arc<Mutex<WorldItemEntities>>,
+    players: &[[f64; 3]],
     state: BlockStateModel,
     pos: BlockPos,
 ) -> io::Result<Vec<BlockPos>> {
@@ -204,6 +229,8 @@ pub(super) fn run_live_fire_tick<W: Write>(
         block_ticks,
         game_time,
         environment,
+        world_items,
+        players,
         random: LiveRandom::new(salt),
         changed: Vec::new(),
         error: None,

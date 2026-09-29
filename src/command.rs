@@ -33,7 +33,7 @@ pub use dispatch::*;
 mod admin_player;
 use admin_player::*;
 
-mod inventory_items;
+pub(crate) mod inventory_items;
 use inventory_items::*;
 pub(crate) use inventory_items::item_max_stack_size;
 

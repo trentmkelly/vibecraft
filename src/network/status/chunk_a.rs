@@ -126,6 +126,7 @@ pub fn load_world_item_entities(world_root: &Path) -> WorldItemEntities {
                         age,
                         pickup_delay,
                         target_uuid,
+                        health: crate::item_entity::ITEM_DEFAULT_HEALTH,
                     })
                 })
                 .collect()
@@ -501,6 +502,7 @@ impl StatusServerRuntime {
                     random_tick_speed,
                     fire_spread_radius,
                     spread_vines,
+                    explosion_rules,
                 } = TickGameRules::read(&lock_status_mutex(&game_rules_t));
                 let game_time = {
                     let mut clock = lock_status_mutex(&clock_t);
@@ -534,6 +536,7 @@ impl StatusServerRuntime {
                             difficulty_id,
                             spread_radius: fire_spread_radius,
                         },
+                        explosion_rules,
                         bus: &world_bus_t,
                     },
                 ) {
@@ -1812,6 +1815,7 @@ fn tick_player_and_chunk_sender(
     if !deliver_world_bus(stream, compression, world_bus)? {
         return Ok(());
     }
+    let explosion_health_changed = player_explosion_live::sync_with_world(play_state, world_bus);
     let hazard_health_changed = player_environment::tick_player_hazards(
         play_state,
         game_rules,
@@ -1828,7 +1832,8 @@ fn tick_player_and_chunk_sender(
         true,
         tick_count,
     ) || water_health_changed
-        || hazard_health_changed;
+        || hazard_health_changed
+        || explosion_health_changed;
     sync_player_vitals(
         stream,
         compression,
@@ -3068,6 +3073,15 @@ fn destroy_live_block_at(
                 None => state,
             }
         });
+    if let Some(broken) = &broken_state {
+        super::tnt_interaction_live::tnt_will_destroy(
+            context.world_items,
+            &context.chunk_cache.level_random,
+            play_state.game_mode,
+            broken,
+            block_pos,
+        );
+    }
     let mut cascade = super::block_placement_live::LiveCascade {
         layout: context.world_layout,
         seed: context.world_seed,
@@ -3234,6 +3248,7 @@ fn spawn_block_break_drops(
             pickup_delay: DEFAULT_PICKUP_DELAY,
             age: 0,
             target_uuid: None,
+            health: crate::item_entity::ITEM_DEFAULT_HEALTH,
         };
         write_item_entity_spawn_packets(stream, compression, &item, item_pid)?;
         lock_status_mutex(world_items).entities.push(item);

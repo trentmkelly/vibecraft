@@ -1,7 +1,3 @@
-use super::block_menu_open::{
-    block_menu_open_for_state, next_open_container_id, write_open_block_menu,
-};
-use super::ActiveBlockMenu;
 use super::*;
 
 pub fn cache_login_profile(
@@ -742,30 +738,31 @@ pub fn handle_use_item_on(
         .get(held_slot)
         .clone();
     let suppress_using_block = state.input_shift && !held_item.is_empty();
+    // Java `TntBlock.useItemOn` runs in the block-interaction pass, before the
+    // item's own `useOn`.
+    if !suppress_using_block
+        && super::tnt_interaction_live::use_item_on_tnt(
+            stream,
+            compression,
+            state,
+            &mut context,
+            packet,
+            held_slot,
+            held_item.item_id(),
+        )? == super::tnt_interaction_live::TntItemUse::Success
+    {
+        return Ok(());
+    }
     let clicked_state = read_live_block_model_at(
         context.chunk_cache,
         context.world_layout,
         context.world_seed,
         clicked_pos,
     );
-    if !suppress_using_block {
-        if let Some(menu) = block_menu_open_for_state(&clicked_state) {
-            let container_id = next_open_container_id(state);
-            let mut active_menu = ActiveBlockMenu::open(
-                container_id,
-                clicked_pos,
-                menu.live_kind,
-                context.world_layout,
-                context.world_seed,
-                context.chunk_cache,
-                context.recipe_manager.recipe_map(),
-            );
-            write_open_block_menu(stream, compression, container_id, menu, packet.sequence)?;
-            active_menu.start_open(&context.chunk_cache.container_openers, state);
-            active_menu.write_full_content(stream, compression, state)?;
-            state.active_block_menu = Some(active_menu);
-            return Ok(());
-        }
+    if !suppress_using_block
+        && super::block_menu_open::try_open_block_menu(stream, compression, state, &context, packet, &clicked_state)?
+    {
+        return Ok(());
     }
     if held_item.is_empty() {
         return write_block_change_ack(stream, compression, packet.sequence);

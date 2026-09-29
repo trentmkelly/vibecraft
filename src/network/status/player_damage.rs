@@ -125,6 +125,8 @@ pub(crate) struct DamageRules {
     pub fire_damage: bool,
     /// `GameRules.FREEZE_DAMAGE`.
     pub freeze_damage: bool,
+    /// `GameRules.PVP` (`ServerPlayer.isPvpAllowed`).
+    pub pvp: bool,
     /// `Level.getDifficulty()`.
     pub difficulty: Difficulty,
 }
@@ -137,6 +139,7 @@ impl Default for DamageRules {
             fall_damage: true,
             fire_damage: true,
             freeze_damage: true,
+            pvp: true,
             difficulty: Difficulty::Normal,
         }
     }
@@ -195,6 +198,7 @@ pub(super) fn refresh_damage_rules(
         fall_damage: rules.bool("fall_damage"),
         fire_damage: rules.bool("fire_damage"),
         freeze_damage: rules.bool("freeze_damage"),
+        pvp: rules.bool("pvp"),
         difficulty,
     };
 }
@@ -287,6 +291,26 @@ fn enchantment_protection(state: &PlaySessionState, source: &DamageSource) -> f3
         }
     }
     total
+}
+
+/// `LivingEntity.getAttributeValue(Attributes.EXPLOSION_KNOCKBACK_RESISTANCE)`: the
+/// `minecraft:attributes` effect of worn Blast Protection
+/// (`data/minecraft/enchantment/blast_protection.json`: `linear(0.15, 0.15)` per level,
+/// `add_value`), clamped to the attribute range `0..=1`.
+pub(super) fn explosion_knockback_resistance(state: &PlaySessionState) -> f64 {
+    let mut total = 0.0;
+    for (_, _, _, stack) in worn_armor(state) {
+        let Some(ItemComponent::Enchantments(enchantments)) = stack.component("minecraft:enchantments")
+        else {
+            continue;
+        };
+        if let Some(&level) = enchantments.get("minecraft:blast_protection") {
+            if level > 0 {
+                total += 0.15 + 0.15 * f64::from(level - 1);
+            }
+        }
+    }
+    total.clamp(0.0, 1.0)
 }
 
 /// `LivingEntity.getDamageAfterArmorAbsorb`.
@@ -403,6 +427,11 @@ pub(super) fn hurt_server(
     origin: HurtOrigin<'_>,
 ) -> bool {
     if is_invulnerable_to(state, &source) {
+        return false;
+    }
+    // `ServerPlayer.hurtServer`: a player-caused hit needs `canHarmPlayer`, which
+    // requires PvP (team friendly-fire is not modelled).
+    if !state.combat.hurt.rules.pvp && source.causing_entity.is_some_and(|entity| entity.is_player) {
         return false;
     }
     if state.abilities.invulnerable && !source_is(&source, DamageTag::BypassesInvulnerability) {
@@ -559,3 +588,5 @@ pub(super) fn flush_hurt_packets<W: Write>(
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod explosion_tests;

@@ -590,9 +590,10 @@ pub fn calculate_exploded_positions(
                 if !on_boundary {
                     continue;
                 }
-                let mut xd = f64::from(xx) / 15.0 * 2.0 - 1.0;
-                let mut yd = f64::from(yy) / 15.0 * 2.0 - 1.0;
-                let mut zd = f64::from(zz) / 15.0 * 2.0 - 1.0;
+                // Java: `xx / 15.0F * 2.0F - 1.0F` is float arithmetic widened to double.
+                let mut xd = f64::from(xx as f32 / 15.0 * 2.0 - 1.0);
+                let mut yd = f64::from(yy as f32 / 15.0 * 2.0 - 1.0);
+                let mut zd = f64::from(zz as f32 / 15.0 * 2.0 - 1.0);
                 let len = (xd * xd + yd * yd + zd * zd).sqrt();
                 xd /= len;
                 yd /= len;
@@ -618,9 +619,11 @@ pub fn calculate_exploded_positions(
                     if remaining_power > 0.0 && should_explode(pos, remaining_power) {
                         to_blow.insert((pos.x, pos.y, pos.z));
                     }
-                    xp += xd * 0.3;
-                    yp += yd * 0.3;
-                    zp += zd * 0.3;
+                    // `xd * 0.3F`: the float step size widened to double.
+                    let step = f64::from(0.3_f32);
+                    xp += xd * step;
+                    yp += yd * step;
+                    zp += zd * step;
                     remaining_power -= 0.225_000_01;
                 }
             }

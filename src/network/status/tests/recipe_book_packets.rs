@@ -93,6 +93,7 @@ pub fn picking_up_oak_log_unlocks_and_sends_oak_planks_recipe() {
             pickup_delay: 0,
             age: 0,
             target_uuid: None,
+            health: crate::item_entity::ITEM_DEFAULT_HEALTH,
         }],
         2,
     )));
