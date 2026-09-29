@@ -24,6 +24,8 @@ pub enum EquipmentSlot {
     Saddle,
 }
 
+mod recipe_book_triggers;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlayerInventory {
     items: Vec<ItemStack>,
@@ -502,6 +504,8 @@ pub struct InventoryMenu {
     unlocked_recipes: BTreeSet<&'static str>,
     highlighted_recipes: BTreeSet<&'static str>,
     recipe_unlock_events: Vec<&'static str>,
+    /// Newly unlocked recipes not yet reported to `RecipeUnlockedTrigger`.
+    recipe_trigger_events: Vec<&'static str>,
 }
 
 impl CraftingGrid {
@@ -686,6 +690,7 @@ impl InventoryMenu {
             unlocked_recipes: BTreeSet::new(),
             highlighted_recipes: BTreeSet::new(),
             recipe_unlock_events: Vec::new(),
+            recipe_trigger_events: Vec::new(),
         }
     }
 
@@ -813,6 +818,7 @@ impl InventoryMenu {
         if self.unlocked_recipes.insert(recipe_id) {
             self.highlighted_recipes.insert(recipe_id);
             self.recipe_unlock_events.push(recipe_id);
+            self.recipe_trigger_events.push(recipe_id);
             true
         } else {
             false

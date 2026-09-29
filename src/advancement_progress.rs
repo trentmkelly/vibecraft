@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::advancement_criteria::AdvancementRequirementsModel;
 use crate::advancement_system::CriterionProgressModel;
-use crate::network::play::{AdvancementProgressData, CriterionProgressData};
+use crate::network::play::AdvancementProgressData;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JavaAdvancementProgressModel {
@@ -190,6 +190,7 @@ impl Default for JavaAdvancementProgressModel {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::network::play::CriterionProgressData;
 
     fn requirements(groups: &[&[&str]]) -> AdvancementRequirementsModel {
         AdvancementRequirementsModel::new(

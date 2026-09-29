@@ -148,7 +148,11 @@ impl TreeNodePositionLayout {
 
         self.execute_shifts(index);
         let children = &self.nodes[index].children;
-        let midpoint = (self.nodes[children[0]].y + self.nodes[*children.last().unwrap()].y) / 2.0;
+        // `first_walk` returned above for a leaf, so both ends exist.
+        let (Some(&first), Some(&last)) = (children.first(), children.last()) else {
+            return;
+        };
+        let midpoint = (self.nodes[first].y + self.nodes[last].y) / 2.0;
         if let Some(previous) = self.nodes[index].previous_sibling {
             self.nodes[index].y = self.nodes[previous].y + 1.0;
             self.nodes[index].mod_value = self.nodes[index].y - midpoint;
@@ -211,18 +215,30 @@ impl TreeNodePositionLayout {
         let mut vir = index;
         let mut vor = index;
         let mut vil = previous_sibling;
-        let parent = self.nodes[index].parent.expect("non-root node has parent");
+        // A node with a previous sibling always has a parent.
+        let Some(parent) = self.nodes[index].parent else {
+            return default_ancestor;
+        };
         let mut vol = self.nodes[parent].children[0];
         let mut sir = self.nodes[index].mod_value;
         let mut sor = self.nodes[index].mod_value;
         let mut sil = self.nodes[vil].mod_value;
         let mut sol = self.nodes[vol].mod_value;
 
-        while self.next_or_thread(vil).is_some() && self.previous_or_thread(vir).is_some() {
-            vil = self.next_or_thread(vil).unwrap();
-            vir = self.previous_or_thread(vir).unwrap();
-            vol = self.previous_or_thread(vol).unwrap();
-            vor = self.next_or_thread(vor).unwrap();
+        while let (Some(next_left), Some(previous_right)) =
+            (self.next_or_thread(vil), self.previous_or_thread(vir))
+        {
+            // Java dereferences the outer contours unconditionally; they exist whenever
+            // the inner ones do.
+            let (Some(previous_outer_left), Some(next_outer_right)) =
+                (self.previous_or_thread(vol), self.next_or_thread(vor))
+            else {
+                break;
+            };
+            vil = next_left;
+            vir = previous_right;
+            vol = previous_outer_left;
+            vor = next_outer_right;
             self.nodes[vor].ancestor = index;
             let shift = self.nodes[vil].y + sil - (self.nodes[vir].y + sir) + 1.0;
             if shift > 0.0 {
@@ -267,7 +283,9 @@ impl TreeNodePositionLayout {
 
     fn get_ancestor(&self, index: usize, other: usize, default_ancestor: usize) -> usize {
         let ancestor = self.nodes[index].ancestor;
-        let other_parent = self.nodes[other].parent.expect("non-root node has parent");
+        let Some(other_parent) = self.nodes[other].parent else {
+            return default_ancestor;
+        };
         if self.nodes[other_parent].children.contains(&ancestor) {
             ancestor
         } else {

@@ -18,6 +18,7 @@ use crate::server_scoreboard::live::CommandScoreboardSeed;
 use crate::command::{CommandError, CommandResult, LevelBasedPermissionSet, PermissionLevel};
 use crate::log::log_info;
 use super::datapack_live::{apply_data_pack_requests, seed_data_pack_state, DataPackOutcome};
+use super::advancements_live::{apply_command_advancements, seed_command_advancements};
 use super::play_session_world_packets::{
     command_feedback_text, function_permission_level_from_properties,
 };
@@ -127,6 +128,7 @@ impl ServerCommandRunner {
         let scoreboard = crate::server_scoreboard::live::global();
         let scoreboard_seed = CommandScoreboardSeed::seed(&scoreboard, &mut state);
         seed_data_pack_state(&mut state, line);
+        let advancement_seed = seed_command_advancements(&mut state, line);
         let access_context = AccessContext {
             access: &self.player_access,
             properties: &self.properties,
@@ -140,6 +142,14 @@ impl ServerCommandRunner {
         scoreboard_seed.apply(&scoreboard, &state, &self.active_logins.world_bus);
         apply_access_changes(&access_context, &access_seed, &state);
         apply_console_disconnects(access_context.sessions, &state);
+        if let Err(err) = apply_command_advancements(
+            advancement_seed,
+            &state,
+            &self.active_logins.sessions,
+            &self.active_logins.world_bus,
+        ) {
+            eprintln!("advancement command error: {err}");
+        }
         if state.halt_requested {
             self.halt_requested.store(true, Ordering::SeqCst);
         }

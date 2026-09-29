@@ -3,6 +3,7 @@ use super::*;
 use crate::server_scoreboard::live::CommandScoreboardSeed;
 use super::live_chat_state::CHAT_VALIDATION_FAILED;
 use super::datapack_live::seed_data_pack_state;
+use super::advancements_live::{apply_command_advancements_for, seed_command_advancements};
 
 pub fn write_generated_spawn_chunk_packets_from_chunk<W: Write>(
     writer: &mut W,
@@ -317,6 +318,7 @@ pub fn handle_chat_command_packet<R: Read>(
     let scoreboard = crate::server_scoreboard::live::global();
     let scoreboard_seed = CommandScoreboardSeed::seed(&scoreboard, &mut command_state);
     seed_data_pack_state(&mut command_state, &command);
+    let advancement_seed = seed_command_advancements(&mut command_state, &command);
     let access_context = AccessContext {
         access: context.player_access,
         properties: context.properties,
@@ -330,6 +332,7 @@ pub fn handle_chat_command_packet<R: Read>(
     scoreboard_seed.apply(&scoreboard, &command_state, &context.active_login.world_bus);
     apply_access_changes(&access_context, &access_seed, &command_state);
     apply_command_effects(context.active_login, &command_state, &result, context.game_rules)?;
+    apply_command_advancements_for(advancement_seed, &command_state, context.active_login)?;
     apply_command_side_effects(
         stream,
         compression,

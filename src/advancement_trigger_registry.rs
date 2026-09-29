@@ -45,7 +45,10 @@ impl CriteriaTriggersModel {
     // Serialized names are compile-time constants, valid by construction.
     #[allow(clippy::unwrap_used)]
     fn trigger_model(entry: CriteriaTriggerEntry) -> CriterionTriggerModel {
-        CriterionTriggerModel::new(Identifier::parse(entry.serialized_name).unwrap())
+        CriterionTriggerModel::new(
+            Identifier::parse(entry.serialized_name)
+                .unwrap_or_else(|err| panic!("invalid trigger name {}: {err}", entry.serialized_name)),
+        )
     }
 
     pub const IMPOSSIBLE: CriteriaTriggerEntry = CriteriaTriggerEntry {

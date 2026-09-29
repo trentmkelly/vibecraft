@@ -330,6 +330,7 @@ mod scoreboard_live;
 use scoreboard_live::{save_scoreboard, send_join_scoreboard};
 
 mod player_chat_live;
+mod advancements_live;
 mod live_chat_state;
 use live_chat_state::LiveChatState;
 

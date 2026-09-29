@@ -47,6 +47,13 @@ fn system_chat_payload(content: Tag) -> io::Result<Vec<u8>> {
     })
 }
 
+/// `PlayerList.broadcastSystemMessage(content, false)` to every connection (callers log
+/// the console leg themselves).
+pub(super) fn publish_system_chat(bus: &WorldPacketBus, content: Tag) -> io::Result<()> {
+    bus.publish(&system_chat_payload(content)?);
+    Ok(())
+}
+
 /// Play-state `ClientboundDisconnectPacket` carrying `reason_json`.
 pub(super) fn disconnect_payload(reason_json: String) -> io::Result<Vec<u8>> {
     plain_payload(CLIENTBOUND_DISCONNECT_PACKET_ID, |body| {
