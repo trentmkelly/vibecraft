@@ -5083,1643 +5083,1643 @@ Generated on 2026-05-24 from `decompiled-server-26.1.2/data` and `decompiled-ser
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city/entrance`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city/entrance/entrance_connector.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city/entrance/entrance_path_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city/entrance/entrance_path_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city/entrance/entrance_path_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city/entrance/entrance_path_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city/entrance/entrance_path_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city/entrance/entrance_connector.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city/entrance/entrance_path_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city/entrance/entrance_path_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city/entrance/entrance_path_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city/entrance/entrance_path_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city/entrance/entrance_path_5.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/city_center_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/city_center_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/city_center_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/city_center_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/city_center_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/city_center_3.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/walls`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/walls/bottom_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/walls/bottom_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/walls/bottom_left_corner.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/walls/bottom_right_corner.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/walls/bottom_right_corner_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/walls/bottom_right_corner_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/walls/left.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/walls/right.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/walls/top.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/walls/top_left_corner.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/walls/top_right_corner.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/walls/bottom_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/walls/bottom_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/walls/bottom_left_corner.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/walls/bottom_right_corner.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/walls/bottom_right_corner_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/walls/bottom_right_corner_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/walls/left.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/walls/right.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/walls/top.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/walls/top_left_corner.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/city_center/walls/top_right_corner.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/barracks.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/camp_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/camp_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/camp_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/chamber_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/chamber_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/chamber_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/ice_box_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/large_pillar_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/large_ruin_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/medium_pillar_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/medium_ruin_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/medium_ruin_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/sauna_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/small_ruin_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/small_ruin_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/small_statue.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/tall_ruin_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/tall_ruin_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/tall_ruin_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/tall_ruin_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/barracks.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/camp_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/camp_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/camp_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/chamber_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/chamber_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/chamber_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/ice_box_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/large_pillar_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/large_ruin_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/medium_pillar_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/medium_ruin_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/medium_ruin_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/sauna_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/small_ruin_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/small_ruin_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/small_statue.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/tall_ruin_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/tall_ruin_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/tall_ruin_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/structures/tall_ruin_4.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/intact_corner_wall_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/intact_horizontal_wall_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/intact_horizontal_wall_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/intact_horizontal_wall_bridge.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/intact_horizontal_wall_passage_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/intact_horizontal_wall_stairs_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/intact_horizontal_wall_stairs_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/intact_horizontal_wall_stairs_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/intact_horizontal_wall_stairs_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/intact_intersection_wall_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/intact_lshape_wall_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/ruined_corner_wall_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/ruined_corner_wall_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/ruined_horizontal_wall_stairs_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/ruined_horizontal_wall_stairs_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/ruined_horizontal_wall_stairs_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/ruined_horizontal_wall_stairs_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/intact_corner_wall_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/intact_horizontal_wall_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/intact_horizontal_wall_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/intact_horizontal_wall_bridge.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/intact_horizontal_wall_passage_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/intact_horizontal_wall_stairs_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/intact_horizontal_wall_stairs_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/intact_horizontal_wall_stairs_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/intact_horizontal_wall_stairs_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/intact_intersection_wall_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/intact_lshape_wall_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/ruined_corner_wall_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/ruined_corner_wall_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/ruined_horizontal_wall_stairs_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/ruined_horizontal_wall_stairs_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/ruined_horizontal_wall_stairs_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ancient_city/walls/ruined_horizontal_wall_stairs_4.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/blocks`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/blocks/air.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/blocks/gold.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/blocks/air.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/blocks/gold.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/bridge_pieces`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/bridge_pieces/bridge.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/bridge_pieces/bridge.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/connectors`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/connectors/back_bridge_bottom.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/connectors/back_bridge_top.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/connectors/back_bridge_bottom.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/connectors/back_bridge_top.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/legs`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/legs/leg_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/legs/leg_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/legs/leg_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/legs/leg_1.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/rampart_plates`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/rampart_plates/plate_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/rampart_plates/plate_0.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/ramparts`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/ramparts/rampart_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/ramparts/rampart_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/ramparts/rampart_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/ramparts/rampart_1.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/starting_pieces`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/starting_pieces/entrance.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/starting_pieces/entrance_base.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/starting_pieces/entrance_face.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/starting_pieces/entrance.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/starting_pieces/entrance_base.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/starting_pieces/entrance_face.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/walls`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/walls/wall_base_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/walls/wall_base_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/walls/wall_base_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/bridge/walls/wall_base_1.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/air_base.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/air_base.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/connectors`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/connectors/end_post_connector.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/connectors/end_post_connector.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/large_stables`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/large_stables/inner_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/large_stables/inner_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/large_stables/inner_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/large_stables/inner_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/large_stables/inner_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/large_stables/outer_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/large_stables/outer_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/large_stables/outer_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/large_stables/outer_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/large_stables/outer_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/large_stables/inner_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/large_stables/inner_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/large_stables/inner_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/large_stables/inner_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/large_stables/inner_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/large_stables/outer_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/large_stables/outer_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/large_stables/outer_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/large_stables/outer_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/large_stables/outer_4.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/posts`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/posts/end_post.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/posts/stair_post.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/posts/end_post.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/posts/stair_post.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/rampart_plates`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/rampart_plates/rampart_plate_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/rampart_plates/rampart_plate_1.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/ramparts`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/ramparts/ramparts_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/ramparts/ramparts_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/ramparts/ramparts_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/ramparts/ramparts_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/ramparts/ramparts_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/ramparts/ramparts_3.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/small_stables`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/small_stables/inner_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/small_stables/inner_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/small_stables/inner_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/small_stables/inner_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/small_stables/outer_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/small_stables/outer_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/small_stables/outer_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/small_stables/outer_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/small_stables/inner_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/small_stables/inner_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/small_stables/inner_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/small_stables/inner_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/small_stables/outer_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/small_stables/outer_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/small_stables/outer_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/small_stables/outer_3.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_1_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_1_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_1_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_1_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_1_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_2_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_2_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_2_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_2_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_2_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_3_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_3_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_3_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_3_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_3_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_1_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_1_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_1_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_1_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_1_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_2_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_2_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_2_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_2_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_2_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_3_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_3_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_3_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_3_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/stairs/stairs_3_4.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/starting_pieces`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/starting_pieces/stairs_0_mirrored.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/starting_pieces/stairs_1_mirrored.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/starting_pieces/stairs_2_mirrored.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/starting_pieces/stairs_3_mirrored.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/starting_pieces/stairs_4_mirrored.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/starting_pieces/starting_stairs_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/starting_pieces/starting_stairs_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/starting_pieces/starting_stairs_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/starting_pieces/starting_stairs_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/starting_pieces/starting_stairs_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/starting_pieces/stairs_0_mirrored.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/starting_pieces/stairs_1_mirrored.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/starting_pieces/stairs_2_mirrored.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/starting_pieces/stairs_3_mirrored.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/starting_pieces/stairs_4_mirrored.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/starting_pieces/starting_stairs_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/starting_pieces/starting_stairs_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/starting_pieces/starting_stairs_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/starting_pieces/starting_stairs_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/starting_pieces/starting_stairs_4.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/walls`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/walls/side_wall_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/walls/side_wall_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/walls/wall_base.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/walls/side_wall_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/walls/side_wall_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/hoglin_stable/walls/wall_base.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/mobs`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/mobs/crossbow_piglin.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/mobs/empty.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/mobs/hoglin.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/mobs/melee_piglin.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/mobs/melee_piglin_always.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/mobs/sword_piglin.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/mobs/crossbow_piglin.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/mobs/empty.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/mobs/hoglin.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/mobs/melee_piglin.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/mobs/melee_piglin_always.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/mobs/sword_piglin.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/bases/centers`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/bases/centers/center_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/bases/centers/center_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/bases/centers/center_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/bases/centers/center_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/bases/centers/center_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/bases/centers/center_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/bases/centers/center_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/bases/centers/center_3.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/bases`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/bases/lava_basin.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/bases/lava_basin.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/big_air_full.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/big_air_full.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/brains`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/brains/center_brain.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/brains/center_brain.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/connectors`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/connectors/center_to_wall_middle.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/connectors/center_to_wall_top.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/connectors/center_to_wall_top_entrance.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/connectors/center_to_wall_middle.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/connectors/center_to_wall_top.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/connectors/center_to_wall_top_entrance.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/corners/bottom`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/corners/bottom/corner_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/corners/bottom/corner_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/corners/bottom/corner_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/corners/bottom/corner_1.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/corners/edges`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/corners/edges/bottom.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/corners/edges/middle.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/corners/edges/top.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/corners/edges/bottom.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/corners/edges/middle.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/corners/edges/top.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/corners/middle`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/corners/middle/corner_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/corners/middle/corner_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/corners/middle/corner_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/corners/middle/corner_1.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/corners/top`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/corners/top/corner_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/corners/top/corner_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/corners/top/corner_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/corners/top/corner_1.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/entrances`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/entrances/entrance_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/entrances/entrance_0.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/extensions`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/extensions/empty.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/extensions/fire_room.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/extensions/house_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/extensions/house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/extensions/large_bridge_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/extensions/large_bridge_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/extensions/large_bridge_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/extensions/large_bridge_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/extensions/roofed_bridge.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/extensions/small_bridge_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/extensions/small_bridge_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/extensions/small_bridge_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/extensions/small_bridge_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/extensions/empty.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/extensions/fire_room.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/extensions/house_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/extensions/house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/extensions/large_bridge_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/extensions/large_bridge_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/extensions/large_bridge_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/extensions/large_bridge_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/extensions/roofed_bridge.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/extensions/small_bridge_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/extensions/small_bridge_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/extensions/small_bridge_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/extensions/small_bridge_3.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/ramparts`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/ramparts/bottom_wall_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/ramparts/lava_basin_main.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/ramparts/lava_basin_side.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/ramparts/mid_wall_main.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/ramparts/mid_wall_side.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/ramparts/top_wall.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/ramparts/bottom_wall_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/ramparts/lava_basin_main.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/ramparts/lava_basin_side.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/ramparts/mid_wall_main.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/ramparts/mid_wall_side.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/ramparts/top_wall.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/roofs`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/roofs/center_roof.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/roofs/corner_roof.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/roofs/wall_roof.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/roofs/center_roof.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/roofs/corner_roof.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/roofs/wall_roof.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/stairs`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/stairs/lower_stairs.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/stairs/lower_stairs.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/bottom`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/bottom/wall_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/bottom/wall_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/bottom/wall_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/bottom/wall_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/bottom/wall_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/bottom/wall_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/bottom/wall_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/bottom/wall_3.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/entrance_wall.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/lava_wall.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/entrance_wall.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/lava_wall.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/mid`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/mid/wall_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/mid/wall_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/mid/wall_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/mid/wall_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/mid/wall_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/mid/wall_2.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/outer`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/outer/bottom_corner.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/outer/medium_outer_wall.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/outer/mid_corner.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/outer/outer_wall.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/outer/tall_outer_wall.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/outer/top_corner.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/outer/bottom_corner.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/outer/medium_outer_wall.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/outer/mid_corner.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/outer/outer_wall.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/outer/tall_outer_wall.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/outer/top_corner.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/top`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/top/main_entrance.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/top/wall_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/top/wall_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/top/main_entrance.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/top/wall_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/treasure/walls/top/wall_1.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/units`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/air_base.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/air_base.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/center_pieces`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/center_pieces/center_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/center_pieces/center_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/center_pieces/center_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/center_pieces/center_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/center_pieces/center_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/center_pieces/center_2.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/edges`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/edges/edge_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/edges/edge_0.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/fillers`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/fillers/stage_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/fillers/stage_0.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/pathways`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/pathways/pathway_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/pathways/pathway_wall_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/pathways/pathway_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/pathways/pathway_wall_0.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/rampart_plates`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/rampart_plates/plate_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/rampart_plates/plate_0.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/ramparts`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/ramparts/ramparts_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/ramparts/ramparts_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/ramparts/ramparts_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/ramparts/ramparts_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/ramparts/ramparts_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/ramparts/ramparts_2.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/rot`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/rot/stage_1_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/rot/stage_1_0.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/stage_0_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/stage_0_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/stage_0_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/stage_0_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/stage_1_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/stage_1_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/stage_1_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/stage_1_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/stage_2_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/stage_2_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/stage_3_0.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/stage_3_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/stage_3_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/stage_3_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/stage_0_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/stage_0_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/stage_0_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/stage_0_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/stage_1_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/stage_1_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/stage_1_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/stage_1_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/stage_2_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/stage_2_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/stage_3_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/stage_3_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/stage_3_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/stages/stage_3_3.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/wall_units`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/wall_units/edge_0_large.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/wall_units/unit_0.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/wall_units/edge_0_large.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/wall_units/unit_0.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/walls`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/walls/connected_wall.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/walls/wall_base.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/walls/connected_wall.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/bastion/units/walls/wall_base.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/empty.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/empty.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/end_city`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/base_floor.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/base_roof.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/bridge_end.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/bridge_gentle_stairs.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/bridge_piece.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/bridge_steep_stairs.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/fat_tower_base.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/fat_tower_middle.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/fat_tower_top.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/second_floor_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/second_floor_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/second_roof.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/ship.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/third_floor_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/third_floor_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/third_roof.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/tower_base.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/tower_floor.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/tower_piece.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/tower_top.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/base_floor.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/base_roof.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/bridge_end.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/bridge_gentle_stairs.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/bridge_piece.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/bridge_steep_stairs.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/fat_tower_base.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/fat_tower_middle.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/fat_tower_top.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/second_floor_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/second_floor_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/second_roof.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/ship.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/third_floor_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/third_floor_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/third_roof.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/tower_base.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/tower_floor.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/tower_piece.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/end_city/tower_top.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/fossil`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/skull_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/skull_1_coal.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/skull_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/skull_2_coal.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/skull_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/skull_3_coal.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/skull_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/skull_4_coal.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/spine_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/spine_1_coal.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/spine_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/spine_2_coal.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/spine_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/spine_3_coal.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/spine_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/spine_4_coal.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/skull_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/skull_1_coal.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/skull_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/skull_2_coal.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/skull_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/skull_3_coal.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/skull_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/skull_4_coal.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/spine_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/spine_1_coal.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/spine_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/spine_2_coal.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/spine_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/spine_3_coal.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/spine_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/fossil/spine_4_coal.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/igloo`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/igloo/bottom.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/igloo/middle.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/igloo/top.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/igloo/bottom.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/igloo/middle.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/igloo/top.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils/fossil_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils/fossil_10.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils/fossil_11.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils/fossil_12.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils/fossil_13.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils/fossil_14.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils/fossil_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils/fossil_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils/fossil_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils/fossil_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils/fossil_6.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils/fossil_7.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils/fossil_8.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils/fossil_9.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils/fossil_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils/fossil_10.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils/fossil_11.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils/fossil_12.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils/fossil_13.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils/fossil_14.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils/fossil_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils/fossil_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils/fossil_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils/fossil_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils/fossil_6.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils/fossil_7.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils/fossil_8.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/nether_fossils/fossil_9.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/pillager_outpost`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/pillager_outpost/base_plate.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/pillager_outpost/feature_cage1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/pillager_outpost/feature_cage2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/pillager_outpost/feature_cage_with_allays.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/pillager_outpost/feature_logs.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/pillager_outpost/feature_plate.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/pillager_outpost/feature_targets.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/pillager_outpost/feature_tent1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/pillager_outpost/feature_tent2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/pillager_outpost/watchtower.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/pillager_outpost/watchtower_overgrown.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/pillager_outpost/base_plate.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/pillager_outpost/feature_cage1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/pillager_outpost/feature_cage2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/pillager_outpost/feature_cage_with_allays.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/pillager_outpost/feature_logs.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/pillager_outpost/feature_plate.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/pillager_outpost/feature_targets.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/pillager_outpost/feature_tent1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/pillager_outpost/feature_tent2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/pillager_outpost/watchtower.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/pillager_outpost/watchtower_overgrown.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/ruined_portal`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ruined_portal/giant_portal_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ruined_portal/giant_portal_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ruined_portal/giant_portal_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ruined_portal/portal_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ruined_portal/portal_10.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ruined_portal/portal_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ruined_portal/portal_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ruined_portal/portal_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ruined_portal/portal_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ruined_portal/portal_6.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ruined_portal/portal_7.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ruined_portal/portal_8.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ruined_portal/portal_9.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ruined_portal/giant_portal_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ruined_portal/giant_portal_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ruined_portal/giant_portal_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ruined_portal/portal_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ruined_portal/portal_10.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ruined_portal/portal_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ruined_portal/portal_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ruined_portal/portal_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ruined_portal/portal_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ruined_portal/portal_6.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ruined_portal/portal_7.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ruined_portal/portal_8.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/ruined_portal/portal_9.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/shipwreck`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/rightsideup_backhalf.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/rightsideup_backhalf_degraded.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/rightsideup_fronthalf.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/rightsideup_fronthalf_degraded.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/rightsideup_full.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/rightsideup_full_degraded.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/sideways_backhalf.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/sideways_backhalf_degraded.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/sideways_fronthalf.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/sideways_fronthalf_degraded.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/sideways_full.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/sideways_full_degraded.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/upsidedown_backhalf.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/upsidedown_backhalf_degraded.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/upsidedown_fronthalf.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/upsidedown_fronthalf_degraded.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/upsidedown_full.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/upsidedown_full_degraded.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/with_mast.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/with_mast_degraded.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/rightsideup_backhalf.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/rightsideup_backhalf_degraded.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/rightsideup_fronthalf.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/rightsideup_fronthalf_degraded.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/rightsideup_full.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/rightsideup_full_degraded.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/sideways_backhalf.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/sideways_backhalf_degraded.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/sideways_fronthalf.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/sideways_fronthalf_degraded.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/sideways_full.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/sideways_full_degraded.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/upsidedown_backhalf.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/upsidedown_backhalf_degraded.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/upsidedown_fronthalf.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/upsidedown_fronthalf_degraded.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/upsidedown_full.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/upsidedown_full_degraded.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/with_mast.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/shipwreck/with_mast_degraded.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_full_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_full_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_full_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_full_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_full_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_hall_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_hall_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_hall_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_hall_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_hall_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_lower_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_lower_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_lower_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_lower_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_lower_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_room_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_room_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_room_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_room_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_room_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_upper_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_upper_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_upper_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_upper_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_upper_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/large_room_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/large_room_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/large_room_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/large_room_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/large_room_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/one_room_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/one_room_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/one_room_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/one_room_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/one_room_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_full_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_full_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_full_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_full_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_full_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_hall_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_hall_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_hall_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_hall_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_hall_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_lower_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_lower_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_lower_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_lower_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_lower_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_room_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_room_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_room_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_room_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_room_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_upper_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_upper_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_upper_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_upper_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/group_upper_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/large_room_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/large_room_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/large_room_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/large_room_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/large_room_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/one_room_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/one_room_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/one_room_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/one_room_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/buildings/one_room_5.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/decor`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/decor/decor_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/decor/decor_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/decor/decor_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/decor/decor_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/decor/decor_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/decor/decor_6.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/decor/decor_7.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/decor/decor_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/decor/decor_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/decor/decor_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/decor/decor_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/decor/decor_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/decor/decor_6.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/decor/decor_7.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/roads`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/roads/long_road_end.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/roads/road_end_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/roads/road_section_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/roads/road_section_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/roads/road_section_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/roads/road_section_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/roads/road_spacer_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/roads/long_road_end.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/roads/road_end_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/roads/road_section_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/roads/road_section_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/roads/road_section_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/roads/road_section_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/roads/road_spacer_1.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/hall_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/hall_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/hall_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/hall_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/hall_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/large_hall_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/large_hall_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/large_hall_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/large_hall_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/large_hall_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/one_room_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/one_room_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/one_room_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/one_room_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/one_room_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/platform_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/platform_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/platform_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/platform_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/platform_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/stable_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/stable_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/stable_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/stable_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/stable_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/tower_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/tower_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/tower_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/tower_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/tower_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/tower_top_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/tower_top_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/tower_top_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/tower_top_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/tower_top_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/hall_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/hall_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/hall_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/hall_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/hall_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/large_hall_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/large_hall_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/large_hall_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/large_hall_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/large_hall_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/one_room_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/one_room_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/one_room_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/one_room_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/one_room_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/platform_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/platform_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/platform_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/platform_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/platform_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/stable_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/stable_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/stable_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/stable_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/stable_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/tower_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/tower_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/tower_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/tower_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/tower_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/tower_top_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/tower_top_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/tower_top_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/tower_top_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trail_ruins/tower/tower_top_5.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/addon`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/addon/c1_breeze.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/addon/full_corner_column.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/addon/full_stacked_walkway.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/addon/full_stacked_walkway_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/addon/grate_bridge.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/addon/hanging_platform.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/addon/lower_staircase_down.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/addon/short_grate_platform.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/addon/short_platform.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/addon/walkway_with_bridge_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/addon/c1_breeze.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/addon/full_corner_column.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/addon/full_stacked_walkway.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/addon/full_stacked_walkway_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/addon/grate_bridge.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/addon/hanging_platform.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/addon/lower_staircase_down.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/addon/short_grate_platform.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/addon/short_platform.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/addon/walkway_with_bridge_1.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/cover_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/cover_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/cover_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/cover_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/cover_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/cover_6.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/cover_7.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/full_column.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/hanging_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/hanging_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/hanging_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/hanging_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/hanging_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/left_staircase_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/left_staircase_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/left_staircase_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/platform_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/right_staircase_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/right_staircase_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/right_staircase_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/spawner_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/cover_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/cover_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/cover_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/cover_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/cover_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/cover_6.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/cover_7.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/full_column.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/hanging_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/hanging_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/hanging_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/hanging_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/hanging_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/left_staircase_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/left_staircase_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/left_staircase_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/platform_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/right_staircase_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/right_staircase_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/right_staircase_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/assembly/spawner_1.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/chamber_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/chamber_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/chamber_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/chamber_8.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/entrance_cap.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/eruption.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/chamber_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/chamber_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/chamber_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/chamber_8.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/entrance_cap.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/eruption.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/eruption`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/eruption/breeze_slice_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/eruption/center_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/eruption/quadrant_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/eruption/quadrant_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/eruption/quadrant_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/eruption/quadrant_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/eruption/quadrant_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/eruption/slice_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/eruption/slice_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/eruption/slice_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/eruption/breeze_slice_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/eruption/center_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/eruption/quadrant_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/eruption/quadrant_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/eruption/quadrant_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/eruption/quadrant_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/eruption/quadrant_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/eruption/slice_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/eruption/slice_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/eruption/slice_3.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/pedestal.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/pedestal.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/pedestal`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/pedestal/center_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/pedestal/ominous_slice_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/pedestal/quadrant_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/pedestal/quadrant_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/pedestal/quadrant_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/pedestal/slice_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/pedestal/slice_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/pedestal/slice_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/pedestal/slice_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/pedestal/slice_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/pedestal/center_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/pedestal/ominous_slice_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/pedestal/quadrant_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/pedestal/quadrant_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/pedestal/quadrant_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/pedestal/slice_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/pedestal/slice_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/pedestal/slice_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/pedestal/slice_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/pedestal/slice_5.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted/center.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted/hallway_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted/hallway_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted/hallway_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted/ominous_upper_arm_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted/quadrant_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted/quadrant_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted/quadrant_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted/quadrant_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted/ramp_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted/ramp_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted/ramp_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted/ramp_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted/center.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted/hallway_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted/hallway_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted/hallway_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted/ominous_upper_arm_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted/quadrant_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted/quadrant_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted/quadrant_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted/quadrant_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted/ramp_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted/ramp_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted/ramp_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chamber/slanted/ramp_4.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chests/connectors`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chests/connectors/supply.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chests/connectors/supply.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chests`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chests/supply.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/chests/supply.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/arrow_dispenser.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/bridge_lower.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/chandelier_upper.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/decoration_upper.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/display_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/display_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/display_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/head_upper.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/ladder_to_middle.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/open_walkway.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/open_walkway_upper.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/reward_upper.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/staircase.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/wall.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/walled_walkway.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/arrow_dispenser.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/bridge_lower.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/chandelier_upper.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/decoration_upper.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/display_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/display_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/display_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/head_upper.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/ladder_to_middle.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/open_walkway.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/open_walkway_upper.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/reward_upper.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/staircase.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/wall.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/addon/walled_walkway.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/atrium`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/atrium/bogged_relief.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/atrium/breeze_relief.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/atrium/grand_staircase_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/atrium/grand_staircase_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/atrium/grand_staircase_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/atrium/spider_relief.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/atrium/spiral_relief.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/atrium/bogged_relief.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/atrium/breeze_relief.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/atrium/grand_staircase_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/atrium/grand_staircase_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/atrium/grand_staircase_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/atrium/spider_relief.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/atrium/spiral_relief.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/atrium_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/end_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/end_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/entrance_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/entrance_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/entrance_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/first_plate.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/second_plate.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/straight_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/straight_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/straight_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/straight_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/straight_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/straight_6.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/straight_7.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/straight_8.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/atrium_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/end_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/end_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/entrance_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/entrance_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/entrance_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/first_plate.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/second_plate.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/straight_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/straight_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/straight_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/straight_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/straight_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/straight_6.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/straight_7.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/corridor/straight_8.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/barrel.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/black_bed.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/blue_bed.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/brown_bed.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/candle_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/candle_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/candle_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/candle_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/cyan_bed.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/dead_bush_pot.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/disposal.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/empty_pot.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/flow_pot.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/gray_bed.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/green_bed.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/guster_pot.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/light_blue_bed.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/light_gray_bed.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/lime_bed.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/magenta_bed.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/orange_bed.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/pink_bed.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/purple_bed.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/red_bed.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/scrape_pot.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/undecorated_pot.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/white_bed.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/yellow_bed.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/barrel.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/black_bed.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/blue_bed.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/brown_bed.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/candle_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/candle_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/candle_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/candle_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/cyan_bed.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/dead_bush_pot.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/disposal.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/empty_pot.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/flow_pot.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/gray_bed.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/green_bed.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/guster_pot.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/light_blue_bed.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/light_gray_bed.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/lime_bed.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/magenta_bed.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/orange_bed.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/pink_bed.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/purple_bed.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/red_bed.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/scrape_pot.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/undecorated_pot.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/white_bed.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/decor/yellow_bed.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/dispensers`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/dispensers/chamber.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/dispensers/floor_dispenser.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/dispensers/wall_dispenser.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/dispensers/chamber.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/dispensers/floor_dispenser.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/dispensers/wall_dispenser.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/cache_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/corner_staircase.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/corner_staircase_down.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/corridor_connector_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/encounter_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/encounter_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/encounter_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/encounter_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/encounter_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/left_corner.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/long_straight_staircase.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/long_straight_staircase_down.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/lower_hallway_connector.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/right_corner.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/rubble.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/rubble_chamber.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/rubble_chamber_thin.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/rubble_thin.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/straight.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/straight_staircase.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/straight_staircase_down.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/trapped_staircase.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/upper_hallway_connector.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/cache_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/corner_staircase.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/corner_staircase_down.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/corridor_connector_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/encounter_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/encounter_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/encounter_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/encounter_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/encounter_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/left_corner.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/long_straight_staircase.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/long_straight_staircase_down.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/lower_hallway_connector.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/right_corner.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/rubble.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/rubble_chamber.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/rubble_chamber_thin.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/rubble_thin.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/straight.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/straight_staircase.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/straight_staircase_down.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/trapped_staircase.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/hallway/upper_hallway_connector.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/intersection`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/intersection/intersection_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/intersection/intersection_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/intersection/intersection_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/intersection/intersection_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/intersection/intersection_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/intersection/intersection_3.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/reward`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/reward/ominous_vault.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/reward/vault.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/reward/ominous_vault.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/reward/vault.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/breeze`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/breeze/breeze.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/breeze/breeze.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/connectors`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/connectors/breeze.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/connectors/melee.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/connectors/ranged.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/connectors/slow_ranged.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/connectors/small_melee.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/connectors/breeze.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/connectors/melee.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/connectors/ranged.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/connectors/slow_ranged.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/connectors/small_melee.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/melee`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/melee/husk.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/melee/spider.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/melee/zombie.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/melee/husk.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/melee/spider.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/melee/zombie.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/ranged`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/ranged/poison_skeleton.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/ranged/skeleton.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/ranged/stray.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/ranged/poison_skeleton.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/ranged/skeleton.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/ranged/stray.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/slow_ranged`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/slow_ranged/poison_skeleton.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/slow_ranged/skeleton.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/slow_ranged/stray.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/slow_ranged/poison_skeleton.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/slow_ranged/skeleton.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/slow_ranged/stray.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/small_melee`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/small_melee/baby_zombie.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/small_melee/cave_spider.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/small_melee/silverfish.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/small_melee/slime.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/small_melee/baby_zombie.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/small_melee/cave_spider.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/small_melee/silverfish.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/trial_chambers/spawner/small_melee/slime.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_brick_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_brick_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_brick_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_brick_8.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_cracked_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_cracked_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_cracked_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_cracked_8.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_mossy_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_mossy_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_mossy_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_mossy_8.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_warm_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_warm_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_warm_6.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_warm_7.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/brick_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/brick_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/brick_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/brick_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/brick_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/brick_6.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/brick_7.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/brick_8.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/cracked_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/cracked_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/cracked_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/cracked_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/cracked_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/cracked_6.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/cracked_7.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/cracked_8.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/mossy_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/mossy_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/mossy_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/mossy_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/mossy_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/mossy_6.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/mossy_7.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/mossy_8.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/warm_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/warm_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/warm_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/warm_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/warm_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/warm_6.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/warm_7.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/warm_8.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_brick_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_brick_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_brick_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_brick_8.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_cracked_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_cracked_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_cracked_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_cracked_8.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_mossy_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_mossy_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_mossy_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_mossy_8.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_warm_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_warm_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_warm_6.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/big_warm_7.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/brick_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/brick_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/brick_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/brick_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/brick_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/brick_6.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/brick_7.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/brick_8.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/cracked_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/cracked_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/cracked_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/cracked_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/cracked_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/cracked_6.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/cracked_7.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/cracked_8.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/mossy_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/mossy_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/mossy_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/mossy_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/mossy_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/mossy_6.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/mossy_7.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/mossy_8.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/warm_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/warm_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/warm_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/warm_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/warm_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/warm_6.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/warm_7.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/underwater_ruin/warm_8.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/cat_black.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/cat_british.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/cat_calico.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/cat_jellie.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/cat_persian.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/cat_ragdoll.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/cat_red.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/cat_siamese.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/cat_tabby.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/cat_white.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/cows_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/horses_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/horses_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/horses_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/horses_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/horses_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/pigs_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/sheep_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/sheep_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/cat_black.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/cat_british.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/cat_calico.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/cat_jellie.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/cat_persian.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/cat_ragdoll.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/cat_red.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/cat_siamese.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/cat_tabby.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/cat_white.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/cows_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/horses_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/horses_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/horses_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/horses_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/horses_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/pigs_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/sheep_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/animals/sheep_2.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/common`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/iron_golem.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/well_bottom.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/iron_golem.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/common/well_bottom.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/decays`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/decays/grass_11x13.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/decays/grass_16x16.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/decays/grass_9x9.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/decays/grass_11x13.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/decays/grass_16x16.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/decays/grass_9x9.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/desert`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/camel_spawn.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/desert_lamp_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/camel_spawn.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/desert_lamp_1.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_animal_pen_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_animal_pen_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_armorer_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_butcher_shop_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_cartographer_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_farm_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_farm_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_fisher_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_fletcher_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_large_farm_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_library_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_mason_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_medium_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_medium_house_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_shepherd_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_small_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_small_house_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_small_house_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_small_house_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_small_house_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_small_house_6.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_small_house_7.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_small_house_8.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_tannery_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_temple_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_temple_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_tool_smith_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_weaponsmith_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_animal_pen_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_animal_pen_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_armorer_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_butcher_shop_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_cartographer_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_farm_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_farm_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_fisher_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_fletcher_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_large_farm_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_library_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_mason_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_medium_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_medium_house_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_shepherd_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_small_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_small_house_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_small_house_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_small_house_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_small_house_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_small_house_6.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_small_house_7.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_small_house_8.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_tannery_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_temple_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_temple_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_tool_smith_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/houses/desert_weaponsmith_1.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/desert/streets`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/streets/corner_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/streets/corner_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/streets/crossroad_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/streets/crossroad_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/streets/crossroad_03.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/streets/square_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/streets/square_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/streets/straight_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/streets/straight_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/streets/straight_03.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/streets/turn_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/streets/corner_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/streets/corner_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/streets/crossroad_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/streets/crossroad_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/streets/crossroad_03.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/streets/square_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/streets/square_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/streets/straight_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/streets/straight_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/streets/straight_03.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/streets/turn_01.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/desert/terminators`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/terminators/terminator_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/terminators/terminator_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/terminators/terminator_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/terminators/terminator_02.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/desert/town_centers`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/town_centers/desert_meeting_point_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/town_centers/desert_meeting_point_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/town_centers/desert_meeting_point_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/town_centers/desert_meeting_point_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/town_centers/desert_meeting_point_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/town_centers/desert_meeting_point_3.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/desert/villagers`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/villagers/baby.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/villagers/nitwit.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/villagers/unemployed.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/villagers/baby.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/villagers/nitwit.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/villagers/unemployed.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/houses`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/houses/desert_medium_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/houses/desert_medium_house_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/houses/desert_small_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/houses/desert_small_house_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/houses/desert_small_house_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/houses/desert_small_house_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/houses/desert_small_house_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/houses/desert_small_house_6.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/houses/desert_small_house_7.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/houses/desert_small_house_8.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/houses/desert_medium_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/houses/desert_medium_house_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/houses/desert_small_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/houses/desert_small_house_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/houses/desert_small_house_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/houses/desert_small_house_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/houses/desert_small_house_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/houses/desert_small_house_6.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/houses/desert_small_house_7.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/houses/desert_small_house_8.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/streets`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/streets/corner_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/streets/corner_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/streets/crossroad_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/streets/crossroad_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/streets/crossroad_03.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/streets/square_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/streets/square_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/streets/straight_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/streets/straight_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/streets/straight_03.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/streets/turn_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/streets/corner_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/streets/corner_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/streets/crossroad_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/streets/crossroad_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/streets/crossroad_03.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/streets/square_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/streets/square_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/streets/straight_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/streets/straight_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/streets/straight_03.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/streets/turn_01.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/terminators`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/terminators/terminator_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/terminators/terminator_02.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/town_centers`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/town_centers/desert_meeting_point_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/town_centers/desert_meeting_point_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/town_centers/desert_meeting_point_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/town_centers/desert_meeting_point_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/town_centers/desert_meeting_point_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/town_centers/desert_meeting_point_3.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/villagers`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/villagers/nitwit.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/villagers/unemployed.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/villagers/nitwit.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/desert/zombie/villagers/unemployed.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_accessory_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_animal_pen_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_animal_pen_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_animal_pen_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_armorer_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_big_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_butcher_shop_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_butcher_shop_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_cartographer_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_fisher_cottage_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_fletcher_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_large_farm_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_library_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_library_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_masons_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_medium_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_medium_house_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_meeting_point_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_meeting_point_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_shepherds_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_small_farm_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_small_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_small_house_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_small_house_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_small_house_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_small_house_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_small_house_6.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_small_house_7.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_small_house_8.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_stable_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_stable_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_tannery_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_temple_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_temple_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_tool_smith_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_weaponsmith_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_accessory_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_animal_pen_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_animal_pen_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_animal_pen_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_armorer_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_big_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_butcher_shop_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_butcher_shop_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_cartographer_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_fisher_cottage_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_fletcher_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_large_farm_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_library_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_library_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_masons_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_medium_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_medium_house_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_meeting_point_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_meeting_point_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_shepherds_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_small_farm_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_small_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_small_house_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_small_house_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_small_house_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_small_house_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_small_house_6.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_small_house_7.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_small_house_8.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_stable_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_stable_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_tannery_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_temple_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_temple_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_tool_smith_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/houses/plains_weaponsmith_1.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/plains`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/plains_lamp_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/plains_lamp_1.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/corner_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/corner_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/corner_03.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/crossroad_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/crossroad_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/crossroad_03.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/crossroad_04.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/crossroad_05.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/crossroad_06.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/straight_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/straight_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/straight_03.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/straight_04.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/straight_05.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/straight_06.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/turn_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/corner_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/corner_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/corner_03.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/crossroad_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/crossroad_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/crossroad_03.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/crossroad_04.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/crossroad_05.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/crossroad_06.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/straight_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/straight_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/straight_03.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/straight_04.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/straight_05.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/straight_06.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/streets/turn_01.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/plains/terminators`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/terminators/terminator_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/terminators/terminator_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/terminators/terminator_03.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/terminators/terminator_04.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/terminators/terminator_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/terminators/terminator_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/terminators/terminator_03.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/terminators/terminator_04.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/plains/town_centers`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/town_centers/plains_fountain_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/town_centers/plains_meeting_point_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/town_centers/plains_meeting_point_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/town_centers/plains_meeting_point_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/town_centers/plains_fountain_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/town_centers/plains_meeting_point_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/town_centers/plains_meeting_point_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/town_centers/plains_meeting_point_3.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/plains/villagers`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/villagers/baby.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/villagers/nitwit.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/villagers/unemployed.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/villagers/baby.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/villagers/nitwit.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/villagers/unemployed.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_animal_pen_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_big_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_butcher_shop_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_fletcher_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_medium_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_medium_house_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_meeting_point_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_meeting_point_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_shepherds_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_small_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_small_house_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_small_house_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_small_house_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_small_house_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_small_house_6.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_small_house_7.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_small_house_8.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_stable_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_animal_pen_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_big_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_butcher_shop_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_fletcher_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_medium_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_medium_house_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_meeting_point_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_meeting_point_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_shepherds_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_small_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_small_house_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_small_house_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_small_house_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_small_house_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_small_house_6.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_small_house_7.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_small_house_8.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/houses/plains_stable_1.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/corner_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/corner_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/corner_03.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/crossroad_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/crossroad_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/crossroad_03.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/crossroad_04.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/crossroad_05.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/crossroad_06.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/straight_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/straight_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/straight_03.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/straight_04.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/straight_05.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/straight_06.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/turn_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/corner_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/corner_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/corner_03.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/crossroad_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/crossroad_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/crossroad_03.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/crossroad_04.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/crossroad_05.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/crossroad_06.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/straight_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/straight_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/straight_03.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/straight_04.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/straight_05.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/straight_06.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/streets/turn_01.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/town_centers`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/town_centers/plains_fountain_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/town_centers/plains_meeting_point_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/town_centers/plains_meeting_point_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/town_centers/plains_meeting_point_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/town_centers/plains_fountain_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/town_centers/plains_meeting_point_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/town_centers/plains_meeting_point_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/town_centers/plains_meeting_point_3.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/villagers`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/villagers/nitwit.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/villagers/unemployed.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/villagers/nitwit.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/plains/zombie/villagers/unemployed.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_animal_pen_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_animal_pen_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_animal_pen_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_armorer_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_butchers_shop_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_butchers_shop_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_cartographer_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_fisher_cottage_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_fletcher_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_large_farm_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_large_farm_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_library_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_mason_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_medium_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_medium_house_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_shepherd_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_small_farm.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_small_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_small_house_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_small_house_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_small_house_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_small_house_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_small_house_6.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_small_house_7.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_small_house_8.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_tannery_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_temple_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_temple_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_tool_smith_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_weaponsmith_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_weaponsmith_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_animal_pen_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_animal_pen_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_animal_pen_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_armorer_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_butchers_shop_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_butchers_shop_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_cartographer_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_fisher_cottage_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_fletcher_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_large_farm_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_large_farm_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_library_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_mason_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_medium_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_medium_house_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_shepherd_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_small_farm.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_small_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_small_house_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_small_house_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_small_house_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_small_house_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_small_house_6.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_small_house_7.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_small_house_8.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_tannery_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_temple_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_temple_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_tool_smith_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_weaponsmith_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/houses/savanna_weaponsmith_2.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/savanna`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/savanna_lamp_post_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/savanna_lamp_post_01.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/corner_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/corner_03.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/crossroad_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/crossroad_03.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/crossroad_04.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/crossroad_05.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/crossroad_06.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/crossroad_07.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/split_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/split_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/straight_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/straight_04.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/straight_05.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/straight_06.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/straight_08.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/straight_09.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/straight_10.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/straight_11.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/turn_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/corner_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/corner_03.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/crossroad_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/crossroad_03.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/crossroad_04.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/crossroad_05.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/crossroad_06.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/crossroad_07.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/split_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/split_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/straight_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/straight_04.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/straight_05.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/straight_06.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/straight_08.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/straight_09.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/straight_10.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/straight_11.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/streets/turn_01.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/terminators`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/terminators/terminator_05.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/terminators/terminator_05.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/town_centers`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/town_centers/savanna_meeting_point_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/town_centers/savanna_meeting_point_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/town_centers/savanna_meeting_point_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/town_centers/savanna_meeting_point_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/town_centers/savanna_meeting_point_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/town_centers/savanna_meeting_point_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/town_centers/savanna_meeting_point_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/town_centers/savanna_meeting_point_4.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/villagers`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/villagers/baby.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/villagers/nitwit.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/villagers/unemployed.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/villagers/baby.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/villagers/nitwit.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/villagers/unemployed.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/houses`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/houses/savanna_animal_pen_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/houses/savanna_animal_pen_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/houses/savanna_large_farm_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/houses/savanna_medium_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/houses/savanna_medium_house_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/houses/savanna_small_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/houses/savanna_small_house_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/houses/savanna_small_house_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/houses/savanna_small_house_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/houses/savanna_small_house_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/houses/savanna_small_house_6.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/houses/savanna_small_house_7.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/houses/savanna_small_house_8.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/houses/savanna_animal_pen_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/houses/savanna_animal_pen_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/houses/savanna_large_farm_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/houses/savanna_medium_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/houses/savanna_medium_house_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/houses/savanna_small_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/houses/savanna_small_house_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/houses/savanna_small_house_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/houses/savanna_small_house_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/houses/savanna_small_house_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/houses/savanna_small_house_6.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/houses/savanna_small_house_7.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/houses/savanna_small_house_8.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/corner_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/corner_03.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/crossroad_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/crossroad_03.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/crossroad_04.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/crossroad_05.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/crossroad_06.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/crossroad_07.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/split_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/split_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/straight_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/straight_04.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/straight_05.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/straight_06.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/straight_08.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/straight_09.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/straight_10.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/straight_11.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/turn_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/corner_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/corner_03.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/crossroad_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/crossroad_03.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/crossroad_04.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/crossroad_05.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/crossroad_06.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/crossroad_07.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/split_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/split_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/straight_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/straight_04.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/straight_05.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/straight_06.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/straight_08.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/straight_09.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/straight_10.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/straight_11.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/streets/turn_01.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/terminators`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/terminators/terminator_05.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/terminators/terminator_05.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/town_centers`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/town_centers/savanna_meeting_point_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/town_centers/savanna_meeting_point_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/town_centers/savanna_meeting_point_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/town_centers/savanna_meeting_point_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/town_centers/savanna_meeting_point_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/town_centers/savanna_meeting_point_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/town_centers/savanna_meeting_point_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/town_centers/savanna_meeting_point_4.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/villagers`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/villagers/nitwit.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/villagers/unemployed.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/villagers/nitwit.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/savanna/zombie/villagers/unemployed.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_animal_pen_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_animal_pen_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_armorer_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_armorer_house_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_butchers_shop_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_butchers_shop_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_cartographer_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_farm_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_farm_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_fisher_cottage.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_fletcher_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_library_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_masons_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_masons_house_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_medium_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_medium_house_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_medium_house_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_shepherds_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_small_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_small_house_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_small_house_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_small_house_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_small_house_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_small_house_6.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_small_house_7.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_small_house_8.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_tannery_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_temple_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_tool_smith_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_weapon_smith_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_animal_pen_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_animal_pen_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_armorer_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_armorer_house_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_butchers_shop_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_butchers_shop_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_cartographer_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_farm_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_farm_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_fisher_cottage.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_fletcher_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_library_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_masons_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_masons_house_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_medium_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_medium_house_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_medium_house_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_shepherds_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_small_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_small_house_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_small_house_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_small_house_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_small_house_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_small_house_6.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_small_house_7.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_small_house_8.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_tannery_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_temple_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_tool_smith_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/houses/snowy_weapon_smith_1.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/snowy`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/snowy_lamp_post_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/snowy_lamp_post_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/snowy_lamp_post_03.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/snowy_lamp_post_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/snowy_lamp_post_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/snowy_lamp_post_03.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/corner_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/corner_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/corner_03.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/crossroad_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/crossroad_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/crossroad_03.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/crossroad_04.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/crossroad_05.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/crossroad_06.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/square_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/straight_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/straight_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/straight_03.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/straight_04.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/straight_06.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/straight_08.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/turn_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/corner_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/corner_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/corner_03.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/crossroad_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/crossroad_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/crossroad_03.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/crossroad_04.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/crossroad_05.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/crossroad_06.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/square_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/straight_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/straight_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/straight_03.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/straight_04.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/straight_06.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/straight_08.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/streets/turn_01.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/town_centers`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/town_centers/snowy_meeting_point_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/town_centers/snowy_meeting_point_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/town_centers/snowy_meeting_point_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/town_centers/snowy_meeting_point_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/town_centers/snowy_meeting_point_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/town_centers/snowy_meeting_point_3.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/villagers`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/villagers/baby.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/villagers/nitwit.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/villagers/unemployed.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/villagers/baby.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/villagers/nitwit.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/villagers/unemployed.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/houses`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/houses/snowy_medium_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/houses/snowy_medium_house_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/houses/snowy_medium_house_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/houses/snowy_small_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/houses/snowy_small_house_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/houses/snowy_small_house_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/houses/snowy_small_house_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/houses/snowy_small_house_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/houses/snowy_small_house_6.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/houses/snowy_small_house_7.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/houses/snowy_small_house_8.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/houses/snowy_medium_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/houses/snowy_medium_house_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/houses/snowy_medium_house_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/houses/snowy_small_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/houses/snowy_small_house_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/houses/snowy_small_house_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/houses/snowy_small_house_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/houses/snowy_small_house_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/houses/snowy_small_house_6.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/houses/snowy_small_house_7.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/houses/snowy_small_house_8.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/corner_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/corner_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/corner_03.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/crossroad_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/crossroad_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/crossroad_03.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/crossroad_04.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/crossroad_05.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/crossroad_06.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/square_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/straight_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/straight_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/straight_03.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/straight_04.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/straight_06.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/straight_08.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/turn_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/corner_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/corner_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/corner_03.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/crossroad_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/crossroad_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/crossroad_03.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/crossroad_04.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/crossroad_05.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/crossroad_06.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/square_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/straight_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/straight_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/straight_03.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/straight_04.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/straight_06.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/straight_08.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/streets/turn_01.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/town_centers`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/town_centers/snowy_meeting_point_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/town_centers/snowy_meeting_point_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/town_centers/snowy_meeting_point_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/town_centers/snowy_meeting_point_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/town_centers/snowy_meeting_point_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/town_centers/snowy_meeting_point_3.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/villagers`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/villagers/nitwit.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/villagers/unemployed.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/villagers/nitwit.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/snowy/zombie/villagers/unemployed.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_animal_pen_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_armorer_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_armorer_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_butcher_shop_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_cartographer_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_fisher_cottage_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_fletcher_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_large_farm_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_large_farm_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_library_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_masons_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_medium_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_medium_house_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_medium_house_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_medium_house_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_shepherds_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_small_farm_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_small_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_small_house_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_small_house_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_small_house_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_small_house_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_tannery_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_temple_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_tool_smith_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_weaponsmith_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_weaponsmith_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_animal_pen_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_armorer_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_armorer_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_butcher_shop_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_cartographer_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_fisher_cottage_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_fletcher_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_large_farm_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_large_farm_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_library_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_masons_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_medium_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_medium_house_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_medium_house_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_medium_house_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_shepherds_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_small_farm_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_small_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_small_house_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_small_house_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_small_house_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_small_house_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_tannery_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_temple_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_tool_smith_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_weaponsmith_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/houses/taiga_weaponsmith_2.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/corner_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/corner_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/corner_03.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/crossroad_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/crossroad_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/crossroad_03.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/crossroad_04.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/crossroad_05.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/crossroad_06.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/straight_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/straight_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/straight_03.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/straight_04.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/straight_05.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/straight_06.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/turn_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/corner_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/corner_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/corner_03.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/crossroad_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/crossroad_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/crossroad_03.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/crossroad_04.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/crossroad_05.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/crossroad_06.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/straight_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/straight_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/straight_03.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/straight_04.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/straight_05.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/straight_06.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/streets/turn_01.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/taiga`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/taiga_decoration_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/taiga_decoration_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/taiga_decoration_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/taiga_decoration_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/taiga_decoration_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/taiga_decoration_6.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/taiga_lamp_post_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/taiga_decoration_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/taiga_decoration_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/taiga_decoration_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/taiga_decoration_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/taiga_decoration_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/taiga_decoration_6.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/taiga_lamp_post_1.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/town_centers`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/town_centers/taiga_meeting_point_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/town_centers/taiga_meeting_point_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/town_centers/taiga_meeting_point_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/town_centers/taiga_meeting_point_2.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/villagers`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/villagers/baby.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/villagers/nitwit.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/villagers/unemployed.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/villagers/baby.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/villagers/nitwit.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/villagers/unemployed.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_cartographer_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_fisher_cottage_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_large_farm_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_library_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_medium_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_medium_house_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_medium_house_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_medium_house_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_shepherds_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_small_house_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_small_house_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_small_house_3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_small_house_4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_small_house_5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_temple_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_tool_smith_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_weaponsmith_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_cartographer_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_fisher_cottage_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_large_farm_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_library_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_medium_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_medium_house_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_medium_house_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_medium_house_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_shepherds_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_small_house_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_small_house_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_small_house_3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_small_house_4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_small_house_5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_temple_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_tool_smith_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/houses/taiga_weaponsmith_2.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/corner_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/corner_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/corner_03.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/crossroad_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/crossroad_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/crossroad_03.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/crossroad_04.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/crossroad_05.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/crossroad_06.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/straight_01.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/straight_02.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/straight_03.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/straight_04.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/straight_05.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/straight_06.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/turn_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/corner_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/corner_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/corner_03.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/crossroad_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/crossroad_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/crossroad_03.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/crossroad_04.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/crossroad_05.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/crossroad_06.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/straight_01.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/straight_02.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/straight_03.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/straight_04.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/straight_05.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/straight_06.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/streets/turn_01.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/town_centers`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/town_centers/taiga_meeting_point_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/town_centers/taiga_meeting_point_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/town_centers/taiga_meeting_point_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/town_centers/taiga_meeting_point_2.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/villagers`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/villagers/nitwit.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/villagers/unemployed.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/villagers/nitwit.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/village/taiga/zombie/villagers/unemployed.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion`
 
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x1_a1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x1_a2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x1_a3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x1_a4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x1_a5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x1_as1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x1_as2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x1_as3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x1_as4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x1_b1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x1_b2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x1_b3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x1_b4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x1_b5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_a1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_a2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_a3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_a4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_a5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_a6.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_a7.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_a8.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_a9.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_b1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_b2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_b3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_b4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_b5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_c1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_c2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_c3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_c4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_c_stairs.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_d1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_d2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_d3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_d4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_d5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_d_stairs.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_s1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_s2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_se1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/2x2_a1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/2x2_a2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/2x2_a3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/2x2_a4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/2x2_b1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/2x2_b2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/2x2_b3.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/2x2_b4.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/2x2_b5.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/2x2_s1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/carpet_east.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/carpet_north.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/carpet_south_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/carpet_south_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/carpet_west_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/carpet_west_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/corridor_floor.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/entrance.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/indoors_door_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/indoors_door_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/indoors_wall_1.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/indoors_wall_2.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/roof.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/roof_corner.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/roof_front.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/roof_inner_corner.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/small_wall.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/small_wall_corner.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/wall_corner.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/wall_flat.nbt` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/wall_window.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x1_a1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x1_a2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x1_a3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x1_a4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x1_a5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x1_as1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x1_as2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x1_as3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x1_as4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x1_b1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x1_b2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x1_b3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x1_b4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x1_b5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_a1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_a2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_a3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_a4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_a5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_a6.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_a7.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_a8.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_a9.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_b1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_b2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_b3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_b4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_b5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_c1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_c2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_c3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_c4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_c_stairs.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_d1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_d2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_d3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_d4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_d5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_d_stairs.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_s1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_s2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/1x2_se1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/2x2_a1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/2x2_a2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/2x2_a3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/2x2_a4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/2x2_b1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/2x2_b2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/2x2_b3.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/2x2_b4.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/2x2_b5.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/2x2_s1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/carpet_east.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/carpet_north.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/carpet_south_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/carpet_south_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/carpet_west_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/carpet_west_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/corridor_floor.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/entrance.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/indoors_door_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/indoors_door_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/indoors_wall_1.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/indoors_wall_2.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/roof.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/roof_corner.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/roof_front.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/roof_inner_corner.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/small_wall.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/small_wall_corner.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/wall_corner.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/wall_flat.nbt` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla data resource `decompiled-server-26.1.2/data/minecraft/structure/woodland_mansion/wall_window.nbt` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/data/minecraft/tags/banner_pattern`
 

@@ -777,6 +777,7 @@ mod tri_state;
 mod tuple;
 mod unit;
 mod structure_resources;
+mod structure_template;
 mod suppress_forbidden;
 mod system_report;
 mod stored_user_list;
