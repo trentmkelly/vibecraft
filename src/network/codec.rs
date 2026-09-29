@@ -504,7 +504,7 @@ fn write_network_nbt<W: Write>(writer: &mut W, tag: &Tag) -> io::Result<()> {
     tag.write_payload(writer)
 }
 
-fn component_json_to_network_tag(json: &str) -> Tag {
+pub fn component_json_to_network_tag(json: &str) -> Tag {
     let Ok(value) = serde_json::from_str::<serde_json::Value>(json) else {
         return Tag::String(json.to_string());
     };

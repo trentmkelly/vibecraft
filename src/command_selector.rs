@@ -1,3 +1,6 @@
+// Ported Java argument/model surface; only part of it is reached from the live command path.
+#![allow(dead_code)]
+
 use std::collections::BTreeMap;
 
 pub const SELECTOR_PACKAGE_NULL_MARKED: bool = true;

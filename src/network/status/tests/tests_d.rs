@@ -1,5 +1,5 @@
 use super::super::*;
-use super::*;
+use crate::network::play::CommandNodeStubData;
 
 #[test]
 fn write_lp_vec3_round_trips_through_java_decode() {
@@ -22,27 +22,28 @@ fn write_lp_vec3_round_trips_through_java_decode() {
 }
 
 #[test]
-pub fn vibecraft_debug_commands_packet_exposes_biome_literal() {
-    let packet = vibecraft_debug_commands_packet();
-
+pub fn served_command_tree_exposes_biome_literal_to_every_permission_level() {
     // Intentional Java parity divergence: `/biome` is a VibeCraft debugging
-    // command, so the live fallback suggestion list must expose it alongside
-    // the command tree even though vanilla 26.1.2 has no root `/biome`.
-    assert!(PLAY_COMMAND_SUGGESTIONS.contains(&"biome"));
-    assert_eq!(packet.root_index, 0);
-    assert_eq!(packet.entries.len(), 2);
-    assert_eq!(packet.entries[0].stub, CommandNodeStubData::Root);
-    assert_eq!(packet.entries[0].children, vec![1]);
-    assert!(!packet.entries[0].executable);
-    assert_eq!(
-        packet.entries[1].stub,
-        CommandNodeStubData::Literal {
-            name: "biome".to_string()
-        }
-    );
-    assert!(packet.entries[1].executable);
-    assert!(packet.entries[1].children.is_empty());
-    assert!(!packet.entries[1].restricted);
+    // command, so the served command tree (and server-side suggestions) expose it
+    // even though vanilla 26.1.2 has no root `/biome`.
+    let mut sync = crate::brigadier::sync::CommandTreeSync::default();
+    sync.observe_permission_level(0);
+    let packet = sync.take_packet().unwrap();
+    let root = &packet.entries[packet.root_index as usize];
+    let biome = root
+        .children
+        .iter()
+        .map(|child| &packet.entries[*child as usize])
+        .find(|entry| {
+            entry.stub
+                == CommandNodeStubData::Literal {
+                    name: "biome".to_string(),
+                }
+        })
+        .expect("biome literal");
+    assert!(biome.executable);
+    assert!(!biome.restricted);
+    assert!(biome.children.is_empty());
 }
 
 #[test]
@@ -108,6 +109,7 @@ pub fn raw_command_suggestion_response_keeps_stream_open_for_keepalive() {
         &mut written,
         CompressionState::disabled(),
         &mut Cursor::new(request),
+        0,
     )
     .unwrap();
     write_framed_packet_with_compression(
@@ -276,311 +278,6 @@ impl Write for CursorStream {
     fn flush(&mut self) -> std::io::Result<()> {
         Ok(())
     }
-}
-
-// -----------------------------------------------------------------------
-// Timeline registry and dimension-type sky-fix tests
-// -----------------------------------------------------------------------
-
-#[test]
-pub fn timeline_registry_sends_four_entries_in_correct_order() {
-    // Java: data/minecraft/timeline/ has day, early_game, moon, villager_schedule.
-    // Registry order (0–3) must match the IDs used in the timeline tags packet.
-    assert_eq!(
-        status_registry_id(write_vanilla_timeline_registry_packet),
-        "minecraft:timeline"
-    );
-    let ids = status_registry_entry_ids_ordered(write_vanilla_timeline_registry_packet);
-    assert_eq!(ids.len(), 4);
-    assert_eq!(ids[0], "minecraft:day"); // ID 0
-    assert_eq!(ids[1], "minecraft:moon"); // ID 1
-    assert_eq!(ids[2], "minecraft:villager_schedule"); // ID 2
-    assert_eq!(ids[3], "minecraft:early_game"); // ID 3
-}
-
-#[test]
-pub fn day_timeline_contains_syncable_tracks_and_omits_non_syncable() {
-    // Java: Timeline.NETWORK_CODEC calls filterSyncableTracks, removing any track whose
-    // EnvironmentAttribute does not have .syncable() set.
-    let nbt = day_timeline_nbt();
-    assert!(matches!(
-        field_value(&nbt, "clock"),
-        Some(Tag::String(v)) if v == "minecraft:overworld"
-    ));
-    assert!(matches!(
-        field_value(&nbt, "period_ticks"),
-        Some(Tag::Int(24000))
-    ));
-
-    let tracks = compound_field(&nbt, "tracks");
-
-    // Syncable visual/audio/gameplay tracks that must be present.
-    assert!(field_value(tracks, "minecraft:visual/sun_angle").is_some());
-    assert!(field_value(tracks, "minecraft:visual/moon_angle").is_some());
-    assert!(field_value(tracks, "minecraft:visual/star_angle").is_some());
-    assert!(field_value(tracks, "minecraft:visual/fog_color").is_some());
-    assert!(field_value(tracks, "minecraft:visual/sky_color").is_some());
-    assert!(field_value(tracks, "minecraft:visual/sky_light_color").is_some());
-    assert!(field_value(tracks, "minecraft:visual/sky_light_factor").is_some());
-    assert!(field_value(tracks, "minecraft:visual/star_brightness").is_some());
-    assert!(field_value(tracks, "minecraft:visual/cloud_color").is_some());
-    assert!(field_value(tracks, "minecraft:visual/sunrise_sunset_color").is_some());
-    assert!(field_value(tracks, "minecraft:gameplay/sky_light_level").is_some());
-    assert!(field_value(tracks, "minecraft:audio/firefly_bush_sounds").is_some());
-    assert!(field_value(tracks, "minecraft:gameplay/creaking_active").is_some());
-
-    // Non-syncable tracks must be absent.
-    assert!(field_value(tracks, "minecraft:gameplay/monsters_burn").is_none());
-    assert!(field_value(tracks, "minecraft:gameplay/bees_stay_in_hive").is_none());
-    assert!(field_value(tracks, "minecraft:gameplay/eyeblossom_open").is_none());
-}
-
-#[test]
-pub fn day_timeline_sun_angle_track_uses_cubic_bezier_easing() {
-    // Java: Timelines.java:53 — SUN_ANGLE uses EasingType.symmetricCubicBezier(0.362, 0.241).
-    // That easing should be present in the track's `ease` field as {cubic_bezier: [...]}.
-    let nbt = day_timeline_nbt();
-    let tracks = compound_field(&nbt, "tracks");
-    let sun_angle = compound_field(tracks, "minecraft:visual/sun_angle");
-    let ease = compound_field(sun_angle, "ease");
-    let bezier = field_value(ease, "cubic_bezier");
-    assert!(
-        matches!(bezier, Some(Tag::List(_))),
-        "sun_angle ease must contain cubic_bezier list"
-    );
-}
-
-#[test]
-pub fn day_timeline_cloud_color_uses_int_encoding_for_fully_opaque_argb() {
-    // Java: ArgbModifier.argumentCodec selects Codec.INT when alpha == 0xFF → Tag::Int.
-    // Day cloud_color keyframe at tick 133 = -1 (0xFFFFFFFF, white).
-    let nbt = day_timeline_nbt();
-    let tracks = compound_field(&nbt, "tracks");
-    let cloud_color = compound_field(tracks, "minecraft:visual/cloud_color");
-    let Tag::List(keyframes) = field_value(cloud_color, "keyframes").unwrap() else {
-        panic!("cloud_color keyframes must be a list");
-    };
-    let first_value = field_value(&keyframes[0], "value").unwrap();
-    assert!(
-        matches!(first_value, Tag::Int(_)),
-        "cloud_color keyframe values must be Tag::Int (ArgbModifier, alpha=0xFF)"
-    );
-    assert_eq!(first_value, &Tag::Int(-1)); // 0xFFFFFFFF = white
-}
-
-#[test]
-pub fn moon_timeline_has_moon_phase_track_and_192000_period() {
-    // Java: data/minecraft/timeline/moon.json — period_ticks=192000, one syncable track.
-    // surface_slime_spawn_chance is non-syncable and filtered out.
-    let nbt = moon_timeline_nbt();
-    assert!(matches!(
-        field_value(&nbt, "clock"),
-        Some(Tag::String(v)) if v == "minecraft:overworld"
-    ));
-    assert!(matches!(
-        field_value(&nbt, "period_ticks"),
-        Some(Tag::Int(192000))
-    ));
-    let tracks = compound_field(&nbt, "tracks");
-    assert!(field_value(tracks, "minecraft:visual/moon_phase").is_some());
-    assert!(
-        field_value(tracks, "minecraft:gameplay/surface_slime_spawn_chance").is_none(),
-        "surface_slime_spawn_chance is non-syncable and must be filtered out"
-    );
-}
-
-#[test]
-pub fn moon_timeline_moon_phase_keyframes_are_string_encoded() {
-    // Java: MoonPhase.CODEC = StringRepresentable.fromEnum → Tag::String.
-    let nbt = moon_timeline_nbt();
-    let tracks = compound_field(&nbt, "tracks");
-    let moon_phase = compound_field(tracks, "minecraft:visual/moon_phase");
-    let Tag::List(keyframes) = field_value(moon_phase, "keyframes").unwrap() else {
-        panic!("moon_phase keyframes must be a list");
-    };
-    assert_eq!(keyframes.len(), 8, "8 moon phases");
-    assert!(matches!(
-        field_value(&keyframes[0], "value"),
-        Some(Tag::String(v)) if v == "full_moon"
-    ));
-    assert!(matches!(
-        field_value(&keyframes[4], "value"),
-        Some(Tag::String(v)) if v == "new_moon"
-    ));
-}
-
-#[test]
-pub fn villager_schedule_timeline_has_no_tracks_after_syncable_filter() {
-    // Java: data/minecraft/timeline/villager_schedule.json — villager_activity and
-    // baby_villager_activity are both non-syncable → tracks field is absent entirely.
-    let nbt = villager_schedule_timeline_nbt();
-    assert!(matches!(
-        field_value(&nbt, "clock"),
-        Some(Tag::String(v)) if v == "minecraft:overworld"
-    ));
-    assert!(matches!(
-        field_value(&nbt, "period_ticks"),
-        Some(Tag::Int(24000))
-    ));
-    assert!(
-        field_value(&nbt, "tracks").is_none(),
-        "all villager_schedule tracks are non-syncable; tracks field must be absent"
-    );
-}
-
-#[test]
-pub fn early_game_timeline_has_no_period_ticks_and_no_tracks() {
-    // Java: data/minecraft/timeline/early_game.json — no period_ticks field; one track
-    // (can_pillager_patrol_spawn) that is non-syncable → both fields absent.
-    let nbt = early_game_timeline_nbt();
-    assert!(matches!(
-        field_value(&nbt, "clock"),
-        Some(Tag::String(v)) if v == "minecraft:overworld"
-    ));
-    assert!(
-        field_value(&nbt, "period_ticks").is_none(),
-        "early_game has no period_ticks in source data"
-    );
-    assert!(
-        field_value(&nbt, "tracks").is_none(),
-        "can_pillager_patrol_spawn is non-syncable; tracks field must be absent"
-    );
-}
-
-#[test]
-pub fn overworld_dimension_type_has_timelines_clock_and_attributes() {
-    // These three fields are required for the client to render a non-black sky.
-    // They were absent before the sky fix, causing a permanently black sky on join.
-    let nbt = overworld_dimension_type_nbt(false);
-
-    // `timelines`: HolderSet tag reference resolved by the client using the tags packet.
-    assert!(
-        matches!(
-            field_value(&nbt, "timelines"),
-            Some(Tag::String(v)) if v == "#minecraft:in_overworld"
-        ),
-        "timelines must reference the #minecraft:in_overworld tag"
-    );
-
-    // `default_clock`: drives the timeline evaluation for this dimension.
-    assert!(
-        matches!(
-            field_value(&nbt, "default_clock"),
-            Some(Tag::String(v)) if v == "minecraft:overworld"
-        ),
-        "default_clock must be minecraft:overworld"
-    );
-
-    // `attributes`: static base values that the timeline tracks multiply/add to.
-    let attributes = compound_field(&nbt, "attributes");
-
-    assert!(matches!(
-        field_value(attributes, "minecraft:visual/sky_color"),
-        Some(Tag::String(v)) if v == "#78a7ff"
-    ));
-    assert!(matches!(
-        field_value(attributes, "minecraft:visual/fog_color"),
-        Some(Tag::String(v)) if v == "#c0d8ff"
-    ));
-    assert!(matches!(
-        field_value(attributes, "minecraft:visual/cloud_color"),
-        Some(Tag::String(v)) if v == "#ccffffff"
-    ));
-    assert!(
-        matches!(
-            field_value(attributes, "minecraft:visual/cloud_height"),
-            Some(Tag::Float(_))
-        ),
-        "cloud_height must be a float"
-    );
-    assert!(matches!(
-        field_value(attributes, "minecraft:visual/ambient_light_color"),
-        Some(Tag::String(v)) if v == "#0a0a0a"
-    ));
-}
-
-#[test]
-pub fn update_tags_packet_includes_timeline_group_with_correct_ids() {
-    // The tags packet must include a minecraft:timeline group so the client can resolve
-    // the "#minecraft:in_overworld" HolderSet reference in the dimension type.
-    let mut payload = Vec::new();
-    write_minimal_update_tags_packet(&mut payload).unwrap();
-    let mut cursor = Cursor::new(payload);
-
-    let group_count = read_var_i32(&mut cursor).unwrap();
-    assert_eq!(group_count, 4, "tags packet must have 4 registry groups");
-
-    let mut found_timeline = false;
-    let mut found_pickaxe_tag = false;
-    for _ in 0..group_count {
-        let registry_id = crate::network::codec::read_identifier(&mut cursor)
-            .unwrap()
-            .to_string();
-        let tag_count = read_var_i32(&mut cursor).unwrap();
-        if registry_id == "minecraft:block" {
-            for _ in 0..tag_count {
-                let tag_id = crate::network::codec::read_identifier(&mut cursor)
-                    .unwrap()
-                    .to_string();
-                let entry_count = read_var_i32(&mut cursor).unwrap();
-                let ids: Vec<i32> = (0..entry_count)
-                    .map(|_| read_var_i32(&mut cursor).unwrap())
-                    .collect();
-                if tag_id == "minecraft:mineable/pickaxe" {
-                    found_pickaxe_tag = true;
-                    assert!(
-                        ids.contains(
-                            &crate::block_states::block_registry_network_id("minecraft:stone")
-                                .unwrap()
-                        ),
-                        "client needs #mineable/pickaxe to animate pickaxes at tool speed"
-                    );
-                }
-            }
-        } else if registry_id == "minecraft:timeline" {
-            found_timeline = true;
-            assert_eq!(tag_count, 2);
-
-            // First tag: #minecraft:in_overworld → [villager_schedule=2, day=0, moon=1, early_game=3].
-            // Pre-expanded by server; IDs correspond to write_vanilla_timeline_registry_packet order.
-            let tag_id = crate::network::codec::read_identifier(&mut cursor)
-                .unwrap()
-                .to_string();
-            assert_eq!(tag_id, "minecraft:in_overworld");
-            let entry_count = read_var_i32(&mut cursor).unwrap();
-            assert_eq!(entry_count, 4);
-            let ids: Vec<i32> = (0..entry_count)
-                .map(|_| read_var_i32(&mut cursor).unwrap())
-                .collect();
-            assert_eq!(ids, vec![2, 0, 1, 3]);
-
-            // Second tag: #minecraft:universal → [villager_schedule=2].
-            let tag_id2 = crate::network::codec::read_identifier(&mut cursor)
-                .unwrap()
-                .to_string();
-            assert_eq!(tag_id2, "minecraft:universal");
-            let entry_count2 = read_var_i32(&mut cursor).unwrap();
-            assert_eq!(entry_count2, 1);
-            assert_eq!(read_var_i32(&mut cursor).unwrap(), 2);
-        } else {
-            // Skip tags for other registry groups.
-            for _ in 0..tag_count {
-                crate::network::codec::read_identifier(&mut cursor).unwrap();
-                let entry_count = read_var_i32(&mut cursor).unwrap();
-                for _ in 0..entry_count {
-                    read_var_i32(&mut cursor).unwrap();
-                }
-            }
-        }
-    }
-    assert!(
-        found_timeline,
-        "tags packet must include minecraft:timeline group"
-    );
-    assert!(
-        found_pickaxe_tag,
-        "tags packet must include minecraft:block #mineable/pickaxe"
-    );
 }
 
 // ─── var_int_encoded_len ─────────────────────────────────────────────────
@@ -1129,4 +826,30 @@ pub fn apply_chunk_movement_keeps_pending_aligned_with_new_view_window() {
             assert!(!sender.is_pending(pos), "stale {:?} still pending", pos);
         }
     }
+}
+
+#[test]
+pub fn raw_command_suggestion_response_lists_served_debug_command() {
+    let mut request = Vec::new();
+    ServerboundCommandSuggestionPacket {
+        id: 7,
+        command: "/bio".to_string(),
+    }
+    .write(&mut request)
+    .unwrap();
+    let mut written = Vec::new();
+    write_command_suggestions_response(
+        &mut written,
+        CompressionState::disabled(),
+        &mut Cursor::new(request),
+        0,
+    )
+    .unwrap();
+    let mut frame = Cursor::new(read_packet(&mut Cursor::new(written)).unwrap());
+    assert_eq!(read_var_i32(&mut frame).unwrap(), CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID);
+    assert_eq!(read_var_i32(&mut frame).unwrap(), 7);
+    assert_eq!(read_var_i32(&mut frame).unwrap(), 1);
+    assert_eq!(read_var_i32(&mut frame).unwrap(), 3);
+    assert_eq!(read_var_i32(&mut frame).unwrap(), 1);
+    assert_eq!(read_string(&mut frame, 32767).unwrap(), "biome");
 }

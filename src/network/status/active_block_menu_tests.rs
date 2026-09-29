@@ -18,6 +18,7 @@
             kind: ActiveBlockMenuKind::Persistent {
                 block_entity_id: "minecraft:chest",
                 result_slot: None,
+                furnace: None,
             },
             slots: vec![ItemStack::empty(); 27],
         };
@@ -334,6 +335,7 @@
             kind: ActiveBlockMenuKind::Persistent {
                 block_entity_id: "minecraft:chest",
                 result_slot: None,
+                furnace: None,
             },
             slots: vec![ItemStack::empty(); 27],
         };

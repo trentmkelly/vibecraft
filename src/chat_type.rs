@@ -244,15 +244,14 @@ fn gray_italic_style() -> Style {
 #[cfg(all(test, vibecraft_has_decompiled_sources))]
 mod tests {
     use super::*;
-    use crate::network::status::{chat_type_nbt, ChatTypeDecorationStyle, CHAT_TYPES};
-    use crate::storage::nbt::Tag;
 
     #[test]
     #[allow(clippy::too_many_lines)]
     fn chat_type_and_decoration_match_java_bootstrap_and_parameters() {
         const CHAT_TYPE_JAVA: &str =
             vibecraft_java_source!("/net/minecraft/network/chat/ChatType.java");
-        const CHAT_TYPE_DECORATION_JAVA: &str = vibecraft_java_source!("/net/minecraft/network/chat/ChatTypeDecoration.java");
+        const CHAT_TYPE_DECORATION_JAVA: &str =
+            vibecraft_java_source!("/net/minecraft/network/chat/ChatTypeDecoration.java");
 
         for sentinel in [
             "public static final ChatTypeDecoration DEFAULT_CHAT_DECORATION = ChatTypeDecoration.withSender(\"chat.type.text\");",
@@ -374,42 +373,5 @@ mod tests {
             ChatTypeDecorationParameter::Target.serialized_name(),
             "target"
         );
-    }
-
-    #[test]
-    fn chat_type_registry_nbt_matches_java_direct_message_styles() {
-        let incoming = CHAT_TYPES
-            .iter()
-            .find(|chat_type| chat_type.id == "msg_command_incoming")
-            .expect("vanilla incoming chat type");
-        assert_eq!(incoming.chat_style, ChatTypeDecorationStyle::GrayItalic);
-        assert_eq!(incoming.narration_style, ChatTypeDecorationStyle::Empty);
-
-        let tag = chat_type_nbt(incoming);
-        let Tag::Compound(root) = tag else {
-            panic!("chat type NBT root should be a compound");
-        };
-        let Some(Tag::Compound(chat)) = field_value(&root, "chat") else {
-            panic!("chat decoration should be a compound");
-        };
-        let Some(Tag::Compound(style)) = field_value(chat, "style") else {
-            panic!("incoming direct message chat decoration should carry style");
-        };
-        assert_eq!(
-            field_value(style, "color"),
-            Some(&Tag::String("gray".to_string()))
-        );
-        assert_eq!(field_value(style, "italic"), Some(&Tag::Byte(1)));
-
-        let Some(Tag::Compound(narration)) = field_value(&root, "narration") else {
-            panic!("narration decoration should be a compound");
-        };
-        assert!(field_value(narration, "style").is_none());
-    }
-
-    fn field_value<'a>(fields: &'a [(String, Tag)], field: &str) -> Option<&'a Tag> {
-        fields
-            .iter()
-            .find_map(|(name, value)| (name == field).then_some(value))
     }
 }

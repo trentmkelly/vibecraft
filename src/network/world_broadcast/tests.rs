@@ -57,3 +57,31 @@ fn drain_applies_the_connection_compression_state() {
     // Below threshold: frame length, then a zero "uncompressed" marker.
     assert_eq!(out, vec![6, 0, 0x01, 0, 0, 0, 0]);
 }
+
+#[test]
+fn publish_to_and_except_target_individual_connections() {
+    let bus = WorldPacketBus::default();
+    let a = bus.subscribe(1);
+    let b = bus.subscribe(2);
+    let c = bus.subscribe(3);
+    assert!(bus.publish_to(2, &plain(0x01, &[])));
+    assert!(!bus.publish_to(99, &plain(0x01, &[])), "unknown token");
+    bus.publish_except(2, &plain(0x02, &[]));
+    assert_eq!(drain(&a), vec![1, 0x02]);
+    assert_eq!(drain(&b), vec![1, 0x01]);
+    assert_eq!(drain(&c), vec![1, 0x02]);
+}
+
+#[test]
+fn disconnect_queues_the_notice_latches_closing_and_drops_later_packets() {
+    let bus = WorldPacketBus::default();
+    let a = bus.subscribe(1);
+    bus.publish(&plain(0x01, &[]));
+    assert!(bus.disconnect(1, &plain(0x09, &[7])));
+    assert!(!bus.publish_to(1, &plain(0x03, &[])), "closing inbox refuses packets");
+    bus.publish(&plain(0x04, &[]));
+    assert!(!bus.disconnect(1, &plain(0x09, &[])), "already closing");
+    assert!(a.is_closing());
+    assert_eq!(drain(&a), vec![1, 0x01, 2, 0x09, 7]);
+    assert!(a.is_closing(), "the latch survives draining");
+}

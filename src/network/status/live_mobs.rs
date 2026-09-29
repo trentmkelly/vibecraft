@@ -126,9 +126,18 @@ impl LiveMobStore {
                 if step_toward_player(mob, player_position, full_goal_tick) {
                     moved_mobs += 1;
                 }
-                if mob_can_melee_player(mob, player_position) && mob.attack_cooldown_ticks <= 0 {
+                // A dead player is no longer a valid target (`LivingEntity.isDeadOrDying`).
+                if play_state.health > 0.0
+                    && mob_can_melee_player(mob, player_position)
+                    && mob.attack_cooldown_ticks <= 0
+                {
                     let damage = live_mob_attack_damage(&mob.entity_type);
-                    play_state.health = (play_state.health - damage).max(0.0);
+                    super::player_death::hurt_player_by_mob(
+                        play_state,
+                        mob.entity_id,
+                        &mob.entity_type,
+                        damage,
+                    );
                     mob.attack_cooldown_ticks = MOB_MELEE_ATTACK_INTERVAL_TICKS;
                     player_damage += damage;
                 }
@@ -143,6 +152,11 @@ impl LiveMobStore {
             moved_mobs,
             player_damage,
         }
+    }
+
+    /// Whether a live mob with `entity_id` still exists (`Entity.isAlive` for kill credit).
+    pub fn contains(&self, entity_id: i32) -> bool {
+        self.mobs.contains_key(&entity_id)
     }
 
     pub fn moved_mobs(&self) -> impl Iterator<Item = &LiveMobEntity> {

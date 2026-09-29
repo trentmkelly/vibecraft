@@ -498,10 +498,11 @@ fn execute_command_runs_nested_command_with_derived_sources() {
                 id: "Steve".to_string(),
                 display_name: "Steve".to_string(),
             }),
+            // `Vec3Argument.vec3()` center-corrects integer absolute x/z.
             position: Vec3 {
-                x: 4.0,
+                x: 4.5,
                 y: 65.0,
-                z: 9.0,
+                z: 9.5,
             },
             yaw: 0.0,
             pitch: 0.0,
@@ -523,10 +524,8 @@ fn execute_command_runs_nested_command_with_derived_sources() {
     assert_eq!(
         state.execute_events.last().unwrap().sources[0],
         ExecuteSourceSnapshot {
-            entity: Some(EntityRef {
-                id: "Alex".to_string(),
-                display_name: "Alex".to_string(),
-            }),
+            // `execute at` keeps the source entity (it only copies level/position/rotation).
+            entity: None,
             position: Vec3 {
                 x: 8.0,
                 y: 70.0,
@@ -564,14 +563,16 @@ fn execute_command_applies_dimension_and_conditions() {
             && entry.block == "minecraft:diamond_block"
     }));
 
-    assert_eq!(
-        execute_builtin_command(
-            &mut state,
-            LevelBasedPermissionSet::GAMEMASTER,
-            "execute unless entity Steve run say hidden"
-        ),
-        Err(CommandError::ExecuteConditionFailed)
-    );
+    // A forking condition that filters every source is silent in Java: nothing runs, no error.
+    state.online_players.push(NameAndId::create_offline("Steve"));
+    let silent = execute_builtin_command(
+        &mut state,
+        LevelBasedPermissionSet::GAMEMASTER,
+        "execute unless entity Steve run say hidden",
+    )
+    .unwrap();
+    assert_eq!(silent.success_count, 0);
+    assert_eq!(silent.feedback_key, NO_COMMAND_FEEDBACK);
     assert_eq!(
         execute_builtin_command(
             &mut state,
@@ -585,8 +586,10 @@ fn execute_command_applies_dimension_and_conditions() {
             &mut state,
             LevelBasedPermissionSet::GAMEMASTER,
             "execute if block 1 2 3 diamond_block run say no"
-        ),
-        Err(CommandError::ExecuteConditionFailed)
+        )
+        .unwrap()
+        .success_count,
+        0
     );
 }
 

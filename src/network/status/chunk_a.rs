@@ -294,15 +294,26 @@ pub(super) fn lock_status_mutex<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_
     }
 }
 
+/// The operator-facing side of the running server: console lines in, and the slot
+/// through which console/RCON commands reach the runtime's shared state.
+pub struct ConsoleLink<'a> {
+    pub input: &'a Receiver<ConsoleInput>,
+    pub command_runner: &'a CommandRunnerSlot,
+}
+
 pub fn run_status_server(
     bind_ip: &str,
     port: u16,
     properties: &ServerProperties,
     world_root: &Path,
     world_seed: i64,
-    console_input: &Receiver<ConsoleInput>,
+    console: ConsoleLink<'_>,
     active_logins: ActiveLoginRegistry,
 ) -> Result<(), String> {
+    let ConsoleLink {
+        input: console_input,
+        command_runner,
+    } = console;
     let runtime = StatusServerRuntime::new(
         bind_ip,
         port,
@@ -311,13 +322,26 @@ pub fn run_status_server(
         world_seed,
         active_logins,
     )?;
-    runtime.start_tick_thread();
+    runtime.start_tick_thread(world_seed);
     println!("Status listener bound to {}", runtime.address);
-    run_status_accept_loop(runtime, properties, world_seed, console_input);
+    // Console + RCON commands run against this runtime's shared state.
+    let runner = command_runner.get_or_init(|| runtime.command_runner(properties, world_seed));
+    run_status_accept_loop(runtime, properties, world_seed, console_input, runner);
     Ok(())
 }
 
 impl StatusServerRuntime {
+    /// Runner for console/RCON commands over this runtime's shared world state.
+    fn command_runner(&self, properties: &ServerProperties, world_seed: i64) -> ServerCommandRunner {
+        ServerCommandRunner::new(
+            properties,
+            world_seed,
+            self.active_logins.clone(),
+            Arc::clone(&self.game_rules),
+            Arc::clone(&self.player_access),
+        )
+    }
+
     fn new(
         bind_ip: &str,
         port: u16,
@@ -426,12 +450,19 @@ impl StatusServerRuntime {
         })
     }
 
-    fn start_tick_thread(&self) {
+    fn start_tick_thread(&self, world_seed: i64) {
         let clock_t = Arc::clone(&self.clock);
         let weather_t = Arc::clone(&self.weather);
         let game_rules_t = Arc::clone(&self.game_rules);
         let world_root_t = Arc::clone(&self.world_root);
         let world_items_t = Arc::clone(&self.world_items);
+        let mut block_entity_ticker = LiveBlockEntityTicker::new(
+            self.chunk_cache.clone(),
+            Arc::clone(&self.recipe_manager),
+            Arc::clone(&self.world_root),
+            world_seed,
+            self.active_logins.world_bus.clone(),
+        );
         let max_tick_time = self.max_tick_time;
         thread::spawn(move || {
             let watchdog = Watchdog::new(max_tick_time);
@@ -459,6 +490,9 @@ impl StatusServerRuntime {
 
                 // Advance weather. can_have_weather=true for overworld.
                 lock_status_mutex(&weather_t).advance(true, advance_weather, sample_weather_durations());
+
+                // Java `Level.tickBlockEntities`.
+                block_entity_ticker.tick();
 
                 if tick_count.is_multiple_of(RESOURCE_USAGE_LOG_INTERVAL_TICKS) {
                     resource_usage.log_current_usage(tick_count);
@@ -610,10 +644,12 @@ fn run_status_accept_loop(
     properties: &ServerProperties,
     world_seed: i64,
     console_input: &Receiver<ConsoleInput>,
+    runner: &ServerCommandRunner,
 ) {
     loop {
-        if should_stop(console_input, &runtime.player_access) {
+        if handle_console_inputs(console_input, runner) {
             println!("Status listener stopping");
+            runtime.active_logins.disconnect_all_for_shutdown();
             runtime.save_shared_state();
             break;
         }
@@ -665,36 +701,6 @@ fn run_status_accept_loop(
                 thread::sleep(Duration::from_millis(25));
             }
             Err(err) => eprintln!("status accept error: {err}"),
-        }
-    }
-}
-
-pub fn should_stop(
-    console_input: &Receiver<ConsoleInput>,
-    player_access: &Arc<Mutex<PlayerAccess>>,
-) -> bool {
-    loop {
-        match console_input.try_recv() {
-            Ok(input) if input.line().eq_ignore_ascii_case("stop") => return true,
-            Ok(input)
-                if input.line().eq_ignore_ascii_case("reload")
-                    || input.line().eq_ignore_ascii_case("whitelist reload") =>
-            {
-                match PlayerAccess::load_from_dir(Path::new(".")) {
-                    Ok(reloaded) => {
-                        if let Ok(mut access) = player_access.lock() {
-                            *access = reloaded;
-                            println!("Reloaded player access files");
-                        } else {
-                            eprintln!("status access reload error: player access lock poisoned");
-                        }
-                    }
-                    Err(err) => eprintln!("status access reload error: {err}"),
-                }
-            }
-            Ok(_) => {}
-            Err(TryRecvError::Empty) => return false,
-            Err(TryRecvError::Disconnected) => return false,
         }
     }
 }
@@ -856,7 +862,7 @@ pub fn login_compression_threshold(properties: &ServerProperties) -> Option<i32>
         .then_some(properties.network_compression_threshold)
 }
 
-fn is_rate_limit_disconnect_error(err: &io::Error) -> bool {
+pub(super) fn is_rate_limit_disconnect_error(err: &io::Error) -> bool {
     err.kind() == io::ErrorKind::PermissionDenied
         && err.to_string() == "disconnect.exceeded_packet_rate"
 }
@@ -909,7 +915,7 @@ fn write_invalid_login_hello_disconnect(stream: &mut TcpStream, err: &io::Error)
     )
 }
 
-fn write_configuration_rate_limit_disconnect(
+pub(super) fn write_configuration_rate_limit_disconnect(
     stream: &mut TcpStream,
     compression: CompressionState,
     reason: &str,
@@ -1105,57 +1111,6 @@ fn wait_for_login_acknowledgement(
     Ok(())
 }
 
-type ConfigurationRegistryWriter = fn(&mut Vec<u8>) -> io::Result<()>;
-
-fn write_configuration_registry_packet(
-    stream: &mut TcpStream,
-    compression: CompressionState,
-    writer: ConfigurationRegistryWriter,
-) -> io::Result<()> {
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_REGISTRY_DATA_PACKET_ID,
-        writer,
-    )
-}
-
-fn write_configuration_registry_packets(
-    stream: &mut TcpStream,
-    compression: CompressionState,
-) -> io::Result<()> {
-    let registry_writers: &[ConfigurationRegistryWriter] = &[
-        write_minimal_biome_registry_packet::<Vec<u8>>,
-        write_vanilla_chat_type_registry_packet::<Vec<u8>>,
-        write_vanilla_trim_pattern_registry_packet::<Vec<u8>>,
-        write_minimal_trim_material_registry_packet::<Vec<u8>>,
-        write_vanilla_wolf_variant_registry_packet::<Vec<u8>>,
-        write_vanilla_wolf_sound_variant_registry_packet::<Vec<u8>>,
-        write_vanilla_pig_variant_registry_packet::<Vec<u8>>,
-        write_vanilla_pig_sound_variant_registry_packet::<Vec<u8>>,
-        write_vanilla_frog_variant_registry_packet::<Vec<u8>>,
-        write_vanilla_cat_variant_registry_packet::<Vec<u8>>,
-        write_vanilla_cat_sound_variant_registry_packet::<Vec<u8>>,
-        write_vanilla_cow_sound_variant_registry_packet::<Vec<u8>>,
-        write_vanilla_cow_variant_registry_packet::<Vec<u8>>,
-        write_vanilla_chicken_sound_variant_registry_packet::<Vec<u8>>,
-        write_vanilla_chicken_variant_registry_packet::<Vec<u8>>,
-        write_vanilla_zombie_nautilus_variant_registry_packet::<Vec<u8>>,
-        write_vanilla_painting_variant_registry_packet::<Vec<u8>>,
-        write_minimal_dimension_type_registry_packet::<Vec<u8>>,
-        write_minimal_damage_type_registry_packet::<Vec<u8>>,
-        write_vanilla_banner_pattern_registry_packet::<Vec<u8>>,
-        write_vanilla_jukebox_song_registry_packet::<Vec<u8>>,
-        write_vanilla_instrument_registry_packet::<Vec<u8>>,
-        write_world_clock_registry_packet::<Vec<u8>>,
-        write_vanilla_timeline_registry_packet::<Vec<u8>>,
-    ];
-    for writer in registry_writers {
-        write_configuration_registry_packet(stream, compression, *writer)?;
-    }
-    Ok(())
-}
-
 fn run_configuration_handshake(
     stream: &mut TcpStream,
     properties: &ServerProperties,
@@ -1177,21 +1132,22 @@ fn run_configuration_handshake(
         CLIENTBOUND_CONFIGURATION_UPDATE_ENABLED_FEATURES_PACKET_ID,
         write_vanilla_feature_flags_packet,
     )?;
-    write_configuration_registry_packets(stream, compression)?;
-    write_framed_packet_with_compression(
+    // Java `startConfiguration` queues SynchronizeRegistriesTask, then the code of
+    // conduct, then the server resource pack, before PrepareSpawn/JoinWorld.
+    registry_sync::run_synchronize_registries_task(
         stream,
         compression,
-        CLIENTBOUND_CONFIGURATION_UPDATE_TAGS_PACKET_ID,
-        write_minimal_update_tags_packet,
+        rate_limiter,
+        active_login,
     )?;
-    run_server_resource_pack_configuration_task(
+    run_code_of_conduct_configuration_task(
         stream,
         properties,
         compression,
         rate_limiter,
         active_login,
     )?;
-    run_known_pack_configuration_exchange(
+    run_server_resource_pack_configuration_task(
         stream,
         properties,
         compression,
@@ -1372,27 +1328,13 @@ pub fn read_expected_configuration_resource_pack_response(
     ))
 }
 
-fn run_known_pack_configuration_exchange(
+fn run_code_of_conduct_configuration_task(
     stream: &mut TcpStream,
     properties: &ServerProperties,
     compression: CompressionState,
     rate_limiter: &mut PacketRateLimiter,
     active_login: &ActiveLoginGuard,
 ) -> io::Result<()> {
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID,
-        write_vanilla_known_packs_packet,
-    )?;
-    wait_for_configuration_packet_or_rate_disconnect(
-        stream,
-        compression,
-        SERVERBOUND_CONFIGURATION_SELECT_KNOWN_PACKS_PACKET_ID,
-        "selected known packs",
-        rate_limiter,
-        active_login,
-    )?;
     // Java `addOptionalTasks` selects the code of conduct by the client's locale
     // (`clientInformation.language()`), falling back to `en_us` then the first entry
     // (the fallback chain lives in `load_code_of_conduct_for_language`). The client's
@@ -1699,13 +1641,70 @@ struct PlayerTickContext<'a, 'b> {
     world_mobs: &'a Arc<Mutex<LiveMobStore>>,
     loaded_chunks: &'a BTreeSet<(i32, i32)>,
     world_layout: &'b WorldLayout,
+    game_rules: &'a SharedGameRules,
+    profile: &'a NameAndId,
     last_player_tick: &'b mut Instant,
     play_tick_count: &'b mut u64,
-    /// Latch: false until the post-join `/biome` command tree has been sent. The
-    /// command tree is emitted once, right after the first chunk batch reaches the
-    /// client, so it lands after the join-ready prefix (matching the vanilla join
-    /// capture in `harness/mineflayer/raw_26_1_2_join_probe.mjs`).
-    join_commands_sent: &'b mut bool,
+    /// Command-tree bookkeeping. The tree is emitted once, right after the first
+    /// chunk batch reaches the client, so it lands after the join-ready prefix
+    /// (matching the vanilla join capture in
+    /// `harness/mineflayer/raw_26_1_2_join_probe.mjs`).
+    join_commands: &'b mut CommandTreeSync,
+}
+
+/// Applies one tick of in-water state (air supply, buoyancy motion) and returns
+/// whether health changed (drowning).
+fn tick_player_water(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    play_state: &mut PlaySessionState,
+    world_root: &Path,
+    world_seed: i64,
+    chunk_cache: &GeneratedChunkCache,
+) -> io::Result<bool> {
+    let fluid_state =
+        detect_play_session_fluid_state(play_state, world_root, world_seed, chunk_cache);
+    let water_update = tick_play_session_water(play_state, fluid_state);
+    if water_update.air_changed {
+        write_play_state_air_supply_packet(stream, compression, play_state)?;
+    }
+    if water_update.motion_changed {
+        write_play_state_motion_packet(stream, compression, play_state)?;
+    }
+    Ok(water_update.health_changed)
+}
+
+/// Runs the player's death lifecycle and then syncs health if it changed. Java runs
+/// `ServerPlayer.die` from inside `hurtServer`, before `doTick` syncs health.
+fn sync_player_vitals(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    play_state: &mut PlaySessionState,
+    lifecycle: &player_death::PlayerLifecycleContext<'_>,
+    health_changed: bool,
+) -> io::Result<()> {
+    player_death::tick_player_lifecycle(stream, compression, play_state, lifecycle)?;
+    if health_changed {
+        write_play_state_health_packet(stream, compression, play_state)?;
+    }
+    Ok(())
+}
+
+/// Delivers whatever the rest of the server published to this session since the last
+/// tick. Returns `false` when the session was kicked and its tick should stop
+/// (`ServerGamePacketListenerImpl.disconnect`): the notice is flushed and EOF on the
+/// next read runs the normal disconnect/save path.
+fn deliver_world_bus(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    world_bus: &Subscription,
+) -> io::Result<bool> {
+    world_bus.drain_into(stream, compression)?;
+    if world_bus.is_closing() {
+        let _ = stream.shutdown(Shutdown::Read);
+        return Ok(false);
+    }
+    Ok(true)
 }
 
 fn tick_player_and_chunk_sender(
@@ -1732,9 +1731,11 @@ fn tick_player_and_chunk_sender(
         world_mobs,
         loaded_chunks,
         world_layout,
+        game_rules,
+        profile,
         last_player_tick,
         play_tick_count,
-        join_commands_sent,
+        join_commands,
     } = context;
     if last_player_tick.elapsed() < SERVER_TICK_DURATION {
         return Ok(());
@@ -1762,26 +1763,30 @@ fn tick_player_and_chunk_sender(
             world_root,
         },
     )?;
-    // Deliver whatever the rest of the server published since the last tick.
-    world_bus.drain_into(stream, compression)?;
-    let fluid_state =
-        detect_play_session_fluid_state(play_state, world_root, world_seed, chunk_cache);
-    let water_update = tick_play_session_water(play_state, fluid_state);
-    if water_update.air_changed {
-        write_play_state_air_supply_packet(stream, compression, play_state)?;
+    if !deliver_world_bus(stream, compression, world_bus)? {
+        return Ok(());
     }
-    if water_update.motion_changed {
-        write_play_state_motion_packet(stream, compression, play_state)?;
-    }
-    if tick_play_session_food(
+    let water_health_changed =
+        tick_player_water(stream, compression, play_state, world_root, world_seed, chunk_cache)?;
+    let health_changed = tick_play_session_food(
         play_state,
         food_difficulty_from_properties(properties),
         true,
         tick_count,
-    ) || water_update.health_changed
-    {
-        write_play_state_health_packet(stream, compression, play_state)?;
-    }
+    ) || water_health_changed;
+    sync_player_vitals(
+        stream,
+        compression,
+        play_state,
+        &player_death::PlayerLifecycleContext {
+            game_rules,
+            world_items,
+            world_mobs,
+            bus: world_bus_publisher,
+            profile,
+        },
+        health_changed,
+    )?;
 
     // Per-tick chunk send drain (Java mirror:
     // MinecraftServer.tickChildren -> chunkSender.sendNextChunks).
@@ -1801,14 +1806,13 @@ fn tick_player_and_chunk_sender(
     chunk_pipeline_stats.sent_total = chunk_pipeline_stats
         .sent_total
         .saturating_add(drained as u64);
-    // Send the `/biome` debug command tree exactly once, right after the first
+    // Send the player's command tree exactly once, right after the first
     // chunk batch reaches the client. This places the commands packet after the
     // join-ready prefix (login..chunk_batch_start) instead of mid-join, matching
     // the vanilla join capture; see `write_join_commands_packet` and
     // `harness/mineflayer/raw_26_1_2_join_probe.mjs`.
-    if drained > 0 && !*join_commands_sent {
-        write_join_commands_packet(stream, compression)?;
-        *join_commands_sent = true;
+    if drained > 0 && join_commands.needs_initial_send() {
+        write_join_commands_packet(stream, compression, join_commands)?;
     }
     maybe_log_chunk_pipeline_stats(
         chunk_pipeline_stats,
@@ -1894,6 +1898,16 @@ fn tick_live_world_systems(
     )?;
     if live_mob_health_changed {
         write_play_state_health_packet(stream, compression, play_state)?;
+    }
+    // Java `AbstractContainerMenu.broadcastChanges` for the open block menu.
+    if let Some(menu) = play_state.active_block_menu.as_mut() {
+        menu.broadcast_changes(
+            stream,
+            compression,
+            context.world_layout,
+            context.world_seed,
+            context.chunk_cache,
+        )?;
     }
     tick_live_block_destroy_progress(
         stream,
@@ -2122,7 +2136,7 @@ struct JoinedPlayLoopTickContext<'a, 'b> {
     world_bus_publisher: &'a WorldPacketBus,
     last_sent_rain_level: &'b mut f32,
     last_sent_thunder_level: &'b mut f32,
-    join_commands_sent: &'b mut bool,
+    join_commands: &'b mut CommandTreeSync,
 }
 
 /// Returns `false` when the session should end (e.g. a keepalive timeout, whose
@@ -2164,7 +2178,7 @@ fn tick_joined_play_session_loop(
         world_bus_publisher,
         last_sent_rain_level,
         last_sent_thunder_level,
-        join_commands_sent,
+        join_commands,
     } = context;
     if !tick_keep_alive_and_time(
         stream,
@@ -2185,6 +2199,14 @@ fn tick_joined_play_session_loop(
         &game_rule_player,
     )?;
     tick_item_entities_for_client(stream, compression, world_items, last_item_tick)?;
+    join_commands.observe_permission_level(
+        player_permission_set(
+            game_rule_player.profile,
+            game_rule_player.properties,
+            game_rule_player.player_access,
+        )
+        .level() as u8,
+    );
     tick_player_and_chunk_sender(
         stream,
         compression,
@@ -2207,11 +2229,17 @@ fn tick_joined_play_session_loop(
             world_mobs,
             loaded_chunks,
             world_layout,
+            game_rules,
+            profile: game_rule_player.profile,
             last_player_tick,
             play_tick_count,
-            join_commands_sent,
+            join_commands,
         },
     )?;
+    // Java `PlayerList.sendPlayerPermissionLevel` -> `Commands.sendCommands`.
+    if join_commands.needs_resend() {
+        write_join_commands_packet(stream, compression, join_commands)?;
+    }
     broadcast_weather_if_changed(
         stream,
         compression,
@@ -2257,6 +2285,10 @@ struct RespawnSessionContext<'a, 'b> {
     properties: &'a ServerProperties,
     world_root: &'a Path,
     world_seed: i64,
+    world_layout: &'b WorldLayout,
+    chunk_cache: &'a GeneratedChunkCache,
+    game_rules: &'a SharedGameRules,
+    world_items: &'a Arc<Mutex<WorldItemEntities>>,
     profile_uuid: &'a str,
     chunk_pipeline: &'a ChunkPipeline,
     current_chunk_x: &'b mut i32,
@@ -2276,6 +2308,10 @@ fn handle_respawn_session_update(
         properties,
         world_root,
         world_seed,
+        world_layout,
+        chunk_cache,
+        game_rules,
+        world_items,
         profile_uuid,
         chunk_pipeline,
         current_chunk_x,
@@ -2288,9 +2324,16 @@ fn handle_respawn_session_update(
         stream,
         compression,
         play_state,
-        properties,
-        world_root,
-        world_seed,
+        &respawn_live::RespawnContext {
+            properties,
+            world_root,
+            world_seed,
+            world_layout,
+            chunk_cache,
+            game_rules,
+            world_items,
+            random_seed: player_death::live_random_seed(),
+        },
     )?;
     *current_chunk_x = chunk_coordinate(play_state.x);
     *current_chunk_z = chunk_coordinate(play_state.z);
@@ -3707,7 +3750,13 @@ fn handle_decoded_play_packet(
         return Ok(PlayPacketDispatchOutcome::Continue);
     }
     if packet_id == SERVERBOUND_COMMAND_SUGGESTION_PACKET_ID {
-        write_command_suggestions_response(stream, compression, &mut input)?;
+        write_command_suggestions_response(
+            stream,
+            compression,
+            &mut input,
+            player_permission_set(context.profile, context.properties, context.player_access)
+                .level() as u8,
+        )?;
     } else if try_handle_chat_packet(stream, compression, &mut input, packet_id, play_state, &mut context)? {
     } else if packet_id == SERVERBOUND_USE_ITEM_ON_PACKET_ID {
         let packet = ServerboundUseItemOnPacket::read(&mut input)?;
@@ -3856,6 +3905,10 @@ impl<'a, 'b> DecodedPlayPacketContext<'a, 'b> {
             properties: self.properties,
             world_root: self.world_root,
             world_seed: self.world_seed,
+            world_layout: self.world_layout,
+            chunk_cache: self.chunk_cache,
+            game_rules: self.game_rules,
+            world_items: self.world_items,
             profile_uuid: &self.profile.uuid,
             chunk_pipeline: self.chunk_pipeline,
             current_chunk_x: self.current_chunk_x,
@@ -3981,7 +4034,8 @@ fn handle_login_connection(
         rate_limiter,
         ..
     } = context;
-    run_joined_play_session(
+    let profile = finished.profile.clone();
+    let result = run_joined_play_session(
         stream,
         compression,
         finished,
@@ -3991,7 +4045,10 @@ fn handle_login_connection(
             rate_limiter,
             active_login: &active_login,
         },
-    )
+    );
+    // Java `removePlayerFromWorld` broadcasts `multiplayer.player.left`.
+    let _ = active_login.broadcast_player_left(&profile);
+    result
 }
 
 // The play session is a flat orchestrator: it unpacks the joined-session state
@@ -4053,14 +4110,16 @@ fn run_joined_play_session(
     // The per-session `chunk_sender` (Java `PlayerChunkSender`), weather-level
     // latches, and item-entity tick timer were all seeded in
     // `initialize_joined_play_session`; the per-tick loop below drains/advances
-    // them. `join_commands_sent` latches the one-shot `/biome` command tree, sent
-    // once after the first chunk batch.
-    let mut join_commands_sent = false;
+    // them. `join_commands` tracks the command tree sent to the client: the join
+    // tree goes out once after the first chunk batch, and again whenever the
+    // player's permission level changes.
+    let mut join_commands = CommandTreeSync::default();
     // Unsubscribes automatically when the session ends.
     let world_bus = shared
         .active_logins
         .world_bus
         .subscribe(active_login.token);
+    active_login.broadcast_player_joined(&finished.profile)?;
     loop {
         if !tick_joined_play_session_loop(
             stream,
@@ -4101,7 +4160,7 @@ fn run_joined_play_session(
                 play_tick_count: &mut play_tick_count,
                 last_sent_rain_level: &mut last_sent_rain_level,
                 last_sent_thunder_level: &mut last_sent_thunder_level,
-                join_commands_sent: &mut join_commands_sent,
+                join_commands: &mut join_commands,
             },
         )? {
             // Keepalive timed out (disconnect.timeout already written).

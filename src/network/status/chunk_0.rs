@@ -47,6 +47,7 @@ impl PlaySessionState {
             seen_credits: false,
             entered_nether_position: None,
             last_death_location: None,
+            combat: super::player_death::PlayerCombatState::default(),
             root_vehicle: None,
             active_effects: Vec::new(),
             ender_items: Vec::new(),
@@ -79,6 +80,10 @@ pub struct PlayerSpawnData {
     pub x: i32,
     pub y: i32,
     pub z: i32,
+    /// `RespawnData.yaw` (wrapped to -180..180).
+    pub yaw: f32,
+    /// `RespawnData.pitch` (clamped to -90..90).
+    pub pitch: f32,
     pub forced: bool,
 }
 
@@ -333,6 +338,13 @@ impl GeneratedChunkCache {
                 .get_block_state(pos.x, pos.y, pos.z)
                 .filter(|n| n != "minecraft:air");
             chunk.set_block_state(pos.x, pos.y, pos.z, block_name);
+            // Java `LevelChunk.setBlockState` block-entity create/remove half.
+            crate::live_block_entities::lifecycle::sync_block_entity_after_set_block(
+                chunk,
+                pos,
+                prev.as_deref(),
+                block_name,
+            );
             prev
         };
         lock_mutex(&self.dirty).insert(chunk_pos);
@@ -857,6 +869,8 @@ pub struct ActiveLoginGuard {
     pub sessions: Arc<Mutex<HashMap<String, ActiveLoginSession>>>,
     pub uuid: String,
     pub token: u64,
+    /// The server-wide bus, for cross-session delivery (see `player_messaging_live`).
+    pub world_bus: WorldPacketBus,
 }
 
 impl ActiveLoginGuard {
@@ -954,6 +968,7 @@ impl ActiveLoginRegistry {
                 sessions: self.sessions.clone(),
                 uuid: uuid.to_string(),
                 token,
+                world_bus: self.world_bus.clone(),
             },
             old,
         ))

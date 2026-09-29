@@ -541,7 +541,7 @@ fn resolve_objective_criteria(name: &str) -> Result<ObjectiveCriteriaInfo, Comma
 }
 
 /// Mirrors `ObjectiveArgument.getWritableObjective`: read-only criteria (health, food, ...) fail.
-fn require_writable_objective(
+pub(super) fn require_writable_objective(
     state: &ServerCommandState,
     objective: &str,
 ) -> Result<(), CommandError> {

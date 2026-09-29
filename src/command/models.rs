@@ -161,6 +161,19 @@ pub struct ServerCommandState {
     pub command_source_pitch: f32,
     pub command_source_dimension: String,
     pub execute_events: Vec<ExecuteCommandEvent>,
+    /// Entity rotations (`Entity.getRotationVector`); entities without a record face `(0, 0)`.
+    pub entity_rotations: Vec<EntityRotation>,
+    /// Non-mount entity links read by `/execute on` (owner, leasher, target, attacker, ...).
+    pub entity_relations: Vec<EntityRelation>,
+    /// Chunk residency for `execute if loaded` / `BlockPosArgument.getLoadedBlockPos`.
+    /// `None` means the command model does not track residency (every chunk counts as loaded).
+    // TODO(execute-chunk-residency): fill from the live chunk manager when the live command
+    // state is built (network/status `command_state_for_player`).
+    pub loaded_chunks: Option<Vec<LoadedChunk>>,
+    /// Datapack loot predicates addressable by `execute if predicate <id>`.
+    pub loot_predicates: Vec<CommandLootPredicate>,
+    /// Shared `ExecutionContext` accounting for the command chain currently running.
+    pub execution: CommandExecutionBudget,
     pub debug_world: bool,
     pub blocks: Vec<BlockStateEntry>,
     pub biomes: Vec<BiomeEntry>,

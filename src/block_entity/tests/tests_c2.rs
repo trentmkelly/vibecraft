@@ -116,7 +116,10 @@ fn calibrated_sculk_sensor_filters_vibrations_by_back_signal() {
     assert_eq!(loaded.back_signal, 13);
     assert_eq!(loaded.sensor.listener_radius, 16);
     assert_eq!(loaded.sensor.last_vibration_frequency, 13);
-    assert_eq!(loaded.sensor.power, 12);
+    // Java `SculkSensorBlockEntity.saveAdditional` persists only
+    // `last_vibration_frequency` and the listener; the power lives in the block
+    // state (`SculkSensorBlock.POWER`), so it is not restored from NBT.
+    assert_eq!(loaded.sensor.power, 0);
 
     let mut unfiltered = CalibratedSculkSensorBlockEntity::new(0);
     assert_eq!(

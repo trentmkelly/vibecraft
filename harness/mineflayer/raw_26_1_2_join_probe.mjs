@@ -165,10 +165,6 @@ function randomUuidBytes () {
   return Buffer.from(crypto.randomUUID().replaceAll('-', ''), 'hex')
 }
 
-function writeKnownPack (pack) {
-  return Buffer.concat([writeString(pack.namespace), writeString(pack.id), writeString(pack.version)])
-}
-
 class PacketReader {
   constructor (socket) {
     this.socket = socket
@@ -304,12 +300,20 @@ const expectedRegistries = [
   'minecraft:wolf_variant',
   'minecraft:zombie_nautilus_variant',
   'minecraft:world_clock',
-  'minecraft:timeline'
+  'minecraft:timeline',
+  'minecraft:enchantment',
+  'minecraft:dialog',
+  'minecraft:test_environment',
+  'minecraft:test_instance'
 ]
 
 const minimumRegistryElements = new Map([
   ['minecraft:banner_pattern', 43],
   ['minecraft:worldgen/biome', 65],
+  ['minecraft:dialog', 3],
+  ['minecraft:enchantment', 43],
+  ['minecraft:test_environment', 1],
+  ['minecraft:test_instance', 1],
   ['minecraft:cat_sound_variant', 2],
   ['minecraft:cat_variant', 11],
   ['minecraft:chat_type', 7],
@@ -730,11 +734,13 @@ async function main () {
       const knownPacks = decodeKnownPacksPacket(packet)
       config.push(knownPacks)
       if (abortAfter === 'known_packs') return abortSocket(socket, 'known_packs', { login: login.id, config })
+      // Answer with no known packs (like Mineflayer does) so the server sends the full
+      // contents of every registry entry; answering with the offered packs would make
+      // it elide the entries and hide the network codec fields checked below.
       socket.write(encodeClientPacket(
         reader,
         serverboundSelectKnownPacksPacketId,
-        writeVarInt(knownPacks.packs.length),
-        ...knownPacks.packs.map(writeKnownPack)
+        writeVarInt(0)
       ))
     } else {
       config.push({ id: packet.id, length: packet.length })
@@ -755,9 +761,6 @@ async function main () {
       throw new Error('missing minecraft:core:26.1.2 known pack')
     }
     const registryNames = new Set(registryPackets.map(packet => packet.registry))
-    if (registryNames.has('minecraft:enchantment')) {
-      throw new Error('enchantment registry must remain omitted until enchanted-item smoke coverage exists')
-    }
     for (const registry of expectedRegistries) {
       if (!registryNames.has(registry)) throw new Error(`missing registry packet ${registry}`)
     }

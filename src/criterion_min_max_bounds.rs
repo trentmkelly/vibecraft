@@ -1,3 +1,6 @@
+// Ported Java argument/model surface; only part of it is reached from the live command path.
+#![allow(dead_code)]
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RangeShape<T> {
     All,

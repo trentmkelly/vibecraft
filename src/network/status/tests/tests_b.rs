@@ -633,56 +633,6 @@ pub fn palette_index_at(words: &[u64], x: usize, y: usize, z: usize) -> u64 {
 }
 
 #[test]
-pub fn jukebox_song_registry_payloads_include_disc_13_component_data() {
-    assert_eq!(
-        registry_element_count(write_vanilla_jukebox_song_registry_packet),
-        21
-    );
-    let thirteen = JUKEBOX_SONGS
-        .iter()
-        .find(|song| song.id == "13")
-        .expect("music disc 13 should be sent");
-    let tag = jukebox_song_nbt(thirteen);
-
-    assert!(matches!(
-        field_value(&tag, "sound_event"),
-        Some(Tag::String(value)) if value == "minecraft:music_disc.13"
-    ));
-    let description = compound_field(&tag, "description");
-    assert!(matches!(
-        field_value(description, "translate"),
-        Some(Tag::String(value)) if value == "jukebox_song.minecraft.13"
-    ));
-    assert!(matches!(
-        field_value(&tag, "length_in_seconds"),
-        Some(Tag::Float(value)) if (*value - 178.0).abs() < f32::EPSILON
-    ));
-    assert!(matches!(
-        field_value(&tag, "comparator_output"),
-        Some(Tag::Int(1))
-    ));
-}
-
-#[test]
-pub fn synced_tag_registries_include_required_names_and_indices() {
-    let is_fire = damage_type_tag_entries("minecraft:is_fire");
-    assert_eq!(is_fire, &[21, 3, 31, 24, 20, 46, 14]);
-
-    let bypasses_shield = damage_type_tag_entries("minecraft:bypasses_shield");
-    assert!(bypasses_shield.contains(&11));
-    assert!(bypasses_shield.contains(&13));
-
-    let flower = banner_pattern_tag_entries("minecraft:pattern_item/flower");
-    assert_eq!(flower, vec![banner_pattern_index("flower")]);
-
-    let field_masoned = banner_pattern_tag_entries("minecraft:pattern_item/field_masoned");
-    assert_eq!(field_masoned, vec![banner_pattern_index("bricks")]);
-
-    let bordure_indented = banner_pattern_tag_entries("minecraft:pattern_item/bordure_indented");
-    assert_eq!(bordure_indented, vec![banner_pattern_index("curly_border")]);
-}
-
-#[test]
 pub fn configuration_wait_ignores_vanilla_common_packets_before_known_packs() {
     let mut input = Vec::new();
     write_framed_packet(
@@ -885,75 +835,6 @@ pub fn configuration_wait_honors_connection_rate_limit() {
     assert_eq!(err.to_string(), "disconnect.exceeded_packet_rate");
 }
 
-pub fn assert_nested_sound_variant_fields(tag: Tag, fields: &[&str]) {
-    let adult = compound_field(&tag, "adult_sounds");
-    let baby = compound_field(&tag, "baby_sounds");
-    assert_sound_set_fields(adult, fields);
-    assert_sound_set_fields(baby, fields);
-}
-
-pub fn assert_sound_variant_fields(tag: Tag, fields: &[&str]) {
-    assert_sound_set_fields(&tag, fields);
-}
-
-pub fn assert_sound_set_fields(tag: &Tag, fields: &[&str]) {
-    for field in fields {
-        assert!(
-            matches!(field_value(tag, field), Some(Tag::String(value)) if value.starts_with("minecraft:")),
-            "missing sound field {field} in {tag:?}"
-        );
-    }
-}
-
-pub fn assert_string_list(value: Option<&Tag>, expected: &[&str]) {
-    let Some(Tag::List(values)) = value else {
-        panic!("expected string list, got {value:?}");
-    };
-    let actual: Vec<&str> = values
-        .iter()
-        .map(|value| match value {
-            Tag::String(value) => value.as_str(),
-            value => panic!("expected string list value, got {value:?}"),
-        })
-        .collect();
-    assert_eq!(actual, expected);
-}
-
-pub fn damage_type_tag_entries(tag: &str) -> &'static [i32] {
-    DAMAGE_TYPE_TAGS
-        .iter()
-        .find_map(|(name, entries)| (*name == tag).then_some(*entries))
-        .unwrap_or_else(|| panic!("missing damage type tag {tag}"))
-}
-
-pub fn banner_pattern_tag_entries(tag: &str) -> Vec<usize> {
-    BANNER_PATTERN_TAGS
-        .iter()
-        .find_map(|(name, entries)| {
-            (*name == tag).then(|| {
-                entries
-                    .iter()
-                    .map(|entry| banner_pattern_index(entry))
-                    .collect()
-            })
-        })
-        .unwrap_or_else(|| panic!("missing banner pattern tag {tag}"))
-}
-
-pub fn banner_pattern_index(pattern: &str) -> usize {
-    BANNER_PATTERNS
-        .iter()
-        .position(|entry| *entry == pattern)
-        .unwrap_or_else(|| panic!("missing banner pattern {pattern}"))
-}
-
-pub fn compound_field<'a>(tag: &'a Tag, field: &str) -> &'a Tag {
-    match field_value(tag, field) {
-        Some(value @ Tag::Compound(_)) => value,
-        value => panic!("expected compound field {field}, got {value:?}"),
-    }
-}
-
 pub fn field_value<'a>(tag: &'a Tag, field: &str) -> Option<&'a Tag> {
     let Tag::Compound(fields) = tag else {
         return None;
@@ -961,56 +842,6 @@ pub fn field_value<'a>(tag: &'a Tag, field: &str) -> Option<&'a Tag> {
     fields
         .iter()
         .find_map(|(name, value)| (name == field).then_some(value))
-}
-
-pub fn registry_element_count(write_packet: fn(&mut Vec<u8>) -> std::io::Result<()>) -> i32 {
-    let mut payload = Vec::new();
-    write_packet(&mut payload).unwrap();
-    let mut cursor = Cursor::new(payload);
-    let _registry = crate::network::codec::read_identifier(&mut cursor).unwrap();
-    read_var_i32(&mut cursor).unwrap()
-}
-
-pub fn status_registry_id(write_packet: fn(&mut Vec<u8>) -> io::Result<()>) -> String {
-    let mut payload = Vec::new();
-    write_packet(&mut payload).unwrap();
-    let mut cursor = Cursor::new(payload);
-    crate::network::codec::read_identifier(&mut cursor)
-        .unwrap()
-        .to_string()
-}
-
-pub fn status_registry_entry_ids_ordered(
-    write_packet: fn(&mut Vec<u8>) -> std::io::Result<()>,
-) -> Vec<String> {
-    let mut payload = Vec::new();
-    write_packet(&mut payload).unwrap();
-    let mut cursor = Cursor::new(payload);
-    let _registry = crate::network::codec::read_identifier(&mut cursor).unwrap();
-    let entry_count = read_var_i32(&mut cursor).unwrap();
-    let mut entry_ids = Vec::with_capacity(entry_count as usize);
-    for _ in 0..entry_count {
-        let id = crate::network::codec::read_identifier(&mut cursor).unwrap();
-        entry_ids.push(id.to_string());
-
-        let mut _present = [0u8; 1];
-        cursor.read_exact(&mut _present).unwrap();
-        let mut tag_id = [0u8; 1];
-        cursor.read_exact(&mut tag_id).unwrap();
-        let _ = Tag::read_payload(tag_id[0], &mut cursor).unwrap();
-    }
-    entry_ids
-}
-
-pub fn assert_registry_order(
-    write_packet: fn(&mut Vec<u8>) -> std::io::Result<()>,
-    expected: &[&str],
-) {
-    let expected = expected
-        .iter()
-        .map(|id| format!("minecraft:{id}"))
-        .collect::<Vec<_>>();
-    assert_eq!(status_registry_entry_ids_ordered(write_packet), expected);
 }
 
 #[test]
@@ -1100,6 +931,7 @@ pub fn session_state_with_inventory(
         seen_credits: false,
         entered_nether_position: None,
         last_death_location: None,
+        combat: Default::default(),
         root_vehicle: None,
         active_effects: Vec::new(),
         ender_items: Vec::new(),

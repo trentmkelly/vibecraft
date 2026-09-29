@@ -835,7 +835,7 @@ pub(super) fn biome_at(state: &ServerCommandState, dimension: &str, position: Bl
         .unwrap_or_else(|| "minecraft:plains".to_string())
 }
 
-fn biome_at_explicit_or_generated(
+pub(super) fn biome_at_explicit_or_generated(
     state: &ServerCommandState,
     dimension: &str,
     position: BlockPos,

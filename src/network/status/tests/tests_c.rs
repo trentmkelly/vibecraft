@@ -884,7 +884,7 @@ pub fn respawn_application_restores_health_and_clears_fall_state() {
             pitch: 0.0,
         },
     );
-    super::super::reset_play_state_after_death_respawn(&mut state);
+    super::super::reset_play_state_after_death_respawn(&mut state, false);
 
     assert_eq!((state.x, state.y, state.z), (12.5, 70.0, -3.5));
     assert_eq!(state.health, 20.0);
@@ -903,6 +903,13 @@ pub fn respawn_application_restores_health_and_clears_fall_state() {
     assert_eq!(state.xp_level, 0);
     assert_eq!(state.xp_total, 0);
     assert_eq!(state.score, 0);
+
+    // keepInventory / spectator: restoreFrom -> transferInventoryXpAndScore keeps them.
+    state.xp_level = 9;
+    state.xp_total = 123;
+    state.score = 77;
+    super::super::reset_play_state_after_death_respawn(&mut state, true);
+    assert_eq!((state.xp_level, state.xp_total, state.score), (9, 123, 77));
 }
 
 #[test]

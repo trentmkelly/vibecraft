@@ -370,13 +370,36 @@ pub fn wait_for_configuration_packet_with_rate_limit<R: Read>(
     rate_limiter: &mut PacketRateLimiter,
     active_login: Option<&ActiveLoginGuard>,
 ) -> io::Result<()> {
+    wait_for_configuration_packet_body_with_rate_limit(
+        reader,
+        compression,
+        expected_packet_id,
+        expected_name,
+        rate_limiter,
+        active_login,
+    )
+    .map(|_| ())
+}
+
+/// Like [`wait_for_configuration_packet_with_rate_limit`], but returns the
+/// validated packet body (the bytes after the packet id) so callers that need the
+/// payload, such as the known-pack negotiation, can decode it.
+pub fn wait_for_configuration_packet_body_with_rate_limit<R: Read>(
+    reader: &mut R,
+    compression: CompressionState,
+    expected_packet_id: i32,
+    expected_name: &'static str,
+    rate_limiter: &mut PacketRateLimiter,
+    active_login: Option<&ActiveLoginGuard>,
+) -> io::Result<Vec<u8>> {
     for _ in 0..32 {
         let packet = read_packet_with_rate_limit(reader, compression, rate_limiter)?;
         let mut input = Cursor::new(packet);
         let packet_id = read_var_i32(&mut input)?;
         if packet_id == expected_packet_id {
+            let body_start = input.position() as usize;
             validate_expected_configuration_packet(&mut input, expected_packet_id)?;
-            return Ok(());
+            return Ok(input.into_inner().split_off(body_start));
         }
         if packet_id == SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID {
             // The vanilla client interleaves its ClientInformation during
@@ -491,7 +514,7 @@ pub fn write_minimal_play_join(
     write_join_player_state_packets(stream, compression, &context)?;
     write_join_inventory_packets(stream, compression, context.play_state)?;
     write_join_world_state_packets(stream, compression, &context, center)?;
-    // Note: the `/biome` debug command tree is intentionally NOT sent here. It is
+    // Note: the command tree is intentionally NOT sent here. It is
     // emitted once by the play loop right after the first chunk batch (see
     // `tick_player_and_chunk_sender` / `write_join_commands_packet`), so it lands
     // after the join-ready prefix (login..chunk_batch_start) and does not disturb
@@ -505,21 +528,22 @@ pub fn write_minimal_play_join(
     Ok(())
 }
 
-/// Emits the `/biome` debug command tree. Sent late in the join sequence (after
-/// the join-ready state/level prefix) so the live wire order matches the vanilla
-/// join capture, where the command tree arrives after the inventory and
-/// level-info packets. VibeCraft exposes `/biome` as an in-game debugging helper
-/// even though vanilla 26.1.2 has no root `/biome` command — an intentional,
-/// documented Java-parity divergence in the packet *contents* (not its position).
+/// Sends the player's command tree (Java `Commands.sendCommands`), filtered to
+/// the commands their permission level may use. Used for the join tree (sent
+/// late in the join sequence, after the join-ready state/level prefix, so the
+/// live wire order matches the vanilla join capture) and for the resend when
+/// their permissions change.
 pub(super) fn write_join_commands_packet(
     stream: &mut TcpStream,
     compression: CompressionState,
+    sync: &mut CommandTreeSync,
 ) -> io::Result<()> {
+    let packet = sync.take_packet()?;
     write_framed_packet_with_compression(
         stream,
         compression,
         CLIENTBOUND_COMMANDS_PACKET_ID,
-        |payload| vibecraft_debug_commands_packet().write(payload),
+        |payload| packet.write(payload),
     )
 }
 
@@ -816,35 +840,6 @@ fn raw_item_stack_for_join_sync(stack: &ItemStack) -> RawItemStack {
         count: stack.count(),
         item_id: Some(pid),
         components: RawDataComponentPatch::empty(),
-    }
-}
-
-/// Builds the VibeCraft-only command tree additions required by the vanilla client.
-///
-/// Intentional Java parity divergence: vanilla 26.1.2 has no root `/biome`
-/// command, but exposing it in the client dispatcher makes the server-side
-/// debug command usable from the normal slash-command UI.
-pub fn vibecraft_debug_commands_packet() -> ClientboundCommandsPacket {
-    ClientboundCommandsPacket {
-        root_index: 0,
-        entries: vec![
-            CommandNodeEntryData {
-                stub: CommandNodeStubData::Root,
-                executable: false,
-                restricted: false,
-                redirect: None,
-                children: vec![1],
-            },
-            CommandNodeEntryData {
-                stub: CommandNodeStubData::Literal {
-                    name: "biome".to_string(),
-                },
-                executable: true,
-                restricted: false,
-                redirect: None,
-                children: Vec::new(),
-            },
-        ],
     }
 }
 

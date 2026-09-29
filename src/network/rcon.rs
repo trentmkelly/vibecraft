@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream};
+use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
@@ -296,7 +296,7 @@ pub fn spawn_rcon_server<F>(
     password: String,
     broadcast_to_ops: bool,
     run_command: F,
-) -> Result<JoinHandle<()>, String>
+) -> Result<(JoinHandle<()>, SocketAddr), String>
 where
     F: Fn(&str) -> String + Send + Sync + 'static,
 {
@@ -309,8 +309,11 @@ where
     listener
         .set_nonblocking(true)
         .map_err(|err| format!("Failed to configure RCON listener: {err}"))?;
+    let local_addr = listener
+        .local_addr()
+        .map_err(|err| format!("Failed to read RCON listener address: {err}"))?;
     let run_command = Arc::new(run_command);
-    thread::Builder::new()
+    let handle = thread::Builder::new()
         .name("RCON Listener".to_string())
         .spawn(move || loop {
             match listener.accept() {
@@ -329,7 +332,8 @@ where
                 Err(_) => break,
             }
         })
-        .map_err(|err| format!("Failed to start RCON listener thread: {err}"))
+        .map_err(|err| format!("Failed to start RCON listener thread: {err}"))?;
+    Ok((handle, local_addr))
 }
 
 fn handle_client<F>(
@@ -394,6 +398,18 @@ mod tests {
         SERVERDATA_EXECCOMMAND, SERVERDATA_RESPONSE_VALUE,
     };
     use std::io::Cursor;
+
+    /// Java `RconClient.sendCmdResponse`: 4096-char slices, all with the request id and type 0.
+    #[test]
+    fn long_responses_are_split_into_4096_char_packets() {
+        let packets = super::fragment_response(3, &"x".repeat(4096 * 2 + 5));
+        let lengths: Vec<usize> = packets.iter().map(|p| p.payload.len()).collect();
+        assert_eq!(lengths, vec![4096, 4096, 5]);
+        assert!(packets
+            .iter()
+            .all(|p| p.request_id == 3 && p.packet_type == SERVERDATA_RESPONSE_VALUE));
+        assert_eq!(super::fragment_response(3, "").len(), 1);
+    }
 
     const NETWORK_DATA_OUTPUT_STREAM_JAVA: &str =
         vibecraft_java_source!("/net/minecraft/server/rcon/NetworkDataOutputStream.java");

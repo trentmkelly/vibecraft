@@ -31,8 +31,7 @@ pub struct MapCraftingData {
 /// TODO(map-store-population): the live server must populate this from the map
 /// saved-data store when a player opens a crafting grid (currently nothing creates
 /// maps in production — `fresh_map_state` is test-only — so this is empty outside
-/// tests, exactly like the furnace not being ticked yet, see
-/// `TODO(cooking-server-wiring)`). The recipe logic + wiring below are complete.
+/// tests). The recipe logic + wiring below are complete.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MapDataStore {
     maps: std::collections::HashMap<i32, MapCraftingData>,

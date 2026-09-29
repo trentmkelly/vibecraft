@@ -189,7 +189,7 @@ fn raw_item_stack_for_inventory_sync(stack: &ItemStack) -> RawItemStack {
     })
 }
 
-fn write_pickup_inventory_sync<W: Write>(
+pub(super) fn write_pickup_inventory_sync<W: Write>(
     writer: &mut W,
     compression: CompressionState,
     state: &mut PlaySessionState,
@@ -198,6 +198,16 @@ fn write_pickup_inventory_sync<W: Write>(
     if state.inventory_menu.player_inventory().times_changed() == times_changed_before {
         return Ok(());
     }
+    write_inventory_content_sync(writer, compression, state)
+}
+
+/// `ClientboundContainerSetContentPacket` for the player inventory menu with a fresh state
+/// id (`AbstractContainerMenu.sendAllDataToRemote`).
+pub(super) fn write_inventory_content_sync<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    state: &mut PlaySessionState,
+) -> io::Result<()> {
     state.container_state_id = state.container_state_id.wrapping_add(1);
     let new_state_id = state.container_state_id;
     let slots = state.inventory_menu.all_slots();
@@ -469,40 +479,45 @@ fn write_respawn_game_events<W: Write>(
     )
 }
 
-pub fn handle_play_respawn_request(
+/// `PlayerList.respawn(player, keepAllPlayerData = false, KILLED)` followed by the client
+/// bookkeeping of `handleClientCommand(PERFORM_RESPAWN)`.
+///
+/// Order follows Java: resolve the respawn transition (spending an anchor charge), remove
+/// the old player (dropping leftover crafting/cursor items), build the new player from the
+/// old one, send `NO_RESPAWN_BLOCK_AVAILABLE` when the spawn block was missing, then the
+/// respawn packet, teleport, default spawn, difficulty, experience, effects and inventory.
+pub(super) fn handle_play_respawn_request(
     stream: &mut TcpStream,
     compression: CompressionState,
     state: &mut PlaySessionState,
-    properties: &ServerProperties,
-    world_root: &Path,
-    world_seed: i64,
+    context: &respawn_live::RespawnContext<'_>,
 ) -> io::Result<()> {
-    // TODO(respawn-config-spawn-block): consume the player's stored respawn
-    // position before falling back to world default. Java
-    // ServerPlayer.findRespawnPositionAndUseSpawnBlock (ServerPlayer.java:995)
-    // reads RespawnConfig (the 26.1.2 `respawn` NBT compound via
-    // RespawnConfig.CODEC, NOT the legacy SpawnX/SpawnY/SpawnZ this session
-    // still serializes in play_session_state_nbt.rs), then resolves the spawn
-    // block: respawn anchor (consume 1 charge unless forced), else bed (gated
-    // on EnvironmentAttributes BED_RULE), else missingRespawnBlock -> default.
-    // The primitives exist in respawn.rs (use_bed/use_respawn_anchor/
-    // consume_respawn_anchor_charge/validate_spawn_point) but are not wired in
-    // here, and the legacy NBT shape must be replaced with the RespawnConfig
-    // codec first. Until then we always respawn at the world spawn.
-    let spawn = find_default_player_spawn(world_root, world_seed, state.game_mode);
-    apply_spawn_placement_to_state(state, spawn);
-    reset_play_state_after_death_respawn(state);
+    let keep_inventory = lock_status_mutex(context.game_rules).bool("keep_inventory");
+    let target = respawn_live::find_respawn_position_and_use_spawn_block(state, context, true);
+    respawn_live::drop_menu_leftovers(stream, compression, state, context)?;
+    let placement = respawn_live::placement_for_target(target, state, context);
+    respawn_live::restore_player_after_death(state, keep_inventory);
+    apply_spawn_placement_to_state(state, placement);
+    if target == respawn_live::RespawnTarget::MissingRespawnBlock {
+        // `if (!respawnInfo.missingRespawnBlock()) player.copyRespawnPosition(old)`: the new
+        // player has no respawn config when the block was missing.
+        state.spawn = None;
+        respawn_live::write_missing_respawn_block(stream, compression)?;
+    }
 
-    write_respawn_packet(stream, compression, state, world_seed)?;
-    write_respawn_chunk_cache_packets(stream, compression, properties, state)?;
+    write_respawn_packet(stream, compression, state, context.world_seed)?;
+    write_respawn_chunk_cache_packets(stream, compression, context.properties, state)?;
     // Chunk payloads after respawn are flushed by the per-tick
     // drain_chunk_sender call in the play loop — the caller is responsible
     // for re-seeding the per-session PlayerChunkSender with the new
     // visible window. See handle_login_connection's respawn handling.
     write_respawn_position_packet(stream, compression, state)?;
-    write_respawn_default_spawn_packet(stream, compression, world_root, world_seed)?;
+    write_respawn_default_spawn_packet(stream, compression, context.world_root, context.world_seed)?;
     write_respawn_status_packets(stream, compression, state)?;
     write_respawn_game_events(stream, compression, state)?;
+    // `player.initInventoryMenu()` sends the (possibly emptied) inventory to the new client.
+    write_inventory_content_sync(stream, compression, state)?;
+    respawn_live::apply_hardcore_respawn(stream, compression, state, context)?;
     delay_initial_chunk_batch_for_probe(stream, compression)
 }
 
@@ -514,7 +529,9 @@ pub fn apply_spawn_placement_to_state(state: &mut PlaySessionState, spawn: Playe
     state.pitch = spawn.pitch;
 }
 
-pub fn reset_play_state_after_death_respawn(state: &mut PlaySessionState) {
+/// Resets the per-life state of the respawned player (`new ServerPlayer` + `restoreFrom`).
+/// Experience and score carry over only when `keep_experience` (keepInventory or spectator).
+pub fn reset_play_state_after_death_respawn(state: &mut PlaySessionState, keep_experience: bool) {
     state.health = 20.0;
     state.food_level = 20;
     state.food_saturation = 5.0;
@@ -536,10 +553,12 @@ pub fn reset_play_state_after_death_respawn(state: &mut PlaySessionState) {
     state.water_velocity_z = 0.0;
     state.fall_distance = 0.0;
     state.on_ground = true;
-    state.xp_progress = 0.0;
-    state.xp_level = 0;
-    state.xp_total = 0;
-    state.score = 0;
+    if !keep_experience {
+        state.xp_progress = 0.0;
+        state.xp_level = 0;
+        state.xp_total = 0;
+        state.score = 0;
+    }
 }
 
 pub fn find_default_player_spawn(

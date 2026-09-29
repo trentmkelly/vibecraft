@@ -170,20 +170,21 @@ pub fn write_player_abilities_packet<W: Write>(
     writer.write_all(&0.1f32.to_be_bytes())
 }
 
+/// Java `ServerGamePacketListenerImpl.handleCustomCommandSuggestions`: parses the
+/// requested command against the dispatcher as the player's source and answers
+/// with `CommandDispatcher.getCompletionSuggestions` (at most 1000 entries).
 pub fn write_command_suggestions_response<W: Write, R: Read>(
     stream: &mut W,
     compression: CompressionState,
     input: &mut R,
+    permission_level: u8,
 ) -> io::Result<()> {
     let packet = ServerboundCommandSuggestionPacket::read(input)?;
-    let command = packet.command;
-    let query = command.strip_prefix('/').unwrap_or(&command);
-    let matches: Vec<&str> = PLAY_COMMAND_SUGGESTIONS
-        .iter()
-        .copied()
-        .filter(|candidate| candidate.starts_with(query))
-        .collect();
-    let replacement_start = if command.starts_with('/') { 1 } else { 0 };
+    let suggestions = crate::brigadier::suggest::command_suggestions(
+        crate::brigadier::CommandGraph::served(),
+        permission_level,
+        &packet.command,
+    );
 
     write_framed_packet_with_compression(
         stream,
@@ -191,10 +192,10 @@ pub fn write_command_suggestions_response<W: Write, R: Read>(
         CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID,
         |payload| {
             write_var_i32(payload, packet.id)?;
-            write_var_i32(payload, replacement_start)?;
-            write_var_i32(payload, query.len() as i32)?;
-            write_var_i32(payload, matches.len() as i32)?;
-            for candidate in matches {
+            write_var_i32(payload, suggestions.start as i32)?;
+            write_var_i32(payload, (suggestions.end - suggestions.start) as i32)?;
+            write_var_i32(payload, suggestions.texts.len() as i32)?;
+            for candidate in &suggestions.texts {
                 write_string(payload, candidate)?;
                 write_bool(payload, false)?;
             }
@@ -319,6 +320,7 @@ pub fn handle_chat_command_packet<R: Read>(
     seed_command_game_rules(&mut command_state, context.game_rules);
     let result = execute_builtin_command(&mut command_state, permissions, &command);
     apply_command_game_rule_changes(&command_state, context.game_rules);
+    apply_command_effects(context.active_login, &command_state, &result, context.game_rules)?;
     apply_command_side_effects(
         stream,
         compression,
@@ -386,6 +388,7 @@ fn command_state_for_player(
         online_players,
         max_players: properties.max_players,
         world_seed,
+        published_server: Some(dedicated_publish_request(properties)),
         function_permission_level: function_permission_level_from_properties(properties),
         // Seed with live weather so `/weather` can be diffed against the real cycle
         // in `apply_command_side_effects` (non-weather commands leave it untouched).
@@ -475,12 +478,9 @@ fn apply_command_side_effects(
             apply_weather_state_to_cycle(&mut cycle, command_state.weather);
         }
     }
-    // TODO(kick-kill-live-wiring): CHECKLIST_COMMANDS.md "/kick, /kill, /list" —
-    // `/list` is live (seeded from the registry in `command_state_for_player`), but
-    // `/kick` needs cross-player SEND to disconnect the target's stream (STAGE 4 of
-    // [[project-live-player-registry-gap]]) and `/kill` needs the live death flow
-    // (no live death event handler yet; see the live entity-tick gap). Both gate
-    // marking that bundled item.
+    // `/kick` is live via `player_messaging_live`; `/kill` on the executing player drops
+    // its health to zero and the lifecycle tick then runs `ServerPlayer.die`.
+    super::player_death::apply_kill_command(stream, compression, play_state, profile, command_state)?;
     if let Some(entry) = command_state
         .player_game_modes
         .iter()

@@ -369,9 +369,29 @@ fn update_tag_subset_is_stable_for_every_type() {
                     "custom data missing from update tag for {}",
                     info.key
                 );
-                assert!(
+                // Java `getUpdateTag` overrides returning `saveCustomOnly` omit the
+                // `components` entry; the rest use `saveWithoutMetadata`.
+                let custom_only = matches!(
+                    info.id,
+                    BlockEntityTypeId::Sign
+                        | BlockEntityTypeId::HangingSign
+                        | BlockEntityTypeId::Beacon
+                        | BlockEntityTypeId::Conduit
+                        | BlockEntityTypeId::Jigsaw
+                        | BlockEntityTypeId::CreakingHeart
+                        | BlockEntityTypeId::DecoratedPot
+                        | BlockEntityTypeId::Skull
+                        | BlockEntityTypeId::EndGateway
+                        | BlockEntityTypeId::TrialSpawner
+                        | BlockEntityTypeId::StructureBlock
+                        | BlockEntityTypeId::TestBlock
+                        | BlockEntityTypeId::TestInstanceBlock
+                        | BlockEntityTypeId::MobSpawner
+                );
+                assert_eq!(
                     entries.iter().any(|(key, _)| key == "components"),
-                    "components missing from update tag for {}",
+                    !custom_only,
+                    "components presence wrong in update tag for {}",
                     info.key
                 );
             }

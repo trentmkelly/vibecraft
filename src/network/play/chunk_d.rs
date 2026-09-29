@@ -4,12 +4,10 @@ pub fn block_state_name_network_id(name: &str) -> Option<i32> {
     crate::block_states::network_id_for_block_state(name)
 }
 
+/// `Registry.getId` of a biome in the synchronised `worldgen/biome` registry.
 pub(super) fn biome_name_network_id(name: &str) -> Option<i32> {
-    let key = name.strip_prefix("minecraft:").unwrap_or(name);
-    crate::network::status::BIOMES
-        .iter()
-        .position(|biome| *biome == key)
-        .map(|index| index as i32)
+    crate::registry_pipeline::registry_element_id("minecraft:worldgen/biome", name)
+        .map(|id| id as i32)
 }
 
 impl ServerboundAcceptTeleportationPacket {

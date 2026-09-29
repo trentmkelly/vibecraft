@@ -142,6 +142,8 @@ fn full_playerdata_surface_state() -> PlaySessionState {
         x: 11,
         y: 72,
         z: -13,
+        yaw: 90.0,
+        pitch: -15.0,
         forced: true,
     });
     state.seen_credits = true;
@@ -205,11 +207,8 @@ fn assert_playerdata_surface_fields_present(tag: &Tag) {
         "EnderItems",
         "playerGameType",
         "previousPlayerGameType",
-        "SpawnX",
-        "SpawnY",
-        "SpawnZ",
-        "SpawnForced",
-        "SpawnDimension",
+        // 26.1.2 ServerPlayer.RespawnConfig.CODEC compound replaces SpawnX/Y/Z/Forced/Dimension.
+        "respawn",
         "seenCredits",
         "recipeBook",
         "LastDeathLocation",

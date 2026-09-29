@@ -201,6 +201,25 @@ pub enum CommandError {
     BossBarAlreadyVisible,
     /// A Brigadier `CommandSyntaxException` raised while parsing a `/gamerule` value argument.
     GameRuleArgument(crate::game_rules::GameRuleArgumentError),
+    /// A `CommandSyntaxException` carrying `Component.translatable(key, args...)`, e.g.
+    /// `command.forkLimit` or `commands.execute.blocks.toobig`.
+    Translatable {
+        key: &'static str,
+        args: Vec<String>,
+    },
+}
+
+impl CommandError {
+    /// The translation key and arguments of the `CommandSyntaxException` message this error
+    /// stands for, when the error is one the Java command tree raises with a translatable
+    /// message (currently the `/execute` family).
+    pub fn translation(&self) -> Option<(&'static str, Vec<String>)> {
+        match self {
+            Self::Translatable { key, args } => Some((key, args.clone())),
+            Self::ExecuteConditionFailed => Some(("commands.execute.conditional.fail", Vec::new())),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,3 +1,6 @@
+// Ported Java argument/model surface; only part of it is reached from the live command path.
+#![allow(dead_code)]
+
 use crate::registry::Identifier;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -321,6 +324,7 @@ fn java_space_split(value: &str) -> Vec<&str> {
     parts
 }
 
+#[cfg(test)]
 fn id(value: &str) -> Identifier {
     Identifier::parse(value).unwrap()
 }

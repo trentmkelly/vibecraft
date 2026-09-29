@@ -89,6 +89,11 @@ pub struct WorldItemEntities {
     /// the play tick next to item entities; this struct doubles as the shared
     /// world-entity registry because it owns the entity-id counter.
     pub falling_blocks: Vec<FallingBlockEntity>,
+    /// Live experience orbs (Java `ExperienceOrb`); see `xp_orb_entity.rs`.
+    pub xp_orbs: Vec<crate::xp_orb_entity::XpOrbEntity>,
+    /// When the orbs were last stepped; sessions share the store, so the store keeps the
+    /// clock that stops N connected players from advancing orbs N times per tick.
+    pub xp_orb_last_step: Option<std::time::Instant>,
     /// Monotonically-increasing entity ID counter.  Entity ID 1 is always reserved for
     /// the player; item entities start at 2.  Never resets between sessions, preventing
     /// ID collisions when a player reconnects while items are on the ground.
@@ -101,6 +106,8 @@ impl WorldItemEntities {
         Self {
             entities: Vec::new(),
             falling_blocks: Vec::new(),
+            xp_orbs: Vec::new(),
+            xp_orb_last_step: None,
             next_entity_id: 1,
         }
     }
@@ -110,6 +117,8 @@ impl WorldItemEntities {
     pub fn restore(entities: Vec<DroppedItem>, next_entity_id: i32) -> Self {
         Self {
             falling_blocks: Vec::new(),
+            xp_orbs: Vec::new(),
+            xp_orb_last_step: None,
             entities,
             next_entity_id,
         }

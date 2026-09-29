@@ -714,6 +714,13 @@ impl InventoryMenu {
         }
     }
 
+    /// Empties the 2x2 crafting grid and returns its contents, for callers that drop them
+    /// instead of returning them to the inventory (`InventoryMenu.removed` for a player
+    /// that was removed, see `AbstractContainerMenu.dropOrPlaceInInventory`).
+    pub fn take_crafting_inputs(&mut self) -> Vec<ItemStack> {
+        self.crafting.take_all_inputs()
+    }
+
     /// Close the player inventory menu, returning the cursor stack and 2×2 crafting inputs
     /// to the backing player inventory.
     ///

@@ -93,7 +93,7 @@ const effectComponentIds = [
   'trident_spin_attack_strength'
 ]
 
-test('decompiled enchantment direct codec field audit covers the current omission policy', {
+test('decompiled enchantment direct codec field audit covers the synced enchantment registry', {
   skip: !decompiledSourceRoot ? 'optional Java source root unavailable' : false
 }, async () => {
   const [enchantmentSource, effectSource] = await Promise.all([
@@ -124,7 +124,7 @@ test('default item initialization does not reference concrete enchantment holder
   assert.match(itemsSource, /DataComponents\.STORED_ENCHANTMENTS,\s*ItemEnchantments\.EMPTY/)
 })
 
-test('raw 26.1.2 probe enforces omitted enchantment policy while proving play entry', {
+test('raw 26.1.2 probe receives the full enchantment registry while proving play entry', {
   skip: process.env.VIBECRAFT_RUN_LIVE_ENCHANTMENT_POLICY_TEST !== '1'
 }, async () => {
   const { stdout } = await execFileAsync(
@@ -144,6 +144,6 @@ test('raw 26.1.2 probe enforces omitted enchantment policy while proving play en
   const probe = JSON.parse(stdout)
   const registryNames = new Set(probe.config.filter(packet => packet.id === 7).map(packet => packet.registry))
   assert.equal(probe.ok, true)
-  assert.equal(registryNames.has('minecraft:enchantment'), false)
-  assert.ok(probe.play.some(packet => packet.id === 49), 'omitted enchantments must still reach play entry')
+  assert.equal(registryNames.has('minecraft:enchantment'), true)
+  assert.ok(probe.play.some(packet => packet.id === 49), 'synced enchantments must still reach play entry')
 })

@@ -1,0 +1,316 @@
+//! Registry entry order fixtures.
+//!
+//! The lists below are the element orders of the official 26.1.2 registry-sync
+//! transcript: data-driven registries are sent sorted by resource file, not in
+//! Java bootstrap registration order. They pin the ids assigned by
+//! `RegistryDataLoader` (and therefore the ids that tag payloads, chat packets and
+//! biome ids use on the wire).
+
+use super::assert_registry_order;
+
+#[test]
+pub fn synced_registry_entry_orders_match_official_transcript_fixtures() {
+    assert_animal_sound_registry_order();
+    assert_painting_registry_order();
+    assert_damage_type_registry_order();
+    assert_banner_and_jukebox_registry_order();
+    assert_instrument_chat_trim_and_animal_registry_order();
+}
+
+fn assert_animal_sound_registry_order() {
+    assert_registry_order(
+        "minecraft:cat_variant",
+        &[
+            "all_black",
+            "black",
+            "british_shorthair",
+            "calico",
+            "jellie",
+            "persian",
+            "ragdoll",
+            "red",
+            "siamese",
+            "tabby",
+            "white",
+        ],
+    );
+    assert_registry_order("minecraft:cat_sound_variant", &["classic", "royal"]);
+    assert_registry_order("minecraft:chicken_sound_variant", &["classic", "picky"]);
+    assert_registry_order("minecraft:cow_sound_variant", &["classic", "moody"]);
+    assert_registry_order("minecraft:pig_sound_variant", &["big", "classic", "mini"]);
+    assert_registry_order(
+        "minecraft:wolf_sound_variant",
+        &["angry", "big", "classic", "cute", "grumpy", "puglin", "sad"],
+    );
+}
+
+fn assert_painting_registry_order() {
+    assert_registry_order(
+        "minecraft:painting_variant",
+        &[
+            "alban",
+            "aztec",
+            "aztec2",
+            "backyard",
+            "baroque",
+            "bomb",
+            "bouquet",
+            "burning_skull",
+            "bust",
+            "cavebird",
+            "changing",
+            "cotan",
+            "courbet",
+            "creebet",
+            "dennis",
+            "donkey_kong",
+            "earth",
+            "endboss",
+            "fern",
+            "fighters",
+            "finding",
+            "fire",
+            "graham",
+            "humble",
+            "kebab",
+            "lowmist",
+            "match",
+            "meditative",
+            "orb",
+            "owlemons",
+            "passage",
+            "pigscene",
+            "plant",
+            "pointer",
+            "pond",
+            "pool",
+            "prairie_ride",
+            "sea",
+            "skeleton",
+            "skull_and_roses",
+            "stage",
+            "sunflowers",
+            "sunset",
+            "tides",
+            "unpacked",
+            "void",
+            "wanderer",
+            "wasteland",
+            "water",
+            "wind",
+            "wither",
+        ],
+    );
+}
+
+fn assert_damage_type_registry_order() {
+    assert_registry_order(
+        "minecraft:damage_type",
+        &[
+            "arrow",
+            "bad_respawn_point",
+            "cactus",
+            "campfire",
+            "cramming",
+            "dragon_breath",
+            "drown",
+            "dry_out",
+            "ender_pearl",
+            "explosion",
+            "fall",
+            "falling_anvil",
+            "falling_block",
+            "falling_stalactite",
+            "fireball",
+            "fireworks",
+            "fly_into_wall",
+            "freeze",
+            "generic",
+            "generic_kill",
+            "hot_floor",
+            "in_fire",
+            "in_wall",
+            "indirect_magic",
+            "lava",
+            "lightning_bolt",
+            "mace_smash",
+            "magic",
+            "mob_attack",
+            "mob_attack_no_aggro",
+            "mob_projectile",
+            "on_fire",
+            "out_of_world",
+            "outside_border",
+            "player_attack",
+            "player_explosion",
+            "sonic_boom",
+            "spear",
+            "spit",
+            "stalagmite",
+            "starve",
+            "sting",
+            "sweet_berry_bush",
+            "thorns",
+            "thrown",
+            "trident",
+            "unattributed_fireball",
+            "wind_charge",
+            "wither",
+            "wither_skull",
+        ],
+    );
+}
+
+fn assert_banner_and_jukebox_registry_order() {
+    assert_registry_order(
+        "minecraft:banner_pattern",
+        &[
+            "base",
+            "border",
+            "bricks",
+            "circle",
+            "creeper",
+            "cross",
+            "curly_border",
+            "diagonal_left",
+            "diagonal_right",
+            "diagonal_up_left",
+            "diagonal_up_right",
+            "flow",
+            "flower",
+            "globe",
+            "gradient",
+            "gradient_up",
+            "guster",
+            "half_horizontal",
+            "half_horizontal_bottom",
+            "half_vertical",
+            "half_vertical_right",
+            "mojang",
+            "piglin",
+            "rhombus",
+            "skull",
+            "small_stripes",
+            "square_bottom_left",
+            "square_bottom_right",
+            "square_top_left",
+            "square_top_right",
+            "straight_cross",
+            "stripe_bottom",
+            "stripe_center",
+            "stripe_downleft",
+            "stripe_downright",
+            "stripe_left",
+            "stripe_middle",
+            "stripe_right",
+            "stripe_top",
+            "triangle_bottom",
+            "triangle_top",
+            "triangles_bottom",
+            "triangles_top",
+        ],
+    );
+    assert_registry_order(
+        "minecraft:jukebox_song",
+        &[
+            "11",
+            "13",
+            "5",
+            "blocks",
+            "cat",
+            "chirp",
+            "creator",
+            "creator_music_box",
+            "far",
+            "lava_chicken",
+            "mall",
+            "mellohi",
+            "otherside",
+            "pigstep",
+            "precipice",
+            "relic",
+            "stal",
+            "strad",
+            "tears",
+            "wait",
+            "ward",
+        ],
+    );
+}
+
+fn assert_instrument_chat_trim_and_animal_registry_order() {
+    assert_registry_order(
+        "minecraft:instrument",
+        &[
+            "admire_goat_horn",
+            "call_goat_horn",
+            "dream_goat_horn",
+            "feel_goat_horn",
+            "ponder_goat_horn",
+            "seek_goat_horn",
+            "sing_goat_horn",
+            "yearn_goat_horn",
+        ],
+    );
+    assert_registry_order(
+        "minecraft:chat_type",
+        &[
+            "chat",
+            "emote_command",
+            "msg_command_incoming",
+            "msg_command_outgoing",
+            "say_command",
+            "team_msg_command_incoming",
+            "team_msg_command_outgoing",
+        ],
+    );
+    assert_registry_order(
+        "minecraft:trim_material",
+        &[
+            "amethyst",
+            "copper",
+            "diamond",
+            "emerald",
+            "gold",
+            "iron",
+            "lapis",
+            "netherite",
+            "quartz",
+            "redstone",
+            "resin",
+        ],
+    );
+    assert_registry_order(
+        "minecraft:trim_pattern",
+        &[
+            "bolt",
+            "coast",
+            "dune",
+            "eye",
+            "flow",
+            "host",
+            "raiser",
+            "rib",
+            "sentry",
+            "shaper",
+            "silence",
+            "snout",
+            "spire",
+            "tide",
+            "vex",
+            "ward",
+            "wayfinder",
+            "wild",
+        ],
+    );
+    assert_registry_order(
+        "minecraft:wolf_variant",
+        &[
+            "ashen", "black", "chestnut", "pale", "rusty", "snowy", "spotted", "striped", "woods",
+        ],
+    );
+    assert_registry_order("minecraft:pig_variant", &["cold", "temperate", "warm"]);
+    assert_registry_order("minecraft:frog_variant", &["cold", "temperate", "warm"]);
+    assert_registry_order("minecraft:cow_variant", &["cold", "temperate", "warm"]);
+    assert_registry_order("minecraft:chicken_variant", &["cold", "temperate", "warm"]);
+}

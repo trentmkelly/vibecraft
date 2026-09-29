@@ -4,55 +4,55 @@ Registry, codec, datapack, and resource-pack parity work moved out of the top-le
 
 ## Migrated From Main Checklist: Registries And Codecs
 
-- [ ] Implement root registry infrastructure matching `Registries` and `BuiltInRegistries`.
+- [ ] Implement root registry infrastructure matching `Registries` and `BuiltInRegistries`. — PARTIAL: `registry_pipeline::builtin::BuiltinRegistries` (ids/protocol ids of all 95 static registries from the vendored `registries.json` report) and `registry_pipeline::store::Registries` are live; static registries still hold no typed objects (TODO(registry-pipeline-builtin-objects)) and only the STATIC/WORLDGEN layers exist (no RELOADABLE/DIMENSIONS).
 - [ ] Implement resource keys, identifiers, holder references, holder sets, tags, and lifecycle metadata.
-- [ ] Implement frozen and mutable registry access phases.
-- [ ] Implement registry serialization/deserialization with data pack override behavior.
-- [ ] Implement bootstrapping for built-in registries before datapacks load.
-- [ ] Implement datapack-driven dynamic registries.
-- [ ] Implement registry sync during configuration state.
-- [ ] Implement exact registry IDs and element ordering expected by clients.
+- [ ] Implement frozen and mutable registry access phases. — PARTIAL: `MappedRegistry` (register/bind_tag until `freeze`, duplicate/frozen errors, unbound value/tag freeze checks) and the frozen `Registries` access are live; the RELOADABLE/DIMENSIONS layers and `/reload` swaps are missing.
+- [ ] Implement registry serialization/deserialization with data pack override behavior. — PARTIAL: `registry_pipeline::loader` implements priority stacking, per-element known-pack tracking and Java error reporting (tested with synthetic override packs), but only the bundled vanilla pack is wired live; world `datapacks` are not loaded.
+- [ ] Implement bootstrapping for built-in registries before datapacks load. — PARTIAL: ids-only static registries are bootstrapped before the data-driven load (`registry_pipeline::vanilla_registries`, called at startup); typed static registry objects are TODO(registry-pipeline-builtin-objects).
+- [ ] Implement datapack-driven dynamic registries. — PARTIAL: the 28 `SYNCHRONIZED_REGISTRIES` load from `vanilla-data` through `RegistryDataLoader` semantics; the remaining `WORLDGEN_REGISTRIES` are listed as TODO(registry-pipeline-worldgen-*) in `registry_pipeline::registry_data`.
+- [ ] Implement registry sync during configuration state. — LIVE and oracle-verified (`SynchronizeRegistriesTask`: select_known_packs -> answer -> elided/full `registry_data` -> `update_tags`, then code of conduct and resource pack; `network/status/registry_sync.rs`). Not ticked only because 3 of 43 enchantments (`frost_walker`, `lunge`, `wind_burst`) differ from Java in numeric tag width / int-array form when a client offers no known pack: TODO(registry-pipeline-enchantment).
+- [x] Implement exact registry IDs and element ordering expected by clients. — all 28 synchronised registries (element ids, order) and every tag of every network-safe registry (all static registries plus the networked dynamic ones, tag ids and member ids) equal the official server capture: `registry_pipeline::tests::official_transcript` (fixtures recorded by `tools/capture_official_registry_sync.py`).
 - [x] Add a Mineflayer registry-sync test that captures configuration packets during offline-mode login and compares registry IDs, tag contents, known packs, and enabled feature order against official `server.jar`. — `harness/mineflayer/registry_scenarios.mjs` `registry-sync` (captures-configuration-packets / compares-registry-ids / compares-tag-contents / compares-known-packs / compares-enabled-feature-order / official-server-oracle); `registry_scenarios.test.mjs` fail-closed (7 tests pass).
 - [x] Add a Mineflayer registry-login-diff test that runs the same offline-mode bot against VibeCraft and official `server.jar`, then emits a compact registry/configuration diff whenever play-state entry fails. — `registry_scenarios.mjs` `registry-login-diff` (same-bot-against-vibecraft-and-official / compact-registry-diff-on-play-state-failure / configuration-diff-on-play-state-failure).
 - [x] Add a Mineflayer offline-mode registry-size guard test that verifies large registry/tag payloads complete configuration without Mineflayer parser errors, truncated packets, or server-side compression regressions. — `registry_scenarios.mjs` `registry-size-guard` (large-registry-payload / large-tag-payload / configuration-completes / no-mineflayer-parser-errors / no-truncated-packets / no-compression-regression).
-- [ ] Implement codecs for JSON/NBT/network forms of registry-backed values.
+- [ ] Implement codecs for JSON/NBT/network forms of registry-backed values. — PARTIAL: `registry_pipeline::codec` (record/optional/orElse/either/dispatch/holder codecs) + `shared`/`attributes`/`element_codecs` cover every synchronised registry except enchantment/dialog/test_environment/test_instance (TODO(registry-pipeline-enchantment|dialog|test-environment|test-instance)); components and particle options are typed only for the forms vanilla uses (TODO(registry-pipeline-component), TODO(registry-pipeline-particle-options)).
 - [ ] Implement feature flag registry and enabled-feature negotiation.
 - [x] Implement default enabled feature set for 26.1.2. — `feature_flags::default_flags_26_1_2` == FeatureFlags.DEFAULT_FLAGS (vanilla only); wired in main.rs default WorldDataConfiguration + live UpdateEnabledFeatures packet; test `default_enabled_feature_set_is_vanilla_only`.
-- [ ] Implement tag loading, replacement, optional entries, and error reporting.
+- [x] Implement tag loading, replacement, optional entries, and error reporting. — `registry_pipeline::tags` ports `TagLoader` (multi-pack merge, `replace`, `required:false` entries, nested-tag dependency ordering incl. cycles, `Couldn't load tag ... missing following references` logging, registration-getter vs frozen-registry element lookup); it loads the tags of all static and data-driven registries at startup. Tests: `registry_pipeline::tests::loading::*`.
 - [ ] Implement reloadable server registries and resource reload dependency ordering.
 - [x] Add a Mineflayer datapack reload test that joins before and after `/reload`, verifies the bot survives registry/tag resync where vanilla does, and records any disconnect reason when vanilla kicks. — `harness/mineflayer/datapack_scenarios.mjs` (join-before-reload / run-reload-command / bot-survives-where-vanilla-survives / registry-tag-resync-observed / disconnect-reason-recorded-when-vanilla-kicks); `datapack_scenarios.test.mjs` passes (5 tests).
 - [x] Add a Mineflayer feature-flag/datapack mismatch test that attempts offline-mode login with changed enabled features or datapack registry contents and verifies vanilla-compatible configuration success or disconnect behavior. — `datapack_scenarios.mjs` (changed-enabled-features / feature-flag-datapack-mismatch / vanilla-compatible-success-or-disconnect / disconnect-component-parity).
 
 ## Migrated From Main Checklist: Resource Packs And Data Packs
 
-- [ ] Load vanilla built-in datapack from bundled resources.
+- [ ] Load vanilla built-in datapack from bundled resources. — PARTIAL: `registry_pipeline::resources::DirectoryPack::vanilla` reads `vanilla-data/` (advertised as `minecraft:core`), but it is read from the source tree at runtime like the other vanilla-data loaders rather than embedded, and has no `pack.mcmeta`.
 - [ ] Load world datapacks from `datapacks`.
 - [ ] Implement pack metadata parsing and compatibility checks.
 - [ ] Implement pack priority, enabling, disabling, safe mode, and reload.
 - [ ] Implement `data/minecraft/advancement`.
-- [ ] Implement `data/minecraft/banner_pattern`.
-- [ ] Implement cat, chicken, cow, frog, pig, wolf, and zombie nautilus variants.
-- [ ] Implement `data/minecraft/chat_type`.
-- [ ] Implement `data/minecraft/damage_type`.
-- [ ] Implement `data/minecraft/dialog`.
-- [ ] Implement `data/minecraft/dimension_type`.
-- [ ] Implement `data/minecraft/enchantment`.
+- [x] Implement `data/minecraft/banner_pattern`. — bundled `vanilla-data/data/minecraft/banner_pattern` is decoded and validated with `BannerPattern.DIRECT_CODEC` at startup and served live to clients; element payloads verified in `registry_pipeline::tests::official_transcript` (byte-compared against the official 26.1.2 server capture).
+- [ ] Implement cat, chicken, cow, frog, pig, wolf, and zombie nautilus variants. — PARTIAL: variant and sound-variant data load and sync exactly (`official_transcript`); `spawn_conditions` are shape-checked only because the `worldgen/structure` registry they reference is not loaded (TODO(registry-pipeline-worldgen-refs)).
+- [x] Implement `data/minecraft/chat_type`. — bundled `vanilla-data/data/minecraft/chat_type` is decoded and validated with `ChatType.DIRECT_CODEC` at startup and served live to clients; element payloads verified in `registry_pipeline::tests::official_transcript` (byte-compared against the official 26.1.2 server capture).
+- [x] Implement `data/minecraft/damage_type`. — bundled `vanilla-data/data/minecraft/damage_type` is decoded and validated with `DamageType.DIRECT_CODEC` at startup and served live to clients; element payloads verified in `registry_pipeline::tests::official_transcript` (byte-compared against the official 26.1.2 server capture).
+- [ ] Implement `data/minecraft/dialog`. — PARTIAL: loaded and synced (bytes equal the official capture) through the schema-less converter; `Dialog.DIRECT_CODEC` validation is TODO(registry-pipeline-dialog).
+- [x] Implement `data/minecraft/dimension_type`. — bundled `vanilla-data/data/minecraft/dimension_type` is decoded and validated with `DimensionType.DIRECT_CODEC/NETWORK_CODEC` at startup and served live to clients; element payloads verified in `registry_pipeline::tests::official_transcript` (byte-compared against the official 26.1.2 server capture).
+- [ ] Implement `data/minecraft/enchantment`. — PARTIAL: all 43 load and sync; 40 equal the official capture, 3 differ in numeric tag width. `Enchantment.DIRECT_CODEC` validation/typing is TODO(registry-pipeline-enchantment).
 - [ ] Implement `data/minecraft/enchantment_provider`.
-- [ ] Implement `data/minecraft/instrument`.
-- [ ] Implement `data/minecraft/jukebox_song`.
+- [x] Implement `data/minecraft/instrument`. — bundled `vanilla-data/data/minecraft/instrument` is decoded and validated with `Instrument.DIRECT_CODEC` at startup and served live to clients; element payloads verified in `registry_pipeline::tests::official_transcript` (byte-compared against the official 26.1.2 server capture).
+- [x] Implement `data/minecraft/jukebox_song`. — bundled `vanilla-data/data/minecraft/jukebox_song` is decoded and validated with `JukeboxSong.DIRECT_CODEC` at startup and served live to clients; element payloads verified in `registry_pipeline::tests::official_transcript` (byte-compared against the official 26.1.2 server capture).
 - [ ] Implement `data/minecraft/loot_table`.
-- [ ] Implement `data/minecraft/painting_variant`.
+- [x] Implement `data/minecraft/painting_variant`. — bundled `vanilla-data/data/minecraft/painting_variant` is decoded and validated with `PaintingVariant.DIRECT_CODEC` at startup and served live to clients; element payloads verified in `registry_pipeline::tests::official_transcript` (byte-compared against the official 26.1.2 server capture).
 - [ ] Implement `data/minecraft/recipe`.
 - [ ] Implement `data/minecraft/structure`.
-- [ ] Implement `data/minecraft/tags`.
-- [ ] Implement `data/minecraft/test_environment`.
-- [ ] Implement `data/minecraft/test_instance`.
-- [ ] Implement `data/minecraft/timeline`.
+- [ ] Implement `data/minecraft/tags`. — PARTIAL: `TagLoader` is live for the static and synchronised registries (see the tag loading item); tags of the unloaded worldgen registries (structure, configured_feature, world_preset, flat_level_generator_preset) are not vendored/loaded yet.
+- [ ] Implement `data/minecraft/test_environment`. — PARTIAL: loaded and synced (equals the capture) via the schema-less converter; TODO(registry-pipeline-test-environment).
+- [ ] Implement `data/minecraft/test_instance`. — PARTIAL: loaded and synced (equals the capture) via the schema-less converter; TODO(registry-pipeline-test-instance).
+- [x] Implement `data/minecraft/timeline`. — bundled `vanilla-data/data/minecraft/timeline` is decoded and validated with `Timeline.DIRECT_CODEC/NETWORK_CODEC` at startup and served live to clients; element payloads verified in `registry_pipeline::tests::official_transcript` (byte-compared against the official 26.1.2 server capture).
 - [x] Implement `data/minecraft/trade_set`. — `villager_trade_resources::load_villager_trade_data_root` indexes the bundled `vanilla-data/data/minecraft/trade_set` tree, `offers_from_trade_set` resolves direct and tag-backed trade holders through the resource index, and `bundled_villager_trade_data_resolves_default_offers` verifies all 68 in-repo trade sets parse and resolve through default fresh-clone loading.
 - [ ] Implement `data/minecraft/trial_spawner`.
-- [ ] Implement `data/minecraft/trim_material`.
-- [ ] Implement `data/minecraft/trim_pattern`.
+- [x] Implement `data/minecraft/trim_material`. — bundled `vanilla-data/data/minecraft/trim_material` is decoded and validated with `TrimMaterial.DIRECT_CODEC` at startup and served live to clients; element payloads verified in `registry_pipeline::tests::official_transcript` (byte-compared against the official 26.1.2 server capture).
+- [x] Implement `data/minecraft/trim_pattern`. — bundled `vanilla-data/data/minecraft/trim_pattern` is decoded and validated with `TrimPattern.DIRECT_CODEC` at startup and served live to clients; element payloads verified in `registry_pipeline::tests::official_transcript` (byte-compared against the official 26.1.2 server capture).
 - [x] Implement `data/minecraft/villager_trade`. — `villager_trade_resources` decodes vanilla villager-trade JSON into `MerchantOffer`s, profession and wandering-trader offer generation reads the bundled `vanilla-data/data/minecraft/villager_trade` tree by default, and `bundled_villager_trade_data_resolves_default_offers` verifies all 387 in-repo villager trades plus 73 villager-trade tags parse and resolve.
-- [ ] Implement `data/minecraft/world_clock`.
+- [x] Implement `data/minecraft/world_clock`. — bundled `vanilla-data/data/minecraft/world_clock` is decoded and validated with `WorldClock.DIRECT_CODEC` at startup and served live to clients; element payloads verified in `registry_pipeline::tests::official_transcript` (byte-compared against the official 26.1.2 server capture).
 - [ ] Implement `data/minecraft/worldgen`.
 - [ ] Implement reload failure rollback and user-facing error reporting.

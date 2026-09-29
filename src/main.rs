@@ -27,7 +27,7 @@ use management_security::TLS_PASSWORD_ENV;
 use management_server::{startup_plan, ManagementServerConfig, ManagementStartupPlan};
 use network::query::{spawn_query_server, QueryServerInfo};
 use network::rcon::spawn_rcon_server;
-use network::status::{read_code_of_conducts, run_status_server, ActiveLoginRegistry};
+use network::status::{read_code_of_conducts, run_status_server, ActiveLoginRegistry, ConsoleLink};
 use resources::{
     configure_pack_repository, DataPackRepository, PackConfigureOptions, WorldDataConfiguration,
 };
@@ -115,6 +115,14 @@ fn run(options: CliOptions) -> Result<(), String> {
 
     let world_options =
         configure_initial_data_packs(&logger, &options, &startup.properties, &runtime)?;
+    // Java `WorldLoader.load` decodes the data-driven registries from the data packs
+    // before the server starts; any registry error is fatal.
+    let registries = registry_pipeline::vanilla_registries()
+        .map_err(|err| format!("Failed to load registries: {err}"))?;
+    logger.info(&format!(
+        "Loaded {} data-driven registries",
+        registries.worldgen_layer().len()
+    ))?;
     // Java MinecraftServer loads RandomSequences saved data at startup and
     // writes it back (when dirty) on save/shutdown.
     random_sequences_live::initialize(
@@ -427,14 +435,17 @@ fn start_network_listeners(
             properties.query_port
         ))?;
     }
+    let command_runner = network::status::CommandRunnerSlot::default();
     if properties.enable_rcon {
+        let rcon_runner = std::sync::Arc::clone(&command_runner);
         spawn_rcon_server(
             bind_ip,
             properties.rcon_port,
             properties.rcon_password.clone(),
             properties.broadcast_rcon_to_ops,
-            |command| {
-                format!("Unknown or incomplete command, see below for error\n{command}<--[HERE]")
+            move |command| match rcon_runner.get() {
+                Some(runner) => runner.run_rcon(command),
+                None => String::new(),
             },
         )?;
         logger.info(&format!(
@@ -452,7 +463,10 @@ fn start_network_listeners(
         properties,
         &runtime.universe.join(&runtime.world_name),
         world_seed,
-        console_input,
+        ConsoleLink {
+            input: console_input,
+            command_runner: &command_runner,
+        },
         active_logins,
     )
 }

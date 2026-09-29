@@ -11,7 +11,7 @@ test('login order gate rejects play before configuration finish', () => {
   const gate = evaluateLoginOrder({
     login: 2,
     compressionThreshold: -1,
-    config: [{ id: 12 }, { id: 7 }, { id: 14 }, { id: 3 }],
+    config: [{ id: 12 }, { id: 14 }, { id: 7 }, { id: 3 }],
     play: [{ id: 49 }]
   })
   assert.equal(gate.ok, true)
@@ -19,24 +19,24 @@ test('login order gate rejects play before configuration finish', () => {
   const bad = evaluateLoginOrder({
     login: 2,
     compressionThreshold: -1,
-    config: [{ id: 12 }, { id: 14 }, { id: 7 }, { id: 3 }],
+    config: [{ id: 12 }, { id: 7 }, { id: 14 }, { id: 3 }],
     play: [{ id: 49 }]
   })
   assert.equal(bad.ok, false)
-  assert.ok(bad.failures.includes('registry-after-known-packs'))
+  assert.ok(bad.failures.includes('registry-before-known-packs'))
 })
 
 test('login order gate compares VibeCraft timeline against official server.jar ordering', () => {
   const official = {
     login: 2,
     compressionThreshold: -1,
-    config: [{ id: 12 }, { id: 7 }, { id: 13 }, { id: 14 }, { id: 3 }],
+    config: [{ id: 12 }, { id: 14 }, { id: 7 }, { id: 13 }, { id: 3 }],
     play: [{ id: 49 }]
   }
   const matching = compareLoginOrderAgainstOfficial({
     login: 2,
     compressionThreshold: -1,
-    config: [{ id: 12 }, { id: 7 }, { id: 13 }, { id: 14 }, { id: 3 }],
+    config: [{ id: 12 }, { id: 14 }, { id: 7 }, { id: 13 }, { id: 3 }],
     play: [{ id: 49 }]
   }, official)
   assert.equal(matching.ok, true)

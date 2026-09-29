@@ -7,7 +7,7 @@ use crate::network::world_broadcast::{Subscription, WorldPacketBus};
 use std::panic::AssertUnwindSafe;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::mpsc::{self, Receiver, TryRecvError};
+use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -16,6 +16,7 @@ use crate::command::{
     debug_biome_at_command_source, execute_builtin_command, LevelBasedPermissionSet,
     PermissionLevel, ServerCommandState,
 };
+use crate::brigadier::sync::CommandTreeSync;
 use crate::console::ConsoleInput;
 use crate::fluid::{
     block_item_can_replace, block_state_model_name, place_liquid, tick_fluid, FluidKind,
@@ -52,14 +53,14 @@ use crate::network::ping::{ClientboundPongResponsePacket, ServerboundPingRequest
 use crate::network::play::{
     block_state_name_network_id, build_recipe_book_add, build_recipe_book_add_with_flags,
     handle_container_click, raw_item_stack_from_item_stack, unpack_block_position,
-    AddEntityPacketInput, ClientboundAddEntityPacket, ClientboundCommandsPacket,
+    AddEntityPacketInput, ClientboundAddEntityPacket,
     ClientboundContainerSetSlotPacket, ClientboundLevelChunkPacketData,
     ClientboundLevelChunkWithLightPacket, ClientboundLightUpdatePacketData, ClientboundLoginPacket,
     ClientboundEntityEventPacket, ClientboundMoveEntityPacket, ClientboundRecipeBookSettingsPacket,
     ClientboundRemoveEntitiesPacket, ClientboundRespawnPacket, ClientboundSetEntityDataPacket,
     ClientboundSetEntityMotionPacket, ClientboundSetHeldSlotPacket,
     ClientboundSetPlayerInventoryPacket, ClientboundSetTimePacket, ClientboundSystemChatPacket,
-    ClientboundTakeItemEntityPacket, CommandNodeEntryData, CommandNodeStubData,
+    ClientboundTakeItemEntityPacket,
     CommonPlayerSpawnInfo, Direction3d, EntityDataValue, EntityMetadataValue, GameMode,
     PlayInstruction, PlayerChunkSender, RawDataComponentPatch, RawItemStack, ReadyChunkBatch,
     RecipeBookType, RecipeBookTypeSettings, RespawnDataToKeep, ServerboundAttackPacket,
@@ -133,6 +134,7 @@ use crate::player_entity::{
 use crate::player_inventory::{
     InventoryAddResult, InventoryMenu, PlayerInventory, HOTBAR_SIZE, INVENTORY_SIZE, SLOT_OFFHAND,
 };
+use crate::live_block_entities::LiveBlockEntityTicker;
 use crate::recipe_system::{load_recipe_directory, RecipeManagerModel, RecipeMap};
 use crate::registry::Identifier;
 use crate::scheduled_tick::{LevelTickQueues, TickPriority};
@@ -197,23 +199,6 @@ pub(super) fn sample_weather_durations() -> WeatherRandomDurations {
 pub(super) const PERSISTENCE_INTERVAL_TICKS: u64 = 6_000;
 pub(super) const MIN_CHUNK_BATCH_RADIUS: i32 = 2;
 pub(super) const MAX_CHUNK_BATCH_RADIUS: i32 = 16;
-pub(super) const PLAY_COMMAND_SUGGESTIONS: &[&str] = &[
-    "ban",
-    "biome",
-    "deop",
-    "gamemode",
-    "give",
-    "help",
-    "kick",
-    "list",
-    "me",
-    "op",
-    "pardon",
-    "say",
-    "tell",
-    "tp",
-    "whitelist",
-];
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct PlaySessionState {
@@ -255,6 +240,8 @@ pub(crate) struct PlaySessionState {
     seen_credits: bool,
     entered_nether_position: Option<(f64, f64, f64)>,
     last_death_location: Option<PlayerGlobalPosData>,
+    /// Combat tracker, death flag and orb-pickup delay (Java `LivingEntity`/`Player` fields).
+    combat: player_death::PlayerCombatState,
     root_vehicle: Option<Tag>,
     active_effects: Vec<Tag>,
     ender_items: Vec<Tag>,
@@ -284,12 +271,12 @@ mod chunk_0;
 pub use chunk_0::*;
 
 mod chunk_0_2;
-pub use chunk_0_2::*;
 
 mod chunk_a;
 pub use chunk_a::*;
 
 mod online_login;
+mod registry_sync;
 
 mod block_placement_live;
 mod chunk_b;
@@ -301,6 +288,11 @@ mod block_menu_open;
 mod active_block_menu;
 use active_block_menu::ActiveBlockMenu;
 
+mod server_command_runner;
+#[cfg(test)]
+mod server_command_runner_tests;
+use server_command_runner::handle_console_inputs;
+pub use server_command_runner::{CommandRunnerSlot, ServerCommandRunner};
 mod command_result_feedback;
 use command_result_feedback::write_command_result_feedback;
 mod game_rule_live;
@@ -311,6 +303,9 @@ use game_rule_live::{
     load_live_game_rules, replay_game_rule_changes, save_live_game_rules, GameRuleSessionPlayer,
     GameRuleSessionSync,
 };
+
+mod player_messaging_live;
+use player_messaging_live::{apply_command_effects, dedicated_publish_request, KICK_SUCCESS_KEY};
 
 mod live_chat_state;
 use live_chat_state::LiveChatState;
@@ -326,6 +321,10 @@ pub use play_session_chunk_delta::*;
 
 mod chunk_b_2;
 pub use chunk_b_2::*;
+
+mod player_death;
+mod respawn_live;
+mod xp_orb_live;
 
 mod play_session_state_nbt;
 pub use play_session_state_nbt::*;
@@ -347,9 +346,6 @@ pub use block_loot_tables::*;
 
 mod chunk_d_2;
 pub use chunk_d_2::*;
-
-mod chunk_e;
-pub use chunk_e::*;
 
 mod chunk_e_2;
 pub use chunk_e_2::*;

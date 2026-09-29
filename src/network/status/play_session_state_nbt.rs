@@ -176,14 +176,7 @@ fn append_play_session_optional_nbt_values(
         ));
     }
     if let Some(spawn) = &state.spawn {
-        values.push(("SpawnX".to_string(), Tag::Int(spawn.x)));
-        values.push(("SpawnY".to_string(), Tag::Int(spawn.y)));
-        values.push(("SpawnZ".to_string(), Tag::Int(spawn.z)));
-        values.push(("SpawnForced".to_string(), Tag::Byte(i8::from(spawn.forced))));
-        values.push((
-            "SpawnDimension".to_string(),
-            Tag::String(spawn.dimension.clone()),
-        ));
+        values.push(("respawn".to_string(), respawn_config_to_nbt(spawn)));
     }
     if let Some((x, y, z)) = state.entered_nether_position {
         values.push((
@@ -203,13 +196,10 @@ fn append_play_session_optional_nbt_values(
                     "dimension".to_string(),
                     Tag::String(last_death.dimension.clone()),
                 ),
+                // BlockPos.CODEC encodes as an int array.
                 (
                     "pos".to_string(),
-                    Tag::List(vec![
-                        Tag::Int(last_death.x),
-                        Tag::Int(last_death.y),
-                        Tag::Int(last_death.z),
-                    ]),
+                    Tag::IntArray(vec![last_death.x, last_death.y, last_death.z]),
                 ),
             ]),
         ));
@@ -418,7 +408,31 @@ fn load_player_modes_from_nbt(
     }
 }
 
+/// `ServerPlayer.RespawnConfig.CODEC`: `LevelData.RespawnData.MAP_CODEC` (`dimension`,
+/// `pos` int array, `yaw`, `pitch`) plus the optional `forced` flag (omitted when false).
+fn respawn_config_to_nbt(spawn: &PlayerSpawnData) -> Tag {
+    let mut fields = vec![
+        ("dimension".to_string(), Tag::String(spawn.dimension.clone())),
+        (
+            "pos".to_string(),
+            Tag::IntArray(vec![spawn.x, spawn.y, spawn.z]),
+        ),
+        ("yaw".to_string(), Tag::Float(spawn.yaw)),
+        ("pitch".to_string(), Tag::Float(spawn.pitch)),
+    ];
+    if spawn.forced {
+        fields.push(("forced".to_string(), Tag::Byte(1)));
+    }
+    Tag::Compound(fields)
+}
+
+/// Reads the player's respawn config: the 26.1.2 `respawn` compound, falling back to the
+/// pre-26.1.2 `SpawnX`/`SpawnY`/`SpawnZ`/`SpawnAngle`/`SpawnForced`/`SpawnDimension` keys
+/// that the data fixer migrates in Java.
 fn load_player_spawn_from_nbt(compound: &[(String, Tag)]) -> Option<PlayerSpawnData> {
+    if let Some(Tag::Compound(fields)) = compound_tag(compound, "respawn") {
+        return load_respawn_compound(fields);
+    }
     match (
         compound_tag(compound, "SpawnX"),
         compound_tag(compound, "SpawnY"),
@@ -432,6 +446,11 @@ fn load_player_spawn_from_nbt(compound: &[(String, Tag)]) -> Option<PlayerSpawnD
             x: *x,
             y: *y,
             z: *z,
+            yaw: match compound_tag(compound, "SpawnAngle") {
+                Some(Tag::Float(value)) => *value,
+                _ => 0.0,
+            },
+            pitch: 0.0,
             forced: matches!(
                 compound_tag(compound, "SpawnForced"),
                 Some(Tag::Byte(value)) if *value != 0
@@ -439,6 +458,33 @@ fn load_player_spawn_from_nbt(compound: &[(String, Tag)]) -> Option<PlayerSpawnD
         }),
         _ => None,
     }
+}
+
+fn load_respawn_compound(fields: &[(String, Tag)]) -> Option<PlayerSpawnData> {
+    let dimension = match compound_tag(fields, "dimension") {
+        Some(Tag::String(value)) => value.clone(),
+        _ => return None,
+    };
+    let Some(Tag::IntArray(pos)) = compound_tag(fields, "pos") else {
+        return None;
+    };
+    let [x, y, z] = pos.as_slice() else {
+        return None;
+    };
+    let float = |key: &str| match compound_tag(fields, key) {
+        Some(Tag::Float(value)) => Some(*value),
+        _ => None,
+    };
+    Some(PlayerSpawnData {
+        dimension,
+        x: *x,
+        y: *y,
+        z: *z,
+        // RespawnData.MAP_CODEC requires yaw and pitch.
+        yaw: float("yaw")?,
+        pitch: float("pitch")?,
+        forced: matches!(compound_tag(fields, "forced"), Some(Tag::Byte(value)) if *value != 0),
+    })
 }
 
 fn load_entered_nether_position_from_nbt(compound: &[(String, Tag)]) -> Option<(f64, f64, f64)> {
@@ -458,23 +504,27 @@ fn load_entered_nether_position_from_nbt(compound: &[(String, Tag)]) -> Option<(
 }
 
 fn load_last_death_location_from_nbt(compound: &[(String, Tag)]) -> Option<PlayerGlobalPosData> {
-    match compound_tag(compound, "LastDeathLocation") {
-        Some(Tag::Compound(fields)) => match (
-            compound_tag(fields, "dimension"),
-            compound_list(fields, "pos"),
-        ) {
-            (Some(Tag::String(dimension)), Some([Tag::Int(x), Tag::Int(y), Tag::Int(z)])) => {
-                Some(PlayerGlobalPosData {
-                    dimension: dimension.clone(),
-                    x: *x,
-                    y: *y,
-                    z: *z,
-                })
-            }
-            _ => None,
+    let Some(Tag::Compound(fields)) = compound_tag(compound, "LastDeathLocation") else {
+        return None;
+    };
+    let Some(Tag::String(dimension)) = compound_tag(fields, "dimension") else {
+        return None;
+    };
+    // GlobalPos.CODEC stores `pos` via BlockPos.CODEC (int array); older VibeCraft saves
+    // wrote a list of ints.
+    let [x, y, z] = match compound_tag(fields, "pos") {
+        Some(Tag::IntArray(pos)) => <[i32; 3]>::try_from(pos.as_slice()).ok()?,
+        _ => match compound_list(fields, "pos") {
+            Some([Tag::Int(x), Tag::Int(y), Tag::Int(z)]) => [*x, *y, *z],
+            _ => return None,
         },
-        _ => None,
-    }
+    };
+    Some(PlayerGlobalPosData {
+        dimension: dimension.clone(),
+        x,
+        y,
+        z,
+    })
 }
 
 fn compound_list_clone(compound: &[(String, Tag)], key: &str) -> Vec<Tag> {
@@ -611,6 +661,7 @@ pub fn play_session_state_from_nbt(
         seen_credits: modes.seen_credits,
         entered_nether_position: extra.entered_nether_position,
         last_death_location: extra.last_death_location,
+        combat: super::player_death::PlayerCombatState::default(),
         root_vehicle: extra.root_vehicle,
         active_effects: extra.active_effects,
         ender_items: extra.ender_items,

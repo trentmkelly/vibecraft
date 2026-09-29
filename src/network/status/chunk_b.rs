@@ -86,11 +86,11 @@ pub fn apply_player_movement(
             fall_damage_enabled: true,
             may_fly: state.abilities.mayfly,
         });
-        state.fall_distance = 0.0;
         if damage > 0 && state.health > 0.0 {
-            state.health = (state.health - damage as f32).max(0.0);
+            player_death::hurt_player(state, "minecraft:fall", damage as f32);
             health_changed = true;
         }
+        state.fall_distance = 0.0;
     }
 
     PlaySessionUpdate {
@@ -313,7 +313,7 @@ pub fn tick_play_session_water(
                 state.air_supply -= 1;
                 if state.air_supply <= DROWN_AIR_SUPPLY_THRESHOLD {
                     state.air_supply = 0;
-                    state.health = (state.health - DROWN_DAMAGE).max(0.0);
+                    player_death::hurt_player(state, "minecraft:drown", DROWN_DAMAGE);
                 }
             } else if state.air_supply < MAX_AIR_SUPPLY {
                 state.air_supply = (state.air_supply + 4).min(MAX_AIR_SUPPLY);
@@ -365,18 +365,7 @@ pub fn tick_play_session_food(
     tick_count: u64,
 ) -> bool {
     if state.health <= 0.0 {
-        // TODO(player-death-event-flow): there is currently no live death handler.
-        // On the health<=0 transition Java fires ServerPlayer.die(): send
-        // ClientboundPlayerCombatKillPacket (id 68), spawn the inventory as item
-        // entities via Inventory::death_drops (player_inventory.rs) gated on the
-        // keepInventory gamerule, spawn XP orbs totalling
-        // player_xp_reward_on_death (player_entity.rs), record last_death_location,
-        // then await the client's respawn request. The drop/orb logic exists and
-        // is unit-tested but is not wired here because the server has no live
-        // entity-simulation tick yet (item entities + XP orbs never spawn/tick/
-        // get picked up — see experience_system.rs orb_pickup_in_range /
-        // non_living_entity.rs merge, both currently test-only). Blocks PLAYER
-        // checklist #38 (XP orb pickup/merge), #40 (death drops), #41 (respawn).
+        // Death itself is handled by `player_death::tick_player_lifecycle` (Java `ServerPlayer.die`).
         return false;
     }
 
@@ -411,7 +400,7 @@ pub fn tick_play_session_food(
         }
         FoodTickOutcome::StarveAttempt => {
             if starvation_damages(difficulty, state.health) {
-                state.health = (state.health - 1.0).max(0.0);
+                player_death::hurt_player(state, "minecraft:starve", 1.0);
             }
         }
     }

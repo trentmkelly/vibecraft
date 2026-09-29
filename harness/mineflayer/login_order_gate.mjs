@@ -39,8 +39,10 @@ export function evaluateLoginOrder (rawProbe) {
   if (timeline.indexOf('play/login') < timeline.indexOf('configuration/finish_configuration')) {
     failures.push('play-before-finish-configuration')
   }
-  if (timeline.includes('configuration/registry_data') && timeline.indexOf('configuration/registry_data') > timeline.indexOf('configuration/select_known_packs')) {
-    failures.push('registry-after-known-packs')
+  // Java SynchronizeRegistriesTask sends select_known_packs first and only sends the
+  // registry data and tags once the client has answered it.
+  if (timeline.includes('configuration/registry_data') && timeline.indexOf('configuration/registry_data') < timeline.indexOf('configuration/select_known_packs')) {
+    failures.push('registry-before-known-packs')
   }
 
   return {

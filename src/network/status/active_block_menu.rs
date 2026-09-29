@@ -7,7 +7,11 @@ use crate::network::play::{
     ClientboundContainerPacket, ClientboundSetCursorItemPacket, ContainerInput,
     CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID,
 };
+use crate::block_entity::{AbstractFurnaceBlockEntity, FurnaceBlockEntityKind, PotItemStack};
+use crate::live_block_entities::furnace::apply_menu_slots;
 use crate::recipe_system::RecipeMap;
+
+mod sync;
 
 const PLAYER_MAIN_STORAGE: usize = 27;
 const PLAYER_SLOTS: usize = 36;
@@ -28,10 +32,23 @@ enum ActiveBlockMenuKind {
     Persistent {
         block_entity_id: &'static str,
         result_slot: Option<usize>,
+        /// Furnace-family link: recipes for `AbstractFurnaceBlockEntity.setItem`
+        /// and the last `ContainerData` values sent to the client.
+        furnace: Option<FurnaceMenuLink>,
     },
     Ephemeral {
         result_slot: Option<usize>,
     },
+}
+
+/// The furnace-family specifics of a persistent block menu.
+#[derive(Debug, Clone, PartialEq)]
+struct FurnaceMenuLink {
+    kind: FurnaceBlockEntityKind,
+    recipes: RecipeMap,
+    /// `ContainerData` (lit time, lit duration, cook progress, cook total) last
+    /// sent to the client; `None` until the first `broadcastChanges`.
+    synced_data: Option<[i16; 4]>,
 }
 
 impl ActiveBlockMenu {
@@ -51,6 +68,7 @@ impl ActiveBlockMenu {
                 block_entity_id,
                 27,
                 None,
+                None,
                 world_layout,
                 world_seed,
                 chunk_cache,
@@ -61,6 +79,11 @@ impl ActiveBlockMenu {
                 block_entity_id,
                 3,
                 Some(2),
+                furnace_family_kind(block_entity_id).map(|kind| FurnaceMenuLink {
+                    kind,
+                    recipes: recipes.clone(),
+                    synced_data: None,
+                }),
                 world_layout,
                 world_seed,
                 chunk_cache,
@@ -97,6 +120,7 @@ impl ActiveBlockMenu {
         block_entity_id: &'static str,
         slot_count: usize,
         result_slot: Option<usize>,
+        furnace: Option<FurnaceMenuLink>,
         world_layout: &WorldLayout,
         world_seed: i64,
         chunk_cache: &GeneratedChunkCache,
@@ -112,6 +136,7 @@ impl ActiveBlockMenu {
             kind: ActiveBlockMenuKind::Persistent {
                 block_entity_id,
                 result_slot,
+                furnace,
             },
             slots,
         }
@@ -547,15 +572,44 @@ impl ActiveBlockMenu {
         chunk_cache: &GeneratedChunkCache,
     ) {
         let ActiveBlockMenuKind::Persistent {
-            block_entity_id, ..
-        } = self.kind
+            block_entity_id,
+            furnace,
+            ..
+        } = &self.kind
         else {
             return;
         };
         let existing = chunk_cache.block_entity_nbt_at(world_layout.root(), world_seed, self.pos);
-        let tag = block_entity_tag(block_entity_id, self.pos, &self.slots, existing.as_ref());
+        let mut tag = block_entity_tag(block_entity_id, self.pos, &self.slots, existing.as_ref());
+        if let Some(furnace) = furnace {
+            let existing = existing
+                .clone()
+                .unwrap_or_else(|| block_entity_tag(block_entity_id, self.pos, &[], None));
+            // Java writes the menu's slots through `AbstractFurnaceBlockEntity.setItem`,
+            // which resets the cook progress when the ingredient changes and leaves
+            // the ticker-owned counters alone otherwise.
+            let stacks: Vec<Option<PotItemStack>> = self.slots.iter().map(pot_stack).collect();
+            tag = apply_menu_slots(furnace.kind, &existing, &stacks, &furnace.recipes);
+        }
         chunk_cache.set_block_entity_nbt(world_layout.root(), world_seed, self.pos, tag);
     }
+}
+
+/// The furnace-family kind of a block entity id, if it is one.
+fn furnace_family_kind(block_entity_id: &str) -> Option<FurnaceBlockEntityKind> {
+    match block_entity_id {
+        "minecraft:furnace" => Some(FurnaceBlockEntityKind::Furnace),
+        "minecraft:blast_furnace" => Some(FurnaceBlockEntityKind::BlastFurnace),
+        "minecraft:smoker" => Some(FurnaceBlockEntityKind::Smoker),
+        _ => None,
+    }
+}
+
+fn pot_stack(stack: &ItemStack) -> Option<PotItemStack> {
+    (!stack.is_empty()).then(|| PotItemStack {
+        item_id: stack.item_id().to_string(),
+        count: stack.count(),
+    })
 }
 
 fn read_player_menu_slot(

@@ -744,3 +744,69 @@ pub enum WeatherMode {
     Rain,
     Thunder,
 }
+
+/// `Entity.getRotationVector()` of an entity: `x_rot` is the pitch and `y_rot` the yaw.
+#[derive(Debug, Clone, PartialEq)]
+pub struct EntityRotation {
+    pub entity: EntityRef,
+    pub x_rot: f32,
+    pub y_rot: f32,
+}
+
+/// The single-target entity links `/execute on` follows.
+///
+/// Mounts (`vehicle`, `passengers`) come from [`EntityMount`]; every other relation of
+/// `ExecuteCommand.createRelationOperations` is stored explicitly because the command model
+/// has no `OwnableEntity`/`Leashable`/`Targeting`/`Attackable`/`TraceableEntity` state.
+// TODO(execute-on-live-entities): populate from live entity ownership, leash, AI-target,
+// last-attacker and projectile-owner state once the entity simulation exposes them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EntityRelationKind {
+    /// `OwnableEntity.getOwner()`.
+    Owner,
+    /// `Leashable.getLeashHolder()`.
+    Leasher,
+    /// `Targeting.getTarget()`.
+    Target,
+    /// `Attackable.getLastAttacker()`.
+    Attacker,
+    /// `Entity.getControllingPassenger()`.
+    Controller,
+    /// `TraceableEntity.getOwner()`.
+    Origin,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EntityRelation {
+    pub entity: EntityRef,
+    pub kind: EntityRelationKind,
+    pub target: EntityRef,
+}
+
+/// A chunk known to the command model (`ServerChunkCache.getChunkNow`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoadedChunk {
+    pub dimension: String,
+    pub chunk_x: i32,
+    pub chunk_z: i32,
+    /// `chunk.getFullStatus() == FullChunkStatus.ENTITY_TICKING` and its entities are loaded.
+    pub entity_ticking: bool,
+}
+
+/// A datapack loot predicate (`LootItemCondition`) as its decoded SNBT/JSON definition.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CommandLootPredicate {
+    pub id: String,
+    pub definition: Tag,
+}
+
+/// Java `ExecutionContext` cost accounting shared by every command of one top-level chain.
+///
+/// `quota` is Java's `commandQuota` (starts at `max_command_sequence_length`, at least 1) and
+/// `fork_limit` is `max_command_forks`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CommandExecutionBudget {
+    pub active: bool,
+    pub quota: i32,
+    pub fork_limit: i32,
+}

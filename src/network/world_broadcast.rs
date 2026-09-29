@@ -17,8 +17,18 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use crate::network::compression::CompressionState;
 use crate::network::varint::read_var_i32;
 
+/// One connection's pending packets plus its disconnect latch.
+#[derive(Default)]
+struct Inbox {
+    packets: VecDeque<Vec<u8>>,
+    /// Set by [`WorldPacketBus::disconnect`]: the last queued packet is the
+    /// disconnect notice and the session must close once it is flushed
+    /// (Java `ServerGamePacketListenerImpl.disconnect`).
+    closing: bool,
+}
+
 /// Per-connection inboxes keyed by the connection's registry token.
-type Inboxes = HashMap<u64, VecDeque<Vec<u8>>>;
+type Inboxes = HashMap<u64, Inbox>;
 
 /// Shared publish/subscribe hub for plain packet payloads.
 #[derive(Clone, Default)]
@@ -36,7 +46,7 @@ impl WorldPacketBus {
     /// Registers a connection. Dropping the returned [`Subscription`]
     /// unregisters it and discards anything still queued.
     pub fn subscribe(&self, token: u64) -> Subscription {
-        self.lock().insert(token, VecDeque::new());
+        self.lock().insert(token, Inbox::default());
         Subscription {
             bus: self.clone(),
             token,
@@ -47,7 +57,45 @@ impl WorldPacketBus {
     /// (Java `PlayerList.broadcastAll`).
     pub fn publish(&self, payload: &[u8]) {
         for inbox in self.lock().values_mut() {
-            inbox.push_back(payload.to_vec());
+            inbox.push(payload);
+        }
+    }
+
+    /// Queues `payload` for the one connection registered under `token`
+    /// (Java `ServerPlayer.connection.send`). Returns whether it was delivered,
+    /// i.e. the connection is subscribed and not already closing.
+    pub fn publish_to(&self, token: u64, payload: &[u8]) -> bool {
+        match self.lock().get_mut(&token) {
+            Some(inbox) if !inbox.closing => {
+                inbox.push(payload);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// Queues `payload` for every connection except `excluded`
+    /// (Java `PlayerList.broadcast(except, ...)`).
+    pub fn publish_except(&self, excluded: u64, payload: &[u8]) {
+        for (token, inbox) in self.lock().iter_mut() {
+            if *token != excluded {
+                inbox.push(payload);
+            }
+        }
+    }
+
+    /// Ends the session registered under `token`: queues `disconnect_payload`
+    /// (the play `ClientboundDisconnectPacket`) and latches the connection to
+    /// close once it has been flushed (Java `ServerGamePacketListenerImpl.disconnect`).
+    /// Returns whether the connection was subscribed and not already closing.
+    pub fn disconnect(&self, token: u64, disconnect_payload: &[u8]) -> bool {
+        match self.lock().get_mut(&token) {
+            Some(inbox) if !inbox.closing => {
+                inbox.push(disconnect_payload);
+                inbox.closing = true;
+                true
+            }
+            _ => false,
         }
     }
 
@@ -61,6 +109,15 @@ impl WorldPacketBus {
             self.publish(payload);
         }
         Ok(())
+    }
+}
+
+impl Inbox {
+    /// Appends a packet unless the connection is already closing.
+    fn push(&mut self, payload: &[u8]) {
+        if !self.closing {
+            self.packets.push_back(payload.to_vec());
+        }
     }
 }
 
@@ -79,13 +136,22 @@ impl Subscription {
         compression: CompressionState,
     ) -> io::Result<usize> {
         let pending: Vec<Vec<u8>> = match self.bus.lock().get_mut(&self.token) {
-            Some(inbox) => inbox.drain(..).collect(),
+            Some(inbox) => inbox.packets.drain(..).collect(),
             None => Vec::new(),
         };
         for payload in &pending {
             writer.write_all(&compression.encode_packet(payload)?)?;
         }
         Ok(pending.len())
+    }
+
+    /// Whether [`WorldPacketBus::disconnect`] ended this connection. Check it
+    /// after [`Self::drain_into`] so the disconnect notice is flushed first.
+    pub fn is_closing(&self) -> bool {
+        self.bus
+            .lock()
+            .get(&self.token)
+            .is_some_and(|inbox| inbox.closing)
     }
 }
 

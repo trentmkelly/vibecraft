@@ -1,3 +1,6 @@
+// Ported Java argument/model surface; only part of it is reached from the live command path.
+#![allow(dead_code)]
+
 use std::collections::HashMap;
 
 use crate::command_shared_suggestion_provider::{

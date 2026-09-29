@@ -374,7 +374,7 @@ fn execute_facing_updates_nested_command_source_rotation() {
     let position_facing = execute_builtin_command(
         &mut state,
         LevelBasedPermissionSet::GAMEMASTER,
-        "execute facing 10 64 0 run spawn_armor_trims sentry",
+        "execute facing 10.0 64.0 0.0 run spawn_armor_trims sentry",
     )
     .unwrap();
     assert_eq!(position_facing.success_count, 1);

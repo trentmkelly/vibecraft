@@ -1,14 +1,24 @@
 //! `FuelValues` — the fuel-item → burn-time registry. Split from
 //! `recipe_system.rs` to keep it under the 1200-line limit.
 //!
-//! `vanilla_from_tags` is the production 1:1 builder; it has no live caller yet
-//! because the furnace block entity is not ticked in production (see
-//! `TODO(cooking-server-wiring)` in `vault_banner_furnace.rs`).
+//! `vanilla_from_tags` is the production 1:1 builder; [`FuelValues::from_vanilla_data`]
+//! feeds it the bundled item tags and is what the live furnace ticker uses
+//! (`live_block_entities::furnace`).
 #![allow(dead_code)]
 
 use super::{FuelValues, ItemTagMap};
 
 impl FuelValues {
+    /// `FuelValues.vanillaBurnTimes(registries, features)` with the default
+    /// `baseUnit` (`AbstractFurnaceBlockEntity.BURN_TIME_STANDARD` = 200), built
+    /// from the item tag JSON in `tag_dir` (`data/minecraft/tags/item`).
+    pub fn from_vanilla_data(tag_dir: &std::path::Path) -> Self {
+        Self::vanilla_from_tags(
+            &super::load_item_tag_directory(tag_dir),
+            crate::block_entity::AbstractFurnaceBlockEntity::BURN_TIME_STANDARD,
+        )
+    }
+
     /// `FuelValues.vanillaBurnTimes` — the 1:1 burn-time registry, built from the
     /// loaded vanilla item tags. Mirrors the Java `Builder`: each item/tag is added
     /// (tags expanded to their members, last write wins), then every

@@ -37,6 +37,7 @@ mod block_behaviour_defaults_tests;
 mod block_behaviour_properties;
 mod block_catalog;
 mod block_entity;
+mod live_block_entities;
 mod block_metadata;
 mod block_placement;
 mod block_properties;
@@ -137,7 +138,6 @@ mod command_message_argument;
 mod command_misc_argument_audits;
 #[cfg(test)]
 mod command_nbt_arguments;
-#[cfg(test)]
 mod command_nbt_path_argument;
 #[cfg(test)]
 mod command_objective_argument;
@@ -194,15 +194,12 @@ mod command_set_spawn;
 mod command_set_idle_timeout;
 #[cfg(test)]
 mod command_set_world_spawn;
-#[cfg(test)]
 mod command_selector;
-#[cfg(test)]
 mod command_shared_suggestion_provider;
 #[cfg(test)]
 mod command_spectate;
 #[cfg(test)]
 mod command_signing_context;
-#[cfg(test)]
 mod command_slot_arguments;
 #[cfg(test)]
 mod command_source;
@@ -230,6 +227,7 @@ mod command_template_transform_arguments;
 #[cfg(test)]
 mod command_time_argument;
 mod command_tree;
+mod brigadier;
 #[cfg(test)]
 mod command_uuid_argument;
 mod color_rgba;
@@ -382,7 +380,6 @@ mod criterion_lightning_strike;
 mod criterion_location_predicate;
 #[cfg(test)]
 mod criterion_loot_table_trigger;
-#[cfg(test)]
 mod criterion_min_max_bounds;
 #[cfg(test)]
 mod criterion_movement_predicate;
@@ -595,6 +592,8 @@ mod item_disc_fragment;
 mod item_dyed_color_component;
 mod item_dye;
 mod item_entity;
+mod respawn_resolution;
+mod xp_orb_entity;
 #[cfg(test)]
 mod item_family_behavior;
 mod item_flint_and_steel;
@@ -687,6 +686,7 @@ mod recipe_system;
 mod reference_ids;
 mod redstone;
 mod registry;
+mod registry_pipeline;
 mod reloadable_server_resources;
 mod reloadable_server_registries;
 mod resource_delegating_ops;

@@ -51,6 +51,15 @@ use server_data_debug::*;
 mod execute_experience_profile;
 use execute_experience_profile::*;
 
+mod execute_args;
+mod execute_command;
+use execute_command::execute_command;
+mod execute_condition_support;
+mod execute_conditions;
+mod execute_math;
+mod execute_runner;
+mod execute_store;
+
 mod enchant_gamemode_rules;
 use enchant_gamemode_rules::*;
 

@@ -117,6 +117,9 @@ impl BlockEntity {
         }
     }
 
+    /// `BlockEntity.getUpdateTag` per type. Types whose Java override returns
+    /// `saveCustomOnly` (sign, skull, beacon, conduit, jigsaw, creaking heart,
+    /// decorated pot, structure/test blocks, end gateway) carry no `components`.
     pub fn get_update_tag(&self) -> Tag {
         match self.ty {
             BlockEntityTypeId::Chest
@@ -127,6 +130,11 @@ impl BlockEntity {
             | BlockEntityTypeId::Dropper => Tag::Compound(Vec::new()),
             BlockEntityTypeId::Sign
             | BlockEntityTypeId::HangingSign
+            | BlockEntityTypeId::Beacon
+            | BlockEntityTypeId::Conduit
+            | BlockEntityTypeId::Jigsaw
+            | BlockEntityTypeId::CreakingHeart
+            | BlockEntityTypeId::DecoratedPot
             | BlockEntityTypeId::Skull
             | BlockEntityTypeId::EndGateway
             | BlockEntityTypeId::TrialSpawner
